@@ -6,6 +6,8 @@ import {
 } from '../domain/case-urgency';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
+import { privateDetailsAad } from '../../../common/secrets/field-aad';
+import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
 import { Prisma, type Case, type PracticeArea } from '@prisma/client';
 import {
   decodeCursor,
@@ -105,6 +107,8 @@ export class CasesFeedService {
     @Optional() private readonly recommendations?: RecommendationsService,
     // Owner 2026-10-18 (OQ-054): the activity line on the card.
     @Optional() private readonly clientActivity?: ClientActivityService,
+    // S3-5: private details are stored sealed (only their length is shown).
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
 
   /** GET /cases (docs/04 §4.2). Empty page, not an error, for a caller
@@ -565,7 +569,14 @@ export class CasesFeedService {
           imagesCount: files.get(c.id)?.images ?? 0,
           documentsCount: files.get(c.id)?.documents ?? 0,
           descriptionLength: c.description.length,
-          privateDetailsLength: c.private_details?.length ?? 0,
+          privateDetailsLength: !c.private_details
+            ? 0
+            : (
+                this.cipher?.openField(
+                  c.private_details,
+                  privateDetailsAad(c.id),
+                ) ?? c.private_details
+              ).length,
         },
       });
     }
@@ -649,21 +660,35 @@ export class CasesFeedService {
     }
   }
 
-  /** Fire-and-forget impression counter for promoted cases shown. */
+  /** Fire-and-forget impression counter for promoted cases shown. Owner
+   * 2026-10-25 (DB audit finding 8): one pending delta per promotion through
+   * the counter aggregator instead of an UPDATE of every hot promotion row
+   * for every feed page. */
   private countImpressions(caseIds: string[]): void {
     const now = new Date();
     void Promise.resolve()
-      .then(() =>
-        this.prisma.casePromotion.updateMany({
-          where: {
-            case_id: { in: caseIds },
-            status: 'active',
-            starts_at: { lte: now },
-            ends_at: { gt: now },
-          },
-          data: { impressions: { increment: 1 } },
-        }),
-      )
+      .then(async () => {
+        const where = {
+          case_id: { in: caseIds },
+          status: 'active' as const,
+          starts_at: { lte: now },
+          ends_at: { gt: now },
+        };
+        if (!this.counters) {
+          await this.prisma.casePromotion.updateMany({
+            where,
+            data: { impressions: { increment: 1 } },
+          });
+          return;
+        }
+        const live = await this.prisma.casePromotion.findMany({
+          where,
+          select: { id: true },
+        });
+        for (const p of live) {
+          await this.counters.bump('case_promotion', p.id, 'impressions', 1);
+        }
+      })
       .catch(() => undefined);
   }
 }

@@ -77,6 +77,8 @@ export const CRON_JOBS = {
   disappearingSweep: 'chat.disappearing',
   /** OQ-041: unanswered calls → missed, abandoned ones → ended. */
   callsSweep: 'calls.sweep',
+  /** S1-3: 1:1 messages whose live event / badge / push died after commit. */
+  chatRedeliver: 'chat.redeliver',
   /** Owner 2026-09-30: undecided client-review appeals → removed. */
   reviewAppealsSweep: 'review-appeals.sweep',
   /** Owner 2026-10-01: reels — expired uploads, stuck encodes, purges. */
@@ -211,6 +213,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.opsBusinessMetrics, pattern: '*/10 * * * *' },
   { name: CRON_JOBS.callsSweep, pattern: '* * * * *' },
   { name: CRON_JOBS.disappearingSweep, pattern: '*/2 * * * *' },
+  { name: CRON_JOBS.chatRedeliver, pattern: '* * * * *' },
   { name: CRON_JOBS.reviewAppealsSweep, pattern: '40 * * * *' },
   { name: CRON_JOBS.videosSweep, pattern: '* * * * *' },
   { name: CRON_JOBS.promotionsExpire, pattern: '2-57/5 * * * *' },

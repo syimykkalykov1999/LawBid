@@ -11,6 +11,7 @@ import { S3StorageService } from '../files/storage/s3-storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NOTIFICATION_EMAIL } from '../notifications/push/push.constants';
 import { DATA_EXPORT_LINK_TTL_SEC } from './privacy.constants';
+import { privateDetailsAad } from '../../common/secrets/field-aad';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { emailFlowsOn } from '../feature-flags/email-flows';
@@ -227,11 +228,23 @@ export class DataExportService {
         ),
       'cases.json': () =>
         array(
-          fetchById((a) =>
-            p.case.findMany({
-              where: { client_id: userId },
-              orderBy: { id: 'asc' },
-              ...a,
+          fetchById(
+            (a) =>
+              p.case.findMany({
+                where: { client_id: userId },
+                orderBy: { id: 'asc' },
+                ...a,
+              }),
+            // S3-5: the private details are stored sealed; the owner gets plain text.
+            (c) => ({
+              ...c,
+              private_details:
+                c.private_details === null
+                  ? null
+                  : (cipher?.openField(
+                      c.private_details,
+                      privateDetailsAad(c.id),
+                    ) ?? c.private_details),
             }),
           )(),
         ),

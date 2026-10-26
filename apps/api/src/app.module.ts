@@ -74,6 +74,7 @@ import { LegalQaModule } from './modules/legal-qa/legal-qa.module';
 import { ConsultationsModule } from './modules/consultations/consultations.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { GroupsModule } from './modules/groups/groups.module';
+import { CaseFanoutModule } from './modules/notifications/case-fanout/case-fanout.worker';
 import { GroupFanoutModule } from './modules/groups/group-fanout.module';
 import { ForwardModule } from './modules/forward/forward.module';
 import { ChatSavedModule } from './modules/chat-saved/chat-saved.module';
@@ -146,6 +147,7 @@ import {
 } from './common/middleware/request-id.middleware';
 import { DemoHeaderMiddleware } from './common/demo/demo-header.middleware';
 import { DemoModule } from './modules/demo/demo.module';
+import { scrubLogObject } from './telemetry/scrub';
 import {
   compactReq,
   compactRes,
@@ -203,6 +205,22 @@ export const pinoHttpOptions: PinoHttpOptions = {
       'req.body.secret',
       'req.body.apiKey',
       'req.headers["stripe-signature"]',
+      // S3-12 (2026-10-25): wildcards, so a header or key nested one level
+      // under any object is removed too, and provider SDK errors (axios
+      // from Twilio / Stripe / Bunny) never write the request they sent.
+      '*.authorization',
+      '*.cookie',
+      '*.apiKey',
+      '*.api_key',
+      '*.password',
+      '*.token',
+      '*.secret',
+      'err.config.headers.*',
+      'err.config.auth',
+      'err.config.data',
+      'err.response.config.*',
+      'err.response.headers["set-cookie"]',
+      'res.headers["set-cookie"]',
     ],
     censor: '[REDACTED]',
   },
@@ -211,6 +229,8 @@ export const pinoHttpOptions: PinoHttpOptions = {
   // the Bunny webhook token removed; docs/05 §7.6: search text is never
   // logged), the status and the user; no headers or bodies. CloudWatch
   // bills per GB, and the full request object was most of every line.
+  // S3-12: the error text goes through the same scrubber as Sentry's.
+  formatters: { log: scrubLogObject },
   serializers: {
     req: compactReq,
     res: compactRes,
@@ -395,6 +415,7 @@ const isDev =
     // Owner 2026-10-22 (server load audit, finding 7): group fan-out
     // jobs, consumed here while JOBS_ENABLED.
     GroupFanoutModule.register({ mode: 'api' }),
+    CaseFanoutModule.register({ mode: 'api' }),
     // Owner 2026-10-21 (Telegram «Переслать»): one forward into many chats.
     ForwardModule,
     // Owner 2026-10-20: time, expenses, invoice, e-signature, document forms.
