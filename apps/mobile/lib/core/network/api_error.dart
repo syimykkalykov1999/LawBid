@@ -275,11 +275,8 @@ abstract final class ApiErrorCodes {
   static const adminCredentialsInvalid = 'ADMIN_CREDENTIALS_INVALID';
   static const adminLoginTaken = 'ADMIN_LOGIN_TAKEN';
   static const adminRecoveryFailed = 'ADMIN_RECOVERY_FAILED';
-  // Owner 2026-10-22: mandatory authenticator, second admin's approval.
+  // Owner 2026-10-22: mandatory authenticator.
   static const adminTotpSetupRequired = 'ADMIN_TOTP_SETUP_REQUIRED';
-  static const adminApprovalPending = 'ADMIN_APPROVAL_PENDING';
-  static const adminApprovalSelf = 'ADMIN_APPROVAL_SELF';
-  static const adminApprovalNotPending = 'ADMIN_APPROVAL_NOT_PENDING';
   static const referralCodeInvalid = 'REFERRAL_CODE_INVALID';
   static const referralNotAllowed = 'REFERRAL_NOT_ALLOWED';
   static const referralInvalidState = 'REFERRAL_INVALID_STATE';
@@ -527,9 +524,6 @@ abstract final class ApiErrorCodes {
     adminLoginTaken,
     adminRecoveryFailed,
     adminTotpSetupRequired,
-    adminApprovalPending,
-    adminApprovalSelf,
-    adminApprovalNotPending,
     referralCodeInvalid,
     referralNotAllowed,
     referralInvalidState,

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
@@ -308,6 +309,7 @@ class _MicAvatar extends StatelessWidget {
                   url!,
                   // Signed URLs change per request: cache by the path.
                   cacheKey: Uri.parse(url!).path,
+                  cacheManager: AppImageCaches.chatMedia,
                 ),
         ),
         PositionedDirectional(

@@ -238,14 +238,6 @@ export enum ErrorCode {
   // 401 (owner 2026-10-22): this admin has no authenticator yet — sign in
   // again; the sign-in walks through the forced authenticator setup.
   ADMIN_TOTP_SETUP_REQUIRED = 'ADMIN_TOTP_SETUP_REQUIRED',
-  // Owner 2026-10-22 (maker-checker, billing.dual_approval_min_cents):
-  // 409: the action was NOT run — it waits for a second admin's approval
-  // (details.approvalId).
-  ADMIN_APPROVAL_PENDING = 'ADMIN_APPROVAL_PENDING',
-  // 403: the admin who asked cannot approve their own request.
-  ADMIN_APPROVAL_SELF = 'ADMIN_APPROVAL_SELF',
-  // 409: the request was already decided (or expired after 72 hours).
-  ADMIN_APPROVAL_NOT_PENDING = 'ADMIN_APPROVAL_NOT_PENDING',
   // Moderation (docs/06 §3, stage 6.4)
   // 422: the rule-based check (blocked terms) refused the publication.
   CONTENT_BLOCKED = 'CONTENT_BLOCKED',
