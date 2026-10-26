@@ -68663,6 +68663,83 @@
         ]
       }
     },
+    "/admin/system-health/queues/retry-failed": {
+      "post": {
+        "operationId": "retryFailedJobs",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueRetryResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Retry failed background jobs and replay Stripe dead letters (needs step-up)",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
     "/admin/system-health/heavy-jobs": {
       "post": {
         "operationId": "setHeavyJobsPaused",
@@ -150962,6 +151039,45 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/ScaleExtrasDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "QueueRetryResultDto": {
+        "type": "object",
+        "properties": {
+          "retried": {
+            "type": "number",
+            "description": "Failed jobs put back in their queues."
+          },
+          "stripeReplayed": {
+            "type": "number",
+            "description": "Stripe events moved from the dead-letter queue to processing."
+          },
+          "byQueue": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Per queue: failed jobs retried."
+          }
+        },
+        "required": [
+          "retried",
+          "stripeReplayed",
+          "byQueue"
+        ]
+      },
+      "QueueRetryResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/QueueRetryResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
