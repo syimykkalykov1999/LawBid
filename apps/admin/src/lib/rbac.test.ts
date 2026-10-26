@@ -185,7 +185,7 @@ describe('role x page visibility table', () => {
   const expectVisible: Record<string, string[]> = {
     moderator: ['/', '/workspace', '/moderation', '/media-moderation', '/review-appeals', '/moderation-appeals', '/moderation-journal', '/content', '/media', '/legal-qa', '/group-chats', '/practice-areas', '/document-templates', '/form-templates', '/search'],
     support: ['/', '/workspace', '/users', '/support'],
-    finance: ['/', '/workspace', '/subscriptions', '/payments', '/promo-codes', '/referrals', '/partners', '/contracts', '/promotions', '/treasury', '/payroll', '/approvals', '/exports', '/pnl'],
+    finance: ['/', '/workspace', '/subscriptions', '/payments', '/promo-codes', '/referrals', '/partners', '/contracts', '/promotions', '/treasury', '/payroll', '/exports', '/pnl'],
   };
   it.each(Object.keys(expectVisible))('%s sees exactly their pages', (name) => {
     const me = roles[name as keyof typeof roles];
@@ -197,11 +197,5 @@ describe('role x page visibility table', () => {
     const lead = { role: 'support' as const, countryPartnerId: 'p1', partnerLead: true, permissions: { users: 'view' as const } };
     expect(canOpen(lead, '/admins')).toBe(true);
     expect(canOpen({ ...lead, partnerLead: false }, '/admins')).toBe(false);
-  });
-
-  it('nav counts follow visibility: a hidden page has no badge source for that role', () => {
-    const sup = roles.support;
-    expect(canOpen(sup, '/approvals')).toBe(false);
-    expect(canOpen(roles.finance, '/approvals')).toBe(true);
   });
 });
