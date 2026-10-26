@@ -76,6 +76,8 @@ export const CRON_JOBS = {
   searchIndex: 'search.index',
   /** Owner 2026-10-27: appeals of automatic moderation past the SLA. */
   moderationAppealSla: 'moderation.appeal-sla',
+  /** Owner 2026-10-25: experiment reports, guardrails, ranking_events partitions. */
+  experimentsMetrics: 'experiments.metrics',
   /** Day-one foundations: nightly money-ledger checks + Stripe comparison. */
   ledgerReconcile: 'ledger.reconcile',
   /** DB-ops hardening: daily table size / dead-tuple ratio / txid age → log metrics. */
@@ -232,6 +234,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.searchTagTopics, pattern: '3-58/5 * * * *' },
   { name: CRON_JOBS.searchIndex, pattern: '* * * * *' },
   { name: CRON_JOBS.moderationAppealSla, pattern: '25 * * * *' },
+  // 02:20 UTC: after a full UTC day of events, before the US morning.
+  { name: CRON_JOBS.experimentsMetrics, pattern: '20 2 * * *' },
   { name: CRON_JOBS.crashesPurge, pattern: '40 3 * * *' },
   { name: CRON_JOBS.notificationsRetention, pattern: '40 4 * * *' },
   { name: CRON_JOBS.privacyAnonymize, pattern: '10 2 * * *' },

@@ -74,6 +74,21 @@ class HistoryAccessController extends Notifier<HistoryAccess> {
     };
   }
 
+  /// Owner 2026-10-08: a demo session cannot receive the code (the demo
+  /// world sends no SMS/e-mail), so the gate (`isDemoSessionProvider`)
+  /// offers this instead: `POST /auth/reauth/demo`, the same 5-minute
+  /// token without the code step. Only the UI is chosen here — the server
+  /// alone decides whether the session is a demo one and refuses the rest.
+  Future<void> continueDemo() async {
+    state = const HistoryAccess(busy: true);
+    final result = await ref.read(authRepositoryProvider).reauthDemo();
+    state = switch (result) {
+      ReauthSuccess(:final reauthToken) =>
+        HistoryAccess(token: reauthToken, issuedAt: DateTime.now()),
+      _ => const HistoryAccess(error: 'network'),
+    };
+  }
+
   /// A token was consumed (export / download) or refused: ask again.
   void lock() => state = const HistoryAccess();
 }
