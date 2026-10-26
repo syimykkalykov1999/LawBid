@@ -1488,6 +1488,9 @@ locals {
     # «search.engine» to shadow / engine (docs/architecture/SEARCH_READY.md).
     OPENSEARCH_URL      = var.growth.opensearch_enabled ? "https://${module.growth.opensearch_endpoint}" : ""
     OPENSEARCH_REPLICAS = tostring(module.growth.opensearch_replicas)
+    # N-11: set only with growth.opensearch_serverless_enabled; the app uses
+    # it when the admin sets «search.engine_kind» = serverless.
+    OPENSEARCH_SERVERLESS_URL = var.growth.opensearch_serverless_enabled ? one(module.opensearch_serverless[*].endpoint) : ""
   }
   critical_topic_arn = "arn:aws:sns:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${local.name}-critical"
   api_task_usd       = floor(730 * (var.api_cpu / 1024 * 0.04048 + var.api_memory / 1024 * 0.004445) * 100) / 100
