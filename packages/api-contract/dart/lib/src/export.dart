@@ -245,6 +245,8 @@ export 'models/admin_approvals_count_envelope.dart';
 export 'models/admin_approval_envelope.dart';
 export 'models/admin_approval_reject_dto.dart';
 export 'models/dashboard_new_users_dto.dart';
+export 'models/dashboard_role_totals_dto.dart';
+export 'models/dashboard_totals_dto.dart';
 export 'models/dashboard_verification_dto.dart';
 export 'models/dashboard_subscriptions_dto.dart';
 export 'models/dashboard_dto.dart';
