@@ -154,6 +154,23 @@ export function word(item: HealthItem): Worded {
                 : undefined,
       };
     }
+    case 'secret_rotation': {
+      type Row = { name: string; state: string; lastRotatedAt: string | null; nextDueAt: string | null };
+      const rows = (d.secrets as Row[] | undefined) ?? [];
+      const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('ru-RU') : '—');
+      const bad = rows.filter((r) => r.state === 'failed' || r.state === 'overdue' || r.state === 'unknown');
+      return {
+        title: 'Смена паролей и ключей',
+        line: rows
+          .map((r) => `${r.name}: ${r.state === 'off' ? 'выключена' : `последняя ${day(r.lastRotatedAt)}, следующая ${day(r.nextDueAt)}`}`)
+          .join('; '),
+        todo:
+          s === 'green'
+            ? undefined
+            : `Сорвалась или просрочена смена: ${bad.map((r) => r.name).join(', ')}. Приложение работает на прежних паролях, ничего не сломано; инструкция в runbook.`,
+        runbook: 'secrets-rotation.md',
+      };
+    }
     case 'stripe_webhooks':
       return {
         title: 'Платежи Stripe (вебхуки)',

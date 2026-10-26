@@ -1,7 +1,7 @@
 ---
 id: stripe-robustness-webhooks
 title: Stripe - события вебхука для споров, возвратов и выплат
-category: keys
+category: money
 cost: Бесплатно (Smart Disputes берёт комиссию только с выигранных споров)
 time: 15 минут
 verified: 2026-10-25
