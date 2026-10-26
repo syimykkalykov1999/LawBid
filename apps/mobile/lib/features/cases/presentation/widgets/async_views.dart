@@ -264,8 +264,9 @@ class AsyncDetailBody<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // A reload that still holds the previous value keeps showing it.
-    final shown =
-        value.isLoading && value.hasValue ? AsyncData(value.requireValue) : value;
+    final shown = value.isLoading && value.hasValue
+        ? AsyncData(value.requireValue)
+        : value;
     final Widget body = switch (shown) {
       AsyncData(:final value) => KeyedSubtree(
           key: const ValueKey('data'),
