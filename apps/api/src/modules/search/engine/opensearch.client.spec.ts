@@ -150,7 +150,7 @@ describe('OpenSearchClient', () => {
     expect(f).not.toHaveBeenCalled();
   });
 
-  it('searchIds returns ids best first; a missing index is an empty answer', async () => {
+  it('searchIds returns ids best first; a missing index (404) is an EngineError, not an empty answer', async () => {
     const f = jest
       .fn()
       .mockResolvedValueOnce(
@@ -166,7 +166,9 @@ describe('OpenSearchClient', () => {
       size: 10,
       _source: false,
     });
-    expect(await c.searchIds('post', { match_all: {} }, 10, 500)).toEqual([]);
+    await expect(
+      c.searchIds('post', { match_all: {} }, 10, 500),
+    ).rejects.toMatchObject({ status: 404 });
   });
 
   it('a server error or an unreachable engine is an EngineError', async () => {

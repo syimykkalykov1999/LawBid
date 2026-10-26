@@ -201,6 +201,8 @@ const KEY_TEXT: Record<string, string> = {
   'rate_limit.follow_per_day': 'Подписок в день.',
   'rate_limit.message_per_minute': 'Сообщений в минуту.',
   'rate_limit.search_per_minute': 'Поисковых запросов в минуту.',
+  'rate_limit.search_suggest_per_minute':
+    'Подсказок при наборе в поиске (темы, теги, практики) в минуту: отдельный, больший лимит, чтобы набор текста не съедал обычный поиск.',
   'rate_limit.report_per_day': 'Жалоб в день.',
   'rate_limit.video_upload_per_day': 'Загрузок видео в день.',
   'rate_limit.sticker_pack_create_per_day': 'Новых наборов стикеров в день.',

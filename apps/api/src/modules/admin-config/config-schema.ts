@@ -258,6 +258,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'rate_limit.case_create_per_day',
     'rate_limit.chat_save_per_minute',
     'rate_limit.forward_per_minute',
+    'rate_limit.search_suggest_per_minute',
   ] as const) {
     out[key] = { ...out[key], min: 1, max: 100000 };
   }
