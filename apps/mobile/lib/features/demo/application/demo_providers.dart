@@ -10,6 +10,11 @@ import 'package:lawbid/features/demo/data/demo_repository.dart';
 import 'package:lawbid/features/demo/domain/demo_models.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 
+// `isDemoSessionProvider` lives in core/session (a feature outside demo may
+// read it without depending on this feature — feature_boundaries_test).
+export 'package:lawbid/core/session/session_providers.dart'
+    show isDemoSessionProvider;
+
 const _kBannerHiddenKey = 'demo.banner_hidden';
 
 final demoRepositoryProvider = Provider<DemoRepository>(
@@ -20,12 +25,6 @@ final demoRepositoryProvider = Provider<DemoRepository>(
 /// false for everyone without the demo right — the section stays hidden.
 final demoMeProvider = FutureProvider.autoDispose<DemoMe>(
   (ref) => ref.watch(demoRepositoryProvider).me(),
-);
-
-/// Whether the CURRENT session is a demo one (access-token claim `demo`).
-final isDemoSessionProvider = Provider<bool>(
-  (ref) =>
-      ref.watch(sessionControllerProvider.select((s) => s?.isDemo)) ?? false,
 );
 
 @immutable

@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/cases/application/case_history_controller.dart';
-import 'package:lawbid/features/demo/application/demo_providers.dart';
 
 /// Re-authentication gate (docs/04 §12, docs/06 §5.2): a code to the
 /// verified phone → `POST /auth/reauth`; the resulting token lives in
