@@ -27,9 +27,6 @@ class _Store extends TokenSecureStore {
   int clears = 0;
 
   @override
-  Future<void> migrateAccessibilityOnce() async {}
-
-  @override
   Future<String?> readRefreshToken() async {
     final e = readError;
     // ignore: only_throw_errors

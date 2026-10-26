@@ -39,6 +39,9 @@ abstract final class ApiErrorCodes {
   static const authOtpLocked = 'AUTH_OTP_LOCKED';
   static const authOtpRequestLimit = 'AUTH_OTP_REQUEST_LIMIT';
 
+  /// Owner 2026-10-25: a new password found in a breach / the common list.
+  static const authPasswordCompromised = 'AUTH_PASSWORD_COMPROMISED';
+
   /// Owner 2026-10-16: the number is registered; an SMS code is only for new
   /// numbers (sign in with the password, or set one through the reset).
   static const authPhoneRegistered = 'AUTH_PHONE_REGISTERED';
@@ -353,6 +356,7 @@ abstract final class ApiErrorCodes {
     authSocialProviderUnavailable,
     authProviderDisabled,
     authInvalidCredentials,
+    authPasswordCompromised,
     postAttachmentsNotAllowed,
     accountExistsUseOtherMethod,
     identifierAlreadyLinked,

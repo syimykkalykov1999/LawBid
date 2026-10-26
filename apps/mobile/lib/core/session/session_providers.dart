@@ -69,8 +69,8 @@ class SessionController extends _$SessionController {
     final bool isDemo;
     try {
       // S15-2: a keychain / keystore error must end in the offline state
-      // (with its auto-retry), never in a splash that never finishes.
-      await store.migrateAccessibilityOnce();
+      // (with its auto-retry), never in a splash that never finishes. The
+      // move to the hardened keychain class happens inside the read (S3-8).
       refreshToken = _pendingPersist?.token ?? await store.readRefreshToken();
       isDemo = refreshToken != null && await store.readRefreshTokenIsDemo();
     } on Object catch (e) {

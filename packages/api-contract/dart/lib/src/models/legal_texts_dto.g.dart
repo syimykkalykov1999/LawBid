@@ -13,6 +13,13 @@ LegalTextsDto _$LegalTextsDtoFromJson(Map<String, dynamic> json) =>
       supportNote: json['supportNote'] as String,
       partnerDisclosure: json['partnerDisclosure'] as String,
       partnerTerms: json['partnerTerms'] as String,
+      attorneyAdvertisingLabel: json['attorneyAdvertisingLabel'] as String?,
+      priorResultsDisclaimer: json['priorResultsDisclaimer'] as String?,
+      badgeExplainer: json['badgeExplainer'] as String?,
+      bestAnswerNote: json['bestAnswerNote'] as String?,
+      translationNote: json['translationNote'] as String?,
+      reviewReplyWarning: json['reviewReplyWarning'] as String?,
+      sponsoredLabel: json['sponsoredLabel'] as String?,
     );
 
 Map<String, dynamic> _$LegalTextsDtoToJson(LegalTextsDto instance) =>
@@ -22,4 +29,11 @@ Map<String, dynamic> _$LegalTextsDtoToJson(LegalTextsDto instance) =>
       'supportNote': instance.supportNote,
       'partnerDisclosure': instance.partnerDisclosure,
       'partnerTerms': instance.partnerTerms,
+      'attorneyAdvertisingLabel': ?instance.attorneyAdvertisingLabel,
+      'priorResultsDisclaimer': ?instance.priorResultsDisclaimer,
+      'badgeExplainer': ?instance.badgeExplainer,
+      'bestAnswerNote': ?instance.bestAnswerNote,
+      'translationNote': ?instance.translationNote,
+      'reviewReplyWarning': ?instance.reviewReplyWarning,
+      'sponsoredLabel': ?instance.sponsoredLabel,
     };

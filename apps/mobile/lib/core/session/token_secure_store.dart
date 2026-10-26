@@ -1,24 +1,8 @@
-import 'package:flutter/foundation.dart'
-    show TargetPlatform, debugPrint, defaultTargetPlatform, kIsWeb;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 const _kRefreshTokenKey = 'auth.refresh_token';
 const _kRefreshTokenIsDemoKey = 'auth.refresh_token_demo';
 const _kRealRefreshTokenKey = 'lawbid.realRefreshToken';
-const _kAccessibilityMigratedKey = 'auth.keychain_accessibility_v2';
-
-/// S15-2: a push- or call-woken app on a LOCKED phone must still read its
-/// refresh token. The plugin default (`unlocked`) refuses that; this
-/// is readable after the first unlock since boot and never leaves the device.
-const _kIosOptions = IOSOptions(
-  accessibility: KeychainAccessibility.first_unlock_this_device,
-);
-
-/// S15-2: when the Android keystore cannot unwrap its key ("Failed to unwrap
-/// key", after a restore or a lock-screen change) the plugin drops the
-/// unreadable data and answers null instead of throwing forever: the user
-/// signs in again instead of a blank splash.
-const _kAndroidOptions = AndroidOptions(resetOnError: true);
 
 /// Thin wrapper over [FlutterSecureStorage], refresh-token only
 /// (docs/01_FOUNDATION_AUTH.md §10.4: the refresh token is the one
@@ -41,13 +25,31 @@ const _kAndroidOptions = AndroidOptions(resetOnError: true);
 /// the cookie holds the credential" — and [wireValue] turns it back into
 /// the empty `refreshToken` the API reads as "use the cookie". A script on
 /// the page can no longer read anything worth stealing.
+///
+/// Security pass 2026-10-25 (S3-8): the refresh token lives in the Keychain
+/// class `first_unlock_this_device` (like `DeviceKey`), so an encrypted
+/// backup restored on another phone does not clone a signed-in session, and
+/// on Android in EncryptedSharedPreferences with `resetOnError`. A token a
+/// previous version stored with the default options is moved on first read
+/// ([_read]).
 class TokenSecureStore {
-  const TokenSecureStore([FlutterSecureStorage? storage])
-      : _storage = storage ??
-            const FlutterSecureStorage(
-              iOptions: _kIosOptions,
-              aOptions: _kAndroidOptions,
-            );
+  const TokenSecureStore([
+    FlutterSecureStorage? storage,
+    FlutterSecureStorage? legacy,
+  ]) : _storage = storage ?? hardenedStorage,
+       _legacy =
+           legacy ?? (storage == null ? const FlutterSecureStorage() : null);
+
+  /// The storage the tokens are kept in.
+  static const hardenedStorage = FlutterSecureStorage(
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+      resetOnError: true,
+    ),
+  );
 
   /// Stored in place of a refresh token that lives in the web cookie.
   static const cookieMarker = 'cookie:';
@@ -60,48 +62,39 @@ class TokenSecureStore {
 
   final FlutterSecureStorage _storage;
 
-  /// S15-2: one-time rewrite of the existing keychain items under the new
-  /// accessibility class (delete + add: an update does not change it).
-  /// iOS only; a failure (locked phone, keychain error) is retried on the
-  /// next launch because the marker is written last. Never throws.
-  Future<void> migrateAccessibilityOnce() async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
+  /// The previous default-options storage, only to move old values (null in
+  /// tests that inject their own storage).
+  final FlutterSecureStorage? _legacy;
+
+  /// Reads [key]; when it is not in the hardened storage but is in the old
+  /// default one, moves it (delete the old item first, so the new
+  /// accessibility class is applied to a fresh item) and returns it. Never
+  /// throws for the legacy side: a failing old read is a missing value.
+  Future<String?> _read(String key) async {
+    final value = await _storage.read(key: key);
+    final legacy = _legacy;
+    if (value != null || legacy == null) return value;
+    String? old;
     try {
-      if (await _storage.read(key: _kAccessibilityMigratedKey) == '1') return;
-      for (final key in [
-        _kRefreshTokenKey,
-        _kRefreshTokenIsDemoKey,
-        _kRealRefreshTokenKey,
-      ]) {
-        final value = await _storage.read(key: key);
-        if (value == null) continue;
-        await _storage.delete(key: key);
-        await _rewrite(key, value);
-      }
-      await _storage.write(key: _kAccessibilityMigratedKey, value: '1');
-    } on Object catch (e) {
-      debugPrint('keychain accessibility migration deferred: $e');
+      old = await legacy.read(key: key);
+    } on Object {
+      return null;
     }
+    if (old == null) return null;
+    try {
+      await legacy.delete(key: key);
+      await _storage.write(key: key, value: old);
+    } on Object {
+      // The caller still gets the value; the move is retried next time.
+    }
+    return old;
   }
 
-  // The value was just deleted: it must not be lost to a transient error.
-  Future<void> _rewrite(String key, String value) async {
-    for (var attempt = 0;; attempt++) {
-      try {
-        await _storage.write(key: key, value: value);
-        return;
-      } on Object {
-        if (attempt >= 2) rethrow;
-        await Future<void>.delayed(const Duration(milliseconds: 200));
-      }
-    }
-  }
-
-  Future<String?> readRefreshToken() => _storage.read(key: _kRefreshTokenKey);
+  Future<String?> readRefreshToken() => _read(_kRefreshTokenKey);
 
   /// Whether the stored refresh token is a demo session's (false when none).
   Future<bool> readRefreshTokenIsDemo() async =>
-      await _storage.read(key: _kRefreshTokenIsDemoKey) == '1';
+      await _read(_kRefreshTokenIsDemoKey) == '1';
 
   Future<void> writeRefreshToken(String token, {bool isDemo = false}) async {
     await _storage.write(key: _kRefreshTokenKey, value: _stored(token));
@@ -119,8 +112,7 @@ class TokenSecureStore {
     await _storage.delete(key: _kRefreshTokenIsDemoKey);
   }
 
-  Future<String?> readRealRefreshToken() =>
-      _storage.read(key: _kRealRefreshTokenKey);
+  Future<String?> readRealRefreshToken() => _read(_kRealRefreshTokenKey);
 
   Future<void> writeRealRefreshToken(String token) =>
       _storage.write(key: _kRealRefreshTokenKey, value: _stored(token));
