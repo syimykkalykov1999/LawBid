@@ -1232,3 +1232,4 @@ PRINCIPLE (owner 07:55): assume the attacker is an automated AI (tireless, tries
 - NEXT after helpers report: 19:09 merged #411 (perf/cost follow-up to merged PRs).
 - NEXT after helpers report: 19:19 merged #387 (search hardening S7) by coordinator; train busy on #366.
 - NEXT after helpers report: 19:28 merged #424 (delta sync 2: channels/tasks/bids updatedSince).
+- NEXT after helpers report: 19:43 merged #401 (internal domain-event bus off/db/stream/auto) by coordinator.
