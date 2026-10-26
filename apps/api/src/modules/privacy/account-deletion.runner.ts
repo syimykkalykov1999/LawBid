@@ -18,6 +18,7 @@ import {
   type PrivacyModuleOptions,
 } from './privacy.constants';
 import { bullOptions } from '../../redis/redis-connection';
+import { closeWorker, workerTuning } from '../../common/queues/queue-hardening';
 
 interface DeletionJobData {
   userId: string;
@@ -81,6 +82,7 @@ export class AccountDeletionRunner
       // their rate limits and the database calm.
       {
         ...bullOptions(ACCOUNT_DELETION_QUEUE, url, { worker: true }),
+        ...workerTuning(ACCOUNT_DELETION_QUEUE),
         concurrency: 2,
       },
     );
@@ -128,7 +130,7 @@ export class AccountDeletionRunner
   }
 
   async onApplicationShutdown(): Promise<void> {
-    await this.worker?.close();
+    await closeWorker(this.worker);
     await this.queue?.close();
   }
 }

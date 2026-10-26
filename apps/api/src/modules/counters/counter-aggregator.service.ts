@@ -177,7 +177,7 @@ export class CounterAggregator
 
   onApplicationBootstrap(): void {
     this.timer = setInterval(() => {
-      this.flush().catch((error: unknown) =>
+      this.flush({ waitForRunning: false }).catch((error: unknown) =>
         this.logger.error(
           { err: error instanceof Error ? error.message : String(error) },
           'counter flush failed',
@@ -319,10 +319,28 @@ export class CounterAggregator
     return out;
   }
 
-  /** Applies all pending deltas; one flusher across pods. */
-  async flush(): Promise<{ rows: number }> {
+  /** Applies all pending deltas; one flusher across pods. An explicit call
+   * (the nightly job, tests) that finds another flush running waits for it
+   * (up to one flush period) and then runs, so what was pending when it was
+   * called has landed when it returns. The 10-second timer does not wait. */
+  async flush(
+    opts: { waitForRunning?: boolean } = {},
+  ): Promise<{ rows: number }> {
+    const first = await this.flushOnce();
+    if (first !== null || opts.waitForRunning === false) {
+      return { rows: first ?? 0 };
+    }
+    const until = Date.now() + COUNTER_FLUSH_MS;
+    while (Date.now() < until) {
+      if (!(await this.redis.exists('lock:job:counters.flush'))) break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return { rows: (await this.flushOnce()) ?? 0 };
+  }
+
+  private async flushOnce(): Promise<number | null> {
     await this.flushLocal();
-    const result = await withJobLock(
+    return withJobLock(
       this.redis,
       'counters.flush',
       COUNTER_FLUSH_MS,
@@ -338,7 +356,6 @@ export class CounterAggregator
         return rows;
       },
     );
-    return { rows: result ?? 0 };
   }
 
   private async flushField(
@@ -464,6 +481,66 @@ export class CounterAggregator
       },
     );
     return { rows: result ?? 0 };
+  }
+
+  /**
+   * Owner 2026-10-26 (stale profile counters): the nightly reconcile above
+   * only repairs rows touched in the last 2 days, so a profile whose
+   * counter once drifted stayed wrong for good. This walks the profile
+   * tables in id order (a cursor kept in Redis), [cap] rows per run per
+   * table, recounts them from posts / follows and fixes the ones that
+   * differ. A full lap takes ceil(rows / cap) nights; the cursor wraps.
+   */
+  async driftSweep(
+    cap: number,
+  ): Promise<{ scanned: number; fixed: number; wrapped: boolean }> {
+    if (cap <= 0) return { scanned: 0, fixed: 0, wrapped: false };
+    await this.flushLocal();
+    let scanned = 0;
+    let fixed = 0;
+    let wrapped = false;
+    for (const entity of ['attorney', 'client'] as const) {
+      const table = Prisma.raw(COUNTERS[entity].table);
+      const cursorKey = ck(entity, `cnt:drift-cursor:${entity}`);
+      const cursor =
+        (await this.redis.get(cursorKey)) ??
+        '00000000-0000-0000-0000-000000000000';
+      const before = await this.prisma.global().$queryRaw<
+        {
+          id: string;
+          p: number;
+          f: number;
+          g: number;
+        }[]
+      >(Prisma.sql`SELECT user_id::TEXT AS id, posts_count AS p,
+            followers_count AS f, following_count AS g
+          FROM ${table} WHERE user_id > ${cursor}::UUID
+          ORDER BY user_id LIMIT ${cap}`);
+      if (before.length < cap) {
+        wrapped = true;
+        await this.redis.del(cursorKey);
+      } else {
+        await this.redis.set(cursorKey, before[before.length - 1].id);
+      }
+      if (before.length === 0) continue;
+      const ids = before.map((r) => r.id);
+      for (const field of COUNTERS[entity].fields) {
+        await this.dropPending(entity, field, ids);
+      }
+      await this.recount(entity, ids);
+      const after = await this.prisma.global().$queryRaw<
+        { id: string; p: number; f: number; g: number }[]
+      >(Prisma.sql`SELECT user_id::TEXT AS id, posts_count AS p,
+            followers_count AS f, following_count AS g
+          FROM ${table} WHERE user_id = ANY(${ids}::UUID[])`);
+      const was = new Map(before.map((r) => [r.id, r]));
+      for (const r of after) {
+        const w = was.get(r.id);
+        if (w && (w.p !== r.p || w.f !== r.f || w.g !== r.g)) fixed += 1;
+      }
+      scanned += ids.length;
+    }
+    return { scanned, fixed, wrapped };
   }
 
   /** Forgets the pending deltas of [ids] (the recount is the truth). */

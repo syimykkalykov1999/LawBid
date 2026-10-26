@@ -7,6 +7,7 @@ import {
   timestampOf,
 } from './shard-id';
 import { shardOperationHandler } from './shard.extension';
+import { shardStats } from './shard-stats';
 
 type Args = Record<string, any>;
 interface Call {
@@ -278,5 +279,21 @@ describe('shard extension: ids and shard_id on create', () => {
       args: { sql: 'x' },
     });
     expect(sent).toEqual({ sql: 'x' });
+  });
+});
+
+describe('shard id v4 share counter (DB-ops S5-12)', () => {
+  it('counts v4 vs sharded ids of new rows', () => {
+    shardStats.drainIds();
+    shardStats.idInsert('Message', true);
+    shardStats.idInsert('Message', false);
+    shardStats.idInsert('Message', false);
+    expect(shardStats.drainIds()).toEqual({
+      v8: 1,
+      v4: 2,
+      share: 2 / 3,
+      v4ByModel: { Message: 2 },
+    });
+    expect(shardStats.drainIds()).toBeNull();
   });
 });
