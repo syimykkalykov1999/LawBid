@@ -201,6 +201,18 @@ export class AccountAnonymizationService {
    * largest table is never locked for long; idempotent (already scrubbed
    * rows are skipped). */
   private async scrubMessages(userId: string): Promise<void> {
+    // BUG-1 (package N-12b): the person's words leave the search index
+    // first (by message id, 5 000 rows per statement).
+    for (;;) {
+      const n = await this.prisma.$executeRaw`
+        DELETE FROM message_search_tokens
+        WHERE ctid IN (
+          SELECT st.ctid FROM message_search_tokens st
+          JOIN messages m ON m.id = st.message_id
+          WHERE m.sender_id = ${userId}::UUID
+          LIMIT 5000)`;
+      if (n < 5000) break;
+    }
     for (;;) {
       const n = await this.prisma.$executeRaw`
         UPDATE messages

@@ -12,6 +12,7 @@ import {
   NO_PUSH_TYPES,
   PUSH_JOB,
   PUSH_JOB_OPTS,
+  PUSH_PRIORITY,
   PUSH_QUEUE,
   type PushJobData,
 } from './push.constants';
@@ -19,7 +20,11 @@ import { demoContext } from '../../../common/demo/demo-context';
 import { bullOptions } from '../../../redis/redis-connection';
 
 /** Chat messages are committed before they're queued: no delay. */
-const MESSAGE_JOB_OPTS = { ...PUSH_JOB_OPTS, delay: 0 } as const;
+const MESSAGE_JOB_OPTS = {
+  ...PUSH_JOB_OPTS,
+  delay: 0,
+  priority: PUSH_PRIORITY.message,
+} as const;
 
 /**
  * Producer side of the `push` queue (docs/04 stage 4.8 "постановка push в
@@ -60,6 +65,7 @@ export class PushQueueService
         { kind: 'notification', notificationId, userId, push },
         {
           ...PUSH_JOB_OPTS,
+          priority: PUSH_PRIORITY.notification,
           jobId: seq === 1 ? notificationId : `${notificationId}-${seq}`,
         },
       );
@@ -95,7 +101,11 @@ export class PushQueueService
             userId: userIds[i],
             push,
           },
-          opts: { ...PUSH_JOB_OPTS, jobId: notificationId },
+          opts: {
+            ...PUSH_JOB_OPTS,
+            priority: PUSH_PRIORITY.bulk,
+            jobId: notificationId,
+          },
         })),
       );
     } catch (error) {
@@ -129,6 +139,7 @@ export class PushQueueService
         },
         opts: {
           ...MESSAGE_JOB_OPTS,
+          priority: PUSH_PRIORITY.group,
           jobId: `gm-${data.messageId}-${i / GROUP_PUSH_BATCH}`,
         },
       });
@@ -189,6 +200,7 @@ export class PushQueueService
         PUSH_JOB,
         { kind: 'call', ...data },
         {
+          priority: PUSH_PRIORITY.urgent,
           attempts: 2,
           backoff: { type: 'fixed', delay: 1_000 },
           removeOnComplete: { count: 1000 },
@@ -218,6 +230,7 @@ export class PushQueueService
         PUSH_JOB,
         { kind: 'call_end', ...data },
         {
+          priority: PUSH_PRIORITY.urgent,
           attempts: 2,
           backoff: { type: 'fixed', delay: 1_000 },
           removeOnComplete: { count: 1000 },
@@ -255,6 +268,7 @@ export class PushQueueService
         {
           ...PUSH_JOB_OPTS,
           delay: 0,
+          priority: PUSH_PRIORITY.urgent,
           jobId: `ops-${data.incidentId}-${data.event}-${seq}-${data.recipientId}`,
         },
       );
@@ -276,10 +290,17 @@ export class PushQueueService
       { ...data, deferred: true },
       {
         ...PUSH_JOB_OPTS,
+        priority: PUSH_PRIORITY.notification,
         delay: Math.max(0, until.getTime() - Date.now()),
         jobId: `${jobId}-q`,
       },
     );
+  }
+
+  /** S10-5: FCM said «too many requests» — the whole push queue (every
+   * worker) takes no job for [ms] (BullMQ queue-wide rate limit). */
+  async pauseFor(ms: number): Promise<void> {
+    await this.queue?.rateLimit(ms);
   }
 
   async onApplicationShutdown(): Promise<void> {
