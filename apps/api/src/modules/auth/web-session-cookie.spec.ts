@@ -180,6 +180,7 @@ describe('web session cookie', () => {
         {} as never,
         cookies(),
         {} as never,
+        {} as never, // DemoReauthService (#405)
       );
       return { auth, controller };
     };
