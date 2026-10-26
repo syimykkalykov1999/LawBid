@@ -34,6 +34,31 @@ function reminderKey(data: Record<string, string> | undefined): string | null {
  * exponential backoff). */
 export class FcmTemporaryError extends Error {}
 
+/** FCM answered 429 (quota / too many requests). Carries how long FCM asked
+ * us to wait; the push worker turns it into ONE queue-wide pause (S10-5)
+ * instead of every job retrying into the same limit. */
+export class FcmRateLimitError extends FcmTemporaryError {
+  constructor(readonly retryAfterMs: number) {
+    super(`FCM rate limited, retry after ${retryAfterMs} ms`);
+  }
+}
+
+/** Retry-After header (seconds or an HTTP date) → ms, bounded 1 s … 5 min;
+ * 60 s when FCM sent none (Google's guidance: back off at least a minute). */
+export function retryAfterMs(header: string | null | undefined): number {
+  const raw = header?.trim();
+  let ms = 60_000;
+  if (raw) {
+    const secs = Number(raw);
+    if (Number.isFinite(secs)) ms = secs * 1000;
+    else {
+      const at = Date.parse(raw);
+      if (!Number.isNaN(at)) ms = at - Date.now();
+    }
+  }
+  return Math.min(300_000, Math.max(1_000, ms));
+}
+
 /** Owner 2026-10-22: FCM's multicast size (sendEachForMulticast takes at
  * most 500 tokens) — the most device requests in flight at once. */
 export const FCM_MULTICAST_MAX = 500;
@@ -93,6 +118,7 @@ export class FcmPushSender implements PushSender {
     const sentKey = `push:sent:${dedupeKey}`;
     const { token: access } = await this.jwt.getAccessToken();
     let temporary = 0;
+    let rateLimitMs = 0;
     const skip = new Set(message.skipTokens ?? []);
     if (message.callEnd) {
       for (const t of await this.tokens.webTokens(message.userId)) skip.add(t);
@@ -321,6 +347,12 @@ export class FcmPushSender implements PushSender {
       }
       await this.redis.del(`${sentKey}:${device}`);
       temporary++;
+      if (res.status === 429) {
+        rateLimitMs = Math.max(
+          rateLimitMs,
+          retryAfterMs(res.headers?.get?.('retry-after')),
+        );
+      }
       this.slo?.count('pushFailed');
       this.logger.warn(
         { userId: message.userId, status: res.status, code },
@@ -328,6 +360,7 @@ export class FcmPushSender implements PushSender {
       );
     };
     await inChunks(devices, FCM_MULTICAST_MAX, one);
+    if (rateLimitMs > 0) throw new FcmRateLimitError(rateLimitMs);
     if (temporary > 0) {
       throw new FcmTemporaryError(`${temporary} device(s) failed`);
     }
@@ -341,6 +374,7 @@ export class FcmPushSender implements PushSender {
    */
   async sendMany(messages: PushMessage[], dedupeKey: string): Promise<void> {
     let temporary = 0;
+    let limited: FcmRateLimitError | undefined;
     for (let i = 0; i < messages.length; i += FCM_USERS_PER_BATCH) {
       const results = await Promise.allSettled(
         messages
@@ -349,10 +383,12 @@ export class FcmPushSender implements PushSender {
       );
       for (const r of results) {
         if (r.status === 'fulfilled') continue;
+        if (r.reason instanceof FcmRateLimitError) limited = r.reason;
         if (r.reason instanceof FcmTemporaryError) temporary++;
         else throw r.reason;
       }
     }
+    if (limited) throw limited;
     if (temporary > 0) {
       throw new FcmTemporaryError(`${temporary} recipient(s) failed`);
     }
