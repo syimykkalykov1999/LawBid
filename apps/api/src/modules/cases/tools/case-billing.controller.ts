@@ -29,6 +29,7 @@ import {
   EntryIdParamDto,
   InvoiceIdParamDto,
   IssueInvoiceDto,
+  RecordInvoicePaymentDto,
   RunningTimerDto,
   SetRateDto,
   StopTimerDto,
@@ -218,5 +219,21 @@ export class CaseBillingController {
     @Param() p: InvoiceIdParamDto,
   ) {
     return this.billing.remindInvoice(u, p.id, p.invoiceId);
+  }
+
+  @Post('cases/:id/billing/invoices/:invoiceId/payment')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Attorney: record money received outside the app (partially paid / paid)',
+  })
+  @ApiEnvelopeResponse(CaseBillingDto)
+  @ApiErrors(ERR)
+  recordCaseInvoicePayment(
+    @CurrentUser() u: RequestUser,
+    @Param() p: InvoiceIdParamDto,
+    @Body() dto: RecordInvoicePaymentDto,
+  ) {
+    return this.billing.recordPayment(u, p.id, p.invoiceId, dto);
   }
 }

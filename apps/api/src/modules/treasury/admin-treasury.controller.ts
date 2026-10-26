@@ -27,12 +27,14 @@ import {
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
   CreateTreasuryExpenseDto,
+  LedgerOverviewDto,
   TreasuryExpenseIdParamDto,
   TreasuryOverviewDto,
   TreasuryRunResultDto,
   UpdateTreasuryExpenseDto,
   UpdateTreasurySettingsDto,
 } from './treasury.dto';
+import { LedgerReconcileService } from '../ledger/ledger.public';
 import { TreasuryService } from './treasury.service';
 
 const E = ErrorCode;
@@ -56,6 +58,7 @@ export class AdminTreasuryController {
     private readonly treasury: TreasuryService,
     private readonly writer: AppSettingsWriter,
     private readonly auth: AdminAuthService,
+    private readonly ledger: LedgerReconcileService,
   ) {}
 
   @Get()
@@ -65,6 +68,35 @@ export class AdminTreasuryController {
   @ApiEnvelopeResponse(TreasuryOverviewDto)
   getTreasury(): Promise<TreasuryOverviewDto> {
     return this.treasury.overview();
+  }
+
+  @Get('ledger')
+  @ApiOperation({
+    summary:
+      'Money ledger: balance of every account and the last nightly reconciliation (read-only)',
+  })
+  @ApiEnvelopeResponse(LedgerOverviewDto)
+  async getLedger(): Promise<LedgerOverviewDto> {
+    const [balances, last] = await Promise.all([
+      this.ledger.balances(),
+      this.ledger.last(),
+    ]);
+    return {
+      balances,
+      last: last && {
+        ranAt: last.ranAt,
+        ok: last.ok,
+        entries: last.entries,
+        unbalancedEntries: last.unbalancedEntries,
+        missingPayments: last.missingEntries.payments,
+        missingCasePayments: last.missingEntries.casePayments,
+        caseRefundDriftCents: last.caseRefundDriftCents,
+        stripeStatus: last.stripe.status,
+        stripeDeltaCents:
+          last.stripe.status === 'compared' ? last.stripe.deltaCents : null,
+        problems: last.problems,
+      },
+    };
   }
 
   @Put('settings')

@@ -3,11 +3,12 @@ import type { CaseToolsConfig } from './case-tools.settings';
 
 const NOW = new Date('2026-11-10T09:00:00Z');
 const cfg = (over: Partial<CaseToolsConfig> = {}): CaseToolsConfig => ({
+  remindersMode: 'on',
+  remindersDailyCap: 0,
   invoiceDefaultDueDays: 0,
   invoiceReminderDays: [3, 0],
   invoiceOverdueEveryDays: 7,
   invoiceMaxReminders: 6,
-  invoicePayLink: false,
   lateFeePercent: 0,
   lateFeeGraceDays: 5,
   signExpiryDays: 0,
@@ -40,7 +41,6 @@ function make(rows: unknown[], config: CaseToolsConfig) {
       findMany: jest.fn().mockResolvedValue(rows),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
-    paymentRequest: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     caseSignRequest: {
       findMany: jest.fn().mockResolvedValue([]),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -89,7 +89,7 @@ describe('case tools sweep: invoices', () => {
     expect(writes.some((d) => 'late_fee_cents' in d)).toBe(false);
   });
 
-  it('adds the late fee once after the grace days and carries it to the pay link', async () => {
+  it('adds the late fee once after the grace days once', async () => {
     const { svc, prisma } = make(
       [invoice({ status: 'overdue' })],
       cfg({ lateFeePercent: 2 }),
@@ -103,9 +103,6 @@ describe('case tools sweep: invoices', () => {
     expect(feeWrite?.[0].where).toEqual({
       id: 'i1',
       late_fee_applied_at: null,
-    });
-    expect(prisma.paymentRequest.updateMany.mock.calls[0][0].data).toEqual({
-      amount_cents: { increment: 200 },
     });
   });
 
@@ -128,6 +125,42 @@ describe('case tools sweep: invoices', () => {
     prisma.caseInvoice.updateMany.mockResolvedValue({ count: 0 });
     await svc.sweepInvoices(NOW);
     expect(emit).not.toHaveBeenCalled();
+  });
+});
+
+describe('case tools sweep: modes and the daily cap', () => {
+  it('off: the job does nothing at all', async () => {
+    const { svc, prisma, emit } = make(
+      [invoice()],
+      cfg({ remindersMode: 'off' }),
+    );
+    expect(await svc.run(NOW)).toEqual({ skipped: 'off' });
+    expect(prisma.caseInvoice.findMany).not.toHaveBeenCalled();
+    expect(emit).not.toHaveBeenCalled();
+  });
+
+  it('auto: a quiet system is not scanned', async () => {
+    const { svc, prisma } = make([], cfg({ remindersMode: 'auto' }));
+    (prisma.caseInvoice as Record<string, unknown>).findFirst = jest
+      .fn()
+      .mockResolvedValue(null);
+    (prisma.caseSignRequest as Record<string, unknown>).findFirst = jest
+      .fn()
+      .mockResolvedValue(null);
+    expect(await svc.run(NOW)).toEqual({ skipped: 'no-work' });
+    expect(prisma.caseInvoice.findMany).not.toHaveBeenCalled();
+  });
+
+  it('the daily cap stops the reminders, not the overdue marking', async () => {
+    const rows = [
+      invoice({ id: 'a' }),
+      invoice({ id: 'b' }),
+      invoice({ id: 'c' }),
+    ];
+    const { svc, emit } = make(rows, cfg({ remindersDailyCap: 2 }));
+    const r = await svc.run(NOW);
+    expect(emit).toHaveBeenCalledTimes(2);
+    expect(r).toMatchObject({ invoices: { overdue: 3, reminded: 2 } });
   });
 });
 

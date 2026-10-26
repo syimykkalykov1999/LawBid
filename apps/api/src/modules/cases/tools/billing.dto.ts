@@ -6,6 +6,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUrl,
   IsUUID,
   Max,
   MaxLength,
@@ -141,6 +142,29 @@ export class IssueInvoiceDto {
   @IsOptional()
   @IsBoolean()
   remindersEnabled?: boolean;
+
+  @ApiPropertyOptional({
+    maxLength: 500,
+    description:
+      "The attorney's own external payment link (https). The app only shows it; the client pays outside the app.",
+  })
+  @IsOptional()
+  @Transform(tidy)
+  @IsUrl({ protocols: ['https'], require_protocol: true })
+  @MaxLength(500)
+  payUrl?: string;
+}
+
+export class RecordInvoicePaymentDto {
+  @ApiPropertyOptional({
+    description:
+      'Amount received outside the app, cents. Without it: the whole balance.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(EXPENSE_MAX_CENTS)
+  amountCents?: number;
 }
 
 export class InvoiceIdParamDto {
@@ -246,12 +270,11 @@ export class InvoiceDto {
   @ApiProperty() remindersEnabled!: boolean;
   @ApiProperty({
     type: String,
-    format: 'uuid',
     nullable: true,
     description:
-      'The open payment request (case-payments flow) that pays this invoice.',
+      "The attorney's own external payment link (never an in-app payment).",
   })
-  paymentRequestId!: string | null;
+  payUrl!: string | null;
 }
 
 export class RunningTimerDto {

@@ -8,7 +8,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import type Redis from 'ioredis';
 import { FeedRecoJob } from '../src/modules/feed/feed-reco.job';
-import { RECO_CURRENT_KEY } from '../src/modules/feed/feed.service';
+import { recoCurrentKey } from '../src/modules/feed/feed.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 
 /**
@@ -188,7 +188,7 @@ describe('Feed (e2e, docs/05 §2.2, stage 5.3)', () => {
       data: { blocker_id: reader.id, blocked_id: blocked.id },
     });
     // The recommendation job has not run yet (fresh install, Redis reset).
-    await app.get<Redis>(REDIS_CLIENT).del(RECO_CURRENT_KEY);
+    await app.get<Redis>(REDIS_CLIENT).del(recoCurrentKey());
 
     const all = await pageAll(reader.auth);
     expect(new Set(all).size).toBe(all.length);

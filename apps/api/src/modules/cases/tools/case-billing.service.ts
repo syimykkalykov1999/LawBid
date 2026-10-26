@@ -2,9 +2,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  Logger,
   NotFoundException,
-  Optional,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
@@ -14,8 +12,8 @@ import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import {
   balanceCents,
   isOpenInvoice,
+  statusAfterPayment,
 } from '../../../common/case-invoice-status';
-import { CasePaymentsService } from '../../case-payments/case-payments.service';
 import { FilesService } from '../../files/files.service';
 import { CaseJournalService } from '../../journal/case-journal.service';
 import { CaseWorkspaceService } from '../workspace/case-workspace.service';
@@ -38,6 +36,7 @@ import type {
   InvoiceDto,
   InvoiceLineDto,
   IssueInvoiceDto,
+  RecordInvoicePaymentDto,
   RunningTimerDto,
   TimeEntryDto,
   UpdateTimeDto,
@@ -70,10 +69,7 @@ export class CaseBillingService {
     private readonly journal: CaseJournalService,
     private readonly support: CaseToolsSupport,
     private readonly toolsSettings: CaseToolsSettings,
-    @Optional() private readonly payments?: CasePaymentsService,
   ) {}
-
-  private readonly log = new Logger(CaseBillingService.name);
 
   /** The viewer's side of the case; billing writes are attorney-only. */
   private async attorneySide(user: RequestUser, caseId: string) {
@@ -106,8 +102,7 @@ export class CaseBillingService {
         orderBy: { seq: 'desc' },
       }),
     ]);
-    const requestIds = await this.openRequestIds(invoices.map((i) => i.id));
-    const invoiceDtos = await this.invoiceDtos(invoices, requestIds);
+    const invoiceDtos = await this.invoiceDtos(invoices);
     if (s.role === 'client') {
       return {
         role: 'client',
@@ -487,6 +482,7 @@ export class CaseBillingService {
           due_at: dueAt,
           sent_at: draft ? null : now,
           reminders_enabled: dto.remindersEnabled ?? true,
+          pay_url: dto.payUrl ?? null,
         },
       });
       // Only what is still unbilled: a parallel invoice would have taken
@@ -523,7 +519,6 @@ export class CaseBillingService {
       return { chat: await this.announce(tx, user, s, inv), inv };
     });
     this.support.publish(done.chat);
-    if (!draft) await this.createPayLink(user, caseId, done.inv);
     return this.get(user, caseId);
   }
 
@@ -607,7 +602,6 @@ export class CaseBillingService {
     });
     if (!done) throw notDraft();
     this.support.publish(done.chat);
-    await this.createPayLink(user, caseId, done.inv);
     return this.get(user, caseId);
   }
 
@@ -650,11 +644,6 @@ export class CaseBillingService {
         where: { invoice_id: invoiceId },
         data: { invoice_id: null },
       });
-      // The pay link is closed with it.
-      await tx.paymentRequest.updateMany({
-        where: { invoice_id: invoiceId, status: 'open' },
-        data: { status: 'canceled', canceled_at: new Date() },
-      });
       await this.journal.append(tx, {
         caseId,
         clientId: s.clientId,
@@ -663,6 +652,55 @@ export class CaseBillingService {
         event: 'invoice_voided',
         payload: { invoiceId, number: inv0.number },
       });
+    });
+    return this.get(user, caseId);
+  }
+
+  /** The attorney records money received OUTSIDE the app (the app never
+   * takes client-to-attorney payments): moves the invoice to partially paid
+   * or paid. */
+  async recordPayment(
+    user: RequestUser,
+    caseId: string,
+    invoiceId: string,
+    dto: RecordInvoicePaymentDto,
+  ): Promise<CaseBillingDto> {
+    await this.attorneySide(user, caseId);
+    await this.invoiceOf(caseId, invoiceId);
+    const refused = () =>
+      new ConflictException({
+        code: ErrorCode.CASE_INVALID_STATE,
+        message: 'This invoice is not waiting for payment.',
+      });
+    await withTxRetry(this.prisma, async (tx) => {
+      const inv = await tx.caseInvoice.findUniqueOrThrow({
+        where: { id: invoiceId },
+      });
+      if (!isOpenInvoice(inv.status)) throw refused();
+      const money = {
+        totalCents: inv.total_cents,
+        lateFeeCents: inv.late_fee_cents,
+        paidCents: inv.paid_cents,
+      };
+      const amount = Math.min(
+        dto.amountCents ?? balanceCents(money),
+        balanceCents(money),
+      );
+      if (amount <= 0) throw refused();
+      const paidCents = inv.paid_cents + amount;
+      const status = statusAfterPayment(inv.status, {
+        ...money,
+        paidCents,
+      });
+      const won = await tx.caseInvoice.updateMany({
+        where: { id: invoiceId, paid_cents: inv.paid_cents },
+        data: {
+          paid_cents: paidCents,
+          status,
+          paid_at: status === 'paid' ? new Date() : inv.paid_at,
+        },
+      });
+      if (won.count === 0) throw refused();
     });
     return this.get(user, caseId);
   }
@@ -700,32 +738,6 @@ export class CaseBillingService {
     }
     await this.support.tell(user, s.clientId, caseId, 'invoice_reminder');
     return this.get(user, caseId);
-  }
-
-  /** The pay link: a payment request in the case-payments flow, only when
-   * the admin switched it on and payments work; never fails the invoice. */
-  private async createPayLink(
-    user: RequestUser,
-    caseId: string,
-    inv: { id: string; number: string; total_cents: number },
-  ): Promise<void> {
-    try {
-      const cfg = await this.toolsSettings.get();
-      if (!cfg.invoicePayLink || !this.payments) return;
-      // No due date on the request: the invoice owns the reminders.
-      const [req] = await this.payments.createRequests(user, caseId, {
-        description: `Invoice ${inv.number}`,
-        items: [{ amountCents: inv.total_cents }],
-      });
-      if (req) {
-        await this.prisma.paymentRequest.update({
-          where: { id: req.id },
-          data: { invoice_id: inv.id },
-        });
-      }
-    } catch (e) {
-      this.log.warn(`pay link of invoice ${inv.id} not made: ${String(e)}`);
-    }
   }
 
   // ---- presenting ----------------------------------------------------
@@ -786,23 +798,8 @@ export class CaseBillingService {
     });
   }
 
-  private async openRequestIds(
-    invoiceIds: string[],
-  ): Promise<Map<string, string>> {
-    if (invoiceIds.length === 0) return new Map();
-    const rows = await this.prisma.paymentRequest.findMany({
-      where: { invoice_id: { in: invoiceIds }, status: 'open' },
-      orderBy: { created_at: 'asc' },
-      select: { id: true, invoice_id: true },
-    });
-    const out = new Map<string, string>();
-    for (const r of rows) if (r.invoice_id) out.set(r.invoice_id, r.id);
-    return out;
-  }
-
   private async invoiceDtos(
     rows: Prisma.CaseInvoiceGetPayload<object>[],
-    requestIds: Map<string, string> = new Map(),
   ): Promise<InvoiceDto[]> {
     const urls = new Map(
       (await this.files.casePhotoUrls(rows.map((r) => r.file_id))).map((u) => [
@@ -843,7 +840,7 @@ export class CaseBillingService {
         paidCents: r.paid_cents,
       }),
       remindersEnabled: r.reminders_enabled,
-      paymentRequestId: requestIds.get(r.id) ?? null,
+      payUrl: r.pay_url,
     }));
   }
 }

@@ -11,6 +11,7 @@ import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
+import { pipeline } from '../../redis/redis-cluster-safe';
 
 export interface Badges {
   chatsUnread: number;
@@ -121,7 +122,7 @@ export class BadgesService {
   async invalidateNotificationsMany(userIds: string[]): Promise<void> {
     if (userIds.length === 0) return;
     try {
-      const p = this.redis.pipeline();
+      const p = pipeline(this.redis);
       for (const id of userIds) p.hdel(key(id), 'notifs');
       await p.exec();
     } catch {
@@ -140,7 +141,7 @@ export class BadgesService {
     const ids = [...new Set(userIds)];
     if (ids.length === 0) return;
     const doneKey = `badge:msg:${messageId}`;
-    const claim = this.redis.pipeline();
+    const claim = pipeline(this.redis);
     for (const id of ids) claim.sadd(doneKey, id);
     claim.expire(doneKey, TTL_SEC);
     const claimed = (await claim.exec()) ?? [];
@@ -161,7 +162,7 @@ export class BadgesService {
     const muted = new Set(
       fresh.filter((id) => !(setting.get(id) ?? DEFAULT_PUSH.messages)),
     );
-    const bump = this.redis.pipeline();
+    const bump = pipeline(this.redis);
     for (const id of fresh) {
       if (muted.has(id)) continue;
       bump.eval(
@@ -335,6 +336,7 @@ export class BadgesService {
           WHERE m.conversation_id = cp.conversation_id
             AND m.deleted_at IS NULL
             AND (m.sender_id IS NULL OR m.sender_id <> ${userId}::UUID)
+            AND (lr.id IS NULL OR m.created_at >= lr.created_at)
             AND (lr.id IS NULL OR (m.created_at, m.id) > (lr.created_at, lr.id))
           ORDER BY m.created_at DESC
           LIMIT ${UNREAD_CAP}) x)), 0)::INT8 AS n

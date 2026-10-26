@@ -14,9 +14,15 @@ import type { ToolsKind } from './case-tools.support';
 import { signReminderDue } from './signing.lifecycle';
 
 const DAY_MS = 86_400_000;
+const PAGE = 200;
+
+/** Notices still allowed in this run (the admin's daily cap). */
+export interface Budget {
+  left: number;
+}
 
 /**
- * Owner 2026-10-25: the hourly job `case-tools.sweep`.
+ * Owner 2026-10-25: the DAILY job `case-tools.sweep`.
  *
  * Invoices: an open one past its due date becomes overdue; the late fee
  * (admin percent, 0 = off) is added once after the grace days; reminders
@@ -42,9 +48,37 @@ export class CaseToolsSweepService {
   ) {}
 
   async run(now = new Date()) {
-    const invoices = await this.sweepInvoices(now);
-    const signing = await this.sweepSigning(now);
+    const cfg = await this.settings.get();
+    if (cfg.remindersMode === 'off') return { skipped: 'off' as const };
+    if (cfg.remindersMode === 'auto' && !(await this.hasWork(now))) {
+      return { skipped: 'no-work' as const };
+    }
+    // One budget for the whole run: the admin's daily cap on notices.
+    const budget = {
+      left: cfg.remindersDailyCap > 0 ? cfg.remindersDailyCap : Infinity,
+    };
+    const invoices = await this.sweepInvoices(now, budget);
+    const signing = await this.sweepSigning(now, budget);
     return { invoices, signing };
+  }
+
+  /** Auto mode: a cheap probe, so a quiet system does no scan at all. */
+  private async hasWork(now: Date): Promise<boolean> {
+    const [inv, sign] = await Promise.all([
+      this.prisma.caseInvoice.findFirst({
+        where: {
+          status: { in: ['sent', 'viewed', 'partially_paid', 'overdue'] },
+          due_at: { not: null },
+        },
+        select: { id: true },
+      }),
+      this.prisma.caseSignRequest.findFirst({
+        where: { status: 'pending' },
+        select: { id: true },
+      }),
+    ]);
+    void now;
+    return Boolean(inv ?? sign);
   }
 
   /** The bell + push "something in the case" (same payload as the tools). */
@@ -63,18 +97,22 @@ export class CaseToolsSweepService {
 
   async sweepInvoices(
     now = new Date(),
+    budget: Budget = { left: Infinity },
   ): Promise<{ overdue: number; lateFees: number; reminded: number }> {
     const result = { overdue: 0, lateFees: 0, reminded: 0 };
     const cfg = await this.settings.get();
-    const rows = await this.prisma.caseInvoice.findMany({
-      where: {
-        status: { in: ['sent', 'viewed', 'partially_paid', 'overdue'] },
-        due_at: { not: null },
-      },
-      orderBy: { due_at: 'asc' },
-      take: 1000,
-    });
-    for (const inv of rows) {
+    const rows = this.paged((cursor) =>
+      this.prisma.caseInvoice.findMany({
+        where: {
+          status: { in: ['sent', 'viewed', 'partially_paid', 'overdue'] },
+          due_at: { not: null },
+        },
+        orderBy: { id: 'asc' },
+        take: PAGE,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      }),
+    );
+    for await (const inv of rows) {
       if (!inv.due_at) continue;
       let status = inv.status;
       const money = {
@@ -108,11 +146,6 @@ export class CaseToolsSweepService {
           if (count > 0) {
             lateFee = fee;
             result.lateFees += 1;
-            // The open pay link carries the fee too.
-            await this.prisma.paymentRequest.updateMany({
-              where: { invoice_id: inv.id, status: 'open' },
-              data: { amount_cents: { increment: fee } },
-            });
           }
         }
       }
@@ -129,6 +162,7 @@ export class CaseToolsSweepService {
       if (!kind || balanceCents({ ...money, lateFeeCents: lateFee }) === 0) {
         continue;
       }
+      if (budget.left <= 0) continue;
       const { count } = await this.prisma.caseInvoice.updateMany({
         where: { id: inv.id, last_reminded_at: inv.last_reminded_at },
         data: { last_reminded_at: now, reminders_sent: { increment: 1 } },
@@ -137,6 +171,7 @@ export class CaseToolsSweepService {
       try {
         await this.tell(inv.attorney_id, inv.client_id, inv.case_id, kind);
         result.reminded += 1;
+        budget.left -= 1;
       } catch (e) {
         // Not sent: released, the next run tries again.
         await this.prisma.caseInvoice.updateMany({
@@ -154,14 +189,19 @@ export class CaseToolsSweepService {
 
   async sweepSigning(
     now = new Date(),
+    budget: Budget = { left: Infinity },
   ): Promise<{ expired: number; reminded: number }> {
     const result = { expired: 0, reminded: 0 };
     const cfg = await this.settings.get();
-    const lapsed = await this.prisma.caseSignRequest.findMany({
-      where: { status: 'pending', expires_at: { lte: now } },
-      take: 500,
-    });
-    for (const r of lapsed) {
+    const lapsed = this.paged((cursor) =>
+      this.prisma.caseSignRequest.findMany({
+        where: { status: 'pending', expires_at: { lte: now } },
+        orderBy: { id: 'asc' },
+        take: PAGE,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      }),
+    );
+    for await (const r of lapsed) {
       const side = await this.sideOf(r.case_id);
       if (!side) continue;
       const done = await withTxRetry(this.prisma, async (tx) => {
@@ -196,17 +236,21 @@ export class CaseToolsSweepService {
       }
     }
     if (cfg.signReminderEveryDays <= 0) return result;
-    const waiting = await this.prisma.caseSignRequest.findMany({
-      where: {
-        status: 'pending',
-        OR: [{ expires_at: null }, { expires_at: { gt: now } }],
-        reminders_sent: { lt: cfg.signMaxReminders },
-      },
-      include: { signatures: { select: { signer_id: true } } },
-      orderBy: { created_at: 'asc' },
-      take: 500,
-    });
-    for (const r of waiting) {
+    const waiting = this.paged((cursor) =>
+      this.prisma.caseSignRequest.findMany({
+        where: {
+          status: 'pending',
+          OR: [{ expires_at: null }, { expires_at: { gt: now } }],
+          reminders_sent: { lt: cfg.signMaxReminders },
+        },
+        include: { signatures: { select: { signer_id: true } } },
+        orderBy: { id: 'asc' },
+        take: PAGE,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      }),
+    );
+    for await (const r of waiting) {
+      if (budget.left <= 0) break;
       if (
         !signReminderDue({
           now,
@@ -239,8 +283,22 @@ export class CaseToolsSweepService {
         );
       }
       result.reminded += 1;
+      budget.left -= 1;
     }
     return result;
+  }
+
+  /** Pages of PAGE rows by id cursor, so a big backlog never loads at once. */
+  private async *paged<T extends { id: string }>(
+    find: (cursor?: string) => Promise<T[]>,
+  ): AsyncGenerator<T> {
+    let cursor: string | undefined;
+    for (;;) {
+      const rows = await find(cursor);
+      for (const r of rows) yield r;
+      if (rows.length < PAGE) return;
+      cursor = rows[rows.length - 1].id;
+    }
   }
 
   private async sideOf(

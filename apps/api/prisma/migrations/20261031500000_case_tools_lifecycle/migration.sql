@@ -17,6 +17,7 @@ ALTER TABLE "case_invoices"
   ADD COLUMN "paid_cents" INTEGER NOT NULL DEFAULT 0,
   ADD COLUMN "late_fee_cents" INTEGER NOT NULL DEFAULT 0,
   ADD COLUMN "late_fee_applied_at" TIMESTAMPTZ,
+  ADD COLUMN "pay_url" VARCHAR(500),
   ADD COLUMN "reminders_enabled" BOOLEAN NOT NULL DEFAULT TRUE,
   ADD COLUMN "reminders_sent" INTEGER NOT NULL DEFAULT 0,
   ADD COLUMN "last_reminded_at" TIMESTAMPTZ;
@@ -35,6 +36,3 @@ ALTER TABLE "case_comments"
   ADD COLUMN "edited_at" TIMESTAMPTZ,
   ADD COLUMN "edit_count" INTEGER NOT NULL DEFAULT 0,
   ADD COLUMN "edit_history" JSONB NOT NULL DEFAULT '[]';
-
-ALTER TABLE "payment_requests" ADD COLUMN "invoice_id" UUID;
-CREATE INDEX "payment_requests_invoice_id_idx" ON "payment_requests"("invoice_id");

@@ -48,7 +48,6 @@ function make(payment: Row) {
       ),
     },
     paymentRequest: {
-      findUnique: jest.fn(() => Promise.resolve({ invoice_id: null })),
       updateMany: jest.fn(({ where, data }: { where: Row; data: Row }) => {
         requests.push({ where, data });
         return Promise.resolve({ count: 1 });

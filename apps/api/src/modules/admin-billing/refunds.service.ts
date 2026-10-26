@@ -5,9 +5,11 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { Payment, Prisma, Refund } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { LedgerPostingService } from '../ledger/ledger.public';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
@@ -82,6 +84,8 @@ export class RefundsService {
     private readonly prisma: PrismaService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     private readonly audit: AuditLogService,
+    // Day-one foundations: the double-entry money ledger (same transaction).
+    @Optional() private readonly ledger?: LedgerPostingService,
   ) {}
 
   async payments(q: AdminPaymentsQueryDto): Promise<Page<AdminPaymentDto>> {
@@ -194,6 +198,14 @@ export class RefundsService {
             failure_reason: r.failureReason,
           },
         });
+        if (r.status === 'succeeded') {
+          await this.ledger?.paymentRefunded(tx, {
+            paymentId: payment.id,
+            refundId: row.id,
+            cents: dto.amountCents,
+            userId: payment.user_id,
+          });
+        }
         if (r.status === 'succeeded' && left === 0) {
           await tx.payment.update({
             where: { id: payment.id },
