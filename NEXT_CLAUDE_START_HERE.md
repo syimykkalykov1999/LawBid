@@ -1226,3 +1226,5 @@ PRINCIPLE (owner 07:55): assume the attacker is an automated AI (tireless, tries
 - NEXT after helpers report: 17:39 merged #386 (bid best_match ranking).
 - NEXT after helpers report: 18:07 merged #422 (smoothness round 1: chat/inbox/reels rebuilds, cacheWidth, isolate JSON). #423 now retargets to main.
 - NEXT after helpers report: 18:31 merged #371 (ci/deploy hardening: green gate, canary then staged roll, Node pin, Dockerfile digests).
+- NEXT after helpers report: 18:45 merged #254 (dependabot aws-sdk client-s3).
+- NEXT after helpers report: 18:50 merged #18 (old dependabot PR, finally green).
