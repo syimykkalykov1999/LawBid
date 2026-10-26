@@ -778,6 +778,13 @@ export const OWNER_STORAGE_SETTINGS = {
   'images.avif_effort': 2,
   'images.webp_quality': 88,
   'images.jpeg_quality': 90,
+  /** Owner 2026-10-26: nightly sweep that recounts profile counters
+   * (posts / followers / following) from the source tables and fixes the
+   * ones that drifted. off = never; on = 10x the batch per night; auto
+   * (default) = `counters.drift_sweep_batch` rows per profile table per
+   * night, walking all profiles in turn. */
+  'counters.drift_sweep': 'auto',
+  'counters.drift_sweep_batch': 5000,
   'storage.user_quota_mb': 10240,
   'storage.chat_quota_mb': 5120,
   /** 2026-10-24 (abuse batch B, item 5): most MB one person may upload in
