@@ -4,7 +4,6 @@ import { ChatSystemModule } from '../../chat/chat-system.module';
 import { FilesModule } from '../../files/files.module';
 import { JournalModule } from '../../journal/journal.module';
 import { NotificationsModule } from '../../notifications/notifications.module';
-import { CasePaymentsCoreModule } from '../../case-payments/case-payments.module';
 import { CasesModule } from '../cases.module';
 import { CaseBillingController } from './case-billing.controller';
 import { CaseBillingService } from './case-billing.service';
@@ -32,7 +31,6 @@ import { FormTemplatesService } from './form-templates.service';
     NotificationsModule,
     ChatSystemModule,
     AdminAccessModule,
-    CasePaymentsCoreModule,
     CaseToolsSweepModule,
   ],
   controllers: [
