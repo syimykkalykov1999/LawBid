@@ -34,6 +34,8 @@ CaseBidItemDto _$CaseBidItemDtoFromJson(Map<String, dynamic> json) =>
       attorney: BidAttorneySummaryDto.fromJson(
         json['attorney'] as Map<String, dynamic>,
       ),
+      bestPrice: json['bestPrice'] as bool,
+      lowOffer: json['lowOffer'] as bool,
       percentBps: (json['percentBps'] as num?)?.toInt(),
     );
 
@@ -58,4 +60,6 @@ Map<String, dynamic> _$CaseBidItemDtoToJson(CaseBidItemDto instance) =>
       'outsideLicensedStates': instance.outsideLicensedStates,
       'createdAt': instance.createdAt.toIso8601String(),
       'attorney': instance.attorney.toJson(),
+      'bestPrice': instance.bestPrice,
+      'lowOffer': instance.lowOffer,
     };
