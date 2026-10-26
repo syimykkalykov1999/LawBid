@@ -170,6 +170,15 @@ export const envSchema = z
     // for it; without it the API warns at boot on production and stores
     // the plain hashes as before.
     CONTACTS_PEPPER: z.string().min(32).optional(),
+    // BUG-1 (2026-10-25, package N-12b): HMAC key of the chat search blind
+    // index (common/secrets/message-search-index.ts). Optional like
+    // CONTACTS_PEPPER so a deploy never fails for it; without it sealed
+    // chats are searchable by name / case title only (a boot warning says
+    // so). Deployed environments also run the key-strength check below.
+    SEARCH_INDEX_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().min(32).optional(),
+    ),
     OTP_CODE_TTL_SECONDS: z.coerce.number().int().positive().default(600),
     OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
     OTP_LOCKOUT_SECONDS: z.coerce.number().int().positive().default(900),
@@ -1102,6 +1111,17 @@ export const envSchema = z
             code: 'custom',
             path: [name],
             message: `${name} key ${weak}; use base64 of 32 random bytes (openssl rand -base64 32) or a KMS-wrapped key`,
+          });
+        }
+      }
+      // BUG-1 (package N-12b): the chat search index key, same rule.
+      if (env.SEARCH_INDEX_KEY) {
+        const problem = keyStrengthProblem(env.SEARCH_INDEX_KEY);
+        if (problem) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['SEARCH_INDEX_KEY'],
+            message: `SEARCH_INDEX_KEY ${problem}; use base64 of 32+ random bytes (openssl rand -base64 48)`,
           });
         }
       }
