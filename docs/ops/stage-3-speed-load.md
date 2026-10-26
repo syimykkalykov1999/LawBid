@@ -8,7 +8,7 @@
 | Что | Где | Как выключить / откатить |
 |---|---|---|
 | Сжатие ответов API (gzip/brotli, ответы от 1 КБ) | `app.setup.ts`, `responseCompression()` | `HTTP_COMPRESSION=false`; заголовок `X-No-Compression` на отдельный запрос |
-| ETag и ответ 304 без тела | сервер: `app.setup.ts`; телефон: `core/network/etag_cache_interceptor.dart` | сервер `HTTP_ETAG=false`; сборка `--dart-define=ETAG_CACHE=false` |
+| ETag и ответ 304 без тела | сервер: `app.setup.ts`; телефон: `core/cache/http_cache_interceptor.dart` | сервер `HTTP_ETAG=false`; сборка `--dart-define=ETAG_CACHE=false` |
 | Таймаут, одна повторная попытка и «предохранитель» для Twilio, Bunny, FCM | `common/resilience/*` | откат коммита; предохранитель сам закрывается через минуту |
 | Журнал медленных запросов к БД (только имя операции и время, без значений) | `prisma/slow-query.extension.ts` | `DB_SLOW_QUERY_MS=0` выключает, по умолчанию 300 мс |
 | Курсорная пагинация отзывов (рейтинг, «полезные») и шаблонов; поиск уже был на курсоре | `common/pagination/ranked-cursor.ts` | старые числовые курсоры продолжают работать |

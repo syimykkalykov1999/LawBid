@@ -10,4 +10,8 @@
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+    <!-- N-1: the video chunk cache is a loopback server inside the app. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
 </network-security-config>

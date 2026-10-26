@@ -2,7 +2,10 @@ import { Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { DASHBOARD_SUMMARY_KEY } from '../../modules/admin/dashboard.service';
+import type { DashboardDto } from '../../modules/admin/admin.dto';
 import {
   STRIPE_WEBHOOKS_DLQ,
   STRIPE_WEBHOOKS_QUEUE,
@@ -84,6 +87,9 @@ export interface QueueDepth {
   oldestAgeSeconds: number;
 }
 
+/** The dashboard summary is recounted every 2 min; older than this = stuck. */
+const SUMMARY_MAX_AGE_MS = 10 * 60_000;
+
 export interface BusinessCounters {
   registrations24h: number;
   casesOpen: number;
@@ -109,6 +115,7 @@ export class OpsMetricsJob implements OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly logger: PinoLogger,
     @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {
     this.logger.setContext(OpsMetricsJob.name);
   }
@@ -181,33 +188,72 @@ export class OpsMetricsJob implements OnModuleDestroy {
     }
   }
 
+  /**
+   * Dedup D-3: open cases and the trialing / active / past_due subscription
+   * counts are the numbers the admin dashboard already recounts every two
+   * minutes (`admin.summaries`). They are read from that stored summary and
+   * only logged here; the database is asked again only when no summary is
+   * stored or it is older than [SUMMARY_MAX_AGE_MS] (a stuck refresher).
+   * Registrations and active bids are not in the dashboard, so they are
+   * still counted here.
+   */
   async businessCounters(now: Date = new Date()): Promise<BusinessCounters> {
     const since = new Date(now.getTime() - 24 * 3600 * 1000);
-    const [
+    const [registrations24h, bidsActive, shared] = await Promise.all([
+      this.prisma.user.count({ where: { created_at: { gte: since } } }),
+      this.prisma.bid.count({ where: { status: 'active' } }),
+      this.fromDashboardSummary(now),
+    ]);
+    const counted = shared ?? (await this.countShared());
+    const counters: BusinessCounters = {
       registrations24h,
-      casesOpen,
       bidsActive,
+      ...counted,
+    };
+    this.logger.info({ metric: 'business', ...counters }, 'business counters');
+    return counters;
+  }
+
+  private async fromDashboardSummary(
+    now: Date,
+  ): Promise<Pick<
+    BusinessCounters,
+    | 'casesOpen'
+    | 'subscriptionsActive'
+    | 'subscriptionsTrialing'
+    | 'subscriptionsPastDue'
+  > | null> {
+    const hit = await this.summary?.peek<DashboardDto>(DASHBOARD_SUMMARY_KEY);
+    if (!hit) return null;
+    const age = now.getTime() - Date.parse(hit.computedAt);
+    if (!(age <= SUMMARY_MAX_AGE_MS)) return null;
+    const d = hit.data;
+    return {
+      casesOpen: d.openCases,
+      subscriptionsActive: d.subscriptions.active,
+      subscriptionsTrialing: d.subscriptions.trialing,
+      subscriptionsPastDue: d.subscriptions.pastDue,
+    };
+  }
+
+  private async countShared() {
+    const [
+      casesOpen,
       subscriptionsActive,
       subscriptionsTrialing,
       subscriptionsPastDue,
     ] = await Promise.all([
-      this.prisma.user.count({ where: { created_at: { gte: since } } }),
       this.prisma.case.count({ where: { status: 'open' } }),
-      this.prisma.bid.count({ where: { status: 'active' } }),
       this.prisma.subscription.count({ where: { status: 'active' } }),
       this.prisma.subscription.count({ where: { status: 'trialing' } }),
       this.prisma.subscription.count({ where: { status: 'past_due' } }),
     ]);
-    const counters: BusinessCounters = {
-      registrations24h,
+    return {
       casesOpen,
-      bidsActive,
       subscriptionsActive,
       subscriptionsTrialing,
       subscriptionsPastDue,
     };
-    this.logger.info({ metric: 'business', ...counters }, 'business counters');
-    return counters;
   }
 
   async onModuleDestroy(): Promise<void> {

@@ -2589,7 +2589,8 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
                                   ),
                                 ),
                                 ColoredBox(
-                                  color: Colors.black.withValues(alpha: 0.18),
+                                  color: ChatColors.mediaScrim
+                                      .withValues(alpha: 0.18),
                                 ),
                               ],
                             ),

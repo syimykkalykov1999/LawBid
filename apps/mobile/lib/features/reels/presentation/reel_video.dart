@@ -12,6 +12,7 @@ import 'package:lawbid/core/diagnostics/perf_marks.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
+import 'package:lawbid/core/media/video_cache/video_cache.dart';
 import 'package:lawbid/features/reels/application/played_view_gate.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -308,7 +309,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     final options = VideoPlayerOptions(mixWithOthers: widget.muted);
     final c = debugReelPlayerFactory?.call(Uri.parse(url), options) ??
         VideoPlayerController.networkUrl(
-          Uri.parse(url),
+          Uri.parse(VideoCache.resolve(url)),
           formatHint: widget.video.usesMp4(web: kIsWeb)
               ? VideoFormat.other
               : VideoFormat.hls,
