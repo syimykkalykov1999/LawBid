@@ -14,6 +14,7 @@ import {
 import { taskPriceFactor } from '../economy/economy.rules';
 import type { CostSnapshot } from './ops.constants';
 import { OpsStateService } from './ops-state.service';
+import { opsCredentials } from './ops-credentials';
 
 export type TaskKind = 'api' | 'worker';
 
@@ -41,6 +42,11 @@ export class AwsOpsService {
     return v && v.length > 0 ? v : undefined;
   }
 
+  /** S4-1: the separate ops role when OPS_ROLE_ARN is set, else the default chain. */
+  private creds(region: string) {
+    return opsCredentials((n) => this.env(n), region);
+  }
+
   get cluster(): string | undefined {
     return this.env('OPS_ECS_CLUSTER');
   }
@@ -59,12 +65,16 @@ export class AwsOpsService {
   }
 
   private ecsClient(): ECSClient {
-    return (this.ecs ??= new ECSClient({ region: this.region() }));
+    return (this.ecs ??= new ECSClient({
+      region: this.region(),
+      credentials: this.creds(this.region()),
+    }));
   }
 
   private scalingClient(): ApplicationAutoScalingClient {
     return (this.scaling ??= new ApplicationAutoScalingClient({
       region: this.region(),
+      credentials: this.creds(this.region()),
     }));
   }
 
@@ -245,7 +255,10 @@ export class AwsOpsService {
   async cost(now: Date = new Date()): Promise<CostSnapshot | null> {
     if (!this.budgetAvailable) return null;
     // Budgets is a global service answered from us-east-1.
-    this.budgets ??= new BudgetsClient({ region: 'us-east-1' });
+    this.budgets ??= new BudgetsClient({
+      region: 'us-east-1',
+      credentials: this.creds('us-east-1'),
+    });
     const res = await this.budgets.send(
       new DescribeBudgetCommand({
         AccountId: this.env('OPS_AWS_ACCOUNT_ID'),

@@ -70,6 +70,22 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 100,
     max: 5000,
   };
+  out['search.reindex_keep_days'] = {
+    type: 'integer',
+    defaultValue: 7,
+    description:
+      'After a search reindex, the old index is kept this many days so you can roll back, then deleted.',
+    min: 1,
+    max: 60,
+  };
+  out['search.reindex_throttle_ms'] = {
+    type: 'integer',
+    defaultValue: 200,
+    description:
+      'A search reindex pauses this many milliseconds between batches of 500 documents, so it does not slow the database.',
+    min: 0,
+    max: 5000,
+  };
   out['calls.video_provider'] = {
     type: 'string',
     defaultValue: 'p2p',
@@ -356,6 +372,21 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['files.access_log_enabled'],
     description:
       'On (default): remember who other than the owner opened a confidential file and from which device; the owner can see it. Off: nothing is recorded.',
+  };
+  out['security.seal_case_metadata'] = {
+    ...out['security.seal_case_metadata'],
+    description:
+      'On (default): chat attachment file names and the case private details are stored encrypted; a background job seals the old rows. Off: new rows are written as before (already sealed ones stay sealed).',
+  };
+  out['security.seal_journal_text'] = {
+    ...out['security.seal_journal_text'],
+    description:
+      'Off (default). On: free text in case-journal entries is encrypted. The journal cannot be rewritten, so every key id used while this is on must stay in MESSAGE_ENC_KEYS for 5 years.',
+  };
+  out['push.chat_preview'] = {
+    ...out['push.chat_preview'],
+    description:
+      "On (default, today's behaviour): a chat push shows the message text. Off: it shows only «New message» and Google/Apple never see the text. Recommended: off for attorney accounts.",
   };
   out['verification.bar_document_for_manual_states'] = {
     ...out['verification.bar_document_for_manual_states'],

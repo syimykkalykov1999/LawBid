@@ -14,10 +14,16 @@ describe('RealtimePublisher.toUsers with the event log', () => {
 
   function logRedis() {
     const calls: string[] = [];
+    const appended: number[] = [];
     const pipe: Record<string, jest.Mock> = {};
     for (const m of ['zadd', 'zremrangebyscore', 'zremrangebyrank', 'expire']) {
       pipe[m] = jest.fn(() => pipe);
     }
+    // S1-5: one script command per member in the log pipeline
+    pipe.eval = jest.fn(() => {
+      appended.push(1);
+      return pipe;
+    });
     pipe.exec = jest.fn(async () => {
       calls.push('log');
       return [];
@@ -25,6 +31,7 @@ describe('RealtimePublisher.toUsers with the event log', () => {
     let seq = 1_000;
     return {
       calls,
+      appended,
       pipe,
       status: 'ready',
       eval: jest.fn(async () => ++seq),
@@ -49,7 +56,8 @@ describe('RealtimePublisher.toUsers with the event log', () => {
     pub.toUsers(['a', 'b'], 'message:new', { id: 'm1' });
     await flush();
     expect(r.spublish).toHaveBeenCalledTimes(1);
-    expect(r.pipe.zadd).toHaveBeenCalledTimes(2);
+    // one script command per member
+    expect(r.appended).toEqual([1, 1]);
     // Log first, publish second.
     expect(r.calls).toEqual(['log', 'publish']);
     expect(packetOf(sent(r)[0][1])).toEqual([
