@@ -25,7 +25,7 @@ class _AdminModerationClient implements AdminModerationClient {
     TargetType? targetType,
     bool? priority,
     String? cursor,
-    Status11? status = Status11.open,
+    Status10? status = Status10.open,
     int? limit = 20,
     Map<String, dynamic>? extras,
   }) async {
@@ -133,7 +133,7 @@ class _AdminModerationClient implements AdminModerationClient {
   @override
   Future<AppealItemListEnvelope> moderationAppealsQueue({
     String? cursor,
-    Status12? status = Status12.pending,
+    Status11? status = Status11.pending,
     int? limit = 20,
     Map<String, dynamic>? extras,
   }) async {
@@ -427,7 +427,7 @@ class _AdminModerationClient implements AdminModerationClient {
   @override
   Future<AutoActionListEnvelope> listAuto({
     int? limit,
-    Status13? status = Status13.pending,
+    Status12? status = Status12.pending,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};

@@ -19,9 +19,9 @@ import '../models/moderation_queue_item_list_envelope.dart';
 import '../models/note_dto.dart';
 import '../models/reporter_row_list_envelope.dart';
 import '../models/restrict_reporter_dto.dart';
+import '../models/status10.dart';
 import '../models/status11.dart';
 import '../models/status12.dart';
-import '../models/status13.dart';
 import '../models/status_result_envelope.dart';
 import '../models/strike_list_envelope.dart';
 import '../models/target_type.dart';
@@ -44,7 +44,7 @@ abstract class AdminModerationClient {
     @Query('targetType') TargetType? targetType,
     @Query('priority') bool? priority,
     @Query('cursor') String? cursor,
-    @Query('status') Status11? status = Status11.open,
+    @Query('status') Status10? status = Status10.open,
     @Query('limit') int? limit = 20,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -72,7 +72,7 @@ abstract class AdminModerationClient {
   @GET('/admin/moderation/appeals')
   Future<AppealItemListEnvelope> moderationAppealsQueue({
     @Query('cursor') String? cursor,
-    @Query('status') Status12? status = Status12.pending,
+    @Query('status') Status11? status = Status11.pending,
     @Query('limit') int? limit = 20,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -148,7 +148,7 @@ abstract class AdminModerationClient {
   @GET('/admin/moderation/auto-actions')
   Future<AutoActionListEnvelope> listAuto({
     @Query('limit') int? limit,
-    @Query('status') Status13? status = Status13.pending,
+    @Query('status') Status12? status = Status12.pending,
     @Extras() Map<String, dynamic>? extras,
   });
 
