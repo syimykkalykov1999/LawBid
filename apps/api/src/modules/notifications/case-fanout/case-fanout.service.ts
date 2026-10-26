@@ -150,10 +150,14 @@ export class CaseFanoutService
     const job: CaseFanoutJob = { caseId, wave: 1 };
     if (!this.queue || !s.enabled) {
       // Switch off (default) = today's behaviour: everybody right here,
-      // in this call. No Redis: the same, there is no queue for waves.
+      // in this call, so the alerts are delivered at once (no ranking, no
+      // stats queries, review R-32). No Redis: the same, there is no queue
+      // for waves.
       const out = await this.runWave(job);
       return 'sent' in out ? out.sent : 0;
     }
+    // Switch on: the work (audience query, de-dupe lookups, the sends) runs
+    // in the worker, never in the API request.
     await this.enqueue(job, delayMs);
     return 0;
   }
@@ -342,7 +346,11 @@ export class CaseFanoutService
     const budget = CASE_ALERT_REACH_MAX - reached.size;
     if (pool.length === 0 || budget <= 0) return { done: 'all_reached' };
 
-    const stats = await this.loadStats(pool.map((c) => c.id));
+    // Switch off = everybody in one wave: no ranking, so no stats queries
+    // (two group-bys and a bids join per 5 000 people, review R-32).
+    const stats: Map<string, FanoutStats> = legacy
+      ? new Map<string, FanoutStats>()
+      : await this.loadStats(pool.map((c) => c.id));
     const cap = legacy ? 0 : s.dailyCap;
     const capped =
       cap > 0
@@ -362,11 +370,21 @@ export class CaseFanoutService
             ? s.firstWaveSize
             : s.waveSize,
     );
-    const ranked = rankCandidates(caseId, eligible, stats, {
-      maxAlerts: legacy ? 0 : s.newMaxAlerts,
-      maxBids: s.newMaxBids,
-    });
-    const chosen = selectWave(ranked, size, legacy ? 0 : s.newQuotaPercent);
+    const chosen = legacy
+      ? eligible.slice(0, size).map((c) => ({
+          id: c.id,
+          score: 0,
+          isNew: false,
+          exposure: 0,
+        }))
+      : selectWave(
+          rankCandidates(caseId, eligible, stats, {
+            maxAlerts: s.newMaxAlerts,
+            maxBids: s.newMaxBids,
+          }),
+          size,
+          s.newQuotaPercent,
+        );
     const type: NotificationType = aud.urgent ? 'new_urgent_case' : 'new_case';
     let sent = 0;
     for (let i = 0; i < chosen.length; i += EMIT_BATCH) {

@@ -8,11 +8,15 @@
 #                                        pre-launch wipe of beta test data: database,
 #                                        S3, Bunny (docs/runbooks/prelaunch-wipe.md);
 #                                        dry run unless --execute. Redis: prod-wipe-redis.sh
+#   prod-run.sh <tag> migrate-status     which migrations are applied / failed (read-only)
+#   prod-run.sh <tag> migrate-resolve <migration_name> applied|rolled-back
+#                                        mark a FAILED migration (P3009) after you checked
+#                                        the database by hand: docs/runbooks/migrate-resolve.md
 # The app keys are read from Secrets Manager into a temporary file (mode
 # 600, deleted on exit); a throwaway Redis runs next to it. Runs as the
 # migrator role, with jobs and the demo world off.
 set -euo pipefail
-TAG="${1:?image tag}"; CMD="${2:?seed | admin | i18n <file> | wipe}"
+TAG="${1:?image tag}"; CMD="${2:?seed | admin | i18n <file> | wipe | migrate-status | migrate-resolve}"
 PREFIX="${SECRET_PREFIX:-lawbid-prod}"
 REGION="${AWS_REGION:-us-east-1}"
 if [ -n "${PROD_IMAGE:-}" ]; then
@@ -93,6 +97,18 @@ ENV
     shift 2
     "${RUN[@]}" -it -e PRELAUNCH_WIPE_CONFIRM "$IMAGE" \
       node dist/scripts/prelaunch-wipe.js --only=bunny,db,s3 "$@"
+    ;;
+  migrate-status)
+    "${RUN[@]}" "$IMAGE" npx prisma migrate status
+    ;;
+  migrate-resolve)
+    NAME_="${3:?migration folder name}"; HOW="${4:?applied | rolled-back}"
+    case "$HOW" in applied|rolled-back) ;; *) echo "applied or rolled-back" >&2; exit 2 ;; esac
+    case "$NAME_" in *[!0-9a-zA-Z_]*) echo "bad migration name" >&2; exit 2 ;; esac
+    echo "About to mark $NAME_ as $HOW in the PRODUCTION database."
+    read -rp "Type the migration name again to confirm: " CONFIRM
+    [ "$CONFIRM" = "$NAME_" ] || { echo "not confirmed"; exit 1; }
+    "${RUN[@]}" "$IMAGE" npx prisma migrate resolve "--$HOW" "$NAME_"
     ;;
   *) echo "unknown command: $CMD" >&2; exit 2 ;;
 esac

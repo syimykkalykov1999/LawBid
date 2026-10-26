@@ -5,6 +5,14 @@
 # deploy, then runs the smoke checks. It skips staging and migrations on
 # purpose: migrations are expand/contract only (docs/02 §7.1), so the
 # previous release still runs against the current schema.
+# S11-8/9: its OWN concurrency group (`rollback`): an unapproved Deploy waiting
+# for a click must never block a rollback in an incident. With an empty
+# image_tag it goes back to the last release that passed deploy's smoke +
+# synthetic check (SSM /lawbid-prod/deploy/last_good_tag; if that one is the
+# release running now, the one before it). `services` limits the roll to the
+# failing service(s) (api, worker, admin) so the others are not touched. A
+# rollback never reverts the database: new-schema columns stay, the old release
+# ignores them (expand/contract, docs/02 §7.1).
 # Needs the same secrets as deploy.yml and the `production` environment
 # (its required reviewers still approve the rollback).
 #
@@ -19,9 +27,13 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Image tag to go back to (commit SHA of a previous good deploy); empty = keep api / worker / admin"
+        description: "Image tag to go back to (commit SHA of a previous good deploy); empty = the last known good release (and keep the web app unless web_release is set)"
         required: false
         default: ""
+      services:
+        description: "Which services to roll back, space-separated: api worker admin"
+        required: false
+        default: "api worker admin"
       web_release:
         description: "Web app release to go back to (commit SHA, or 'previous'); empty = keep the web app"
         required: false
@@ -32,19 +44,21 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy
+  group: rollback
   cancel-in-progress: false
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
-  IMAGE_TAG: ${{ inputs.image_tag }}
+  SERVICES: ${{ inputs.services }}
 
 jobs:
   rollback:
-    name: Roll production back to ${{ inputs.image_tag }}
-    if: ${{ vars.DEPLOY_ENABLED == 'true' && inputs.image_tag != '' }}
+    name: Roll production back (${{ inputs.image_tag || 'last good release' }})
+    # Web-only rollback (web_release set, no image_tag) leaves the services alone.
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && (inputs.image_tag != '' || inputs.web_release == '') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     environment:
       name: production
     steps:
@@ -53,15 +67,47 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
+      - name: Which release to go back to
+        env:
+          WANT_TAG: ${{ inputs.image_tag }}
+        run: |
+          set -eu
+          TAG="$WANT_TAG"
+          if [ -z "$TAG" ]; then TAG=$(scripts/deploy/rollback-target.sh lawbid-prod); fi
+          if ! echo "$TAG" | grep -Eq '^[0-9a-zA-Z._-]{7,128}$'; then echo "::error::not an image tag: '$TAG'"; exit 1; fi
+          echo "IMAGE_TAG=$TAG" >> "$GITHUB_ENV"
+          echo "Rolling back to **$TAG** (services: $SERVICES)" >> "$GITHUB_STEP_SUMMARY"
       - name: Image exists in ECR
         run: |
           for REPO in lawbid-api lawbid-admin; do
             aws ecr describe-images --repository-name "$REPO" --image-ids imageTag="$IMAGE_TAG" >/dev/null
           done
-      - name: Rolling update api / worker / admin
-        run: scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG"
-      - name: Smoke
-        run: scripts/deploy/smoke.sh "${{ secrets.PROD_API_URL }}" "${{ secrets.PROD_ADMIN_URL }}"
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Verify the image signatures (hard only when SIGN_REQUIRED=true)
+        continue-on-error: ${{ vars.SIGN_REQUIRED != 'true' }}
+        run: |
+          set -eu
+          for repo in lawbid-api lawbid-admin; do
+            DIGEST=$(aws ecr describe-images --repository-name "$repo" --image-ids imageTag="$IMAGE_TAG" --query 'imageDetails[0].imageDigest' --output text)
+            cosign verify "$ECR_REGISTRY/$repo@$DIGEST" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              --certificate-identity-regexp "(?i)^https://github\.com/${{ github.repository }}/\.github/workflows/deploy\.yml@refs/heads/main$" >/dev/null
+            echo "signature OK: $repo@$DIGEST"
+          done
+      - name: Rolling update (only the chosen services)
+        env:
+          ROLL_POLL_SECONDS: "10"
+        run: scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG" "$SERVICES"
+      - name: Smoke (the answering tasks run the rollback tag)
+        run: |
+          case " $SERVICES " in
+            *" api "*) scripts/deploy/smoke.sh "${{ secrets.PROD_API_URL }}" "${{ secrets.PROD_ADMIN_URL }}" "$IMAGE_TAG" ;;
+            *) scripts/deploy/smoke.sh "${{ secrets.PROD_API_URL }}" "${{ secrets.PROD_ADMIN_URL }}" ;;
+          esac
+      - name: The rolled-back release is the last good one again
+        continue-on-error: true
+        if: ${{ inputs.services == 'api worker admin' }}
+        run: aws ssm put-parameter --name "/lawbid-prod/deploy/last_good_tag" --type String --overwrite --value "$IMAGE_TAG" >/dev/null
 
   web:
     name: Roll the web app back to ${{ inputs.web_release }}
@@ -111,3 +157,18 @@ jobs:
           aws s3 cp "s3://$BUCKET/releases/$WANT/index.html" "s3://$BUCKET/index.html" --cache-control "no-cache"
           aws cloudfront create-invalidation --distribution-id "$DIST" --paths "/index.html" >/dev/null
           echo "Live web release: $WANT (was: ${LIVE:-none})"
+
+  notify:
+    name: Tell the owner
+    needs: [rollback, web]
+    if: ${{ always() && needs.rollback.result != 'skipped' || always() && needs.web.result != 'skipped' }}
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: ${{ (contains(needs.*.result, 'failure') && 'Production ROLLBACK FAILED') || 'Production rollback finished' }}
+      kind: rollback
+      severity: ${{ (contains(needs.*.result, 'failure') && 'error') || 'info' }}
+    secrets: inherit

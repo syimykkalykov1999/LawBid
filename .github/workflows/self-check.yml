@@ -34,3 +34,19 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
       - name: Self-check
         run: scripts/ops/self-check.sh prod "${{ secrets.PROD_API_URL }}"
+
+  # S11-6: a failure on main / on a schedule reaches the owner (notify-failure.yml).
+  notify:
+    name: Notify the owner
+    needs: [self-check]
+    if: ${{ always() && contains(needs.*.result, 'failure') && true }}
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: "Daily self-check of production failed (something that protects prod is off)"
+      kind: self-check
+      remind_after_minutes: 720
+    secrets: inherit

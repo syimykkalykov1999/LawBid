@@ -25,6 +25,7 @@ Rows are sorted by key: insert a new row at its alphabetical place (never append
 | `fraud.enabled` | Антифрод клиентов | on | 2 | client fraud scoring | `modules/client-fraud/client-fraud.service.ts:159,405` | none | default | |
 | `guest.browsing_enabled` | Гостевой просмотр | on | 2 | token-less reads | `modules/auth/guards/jwt-auth.guard.ts:73` | per-IP guest limit | listed | |
 | `images.avif_enabled` | AVIF-копии фото | off | 2 | AVIF twins written at upload | `modules/files/processing/image-processor.ts:51,76` | `images.avif_quality`, `images.avif_effort` | yes | |
+| `ledger.reconcile_mode` | Ночная сверка денег (ledger) | auto | 3 (off/on/auto) | review R-26 (#411): on = whole ledger nightly; auto = last N days nightly, whole ledger weekly | `modules/ledger/ledger-reconcile.service.ts:304` | see the setting | listed | |
 | `moderation.image.enabled` | Проверка картинок | auto | 3 (off/on/auto, old boolean accepted) | image moderation (paid API); auto = on inside the cost-guard cap | `modules/media-moderation/media-moderation.service.ts:197` | cost guard `image_moderation` daily cap | yes | |
 | `ops.auto_pause_heavy_jobs` | Авто-пауза тяжёлых задач | on | 2 | pause when DB slow | `jobs/handlers/ops-guard.job.ts:61` | `ops.db_slow_ms` | default | |
 | `ops.auto_scale_down_on_budget` | Авто-снижение по бюджету | on | 2 | cap autoscaling at budget | `jobs/handlers/ops-guard.job.ts:107` | monthly budget | default | |
@@ -43,6 +44,7 @@ Rows are sorted by key: insert a new row at its alphabetical place (never append
 | `security.password_breach_check_enabled` | Проверка паролей на утечки | on | 2 | outbound breach lookup | `modules/auth/services/password.service.ts:180` | none | listed | |
 | `security.password_common_list_enabled` | Список частых паролей | on | 2 | local list check | `modules/auth/services/password.service.ts:173` | none | listed | |
 | `security.turnstile.mode` | Проверка «не бот» | off | 3 | web bot check | `modules/auth/app-check/app-check.guard.ts:180` | none | parse | |
+| `sms.cap_mode` | Как работают лимиты SMS | auto | 2 (auto/fixed) | review R-75 (#411): auto = caps are floors that grow with the last 7 days, capped by `sms.burst_ceiling_multiplier`; fixed = typed numbers | `common/cost-guard/sms-abuse-guard.service.ts:101` | `sms.burst_ceiling_multiplier` | listed | |
 | `sms.login_code_enabled` | SMS-код для входа | off | 2 | passwordless SMS sign-in (SMS costs money) | `modules/auth/auth.service.ts:1128` | `sms.registration_per_number_per_day` | yes | |
 | `storage.auto_cleanup` | Авто-очистка файлов | on | 2 | hourly storage GC | `modules/storage/storage-cleanup.service.ts:111` | `storage.orphan_grace_hours` | yes | |
 | `storage.auto_retention` | Авто-удаление старых логов | on | 2 | log retention purge | `modules/storage/data-retention.service.ts:64` | retention days keys | yes | |
