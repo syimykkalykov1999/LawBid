@@ -26,7 +26,7 @@ class AdminUsersBulkDto {
   /// Exactly one of `ids` or `filter`.
   final List<String>? ids;
 
-  /// S18-10: «select all matching»: the server resolves the ids with the same filter as the list (at most BULK_FILTER_CAP users) and audits the filter.
+  /// S18-10: «select all matching»: the server resolves the ids with the same filter as the list (at most BULK_PREVIEW_CAP users; q, role or status required) and audits the filter.
   final AdminUsersFilterDto? filter;
   final String reason;
 

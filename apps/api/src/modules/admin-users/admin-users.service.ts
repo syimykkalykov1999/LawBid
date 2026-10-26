@@ -41,6 +41,7 @@ import type {
   AdminUserListItemDto,
   AdminUsersPage,
   AdminUsersBulkDto,
+  AdminUsersBulkPreviewResultDto,
   AdminUsersFilterDto,
   AdminUsersQueryDto,
   SanctionResultDto,
@@ -58,8 +59,11 @@ export const USERS_AUDIT = {
 } as const;
 
 /** S18-10: most users one filter-based bulk call touches (it runs inside
- * one request: the panel proxy waits up to 120 s for the answer). */
-export const BULK_FILTER_CAP = 1000;
+ * one request: the panel proxy waits up to 120 s for the answer). Owner
+ * 2026-10-25: admin numbers never come from a live count over the users
+ * table, so the preview and the action both read at most cap + 1 ids and
+ * say «capped» instead of counting. */
+export const BULK_PREVIEW_CAP = 500;
 
 const LIST_DEFAULT = 20;
 const PHONE_CHANGES_PER_ADMIN_PER_DAY = 10;
@@ -680,7 +684,8 @@ export class AdminUsersService {
         after: {
           action: dto.action,
           filter: { ...dto.filter },
-          matched: found.total,
+          matched: found.matched,
+          capped: found.capped,
           processed: ids.length,
         },
         ip: admin.ip,
@@ -695,32 +700,43 @@ export class AdminUsersService {
     );
   }
 
-  /** S18-10: how many users the filter matches (for the confirm dialog). */
+  /** S18-10: how many users the filter matches (for the confirm dialog):
+   * at most the cap, `capped` when there are more. */
   async bulkPreview(
     filter: AdminUsersFilterDto,
     countries: CountryScope = null,
-  ): Promise<{ count: number; cap: number }> {
-    const count = await this.prisma.user.count({
-      where: this.listWhere(filter, countries),
-    });
-    return { count, cap: BULK_FILTER_CAP };
+  ): Promise<AdminUsersBulkPreviewResultDto> {
+    const found = await this.resolveFilter(filter, countries);
+    return {
+      matched: found.matched,
+      capped: found.capped,
+      cap: BULK_PREVIEW_CAP,
+    };
   }
 
+  /** The ids the filter matches, bounded: cap + 1 rows tell whether the cap
+   * cut the list without a count over the users table. An empty filter is
+   * refused so a bulk action can never target the whole table. */
   private async resolveFilter(
     filter: AdminUsersFilterDto,
     countries: CountryScope,
-  ): Promise<{ ids: string[]; total: number }> {
-    const where = this.listWhere(filter, countries);
-    const [total, rows] = await Promise.all([
-      this.prisma.user.count({ where }),
-      this.prisma.user.findMany({
-        where,
-        select: { id: true },
-        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-        take: BULK_FILTER_CAP,
-      }),
-    ]);
-    return { ids: rows.map((r) => r.id), total };
+  ): Promise<{ ids: string[]; matched: number; capped: boolean }> {
+    if (!filter.q?.trim() && !filter.role && !filter.status) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message:
+          'Narrow the users first: a bulk filter needs q, role or status.',
+        details: { field: 'filter' },
+      });
+    }
+    const rows = await this.prisma.user.findMany({
+      where: this.listWhere(filter, countries),
+      select: { id: true },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take: BULK_PREVIEW_CAP + 1,
+    });
+    const ids = rows.slice(0, BULK_PREVIEW_CAP).map((r) => r.id);
+    return { ids, matched: ids.length, capped: rows.length > BULK_PREVIEW_CAP };
   }
 
   /** §3.4 suspension. */

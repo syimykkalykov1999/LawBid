@@ -161,7 +161,7 @@ export class AdminUsersBulkDto {
   @ApiPropertyOptional({
     type: () => AdminUsersFilterDto,
     description:
-      'S18-10: «select all matching»: the server resolves the ids with the same filter as the list (at most BULK_FILTER_CAP users) and audits the filter.',
+      'S18-10: «select all matching»: the server resolves the ids with the same filter as the list (at most BULK_PREVIEW_CAP users; q, role or status required) and audits the filter.',
   })
   @ValidateIf((o: AdminUsersBulkDto) => o.ids === undefined)
   @ValidateNested()
@@ -185,8 +185,16 @@ export class AdminUsersBulkPreviewDto {
 }
 
 export class AdminUsersBulkPreviewResultDto {
-  @ApiProperty({ type: 'integer', description: 'Users matching the filter.' })
-  count!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Users matching the filter, at most `cap` (no live count).',
+  })
+  matched!: number;
+  @ApiProperty({
+    description:
+      'More users match than `cap`; the action touches the first `cap`.',
+  })
+  capped!: boolean;
   @ApiProperty({
     type: 'integer',
     description: 'The most one bulk call touches.',

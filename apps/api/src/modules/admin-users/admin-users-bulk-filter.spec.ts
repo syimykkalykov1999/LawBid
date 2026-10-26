@@ -1,31 +1,35 @@
 import { BadRequestException } from '@nestjs/common';
 import {
   AdminUsersService,
-  BULK_FILTER_CAP,
+  BULK_PREVIEW_CAP,
   USERS_AUDIT,
 } from './admin-users.service';
 
-/** S18-10: «select all matching» is resolved on the server and audited. */
+/** S18-10: «select all matching» is resolved on the server and audited.
+ * Owner 2026-10-25: without a live count — a bounded id list (cap + 1). */
 describe('AdminUsersService.bulk with a filter', () => {
   const admin = { id: 'adm1', ip: '1.1.1.1', countries: null } as never;
 
   function build(total: number) {
-    const count = jest.fn().mockResolvedValue(total);
-    const findMany = jest.fn().mockResolvedValue(
-      Array.from({ length: Math.min(total, BULK_FILTER_CAP) }, (_, i) => ({
-        id: `u${i}`,
-      })),
-    );
+    const findMany = jest
+      .fn()
+      .mockImplementation(({ take }: { take: number }) =>
+        Promise.resolve(
+          Array.from({ length: Math.min(total, take) }, (_, i) => ({
+            id: `u${i}`,
+          })),
+        ),
+      );
     const record = jest.fn().mockResolvedValue(undefined);
     const svc = Object.create(AdminUsersService.prototype) as AdminUsersService;
     Object.assign(svc, {
-      prisma: { user: { count, findMany } },
+      prisma: { user: { findMany } },
       audit: { record },
     });
     const logout = jest
       .spyOn(svc, 'revokeSessions')
       .mockResolvedValue({} as never);
-    return { svc, count, findMany, record, logout };
+    return { svc, findMany, record, logout };
   }
 
   it('resolves the ids with the list filter, runs the action and audits the filter', async () => {
@@ -37,8 +41,9 @@ describe('AdminUsersService.bulk with a filter', () => {
     } as never);
     expect(out.done).toEqual(['u0', 'u1', 'u2']);
     expect(logout).toHaveBeenCalledTimes(3);
-    const where = findMany.mock.calls[0][0].where;
-    expect(where).toMatchObject({ role: 'client', status: 'active' });
+    const call = findMany.mock.calls[0][0];
+    expect(call.where).toMatchObject({ role: 'client', status: 'active' });
+    expect(call.take).toBe(BULK_PREVIEW_CAP + 1);
     expect(record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: USERS_AUDIT.bulkFilter,
@@ -46,24 +51,40 @@ describe('AdminUsersService.bulk with a filter', () => {
           action: 'logout',
           filter: { role: 'client', status: 'active' },
           matched: 3,
+          capped: false,
           processed: 3,
         }),
       }),
     );
   });
 
-  it('never touches more than the cap and says how many matched', async () => {
-    const { svc, record, logout } = build(BULK_FILTER_CAP + 400);
+  it('never touches more than the cap and says the cap cut the list', async () => {
+    const { svc, record, logout } = build(BULK_PREVIEW_CAP + 400);
     await svc.bulk(admin, {
       action: 'logout',
-      filter: {},
+      filter: { status: 'active' },
       reason: '',
     } as never);
-    expect(logout).toHaveBeenCalledTimes(BULK_FILTER_CAP);
+    expect(logout).toHaveBeenCalledTimes(BULK_PREVIEW_CAP);
     expect(record.mock.calls[0][0].after).toMatchObject({
-      matched: BULK_FILTER_CAP + 400,
-      processed: BULK_FILTER_CAP,
+      matched: BULK_PREVIEW_CAP,
+      capped: true,
+      processed: BULK_PREVIEW_CAP,
     });
+  });
+
+  it('refuses an empty filter (never the whole users table)', async () => {
+    const { svc, findMany, logout } = build(5);
+    for (const filter of [{}, { q: '  ' }, { countryCode: 'US' }]) {
+      await expect(
+        svc.bulk(admin, { action: 'logout', filter, reason: '' } as never),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(svc.bulkPreview(filter)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    }
+    expect(findMany).not.toHaveBeenCalled();
+    expect(logout).not.toHaveBeenCalled();
   });
 
   it('wants exactly one of ids / filter', async () => {
@@ -75,18 +96,29 @@ describe('AdminUsersService.bulk with a filter', () => {
       svc.bulk(admin, {
         action: 'logout',
         ids: ['a'],
-        filter: {},
+        filter: { status: 'active' },
         reason: '',
       } as never),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('previews the count without running anything', async () => {
+  it('previews the bounded number without running anything', async () => {
     const { svc, logout } = build(42);
     expect(await svc.bulkPreview({ status: 'suspended' })).toEqual({
-      count: 42,
-      cap: BULK_FILTER_CAP,
+      matched: 42,
+      capped: false,
+      cap: BULK_PREVIEW_CAP,
     });
     expect(logout).not.toHaveBeenCalled();
+  });
+
+  it('previews «capped» when more than the cap match', async () => {
+    const { svc, findMany } = build(BULK_PREVIEW_CAP + 1);
+    expect(await svc.bulkPreview({ role: 'attorney' })).toEqual({
+      matched: BULK_PREVIEW_CAP,
+      capped: true,
+      cap: BULK_PREVIEW_CAP,
+    });
+    expect(findMany).toHaveBeenCalledTimes(1);
   });
 });

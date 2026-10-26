@@ -118279,9 +118279,13 @@
       "AdminUsersBulkPreviewResultDto": {
         "type": "object",
         "properties": {
-          "count": {
+          "matched": {
             "type": "integer",
-            "description": "Users matching the filter."
+            "description": "Users matching the filter, at most `cap` (no live count)."
+          },
+          "capped": {
+            "type": "boolean",
+            "description": "More users match than `cap`; the action touches the first `cap`."
           },
           "cap": {
             "type": "integer",
@@ -118289,7 +118293,8 @@
           }
         },
         "required": [
-          "count",
+          "matched",
+          "capped",
           "cap"
         ]
       },
@@ -118439,7 +118444,7 @@
             }
           },
           "filter": {
-            "description": "S18-10: «select all matching»: the server resolves the ids with the same filter as the list (at most BULK_FILTER_CAP users) and audits the filter.",
+            "description": "S18-10: «select all matching»: the server resolves the ids with the same filter as the list (at most BULK_PREVIEW_CAP users; q, role or status required) and audits the filter.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/AdminUsersFilterDto"

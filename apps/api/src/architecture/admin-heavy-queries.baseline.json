@@ -4,6 +4,5 @@
   "modules/admin-cases/admin-case-management.service.ts": 1,
   "modules/admin-content/admin-content.service.ts": 7,
   "modules/admin-content/admin-text-search.ts": 1,
-  "modules/admin-data-requests/legal-lookup.service.ts": 1,
-  "modules/admin-users/admin-users.service.ts": 2
+  "modules/admin-data-requests/legal-lookup.service.ts": 1
 }

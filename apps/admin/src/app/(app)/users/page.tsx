@@ -39,8 +39,8 @@ type Role = '' | 'client' | 'attorney' | 'admin';
 type Status = '' | 'active' | 'suspended' | 'deletion_pending' | 'deleted';
 const ROLE_FILTER: Exclude<Role, ''>[] = ['client', 'attorney', 'admin'];
 type BulkAction = components['schemas']['AdminUsersBulkAction'];
-/** Mirrors the server's BULK_FILTER_CAP (admin-users.service.ts). */
-const BULK_CAP = 1000;
+/** Mirrors the server's BULK_PREVIEW_CAP (admin-users.service.ts). */
+const BULK_CAP = 500;
 const USERS: Noun = ['пользователь', 'пользователя', 'пользователей'];
 
 /** Owner 2026-10-04: bulk actions on users, same rights as the single ones. */
@@ -198,8 +198,8 @@ export default function UsersPage() {
           onSelectAll={async () => {
             const p = (await api.POST('/admin/users/bulk/preview', { body: { filter: filterBody } })).data!.data;
             sel.clear();
-            setByFilter({ count: Math.min(p.count, p.cap), capped: p.count > p.cap });
-            return p.count > p.cap;
+            setByFilter({ count: p.matched, capped: p.capped });
+            return p.capped;
           }}
         >
           <Button size="sm" variant="outline" className="text-danger" disabled={bulk.pending} onClick={() => onBulk('suspend')}>

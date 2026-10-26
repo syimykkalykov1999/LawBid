@@ -9,15 +9,19 @@ part 'admin_users_bulk_preview_result_dto.g.dart';
 @JsonSerializable()
 class AdminUsersBulkPreviewResultDto {
   const AdminUsersBulkPreviewResultDto({
-    required this.count,
+    required this.matched,
+    required this.capped,
     required this.cap,
   });
 
   factory AdminUsersBulkPreviewResultDto.fromJson(Map<String, Object?> json) =>
       _$AdminUsersBulkPreviewResultDtoFromJson(json);
 
-  /// Users matching the filter.
-  final int count;
+  /// Users matching the filter, at most `cap` (no live count).
+  final int matched;
+
+  /// More users match than `cap`; the action touches the first `cap`.
+  final bool capped;
 
   /// The most one bulk call touches.
   final int cap;
