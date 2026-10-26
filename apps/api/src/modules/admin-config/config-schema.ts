@@ -466,6 +466,29 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 1_000_000,
   };
+  out['sms.cap_mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'How the SMS caps above behave. auto (default): each cap is a floor and grows to the highest day of the last 7 days times «sms.burst_multiplier» (up to «sms.burst_ceiling_multiplier» times the cap), with an alert when the extra room is used, so a launch or marketing spike is not silently dropped. fixed: exactly the numbers typed.',
+    pattern: /^(auto|fixed)$/,
+  };
+  out['sms.burst_multiplier'] = {
+    type: 'number',
+    defaultValue: 3,
+    description:
+      'Auto mode: the allowed number is the 7-day baseline times this (never below the typed cap).',
+    min: 1,
+    max: 20,
+  };
+  out['sms.burst_ceiling_multiplier'] = {
+    type: 'number',
+    defaultValue: 10,
+    description:
+      'Auto mode: the allowed number never exceeds the typed cap times this.',
+    min: 1,
+    max: 100,
+  };
   out['storage.daily_upload_mb_per_user'] = {
     ...out['storage.daily_upload_mb_per_user'],
     description:

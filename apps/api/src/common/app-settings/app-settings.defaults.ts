@@ -362,6 +362,14 @@ export const OWNER_SMS_SETTINGS = {
    * and e-mail codes keep working. Unlike «Лимиты расходов» it is never
    * changed by the auto mode. 0 = off. */
   'sms.signup_daily_cap': 300,
+  /** Review R-75: how the SMS caps behave. auto (default) = every cap above
+   * is a FLOOR: the allowed number grows to the highest value of the
+   * previous 7 UTC days x `sms.burst_multiplier`, never above
+   * `sms.burst_ceiling_multiplier` x the typed cap; an alert is logged when
+   * the allowance is used. fixed = exactly the typed numbers. */
+  'sms.cap_mode': 'auto',
+  'sms.burst_multiplier': 3,
+  'sms.burst_ceiling_multiplier': 10,
 } as const;
 
 // Owner 2026-10-22 (client economy plan §5, Telegram «Данные и память»):
