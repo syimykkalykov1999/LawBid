@@ -181,11 +181,17 @@ export function configureApp(
         // Owner 2026-10-23 (web pass): the app's own HTTP cache revalidates
         // with If-None-Match (a 304 instead of the whole answer) ...
         'If-None-Match',
+        // Owner 2026-10-25 (S17-6): the web app asks for AVIF photo twins.
+        'X-Image-Formats',
       ],
       // ... and reads the tag from `ETag`, which a cross-origin page may
       // not see unless it is exposed.
       exposedHeaders: ['ETag'],
-      maxAge: 600,
+      // Owner 2026-10-25 (S17-1): the preflight answer is cached per URL; the
+      // browsers cap it themselves (Chrome 2 h = 7200, Firefox 24 h), so ask
+      // for the Chrome maximum. The real fix is same-origin /api on the web
+      // distribution (infra/modules/web, `api_proxy_host`): no preflight at all.
+      maxAge: 7200,
     }),
   );
 
