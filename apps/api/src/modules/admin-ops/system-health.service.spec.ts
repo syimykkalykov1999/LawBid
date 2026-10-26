@@ -147,6 +147,32 @@ describe('SystemHealthService', () => {
     expect(r.overall).toBe('red');
   });
 
+  it('message keys: one kid sealing a billion messages raises the alarm text (S3-2)', async () => {
+    const hot = build({
+      cipher: keysOn,
+      reencryptState: {
+        ...pass('done', 0),
+        kidRows: { m1: 12, m2: 1_000_000_000 },
+      },
+    });
+    const r = await hot.svc.report(hot.now);
+    const tile = r.items.find((i) => i.key === 'message_keys');
+    expect(tile?.status).toBe('red');
+    expect(tile?.detail.kidRows).toEqual({ m1: 12, m2: 1_000_000_000 });
+    expect(String(tile?.detail.alarm)).toContain('«m2»');
+    expect(String(tile?.detail.alarm)).toContain('новый ключ');
+
+    const calm = build({
+      cipher: keysOn,
+      reencryptState: { ...pass('done', 0), kidRows: { m2: 999_999_999 } },
+    });
+    const ok = (await calm.svc.report(calm.now)).items.find(
+      (i) => i.key === 'message_keys',
+    );
+    expect(ok?.status).toBe('green');
+    expect(ok?.detail.alarm).toBeNull();
+  });
+
   it('message keys: yellow while a pass runs, red with stuck rows, green when done and names removable kids', async () => {
     const running = build({
       cipher: keysOn,

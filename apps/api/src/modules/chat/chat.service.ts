@@ -75,6 +75,7 @@ import {
   OrganizeConversationDto,
 } from './chat.dto';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
+import { fileNameAad } from '../../common/secrets/field-aad';
 import { loadMessageExtras, type MessageExtras } from './chat-message-extras';
 import { expiresAtFor, notExpired } from './disappearing';
 import { touchClientActive } from '../cases/cases.public';
@@ -750,7 +751,7 @@ export class ChatService {
           kind: 'attachment',
           text,
           fileId: src.file_id,
-          fileName: src.file_name ?? 'file',
+          fileName: this.openFileName(src.file_name, src.id) ?? 'file',
           mime: file?.mime,
           fromName,
         };
@@ -1190,6 +1191,12 @@ export class ChatService {
           : null;
         // Audit #6: the id is chosen here, the sealed bodies are bound to it.
         const messageId = randomUUID();
+        // S3-5: the attachment's original name is sealed like the body.
+        const fileName = attachment ? cleanFileName(dto.fileName!) : null;
+        const storedFileName =
+          fileName !== null && this.cipher
+            ? await this.cipher.sealMetadata(fileName, fileNameAad(messageId))
+            : fileName;
         const m = await tx.message.create({
           data: {
             id: messageId,
@@ -1230,7 +1237,7 @@ export class ChatService {
               : attachment
                 ? {
                     file_id: dto.fileId,
-                    file_name: cleanFileName(dto.fileName!),
+                    file_name: storedFileName,
                   }
                 : sticker
                   ? { sticker_id: dto.stickerId }
@@ -2202,6 +2209,17 @@ export class ChatService {
     return out;
   }
 
+  /** A stored attachment name as plain text (legacy rows are plaintext). */
+  private openFileName(
+    stored: string | null,
+    messageId: string,
+  ): string | null {
+    if (stored === null) return null;
+    const plain =
+      this.cipher?.openField(stored, fileNameAad(messageId)) ?? stored;
+    return plain === '' ? null : plain;
+  }
+
   private seal(text: string, messageId: string): string {
     return this.cipher?.seal(text, messageId) ?? text;
   }
@@ -2326,7 +2344,7 @@ export class ChatService {
     const f = m.file_id ? media?.attachments.get(m.file_id) : undefined;
     return {
       fileId: m.file_id ?? '',
-      name: m.file_name ?? 'file',
+      name: this.openFileName(m.file_name, m.id) ?? 'file',
       mime: f?.mime ?? null,
       sizeBytes: f?.sizeBytes ?? null,
       isImage: f ? isImageMime(f.mime) : false,
