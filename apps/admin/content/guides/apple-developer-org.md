@@ -1,7 +1,7 @@
 ---
 id: apple-developer-org
 title: Аккаунт Apple Developer для компании
-category: accounts
+category: launch
 cost: $99 в год (один взнос в год), номер D-U-N-S бесплатный
 time: от 1 до 3 недель (номер D-U-N-S до 5 рабочих дней, потом проверка Apple)
 verified: 2026-10-25

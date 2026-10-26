@@ -1,7 +1,7 @@
 ---
 id: aws-terraform-apply
 title: Terraform plan и apply через наши скрипты
-category: aws
+category: launch
 cost: Бесплатно сам по себе; изменения в AWS могут стоить денег (смотрите план)
 time: 20-40 минут
 verified: 2026-10-25

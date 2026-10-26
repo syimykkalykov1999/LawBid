@@ -70,6 +70,22 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 100,
     max: 5000,
   };
+  out['search.reindex_keep_days'] = {
+    type: 'integer',
+    defaultValue: 7,
+    description:
+      'After a search reindex, the old index is kept this many days so you can roll back, then deleted.',
+    min: 1,
+    max: 60,
+  };
+  out['search.reindex_throttle_ms'] = {
+    type: 'integer',
+    defaultValue: 200,
+    description:
+      'A search reindex pauses this many milliseconds between batches of 500 documents, so it does not slow the database.',
+    min: 0,
+    max: 5000,
+  };
   out['calls.video_provider'] = {
     type: 'string',
     defaultValue: 'p2p',
@@ -485,6 +501,27 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 1000000,
   };
+  out['scale.capacity_ceiling.mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'Biggest database / Redis size the autoscalers may use: auto = what the allowed monthly spend pays for (Экономика), off = only the Terraform ceiling. Changed on the «Расходы» page.',
+    pattern: /^(off|auto)$/,
+  };
+  out['scale.bunny_hardstop.mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'New video uploads (Bunny): auto = pause when this month’s Bunny traffic or storage reaches the urgent threshold, on = paused now, off = never paused. Playback of existing videos is never touched. Changed on the «Расходы» page.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['scale.cloudflare_hardstop.mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'Group video calls on Cloudflare SFU: auto = fall back to device-to-device when this month’s Cloudflare traffic reaches the urgent threshold, on = fallen back now, off = never. Calls are never refused. Changed on the «Расходы» page.',
+    pattern: /^(off|on|auto)$/,
+  };
   out['usage.bunny_bandwidth_crit_gb'] = {
     ...out['usage.bunny_bandwidth_crit_gb'],
     description:
@@ -511,6 +548,17 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Third-party services may cost at most this percent of the last 30 days’ revenue (admin: Экономика).',
     min: 1,
     max: 100,
+  };
+  out['chat.search.backfill_mode'] = {
+    ...out['chat.search.backfill_mode'],
+    description:
+      'Chat search index of old messages: off | on (every 5 minutes) | auto (default: at night until done, then idle).',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['chat.search.backfill_rows_per_run'] = {
+    ...out['chat.search.backfill_rows_per_run'],
+    min: 100,
+    max: 100000,
   };
   out['economy.ceiling_mode'] = {
     ...out['economy.ceiling_mode'],

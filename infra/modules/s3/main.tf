@@ -662,6 +662,8 @@ output "media_cdn_distribution_id" { value = aws_cloudfront_distribution.media.i
 output "media_cdn_distribution_arn" { value = aws_cloudfront_distribution.media.arn }
 output "documents_cdn_distribution_id" { value = one(aws_cloudfront_distribution.documents[*].id) }
 output "documents_cdn_distribution_arn" { value = one(aws_cloudfront_distribution.documents[*].arn) }
+output "media_distribution_id" { value = aws_cloudfront_distribution.media.id }
+output "documents_distribution_id" { value = one(aws_cloudfront_distribution.documents[*].id) }
 output "documents_cdn_domain" { value = one(aws_cloudfront_distribution.documents[*].domain_name) }
 output "documents_cdn_key_pair_id" { value = one(aws_cloudfront_public_key.documents[*].id) }
 
