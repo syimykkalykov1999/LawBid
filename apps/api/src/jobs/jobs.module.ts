@@ -55,6 +55,7 @@ import { LedgerModule } from '../modules/ledger/ledger.public';
 import { OPENSEARCH_CLIENT_PROVIDER } from '../modules/search/engine/opensearch.client';
 import { SearchDocsLoader } from '../modules/search/engine/search-docs.loader';
 import { SearchIndexerService } from '../modules/search/search-indexer.service';
+import { SearchReindexService } from '../modules/search/search-reindex.service';
 import { DashboardService } from '../modules/admin/dashboard.service';
 import { BillingOverviewService } from '../modules/admin-billing/billing-overview.service';
 import { OpsGuardJob } from './handlers/ops-guard.job';
@@ -170,6 +171,7 @@ export class JobsModule {
         SearchIndexJob,
         LedgerReconcileJob,
         SearchIndexerService,
+        SearchReindexService,
         SearchDocsLoader,
         OPENSEARCH_CLIENT_PROVIDER,
         DashboardService,

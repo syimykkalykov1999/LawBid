@@ -10,7 +10,10 @@ import { OpsStateService } from '../../common/ops/ops-state.service';
 import { SecretRotationService } from '../../common/ops/secret-rotation.service';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { SecretsService } from '../../common/secrets/secrets.service';
-import { MessageReencryptJob } from '../../jobs/handlers/message-reencrypt.job';
+import {
+  MESSAGE_KID_ROW_ALARM,
+  MessageReencryptJob,
+} from '../../jobs/handlers/message-reencrypt.job';
 import { OBSERVED_QUEUES } from '../../jobs/handlers/ops-metrics.job';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -170,15 +173,25 @@ export class SystemHealthService implements OnModuleDestroy {
     const stuck = current
       ? Object.values(current.byKid).reduce((n, k) => n + k.failed, 0)
       : 0;
-    const status: HealthStatus = !current
-      ? retiredKids.length > 0
-        ? 'yellow'
-        : 'green'
-      : stuck > 0
-        ? 'red'
-        : current.phase === 'done'
-          ? 'green'
-          : 'yellow';
+    // S3-2: one random-IV AES-GCM key must not seal without limit.
+    const kidRows = current?.kidRows ?? {};
+    const overKid = Object.entries(kidRows).find(
+      ([, n]) => n >= MESSAGE_KID_ROW_ALARM,
+    );
+    const alarm = overKid
+      ? `Под ключом «${overKid[0]}» уже ${overKid[1].toLocaleString('ru-RU')} сообщений (предел 1 млрд). Выпустите новый ключ (kid) и сделайте его активным; ключи меняют раз в год.`
+      : null;
+    const status: HealthStatus = alarm
+      ? 'red'
+      : !current
+        ? retiredKids.length > 0
+          ? 'yellow'
+          : 'green'
+        : stuck > 0
+          ? 'red'
+          : current.phase === 'done'
+            ? 'green'
+            : 'yellow';
     return {
       status,
       detail: {
@@ -190,6 +203,11 @@ export class SystemHealthService implements OnModuleDestroy {
         rewritten: current?.rewritten ?? 0,
         failed: current?.failed ?? 0,
         byKid: current?.byKid ?? {},
+        /** Sealed message bodies per key id (exact after a finished pass). */
+        kidRows,
+        kidRowAlarmAt: MESSAGE_KID_ROW_ALARM,
+        alarm,
+        stores: current?.stores ?? null,
         startedAt: current?.startedAt ?? null,
         updatedAt: current?.updatedAt ?? null,
         finishedAt: current?.finishedAt ?? null,
