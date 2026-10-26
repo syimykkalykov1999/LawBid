@@ -16,6 +16,7 @@ import {
 import { isHeld } from '../../common/privacy/legal-hold';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
+import { MessageSearchIndex } from '../../common/secrets/message-search-index';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -54,6 +55,8 @@ export class ChatActionsService {
     private readonly stars: StarsService,
     @Optional() private readonly cipher?: MessageBodyCipher,
     @Optional() private readonly notifications?: NotificationsService,
+    // BUG-1 (package N-12b): the blind search index follows edits/deletes.
+    @Optional() private readonly searchIndex?: MessageSearchIndex,
     // Privacy round 13 (S13-4): "delete for everyone" releases the file.
     @Optional() private readonly releases?: FileReleaseService,
     @Optional()
@@ -160,6 +163,13 @@ export class ChatActionsService {
       ? { text: body, masked: false }
       : maskContactInfo(body);
     const now = new Date();
+    // BUG-1: the edited text is re-tokenized in the same transaction.
+    const searchRows =
+      this.searchIndex?.rowsFor(
+        m,
+        masked.text,
+        this.searchIndex.enabled ? await this.searchIndex.prefixMode() : false,
+      ) ?? [];
     await this.prisma.$transaction([
       this.prisma.messageEdit.create({
         data: { message_id: m.id, body_original: m.body_original },
@@ -172,6 +182,14 @@ export class ChatActionsService {
           contact_masked: masked.masked,
           edited_at: now,
         },
+      }),
+      // After the row update (its lock orders this with the backfill job).
+      this.prisma.messageSearchToken.deleteMany({
+        where: { message_id: m.id },
+      }),
+      this.prisma.messageSearchToken.createMany({
+        data: searchRows,
+        skipDuplicates: true,
       }),
     ]);
     await this.publish(conv, m.id);
@@ -251,6 +269,10 @@ export class ChatActionsService {
       }),
       this.prisma.messagePin.deleteMany({ where: { message_id: m.id } }),
       this.prisma.messageReaction.deleteMany({ where: { message_id: m.id } }),
+      // BUG-1: the shown text is gone, so are its search tokens.
+      this.prisma.messageSearchToken.deleteMany({
+        where: { message_id: m.id },
+      }),
     ]);
     if (m.file_id) await this.releaseFile(m.file_id, m.id);
     await this.publish(conv, m.id);

@@ -1,5 +1,14 @@
-import { Injectable, Optional } from '@nestjs/common';
-import { CRON_JOBS } from './jobs.constants';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import type Redis from 'ioredis';
+import {
+  CRON_JOBS,
+  CRON_HEAVY_QUEUE,
+  CRON_SCHEDULES,
+  cronLaneOf,
+  isSubHourly,
+} from './jobs.constants';
+import { withJobLock } from './handlers/job-lock';
+import { REDIS_CLIENT } from '../redis/redis.constants';
 import { CasePaymentsService } from '../modules/case-payments/case-payments.service';
 import { PromotionsService } from '../modules/promotions/promotions.service';
 import { StarsService } from '../modules/stars/stars.service';
@@ -44,6 +53,7 @@ import { LegalQaSweepJob } from '../modules/legal-qa/legal-qa-sweep.job';
 import { ContactsJoinedJob } from './handlers/contacts-joined.job';
 import { ContactsPepperBackfillJob } from './handlers/contacts-pepper-backfill.job';
 import { MessageReencryptJob } from './handlers/message-reencrypt.job';
+import { ChatSearchBackfillJob } from './handlers/chat-search-backfill.job';
 import { ConsultationRemindersJob } from '../modules/consultations/consultation-reminders.job';
 import {
   TaskArchivePurgeJob,
@@ -144,6 +154,8 @@ export class CronProcessor {
     @Optional()
     private readonly contactsPepperBackfill?: ContactsPepperBackfillJob,
     @Optional() private readonly messagesReencrypt?: MessageReencryptJob,
+    // BUG-1 (package N-12b): `chat.search-backfill`.
+    @Optional() private readonly chatSearchBackfill?: ChatSearchBackfillJob,
     // Owner 2026-10-22: one queued job per account to anonymize.
     @Optional() private readonly accountDeletion?: AccountDeletionRunner,
     // Owner 2026-10-23: `admin.summaries`.
@@ -159,9 +171,39 @@ export class CronProcessor {
     @Optional() private readonly privacyRetention?: PrivacyRetentionService,
     @Optional() private readonly privacyReconcile?: PrivacyReconcileJob,
     @Optional() private readonly deletionNotices?: DeletionNoticesService,
+    // S10-13: one lock per job name for every schedule.
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
 
+  /**
+   * S10-13: the single place that keeps a job from overlapping itself
+   * (Kubernetes CronJob `concurrencyPolicy: Forbid`): a tick, a BullMQ
+   * retry or `runNow` that finds the previous run of the SAME job still
+   * going is skipped, never queued behind it. The TTL bounds a crashed
+   * holder: a sub-hourly job is blocked for at most 3 minutes after a kill,
+   * a heavy one for 60.
+   */
   async process(name: string): Promise<unknown> {
+    if (!this.redis) return this.dispatch(name);
+    const pattern = CRON_SCHEDULES.find((s) => s.name === name)?.pattern ?? '';
+    const ttlMs =
+      cronLaneOf(name) === CRON_HEAVY_QUEUE
+        ? 60 * 60_000
+        : isSubHourly(pattern)
+          ? 3 * 60_000
+          : 30 * 60_000;
+    const ran = await withJobLock(
+      this.redis,
+      `cron:${name}`,
+      ttlMs,
+      async () => ({
+        value: await this.dispatch(name),
+      }),
+    );
+    return ran ? ran.value : { skipped: 'previous run still active' };
+  }
+
+  private async dispatch(name: string): Promise<unknown> {
     // Owner 2026-10-05: «Пауза тяжёлых задач» (owner button or automatic
     // while the database is slow) — skip this tick, the next one runs.
     if (
@@ -265,6 +307,8 @@ export class CronProcessor {
         return this.contactsPepperBackfill?.run() ?? null;
       case CRON_JOBS.messagesReencrypt:
         return this.messagesReencrypt?.run() ?? null;
+      case CRON_JOBS.chatSearchBackfill:
+        return this.chatSearchBackfill?.run() ?? null;
       case CRON_JOBS.consultationsSweep:
         return this.consultationSweep?.run() ?? null;
       case CRON_JOBS.taskReminders:

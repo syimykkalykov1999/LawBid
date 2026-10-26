@@ -217,6 +217,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   message_edits: 'message edit history',
   message_hidden: 'messages hidden for one person',
   message_pins: 'pinned messages',
+  message_search_tokens: 'blind search index of chat message words',
   message_reactions: 'message reactions',
   chat_groups: 'group chats',
   chat_group_members: 'group members',
