@@ -1,5 +1,8 @@
 import {
   affordableCeilings,
+  affordableTier,
+  DB_CEILING_SHARE,
+  REDIS_CEILING_SHARE,
   allowedSpendUsd,
   dailyBrakeCents,
   dbMaxConnections,
@@ -272,5 +275,40 @@ describe('S9 rules', () => {
   it('dbStorageMonthUsd: gp3, Multi-AZ doubles', () => {
     expect(dbStorageMonthUsd(100, true)).toBe(23);
     expect(dbStorageMonthUsd(100, false)).toBe(11.5);
+  });
+});
+
+describe('affordableTier (budget-tied autoscale ceilings, cost registry V4)', () => {
+  it('with the $350 budget the database stops at medium and Redis at small', () => {
+    expect(affordableTier(DB_TIERS, 350, DB_CEILING_SHARE).name).toBe(
+      'db.t4g.medium',
+    );
+    expect(affordableTier(REDIS_TIERS, 350, REDIS_CEILING_SHARE).name).toBe(
+      'cache.t4g.small',
+    );
+  });
+
+  it('a bigger allowance lifts the ceiling step by step', () => {
+    expect(affordableTier(DB_TIERS, 1000, DB_CEILING_SHARE).name).toBe(
+      'db.r7g.large',
+    );
+    expect(affordableTier(DB_TIERS, 2000, DB_CEILING_SHARE).name).toBe(
+      'db.r7g.xlarge',
+    );
+    expect(affordableTier(REDIS_TIERS, 2200, REDIS_CEILING_SHARE).name).toBe(
+      'cache.r7g.large',
+    );
+  });
+
+  it('never below the smallest tier, never above the Terraform maximum', () => {
+    expect(affordableTier(DB_TIERS, 0, DB_CEILING_SHARE).name).toBe(
+      'db.t4g.micro',
+    );
+    expect(affordableTier(DB_TIERS, -5, DB_CEILING_SHARE).name).toBe(
+      'db.t4g.micro',
+    );
+    expect(
+      affordableTier(DB_TIERS, 100_000, DB_CEILING_SHARE, 'db.r7g.large').name,
+    ).toBe('db.r7g.large');
   });
 });

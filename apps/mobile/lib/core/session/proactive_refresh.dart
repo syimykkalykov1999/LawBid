@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:lawbid/core/realtime/realtime_timings.dart';
 import 'package:lawbid/core/realtime/reconnect_controller.dart';
@@ -14,10 +15,7 @@ DateTime? jwtExpiry(String accessToken) {
     );
     final exp = payload is Map ? payload['exp'] : null;
     if (exp is! num) return null;
-    return DateTime.fromMillisecondsSinceEpoch(
-      exp.toInt() * 1000,
-      isUtc: true,
-    );
+    return DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000, isUtc: true);
   } on FormatException {
     return null;
   }
@@ -43,7 +41,12 @@ class ProactiveTokenRefresher {
     TimerFactory? timer,
     this.resumeThreshold = const Duration(minutes: 5),
     this.retryAfter = const Duration(seconds: 15),
-  })  : _refresh = refresh,
+    this.minWait = const Duration(seconds: 30),
+    this.maxJitter = const Duration(seconds: 5),
+    this.maxRunsPerMinute = 3,
+    Random? random,
+  })  : _random = random ?? Random(),
+        _refresh = refresh,
         _timings = timings,
         _now = now ?? DateTime.now,
         _timer = timer ?? Timer.new;
@@ -54,6 +57,19 @@ class ProactiveTokenRefresher {
   final TimerFactory _timer;
   final Duration resumeThreshold;
   final Duration retryAfter;
+
+  /// S15-3: the timer never fires sooner than this (a clock that disagrees
+  /// with the token used to give a refresh every second), plus up to
+  /// [maxJitter], so the many phones that land on the floor together (a
+  /// server-wide clock event) do not renew in lockstep.
+  final Duration minWait;
+  final Duration maxJitter;
+
+  /// S15-3: at most this many renewals in any 60 seconds, whatever asks
+  /// (timer, resume, `auth:expiring`, retry).
+  final int maxRunsPerMinute;
+  final Random _random;
+  final List<DateTime> _runs = [];
 
   Timer? _pending;
   DateTime? _expiresAt;
@@ -110,17 +126,45 @@ class ProactiveTokenRefresher {
     if (exp == null || _disposed || _paused) return;
     final lead = Duration(seconds: _timings().tokenRefreshLeadSec);
     var wait = exp.difference(_now()) - lead;
-    // A token that is already inside the lead window (or a clock that is
-    // off) is renewed in a moment, never in a tight loop.
-    if (wait < const Duration(seconds: 1)) wait = const Duration(seconds: 1);
+    // A token that is already inside the lead window is renewed after a
+    // floor of [minWait] (+ jitter), never in a tight loop.
+    if (wait < minWait) {
+      wait = minWait +
+          Duration(
+            milliseconds:
+                (maxJitter.inMilliseconds * _random.nextDouble()).round(),
+          );
+    }
     _pending = _timer(wait, () {
       _pending = null;
       unawaited(_run());
     });
   }
 
+  /// Records a run; false when [maxRunsPerMinute] was already reached in the
+  /// last minute.
+  bool _allowRun() {
+    final now = _now();
+    _runs.removeWhere((t) => now.difference(t) >= const Duration(minutes: 1));
+    if (_runs.length >= maxRunsPerMinute) return false;
+    _runs.add(now);
+    return true;
+  }
+
   Future<void> _run() async {
     if (_disposed) return;
+    if (!_allowRun()) {
+      // Too many renewals in a minute: whatever is wrong, hammering the
+      // server will not fix it. Try once more after the floor.
+      if (!_paused && _expiresAt != null) {
+        _pending?.cancel();
+        _pending = _timer(minWait, () {
+          _pending = null;
+          unawaited(_run());
+        });
+      }
+      return;
+    }
     try {
       await _refresh();
       // Success: the session announces the new token and calls [schedule].

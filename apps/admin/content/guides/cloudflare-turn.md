@@ -1,7 +1,7 @@
 ---
 id: cloudflare-turn
 title: Cloudflare: ключ для звонков (TURN)
-category: keys
+category: system
 cost: Первые 1000 ГБ трафика в месяц бесплатно (общие с SFU), дальше $0,05 за ГБ. STUN бесплатный.
 time: 10 минут
 launch: cloudflare_turn

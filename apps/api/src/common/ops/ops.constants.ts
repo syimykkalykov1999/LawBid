@@ -34,6 +34,8 @@ export const OPS_KEYS = {
   pressureFlag: 'ops:pressure:',
   /** JSON MessageReencryptState (jobs/handlers/message-reencrypt.job.ts). */
   messageReencrypt: 'ops:message-reencrypt',
+  /** JSON ChatSearchBackfillState (jobs/handlers/chat-search-backfill.job.ts). */
+  chatSearchBackfill: 'ops:chat-search-backfill',
 } as const;
 
 /** An automatic pause lasts this long; the guard renews it while the
@@ -50,6 +52,7 @@ export const HEAVY_CRON_JOBS: readonly string[] = [
   CRON_JOBS.licenseRegistryRecheck,
   CRON_JOBS.opsBusinessMetrics,
   CRON_JOBS.messagesReencrypt,
+  CRON_JOBS.chatSearchBackfill,
   CRON_JOBS.adminSummaries,
 ];
 

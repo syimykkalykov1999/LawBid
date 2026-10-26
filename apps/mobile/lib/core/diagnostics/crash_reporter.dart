@@ -44,11 +44,7 @@ class CrashReporter {
   Map<String, String>? _device;
 
   /// Hooks Flutter's and the engine's error channels. Safe to call once.
-  static void install(
-    SharedPreferences prefs,
-    AppEnvironment env, {
-    Dio? dio,
-  }) {
+  static void install(SharedPreferences prefs, AppEnvironment env, {Dio? dio}) {
     final reporter = CrashReporter._(
       prefs,
       env,
@@ -178,7 +174,7 @@ class CrashReporter {
                 'stack': _clip('${r['stack']}', _maxStack),
                 'platform': kIsWeb ? 'web' : Platform.operatingSystem,
                 'appVersion': AppVersion.current,
-                'build': '1',
+                'build': AppVersion.build,
                 'flavor': _env.flavor.name,
                 ...device,
               },

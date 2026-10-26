@@ -187,7 +187,7 @@ export default function EconomyPage() {
               <Field label="Доля дохода, %" htmlFor="eco-percent" hint="От 1 до 100. Обычно 50.">
                 <Input id="eco-percent" inputMode="numeric" value={percent} onChange={(ev) => setPercent(ev.target.value)} />
               </Field>
-              <Field label="Порог, $ в месяц" htmlFor="eco-threshold" hint="Не меньше этой суммы. Обычно 150.">
+              <Field label="Порог, $ в месяц" htmlFor="eco-threshold" hint="Не меньше этой суммы. Обычно 350.">
                 <Input id="eco-threshold" inputMode="decimal" value={threshold} onChange={(ev) => setThreshold(ev.target.value)} />
               </Field>
               <div className="flex items-end">

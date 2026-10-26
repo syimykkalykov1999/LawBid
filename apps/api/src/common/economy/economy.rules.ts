@@ -372,3 +372,33 @@ export function pressures(m: {
   }
   return out;
 }
+
+// --- budget-tied size ceilings (cost registry V4, owner 2026-10-25) --------
+
+/** Share of the allowed monthly spend the database may cost at its largest
+ * allowed size, and the same for Redis (the rest is servers, network, files,
+ * SMS…). With the $350 budget: database up to $122 (db.t4g.medium, $94),
+ * Redis up to $52 (cache.t4g.small, $47). */
+export const DB_CEILING_SHARE = 0.35;
+export const REDIS_CEILING_SHARE = 0.15;
+
+/**
+ * The biggest tier the money pays for: the largest tier whose month price is
+ * at most `allowedUsd x share`, never below the smallest tier (the app has to
+ * run) and never above `maxName` (the Terraform ceiling, when known).
+ */
+export function affordableTier(
+  tiers: readonly Tier[],
+  allowedUsd: number,
+  share: number,
+  maxName?: string | null,
+): Tier {
+  const budget = Math.max(allowedUsd, 0) * Math.max(share, 0);
+  let best = tiers[0];
+  for (const t of tiers) {
+    if (t.monthUsd <= budget + 1e-9) best = t;
+  }
+  const maxIdx = maxName ? tiers.findIndex((t) => t.name === maxName) : -1;
+  if (maxIdx >= 0 && tiers.indexOf(best) > maxIdx) best = tiers[maxIdx];
+  return best;
+}

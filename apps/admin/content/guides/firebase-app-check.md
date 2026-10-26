@@ -1,7 +1,7 @@
 ---
 id: firebase-app-check
 title: Firebase App Check - защита от ботов
-category: security
+category: system
 cost: Бесплатно в рамках нашего объёма (у Firebase есть квоты на выдачу токенов)
 time: 40 минут на регистрацию, потом неделя наблюдения
 launch: app_check

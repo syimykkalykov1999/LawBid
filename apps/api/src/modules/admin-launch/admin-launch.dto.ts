@@ -227,3 +227,133 @@ export class UpdatePricesDto {
   @IsObject()
   values!: Record<string, number>;
 }
+
+// --- cost registry (owner 2026-10-25) --------------------------------------
+
+export class CostRowStatusDto {
+  @ApiProperty({ enum: ['off', 'on', 'auto'] }) state!: 'off' | 'on' | 'auto';
+  @ApiProperty({
+    enum: ['active', 'idle', 'attention'],
+    description: 'green works now · grey off or waiting · yellow look at it',
+  })
+  live!: 'active' | 'idle' | 'attention';
+  @ApiProperty({ description: 'One Russian phrase for the hover text.' })
+  reason!: string;
+  @ApiProperty() checkedAt!: string;
+}
+
+export class CostRegistryRowDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() purpose!: string;
+  @ApiProperty({ enum: ['aws', 'vendor', 'sdk', 'ci'] }) kind!:
+    'aws' | 'vendor' | 'sdk' | 'ci';
+  @ApiProperty({ enum: ['app-setting', 'ssm-mode', 'tfvars', 'fixed'] })
+  controlType!: 'app-setting' | 'ssm-mode' | 'tfvars' | 'fixed';
+  @ApiProperty({
+    description:
+      'Setting key, SSM switch, Terraform variables, or the reason it is fixed.',
+  })
+  controlKey!: string;
+  @ApiProperty({ description: 'The owner can flip it from this page.' })
+  editable!: boolean;
+  @ApiProperty({ type: String, nullable: true }) lockedReason!: string | null;
+  @ApiProperty({ type: [String], enum: ['off', 'on', 'auto'] })
+  states!: ('off' | 'on' | 'auto')[];
+  @ApiProperty({ enum: ['off', 'on', 'auto'] }) defaultState!:
+    'off' | 'on' | 'auto';
+  @ApiProperty({ enum: ['off', 'on', 'auto'], nullable: true })
+  state!: 'off' | 'on' | 'auto' | null;
+  @ApiProperty({
+    description: 'false: the state is the code default or unreadable.',
+  })
+  stateKnown!: boolean;
+  @ApiProperty({ type: String, nullable: true }) stateNote!: string | null;
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    description: 'state → what that position means, where it is not obvious.',
+  })
+  stateHints!: Record<string, string>;
+  @ApiProperty({ type: String, nullable: true }) ceilingLabel!: string | null;
+  @ApiProperty({ type: String, nullable: true }) ceilingKey!: string | null;
+  @ApiProperty({ type: String, nullable: true }) ceilingWhere!: string | null;
+  @ApiProperty() priceText!: string;
+  @ApiProperty() priceModel!: string;
+  @ApiProperty() priceSourceUrl!: string;
+  @ApiProperty() priceCheckedAt!: string;
+  @ApiProperty() priceVerified!: boolean;
+  @ApiProperty({ type: [Number], description: '[min, max] $/month at launch.' })
+  usdLaunch!: number[];
+  @ApiProperty({ type: [Number] }) usdK100!: number[];
+  @ApiProperty({ type: [Number] }) usdM1!: number[];
+  @ApiProperty({ type: [Number], nullable: true }) ifOnUsd!: number[] | null;
+  @ApiProperty({ enum: ['yes', 'auto', 'later', 'no'] }) needed!:
+    'yes' | 'auto' | 'later' | 'no';
+  @ApiProperty() neededNote!: string;
+  @ApiProperty({ type: String, nullable: true }) alarm!: string | null;
+  @ApiProperty({ type: String, nullable: true }) note!: string | null;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'AWS Cost Explorer service name whose bill belongs to the row.',
+  })
+  ceService!: string | null;
+  @ApiProperty({ type: CostRowStatusDto }) status!: CostRowStatusDto;
+  @ApiProperty({ type: Number, nullable: true }) monthUsd!: number | null;
+  @ApiProperty({ type: Number, nullable: true }) projectedUsd!: number | null;
+  @ApiProperty({ enum: ['real', 'split', 'none'] }) monthSource!:
+    'real' | 'split' | 'none';
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'array', items: { type: 'string' } },
+    description: 'state → plain-Russian steps to put the item in that state.',
+  })
+  steps!: Record<string, string[]>;
+}
+
+export class CostRegistryUnclaimedDto {
+  @ApiProperty() service!: string;
+  @ApiProperty() usd!: number;
+}
+
+export class CostLadderScenarioDto {
+  @ApiProperty() users!: number;
+  @ApiProperty({ type: [Number] }) usd!: number[];
+}
+
+export class CostLadderDayOneDto {
+  @ApiProperty({ type: [Number] }) aws!: number[];
+  @ApiProperty({ type: [Number] }) vendors!: number[];
+  @ApiProperty({ type: [Number] }) all!: number[];
+}
+
+export class CostLadderDto {
+  @ApiProperty({ type: CostLadderDayOneDto }) dayOne!: CostLadderDayOneDto;
+  @ApiProperty({ type: [CostLadderScenarioDto] })
+  scenarios!: CostLadderScenarioDto[];
+  @ApiProperty({ type: Number, nullable: true }) monthToDateUsd!: number | null;
+  @ApiProperty({ type: Number, nullable: true }) projectedUsd!: number | null;
+}
+
+export class CostRegistryReportDto {
+  @ApiProperty() generatedAt!: string;
+  @ApiProperty({ type: String, nullable: true }) spendRefreshedAt!:
+    string | null;
+  @ApiProperty({ type: [CostRegistryRowDto] }) rows!: CostRegistryRowDto[];
+  @ApiProperty({ type: [CostRegistryUnclaimedDto] })
+  unclaimed!: CostRegistryUnclaimedDto[];
+  @ApiProperty({ type: CostLadderDto }) ladder!: CostLadderDto;
+}
+
+export class SetCostModeDto {
+  @ApiProperty({ enum: ['off', 'on', 'auto'] })
+  @IsIn(['off', 'on', 'auto'])
+  state!: 'off' | 'on' | 'auto';
+}
+
+export class CostModeResultDto {
+  @ApiProperty() id!: string;
+  @ApiProperty({ enum: ['off', 'on', 'auto'] }) state!: 'off' | 'on' | 'auto';
+}
