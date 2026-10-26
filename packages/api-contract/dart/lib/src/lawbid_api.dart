@@ -84,6 +84,7 @@ import 'clients/admin_integrations_client.dart';
 import 'clients/admin_ops_client.dart';
 import 'clients/admin_launch_client.dart';
 import 'clients/admin_spend_client.dart';
+import 'clients/admin_experiments_client.dart';
 import 'clients/admin_economy_client.dart';
 import 'clients/admin_pnl_client.dart';
 import 'clients/referrals_client.dart';
@@ -221,6 +222,7 @@ class LawbidApi {
   AdminOpsClient? _adminOps;
   AdminLaunchClient? _adminLaunch;
   AdminSpendClient? _adminSpend;
+  AdminExperimentsClient? _adminExperiments;
   AdminEconomyClient? _adminEconomy;
   AdminPnlClient? _adminPnl;
   ReferralsClient? _referrals;
@@ -497,6 +499,9 @@ class LawbidApi {
 
   AdminSpendClient get adminSpend =>
       _adminSpend ??= AdminSpendClient(_dio, baseUrl: _baseUrl);
+
+  AdminExperimentsClient get adminExperiments =>
+      _adminExperiments ??= AdminExperimentsClient(_dio, baseUrl: _baseUrl);
 
   AdminEconomyClient get adminEconomy =>
       _adminEconomy ??= AdminEconomyClient(_dio, baseUrl: _baseUrl);
