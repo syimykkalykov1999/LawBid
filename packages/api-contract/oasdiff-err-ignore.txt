@@ -136,7 +136,6 @@ GET /admin/moderation/targets/{type}/{id} added the new `legal_answer` enum valu
 GET /admin/moderation/targets/{type}/{id} added the new `legal_question` enum value to the `data/targetType` response property for the response status `200`
 POST /admin/moderation/targets/{type}/{id}/actions added the new `legal_answer` enum value to the `data/targetType` response property for the response status `200`
 POST /admin/moderation/targets/{type}/{id}/actions added the new `legal_question` enum value to the `data/targetType` response property for the response status `200`
->>>>>>> origin/claude/release-20oct
 # release-20oct: новые enum legal_answer/legal_question, типы contact/place, conversationId nullable у звонков (групповые) — все изменения намеренные, старых клиентов в магазинах ещё нет
 GET /admin/moderation/appeals added the new `legal_answer` enum value to the `data/items/targetType` response property for the response status `200`
 GET /admin/moderation/appeals added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`

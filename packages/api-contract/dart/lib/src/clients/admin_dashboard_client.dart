@@ -21,7 +21,7 @@ abstract class AdminDashboardClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Sidebar badges: verification queue, open reports, support unread, trust queue, approvals (ETag → 304)
+  /// Sidebar badges: verification queue, open reports, support unread, trust queue (ETag → 304)
   @GET('/admin/counts')
   Future<AdminCountsEnvelope> getCounts({
     @Extras() Map<String, dynamic>? extras,
