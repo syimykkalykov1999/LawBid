@@ -79,3 +79,20 @@ describe('withPoolerRouting', () => {
     );
   });
 });
+
+describe('withPoolerRouting for the read replica (DB-ops S5-6)', () => {
+  it('uses DB_REPLICA_POOLER_HOST and ignores DB_POOLER_HOST (that one fronts the primary)', () => {
+    const env = { DB_POOLER_HOST: 'pgb-primary' };
+    expect(withPoolerRouting(DIRECT, env, 'DB_REPLICA_POOLER_HOST')).toBe(
+      DIRECT,
+    );
+    const u = new URL(
+      withPoolerRouting(
+        DIRECT,
+        { ...env, DB_REPLICA_POOLER_HOST: 'pgb-replica' },
+        'DB_REPLICA_POOLER_HOST',
+      )!,
+    );
+    expect(u.hostname).toBe('pgb-replica');
+  });
+});
