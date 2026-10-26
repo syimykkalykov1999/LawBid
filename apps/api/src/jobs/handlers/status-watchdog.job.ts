@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { PublicStatusService } from '../../common/ops/status/public-status.service';
 import { PinoLogger } from 'nestjs-pino';
 import {
   incidentBody,
@@ -35,6 +36,9 @@ export class StatusWatchdogJob {
     private readonly incidents: IncidentsService,
     private readonly push: PushQueueService,
     private readonly logger: PinoLogger,
+    // Owner 2026-10-25: pushes the public status page's file (off until
+    // STATUS_PAGE_BUCKET is set; never throws).
+    @Optional() private readonly publicStatus?: PublicStatusService,
   ) {
     this.logger.setContext(StatusWatchdogJob.name);
   }
@@ -52,7 +56,11 @@ export class StatusWatchdogJob {
       resolved: 0,
       alertsQueued: 0,
     };
-    if (events.length === 0) return out;
+    if (events.length === 0) {
+      await this.publicStatus?.publish(all, now);
+      return out;
+    }
+    await this.publicStatus?.publish(all, now);
 
     const people = await this.incidents.recipients();
     for (const e of events) {
