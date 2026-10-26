@@ -133,3 +133,5 @@ Required checks for merge (as I apply them): API CI "Lint, typecheck, unit + e2e
 06:33 MERGED #363 (required checks green)
 06:37 #363 MERGED (loop). #389 #411 merged main (+ERD/contract) & pushed. Prepared: #379 (on re-merged #360 + main), #401, #356 (migrations → 20261105100000/110000), #395 (migration → 20261105200000) — checks running.
 06:40 pushed #379 (legal requests via auth.public, export spec created_at, baseline) and #401 (fan-out baseline for events module, ERD).
+06:47 pushed #368 (replica+cache merged with #363; profile spec stamps; e2e 28/28 local) and #334 (PrismaReadService: #363 lag-aware + #334 switchable URL/reconnect/shard guards; 240 tests).
+06:47 pushed #368 (replica+cache merged with #363; profile spec stamps; e2e 28/28 local) and #334 (PrismaReadService: #363 lag-aware + #334 switchable URL/reconnect/shard guards; 240 tests). Note: pre-commit eslint needs NODE_OPTIONS=8192 on big merges.
