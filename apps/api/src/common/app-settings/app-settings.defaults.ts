@@ -193,6 +193,11 @@ export const OWNER_MEDIA_SETTINGS = {
   // differences; engine = the search engine, Postgres on error / timeout.
   // See docs/architecture/SEARCH_READY.md.
   'search.engine': 'postgres',
+  /** Review R-26: the nightly ledger check. off | on (whole ledger every
+   * night) | auto (last N days nightly, whole ledger weekly). */
+  'ledger.reconcile_mode': 'auto',
+  /** Days the nightly ledger check covers in auto mode. */
+  'ledger.reconcile_window_days': 7,
   // Engine answers slower than this fall back to Postgres, ms.
   'search.engine_timeout_ms': 800,
   // Owner 2026-10-25 (zero-downtime reindex, docs/runbooks/search-reindex.md):

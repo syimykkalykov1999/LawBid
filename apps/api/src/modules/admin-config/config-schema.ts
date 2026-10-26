@@ -55,6 +55,21 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     pattern: /^(aws|r2)$/,
   };
   // Owner 2026-10-24 (search-ready): checked again on save (engine keys).
+  out['ledger.reconcile_mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'Nightly check of the money ledger. off: not run. on: the whole ledger every night (grows with the table). auto (default): the last N days every night and the whole ledger once a week.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['ledger.reconcile_window_days'] = {
+    type: 'integer',
+    defaultValue: 7,
+    description:
+      'Days the nightly ledger check covers in auto mode (the whole ledger is still checked weekly).',
+    min: 1,
+    max: 90,
+  };
   out['search.engine'] = {
     type: 'string',
     defaultValue: 'postgres',
