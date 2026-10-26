@@ -271,6 +271,7 @@ describe('JobsRunner', () => {
     // Owner 2026-10-28: + legal.reminders (hourly).
     // Privacy round 13: + privacy.retention, privacy.reconcile and
     // privacy.deletion-notices (daily).
+    // DB-ops hardening: + db.health (daily).
     // S1-3: + chat.redeliver (every minute).
     // BUG-1 (package N-12b): + chat.search-backfill (every 5 minutes).
     expect(upserts).toHaveLength(73);

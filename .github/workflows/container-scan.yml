@@ -3,16 +3,12 @@
 name: Container scan
 
 on:
-  pull_request:
-    branches: [main, master]
-    paths:
-      - "apps/api/**"
-      - "packages/**"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/container-scan.yml"
+  # Runs once per merge into main and once a day (not on every PR); results go to Security → Code scanning.
   push:
     branches: [main, master]
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
