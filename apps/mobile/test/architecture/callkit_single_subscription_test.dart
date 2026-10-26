@@ -70,7 +70,10 @@ void main() {
   test('iOS: the VoIP «call_ended» push ends the ringing CallKit call', () {
     final src = File('ios/Runner/AppDelegate.swift').readAsStringSync();
     expect(src, contains('"call_ended"'));
-    expect(src, contains('handleCallEndedPush(callkit, p, completion: completion)'));
+    expect(
+      src,
+      contains('handleCallEndedPush(callkit, p, completion: completion)'),
+    );
     // Ends through iOS (the plugin's provider performs it), only a call
     // that is still ringing here — never the one answered on this phone.
     expect(src, contains('CXEndCallAction(call: uuid)'));
