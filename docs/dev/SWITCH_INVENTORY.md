@@ -43,6 +43,10 @@ move to Выкл/Вкл/Авто there. "Ceiling" is the number that caps the be
 | `scale.bunny_hardstop.mode` | Новые загрузки видео (Bunny) | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1622` | see the setting | listed | |
 | `scale.cloudflare_hardstop.mode` | Групповые видеозвонки на Cloudflare | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1654` | see the setting | listed | |
 | `db.health_mode` | Ежедневная проверка базы (размер таблиц, мёртвые строки) | auto | 3 (off/on/auto) | daily DB health check (#363): table sizes, dead rows, vacuum lag | `jobs/handlers/db-health.job.ts:104` | see the setting | listed | |
+| `calendar.feed_enabled` | Личная ссылка на календарь (ICS) | on | 2 | read-only ICS calendar feed (secret link) | `modules/calendar/calendar-config.service.ts:59` | none | listed | |
+| `calendar.google_enabled` | Связь с Google Calendar | off | 2 | two-way Google Calendar link (needs the google_calendar OAuth app) | `modules/calendar/calendar-config.service.ts:65` | `calendar.busy_cache_seconds`, `calendar.busy_timeout_ms` | listed | |
+| `calendar.microsoft_enabled` | Связь с Outlook / Microsoft 365 | off | 2 | two-way Outlook calendar link (needs the microsoft_calendar OAuth app) | `modules/calendar/calendar-config.service.ts:66` | `calendar.busy_cache_seconds`, `calendar.busy_timeout_ms` | listed | |
+| `consultations.no_show_enabled` | Кнопка «Не пришёл» | on | 2 | either side may mark a missed consultation | `modules/calendar/no-show.service.ts:245,535` | `consultations.no_show_mark_hours`, `consultations.no_show_dispute_hours` | listed | |
 
 "listed" = in the inventory and the reader exists, no behaviour test yet. `calls.channel_live_enabled` was removed (nothing read it; the feature does not exist).
 Three billable/load switches were converted to off/on/auto (`common/app-settings/switch-mode.ts`).
