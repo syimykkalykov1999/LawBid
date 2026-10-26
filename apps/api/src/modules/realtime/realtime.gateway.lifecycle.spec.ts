@@ -96,6 +96,7 @@ function setup() {
     { resolve: jest.fn() } as unknown as AssistantContextService,
     {
       touch: jest.fn().mockResolvedValue(false),
+      touchCount: jest.fn().mockResolvedValue(1),
       leave: jest.fn().mockResolvedValue(false),
       visible: jest.fn().mockResolvedValue(false),
     } as unknown as PresenceService,

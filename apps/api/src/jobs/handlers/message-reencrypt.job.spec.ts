@@ -26,6 +26,11 @@ interface Row {
   id: string;
   body_original: string;
   body_display: string;
+  file_name?: string | null;
+}
+interface CaseRow {
+  id: string;
+  private_details: string | null;
 }
 interface Edit {
   id: string;
@@ -33,7 +38,14 @@ interface Edit {
   body_original: string;
 }
 
-function harness(messages: Row[], edits: Edit[], keys: string, active: string) {
+function harness(
+  messages: Row[],
+  edits: Edit[],
+  keys: string,
+  active: string,
+  cases: CaseRow[] = [],
+  sealOn = true,
+) {
   const redisStore = new Map<string, string>();
   const redis = {
     get: jest.fn((k: string) => Promise.resolve(redisStore.get(k) ?? null)),
@@ -67,6 +79,24 @@ function harness(messages: Row[], edits: Edit[], keys: string, active: string) {
         },
       ),
     },
+    case: {
+      findMany: jest.fn((args: never) => Promise.resolve(page(cases, args))),
+      update: jest.fn(
+        ({
+          where,
+          data,
+        }: {
+          where: { id: string };
+          data: Partial<CaseRow>;
+        }) => {
+          Object.assign(
+            cases.find((m) => m.id === where.id)!,
+            data,
+          );
+          return Promise.resolve();
+        },
+      ),
+    },
     messageEdit: {
       findMany: jest.fn((args: never) => Promise.resolve(page(edits, args))),
       update: jest.fn(
@@ -87,17 +117,30 @@ function harness(messages: Row[], edits: Edit[], keys: string, active: string) {
     }),
   );
   const logger = { setContext: jest.fn(), info: jest.fn() };
+  const secrets = {
+    reencryptStores: jest.fn().mockResolvedValue({
+      joinCodes: 0,
+      registries: 0,
+      adminTotp: 0,
+      failed: 0,
+    }),
+  };
+  const settings = {
+    boolean: jest.fn().mockResolvedValue(sealOn),
+  };
   const job = new MessageReencryptJob(
     prisma as never,
     redis as never,
     cipher,
     logger as never,
+    secrets as never,
+    settings as never,
   );
   const state = () =>
     JSON.parse(
       redisStore.get(MESSAGE_REENCRYPT_STATE_KEY)!,
     ) as MessageReencryptState;
-  return { job, prisma, redis, cipher, logger, state, redisStore };
+  return { job, prisma, redis, cipher, logger, state, redisStore, secrets };
 }
 
 const noSleep = () => Promise.resolve();
@@ -222,5 +265,92 @@ describe('MessageReencryptJob', () => {
     // The admin button forgets the progress.
     await h2.job.restart();
     expect(h2.redisStore.has(MESSAGE_REENCRYPT_STATE_KEY)).toBe(false);
+  });
+
+  it('seals plaintext file names and private details (S3-5), counts per-kid rows (S3-2) and runs the key-store step (S3-4)', async () => {
+    const m1 = id(1);
+    const c1 = id(100);
+    const messages: Row[] = [
+      {
+        id: m1,
+        body_original: legacyV2('hi'),
+        body_display: legacyV2('hi'),
+        file_name: 'Divorce_agreement_Ivanov.pdf',
+      },
+      { id: id(2), body_original: '', body_display: '', file_name: null },
+    ];
+    const cases: CaseRow[] = [
+      { id: c1, private_details: 'Client lives at 5 Elm St' },
+      { id: id(101), private_details: null },
+    ];
+    const h = harness(messages, [], K1 + ',' + K2, 'm2', cases);
+    h.secrets.reencryptStores.mockResolvedValue({
+      joinCodes: 1,
+      registries: 2,
+      adminTotp: 1,
+      failed: 0,
+    });
+    const res = await h.job.run(new Date(), noSleep);
+    expect(res?.phase).toBe('done');
+    const name = messages[0].file_name!;
+    expect(name.startsWith('encf:v2.m2.')).toBe(true);
+    expect(name).not.toContain('Divorce');
+    expect(h.cipher.openField(name, `messages.file_name:${m1}`)).toBe(
+      'Divorce_agreement_Ivanov.pdf',
+    );
+    // Bound to its row: another message id cannot open it.
+    expect(h.cipher.openField(name, `messages.file_name:${id(2)}`)).toBe('');
+    expect(cases[0].private_details!.startsWith('encf:')).toBe(true);
+    expect(
+      h.cipher.openField(
+        cases[0].private_details!,
+        `cases.private_details:${c1}`,
+      ),
+    ).toBe('Client lives at 5 Elm St');
+    expect(cases[1].private_details).toBeNull();
+    expect(h.state().kidRows).toEqual({ m1: 1 });
+    expect(h.state().stores).toEqual({
+      joinCodes: 1,
+      registries: 2,
+      adminTotp: 1,
+      failed: 0,
+    });
+    // A second pass finds nothing left to seal.
+    h.prisma.message.update.mockClear();
+    await h.job.restart();
+    await h.job.run(new Date(), noSleep);
+    expect(h.prisma.message.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ file_name: expect.anything() }),
+      }),
+    );
+  });
+
+  it('with the switch off, plaintext stays and already sealed values still rotate', async () => {
+    const m1 = id(1);
+    const old = new MessageBodyCipher(
+      new ConfigService({ MESSAGE_ENC_KEYS: K1, MESSAGE_ENC_ACTIVE_KID: 'm1' }),
+    );
+    const messages: Row[] = [
+      {
+        id: m1,
+        body_original: '',
+        body_display: '',
+        file_name: 'plain.pdf',
+      },
+      {
+        id: id(2),
+        body_original: '',
+        body_display: '',
+        file_name: old.sealField('old-kid.pdf', `messages.file_name:${id(2)}`),
+      },
+    ];
+    const h = harness(messages, [], K1 + ',' + K2, 'm2', [], false);
+    await h.job.run(new Date(), noSleep);
+    expect(messages[0].file_name).toBe('plain.pdf');
+    expect(messages[1].file_name!.startsWith('encf:v2.m2.')).toBe(true);
+    expect(
+      h.cipher.openField(messages[1].file_name!, `messages.file_name:${id(2)}`),
+    ).toBe('old-kid.pdf');
   });
 });
