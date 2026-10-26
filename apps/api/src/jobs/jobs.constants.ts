@@ -4,6 +4,37 @@
  * lives on `cron`.
  */
 export const CRON_QUEUE = 'cron';
+/**
+ * S10-2 (queues hardening, 2026-10-25): the schedules run on THREE lanes of
+ * the same kind, each with its own BullMQ worker, so one slow job cannot
+ * hold the others. Research: BullMQ docs "Queues" / "Going to production"
+ * and the way Sidekiq/Stripe split queues by latency class (a `critical`
+ * lane for signals, a `low`/`bulk` lane for long jobs); BullMQ has no
+ * per-job-name concurrency, separate queues are its ready-made answer.
+ * - `cron-fast`: every-minute SIGNAL and sweep jobs (queue metrics that
+ *   drive worker autoscaling and the backlog alarm, ops guard, calls);
+ * - `cron`: everything else (kept as the default lane and the old name,
+ *   so a rolling deploy finds the same queue);
+ * - `cron-heavy`: long DB/CPU jobs (recommendations, re-encryption,
+ *   retention, anonymization, reconciles).
+ */
+export const CRON_FAST_QUEUE = 'cron-fast';
+export const CRON_HEAVY_QUEUE = 'cron-heavy';
+export const CRON_LANES = [
+  CRON_FAST_QUEUE,
+  CRON_QUEUE,
+  CRON_HEAVY_QUEUE,
+] as const;
+export type CronLane = (typeof CRON_LANES)[number];
+
+/** Parallel jobs per lane and process. Fast: independent short sweeps
+ * (each also guarded by a per-name lock); default/heavy stay one at a
+ * time so the database sees at most 5 maintenance statements per task. */
+export const CRON_LANE_CONCURRENCY: Record<CronLane, number> = {
+  [CRON_FAST_QUEUE]: 3,
+  [CRON_QUEUE]: 1,
+  [CRON_HEAVY_QUEUE]: 1,
+};
 
 export const CRON_JOBS = {
   /** docs/02 §6.4: "истёкшие сессии чистятся раз в сутки". */
@@ -261,6 +292,62 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // with backoff, dead letter); a no-op while there is one database.
   { name: CRON_JOBS.outboxSweep, pattern: '* * * * *' },
 ];
+
+const FAST_JOBS: readonly CronJobName[] = [
+  CRON_JOBS.opsQueueMetrics,
+  CRON_JOBS.opsGuard,
+  CRON_JOBS.statusWatchdog,
+  CRON_JOBS.callsSweep,
+  CRON_JOBS.outboxSweep,
+  CRON_JOBS.taskReminders,
+  CRON_JOBS.consultationsSweep,
+  CRON_JOBS.videosSweep,
+];
+
+const HEAVY_JOBS: readonly CronJobName[] = [
+  CRON_JOBS.feedReco,
+  CRON_JOBS.messagesReencrypt,
+  CRON_JOBS.countersReconcile,
+  CRON_JOBS.ratingReconcile,
+  CRON_JOBS.trustRecompute,
+  CRON_JOBS.licenseRegistryRecheck,
+  CRON_JOBS.opsBusinessMetrics,
+  CRON_JOBS.adminSummaries,
+  CRON_JOBS.legalExports,
+  CRON_JOBS.legalRetention,
+  CRON_JOBS.privacyAnonymize,
+  CRON_JOBS.journalChainVerify,
+  CRON_JOBS.journalRetention,
+  CRON_JOBS.ledgerReconcile,
+  CRON_JOBS.storageSnapshot,
+  CRON_JOBS.storageRetention,
+  CRON_JOBS.fraudSweep,
+  CRON_JOBS.searchLearn,
+  CRON_JOBS.usagePoll,
+  CRON_JOBS.contactsPepperBackfill,
+  CRON_JOBS.treasuryDaily,
+];
+
+export function cronLaneOf(name: string): CronLane {
+  if ((FAST_JOBS as readonly string[]).includes(name)) return CRON_FAST_QUEUE;
+  if ((HEAVY_JOBS as readonly string[]).includes(name)) return CRON_HEAVY_QUEUE;
+  return CRON_QUEUE;
+}
+
+/**
+ * S10-13: a schedule that fires more often than hourly is its own retry
+ * (the next tick runs in a minute), so BullMQ must not ALSO retry it with
+ * a 60 s backoff — that piled duplicate runs of a failing sweep behind
+ * newer ticks. Kubernetes CronJob `concurrencyPolicy: Forbid` / Quartz
+ * misfire "do nothing" are the same idea. Hourly and slower jobs keep
+ * their 3 attempts.
+ */
+export function isSubHourly(pattern: string): boolean {
+  const [minute, hour] = pattern.trim().split(/\s+/);
+  return (
+    hour === '*' && ((minute?.includes('*') || minute?.includes('/')) ?? false)
+  );
+}
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');
 
