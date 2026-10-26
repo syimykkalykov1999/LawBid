@@ -1516,10 +1516,10 @@ packages:
     dependency: "direct main"
     description:
       name: proximity_sensor
-      sha256: "5bdb792932f2a703cad81714daa85ec5d46c35dfad1ece7d1a32fa62e2b07aa8"
+      sha256: "71cdc3e9485ec1961be948161b4c6c8217f57a3676b5f7c984f8da265cf591eb"
       url: "https://pub.dev"
     source: hosted
-    version: "1.4.0"
+    version: "2.0.0"
   pub_semver:
     dependency: transitive
     description:
