@@ -130934,7 +130934,6 @@
         "type": "object",
         "properties": {
           "type": {
-            "type": "string",
             "enum": [
               "terms",
               "privacy",
@@ -130948,7 +130947,8 @@
               "client_agreement",
               "eula",
               "do_not_sell"
-            ]
+            ],
+            "type": "string"
           },
           "granted": {
             "type": "boolean"
