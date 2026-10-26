@@ -19,9 +19,12 @@ function build(selection: object) {
         subject_user_id: USER,
         requested_by: 'a1',
         selection,
+        // the signed manifest records when the export was asked for
+        created_at: new Date('2026-10-20T00:00:00Z'),
         request: {
           reference_number: 'SUB-1',
           agency: 'FBI',
+          legal_basis: 'subpoena',
           request_type: 'subpoena',
           scope: 'x',
         },

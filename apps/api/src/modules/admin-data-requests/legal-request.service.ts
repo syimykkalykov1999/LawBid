@@ -13,9 +13,11 @@ import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
-import { buildNotificationEmail } from '../auth/notifications/email-templates';
-import type { EmailProvider } from '../auth/providers/email/email-provider.interface';
-import { EMAIL_PROVIDER } from '../auth/providers/provider.tokens';
+import {
+  buildNotificationEmail,
+  EMAIL_PROVIDER,
+  type EmailProvider,
+} from '../auth/auth.public';
 import type {
   CustodyEntryDto,
   TransparencyReportDto,
