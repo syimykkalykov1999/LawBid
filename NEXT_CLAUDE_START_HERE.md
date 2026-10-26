@@ -1230,3 +1230,4 @@ PRINCIPLE (owner 07:55): assume the attacker is an automated AI (tireless, tries
 - NEXT after helpers report: 18:50 merged #18 (old dependabot PR, finally green).
 - NEXT after helpers report: 19:04 merged #417 (avatars always load; push with photo + buttons; NSE target is an owner Xcode step).
 - NEXT after helpers report: 19:09 merged #411 (perf/cost follow-up to merged PRs).
+- NEXT after helpers report: 19:19 merged #387 (search hardening S7) by coordinator; train busy on #366.
