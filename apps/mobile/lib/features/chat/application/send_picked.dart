@@ -1,6 +1,5 @@
 import 'dart:async';
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 
 /// Owner 2026-10-22 (WhatsApp): what the media preview hands back goes to
@@ -24,7 +23,12 @@ Future<void> sendPickedFiles(
       caption: last && caption.isNotEmpty ? caption : null,
       after: previous,
     );
-    unawaited(previous);
+    // A failed file is shown on its own bubble; here it is only logged.
+    unawaited(previous.catchError((Object e) => debugPrint('send file: $e')));
   }
-  if (previous != null) await previous;
+  try {
+    if (previous != null) await previous;
+  } on Object catch (e) {
+    debugPrint('send files: $e');
+  }
 }
