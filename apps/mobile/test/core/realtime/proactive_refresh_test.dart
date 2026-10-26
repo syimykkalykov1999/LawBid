@@ -1,6 +1,7 @@
 // ignore_for_file: cascade_invocations, unawaited_futures
 
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -192,20 +193,62 @@ void main() {
       });
     });
 
-    test('a token that already ended is renewed in a moment, no tight loop',
-        () {
+    test('a token already inside the lead is renewed after the 30 s floor', () {
       fakeAsync((async) {
         var calls = 0;
         final r = ProactiveTokenRefresher(
           refresh: () async => calls++,
           timings: () => const RealtimeTimings(),
           now: () => async.getClock(t0).now(),
+          random: Random(1),
         );
         r.schedule(t0.subtract(const Duration(minutes: 1)));
-        async.elapse(const Duration(milliseconds: 900));
+        async.elapse(const Duration(seconds: 29));
         expect(calls, 0);
-        async.elapse(const Duration(milliseconds: 200));
+        async.elapse(const Duration(seconds: 7)); // floor 30 s + jitter < 5 s
         expect(calls, 1);
+      });
+    });
+
+    test('a clock that is far off never gives a refresh per second', () {
+      fakeAsync((async) {
+        var calls = 0;
+        late ProactiveTokenRefresher r;
+        // Every refresh "succeeds" and announces a token whose end is,
+        // by this phone's clock, already long past (clock hours ahead).
+        r = ProactiveTokenRefresher(
+          refresh: () async {
+            calls++;
+            r.schedule(t0.subtract(const Duration(hours: 5)));
+          },
+          timings: () => const RealtimeTimings(),
+          now: () => async.getClock(t0).now(),
+          random: Random(1),
+        )..schedule(t0.subtract(const Duration(hours: 5)));
+        async.elapse(const Duration(minutes: 10));
+        // At most one renewal per 30 s floor: 20 in ten minutes, never 600.
+        expect(calls, lessThanOrEqualTo(20));
+        expect(calls, greaterThan(0));
+      });
+    });
+
+    test('never more than maxRunsPerMinute renewals in a minute', () {
+      fakeAsync((async) {
+        var calls = 0;
+        final r = ProactiveTokenRefresher(
+          refresh: () async => calls++,
+          timings: () => const RealtimeTimings(),
+          now: () => async.getClock(t0).now(),
+          random: Random(1),
+        )..schedule(t0.add(const Duration(hours: 1)));
+        for (var i = 0; i < 10; i++) {
+          r.refreshNow();
+        }
+        async.flushMicrotasks();
+        expect(calls, 3);
+        // The denied ones are retried after the floor, not dropped.
+        async.elapse(const Duration(minutes: 2));
+        expect(calls, greaterThan(3));
       });
     });
 

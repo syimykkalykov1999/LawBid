@@ -14,6 +14,7 @@ import {
   type BroadcastAudience,
 } from './broadcast-audience';
 import { bullOptions } from '../../redis/redis-connection';
+import { closeWorker, workerTuning } from '../../common/queues/queue-hardening';
 
 export const BROADCAST_QUEUE = 'admin-broadcast';
 export const BROADCAST_OPTIONS = Symbol('BROADCAST_OPTIONS');
@@ -87,6 +88,7 @@ export class BroadcastFanoutRunner
       (job: Job<BroadcastJob>) => this.process(job.data),
       {
         ...bullOptions(BROADCAST_QUEUE, url, { worker: true }),
+        ...workerTuning(BROADCAST_QUEUE),
         concurrency: 1,
       },
     );
@@ -99,7 +101,7 @@ export class BroadcastFanoutRunner
   }
 
   async onApplicationShutdown(): Promise<void> {
-    await this.worker?.close();
+    await closeWorker(this.worker);
     await this.queue?.close();
   }
 

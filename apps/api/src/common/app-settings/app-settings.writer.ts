@@ -60,4 +60,31 @@ export class AppSettingsWriter {
     });
     await dropAppConfigCache(this.redis);
   }
+
+  /**
+   * Deletes stored values so the built-in default applies again (cost
+   * registry «Авто» of a provider cap). One transaction with the audit row.
+   */
+  async remove(adminId: string, action: string, keys: string[]): Promise<void> {
+    if (keys.length === 0) return;
+    await withTxRetry(this.prisma, async (tx) => {
+      const before = await tx.appConfig.findMany({
+        where: { key: { in: keys } },
+        select: { key: true, value: true },
+      });
+      await tx.appConfig.deleteMany({ where: { key: { in: keys } } });
+      await this.audit.record(
+        {
+          adminId,
+          action,
+          targetType: 'app_config',
+          targetId: null,
+          before: Object.fromEntries(before.map((r) => [r.key, r.value])),
+          after: Object.fromEntries(keys.map((k) => [k, null])),
+        },
+        tx,
+      );
+    });
+    await dropAppConfigCache(this.redis);
+  }
 }

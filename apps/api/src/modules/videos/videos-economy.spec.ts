@@ -32,3 +32,28 @@ describe('VideosService.createUpload under the economy guard', () => {
     expect(costGuard.consume).not.toHaveBeenCalled();
   });
 });
+
+describe('VideosService.createUpload under the Bunny hard stop (cost registry V7)', () => {
+  it('pauses new uploads while the hard stop is on and spends nothing', async () => {
+    const costGuard = { consume: jest.fn() };
+    const hardStop = { stopped: jest.fn().mockResolvedValue(true) };
+    const service = new VideosService(
+      {} as never,
+      { keys: jest.fn().mockResolvedValue({}) } as never,
+      { isEnabled: jest.fn().mockResolvedValue(true) } as never,
+      { number: jest.fn().mockResolvedValue(60) } as never,
+      { consume: jest.fn() } as never,
+      costGuard as never,
+      undefined,
+      { isEconomyLimited: jest.fn().mockResolvedValue(false) } as never,
+      undefined,
+      hardStop as never,
+    );
+    const err = await service
+      .createUpload('u1', { durationSec: 10, sizeBytes: 1000 })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ServiceUnavailableException);
+    expect(hardStop.stopped).toHaveBeenCalledWith('bunny');
+    expect(costGuard.consume).not.toHaveBeenCalled();
+  });
+});
