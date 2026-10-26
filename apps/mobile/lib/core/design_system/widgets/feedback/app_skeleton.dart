@@ -54,8 +54,7 @@ class _ShimmerClock extends ChangeNotifier implements TickerProvider {
   void addListener(VoidCallback listener) {
     super.addListener(listener);
     _ticker ??= createTicker((elapsed) {
-      value = (elapsed.inMicroseconds %
-              AppMotion.shimmer.inMicroseconds) /
+      value = (elapsed.inMicroseconds % AppMotion.shimmer.inMicroseconds) /
           AppMotion.shimmer.inMicroseconds;
       notifyListeners();
     })
@@ -95,7 +94,9 @@ class _AppSkeletonState extends State<AppSkeleton> {
     // Only tick when motion is allowed and the route is visible (TickerMode)
     // — no idle ticker otherwise.
     _sync(
-      want: !context.reduceMotion && widget.shimmer && TickerMode.valuesOf(context).enabled,
+      want: !context.reduceMotion &&
+          widget.shimmer &&
+          TickerMode.valuesOf(context).enabled,
     );
   }
 
@@ -103,7 +104,9 @@ class _AppSkeletonState extends State<AppSkeleton> {
   void didUpdateWidget(AppSkeleton old) {
     super.didUpdateWidget(old);
     _sync(
-      want: !context.reduceMotion && widget.shimmer && TickerMode.valuesOf(context).enabled,
+      want: !context.reduceMotion &&
+          widget.shimmer &&
+          TickerMode.valuesOf(context).enabled,
     );
   }
 

@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_literals_to_create_immutables
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 
@@ -6,7 +7,8 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 void main() {
   test('equal bundles are equal states, a changed text is not', () {
     const a = L10nCacheState(lang: 'en', entries: {'k': 'v'});
-    const b = L10nCacheState(lang: 'en', entries: {'k': 'v'});
+    // ignore: prefer_const_constructors
+    final b = L10nCacheState(lang: 'en', entries: {'k': 'v'});
     expect(a, b);
     expect(a.hashCode, b.hashCode);
     expect(a.copyWith(entries: {'k': 'w'}), isNot(a));

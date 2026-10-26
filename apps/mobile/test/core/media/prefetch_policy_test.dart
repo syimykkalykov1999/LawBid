@@ -13,7 +13,8 @@ void main() {
   });
 
   test('auto warms on an unmetered link only', () {
-    bool allow({required bool? unmetered, bool saver = false}) => prefetchAllowed(
+    bool allow({required bool? unmetered, bool saver = false}) =>
+        prefetchAllowed(
           mode: PrefetchMode.auto,
           dataSaver: saver,
           unmetered: unmetered,
@@ -33,9 +34,9 @@ void main() {
   });
 
   test('the prefetcher asks the gate before queueing', () {
-    final p = HlsPrefetcher()
-      ..allow = () => false
-      ..prefetch('https://cdn.example/a.m3u8');
+    final p = HlsPrefetcher()..allow = () => false;
+    // ignore: cascade_invocations
+    p.prefetch('https://cdn.example/a.m3u8');
     expect(p.queued + p.running, 0);
     expect(p.warmed('https://cdn.example/a.m3u8'), isFalse);
   });
