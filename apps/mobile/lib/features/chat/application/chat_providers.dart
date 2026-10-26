@@ -383,8 +383,7 @@ final chatFolderCountsProvider = FutureProvider.autoDispose<
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
       if (e.name == 'message:new') {
         if (gate.onMessage(e).waiting) debounce.poke();
-      } else if (e.name == 'conversation:update' ||
-          e.name == 'group:invite') {
+      } else if (e.name == 'conversation:update' || e.name == 'group:invite') {
         debounce.poke();
       }
     });
@@ -414,8 +413,7 @@ final messageRequestsCountProvider = FutureProvider.autoDispose<int>(
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
       if (e.name == 'message:new') {
         if (gate.onMessage(e).requests) debounce.poke();
-      } else if (e.name == 'conversation:update' ||
-          e.name == 'group:invite') {
+      } else if (e.name == 'conversation:update' || e.name == 'group:invite') {
         debounce.poke();
       }
     });
@@ -1714,6 +1712,10 @@ class ChatThread extends Notifier<ChatThreadState> {
         unawaited(_catchUp());
     }
   }
+
+  /// Re-reads only the conversation header (pin, note, block...) — the
+  /// loaded messages, local bubbles and outbox stay.
+  Future<void> refreshConversation() => _refreshConversation();
 
   Future<void> _refreshConversation() async {
     try {
