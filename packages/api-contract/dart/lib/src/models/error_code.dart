@@ -486,6 +486,8 @@ enum ErrorCode {
   unsupportedInTarget('UNSUPPORTED_IN_TARGET'),
   @JsonValue('SYNC_TOO_OLD')
   syncTooOld('SYNC_TOO_OLD'),
+  @JsonValue('EXPERIMENT_STATE_INVALID')
+  experimentStateInvalid('EXPERIMENT_STATE_INVALID'),
   @JsonValue('STALE_VERSION')
   staleVersion('STALE_VERSION'),
 
