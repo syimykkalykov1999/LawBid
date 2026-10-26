@@ -113962,7 +113962,10 @@
           "third_party_services",
           "partner_terms",
           "dmca_policy",
-          "accessibility"
+          "accessibility",
+          "community_guidelines",
+          "advertising_disclosure",
+          "sms_terms"
         ]
       },
       "BootstrapLegalDocumentDto": {
