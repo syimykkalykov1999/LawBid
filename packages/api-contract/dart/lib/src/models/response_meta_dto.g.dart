@@ -15,6 +15,11 @@ ResponseMetaDto _$ResponseMetaDtoFromJson(Map<String, dynamic> json) =>
       syncedAt: json['syncedAt'] == null
           ? null
           : DateTime.parse(json['syncedAt'] as String),
+      disclaimer: json['disclaimer'] == null
+          ? null
+          : LegalDisclaimerDto.fromJson(
+              json['disclaimer'] as Map<String, dynamic>,
+            ),
     );
 
 Map<String, dynamic> _$ResponseMetaDtoToJson(ResponseMetaDto instance) =>
@@ -22,4 +27,5 @@ Map<String, dynamic> _$ResponseMetaDtoToJson(ResponseMetaDto instance) =>
       'nextCursor': ?instance.nextCursor,
       'deletedIds': ?instance.deletedIds,
       'syncedAt': ?instance.syncedAt?.toIso8601String(),
+      'disclaimer': ?instance.disclaimer?.toJson(),
     };

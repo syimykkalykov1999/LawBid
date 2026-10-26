@@ -15,6 +15,7 @@ class AnswerDto {
     required this.questionId,
     required this.attorney,
     required this.body,
+    required this.verifiedBadge,
     required this.likeCount,
     required this.likedByMe,
     required this.isBest,
@@ -30,6 +31,9 @@ class AnswerDto {
   final String questionId;
   final QaPersonDto attorney;
   final String body;
+
+  /// Owner 2026-10-28: the server decides the «verified attorney answer» badge — the answerer is verified now and holds a verified licence in the question’s state.
+  final bool verifiedBadge;
   final int likeCount;
   final bool likedByMe;
   final bool isBest;
