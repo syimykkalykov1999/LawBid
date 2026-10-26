@@ -138,6 +138,7 @@ const U = {
   fis: 'https://aws.amazon.com/fis/pricing/',
   budgets: 'https://aws.amazon.com/aws-cost-management/aws-budgets/pricing/',
   ddb: 'https://aws.amazon.com/dynamodb/pricing/on-demand/',
+  kinesis: 'https://aws.amazon.com/kinesis/data-streams/pricing/',
   rek: 'https://aws.amazon.com/rekognition/pricing/',
   twilio: 'https://www.twilio.com/en-us/sms/pricing/us',
   stripe: 'https://stripe.com/pricing',
@@ -1256,6 +1257,33 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     alarm: null,
     awsTypes: ['aws_opensearch_domain'],
     providers: ['opensearch'],
+  },
+  {
+    id: 'aws.events_stream',
+    name: 'Поток событий (Kinesis Data Streams)',
+    purpose:
+      'Внутренняя шина событий приложения для аналитики, когда таблицы domain_events станет мало.',
+    kind: 'aws',
+    control: tf(['growth.events_stream_enabled'], {
+      off: 'growth = { events_stream_enabled = false }',
+      on: 'growth = { events_stream_enabled = true }',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      '≈ $0,04 в час за поток (≈ $29 в месяц) плюс плата за гигабайт',
+      U.kinesis,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(29, 60),
+    needed: 'later',
+    neededNote:
+      'Пока события живут в таблице базы (30 дней). Включается в два шага: поток, затем настройка events.sink.',
+    alarm: null,
+    ceService: 'Amazon Kinesis',
+    awsTypes: ['aws_kinesis_stream'],
   },
   {
     id: 'aws.pgbouncer',
