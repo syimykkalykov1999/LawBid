@@ -13,6 +13,7 @@ import { LegalQaSweepJob } from '../modules/legal-qa/legal-qa-sweep.job';
 import { ContactsJoinedJob } from './handlers/contacts-joined.job';
 import { ContactsPepperBackfillJob } from './handlers/contacts-pepper-backfill.job';
 import { MessageReencryptJob } from './handlers/message-reencrypt.job';
+import { ChatSearchBackfillJob } from './handlers/chat-search-backfill.job';
 import { ContactsSyncModule } from '../modules/contacts-sync/contacts-sync.module';
 import { ConsultationsCoreModule } from '../modules/consultations/consultations-core.module';
 import { TreasuryCoreModule } from '../modules/treasury/treasury.module';
@@ -145,6 +146,7 @@ export class JobsModule {
         ContactsJoinedJob,
         ContactsPepperBackfillJob,
         MessageReencryptJob,
+        ChatSearchBackfillJob,
         OtpCleanupJob,
         DisposableDomainsRefreshJob,
         ReviewReminderJob,

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { FeatureFlagsService } from '../../modules/feature-flags/services/feature-flags.service';
@@ -26,6 +26,7 @@ import type {
   EconomyState,
 } from '../ops/ops.constants';
 import { OpsStateService } from '../ops/ops-state.service';
+import { SsmParamGateway } from '../ops/ssm-param.gateway';
 import {
   affordableCeilings,
   DB_TIERS,
@@ -39,6 +40,9 @@ import {
   projectMonth,
   REDIS_TIERS,
   allowedSpendUsd,
+  affordableTier,
+  DB_CEILING_SHARE,
+  REDIS_CEILING_SHARE,
   type Pressure,
   type Tier,
 } from './economy.rules';
@@ -152,6 +156,8 @@ export class EconomyService {
     private readonly ops: OpsStateService,
     private readonly autoscale: CostAutoscaleService,
     private readonly logger: PinoLogger,
+    // Cost registry V4: writes the money ceiling of the autoscalers (SSM).
+    @Optional() private readonly ssm?: SsmParamGateway,
   ) {
     this.logger.setContext(EconomyService.name);
   }
@@ -322,6 +328,47 @@ export class EconomyService {
     out.pressure = await this.checkPressure(now).catch((e: unknown) =>
       this.fail('pressure', e),
     );
+    out.capacityCeiling = await this.applyCapacityCeilings(f).catch(
+      (e: unknown) => this.fail('capacity_ceiling', e),
+    );
+    return out;
+  }
+
+  /**
+   * Cost registry V4: the database / Redis autoscalers may not grow past what
+   * the allowed monthly spend pays for. Writes the biggest affordable size
+   * into each autoscaler's SSM `max-class` parameter (a ceiling the Lambda can
+   * only apply BELOW its Terraform maximum). `scale.capacity_ceiling.mode`
+   * off = hands off (the Terraform ceiling alone stays).
+   */
+  private async applyCapacityCeilings(
+    f: EconomyFigures,
+  ): Promise<Record<string, unknown> | null> {
+    if (!this.ssm?.available) return null;
+    const mode = await this.settingsSvc.string('scale.capacity_ceiling.mode');
+    if (mode === 'off')
+      return { skipped: 'scale.capacity_ceiling.mode is off' };
+    const out: Record<string, unknown> = {};
+    const plan: [CapacityTarget, readonly Tier[], number][] = [
+      ['db', DB_TIERS, DB_CEILING_SHARE],
+      ['redis', REDIS_TIERS, REDIS_CEILING_SHARE],
+    ];
+    for (const [target, tiers, share] of plan) {
+      const param = this.ssm.maxClassParam(target);
+      if (!param) continue;
+      const want = affordableTier(tiers, f.allowedUsd, share);
+      const have = await this.ssm.get(param);
+      if (have === want.name) {
+        out[target] = { ceiling: want.name, changed: false };
+        continue;
+      }
+      await this.ssm.put(param, want.name);
+      this.logger.info(
+        { target, from: have, to: want.name, allowedUsd: f.allowedUsd },
+        'autoscale money ceiling updated',
+      );
+      out[target] = { ceiling: want.name, changed: true, was: have };
+    }
     return out;
   }
 

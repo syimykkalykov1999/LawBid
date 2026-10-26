@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { AdminLaunchController } from './admin-launch.controller';
 import { AdminSpendController } from './admin-spend.controller';
+import { CostRegistryService } from './cost-registry.service';
 
 /**
  * Owner 2026-10-24: «Запуск» (launch checklist, PagerDuty, AWS budgets) and
@@ -11,5 +12,6 @@ import { AdminSpendController } from './admin-spend.controller';
 @Module({
   imports: [AdminAccessModule],
   controllers: [AdminLaunchController, AdminSpendController],
+  providers: [CostRegistryService],
 })
 export class AdminLaunchModule {}
