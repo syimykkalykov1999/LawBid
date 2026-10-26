@@ -1,5 +1,22 @@
 # Call screens — reference spec (written before the rework, 2026-10-26)
 
+> **Owner's final decision (2026-10-26): exactly like WhatsApp, audio and
+> video** — this overrides the earlier variants. Implemented: video full
+> bleed; name + timer centred over the picture with a soft shadow (no
+> bars); chevron start, «+» end; the dark WhatsApp sheet with round
+> buttons (video call: Flip · Video · Mute · End; voice: Speaker · Video ·
+> Mute · End) that pulls up to the people + «Add participant»; group grid
+> with 3 px gaps / 10 px corners, last row stretched (3 = 2+1, 5 = 2+2+1,
+> 7 = 3+3+1, 8 = 3+3+2), green ring on the speaker, name tag bottom-start;
+> tap a tile = big + live strip, tap a strip card = it becomes big, tap the
+> big one = back to the grid; one tap on the picture shows / hides the
+> controls, 4 s auto-hide (video only), the grid fills the screen when the
+> sheet hides; self picture 96 × 136 drags and springs to a corner, two
+> taps swap; voice = dark green gradient, big photo, name, timer; group
+> voice = photos with names, green ring; minimised = green «Return to
+> call · 2:14» bar + a floating picture for video. The sections below are
+> the earlier research notes; where they differ, this paragraph wins.
+
 Owner: «the call screens must look and behave like WhatsApp / FaceTime /
 Telegram — nothing cheap, nothing that blinks or jumps». For each screen:
 the best reference, then the exact behaviour we copy. Our own tokens stay

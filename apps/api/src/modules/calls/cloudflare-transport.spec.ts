@@ -34,8 +34,8 @@ class FakeRedis {
     });
     return Promise.resolve('OK');
   }
-  mget(...ks: string[]) {
-    return Promise.resolve(ks.map((k) => this.live(k)?.v ?? null));
+  get(k: string) {
+    return Promise.resolve(this.live(k)?.v ?? null);
   }
   del(...ks: string[]) {
     ks.forEach((k) => this.kv.delete(k));
@@ -156,7 +156,7 @@ describe('CloudflareTransport (shared breaker, owner 2026-10-26)', () => {
   it('a Redis error never blocks a call: read as closed', async () => {
     const broken = {
       status: 'ready',
-      mget: () => Promise.reject(new Error('redis down')),
+      get: () => Promise.reject(new Error('redis down')),
       incr: () => Promise.reject(new Error('redis down')),
     };
     const t = new CloudflareTransport(broken as never, settings({}));

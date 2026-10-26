@@ -7,11 +7,13 @@ import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
+import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_add_panel.dart';
 import 'package:lawbid/features/calls/presentation/call_controls.dart';
 import 'package:lawbid/features/calls/presentation/call_group.dart';
 import 'package:lawbid/features/calls/presentation/call_screen.dart';
+import 'package:lawbid/features/calls/presentation/call_stage.dart';
 import 'package:lawbid/shared/people/my_people.dart';
 
 import '../helpers/long_locale.dart';
@@ -139,7 +141,12 @@ void main() {
                 _session(people, video: video, notice: kNoticeMutedByHost),
                 const CallScreen(),
               );
-              expect(find.byType(CallGroupGrid), findsOneWidget);
+              expect(
+                find.byWidgetPredicate(
+                  (w) => w is CallGroupGrid || w is CallGroupAudio,
+                ),
+                findsOneWidget,
+              );
               expect(tester.takeException(), isNull);
               await tester.pump(const Duration(seconds: 5));
             });
@@ -149,32 +156,32 @@ void main() {
         testWidgets('video: a tap makes a person big, a tap again goes back',
             (tester) async {
           await pump(tester, _session(6, video: true), const CallScreen());
+          String? focus() => ProviderScope.containerOf(
+                tester.element(find.byType(CallScreen)),
+              ).read(callVideoLayoutProvider).focusId;
+          // Owner 2026-10-26 (exactly like WhatsApp): a tap on a tile makes
+          // that person big, the others become a strip of live cards.
           await tester.tap(find.byKey(const Key('call-tile-u2')));
-          await tester.pump(const Duration(milliseconds: 300));
+          await tester.pump(const Duration(milliseconds: 400));
+          expect(focus(), 'u2');
           expect(tester.takeException(), isNull);
-          // The others are a strip now: still tappable, switching the person.
+          // A tap on a card in the strip makes it the big one.
           await tester.tap(find.byKey(const Key('call-tile-u3')));
-          await tester.pump(const Duration(milliseconds: 300));
+          await tester.pump(const Duration(milliseconds: 400));
+          expect(focus(), 'u3');
           expect(find.byKey(const Key('call-tile-u2')), findsOneWidget);
           expect(tester.takeException(), isNull);
+          // A tap on the big one: back to the grid.
           await tester.tap(find.byKey(const Key('call-tile-u3')));
-          await tester.pump(const Duration(milliseconds: 300));
-          expect(find.byKey(const Key('call-tile-u0')), findsOneWidget);
-          expect(tester.takeException(), isNull);
-          await tester.tap(find.byKey(const Key('call-tile-u2')));
-          await tester.pump(const Duration(milliseconds: 300));
-          // The explicit way back to the grid.
-          expect(find.byKey(const Key('call-focus-back')), findsOneWidget);
-          await tester.tap(find.byKey(const Key('call-focus-back')));
-          await tester.pump(const Duration(milliseconds: 300));
-          expect(find.byKey(const Key('call-focus-back')), findsNothing);
+          await tester.pump(const Duration(milliseconds: 400));
+          expect(focus(), isNull);
           expect(tester.takeException(), isNull);
           await tester.pump(const Duration(seconds: 5));
         });
 
         // Owner 2026-10-22 (Zoom): the «expand» mark on a tile makes that
         // person big; the «turn on yours?» prompt fits with a long name.
-        testWidgets('video: the expand mark, and the turn-on prompt',
+        testWidgets('video: a tap on a tile, and the turn-on prompt',
             (tester) async {
           await pump(
             tester,
@@ -186,11 +193,14 @@ void main() {
           );
           expect(find.byType(CallVideoPrompt), findsOneWidget);
           expect(tester.takeException(), isNull);
-          await tester.tap(find.byKey(const Key('call-tile-expand-u2')));
-          await tester.pump(const Duration(milliseconds: 300));
-          expect(find.byKey(const Key('call-focus-back')), findsOneWidget);
-          // The big one carries the way back, not a second expand mark.
-          expect(find.byKey(const Key('call-tile-expand-u2')), findsNothing);
+          await tester.tap(find.byKey(const Key('call-tile-u2')));
+          await tester.pump(const Duration(milliseconds: 400));
+          expect(
+            ProviderScope.containerOf(tester.element(find.byType(CallScreen)))
+                .read(callVideoLayoutProvider)
+                .focusId,
+            'u2',
+          );
           expect(tester.takeException(), isNull);
           await tester.pump(const Duration(seconds: 5));
         });

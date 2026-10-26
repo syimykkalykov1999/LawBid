@@ -152,7 +152,12 @@ export class CloudflareTransport {
     const r = this.live;
     if (r) {
       try {
-        const [open, fails] = await r.mget(openKey(part), failKey(part));
+        // Two plain GETs, not one MGET: the keys may live on different
+        // slots of a Redis cluster (redis-cluster-scan.spec.ts).
+        const [open, fails] = await Promise.all([
+          r.get(openKey(part)),
+          r.get(failKey(part)),
+        ]);
         const since = open ? Number(open) : NaN;
         return {
           open: Boolean(open),
@@ -370,7 +375,7 @@ export class CloudflareTransport {
     const r = this.live;
     if (r) {
       try {
-        await r.del(openKey(part), failKey(part));
+        await Promise.all([r.del(openKey(part)), r.del(failKey(part))]);
       } catch {
         // The next probe tries again.
       }

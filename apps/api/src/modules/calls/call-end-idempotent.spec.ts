@@ -12,7 +12,12 @@ import { CallsService } from './calls.service';
  */
 type Row = Partial<CallParticipant> & { user_id: string; status: string };
 
-function world(opts: { group: boolean; grace?: number; rows?: Row[] }) {
+function world(opts: {
+  group: boolean;
+  grace?: number;
+  rows?: Row[];
+  groupId?: string;
+}) {
   const call = {
     id: 'c1',
     status: 'active',
@@ -20,7 +25,7 @@ function world(opts: { group: boolean; grace?: number; rows?: Row[] }) {
     caller_id: 'a',
     callee_id: 'b',
     conversation_id: null,
-    group_id: null,
+    group_id: opts.groupId ?? null,
     channel_id: null,
     answered_at: new Date(Date.now() - 60_000),
     solo_since: null as Date | null,
@@ -151,21 +156,55 @@ describe('POST /calls/:id/end is idempotent', () => {
     expect(w.pushes).toEqual(['c']);
   });
 
-  it('the last but one leaves: the one left is not kept in an empty call', async () => {
+  it('a call of two (a 1:1 that only got an invite): ends the moment the other hangs up', async () => {
     const w = world({
       group: true,
       grace: 3,
       rows: [
-        { id: 'r1', user_id: 'a', status: 'joined' },
-        { id: 'r2', user_id: 'b', status: 'joined' },
+        { id: 'r1', user_id: 'a', status: 'joined', joined_at: new Date() },
+        { id: 'r2', user_id: 'b', status: 'joined', joined_at: new Date() },
+        { id: 'r3', user_id: 'c', status: 'declined', joined_at: null },
       ],
     });
     await w.svc.end(user('b'), 'c1', {});
-    // The grace starts (3 s, cancelled by a join); the timer is armed.
+    // Owner 2026-10-26 (WhatsApp): no 3 s wait in a 1:1.
+    expect(w.call.status).toBe('ended');
+    expect(
+      w.sent.filter((s) => s.event === 'call:ended').map((s) => s.to),
+    ).toContain('a');
+  });
+
+  it('a group call down to one person: the 3 s grace, then the end', async () => {
+    const w = world({
+      group: true,
+      grace: 3,
+      groupId: 'grp',
+      rows: [
+        { id: 'r1', user_id: 'a', status: 'joined', joined_at: new Date() },
+        { id: 'r2', user_id: 'b', status: 'joined', joined_at: new Date() },
+      ],
+    });
+    await w.svc.end(user('b'), 'c1', {});
+    expect(w.call.status).toBe('active');
     expect(w.call.solo_since).toBeInstanceOf(Date);
     expect(
       (w.svc as unknown as { armSoloTimer: jest.Mock }).armSoloTimer,
     ).toHaveBeenCalledWith('c1', 3000);
+  });
+
+  it('three people talked, two left: the grace too (it was a group call)', async () => {
+    const w = world({
+      group: true,
+      grace: 3,
+      rows: [
+        { id: 'r1', user_id: 'a', status: 'joined', joined_at: new Date() },
+        { id: 'r2', user_id: 'b', status: 'left', joined_at: new Date() },
+        { id: 'r3', user_id: 'c', status: 'joined', joined_at: new Date() },
+      ],
+    });
+    await w.svc.end(user('c'), 'c1', {});
+    expect(w.call.status).toBe('active');
+    expect(w.call.solo_since).toBeInstanceOf(Date);
   });
 
   it('with no grace the call ends at once and the last one hears it', async () => {

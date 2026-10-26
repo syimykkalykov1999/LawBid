@@ -89,8 +89,9 @@ export const CALL_RING_TIMEOUT_MS = 65_000;
 /** A running call nobody has asked about for this long is over: the apps
  * read it every ~8 s (heartbeat), so silence means both are gone. Owner
  * 2026-10-21: no cap on how long people talk (days are fine) — only
- * silence ends a call — and a dead-zone gap of a few minutes must not
- * (the app waits 150 s for the network before it gives up). Lives in
+ * silence ends a call. The app itself gives a dropped link 30 s and then
+ * ends the call (owner 2026-10-26); this is the backstop when neither
+ * phone can reach us. Lives in
  * common/calls (the group / channel lists read it too). */
 export { CALL_SILENT_MS };
 const LIVE: CallStatus[] = ['ringing', 'active'];
@@ -2527,6 +2528,13 @@ export class CallsService {
       return this.finish(call, 'ended', viewerId);
     }
     if (joined === 1 && !ringing) {
+      // Owner 2026-10-26 (WhatsApp): a call of two — a 1:1 call that got
+      // a «group» only because someone was invited who never came — ends
+      // the moment the other person hangs up. The grace is for real group
+      // calls (a group chat's or a channel's, or three people who talked).
+      if (this.wasTwoPersonCall(call, rows)) {
+        return this.finish(call, 'ended', viewerId);
+      }
       const grace = await this.soloGraceMs();
       if (grace <= 0) return this.finish(call, 'ended', viewerId);
       const now = new Date();
@@ -2539,6 +2547,13 @@ export class CallsService {
     }
     await this.clearSolo(call.id);
     return null;
+  }
+
+  /** A call between two people only: not a group chat's or a channel's
+   * call, and never more than two people in it. */
+  private wasTwoPersonCall(call: Call, rows: CallParticipant[]): boolean {
+    if (call.group_id || call.channel_id) return false;
+    return rows.filter((r) => Boolean(r.joined_at)).length <= 2;
   }
 
   private async clearSolo(callId: string): Promise<void> {
