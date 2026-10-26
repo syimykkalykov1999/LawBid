@@ -76,7 +76,9 @@ class TraceInterceptor extends Interceptor {
 
   @override
   void onResponse(
-      Response<dynamic> response, ResponseInterceptorHandler handler) {
+    Response<dynamic> response,
+    ResponseInterceptorHandler handler,
+  ) {
     _finish(response.requestOptions, response.statusCode);
     handler.next(response);
   }

@@ -64,7 +64,7 @@ class SentryNative {
   /// `client.sentry_traces_percent` (0 = off). Read when the SDK starts; a
   /// changed value restarts it with the next bootstrap answer.
   static double get tracesRate =>
-      AppEvents.consent == true ? ClientTuning.sentryTracesPercent / 100 : 0;
+      (AppEvents.consent ?? false) ? ClientTuning.sentryTracesPercent / 100 : 0;
 
   /// The rate the running SDK was started with (read by the SDK adapter).
   static double get currentTracesRate => _rate;
@@ -257,6 +257,7 @@ abstract class SentryTracingSdk {
 }
 
 /// One open API-call span.
+// ignore: one_member_abstracts
 abstract class SentryHttpSpan {
   Future<void> finish(int? statusCode);
 }
@@ -317,7 +318,8 @@ class _FlutterSdk implements SentryNativeSdk, SentryTracingSdk {
         Sentry.startTransaction(
           '$method $path',
           'http.client',
-          // Each call is its own sampled transaction: no screen-wide one exists.
+          // Each call is its own sampled transaction: no screen-wide one
+          // exists.
           bindToScope: false,
         ),
       );
