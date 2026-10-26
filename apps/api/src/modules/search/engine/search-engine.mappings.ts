@@ -17,13 +17,74 @@ export function isSearchEntity(v: string): v is SearchEntity {
   return (SEARCH_ENTITIES as readonly string[]).includes(v);
 }
 
-/** Bump when a mapping below changes: the reindex then rebuilds everything
- * (the indexer notices it by itself while `search.engine` is not postgres). */
+/** Revision of the mappings below. Bump it when a mapping changes: the admin
+ * page then shows "mapping outdated" and a zero-downtime reindex (see
+ * docs/runbooks/search-reindex.md) builds a new index generation; nothing is
+ * rebuilt by itself. It is stored in each index's `_meta.mapping_version`. */
 export const MAPPING_VERSION = 1;
 
-/** The index of an entity: `<prefix>-<entity>` (an alias-free single index). */
-export function indexName(prefix: string, entity: SearchEntity): string {
-  return `${prefix}-${entity}-v${MAPPING_VERSION}`;
+/**
+ * Names (owner 2026-10-25, alias-based zero-downtime reindex):
+ *   read alias   `<prefix>-<entity>`        searches go here
+ *   write alias  `<prefix>-<entity>-write`  the indexer writes here
+ *   physical     `<prefix>-<entity>-v<N>`   an index generation (N grows by
+ *                                            one with every reindex)
+ * A pre-alias deployment has just `<prefix>-<entity>-v1`: it is adopted by
+ * adding the two aliases (no data moves).
+ */
+export function readAlias(prefix: string, entity: SearchEntity): string {
+  return `${prefix}-${entity}`;
+}
+export function writeAlias(prefix: string, entity: SearchEntity): string {
+  return `${prefix}-${entity}-write`;
+}
+export function physicalIndex(
+  prefix: string,
+  entity: SearchEntity,
+  generation: number,
+): string {
+  return `${prefix}-${entity}-v${generation}`;
+}
+/** Generation number of a physical index name of [entity], else null. */
+export function generationOf(
+  prefix: string,
+  entity: SearchEntity,
+  name: string,
+): number | null {
+  const head = `${prefix}-${entity}-v`;
+  if (!name.startsWith(head)) return null;
+  const rest = name.slice(head.length);
+  return /^[1-9]\d*$/.test(rest) ? Number(rest) : null;
+}
+export function templateName(prefix: string, entity: SearchEntity): string {
+  return `${prefix}-${entity}-tpl`;
+}
+
+/**
+ * Composable index template of [entity]: every generation `-v<N>` created
+ * later gets the same settings and mappings from the engine itself, so a
+ * mapping change is a code change plus a new generation (no hand-built PUT).
+ */
+export function templateBody(
+  prefix: string,
+  entity: SearchEntity,
+): Record<string, unknown> {
+  const def = MAPPINGS[entity] as {
+    settings: Record<string, unknown>;
+    mappings: Record<string, unknown>;
+  };
+  return {
+    index_patterns: [`${prefix}-${entity}-v*`],
+    priority: 100,
+    template: {
+      settings: structuredClone(def.settings),
+      mappings: {
+        ...structuredClone(def.mappings),
+        _meta: { mapping_version: MAPPING_VERSION },
+      },
+    },
+    _meta: { owner: 'lawbid', mapping_version: MAPPING_VERSION },
+  };
 }
 
 /** Text fields share one analyzer: lower case, accents folded (é = e), ё = е.

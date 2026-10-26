@@ -2,7 +2,10 @@ import { caseIdsByTitle } from '../admin-content/admin-text-search';
 import type { CountryScope } from '../countries/country-scope';
 import { urgencyFields } from '../cases/domain/case-urgency';
 import { statusOf } from '../cases/case-invites/case-invites.service';
-import { Injectable } from '@nestjs/common';
+import { openJournalPayload } from '../journal/journal-text-seal';
+import { Injectable, Optional } from '@nestjs/common';
+import { privateDetailsAad } from '../../common/secrets/field-aad';
+import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import type { Prisma } from '@prisma/client';
 import {
   decodeCursor,
@@ -113,6 +116,8 @@ export class AdminCaseManagementService {
     private readonly notifications: NotificationsService,
     private readonly chat: ChatSystemMessages,
     private readonly audit: AuditLogService,
+    // S3-5: private details are stored sealed.
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
 
   async list(
@@ -291,7 +296,13 @@ export class AdminCaseManagementService {
     return {
       ...toRow(kase, reports.get(id) ?? 0, promoted.has(id), files.get(id)),
       description: kase.description,
-      privateDetails: kase.private_details,
+      privateDetails:
+        kase.private_details === null
+          ? null
+          : (this.cipher?.openField(
+              kase.private_details,
+              privateDetailsAad(id),
+            ) ?? kase.private_details),
       city: kase.city,
       budgetMode: kase.budget_mode,
       budgetCents: kase.budget_cents,
@@ -335,7 +346,7 @@ export class AdminCaseManagementService {
         eventType: j.event_type,
         actorRole: j.actor_role,
         actorUserId: j.actor_user_id,
-        payload: j.payload,
+        payload: openJournalPayload(j.payload, j.id, this.cipher),
         createdAt: j.created_at.toISOString(),
       })),
       disputeIds: disputes.map((d) => d.id),
