@@ -15,6 +15,7 @@ import 'package:lawbid/core/network/auth_interceptor.dart';
 import 'package:lawbid/core/network/headers_interceptor.dart';
 import 'package:lawbid/core/network/idempotency_interceptor.dart';
 import 'package:lawbid/core/network/retry_interceptor.dart';
+import 'package:lawbid/core/network/trace_interceptor.dart';
 import 'package:lawbid/core/network/turnstile_interceptor.dart';
 import 'package:lawbid/core/security/app_check.dart';
 import 'package:lawbid/core/security/turnstile.dart';
@@ -42,6 +43,8 @@ final dioProvider = Provider<Dio>((ref) {
     ),
   );
   dio.interceptors.add(HeadersInterceptor(ref));
+  // S12-2 / S12-5: `traceparent` on a sampled share of calls + Sentry span.
+  dio.interceptors.add(TraceInterceptor());
   // Security research #5 (2026-10-22), B1: `X-Firebase-AppCheck` on the
   // costly anonymous auth routes only (docs/runbooks/APP_CHECK.md).
   dio.interceptors.add(

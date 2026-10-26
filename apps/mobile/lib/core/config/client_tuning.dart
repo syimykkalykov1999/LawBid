@@ -24,6 +24,8 @@ abstract final class ClientTuning {
   static int _videoPrefetchAhead = 3;
   static double _chatPhotoMaxPx = 1600;
   static int _chatPhotoQuality = 82;
+  static int _sentryTracesPercent = 5;
+  static int _traceparentPercent = 5;
 
   /// Repeats of a failed safe request (RetryInterceptor).
   static int get retryMax => _retryMax;
@@ -57,6 +59,15 @@ abstract final class ClientTuning {
   static double get chatPhotoMaxPx => _chatPhotoMaxPx;
   static int get chatPhotoQuality => _chatPhotoQuality;
 
+  /// Share of sessions (percent) whose performance trace goes to Sentry
+  /// (`client.sentry_traces_percent`); 0 = off. Also needs the person's
+  /// analytics consent (core/diagnostics/sentry_native.dart).
+  static int get sentryTracesPercent => _sentryTracesPercent;
+
+  /// Share of API calls (percent) sent with a W3C `traceparent` header
+  /// (`client.traceparent_percent`); 0 = never.
+  static int get traceparentPercent => _traceparentPercent;
+
   /// The 1, 2, 4 … wait of retry number [failures] (1-based), at most
   /// [outboxRetryMaxS] seconds. One rule for the chat outbox, the upload
   /// queue and the storage uploader.
@@ -76,19 +87,33 @@ abstract final class ClientTuning {
     _retryBaseMs = pick('client.retry_base_ms', 1000, 200, 30000);
     _retryAfterMaxS = pick('client.retry_after_max_s', 10, 1, 120);
     _outboxRetryMaxS = pick('client.outbox_retry_max_s', 30, 5, 600);
-    _reconnectMinMs =
-        pick('client.realtime_reconnect_min_ms', 1000, 500, 60000);
-    _reconnectMaxMs =
-        pick('client.realtime_reconnect_max_ms', 10000, 2000, 300000);
+    _reconnectMinMs = pick(
+      'client.realtime_reconnect_min_ms',
+      1000,
+      500,
+      60000,
+    );
+    _reconnectMaxMs = pick(
+      'client.realtime_reconnect_max_ms',
+      10000,
+      2000,
+      300000,
+    );
     _eventsEnabled = config['client.events_enabled'] != 'false';
     _eventsFlushS = pick('client.events_flush_s', 60, 15, 3600);
     _callSyncS = pick('client.call_sync_s', 30, 10, 300);
     _qrPollS = pick('client.qr_poll_s', 10, 5, 60);
     _resumeMinAwayS = pick('client.resume_refresh_min_away_s', 30, 5, 3600);
     _videoPrefetchAhead = pick('client.video_prefetch_ahead', 3, 0, 6);
-    _chatPhotoMaxPx =
-        pick('media.chat_photo_max_px', 1600, 640, 4096).toDouble();
+    _chatPhotoMaxPx = pick(
+      'media.chat_photo_max_px',
+      1600,
+      640,
+      4096,
+    ).toDouble();
     _chatPhotoQuality = pick('media.chat_photo_quality', 82, 50, 100);
+    _sentryTracesPercent = pick('client.sentry_traces_percent', 5, 0, 100);
+    _traceparentPercent = pick('client.traceparent_percent', 5, 0, 100);
   }
 
   /// Back to the starter values (tests).

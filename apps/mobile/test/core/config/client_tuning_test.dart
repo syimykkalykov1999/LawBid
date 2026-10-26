@@ -18,6 +18,8 @@ void main() {
     expect(ClientTuning.videoPrefetchAhead, 3);
     expect(ClientTuning.chatPhotoMaxPx, 1600);
     expect(ClientTuning.chatPhotoQuality, 82);
+    expect(ClientTuning.sentryTracesPercent, 5);
+    expect(ClientTuning.traceparentPercent, 5);
     final waits = [for (var i = 1; i <= 8; i++) ClientTuning.outboxBackoff(i)];
     expect(waits.map((d) => d.inSeconds), [1, 2, 4, 8, 16, 30, 30, 30]);
   });
@@ -30,12 +32,16 @@ void main() {
       'client.events_enabled': 'false',
       'media.chat_photo_quality': '70',
       'client.video_prefetch_ahead': '0',
+      'client.sentry_traces_percent': '0',
+      'client.traceparent_percent': '250',
     });
     expect(ClientTuning.retryMax, 0);
     expect(ClientTuning.reconnectMaxMs, 120000);
     expect(ClientTuning.eventsEnabled, isFalse);
     expect(ClientTuning.chatPhotoQuality, 70);
     expect(ClientTuning.videoPrefetchAhead, 0);
+    expect(ClientTuning.sentryTracesPercent, 0);
+    expect(ClientTuning.traceparentPercent, 100);
     expect(ClientTuning.outboxBackoff(9).inSeconds, 120);
   });
 

@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/app_update/app_version.dart';
 import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
+import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/diagnostics/sentry_reporter.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,12 +35,71 @@ class SentryNative {
   static SentryNativeSdk _sdk = const _FlutterSdk();
   static SharedPreferences? _prefs;
   static String? _dsn;
+  static double _rate = 0;
+  static DateTime? _processStart;
+  static DateTime? _firstFrame;
+  static bool _startReported = false;
   static bool? _releaseOverride;
   static bool? _supportedOverride;
   static Future<void> _chain = Future<void>.value();
 
   /// Whether the SDK is up (Dart errors then go through it).
   static bool get running => _dsn != null;
+
+  /// S12-5: share of sessions traced (0..1). Needs the person's analytics
+  /// consent (Settings → Privacy) and the admin's
+  /// `client.sentry_traces_percent` (0 = off). Read when the SDK starts; a
+  /// changed value restarts it with the next bootstrap answer.
+  static double get tracesRate =>
+      AppEvents.consent == true ? ClientTuning.sentryTracesPercent / 100 : 0;
+
+  /// The rate the running SDK was started with (read by the SDK adapter).
+  static double get currentTracesRate => _rate;
+
+  /// Very first moment of the process (run_app.dart), for the app-start span.
+  static void markProcessStart() => _processStart ??= DateTime.now().toUtc();
+
+  /// The first frame is on the glass: closes the app-start span.
+  static void markFirstFrame() {
+    _firstFrame ??= DateTime.now().toUtc();
+    _reportAppStart();
+  }
+
+  static void _reportAppStart() {
+    final start = _processStart;
+    final end = _firstFrame;
+    final raw = _sdk;
+    final sdk = raw is SentryTracingSdk ? raw as SentryTracingSdk : null;
+    if (_startReported ||
+        !running ||
+        _rate <= 0 ||
+        start == null ||
+        end == null ||
+        sdk == null) {
+      return;
+    }
+    _startReported = true;
+    try {
+      unawaited(
+        sdk.reportSpan('app.start', 'app.start', start, end).catchError((_) {}),
+      );
+    } catch (_) {
+      // Telemetry must never be the next crash.
+    }
+  }
+
+  /// A span for one API call (op `http.client`), or null when tracing is off
+  /// for this session. [path] must already be free of ids and query.
+  static SentryHttpSpan? startHttpSpan(String method, String path) {
+    final raw = _sdk;
+    final sdk = raw is SentryTracingSdk ? raw as SentryTracingSdk : null;
+    if (!running || _rate <= 0 || sdk == null) return null;
+    try {
+      return sdk.startHttpSpan(method, path);
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Test hook: a fake SDK, whether this build counts as a release, and
   /// whether this platform has a native SDK.
@@ -51,6 +112,10 @@ class SentryNative {
     _sdk = sdk ?? const _FlutterSdk();
     _prefs = null;
     _dsn = null;
+    _rate = 0;
+    _processStart = null;
+    _firstFrame = null;
+    _startReported = false;
     _releaseOverride = release;
     _supportedOverride = supported;
     _chain = Future<void>.value();
@@ -87,17 +152,20 @@ class SentryNative {
   }
 
   static Future<void> _apply(String? dsn) => _chain = _chain.then((_) async {
-        if (dsn == _dsn) return;
+        final rate = tracesRate;
+        if (dsn == _dsn && (dsn == null || rate == _rate)) return;
         try {
           if (_dsn != null) await _sdk.close();
           _dsn = null;
           if (dsn == null) return;
+          _rate = rate;
           await _sdk.init(
             dsn,
             release: 'lawbid@${AppVersion.current}+${AppVersion.build}',
             dist: AppVersion.build,
           );
           _dsn = dsn;
+          _reportAppStart();
         } on Object catch (e) {
           debugPrint('sentry native off: $e');
           _dsn = null;
@@ -137,8 +205,9 @@ class SentryNative {
     }
     final message = event.message;
     if (message != null) {
-      event.message =
-          SentryMessage(SentryReporter.scrubText(message.formatted));
+      event.message = SentryMessage(
+        SentryReporter.scrubText(message.formatted),
+      );
     }
     return event;
   }
@@ -162,7 +231,33 @@ abstract class SentryNativeSdk {
   });
 }
 
-class _FlutterSdk implements SentryNativeSdk {
+/// S12-5: the tracing half of the SDK, kept apart so test fakes of
+/// [SentryNativeSdk] stay valid.
+abstract class SentryTracingSdk {
+  SentryHttpSpan startHttpSpan(String method, String path);
+
+  Future<void> reportSpan(String name, String op, DateTime start, DateTime end);
+}
+
+/// One open API-call span.
+abstract class SentryHttpSpan {
+  Future<void> finish(int? statusCode);
+}
+
+class _TxSpan implements SentryHttpSpan {
+  _TxSpan(this._tx);
+  final ISentrySpan _tx;
+
+  @override
+  Future<void> finish(int? statusCode) async {
+    _tx.status = statusCode == null
+        ? const SpanStatus.internalError()
+        : SpanStatus.fromHttpStatusCode(statusCode);
+    await _tx.finish();
+  }
+}
+
+class _FlutterSdk implements SentryNativeSdk, SentryTracingSdk {
   const _FlutterSdk();
 
   @override
@@ -182,6 +277,8 @@ class _FlutterSdk implements SentryNativeSdk {
           ..anrEnabled = true
           ..anrTimeoutInterval = const Duration(seconds: 5)
           ..sendDefaultPii = false
+          // S12-5: 0 unless consent + admin percent (see tracesRate).
+          ..tracesSampleRate = SentryNative.currentTracesRate
           ..attachScreenshot = false
           ..attachViewHierarchy = false
           ..beforeSend = (event, hint) => SentryNative.scrub(event);
@@ -197,6 +294,32 @@ class _FlutterSdk implements SentryNativeSdk {
 
   @override
   Future<void> close() => Sentry.close();
+
+  @override
+  SentryHttpSpan startHttpSpan(String method, String path) => _TxSpan(
+        Sentry.startTransaction(
+          '$method $path',
+          'http.client',
+          // Each call is its own sampled transaction: no screen-wide one exists.
+          bindToScope: false,
+        ),
+      );
+
+  @override
+  Future<void> reportSpan(
+    String name,
+    String op,
+    DateTime start,
+    DateTime end,
+  ) async {
+    final tx = Sentry.startTransaction(
+      name,
+      op,
+      startTimestamp: start,
+      bindToScope: false,
+    );
+    await tx.finish(endTimestamp: end);
+  }
 
   @override
   Future<void> capture(
