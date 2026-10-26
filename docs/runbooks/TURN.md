@@ -2,8 +2,27 @@
 
 **Status 2026-10-24.** Our own coturn servers were deleted from AWS
 (`turn_enabled = false`, `turn_second_enabled = false`). 1:1 calls relay through
-**Cloudflare Realtime TURN**; group calls use the **Cloudflare SFU** when
-`calls.video_provider = cloudflare`. Nothing runs on EC2 for calls any more.
+**Cloudflare Realtime TURN**; group calls use the **Cloudflare SFU** as soon as its keys
+are saved. Nothing runs on EC2 for calls any more.
+
+## Cloudflare primary, own path as automatic backup (2026-10-26)
+
+- `calls.transport` (admin -> Settings): `auto` (default) | `cloudflare` | `own`.
+  `auto`: Cloudflare (TURN for 1:1 ICE, Realtime SFU for groups) whenever its keys exist;
+  our own path (own TURN from Integrations -> TURN / `TURN_URLS`, device-to-device mesh)
+  only while the breaker is open. `cloudflare`: always Cloudflare (breaker ignored).
+  `own`: never Cloudflare. A running call keeps its path; only NEW calls switch.
+- Breaker (code: `apps/api/src/modules/calls/cloudflare-transport.ts`), one per service
+  (`turn`, `sfu`), shared by all API tasks in Redis: `calls:cf:fail:{part}` (INCR, TTL =
+  window), `calls:cf:open:{part}`, `calls:cf:probe:{part}` (SET NX PX 60 s). Opens after
+  `calls.transport_fail_limit` (5) failures in `calls.transport_fail_window_sec` (120 s).
+  Counted failures: TURN credential fetch error/timeout (after the 1.5 s budget), SFU
+  5xx / 429 / timeout / 401 / 403. While open, one probe a minute fleet-wide (TURN: a 5-min
+  credential; SFU: `sessions/new`), using the keys of that moment; success closes it.
+  No probes at all while closed. Log lines: `alert=cloudflare_calls_fallback` (opened),
+  `answers again` (closed).
+- Admin -> Состояние системы: Cloudflare TURN / SFU rows carry `path`, `transport`,
+  `breaker`; yellow while new calls run on the backup.
 
 ## What runs now
 
@@ -11,14 +30,15 @@
   `CLOUDFLARE_TURN_KEY_ID` / `CLOUDFLARE_TURN_API_TOKEN`. Group calls: `cloudflare_sfu`.
 - `GET /calls/ice-servers` asks Cloudflare for a 24 h login per user (cached 30 min), and
   puts it first, then STUN. Code: `apps/api/src/modules/calls/cloudflare-turn.ts`.
-- If Cloudflare does not answer, the API retries once after 300 ms (1.5 s limit). Still
-  nothing: the call goes on with STUN only (and our own TURN **only when** it is still
-  configured). The failure is counted as `turnProviderFailed` in the one-a-minute `slo`
+- If Cloudflare does not answer, the API retries once after 100 ms; the whole attempt never
+  takes more than 1.5 s. Still nothing: the call goes on with our own TURN (when configured)
+  and STUN. The failure is counted as `turnProviderFailed` in the one-a-minute `slo`
   log line; 5 in 5 minutes page `<env>-turn-provider-failed`. API logs: search
   `cloudflare_turn_failed`.
-- While Cloudflare works, any old `TURN_URLS` / admin TURN entry is **ignored** on purpose
-  (dead IPs make ICE wait for timeouts) and the API logs one warning an hour. Clear it:
-  admin -> Integrations -> TURN.
+- While Cloudflare works, our own TURN (`TURN_URLS` / admin TURN entry) is **not offered**
+  (extra or dead IPs make ICE wait for timeouts); it is the backup. Keep it pointing at
+  live coturn servers, or the backup is STUN only. With the breaker open and no own TURN
+  set, Cloudflare is still tried (it is the only relay).
 - The «video call» button counts `cloudflare_turn` keys as a configured provider.
 - Admin -> Система -> Состояние системы shows **Cloudflare TURN**, **Cloudflare SFU** and
   **Cloudflare R2** (each probe is one tiny real request, cached 2 min; grey when unused;

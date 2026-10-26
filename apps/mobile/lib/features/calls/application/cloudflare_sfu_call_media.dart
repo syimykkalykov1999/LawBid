@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/calls/application/call_controller.dart'
+    show callTrace;
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_quality.dart';
 import 'package:lawbid/features/calls/application/sfu_rtc.dart';
@@ -777,22 +779,13 @@ class CloudflareSfuCallMedia implements SfuCallMedia {
 
   // --- Close ---
 
+  /// Owner 2026-10-26 («I hang up and the call does not end»): closed
+  /// FIRST (a second close, the timers and the resync stop at once, not
+  /// after the 2 s goodbye to the SFU), and every step of the teardown runs
+  /// even when one before it throws.
   @override
   Future<void> close() async {
     if (_closed) return;
-    final peer = _peer;
-    final had = _published.keys.toList();
-    // Closing the tracks first (best effort): the SFU stops forwarding at
-    // once; the server does the same when it hears we left.
-    if (peer != null && had.isNotEmpty) {
-      try {
-        await _api
-            .close(callId, trackNames: had)
-            .timeout(const Duration(seconds: 2));
-      } on Object {
-        // Left already (404) or offline.
-      }
-    }
     _closed = true;
     _gen++;
     _wake(false);
@@ -806,23 +799,41 @@ class CloudflareSfuCallMedia implements SfuCallMedia {
       t?.cancel();
     }
     _camTimer = _layerTimer = _resyncTimer = _qualityTimer = _levelTimer = null;
-    for (final t in _mic?.getTracks() ?? const <MediaStreamTrack>[]) {
-      await t.stop();
+    final peer = _peer;
+    _peer = null;
+    final had = _published.keys.toList();
+    final mic = _mic;
+    _mic = null;
+    // Our sound and picture stop here and now; the SFU is told after.
+    for (final t in mic?.getTracks() ?? const <MediaStreamTrack>[]) {
+      await _guard('track.stop', t.stop);
     }
     _local.value = null;
     _remote.value = null;
     _remotes.value = const {};
     _speaking.value = const {};
     _quality.value = LinkQuality.good;
-    await _mic?.dispose();
-    _mic = null;
-    _peer = null;
+    if (mic != null) await _guard('stream.dispose', mic.dispose);
+    // Closing the tracks (best effort): the SFU stops forwarding at once;
+    // the server does the same when it hears we left.
+    if (peer != null && had.isNotEmpty) {
+      await _guard(
+        'sfu close',
+        () => _api
+            .close(callId, trackNames: had)
+            .timeout(const Duration(seconds: 2)),
+      );
+    }
     _pulls.clear();
     _published.clear();
+    if (peer != null) await _guard('pc.close', peer.close);
+  }
+
+  static Future<void> _guard(String step, Future<void> Function() run) async {
     try {
-      await peer?.close();
-    } on Object {
-      // Gone already.
+      await run();
+    } on Object catch (e) {
+      callTrace('sfu media close: $step failed: $e');
     }
   }
 

@@ -328,10 +328,9 @@ abstract final class CallMappers {
             d.mediaFallback == null ? null : fallbackOf(d.mediaFallback!),
       );
 
-  static CallMediaProvider mediaProviderOf(String? raw) =>
-      raw == 'cloudflare'
-          ? CallMediaProvider.cloudflare
-          : CallMediaProvider.p2p;
+  static CallMediaProvider mediaProviderOf(String? raw) => raw == 'cloudflare'
+      ? CallMediaProvider.cloudflare
+      : CallMediaProvider.p2p;
 
   static CallMediaFallback fallbackOf(api.CallMediaFallbackDto f) =>
       CallMediaFallback(

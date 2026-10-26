@@ -49,6 +49,13 @@ import flutter_callkit_incoming
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    // The app's own engine now has the CallKit plugin (the same shared
+    // instance, with the call a VoIP push reported before): the stand-in
+    // engine of a background launch is no longer needed.
+    if let standIn = callkitEngine {
+      callkitEngine = nil
+      standIn.destroyContext()
+    }
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LawbidChatNotifications") {
       registerChatNotifications(registrar.messenger())
     }
@@ -185,12 +192,51 @@ import flutter_callkit_incoming
     guard type == .voIP else { return }
     let token = credentials.token.map { String(format: "%02x", $0) }.joined()
     // Dart reads it (getDevicePushTokenVoIP) and sends it to the server.
+    // Owner 2026-10-26: with UIScene the plugins are registered only when
+    // the window appears — iOS hands the token over before that, and
+    // `sharedInstance?.` dropped it, so the server never learnt this
+    // iPhone's VoIP token and calls could not ring a closed app. The token
+    // is stored where the plugin keeps it (its "DevicePushTokenVoIP"
+    // default) whether or not the plugin is up yet.
+    UserDefaults.standard.set(token, forKey: Self.voipTokenKey)
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.setDevicePushTokenVoIP(token)
   }
 
   func pushRegistry(_ registry: PKPushRegistry, didInvalidatePushTokenFor type: PKPushType) {
     guard type == .voIP else { return }
+    UserDefaults.standard.set("", forKey: Self.voipTokenKey)
     SwiftFlutterCallkitIncomingPlugin.sharedInstance?.setDevicePushTokenVoIP("")
+  }
+
+  /// flutter_callkit_incoming's own key for the VoIP token (3.1.6,
+  /// SwiftFlutterCallkitIncomingPlugin.devicePushTokenVoIP).
+  private static let voipTokenKey = "DevicePushTokenVoIP"
+
+  /// Owner 2026-10-26 (calls did not ring a closed / locked iPhone): a VoIP
+  /// push that launches the app in the background connects no window, so
+  /// the UIScene app never registers its plugins and the CallKit plugin is
+  /// missing. iOS then kills an app that does not report the call — and,
+  /// after a few times, stops sending it VoIP pushes at all. A small
+  /// stand-in engine (an empty Dart entry, only this plugin) brings the
+  /// plugin up so the call is always reported; the app's own engine takes
+  /// the same plugin instance over when the window appears.
+  private var callkitEngine: FlutterEngine?
+
+  private func callkitPlugin() -> SwiftFlutterCallkitIncomingPlugin? {
+    if let plugin = SwiftFlutterCallkitIncomingPlugin.sharedInstance { return plugin }
+    let engine = FlutterEngine(name: "lawbid.callkit", project: nil, allowHeadlessExecution: true)
+    guard
+      engine.run(
+        withEntrypoint: "callkitPushEntry",
+        libraryURI: "package:lawbid/features/calls/application/callkit_bridge.dart"),
+      let registrar = engine.registrar(forPlugin: "FlutterCallkitIncomingPlugin")
+    else {
+      NSLog("callkit: stand-in engine did not start")
+      return nil
+    }
+    SwiftFlutterCallkitIncomingPlugin.register(with: registrar)
+    callkitEngine = engine
+    return SwiftFlutterCallkitIncomingPlugin.sharedInstance
   }
 
   /// iOS requires every VoIP push to report a call to CallKit at once —
@@ -207,8 +253,9 @@ import flutter_callkit_incoming
       return
     }
     // Without the plugin there is no CallKit provider to report to; finish
-    // the push instead of leaving iOS waiting.
-    guard let callkit = SwiftFlutterCallkitIncomingPlugin.sharedInstance else {
+    // the push instead of leaving iOS waiting (only if even the stand-in
+    // engine could not start).
+    guard let callkit = callkitPlugin() else {
       completion()
       return
     }
@@ -234,9 +281,14 @@ import flutter_callkit_incoming
     )
     data.appName = "LawBid"
     data.duration = 45000
+    // Owner 2026-10-26: the caller's photo (CallKit itself shows only the
+    // name; the app's call screen takes the photo from here).
+    let avatar = (p["avatarUrl"] as? String) ?? ""
+    data.avatar = avatar
     data.extra = [
       "callId": callId,
       "conversationId": (p["conversationId"] as? String) ?? "",
+      "avatarUrl": avatar,
     ]
     data.handleType = "generic"
     data.supportsVideo = video

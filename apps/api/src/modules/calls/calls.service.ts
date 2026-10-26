@@ -58,10 +58,14 @@ import type {
 } from './calls.dto';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
+  CLOUDFLARE_TURN_BUDGET_MS,
+  CLOUDFLARE_TURN_FIRST_TRY_MS,
+  CLOUDFLARE_TURN_MIN_TRY_MS,
   CLOUDFLARE_TURN_RETRY_MS,
-  CLOUDFLARE_TURN_RETRY_TIMEOUT_MS,
   cloudflareTurnFor,
+  fetchCloudflareTurn,
 } from './cloudflare-turn';
+import { CloudflareTransport } from './cloudflare-transport';
 import { LiveKitVideoProvider, type LiveKitRole } from './livekit.provider';
 import {
   SfuBrokerService,
@@ -116,6 +120,8 @@ export const CALL_VOTE_MS = 30_000;
 // coturn checks the login on every refresh of a relay too: it must outlive
 // the longest call, or a relayed call drops when it expires.
 const TURN_TTL_SEC = 24 * 60 * 60;
+/** The breaker probe asks for a login that lives only 5 minutes. */
+const PROBE_TURN_TTL_SEC = 300;
 
 type Outcome = 'ended' | 'missed' | 'declined' | 'busy' | 'canceled' | 'failed';
 
@@ -212,27 +218,38 @@ export class CallsService {
   private readonly videoProvider: VideoCallProvider;
   private readonly livekit: LiveKitVideoProvider;
 
-  /** `calls.video_provider`: p2p (default) or livekit — livekit only while
-   * its keys exist, so a removed key can never leave calls without media. */
+  /** Owner 2026-10-26: Cloudflare is the primary transport as soon as its
+   * SFU keys are set (`calls.transport` not `own`; the cost hard stop of
+   * registry V7 still wins). Otherwise our own path: `calls.video_provider`
+   * = livekit while its keys exist, else device to device (p2p). */
   private async activeVideoProvider(): Promise<VideoCallProvider> {
-    const rawChoice = this.settings
-      ? await this.settings.string('calls.video_provider')
-      : 'p2p';
-    // Cost registry V7: Cloudflare hard stop turns `cloudflare` into `p2p`.
-    const choice = this.sfu
-      ? await this.sfu.effectiveChoice(rawChoice)
-      : rawChoice;
-    if (choice === 'livekit' && (await this.livekit.isConfigured())) {
-      return this.livekit;
-    }
     if (
-      choice === 'cloudflare' &&
       this.sfu &&
-      (await this.sfu.provider.isConfigured())
+      (await this.sfu.cloudflareWanted()) &&
+      !(await this.sfu.hardStopped())
     ) {
       return this.sfu.provider;
     }
+    const choice = this.settings
+      ? await this.settings.string('calls.video_provider')
+      : 'p2p';
+    if (choice === 'livekit' && (await this.livekit.isConfigured())) {
+      return this.livekit;
+    }
     return this.videoProvider;
+  }
+
+  private cfTransportOwn?: CloudflareTransport;
+
+  /** The shared Cloudflare breaker (the broker's; a local one without it). */
+  private get cfTransport(): CloudflareTransport {
+    return (
+      this.sfu?.transport ??
+      (this.cfTransportOwn ??= new CloudflareTransport(
+        this.redis,
+        this.settings,
+      ))
+    );
   }
 
   /** GET /calls/video — owner 2026-10-05: flag on AND provider keys set. */
@@ -761,76 +778,93 @@ export class CallsService {
       iceServers: [{ urls: stun, username: null, credential: null }],
       ttlSec: TURN_TTL_SEC,
     };
-    // Owner 2026-10-24: 1:1 calls relay through Cloudflare Realtime TURN (our
-    // own coturn servers were removed from AWS). One retry with a short
-    // backoff; if Cloudflare still fails the call goes on with STUN (and
-    // our own TURN only when it is configured), and the failure is counted
-    // for the call SLO alarm (`turnProviderFailed`).
+    // Owner 2026-10-26: Cloudflare Realtime TURN is the PRIMARY relay of
+    // every call; our own TURN (Admin -> Integrations -> TURN, or TURN_URLS)
+    // is only the backup. A call never waits more than 1.5 s for Cloudflare
+    // (first try + one quick retry); then it goes on our own TURN, and the
+    // failure counts for the SLO alarm and the shared breaker. While the
+    // breaker is open (N failures in M minutes) new calls skip Cloudflare,
+    // which is probed once a minute and used again when it answers.
+    // `calls.transport`: auto (default) | cloudflare (forced) | own.
     const cf = (await this.secrets?.get('cloudflare_turn'))?.fields ?? {};
-    const cfKeyId =
-      cf.keyId ?? this.config.get<string>('CLOUDFLARE_TURN_KEY_ID');
-    const cfToken =
-      cf.apiToken ?? this.config.get<string>('CLOUDFLARE_TURN_API_TOKEN');
-    const cfConfigured = Boolean(cfKeyId && cfToken);
-    let cfWorks = false;
-    if (cfKeyId && cfToken) {
-      const relay = await this.cloudflareRelay(user.sub, cfKeyId, cfToken);
-      if (relay) {
-        out.iceServers.unshift(relay);
-        cfWorks = true;
-      }
-    }
+    const cfKeyId = (
+      cf.keyId ??
+      this.config.get<string>('CLOUDFLARE_TURN_KEY_ID') ??
+      ''
+    ).trim();
+    const cfToken = (
+      cf.apiToken ??
+      this.config.get<string>('CLOUDFLARE_TURN_API_TOKEN') ??
+      ''
+    ).trim();
     const turn = (turnKeys.urls ?? this.config.get<string>('TURN_URLS') ?? '')
       .split(',')
       .map((u) => u.trim())
       .filter(Boolean);
     const secret = turnKeys.secret ?? this.config.get<string>('TURN_SECRET');
-    if (turn.length > 0 && secret) {
-      if (cfWorks) {
-        // Dead IPs in the list slow ICE down (every candidate pair waits for
-        // its timeout), so a working Cloudflare means no own TURN at all.
-        this.warnStaleOwnTurn();
-      } else {
-        if (cfConfigured) this.warnStaleOwnTurn();
-        const urls = withTcpFallback(turn);
-        const username = `${Math.floor(Date.now() / 1000) + TURN_TTL_SEC}:${user.sub}`;
-        out.iceServers.push({
-          urls,
-          username,
-          credential: createHmac('sha1', secret)
-            .update(username)
-            .digest('base64'),
-        });
+    const ownTurn = turn.length > 0 && Boolean(secret);
+    let cfWorks = false;
+    if (cfKeyId && cfToken) {
+      const d = await this.cfTransport.decide(
+        'turn',
+        true,
+        // The probe reads the keys of THIS moment (a restored key counts).
+        () =>
+          fetchCloudflareTurn(
+            cfKeyId,
+            cfToken,
+            PROBE_TURN_TTL_SEC,
+            undefined,
+            CLOUDFLARE_TURN_BUDGET_MS,
+          ),
+        () => this.slo?.count('turnProviderFailed'),
+      );
+      // Breaker open but no own TURN to fall back on: Cloudflare is still
+      // the best relay we have, so it is tried anyway.
+      if (d.use || (d.reason === 'breaker_open' && !ownTurn)) {
+        const relay = await this.cloudflareRelay(user.sub, cfKeyId, cfToken);
+        if (relay) {
+          out.iceServers.unshift(relay);
+          cfWorks = true;
+        }
       }
+    }
+    // Own TURN only as the backup: dead or extra addresses next to a working
+    // Cloudflare would make ICE wait for their timeouts.
+    if (ownTurn && secret && !cfWorks) {
+      const urls = withTcpFallback(turn);
+      const username = `${Math.floor(Date.now() / 1000) + TURN_TTL_SEC}:${user.sub}`;
+      out.iceServers.push({
+        urls,
+        username,
+        credential: createHmac('sha1', secret)
+          .update(username)
+          .digest('base64'),
+      });
     }
     return out;
   }
 
-  private staleTurnWarnedAt = 0;
-
-  /** Own TURN_URLS next to a configured Cloudflare TURN: at most one
-   * warning an hour. The old servers are gone; the setting is dead weight. */
-  private warnStaleOwnTurn(): void {
-    const now = Date.now();
-    if (now - this.staleTurnWarnedAt < 3_600_000) return;
-    this.staleTurnWarnedAt = now;
-    this.logger.warn(
-      'Own TURN is set while Cloudflare TURN is configured; own TURN is ignored while Cloudflare works. ' +
-        'Clear it (Admin -> Integrations -> TURN, or TURN_URLS) if coturn was removed.',
-    );
-  }
-
-  /** A Cloudflare TURN login: one retry after a short backoff. Null when
-   * Cloudflare did not give one (counted for the SLO alarm). */
+  /** A Cloudflare TURN login within [CLOUDFLARE_TURN_BUDGET_MS] (1.5 s):
+   * a 1 s first try, one quick retry with the rest. Null when Cloudflare
+   * did not give one (counted for the SLO alarm and the breaker). */
   private async cloudflareRelay(
     userId: string,
     keyId: string,
     token: string,
   ): Promise<IceServerDto | null> {
+    const started = Date.now();
     let lastError = '';
     for (let attempt = 0; attempt < 2; attempt++) {
+      let timeoutMs = CLOUDFLARE_TURN_FIRST_TRY_MS;
       if (attempt > 0) {
+        const left =
+          CLOUDFLARE_TURN_BUDGET_MS -
+          (Date.now() - started) -
+          CLOUDFLARE_TURN_RETRY_MS;
+        if (left < CLOUDFLARE_TURN_MIN_TRY_MS) break;
         await new Promise((r) => setTimeout(r, CLOUDFLARE_TURN_RETRY_MS));
+        timeoutMs = left;
       }
       try {
         return await cloudflareTurnFor(
@@ -840,7 +874,7 @@ export class CallsService {
           TURN_TTL_SEC,
           undefined,
           Date.now(),
-          attempt === 0 ? undefined : CLOUDFLARE_TURN_RETRY_TIMEOUT_MS,
+          timeoutMs,
         );
       } catch (e) {
         // Message only: it never holds the token or the logins.
@@ -848,8 +882,11 @@ export class CallsService {
       }
     }
     this.slo?.count('turnProviderFailed');
+    void this.cfTransport
+      .recordFailure('turn', lastError)
+      .catch(() => undefined);
     this.logger.warn(
-      `alert=cloudflare_turn_failed Cloudflare TURN unavailable after retry (call continues with STUN / own TURN if set): ${lastError}`,
+      `alert=cloudflare_turn_failed Cloudflare TURN unavailable within ${CLOUDFLARE_TURN_BUDGET_MS} ms (call continues on our own TURN if set, else STUN): ${lastError}`,
     );
     return null;
   }
@@ -1026,12 +1063,11 @@ export class CallsService {
     video: boolean,
     mediaProvider: MediaProvider = 'p2p',
   ): Promise<number> {
-    const choice = this.settings
-      ? await this.settings.string('calls.video_provider')
-      : 'p2p';
+    // Owner 2026-10-26: Cloudflare wanted (SFU keys set, transport not
+    // `own`) = SFU seats, also during the automatic backup (never fewer).
     if (
       mediaProvider === 'cloudflare' ||
-      (choice === 'cloudflare' && this.sfu)
+      (this.sfu && (await this.sfu.cloudflareWanted()))
     ) {
       return this.settings
         ? await this.settings.number('calls.sfu_max_participants')
@@ -1062,7 +1098,7 @@ export class CallsService {
       this.mediaOf(call) !== 'p2p' ||
       !this.settings ||
       !this.sfu ||
-      (await this.settings.string('calls.video_provider')) !== 'cloudflare' ||
+      !(await this.sfu.cloudflareWanted()) ||
       joinedCount <= (await this.settings.number('calls.sfu_fallback_mesh_max'))
     ) {
       return call;
@@ -1087,8 +1123,7 @@ export class CallsService {
   ): Promise<CallMediaFallbackDto | undefined> {
     if (!call.is_group || !this.settings || !this.sfu) return undefined;
     const active =
-      this.mediaOf(call) === 'p2p' &&
-      (await this.settings.string('calls.video_provider')) === 'cloudflare';
+      this.mediaOf(call) === 'p2p' && (await this.sfu.cloudflareWanted());
     const max = await this.settings.number('calls.sfu_fallback_mesh_max');
     return {
       active,

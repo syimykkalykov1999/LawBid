@@ -2,11 +2,7 @@ import {
   CloudflareSfuClient,
   CloudflareSfuError,
 } from './cloudflare-sfu.client';
-import {
-  CloudflareSfuProvider,
-  SFU_ERROR_LIMIT,
-  SFU_HEALTH_CACHE_MS,
-} from './cloudflare-sfu.provider';
+import { CloudflareSfuProvider } from './cloudflare-sfu.provider';
 import { FakeCloudflare } from './cloudflare-sfu.fake';
 import { decideMediaProvider } from './media-provider';
 import { PROVIDERS } from '../../common/secrets/provider-registry';
@@ -136,64 +132,61 @@ describe('CloudflareSfuProvider', () => {
     expect(await env.isConfigured()).toBe(true);
   });
 
-  it('health: unconfigured is unhealthy; ok answers are cached 30 s; outages flip it', async () => {
-    let t = 1_000_000;
+  it('probe: one real sessions/new with the current keys; healthy() never throws', async () => {
     const cf = new FakeCloudflare();
     const p = new CloudflareSfuProvider(
       secrets({ appId: creds.appId, appToken: 'good-secret' }),
       undefined,
       cf.fetch,
-      () => t,
     );
+    await expect(p.probe()).resolves.toBeUndefined();
     expect(await p.healthy()).toBe(true);
-    expect(await p.healthy()).toBe(true);
-    expect(cf.calls).toHaveLength(1);
-    t += SFU_HEALTH_CACHE_MS + 1;
+    expect(cf.calls).toHaveLength(2);
     cf.failStatus = 503;
     expect(await p.healthy()).toBe(false);
-    cf.failStatus = null;
-    for (let i = 0; i < SFU_ERROR_LIMIT; i++) p.recordOutage();
-    expect(await p.healthy()).toBe(false);
-    t += 61_000;
-    expect(await p.healthy()).toBe(true);
+    await expect(p.probe()).rejects.toBeInstanceOf(CloudflareSfuError);
 
     const un = new CloudflareSfuProvider(secrets(null), undefined);
     expect(await un.healthy()).toBe(false);
+    await expect(un.probe()).rejects.toThrow('not set');
   });
 });
 
-describe('decideMediaProvider (owner 2026-10-24, corrected)', () => {
+describe('decideMediaProvider (owner 2026-10-26: Cloudflare primary)', () => {
   const base = {
-    providerChoice: 'cloudflare',
     isGroup: true,
     video: true,
     headcount: 3,
-    sfuHealthy: true,
+    useCloudflare: true,
+    cloudflareWanted: true,
     meshVideoMax: 4,
   };
-  it('1:1 calls and non-cloudflare choices stay device to device', () => {
-    expect(decideMediaProvider({ ...base, isGroup: false })).toMatchObject({
+  it('1:1 calls are device to device (relayed by TURN), never the SFU', () => {
+    expect(decideMediaProvider({ ...base, isGroup: false })).toEqual({
       mediaProvider: 'p2p',
       video: true,
       degraded: false,
     });
-    expect(
-      decideMediaProvider({
-        ...base,
-        providerChoice: 'p2p',
-        sfuHealthy: false,
-      }),
-    ).toMatchObject({ mediaProvider: 'p2p', degraded: false });
   });
-  it('healthy Cloudflare carries any size with video', () => {
+  it('Cloudflare up carries any size with video', () => {
     expect(decideMediaProvider({ ...base, headcount: 20 })).toEqual({
       mediaProvider: 'cloudflare',
       video: true,
       degraded: false,
     });
   });
-  it('down: up to 4 keep video on mesh, 5 or more are audio only, never refused', () => {
-    const down = { ...base, sfuHealthy: false };
+  it('own path chosen on purpose (no keys / transport own): plain mesh, not degraded', () => {
+    expect(
+      decideMediaProvider({
+        ...base,
+        useCloudflare: false,
+        cloudflareWanted: false,
+        headcount: 8,
+      }),
+    ).toEqual({ mediaProvider: 'p2p', video: true, degraded: false });
+  });
+  it('backup (wanted but failing): up to 4 keep video, 5 or more audio, never refused', () => {
+    const down = { ...base, useCloudflare: false };
     expect(decideMediaProvider({ ...down, headcount: 4 })).toEqual({
       mediaProvider: 'p2p',
       video: true,
@@ -204,14 +197,14 @@ describe('decideMediaProvider (owner 2026-10-24, corrected)', () => {
       video: false,
       degraded: true,
     });
-    expect(decideMediaProvider({ ...down, headcount: 50 }).video).toBe(false);
     expect(
       decideMediaProvider({ ...down, headcount: 6, meshVideoMax: 6 }).video,
     ).toBe(true);
   });
   it('an audio call stays audio', () => {
     expect(
-      decideMediaProvider({ ...base, video: false, sfuHealthy: false }).video,
+      decideMediaProvider({ ...base, video: false, useCloudflare: false })
+        .video,
     ).toBe(false);
   });
 });

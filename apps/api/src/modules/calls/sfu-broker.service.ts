@@ -23,6 +23,7 @@ import {
 } from './cloudflare-sfu.client';
 import { CloudflareSfuProvider } from './cloudflare-sfu.provider';
 import { decideMediaProvider, type MediaDecision } from './media-provider';
+import { CloudflareTransport } from './cloudflare-transport';
 import {
   SFU_TRACK_NAMES,
   SfuStateStore,
@@ -160,6 +161,9 @@ export class SfuBrokerService {
   private readonly logger = new Logger(SfuBrokerService.name);
   readonly provider: CloudflareSfuProvider;
   readonly store: SfuStateStore;
+  /** Owner 2026-10-26: Cloudflare primary, own path as the automatic
+   * backup (shared breaker in Redis; CallsService uses it for TURN too). */
+  readonly transport: CloudflareTransport;
 
   constructor(
     @Optional() secrets?: SecretsService,
@@ -171,6 +175,7 @@ export class SfuBrokerService {
   ) {
     this.provider = new CloudflareSfuProvider(secrets, config);
     this.store = new SfuStateStore(redis);
+    this.transport = new CloudflareTransport(redis, settings);
   }
 
   // --- Start of a call: health and the fallback ---------------------------
@@ -192,34 +197,58 @@ export class SfuBrokerService {
     return choice;
   }
 
-  /** Decides (and returns) how a new group call carries its media. */
+  /** The Cloudflare cost hard stop is on (cost registry V7). */
+  async hardStopped(): Promise<boolean> {
+    return (await this.hardStop?.stopped('cloudflare')) === true;
+  }
+
+  /**
+   * Owner 2026-10-26: Cloudflare SHOULD carry group calls — the SFU keys are
+   * in Integrations and `calls.transport` is not `own`. (Whether it does for
+   * a new call also depends on the breaker; see [decide].)
+   */
+  async cloudflareWanted(): Promise<boolean> {
+    if ((await this.transport.mode()) === 'own') return false;
+    return this.provider.isConfigured();
+  }
+
+  /**
+   * Decides (and returns) how a new group call carries its media. Owner
+   * 2026-10-26: Cloudflare SFU first whenever its keys are set (no admin
+   * switch needed); our own mesh only while the breaker is open, the cost
+   * hard stop is on, or `calls.transport` = own. Nothing is asked of
+   * Cloudflare while it is healthy; while open, one probe a minute.
+   */
   async decide(input: {
     isGroup: boolean;
     video: boolean;
     headcount: number;
   }): Promise<MediaDecision> {
-    const choice = await this.effectiveChoice(
-      this.settings
-        ? await this.settings.string('calls.video_provider')
-        : 'p2p',
-    );
-    const wantsSfu = input.isGroup && choice === 'cloudflare';
-    // Only ask Cloudflare when the admin chose it.
-    const sfuHealthy = wantsSfu ? await this.provider.healthy() : false;
+    let useCloudflare = false;
+    let wanted = false;
+    if (input.isGroup) {
+      wanted = await this.cloudflareWanted();
+      if (wanted && !(await this.hardStopped())) {
+        const d = await this.transport.decide('sfu', true, () =>
+          this.provider.probe(),
+        );
+        useCloudflare = d.use;
+      }
+    }
     const meshVideoMax = this.settings
       ? await this.settings.number('calls.sfu_fallback_mesh_max')
       : 4;
     const d = decideMediaProvider({
-      providerChoice: choice,
       isGroup: input.isGroup,
       video: input.video,
       headcount: input.headcount,
-      sfuHealthy,
+      useCloudflare,
+      cloudflareWanted: wanted,
       meshVideoMax,
     });
     if (d.degraded) {
       this.logger.warn(
-        `Cloudflare SFU unavailable: group call of ${input.headcount} falls back to device-to-device${d.video === input.video ? '' : ' (audio only)'}`,
+        `Cloudflare SFU not used (backup path): group call of ${input.headcount} runs device-to-device${d.video === input.video ? '' : ' (audio only)'}`,
       );
     }
     return d;
@@ -230,7 +259,13 @@ export class SfuBrokerService {
   /** Maps Cloudflare failures to ours; counts outages for the health check. */
   private fail(e: unknown, what: string): never {
     if (e instanceof CloudflareSfuError) {
-      if (e.isOutage) this.provider.recordOutage();
+      // Owner 2026-10-26: outages and a refused key both count against the
+      // Cloudflare path (shared breaker -> new calls take our own path).
+      if (e.isOutage || e.status === 401 || e.status === 403) {
+        void this.transport
+          .recordFailure('sfu', `${what}: ${e.message}`)
+          .catch(() => undefined);
+      }
       // The message of CloudflareSfuError never holds the App Secret.
       this.logger.warn(`Cloudflare SFU ${what} failed: ${e.message}`);
       if (e.isOutage || e.status === 401 || e.status === 403) throw mediaDown();

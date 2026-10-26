@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -12,18 +13,42 @@ import 'package:lawbid/features/calls/domain/call_models.dart';
 bool callMirrorFor({required bool isLocal, required bool frontCamera}) =>
     isLocal && frontCamera;
 
+/// Draws a camera picture. Null = the real WebRTC renderer; widget tests
+/// and the screenshot harness put a stand-in here (no WebRTC there).
+typedef CallVideoSurface = Widget Function(MediaStream stream, {bool mirror});
+
+final callVideoSurfaceProvider = Provider<CallVideoSurface?>((_) => null);
+
 /// Owner 2026-10-05: one WebRTC picture (ours mirrored, like a mirror).
-class CallVideoView extends StatefulWidget {
+class CallVideoView extends ConsumerWidget {
   const CallVideoView({required this.stream, this.mirror = false, super.key});
 
   final MediaStream stream;
   final bool mirror;
 
   @override
-  State<CallVideoView> createState() => _CallVideoViewState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final surface = ref.watch(callVideoSurfaceProvider);
+    // A picture never repaints what is around it (and the other way round).
+    return RepaintBoundary(
+      child: surface != null
+          ? surface(stream, mirror: mirror)
+          : _RtcVideo(stream: stream, mirror: mirror),
+    );
+  }
 }
 
-class _CallVideoViewState extends State<CallVideoView> {
+class _RtcVideo extends StatefulWidget {
+  const _RtcVideo({required this.stream, required this.mirror});
+
+  final MediaStream stream;
+  final bool mirror;
+
+  @override
+  State<_RtcVideo> createState() => _RtcVideoState();
+}
+
+class _RtcVideoState extends State<_RtcVideo> {
   final _renderer = RTCVideoRenderer();
   bool _ready = false;
 
@@ -46,7 +71,7 @@ class _CallVideoViewState extends State<CallVideoView> {
   }
 
   @override
-  void didUpdateWidget(CallVideoView old) {
+  void didUpdateWidget(_RtcVideo old) {
     super.didUpdateWidget(old);
     if (_ready && old.stream != widget.stream) {
       _renderer.srcObject = widget.stream;

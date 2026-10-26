@@ -3,10 +3,17 @@ import type { IceServerDto } from './calls.dto';
 /** Cloudflare Realtime TURN: one POST gives a short-lived login for the
  * whole Cloudflare relay fleet (UDP 3478/443, TCP 3478/80, TLS 5349/443). */
 const ENDPOINT = 'https://rtc.live.cloudflare.com/v1/turn/keys';
-/** A call must never wait long for Cloudflare; one retry follows a failure. */
+/** Default timeout of one credential request (the admin status probe). */
 export const CLOUDFLARE_TURN_TIMEOUT_MS = 3_000;
-export const CLOUDFLARE_TURN_RETRY_MS = 300;
-export const CLOUDFLARE_TURN_RETRY_TIMEOUT_MS = 1_500;
+/** Owner 2026-10-26: a call never waits more than this for Cloudflare in
+ * total (first try + one quick retry); after it the call goes on our own
+ * TURN. */
+export const CLOUDFLARE_TURN_BUDGET_MS = 1_500;
+/** The first try gets this much of the budget; the retry gets the rest. */
+export const CLOUDFLARE_TURN_FIRST_TRY_MS = 1_000;
+export const CLOUDFLARE_TURN_RETRY_MS = 100;
+/** A retry with less time left than this is skipped. */
+export const CLOUDFLARE_TURN_MIN_TRY_MS = 200;
 /** The same login is reused for one user this long (the app asks about once
  * per call; a login lives 24 h, so a 30 min reuse leaves it > 23 h). */
 export const CLOUDFLARE_TURN_CACHE_MS = 30 * 60_000;

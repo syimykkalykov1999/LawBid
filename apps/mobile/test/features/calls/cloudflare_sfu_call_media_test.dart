@@ -289,12 +289,14 @@ void main() {
       expect(sfuRidForTile(const Size(72, 96)), SfuRid.q);
       expect(
         sfuRidForTile(
-            nominalTileSize(total: 9, focused: false, anyFocus: false),),
+          nominalTileSize(total: 9, focused: false, anyFocus: false),
+        ),
         SfuRid.q,
       );
       expect(
         sfuRidForTile(
-            nominalTileSize(total: 4, focused: false, anyFocus: false),),
+          nominalTileSize(total: 4, focused: false, anyFocus: false),
+        ),
         SfuRid.h,
       );
       expect(

@@ -22,8 +22,47 @@ export interface VoipCallPayload {
   callId: string;
   conversationId: string;
   callerName: string;
+  /** Owner 2026-10-26: the caller's photo (a public CDN link, or none). */
+  avatarUrl?: string | null;
   video: boolean;
   silent: boolean;
+}
+
+/**
+ * Owner 2026-10-26 (calls arrive without the photo / not at all on a
+ * locked iPhone): the one VoIP push Apple gets for a ringing call —
+ * `apns-push-type: voip`, priority 10, the `<bundle>.voip` topic, and the
+ * keys AppDelegate.swift reads (callId, callerName, avatarUrl, video,
+ * silent). Pure, so the payload is tested without a network.
+ */
+export function voipRequest(
+  device: { token: string; topic: string },
+  call: VoipCallPayload,
+  auth: string,
+): { headers: Record<string, string>; body: string } {
+  return {
+    headers: {
+      ':method': 'POST',
+      ':path': `/3/device/${device.token}`,
+      authorization: `bearer ${auth}`,
+      'apns-topic': device.topic,
+      'apns-push-type': 'voip',
+      'apns-priority': '10',
+      // A call is useless later: deliver now or never.
+      'apns-expiration': '0',
+      'apns-collapse-id': call.callId.slice(0, 64),
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      aps: {},
+      callId: call.callId,
+      conversationId: call.conversationId,
+      callerName: call.callerName,
+      ...(call.avatarUrl ? { avatarUrl: call.avatarUrl } : {}),
+      video: call.video ? '1' : '0',
+      silent: call.silent ? '1' : '0',
+    }),
+  };
 }
 
 type SendOutcome = 'ok' | 'gone' | 'wrong_env' | 'failed';
@@ -110,26 +149,8 @@ export class ApnsVoipSender {
         resolve('failed');
         return;
       }
-      const body = JSON.stringify({
-        aps: {},
-        callId: call.callId,
-        conversationId: call.conversationId,
-        callerName: call.callerName,
-        video: call.video ? '1' : '0',
-        silent: call.silent ? '1' : '0',
-      });
-      const req = session.request({
-        ':method': 'POST',
-        ':path': `/3/device/${device.token}`,
-        authorization: `bearer ${auth}`,
-        'apns-topic': device.topic,
-        'apns-push-type': 'voip',
-        'apns-priority': '10',
-        // A call is useless later: deliver now or never.
-        'apns-expiration': '0',
-        'apns-collapse-id': call.callId.slice(0, 64),
-        'content-type': 'application/json',
-      });
+      const { headers, body } = voipRequest(device, call, auth);
+      const req = session.request(headers);
       req.setTimeout(APNS_TIMEOUT_MS, () => {
         req.close();
         resolve('failed');

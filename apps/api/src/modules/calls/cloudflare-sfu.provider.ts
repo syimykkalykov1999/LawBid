@@ -6,31 +6,20 @@ import {
 } from './cloudflare-sfu.client';
 import type { VideoCallProvider } from './video-call-provider';
 
-/** A health answer is reused this long (design doc §5: cache 30 s). */
-export const SFU_HEALTH_CACHE_MS = 30_000;
-/** Errors of Cloudflare itself inside this window ... */
-export const SFU_ERROR_WINDOW_MS = 60_000;
-/** ... this many mark it unhealthy without another probe. */
-export const SFU_ERROR_LIMIT = 5;
-
 /**
- * Cloudflare Realtime SFU behind the same VideoCallProvider interface
- * (`calls.video_provider` = cloudflare). Keys: Admin -> Integrations ->
- * `cloudflare_sfu` (appId, appToken), else CLOUDFLARE_SFU_APP_ID /
- * CLOUDFLARE_SFU_APP_TOKEN. Health is per API instance (in memory): a
- * cached probe plus a count of recent outage errors reported by the broker.
+ * Cloudflare Realtime SFU behind the same VideoCallProvider interface.
+ * Keys: Admin -> Integrations -> `cloudflare_sfu` (appId, appToken), else
+ * CLOUDFLARE_SFU_APP_ID / CLOUDFLARE_SFU_APP_TOKEN. Whether NEW group calls
+ * use it is decided by the shared breaker (cloudflare-transport.ts), not
+ * here: owner 2026-10-26, no probing while Cloudflare is healthy.
  */
 export class CloudflareSfuProvider implements VideoCallProvider {
   readonly name = 'cloudflare' as const;
-
-  private probe: { at: number; ok: boolean } | null = null;
-  private errors: number[] = [];
 
   constructor(
     private readonly secrets: Pick<SecretsService, 'get'> | undefined,
     private readonly config: Pick<ConfigService, 'get'> | undefined,
     private readonly fetchImpl: typeof fetch = fetch,
-    private readonly now: () => number = Date.now,
   ) {}
 
   async creds(): Promise<CloudflareSfuCreds | null> {
@@ -57,33 +46,22 @@ export class CloudflareSfuProvider implements VideoCallProvider {
     return c ? new CloudflareSfuClient(c, this.fetchImpl) : null;
   }
 
-  /** The broker reports every failure that was Cloudflare's fault. */
-  recordOutage(): void {
-    const t = this.now();
-    this.errors = this.errors.filter((x) => t - x < SFU_ERROR_WINDOW_MS);
-    this.errors.push(t);
-    // The next health question must probe again, not trust an old "ok".
-    this.probe = null;
+  /** One real `sessions/new` with the CURRENT keys (a restored key counts at
+   * once). Throws when Cloudflare does not open a session. Used by the
+   * breaker probe (only while open) and the admin status board. */
+  async probe(): Promise<void> {
+    const client = await this.client();
+    if (!client) throw new Error('Cloudflare SFU keys are not set');
+    await client.newSession();
   }
 
-  /** Cached for 30 s; also false while errors keep coming. Never throws. */
+  /** True when Cloudflare opens a session now. Never throws. */
   async healthy(): Promise<boolean> {
-    const t = this.now();
-    this.errors = this.errors.filter((x) => t - x < SFU_ERROR_WINDOW_MS);
-    if (this.errors.length >= SFU_ERROR_LIMIT) return false;
-    if (this.probe && t - this.probe.at < SFU_HEALTH_CACHE_MS) {
-      return this.probe.ok;
-    }
-    const client = await this.client();
-    if (!client) return false;
-    let ok = false;
     try {
-      await client.newSession();
-      ok = true;
+      await this.probe();
+      return true;
     } catch {
-      ok = false;
+      return false;
     }
-    this.probe = { at: this.now(), ok };
-    return ok;
   }
 }

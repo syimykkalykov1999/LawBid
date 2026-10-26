@@ -327,6 +327,10 @@ const kCallTurnRefresh = Duration(hours: 6);
 /// A change of network (Wi-Fi ↔ 4G) restarts ICE after this short pause.
 const kCallNetworkSettle = Duration(seconds: 1);
 
+/// Owner 2026-10-26: alone in a group call this long → it ends by itself
+/// (the server's `calls.solo_end_seconds` has the same 3 s).
+const kCallAloneGrace = Duration(seconds: 3);
+
 /// How long the "Call ended" screen stays.
 const kCallEndedLinger = Duration(milliseconds: 1600);
 
@@ -360,6 +364,7 @@ class CallController extends Notifier<CallSession> {
   Timer? _linger;
   Timer? _turnTimer;
   Timer? _netTimer;
+  Timer? _aloneTimer;
   StreamSubscription<bool>? _netSub;
   final _earlySignals = <({String? from, Map<String, Object?> data})>[];
   bool _mediaOpen = false;
@@ -754,6 +759,14 @@ class CallController extends Notifier<CallSession> {
     // Group call, host: end it for everyone, not just leave (Telegram).
     bool forAll = false,
   }) async {
+    // Owner 2026-10-26: a second press (or CallKit's own «ended» echo) on a
+    // call that is already over does nothing — one end, told once.
+    if (!state.busy) {
+      callTrace('hangUp ignored: phase=${state.phase}');
+      return;
+    }
+    callTrace('hangUp ${state.call?.id} reason=$reason forAll=$forAll '
+        'phase=${state.phase}');
     final call = state.call;
     final wasActive = state.phase == CallPhase.active;
     // The server hears it first: the media closing sends the other phone a
@@ -1037,6 +1050,41 @@ class CallController extends Notifier<CallSession> {
       state = state.copyWith(muted: true, notice: kNoticeMutedByHost);
     }
     unawaited(_syncLinks());
+    _checkAlone();
+  }
+
+  /// Owner 2026-10-26: «when one person is left, the call must end by
+  /// itself» — no «leave / end» question. Everyone else left (or declined,
+  /// or never answered) and nobody still rings: the call ends here after
+  /// [kCallAloneGrace] unless somebody joins. The server does the same
+  /// (`calls.solo_end_seconds`); this is the backup for a `call:ended` that
+  /// never arrived. A channel's call goes on with nobody else (Telegram).
+  void _checkAlone() {
+    final call = state.call;
+    final me = _me;
+    final alone = call != null &&
+        me != null &&
+        call.group &&
+        call.channelId == null &&
+        state.phase == CallPhase.active &&
+        call.participants.any((m) => m.userId == me && m.joined) &&
+        !call.participants
+            .any((m) => m.userId != me && (m.joined || m.ringing));
+    if (!alone) {
+      if (_aloneTimer != null) callTrace('alone: someone is back, keep going');
+      _aloneTimer?.cancel();
+      _aloneTimer = null;
+      return;
+    }
+    if (_aloneTimer != null) return;
+    final id = call.id;
+    callTrace('alone in $id: ending in ${kCallAloneGrace.inSeconds} s');
+    _aloneTimer = Timer(kCallAloneGrace, () {
+      _aloneTimer = null;
+      if (!ref.mounted || state.call?.id != id || !state.busy) return;
+      callTrace('alone in $id: ending now');
+      unawaited(hangUp());
+    });
   }
 
   /// One link per joined member: new ones are added (the later joiner
@@ -2151,34 +2199,32 @@ class CallController extends Notifier<CallSession> {
     final endedId = call?.id ?? state.call?.id;
     callTrace('finish $endedId outcome=$outcome phase=${state.phase} '
         'error=${state.errorCode}');
+    // Owner 2026-10-26: nothing below may keep the phase from reaching
+    // «ended» — a throwing side effect left the call screen up.
     if (endedId != null) {
-      final ui = ref.read(systemCallUiProvider);
-      unawaited(ui.dismiss(endedId).then<void>((_) => ui.endAll()));
-      // Device test 2026-10-21: after a group call «Leave» the ongoing-call
-      // notification (7003) and the plugin's records stayed in the shade.
-      // The end is stated outright, not left to the state listener, and
-      // again a moment later for a start that was still in flight.
-      final fg = ref.read(callForegroundProvider);
-      _fgKey = null;
-      unawaited(fg.stop());
-      unawaited(
-        Future<void>.delayed(const Duration(seconds: 2), () async {
-          if (ref.mounted && !state.busy) {
-            await fg.stop();
-            await ui.endAll();
-          }
-        }),
-      );
+      try {
+        _endSystemCall(endedId);
+      } on Object catch (e) {
+        callTrace('finish $endedId: system call end failed: $e');
+      }
     }
-    _reset();
+    try {
+      _reset();
+    } on Object catch (e) {
+      callTrace('finish $endedId: reset failed: $e');
+    }
     // OQ-044: "busy" beeps, or the short end-of-call tone.
-    final sounds = ref.read(appSoundsProvider);
-    if (outcome == CallStatus.busy) {
-      unawaited(sounds.busy());
-    } else if (wasCalling) {
-      unawaited(sounds.callEnded());
-    } else {
-      unawaited(sounds.stopRingback());
+    try {
+      final sounds = ref.read(appSoundsProvider);
+      if (outcome == CallStatus.busy) {
+        unawaited(sounds.busy());
+      } else if (wasCalling) {
+        unawaited(sounds.callEnded());
+      } else {
+        unawaited(sounds.stopRingback());
+      }
+    } on Object catch (e) {
+      callTrace('finish $endedId: sound failed: $e');
     }
     if (!ref.mounted) return;
     state = state.copyWith(
@@ -2196,17 +2242,49 @@ class CallController extends Notifier<CallSession> {
     });
   }
 
+  /// The system call (CallKit / the ringing notification) and the
+  /// ongoing-call service go with the call.
+  void _endSystemCall(String endedId) {
+    final ui = ref.read(systemCallUiProvider);
+    unawaited(ui.dismiss(endedId).then<void>((_) => ui.endAll()));
+    // Device test 2026-10-21: after a group call «Leave» the ongoing-call
+    // notification (7003) and the plugin's records stayed in the shade.
+    // The end is stated outright, not left to the state listener, and
+    // again a moment later for a start that was still in flight.
+    final fg = ref.read(callForegroundProvider);
+    _fgKey = null;
+    unawaited(fg.stop());
+    unawaited(
+      Future<void>.delayed(const Duration(seconds: 2), () async {
+        if (ref.mounted && !state.busy) {
+          await fg.stop();
+          await ui.endAll();
+        }
+      }),
+    );
+  }
+
   void _reset() {
     _gen++;
+    // The media goes first: nothing after it may keep our mic and camera
+    // live (owner 2026-10-26).
+    final media = _media;
+    _media = null;
+    _mediaOpen = false;
+    if (media != null) {
+      callTrace('reset: closing media');
+      unawaited(
+        media.close().catchError((Object e) {
+          callTrace('reset: media close failed: $e');
+        }),
+      );
+    }
     ref.read(callCamerasOffProvider.notifier).clear();
     ref.read(callFrontCameraProvider.notifier).front();
     _accepting = null;
     _clearTimers();
     // Audit 2026-10-02: the incoming melody stops with any change.
     unawaited(ref.read(appSoundsProvider).stopRingtone());
-    unawaited(_media?.close());
-    _media = null;
-    _mediaOpen = false;
     _earlySignals.clear();
     _focusId = null;
     _offered.clear();
@@ -2234,6 +2312,8 @@ class CallController extends Notifier<CallSession> {
     }
     _reconnect.clear();
     _linger?.cancel();
+    _aloneTimer?.cancel();
+    _aloneTimer = null;
   }
 }
 

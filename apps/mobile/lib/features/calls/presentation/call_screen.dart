@@ -71,22 +71,24 @@ class _CallScreenState extends ConsumerState<CallScreen>
     _closing = true;
     final nav = Navigator.of(context);
     final route = ModalRoute.of(context);
-    if (route == null || route.isCurrent) {
+    callTrace('screen close: current=${route?.isCurrent} '
+        'active=${route?.isActive}');
+    if (route == null) {
       unawaited(nav.maybePop());
-    } else if (route.isActive) {
-      nav.removeRoute(route);
+      return;
     }
-    // A screen that is still here a moment after the call is over (device
-    // test 2026-10-21: frozen, buttons dead) goes regardless.
-    Future<void>.delayed(const Duration(milliseconds: 600), () {
-      if (!mounted) return;
-      final phase = ref.read(callControllerProvider).phase;
-      if ((phase == CallPhase.ended || phase == CallPhase.idle) &&
-          route != null &&
-          route.isActive) {
-        nav.removeRoute(route);
-      }
-    });
+    // Owner 2026-10-26 («I hang up and the screen stays»): `maybePop` asks
+    // the PopScope, which refuses while a group video has someone big or
+    // while it rings — and this runs before the rebuild that would allow
+    // it. The call is over: the call route goes itself, with any sheet
+    // opened over it (members, add, «end for all»).
+    if (route.isCurrent) {
+      nav.pop();
+    } else if (route.isActive) {
+      nav
+        ..popUntil((r) => r == route || r.isFirst)
+        ..removeRoute(route);
+    }
   }
 
   @override
@@ -132,16 +134,26 @@ class _CallScreenState extends ConsumerState<CallScreen>
     final othersIn = call == null
         ? 0
         : call.participants.where((m) => m.joined && m.userId != me).length;
+    // Owner 2026-10-26: nobody else would stay (one other person, nobody
+    // ringing) — no «end for all / leave» question, the call just ends.
+    final ringing = call?.participants.any((m) => m.ringing) ?? false;
     final host = call != null &&
         call.group &&
         call.hostId != null &&
         call.hostId == me &&
-        othersIn > 0 &&
+        (othersIn > 1 || (othersIn == 1 && ringing)) &&
         // Also while the links are still being set up (device test
         // 2026-10-21: with four people the host's red button just left).
         (s.phase == CallPhase.active || s.phase == CallPhase.connecting);
     if (!host) {
-      await c.hangUp();
+      // The host of a call of two ends it for both (not a «leave» that
+      // keeps the other alone in it for the grace).
+      final forAll = call != null &&
+          call.group &&
+          call.hostId == me &&
+          othersIn == 1 &&
+          !ringing;
+      await c.hangUp(forAll: forAll);
       return;
     }
     final t = ref.read(translatorProvider);
