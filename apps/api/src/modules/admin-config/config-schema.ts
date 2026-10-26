@@ -522,6 +522,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Group video calls on Cloudflare SFU: auto = fall back to device-to-device when this month’s Cloudflare traffic reaches the urgent threshold, on = fallen back now, off = never. Calls are never refused. Changed on the «Расходы» page.',
     pattern: /^(off|on|auto)$/,
   };
+  out['ops.outbox_sweep.mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'Relay of events that cross database families (idle while there is one database): auto = run only when an event is waiting, on = every minute, off = never. Changed on the «Расходы» page.',
+    pattern: /^(off|on|auto)$/,
+  };
   out['usage.bunny_bandwidth_crit_gb'] = {
     ...out['usage.bunny_bandwidth_crit_gb'],
     description:

@@ -32,7 +32,11 @@ import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
-import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
+import {
+  CrossFamilyOutbox,
+  parseOutboxSweepMode,
+} from '../sharding/outbox/cross-family-outbox';
+import { AppSettingsService } from '../common/app-settings/app-settings.service';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
@@ -151,6 +155,8 @@ export class CronProcessor {
     @Optional() private readonly searchIndex?: SearchIndexJob,
     // Day-one foundations: `ledger.reconcile`.
     @Optional() private readonly ledgerReconcile?: LedgerReconcileJob,
+    // Audit X-22: `ops.outbox_sweep.mode` (off / on / auto).
+    @Optional() private readonly appSettings?: AppSettingsService,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -226,7 +232,14 @@ export class CronProcessor {
       case CRON_JOBS.adminSummaries:
         return this.adminSummaries?.run() ?? null;
       case CRON_JOBS.outboxSweep:
-        return this.outbox?.sweep() ?? null;
+        return this.outbox
+          ? this.outbox.sweep(
+              parseOutboxSweepMode(
+                (await this.appSettings?.string('ops.outbox_sweep.mode')) ??
+                  'auto',
+              ),
+            )
+          : null;
       case CRON_JOBS.opsBusinessMetrics:
         return this.opsMetrics.businessCounters();
       case CRON_JOBS.disappearingSweep:
