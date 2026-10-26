@@ -11,13 +11,14 @@ const base: Record<string, string> = {
   DATABASE_URL: 'postgresql://root@localhost:5432/lawbid?sslmode=require',
   // Security research #5 (A12): TLS, as a deployed environment requires.
   REDIS_URL: 'rediss://localhost:6379',
-  JWT_KEYS: `k1:${strong('jwt')}`,
+  // S3-13: deployed keys must look random (fixed dummies, not real).
+  JWT_KEYS: 'k1:q8Zr3Lw0xV7bNc2YhT5mKp9sDfG1aJe4uRiO6tBnXyC=',
   JWT_ACTIVE_KID: 'k1',
   OTP_CODE_SECRET: strong('otp'),
   OTP_KEY_PEPPER: strong('pepper'),
   AUTH_EVENT_PEPPER: strong('event'),
   // Scaling TZ point 11: required when deployed.
-  MESSAGE_ENC_KEYS: `m1:${strong('messages')}`,
+  MESSAGE_ENC_KEYS: 'm1:Hs7Qe1Zk4Wn8Pd3Vb6Yt0Lc9Ux2Mj5Rf=GaIoNqTyKw',
   MESSAGE_ENC_ACTIVE_KID: 'm1',
 };
 

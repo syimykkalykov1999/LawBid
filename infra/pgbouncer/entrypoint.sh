@@ -12,6 +12,11 @@
 #   MAX_CLIENT_CONN     client connections accepted               [5000]
 #   MAX_PREPARED_STATEMENTS  protocol-level prepared statements per server connection [200]
 #   DB_TLS_MODE    TLS towards the database (server_tls_sslmode)  [require]
+#                  verify-ca / verify-full check the database certificate
+#                  against the RDS CA bundle baked into the image.
+#   CLIENT_TLS_KEY_PEM / CLIENT_TLS_CERT_PEM  optional; the pooler's own
+#                  key and certificate (private CA, from Terraform). Without
+#                  them a self-signed certificate is made at start.
 #   QUERY_WAIT_TIMEOUT  seconds a client may wait for a server connection [30]
 #   STATS_INTERVAL seconds between CloudWatch metric lines (0 = off)   [30]
 #   METRICS_NAMESPACE   CloudWatch namespace of the metric lines  [LawBid/PgBouncer]
@@ -57,8 +62,27 @@ umask 077
 
 # Self-signed certificate for client TLS (the app URL has sslmode=require).
 # The traffic stays inside the VPC; the security group is the access control.
-openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes \
-  -keyout "$D/server.key" -out "$D/server.crt" -days 3650 -subj "/CN=lawbid-pgbouncer" 2>/dev/null
+if [ -n "${CLIENT_TLS_KEY_PEM:-}" ] && [ -n "${CLIENT_TLS_CERT_PEM:-}" ]; then
+  # S3-7: a certificate from the private CA, which the app verifies.
+  printf '%s\n' "$CLIENT_TLS_KEY_PEM" > "$D/server.key"
+  printf '%s\n' "$CLIENT_TLS_CERT_PEM" > "$D/server.crt"
+else
+  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes \
+    -keyout "$D/server.key" -out "$D/server.crt" -days 3650 -subj "/CN=lawbid-pgbouncer" 2>/dev/null
+fi
+
+DB_TLS_MODE=${DB_TLS_MODE:-require}
+RDS_CA=/etc/ssl/rds-global-bundle.pem
+case "$DB_TLS_MODE" in
+  verify-ca|verify-full)
+    if [ ! -s "$RDS_CA" ]; then
+      echo "entrypoint: DB_TLS_MODE=$DB_TLS_MODE needs $RDS_CA (rebuild the image)" >&2
+      exit 1
+    fi
+    SERVER_CA_LINE="server_tls_ca_file = $RDS_CA"
+    ;;
+  *) SERVER_CA_LINE="" ;;
+esac
 
 POOL_SIZE=${POOL_SIZE:-20}
 RESERVE_POOL=${RESERVE_POOL:-3}
@@ -116,7 +140,8 @@ listen_backlog = 1024
 client_tls_sslmode = require
 client_tls_key_file = $D/server.key
 client_tls_cert_file = $D/server.crt
-server_tls_sslmode = ${DB_TLS_MODE:-require}
+server_tls_sslmode = ${DB_TLS_MODE}
+${SERVER_CA_LINE}
 
 log_connections = 0
 log_disconnections = 0

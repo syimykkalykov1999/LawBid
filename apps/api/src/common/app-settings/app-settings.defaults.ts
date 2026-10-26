@@ -967,6 +967,19 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
   'security.attorney_strong_auth': true,
   'files.confidential_url_ttl_sec': 900,
   'files.access_log_enabled': true,
+  /** Security pass 2026-10-25 (S3-5): file names of chat attachments and
+   * the case's «Личные данные» are stored sealed (AES-256-GCM, bound to the
+   * row), and the key job seals the old rows too. Reads accept both forms;
+   * off = new rows stay readable as before, already sealed ones stay sealed. */
+  'security.seal_case_metadata': true,
+  /** Free text in case-journal entries (case titles and description
+   * changes) is sealed. The journal is append-only and hash-chained, so
+   * old entries cannot be rewritten: every key id used while this is on
+   * must stay in MESSAGE_ENC_KEYS for the 5-year retention. Off by default. */
+  'security.seal_journal_text': false,
+  /** S3-11: push notifications show the message text. Off = «Новое
+   * сообщение»; Google and Apple then never see the text. */
+  'push.chat_preview': true,
 };
 
 /**
