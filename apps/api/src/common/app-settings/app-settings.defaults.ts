@@ -196,6 +196,9 @@ export const OWNER_MEDIA_SETTINGS = {
   // See docs/architecture/SEARCH_READY.md.
   'search.engine': 'postgres',
   // Engine answers slower than this fall back to Postgres, ms.
+  // Which kind of engine 'search.engine' talks to: domain (provisioned
+  // OpenSearch, default) or serverless (Amazon OpenSearch Serverless, SigV4).
+  'search.engine_kind': 'domain',
   'search.engine_timeout_ms': 800,
   // Owner 2026-10-25 (zero-downtime reindex, docs/runbooks/search-reindex.md):
   // the old index generation is kept this many days for a rollback, and the
@@ -237,6 +240,25 @@ export const OWNER_MEDIA_SETTINGS = {
   'reco.post.authorQuality': 0.06,
   'reco.post.state': 0.06,
   'reco.post.affinity': 0.06,
+  // Owner 2026-10-25: ranking of the bids a client sees on a case.
+  // bids.default_sort is what the list uses when the app sends no sort
+  // (newest = today; best_match = the weighted score below).
+  'bids.default_sort': 'newest',
+  'bids.best_match.rating': 0.35,
+  'bids.best_match.trust': 0.2,
+  'bids.best_match.speed': 0.15,
+  'bids.best_match.price': 0.2,
+  'bids.best_match.completed': 0.1,
+  // Bayesian rating: the average every attorney starts from and how many
+  // "virtual reviews" of it are mixed in.
+  'bids.bayes_prior': 4,
+  'bids.bayes_weight': 5,
+  // A price below this share of the median is suspiciously low.
+  'bids.low_ratio': 0.4,
+  // Bids needed in one fee type before a median / "best price" exists.
+  'bids.min_bids_for_price': 3,
+  // Flag suspiciously low bids (field lowOffer) and log them for review.
+  'bids.dumping_guard': false,
   // Owner 2026-10-15: topics a case can name (the first + the rest).
   'case.max_practices': 3,
   'post.max_chars_media': 2200,
@@ -435,6 +457,25 @@ export const OWNER_CONTINGENCY_SETTINGS = {
     'criminal_defense,dui_and_dwi,traffic_tickets,family_law',
 } as const;
 
+// Owner 2026-10-25 (docs/architecture/EXPERIMENTS.md): the ranking events log
+// and A/B experiments. Impressions and clicks are kept for this share of
+// users (the same users every time), everything else is always kept; weeks
+// older than the retention leave by themselves.
+export const OWNER_EXPERIMENT_SETTINGS = {
+  /** Cost gate, three states: 'off' | 'on' | 'auto'. Auto stores impressions
+   * and clicks only while an experiment is running (bids, accepts, reports
+   * are always kept unless off). The sample percent below is the ceiling. */
+  'ranking.events_mode': 'auto',
+  /** Share of users (0-100) whose impressions and clicks are stored. */
+  'ranking.impression_sample_percent': 10,
+  'ranking.events_retention_days': 90,
+  /** An experiment may start at this share of users at most; more only by a
+   * separate «Увеличить долю» step (fresh 2FA code). */
+  'experiments.max_start_percent': 10,
+  /** CTR@k: positions 1..k count as «seen near the top». */
+  'experiments.ctr_k': 5,
+} as const;
+
 // Owner 2026-10-05: case urgency. A case with a date reads as "very
 // urgent" with at most `cases.urgency_days_very_urgent` days left, and so
 // on down. Client and hired attorney get reminders
@@ -549,16 +590,6 @@ export const OWNER_REASON_SETTINGS = {
     'moderation',
     'sanctions',
   ],
-} as const;
-
-// Owner 2026-10-22 (system audit #2, item 11): a bulk payout or a refund
-// of this many cents or more needs a SECOND admin's approval (maker-checker)
-// before it runs. Default $500. 0 = every one needs it.
-export const OWNER_DUAL_APPROVAL_SETTINGS = {
-  'billing.dual_approval_min_cents': 50_000,
-  // Owner 2026-10-24: one owner, no second admin. false = every action
-  // runs at once after the 2FA code; true = the rule above is enforced.
-  'admin.dual_control': false,
 } as const;
 
 /** Every typed app_config tunable with its spec default. */
@@ -1076,12 +1107,12 @@ export const APP_SETTINGS = {
   ...OWNER_INVITE_SETTINGS,
   ...OWNER_SEAT_SETTINGS,
   ...OWNER_URGENCY_SETTINGS,
+  ...OWNER_EXPERIMENT_SETTINGS,
   ...OWNER_STALE_SETTINGS,
   ...OWNER_CONTINGENCY_SETTINGS,
   ...OWNER_TRUST_SETTINGS,
   ...OWNER_TRIAL_SETTINGS,
   ...OWNER_REASON_SETTINGS,
-  ...OWNER_DUAL_APPROVAL_SETTINGS,
   ...OWNER_TRANSLATE_SETTINGS,
   ...OWNER_SUPPORT_DESK_SETTINGS,
   ...OWNER_REWARDS_SETTINGS,

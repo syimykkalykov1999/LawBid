@@ -87,6 +87,8 @@ class RealAuthRepository implements AuthRepository {
       return OtpVerifyResult.success(isNewUser: tokens.isNewUser);
     } on ApiException catch (e) {
       return _otpFailure(e);
+    } catch (_) {
+      return const OtpVerifyResult.networkError();
     }
   }
 
@@ -103,6 +105,8 @@ class RealAuthRepository implements AuthRepository {
       return e.code == ApiErrorCodes.assistantCodeInvalid
           ? const OtpVerifyResult.invalid()
           : _otpFailure(e);
+    } catch (_) {
+      return const OtpVerifyResult.networkError();
     }
   }
 
@@ -123,6 +127,8 @@ class RealAuthRepository implements AuthRepository {
       return OtpVerifyResult.success(isNewUser: tokens.isNewUser);
     } on ApiException catch (e) {
       return _otpFailure(e);
+    } catch (_) {
+      return const OtpVerifyResult.networkError();
     }
   }
 
@@ -142,7 +148,8 @@ class RealAuthRepository implements AuthRepository {
       await _session.applyTokens(tokens);
       return const PasswordAuthResult.success();
     } on ApiException catch (e) {
-      return _passwordFailure(e);
+      return _passwordFailure(e);} catch (_) {
+      return const PasswordAuthResult(PasswordAuthStatus.networkError);
     }
   }
 
@@ -287,6 +294,17 @@ class RealAuthRepository implements AuthRepository {
         default:
           return const ReauthResult.networkError();
       }
+    }
+  }
+
+  @override
+  Future<ReauthResult> reauthDemo() async {
+    try {
+      return ReauthResult.success(reauthToken: await _client.reauthDemo());
+    } on ApiException catch (e) {
+      return e.code == ApiErrorCodes.forbidden
+          ? const ReauthResult.invalid()
+          : const ReauthResult.networkError();
     }
   }
 

@@ -7,7 +7,6 @@ import 'package:dio/dio.dart';
 import 'clients/config_client.dart';
 import 'clients/auth_client.dart';
 import 'clients/admin_auth_client.dart';
-import 'clients/admin_approvals_client.dart';
 import 'clients/admin_dashboard_client.dart';
 import 'clients/admin_audit_log_client.dart';
 import 'clients/admin_admins_client.dart';
@@ -85,6 +84,7 @@ import 'clients/admin_integrations_client.dart';
 import 'clients/admin_ops_client.dart';
 import 'clients/admin_launch_client.dart';
 import 'clients/admin_spend_client.dart';
+import 'clients/admin_experiments_client.dart';
 import 'clients/admin_economy_client.dart';
 import 'clients/referrals_client.dart';
 import 'clients/admin_referrals_client.dart';
@@ -144,7 +144,6 @@ class LawbidApi {
   ConfigClient? _config;
   AuthClient? _auth;
   AdminAuthClient? _adminAuth;
-  AdminApprovalsClient? _adminApprovals;
   AdminDashboardClient? _adminDashboard;
   AdminAuditLogClient? _adminAuditLog;
   AdminAdminsClient? _adminAdmins;
@@ -222,6 +221,7 @@ class LawbidApi {
   AdminOpsClient? _adminOps;
   AdminLaunchClient? _adminLaunch;
   AdminSpendClient? _adminSpend;
+  AdminExperimentsClient? _adminExperiments;
   AdminEconomyClient? _adminEconomy;
   ReferralsClient? _referrals;
   AdminReferralsClient? _adminReferrals;
@@ -273,9 +273,6 @@ class LawbidApi {
 
   AdminAuthClient get adminAuth =>
       _adminAuth ??= AdminAuthClient(_dio, baseUrl: _baseUrl);
-
-  AdminApprovalsClient get adminApprovals =>
-      _adminApprovals ??= AdminApprovalsClient(_dio, baseUrl: _baseUrl);
 
   AdminDashboardClient get adminDashboard =>
       _adminDashboard ??= AdminDashboardClient(_dio, baseUrl: _baseUrl);
@@ -500,6 +497,9 @@ class LawbidApi {
 
   AdminSpendClient get adminSpend =>
       _adminSpend ??= AdminSpendClient(_dio, baseUrl: _baseUrl);
+
+  AdminExperimentsClient get adminExperiments =>
+      _adminExperiments ??= AdminExperimentsClient(_dio, baseUrl: _baseUrl);
 
   AdminEconomyClient get adminEconomy =>
       _adminEconomy ??= AdminEconomyClient(_dio, baseUrl: _baseUrl);

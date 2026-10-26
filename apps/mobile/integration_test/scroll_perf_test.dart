@@ -55,8 +55,8 @@ void main() {
       await runLawBid(AppFlavor.dev);
       // A missing image or a dropped socket must not end the measurement;
       // the app's own error reporting stays out of the test's way.
-      FlutterError.onError = (d) =>
-          debugPrint('perf: FlutterError ${d.exceptionAsString()}');
+      FlutterError.onError =
+          (d) => debugPrint('perf: FlutterError ${d.exceptionAsString()}');
 
       final perf = _Perf(binding, tester);
       final container = ProviderScope.containerOf(

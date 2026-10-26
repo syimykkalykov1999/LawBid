@@ -335,8 +335,9 @@ resource "aws_opensearch_domain" "search" {
 # A provisioned domain does NOT add or remove nodes by itself. The signals
 # below say "make it one size bigger" (opensearch_instance_type / _count /
 # _volume_gb in tfvars, one apply; the app answers from Postgres while a node
-# is replaced). The pay-per-use alternative, OpenSearch Serverless, was
-# rejected in docs/architecture/SEARCH_READY.md (price floor, request signing).
+# is replaced). The pay-per-use alternative, OpenSearch Serverless, is
+# modules/opensearch-serverless (growth.opensearch_serverless_enabled, default
+# off: price floor about $350 a month; the app now signs requests with SigV4).
 locals {
   opensearch_alarms = var.opensearch_enabled && var.alarms_enabled ? {
     cpu = {
@@ -396,24 +397,10 @@ resource "aws_cloudwatch_metric_alarm" "event_loop" {
   tags                = var.tags
 }
 
-# The signal for the first database step: the database processor stays high.
-resource "aws_cloudwatch_metric_alarm" "db_cpu" {
-  count               = var.has_source_db && var.alarms_enabled ? 1 : 0
-  alarm_name          = "${var.name}-db-cpu"
-  alarm_description   = "The database processor is above 70 % for 15 minutes: move the database one size up (admin Экономика → Увеличить) or add a read replica (growth.rds_read_replicas)."
-  namespace           = "AWS/RDS"
-  metric_name         = "CPUUtilization"
-  dimensions          = { DBInstanceIdentifier = var.rds_source_identifier }
-  statistic           = "Average"
-  period              = 60
-  evaluation_periods  = 15
-  datapoints_to_alarm = 15
-  threshold           = 70
-  comparison_operator = "GreaterThanThreshold"
-  treat_missing_data  = "notBreaching"
-  alarm_actions       = [var.alerts_topic_arn]
-  tags                = var.tags
-}
+# Dedup D-21: the database CPU alarm (`<name>-db-cpu`) lives in
+# modules/monitoring/coverage.tf (85 % for 15 minutes, with a runbook and OK
+# actions, also for an existing database). The copy that was here used the
+# same alarm name with a 70 % threshold, so the two fought over one alarm.
 
 output "replica_endpoints" { value = aws_db_instance.replica[*].address }
 output "db_proxy_endpoint" { value = one(aws_db_proxy.this[*].endpoint) }
