@@ -98,6 +98,8 @@ export const FILE_05_SETTINGS = {
   'rate_limit.follow_per_day': 200,
   'rate_limit.message_per_minute': 60,
   'rate_limit.search_per_minute': 30,
+  // S7-2: type-ahead (suggest, practices, tags): own budget, per keystroke.
+  'rate_limit.search_suggest_per_minute': 240,
   // Owner 2026-10-22: address-book uploads per hour. The app sends the whole
   // book in one request (old builds: 100-hash parts, ~8 per pass), so this
   // only stops a runaway loop; the real cap is distinct hashes per day

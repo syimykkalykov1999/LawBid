@@ -7538,8 +7538,8 @@ model SystemIncident {
 // Search-ready (owner 2026-10-24, docs/architecture/SEARCH_READY.md): the
 // transactional outbox the search-engine indexer drains. Rows are written by
 // database triggers (migration 20261024160000_search_outbox) only while
-// `search.engine` is not postgres. The partial index search_outbox_due_idx
-// is raw SQL.
+// `search.engine` is not postgres. The partial indexes search_outbox_due_idx
+// and search_outbox_pending_uq (one pending event per row) are raw SQL.
 model SearchOutbox {
   id              BigInt    @id @default(autoincrement())
   entity          String

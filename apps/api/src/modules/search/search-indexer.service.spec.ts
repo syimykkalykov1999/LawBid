@@ -98,6 +98,26 @@ describe('SearchIndexerService.tick', () => {
   });
 });
 
+describe('SearchIndexerService back-off', () => {
+  it('a failed tick pauses the next ones; a good tick after the pause resets', async () => {
+    const { svc, client } = make();
+    const now = jest.spyOn(Date, 'now');
+    let t = 1_000_000;
+    now.mockImplementation(() => t);
+    client.bulk.mockRejectedValue(new Error('down'));
+    await svc.tick();
+    const calls = client.bootstrap.mock.calls.length;
+    t += 30_000; // inside the 60 s pause
+    await svc.tick();
+    expect(client.bootstrap.mock.calls.length).toBe(calls);
+    t += 40_000; // pause over
+    client.bulk.mockResolvedValue({ failed: [] });
+    await svc.tick();
+    expect(client.bootstrap.mock.calls.length).toBe(calls + 1);
+    now.mockRestore();
+  });
+});
+
 describe('SearchIndexerService.reindex', () => {
   it('walks every entity in batches and records the checkpoint after each batch', async () => {
     const { svc, store, client } = make();
@@ -236,6 +256,41 @@ describe('SearchIndexerService across physical databases', () => {
       (c[0] as { id: string }[]).map((o) => o.id),
     );
     expect(ids.sort()).toEqual(['d-1', 'p-1']);
+  });
+
+  it('S7-5: drain keeps taking full batches until a short one, within the budget', async () => {
+    let call = 0;
+    const prisma = {
+      $queryRaw: jest.fn(() => {
+        call++;
+        const n = call <= 2 ? 3 : 1; // two full batches (limit 3), then short
+        return Promise.resolve(
+          Array.from({ length: n }, (_, i) => ({
+            id: `${call}-${i}`,
+            entity: 'post',
+            entity_id: `p${call}-${i}`,
+            attempts: 1,
+          })),
+        );
+      }),
+      $executeRaw: jest.fn().mockResolvedValue(1),
+    };
+    const svc = new SearchIndexerService(
+      prisma as never,
+      { bulk: jest.fn().mockResolvedValue({ failed: [] }) } as never,
+      {
+        load: jest.fn((_e: string, ids: string[]) =>
+          Promise.resolve(new Map(ids.map((id) => [id, { id }]))),
+        ),
+      } as never,
+    );
+    expect(await svc.drain(3)).toEqual({ done: 7, failed: 0 });
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(3);
+    call = 0;
+    prisma.$queryRaw.mockClear();
+    // Budget already spent: exactly one batch, the rest waits.
+    await svc.drain(3, -1);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
   it('prune empties the outbox of every database', async () => {
