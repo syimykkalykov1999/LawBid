@@ -206,7 +206,7 @@ export class SearchReindexService {
     const mode = await this.settings?.string('search.engine');
     if (mode !== 'shadow' && mode !== 'engine') {
       throw new ReindexRefused(
-        'Set search.engine to shadow or engine first: the change log (outbox) is only written then, and the new index would miss changes made while it builds.',
+        'Switch search.engine to shadow or engine first: the change log (outbox) is only written then, and the new index would miss changes made while it builds.',
       );
     }
     await this.client.bootstrap();
