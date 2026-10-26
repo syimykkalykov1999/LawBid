@@ -1059,6 +1059,18 @@ export class AuthService {
             },
       );
     }
+    if (outcome.status === 'busy') {
+      // 503 + Retry-After (all-exceptions filter): the app keeps the token on
+      // a 5xx and retries; a 401 here would sign the person out (review R-64).
+      throw new HttpException(
+        {
+          code: 'SERVER_BUSY',
+          message: 'Sign-in session is busy. Try again in a moment.',
+          details: { retryAfterSeconds: outcome.retryAfterSeconds },
+        },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
     if (outcome.status === 'rate_limited') {
       throw new HttpException(
         {

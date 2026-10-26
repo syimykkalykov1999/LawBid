@@ -161,7 +161,7 @@ describe('SessionService.rotate (atomic, idempotent retry)', () => {
     expect(revocation.revokeChain).toHaveBeenCalled();
   });
 
-  it('Redis down inside the grace window: refused quietly, the chain is NOT ended', async () => {
+  it('Redis down inside the grace window: retryable busy (503 upstream), the chain is NOT ended', async () => {
     const { service, current, revocation } = make({ redisDown: true });
     current.row = {
       ...live,
@@ -170,7 +170,40 @@ describe('SessionService.rotate (atomic, idempotent retry)', () => {
       updated_at: new Date(),
     };
     const out = await service.rotate('raw-old', {}, {});
-    expect(out.status).toBe('invalid');
+    expect(out).toEqual({ status: 'busy', retryAfterSeconds: 2 });
     expect(revocation.revokeChain).not.toHaveBeenCalled();
+  });
+
+  it('replay-cache miss inside the grace window: busy, never invalid and never reuse', async () => {
+    const { service, current, revocation } = make();
+    current.row = {
+      ...live,
+      revoked_at: new Date(),
+      revoked_reason: 'rotated',
+      updated_at: new Date(),
+    };
+    const out = await service.rotate('raw-old', {}, {});
+    expect(out).toEqual({ status: 'busy', retryAfterSeconds: 2 });
+    expect(revocation.revokeChain).not.toHaveBeenCalled();
+  });
+
+  it('Redis down after the grace window is still reuse (the chain ends)', async () => {
+    const { service, current, revocation } = make({ redisDown: true });
+    current.row = {
+      ...live,
+      revoked_at: new Date(Date.now() - 60_000),
+      revoked_reason: 'rotated',
+      updated_at: new Date(Date.now() - 60_000),
+    };
+    const out = await service.rotate('raw-old', {}, {});
+    expect(out.status).toBe('reuse_detected');
+    expect(revocation.revokeChain).toHaveBeenCalled();
+  });
+
+  it('a lost race whose winner never cached its pair answers busy, not invalid (no sign-out)', async () => {
+    const loser = make({ claimCount: 0 });
+    const out = await loser.service.rotate('raw-old', {}, {});
+    expect(out).toEqual({ status: 'busy', retryAfterSeconds: 2 });
+    expect(loser.tx.session.create).not.toHaveBeenCalled();
   });
 });

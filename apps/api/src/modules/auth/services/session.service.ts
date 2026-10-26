@@ -39,6 +39,9 @@ export interface RequestMeta {
   country?: string;
 }
 
+/** Retry-After of a refresh answered 503 (Redis down, lost rotation race). */
+const BUSY_RETRY_SECONDS = 2;
+
 export type RefreshOutcome =
   | { status: 'ok'; session: Session; refreshTokenRaw: string }
   | { status: 'invalid' }
@@ -46,7 +49,12 @@ export type RefreshOutcome =
   | { status: 'signed_in_elsewhere' }
   | { status: 'reuse_detected'; sessionChainId: string }
   | { status: 'blocked'; reason: 'suspended' | 'deleted' }
-  | { status: 'rate_limited'; retryAfterSeconds: number };
+  | { status: 'rate_limited'; retryAfterSeconds: number }
+  // The token may be fine but we cannot tell right now (Redis down, a lost
+  // rotation race whose winner has not cached its pair yet): the caller
+  // answers 503 + Retry-After, which the app treats as «try again», never as
+  // «signed out» (review R-64).
+  | { status: 'busy'; retryAfterSeconds: number };
 
 /**
  * Owns the `Session` row lifecycle: creating a new chain at login, rotating
@@ -176,14 +184,17 @@ export class SessionService {
         // cache keyed by the old token's hash (idempotent retry); anyone
         // else replaying the old token after that is reuse.
         const replayed = await this.replay(hash);
-        if (replayed === 'unavailable') {
-          // Redis is down: we cannot tell a retry from a theft. Inside the
-          // grace window refuse quietly instead of ending every session.
-          if (Date.now() - found.updated_at.getTime() <= this.gracePeriodMs()) {
-            return { status: 'invalid' };
-          }
-        } else if (replayed) {
+        const insideGrace =
+          Date.now() - found.updated_at.getTime() <= this.gracePeriodMs();
+        if (replayed !== null && replayed !== 'unavailable') {
           return replayed;
+        }
+        // Redis is down (`'unavailable'`) or the cached pair is gone while
+        // we are still inside the grace window: we cannot tell a retry from
+        // a theft. Answer a retryable 503 (the app keeps its token on 5xx)
+        // instead of a 401 that signs everyone out, and do not end the chain.
+        if (insideGrace) {
+          return { status: 'busy', retryAfterSeconds: BUSY_RETRY_SECONDS };
         }
         await withTxRetry(this.prisma, async (tx) => {
           await this.revocation.revokeChain(
@@ -327,7 +338,9 @@ export class SessionService {
       // loser the same pair as soon as it is cached (an idempotent retry);
       // otherwise a plain refusal, which does not end the chain.
       const winner = await this.awaitReplay(hash);
-      return winner ?? { status: 'invalid' };
+      return (
+        winner ?? { status: 'busy', retryAfterSeconds: BUSY_RETRY_SECONDS }
+      );
     }
     await this.cacheReplay(hash, session.id, raw);
 
