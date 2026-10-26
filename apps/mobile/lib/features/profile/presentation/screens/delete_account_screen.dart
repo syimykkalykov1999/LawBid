@@ -174,6 +174,7 @@ class _WarningStep extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final state = ref.watch(deleteAccountControllerProvider);
     return _StepLayout(
       content: [
         const AppIconMedallion(
@@ -192,10 +193,22 @@ class _WarningStep extends ConsumerWidget {
           t.t('deleteAccount.warning.body'),
           style: typography.body.copyWith(color: colors.textSecondary),
         ),
+        // A demo session gets its reauth token from this step's button
+        // (owner 2026-10-08) — a failure or an expired token shows here.
+        if (state.errorMessage != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            state.errorMessage == 'network'
+                ? t.t('deleteAccount.reauth.error.network')
+                : t.t('deleteAccount.reauth.error.expired'),
+            style: typography.bodySmall.copyWith(color: colors.dangerText),
+          ),
+        ],
       ],
       action: AppButton(
         label: t.t('deleteAccount.warning.continue'),
         variant: AppButtonVariant.secondary,
+        isLoading: state.isSubmitting,
         onPressed: () => ref
             .read(deleteAccountControllerProvider.notifier)
             .acknowledgeWarning(),

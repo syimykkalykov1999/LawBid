@@ -44,6 +44,7 @@ import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { CdnInvalidateJob } from './handlers/cdn-invalidate.job';
+import { ExperimentsNightlyJob } from '../modules/experiments/experiments-nightly.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
 import { DbHealthJob } from './handlers/db-health.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
@@ -165,6 +166,8 @@ export class CronProcessor {
     @Optional() private readonly searchIndex?: SearchIndexJob,
     // Owner 2026-10-25: `cdn.invalidate`.
     @Optional() private readonly cdnInvalidate?: CdnInvalidateJob,
+    // Owner 2026-10-25: `experiments.metrics`.
+    @Optional() private readonly experimentsNightly?: ExperimentsNightlyJob,
     // Day-one foundations: `ledger.reconcile`.
     @Optional() private readonly ledgerReconcile?: LedgerReconcileJob,
     // DB-ops hardening: `db.health`.
@@ -271,6 +274,8 @@ export class CronProcessor {
         return this.searchIndex?.run() ?? null;
       case CRON_JOBS.cdnInvalidate:
         return this.cdnInvalidate?.run() ?? null;
+      case CRON_JOBS.experimentsMetrics:
+        return this.experimentsNightly?.run() ?? null;
       case CRON_JOBS.ledgerReconcile:
         return this.ledgerReconcile?.run() ?? null;
       case CRON_JOBS.dbHealth:
