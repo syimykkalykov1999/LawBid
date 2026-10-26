@@ -37,6 +37,7 @@ import {
   BLOCKING_STATUSES,
   CHECK_MAX_PX,
   QUEUE_STATUSES,
+  REHIDE_DELAY_MS,
   isModeratedPurpose,
   type ModerationLabel,
 } from './media-moderation.constants';
@@ -180,6 +181,32 @@ export class MediaModerationService {
     });
     if (!check || !this.blocking(check)) return;
     await this.hide(check);
+  }
+
+  /**
+   * S10-6: the delayed `rehide` job lives only in Redis. Re-applies every
+   * hidden verdict of the last 24 hours (decision still open) whose content
+   * had no time yet to be hidden: `hide` is idempotent, it only touches what
+   * is still visible. Bounded to 200 checks per run.
+   */
+  async rehideSweep(now: Date = new Date()): Promise<{ reapplied: number }> {
+    const checks = await this.prisma.mediaModerationCheck.findMany({
+      where: {
+        status: { in: [...BLOCKING_STATUSES] },
+        decision: null,
+        checked_at: {
+          gte: new Date(now.getTime() - 24 * 3_600_000),
+          lte: new Date(now.getTime() - REHIDE_DELAY_MS),
+        },
+      },
+      orderBy: { checked_at: 'asc' },
+      take: 200,
+    });
+    let reapplied = 0;
+    for (const check of checks) {
+      reapplied += (await this.hide(check)).length;
+    }
+    return { reapplied };
   }
 
   private redo(check: MediaModerationCheck): boolean {

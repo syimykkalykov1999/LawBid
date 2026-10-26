@@ -10,6 +10,7 @@ DashboardDto _$DashboardDtoFromJson(Map<String, dynamic> json) => DashboardDto(
   newUsers: DashboardNewUsersDto.fromJson(
     json['newUsers'] as Map<String, dynamic>,
   ),
+  totals: DashboardTotalsDto.fromJson(json['totals'] as Map<String, dynamic>),
   verification: DashboardVerificationDto.fromJson(
     json['verification'] as Map<String, dynamic>,
   ),
@@ -31,6 +32,7 @@ DashboardDto _$DashboardDtoFromJson(Map<String, dynamic> json) => DashboardDto(
 Map<String, dynamic> _$DashboardDtoToJson(DashboardDto instance) =>
     <String, dynamic>{
       'newUsers': instance.newUsers.toJson(),
+      'totals': instance.totals.toJson(),
       'verification': instance.verification.toJson(),
       'subscriptions': instance.subscriptions.toJson(),
       'openCases': instance.openCases,
