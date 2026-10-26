@@ -56,6 +56,7 @@ import { AdminIntegrationsModule } from './modules/admin-integrations/admin-inte
 import { AdminLaunchModule } from './modules/admin-launch/admin-launch.module';
 import { AdminOpsModule } from './modules/admin-ops/admin-ops.module';
 import { AdminEconomyModule } from './modules/admin-economy/admin-economy.module';
+import { AdminPnlModule } from './modules/admin-pnl/admin-pnl.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
 import { CasePaymentsModule } from './modules/case-payments/case-payments.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
@@ -337,6 +338,7 @@ const isDev =
     AdminOpsModule,
     AdminLaunchModule,
     AdminEconomyModule,
+    AdminPnlModule,
     // Owner 2026-10-02: referrals + paid case promotion.
     ReferralsModule,
     PartnersModule,

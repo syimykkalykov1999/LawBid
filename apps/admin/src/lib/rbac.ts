@@ -198,6 +198,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/stars', label: 'Звёзды', icon: 'star', area: 'moneyOwner', ownerOnly: true, hint: 'пакеты звёзд, подарки, цены наборов стикеров, отчёт' },
       { href: '/prices', label: 'Цены', icon: 'tag', area: 'moneyOwner', ownerOnly: true, hint: 'стоимость тарифов и галочки' },
       { href: '/plans', label: 'Планы', icon: 'stack', area: 'moneyOwner', ownerOnly: true, hint: 'планы подписок и их возможности' },
+      { href: '/pnl', label: 'Прибыль', icon: 'chart-line', area: 'super', ownerOnly: true, hint: 'доход после возвратов и комиссии Stripe минус счета сервисов: день, неделя, месяц, 12 недель' },
       { href: '/treasury', label: 'Прибыль и резерв', icon: 'bank', area: 'money', hint: 'расходы отдельно, на карту: чистая прибыль' },
       { href: '/payroll', label: 'Зарплаты', icon: 'wallet', area: 'payroll', hint: 'сотрудники, массовая выплата' },
       // Owner 2026-10-22 (maker-checker): the check is off (one owner), the page stays for the history.

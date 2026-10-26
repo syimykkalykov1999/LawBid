@@ -31,6 +31,30 @@ export function allowedSpendUsd(
   return Math.max(byRule, Math.max(thresholdUsd, 0));
 }
 
+/** Stripe card fee (2.9 % + 30 ¢ per payment) — the cut Stripe keeps. */
+export const STRIPE_FEE_PERCENT = 2.9;
+export const STRIPE_FEE_FIXED_CENTS = 30;
+
+export interface RevenueInput {
+  /** Σ price before tax of succeeded payments (cents). */
+  subtotalCents: number;
+  /** Σ amount charged, tax included (cents) — the fee is taken on this. */
+  grossCents: number;
+  /** Σ succeeded refunds of payments still counted above (cents). */
+  refundedCents: number;
+  payments: number;
+}
+
+/** S9-3: the money the company keeps — price before tax, minus refunds,
+ * minus the estimated Stripe fee. Never negative. */
+export function netRevenueUsd(i: RevenueInput): number {
+  const fee =
+    (Math.max(i.grossCents, 0) * STRIPE_FEE_PERCENT) / 100 +
+    Math.max(i.payments, 0) * STRIPE_FEE_FIXED_CENTS;
+  const net = i.subtotalCents - Math.max(i.refundedCents, 0) - fee;
+  return Math.max(net, 0) / 100;
+}
+
 /** Straight-line month projection (the first days don't extrapolate
  * wildly: at least 3 days count as elapsed — same as cost-autoscale). */
 export function projectMonth(monthToDateUsd: number, now: Date): number {
