@@ -64,7 +64,9 @@ jobs:
     # via `flutter test --update-goldens` and committing the new PNGs, not
     # silencing this job.
     runs-on: macos-latest
-    timeout-minutes: 40
+    # 40 minutes cut `flutter test` short on busy macOS runners (2026-10-26,
+    # #419, #384): the suite itself had not failed.
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
