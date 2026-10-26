@@ -13,7 +13,7 @@ NAME=${BENCH_CONTAINER:-lawbid-hashbench}
 PORT=${BENCH_PORT:-55444}
 OUT=${OUT:-/tmp/hash-bench}
 SECS=${BENCH_SECONDS:-10}
-PARTMIG=20261031700000_partition_messages_notifications
+PARTMIG=20261106240000_partition_messages_notifications
 mkdir -p "$OUT"
 docker rm -fv "$NAME" >/dev/null 2>&1 || true
 [ -n "${BENCH_SEED_ONLY:-}" ] || trap 'docker rm -fv "$NAME" >/dev/null 2>&1 || true' EXIT

@@ -62,7 +62,7 @@ export const PARTITION_TABLES: readonly PartitionSpec[] = [
  * threshold, default «Выкл»): at small sizes the plain tables are faster.
  * No monthly job, nothing to keep up. The label says the key (the admin card
  * reads «хеш»). `key` is the hash column; their composite key (id, key)
- * comes from the expand migration 20261031700000 (skipped with a NOTICE
+ * comes from the expand migration 20261106240000 (skipped with a NOTICE
  * when a table was already big; then the card says so and stays blocked).
  */
 export const HASH_PARTITIONED: readonly PartitionSpec[] = [
@@ -295,7 +295,7 @@ export class PartitionRunner {
     const pk = await this.pkCols(t);
     if (pk.length !== 2 || pk[0] !== 'id' || pk[1] !== spec.key) {
       reasons.push(
-        `первичный ключ должен быть (id, ${spec.key}): миграция 20261031700000 пропустила перестройку ключа (таблица была больше 2 млн строк): перестроить вручную, docs/runbooks/table-partitioning.md`,
+        `первичный ключ должен быть (id, ${spec.key}): миграция 20261106240000 пропустила перестройку ключа (таблица была больше 2 млн строк): перестроить вручную, docs/runbooks/table-partitioning.md`,
       );
     }
     const uniq = await this.db.rows<{ name: string }>(
