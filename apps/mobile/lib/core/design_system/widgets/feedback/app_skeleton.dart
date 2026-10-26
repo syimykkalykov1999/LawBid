@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
@@ -34,30 +35,81 @@ class AppSkeleton extends StatefulWidget {
   State<AppSkeleton> createState() => _AppSkeletonState();
 }
 
-class _AppSkeletonState extends State<AppSkeleton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+/// S16-7: one clock for every shimmering skeleton on screen (Flutter's
+/// shimmer-loading guidance: one animation drives all placeholders). A feed
+/// skeleton of 15 boxes used to own 15 repeating controllers/tickers; now one
+/// ticker runs while at least one box listens, and stops when none does.
+class _ShimmerClock extends ChangeNotifier implements TickerProvider {
+  _ShimmerClock._();
+
+  static final instance = _ShimmerClock._();
+
+  Ticker? _ticker;
+  double value = 0;
 
   @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this, duration: AppMotion.shimmer);
+  Ticker createTicker(TickerCallback onTick) => Ticker(onTick);
+
+  @override
+  void addListener(VoidCallback listener) {
+    super.addListener(listener);
+    _ticker ??= createTicker((elapsed) {
+      value = (elapsed.inMicroseconds %
+              AppMotion.shimmer.inMicroseconds) /
+          AppMotion.shimmer.inMicroseconds;
+      notifyListeners();
+    })
+      ..start();
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    super.removeListener(listener);
+    if (!hasListeners) {
+      _ticker?.dispose();
+      _ticker = null;
+    }
+  }
+}
+
+class _AppSkeletonState extends State<AppSkeleton> {
+  bool _listening = false;
+
+  void _sync({required bool want}) {
+    if (want == _listening) return;
+    _listening = want;
+    if (want) {
+      _ShimmerClock.instance.addListener(_tick);
+    } else {
+      _ShimmerClock.instance.removeListener(_tick);
+    }
+  }
+
+  void _tick() {
+    if (mounted) setState(() {});
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Only tick when motion is allowed — no idle controller otherwise.
-    if (context.reduceMotion || !widget.shimmer) {
-      _controller.stop();
-    } else if (!_controller.isAnimating) {
-      _controller.repeat();
-    }
+    // Only tick when motion is allowed and the route is visible (TickerMode)
+    // — no idle ticker otherwise.
+    _sync(
+      want: !context.reduceMotion && widget.shimmer && TickerMode.valuesOf(context).enabled,
+    );
+  }
+
+  @override
+  void didUpdateWidget(AppSkeleton old) {
+    super.didUpdateWidget(old);
+    _sync(
+      want: !context.reduceMotion && widget.shimmer && TickerMode.valuesOf(context).enabled,
+    );
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _sync(want: false);
     super.dispose();
   }
 
@@ -79,30 +131,27 @@ class _AppSkeletonState extends State<AppSkeleton>
       );
     }
 
+    // Highlight travels from fully off the left edge to fully off the right
+    // edge each cycle.
+    final shift = _ShimmerClock.instance.value * 3 - 1.5;
     return ExcludeSemantics(
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) {
-          // Highlight travels from fully off the left edge to fully off
-          // the right edge each cycle.
-          final shift = _controller.value * 3 - 1.5;
-          return Container(
-            width: widget.width,
-            height: widget.height,
-            decoration: BoxDecoration(
-              borderRadius: radius,
-              gradient: LinearGradient(
-                begin: Alignment(shift - 1, 0),
-                end: Alignment(shift + 1, 0),
-                colors: [
-                  colors.skeletonBase,
-                  colors.skeletonHighlight,
-                  colors.skeletonBase,
-                ],
-              ),
+      child: RepaintBoundary(
+        child: Container(
+          width: widget.width,
+          height: widget.height,
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            gradient: LinearGradient(
+              begin: Alignment(shift - 1, 0),
+              end: Alignment(shift + 1, 0),
+              colors: [
+                colors.skeletonBase,
+                colors.skeletonHighlight,
+                colors.skeletonBase,
+              ],
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }

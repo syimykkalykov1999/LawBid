@@ -741,8 +741,106 @@ class _MessageList extends ConsumerStatefulWidget {
   ConsumerState<_MessageList> createState() => _MessageListState();
 }
 
+/// S16-6: what the thread list derives from its state — the merged message
+/// list, the grouped bubbles, the seen / delivered id sets. Rebuilt only when
+/// the messages, the outbox, the two read marks, the viewer or (for threads
+/// with disappearing messages) the clock change — not on every typing tick or
+/// upload-progress update of the thread state.
+class _ThreadDerived {
+  _ThreadDerived({
+    required this.messages,
+    required this.outbox,
+    required this.voiceOutbox,
+    required this.lastRead,
+    required this.lastDelivered,
+    required this.me,
+    required this.items,
+    required this.entries,
+    required this.newestOwnSeen,
+    required this.seenIds,
+    required this.deliveredIds,
+    required this.expires,
+  });
+
+  factory _ThreadDerived.of(ChatThreadState state, String? me) {
+    final items = state.all;
+    final lastRead = state.conversation?.counterpartLastReadId;
+    final seenIndex =
+        lastRead == null ? -1 : items.indexWhere((m) => m.id == lastRead);
+    final newestOwnSeen = seenIndex < 0
+        ? null
+        : items.skip(seenIndex).where((m) => m.senderId == me).firstOrNull?.id;
+    final lastDelivered = state.conversation?.counterpartLastDeliveredId;
+    final deliveredIndex = lastDelivered == null
+        ? -1
+        : items.indexWhere((m) => m.id == lastDelivered);
+    return _ThreadDerived(
+      messages: state.messages,
+      outbox: state.outbox,
+      voiceOutbox: state.voiceOutbox,
+      lastRead: lastRead,
+      lastDelivered: lastDelivered,
+      me: me,
+      items: items,
+      // Owner 2026-10-19: photos / files sent together share one bubble.
+      entries: items.isEmpty ? const [] : groupChatMessages(items),
+      newestOwnSeen: newestOwnSeen,
+      seenIds: seenIndex < 0
+          ? const <String>{}
+          : items.skip(seenIndex).map((m) => m.id).toSet(),
+      // Two grey ticks: everything up to the newest message that reached
+      // the other device (reading counts as well).
+      deliveredIds: deliveredIndex < 0
+          ? const <String>{}
+          : items.skip(deliveredIndex).map((m) => m.id).toSet(),
+      expires: state.messages.any((m) => m.expiresAt != null),
+    );
+  }
+
+  final List<ChatMessage> messages;
+  final List<ChatMessage> outbox;
+  final List<ChatMessage> voiceOutbox;
+  final String? lastRead;
+  final String? lastDelivered;
+  final String? me;
+  final List<ChatMessage> items;
+  final List<ChatListEntry> entries;
+  final String? newestOwnSeen;
+  final Set<String> seenIds;
+  final Set<String> deliveredIds;
+
+  /// A disappearing message is in the thread: [ChatThreadState.all] depends
+  /// on the clock, so this snapshot is not reused.
+  final bool expires;
+
+  bool fits(ChatThreadState state, String? me) =>
+      !expires &&
+      identical(state.messages, messages) &&
+      identical(state.outbox, outbox) &&
+      identical(state.voiceOutbox, voiceOutbox) &&
+      state.conversation?.counterpartLastReadId == lastRead &&
+      state.conversation?.counterpartLastDeliveredId == lastDelivered &&
+      me == this.me;
+}
+
 class _MessageListState extends ConsumerState<_MessageList> {
   late final ChatListController _c;
+  _ThreadDerived? _derived;
+
+  _ThreadDerived _derive(ChatThreadState state, String? me) {
+    final d = _derived;
+    if (d != null && d.fits(state, me)) return d;
+    final fresh = _derived = _ThreadDerived.of(state, me);
+    _indexByKey = null;
+    // Keys of messages that left the thread are dropped (the map used to
+    // grow with every message ever shown).
+    _c.pruneKeys({for (final e in fresh.entries) e.newest.id});
+    return fresh;
+  }
+
+  /// Row key → index, built on first use after the entries change.
+  Map<Key, int>? _indexByKey;
+
   final _listKey = GlobalKey();
   List<ChatListEntry> _entries = const [];
 
@@ -806,9 +904,9 @@ class _MessageListState extends ConsumerState<_MessageList> {
   @override
   void didUpdateWidget(_MessageList old) {
     super.didUpdateWidget(old);
-    final newest = widget.state.all.firstOrNull;
+    final me = ref.read(currentUserIdProvider);
+    final newest = _derive(widget.state, me).items.firstOrNull;
     if (newest != null && _newestId != null && newest.id != _newestId) {
-      final me = ref.read(currentUserIdProvider);
       if (_c.away && newest.senderId != me) _fresh++;
     }
     _newestId = newest?.id;
@@ -821,7 +919,8 @@ class _MessageListState extends ConsumerState<_MessageList> {
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
     final me = ref.watch(currentUserIdProvider);
-    final items = state.all;
+    final derived = _derive(state, me);
+    final items = derived.items;
     if (items.isEmpty) {
       return AppEmptyState(
         icon: AppIcons.chatBubbleOutlineRounded,
@@ -829,28 +928,12 @@ class _MessageListState extends ConsumerState<_MessageList> {
       );
     }
     // The newest own message the other side has read (§8.2 "Seen").
-    final lastRead = state.conversation?.counterpartLastReadId;
-    final seenIndex =
-        lastRead == null ? -1 : items.indexWhere((m) => m.id == lastRead);
-    final newestOwnSeen = seenIndex < 0
-        ? null
-        : items.skip(seenIndex).where((m) => m.senderId == me).firstOrNull?.id;
-    // Owner 2026-10-19: photos / files sent together share one bubble.
-    final entries = groupChatMessages(items);
+    final newestOwnSeen = derived.newestOwnSeen;
+    final entries = derived.entries;
     _entries = entries;
     _newestId ??= items.first.id;
-    final seenIds = seenIndex < 0
-        ? const <String>{}
-        : items.skip(seenIndex).map((m) => m.id).toSet();
-    // Two grey ticks: everything up to the newest message that reached the
-    // other device (reading counts as well).
-    final lastDelivered = state.conversation?.counterpartLastDeliveredId;
-    final deliveredIndex = lastDelivered == null
-        ? -1
-        : items.indexWhere((m) => m.id == lastDelivered);
-    final deliveredIds = deliveredIndex < 0
-        ? const <String>{}
-        : items.skip(deliveredIndex).map((m) => m.id).toSet();
+    final seenIds = derived.seenIds;
+    final deliveredIds = derived.deliveredIds;
 
     final list = CustomPaint(
       // Owner 2026-10-17: a faint pattern of legal signs behind the
@@ -865,6 +948,16 @@ class _MessageListState extends ConsumerState<_MessageList> {
           vertical: AppSpacing.md,
         ),
         itemCount: entries.length + (state.nextCursor != null ? 1 : 0),
+        // S16-6: rows are keyed by their newest message; when messages come
+        // in at the bottom the others move one index and Flutter finds them
+        // by key instead of rebuilding their elements.
+        findChildIndexCallback: (key) {
+          final byKey = _indexByKey ??= {
+            for (var i = 0; i < entries.length; i++)
+              _c.keyFor(entries[i].newest.id): i,
+          };
+          return byKey[key];
+        },
         itemBuilder: (context, i) {
           if (i == entries.length) {
             if (state.loadMoreFailed) {

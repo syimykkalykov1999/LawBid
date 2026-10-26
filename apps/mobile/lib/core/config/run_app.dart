@@ -14,12 +14,14 @@ import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/diagnostics/perf_marks.dart';
 import 'package:lawbid/core/diagnostics/sentry_native.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/prefetch_policy.dart';
 import 'package:lawbid/core/network/device_key.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/platform/web_consent_notice.dart';
 import 'package:lawbid/core/platform/web_gate.dart';
 import 'package:lawbid/core/platform/web_lifecycle.dart';
 import 'package:lawbid/core/security/app_check.dart';
+import 'package:lawbid/core/startup/app_startup.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
@@ -170,6 +172,13 @@ Future<void> runLawBid(AppFlavor flavor) async {
       ),
     ],
   );
+
+  // S16-1: the session check (keychain + token refresh + `GET /me/session`)
+  // starts now and runs beside the translation load and the first frame;
+  // the splash only waits for its result (AppStartupController.start).
+  container.read(prefetchGateProvider);
+  final startup = container.read(appStartupProvider.notifier);
+  unawaited(startup.prime());
 
   // L10n cache bootstrap (docs/01_FOUNDATION_AUTH.md §9.4: "читает кэш из
   // drift → показывает UI"): LOCAL-ONLY (Drift read, seeded from the

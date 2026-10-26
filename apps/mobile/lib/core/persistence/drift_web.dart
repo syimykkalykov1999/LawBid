@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:lawbid/core/persistence/drift_memory_stub.dart'
     if (dart.library.js_interop) 'package:lawbid/core/persistence/drift_memory_web.dart';
 import 'package:lawbid/core/platform/base_uri.dart';
+import 'package:sqlite3/common.dart' show CommonDatabase;
 
 /// Where the web build finds SQLite and drift's worker. Ignored on
 /// Android/iOS. Both files live in `web/` (next to index.html) and are
@@ -27,6 +28,9 @@ final appDriftWebOptions = DriftWebOptions(
 /// only in the tab instead of staying on a blank screen: the caches start
 /// empty and refill from the server.
 QueryExecutor appDriftDatabase(String name) {
+  final native = _walCaches.contains(name)
+      ? const DriftNativeOptions(setup: cacheDatabaseSetup)
+      : null;
   if (kIsWeb) {
     return _FallbackExecutor(
       driftDatabase(name: name, web: appDriftWebOptions),
@@ -43,7 +47,22 @@ QueryExecutor appDriftDatabase(String name) {
       return memory ?? driftDatabase(name: name, web: appDriftWebOptions);
     });
   }
-  return driftDatabase(name: name, web: appDriftWebOptions);
+  return driftDatabase(name: name, web: appDriftWebOptions, native: native);
+}
+
+/// S16-5: the databases that only hold copies of server data. SQLite's own
+/// guidance for write-heavy caches on a phone: WAL + `synchronous=NORMAL`
+/// (one fsync per checkpoint, not per commit). A power cut can lose the last
+/// few cached rows — never corrupt the file — and the cache refills from the
+/// server. The upload outbox, cases and social stores keep SQLite's default.
+const _walCaches = {'l10n_cache', 'lawbid_public_cache', 'lawbid_cache'};
+
+/// Runs in the database's own isolate when the file is opened (so it must be
+/// a top-level function without captured state).
+void cacheDatabaseSetup(CommonDatabase db) {
+  db
+    ..execute('PRAGMA journal_mode=WAL;')
+    ..execute('PRAGMA synchronous=NORMAL;');
 }
 
 /// True under `flutter test` (never on the web).

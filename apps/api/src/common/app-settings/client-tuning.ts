@@ -92,6 +92,13 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'How many reels ahead the app warms (playlist + first segment, up to 1 MB each) while someone swipes. Video traffic is the biggest cost: lower it to save money, 0 = no warm-up.',
   },
+  'client.video_prefetch_mode': {
+    default: 2,
+    min: 0,
+    max: 2,
+    description:
+      'Reel warm-up switch (S16-4): 0 = off, 1 = on everywhere, 2 = auto (default): warm the next reels only on Wi-Fi / unmetered links and never while the app data saver is on. Mobile data then carries only what the viewer opens.',
+  },
   'client.resume_refresh_min_away_s': {
     default: 30,
     min: 5,
