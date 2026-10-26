@@ -23,6 +23,9 @@ import {
   providerById,
   type ProviderDefinition,
 } from './provider-registry';
+import { barRegistryAad, joinCodeAad } from './aad';
+import { readKey } from './key-holder';
+import { SecretCipher } from './totp-cipher';
 import { maskSecret, SecretEnvelope } from './secret-envelope';
 
 export interface ResolvedCredentials {
@@ -89,7 +92,9 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     private readonly config: ConfigService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {
-    const keys = this.config.get<string>('SECRETS_MASTER_KEYS');
+    const keys = readKey('SECRETS_MASTER_KEYS', () =>
+      this.config.get<string>('SECRETS_MASTER_KEYS'),
+    );
     const kid = this.config.get<string>('SECRETS_ACTIVE_KID');
     this.envelope = keys && kid ? new SecretEnvelope(keys, kid) : null;
   }
@@ -851,6 +856,110 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
       await this.changed(p);
     }
     return rows.length;
+  }
+
+  /**
+   * S3-4: the three small stores that sit outside `integration_credentials`
+   * — assistant join codes, state-bar registry keys and the admins'
+   * authenticator secrets — are rewritten under the active key too, so a
+   * retired master key can leave SECRETS_MASTER_KEYS. A legacy `v1`
+   * authenticator secret is converted to the kid format. Values that cannot
+   * be opened are counted, never logged. Safe to run again.
+   */
+  async reencryptStores(): Promise<{
+    joinCodes: number;
+    registries: number;
+    adminTotp: number;
+    failed: number;
+  }> {
+    const out = { joinCodes: 0, registries: 0, adminTotp: 0, failed: 0 };
+    const env = this.envelope;
+    if (!env) return out;
+    const page = 200;
+    // Join codes ('plain:' rows are local-dev values and stay).
+    let after = '';
+    for (;;) {
+      const rows = await this.prisma.assistantMembership.findMany({
+        where: { id: { gt: after }, join_code_enc: { not: null } },
+        select: { id: true, join_code_enc: true },
+        orderBy: { id: 'asc' },
+        take: page,
+      });
+      for (const r of rows) {
+        after = r.id;
+        const stored = r.join_code_enc;
+        if (!stored || stored.startsWith('plain:')) continue;
+        if (SecretEnvelope.kidOf(stored) === env.activeKid) continue;
+        try {
+          const next = env.encrypt(
+            env.decrypt(stored, joinCodeAad(r.id)),
+            joinCodeAad(r.id),
+          );
+          await this.prisma.assistantMembership.updateMany({
+            where: { id: r.id, join_code_enc: stored },
+            data: { join_code_enc: next },
+          });
+          out.joinCodes += 1;
+        } catch {
+          out.failed += 1;
+        }
+      }
+      if (rows.length < page) break;
+    }
+    // State-bar registry keys.
+    const regs = await this.prisma.stateBarRegistry.findMany({
+      where: { secret_enc: { not: null } },
+      select: { state_code: true, secret_enc: true },
+    });
+    for (const r of regs) {
+      const stored = r.secret_enc;
+      if (!stored || SecretEnvelope.kidOf(stored) === env.activeKid) continue;
+      try {
+        const next = env.encrypt(
+          env.decrypt(stored, barRegistryAad(r.state_code)),
+          barRegistryAad(r.state_code),
+        );
+        await this.prisma.stateBarRegistry.updateMany({
+          where: { state_code: r.state_code, secret_enc: stored },
+          data: { secret_enc: next },
+        });
+        out.registries += 1;
+      } catch {
+        out.failed += 1;
+      }
+    }
+    // Admin authenticator secrets.
+    const totpKey = readKey('ADMIN_TOTP_ENC_KEY', () =>
+      this.config.get<string>('ADMIN_TOTP_ENC_KEY'),
+    );
+    if (totpKey) {
+      const cipher = new SecretCipher(totpKey, {
+        keys: readKey('SECRETS_MASTER_KEYS', () =>
+          this.config.get<string>('SECRETS_MASTER_KEYS'),
+        )!,
+        activeKid: env.activeKid,
+      });
+      const creds = await this.prisma.adminCredential.findMany({
+        select: { user_id: true, totp_secret_enc: true },
+      });
+      for (const c of creds) {
+        if (!cipher.needsRewrite(c.totp_secret_enc)) continue;
+        try {
+          const next = cipher.encrypt(
+            cipher.decrypt(c.totp_secret_enc, c.user_id),
+            c.user_id,
+          );
+          await this.prisma.adminCredential.updateMany({
+            where: { user_id: c.user_id, totp_secret_enc: c.totp_secret_enc },
+            data: { totp_secret_enc: next },
+          });
+          out.adminTotp += 1;
+        } catch {
+          out.failed += 1;
+        }
+      }
+    }
+    return out;
   }
 
   /**

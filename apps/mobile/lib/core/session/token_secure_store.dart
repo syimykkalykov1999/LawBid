@@ -25,9 +25,31 @@ const _kRealRefreshTokenKey = 'lawbid.realRefreshToken';
 /// the cookie holds the credential" — and [wireValue] turns it back into
 /// the empty `refreshToken` the API reads as "use the cookie". A script on
 /// the page can no longer read anything worth stealing.
+///
+/// Security pass 2026-10-25 (S3-8): the refresh token lives in the Keychain
+/// class `first_unlock_this_device` (like `DeviceKey`), so an encrypted
+/// backup restored on another phone does not clone a signed-in session, and
+/// on Android in EncryptedSharedPreferences with `resetOnError`. A token a
+/// previous version stored with the default options is moved on first read
+/// ([_read]).
 class TokenSecureStore {
-  const TokenSecureStore([FlutterSecureStorage? storage])
-      : _storage = storage ?? const FlutterSecureStorage();
+  const TokenSecureStore([
+    FlutterSecureStorage? storage,
+    FlutterSecureStorage? legacy,
+  ]) : _storage = storage ?? hardenedStorage,
+       _legacy =
+           legacy ?? (storage == null ? const FlutterSecureStorage() : null);
+
+  /// The storage the tokens are kept in.
+  static const hardenedStorage = FlutterSecureStorage(
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+      resetOnError: true,
+    ),
+  );
 
   /// Stored in place of a refresh token that lives in the web cookie.
   static const cookieMarker = 'cookie:';
@@ -40,11 +62,39 @@ class TokenSecureStore {
 
   final FlutterSecureStorage _storage;
 
-  Future<String?> readRefreshToken() => _storage.read(key: _kRefreshTokenKey);
+  /// The previous default-options storage, only to move old values (null in
+  /// tests that inject their own storage).
+  final FlutterSecureStorage? _legacy;
+
+  /// Reads [key]; when it is not in the hardened storage but is in the old
+  /// default one, moves it (delete the old item first, so the new
+  /// accessibility class is applied to a fresh item) and returns it. Never
+  /// throws for the legacy side: a failing old read is a missing value.
+  Future<String?> _read(String key) async {
+    final value = await _storage.read(key: key);
+    final legacy = _legacy;
+    if (value != null || legacy == null) return value;
+    String? old;
+    try {
+      old = await legacy.read(key: key);
+    } on Object {
+      return null;
+    }
+    if (old == null) return null;
+    try {
+      await legacy.delete(key: key);
+      await _storage.write(key: key, value: old);
+    } on Object {
+      // The caller still gets the value; the move is retried next time.
+    }
+    return old;
+  }
+
+  Future<String?> readRefreshToken() => _read(_kRefreshTokenKey);
 
   /// Whether the stored refresh token is a demo session's (false when none).
   Future<bool> readRefreshTokenIsDemo() async =>
-      await _storage.read(key: _kRefreshTokenIsDemoKey) == '1';
+      await _read(_kRefreshTokenIsDemoKey) == '1';
 
   Future<void> writeRefreshToken(String token, {bool isDemo = false}) async {
     await _storage.write(key: _kRefreshTokenKey, value: _stored(token));
@@ -62,8 +112,7 @@ class TokenSecureStore {
     await _storage.delete(key: _kRefreshTokenIsDemoKey);
   }
 
-  Future<String?> readRealRefreshToken() =>
-      _storage.read(key: _kRealRefreshTokenKey);
+  Future<String?> readRealRefreshToken() => _read(_kRealRefreshTokenKey);
 
   Future<void> writeRealRefreshToken(String token) =>
       _storage.write(key: _kRealRefreshTokenKey, value: _stored(token));

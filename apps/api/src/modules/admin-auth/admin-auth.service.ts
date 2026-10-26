@@ -16,6 +16,7 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { Prisma, type AdminRole } from '@prisma/client';
 import type Redis from 'ioredis';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { readKey } from '../../common/secrets/key-holder';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -40,6 +41,7 @@ import type {
 import {
   dummyHash,
   hashSecret,
+  secretNeedsRehash,
   LOGIN_PATTERN,
   normalizeAnswer,
   normalizeLogin,
@@ -169,8 +171,20 @@ export class AdminAuthService {
     // Owner 2026-10-28: IP allowlist, session cap, new-device alert.
     @Optional() private readonly security?: AdminSecurityService,
   ) {
-    const key = config.get<string>('ADMIN_TOTP_ENC_KEY');
-    this.cipher = key ? new SecretCipher(key) : null;
+    const key = readKey('ADMIN_TOTP_ENC_KEY', () =>
+      config.get<string>('ADMIN_TOTP_ENC_KEY'),
+    );
+    // S3-4: with a master key list the authenticator secrets rotate with it.
+    const masterKeys = readKey('SECRETS_MASTER_KEYS', () =>
+      config.get<string>('SECRETS_MASTER_KEYS'),
+    );
+    const activeKid = config.get<string>('SECRETS_ACTIVE_KID');
+    this.cipher = key
+      ? new SecretCipher(
+          key,
+          masterKeys && activeKid ? { keys: masterKeys, activeKid } : undefined,
+        )
+      : null;
     this.panelUrl =
       config.get<string>('ADMIN_PANEL_URL')?.replace(/\/$/, '') ?? null;
     this.loginStartPerIpPerHour = config.getOrThrow<number>(
@@ -232,6 +246,17 @@ export class AdminAuthService {
         code: ErrorCode.ADMIN_CREDENTIALS_INVALID,
         message: 'Wrong login or password.',
       });
+    }
+    // S3-6: an old, cheaper hash is replaced now that the password is known.
+    if (secretNeedsRehash(cred.password_hash)) {
+      try {
+        await this.prisma.adminCredential.updateMany({
+          where: { user_id: u.id, password_hash: cred.password_hash },
+          data: { password_hash: await hashSecret(password) },
+        });
+      } catch {
+        // The old hash still verifies; the next sign-in tries again.
+      }
     }
     return this.secondFactorTicket(u.id);
   }
@@ -450,8 +475,11 @@ export class AdminAuthService {
     const secret = generateTotpSecret();
     await this.prisma.adminCredential.upsert({
       where: { user_id: admin.id },
-      create: { user_id: admin.id, totp_secret_enc: cipher.encrypt(secret) },
-      update: { totp_secret_enc: cipher.encrypt(secret) },
+      create: {
+        user_id: admin.id,
+        totp_secret_enc: cipher.encrypt(secret, admin.id),
+      },
+      update: { totp_secret_enc: cipher.encrypt(secret, admin.id) },
     });
     return {
       secret,
@@ -478,7 +506,7 @@ export class AdminAuthService {
     const { admin, jti, cred } = await this.openTicket(ticket);
     if (!cred || cred.totp_enabled_at) throw ticketInvalid();
     const fresh =
-      verifyTotp(cipher.decrypt(cred.totp_secret_enc), code) &&
+      verifyTotp(cipher.decrypt(cred.totp_secret_enc, admin.id), code) &&
       (await this.redis.set(
         `adm:totp:used:${admin.id}:${code}`,
         '1',
@@ -525,10 +553,16 @@ export class AdminAuthService {
     const cipher = this.assertConfigured();
     const { admin, jti, cred } = await this.openTicket(ticket);
     if (!cred?.totp_enabled_at) throw ticketInvalid();
-    const secret = cipher.decrypt(cred.totp_secret_enc);
+    const secret = cipher.decrypt(cred.totp_secret_enc, admin.id);
     if (!verifyTotp(secret, code)) {
       await this.failAttempt(jti, ErrorCode.ADMIN_TOTP_INVALID);
     }
+    await this.rewriteTotpSecret(
+      cipher,
+      admin.id,
+      cred.totp_secret_enc,
+      secret,
+    );
     // Security review: a code is single-use inside its ±1-step window
     // (RFC 6238 §5.2), and the ticket is consumed atomically so two
     // parallel requests cannot both turn into sessions.
@@ -1004,6 +1038,28 @@ export class AdminAuthService {
     return login;
   }
 
+  /**
+   * Rewrite-on-use (S3-4): a secret still in the old `v1` format, or under
+   * a retired key id, is sealed again with the active key right after a
+   * correct code. Conditional on the stored value, never fatal.
+   */
+  private async rewriteTotpSecret(
+    cipher: SecretCipher,
+    adminId: string,
+    stored: string,
+    plain: string,
+  ): Promise<void> {
+    if (!cipher.needsRewrite(stored)) return;
+    try {
+      await this.prisma.adminCredential.updateMany({
+        where: { user_id: adminId, totp_secret_enc: stored },
+        data: { totp_secret_enc: cipher.encrypt(plain, adminId) },
+      });
+    } catch {
+      // The old value still opens; the next sign-in tries again.
+    }
+  }
+
   /** The row needs an authenticator secret from the start; sign-in
    * replaces it with a fresh one until a code confirms it. */
   private async ensureCredential(
@@ -1014,7 +1070,7 @@ export class AdminAuthService {
       where: { user_id: userId },
       create: {
         user_id: userId,
-        totp_secret_enc: cipher.encrypt(generateTotpSecret()),
+        totp_secret_enc: cipher.encrypt(generateTotpSecret(), userId),
       },
       update: {},
     });
@@ -1218,7 +1274,7 @@ export class AdminAuthService {
     // Same single-use rule as the sign-in step (RFC 6238 §5.2).
     const ok =
       /^\d{6}$/.test(value) &&
-      verifyTotp(cipher.decrypt(cred.totp_secret_enc), value) &&
+      verifyTotp(cipher.decrypt(cred.totp_secret_enc, adminId), value) &&
       (await this.redis.set(
         `adm:totp:used:${adminId}:${value}`,
         '1',
@@ -1226,6 +1282,14 @@ export class AdminAuthService {
         TOTP_REPLAY_WINDOW_SECONDS,
         'NX',
       )) === 'OK';
+    if (ok) {
+      await this.rewriteTotpSecret(
+        cipher,
+        adminId,
+        cred.totp_secret_enc,
+        cipher.decrypt(cred.totp_secret_enc, adminId),
+      );
+    }
     await this.audit.record({
       adminId,
       action: ok ? ADMIN_AUDIT.stepUp : ADMIN_AUDIT.stepUpFailed,

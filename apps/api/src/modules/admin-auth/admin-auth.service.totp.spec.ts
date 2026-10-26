@@ -23,7 +23,7 @@ function build(opts: { enabled?: boolean } = {}) {
     password_hash: string;
   } = {
     user_id: 'u1',
-    totp_secret_enc: cipher.encrypt('JBSWY3DPEHPK3PXP'),
+    totp_secret_enc: cipher.encrypt('JBSWY3DPEHPK3PXP', 'u1'),
     totp_enabled_at: opts.enabled ? new Date() : null,
     recovery_codes_hash: [],
     password_hash: 'x',
@@ -116,7 +116,7 @@ describe('forced authenticator setup at sign-in', () => {
     const { svc, cred, sessions, audit, store } = build();
     const setup = await svc.totpSetupBegin('ticket-jwt');
     expect(setup.otpauthUri).toMatch(/^otpauth:\/\/totp\//);
-    expect(cipher.decrypt(cred.totp_secret_enc)).toBe(setup.secret);
+    expect(cipher.decrypt(cred.totp_secret_enc, 'u1')).toBe(setup.secret);
 
     const res = await svc.totpSetupFinish(
       'ticket-jwt',

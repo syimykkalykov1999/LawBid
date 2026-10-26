@@ -3,6 +3,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import archiver from 'archiver';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { fileNameAad } from '../../common/secrets/field-aad';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withDeleted } from '../../prisma/soft-delete.extension';
@@ -420,7 +421,11 @@ export class LegalExportBuilder {
         text: this.open(m.body_original, m.id),
         shownText: this.open(m.body_display, m.id),
         fileId: m.file_id,
-        fileName: m.file_name,
+        fileName:
+          m.file_name === null
+            ? null
+            : (this.cipher?.openField(m.file_name, fileNameAad(m.id)) ??
+              m.file_name),
         replyToId: m.reply_to_id,
         forwarded: m.forwarded,
         createdAt: m.created_at,
