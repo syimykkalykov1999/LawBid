@@ -234,8 +234,14 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
               Expanded(
                 child: RefreshIndicator(
                   color: colors.gold,
-                  onRefresh: () async =>
-                      ref.refresh(questionDetailProvider(widget.id).future),
+                  onRefresh: () async {
+                    try {
+                      await ref.refresh(questionDetailProvider(widget.id).future);
+                    } on Object {
+                      // The provider now holds the error and the screen
+                      // shows it; the pull spinner must just end.
+                    }
+                  },
                   child: _Body(
                     question: q,
                     onLike: (a) => _run(
