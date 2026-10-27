@@ -40,6 +40,10 @@ on:
       - ".github/npm-audit-allowlist.json"
       - "scripts/ci/**"
       - "infra/modules/signing-guard/lambda/**"
+      # The env contract test (src/config/config-contract.spec.ts) reads the
+      # api task definition from these two files (deploy safety 2026-10-27).
+      - "infra/modules/stack/main.tf"
+      - "infra/modules/ecs/main.tf"
   push:
     branches: [main, master]
     paths:
@@ -52,6 +56,10 @@ on:
       - ".github/npm-audit-allowlist.json"
       - "scripts/ci/**"
       - "infra/modules/signing-guard/lambda/**"
+      # The env contract test (src/config/config-contract.spec.ts) reads the
+      # api task definition from these two files (deploy safety 2026-10-27).
+      - "infra/modules/stack/main.tf"
+      - "infra/modules/ecs/main.tf"
 
 concurrency:
   group: api-ci-${{ github.ref }}

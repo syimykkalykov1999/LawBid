@@ -49,3 +49,24 @@ Latest restore time.
 English: `migrate-resolve` = Prisma `migrate resolve --applied|--rolled-back`,
 run inside the released API image against the migrator role; the script asks you
 to retype the migration name.
+
+## Schema check (сверка базы со схемой после миграций)
+
+С 2026-10-27 migrate-задача после `prisma migrate deploy` и
+`run-concurrent.mjs` запускает `prisma/verify-schema.mjs`: настоящая база
+должна совпасть со `schema.prisma` нового образа (та же проверка, что в CI,
+но на проде). Если нет — выкладка **останавливается до** запуска новой
+версии; старая продолжает работать (все миграции расширяющие).
+
+Что значит красный шаг «Migrations» с текстом `schema check: the database
+differs`:
+1. Чаще всего — защищённая миграция пропустила работу (таблица была занята
+   или большая). Пример: `20261107131300_partition_messages_notifications`
+   пишет NOTICE `composite keys SKIPPED`. Решение: в тихое время выполнить
+   `SELECT lawbid_messages_composite_keys();` (или с лимитом строк, см.
+   [table-partitioning.md](table-partitioning.md)) и перезапустить Deploy.
+2. Реже — кто-то менял базу руками. Список таблиц/колонок — в логе шага.
+   Вернуть как в схеме или, если изменение нужно, оформить миграцией.
+3. Осознанно пропустить проверку один раз: переменная GitHub
+   `SCHEMA_DRIFT_CHECK=warn` (Settings → Secrets and variables → Actions →
+   Variables), после выкладки удалить. `off` — не использовать.
