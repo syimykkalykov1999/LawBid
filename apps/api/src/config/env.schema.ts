@@ -836,6 +836,10 @@ export const envSchema = z
       blankToUndefined,
       z.string().optional(),
     ),
+    OPENAI_MODERATION_API_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
     PHOTODNA_SUBSCRIPTION_KEY: z.preprocess(
       blankToUndefined,
       z.string().optional(),

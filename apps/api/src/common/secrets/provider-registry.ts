@@ -1207,6 +1207,23 @@ export const PROVIDERS: ProviderDefinition[] = [
       },
     ],
   },
+  // Owner 2026-10-27: automatic text detection before any report.
+  {
+    id: 'openai_moderation',
+    label: 'Text moderation (OpenAI omni-moderation)',
+    description:
+      'Checks new posts and comments for harassment, hate, sexual and illicit content before anyone reports them. Modes off / shadow / enforce in Модерация → Настройки. Free or about $0.00001 a call; a daily cap is set there.',
+    fields: [
+      {
+        name: 'apiKey',
+        label: 'API key',
+        secret: true,
+        required: true,
+        pattern: /^sk-[A-Za-z0-9_-]{20,}$/,
+        env: 'OPENAI_MODERATION_API_KEY',
+      },
+    ],
+  },
   // Owner 2026-10-22 (18 U.S.C. §2258A): known-CSAM hash matching. Keys are
   // granted by Microsoft after vetting (docs/SECURITY_TODO.md).
   {

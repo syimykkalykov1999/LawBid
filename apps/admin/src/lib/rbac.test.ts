@@ -25,7 +25,7 @@ describe('menu sections with tabs', () => {
     const mod = { role: 'moderator' as const, permissions: { moderation: 'manage' as const, content: 'view' as const } };
     expect(groupsFor(mod).map((g) => g.key)).toEqual(['home', 'content', 'system']);
     expect(tabsFor(mod, '/moderation').map((t) => t.href)).toEqual([
-      '/moderation', '/media-moderation', '/review-appeals', '/moderation-appeals', '/moderation-journal', '/content', '/legal-qa', '/group-chats', '/practice-areas', '/document-templates', '/form-templates',
+      '/moderation', '/media-moderation', '/review-appeals', '/moderation-appeals', '/moderation-auto', '/moderation-journal', '/content', '/legal-qa', '/group-chats', '/practice-areas', '/document-templates', '/form-templates',
     ]);
     // Document forms follow the API: super admin and moderators only.
     expect(canOpen(mod, '/form-templates')).toBe(true);
@@ -183,7 +183,7 @@ describe('role x page visibility table', () => {
   });
 
   const expectVisible: Record<string, string[]> = {
-    moderator: ['/', '/workspace', '/moderation', '/media-moderation', '/review-appeals', '/moderation-appeals', '/moderation-journal', '/content', '/media', '/legal-qa', '/group-chats', '/practice-areas', '/document-templates', '/form-templates', '/search'],
+    moderator: ['/', '/workspace', '/moderation', '/media-moderation', '/review-appeals', '/moderation-appeals', '/moderation-auto', '/moderation-journal', '/content', '/media', '/legal-qa', '/group-chats', '/practice-areas', '/document-templates', '/form-templates', '/search'],
     support: ['/', '/workspace', '/users', '/support'],
     finance: ['/', '/workspace', '/subscriptions', '/payments', '/promo-codes', '/referrals', '/partners', '/contracts', '/promotions', '/treasury', '/payroll', '/exports', '/pnl'],
   };

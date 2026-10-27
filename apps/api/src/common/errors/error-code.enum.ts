@@ -212,6 +212,13 @@ export enum ErrorCode {
   // account); it cannot publish cases or write to attorneys. Support chat
   // stays open for an appeal.
   ACCOUNT_RESTRICTED = 'ACCOUNT_RESTRICTED',
+  // 403 (owner 2026-10-27, DSA Art. 23 style): the person filed many
+  // reports moderators found unfounded; processing of their reports is
+  // paused until `details.until`. They may appeal.
+  REPORTING_SUSPENDED = 'REPORTING_SUSPENDED',
+  // 403 (owner 2026-10-27): strike ladder: the account may not publish for
+  // now (`details.level`, `details.until`). The notice can be appealed.
+  ACCOUNT_STRIKE_LIMITED = 'ACCOUNT_STRIKE_LIMITED',
   // Admin panel (docs/06 §2.1, stage 6.2)
   // 400: sensitive view without X-Justification (10–500 chars).
   JUSTIFICATION_REQUIRED = 'JUSTIFICATION_REQUIRED',

@@ -24,6 +24,7 @@ import type {
   MyReportDto,
 } from './moderation-appeals.dto';
 import { ModerationService } from './moderation.service';
+import { StrikesService } from './strikes.service';
 
 /** An appeal can be filed this long after the decision. */
 export const APPEAL_WINDOW_DAYS = 30;
@@ -56,6 +57,7 @@ export class ModerationAppealsService {
     private readonly adminModeration: AdminModerationService,
     private readonly audit: AuditLogService,
     private readonly notifications: NotificationsService,
+    private readonly strikes: StrikesService,
   ) {}
 
   // ----- the author's side -----
@@ -357,6 +359,14 @@ export class ModerationAppealsService {
         });
         throw e;
       }
+    }
+    // Owner 2026-10-27: winning the appeal also lifts the strike (and its limit).
+    if (accept) {
+      await this.strikes.revokeByAction(
+        admin,
+        appeal.action_id,
+        `Appeal accepted: ${note}`,
+      );
     }
     await this.audit.record({
       adminId: admin.id,

@@ -236,6 +236,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/media-moderation', label: 'Фото и видео', icon: 'flag', area: 'moderation', hint: 'автопроверка картинок: скрытые, подозрительные, CSAM' },
       { href: '/review-appeals', label: 'Обжалования отзывов', icon: 'scales', area: 'moderation', count: 'appeals' },
       { href: '/moderation-appeals', label: 'Обжалования решений', icon: 'scales', area: 'moderation', hint: 'автор просит вернуть скрытый пост, комментарий или сообщение' },
+      { href: '/moderation-auto', label: 'Автомодерация', icon: 'scales', area: 'moderation', hint: 'автоматические решения, апелляции, жалобщики, страйки и настройки' },
       { href: '/moderation-journal', label: 'Журнал решений', icon: 'article', area: 'moderation', hint: 'кто, когда и почему скрыл, удалил, предупредил' },
       { href: '/content', label: 'Посты и отзывы', icon: 'article', area: 'content', hint: 'посты, комментарии, отзывы' },
       { href: '/media', label: 'Рилсы и стикеры', icon: 'film-strip', area: 'media', hint: 'видео, наборы стикеров' },

@@ -22,6 +22,7 @@ class ModerationQueueItemDto {
     required this.targetStatus,
     required this.excerpt,
     required this.author,
+    required this.priority,
   });
 
   factory ModerationQueueItemDto.fromJson(Map<String, Object?> json) =>
@@ -41,6 +42,9 @@ class ModerationQueueItemDto {
   /// First 200 characters.
   final String? excerpt;
   final ModerationAuthorDto? author;
+
+  /// Owner 2026-10-27: enough weighted reports hit a verified attorney; a person looks at it first (not hidden).
+  final bool priority;
 
   Map<String, Object?> toJson() => _$ModerationQueueItemDtoToJson(this);
 }

@@ -89,6 +89,7 @@ import { EconomyService } from '../common/economy/economy.service';
 import { ChatService } from '../modules/chat/chat.service';
 import { DisappearingSweepService } from '../modules/chat/disappearing-sweep.service';
 import { TreasuryService } from '../modules/treasury/treasury.service';
+import { AutoAppealsService } from '../modules/moderation/auto-appeals.service';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
  * becomes the BullMQ job's `returnvalue` (visible in queue dashboards). */
@@ -173,6 +174,8 @@ export class CronProcessor {
     @Optional() private readonly searchIndex?: SearchIndexJob,
     // Owner 2026-10-25: `cdn.invalidate`.
     @Optional() private readonly cdnInvalidate?: CdnInvalidateJob,
+    // Owner 2026-10-27: `moderation.appeal-sla`.
+    @Optional() private readonly autoAppeals?: AutoAppealsService,
     // Owner 2026-10-25: `experiments.metrics`.
     @Optional() private readonly experimentsNightly?: ExperimentsNightlyJob,
     // Day-one foundations: `ledger.reconcile`.
@@ -283,6 +286,8 @@ export class CronProcessor {
         return this.searchIndex?.run() ?? null;
       case CRON_JOBS.cdnInvalidate:
         return this.cdnInvalidate?.run() ?? null;
+      case CRON_JOBS.moderationAppealSla:
+        return this.autoAppeals?.sweepOverdue() ?? null;
       case CRON_JOBS.experimentsMetrics:
         return this.experimentsNightly?.run() ?? null;
       case CRON_JOBS.ledgerReconcile:

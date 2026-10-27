@@ -371,6 +371,7 @@ export class ClientReviewsService {
         message: 'Edit or delete your own review instead.',
       });
     }
+    await this.moderation?.assertCanReport(user.sub);
     const open = await this.prisma.report.findFirst({
       where: {
         reporter_id: user.sub,

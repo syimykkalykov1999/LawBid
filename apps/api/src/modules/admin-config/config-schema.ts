@@ -952,7 +952,52 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 10_000,
   };
+  moderationTuning(out);
   return out;
+}
+
+/** Owner 2026-10-27: scores take decimals, modes take fixed words,
+ * classifier confidences stay within 0–1. */
+function moderationTuning(out: Record<string, ConfigKeySchema>): void {
+  for (const k of [
+    'moderation.auto_hide_score',
+    'moderation.verified_attorney_score',
+    'moderation.auto.strike_score',
+    'moderation.auto.detect_score',
+    'moderation.auto.limit_at',
+    'moderation.auto.suspend_temp_at',
+    'moderation.auto.suspend_at',
+    'moderation.auto.verified_attorney_multiplier',
+    'moderation.weight.verified_reporter',
+  ]) {
+    if (out[k]) out[k] = { ...out[k], type: 'number', max: 1000 };
+  }
+  for (const k of [
+    'moderation.weight.new_account',
+    'moderation.weight.unverified_contact',
+    'moderation.weight.burst',
+    'moderation.detect.hold_at',
+    'moderation.detect.block_at',
+    'moderation.detect.log_at',
+  ]) {
+    if (out[k]) out[k] = { ...out[k], type: 'number', max: 1 };
+  }
+  const patterns: Record<string, RegExp> = {
+    'moderation.auto_hide_mode': /^(weighted|count)$/,
+    'moderation.verified_attorney_action': /^(review|hide)$/,
+    'moderation.auto.verified_attorney_action': /^(review|higher_bar)$/,
+    'moderation.auto.account_mode': /^(off|shadow|enforce)$/,
+    'moderation.detect.mode': /^(off|shadow|enforce)$/,
+    'moderation.detect.provider': /^openai$/,
+    'moderation.detect.categories':
+      /^(harassment|harassment\/threatening|hate|hate\/threatening|illicit|illicit\/violent|sexual|sexual\/minors|self-harm|violence|violence\/graphic)$/,
+  };
+  for (const [k, pattern] of Object.entries(patterns)) {
+    if (out[k]) out[k] = { ...out[k], pattern };
+  }
+  if (out['moderation.report_abuse.unfounded_percent']) {
+    out['moderation.report_abuse.unfounded_percent'].max = 100;
+  }
 }
 
 function inferred(def: unknown): ConfigKeySchema {

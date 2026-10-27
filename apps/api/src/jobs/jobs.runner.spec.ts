@@ -268,6 +268,7 @@ describe('JobsRunner', () => {
     // Shard-ready step 7: + outbox.sweep (every minute).
     // Owner 2026-10-24: + search.index (every minute).
     // Owner 2026-10-25: + cdn.invalidate (every other minute).
+    // Owner 2026-10-27: + moderation.appeal-sla (hourly).
     // Day-one foundations: + ledger.reconcile (nightly).
     // DB-ops hardening: + db.health (daily).
     // S1-3: + chat.redeliver (every minute).

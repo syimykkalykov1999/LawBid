@@ -36,6 +36,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
 import { AttorneyTrustService } from '../attorney-trust/attorney-trust.service';
 import { ModerationService } from '../moderation/moderation.service';
+import { ReporterReputationService } from '../moderation/reporter-reputation.service';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -101,6 +102,9 @@ export class ReportsService {
     // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): an attorney's complaint
     // re-scores the client.
     @Optional() private readonly fraud?: ClientFraudService,
+    // Owner 2026-10-27: a reporter whose reports were found unfounded can
+    // be paused (DSA Art. 23 style).
+    @Optional() private readonly reporters?: ReporterReputationService,
   ) {}
 
   async create(userId: string, dto: CreateReportDto): Promise<void> {
@@ -111,6 +115,7 @@ export class ReportsService {
         details: { field: 'targetType' },
       });
     }
+    await this.reporters?.assertCanReport(userId);
     await this.limits.consume('report', userId);
     const claim = `report:${userId}:${dto.targetType}:${dto.targetId}`;
     if ((await this.redis.set(claim, '1', 'EX', 30 * 24 * 3600, 'NX')) !== 'OK')

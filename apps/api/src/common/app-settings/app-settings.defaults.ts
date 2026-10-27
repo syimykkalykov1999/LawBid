@@ -117,6 +117,87 @@ export const FILE_06_SETTINGS = {
   'moderation.blocked_terms': [] as string[],
   'moderation.hold_terms': [] as string[],
   'moderation.auto_hide_reports': 3,
+  // Owner 2026-10-27: weighted auto-hide. 'count' = the old rule (N distinct
+  // reporters, `auto_hide_reports`); 'weighted' = the sum of reporter
+  // weights must pass `auto_hide_score`.
+  'moderation.auto_hide_mode': 'weighted',
+  'moderation.auto_hide_score': 3,
+  // What happens to a verified attorney's content: 'review' = never hidden
+  // by reports, goes to the priority queue; 'hide' = hidden once the score
+  // passes `verified_attorney_score`.
+  'moderation.verified_attorney_action': 'review',
+  'moderation.verified_attorney_score': 6,
+  // Reporter weight (1 = a normal established account).
+  'moderation.weight.new_account_days': 7,
+  'moderation.weight.new_account': 0.2,
+  'moderation.weight.unverified_contact': 0.5,
+  'moderation.weight.verified_reporter': 1.5,
+  'moderation.weight.accuracy_min_reports': 3,
+  'moderation.weight.cluster_by_source': true,
+  'moderation.weight.source_lookback_days': 30,
+  'moderation.weight.burst_window_hours': 24,
+  'moderation.weight.burst_min_accounts': 3,
+  'moderation.weight.burst': 0.2,
+  // Unfounded reporters (DSA Art. 23 style): warning, then a pause.
+  'moderation.report_abuse.enabled': true,
+  'moderation.report_abuse.window_days': 30,
+  'moderation.report_abuse.min_reports': 5,
+  'moderation.report_abuse.unfounded_percent': 80,
+  'moderation.report_abuse.repeat_after_warning': 3,
+  'moderation.report_abuse.suspend_days': 7,
+  // Strike ladder for content owners.
+  'moderation.strikes.enabled': true,
+  'moderation.strikes.expiry_days': 90,
+  'moderation.strikes.points_remove': 1,
+  'moderation.strikes.points_hide': 0,
+  'moderation.strikes.cooldown_at': 3,
+  'moderation.strikes.limited_at': 5,
+  'moderation.strikes.suspend_at': 8,
+  'moderation.strikes.cooldown_hours': 24,
+  'moderation.strikes.cooldown_minutes': 10,
+  'moderation.strikes.limited_days': 3,
+  'moderation.strikes.suspend_days': 7,
+  // Owner 2026-10-27: accounts moderated automatically (no human unless the
+  // owner appeals). mode: 'off' | 'shadow' (log only) | 'enforce'.
+  'moderation.auto.account_mode': 'shadow',
+  'moderation.auto.window_days': 30,
+  /** Account score = weighted reporters across the person's content
+   * + live strike points * strike_score + strong detections * detect_score. */
+  'moderation.auto.strike_score': 1,
+  'moderation.auto.detect_score': 1,
+  'moderation.auto.limit_at': 6,
+  'moderation.auto.suspend_temp_at': 10,
+  'moderation.auto.suspend_at': 15,
+  'moderation.auto.limit_days': 3,
+  'moderation.auto.suspend_temp_days': 7,
+  /** Within this factor above a threshold the decision counts as borderline. */
+  'moderation.auto.borderline_factor': 1.25,
+  /** Verified attorneys: thresholds are multiplied; 'review' = never
+   * actioned automatically, queued for priority human review instead. */
+  'moderation.auto.verified_attorney_action': 'review',
+  'moderation.auto.verified_attorney_multiplier': 2,
+  'moderation.auto.appeal_sla_hours': 48,
+  /** Appeals older than the SLA are approved by themselves, but only when
+   * the automatic decision was borderline. */
+  'moderation.auto.sla_auto_approve': false,
+  'moderation.auto.alarm_overturn_percent': 30,
+  'moderation.auto.alarm_min_appeals': 10,
+  // Text detection before any report. mode: 'off' | 'shadow' | 'enforce'.
+  'moderation.detect.mode': 'off',
+  'moderation.detect.provider': 'openai',
+  'moderation.detect.hold_at': 0.7,
+  'moderation.detect.block_at': 0.97,
+  'moderation.detect.log_at': 0.4,
+  'moderation.detect.daily_cap': 20000,
+  'moderation.detect.categories': [
+    'harassment',
+    'harassment/threatening',
+    'hate',
+    'hate/threatening',
+    'illicit',
+    'sexual',
+    'sexual/minors',
+  ] as string[],
   // §3.3 "массовые ссылки" / "повторяющийся текст от одного автора" → hold.
   'moderation.max_links': 3,
   'moderation.duplicate_window_hours': 24,
