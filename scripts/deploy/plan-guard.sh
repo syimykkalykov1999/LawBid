@@ -3,10 +3,20 @@
 # resources: database, secrets (the admin key store lives under
 # SECRETS_MASTER_KEYS), KMS keys, Redis, S3 buckets, backup vaults. Usage, in infra/envs/prod:
 #   terraform plan -out=plan.bin && ../../../scripts/deploy/plan-guard.sh plan.bin
+# A `*.json` argument is taken as the output of `terraform show -json` (tests).
 # Needs terraform and jq. Exit 0 = nothing protected is deleted/replaced.
+#
+# Deliberately NOT protected: CloudWatch alarms, metric filters, dashboards,
+# log groups of Lambdas, ECS task definitions. They hold no data; deleting or
+# recreating one is harmless and a normal part of catching the server up to
+# the code (tf-catchup.sh prints them in its own summary).
 set -eu
 PLAN="${1:?plan file from terraform plan -out}"
-BAD=$(terraform show -json "$PLAN" | jq -r '
+case "$PLAN" in
+  *.json) JSON=$(cat "$PLAN") ;;
+  *) JSON=$(terraform show -json "$PLAN") ;;
+esac
+BAD=$(printf '%s' "$JSON" | jq -r '
   .resource_changes[]?
   | select(.change.actions | index("delete"))
   | select(.type | test("^(aws_db_instance|aws_secretsmanager_secret|aws_secretsmanager_secret_version|aws_kms_key|aws_elasticache_replication_group|aws_elasticache_cluster|aws_s3_bucket|aws_dynamodb_table|aws_backup_vault)$"))
