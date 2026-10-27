@@ -178,7 +178,7 @@ jobs:
 
       # Only changed files go up; the manifest goes LAST, so a failed run is
       # simply planned again. Pages are cached for an hour (max-age=3600);
-      # the CDN is reset only for changed paths, at most 30 a day, never /*.
+      # the CDN is reset only for changed paths, at most 30 a day, exact paths only.
       - name: Publish the changed files
         if: ${{ !inputs.dry_run && env.SEO_INCREMENTAL == '1' }}
         run: |
@@ -204,9 +204,10 @@ jobs:
             aws s3api delete-objects --bucket "${{ secrets.WEB_BUCKET }}" --delete "file://$f" > /dev/null
           done
           if [ -s seo-plan/invalidate.txt ]; then
-            # shellcheck disable=SC2046
-            aws cloudfront create-invalidation --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}" \
-              --paths $(tr '\n' ' ' < seo-plan/invalidate.txt)
+            # Exact paths only (publish-plan makes no wildcards); a busy CloudFront
+            # waits, then skips with a warning: the pages are live, cache <= 1 h.
+            node scripts/seo/invalidate.mjs --distribution "${{ secrets.WEB_DISTRIBUTION_ID }}" \
+              --paths-file seo-plan/invalidate.txt --max-wildcards 0
           fi
           aws s3 cp dist-seo/seo-manifest.json "$B/seo-manifest.json" \
             --content-type application/json --cache-control "no-cache"
@@ -249,7 +250,8 @@ jobs:
 
       # Never /* (that would also reset the app). Wildcards by folder: the
       # public pages' folders, the site's pages and the discovery files; at
-      # most 30 paths. `_next` is content-hashed and never needs a reset.
+      # most 30 paths, of them at most 10 wildcards (the order below is the
+      # priority). `_next` is content-hashed and never needs a reset.
       - name: Reset the CDN cache for the pages
         if: ${{ !inputs.dry_run && env.SEO_INCREMENTAL != '1' }}
         working-directory: dist-seo
@@ -267,6 +269,10 @@ jobs:
           done
           set -f
           # shellcheck disable=SC2086
-          set -- $paths
+          printf '%s\n' $paths > ../seo-invalidate-all.txt
           set +f
-          aws cloudfront create-invalidation --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}" --paths "${@:1:30}"
+          # At most 10 wildcard paths (CloudFront allows 15 running at once);
+          # a busy CloudFront waits, then skips with a warning (not a failure):
+          # the pages are already live and the cache expires within an hour.
+          node ../scripts/seo/invalidate.mjs --distribution "${{ secrets.WEB_DISTRIBUTION_ID }}" \
+            --paths-file ../seo-invalidate-all.txt --max-wildcards 10 --max-paths 30

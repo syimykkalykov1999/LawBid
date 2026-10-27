@@ -83,6 +83,7 @@ import { SearchModule } from './modules/search/search.module';
 import { ContactsSyncModule } from './modules/contacts-sync/contacts-sync.module';
 import { DeadlinesModule } from './modules/deadlines/deadlines.module';
 import { LegalQaModule } from './modules/legal-qa/legal-qa.module';
+import { StaffModule } from './modules/staff-core/staff.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
 import { ConsultationsModule } from './modules/consultations/consultations.module';
 import { ChatModule } from './modules/chat/chat.module';
@@ -466,6 +467,8 @@ const isDev =
     CalendarModule,
     LegalQaModule,
     DeadlinesModule,
+    // Staff package 2026-10-27 («Админка и сотрудники»): all switches off.
+    StaffModule,
   ],
   providers: [
     LoadSheddingService,

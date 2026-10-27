@@ -5,7 +5,8 @@
 
 // Wording a lawyer-advertising rule (NY RPC 7.1) does not allow without proof.
 const BANNED = /(^|[^\w])(best|number\s*(one|1)|guarantee[sd]?|top[- ]rated|top[- ]ranked)(?![\w])|#\s?1(?!\d)/i;
-export const hasBannedClaim = (text) => BANNED.test(String(text ?? ''));
+// "the best interests of the child" is the legal standard of family law, not a boast.
+export const hasBannedClaim = (text) => BANNED.test(String(text ?? '').replace(/best\s+interests?/gi, ' '));
 
 const decode = (s) => s.replace(/&(amp|lt|gt|quot|#39);/g, (_, e) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" })[e]);
 
@@ -17,17 +18,39 @@ export function mainText(html) {
 
 export const wordCount = (text) => (String(text).match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) ?? []).length;
 
-export const defaultGate = { enabled: false, minWords: 300, minAttorneys: 3, minBioChars: 150 };
+// minPostChars / minQaChars / minCityAttorneys belong to the page types added
+// 2026-10-27 (attorney posts, legal Q&A, city hubs): plan §2.1 (a post needs a
+// text of at least 300 characters, a city hub at least 3 attorneys). Those
+// three types are gated whether or not `enabled` is on: they are new, so there
+// is no live behaviour to keep, and the page-type switches are their off button.
+export const defaultGate = { enabled: false, minWords: 300, minAttorneys: 3, minBioChars: 150, minPostChars: 300, minQaChars: 300, minCityAttorneys: 3 };
+
+// Contact data and identifiers that never belong on a generated page: an e-mail
+// address, a US phone number written with separators, a social security number.
+const CONTACT = /[\w.+-]+@[\w-]+\.[\w.-]+|(?<!\d)\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}(?!\d)|(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)/;
+export const hasContactInfo = (text) => CONTACT.test(String(text ?? ''));
 
 /**
  * Should this page be indexed?
  * kind: 'profile' | 'combo' (state x practice) | 'page' (state, practice: needs
- * enough text) | 'hub' (the directory home: navigation, never thin)
+ * enough text) | 'hub' (the directory home: navigation, never thin) |
+ * 'post' (an attorney's text post: `chars` of body) | 'qa' (a legal question:
+ * `chars` of the reviewed answer) | 'city' (practice x city hub)
  * baseIndex: the generator's own rule (e.g. empty low-demand combos).
  * Returns { index, reason }.
  */
-export function gateDecision({ kind, baseIndex, words = 0, attorneyCount = 0, bio = '', claimsText = '', gate }) {
+export function gateDecision({ kind, baseIndex, words = 0, attorneyCount = 0, chars = 0, bio = '', claimsText = '', gate }) {
   if (!baseIndex) return { index: false, reason: 'low-demand-empty' };
+  if (kind === 'post' || kind === 'qa') {
+    const min = (kind === 'post' ? gate?.minPostChars : gate?.minQaChars) ?? (kind === 'post' ? defaultGate.minPostChars : defaultGate.minQaChars);
+    if (chars < min) return { index: false, reason: kind === 'post' ? 'thin-post' : 'thin-answer' };
+    if (hasBannedClaim(claimsText)) return { index: false, reason: 'unverified-claim' };
+    return { index: true, reason: null };
+  }
+  if (kind === 'city') {
+    if (attorneyCount < (gate?.minCityAttorneys ?? defaultGate.minCityAttorneys)) return { index: false, reason: 'few-attorneys' };
+    return { index: true, reason: null };
+  }
   if (!gate?.enabled) return { index: true, reason: null };
   if (kind === 'profile') {
     if (String(bio ?? '').trim().length < gate.minBioChars) return { index: false, reason: 'thin-profile' };

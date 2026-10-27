@@ -243,7 +243,7 @@
  "fanOut": {
   "admin": 4,
   "admin-access": 1,
-  "admin-auth": 2,
+  "admin-auth": 3,
   "admin-billing": 9,
   "admin-cases": 9,
   "admin-config": 5,
@@ -330,6 +330,15 @@
   "rewards": 6,
   "search": 8,
   "session": 5,
+  "staff-ai": 1,
+  "staff-appeals": 2,
+  "staff-core": 10,
+  "staff-desk": 1,
+  "staff-home": 1,
+  "staff-nav": 1,
+  "staff-piecework": 1,
+  "staff-rating": 2,
+  "staff-security": 1,
   "stars": 8,
   "stickers": 5,
   "storage": 3,
@@ -344,6 +353,7 @@
   "users": 7,
   "verification": 12,
   "videos": 3,
+  "work-lease": 2,
   "workspace": 4
  }
 }

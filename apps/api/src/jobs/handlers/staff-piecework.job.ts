@@ -1,0 +1,24 @@
+import { Injectable } from '@nestjs/common';
+import { StaffSettingsService } from '../../modules/staff-core/staff-settings.service';
+import {
+  STAFF_JOB_OFF,
+  STAFF_JOB_STUB,
+  type StaffJobResult,
+} from './staff-job-gate';
+
+/**
+ * Staff package (plan B5): cron job `staff.piecework` (15 2 * * * UTC, lane cron-heavy).
+ * Yesterday's units x rates x quality -> payroll_accruals (event_ref piece:{admin}:{day}:{kind}, idempotent).
+ * Owner of this file: T7 (staff-piecework) (T1 only registered the stub). While
+ * staff.piecework_enabled is off (the default) it returns at once without touching the database.
+ */
+@Injectable()
+export class StaffPieceworkJob {
+  constructor(private readonly staff: StaffSettingsService) {}
+
+  async run(): Promise<StaffJobResult> {
+    if (!(await this.staff.isOn('staff.piecework_enabled')))
+      return STAFF_JOB_OFF;
+    return STAFF_JOB_STUB;
+  }
+}

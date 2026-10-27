@@ -97,6 +97,23 @@ export const SWEEPS: Readonly<Record<string, readonly string[]>> = {
   CalendarFeedToken: ['user_id'],
   CalendarConnection: ['user_id'],
   ConsultationAttendanceStat: ['user_id'],
+  // Staff package T1 (2026-10-27): a staff member's own working data
+  // (leases, queue state, quality signals, daily numbers, ratings,
+  // suggestions, own case appeals, anomalies, pinned pages). Only the rows
+  // ABOUT the person go (decided_by on samples = the checked decision's
+  // author); actions, appeals against a head and piecework are kept below.
+  WorkLease: ['admin_id'],
+  WorkLeaseEvent: ['admin_id'],
+  StaffMemberState: ['admin_id'],
+  StaffQualitySignal: ['admin_id'],
+  StaffReviewSample: ['decided_by'],
+  StaffDailyStat: ['admin_id'],
+  StaffRatingSnapshot: ['admin_id'],
+  StaffHeadSnapshot: ['head_admin_id'],
+  StaffSuggestion: ['admin_id'],
+  StaffCaseAppeal: ['admin_id'],
+  StaffAnomaly: ['admin_id'],
+  AdminNavPin: ['admin_id'],
 };
 
 const list = (...models: string[]): string[] => models;
@@ -253,6 +270,8 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'LedgerAccount',
       // #356: Stripe review queue (payouts, refunds, disputes) — finance.
       'StripeReviewItem',
+      // Staff package T1: piecework days feed payroll_accruals (pay records).
+      'StaffPieceworkDay',
     ),
     retain_audit: list(
       'AuditLog',
@@ -306,6 +325,8 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       // Proof of 18+ attestation and SMS consent (#388), kept like UserConsent.
       'AgeAttestation',
       'SmsConsent',
+      // Staff package T1: who set a piecework rate (owner config attribution).
+      'StaffRate',
     ),
     retain_legal: list(
       'LegalHold',
@@ -316,6 +337,13 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'CsamReport',
       // #352: attorney advertising must be archived (NY Rule 7.1(k)).
       'AttorneyAdArchive',
+      // Staff package T1: every action about a staff member, complaints
+      // against a head and retaliation marks are the employer's legal record
+      // (documented reason for each removal; whistleblower protection, NY
+      // Labor Law 740), never deleted with the account.
+      'StaffAction',
+      'AdminAppeal',
+      'StaffRetaliationFlag',
     ),
   };
 

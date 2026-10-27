@@ -37,6 +37,14 @@ class _Flags extends FeatureFlagsController {
 }
 
 class _L10n extends L10nCacheController {
+  // The real build() listens to the language and, on a change, seeds and
+  // reads the drift cache in the background; that unawaited chain can still
+  // be writing when the teardown closes the database. This fake never
+  // touches the cache, so nothing is left running (same fix as
+  // app_startup_test.dart).
+  @override
+  L10nCacheState build() => const L10nCacheState();
+
   @override
   Future<void> refreshInBackground() async {}
 }

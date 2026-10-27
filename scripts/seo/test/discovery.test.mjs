@@ -20,6 +20,9 @@ test('sitemap types follow the first folder', () => {
   assert.equal(sitemapType('/attorneys/a/'), 'attorneys');
   assert.equal(sitemapType('/practice-areas/divorce/'), 'practice-areas');
   assert.equal(sitemapType('/lawyers/texas/divorce/'), 'lawyers');
+  assert.equal(sitemapType('/attorneys/a/posts/title-12345678/'), 'posts');
+  assert.equal(sitemapType('/legal-questions/'), 'legal-questions');
+  assert.equal(sitemapType('/legal-questions/how-long-12345678/'), 'legal-questions');
   assert.equal(sitemapType('/about/'), 'site');
 });
 
