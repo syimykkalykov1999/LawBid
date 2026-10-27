@@ -33,8 +33,10 @@ import {
 import { StaffPresenceService } from './staff-presence.service';
 import { StaffEventsPublisher } from './staff-events.publisher';
 import { STAFF_SERVER_EVENTS } from '../../common/staff-events';
+import { PrismaService } from '../../prisma/prisma.service';
 import {
   DeskStatusDto,
+  DoneLeaseDto,
   LeaseDto,
   LeaseItemParamDto,
   LeaseKindBodyDto,
@@ -61,12 +63,39 @@ const present = (l: LeaseView): LeaseDto => ({
   attempt: l.attempt,
 });
 
-function presentNext(r: NextOutcome): NextLeaseResultDto {
+/** A report lease is keyed by the reported object: say what kind it is. */
+async function withTargets(
+  prisma: PrismaService,
+  views: LeaseView[],
+): Promise<LeaseDto[]> {
+  const ids = views.filter((l) => l.kind === 'report').map((l) => l.itemId);
+  const types = new Map<string, string>();
+  if (ids.length > 0) {
+    const rows = await prisma.report.findMany({
+      where: { target_id: { in: ids } },
+      distinct: ['target_id'],
+      select: { target_id: true, target_type: true },
+    });
+    for (const r of rows) types.set(r.target_id, r.target_type);
+  }
+  return views.map((l) => ({
+    ...present(l),
+    ...(l.kind === 'report' ? { targetType: types.get(l.itemId) ?? null } : {}),
+  }));
+}
+
+async function presentNext(
+  prisma: PrismaService,
+  r: NextOutcome,
+): Promise<NextLeaseResultDto> {
   switch (r.status) {
     case 'leased':
-      return { status: 'leased', lease: present(r.lease) };
+      return {
+        status: 'leased',
+        lease: (await withTargets(prisma, [r.lease]))[0],
+      };
     case 'busy':
-      return { status: 'busy', held: r.held.map(present) };
+      return { status: 'busy', held: await withTargets(prisma, r.held) };
     case 'wrap_up':
       return { status: 'wrap_up', retryAfterSec: r.retryAfterSec };
     default:
@@ -93,6 +122,7 @@ export class WorkLeaseController {
     private readonly presence: StaffPresenceService,
     private readonly staff: StaffSettingsService,
     private readonly auth: AdminAuthService,
+    private readonly prisma: PrismaService,
   ) {}
 
   /** 403 unless the queue is served by leases AND this admin may work it. */
@@ -181,7 +211,7 @@ export class WorkLeaseController {
     ]);
     return {
       status,
-      leases: leases.map(present),
+      leases: await withTargets(this.prisma, leases),
       capacity: {
         chat: cfg.numbers['staff.lease.chat_capacity'],
         other: cfg.numbers['staff.lease.capacity'],
@@ -206,6 +236,7 @@ export class WorkLeaseController {
   ): Promise<NextLeaseResultDto> {
     await this.guardQueue(admin, dto.kind);
     return presentNext(
+      this.prisma,
       await this.leases.next(dto.kind, {
         adminId: admin.id,
         countries: admin.countries ?? null,
@@ -277,9 +308,10 @@ export class WorkLeaseController {
   async doneDeskLease(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: LeaseItemParamDto,
+    @Body() dto: DoneLeaseDto,
   ): Promise<LeaseOkDto> {
     await this.guardQueue(admin, p.kind);
-    await this.leases.done(p.kind, p.id, admin.id);
+    await this.leases.done(p.kind, p.id, admin.id, dto.outcome);
     return { ok: true };
   }
 

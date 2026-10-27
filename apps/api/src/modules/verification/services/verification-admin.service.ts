@@ -1,7 +1,7 @@
 import { notifySeoPagesChanged } from '../../../common/seo/seo-generator.trigger';
 import { FORMAT_UNUSUAL_FLAG } from '../bar-number-format';
 import { type CountryScope, userInScope } from '../../countries/country-scope';
-import { HttpStatus, Injectable, Optional } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Optional } from '@nestjs/common';
 import type {
   AttorneyLicense,
   Prisma,
@@ -26,6 +26,12 @@ import { CaseJournalService } from '../../journal/case-journal.service';
 import type { AdminActor } from '../../admin-auth/admin-auth.decorators';
 import { RateLimitService } from '../../auth/services/rate-limit.service';
 import { FilesService } from '../../files/files.service';
+import { LEASE_PORT, type LeasePort } from '../../staff-core/lease.port';
+import { closeStaffDecision } from '../../staff-core/staff-decision';
+import {
+  STAFF_RECORDER,
+  type StaffRecorder,
+} from '../../staff-core/staff-recorder.port';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { notFound } from '../../profiles/services/profile-access';
 import {
@@ -112,7 +118,19 @@ export class VerificationAdminService {
     private readonly trust: AttorneyTrustService,
     private readonly blocks: BarNumberBlocksService,
     @Optional() private readonly settings?: AppSettingsService,
+    // Staff package T4: a decision ends the verifier's work lease and is recorded.
+    @Optional() @Inject(LEASE_PORT) private readonly lease?: LeasePort,
+    @Optional()
+    @Inject(STAFF_RECORDER)
+    private readonly recorder?: StaffRecorder,
   ) {}
+
+  private closed(admin: AdminActor, requestId: string, outcome: string) {
+    return closeStaffDecision(
+      { lease: this.lease, recorder: this.recorder },
+      { adminId: admin.id, kind: 'verification', itemId: requestId, outcome },
+    );
+  }
 
   /** Grace period and reminder window for the renewal state of a license. */
   private async renewalOpts(now = new Date()): Promise<RenewalOpts> {
@@ -536,6 +554,7 @@ export class VerificationAdminService {
         { tx, notify: false },
       );
     });
+    await this.closed(admin, requestId, 'approve');
     return this.card(requestId);
   }
 
@@ -575,6 +594,7 @@ export class VerificationAdminService {
         message,
       });
     });
+    await this.closed(admin, requestId, 'request_info');
     return this.card(requestId);
   }
 
@@ -655,6 +675,7 @@ export class VerificationAdminService {
         );
       }
     });
+    await this.closed(admin, requestId, 'reject');
     return this.card(requestId);
   }
 

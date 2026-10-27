@@ -18,7 +18,7 @@ export function heldOnDesk(my: MyLeases | undefined, role: DeskRole): LeaseView[
 
 /**
  * «Мои»: what is in my hands now, with the time left and the buttons to let
- * it go (closing happens with the decision itself; «Пропустить» with a reason is T4). Data: `admin/desk/lease/me` (T3). While the engine is
+ * it go (closing happens with the decision itself; «Пропустить» with a reason is on the card in lease-strip). Data: `admin/desk/lease/me` (T3). While the engine is
  * off or not on this server the tab says so and shows nothing else.
  */
 export function MyItems({

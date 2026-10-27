@@ -1,4 +1,10 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import type { SupportMessage, SupportTicket } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import type { AppSettingKey } from '../../common/app-settings/app-settings.defaults';
@@ -6,6 +12,8 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { RateLimitService } from '../auth/services/rate-limit.service';
+import { LEASE_PORT, type LeasePort } from '../staff-core/lease.port';
+import { reopenStaffItem } from '../staff-core/staff-decision';
 import { SupportDeskService } from './support-desk.service';
 import { SupportFilesService } from './support-files.service';
 import type {
@@ -86,6 +94,8 @@ export class SupportService {
     private readonly settings: AppSettingsService,
     private readonly desk: SupportDeskService,
     private readonly attachments: SupportFilesService,
+    // Staff package T4: «не решено» goes back through the work leases.
+    @Optional() @Inject(LEASE_PORT) private readonly lease?: LeasePort,
   ) {}
 
   /** Owner 2026-10-05: hours and the usual answer time, for the app. */
@@ -208,31 +218,52 @@ export class SupportService {
       'rate_limit.support_message_per_hour',
     );
     await this.attachments.assertAttachable(userId, attachments);
-    const message = await withTxRetry(this.prisma, async (tx) => {
-      const t = await tx.supportTicket.findFirst({
-        where: { id, user_id: userId },
-      });
-      if (!t) throw ticketNotFound();
-      const now = new Date();
-      const next = afterUserMessage(t.status, t.resolved_at, now);
-      const m = await tx.supportMessage.create({
-        data: { ticket_id: id, author_user_id: userId, body },
-      });
-      await this.attachments.attach(tx, m.id, attachments);
-      await this.desk.onUserMessage(tx, t, now);
-      await tx.supportTicket.update({
-        where: { id },
-        data: {
-          status: next.status,
-          resolved_at: next.resolvedAt,
-          unread_by_admin: true,
-          last_message_at: now,
-        },
-      });
-      return m;
-    });
+    const { message, wasResolved } = await withTxRetry(
+      this.prisma,
+      async (tx) => {
+        const t = await tx.supportTicket.findFirst({
+          where: { id, user_id: userId },
+        });
+        if (!t) throw ticketNotFound();
+        const now = new Date();
+        const next = afterUserMessage(t.status, t.resolved_at, now);
+        const m = await tx.supportMessage.create({
+          data: { ticket_id: id, author_user_id: userId, body },
+        });
+        await this.attachments.attach(tx, m.id, attachments);
+        await this.desk.onUserMessage(tx, t, now);
+        await tx.supportTicket.update({
+          where: { id },
+          data: {
+            status: next.status,
+            resolved_at: next.resolvedAt,
+            unread_by_admin: true,
+            last_message_at: now,
+          },
+        });
+        return { message: m, wasResolved: t.status === 'resolved' };
+      },
+    );
+    if (wasResolved) await this.reopenForStaff(id);
     const files = await this.attachments.forMessages([message.id]);
     return presentUserMessage(message, new Map(), files.get(message.id));
+  }
+
+  /**
+   * The client wrote again after a worker had resolved the ticket: «не
+   * решено». While the work leases serve support, the ticket goes back to
+   * the queue first in line, never to the person who resolved it (their
+   * assignment is dropped so another agent may take it).
+   */
+  private async reopenForStaff(id: string): Promise<void> {
+    if (!this.lease || !(await this.lease.servesQueue('support_ticket'))) {
+      return;
+    }
+    await reopenStaffItem(this.lease, 'support_ticket', id);
+    await this.prisma.supportTicket.updateMany({
+      where: { id, status: 'open', assignee_id: { not: null } },
+      data: { assignee_id: null, assigned_at: null },
+    });
   }
 
   async close(userId: string, id: string): Promise<SupportTicketDto> {

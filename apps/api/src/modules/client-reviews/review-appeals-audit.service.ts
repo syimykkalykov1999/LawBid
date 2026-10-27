@@ -1,8 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import type { AdminReviewAppealsDecisionDto } from './client-reviews.dto';
+import { LEASE_PORT, type LeasePort } from '../staff-core/lease.port';
+import { closeStaffDecision } from '../staff-core/staff-decision';
+import {
+  STAFF_RECORDER,
+  type StaffRecorder,
+} from '../staff-core/staff-recorder.port';
 import { ClientReviewsService } from './client-reviews.service';
 
 export const REVIEW_APPEAL_AUDIT = 'admin.review_appeal.decide';
@@ -20,6 +26,11 @@ export class ReviewAppealsAuditService {
     private readonly prisma: PrismaService,
     private readonly reviews: ClientReviewsService,
     private readonly audit: AuditLogService,
+    // Staff package T4: a decision ends the moderator's work lease.
+    @Optional() @Inject(LEASE_PORT) private readonly lease?: LeasePort,
+    @Optional()
+    @Inject(STAFF_RECORDER)
+    private readonly recorder?: StaffRecorder,
   ) {}
 
   async decide(
@@ -58,6 +69,15 @@ export class ReviewAppealsAuditService {
         },
         ip: admin.ip,
       });
+      await closeStaffDecision(
+        { lease: this.lease, recorder: this.recorder },
+        {
+          adminId: admin.id,
+          kind: 'review_appeal',
+          itemId: a.id,
+          outcome: dto.decision,
+        },
+      );
     }
     return result;
   }

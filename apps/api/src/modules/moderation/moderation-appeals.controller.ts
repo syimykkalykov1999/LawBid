@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Optional,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -28,6 +37,12 @@ import {
   ModerationNoticeDto,
   MyReportDto,
 } from './moderation-appeals.dto';
+import { LEASE_PORT, type LeasePort } from '../staff-core/lease.port';
+import { closeStaffDecision } from '../staff-core/staff-decision';
+import {
+  STAFF_RECORDER,
+  type StaffRecorder,
+} from '../staff-core/staff-recorder.port';
 import { ModerationAppealsService } from './moderation-appeals.service';
 
 const E = ErrorCode;
@@ -88,7 +103,14 @@ export class MyReportsController {
 @AdminEndpoint('super_admin', 'moderator')
 @Controller('admin/moderation')
 export class AdminAppealsController {
-  constructor(private readonly appeals: ModerationAppealsService) {}
+  constructor(
+    private readonly appeals: ModerationAppealsService,
+    // Staff package T4: a decision ends the moderator's work lease.
+    @Optional() @Inject(LEASE_PORT) private readonly lease?: LeasePort,
+    @Optional()
+    @Inject(STAFF_RECORDER)
+    private readonly recorder?: StaffRecorder,
+  ) {}
 
   @Get('appeals')
   @ApiOperation({ summary: 'Appeals against moderation decisions' })
@@ -122,6 +144,15 @@ export class AdminAppealsController {
       params.id,
       dto.accept,
       dto.note,
+    );
+    await closeStaffDecision(
+      { lease: this.lease, recorder: this.recorder },
+      {
+        adminId: admin.id,
+        kind: 'mod_appeal',
+        itemId: params.id,
+        outcome: dto.accept ? 'accept' : 'keep',
+      },
     );
     return { status };
   }

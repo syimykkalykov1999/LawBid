@@ -8,6 +8,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import type { Me } from '@/lib/hooks';
 import { ROLE_LABEL, WORKSPACE_HEAD_LABEL, WORKSPACE_LABEL, groupFor, navModeFor, sectionFor } from '@/lib/rbac';
+import { PresenceBadge } from '@/components/desk/presence-badge';
 import { CountrySwitcher } from './country-switcher';
 import { ThemeChoice, ThemeToggle } from './theme-toggle';
 
@@ -83,6 +84,7 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
       >
         <MagnifyingGlass size={18} />
       </button>
+      {desk ? <PresenceBadge /> : null}
       <CountrySwitcher me={me} />
       <ThemeToggle />
       <div ref={ref} className="relative">
