@@ -7,7 +7,6 @@ import { StaffAnomaliesJob } from './staff-anomalies.job';
 import { StaffCountersFlushJob } from './staff-counters-flush.job';
 import { StaffDailyStatsJob } from './staff-daily-stats.job';
 import { StaffLeaseSweepJob } from './staff-lease-sweep.job';
-import { StaffPieceworkJob } from './staff-piecework.job';
 import { StaffRatingNightlyJob } from './staff-rating-nightly.job';
 import {
   STAFF_RETENTION_BATCH,
@@ -57,11 +56,6 @@ const stubs: Array<
     'staff.rating-nightly',
     (s) => new StaffRatingNightlyJob(s),
     ['staff.rating_enabled'],
-  ],
-  [
-    'staff.piecework',
-    (s) => new StaffPieceworkJob(s),
-    ['staff.piecework_enabled'],
   ],
   [
     'staff.anomalies',
