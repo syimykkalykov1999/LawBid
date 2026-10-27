@@ -271,9 +271,9 @@ describe('JobsRunner', () => {
     // DB-ops hardening: + db.health (daily).
     // S1-3: + chat.redeliver (every minute).
     // BUG-1 (package N-12b): + chat.search-backfill (every 5 minutes).
-    // Stripe robustness: + stripe-ops.sweep (nightly), stripe-ops.dispute-reminders (hourly), stripe-webhooks.requeue (every minute).
+    // N-2: + events.maintain (every 5 minutes).
     // Experiments: + experiments.metrics (nightly).
-    expect(upserts).toHaveLength(74);
+    expect(upserts).toHaveLength(75);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

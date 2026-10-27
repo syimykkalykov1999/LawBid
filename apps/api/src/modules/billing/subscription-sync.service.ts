@@ -3,6 +3,7 @@ import { ClientPlansService } from '../plans/client-plans.service';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { Prisma, Subscription, SubscriptionStatus } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { SloMetricsService } from '../../common/ops/slo-metrics.service';
 import { LedgerPostingService } from '../ledger/ledger.public';
 import { StripeReviewService } from '../stripe-ops/stripe-review.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -73,6 +74,8 @@ export class SubscriptionSyncService {
     @Optional() private readonly ledger?: LedgerPostingService,
     // Stripe robustness 2026-10-27: the admin review queue.
     @Optional() private readonly review?: StripeReviewService,
+    // S12-3: the payment journey SLI (paid / failed).
+    @Optional() private readonly slo?: SloMetricsService,
   ) {}
 
   async handleEvent(event: ProviderEvent): Promise<void> {
@@ -152,6 +155,7 @@ export class SubscriptionSyncService {
           await this.bidPacks?.applyCheckoutById(o.id);
         }
         await this.recordPaymentIntentTax(o.id, meta ?? {});
+        this.slo?.count('payOk');
         return;
       case 'setup_intent.succeeded':
         // The card is bound; POST /subscriptions/confirm reads it. Nothing
@@ -411,6 +415,7 @@ export class SubscriptionSyncService {
         );
       }
     });
+    this.slo?.count(paid ? 'payOk' : 'payFail');
     if (!paid) {
       // docs/06 §8 "всплеск неуспешных платежей": metric filter on this line.
       this.logger.warn(

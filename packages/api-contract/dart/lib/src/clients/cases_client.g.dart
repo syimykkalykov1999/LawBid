@@ -606,6 +606,7 @@ class _CasesClient implements CasesClient {
     int? limit = 20,
     Sort? sort,
     String? cursor,
+    DateTime? updatedSince,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -614,6 +615,7 @@ class _CasesClient implements CasesClient {
       r'limit': limit,
       r'sort': sort?.toJson(),
       r'cursor': cursor,
+      r'updatedSince': updatedSince?.toIso8601String(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

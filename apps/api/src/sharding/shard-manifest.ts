@@ -339,6 +339,8 @@ export const GLOBAL_MODELS: readonly string[] = [
   // Search-ready: the engine outbox and its reindex checkpoints.
   'SearchOutbox',
   'SearchIndexState',
+  // Events pipeline (N-2): the domain-event stream (primary only).
+  'DomainEvent',
   // Day-one foundations: the double-entry money ledger (global: platform
   // accounts and cross-party entries; docs/architecture/MONEY_LEDGER.md).
   'LedgerAccount',

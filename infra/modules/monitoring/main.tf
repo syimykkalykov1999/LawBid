@@ -47,6 +47,16 @@ variable "nat_traffic_alarm_gb_per_day" {
   default     = 20
   description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h; 0 = off. At $0.045/GB that is about $0.9/day (S4-13: was 100 GB = $4.5/day = $135/month before any alarm). See docs/runbooks/nat-endpoints.md."
 }
+variable "media_bucket_name" {
+  type        = string
+  default     = ""
+  description = "Media bucket whose daily growth is watched (it equals the volume replicated to the other Region, replicate_media). Empty = no alarm."
+}
+variable "media_replication_max_gb_per_day" {
+  type        = number
+  default     = 50
+  description = "Review R-54: alarm when the media bucket grows by more than this many GB in a day, i.e. when the replica Region copy (storage + $0.02/GB transfer) would too. 0 = no alarm. S3 itself has no byte cap on replication: on the alarm, set replicate_media = false (docs/runbooks/cost.md)."
+}
 variable "alb_arn_suffix" { type = string }
 
 # --- spend alarms on pay-per-use edge services (cost registry, V2 / V6) ------
@@ -250,7 +260,7 @@ resource "aws_sns_topic_subscription" "critical_email" {
 locals {
   ns  = "LawBid/${var.name}"
   ops = [aws_sns_topic.alerts.arn]
-  # Normal mail stream + the page. Only the SLO composites use it.
+  # Normal mail stream + the page. The SLO composites and the 7 P0 alarms (S12-1: db-down, journal-integrity, api-5xx-ratio, unhealthy-hosts, no-running-tasks, uptime canary, backup-stale) use it; everything else stays on ops (mail/Slack). PagerDuty Free = 100 pages a month, so keep this list short.
   page = [aws_sns_topic.alerts.arn, aws_sns_topic.critical.arn]
 }
 
@@ -438,7 +448,7 @@ resource "aws_cloudwatch_log_metric_filter" "search_latency" {
 resource "aws_cloudwatch_metric_alarm" "search_slow" {
   count               = var.search_p95_alarm_ms > 0 ? 1 : 0
   alarm_name          = "${var.name}-search-slow"
-  alarm_description   = "LawBid: Поиск отвечает медленно — пора включить отдельный поиск (Админка → Настройки → search.engine). Что делать: поставьте search.engine = shadow, потом engine; инструкция: docs/architecture/SEARCH_READY.md (EN: Postgres search p95 above ${var.search_p95_alarm_ms} ms for 15 minutes.)"
+  alarm_description   = "LawBid: Поиск отвечает медленно — пора включить отдельный поиск (Админка → Настройки → search.engine). Что делать: поставьте search.engine = shadow, потом engine; инструкция: ${var.runbook_base_url}/infra-alarms.md#search, подробно: docs/architecture/SEARCH_READY.md (EN: Postgres search p95 above ${var.search_p95_alarm_ms} ms for 15 minutes.)"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
   period              = 300
@@ -485,8 +495,8 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx_ratio" {
       dimensions  = { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.api_target_group_arn_suffix }
     }
   }
-  alarm_actions = local.ops
-  ok_actions    = local.ops
+  alarm_actions = local.page
+  ok_actions    = local.page
   tags          = var.tags
 }
 
@@ -518,8 +528,8 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
   metric_name         = "UnHealthyHostCount"
   namespace           = "AWS/ApplicationELB"
   dimensions          = { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.api_target_group_arn_suffix }
-  alarm_actions       = local.ops
-  ok_actions          = local.ops
+  alarm_actions       = local.page
+  ok_actions          = local.page
   tags                = var.tags
 }
 
@@ -647,7 +657,8 @@ resource "aws_cloudwatch_metric_alarm" "journal_integrity" {
   metric_name         = "JournalChainBroken"
   namespace           = local.ns
   treat_missing_data  = "notBreaching"
-  alarm_actions       = local.ops
+  alarm_actions       = local.page
+  ok_actions          = local.page
   tags                = var.tags
 }
 
@@ -928,8 +939,8 @@ resource "aws_cloudwatch_metric_alarm" "service_running_tasks" {
     Service = "worker"
   }
   treat_missing_data = "breaching"
-  alarm_actions      = local.ops
-  ok_actions         = local.ops
+  alarm_actions      = local.page
+  ok_actions         = local.page
   tags               = var.tags
 }
 
@@ -1179,8 +1190,8 @@ resource "aws_cloudwatch_metric_alarm" "db_down" {
   metric_name         = "DbOk"
   namespace           = local.ns
   treat_missing_data  = "notBreaching"
-  alarm_actions       = local.ops
-  ok_actions          = local.ops
+  alarm_actions       = local.page
+  ok_actions          = local.page
   tags                = var.tags
 }
 
@@ -1226,8 +1237,8 @@ resource "aws_cloudwatch_metric_alarm" "backup_stale" {
   metric_name         = "BackupStale"
   namespace           = local.ns
   treat_missing_data  = "notBreaching"
-  alarm_actions       = local.ops
-  ok_actions          = local.ops
+  alarm_actions       = local.page
+  ok_actions          = local.page
   tags                = var.tags
 }
 
@@ -1248,7 +1259,7 @@ resource "aws_cloudwatch_log_metric_filter" "storage_growth" {
 
 resource "aws_cloudwatch_metric_alarm" "storage_growth" {
   alarm_name          = "${var.name}-storage-growth"
-  alarm_description   = "LawBid: Файлы или база выросли за сутки быстрее обычного. Что делать: откройте админку → Система → Хранилище и посмотрите «Кто занимает больше всего» и «Самые большие таблицы»; при необходимости поставьте пользователю лимит. Ненужные файлы система удаляет сама. (EN: files or DB grew more than storage.growth_alert_percent in a day.)"
+  alarm_description   = "LawBid: Файлы или база выросли за сутки быстрее обычного. Что делать: откройте админку → Система → Хранилище и посмотрите «Кто занимает больше всего» и «Самые большие таблицы»; при необходимости поставьте пользователю лимит. Ненужные файлы система удаляет сама. Инструкция: ${var.runbook_base_url}/infra-alarms.md#storage-growth (EN: files or DB grew more than storage.growth_alert_percent in a day.)"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 3600
@@ -1293,7 +1304,7 @@ resource "aws_cloudwatch_log_metric_filter" "r2" {
 resource "aws_cloudwatch_metric_alarm" "r2" {
   for_each            = local.r2_alerts
   alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
-  alarm_description   = each.value.text
+  alarm_description   = "${each.value.text}${strcontains(each.value.text, var.runbook_base_url) ? "" : " Инструкция: ${var.runbook_base_url}/infra-alarms.md#r2"}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 3600
@@ -1353,7 +1364,7 @@ resource "aws_cloudwatch_log_metric_filter" "treasury" {
 resource "aws_cloudwatch_metric_alarm" "treasury" {
   for_each            = local.treasury_alerts
   alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
-  alarm_description   = each.value.text
+  alarm_description   = "${each.value.text}${strcontains(each.value.text, var.runbook_base_url) ? "" : " Инструкция: ${var.runbook_base_url}/infra-alarms.md#treasury"}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 3600
@@ -1370,7 +1381,7 @@ resource "aws_cloudwatch_metric_alarm" "treasury" {
 # cost-autoscale.service.ts) want to grow past their safety ceiling.
 resource "aws_cloudwatch_metric_alarm" "cost_budget_ceiling" {
   alarm_name          = "${var.name}-cost-budget-ceiling"
-  alarm_description   = "LawBid: Автоматический лимит расходов (SMS, письма, проверки, загрузки, перевод или видео) упёрся в потолок безопасности. Что делать: если пользователей действительно стало больше — админка → Система → Настройки → Лимиты расходов → поднимите «Потолок». Если роста не было — возможно, это злоупотребление, и лимит вас защищает: напишите Claude «лимиты». (EN: cost autoscale target clamped by its ceiling.)"
+  alarm_description   = "LawBid: Автоматический лимит расходов (SMS, письма, проверки, загрузки, перевод или видео) упёрся в потолок безопасности. Что делать: если пользователей действительно стало больше — админка → Система → Настройки → Лимиты расходов → поднимите «Потолок». Если роста не было — возможно, это злоупотребление, и лимит вас защищает: напишите Claude «лимиты». Инструкция: ${var.runbook_base_url}/cost.md#ceiling (EN: cost autoscale target clamped by its ceiling.)"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 3600
@@ -1409,7 +1420,7 @@ resource "aws_cloudwatch_metric_alarm" "economy" {
     }
   }
   alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
-  alarm_description   = "LawBid: ${each.value.text}"
+  alarm_description   = "LawBid: ${each.value.text}${strcontains(each.value.text, var.runbook_base_url) ? "" : " Инструкция: ${var.runbook_base_url}/infra-alarms.md#economy"}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 300
@@ -1442,6 +1453,50 @@ resource "aws_cloudwatch_metric_alarm" "redis_replication_lag" {
   alarm_actions       = local.ops
   ok_actions          = local.ops
   tags                = var.tags
+}
+
+# Review R-54: the media bucket growing faster than the owner's ceiling. The
+# replication copies every new object (no filter), so the day's growth is the
+# day's replicated bytes. BucketSizeBytes is a daily metric per storage class:
+# new files land in Standard / Intelligent-Tiering frequent access; RATE() is
+# the change per second between two daily points. Mail only (not a failure).
+resource "aws_cloudwatch_metric_alarm" "media_growth" {
+  count               = var.media_bucket_name != "" && var.media_replication_max_gb_per_day > 0 ? 1 : 0
+  alarm_name          = "${var.name}-media-replication-gb-per-day"
+  alarm_description   = "LawBid: Фото и видео за сутки выросли больше чем на ${var.media_replication_max_gb_per_day} ГБ, и столько же уходит в копию в другой регион (платное хранение и пересылка $0,02 за ГБ). Что делать: админка → Система → Хранилище → «Кто занимает больше всего» (нет ли массовой загрузки или бота); если это ожидаемо, поднимите media_replication_max_gb_per_day; чтобы остановить копирование, поставьте replicate_media = false в terraform.tfvars. Инструкция: ${var.runbook_base_url}/cost.md (EN: media bucket grew over ${var.media_replication_max_gb_per_day} GB in a day.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  threshold           = var.media_replication_max_gb_per_day
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+
+  metric_query {
+    id          = "gb_per_day"
+    expression  = "RATE(std + ia) * 86400 / 1073741824"
+    label       = "GB added per day"
+    return_data = true
+  }
+  metric_query {
+    id = "std"
+    metric {
+      metric_name = "BucketSizeBytes"
+      namespace   = "AWS/S3"
+      period      = 86400
+      stat        = "Average"
+      dimensions  = { BucketName = var.media_bucket_name, StorageType = "StandardStorage" }
+    }
+  }
+  metric_query {
+    id = "ia"
+    metric {
+      metric_name = "BucketSizeBytes"
+      namespace   = "AWS/S3"
+      period      = 86400
+      stat        = "Average"
+      dimensions  = { BucketName = var.media_bucket_name, StorageType = "IntelligentTieringFAStorage" }
+    }
+  }
 }
 
 # Batch A item 15: NAT gateway data processed (in + out, the billed number).
@@ -1584,7 +1639,7 @@ resource "aws_cloudwatch_metric_alarm" "usage_alert" {
     }
   }
   alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
-  alarm_description   = "LawBid: ${each.value.text}"
+  alarm_description   = "LawBid: ${each.value.text}${strcontains(each.value.text, var.runbook_base_url) ? "" : " Инструкция: ${var.runbook_base_url}/infra-alarms.md#usage"}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 86400
