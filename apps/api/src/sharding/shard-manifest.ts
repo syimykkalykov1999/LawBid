@@ -342,6 +342,8 @@ export const GLOBAL_MODELS: readonly string[] = [
   // Online DDL: applied index files and batched-backfill state (per database).
   'ConcurrentMigration',
   'BackfillRun',
+  // Events pipeline (N-2): the domain-event stream (primary only).
+  'DomainEvent',
   // Day-one foundations: the double-entry money ledger (global: platform
   // accounts and cross-party entries; docs/architecture/MONEY_LEDGER.md).
   'LedgerAccount',

@@ -1,0 +1,13 @@
+{
+  "_comment": "S11-3: e2e suites of the PREVIOUS release run against the schema of a change (scripts/ci/n1-compat.mjs). Names only (test/<name>.e2e-spec.ts); a name missing in the old release is skipped. Core paths, no MinIO needed. Add a suite when a feature becomes critical to a rolling deploy.",
+  "suites": [
+    "app", "auth", "auth-hardening", "authz-matrix", "onboarding", "profiles-onboarding",
+    "profiles-practices", "guest-browsing", "reviews", "security-hardening", "jobs",
+    "stage-3-1", "stage-4-1", "stage-4-2", "stage-4-3", "cross-family-outbox",
+    "client-economy", "owner-direct-chats", "owner-groups", "owner-channels",
+    "owner-chat-actions", "owner-chat-delivered", "owner-calls", "owner-case-invites",
+    "owner-case-payments", "owner-case-tools", "owner-case-topics", "owner-feed-content",
+    "owner-follows-search", "owner-notifications-search", "owner-economy",
+    "owner-firms", "owner-presence", "owner-stories", "search-filters-audit"
+  ]
+}

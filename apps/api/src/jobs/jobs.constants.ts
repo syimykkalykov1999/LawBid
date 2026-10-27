@@ -194,6 +194,8 @@ export const CRON_JOBS = {
   outboxSweep: 'outbox.sweep',
   /** Owner 2026-10-25 (online DDL): nightly table / index bloat of the hot tables. */
   dbBloat: 'db.bloat-check',
+  /** Events pipeline (N-2): auto signal, stream relay, retention. */
+  eventsMaintain: 'events.maintain',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -303,6 +305,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.outboxSweep, pattern: '* * * * *' },
   // Nightly 03:35 UTC (quiet hours): pgstattuple on the hot tables.
   { name: CRON_JOBS.dbBloat, pattern: '35 3 * * *' },
+  // Events pipeline: every 5 minutes; a no-op unless auto / stream, prunes hourly.
+  { name: CRON_JOBS.eventsMaintain, pattern: '*/5 * * * *' },
 ];
 
 const FAST_JOBS: readonly CronJobName[] = [

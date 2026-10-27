@@ -75,6 +75,7 @@ export const HEAVY_CRON_JOBS: readonly string[] = [
   CRON_JOBS.adminSummaries,
   // Perf review 2026-10-26 (R-25): the nightly bloat check reads tables.
   CRON_JOBS.dbBloat,
+  CRON_JOBS.ledgerReconcile,
 ];
 
 /** Queues paused as a whole (users get their file a little later). */
