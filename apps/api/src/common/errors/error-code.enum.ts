@@ -410,6 +410,9 @@ export enum ErrorCode {
   INTEGRATION_CONFLICT = 'INTEGRATION_CONFLICT',
   // 403: a sensitive admin action needs a fresh 2FA code (owner 2026-10-01).
   ADMIN_STEP_UP_REQUIRED = 'ADMIN_STEP_UP_REQUIRED',
+  // 409: the workspace rules refuse it — a second head, a head of finance,
+  // an admin whose sections do not fit the workspace (staff package T2).
+  ADMIN_WORKSPACE_CONFLICT = 'ADMIN_WORKSPACE_CONFLICT',
   // 403: the admin IP allowlist is on and this address is not on it (2026-10-28).
   ADMIN_IP_NOT_ALLOWED = 'ADMIN_IP_NOT_ALLOWED',
   // 400: reading private content needs a reason code (X-Reason-Code) (2026-10-28).

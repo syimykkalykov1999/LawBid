@@ -22,12 +22,16 @@ import {
   LOCKED_AREAS,
   PARTNER_TEAM_AREAS,
   ROLE_LABEL,
+  WORKSPACE_HEAD_LABEL,
+  WORKSPACE_LABEL,
   covers,
   fitToMe,
   summarizeRights,
   type AccessLevel,
   type AdminRole,
+  type AdminWorkspace,
   type Permissions,
+  workspaceCeiling,
 } from '@/lib/rbac';
 import { cn, formatDateTime } from '@/lib/utils';
 
@@ -36,16 +40,33 @@ type Template = components['schemas']['AdminRoleTemplateDto'];
 type Preset = components['schemas']['AdminPresetDto'];
 type Invite = components['schemas']['AdminInviteDto'];
 
+/** Who is handing out rights: the fields of `me` the page needs. */
+type Granter = {
+  role: AdminRole;
+  permissions: Permissions;
+  partnerLead?: boolean;
+  workspace?: AdminWorkspace;
+  workspaceHead?: boolean;
+  workspacesEnabled?: boolean;
+};
+
+/** What the granter holds: their own toggles, or — for the head of a
+ * workspace (staff package T2) — the ceiling of that workspace. */
+function ownGrants(me: Granter | undefined): Permissions {
+  if (me?.workspaceHead) return workspaceCeiling(me.workspace) ?? {};
+  return me?.permissions ?? {};
+}
+
 /** Presets this admin may use: the owner all of them, a manager only those that fit inside their own access. */
-function usablePresets(presets: Preset[], me: { role: AdminRole; permissions: Permissions } | undefined): Preset[] {
+function usablePresets(presets: Preset[], me: Granter | undefined): Preset[] {
   if (me?.role === 'super_admin') return presets;
-  return presets.filter((p) => p.role !== 'super_admin' && !p.noPii && covers(me?.permissions ?? {}, fitToMe(p.permissions, me)) && Object.keys(fitToMe(p.permissions, me)).length === Object.keys(p.permissions).length);
+  return presets.filter((p) => p.role !== 'super_admin' && !p.noPii && covers(ownGrants(me), fitToMe(p.permissions, me)) && Object.keys(fitToMe(p.permissions, me)).length === Object.keys(p.permissions).length);
 }
 
 /** A template, cut down to what this admin may hand out (the API caps it too). */
 function fitTemplate(
   t: Template,
-  me: { role: AdminRole; permissions: Permissions } | undefined,
+  me: Granter | undefined,
 ): Record<string, AccessLevel> {
   return fitToMe(t.permissions, me);
 }
@@ -68,9 +89,12 @@ export default function AdminsPage() {
   const toast = useToast();
   const { confirm, dialog } = useConfirm();
   const { data: me } = useMe();
+  // Staff package T2: the owner can look at one workspace.
+  const [wsFilter, setWsFilter] = useState<AdminWorkspace | ''>('');
   const list = useQuery({
-    queryKey: ['admins'],
-    queryFn: async () => (await api.GET('/admin/admins')).data!.data,
+    queryKey: ['admins', wsFilter],
+    queryFn: async () =>
+      (await api.GET('/admin/admins', { params: { query: wsFilter ? { workspace: wsFilter } : {} } })).data!.data,
   });
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<AdminRole>('support');
@@ -96,17 +120,29 @@ export default function AdminsPage() {
   const isSuper = me?.role === 'super_admin';
   // Owner 2026-10-06: a country partner manages only their own staff.
   const partnerLead = me?.partnerLead === true;
+  // Staff package T2: workspaces are on (the new column and buttons), and
+  // the head of a workspace manages their own team.
+  const spaces = me?.workspacesEnabled === true;
+  const head = spaces && me?.workspaceHead === true;
   // Mirrors the API: a manager only reaches non-super, non-manager admins
   // whose access fits inside their own.
   const reach = (a: Account) =>
     isSuper ||
     (partnerLead
       ? a.countryPartnerId === me?.countryPartnerId && !a.partnerLead
-      : a.role !== 'super_admin' &&
-        !a.canManageAdmins &&
-        !a.countryPartnerId &&
-        covers(me?.permissions ?? {}, a.permissions));
-  const roles = isSuper ? ROLES : ROLES.filter((r) => r !== 'super_admin');
+      : head
+        ? a.workspace === me?.workspace &&
+          !a.workspaceHead &&
+          a.role !== 'super_admin' &&
+          !a.canManageAdmins &&
+          !a.countryPartnerId &&
+          covers(workspaceCeiling(me?.workspace) ?? {}, a.permissions)
+        : a.role !== 'super_admin' &&
+          !a.canManageAdmins &&
+          !a.countryPartnerId &&
+          covers(me?.permissions ?? {}, a.permissions));
+  // A head hires into their own workspace: never an owner or a finance role.
+  const roles = isSuper ? ROLES : ROLES.filter((r) => r !== 'super_admin' && !(head && r === 'finance'));
 
   const tpl = (templates.data ?? []).find((t) => t.id === tplId);
   const refresh = () => qc.invalidateQueries({ queryKey: ['admins'] });
@@ -180,6 +216,44 @@ export default function AdminsPage() {
     onSuccess: (v) => {
       if (!v) return;
       toast.success(`Роль: ${ROLE_LABEL[v.role]}`);
+      void refresh();
+    },
+    onError: (e) => toast.error(e),
+  });
+  const setWorkspaceM = useMutation({
+    mutationFn: async (v: { id: string; email: string; workspace: AdminWorkspace }) => {
+      const ok = await confirm({
+        title: `Перевести ${v.email} в «${WORKSPACE_LABEL[v.workspace]}»?`,
+        description: 'Админ увидит только разделы этого пространства. Если он был главным, этот статус снимется. Действует сразу.',
+        confirm: 'Перевести',
+      });
+      if (!ok) return null;
+      await api.PATCH('/admin/admins/{id}/workspace', { params: { path: { id: v.id } }, body: { workspace: v.workspace } });
+      return v;
+    },
+    onSuccess: (v) => {
+      if (!v) return;
+      toast.success(`Пространство: ${WORKSPACE_LABEL[v.workspace]}`);
+      void refresh();
+    },
+    onError: (e) => toast.error(e),
+  });
+  const setHeadM = useMutation({
+    mutationFn: async (v: { id: string; email: string; head: boolean }) => {
+      const ok = await confirm({
+        title: v.head ? `Сделать ${v.email} главным?` : `Снять главного: ${v.email}?`,
+        description: v.head
+          ? 'Главный принимает и отключает сотрудников и выдаёт им разделы, но только в своём пространстве и в пределах потолка. Деньги, ставки, ключи и других админов ему недоступны. В пространстве может быть один главный.'
+          : 'Он снова станет обычным сотрудником пространства.',
+        confirm: v.head ? 'Назначить главным' : 'Снять',
+      });
+      if (!ok) return null;
+      await api.PATCH('/admin/admins/{id}/head', { params: { path: { id: v.id } }, body: { head: v.head } });
+      return v;
+    },
+    onSuccess: (v) => {
+      if (!v) return;
+      toast.success(v.head ? 'Главный назначен' : 'Главный снят');
       void refresh();
     },
     onError: (e) => toast.error(e),
@@ -393,11 +467,27 @@ export default function AdminsPage() {
         onSaved={() => void qc.invalidateQueries({ queryKey: ['admin-templates'] })}
       />
       <ErrorNote text={list.error ? errorText(list.error) : null} />
+      {spaces && isSuper ? (
+        <div className="mb-3 flex items-center gap-2">
+          <Label htmlFor="ws-filter" className="mb-0">
+            Пространство
+          </Label>
+          <Select id="ws-filter" className="h-9 w-56" value={wsFilter} onChange={(e) => setWsFilter(e.target.value as AdminWorkspace | '')}>
+            <option value="">Все</option>
+            {(Object.keys(WORKSPACE_LABEL) as AdminWorkspace[]).map((w) => (
+              <option key={w} value={w}>
+                {WORKSPACE_LABEL[w]}
+              </option>
+            ))}
+          </Select>
+        </div>
+      ) : null}
       <Table>
         <thead>
           <tr>
             <Th>Админ</Th>
             <Th>Роль</Th>
+            {spaces ? <Th>Пространство</Th> : null}
             <Th>Доступ</Th>
             <Th>Статус</Th>
             <Th>2FA</Th>
@@ -406,9 +496,9 @@ export default function AdminsPage() {
           </tr>
         </thead>
         <tbody>
-          {list.isPending ? <TableEmpty colSpan={7} loading /> : null}
+          {list.isPending ? <TableEmpty colSpan={spaces ? 8 : 7} loading /> : null}
           {!list.isPending && !list.error && rows.length === 0 ? (
-            <TableEmpty colSpan={7}>
+            <TableEmpty colSpan={spaces ? 8 : 7}>
               <span className="inline-flex items-center gap-2">
                 <ShieldCheck size={16} weight="light" /> Администраторов пока нет
               </span>
@@ -448,6 +538,18 @@ export default function AdminsPage() {
                     <span className="text-sm text-ink">{ROLE_LABEL[a.role]}</span>
                   )}
                 </Td>
+                {spaces ? (
+                  <Td>
+                    <WorkspaceCell
+                      a={a}
+                      self={self}
+                      isSuper={isSuper}
+                      busy={setWorkspaceM.isPending || setHeadM.isPending}
+                      onWorkspace={(workspace) => setWorkspaceM.mutate({ id: a.id, email: a.email, workspace })}
+                      onHead={(h) => setHeadM.mutate({ id: a.id, email: a.email, head: h })}
+                    />
+                  </Td>
+                ) : null}
                 <Td>
                   {a.role === 'super_admin' ? (
                     <Badge tone="gold">всё</Badge>
@@ -541,14 +643,17 @@ export default function AdminsPage() {
                           Включить
                         </Button>
                       )}
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        disabled={self || action.isPending}
-                        onClick={() => action.mutate({ id: a.id, email: a.email, what: 'delete' })}
-                      >
-                        <Trash size={14} /> Удалить
-                      </Button>
+                      {/* Staff package T2: a head switches people off; deleting stays with the owner. */}
+                      {head ? null : (
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          disabled={self || action.isPending}
+                          onClick={() => action.mutate({ id: a.id, email: a.email, what: 'delete' })}
+                        >
+                          <Trash size={14} /> Удалить
+                        </Button>
+                      )}
                     </div>
                   ) : (
                     <div className="text-right text-xs text-faint">{self ? 'это вы' : 'вне вашего доступа'}</div>
@@ -578,7 +683,7 @@ function RightsDialog({
   onSaved,
 }: {
   account: Account | null;
-  me: { role: AdminRole; permissions: Permissions; partnerLead?: boolean } | undefined;
+  me: Granter | undefined;
   presets: Preset[];
   onClose: () => void;
   onSaved: () => void;
@@ -673,7 +778,7 @@ function RightsForm({
   onError,
 }: {
   account: Account;
-  me: { role: AdminRole; permissions: Permissions; partnerLead?: boolean } | undefined;
+  me: Granter | undefined;
   presets: Preset[];
   onCancel: () => void;
   onSaved: () => void;
@@ -681,14 +786,22 @@ function RightsForm({
 }) {
   const isSuper = me?.role === 'super_admin';
   // A manager hands out only what they hold themselves (the API checks too).
-  const own = me?.permissions ?? {};
+  const own = ownGrants(me);
   // Owner 2026-10-06: a country partner's team gets only the partner areas.
   const partnerTeam = !!account.countryPartnerId;
+  // Staff package T2: with workspaces on, a worker holds nothing outside
+  // their workspace's ceiling, whoever hands it out (the API refuses it).
+  const ceiling =
+    me?.workspacesEnabled && !partnerTeam && !account.canManageAdmins && account.role !== 'super_admin'
+      ? workspaceCeiling(account.workspace)
+      : null;
   const pool = partnerTeam ? PARTNER_TEAM_AREAS : GRANTABLE_AREAS;
-  const areas = isSuper ? pool : pool.filter((a) => own[a.key] && !('ownerGrants' in a && a.ownerGrants));
+  const inCeiling = (key: string) => !ceiling || !!ceiling[key];
+  const areas = (isSuper ? pool : pool.filter((a) => own[a.key] && !('ownerGrants' in a && a.ownerGrants))).filter((a) => inCeiling(a.key));
   const cap = (key: string): AccessLevel[] => {
     const max = PARTNER_TEAM_AREAS.find((a) => a.key === key)?.max;
     if (partnerTeam && max === 'view') return ['view'];
+    if (ceiling && ceiling[key] === 'view') return ['view'];
     return isSuper || own[key] === 'manage' ? ['view', 'manage'] : ['view'];
   };
   const [perms, setPerms] = useState<Record<string, AccessLevel>>({ ...account.permissions });
@@ -836,18 +949,21 @@ function RightsForm({
           <RightsSummaryView perms={perms} noPii={noPii} manager={manager} />
         </div>
       )}
-      <div className="mt-3 rounded-[var(--radius-md)] border border-dashed border-line px-3.5 py-3">
-        <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">
-          <LockSimple size={13} /> Закрыто навсегда
+      {/* Staff package T2: with workspaces on, the list of what is closed for good is the owner's to read. */}
+      {me?.workspacesEnabled && !isSuper ? null : (
+        <div className="mt-3 rounded-[var(--radius-md)] border border-dashed border-line px-3.5 py-3">
+          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">
+            <LockSimple size={13} /> Закрыто навсегда
+          </div>
+          <ul className="space-y-1 text-xs text-muted">
+            {LOCKED_AREAS.map((l) => (
+              <li key={l.label}>
+                <span className="text-ink">{l.label}</span> — {l.hint}
+              </li>
+            ))}
+          </ul>
         </div>
-        <ul className="space-y-1 text-xs text-muted">
-          {LOCKED_AREAS.map((l) => (
-            <li key={l.label}>
-              <span className="text-ink">{l.label}</span> — {l.hint}
-            </li>
-          ))}
-        </ul>
-      </div>
+      )}
       <div className="mt-5 flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onCancel}>
           Отмена
@@ -856,6 +972,73 @@ function RightsForm({
           Сохранить права
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Staff package T2: the workspace of one admin. The owner moves people
+ * between workspaces and names the head (one per workspace, none in
+ * finance); everybody else just reads it.
+ */
+function WorkspaceCell({
+  a,
+  self,
+  isSuper,
+  busy,
+  onWorkspace,
+  onHead,
+}: {
+  a: Account;
+  self: boolean;
+  isSuper: boolean;
+  busy: boolean;
+  onWorkspace: (w: AdminWorkspace) => void;
+  onHead: (head: boolean) => void;
+}) {
+  const outside = a.canManageAdmins || !!a.countryPartnerId;
+  if (a.role === 'super_admin' || outside || !isSuper) {
+    return (
+      <div className="flex flex-wrap gap-1">
+        {outside ? (
+          <Badge tone="neutral" title="Заместитель и команда партнёра стоят вне пространств">
+            вне пространств
+          </Badge>
+        ) : (
+          <Badge tone={a.workspace === 'owner' ? 'gold' : 'info'}>{WORKSPACE_LABEL[a.workspace]}</Badge>
+        )}
+        {a.workspaceHead ? <Badge tone="gold">{WORKSPACE_HEAD_LABEL}</Badge> : null}
+      </div>
+    );
+  }
+  const canBeHead = a.workspace === 'mass' && a.status === 'active';
+  return (
+    <div className="space-y-1.5">
+      <Select
+        aria-label="Пространство"
+        className="h-8 w-44"
+        value={a.workspace}
+        disabled={self || busy}
+        onChange={(e) => onWorkspace(e.target.value as AdminWorkspace)}
+      >
+        {(Object.keys(WORKSPACE_LABEL) as AdminWorkspace[]).map((w) => (
+          <option key={w} value={w}>
+            {WORKSPACE_LABEL[w]}
+          </option>
+        ))}
+      </Select>
+      {a.workspaceHead ? (
+        <div className="flex items-center gap-1.5">
+          <Badge tone="gold">{WORKSPACE_HEAD_LABEL}</Badge>
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => onHead(false)}>
+            Снять
+          </Button>
+        </div>
+      ) : canBeHead ? (
+        <Button size="sm" variant="outline" disabled={self || busy} onClick={() => onHead(true)}>
+          Сделать главным
+        </Button>
+      ) : null}
     </div>
   );
 }

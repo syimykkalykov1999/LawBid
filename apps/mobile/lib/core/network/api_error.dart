@@ -262,6 +262,7 @@ abstract final class ApiErrorCodes {
   static const integrationConflict = 'INTEGRATION_CONFLICT';
   static const adminStepUpRequired = 'ADMIN_STEP_UP_REQUIRED';
   static const adminIpNotAllowed = 'ADMIN_IP_NOT_ALLOWED';
+  static const adminWorkspaceConflict = 'ADMIN_WORKSPACE_CONFLICT';
   static const reasonCodeRequired = 'REASON_CODE_REQUIRED';
   static const auditUnavailable = 'AUDIT_UNAVAILABLE';
   static const videoUnavailable = 'VIDEO_UNAVAILABLE';
@@ -523,6 +524,7 @@ abstract final class ApiErrorCodes {
     integrationConflict,
     adminStepUpRequired,
     adminIpNotAllowed,
+    adminWorkspaceConflict,
     reasonCodeRequired,
     auditUnavailable,
     videoUnavailable,

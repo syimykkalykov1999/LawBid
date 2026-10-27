@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { can } from '@/lib/rbac';
+import { can, navModeFor } from '@/lib/rbac';
 import type { Me } from '@/lib/hooks';
 
 type Flag = { key: string; enabled: boolean };
@@ -17,7 +17,8 @@ export function useOffFlags(me: Me | undefined): ReadonlySet<string> {
   const flags = useQuery({
     queryKey: ['flags'],
     queryFn: async () => (await api.GET('/admin/feature-flags')).data!.data as Flag[],
-    enabled: can(me, 'settings'),
+    // A worker of a workspace does not reach the settings area at all.
+    enabled: can(me, 'settings') && navModeFor(me) !== 'desk',
   }).data;
   return new Set((flags ?? []).filter((f) => !f.enabled).map((f) => f.key));
 }

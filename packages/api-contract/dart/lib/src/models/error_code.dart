@@ -358,6 +358,8 @@ enum ErrorCode {
   integrationConflict('INTEGRATION_CONFLICT'),
   @JsonValue('ADMIN_STEP_UP_REQUIRED')
   adminStepUpRequired('ADMIN_STEP_UP_REQUIRED'),
+  @JsonValue('ADMIN_WORKSPACE_CONFLICT')
+  adminWorkspaceConflict('ADMIN_WORKSPACE_CONFLICT'),
   @JsonValue('ADMIN_IP_NOT_ALLOWED')
   adminIpNotAllowed('ADMIN_IP_NOT_ALLOWED'),
   @JsonValue('REASON_CODE_REQUIRED')

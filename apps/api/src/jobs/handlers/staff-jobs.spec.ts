@@ -7,7 +7,6 @@ import { StaffAnomaliesJob } from './staff-anomalies.job';
 import { StaffCountersFlushJob } from './staff-counters-flush.job';
 import { StaffHeadScoreJob } from './staff-head-score.job';
 import { StaffLeaseSweepJob } from './staff-lease-sweep.job';
-import { StaffPieceworkJob } from './staff-piecework.job';
 import { StaffRetaliationExpireJob } from './staff-retaliation-expire.job';
 import {
   STAFF_RETENTION_BATCH,
@@ -49,11 +48,6 @@ const stubs: Array<
   ],
   ['staff.today', (s) => new StaffTodayJob(s), ['staff.owner_home_enabled']],
   ['staff.head-score', (s) => new StaffHeadScoreJob(s), ['staff.head_enabled']],
-  [
-    'staff.piecework',
-    (s) => new StaffPieceworkJob(s),
-    ['staff.piecework_enabled'],
-  ],
   [
     'staff.anomalies',
     (s) => new StaffAnomaliesJob(s),

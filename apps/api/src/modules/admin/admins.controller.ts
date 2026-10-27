@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
@@ -32,11 +33,14 @@ import {
   AdminInviteResultDto,
   AdminPresetDto,
   InviteAdminDto,
+  ListAdminsQueryDto,
   CreateAdminDto,
   SetAdminCountriesDto,
   SetAdminCredentialsDto,
+  SetAdminHeadDto,
   SetAdminPermissionsDto,
   SetAdminRoleDto,
+  SetAdminWorkspaceDto,
 } from './admin.dto';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import { AdminsService } from './admins.service';
@@ -59,10 +63,16 @@ export class AdminsController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'All administrator accounts' })
+  @ApiOperation({
+    summary:
+      'All administrator accounts (optionally one workspace); a workspace head sees only their own workspace',
+  })
   @ApiEnvelopeResponse(AdminAccountDto, { isArray: true })
-  listAdmins(@CurrentAdmin() actor: AdminActor): Promise<AdminAccountDto[]> {
-    return this.admins.list(actor);
+  listAdmins(
+    @CurrentAdmin() actor: AdminActor,
+    @Query() query: ListAdminsQueryDto,
+  ): Promise<AdminAccountDto[]> {
+    return this.admins.list(actor, query.workspace);
   }
 
   @Post()
@@ -140,6 +150,7 @@ export class AdminsController {
       dto.permissions ?? (preset ? preset.permissions : undefined),
       undefined,
       dto.noPii ?? preset?.noPii,
+      !dto.permissions && !!preset,
     );
     const invite = await this.auth.createInvite(actor, admin.id);
     return { admin, invite };
@@ -176,6 +187,57 @@ export class AdminsController {
     // Owner 2026-10-22: who may do what is identity — fresh 2FA code.
     await this.auth.assertStepUp(actor.sessionId);
     return this.admins.setRole(actor, params.id, dto.role);
+  }
+
+  /**
+   * Staff package T2: the owner moves an admin to another workspace
+   * (mass / finance / owner). Identity, like the role: a fresh step-up.
+   */
+  @Patch(':id/workspace')
+  @Roles('super_admin')
+  @ApiOperation({
+    summary:
+      'Super admin: set the workspace an admin works in (needs a fresh step-up). 409 when their sections do not fit the new workspace',
+  })
+  @ApiEnvelopeResponse(AdminAccountDto)
+  @ApiErrors({
+    ...TARGET_ERRORS,
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    409: [E.ADMIN_WORKSPACE_CONFLICT],
+  })
+  async setAdminWorkspace(
+    @CurrentAdmin() actor: AdminActor,
+    @Param() params: AdminIdParamDto,
+    @Body() dto: SetAdminWorkspaceDto,
+  ): Promise<AdminAccountDto> {
+    await this.auth.assertStepUp(actor.sessionId);
+    return this.admins.setWorkspace(actor, params.id, dto.workspace);
+  }
+
+  /**
+   * Staff package T2: the owner makes an admin the head of their workspace
+   * (or clears it). One head per workspace is enforced by the database;
+   * the second one and a finance head answer 409.
+   */
+  @Patch(':id/head')
+  @Roles('super_admin')
+  @ApiOperation({
+    summary:
+      'Super admin: make an admin the head of their workspace, or clear it (needs a fresh step-up). 409 when the workspace already has a head or has none (finance)',
+  })
+  @ApiEnvelopeResponse(AdminAccountDto)
+  @ApiErrors({
+    ...TARGET_ERRORS,
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    409: [E.ADMIN_WORKSPACE_CONFLICT],
+  })
+  async setAdminHead(
+    @CurrentAdmin() actor: AdminActor,
+    @Param() params: AdminIdParamDto,
+    @Body() dto: SetAdminHeadDto,
+  ): Promise<AdminAccountDto> {
+    await this.auth.assertStepUp(actor.sessionId);
+    return this.admins.setHead(actor, params.id, dto.head);
   }
 
   @Patch(':id/permissions')
