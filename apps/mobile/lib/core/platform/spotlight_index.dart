@@ -23,7 +23,7 @@ import 'package:lawbid/features/privacy/application/privacy_providers.dart';
 ///   and goes through the same deep-link router as a Universal Link.
 /// - Off for a user who switched «Do not sell or share my information» on
 ///   (Settings → Privacy) — the index is emptied at once. Emptied on
-///   sign-out too. The flag `spotlight_indexing` can switch the whole thing off.
+///   sign-out too. The flag `spotlight_indexing` can switch it all off.
 /// - Android has no equivalent: App Links alone (Firebase App Indexing is
 ///   deprecated, so no SDK). Web, tests and other platforms: no-op.
 const spotlightChannelName = 'lawbid/spotlight';
