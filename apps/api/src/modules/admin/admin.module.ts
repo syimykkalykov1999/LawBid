@@ -41,5 +41,8 @@ import { DashboardService } from './dashboard.service';
     AdminRoleTemplatesService,
     AdminSessionsService,
   ],
+  // Staff package T10: the staff cockpit ends a person's work through the
+  // same call as the administrators' page.
+  exports: [AdminsService],
 })
 export class AdminModule {}

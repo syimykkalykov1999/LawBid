@@ -214,6 +214,8 @@ export const GROUPS: readonly SectionGroup[] = [
     label: 'Дашборд',
     icon: 'gauge',
     items: [
+      // Staff package T10: what needs a decision today (owner only, behind its switch).
+      { href: '/today', label: 'Сегодня', icon: 'gauge', area: 'super', ownerOnly: true, flag: 'staff.owner_home_enabled', hint: 'что требует решения сегодня: жалобы, слабые и лучшие, предложения' },
       { href: '/', label: 'Дашборд', icon: 'gauge', area: 'dashboard', hint: 'цифры и очереди' },
       { href: '/workspace', label: 'Рабочее место', icon: 'briefcase-metal', area: 'everyone', hint: 'моя очередь: открыть, проверить, решить, следующий' },
       { href: '/partner', label: 'Кабинет партнёра', icon: 'handshake', area: 'partner', hint: 'договор, цели, отчёт по стране' },
@@ -272,6 +274,10 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/sanctions', label: 'Санкции', icon: 'prohibit', area: 'sanctions', hint: 'блокировки и баны' },
       { href: '/admins', label: 'Администраторы', icon: 'shield-check', area: 'admins', ownerOnly: true, hint: 'сотрудники, права, пароли' },
       { href: '/rewards', label: 'Поощрения', icon: 'trophy', area: 'super', ownerOnly: true, hint: 'лучший сотрудник по отделам, призы' },
+      // Staff package T10: the owner's staff cockpit (each behind its own switch).
+      { href: '/staff', label: 'Люди и рейтинг', icon: 'users', area: 'super', ownerOnly: true, flag: 'staff.rating_enabled', hint: 'рейтинг сотрудников, слабые и лучшие, что предлагает система' },
+      { href: '/staff/appeals', label: 'Жалобы на главных', icon: 'scales', area: 'super', ownerOnly: true, flag: 'staff.appeals_enabled', hint: 'сотрудники жалуются на главных; красные пометки о мести' },
+      { href: '/staff/rates', label: 'Ставки за решения', icon: 'hand-coins', area: 'super', ownerOnly: true, flag: 'staff.piecework_enabled', hint: 'сколько платим за одно решение и что начислено за месяц' },
     ],
   },
   {

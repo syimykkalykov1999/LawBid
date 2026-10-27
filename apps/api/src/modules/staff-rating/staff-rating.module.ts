@@ -4,6 +4,7 @@ import { StaffRatingNightlyJob } from '../../jobs/handlers/staff-rating-nightly.
 import { STAFF_RECORDER } from '../staff-core/staff-recorder.port';
 import { STAFF_SIGNALS } from '../staff-core/staff-signals.port';
 import {
+  StaffMeController,
   StaffRatingController,
   StaffShortlistController,
 } from './staff-rating.controller';
@@ -51,7 +52,11 @@ export class StaffRatingCoreModule {}
 /** Staff package (T5): the admin routes of staff-rating (API only). */
 @Module({
   imports: [StaffRatingCoreModule],
-  controllers: [StaffRatingController, StaffShortlistController],
+  controllers: [
+    StaffRatingController,
+    StaffShortlistController,
+    StaffMeController,
+  ],
   providers: [StaffRatingReadService],
 })
 export class StaffRatingModule {}
