@@ -301,6 +301,43 @@ class OwnerCase {
 
   /// §3.5: practice area and states are editable only without bids.
   bool get canChangePracticeAndStates => bidsCount == 0;
+
+  /// Owner 2026-10-22 (delta audit D-P4): a new bid arrived — only the
+  /// counter moves, the rest of the card stays.
+  OwnerCase withBidsCount(int count, {DateTime? activeAt}) => OwnerCase(
+        id: id,
+        title: title,
+        description: description,
+        practice: practice,
+        primaryStateCode: primaryStateCode,
+        additionalStateCodes: additionalStateCodes,
+        city: city,
+        budget: budget,
+        status: status,
+        viewCount: viewCount,
+        bidsCount: count,
+        createdAt: createdAt,
+        lastActivityAt: activeAt ?? lastActivityAt,
+        archivedAt: archivedAt,
+        clientCompletedAt: clientCompletedAt,
+        attorneyConfirmedAt: attorneyConfirmedAt,
+        autoCloseAt: autoCloseAt,
+        closedAt: closedAt,
+        acceptedBid: acceptedBid,
+        conversationId: conversationId,
+        photos: photos,
+        privateDetails: privateDetails,
+        stalePromptSentAt: stalePromptSentAt,
+        coverKey: coverKey,
+        urgency: urgency,
+        urgencyDetail: urgencyDetail,
+        extraPractices: extraPractices,
+        pausedAt: pausedAt,
+        stillNeededPending: stillNeededPending,
+        canMakeNotUrgent: canMakeNotUrgent,
+        hidesAt: hidesAt,
+        archivesAt: archivesAt,
+      );
 }
 
 /// Public summary of the bidding attorney (docs/04 §5.2).
@@ -425,6 +462,31 @@ class CaseBid {
 
   bool get isActive => status == BidStatus.active;
   bool get isFreeConsultation => feeType == FeeType.freeConsultation;
+
+  /// Owner 2026-10-22 (delta audit D-P4): the same bid with what a
+  /// `case:update` event said changed (status, the new offer's amount).
+  CaseBid patched({BidStatus? status, int? amountCents, int? percentBps}) =>
+      CaseBid(
+        id: id,
+        caseId: caseId,
+        attorneyId: attorneyId,
+        status: status ?? this.status,
+        feeType: feeType,
+        amountCents: amountCents ?? this.amountCents,
+        percentBps: percentBps ?? this.percentBps,
+        message: message,
+        startAvailability: startAvailability,
+        startDate: startDate,
+        estimatedDurationDays: estimatedDurationDays,
+        roundCount: roundCount,
+        turn: turn,
+        createdAt: createdAt,
+        decidedAt: decidedAt,
+        attorney: attorney,
+        offers: offers,
+        outsidePractice: outsidePractice,
+        outsideLicensedStates: outsideLicensedStates,
+      );
 
   /// §6.1: counters are possible below the cap and never for free
   /// consultations.

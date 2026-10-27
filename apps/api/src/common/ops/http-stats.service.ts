@@ -1,6 +1,7 @@
 import {
   Inject,
   Injectable,
+  Optional,
   type NestMiddleware,
   type OnApplicationShutdown,
   type OnModuleInit,
@@ -9,11 +10,10 @@ import type { NextFunction, Request, Response } from 'express';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { pipeline } from '../../redis/redis-cluster-safe';
+import { RouteMetricsService } from './route-metrics.service';
 
-/** Upper edges (ms) of the latency buckets; the last bucket is "slower". */
-export const LATENCY_EDGES_MS = [
-  25, 50, 100, 250, 500, 1000, 2500, 5000,
-] as const;
+import { LATENCY_EDGES_MS } from './latency-edges';
+export { LATENCY_EDGES_MS };
 const FLUSH_MS = 10_000;
 const KEY_PREFIX = 'ops:http:';
 const KEEP_SEC = 26 * 3600;
@@ -133,7 +133,11 @@ export class HttpStatsService implements OnModuleInit, OnApplicationShutdown {
 /** Counts every answered request except the load balancer's probes. */
 @Injectable()
 export class HttpStatsMiddleware implements NestMiddleware {
-  constructor(private readonly stats: HttpStatsService) {}
+  constructor(
+    private readonly stats: HttpStatsService,
+    // S12-8: per-route RED metrics + journey SLIs (feed, chat send).
+    @Optional() private readonly routes?: RouteMetricsService,
+  ) {}
 
   use(req: Request, res: Response, next: NextFunction): void {
     if (req.path.startsWith('/health')) return next();
@@ -141,6 +145,12 @@ export class HttpStatsMiddleware implements NestMiddleware {
     res.once('finish', () => {
       const ms = Number(process.hrtime.bigint() - started) / 1e6;
       this.stats.record(res.statusCode, ms);
+      this.routes?.record(
+        req.method,
+        (req.route as { path?: unknown } | undefined)?.path,
+        res.statusCode,
+        ms,
+      );
     });
     next();
   }

@@ -13,6 +13,11 @@ import {
   staleVersion,
 } from '../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import {
+  parseUpdatedSince,
+  syncedAt,
+  type SyncPage,
+} from '../../common/sync/sync.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { FilesService } from '../files/files.service';
@@ -418,13 +423,23 @@ export class TasksService {
     return (await this.present([t], user))[0];
   }
 
-  async list(user: RequestUser, q: TasksQueryDto): Promise<TaskDto[]> {
+  async list(
+    user: RequestUser,
+    q: TasksQueryDto,
+  ): Promise<TaskDto[] | SyncPage<TaskDto>> {
+    // Owner 2026-10-22 (delta audit D-P3, Telegram): with ?updatedSince the
+    // answer is only the tasks changed since (that fit the view), plus the
+    // ids that changed out of the view; meta.syncedAt = pass it back.
+    const since = parseUpdatedSince(q.updatedSince);
     const view = q.view ?? 'active';
     const a = user.assistant;
     const archive = view === 'done' || view === 'archive';
     const and: Prisma.AttorneyTaskWhereInput[] = [this.visible(user)];
     if (q.mine && a) and.push({ created_by_membership_id: a.membershipId });
-    if (view === 'active') {
+    if (since) {
+      // The view is applied after the read: a task that left it is an id.
+      and.push({ updated_at: { gte: since } });
+    } else if (view === 'active') {
       and.push({ status: { in: ACTIVE }, archived_at: null });
     } else if (archive) {
       and.push({
@@ -492,10 +507,33 @@ export class TasksService {
     const rows = await this.prisma.attorneyTask.findMany({
       where: { AND: and },
       orderBy,
-      take: archive ? 500 : 300,
+      take: since ? 500 : archive ? 500 : 300,
       include: INCLUDE,
     });
-    return this.present(rows, user);
+    if (!since) return this.present(rows, user);
+    const inView = (t: (typeof rows)[number]) =>
+      view === 'active'
+        ? ACTIVE.includes(t.status) && t.archived_at === null
+        : archive
+          ? t.archived_at !== null || FINISHED.includes(t.status)
+          : true;
+    return {
+      items: await this.present(rows.filter(inView), user),
+      nextCursor: null,
+      deletedIds: rows.filter((t) => !inView(t)).map((t) => t.id),
+      syncedAt: syncedAt(
+        rows.map((t) => t.updated_at),
+        since,
+      ),
+    };
+  }
+
+  /** Delta sync: a change to a task's checklist moves the task's row. */
+  private touch(id: string) {
+    return this.prisma.attorneyTask.update({
+      where: { id },
+      data: { updated_at: new Date() },
+    });
   }
 
   async get(user: RequestUser, id: string): Promise<TaskDto> {
@@ -783,19 +821,17 @@ export class TasksService {
           created_by_name: user.assistant?.name ?? null,
         },
       }),
-      ...(t.status === 'done' || t.status === 'not_done'
-        ? [
-            this.prisma.attorneyTask.update({
-              where: { id },
-              data: {
-                status: 'open',
-                done_at: null,
-                archived_at: null,
-                purge_notice_days: null,
-              },
-            }),
-          ]
-        : []),
+      t.status === 'done' || t.status === 'not_done'
+        ? this.prisma.attorneyTask.update({
+            where: { id },
+            data: {
+              status: 'open',
+              done_at: null,
+              archived_at: null,
+              purge_notice_days: null,
+            },
+          })
+        : this.touch(id),
     ]);
     if (user.assistant) {
       await this.assistants.log(user, 'task.step.add', {
@@ -847,6 +883,7 @@ export class TasksService {
         x.id === stepId ? dto.status! : x.status,
       );
     }
+    await this.touch(id);
     if (user.assistant) {
       await this.assistants.log(
         user,
@@ -867,6 +904,7 @@ export class TasksService {
     if (t.status === 'cancelled') throw this.closed();
     if (!t.steps.some((x) => x.id === stepId)) throw this.stepNotFound();
     await this.prisma.attorneyTaskStep.delete({ where: { id: stepId } });
+    await this.touch(id);
     // Removing the last open step can finish the task.
     await this.syncTaskWithSteps(
       user,

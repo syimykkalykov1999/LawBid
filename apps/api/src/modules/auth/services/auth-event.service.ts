@@ -1,7 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { createHmac } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import type { Prisma, PrismaClient } from '@prisma/client';
+import {
+  SloMetricsService,
+  type SloCounter,
+} from '../../../common/ops/slo-metrics.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 /**
@@ -64,6 +68,47 @@ export const AUTH_EVENT_TYPES = {
 export type AuthEventType =
   (typeof AUTH_EVENT_TYPES)[keyof typeof AUTH_EVENT_TYPES];
 
+/**
+ * S12-3 / S12-13: how an auth event counts in the SLO line. A sign-in that
+ * worked or failed feeds the login SLI; failures, lockouts and a refresh
+ * token replay feed `authFailed` (credential-stuffing anomaly alarm); every
+ * code request feeds `otpRequested`.
+ */
+const LOGIN_OK: readonly AuthEventType[] = [
+  AUTH_EVENT_TYPES.OTP_VERIFY_SUCCESS,
+  AUTH_EVENT_TYPES.SOCIAL_LOGIN_SUCCESS,
+  AUTH_EVENT_TYPES.PASSWORD_LOGIN_SUCCESS,
+  AUTH_EVENT_TYPES.PASSKEY_LOGIN_SUCCESS,
+  AUTH_EVENT_TYPES.QR_LOGIN_SUCCESS,
+  AUTH_EVENT_TYPES.ASSISTANT_CODE_LOGIN,
+];
+const LOGIN_FAIL: readonly AuthEventType[] = [
+  AUTH_EVENT_TYPES.OTP_VERIFY_FAILED,
+  AUTH_EVENT_TYPES.SOCIAL_LOGIN_FAILED,
+  AUTH_EVENT_TYPES.PASSWORD_LOGIN_FAILED,
+  AUTH_EVENT_TYPES.PASSKEY_LOGIN_FAILED,
+  AUTH_EVENT_TYPES.ASSISTANT_CODE_FAILED,
+];
+const AUTH_ABUSE: readonly AuthEventType[] = [
+  ...LOGIN_FAIL,
+  AUTH_EVENT_TYPES.OTP_LOCKED,
+  AUTH_EVENT_TYPES.REAUTH_FAILED,
+  AUTH_EVENT_TYPES.REFRESH_REUSE_DETECTED,
+];
+
+/** The SLO counters one auth event adds to (exported for the spec). */
+export function sloCountersFor(
+  eventType: AuthEventType,
+  success: boolean,
+): SloCounter[] {
+  const out: SloCounter[] = [];
+  if (success && LOGIN_OK.includes(eventType)) out.push('loginOk');
+  if (!success && LOGIN_FAIL.includes(eventType)) out.push('loginFail');
+  if (!success && AUTH_ABUSE.includes(eventType)) out.push('authFailed');
+  if (eventType === AUTH_EVENT_TYPES.OTP_REQUESTED) out.push('otpRequested');
+  return out;
+}
+
 export interface RecordAuthEventInput {
   userId?: string;
   eventType: AuthEventType;
@@ -82,6 +127,7 @@ export class AuthEventService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    @Optional() private readonly slo?: SloMetricsService,
   ) {
     // Separate from OTP_KEY_PEPPER/OTP_CODE_SECRET on purpose: a leaked
     // Redis dump (OTP keys) must not help correlate rows in the audit
@@ -111,6 +157,9 @@ export class AuthEventService {
         meta: input.meta as Prisma.InputJsonValue | undefined,
       },
     });
+    for (const c of sloCountersFor(input.eventType, input.success)) {
+      this.slo?.count(c);
+    }
   }
 
   private hashIdentifier(identifier: string): string {

@@ -332,6 +332,14 @@ export class PushTokenDto {
   @IsOptional()
   @IsBoolean()
   chatStyle?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      "Owner 2026-10-26: this app draws notifications with a person (bid, comment, like, missed call …) itself, with the person's round photo, from a data-only push (Android).",
+  })
+  @IsOptional()
+  @IsBoolean()
+  actorStyle?: boolean;
 }
 
 /** Owner 2026-10-20: the planner reminders an iPhone has armed locally. */

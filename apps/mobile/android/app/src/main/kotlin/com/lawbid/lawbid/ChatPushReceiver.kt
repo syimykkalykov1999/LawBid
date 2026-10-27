@@ -11,16 +11,18 @@ import java.util.concurrent.Executors
  * this draws it — ChatNotifications builds the MessagingStyle notification
  * with the sender's photo. It listens to the same FCM broadcast as the
  * firebase_messaging plugin's own receiver (which still hands the message to
- * Dart for the badge); everything that is not a chat push is left alone.
+ * Dart for the badge). Owner 2026-10-26: also a notification with a person
+ * (`style == "actor"`, ActorNotifications); everything else is left alone.
  */
 class ChatPushReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val extras = intent.extras ?: return
-        if (extras.getString("type") != "new_message" ||
-            extras.getString("style") != "chat"
-        ) {
-            return
-        }
+        val style = extras.getString("style")
+        val chat = extras.getString("type") == "new_message" && style == "chat"
+        // Owner 2026-10-26: a notification with a person (bid, comment,
+        // like, missed call …) — drawn with their round photo.
+        val actor = extras.getString("type") != "new_message" && style == "actor"
+        if (!chat && !actor) return
         val data = HashMap<String, String>()
         for (key in extras.keySet()) {
             if (key.startsWith("google.") || key.startsWith("gcm.")) continue
@@ -33,7 +35,7 @@ class ChatPushReceiver : BroadcastReceiver() {
         val app = context.applicationContext
         executor.execute {
             try {
-                ChatNotifications.show(app, data)
+                if (chat) ChatNotifications.show(app, data) else ActorNotifications.show(app, data)
             } catch (e: Exception) {
                 // A broken push must never crash the app.
             } finally {
