@@ -41,8 +41,12 @@ import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
+import {
+  CrossFamilyOutbox,
+  parseOutboxSweepMode,
+} from '../sharding/outbox/cross-family-outbox';
+import { AppSettingsService } from '../common/app-settings/app-settings.service';
 import { EventsMaintenance } from '../modules/events/events.maintenance';
-import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { DbBloatJob } from './handlers/db-bloat.job';
 import { ExperimentsNightlyJob } from '../modules/experiments/experiments-nightly.job';
@@ -173,6 +177,8 @@ export class CronProcessor {
     @Optional() private readonly experimentsNightly?: ExperimentsNightlyJob,
     // Day-one foundations: `ledger.reconcile`.
     @Optional() private readonly ledgerReconcile?: LedgerReconcileJob,
+    // Audit X-22: `ops.outbox_sweep.mode` (off / on / auto).
+    @Optional() private readonly appSettings?: AppSettingsService,
     // DB-ops hardening: `db.health`.
     @Optional() private readonly dbHealth?: DbHealthJob,
     // S10-13: one lock per job name for every schedule.
@@ -284,7 +290,14 @@ export class CronProcessor {
       case CRON_JOBS.adminSummaries:
         return this.adminSummaries?.run() ?? null;
       case CRON_JOBS.outboxSweep:
-        return this.outbox?.sweep() ?? null;
+        return this.outbox
+          ? this.outbox.sweep(
+              parseOutboxSweepMode(
+                (await this.appSettings?.string('ops.outbox_sweep.mode')) ??
+                  'auto',
+              ),
+            )
+          : null;
       case CRON_JOBS.eventsMaintain:
         return this.eventsMaintenance?.run() ?? null;
       case CRON_JOBS.opsBusinessMetrics:

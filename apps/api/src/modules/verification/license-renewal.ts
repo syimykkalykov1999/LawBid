@@ -16,7 +16,6 @@ export const LICENSE_EXPIRY_SOURCES = [
   'attorney',
   'admin',
 ] as const;
-export type LicenseExpirySource = (typeof LICENSE_EXPIRY_SOURCES)[number];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

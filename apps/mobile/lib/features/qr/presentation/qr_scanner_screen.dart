@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/deeplinks/group_invite_handler.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/qr/domain/qr_target.dart';
@@ -82,7 +83,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
 
   Future<void> _handle(String raw) async {
     _handling = true;
-    unawaited(HapticFeedback.mediumImpact());
+    unawaited(AppHaptics.medium());
     final t = ref.read(translatorProvider);
     final host = ref.read(appEnvironmentProvider).deepLinkHost;
     final target = classifyQr(raw, host: host);

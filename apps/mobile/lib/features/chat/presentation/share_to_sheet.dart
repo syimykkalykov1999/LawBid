@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -116,7 +116,7 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
       _picked.any((p) => p.kind == kind && p.id == id);
 
   void _toggle(String kind, String id) {
-    unawaited(HapticFeedback.selectionClick());
+    unawaited(AppHaptics.selection());
     setState(() {
       final i = _picked.indexWhere((p) => p.kind == kind && p.id == id);
       if (i >= 0) {
@@ -168,7 +168,7 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
       );
       return;
     }
-    unawaited(HapticFeedback.lightImpact());
+    unawaited(AppHaptics.light());
     showAppSnackBar(
       context,
       ok == total
@@ -758,7 +758,7 @@ class _ActionTile extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(AppRadii.card),
           onTap: () {
-            unawaited(HapticFeedback.selectionClick());
+            unawaited(AppHaptics.selection());
             onTap();
           },
           child: Padding(

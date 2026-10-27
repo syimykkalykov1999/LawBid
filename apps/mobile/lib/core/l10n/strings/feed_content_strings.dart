@@ -2,7 +2,7 @@
 // Owner 2026-10-05: legal posts vs everyday (personal) posts. "Content"
 // next to "All" in the feed: every post or legal posts only; the "Posts"
 // topic lists everyday posts; the author marks a post without a topic as
-// legal. Other languages: tmp-import/feed-filter-keys-update.xlsx.
+// legal. Other languages: apps/api/prisma/seed/translations_seed.xlsx.
 
 const feedContentRu = <String, String>{
   'feed.content.title': 'Контент',

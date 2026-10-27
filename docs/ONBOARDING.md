@@ -215,7 +215,7 @@ Shared machine, shared CI, shared bill.
 - Paging and SLO: `paging.md`, `slo.md`. Money: `treasury.md`, `STRIPE_TAX.md`, `payments-failed.md`.
 - Calls and media: `TURN.md`, `DNS_TO_CLOUDFLARE.md`, `LIVEKIT.md`, `IOS_CHAT_NOTIFICATIONS.md`.
 - Load testing: `LOAD_TEST.md`. Cost: `cost.md`, `docs/COST_PROTECTION.md`.
-- Current state and queue: [HANDOFF.md](HANDOFF.md) (read fully before starting), [REMAINING.md](REMAINING.md), [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md).
+- Current state and queue: [HANDOFF.md](HANDOFF.md) (read fully before starting), [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md).
 
 ## 7. First day checklist
 

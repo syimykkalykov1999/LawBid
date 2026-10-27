@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -381,7 +382,7 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
       half: _halfOf(s, raw, frame),
     );
     if (snapped.guides.difference(_guides).isNotEmpty) {
-      unawaited(HapticFeedback.selectionClick());
+      unawaited(AppHaptics.selection());
     }
     setState(() {
       s

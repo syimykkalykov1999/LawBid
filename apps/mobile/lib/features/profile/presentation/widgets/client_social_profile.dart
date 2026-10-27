@@ -319,21 +319,33 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
     final tabs = p.canSeeReviews
         ? _Tab.values
         : const [_Tab.posts, _Tab.reels, _Tab.reposts];
+    // Owner 2026-10-19: every page keeps at least half a screen. The two
+    // grids are sliver pages (lazy, 2026-10-26 smoothness P4) held to the
+    // same minimum; the other pages are boxes in a ConstrainedBox.
+    final minPage = MediaQuery.sizeOf(context).height * 0.5;
     Widget pageOf(_Tab value) => switch (value) {
-          _Tab.posts => ProfilePostsGrid(
-              attorneyId: p.id,
-              emptyTitle: t.t('client.posts.empty'),
-              emptyMessage: '',
+          _Tab.posts => ProfileSliverPage(
+              sliver: ProfilePostsGrid(
+                asSliver: true,
+                minExtent: minPage,
+                attorneyId: p.id,
+                emptyTitle: t.t('client.posts.empty'),
+                emptyMessage: '',
+              ),
             ),
-          _Tab.reels => ProfilePostsGrid(
-              key: const ValueKey('reels'),
-              attorneyId: p.id,
-              reelsOnly: true,
-              emptyTitle: t.t('profile.reels.empty.title'),
-              emptyMessage: t.t(
-                p.isSelf
-                    ? 'profile.reels.empty.self'
-                    : 'profile.reels.empty.other',
+          _Tab.reels => ProfileSliverPage(
+              sliver: ProfilePostsGrid(
+                key: const ValueKey('reels'),
+                asSliver: true,
+                minExtent: minPage,
+                attorneyId: p.id,
+                reelsOnly: true,
+                emptyTitle: t.t('profile.reels.empty.title'),
+                emptyMessage: t.t(
+                  p.isSelf
+                      ? 'profile.reels.empty.self'
+                      : 'profile.reels.empty.other',
+                ),
               ),
             ),
           _Tab.reposts => ProfileBriefsAndReposts(
@@ -396,12 +408,13 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
       },
       pages: [
         for (final value in tabs)
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: MediaQuery.sizeOf(context).height * 0.5,
+          if (value == _Tab.posts || value == _Tab.reels)
+            pageOf(value)
+          else
+            ConstrainedBox(
+              constraints: BoxConstraints(minHeight: minPage),
+              child: pageOf(value),
             ),
-            child: pageOf(value),
-          ),
       ],
     );
   }

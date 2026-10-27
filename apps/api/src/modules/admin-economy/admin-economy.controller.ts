@@ -77,9 +77,7 @@ export class AdminEconomyController {
       'economy.ceiling_mode': dto.ceilingMode,
       'economy.manual_api_max': dto.manualApi,
       'economy.manual_worker_max': dto.manualWorker,
-      'economy.sms_unit_usd': dto.smsUnitUsd,
-      'economy.video_unit_usd': dto.videoUnitUsd,
-      'economy.translate_unit_usd': dto.translateUnitUsd,
+      'economy.daily_brake_days': dto.dailyBrakeDays,
       'economy.aws_fallback_usd': dto.awsFallbackUsd,
     });
     if (dto.guardEnabled !== undefined) {

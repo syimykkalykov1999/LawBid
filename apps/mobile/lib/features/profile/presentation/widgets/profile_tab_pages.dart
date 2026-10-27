@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
 
@@ -126,7 +129,9 @@ class _ProfileTabPagesState extends State<ProfileTabPages> {
                                 AppSpacing.screenSide,
                                 AppSpacing.xxl,
                               ),
-                          sliver: SliverToBoxAdapter(child: widget.pages[i]),
+                          sliver: widget.pages[i] is ProfileSliverPage
+                              ? widget.pages[i]
+                              : SliverToBoxAdapter(child: widget.pages[i]),
                         ),
                       ],
                     ),
@@ -151,6 +156,83 @@ class _ProfileTabPagesState extends State<ProfileTabPages> {
       notificationPredicate: (n) => n.metrics.axis == Axis.vertical,
       onRefresh: onRefresh,
       child: child,
+    );
+  }
+}
+
+/// 2026-10-26 (smoothness P4): a page given as a sliver instead of a box, so
+/// a long grid inside it is built lazily (only the rows near the screen)
+/// instead of all at once by a `shrinkWrap` grid. [minExtent] is the page's
+/// minimum height — the same as a `ConstrainedBox(minHeight:)` around a box
+/// page: a short page still reaches it, a long one is not touched.
+class ProfileSliverPage extends StatelessWidget {
+  const ProfileSliverPage({
+    required this.sliver,
+    this.minExtent = 0,
+    super.key,
+  });
+
+  final Widget sliver;
+  final double minExtent;
+
+  @override
+  Widget build(BuildContext context) =>
+      SliverMinExtent(minExtent: minExtent, sliver: sliver);
+}
+
+/// A sliver that takes at least [minExtent] of scroll space: the child is
+/// laid out as is, and when it is shorter the rest is empty space below it
+/// (what `ConstrainedBox(minHeight:)` around a top-aligned `Column` does).
+class SliverMinExtent extends SingleChildRenderObjectWidget {
+  const SliverMinExtent({
+    required this.minExtent,
+    required Widget sliver,
+    super.key,
+  }) : super(child: sliver);
+
+  final double minExtent;
+
+  @override
+  RenderSliverMinExtent createRenderObject(BuildContext context) =>
+      RenderSliverMinExtent(minExtent);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    RenderSliverMinExtent renderObject,
+  ) {
+    renderObject.minExtent = minExtent;
+  }
+}
+
+class RenderSliverMinExtent extends RenderProxySliver {
+  RenderSliverMinExtent(this._minExtent);
+
+  double _minExtent;
+  double get minExtent => _minExtent;
+  set minExtent(double value) {
+    if (value == _minExtent) return;
+    _minExtent = value;
+    markNeedsLayout();
+  }
+
+  @override
+  void performLayout() {
+    final child = this.child!..layout(constraints, parentUsesSize: true);
+    final g = child.geometry!;
+    if (g.scrollOffsetCorrection != null || g.scrollExtent >= _minExtent) {
+      geometry = g;
+      return;
+    }
+    final paint = calculatePaintOffset(constraints, from: 0, to: _minExtent);
+    geometry = SliverGeometry(
+      scrollExtent: _minExtent,
+      paintExtent: paint,
+      layoutExtent: paint,
+      maxPaintExtent: math.max(g.maxPaintExtent, _minExtent),
+      cacheExtent: calculateCacheOffset(constraints, from: 0, to: _minExtent),
+      hitTestExtent: paint,
+      hasVisualOverflow: g.hasVisualOverflow,
     );
   }
 }

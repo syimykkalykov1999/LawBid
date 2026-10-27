@@ -325,22 +325,30 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     purpose:
       'ecr.api, ecr.dkr, logs, secretsmanager: серверы берут образы и секреты не через интернет, трафик дешевле.',
     kind: 'aws',
-    control: tf(['interface_endpoints', 'interface_endpoint_azs'], {
-      off: 'interface_endpoints = false',
-      on: 'interface_endpoints = true',
-    }),
-    states: ['off', 'on'],
-    defaultState: 'on',
-    ceiling: null,
+    // #370: the admin switch `scale.endpoints.mode` (Выкл / Вкл / Авто):
+    // Авто creates them when NAT traffic makes them cheaper and removes them
+    // after a quiet week; the ceiling caps how many may exist.
+    control: {
+      type: 'app-setting',
+      key: 'scale.endpoints.mode',
+      map: { off: 'off', on: 'on', auto: 'auto' },
+    },
+    states: ['off', 'on', 'auto'],
+    defaultState: 'auto',
+    ceiling: setCeil(
+      'scale.endpoints.ceiling',
+      'Сколько таких «входов» автоматика может держать (0–4)',
+    ),
     price: price(
       'fixed',
       '$0,01 в час за штуку в каждой зоне ≈ $7,3; четыре штуки ≈ $29',
       U.vpc,
     ),
-    usd: { launch: R(29), k100: R(35), m1: R(60) },
-    needed: 'later',
+    usd: { launch: R(0), k100: R(15, 29), m1: R(29, 60) },
+    ifOnUsd: R(29),
+    needed: 'auto',
     neededNote:
-      'На пустом приложении почти не нужны (экономят трафик NAT). Можно выключить и вернуть позже.',
+      'На пустом приложении не нужны (Авто их не создаёт); появляются сами, когда трафик через NAT стоит дороже.',
     alarm: null,
     ceService: 'Amazon Virtual Private Cloud',
     awsTypes: ['aws_vpc_endpoint'],
@@ -1722,7 +1730,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(0), k100: R(0), m1: R(0) },
     needed: 'yes',
     neededNote:
-      'Нужен. Это процент от выручки, а не счёт: в «держать на счету» не входит.',
+      'Нужен. Это процент от выручки, а не счёт: в «держать на счету» не входит. Выключены флагами и добавят обороты при включении: stars (звёзды, подарки, платные стикеры), payroll_stripe_payouts (выплата зарплат через Connect).',
     alarm: 'тревоги платежей (payments-failed, stripe-webhooks)',
     spendVendor: { id: 'stripe' },
     providers: ['stripe'],
@@ -1751,7 +1759,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(1), k100: R(100, 400), m1: R(3000, 8000) },
     needed: 'yes',
     neededNote:
-      'Авто: новые загрузки видео ставятся на паузу, когда трафик или хранилище Bunny дошли до срочного порога. Вкл = пауза сейчас. Выкл = не останавливать никогда. Просмотр уже загруженного не трогается.',
+      'Авто: новые загрузки видео ставятся на паузу, когда трафик или хранилище Bunny дошли до срочного порога. Вкл = пауза сейчас. Выкл = не останавливать никогда. Просмотр уже загруженного не трогается. Флаг video_posts (видео в постах ленты, сейчас выключен) добавляет минуты Bunny к рилсам, когда его включат.',
     alarm:
       'тревоги трафика и хранилища Bunny (usage-bunny-*) + лимит минут видео в деньгах (BUDGET_VIDEO_*)',
     spendVendor: { id: 'bunny' },
@@ -1783,7 +1791,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(0), k100: R(0, 100), m1: R(2000, 5000) },
     needed: 'yes',
     neededNote:
-      'Авто: когда бесплатный терабайт почти исчерпан, групповые звонки возвращаются на «устройство-устройство» (на видео до 4 человек, остальным только звук), чтобы не платить сверх. Вкл = вернуть сейчас. Звонки не отключаются.',
+      'Авто: когда бесплатный терабайт почти исчерпан, групповые звонки возвращаются на «устройство-устройство» (на видео до 4 человек, остальным только звук), чтобы не платить сверх. Вкл = вернуть сейчас. Звонки не отключаются. Видеозвонки в чатах показывает флаг video_calls (сейчас выключен): пока он выключен, трафика почти нет.',
     alarm: 'тревоги трафика звонков (usage-cf-warn / usage-cf-crit)',
     spendVendor: { id: 'cloudflare', line: 'Звонки' },
     providers: ['cloudflare_turn', 'cloudflare_sfu'],
@@ -1832,10 +1840,35 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(0), k100: R(50, 500), m1: R(5000) },
     needed: 'later',
     neededNote:
-      'Платит только при наличии ключа. Выкл останавливает перевод у всех.',
+      'Платит только при наличии ключа. Выкл останавливает перевод у всех. Кнопку «Перевести» показывает флаг chat_translate (сейчас выключен): пока он выключен, платный перевод не зовут.',
     alarm:
       'лимит перевода в деньгах (BUDGET_TRANSLATE_*, лимит на человека в день $5)',
     providers: ['google_translate'],
+  },
+  {
+    id: 'vendor.bar_registries',
+    name: 'Проверка лицензий адвокатов по реестрам штатов',
+    purpose:
+      'Сверяет номер лицензии и имя с реестром штата после присяги и раз в месяц. Выключено у всех штатов, кроме готовых открытых данных Нью-Йорка.',
+    kind: 'vendor',
+    control: fixed(
+      'Включается по штатам: Админка → Система → Ключи и сервисы → «Реестры адвокатов по штатам». Старый общий флаг auto_bar_check больше не читается.',
+    ),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      'Нью-Йорк: бесплатно (открытые данные data.ny.gov). Платный API другого штата или сервиса: по вашему договору, цену за проверку надо уточнить у продавца',
+      'https://data.ny.gov/',
+      false,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0),
+    needed: 'later',
+    neededNote:
+      'Нужен, когда у штата появится API. Одна проверка на лицензию после присяги плюс одна в месяц; без ключа штата проверка просто не идёт.',
+    alarm: null,
   },
   {
     id: 'vendor.rekognition',
@@ -2144,6 +2177,32 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     neededNote:
       'Нагрузка: тяжёлые задачи сами встают на паузу на 15 минут, когда база тормозит (положение Вкл = Авто по сигналу). Выкл = не ставить на паузу.',
     alarm: 'тревога «база медленная» (db-slow)',
+  },
+  {
+    id: 'hidden.outbox_sweep',
+    name: 'Передача событий между семействами баз (раз в минуту)',
+    purpose:
+      'Заготовка под разделение базы на части: передаёт события, которые не успели выполниться сразу. Пока база одна, событий нет.',
+    kind: 'aws',
+    control: {
+      type: 'app-setting',
+      key: 'ops.outbox_sweep.mode',
+      map: { off: 'off', on: 'on', auto: 'auto' },
+    },
+    states: ['off', 'on', 'auto'],
+    defaultState: 'auto',
+    ceiling: null,
+    price: price(
+      'free',
+      'Своих денег не берёт: один лёгкий запрос к базе в минуту',
+      U.fargate,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'auto',
+    neededNote:
+      'Нагрузка: 1 440 пустых запусков в день. Авто = запускать только когда в очереди есть событие (один лёгкий запрос вместо захвата строк). Вкл = каждую минуту как раньше. Выкл = совсем не запускать (нельзя, когда базу разделили).',
+    alarm:
+      'запись cross_family_outbox_dead в журнале (событие не прошло 8 раз)',
   },
   {
     id: 'hidden.logs_metrics',

@@ -139,6 +139,9 @@ export interface CapacityReading {
   dbConnections: number | null;
   dbMaxConnections: number | null;
   redisMemoryPercent: number | null;
+  /** S9-14 (optional: older readings in Redis lack them). */
+  dbStorageGb?: number | null;
+  dbMultiAz?: boolean | null;
 }
 
 export interface CeilingSnapshot {

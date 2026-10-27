@@ -161,6 +161,13 @@ variable "generator_instance_type" {
   type    = string
   default = "c7g.xlarge"
 }
+# Own coturn (the Cloudflare TURN is the default path, owner 2026-10-24). To
+# load-test the own-TURN fallback: -var turn_enabled=true (profiles set
+# turn_second_enabled for the second box; it only counts with turn_enabled).
+variable "turn_enabled" {
+  type    = bool
+  default = false
+}
 variable "turn_second_enabled" {
   type    = bool
   default = false
