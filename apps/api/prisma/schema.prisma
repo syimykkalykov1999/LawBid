@@ -3713,26 +3713,26 @@ model LedgerLine {
 /// from the platform, a disabled capability. One open row per (kind,
 /// stripe_ref); `due_at` is the SLA clock (or Stripe's evidence deadline).
 model StripeReviewItem {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// payout_failed | refund_failed | dispute | early_fraud_warning |
   /// account_deauthorized | capability_disabled | reconcile_drift
-  kind         String    @db.VarChar(32)
+  kind            String    @db.VarChar(32)
   /// open | resolved | dismissed
-  status       String    @default("open") @db.VarChar(12)
+  status          String    @default("open") @db.VarChar(12)
   /// Stripe id (po_, dp_, issfr_, re_, acct_, ...): with `kind` the dedupe key.
-  stripe_ref   String    @db.VarChar(80)
-  case_payment_id String? @db.Uuid
-  user_id      String?   @db.Uuid
-  amount_cents Int?
-  currency     String    @default("usd") @db.VarChar(3)
-  summary      String    @db.VarChar(300)
-  details      Json      @default("{}")
-  opened_at    DateTime  @default(now()) @db.Timestamptz
-  due_at       DateTime? @db.Timestamptz
-  reminded_at  DateTime? @db.Timestamptz
-  resolved_at  DateTime? @db.Timestamptz
-  resolved_by  String?   @db.Uuid
-  resolution   String?   @db.VarChar(300)
+  stripe_ref      String    @db.VarChar(80)
+  case_payment_id String?   @db.Uuid
+  user_id         String?   @db.Uuid
+  amount_cents    Int?
+  currency        String    @default("usd") @db.VarChar(3)
+  summary         String    @db.VarChar(300)
+  details         Json      @default("{}")
+  opened_at       DateTime  @default(now()) @db.Timestamptz
+  due_at          DateTime? @db.Timestamptz
+  reminded_at     DateTime? @db.Timestamptz
+  resolved_at     DateTime? @db.Timestamptz
+  resolved_by     String?   @db.Uuid
+  resolution      String?   @db.VarChar(300)
 
   @@unique([kind, stripe_ref])
   @@index([status, due_at])
@@ -4093,6 +4093,17 @@ model AuditLog {
   @@index([created_at(sort: Desc), id(sort: Desc)], map: "audit_log_created_at_id_idx")
   @@index([target_type, target_id, created_at(sort: Desc)], map: "audit_log_target_idx")
   @@map("audit_log")
+}
+
+/// Merge union 2026-10-27: the head of the audit hash chain (#373), one row.
+/// The audit_log trigger updates it on every insert, so two rows can never
+/// take the same `seq`, also inside SERIALIZABLE transactions.
+model AuditLogChainHead {
+  id        Int     @id @default(1) @db.SmallInt
+  seq       BigInt  @default(0)
+  last_hash String?
+
+  @@map("audit_log_chain_head")
 }
 
 model DataAccessRequest {
@@ -6298,33 +6309,33 @@ model TreasuryPayout {
 // the attorney's balance (direct charges), the platform keeps only its
 // fee (`application_fee_amount`) and never holds the client's funds.
 model PayoutAccount {
-  user_id              String    @id @db.Uuid
-  provider             String    @default("stripe") @db.VarChar(16)
-  stripe_account_id    String    @unique
+  user_id                  String    @id @db.Uuid
+  provider                 String    @default("stripe") @db.VarChar(16)
+  stripe_account_id        String    @unique
   // pending | onboarding | active | restricted | disabled
-  status               String    @default("pending") @db.VarChar(16)
-  charges_enabled      Boolean   @default(false)
-  payouts_enabled      Boolean   @default(false)
-  details_submitted    Boolean   @default(false)
-  requirements_due     String[]  @default([])
-  disabled_reason      String?   @db.VarChar(200)
-  country              String?   @db.VarChar(2)
+  status                   String    @default("pending") @db.VarChar(16)
+  charges_enabled          Boolean   @default(false)
+  payouts_enabled          Boolean   @default(false)
+  details_submitted        Boolean   @default(false)
+  requirements_due         String[]  @default([])
+  disabled_reason          String?   @db.VarChar(200)
+  country                  String?   @db.VarChar(2)
   // Owner 2026-10-05: the attorney's own default for who covers Stripe's
   // card fee on their invoices (client | attorney | split); null = the
   // admin default for new attorneys applies.
-  processing_fee_payer String?   @db.VarChar(16)
-  last_synced_at       DateTime? @db.Timestamptz
+  processing_fee_payer     String?   @db.VarChar(16)
+  last_synced_at           DateTime? @db.Timestamptz
   // Stripe robustness 2026-10-27: payouts to the attorney's bank are
   // paused (Stripe payout schedule = manual) while a dispute is open, and a
   // failed payout / a disconnect from the platform is remembered.
-  payouts_held         Boolean   @default(false)
-  payouts_hold_reason  String?   @db.VarChar(200)
-  payouts_held_at      DateTime? @db.Timestamptz
+  payouts_held             Boolean   @default(false)
+  payouts_hold_reason      String?   @db.VarChar(200)
+  payouts_held_at          DateTime? @db.Timestamptz
   last_payout_failure_at   DateTime? @db.Timestamptz
   last_payout_failure_code String?   @db.VarChar(100)
-  deauthorized_at      DateTime? @db.Timestamptz
-  created_at           DateTime  @default(now()) @db.Timestamptz
-  updated_at           DateTime  @updatedAt @db.Timestamptz
+  deauthorized_at          DateTime? @db.Timestamptz
+  created_at               DateTime  @default(now()) @db.Timestamptz
+  updated_at               DateTime  @updatedAt @db.Timestamptz
 
   @@index([status])
   @@map("payout_accounts")
@@ -6334,58 +6345,58 @@ model PayoutAccount {
 // amount, a deposit, the balance or any amount). Fee columns are a
 // snapshot of the admin's commission settings at creation.
 model CasePayment {
-  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  case_id                  String    @db.Uuid
-  bid_id                   String?   @db.Uuid
-  client_id                String    @db.Uuid
-  attorney_id              String    @db.Uuid
+  id                          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id                     String    @db.Uuid
+  bid_id                      String?   @db.Uuid
+  client_id                   String    @db.Uuid
+  attorney_id                 String    @db.Uuid
   // bid | deposit | balance | custom | invoice
-  kind                     String    @db.VarChar(16)
+  kind                        String    @db.VarChar(16)
   // The attorney's payment request this pays (kind = invoice).
-  request_id               String?   @db.Uuid
+  request_id                  String?   @db.Uuid
   // pending_payment | succeeded | failed | canceled | refunded |
   // partially_refunded | disputed
-  status                   String    @db.VarChar(24)
+  status                      String    @db.VarChar(24)
   // What the attorney charges for the work.
-  amount_cents             Int
+  amount_cents                Int
   // The platform's fee (application fee) and the card-processing fee
   // passed to the client (an estimate of Stripe's charge).
-  platform_fee_cents       Int       @default(0)
-  processing_fee_cents     Int       @default(0)
-  client_total_cents       Int
-  attorney_net_cents       Int
+  platform_fee_cents          Int       @default(0)
+  processing_fee_cents        Int       @default(0)
+  client_total_cents          Int
+  attorney_net_cents          Int
   // fixed | none; client | attorney
-  fee_type                 String    @db.VarChar(16)
-  fee_payer                String    @db.VarChar(16)
+  fee_type                    String    @db.VarChar(16)
+  fee_payer                   String    @db.VarChar(16)
   // Who covered Stripe's card fee: client | attorney | split.
-  processing_fee_payer     String    @default("client") @db.VarChar(16)
-  currency                 String    @default("usd") @db.VarChar(3)
-  note                     String?   @db.VarChar(200)
-  stripe_account_id        String?
-  stripe_checkout_id       String?   @unique
-  stripe_payment_intent_id String?   @unique
-  stripe_charge_id         String?
-  receipt_url              String?
-  refunded_cents           Int       @default(0)
+  processing_fee_payer        String    @default("client") @db.VarChar(16)
+  currency                    String    @default("usd") @db.VarChar(3)
+  note                        String?   @db.VarChar(200)
+  stripe_account_id           String?
+  stripe_checkout_id          String?   @unique
+  stripe_payment_intent_id    String?   @unique
+  stripe_charge_id            String?
+  receipt_url                 String?
+  refunded_cents              Int       @default(0)
   // Stripe dispute status while / after a chargeback.
-  dispute_status           String?   @db.VarChar(32)
-  disputed_at              DateTime? @db.Timestamptz
+  dispute_status              String?   @db.VarChar(32)
+  disputed_at                 DateTime? @db.Timestamptz
   // Stripe robustness 2026-10-27: the Stripe dispute behind dispute_status,
   // its evidence deadline and the state of our evidence packet
   // (none | draft | submitted | failed), plus the funds_withdrawn /
   // funds_reinstated moments.
-  dispute_id               String?   @db.VarChar(64)
-  dispute_reason           String?   @db.VarChar(64)
-  dispute_amount_cents     Int?
-  dispute_due_by           DateTime? @db.Timestamptz
-  dispute_evidence_status  String?   @db.VarChar(16)
-  dispute_funds_withdrawn_at   DateTime? @db.Timestamptz
-  dispute_funds_reinstated_at  DateTime? @db.Timestamptz
-  paid_at                  DateTime? @db.Timestamptz
-  canceled_reason          String?   @db.VarChar(100)
-  failure_code             String?   @db.VarChar(100)
-  created_at               DateTime  @default(now()) @db.Timestamptz
-  updated_at               DateTime  @updatedAt @db.Timestamptz
+  dispute_id                  String?   @db.VarChar(64)
+  dispute_reason              String?   @db.VarChar(64)
+  dispute_amount_cents        Int?
+  dispute_due_by              DateTime? @db.Timestamptz
+  dispute_evidence_status     String?   @db.VarChar(16)
+  dispute_funds_withdrawn_at  DateTime? @db.Timestamptz
+  dispute_funds_reinstated_at DateTime? @db.Timestamptz
+  paid_at                     DateTime? @db.Timestamptz
+  canceled_reason             String?   @db.VarChar(100)
+  failure_code                String?   @db.VarChar(100)
+  created_at                  DateTime  @default(now()) @db.Timestamptz
+  updated_at                  DateTime  @updatedAt @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt

@@ -256,6 +256,8 @@ export const GLOBAL_MODELS: readonly string[] = [
   'AdminRoleTemplate',
   'AccountBan',
   'AuditLog',
+  // Merge union 2026-10-27: the audit hash-chain head (one row, #373).
+  'AuditLogChainHead',
   'DataAccessRequest',
   'DataAccessLog',
   'AdminApproval',

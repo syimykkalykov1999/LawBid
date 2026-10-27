@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-275 tables.
+276 tables.
 
 ```mermaid
 erDiagram
@@ -1410,6 +1410,11 @@ erDiagram
     BigInt seq UK "nullable"
     String prev_hash "nullable"
     String row_hash "nullable"
+  }
+  audit_log_chain_head {
+    Int id PK
+    BigInt seq
+    String last_hash "nullable"
   }
   data_access_requests {
     String id PK

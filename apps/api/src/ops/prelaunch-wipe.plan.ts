@@ -17,6 +17,9 @@
  * admin (prices, plans, templates, keys, staff).
  */
 export const KEEP_TABLES: Readonly<Record<string, string>> = {
+  // Merge union 2026-10-27: one row, the audit hash-chain head (#373);
+  // reset below together with the wiped audit_log.
+  audit_log_chain_head: 'audit hash-chain head (one row, reset to 0)',
   search_synonym_groups:
     'the search dictionary: words per topic (admin edits it)',
   search_synonym_terms: 'its words and phrases',
@@ -358,6 +361,7 @@ export const SOFT_USER_REFS: ReadonlyArray<{ table: string; column: string }> =
 
 /** Counters on kept rows that only counted tester activity. */
 export const RESET_SQL: readonly string[] = [
+  'UPDATE "audit_log_chain_head" SET "seq" = 0, "last_hash" = NULL',
   'UPDATE "promo_codes" SET "redeemed_count" = 0 WHERE "redeemed_count" <> 0',
   'UPDATE "sticker_packs" SET "install_count" = 0 WHERE "install_count" <> 0',
   'UPDATE "gifts" SET "sent_count" = 0 WHERE "sent_count" <> 0',
