@@ -17,6 +17,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/prefetch_policy.dart';
 import 'package:lawbid/core/network/device_key.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/platform/spotlight_index.dart';
 import 'package:lawbid/core/platform/web_consent_notice.dart';
 import 'package:lawbid/core/platform/web_gate.dart';
 import 'package:lawbid/core/platform/web_lifecycle.dart';
@@ -202,6 +203,10 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // link is captured; DeepLinkController holds it until the splash
   // sequence below has finished.
   unawaited(container.read(deepLinkControllerProvider.notifier).start());
+
+  // Owner 2026-10-27 (app indexing): iPhone Spotlight index — created now so
+  // it empties itself when the account signs out. No-op off iOS.
+  if (spotlightSupported) container.read(spotlightIndexerProvider);
 
   // docs/ops/demo-world.md: Android Play install referrer → pending referral
   // code (first launch only). Fire-and-forget, never delays first paint.

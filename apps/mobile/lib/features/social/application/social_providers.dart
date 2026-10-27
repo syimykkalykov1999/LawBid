@@ -15,6 +15,7 @@ import 'package:lawbid/features/feed/application/feed_topics.dart'
     show topicTagFor;
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/social/application/post_insights_providers.dart';
+import 'package:lawbid/features/social/application/post_spotlight.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -935,6 +936,8 @@ class SocialActions {
           _ref.read(postOverridesProvider.notifier).put(before);
           rethrow;
         }
+        // Owner 2026-10-27 (app indexing): iPhone Spotlight finds saved posts.
+        spotlightPostSaved(_ref, before, saved: saved);
       });
 
   Future<Object?> deletePost(Post post) => _guard('del:${post.id}', () async {

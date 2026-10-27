@@ -235,6 +235,27 @@ void main() {
       );
     });
 
+    test('SEO attorney page opens the profile; the /lawyers/ catalog does not',
+        () {
+      // Owner 2026-10-27 (app indexing): Google's result for
+      // lawbid.dev/attorneys/<username>/ opens the profile in the app.
+      const jane = ContentDeepLink(ContentKind.lawyer, 'jane.doe_esq');
+      expect(parse('https://lawbid.dev/attorneys/jane.doe_esq/'), jane);
+      expect(parse('https://lawbid.dev/attorneys/jane.doe_esq'), jane);
+      expect(parse('https://www.lawbid.dev/attorneys/jane.doe_esq/'), jane);
+      expect(
+        parse('https://lawbid.dev/attorneys/@jane.doe'),
+        const ContentDeepLink(ContentKind.lawyer, 'jane.doe'),
+      );
+      expect(parse('https://lawbid.dev/attorneys/ab/'), isNull);
+      expect(parse('https://other.example/attorneys/jane.doe_esq/'), isNull);
+      // Hub, state and practice pages are catalog pages the app has no
+      // screen for: never turned into a profile.
+      expect(parse('https://lawbid.dev/lawyers/'), isNull);
+      expect(parse('https://lawbid.dev/lawyers/texas/'), isNull);
+      expect(parse('https://lawbid.dev/lawyers/new-york/divorce/'), isNull);
+    });
+
     test('rejects bad ids, usernames and unknown paths', () {
       expect(parse('https://lawbid.dev/lawyer/ab'), isNull); // < 3 chars
       expect(

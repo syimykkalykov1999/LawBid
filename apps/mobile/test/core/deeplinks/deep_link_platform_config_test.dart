@@ -18,10 +18,19 @@ void main() {
     expect(manifest, contains('<data android:scheme="lawbid" />'));
     expect(manifest, contains('android:autoVerify="true"'));
     expect(manifest, contains(r'<data android:host="${deepLinkHost}" />'));
-    for (final p in ['/case/', '/lawyer/', '/post/', '/g/', '/c/']) {
+    for (final p in [
+      '/case/',
+      '/lawyer/',
+      '/attorneys/',
+      '/post/',
+      '/g/',
+      '/c/',
+    ]) {
       expect(manifest, contains('<data android:pathPrefix="$p" />'));
     }
     expect(manifest, contains('<data android:path="/auth/email-code" />'));
+    // The /lawyers/ catalog tree stays in the browser.
+    expect(manifest, isNot(contains('android:pathPrefix="/lawyers/"')));
     // app_links handles links, not Flutter's router deep linking.
     expect(manifest, contains('android:name="flutter_deeplinking_enabled"'));
 
@@ -76,6 +85,7 @@ void main() {
         '/r/*',
         '/case/*',
         '/lawyer/*',
+        '/attorneys/*',
         '/post/*',
         '/u/*',
         '/q/*',
@@ -115,6 +125,7 @@ void main() {
       '/r/*': 'r/ABCD1234',
       '/case/*': 'case/7b1f2c3d-0000-4000-8000-000000000001',
       '/lawyer/*': 'lawyer/jane_doe',
+      '/attorneys/*': 'attorneys/jane_doe',
       '/post/*': 'post/7b1f2c3d-0000-4000-8000-000000000002',
       '/u/*': 'u/jane_doe',
       '/q/*': 'q/Xk3_aB-9Qz1LmN4pR7sT0w',

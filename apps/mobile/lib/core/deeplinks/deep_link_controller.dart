@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/deeplinks/deep_link.dart';
@@ -9,6 +10,7 @@ import 'package:lawbid/core/deeplinks/group_invite_handler.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
+import 'package:lawbid/core/platform/spotlight_index.dart';
 import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
@@ -40,8 +42,95 @@ class AppLinksDeepLinkSource implements DeepLinkSource {
   Stream<Uri> get links => _appLinks.uriLinkStream;
 }
 
-final deepLinkSourceProvider =
-    Provider<DeepLinkSource>((ref) => AppLinksDeepLinkSource());
+/// Owner 2026-10-27 (app indexing): a tap on an iPhone Spotlight result
+/// (CoreSpotlight item whose identifier is the link) arrives from the native
+/// `SpotlightBridge` as that link — then it is handled like any Universal
+/// Link. Only built on iOS.
+class SpotlightDeepLinkSource implements DeepLinkSource {
+  SpotlightDeepLinkSource([
+    this._channel = const MethodChannel(spotlightChannelName),
+  ]);
+
+  final MethodChannel _channel;
+  final StreamController<Uri> _controller = StreamController<Uri>.broadcast();
+  bool _listening = false;
+
+  void _listen() {
+    if (_listening) return;
+    _listening = true;
+    _channel.setMethodCallHandler((call) async {
+      final raw = call.arguments;
+      if (call.method != 'open' || raw is! String) return;
+      final uri = Uri.tryParse(raw);
+      if (uri != null) _controller.add(uri);
+    });
+  }
+
+  @override
+  Future<Uri?> initialLink() async {
+    _listen();
+    try {
+      final raw = await _channel.invokeMethod<String>('initialLink');
+      return raw == null ? null : Uri.tryParse(raw);
+    } on Object {
+      return null; // an old native build without the bridge
+    }
+  }
+
+  @override
+  Stream<Uri> get links {
+    _listen();
+    return _controller.stream;
+  }
+}
+
+/// Several sources as one: the first launch link wins, all live links flow.
+class MergedDeepLinkSource implements DeepLinkSource {
+  const MergedDeepLinkSource(this.sources);
+
+  final List<DeepLinkSource> sources;
+
+  @override
+  Future<Uri?> initialLink() async {
+    Uri? first;
+    for (final source in sources) {
+      try {
+        // Every source is asked (the native bridge hands out its pending
+        // link once); the first answer wins.
+        final uri = await source.initialLink();
+        first ??= uri;
+      } on Object {
+        // One broken source must not hide the others.
+      }
+    }
+    return first;
+  }
+
+  @override
+  Stream<Uri> get links {
+    final controller = StreamController<Uri>();
+    final subs = <StreamSubscription<Uri>>[];
+    controller
+      ..onListen = () {
+        for (final source in sources) {
+          subs.add(
+            source.links.listen(controller.add, onError: controller.addError),
+          );
+        }
+      }
+      ..onCancel = () => Future.wait(subs.map((s) => s.cancel()));
+    return controller.stream;
+  }
+}
+
+final deepLinkSourceProvider = Provider<DeepLinkSource>(
+  (ref) => spotlightSupported
+      ? MergedDeepLinkSource([
+          AppLinksDeepLinkSource(),
+          SpotlightDeepLinkSource(),
+        ])
+      : AppLinksDeepLinkSource(),
+);
 
 /// Navigation used by [DeepLinkController] — the app router's `go`;
 /// overridable in tests.

@@ -1,8 +1,10 @@
 import AVFoundation
 import CallKit
+import CoreSpotlight
 import Flutter
 import PushKit
 import UIKit
+import UniformTypeIdentifiers
 import UserNotifications
 import flutter_callkit_incoming
 
@@ -172,6 +174,9 @@ import flutter_callkit_incoming
     }
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LawbidSecureScreen") {
       registerSecureScreen(registrar.messenger())
+    }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LawbidSpotlight") {
+      SpotlightBridge.shared.register(registrar)
     }
   }
 
@@ -429,5 +434,116 @@ import flutter_callkit_incoming
     if shared.responds(to: selector) {
       _ = shared.perform(selector, with: session)
     }
+  }
+}
+
+// MARK: - Spotlight
+
+/// Owner 2026-10-27 (app indexing, docs/architecture/PSEO_ASO_PACKAGE_PLAN
+/// §3): iPhone Spotlight finds the attorney profiles and saved posts the
+/// user opened or saved. Invisible plumbing, no screen.
+///
+/// - CoreSpotlight, on-device index only (`CSSearchableIndex.default()`):
+///   nothing is sent to Apple's public index.
+/// - Title and subtitle only (what the public page shows), expiry 60 days.
+/// - The item's identifier is its https link. A tap on a result reaches the
+///   scene as `CSSearchableItemActionType`; the link goes to Dart over
+///   `lawbid/spotlight`, where it is handled like a Universal Link.
+final class SpotlightBridge: NSObject, FlutterSceneLifeCycleDelegate {
+  static let shared = SpotlightBridge()
+
+  private static let ttl: TimeInterval = 60 * 24 * 60 * 60
+
+  private var channel: FlutterMethodChannel?
+  /// Dart asked for the launch link, so it is listening for `open`.
+  private var dartReady = false
+  /// A result tapped before Dart listened (a cold start).
+  private var pending: String?
+
+  func register(_ registrar: FlutterPluginRegistrar) {
+    let channel = FlutterMethodChannel(
+      name: "lawbid/spotlight", binaryMessenger: registrar.messenger())
+    self.channel = channel
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self = self else {
+        result(nil)
+        return
+      }
+      self.handle(call, result: result)
+    }
+    registrar.addSceneDelegate(self)
+  }
+
+  private func handle(_ call: FlutterMethodCall, result: FlutterResult) {
+    let args = call.arguments as? [String: Any]
+    switch call.method {
+    case "index":
+      guard let id = args?["id"] as? String, let title = args?["title"] as? String else {
+        result(nil)
+        return
+      }
+      let attributes = CSSearchableItemAttributeSet(contentType: UTType.content)
+      attributes.title = title
+      attributes.contentDescription = args?["subtitle"] as? String
+      let item = CSSearchableItem(
+        uniqueIdentifier: id,
+        domainIdentifier: args?["domain"] as? String,
+        attributeSet: attributes)
+      item.expirationDate = Date(timeIntervalSinceNow: SpotlightBridge.ttl)
+      CSSearchableIndex.default().indexSearchableItems([item]) { error in
+        if let error = error { NSLog("spotlight index: \(error)") }
+      }
+      result(nil)
+    case "remove":
+      if let id = args?["id"] as? String {
+        CSSearchableIndex.default().deleteSearchableItems(withIdentifiers: [id]) { _ in }
+      }
+      result(nil)
+    case "clear":
+      CSSearchableIndex.default().deleteAllSearchableItems { _ in }
+      result(nil)
+    case "initialLink":
+      dartReady = true
+      let link = pending
+      pending = nil
+      result(link)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  /// A tapped Spotlight result: only our own https links are passed on.
+  private func open(_ activity: NSUserActivity) -> Bool {
+    guard activity.activityType == CSSearchableItemActionType,
+      let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
+      id.hasPrefix("https://")
+    else { return false }
+    if dartReady, let channel = channel {
+      channel.invokeMethod("open", arguments: id)
+    } else {
+      pending = id
+    }
+    return true
+  }
+
+  // Cold start: the tapped result is in the connection options.
+  func scene(
+    _ scene: UIScene,
+    willConnectTo session: UISceneSession,
+    options connectionOptions: UIScene.ConnectionOptions?
+  ) -> Bool {
+    var handled = false
+    for activity in connectionOptions?.userActivities ?? [] {
+      if open(activity) { handled = true }
+    }
+    return handled
+  }
+
+  // Warm start.
+  func scene(
+    _ scene: UIScene,
+    continue userActivity: NSUserActivity
+  ) -> Bool {
+    return open(userActivity)
   }
 }

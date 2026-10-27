@@ -24,6 +24,10 @@
             "comment": "Attorney profile by @username"
           },
           {
+            "/": "/attorneys/*",
+            "comment": "Attorney public page (lawbid.dev/attorneys/<username>/)"
+          },
+          {
             "/": "/post/*",
             "comment": "Post"
           },
