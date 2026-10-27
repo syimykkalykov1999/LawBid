@@ -13,21 +13,21 @@ import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import type {
-  AppealDetailDto,
-  AppealItemDto,
-  AppealListDto,
-  AppealListQueryDto,
-  AppealReceiptDto,
-  CreateAppealDto,
-  DecideAppealDto,
-  DecideResultDto,
-  FlagDecisionResultDto,
-  FlagListDto,
-  FlagListQueryDto,
-  MyAppealDto,
-  RetaliationFlagDto,
-  RevealResultDto,
-  SignalListDto,
+  StaffAppealDetailDto,
+  StaffAppealItemDto,
+  StaffAppealListDto,
+  StaffAppealListQueryDto,
+  StaffAppealReceiptDto,
+  StaffCreateAppealDto,
+  StaffDecideAppealDto,
+  StaffDecideResultDto,
+  StaffFlagDecisionResultDto,
+  StaffFlagListDto,
+  StaffFlagListQueryDto,
+  StaffMyAppealDto,
+  StaffRetaliationFlagDto,
+  StaffRevealResultDto,
+  StaffSignalListDto,
 } from './staff-appeals.dto';
 import {
   anonymousLabel,
@@ -119,9 +119,9 @@ export class StaffAppealsService {
 
   async file(
     admin: AdminActor,
-    dto: CreateAppealDto,
+    dto: StaffCreateAppealDto,
     now = new Date(),
-  ): Promise<AppealReceiptDto> {
+  ): Promise<StaffAppealReceiptDto> {
     await this.assertEnabled();
     if (admin.adminRole === 'super_admin' || admin.workspaceHead) {
       throw notFound();
@@ -198,7 +198,7 @@ export class StaffAppealsService {
     }
   }
 
-  async mine(admin: AdminActor): Promise<MyAppealDto[]> {
+  async mine(admin: AdminActor): Promise<StaffMyAppealDto[]> {
     await this.assertEnabled();
     if (admin.adminRole === 'super_admin' || admin.workspaceHead) {
       throw notFound();
@@ -231,7 +231,10 @@ export class StaffAppealsService {
   // ---- owner side: inbox -------------------------------------------------
 
   /** The inbox: 3 queries (appeals, people, red marks), however many rows. */
-  async list(admin: AdminActor, q: AppealListQueryDto): Promise<AppealListDto> {
+  async list(
+    admin: AdminActor,
+    q: StaffAppealListQueryDto,
+  ): Promise<StaffAppealListDto> {
     await this.owner(admin);
     const limit = q.limit ?? 50;
     const cursor = decodeCursor(q.cursor);
@@ -303,7 +306,7 @@ export class StaffAppealsService {
     },
     users: UserRow[],
     redFlag: boolean,
-  ): AppealItemDto {
+  ): StaffAppealItemDto {
     const byId = new Map(users.map((u) => [u.id, displayName(u)]));
     return {
       id: r.id,
@@ -323,7 +326,7 @@ export class StaffAppealsService {
     };
   }
 
-  async get(admin: AdminActor, id: string): Promise<AppealDetailDto> {
+  async get(admin: AdminActor, id: string): Promise<StaffAppealDetailDto> {
     await this.owner(admin);
     const r = await this.prisma.adminAppeal.findUnique({ where: { id } });
     if (!r) throw notFound();
@@ -382,9 +385,9 @@ export class StaffAppealsService {
   async decide(
     admin: AdminActor,
     id: string,
-    dto: DecideAppealDto,
+    dto: StaffDecideAppealDto,
     now = new Date(),
-  ): Promise<DecideResultDto> {
+  ): Promise<StaffDecideResultDto> {
     await this.owner(admin);
     const r = await this.prisma.adminAppeal.findUnique({
       where: { id },
@@ -420,7 +423,7 @@ export class StaffAppealsService {
         tx,
       );
     });
-    let followUp: DecideResultDto['followUp'] = null;
+    let followUp: StaffDecideResultDto['followUp'] = null;
     if (dto.decision !== 'nothing') {
       const f = FOLLOW_UP[dto.decision];
       let applied = false;
@@ -450,7 +453,7 @@ export class StaffAppealsService {
     admin: AdminActor,
     id: string,
     now = new Date(),
-  ): Promise<RevealResultDto> {
+  ): Promise<StaffRevealResultDto> {
     await this.owner(admin);
     const cap = await this.staff.number('staff.reveal_per_day');
     const r = await this.prisma.adminAppeal.findUnique({
@@ -536,7 +539,7 @@ export class StaffAppealsService {
     authorId: string,
     users: UserRow[],
     now: Date,
-  ): RetaliationFlagDto {
+  ): StaffRetaliationFlagDto {
     const byId = new Map(users.map((u) => [u.id, displayName(u)]));
     return {
       id: f.id,
@@ -560,7 +563,10 @@ export class StaffAppealsService {
   }
 
   /** Red marks: 3 queries (flags, their appeals, people). */
-  async flags(admin: AdminActor, q: FlagListQueryDto): Promise<FlagListDto> {
+  async flags(
+    admin: AdminActor,
+    q: StaffFlagListQueryDto,
+  ): Promise<StaffFlagListDto> {
     await this.owner(admin);
     const rows = await this.prisma.staffRetaliationFlag.findMany({
       where:
@@ -605,7 +611,7 @@ export class StaffAppealsService {
     flagId: string,
     note: string | undefined,
     now = new Date(),
-  ): Promise<FlagDecisionResultDto> {
+  ): Promise<StaffFlagDecisionResultDto> {
     await this.owner(admin);
     return this.closeFlag(admin, flagId, 'cleared', note, now);
   }
@@ -616,7 +622,7 @@ export class StaffAppealsService {
     flagId: string,
     note: string | undefined,
     now = new Date(),
-  ): Promise<FlagDecisionResultDto> {
+  ): Promise<StaffFlagDecisionResultDto> {
     await this.owner(admin);
     return this.closeFlag(admin, flagId, 'upheld', note, now);
   }
@@ -627,7 +633,7 @@ export class StaffAppealsService {
     state: 'cleared' | 'upheld',
     note: string | undefined,
     now: Date,
-  ): Promise<FlagDecisionResultDto> {
+  ): Promise<StaffFlagDecisionResultDto> {
     const f = await this.prisma.staffRetaliationFlag.findUnique({
       where: { id: flagId },
       select: { id: true, state: true, subject_admin_id: true },
@@ -700,7 +706,7 @@ export class StaffAppealsService {
   }
 
   /** Owner-inbox signals of the last 30 days (3 queries). */
-  async signals(admin: AdminActor, limit = 50): Promise<SignalListDto> {
+  async signals(admin: AdminActor, limit = 50): Promise<StaffSignalListDto> {
     await this.owner(admin);
     const rows = await this.prisma.staffAction.findMany({
       where: {

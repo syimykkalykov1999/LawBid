@@ -19,21 +19,21 @@ import {
 } from '../admin-auth/admin-auth.decorators';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
-  AppealDetailDto,
-  AppealItemDto,
-  AppealListDto,
-  AppealListQueryDto,
-  AppealReceiptDto,
-  CreateAppealDto,
-  DecideAppealDto,
-  DecideResultDto,
-  FlagDecisionDto,
-  FlagDecisionResultDto,
-  FlagListDto,
-  FlagListQueryDto,
-  MyAppealDto,
-  RevealResultDto,
-  SignalListDto,
+  StaffAppealDetailDto,
+  StaffAppealItemDto,
+  StaffAppealListDto,
+  StaffAppealListQueryDto,
+  StaffAppealReceiptDto,
+  StaffCreateAppealDto,
+  StaffDecideAppealDto,
+  StaffDecideResultDto,
+  StaffFlagDecisionDto,
+  StaffFlagDecisionResultDto,
+  StaffFlagListDto,
+  StaffFlagListQueryDto,
+  StaffMyAppealDto,
+  StaffRevealResultDto,
+  StaffSignalListDto,
 } from './staff-appeals.dto';
 import { StaffAppealsService } from './staff-appeals.service';
 
@@ -61,21 +61,21 @@ export class StaffAppealsController {
   @ApiOperation({
     summary: 'Complaints against heads (open / decided), anonymity applied',
   })
-  @ApiEnvelopeResponse(AppealItemDto, { isArray: true })
+  @ApiEnvelopeResponse(StaffAppealItemDto, { isArray: true })
   listAppeals(
     @CurrentAdmin() admin: AdminActor,
-    @Query() q: AppealListQueryDto,
-  ): Promise<AppealListDto> {
+    @Query() q: StaffAppealListQueryDto,
+  ): Promise<StaffAppealListDto> {
     return this.appeals.list(admin, q);
   }
 
   @Get('flags')
   @ApiOperation({ summary: 'Retaliation red marks (open / closed)' })
-  @ApiEnvelopeResponse(FlagListDto)
+  @ApiEnvelopeResponse(StaffFlagListDto)
   listFlags(
     @CurrentAdmin() admin: AdminActor,
-    @Query() q: FlagListQueryDto,
-  ): Promise<FlagListDto> {
+    @Query() q: StaffFlagListQueryDto,
+  ): Promise<StaffFlagListDto> {
     return this.appeals.flags(admin, q);
   }
 
@@ -83,8 +83,8 @@ export class StaffAppealsController {
   @ApiOperation({
     summary: 'Owner-inbox signals about heads and removals (last 30 days)',
   })
-  @ApiEnvelopeResponse(SignalListDto)
-  listSignals(@CurrentAdmin() admin: AdminActor): Promise<SignalListDto> {
+  @ApiEnvelopeResponse(StaffSignalListDto)
+  listSignals(@CurrentAdmin() admin: AdminActor): Promise<StaffSignalListDto> {
     return this.appeals.signals(admin);
   }
 
@@ -93,12 +93,12 @@ export class StaffAppealsController {
   @ApiOperation({
     summary: 'Reverse a retaliation hold: the person works again (2FA)',
   })
-  @ApiEnvelopeResponse(FlagDecisionResultDto)
+  @ApiEnvelopeResponse(StaffFlagDecisionResultDto)
   async reverseFlag(
     @CurrentAdmin() admin: AdminActor,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: FlagDecisionDto,
-  ): Promise<FlagDecisionResultDto> {
+    @Body() dto: StaffFlagDecisionDto,
+  ): Promise<StaffFlagDecisionResultDto> {
     await this.auth.assertStepUp(admin.sessionId);
     return this.appeals.reverse(admin, id, dto.note);
   }
@@ -108,23 +108,23 @@ export class StaffAppealsController {
   @ApiOperation({
     summary: 'Agree with the head: the removal stands, the hold ends (2FA)',
   })
-  @ApiEnvelopeResponse(FlagDecisionResultDto)
+  @ApiEnvelopeResponse(StaffFlagDecisionResultDto)
   async upholdFlag(
     @CurrentAdmin() admin: AdminActor,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: FlagDecisionDto,
-  ): Promise<FlagDecisionResultDto> {
+    @Body() dto: StaffFlagDecisionDto,
+  ): Promise<StaffFlagDecisionResultDto> {
     await this.auth.assertStepUp(admin.sessionId);
     return this.appeals.uphold(admin, id, dto.note);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'One complaint (marks it as seen)' })
-  @ApiEnvelopeResponse(AppealDetailDto)
+  @ApiEnvelopeResponse(StaffAppealDetailDto)
   getAppeal(
     @CurrentAdmin() admin: AdminActor,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<AppealDetailDto> {
+  ): Promise<StaffAppealDetailDto> {
     return this.appeals.get(admin, id);
   }
 
@@ -134,12 +134,12 @@ export class StaffAppealsController {
     summary:
       'Decide: fire the head / fire the worker / nothing. Records the decision and names the admin-management call (2FA)',
   })
-  @ApiEnvelopeResponse(DecideResultDto)
+  @ApiEnvelopeResponse(StaffDecideResultDto)
   async decideAppeal(
     @CurrentAdmin() admin: AdminActor,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: DecideAppealDto,
-  ): Promise<DecideResultDto> {
+    @Body() dto: StaffDecideAppealDto,
+  ): Promise<StaffDecideResultDto> {
     await this.auth.assertStepUp(admin.sessionId);
     return this.appeals.decide(admin, id, dto);
   }
@@ -150,11 +150,11 @@ export class StaffAppealsController {
     summary:
       'Reveal the name of an anonymous author (2FA, own audit row, daily cap)',
   })
-  @ApiEnvelopeResponse(RevealResultDto)
+  @ApiEnvelopeResponse(StaffRevealResultDto)
   async revealAuthor(
     @CurrentAdmin() admin: AdminActor,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<RevealResultDto> {
+  ): Promise<StaffRevealResultDto> {
     await this.auth.assertStepUp(admin.sessionId);
     return this.appeals.reveal(admin, id);
   }
@@ -178,18 +178,18 @@ export class StaffAppealsAuthorController {
   @ApiOperation({
     summary: 'File a complaint against the head of my workspace',
   })
-  @ApiEnvelopeResponse(AppealReceiptDto, { status: HttpStatus.CREATED })
+  @ApiEnvelopeResponse(StaffAppealReceiptDto, { status: HttpStatus.CREATED })
   fileAppeal(
     @CurrentAdmin() admin: AdminActor,
-    @Body() dto: CreateAppealDto,
-  ): Promise<AppealReceiptDto> {
+    @Body() dto: StaffCreateAppealDto,
+  ): Promise<StaffAppealReceiptDto> {
     return this.appeals.file(admin, dto);
   }
 
   @Get('mine')
   @ApiOperation({ summary: 'My complaints and their status' })
-  @ApiEnvelopeResponse(MyAppealDto, { isArray: true })
-  myAppeals(@CurrentAdmin() admin: AdminActor): Promise<MyAppealDto[]> {
+  @ApiEnvelopeResponse(StaffMyAppealDto, { isArray: true })
+  myAppeals(@CurrentAdmin() admin: AdminActor): Promise<StaffMyAppealDto[]> {
     return this.appeals.mine(admin);
   }
 }

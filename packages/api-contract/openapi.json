@@ -125063,6 +125063,919 @@
           "admin-staff"
         ]
       }
+    },
+    "/admin/appeals": {
+      "get": {
+        "operationId": "listAppeals",
+        "parameters": [
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "description": "open = new or seen; decided = resolved. Omitted = all.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "decided"
+              ]
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffAppealItemListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Complaints against heads (open / decided), anonymity applied",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/appeals/flags": {
+      "get": {
+        "operationId": "listFlags",
+        "parameters": [
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffFlagListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Retaliation red marks (open / closed)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/appeals/signals": {
+      "get": {
+        "operationId": "listSignals",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffSignalListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Owner-inbox signals about heads and removals (last 30 days)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/appeals/flags/{id}/reverse": {
+      "post": {
+        "operationId": "reverseFlag",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffFlagDecisionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffFlagDecisionResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Reverse a retaliation hold: the person works again (2FA)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/appeals/flags/{id}/uphold": {
+      "post": {
+        "operationId": "upholdFlag",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffFlagDecisionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffFlagDecisionResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Agree with the head: the removal stands, the hold ends (2FA)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/appeals/{id}": {
+      "get": {
+        "operationId": "getAppeal",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffAppealDetailEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "One complaint (marks it as seen)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/appeals/{id}/decide": {
+      "post": {
+        "operationId": "decideAppeal",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffDecideAppealDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffDecideResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Decide: fire the head / fire the worker / nothing. Records the decision and names the admin-management call (2FA)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/appeals/{id}/reveal": {
+      "post": {
+        "operationId": "revealAuthor",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffRevealResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Reveal the name of an anonymous author (2FA, own audit row, daily cap)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/workspace/appeals": {
+      "post": {
+        "operationId": "fileAppeal",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffCreateAppealDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffAppealReceiptEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "File a complaint against the head of my workspace",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/workspace/appeals/mine": {
+      "get": {
+        "operationId": "myAppeals",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffMyAppealListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "My complaints and their status",
+        "tags": [
+          "admin-staff"
+        ]
+      }
     }
   },
   "info": {
@@ -192101,6 +193014,741 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/StaffSettingsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffPersonRefDto": {
+        "type": "object",
+        "properties": {
+          "adminId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "adminId",
+          "name"
+        ]
+      },
+      "StaffAppealAuthorDto": {
+        "type": "object",
+        "properties": {
+          "adminId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "null while the author is anonymous (and for the list)."
+          },
+          "label": {
+            "type": "string",
+            "description": "Name, or «автор обжалования №N»."
+          },
+          "anonymous": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "adminId",
+          "label",
+          "anonymous"
+        ]
+      },
+      "StaffAppealItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "number"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "unfair_pull",
+              "pressure",
+              "insult",
+              "rules",
+              "other"
+            ]
+          },
+          "excerpt": {
+            "type": "string",
+            "description": "First 280 characters."
+          },
+          "head": {
+            "$ref": "#/components/schemas/StaffPersonRefDto"
+          },
+          "author": {
+            "$ref": "#/components/schemas/StaffAppealAuthorDto"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "seen",
+              "resolved"
+            ]
+          },
+          "ownerDecision": {
+            "type": "string",
+            "enum": [
+              "none",
+              "fire_head",
+              "fire_worker",
+              "nothing"
+            ]
+          },
+          "redFlag": {
+            "type": "boolean",
+            "description": "Red mark: the head acted against this author inside the protection window."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "kind",
+          "excerpt",
+          "head",
+          "author",
+          "status",
+          "ownerDecision",
+          "redFlag",
+          "createdAt",
+          "decidedAt"
+        ]
+      },
+      "StaffAppealItemListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffAppealItemDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffRetaliationFlagDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "appealId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "appealNumber": {
+            "type": "number"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/StaffAppealAuthorDto"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "cleared",
+              "upheld"
+            ]
+          },
+          "windowUntil": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "holdUntil": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "holdActive": {
+            "type": "boolean",
+            "description": "The 14-day hold is still running (reversible)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "appealId",
+          "appealNumber",
+          "subject",
+          "state",
+          "windowUntil",
+          "holdUntil",
+          "holdActive",
+          "createdAt",
+          "decidedAt"
+        ]
+      },
+      "StaffFlagListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffRetaliationFlagDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "StaffFlagListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffFlagListDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffSignalDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "description": "team_turnover_high · top_rated_removed · removal_without_warning · head_multi_appeals · retaliation_decide · appeal_unanswered"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/StaffPersonRefDto"
+          },
+          "actor": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffPersonRefDto"
+              }
+            ]
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "subject",
+          "actor",
+          "details",
+          "createdAt"
+        ]
+      },
+      "StaffSignalListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffSignalDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "StaffSignalListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffSignalListDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffFlagDecisionResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "cleared",
+              "upheld"
+            ]
+          },
+          "reinstated": {
+            "type": "boolean",
+            "description": "The person works again (reverse) or not."
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "reinstated"
+        ]
+      },
+      "StaffFlagDecisionDto": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "StaffFlagDecisionResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffFlagDecisionResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffAppealDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "number"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "unfair_pull",
+              "pressure",
+              "insult",
+              "rules",
+              "other"
+            ]
+          },
+          "excerpt": {
+            "type": "string",
+            "description": "First 280 characters."
+          },
+          "head": {
+            "$ref": "#/components/schemas/StaffPersonRefDto"
+          },
+          "author": {
+            "$ref": "#/components/schemas/StaffAppealAuthorDto"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "seen",
+              "resolved"
+            ]
+          },
+          "ownerDecision": {
+            "type": "string",
+            "enum": [
+              "none",
+              "fire_head",
+              "fire_worker",
+              "nothing"
+            ]
+          },
+          "redFlag": {
+            "type": "boolean",
+            "description": "Red mark: the head acted against this author inside the protection window."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "text": {
+            "type": "string"
+          },
+          "ownerNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "revealCount": {
+            "type": "number",
+            "description": "How many times the author name was revealed."
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffRetaliationFlagDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "kind",
+          "excerpt",
+          "head",
+          "author",
+          "status",
+          "ownerDecision",
+          "redFlag",
+          "createdAt",
+          "decidedAt",
+          "text",
+          "ownerNote",
+          "revealCount",
+          "flags"
+        ]
+      },
+      "StaffAppealDetailEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffAppealDetailDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffFollowUpDto": {
+        "type": "object",
+        "properties": {
+          "call": {
+            "type": "string",
+            "description": "The existing admin-management call the decision asks for (by name)."
+          },
+          "target": {
+            "enum": [
+              "head",
+              "author"
+            ],
+            "type": "string"
+          },
+          "applied": {
+            "type": "boolean",
+            "description": "false = not run yet (the owner presses it in the admin list); true = run by the server."
+          }
+        },
+        "required": [
+          "call",
+          "target",
+          "applied"
+        ]
+      },
+      "StaffDecideResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "seen",
+              "resolved"
+            ]
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "fire_head",
+              "fire_worker",
+              "nothing"
+            ]
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "followUp": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffFollowUpDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "decision",
+          "decidedAt",
+          "followUp"
+        ]
+      },
+      "StaffDecideAppealDto": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "enum": [
+              "fire_head",
+              "fire_worker",
+              "nothing"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "StaffDecideResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffDecideResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffRevealResultDto": {
+        "type": "object",
+        "properties": {
+          "adminId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "revealsLeftToday": {
+            "type": "number",
+            "description": "Reveals left today (UTC day)."
+          }
+        },
+        "required": [
+          "adminId",
+          "name",
+          "revealsLeftToday"
+        ]
+      },
+      "StaffRevealResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffRevealResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffAppealReceiptDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "number",
+            "description": "Appeal number («автор №N» for anonymous)."
+          },
+          "status": {
+            "enum": [
+              "received",
+              "in_review",
+              "decided"
+            ],
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "status",
+          "createdAt"
+        ]
+      },
+      "StaffCreateAppealDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "unfair_pull",
+              "pressure",
+              "insult",
+              "rules",
+              "other"
+            ],
+            "type": "string",
+            "default": "other"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 2000
+          },
+          "anonymous": {
+            "type": "boolean",
+            "description": "Anonymous: the owner reads «автор обжалования №N» instead of your name. The system still keeps who wrote it (retaliation guard).",
+            "default": false
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "StaffAppealReceiptEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffAppealReceiptDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffMyAppealDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "number",
+            "description": "Appeal number («автор №N» for anonymous)."
+          },
+          "status": {
+            "enum": [
+              "received",
+              "in_review",
+              "decided"
+            ],
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "unfair_pull",
+              "pressure",
+              "insult",
+              "rules",
+              "other"
+            ]
+          },
+          "anonymous": {
+            "type": "boolean"
+          },
+          "ackAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "status",
+          "createdAt",
+          "kind",
+          "anonymous",
+          "ackAt"
+        ]
+      },
+      "StaffMyAppealListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffMyAppealDto"
+            }
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

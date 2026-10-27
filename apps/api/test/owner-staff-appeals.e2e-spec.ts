@@ -348,7 +348,11 @@ describe('Staff appeals + retaliation guard (e2e)', () => {
     });
     expect(audit).toHaveLength(1);
     expect(audit[0].target_id).toBe(appealId);
-    expect(JSON.stringify(audit[0])).not.toContain(worker.userId);
+    expect(
+      JSON.stringify(audit[0], (_k, v: unknown) =>
+        typeof v === 'bigint' ? String(v) : v,
+      ),
+    ).not.toContain(worker.userId);
     expect(
       (await prisma.adminAppeal.findUniqueOrThrow({ where: { id: appealId } }))
         .reveal_log,

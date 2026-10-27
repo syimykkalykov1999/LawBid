@@ -15,7 +15,7 @@ import { APPEAL_DECISIONS, APPEAL_KINDS } from './staff-appeals.logic';
 
 // ---- worker side: file a complaint, read the status of my own ------------
 
-export class CreateAppealDto {
+export class StaffCreateAppealDto {
   @ApiPropertyOptional({ enum: APPEAL_KINDS, default: 'other' })
   @IsOptional()
   @IsIn(APPEAL_KINDS)
@@ -37,7 +37,7 @@ export class CreateAppealDto {
   anonymous?: boolean;
 }
 
-export class AppealReceiptDto {
+export class StaffAppealReceiptDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ description: 'Appeal number («автор №N» for anonymous).' })
   number!: number;
@@ -46,7 +46,7 @@ export class AppealReceiptDto {
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
 
-export class MyAppealDto extends AppealReceiptDto {
+export class StaffMyAppealDto extends StaffAppealReceiptDto {
   @ApiProperty({ enum: APPEAL_KINDS }) kind!: string;
   @ApiProperty() anonymous!: boolean;
   @ApiProperty({ format: 'date-time', nullable: true }) ackAt!: string | null;
@@ -54,7 +54,7 @@ export class MyAppealDto extends AppealReceiptDto {
 
 // ---- owner side ------------------------------------------------------------
 
-export class AppealListQueryDto {
+export class StaffAppealListQueryDto {
   @ApiPropertyOptional({
     enum: ['open', 'decided'],
     description: 'open = new or seen; decided = resolved. Omitted = all.',
@@ -78,13 +78,13 @@ export class AppealListQueryDto {
   limit?: number;
 }
 
-export class PersonRefDto {
+export class StaffPersonRefDto {
   @ApiProperty({ format: 'uuid', nullable: true })
   adminId!: string | null;
   @ApiProperty() name!: string;
 }
 
-export class AppealAuthorDto {
+export class StaffAppealAuthorDto {
   @ApiProperty({
     format: 'uuid',
     nullable: true,
@@ -96,13 +96,13 @@ export class AppealAuthorDto {
   @ApiProperty() anonymous!: boolean;
 }
 
-export class AppealItemDto {
+export class StaffAppealItemDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty() number!: number;
   @ApiProperty({ enum: APPEAL_KINDS }) kind!: string;
   @ApiProperty({ description: 'First 280 characters.' }) excerpt!: string;
-  @ApiProperty({ type: PersonRefDto }) head!: PersonRefDto;
-  @ApiProperty({ type: AppealAuthorDto }) author!: AppealAuthorDto;
+  @ApiProperty({ type: StaffPersonRefDto }) head!: StaffPersonRefDto;
+  @ApiProperty({ type: StaffAppealAuthorDto }) author!: StaffAppealAuthorDto;
   @ApiProperty({ enum: ['new', 'seen', 'resolved'] }) status!: string;
   @ApiProperty({ enum: ['none', ...APPEAL_DECISIONS] })
   ownerDecision!: string;
@@ -116,16 +116,16 @@ export class AppealItemDto {
     string | null;
 }
 
-export class AppealListDto {
-  @ApiProperty({ type: [AppealItemDto] }) items!: AppealItemDto[];
+export class StaffAppealListDto {
+  @ApiProperty({ type: [StaffAppealItemDto] }) items!: StaffAppealItemDto[];
   @ApiProperty({ nullable: true }) nextCursor!: string | null;
 }
 
-export class RetaliationFlagDto {
+export class StaffRetaliationFlagDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ format: 'uuid' }) appealId!: string;
   @ApiProperty() appealNumber!: number;
-  @ApiProperty({ type: AppealAuthorDto }) subject!: AppealAuthorDto;
+  @ApiProperty({ type: StaffAppealAuthorDto }) subject!: StaffAppealAuthorDto;
   @ApiProperty({ enum: ['open', 'cleared', 'upheld'] }) state!: string;
   @ApiProperty({ format: 'date-time' }) windowUntil!: string;
   @ApiProperty({ format: 'date-time', nullable: true }) holdUntil!:
@@ -139,15 +139,16 @@ export class RetaliationFlagDto {
     string | null;
 }
 
-export class AppealDetailDto extends AppealItemDto {
+export class StaffAppealDetailDto extends StaffAppealItemDto {
   @ApiProperty() text!: string;
   @ApiProperty({ nullable: true }) ownerNote!: string | null;
   @ApiProperty({ description: 'How many times the author name was revealed.' })
   revealCount!: number;
-  @ApiProperty({ type: [RetaliationFlagDto] }) flags!: RetaliationFlagDto[];
+  @ApiProperty({ type: [StaffRetaliationFlagDto] })
+  flags!: StaffRetaliationFlagDto[];
 }
 
-export class DecideAppealDto {
+export class StaffDecideAppealDto {
   @ApiProperty({ enum: APPEAL_DECISIONS })
   @IsIn(APPEAL_DECISIONS)
   decision!: (typeof APPEAL_DECISIONS)[number];
@@ -159,7 +160,7 @@ export class DecideAppealDto {
   note?: string;
 }
 
-export class FollowUpDto {
+export class StaffFollowUpDto {
   @ApiProperty({
     description:
       'The existing admin-management call the decision asks for (by name).',
@@ -173,16 +174,16 @@ export class FollowUpDto {
   applied!: boolean;
 }
 
-export class DecideResultDto {
+export class StaffDecideResultDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ enum: ['new', 'seen', 'resolved'] }) status!: string;
   @ApiProperty({ enum: APPEAL_DECISIONS }) decision!: string;
   @ApiProperty({ format: 'date-time' }) decidedAt!: string;
-  @ApiProperty({ type: FollowUpDto, nullable: true })
-  followUp!: FollowUpDto | null;
+  @ApiProperty({ type: StaffFollowUpDto, nullable: true })
+  followUp!: StaffFollowUpDto | null;
 }
 
-export class RevealResultDto {
+export class StaffRevealResultDto {
   @ApiProperty({ format: 'uuid' }) adminId!: string;
   @ApiProperty() name!: string;
   @ApiPropertyOptional({ nullable: true }) email!: string | null;
@@ -190,7 +191,7 @@ export class RevealResultDto {
   revealsLeftToday!: number;
 }
 
-export class FlagListQueryDto {
+export class StaffFlagListQueryDto {
   @ApiPropertyOptional({ enum: ['open', 'closed'] })
   @IsOptional()
   @IsIn(['open', 'closed'])
@@ -205,11 +206,12 @@ export class FlagListQueryDto {
   limit?: number;
 }
 
-export class FlagListDto {
-  @ApiProperty({ type: [RetaliationFlagDto] }) items!: RetaliationFlagDto[];
+export class StaffFlagListDto {
+  @ApiProperty({ type: [StaffRetaliationFlagDto] })
+  items!: StaffRetaliationFlagDto[];
 }
 
-export class FlagDecisionDto {
+export class StaffFlagDecisionDto {
   @ApiPropertyOptional({ maxLength: 500 })
   @IsOptional()
   @IsString()
@@ -217,28 +219,28 @@ export class FlagDecisionDto {
   note?: string;
 }
 
-export class FlagDecisionResultDto {
+export class StaffFlagDecisionResultDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ enum: ['open', 'cleared', 'upheld'] }) state!: string;
   @ApiProperty({ description: 'The person works again (reverse) or not.' })
   reinstated!: boolean;
 }
 
-export class SignalDto {
+export class StaffSignalDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({
     description:
       'team_turnover_high · top_rated_removed · removal_without_warning · head_multi_appeals · retaliation_decide · appeal_unanswered',
   })
   code!: string;
-  @ApiProperty({ type: PersonRefDto }) subject!: PersonRefDto;
-  @ApiProperty({ type: PersonRefDto, nullable: true })
-  actor!: PersonRefDto | null;
+  @ApiProperty({ type: StaffPersonRefDto }) subject!: StaffPersonRefDto;
+  @ApiProperty({ type: StaffPersonRefDto, nullable: true })
+  actor!: StaffPersonRefDto | null;
   @ApiProperty({ type: 'object', additionalProperties: true })
   details!: Record<string, unknown>;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
 
-export class SignalListDto {
-  @ApiProperty({ type: [SignalDto] }) items!: SignalDto[];
+export class StaffSignalListDto {
+  @ApiProperty({ type: [StaffSignalDto] }) items!: StaffSignalDto[];
 }
