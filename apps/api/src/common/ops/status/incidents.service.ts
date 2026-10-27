@@ -30,6 +30,12 @@ export interface IncidentEvent {
   seq: number;
 }
 
+/** `lawbid-prod-api-5xx-ratio` -> `alarm:api-5xx-ratio` (column is 40 chars). */
+export function alarmComponent(alarmName: string): string {
+  const short = alarmName.replace(/^lawbid-[a-z0-9]+-/, '');
+  return `alarm:${short}`.slice(0, 40);
+}
+
 function toRow(r: {
   id: string;
   component: string;
@@ -150,6 +156,53 @@ export class IncidentsService {
       }
     }
     return events;
+  }
+
+  /**
+   * S12-14: a CloudWatch alarm changed state (posted by the alarm-hook Lambda,
+   * monitoring/journey.tf). ALARM opens one row per alarm (the partial unique
+   * index keeps it single), OK closes it; INSUFFICIENT_DATA is ignored. No
+   * push or e-mail here: the alarm already reached the owner through SNS /
+   * PagerDuty; this only gives the post-mortem a timeline.
+   */
+  async recordAlarm(
+    alarmName: string,
+    state: string,
+    reason: string,
+    at: Date = new Date(),
+  ): Promise<'opened' | 'closed' | 'ignored'> {
+    const component = alarmComponent(alarmName);
+    if (state === 'ALARM') {
+      const open = await this.prisma.systemIncident.findFirst({
+        where: { component, closed_at: null },
+      });
+      if (open) return 'ignored';
+      try {
+        await this.prisma.systemIncident.create({
+          data: {
+            component,
+            title: alarmName.slice(0, 200),
+            detail: {
+              source: 'cloudwatch_alarm',
+              reason: reason.slice(0, 500),
+            },
+            opened_at: at,
+            notify_count: 0,
+          },
+        });
+        return 'opened';
+      } catch {
+        return 'ignored'; // another delivery opened it first (unique index)
+      }
+    }
+    if (state === 'OK') {
+      const closed = await this.prisma.systemIncident.updateMany({
+        where: { component, closed_at: null },
+        data: { closed_at: at },
+      });
+      return closed.count > 0 ? 'closed' : 'ignored';
+    }
+    return 'ignored';
   }
 
   /** Incidents opened or still open in the last [hours] hours, newest first. */

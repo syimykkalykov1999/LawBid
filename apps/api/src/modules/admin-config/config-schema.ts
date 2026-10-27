@@ -397,6 +397,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 23,
   };
+  // S12-8: per-route metrics (CloudWatch custom metrics are billed).
+  out['ops.route_metrics.mode'] = {
+    ...out['ops.route_metrics.mode'],
+    description:
+      'Per-route request / error / latency metrics for about 15 key routes (CloudWatch LawBid/Routes, about $13.5 a month when all routes report): off | on (always) | auto (default: a route reports only while it has 5xx answers or p95 above 1 s).',
+    pattern: /^(off|on|auto)$/,
+  };
   // Legal-grade protection of client documents (2026-10-24).
   out['security.attorney_strong_auth'] = {
     ...out['security.attorney_strong_auth'],

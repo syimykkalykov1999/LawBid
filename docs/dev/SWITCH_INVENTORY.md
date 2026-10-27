@@ -31,6 +31,7 @@ Rows are sorted by key: insert a new row at its alphabetical place (never append
 | `moderation.image.enabled` | Проверка картинок | auto | 3 (off/on/auto, old boolean accepted) | image moderation (paid API); auto = on inside the cost-guard cap | `modules/media-moderation/media-moderation.service.ts:197` | cost guard `image_moderation` daily cap | yes | |
 | `ops.auto_pause_heavy_jobs` | Авто-пауза тяжёлых задач | on | 2 | pause when DB slow | `jobs/handlers/ops-guard.job.ts:61` | `ops.db_slow_ms` | default | |
 | `ops.auto_scale_down_on_budget` | Авто-снижение по бюджету | on | 2 | cap autoscaling at budget | `jobs/handlers/ops-guard.job.ts:107` | monthly budget | default | |
+| `ops.route_metrics.mode` | Метрики по маршрутам (CloudWatch) | auto | 3 (off/on/auto) | per-route request / error / latency metrics, ~15 routes (S12-8); auto = only while a route has 5xx or p95 > 1 s | `common/ops/route-metrics.service.ts:192` | see the setting | listed | |
 | `payments.own_page_enabled` | Своя страница оплаты | on | 2 | pay-link page | `modules/billing/pay-link.service.ts:138` | none | listed | |
 | `qa.banner_enabled` | Баннер вопросов | on | 2 | Q&A banner | `modules/legal-qa/legal-qa.service.ts:482` | `qa.banner_interval_hours` | listed | |
 | `qa.profile_cta_enabled` | Кнопка «Задать вопрос» | on | 2 | Q&A profile CTA | `modules/legal-qa/legal-qa.service.ts:485` | none | listed | |
