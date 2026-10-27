@@ -5,6 +5,7 @@ import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
 import { AdminOpsController } from './admin-ops.controller';
 import { AdminStatusPageController } from './admin-status-page.controller';
+import { BackfillsService } from './backfills.service';
 import { HeavyHittersReportService } from './heavy-hitters-report.service';
 import { RestoreDrillService } from './restore-drill.service';
 import { PartitionService } from '../../partitioning/partition.service';
@@ -27,6 +28,7 @@ import { SystemHealthService } from './system-health.service';
     SystemHealthService,
     MessageReencryptJob,
     ScaleService,
+    BackfillsService,
     HeavyHittersReportService,
     RestoreDrillService,
     PartitionService,

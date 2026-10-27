@@ -216,6 +216,8 @@ export const CRON_JOBS = {
   adminSummaries: 'admin.summaries',
   // Shard-ready step 7: the cross-family outbox relay.
   outboxSweep: 'outbox.sweep',
+  /** Owner 2026-10-25 (online DDL): nightly table / index bloat of the hot tables. */
+  dbBloat: 'db.bloat-check',
   /** Owner 2026-10-25 (S2-1): queued CloudFront invalidations of removed
    * files, one batched request per distribution. */
   cdnInvalidate: 'cdn.invalidate',
@@ -352,6 +354,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // Every minute: applies cross-family events a request could not (retries
   // with backoff, dead letter); a no-op while there is one database.
   { name: CRON_JOBS.outboxSweep, pattern: '* * * * *' },
+  // Nightly 03:35 UTC (quiet hours): pgstattuple on the hot tables.
+  { name: CRON_JOBS.dbBloat, pattern: '35 3 * * *' },
   // Every other minute: batches the paths of removed files (S2-1).
   { name: CRON_JOBS.cdnInvalidate, pattern: '1-59/2 * * * *' },
   // 02:40 UTC daily: the next 2 months always exist (rows beyond the last
