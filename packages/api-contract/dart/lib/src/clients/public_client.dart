@@ -6,12 +6,18 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/public_attorney_list_envelope.dart';
+import '../models/public_seo_settings_envelope.dart';
 
 part 'public_client.g.dart';
 
 @RestApi()
 abstract class PublicClient {
   factory PublicClient(Dio dio, {String? baseUrl}) = _PublicClient;
+
+  @GET('/public/seo-settings')
+  Future<PublicSeoSettingsEnvelope> getPublicSeoSettings({
+    @Extras() Map<String, dynamic>? extras,
+  });
 
   /// [state] - State of a verified license.
   ///

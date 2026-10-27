@@ -1587,6 +1587,40 @@ export const OWNER_INFRA_SETTINGS = {
   'infra.quiet_hours': '',
 };
 
+/**
+ * Owner 2026-10-27 (admin «Продвижение»): the static-page switches of the
+ * SEO workflow (docs/runbooks/SEO_STATIC_PAGES.md) and the channel
+ * checklist. Everything is OFF / not done until the owner taps it. A key
+ * with NO stored row means «the admin never decided»: the generator then
+ * falls back to the repository variable of the same name (GET
+ * /public/seo-settings tells it which keys are stored). Keys sorted.
+ */
+export const OWNER_SEO_PROMOTION_SETTINGS = {
+  'seo.checklist.app_store_connect': false,
+  'seo.checklist.apple_business_connect': false,
+  'seo.checklist.bing_webmaster': false,
+  'seo.checklist.google_business_profile': false,
+  'seo.checklist.google_search_console': false,
+  'seo.checklist.lawyer_directories': false,
+  'seo.checklist.play_console': false,
+  'seo.checklist.pr_reviews': false,
+  'seo.checklist.reddit_quora': false,
+  'seo.checklist.video_social': false,
+  'seo.checklist.yelp_bbb': false,
+  /** Upload only changed files (SEO_INCREMENTAL). */
+  'seo.incremental_enabled': false,
+  /** /llms.txt and /llms-full.txt (SEO_LLMS). */
+  'seo.llms_enabled': false,
+  /** Thin pages: noindex and out of the sitemap (SEO_QUALITY_GATE). */
+  'seo.quality_gate_enabled': false,
+  /** At most N new pages a day enter the index; 0 = no limit (SEO_RAMP_PER_DAY). */
+  'seo.ramp_per_day': 0,
+  /** Search/answer bots in, training bots out (SEO_ROBOTS_AI). */
+  'seo.robots_ai_enabled': false,
+  /** /sitemap.xml becomes an index of /sitemaps/*.xml (SEO_SITEMAP_INDEX). */
+  'seo.sitemap_index_enabled': false,
+};
+
 export const APP_SETTINGS = {
   ...OWNER_COMPLIANCE_SETTINGS,
   ...FILE_03_SETTINGS,
@@ -1642,6 +1676,7 @@ export const APP_SETTINGS = {
   ...OWNER_CASE_FANOUT_SETTINGS,
   ...OWNER_COST_REGISTRY_SETTINGS,
   ...OWNER_INFRA_SETTINGS,
+  ...OWNER_SEO_PROMOTION_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;
