@@ -149,6 +149,7 @@ const U = {
   persona: 'https://withpersona.com/pricing',
   openai: 'https://platform.openai.com/docs/pricing',
   sentry: 'https://sentry.io/pricing/',
+  gcal: 'https://developers.google.com/workspace/calendar/api/guides/quota',
   pd: 'https://www.pagerduty.com/pricing/',
   fb: 'https://firebase.google.com/pricing',
   recaptcha: 'https://cloud.google.com/recaptcha/pricing',
@@ -1997,6 +1998,29 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     neededNote: 'Нужны.',
     alarm: 'тревога сбоев пушей (push-failed)',
     providers: ['fcm', 'apns'],
+  },
+  {
+    id: 'vendor.calendar',
+    name: 'Календари юристов (Google Calendar, Microsoft 365)',
+    purpose:
+      'Синхронизация консультаций с календарём, который юрист сам подключил (#395).',
+    kind: 'vendor',
+    control: fixed(
+      'Работает только у юриста, который подключил свой календарь; без подключения запросов нет.',
+    ),
+    states: ['on'],
+    defaultState: 'on',
+    ceiling: null,
+    price: price(
+      'free',
+      'Бесплатно: Google Calendar API и Microsoft Graph не берут денег, есть только лимиты запросов',
+      U.gcal,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'later',
+    neededNote: 'Удобство для юристов; не нужно для запуска.',
+    alarm: null,
+    providers: ['google_calendar', 'microsoft_calendar'],
   },
   {
     id: 'vendor.sentry',

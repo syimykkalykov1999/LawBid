@@ -79,6 +79,7 @@ import { SearchModule } from './modules/search/search.module';
 import { ContactsSyncModule } from './modules/contacts-sync/contacts-sync.module';
 import { DeadlinesModule } from './modules/deadlines/deadlines.module';
 import { LegalQaModule } from './modules/legal-qa/legal-qa.module';
+import { CalendarModule } from './modules/calendar/calendar.module';
 import { ConsultationsModule } from './modules/consultations/consultations.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { GroupsModule } from './modules/groups/groups.module';
@@ -447,6 +448,7 @@ const isDev =
     ...(isDev ? [DevModule] : []),
     // Owner 2026-10-20: booking, «Вопрос юристу», deadline calculator.
     ConsultationsModule,
+    CalendarModule,
     LegalQaModule,
     DeadlinesModule,
   ],

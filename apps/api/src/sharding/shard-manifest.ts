@@ -191,6 +191,12 @@ export const PER_DATABASE_MODELS: ReadonlySet<string> = new Set([
 
 export const GLOBAL_MODELS: readonly string[] = [
   'User',
+  // Owner 2026-10-28: calendar links and consultation no-shows.
+  'CalendarFeedToken',
+  'CalendarConnection',
+  'CalendarEventLink',
+  'ConsultationNoShow',
+  'ConsultationAttendanceStat',
   'File',
   'FileAccessLog',
   'UserIdentifier',

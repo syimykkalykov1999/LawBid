@@ -7522,6 +7522,8 @@ model Consultation {
   rescheduled_at   DateTime?          @db.Timestamptz
   reminded_day_at  DateTime?          @db.Timestamptz
   reminded_hour_at DateTime?          @db.Timestamptz
+  /// Owner 2026-10-28: when the sweep looked at who joined the call (once).
+  attendance_checked_at DateTime?     @db.Timestamptz
   created_at       DateTime           @default(now()) @db.Timestamptz
   updated_at       DateTime           @updatedAt @db.Timestamptz
 
@@ -7531,10 +7533,112 @@ model Consultation {
   @@index([attorney_id, starts_at])
   @@index([client_id, starts_at])
   @@index([status, starts_at])
+  @@index([status, ends_at], map: "consultations_status_ends_idx")
   // Owner 2026-10-22 (client economy plan, package E): GET /consultations?updatedSince.
   @@index([attorney_id, updated_at])
   @@index([client_id, updated_at])
   @@map("consultations")
+}
+
+/// Owner 2026-10-28: the secret link of a person's calendar (ICS feed). Only
+/// the SHA-256 of the token is kept; a new link replaces the old one, delete
+/// revokes it. Bare user uuid (the feed checks the account is active).
+model CalendarFeedToken {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String    @unique @db.Uuid
+  token_hash   String    @unique @db.Char(64)
+  created_at   DateTime  @default(now()) @db.Timestamptz
+  last_used_at DateTime? @db.Timestamptz
+  use_count    Int       @default(0)
+
+  @@map("calendar_feed_tokens")
+}
+
+/// Owner 2026-10-28: a person's Google / Outlook calendar linked by OAuth.
+/// The refresh token is sealed (AES-256-GCM, SECRETS_MASTER_KEYS).
+model CalendarConnection {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String              @db.Uuid
+  /// google | microsoft
+  provider          String              @db.VarChar(10)
+  account_email     String?             @db.VarChar(254)
+  refresh_token_enc String
+  calendar_id       String              @default("primary") @db.VarChar(200)
+  /// Their busy time blocks booking (attorneys).
+  read_busy         Boolean             @default(true)
+  /// Our consultations are written into their calendar.
+  write_events      Boolean             @default(true)
+  /// active | needs_reauth
+  status            String              @default("active") @db.VarChar(12)
+  last_error        String?             @db.VarChar(300)
+  /// Consultations changed before this moment are already pushed.
+  sync_cursor       DateTime            @default(now()) @db.Timestamptz
+  last_sync_at      DateTime?           @db.Timestamptz
+  created_at        DateTime            @default(now()) @db.Timestamptz
+  updated_at        DateTime            @updatedAt @db.Timestamptz
+  links             CalendarEventLink[]
+
+  @@unique([user_id, provider])
+  @@index([provider, status, write_events])
+  @@map("calendar_connections")
+}
+
+/// The external event written for one consultation.
+model CalendarEventLink {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  connection_id   String             @db.Uuid
+  connection      CalendarConnection @relation(fields: [connection_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  consultation_id String             @db.Uuid
+  external_id     String             @db.VarChar(1024)
+  content_hash    String             @db.VarChar(64)
+  synced_at       DateTime           @default(now()) @db.Timestamptz
+
+  @@unique([connection_id, consultation_id])
+  @@map("calendar_event_links")
+}
+
+/// Owner 2026-10-28: «the other side did not come». One row per absent side.
+/// state: open (dispute window runs) | disputed | confirmed (counts) |
+/// withdrawn | overturned | unconfirmed (auto-detected, nobody confirmed).
+model ConsultationNoShow {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  consultation_id   String    @db.Uuid
+  /// attorney | client
+  absent_side       String    @db.VarChar(8)
+  absent_user_id    String    @db.Uuid
+  /// attorney | client | auto
+  source            String    @db.VarChar(8)
+  marked_by_id      String?   @db.Uuid
+  state             String    @default("open") @db.VarChar(12)
+  marked_at         DateTime  @default(now()) @db.Timestamptz
+  dispute_until     DateTime  @db.Timestamptz
+  dispute_reason    String?   @db.VarChar(500)
+  disputed_at       DateTime? @db.Timestamptz
+  resolved_at       DateTime? @db.Timestamptz
+  resolved_by_admin String?   @db.Uuid
+  resolution_note   String?   @db.VarChar(500)
+  /// Set once the row was added to the absent person's counters.
+  counted_at        DateTime? @db.Timestamptz
+  created_at        DateTime  @default(now()) @db.Timestamptz
+  updated_at        DateTime  @updatedAt @db.Timestamptz
+
+  @@unique([consultation_id, absent_side])
+  @@index([state, dispute_until])
+  @@index([absent_user_id, state])
+  @@map("consultation_no_shows")
+}
+
+/// Owner 2026-10-28: reliability signals, STORED ONLY (the ranking packages
+/// will read them). Counts a person's confirmed no-shows.
+model ConsultationAttendanceStat {
+  user_id          String    @id @db.Uuid
+  no_show_count    Int       @default(0)
+  disputed_count   Int       @default(0)
+  overturned_count Int       @default(0)
+  last_no_show_at  DateTime? @db.Timestamptz
+  updated_at       DateTime  @updatedAt @db.Timestamptz
+
+  @@map("consultation_attendance_stats")
 }
 
 /// «Вопрос юристу»: a client's public question; answers only from

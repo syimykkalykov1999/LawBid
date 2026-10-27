@@ -3108,9 +3108,69 @@ erDiagram
     DateTime rescheduled_at "nullable"
     DateTime reminded_day_at "nullable"
     DateTime reminded_hour_at "nullable"
+    DateTime attendance_checked_at "nullable"
     DateTime created_at
     DateTime updated_at
     Int shard_id
+  }
+  calendar_feed_tokens {
+    String id PK
+    String user_id UK
+    String token_hash UK
+    DateTime created_at
+    DateTime last_used_at "nullable"
+    Int use_count
+  }
+  calendar_connections {
+    String id PK
+    String user_id
+    String provider
+    String account_email "nullable"
+    String refresh_token_enc
+    String calendar_id
+    Boolean read_busy
+    Boolean write_events
+    String status
+    String last_error "nullable"
+    DateTime sync_cursor
+    DateTime last_sync_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  calendar_event_links {
+    String id PK
+    String connection_id FK
+    String consultation_id
+    String external_id
+    String content_hash
+    DateTime synced_at
+  }
+  consultation_no_shows {
+    String id PK
+    String consultation_id
+    String absent_side
+    String absent_user_id
+    String source
+    String marked_by_id "nullable"
+    String state
+    DateTime marked_at
+    DateTime dispute_until
+    String dispute_reason "nullable"
+    DateTime disputed_at "nullable"
+    DateTime resolved_at "nullable"
+    String resolved_by_admin "nullable"
+    String resolution_note "nullable"
+    DateTime counted_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  consultation_attendance_stats {
+    String user_id PK
+    Int no_show_count
+    Int disputed_count
+    Int overturned_count
+    DateTime last_no_show_at "nullable"
+    DateTime updated_at
   }
   legal_questions {
     String id PK
@@ -3634,6 +3694,7 @@ erDiagram
   consultation_time_off }o--|| users : "attorney_id"
   consultations }o--|| users : "attorney_id"
   consultations }o--|| users : "client_id"
+  calendar_event_links }o--|| calendar_connections : "connection_id"
   legal_questions }o--|| users : "author_id"
   legal_questions }o--o| practice_areas : "practice_area_id"
   legal_questions }o--o| states : "state_code"

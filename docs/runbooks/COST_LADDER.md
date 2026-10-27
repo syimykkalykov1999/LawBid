@@ -189,6 +189,7 @@
 | Проверка текстов на запрещённое (OpenAI moderation) | omni-moderation бесплатно; около $0,00001 за запрос у других моделей (уточнить в кабинете) (уточнить) | $0 | $0 | $0 | дневной лимит запросов (moderation.detect.daily_cap) | [2026-10-25](https://platform.openai.com/docs/pricing) |
 | Проверка личности юриста (Persona) | ≈ $1,50 за проверку (уточнить в кабинете) (уточнить) | $0 | $0 | $0 | лимит проверок личности в деньгах (BUDGET_ID_CHECK_*) | [2026-10-25](https://withpersona.com/pricing) |
 | Пуши (Firebase FCM и Apple APNs) | Бесплатно | $0 | $0 | $0 | тревога сбоев пушей (push-failed) | [2026-10-25](https://firebase.google.com/pricing) |
+| Календари юристов (Google Calendar, Microsoft 365) | Бесплатно: Google Calendar API и Microsoft Graph не берут денег, есть только лимиты запросов | $0 | $0 | $0 | — | [2026-10-25](https://developers.google.com/workspace/calendar/api/guides/quota) |
 | Учёт ошибок (Sentry) | Бесплатный тариф с лимитом событий; дальше от $26 за месяц (уточнить) | $0 | $26–80 | $89 | — | [2026-10-25](https://sentry.io/pricing/) |
 | Звонок вам при серьёзной беде (PagerDuty) | Бесплатный тариф: 100 звонков и SMS в месяц (уточнить) | $0 | $0 | $21 | — | [2026-10-25](https://www.pagerduty.com/pricing/) |
 | Проверка «настоящее ли приложение» (Firebase App Check, reCAPTCHA Enterprise) | App Attest и Play Integrity бесплатно; reCAPTCHA Enterprise бесплатно до 10 тысяч проверок в месяц, дальше платно (цену уточнить) (уточнить) | $0 | $0–100 | $1 000 | — | [2026-10-25](https://cloud.google.com/recaptcha/pricing) |

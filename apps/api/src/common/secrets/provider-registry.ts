@@ -899,6 +899,76 @@ export const PROVIDERS: ProviderDefinition[] = [
     ],
   },
   {
+    // Owner 2026-10-28: Google Calendar two-way link (OFF by default; switch
+    // `calendar.google_enabled`). Guide: docs/runbooks/CALENDAR_GOOGLE_MICROSOFT.md
+    id: 'google_calendar',
+    label: 'Google Calendar (link a calendar)',
+    description:
+      'OAuth app for linking a Google calendar: busy time blocks booking, consultations are written to it.',
+    fields: [
+      {
+        name: 'clientId',
+        label: 'OAuth client ID (Web application)',
+        secret: false,
+        required: true,
+        pattern: /^\d+-[\w]+\.apps\.googleusercontent\.com$/,
+        env: 'GOOGLE_CALENDAR_CLIENT_ID',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'clientSecret',
+        label: 'OAuth client secret',
+        secret: true,
+        required: true,
+        pattern: /^[\w-]{16,}$/,
+        env: 'GOOGLE_CALENDAR_CLIENT_SECRET',
+        normalize: cleanPasted,
+      },
+    ],
+    warning:
+      'Redirect URI in Google Cloud must be https://api.lawbid.dev/api/v1/calendar/oauth/google/callback',
+  },
+  {
+    // Owner 2026-10-28: Outlook / Microsoft 365 two-way link (OFF by default;
+    // switch `calendar.microsoft_enabled`).
+    id: 'microsoft_calendar',
+    label: 'Outlook calendar (link a calendar)',
+    description:
+      'Azure app registration for linking an Outlook / Microsoft 365 calendar.',
+    fields: [
+      {
+        name: 'clientId',
+        label: 'Application (client) ID',
+        secret: false,
+        required: true,
+        pattern:
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+        env: 'MS_CALENDAR_CLIENT_ID',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'clientSecret',
+        label: 'Client secret VALUE (not the secret ID)',
+        secret: true,
+        required: true,
+        pattern: /^[\w.~-]{20,}$/,
+        env: 'MS_CALENDAR_CLIENT_SECRET',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'tenant',
+        label: 'Tenant (leave "common" for work + personal accounts)',
+        secret: false,
+        required: false,
+        pattern: /^[\w.-]{3,64}$/,
+        env: 'MS_CALENDAR_TENANT',
+        normalize: cleanPasted,
+      },
+    ],
+    warning:
+      'Redirect URI in Azure must be https://api.lawbid.dev/api/v1/calendar/oauth/microsoft/callback',
+  },
+  {
     id: 'apple_signin',
     label: 'Apple sign-in',
     description: 'Sign in with Apple on iPhone (bundle ids of the apps).',

@@ -1144,6 +1144,33 @@ export const OWNER_POST_ATTACHMENT_SETTINGS = {
   attachments_keep_after_cancel: true,
 };
 
+/** Owner 2026-10-28: calendar feed, Google / Outlook connectors, no-shows. */
+export const OWNER_CALENDAR_SETTINGS = {
+  /** A person may create a secret link and see their LawBid calendar in
+   * Apple / Google / Outlook Calendar (read-only ICS feed). */
+  'calendar.feed_enabled': true,
+  /** Google Calendar two-way link (OFF until the OAuth app is set up in
+   * Admin → Integrations → google_calendar). */
+  'calendar.google_enabled': false,
+  /** Outlook calendar two-way link (OFF until the Azure app is set up). */
+  'calendar.microsoft_enabled': false,
+  /** Seconds an attorney's busy time from Google / Outlook is reused. */
+  'calendar.busy_cache_seconds': 60,
+  /** Milliseconds to wait for Google / Outlook before booking goes on
+   * without their busy time. */
+  'calendar.busy_timeout_ms': 2500,
+  /** «Не пришёл»: either side may mark a missed consultation. */
+  'consultations.no_show_enabled': true,
+  /** The sweep marks a consultation nobody joined by call (OFF at first). */
+  'consultations.no_show_auto_detect': false,
+  /** Minutes after the start before a no-show may be marked. */
+  'consultations.no_show_grace_minutes': 15,
+  /** Hours after the end during which a no-show may still be marked. */
+  'consultations.no_show_mark_hours': 48,
+  /** Hours the marked person has to dispute. */
+  'consultations.no_show_dispute_hours': 48,
+};
+
 /** Owner 2026-10-20: booking a consultation and «Вопрос юристу». */
 export const OWNER_BOOKING_QA_SETTINGS = {
   /** Bookings one client may make in a day. */
@@ -1496,6 +1523,7 @@ export const APP_SETTINGS = {
   ...OWNER_POST_ATTACHMENT_SETTINGS,
   ...OWNER_BOOKING_QA_SETTINGS,
   ...OWNER_LEGAL_QA_SAFETY_SETTINGS,
+  ...OWNER_CALENDAR_SETTINGS,
   ...OWNER_TEXT_LIMIT_SETTINGS,
   ...OWNER_CACHE_SETTINGS,
   ...OWNER_REALTIME_SETTINGS,

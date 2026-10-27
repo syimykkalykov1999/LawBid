@@ -129,10 +129,12 @@ import 'clients/case_signing_client.dart';
 import 'clients/case_documents_client.dart';
 import 'clients/admin_form_templates_client.dart';
 import 'clients/consultations_client.dart';
-import 'clients/questions_client.dart';
-import 'clients/admin_legal_qa_client.dart';
+import 'clients/calendar_client.dart';
+import 'clients/admin_consultations_client.dart';
 import 'clients/deadlines_client.dart';
 import 'clients/admin_deadlines_client.dart';
+import 'clients/questions_client.dart';
+import 'clients/admin_legal_qa_client.dart';
 
 /// LawBid API `v0.1.0`.
 ///
@@ -270,10 +272,12 @@ class LawbidApi {
   CaseDocumentsClient? _caseDocuments;
   AdminFormTemplatesClient? _adminFormTemplates;
   ConsultationsClient? _consultations;
-  QuestionsClient? _questions;
-  AdminLegalQaClient? _adminLegalQa;
+  CalendarClient? _calendar;
+  AdminConsultationsClient? _adminConsultations;
   DeadlinesClient? _deadlines;
   AdminDeadlinesClient? _adminDeadlines;
+  QuestionsClient? _questions;
+  AdminLegalQaClient? _adminLegalQa;
 
   ConfigClient get config => _config ??= ConfigClient(_dio, baseUrl: _baseUrl);
 
@@ -636,15 +640,21 @@ class LawbidApi {
   ConsultationsClient get consultations =>
       _consultations ??= ConsultationsClient(_dio, baseUrl: _baseUrl);
 
-  QuestionsClient get questions =>
-      _questions ??= QuestionsClient(_dio, baseUrl: _baseUrl);
+  CalendarClient get calendar =>
+      _calendar ??= CalendarClient(_dio, baseUrl: _baseUrl);
 
-  AdminLegalQaClient get adminLegalQa =>
-      _adminLegalQa ??= AdminLegalQaClient(_dio, baseUrl: _baseUrl);
+  AdminConsultationsClient get adminConsultations =>
+      _adminConsultations ??= AdminConsultationsClient(_dio, baseUrl: _baseUrl);
 
   DeadlinesClient get deadlines =>
       _deadlines ??= DeadlinesClient(_dio, baseUrl: _baseUrl);
 
   AdminDeadlinesClient get adminDeadlines =>
       _adminDeadlines ??= AdminDeadlinesClient(_dio, baseUrl: _baseUrl);
+
+  QuestionsClient get questions =>
+      _questions ??= QuestionsClient(_dio, baseUrl: _baseUrl);
+
+  AdminLegalQaClient get adminLegalQa =>
+      _adminLegalQa ??= AdminLegalQaClient(_dio, baseUrl: _baseUrl);
 }
