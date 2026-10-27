@@ -223,7 +223,18 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_STAGING }}
           aws-region: ${{ env.AWS_REGION }}
+      # Deploy safety audit 2026-10-27: the NEW image's env rules against the
+      # REAL task env + secrets (+ KMS, Postgres, Redis) BEFORE migrations,
+      # so a missing/weak value stops here instead of crash-looping new tasks.
+      - name: Config preflight (new image vs real env, before migrations)
+        env:
+          CLUSTER: lawbid-staging
+          SECRET_PREFIX: lawbid-staging
+        run: scripts/deploy/prod-admin-ecs.sh "$IMAGE_TAG" config
       - name: Migrations (one-off task, waits for exit 0)
+        env:
+          # fail (default) | warn | off — prisma/verify-schema.mjs
+          SCHEMA_DRIFT_CHECK: ${{ vars.SCHEMA_DRIFT_CHECK }}
         run: scripts/deploy/run-migrations.sh lawbid-staging "$IMAGE_TAG"
       # Owner 2026-10-18: the translations table goes up with every release
       # (before, only by hand — the live site missed new texts). Dry run
@@ -296,7 +307,15 @@ jobs:
       - name: Snapshot before contract migrations (only when this release has one)
         if: ${{ vars.PRE_MIGRATE_SNAPSHOT != 'false' }}
         run: scripts/deploy/snapshot-if-contract.sh "$LAST_GOOD_TAG" "$IMAGE_TAG"
+      - name: Config preflight (new image vs real env, before migrations)
+        env:
+          CLUSTER: lawbid-prod
+          SECRET_PREFIX: lawbid-prod
+        run: scripts/deploy/prod-admin-ecs.sh "$IMAGE_TAG" config
       - name: Migrations (expand/contract only, docs/02 §7.1)
+        env:
+          # fail (default) | warn | off — prisma/verify-schema.mjs
+          SCHEMA_DRIFT_CHECK: ${{ vars.SCHEMA_DRIFT_CHECK }}
         run: scripts/deploy/run-migrations.sh lawbid-prod "$IMAGE_TAG"
       - name: Translations (all 85 languages from translations_seed.xlsx)
         env:

@@ -20,6 +20,7 @@ import {
   USAGE_SNAPSHOT_KEY,
   type UsageSnapshot,
 } from '../../../jobs/handlers/usage-poll.job';
+import { CRON_LANES } from '../../../jobs/jobs.constants';
 
 export type ProbeStatus = 'green' | 'yellow' | 'red' | 'grey';
 
@@ -283,12 +284,23 @@ export class StatusProbesService implements OnModuleDestroy {
   }
 
   private async queuesProbe(now: Date): Promise<Omit<ProbeResult, 'key'>> {
-    // The two busiest consumers; the full list is on the older «Очереди» card.
-    const cron = await this.queueStats('cron', now);
+    // All three cron lanes (S10-2): the signal jobs (queue metrics, ops
+    // guard, this watchdog) moved to `cron-fast` and the long ones to
+    // `cron-heavy`, so watching `cron` alone missed a stuck lane (deploy
+    // safety audit 2026-10-27). The full list is on the «Очереди» card.
+    const lanes: Record<
+      string,
+      { waiting: number; failed: number; oldestSec: number }
+    > = {};
+    for (const lane of CRON_LANES)
+      lanes[lane] = await this.queueStats(lane, now);
+    const all = Object.values(lanes);
+    const oldestSec = Math.max(0, ...all.map((l) => l.oldestSec));
+    const waiting = all.reduce((s, l) => s + l.waiting, 0);
+    const failed = all.reduce((s, l) => s + l.failed, 0);
     return {
-      status:
-        cron.oldestSec > 300 ? 'red' : cron.oldestSec > 60 ? 'yellow' : 'green',
-      detail: { ...cron },
+      status: oldestSec > 300 ? 'red' : oldestSec > 60 ? 'yellow' : 'green',
+      detail: { waiting, failed, oldestSec, lanes },
     };
   }
 
