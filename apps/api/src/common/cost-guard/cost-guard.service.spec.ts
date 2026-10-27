@@ -36,6 +36,8 @@ function build(opts: {
   moneyEval?: jest.Mock;
   appConfig?: Record<string, unknown> | Error;
   env?: Record<string, number>;
+  /** The economy daily brake in Redis (cents). */
+  brake?: string;
 }) {
   // Owner 2026-10-22: the money budgets run first in their own script;
   // `redis.eval` below is the call-cap script these tests assert on.
@@ -47,6 +49,7 @@ function build(opts: {
   const decrby = jest.fn().mockResolvedValue(0);
   const wired = {
     decrby,
+    get: jest.fn().mockResolvedValue(opts.brake ?? null),
     eval: (script: string, ...rest: unknown[]): Promise<unknown> =>
       script.includes('local amount')
         ? (moneyEval(script, ...rest) as Promise<unknown>)
@@ -392,7 +395,47 @@ describe('CostGuardService money budgets', () => {
       global: 1_234_000,
       provider: 77_000,
       user: 0,
+      month: 0,
     });
+  });
+
+  it('S9-4: with no admin / env cap the global brake is the economy value, else the $15 floor', async () => {
+    const withKey = build({ brake: '50000' });
+    expect((await withKey.service.moneyCaps('sms')).global).toBe(50_000_000);
+    const none = build({});
+    expect((await none.service.moneyCaps('sms')).global).toBe(1_500_000);
+  });
+
+  it('S9-4: the admin value (even 0 = none) and a positive env win over the brake', async () => {
+    const zero = build({ appConfig: { 'budget.money.global_daily_cents': 0 } });
+    expect((await zero.service.moneyCaps('sms')).global).toBe(0);
+    const env = build({ env: { BUDGET_GLOBAL_DAILY_CENTS: 700 } });
+    expect((await env.service.moneyCaps('sms')).global).toBe(700_000);
+  });
+
+  it('S9-4: the SMS monthly money cap adds a fourth counter', async () => {
+    const { service, moneyEval } = build({
+      env: {
+        BUDGET_SMS_MONTHLY_CENTS: 10_000,
+        BUDGET_GLOBAL_DAILY_CENTS: 50_000,
+      },
+    });
+    await service.consume('sms', 1, { country: 'US' });
+    const args = moneyEval.mock.calls[0] as unknown[];
+    expect(args[1]).toBe(9);
+    expect(args.slice(2, 5)).toEqual([
+      'money:{m}:20260927:all:all',
+      'money:{m}:20260927:p:sms',
+      'money:{m}:202609:pm:sms',
+    ]);
+  });
+
+  it('S9-2: the admin price override changes what a call reserves', async () => {
+    const { service, moneyEval } = build({
+      appConfig: { 'cost.unit_millicents.translate': 10 },
+    });
+    await service.consume('translate', 1, { chars: 100 });
+    expect((moneyEval.mock.calls[0] as unknown[])[8]).toBe(1_000);
   });
 });
 

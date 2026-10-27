@@ -3,7 +3,9 @@ import type { AppSettingsService } from '../app-settings/app-settings.service';
 import { MessageBodyCipher } from './message-body-cipher';
 import {
   MessageSearchIndex,
+  SEARCH_STOP_WORDS,
   SEARCH_TOKEN_BYTES,
+  SEARCH_TOKENS_PER_MESSAGE,
   searchWords,
   wordPrefixes,
 } from './message-search-index';
@@ -44,13 +46,33 @@ describe('searchWords (tokenizer normalization)', () => {
   });
 
   it('splits on any whitespace and drops empty / over-long words', () => {
-    expect(searchWords(`a\tb\nc  ${'x'.repeat(65)}`)).toEqual(['a', 'b', 'c']);
+    expect(searchWords(`ab\tbc\ncd  ${'x'.repeat(65)}`)).toEqual([
+      'ab',
+      'bc',
+      'cd',
+    ]);
     expect(searchWords('   ')).toEqual([]);
   });
 
   it('caps the number of words', () => {
     const many = Array.from({ length: 10 }, (_, i) => `w${i}`).join(' ');
     expect(searchWords(many, 3)).toEqual(['w0', 'w1', 'w2']);
+  });
+});
+
+describe('searchWords (R-24: fewer, useful words)', () => {
+  it('drops words under 2 characters and stop-words of every app locale', () => {
+    expect(
+      searchWords(
+        'Я и адвокат в суде: the contract of a client, el contrato 5',
+      ),
+    ).toEqual(['адвокат', 'суде', 'contract', 'client', 'contrato']);
+  });
+
+  it('stop-word lists are already folded (lower case, no accents, е for ё)', () => {
+    for (const list of Object.values(SEARCH_STOP_WORDS)) {
+      for (const w of list) expect(searchWords(`${w} keep`)).toEqual(['keep']);
+    }
   });
 });
 
@@ -152,6 +174,46 @@ describe('MessageSearchIndex', () => {
       } as unknown as AppSettingsService,
     );
     expect(await broken.prefixMode()).toBe(false);
+  });
+
+  it('caps token rows per message (words first, then prefixes)', () => {
+    const idx = build({ key: KEY });
+    const text = Array.from({ length: 200 }, (_, i) => `word${i}`).join(' ');
+    expect(idx.maxTokens).toBe(SEARCH_TOKENS_PER_MESSAGE);
+    expect(idx.tokensFor(text, false)).toHaveLength(SEARCH_TOKENS_PER_MESSAGE);
+    expect(idx.tokensFor(text, true, 10)).toHaveLength(10);
+    // prefixes only after every kept word has its whole-word token
+    const two = idx.tokensFor('документ договор', true, 3);
+    expect(two[0].equals(idx.tokensFor('документ', false)[0])).toBe(true);
+    expect(two[1].equals(idx.tokensFor('договор', false)[0])).toBe(true);
+    expect(two).toHaveLength(3);
+  });
+
+  it('reads the cap setting and caches both settings for 30 s', async () => {
+    const env = {
+      SEARCH_INDEX_KEY: KEY,
+      MESSAGE_ENC_KEYS: ENC,
+      MESSAGE_ENC_ACTIVE_KID: 'm1',
+    };
+    const settings = {
+      boolean: jest.fn().mockResolvedValue(false),
+      number: jest.fn().mockResolvedValue(5),
+    };
+    const idx = new MessageSearchIndex(
+      config(env),
+      new MessageBodyCipher(config(env)),
+      settings as unknown as AppSettingsService,
+    );
+    await idx.prefixMode();
+    await idx.prefixMode();
+    expect(settings.boolean).toHaveBeenCalledTimes(1);
+    expect(settings.number).toHaveBeenCalledWith(
+      'chat.search.max_tokens_per_message',
+    );
+    expect(idx.maxTokens).toBe(5);
+    expect(
+      idx.tokensFor('one two three four five six seven', false),
+    ).toHaveLength(5);
   });
 
   it('fingerprint changes with the key and does not contain it', () => {

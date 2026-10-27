@@ -501,3 +501,40 @@ POST /admin/system-health/message-reencrypt/restart added the new `restore_drill
 POST /admin/system-health/restart-worker added the new `restore_drill` enum value to the `data/items/items/key` response property for the response status `200`
 POST /admin/system-health/scale added the new `restore_drill` enum value to the `data/items/items/key` response property for the response status `200`
 PATCH /admin/system-health/settings added the new `restore_drill` enum value to the `data/items/items/key` response property for the response status `200`
+# PR #370 (cost hardening S9-1/S9-2/S9-11): admin economy gains cost lines id_check/email/image_moderation/cloudflare, the three economy.*_unit_usd settings move to one price book, spend vendors gain google and sentry; only the admin reads these and it changes in the same PR
+GET /admin/economy added the new `cloudflare` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+GET /admin/economy added the new `email` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+GET /admin/economy added the new `id_check` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+GET /admin/economy added the new `image_moderation` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+GET /admin/economy removed the required property `data/settings/smsUnitUsd` from the response with the `200` status
+GET /admin/economy removed the required property `data/settings/translateUnitUsd` from the response with the `200` status
+GET /admin/economy removed the required property `data/settings/videoUnitUsd` from the response with the `200` status
+POST /admin/economy/decrease added the new `cloudflare` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+POST /admin/economy/decrease added the new `email` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+POST /admin/economy/decrease added the new `id_check` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+POST /admin/economy/decrease added the new `image_moderation` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+POST /admin/economy/decrease removed the required property `data/settings/smsUnitUsd` from the response with the `200` status
+POST /admin/economy/decrease removed the required property `data/settings/translateUnitUsd` from the response with the `200` status
+POST /admin/economy/decrease removed the required property `data/settings/videoUnitUsd` from the response with the `200` status
+POST /admin/economy/increase added the new `cloudflare` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+POST /admin/economy/increase added the new `email` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+POST /admin/economy/increase added the new `id_check` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+POST /admin/economy/increase added the new `image_moderation` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+POST /admin/economy/increase removed the required property `data/settings/smsUnitUsd` from the response with the `200` status
+POST /admin/economy/increase removed the required property `data/settings/translateUnitUsd` from the response with the `200` status
+POST /admin/economy/increase removed the required property `data/settings/videoUnitUsd` from the response with the `200` status
+PATCH /admin/economy/settings added the new `cloudflare` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+PATCH /admin/economy/settings added the new `email` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+PATCH /admin/economy/settings added the new `id_check` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+PATCH /admin/economy/settings added the new `image_moderation` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+PATCH /admin/economy/settings removed the required property `data/settings/smsUnitUsd` from the response with the `200` status
+PATCH /admin/economy/settings removed the required property `data/settings/translateUnitUsd` from the response with the `200` status
+PATCH /admin/economy/settings removed the required property `data/settings/videoUnitUsd` from the response with the `200` status
+GET /admin/spend added the new `google` enum value to the `data/vendors/items/id` response property for the response status `200`
+GET /admin/spend added the new `sentry` enum value to the `data/vendors/items/id` response property for the response status `200`
+PUT /admin/spend/fixed-costs added the new `google` enum value to the `data/vendors/items/id` response property for the response status `200`
+PUT /admin/spend/fixed-costs added the new `sentry` enum value to the `data/vendors/items/id` response property for the response status `200`
+PUT /admin/spend/prices added the new `google` enum value to the `data/vendors/items/id` response property for the response status `200`
+PUT /admin/spend/prices added the new `sentry` enum value to the `data/vendors/items/id` response property for the response status `200`
+POST /admin/spend/refresh added the new `google` enum value to the `data/vendors/items/id` response property for the response status `200`
+POST /admin/spend/refresh added the new `sentry` enum value to the `data/vendors/items/id` response property for the response status `200`

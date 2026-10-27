@@ -1266,6 +1266,27 @@ variable "db_autoscale_tuning" {
   default = {}
 }
 
+# --- VPC endpoints by themselves (owner rule 2026-10-25, S9-6) -----------------
+variable "endpoints_autoscale_enabled" {
+  type        = bool
+  default     = true
+  description = "The interface endpoints (ecr, logs, secrets) are created by a Lambda when NAT traffic is high and removed after a quiet week (modules/endpoints-autoscale). Services already in interface_endpoints are left to Terraform."
+}
+variable "endpoints_autoscale_mode" {
+  type        = string
+  default     = "on"
+  description = "Start value of the switch: on | dry-run | off (later changes in SSM, docs/runbooks/nat-endpoints.md)."
+}
+variable "endpoints_autoscale_ceiling" {
+  type        = number
+  default     = 4
+  description = "Start value of the admin ceiling: most endpoints it may keep (0 = none)."
+}
+variable "endpoints_autoscale_tuning" {
+  type    = map(number)
+  default = {}
+}
+
 # --- Redis autoscale (owner 2026-10-24, docs/architecture/REDIS_AUTOSCALE.md) --
 variable "redis_autoscale_enabled" {
   type        = bool
@@ -1481,7 +1502,7 @@ locals {
     # Economy guard (owner 2026-10-16): monthly cost of one task (Fargate
     # list price, us-east-1; ARM64 ≈ 20 % cheaper) and the names of the
     # database and Redis the admin may raise one tier.
-    OPS_API_TASK_USD    = tostring(local.api_task_usd)
+    OPS_API_TASK_USD    = tostring(local.api_task_usd) # x86 on-demand list price; the API applies ARM / Spot (S9-7)
     OPS_WORKER_TASK_USD = tostring(local.worker_task_usd)
     OPS_DB_INSTANCE     = local.db_identifier # the admin «Экономика» shows the current class (also after the autoscaler moved it)
     OPS_REDIS_GROUP     = local.redis_cluster_on ? module.redis.cluster_replication_group_id : "${local.name}-redis"
@@ -1509,6 +1530,7 @@ locals {
     OPS_OBSOLETE_BUDGET_NAME = "LawBid Monthly"
     OPS_COST_TAG_KEYS        = join(",", sort(keys(local.tags)))
     OPS_API_SPOT             = var.api_spot ? "on" : "off"
+    OPS_CPU_ARCH             = var.cpu_architecture # the API applies the ARM / Spot price factors (S9-7)
     OPS_WORKER_SPOT          = var.worker_spot ? "on" : "off"
     AWS_REGION               = data.aws_region.current.name
     # Admin health: rotation dates per secret (empty list while rotation is off).
@@ -1529,9 +1551,8 @@ locals {
     OPENSEARCH_SERVERLESS_URL = var.growth.opensearch_serverless_enabled ? one(module.opensearch_serverless[*].endpoint) : ""
   }
   critical_topic_arn = "arn:aws:sns:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${local.name}-critical"
-  arm_factor         = var.cpu_architecture == "ARM64" ? 0.8 : 1
-  api_task_usd       = floor(730 * (var.api_cpu / 1024 * 0.04048 + var.api_memory / 1024 * 0.004445) * local.arm_factor * 100) / 100
-  worker_task_usd    = floor(730 * (var.worker_cpu / 1024 * 0.04048 + var.worker_memory / 1024 * 0.004445) * local.arm_factor * 100) / 100
+  api_task_usd       = floor(730 * (var.api_cpu / 1024 * 0.04048 + var.api_memory / 1024 * 0.004445) * 100) / 100
+  worker_task_usd    = floor(730 * (var.worker_cpu / 1024 * 0.04048 + var.worker_memory / 1024 * 0.004445) * 100) / 100
   app_secret_arns = merge(
     { for k in local.secret_names : k => module.secrets.arns[k] },
     { REDIS_URL = local.redis_cluster_on ? module.redis.cluster_url_secret_arn : module.redis.redis_url_secret_arn },
@@ -2129,6 +2150,26 @@ module "redis_autoscale" {
   depends_on           = [module.redis]
 }
 
+# Owner rule 2026-10-25: nothing is "off forever". Start without interface
+# endpoints; this Lambda adds them when NAT traffic makes them cheaper.
+module "endpoints_autoscale" {
+  count             = var.endpoints_autoscale_enabled ? 1 : 0
+  source            = "../endpoints-autoscale"
+  name              = local.name
+  vpc_id            = module.network.vpc_id
+  subnet_ids        = slice(module.network.private_subnet_ids, 0, var.interface_endpoint_azs == 0 ? length(var.azs) : min(var.interface_endpoint_azs, length(var.azs)))
+  security_group_id = module.network.endpoints_security_group_id
+  nat_gateway_ids   = module.network.nat_gateway_ids
+  services          = tolist(setsubtract(["ecr.api", "ecr.dkr", "logs", "secretsmanager"], var.interface_endpoints))
+  alerts_topic_arn  = module.monitoring.alerts_topic_arn
+  kms_key_arn       = module.kms.key_arn
+  mode              = var.endpoints_autoscale_mode
+  ceiling           = var.endpoints_autoscale_ceiling
+  tuning            = var.endpoints_autoscale_tuning
+  controls_bucket   = module.s3.documents_bucket
+  tags              = local.tags
+}
+
 check "redis_autoscale_needs_replica" {
   assert {
     condition     = !var.redis_autoscale_enabled || var.redis_replicas > 0
@@ -2281,6 +2322,7 @@ output "backup_dr_vault_arn" { value = one(module.backup[*].dr_vault_arn) }
 output "alerts_topic_arn" { value = module.monitoring.alerts_topic_arn }
 output "critical_topic_arn" { value = module.monitoring.critical_topic_arn }
 output "db_autoscale_function" { value = one(module.db_autoscale[*].function_name) }
+output "endpoints_autoscale_function" { value = one(module.endpoints_autoscale[*].function_name) }
 output "redis_autoscale_function" { value = one(module.redis_autoscale[*].function_name) }
 output "budget_name" { value = one(module.budget[*].budget_name) }
 output "rds_endpoint_secret_arn" { value = one(module.postgres[*].master_secret_arn) }
