@@ -96,11 +96,26 @@ function build() {
     bucket: () => 'docs',
     putStream: jest.fn(async (_b: string, _k: string, body: Readable) => {
       for await (const c of body) streamed += (c as Buffer).length;
+      return { bytes: streamed, sha256: 'test' };
     }),
   };
   const notifications = { emit: jest.fn() };
+  // Union merge (#360 + #366): the round-13 export reads many more tables;
+  // every model not listed above is empty.
+  const anyModel = {
+    findMany: empty,
+    findUnique: jest.fn().mockResolvedValue(null),
+    findFirst: jest.fn().mockResolvedValue(null),
+    count: jest.fn().mockResolvedValue(0),
+  };
+  const prismaAll = new Proxy(prisma, {
+    get: (t, k) =>
+      k in t
+        ? { ...anyModel, ...(t[k as keyof typeof t] as object) }
+        : anyModel,
+  });
   const svc = new DataExportService(
-    prisma as never,
+    prismaAll as never,
     storage as never,
     notifications as never,
     { get: () => undefined } as never,
