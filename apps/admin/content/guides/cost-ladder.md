@@ -430,13 +430,13 @@ AWS берёт плату за каждый публичный адрес: дв�
 
 Положение **Выкл**:
 1. Откройте файл infra/envs/prod/terraform.tfvars (его нет в репозитории, он только у вас на Mac).
-2. Впишите или замените строку: container_insights = false
+2. Впишите или замените строку: container_insights = "disabled"
 3. Попросите Claude: «примени Terraform» (он выполнит terraform plan, прогонит plan-guard.sh и покажет вам итог).
 4. Прочитайте итог плана (строку Plan: X to add, Y to change, Z to destroy) и скажите «да».
 
 Положение **Вкл**:
 1. Откройте файл infra/envs/prod/terraform.tfvars (его нет в репозитории, он только у вас на Mac).
-2. Впишите или замените строку: container_insights = true
+2. Впишите или замените строку: container_insights = "enabled"
 3. Попросите Claude: «примени Terraform» (он выполнит terraform plan, прогонит plan-guard.sh и покажет вам итог).
 4. Прочитайте итог плана (строку Plan: X to add, Y to change, Z to destroy) и скажите «да».
 

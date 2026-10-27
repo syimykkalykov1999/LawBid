@@ -680,6 +680,27 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 1000000,
   };
+  // Owner 2026-10-26: infra switches from the admin.
+  out['infra.dry_run'] = {
+    type: 'boolean',
+    defaultValue: true,
+    description:
+      'Cloud changes from the admin are only planned, never applied (the plan is shown, nothing changes). false = after the plan and your 2FA code the change is applied.',
+  };
+  out['infra.daily_cap'] = {
+    type: 'integer',
+    defaultValue: 3,
+    description: 'At most this many cloud change requests per 24 hours.',
+    min: 1,
+    max: 10,
+  };
+  out['infra.quiet_hours'] = {
+    type: 'string',
+    defaultValue: '',
+    description:
+      'Hours (America/Chicago) when a cloud change may be applied, "HH:MM-HH:MM", e.g. 01:00-06:00; empty = any time.',
+    pattern: /^$|^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/,
+  };
   out['scale.capacity_ceiling.mode'] = {
     type: 'string',
     defaultValue: 'auto',

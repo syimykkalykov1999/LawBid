@@ -107,10 +107,17 @@ describe('CostRegistryService.report', () => {
     const db = r.rows.find((x) => x.id === 'aws.db_autoscale')!;
     expect(db.state).toBe('auto'); // SSM `on`
     expect(db.editable).toBe(true);
+    // Owner 2026-10-26: a whitelisted Terraform row is switched from the
+    // admin through a change request; a row outside the whitelist is not.
     const gd = r.rows.find((x) => x.id === 'aws.guardduty')!;
-    expect(gd.editable).toBe(false);
-    expect(gd.lockedReason).toContain('terraform.tfvars');
+    expect(gd.editable).toBe(true);
+    expect(gd.infraSwitch).toBe(true);
+    expect(gd.lockedReason).toBeNull();
     expect(gd.steps.off.join(' ')).toContain('guardduty_enabled = false');
+    const backup = r.rows.find((x) => x.id === 'aws.backup')!;
+    expect(backup.editable).toBe(false);
+    expect(backup.infraSwitch).toBe(false);
+    expect(backup.lockedReason).toContain('terraform.tfvars');
     expect(r.unclaimed).toEqual([{ service: 'Amazon Mystery', usd: 3 }]);
     expect(r.ladder.dayOne.all[0]).toBeGreaterThan(220);
     expect(r.ladder.scenarios.map((s) => s.users)).toEqual([

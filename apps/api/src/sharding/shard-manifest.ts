@@ -202,6 +202,7 @@ export const GLOBAL_MODELS: readonly string[] = [
   'BlockedEmailDomain',
   'FeatureFlag',
   'AppConfig',
+  'InfraChangeRequest',
   'ShardMap',
   // Step 7: per-physical-database outbox (see PER_DATABASE_MODELS) and the
   // primary-only inbox.

@@ -21,6 +21,11 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     label: 'GitHub (только чтение, для страницы «Запуск»)',
     description: 'Чтобы страница «Запуск» сама видела, что запущена последняя версия main. Токен нужен только на чтение.',
   },
+  github_infra: {
+    label: 'GitHub: изменения облака (GitHub App)',
+    description:
+      'Чтобы кнопки Выкл/Вкл для облака на «Расходах» и «Масштабе» запускали процесс «план → ваш код 2FA → применить». GitHub-приложение с правом Actions: read and write только на этот репозиторий.',
+  },
   stripe: { label: 'Stripe (платежи)', description: 'Подписки, оплата, личный кабинет клиента.' },
   twilio: { label: 'Twilio (SMS-коды)', description: 'Коды для входа и подтверждения по SMS.' },
   ses: {

@@ -1171,8 +1171,8 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'Детальные метрики по каждой копии сервера. Нужны только на время расследования.',
     kind: 'aws',
     control: tf(['container_insights'], {
-      off: 'container_insights = false',
-      on: 'container_insights = true',
+      off: 'container_insights = "disabled"',
+      on: 'container_insights = "enabled"',
     }),
     states: ['off', 'on'],
     defaultState: 'off',
@@ -2121,6 +2121,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'ny_registry',
       'cockroach_cloud',
       'github',
+      'github_infra',
     ],
   },
   {

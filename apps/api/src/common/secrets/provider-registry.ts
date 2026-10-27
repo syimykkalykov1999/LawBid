@@ -832,6 +832,56 @@ export const PROVIDERS: ProviderDefinition[] = [
       }),
   },
   {
+    // Owner 2026-10-26: infra switches from the admin. A GitHub App (not a
+    // personal token) installed on this repository only, with the
+    // permission "Actions: read and write" and "Contents: read". The API
+    // mints a 1-hour installation token narrowed to actions:write on this
+    // one repository and starts the `infra-apply` workflow. Runbook:
+    // docs/runbooks/infra-from-admin.md.
+    id: 'github_infra',
+    label: 'GitHub: изменения облака (GitHub App)',
+    description:
+      'Чтобы кнопки Выкл/Вкл для облака запускали проверенный процесс «план → ваш код 2FA → применить». Нужно GitHub-приложение с правом Actions: read and write только на этот репозиторий.',
+    fields: [
+      {
+        name: 'repo',
+        label: 'Репозиторий (владелец/имя)',
+        secret: false,
+        required: true,
+        pattern: /^[\w.-]+\/[\w.-]+$/,
+        patternHint: 'syimykkalykov1999/LawBid',
+      },
+      {
+        name: 'appId',
+        label: 'App ID',
+        secret: false,
+        required: true,
+        pattern: /^\d{1,12}$/,
+        patternHint: '1234567',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'installationId',
+        label: 'Installation ID',
+        secret: false,
+        required: true,
+        pattern: /^\d{1,15}$/,
+        patternHint: '55555555',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'privateKey',
+        label: 'Private key (.pem)',
+        secret: true,
+        required: true,
+        pattern:
+          /^-----BEGIN (RSA )?PRIVATE KEY-----[\s\S]+-----END (RSA )?PRIVATE KEY-----\s*$/,
+        patternHint: '-----BEGIN RSA PRIVATE KEY-----…',
+        normalize: normalizePem,
+      },
+    ],
+  },
+  {
     id: 'google_signin',
     label: 'Google sign-in',
     description: 'OAuth client IDs of the iOS / Android / web apps.',

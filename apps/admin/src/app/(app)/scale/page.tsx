@@ -36,6 +36,9 @@ import { usd } from '@/lib/economy';
 import { budgetPercent, budgetTone, parseLimit, type AwsBudget, type AwsBudgets, type CostRegistryReport } from '@/lib/launch';
 import { HeavyUsersCard } from './heavy-users-card';
 import { LIGHT_TONE } from '@/lib/system-health';
+import { InfraChip, InfraPlanSheet, InfraSuggestionCards, useInfra } from '@/components/infra-plan-sheet';
+import { StateControl } from '@/app/(app)/spend/registry';
+import { isActive, latestFor, requestDot } from '@/lib/infra';
 
 type Target = 'db' | 'redis';
 type Action = AlarmAction | { kind: 'decrease'; target: Target };
@@ -80,6 +83,19 @@ export default function ScalePage() {
   const e = economy.data;
   const h = health.data;
   const x = extras.data;
+
+  // Owner 2026-10-26: cloud (Terraform) switches — the same Выкл / Вкл as on
+  // «Расходы»: a plan first, then the 2FA code applies it. Авто = proposals.
+  const infra = useInfra();
+  const [infraSheet, setInfraSheet] = useState<string | null>(null);
+  const infraRows = (registry.data?.rows ?? []).filter((r) => r.infraSwitch);
+  const infraPick = (id: string, to: 'off' | 'on') => {
+    if (isActive(latestFor(infra.data?.requests, id))) {
+      setInfraSheet(id);
+      return;
+    }
+    infra.create.mutate({ itemId: id, to }, { onSuccess: () => setInfraSheet(id) });
+  };
 
   // Owner 2026-10-24: the AWS budgets. A change needs the 2FA code (the API
   // client asks for it); no second admin (the owner works alone).
@@ -431,6 +447,39 @@ export default function ScalePage() {
             />
           </div>
 
+          <SectionTitle>Облако: включить и выключить по кнопке</SectionTitle>
+          <InfraSuggestionCards
+            items={infra.data?.suggestions ?? []}
+            busyId={infra.create.isPending ? (infra.create.variables?.itemId ?? null) : null}
+            onPick={(sg) => infraPick(sg.id, sg.to === 'on' ? 'on' : 'off')}
+          />
+          {infraRows.length > 0 ? (
+            <Card className="mb-6 flex flex-col divide-y divide-line p-0" data-testid="scale-infra">
+              {infraRows.map((row) => {
+                const req = latestFor(infra.data?.requests, row.id);
+                const running = isActive(req);
+                return (
+                  <div key={row.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+                    <span className="min-w-[180px] flex-1 truncate text-sm text-heading" title={row.purpose}>
+                      {row.name}
+                    </span>
+                    <StatusDot status={running && req ? requestDot(req) : row.status} testId={`scale-infra-dot-${row.id}`} />
+                    {req && (running || req.status === 'failed') ? (
+                      <button type="button" onClick={() => setInfraSheet(row.id)} aria-label="Открыть план изменения">
+                        <InfraChip request={req} />
+                      </button>
+                    ) : null}
+                    <StateControl
+                      row={row}
+                      busy={running || (infra.create.isPending && infra.create.variables?.itemId === row.id)}
+                      onPick={(st) => (st === 'auto' ? setInfraSheet(row.id) : infraPick(row.id, st))}
+                    />
+                  </div>
+                );
+              })}
+            </Card>
+          ) : null}
+
           <SectionTitle>Бюджеты AWS (потолок расходов в месяц)</SectionTitle>
           <div className="mb-6 grid gap-3 md:grid-cols-2" data-testid="aws-budgets">
             {budgets.data && !budgets.data.available ? (
@@ -585,6 +634,17 @@ export default function ScalePage() {
           </Button>
         </div>
       </Dialog>
+
+      <InfraPlanSheet
+        request={infraSheet ? latestFor(infra.data?.requests, infraSheet) : null}
+        dryRunMode={infra.data?.guards?.dryRun ?? false}
+        onRefresh={() => void infra.q.refetch()}
+        onClose={() => setInfraSheet(null)}
+        onConfirm={(id) => infra.confirm.mutate(id)}
+        onCancel={(id) => infra.cancel.mutate(id)}
+        onRollback={(id) => infra.rollback.mutate(id)}
+        busy={infra.confirm.isPending || infra.rollback.isPending || infra.create.isPending}
+      />
 
       <StepUpDialog
         open={stepUp !== null}

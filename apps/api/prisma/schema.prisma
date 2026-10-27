@@ -1294,6 +1294,47 @@ model AppConfig {
   @@map("app_config")
 }
 
+// Owner 2026-10-26 (infra switches from the admin): one row per request to
+// change a whitelisted Terraform switch (apps/api/src/common/ops/
+// infra-switches.ts). requested -> planning -> planned -> confirmed (2FA) ->
+// applying -> done | failed | expired | cancelled | dry_run | rolled_back.
+// At most one active row (partial unique index in the migration). Global.
+model InfraChangeRequest {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// cost-registry.ts row id, e.g. aws.rds_replicas.
+  item_id            String
+  from_state         String?
+  to_state           String
+  /// { "<key>": <value> } written into growth.auto.tfvars.json.
+  changes            Json
+  status             String    @default("requested")
+  requested_by       String    @db.Uuid
+  confirmed_by       String?   @db.Uuid
+  /// Monthly $ change from the cost registry: [low, high].
+  cost_delta_usd     Json
+  dry_run            Boolean   @default(false)
+  /// The request this one undoes («Откатить»).
+  rollback_of        String?   @db.Uuid
+  /// { add, change, destroy, resources: [{ address, action }] } from the workflow.
+  plan_summary       Json?
+  /// Values the file held before (reported by the workflow).
+  file_before        Json?
+  run_id             String?
+  run_url            String?
+  /// Where the applied file was recorded: main | pr:<url>.
+  recorded           String?
+  error              String?
+  planned_at         DateTime? @db.Timestamptz
+  confirmed_at       DateTime? @db.Timestamptz
+  finished_at        DateTime? @db.Timestamptz
+  created_at         DateTime  @default(now()) @db.Timestamptz
+  updated_at         DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([item_id, created_at(sort: Desc)])
+  @@index([created_at(sort: Desc)])
+  @@map("infra_change_requests")
+}
+
 // Shard-ready step 3 (docs/architecture/SHARDING_READY.md §5): which
 // physical database holds each of the 256 logical shards. Global family
 // (lives on the primary DB). `physical_db` is a key of DATABASE_URL (the
