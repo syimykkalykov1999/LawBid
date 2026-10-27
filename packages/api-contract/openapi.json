@@ -125333,6 +125333,182 @@
         ]
       }
     },
+    "/admin/workspace/desk-settings": {
+      "get": {
+        "operationId": "deskSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeskSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Switches and timers the one-page desk needs (whitelist)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/workspace/desk-decisions": {
+      "get": {
+        "operationId": "deskDecisions",
+        "parameters": [
+          {
+            "name": "days",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 60,
+              "default": 14,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeskDecisionsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "My own closed items per day (nightly counters), newest first",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
     "/admin/staff/rates": {
       "get": {
         "operationId": "listStaffRates",
@@ -193185,6 +193361,110 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/StaffSettingsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DeskSettingsDto": {
+        "type": "object",
+        "properties": {
+          "switches": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "description": "The `staff.*_enabled` switches the desk reads (workspaces, desk, leases per queue, presence, rating, worker progress, appeals, piecework, head). Per-queue lease switches already count only under `staff.lease_enabled`."
+          },
+          "numbers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Timers and capacity the desk shows (heartbeat, lease lengths per queue, warning before loss, skips per hour, capacity), clamped to their admin bounds."
+          }
+        },
+        "required": [
+          "switches",
+          "numbers"
+        ]
+      },
+      "DeskSettingsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeskSettingsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DeskDecisionDayDto": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "example": "2026-10-26"
+          },
+          "decided": {
+            "type": "integer"
+          },
+          "avgHandleSec": {
+            "type": "integer"
+          },
+          "reopened": {
+            "type": "integer",
+            "description": "Came back after closing."
+          },
+          "lateSla": {
+            "type": "integer",
+            "description": "Closed after the due time."
+          },
+          "skips": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "decided",
+          "avgHandleSec",
+          "reopened",
+          "lateSla",
+          "skips"
+        ]
+      },
+      "DeskDecisionsDto": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "description": "My own days from the nightly counters, newest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeskDecisionDayDto"
+            }
+          },
+          "decidedTotal": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "days",
+          "decidedTotal"
+        ]
+      },
+      "DeskDecisionsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeskDecisionsDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

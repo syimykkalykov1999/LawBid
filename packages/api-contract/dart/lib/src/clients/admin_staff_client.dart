@@ -5,6 +5,8 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/desk_decisions_envelope.dart';
+import '../models/desk_settings_envelope.dart';
 import '../models/dispute_piecework_dto.dart';
 import '../models/piecework_dispute_result_envelope.dart';
 import '../models/piecework_overview_envelope.dart';
@@ -23,6 +25,19 @@ abstract class AdminStaffClient {
   /// Staff package switches and numbers (all off by default)
   @GET('/admin/staff/settings')
   Future<StaffSettingsEnvelope> getStaffSettings({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Switches and timers the one-page desk needs (whitelist)
+  @GET('/admin/workspace/desk-settings')
+  Future<DeskSettingsEnvelope> deskSettings({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// My own closed items per day (nightly counters), newest first
+  @GET('/admin/workspace/desk-decisions')
+  Future<DeskDecisionsEnvelope> deskDecisions({
+    @Query('days') num? days = 14,
     @Extras() Map<String, dynamic>? extras,
   });
 
