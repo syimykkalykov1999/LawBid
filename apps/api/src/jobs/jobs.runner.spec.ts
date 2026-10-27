@@ -272,8 +272,9 @@ describe('JobsRunner', () => {
     // DB-ops hardening: + db.health (daily).
     // S1-3: + chat.redeliver (every minute).
     // BUG-1 (package N-12b): + chat.search-backfill (every 5 minutes).
+    // N-2: + events.maintain (every 5 minutes).
     // Experiments: + experiments.metrics (nightly).
-    expect(upserts).toHaveLength(72);
+    expect(upserts).toHaveLength(73);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

@@ -195,6 +195,8 @@ export const CRON_JOBS = {
   adminSummaries: 'admin.summaries',
   // Shard-ready step 7: the cross-family outbox relay.
   outboxSweep: 'outbox.sweep',
+  /** Events pipeline (N-2): auto signal, stream relay, retention. */
+  eventsMaintain: 'events.maintain',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -303,6 +305,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // Every minute: applies cross-family events a request could not (retries
   // with backoff, dead letter); a no-op while there is one database.
   { name: CRON_JOBS.outboxSweep, pattern: '* * * * *' },
+  // Events pipeline: every 5 minutes; a no-op unless auto / stream, prunes hourly.
+  { name: CRON_JOBS.eventsMaintain, pattern: '*/5 * * * *' },
 ];
 
 const FAST_JOBS: readonly CronJobName[] = [
