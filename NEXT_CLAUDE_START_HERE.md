@@ -1239,3 +1239,4 @@ PRINCIPLE (owner 07:55): assume the attacker is an automated AI (tireless, tries
 - NEXT after helpers report: 20:26 INCIDENT: the auto-merge loop merged dependabot MAJORS #434 (TypeScript 7), #430 (Node 26 API image — undoes the Node 22 pin), #437 (Next 16) at ~00:01-00:18 UTC. Train v2 opened revert #441 — land it FIRST. Loop must skip dependabot/* branches from now on.
 - NEXT after helpers report: 20:30 coordinator added ALL open dependabot PRs (428 429 431 432 433 435 436 438 439 250 248) to scratchpad/skip.txt — the loop re-reads it each round, so no more auto-merged majors. Train v2 patches automerge.sh to skip dependabot/* by branch too.
 - NEXT after helpers report: 20:27 automerge.sh patched: never merges dependabot/* heads (loop re-reads the script, no restart). #441 revert on CI.
+- NEXT after helpers report: 20:49 train v2 pushed giant #347 (main merged, migration → 20261107130000); #441 revert still on CI; loop dependabot-safe.
