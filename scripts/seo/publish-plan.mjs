@@ -32,7 +32,8 @@ const readJson = async (f) => {
 export async function makePlan({ dir, prev, today, maxInvalidations = DEFAULT_MAX_INVALIDATIONS }) {
   const files = await hashDir(dir);
   const built = (await readJson(join(dir, MANIFEST_NAME))) ?? {};
-  return planPublish({ files, prev, today, maxInvalidations, built });
+  // Exact paths only: wildcards would hit CloudFront's limit of 15 running wildcard resets.
+  return planPublish({ files, prev, today, maxInvalidations, built, exactOnly: true });
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

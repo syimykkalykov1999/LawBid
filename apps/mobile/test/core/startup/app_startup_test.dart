@@ -101,6 +101,14 @@ class _Flags extends FeatureFlagsController {
 class _L10n extends L10nCacheController {
   int refreshes = 0;
 
+  // The real build() listens to the language and, on a change (the session
+  // brings uiLanguage), seeds and reads the drift cache in the background.
+  // That unawaited chain was still writing when the teardown closed the
+  // in-memory database ("Can't re-open a database after closing it"). This
+  // fake never touches the cache, so nothing is left running at teardown.
+  @override
+  L10nCacheState build() => const L10nCacheState();
+
   @override
   Future<void> refreshInBackground() async {
     refreshes++;
