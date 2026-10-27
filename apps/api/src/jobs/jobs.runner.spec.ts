@@ -276,7 +276,7 @@ describe('JobsRunner', () => {
     // BUG-1 (package N-12b): + chat.search-backfill (every 5 minutes).
     // N-2: + events.maintain (every 5 minutes).
     // Experiments: + experiments.metrics (nightly).
-    expect(upserts).toHaveLength(75);
+    expect(upserts).toHaveLength(76);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );
