@@ -32,12 +32,17 @@ import '../models/staff_appeal_receipt_envelope.dart';
 import '../models/staff_create_appeal_dto.dart';
 import '../models/staff_decide_appeal_dto.dart';
 import '../models/staff_decide_result_envelope.dart';
+import '../models/staff_decide_suggestion_dto.dart';
+import '../models/staff_decide_suggestion_result_envelope.dart';
+import '../models/staff_digest_list_envelope.dart';
 import '../models/staff_flag_decision_dto.dart';
 import '../models/staff_flag_decision_result_envelope.dart';
 import '../models/staff_flag_list_envelope.dart';
 import '../models/staff_my_appeal_list_envelope.dart';
+import '../models/staff_my_progress_envelope.dart';
 import '../models/staff_people_list_envelope.dart';
 import '../models/staff_person_detail_envelope.dart';
+import '../models/staff_person_history_envelope.dart';
 import '../models/staff_rate_envelope.dart';
 import '../models/staff_rate_list_envelope.dart';
 import '../models/staff_rating_sort.dart';
@@ -49,6 +54,7 @@ import '../models/staff_signal_list_envelope.dart';
 import '../models/staff_suggestion_kind.dart';
 import '../models/staff_suggestion_list_envelope.dart';
 import '../models/staff_suggestion_status.dart';
+import '../models/staff_today_envelope.dart';
 import '../models/staff_watermark_envelope.dart';
 import '../models/staff_workspace_name.dart';
 import '../models/state2.dart';
@@ -214,6 +220,12 @@ abstract class AdminStaffClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// My own rating and the reasons behind it (only mine)
+  @GET('/admin/staff/me/progress')
+  Future<StaffMyProgressEnvelope> staffMyProgress({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Complaints against heads (open / decided), anonymity applied.
   ///
   /// [state] - open = new or seen; decided = resolved. Omitted = all.
@@ -333,6 +345,33 @@ abstract class AdminStaffClient {
   Future<PieceworkRerunResultEnvelope> rerunStaffPiecework({
     @Path('adminId') required String adminId,
     @Path('day') required String day,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The owner «Сегодня»: what needs attention (one stored snapshot)
+  @GET('/admin/staff/today')
+  Future<StaffTodayEnvelope> staffToday({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The weekly «5 чисел» (last 8 weeks)
+  @GET('/admin/staff/digest')
+  Future<StaffDigestListEnvelope> staffDigest({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// A person: state, 30-day signals, last actions and the text of open suggestions
+  @GET('/admin/staff/people/{adminId}/history')
+  Future<StaffPersonHistoryEnvelope> staffPersonHistory({
+    @Path('adminId') required String adminId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Apply or dismiss a suggestion; applying needs a fresh 2FA code and is journaled
+  @POST('/admin/staff/suggestions/{id}/decide')
+  Future<StaffDecideSuggestionResultEnvelope> decideStaffSuggestion({
+    @Path('id') required String id,
+    @Body() required StaffDecideSuggestionDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
