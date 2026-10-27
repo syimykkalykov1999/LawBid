@@ -148,6 +148,7 @@ const U = {
   gtr: 'https://cloud.google.com/translate/pricing',
   persona: 'https://withpersona.com/pricing',
   openai: 'https://platform.openai.com/docs/pricing',
+  claude: 'https://platform.claude.com/docs/en/about-claude/pricing',
   sentry: 'https://sentry.io/pricing/',
   gcal: 'https://developers.google.com/workspace/calendar/api/guides/quota',
   pd: 'https://www.pagerduty.com/pricing/',
@@ -1982,6 +1983,37 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'Платит только при наличии ключа. Вкл = только смотреть (shadow), Авто = задерживать и блокировать (enforce). Дневной лимит запросов ограничивает расход.',
     alarm: 'дневной лимит запросов (moderation.detect.daily_cap)',
     providers: ['openai_moderation'],
+  },
+  {
+    id: 'vendor.anthropic_staff_ai',
+    name: 'Режим ИИ для сотрудников (Claude API)',
+    purpose:
+      'Ночная ИИ-проверка решений сотрудников, подсказка в столе и короткое резюме рекомендаций. ИИ только подсказывает: наказание никогда не основано на нём одном. Без него всё работает по правилам.',
+    kind: 'vendor',
+    control: {
+      type: 'app-setting',
+      key: 'staff.ai_enabled',
+      map: { off: false, on: true },
+    },
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: setCeil(
+      'staff.ai.monthly_cents',
+      'Потолок расходов на ИИ в месяц, центов (админка → Настройки)',
+    ),
+    price: price(
+      'unit',
+      'Haiku 5.5: $0,10 за млн входных и $0,50 за млн выходных токенов; ночной пакет вдвое дешевле (проверка 1000 дел ≈ $0,15–0,30). Sonnet 5.5: $2 / $10, примерно в 20 раз дороже',
+      U.claude,
+      false,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0.5, 5),
+    needed: 'later',
+    neededNote:
+      'Включайте, когда сотрудников станет много. Платит только при ключе в «Ключи и сервисы» и мастер-тумблере; счётчик в Redis с ночным снимком останавливает вызовы на потолке.',
+    alarm: 'потолок расходов на ИИ в месяц (staff.ai.monthly_cents)',
+    providers: ['anthropic'],
   },
   {
     id: 'vendor.persona',

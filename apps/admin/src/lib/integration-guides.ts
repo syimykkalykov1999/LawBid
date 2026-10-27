@@ -649,6 +649,22 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
   },
 
+  anthropic: {
+    steps: [
+      'Откройте platform.claude.com и войдите (или зарегистрируйтесь). Это отдельный кабинет разработчика, не подписка Claude для чатов.',
+      'Billing → добавьте карту и положите небольшую сумму, например $10. Ограничьте расход: на той же странице Billing в блоке Spend limits нажмите Set limit и поставьте $10–20 (это вторая страховка поверх нашего потолка).',
+      'Settings → API keys → Create key. Название любое, например lawbid-staff-ai. Скопируйте ключ (он начинается с sk-ant-). Показывается один раз.',
+    ],
+    links: [{ label: 'Claude Console: API keys', url: 'https://platform.claude.com/settings/keys' }],
+    enable: [
+      'Вставьте ключ в поле → «Сохранить» (код 2FA) → «Проверить» → «Включить».',
+      'Сам режим включается в Настройках: staff.ai_enabled (мастер), затем нужные из staff.ai_qa_enabled, staff.ai_hint_enabled, staff.ai_summary_enabled. Потолок расходов в месяц: staff.ai.monthly_cents (по умолчанию 500 = $5). Ключ секретный: не отправляйте его в чат.',
+    ],
+    fields: {
+      apiKey: { how: 'platform.claude.com → Settings → API keys → Create key. Показывается один раз.', example: 'sk-ant-…' },
+    },
+  },
+
   photodna: {
     steps: [
       'Доступ к Microsoft PhotoDNA Cloud Service выдаётся по заявке: подайте её на microsoft.com/photodna (нужен юридический адрес компании).',

@@ -311,6 +311,9 @@ describe('Staff piecework (e2e)', () => {
       }),
     ]);
 
+    // Only staff.piecework_enabled is on here (workspaces/head switches off,
+    // so the guard's own workspaceHead flag is false): the head is read from
+    // admin_profiles, the piecework view does not need the other switches.
     const headView = await get(head, `/admin/workspace/piecework${q}`).expect(
       200,
     );

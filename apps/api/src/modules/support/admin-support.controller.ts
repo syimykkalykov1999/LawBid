@@ -193,7 +193,7 @@ export class AdminSupportController {
   async nextAdminSupportTicket(
     @CurrentAdmin() admin: AdminActor,
   ): Promise<SupportNextTicketDto> {
-    return { ticket: await this.team.next(admin.id) };
+    return { ticket: await this.team.next(admin.id, admin.countries ?? null) };
   }
 
   @Get('settings')

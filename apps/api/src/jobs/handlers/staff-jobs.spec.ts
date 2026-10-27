@@ -2,10 +2,8 @@ import type { AppSettingsService } from '../../common/app-settings/app-settings.
 import type { PrismaService } from '../../prisma/prisma.service';
 import { StaffSettingsService } from '../../modules/staff-core/staff-settings.service';
 import type { StaffSwitchKey } from '../../modules/staff-core/staff-settings.defaults';
-import { StaffAiQaNightlyJob } from './staff-ai-qa-nightly.job';
 import { StaffAnomaliesJob } from './staff-anomalies.job';
 import { StaffCountersFlushJob } from './staff-counters-flush.job';
-import { StaffLeaseSweepJob } from './staff-lease-sweep.job';
 import {
   STAFF_RETENTION_BATCH,
   StaffRetentionJob,
@@ -33,11 +31,6 @@ const stubs: Array<
   [string, (s: StaffSettingsService) => Runner, StaffSwitchKey[]]
 > = [
   [
-    'staff.lease-sweep',
-    (s) => new StaffLeaseSweepJob(s),
-    ['staff.lease_enabled'],
-  ],
-  [
     'staff.counters-flush',
     (s) => new StaffCountersFlushJob(s),
     ['staff.rating_enabled'],
@@ -47,14 +40,9 @@ const stubs: Array<
     (s) => new StaffAnomaliesJob(s),
     ['staff.anomalies_enabled'],
   ],
-  [
-    'staff.ai-qa-nightly',
-    (s) => new StaffAiQaNightlyJob(s),
-    ['staff.ai_enabled', 'staff.ai_qa_enabled'],
-  ],
 ];
 
-describe('staff.* cron jobs (staff package T1 stubs; daily-stats and rating-nightly are T5, head-score and retaliation-expire are T6)', () => {
+describe('staff.* cron jobs (staff package T1 stubs; daily-stats and rating-nightly are T5, see staff-rating-jobs.spec.ts; head-score and retaliation-expire are T6, see staff-appeals-jobs.spec.ts; today and weekly-digest are T10, see staff-home-jobs.spec.ts)', () => {
   describe.each(stubs)('%s', (_name, make, keys) => {
     it('switch off (the default): returns at once, no work', async () => {
       await expect(make(settings()).run()).resolves.toEqual({ skipped: 'off' });
@@ -68,12 +56,7 @@ describe('staff.* cron jobs (staff package T1 stubs; daily-stats and rating-nigh
     });
   });
 
-  it('staff.ai-qa-nightly: the sub-switch alone (master off) makes no AI call', async () => {
-    const job = new StaffAiQaNightlyJob(
-      settings({ 'staff.ai_qa_enabled': true }),
-    );
-    await expect(job.run()).resolves.toEqual({ skipped: 'off' });
-  });
+  // staff.ai-qa-nightly is built (T12): see staff-ai-qa-nightly.job.spec.ts.
 });
 
 describe('staff.retention', () => {

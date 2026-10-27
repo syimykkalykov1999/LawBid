@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -55,6 +56,17 @@ export function describeDevice(ua: string | null | undefined): string | null {
 }
 
 /**
+ * Staff package T11: the device pin of a session — a short hash of the
+ * User-Agent taken at sign-in. Not a tracking fingerprint (nothing leaves
+ * the server, nothing is stored beyond the session's life): it only says
+ * "this token is now used from another browser".
+ */
+export function deviceFingerprint(ua: string | null | undefined): string {
+  if (!ua) return '';
+  return createHash('sha256').update(ua).digest('hex').slice(0, 16);
+}
+
+/**
  * Admin sessions live in Redis, keyed by the admin JWT's `jti`: the key's
  * TTL is the idle timeout, refreshed on every authorized request; the
  * absolute 8 h limit is the JWT `exp`. A missing key = idle-expired or
@@ -80,6 +92,7 @@ export class AdminSessionService {
         userId,
         ip: meta.ip ?? '',
         device: describeDevice(meta.userAgent) ?? '',
+        fp: deviceFingerprint(meta.userAgent),
         createdAt: now,
         lastSeenAt: now,
         lastAction: '',
@@ -101,6 +114,12 @@ export class AdminSessionService {
     } catch {
       // The overview is a nicety; a Redis hiccup must not fail a request.
     }
+  }
+
+  /** Where and on what the session was opened (staff package T11). */
+  async binding(jti: string): Promise<{ ip: string; fp: string }> {
+    const [ip, fp] = await this.redis.hmget(metaKey(jti), 'ip', 'fp');
+    return { ip: ip ?? '', fp: fp ?? '' };
   }
 
   /** Live sessions of these admins (stale entries are dropped on the way). */

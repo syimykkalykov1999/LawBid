@@ -53,6 +53,7 @@ export const STEP_UP_CONFIG_KEYS: ReadonlySet<string> = new Set([
   'admin.ip_allowlist_enabled',
   'admin.ip_allowlist',
   'admin.max_concurrent_sessions',
+  'admin.country_allowlist',
 ]);
 
 const E = ErrorCode;

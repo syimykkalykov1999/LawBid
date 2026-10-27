@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { SupportMacro } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
+import { LEASE_PORT, type LeasePort } from '../staff-core/lease.port';
 import { canAnswer } from './support-desk.service';
 import type {
   AdminSupportTicketDetailDto,
@@ -32,6 +33,9 @@ export class SupportTeamService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditLogService,
     private readonly tickets: AdminSupportService,
+    // Staff package T3: «Следующий» through work leases while
+    // `staff.lease_enabled` + `staff.lease_support_enabled` are on.
+    @Optional() @Inject(LEASE_PORT) private readonly lease?: LeasePort,
   ) {}
 
   // --- ready answers ---------------------------------------------------------
@@ -331,7 +335,21 @@ export class SupportTeamService {
 
   /** «Следующий»: my most urgent open ticket, else the most overdue
    * unassigned one (taken by me). null when the queue is empty. */
-  async next(adminId: string): Promise<AdminSupportTicketDetailDto | null> {
+  async next(
+    adminId: string,
+    countries?: string[] | null,
+  ): Promise<AdminSupportTicketDetailDto | null> {
+    // Leases on (default OFF): one ticket, one agent, decided by the lease
+    // table; the old path below stays untouched while it is off.
+    const lease = this.lease;
+    if (lease && (await lease.servesQueue('support_ticket'))) {
+      const r = await lease.nextFor('support_ticket', {
+        adminId,
+        countries,
+      });
+      const id = r.itemId ?? r.heldItemIds?.[0];
+      return id ? this.tickets.get(id) : null;
+    }
     const order = [
       { sla_due_at: { sort: 'asc' as const, nulls: 'last' as const } },
       { last_message_at: 'asc' as const },

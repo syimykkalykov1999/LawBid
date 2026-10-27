@@ -1344,6 +1344,31 @@ export const PROVIDERS: ProviderDefinition[] = [
       },
     ],
   },
+  // Owner 2026-10-27 (staff package T12): AI mode for staff, OFF by default.
+  // No env fallback on purpose: the key lives only here.
+  {
+    id: 'anthropic',
+    label: 'AI mode for staff (Claude API)',
+    description:
+      'Nightly AI check of staff decisions, the desk hint and the short recommendation text. Used only while the AI master switch (staff.ai_enabled) is on; the monthly spend ceiling is staff.ai.monthly_cents.',
+    fields: [
+      {
+        name: 'apiKey',
+        label: 'API key',
+        secret: true,
+        required: true,
+        pattern: /^sk-ant-[A-Za-z0-9_-]{20,}$/,
+        patternHint: 'starts with sk-ant-',
+      },
+    ],
+    test: (f) =>
+      probe('https://api.anthropic.com/v1/models?limit=1', {
+        headers: {
+          'x-api-key': f.apiKey,
+          'anthropic-version': '2026-10-21',
+        },
+      }),
+  },
   // Owner 2026-10-22 (18 U.S.C. §2258A): known-CSAM hash matching. Keys are
   // granted by Microsoft after vetting (docs/SECURITY_TODO.md).
   {

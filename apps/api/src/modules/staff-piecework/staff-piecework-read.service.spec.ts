@@ -49,6 +49,8 @@ function make(on = true) {
     person(C, 'finance', 'Clara'),
   ];
   const stat = { n: 0 };
+  // The head comes from the database, not from the request (the guard flag).
+  const heads = new Set([A, C]);
   const prisma = {
     staffPieceworkDay: {
       findMany: jest.fn(async ({ where }: any) => {
@@ -65,6 +67,11 @@ function make(on = true) {
       }),
     },
     adminProfile: {
+      findUnique: jest.fn(async ({ where }: any) => {
+        stat.n += 1;
+        const p = profiles.find((x) => x.user_id === where.user_id);
+        return p ? { ...p, is_workspace_head: heads.has(p.user_id) } : null;
+      }),
       findMany: jest.fn(async ({ where }: any) => {
         stat.n += 1;
         return profiles.filter((p) =>
@@ -122,7 +129,9 @@ describe('StaffPieceworkReadService scoping', () => {
   it('head: own workspace only, totals only (no rates, no per-person money, no days)', async () => {
     const { svc, stat } = make();
     const out = await svc.overview(
-      actor({ id: B, workspaceHead: true }),
+      // The guard flag is false (workspaces/head switches off): the head
+      // is still the head, because it is read from the database.
+      actor({ id: A, workspaceHead: false }),
       '2026-10',
       NOW,
     );
@@ -139,7 +148,12 @@ describe('StaffPieceworkReadService scoping', () => {
 
   it('worker: only their own days, own money, no rates', async () => {
     const { svc, stat } = make();
-    const out = await svc.overview(actor({ id: B }), '2026-10', NOW);
+    // A request flag alone does not make a head.
+    const out = await svc.overview(
+      actor({ id: B, workspaceHead: true }),
+      '2026-10',
+      NOW,
+    );
     expect(out.scope).toBe('self');
     expect(out.people).toHaveLength(1);
     expect(out.people[0]).toMatchObject({ adminId: B, amountCents: 825 });
@@ -166,7 +180,7 @@ describe('StaffPieceworkReadService scoping', () => {
     const off = make(false).svc;
     for (const a of [
       actor({ id: 'o', adminRole: 'super_admin' }),
-      actor({ workspaceHead: true }),
+      actor({ id: B }),
       actor({}),
     ]) {
       await expect(off.overview(a, '2026-10', NOW)).rejects.toBeInstanceOf(
@@ -175,11 +189,19 @@ describe('StaffPieceworkReadService scoping', () => {
     }
   });
 
-  it('an empty month is an empty answer, still within the query budget', async () => {
+  it('an empty month is zeros for the worker, still within the query budget', async () => {
     const { svc, stat } = make();
     const out = await svc.overview(actor({ id: B }), '2026-09', NOW);
-    expect(out.people).toEqual([]);
-    expect(out.totals).toMatchObject({ people: 0, amountCents: 0 });
+    // A worker still sees themselves, with zeros.
+    expect(out.people).toEqual([
+      expect.objectContaining({
+        adminId: B,
+        units: 0,
+        amountCents: 0,
+        days: [],
+      }),
+    ]);
+    expect(out.totals).toMatchObject({ people: 1, units: 0, amountCents: 0 });
     expect(stat.n).toBeLessThanOrEqual(3);
   });
 });

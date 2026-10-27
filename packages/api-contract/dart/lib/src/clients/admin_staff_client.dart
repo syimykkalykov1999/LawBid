@@ -5,23 +5,58 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/desk_decisions_envelope.dart';
+import '../models/desk_settings_envelope.dart';
+import '../models/desk_status_envelope.dart';
 import '../models/dispute_piecework_dto.dart';
+import '../models/lease_envelope.dart';
+import '../models/lease_kind_body_dto.dart';
+import '../models/lease_ok_envelope.dart';
+import '../models/lease_queue_kind.dart';
+import '../models/my_leases_envelope.dart';
+import '../models/next_lease_result_envelope.dart';
 import '../models/piecework_dispute_result_envelope.dart';
 import '../models/piecework_overview_envelope.dart';
 import '../models/piecework_rerun_result_envelope.dart';
+import '../models/reveal_pii_dto.dart';
+import '../models/reveal_pii_result_envelope.dart';
+import '../models/set_desk_status_dto.dart';
 import '../models/set_staff_rate_dto.dart';
+import '../models/skip_lease_dto.dart';
+import '../models/skip_lease_result_envelope.dart';
+import '../models/staff_ai_hint_envelope.dart';
+import '../models/staff_ai_summary_envelope.dart';
+import '../models/staff_appeal_detail_envelope.dart';
+import '../models/staff_appeal_item_list_envelope.dart';
+import '../models/staff_appeal_receipt_envelope.dart';
+import '../models/staff_create_appeal_dto.dart';
+import '../models/staff_decide_appeal_dto.dart';
+import '../models/staff_decide_result_envelope.dart';
+import '../models/staff_flag_decision_dto.dart';
+import '../models/staff_flag_decision_result_envelope.dart';
+import '../models/staff_flag_list_envelope.dart';
+import '../models/staff_my_appeal_list_envelope.dart';
 import '../models/staff_people_list_envelope.dart';
 import '../models/staff_person_detail_envelope.dart';
 import '../models/staff_rate_envelope.dart';
 import '../models/staff_rate_list_envelope.dart';
 import '../models/staff_rating_sort.dart';
 import '../models/staff_rating_status.dart';
+import '../models/staff_reveal_result_envelope.dart';
 import '../models/staff_settings_envelope.dart';
 import '../models/staff_shortlist_envelope.dart';
+import '../models/staff_signal_list_envelope.dart';
 import '../models/staff_suggestion_kind.dart';
 import '../models/staff_suggestion_list_envelope.dart';
 import '../models/staff_suggestion_status.dart';
+import '../models/staff_watermark_envelope.dart';
 import '../models/staff_workspace_name.dart';
+import '../models/state2.dart';
+import '../models/state3.dart';
+import '../models/team_reassign_dto.dart';
+import '../models/team_release_dto.dart';
+import '../models/team_release_result_envelope.dart';
+import '../models/team_view_envelope.dart';
 
 part 'admin_staff_client.g.dart';
 
@@ -32,6 +67,108 @@ abstract class AdminStaffClient {
   /// Staff package switches and numbers (all off by default)
   @GET('/admin/staff/settings')
   Future<StaffSettingsEnvelope> getStaffSettings({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Switches and timers the one-page desk needs (whitelist)
+  @GET('/admin/workspace/desk-settings')
+  Future<DeskSettingsEnvelope> deskSettings({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// My own closed items per day (nightly counters), newest first
+  @GET('/admin/workspace/desk-decisions')
+  Future<DeskDecisionsEnvelope> deskDecisions({
+    @Query('days') num? days = 14,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Team tiles: status and «in work by X» (owner or workspace head)
+  @GET('/admin/desk/lease/team')
+  Future<TeamViewEnvelope> getLeaseTeam({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Take an item (or everything) away from a person; fresh 2FA code + audit row
+  @POST('/admin/desk/lease/team/{adminId}/release')
+  Future<TeamReleaseResultEnvelope> releaseLeaseTeamMember({
+    @Path('adminId') required String adminId,
+    @Body() required TeamReleaseDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Hand a held item to another person; fresh 2FA code + audit row
+  @POST('/admin/desk/lease/team/{adminId}/reassign')
+  Future<LeaseEnvelope> reassignLeaseTeamMember({
+    @Path('adminId') required String adminId,
+    @Body() required TeamReassignDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// My status, the items in my hands, capacity and wrap-up
+  @GET('/admin/desk/lease/me')
+  Future<MyLeasesEnvelope> getMyDeskLeases({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// «Следующий»: leases the oldest free item of the queue to me (one item, one worker)
+  @POST('/admin/desk/lease/next')
+  Future<NextLeaseResultEnvelope> nextDeskLease({
+    @Body() required LeaseKindBodyDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// I am still working on it: the lease runs again.
+  ///
+  /// [kind] - Queue kind: support_ticket · verification · report · mod_appeal · review_appeal.
+  @POST('/admin/desk/lease/{kind}/{id}/renew')
+  Future<LeaseEnvelope> renewDeskLease({
+    @Path('kind') required LeaseQueueKind kind,
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Let go: the item goes back to the queue.
+  ///
+  /// [kind] - Queue kind: support_ticket · verification · report · mod_appeal · review_appeal.
+  @POST('/admin/desk/lease/{kind}/{id}/release')
+  Future<LeaseOkEnvelope> releaseDeskLease({
+    @Path('kind') required LeaseQueueKind kind,
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// «Пропустить» with a reason from the list (a few per hour); the item goes to someone else.
+  ///
+  /// [kind] - Queue kind: support_ticket · verification · report · mod_appeal · review_appeal.
+  @POST('/admin/desk/lease/{kind}/{id}/skip')
+  Future<SkipLeaseResultEnvelope> skipDeskLease({
+    @Path('kind') required LeaseQueueKind kind,
+    @Path('id') required String id,
+    @Body() required SkipLeaseDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The item is closed: the lease ends (support gets a short wrap-up before the next one).
+  ///
+  /// [kind] - Queue kind: support_ticket · verification · report · mod_appeal · review_appeal.
+  @POST('/admin/desk/lease/{kind}/{id}/done')
+  Future<LeaseOkEnvelope> doneDeskLease({
+    @Path('kind') required LeaseQueueKind kind,
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// My status: online / away / offline
+  @GET('/admin/desk/status')
+  Future<DeskStatusEnvelope> getDeskStatus({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// «Отошёл» by hand (true) or back on (false)
+  @POST('/admin/desk/status')
+  Future<DeskStatusEnvelope> setDeskStatus({
+    @Body() required SetDeskStatusDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -74,6 +211,82 @@ abstract class AdminStaffClient {
     @Query('status') StaffSuggestionStatus? status,
     @Query('kind') StaffSuggestionKind? kind,
     @Query('workspace') StaffWorkspaceName? workspace,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Complaints against heads (open / decided), anonymity applied.
+  ///
+  /// [state] - open = new or seen; decided = resolved. Omitted = all.
+  @GET('/admin/appeals')
+  Future<StaffAppealItemListEnvelope> listAppeals({
+    @Query('limit') num? limit = 50,
+    @Query('state') State2? state,
+    @Query('cursor') String? cursor,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Retaliation red marks (open / closed)
+  @GET('/admin/appeals/flags')
+  Future<StaffFlagListEnvelope> listFlags({
+    @Query('limit') num? limit = 50,
+    @Query('state') State3? state,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Owner-inbox signals about heads and removals (last 30 days)
+  @GET('/admin/appeals/signals')
+  Future<StaffSignalListEnvelope> listSignals({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Reverse a retaliation hold: the person works again (2FA)
+  @POST('/admin/appeals/flags/{id}/reverse')
+  Future<StaffFlagDecisionResultEnvelope> reverseFlag({
+    @Path('id') required String id,
+    @Body() required StaffFlagDecisionDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Agree with the head: the removal stands, the hold ends (2FA)
+  @POST('/admin/appeals/flags/{id}/uphold')
+  Future<StaffFlagDecisionResultEnvelope> upholdFlag({
+    @Path('id') required String id,
+    @Body() required StaffFlagDecisionDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// One complaint (marks it as seen)
+  @GET('/admin/appeals/{id}')
+  Future<StaffAppealDetailEnvelope> getAppeal({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Decide: fire the head / fire the worker / nothing. Records the decision and names the admin-management call (2FA)
+  @POST('/admin/appeals/{id}/decide')
+  Future<StaffDecideResultEnvelope> decideAppeal({
+    @Path('id') required String id,
+    @Body() required StaffDecideAppealDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Reveal the name of an anonymous author (2FA, own audit row, daily cap)
+  @POST('/admin/appeals/{id}/reveal')
+  Future<StaffRevealResultEnvelope> revealAuthor({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// File a complaint against the head of my workspace
+  @POST('/admin/workspace/appeals')
+  Future<StaffAppealReceiptEnvelope> fileAppeal({
+    @Body() required StaffCreateAppealDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// My complaints and their status
+  @GET('/admin/workspace/appeals/mine')
+  Future<StaffMyAppealListEnvelope> myAppeals({
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -120,6 +333,40 @@ abstract class AdminStaffClient {
   Future<PieceworkRerunResultEnvelope> rerunStaffPiecework({
     @Path('adminId') required String adminId,
     @Path('day') required String day,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Show one masked phone / e-mail / document number in full (audited, limited per day)
+  @POST('/admin/pii/reveal')
+  Future<RevealPiiResultEnvelope> reveal({
+    @Body() required RevealPiiDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Whether the panel draws the faint watermark with the admin name, and its text
+  @GET('/admin/pii/watermark')
+  Future<StaffWatermarkEnvelope> watermark({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// AI suggestion for an item the caller holds (one call, 3 s timeout, cached; a suggestion only).
+  ///
+  /// [kind] - Queue kind of the item: support_ticket, report, verification.
+  ///
+  /// [itemId] - The item the caller holds.
+  @GET('/admin/desk/ai/hint/{kind}/{itemId}')
+  Future<StaffAiHintEnvelope> staffAiHint({
+    @Path('kind') required String kind,
+    @Path('itemId') required String itemId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Evidence text under a recommendation: AI text if written, else the rule-based template.
+  ///
+  /// [suggestionId] - staff_suggestions.id.
+  @GET('/admin/desk/ai/summary/{suggestionId}')
+  Future<StaffAiSummaryEnvelope> staffAiSummary({
+    @Path('suggestionId') required String suggestionId,
     @Extras() Map<String, dynamic>? extras,
   });
 }
