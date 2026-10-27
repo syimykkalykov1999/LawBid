@@ -78,7 +78,7 @@ abstract final class ApiErrorCodes {
   static const accountSuspended = 'ACCOUNT_SUSPENDED';
   // Owner 2026-10-05 (client fraud): limited while staff check the account.
   static const accountRestricted = 'ACCOUNT_RESTRICTED';
-  // Owner 2026-10-27: unfounded reports -> reporting paused until details.until.
+  // Owner 2026-10-27: unfounded reports -> reporting paused (details.until).
   static const reportingSuspended = 'REPORTING_SUSPENDED';
   // Owner 2026-10-27: strike ladder, may not publish (details.level / until).
   static const accountStrikeLimited = 'ACCOUNT_STRIKE_LIMITED';
