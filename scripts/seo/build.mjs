@@ -9,6 +9,8 @@
 //   /practice-areas/<practice>/     one practice area
 //   /attorneys/<username>/          a verified attorney's public profile
 //   /sitemap.xml, /robots.txt
+//   (optional, off by default) /sitemaps/*.xml, /llms.txt, /llms-full.txt,
+//   /seo-manifest.json
 //
 // Data: the public directory of the API (verified attorneys, public
 // profile facts only), the practice-area text in data/practices.json and
@@ -23,9 +25,29 @@
 // Flags: --index-empty  also index state x practice pages without attorneys
 //        (by default only the high-demand states and pages with attorneys
 //        are indexed; the rest are `noindex` and left out of the sitemap).
+//
+// Switches (a flag or an environment variable; all OFF by default, so the
+// public output stays as it was until the owner turns one on):
+//   --sitemap-index        SEO_SITEMAP_INDEX=1   /sitemap.xml becomes an index of
+//                          /sitemaps/<type>-<n>.xml (<= SEO_SITEMAP_MAX urls, 10000, never above 50000)
+//   --robots-ai            SEO_ROBOTS_AI=1       robots.txt: search and answer bots in, training bots out
+//                          (SEO_AI_TRAINING=allow lets the training bots in as well)
+//   --llms                 SEO_LLMS=1            /llms.txt and /llms-full.txt from the same data
+//   --quality-gate         SEO_QUALITY_GATE=1    thin pages become noindex and leave the sitemaps
+//                          (SEO_MIN_WORDS 300, SEO_MIN_ATTORNEYS 3, SEO_MIN_BIO_CHARS 150)
+//   --ramp-per-day N       SEO_RAMP_PER_DAY=N    at most N new pages a day enter the index
+//   --prev-manifest FILE   SEO_PREV_MANIFEST     the previous seo-manifest.json (real lastmod, ramp state)
+//   --manifest             SEO_INCREMENTAL=1     write seo-manifest.json (content hashes)
+//   --dry-run                                    decide everything, print the summary, write nothing
+// Always on: no aggregateRating in the attorney JSON-LD; lastmod is the
+// entity's updatedAt when the data has it, else the day the page's content
+// last changed (from the previous manifest), else the build day.
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SITEMAP_HARD_LIMIT, clampMax, llmsFullTxt, llmsTxt, robotsTxt, sitemapIndex, urlset } from './lib/discovery.mjs';
+import { applyRamp, defaultGate, gateDecision, mainText, wordCount } from './lib/gate.mjs';
+import { MANIFEST_NAME, sha256 } from './lib/manifest.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -34,6 +56,11 @@ const arg = (name, fallback) => {
   return i >= 0 ? argv[i + 1] : fallback;
 };
 const flag = (name) => argv.includes(`--${name}`);
+const on = (name, env) => flag(name) || /^(1|true|yes|on)$/i.test(process.env[env] ?? '');
+const num = (name, env, fallback) => {
+  const v = Number.parseInt(arg(name, process.env[env] ?? ''), 10);
+  return Number.isFinite(v) && v >= 0 ? v : fallback;
+};
 
 const SITE = (arg('site', 'https://lawbid.app') || '').replace(/\/+$/, '');
 const OUT = arg('out', 'dist-seo');
@@ -42,6 +69,23 @@ const OFFLINE = arg('offline', '');
 const INDEX_EMPTY = flag('index-empty');
 const BUILD_DATE = arg('date', new Date().toISOString().slice(0, 10));
 const APP = SITE; // the web app lives on the same host
+const DRY = flag('dry-run');
+const SITEMAP_INDEX = on('sitemap-index', 'SEO_SITEMAP_INDEX');
+const ROBOTS_AI = on('robots-ai', 'SEO_ROBOTS_AI');
+const ALLOW_TRAINING = (process.env.SEO_AI_TRAINING ?? '') === 'allow';
+const LLMS = on('llms', 'SEO_LLMS');
+const RAMP = num('ramp-per-day', 'SEO_RAMP_PER_DAY', 0);
+const RAMP_BASELINE = (arg('ramp-baseline', process.env.SEO_RAMP_BASELINE ?? 'all') === 'none') ? 'none' : 'all';
+const MANIFEST = on('manifest', 'SEO_INCREMENTAL') || RAMP > 0;
+const GATE = {
+  ...defaultGate,
+  enabled: on('quality-gate', 'SEO_QUALITY_GATE'),
+  minWords: num('min-words', 'SEO_MIN_WORDS', defaultGate.minWords),
+  minAttorneys: num('min-attorneys', 'SEO_MIN_ATTORNEYS', defaultGate.minAttorneys),
+  minBioChars: num('min-bio-chars', 'SEO_MIN_BIO_CHARS', defaultGate.minBioChars),
+};
+const SITEMAP_MAX = clampMax(arg('sitemap-max', process.env.SEO_SITEMAP_MAX));
+const PREV_FILE = arg('prev-manifest', process.env.SEO_PREV_MANIFEST ?? '');
 
 const json = async (f) => JSON.parse(await readFile(join(here, 'data', f), 'utf8'));
 const PRACTICES = await json('practices.json');
@@ -161,20 +205,35 @@ function attorneyCard(a) {
 const faqLd = (qa) => ({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: qa.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) });
 const faqHtml = (qa) => qa.map(([q, a]) => `<details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('\n');
 
+/** 'YYYY-MM-DD' of an ISO timestamp, never later than the build day; null when unusable. */
+export function dayOf(v, today) {
+  const t = typeof v === 'string' || v instanceof Date ? new Date(v) : null;
+  if (!t || Number.isNaN(t.getTime())) return null;
+  const d = t.toISOString().slice(0, 10);
+  return d > today ? today : d;
+}
+const newest = (list) => list.map((a) => a.updatedAt ?? a.updated_at).filter(Boolean).sort().pop();
+
+async function loadPrevManifest() {
+  if (!PREV_FILE) return null;
+  try {
+    return JSON.parse(await readFile(PREV_FILE, 'utf8'));
+  } catch {
+    return null; // first run, or the file is not there yet
+  }
+}
+
 export async function build() {
   const attorneys = await loadAttorneys();
-  const files = new Map(); // path -> html
-  const urls = []; // indexable [path, priority]
-  const put = (path, html, { index = true, priority = '0.5' } = {}) => {
-    files.set(path, html);
-    if (index) urls.push([path, priority]);
-  };
+  const prev = await loadPrevManifest();
+  const entries = []; // every page: path, kind, render(robots), options
+  const put = (path, kind, render, opts = {}) => entries.push({ path, kind, render, ...opts });
 
   const inState = (code) => attorneys.filter((a) => a.licensedStates.includes(code));
   const forPractice = (list, p) => list.filter((a) => matches(a, p));
 
   // Home of the directory.
-  put('/lawyers/', layout({
+  put('/lawyers/', 'hub', (robots) => layout({ robots,
     title: 'Find a licensed lawyer by state and practice area | LawBid',
     description: 'Browse licensed attorneys by state and practice area, or post your legal matter on LawBid and let attorneys licensed in your state respond.',
     path: '/lawyers/',
@@ -190,7 +249,7 @@ ${cta('Post your case — free')}
   for (const p of PRACTICES) {
     const list = forPractice(attorneys, p);
     const path = `/practice-areas/${p.slug}/`;
-    put(path, layout({
+    put(path, 'page', (robots) => layout({ robots,
       title: `${p.name} lawyers: how it works and how to find one | LawBid`,
       description: `${p.intro} Find a licensed ${p.name.toLowerCase()} attorney in your state or post your matter on LawBid.`.slice(0, 300),
       path,
@@ -202,14 +261,14 @@ ${cta('Post your case — free')}
 ${list.length ? `<h2>Attorneys on LawBid</h2>${list.slice(0, 12).map(attorneyCard).join('')}` : ''}
 <h2>Find a ${esc(p.name.toLowerCase())} lawyer by state</h2><ul class="cols">${stateList.map((s) => `<li><a href="/lawyers/${s.slug}/${p.slug}/">${esc(s.name)}</a></li>`).join('')}</ul>
 <h2>Questions people ask</h2>${faqHtml(p.faq)}`,
-    }), { priority: '0.7' });
+    }), { priority: '0.7', updatedAt: newest(list.slice(0, 12)) });
   }
 
   // State pages and state x practice pages.
   for (const s of stateList) {
     const stateAttorneys = inState(s.code);
     const spath = `/lawyers/${s.slug}/`;
-    put(spath, layout({
+    put(spath, 'page', (robots) => layout({ robots,
       title: `Lawyers in ${s.name} by practice area | LawBid`,
       description: `Find a licensed attorney in ${s.name}. Browse practice areas or post your legal matter on LawBid and let attorneys licensed in ${s.name} respond.`,
       path: spath,
@@ -219,18 +278,17 @@ ${list.length ? `<h2>Attorneys on LawBid</h2>${list.slice(0, 12).map(attorneyCar
 ${cta('Post your case — free')}
 <h2>Practice areas</h2><ul class="cols">${PRACTICES.map((p) => `<li><a href="/lawyers/${s.slug}/${p.slug}/">${esc(p.name)} lawyers</a></li>`).join('')}</ul>
 ${stateAttorneys.length ? `<h2>Attorneys licensed in ${esc(s.name)}</h2>${stateAttorneys.slice(0, 12).map(attorneyCard).join('')}` : ''}`,
-    }), { index: TOP_STATES.has(s.code) || stateAttorneys.length > 0 || INDEX_EMPTY, priority: '0.8' });
+    }), { updatedAt: newest(stateAttorneys.slice(0, 12)), attorneyCount: stateAttorneys.length, index: TOP_STATES.has(s.code) || stateAttorneys.length > 0 || INDEX_EMPTY, priority: '0.8' });
 
     for (const p of PRACTICES) {
       const list = forPractice(stateAttorneys, p);
       const path = `/lawyers/${s.slug}/${p.slug}/`;
       const index = list.length > 0 || TOP_STATES.has(s.code) || INDEX_EMPTY;
       const others = PRACTICES.filter((o) => o.slug !== p.slug).slice(0, 6);
-      put(path, layout({
+      put(path, 'combo', (robots) => layout({ robots,
         title: `${p.name} lawyers in ${s.name} | LawBid`,
         description: `Looking for a ${p.name.toLowerCase()} lawyer in ${s.name}? Post your matter on LawBid and licensed ${s.name} attorneys can respond with offers. ${list.length ? `${list.length} verified attorney${list.length === 1 ? '' : 's'} listed.` : ''}`.trim(),
         path,
-        robots: index ? 'index,follow' : 'noindex,follow',
         crumbs: [{ name: 'Lawyers', path: '/lawyers/' }, { name: s.name, path: spath }, { name: p.name, path }],
         jsonld: [faqLd(p.faq)],
         body: `<h1>${esc(p.name)} lawyers in ${esc(s.name)}</h1>
@@ -243,7 +301,7 @@ ${list.length
 <h2>How it works</h2><ol><li>Describe your matter and choose ${esc(s.name)}.</li><li>Licensed attorneys respond with offers.</li><li>You compare them and choose who to talk to.</li></ol>
 <h2>Questions people ask</h2>${faqHtml(p.faq)}
 <h2>More legal help in ${esc(s.name)}</h2><ul class="cols">${others.map((o) => `<li><a href="/lawyers/${s.slug}/${o.slug}/">${esc(o.name)}</a></li>`).join('')}<li><a href="${spath}">All practice areas in ${esc(s.name)}</a></li><li><a href="/practice-areas/${p.slug}/">${esc(p.name)} in every state</a></li></ul>`,
-      }), { index, priority: list.length ? '0.8' : '0.4' });
+      }), { index, priority: list.length ? '0.8' : '0.4', attorneyCount: list.length, updatedAt: newest(list.slice(0, 20)) });
     }
   }
 
@@ -253,7 +311,7 @@ ${list.length
     // (profile `publicUrl`) is /attorneys/<username lower case>/.
     const path = `/attorneys/${encodeURIComponent(a.username.toLowerCase())}/`;
     const states = a.licensedStates.map((c) => stateBy[c]?.name ?? c);
-    put(path, layout({
+    put(path, 'profile', (robots) => layout({ robots,
       title: `${a.displayName}, attorney${states.length ? ` in ${states.slice(0, 2).join(' & ')}` : ''} | LawBid`,
       description: `${a.displayName} is a verified attorney on LawBid${states.length ? `, licensed in ${states.join(', ')}` : ''}${a.practiceAreas.length ? `, practicing ${a.practiceAreas.slice(0, 3).map((p) => p.name).join(', ')}` : ''}.`.slice(0, 300),
       path,
@@ -265,7 +323,8 @@ ${list.length
         ...(a.bio ? { description: a.bio } : {}),
         ...(states.length ? { areaServed: states.map((n) => ({ '@type': 'State', name: n })) } : {}),
         knowsAbout: a.practiceAreas.map((p) => p.name),
-        ...(a.ratingCount > 0 ? { aggregateRating: { '@type': 'AggregateRating', ratingValue: a.ratingAvg, reviewCount: a.ratingCount } } : {}),
+        // No aggregateRating: the page shows no individual reviews, and Google
+        // only accepts review/rating markup for reviews visible on the page.
       }],
       body: `<h1>${esc(a.displayName)}${a.trustBadge ? ' ✔' : ''}</h1>
 <p class="lead">Verified attorney on LawBid${states.length ? `, licensed in ${esc(states.join(', '))}` : ''}.</p>
@@ -276,25 +335,117 @@ ${a.ratingCount > 0 ? `<p><strong>Rating:</strong> ${a.ratingAvg.toFixed(1)} fro
 ${a.practiceAreas.length ? `<h2>Practice areas</h2><ul class="cols">${a.practiceAreas.map((p) => `<li>${esc(p.name)}</li>`).join('')}</ul>` : ''}
 ${cta(`Post a case for ${a.displayName.split(' ')[0] || 'this attorney'} on LawBid`)}
 <p><a href="${APP}/lawyer/${esc(a.username)}">Open the full profile in the LawBid app</a></p>`,
-    }), { priority: '0.6' });
+    }), { priority: '0.6', bio: a.bio, claimsText: [a.bio, a.displayName, ...a.firmNames].join(' '), updatedAt: a.updatedAt ?? a.updated_at });
   }
 
-  // Write.
+  // Decide: the generator's own rule, then the quality gate, then the ramp.
+  const INDEXED = 'index,follow';
+  const NOINDEX = 'noindex,follow';
+  for (const e of entries) {
+    const base = e.index ?? true;
+    const pre = base ? e.render(INDEXED) : null;
+    const d = gateDecision({
+      kind: e.kind,
+      baseIndex: base,
+      words: GATE.enabled && pre ? wordCount(mainText(pre)) : 0,
+      attorneyCount: e.attorneyCount ?? 0,
+      bio: e.bio,
+      claimsText: e.claimsText,
+      gate: GATE,
+    });
+    e.indexed = d.index;
+    e.reason = d.reason;
+    e.html = d.index ? pre : null;
+  }
+  let ramp = null;
+  if (RAMP > 0) {
+    ramp = applyRamp({
+      candidates: entries.filter((e) => e.indexed).map((e) => ({ path: e.path, priority: e.priority ?? '0.5' })),
+      prev,
+      today: BUILD_DATE,
+      perDay: RAMP,
+      baseline: RAMP_BASELINE,
+    });
+    for (const e of entries) {
+      if (!e.indexed) continue;
+      if (ramp.admitted.has(e.path)) e.admitted = ramp.admitted.get(e.path);
+      else {
+        e.indexed = false;
+        e.reason = 'ramp-deferred';
+        e.html = null;
+      }
+    }
+  }
+
+  // Final pages, content hashes and the real lastmod.
+  const prevPages = prev?.pages ?? {};
+  const files = new Map(); // path -> html
+  const map = {}; // manifest pages
+  const sitemapEntries = [];
+  const noindex = {};
+  for (const e of entries) {
+    const html = e.html ?? e.render(NOINDEX);
+    files.set(e.path, html);
+    const hash = sha256(html);
+    const before = prevPages[e.path];
+    const lastmod = before && before.hash === hash && before.lastmod ? before.lastmod : (dayOf(e.updatedAt, BUILD_DATE) ?? BUILD_DATE);
+    map[e.path] = { hash, lastmod, index: e.indexed, ...(e.admitted ? { admitted: e.admitted } : {}) };
+    if (e.indexed) sitemapEntries.push({ path: e.path, lastmod, priority: e.priority ?? '0.5' });
+    else noindex[e.reason ?? 'noindex'] = (noindex[e.reason ?? 'noindex'] ?? 0) + 1;
+  }
+
+  // Discovery files.
+  const useIndex = SITEMAP_INDEX || sitemapEntries.length > SITEMAP_HARD_LIMIT;
+  const discovery = new Map(); // relative file -> text
+  if (useIndex) {
+    const idx = sitemapIndex({ site: SITE, entries: sitemapEntries, max: SITEMAP_MAX });
+    discovery.set('sitemap.xml', idx.index);
+    for (const [name, xml] of idx.files) discovery.set(name, xml);
+  } else {
+    discovery.set('sitemap.xml', urlset(SITE, sitemapEntries));
+  }
+  discovery.set('robots.txt', robotsTxt({ site: SITE, ai: ROBOTS_AI, allowTraining: ALLOW_TRAINING }));
+  if (LLMS) {
+    const listed = new Set(sitemapEntries.map((x) => x.path));
+    const practices = PRACTICES.filter((p) => listed.has(`/practice-areas/${p.slug}/`));
+    const states = stateList.filter((st) => listed.has(`/lawyers/${st.slug}/`));
+    discovery.set('llms.txt', llmsTxt({ site: SITE, practices, states, attorneyCount: attorneys.length }));
+    discovery.set('llms-full.txt', llmsFullTxt({ site: SITE, practices }));
+  }
+  if (MANIFEST) {
+    const m = { version: 1, builtAt: BUILD_DATE, pages: map };
+    if (RAMP > 0) m.ramp = { perDay: RAMP, date: BUILD_DATE, deferred: ramp.deferred.length };
+    discovery.set(MANIFEST_NAME, JSON.stringify(m));
+  }
+
+  const result = {
+    pages: files.size,
+    indexed: sitemapEntries.length,
+    attorneys: attorneys.length,
+    noindex,
+    sitemapFiles: useIndex ? [...discovery.keys()].filter((k) => k.startsWith('sitemaps/')).length : 1,
+    discovery: [...discovery.keys()],
+    rampDeferred: ramp ? ramp.deferred.length : 0,
+    dryRun: DRY,
+  };
+  if (DRY) return result;
+
   await rm(OUT, { recursive: true, force: true });
   for (const [path, html] of files) {
     const file = join(OUT, path, 'index.html');
     await mkdir(dirname(file), { recursive: true });
     await writeFile(file, html);
   }
-  const sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls
-    .map(([p, pr]) => `<url><loc>${esc(SITE + p)}</loc><lastmod>${BUILD_DATE}</lastmod><priority>${pr}</priority></url>`)
-    .join('\n')}\n</urlset>\n`;
-  await writeFile(join(OUT, 'sitemap.xml'), sitemap);
-  await writeFile(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${SITE}/sitemap.xml\n`);
-  return { pages: files.size, indexed: urls.length, attorneys: attorneys.length };
+  for (const [name, text] of discovery) {
+    const file = join(OUT, name);
+    await mkdir(dirname(file), { recursive: true });
+    await writeFile(file, text);
+  }
+  return result;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const r = await build();
-  console.log(`seo: ${r.pages} pages (${r.indexed} indexed in the sitemap), ${r.attorneys} attorneys → ${OUT}`);
+  console.log(`seo${r.dryRun ? ' (dry run, nothing written)' : ''}: ${r.pages} pages (${r.indexed} indexed in the sitemap), ${r.attorneys} attorneys → ${OUT}`);
+  if (r.dryRun) console.log(JSON.stringify({ noindex: r.noindex, rampDeferred: r.rampDeferred, sitemapFiles: r.sitemapFiles, files: r.discovery }, null, 2));
 }
