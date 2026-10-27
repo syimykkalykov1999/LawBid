@@ -7,7 +7,6 @@ import { StaffAnomaliesJob } from './staff-anomalies.job';
 import { StaffCountersFlushJob } from './staff-counters-flush.job';
 import { StaffDailyStatsJob } from './staff-daily-stats.job';
 import { StaffHeadScoreJob } from './staff-head-score.job';
-import { StaffLeaseSweepJob } from './staff-lease-sweep.job';
 import { StaffRatingNightlyJob } from './staff-rating-nightly.job';
 import { StaffRetaliationExpireJob } from './staff-retaliation-expire.job';
 import {
@@ -38,11 +37,6 @@ type Runner = { run: () => Promise<unknown> };
 const stubs: Array<
   [string, (s: StaffSettingsService) => Runner, StaffSwitchKey[]]
 > = [
-  [
-    'staff.lease-sweep',
-    (s) => new StaffLeaseSweepJob(s),
-    ['staff.lease_enabled'],
-  ],
   [
     'staff.counters-flush',
     (s) => new StaffCountersFlushJob(s),

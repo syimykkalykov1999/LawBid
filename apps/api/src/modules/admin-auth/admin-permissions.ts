@@ -179,6 +179,10 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   // Owner 2026-10-05: every admin's own workspace (it lists only what the
   // admin's areas allow).
   workspace: 'workspace',
+  // Staff package T3: the desk (`admin/desk/*`: «Следующий», leases, status)
+  // is every staff member's own page like `workspace`; the right to each
+  // queue is checked per kind in work-lease (canWorkQueue).
+  desk: 'workspace',
 };
 
 /** `/api/v1/admin/users/123?x=1` → `users`; null when not an admin route. */

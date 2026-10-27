@@ -238,7 +238,8 @@
   "modules/verification/services/verification-admin.service.ts -> profiles/services/profile-access",
   "modules/verification/services/verification-requests.service.ts -> profiles/services/profile-access",
   "modules/verification/verification.helpers.ts -> users/services/attorney-name-recheck",
-  "modules/videos/videos.service.ts -> feature-flags/services/feature-flags.service"
+  "modules/videos/videos.service.ts -> feature-flags/services/feature-flags.service",
+  "modules/work-lease/staff.gateway.ts -> auth/services/token.service"
  ],
  "fanOut": {
   "admin": 5,
@@ -345,7 +346,7 @@
   "stories": 7,
   "stripe-ops": 6,
   "subscriptions": 1,
-  "support": 7,
+  "support": 8,
   "translation": 4,
   "treasury": 5,
   "user-brief": 2,
@@ -353,7 +354,7 @@
   "users": 7,
   "verification": 12,
   "videos": 3,
-  "work-lease": 2,
+  "work-lease": 5,
   "workspace": 4
  }
 }
