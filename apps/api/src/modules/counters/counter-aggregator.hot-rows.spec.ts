@@ -12,7 +12,7 @@ describe('COUNTERS hot rows', () => {
     expect(COUNTERS.case_promotion).toMatchObject({
       table: 'case_promotions',
       key: 'id',
-      fields: ['impressions', 'reach', 'clicks'],
+      fields: ['impressions', 'reach', 'clicks', 'actions'],
       recount: false,
     });
     expect(COUNTERS.channel).toMatchObject({

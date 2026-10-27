@@ -16,6 +16,7 @@ import {
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BoostActions } from '../promotions/boost-actions.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 import { bumpFeedVersion } from '../../common/cache/feed-version';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -72,6 +73,8 @@ export class FollowsService {
     @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
     // Owner 2026-10-13: personal ranking of the suggestions.
     @Optional() private readonly recommendations?: RecommendationsService,
+    // Owner 2026-10-27: a follow counts for the author's boost paid per action.
+    @Optional() private readonly boostActions?: BoostActions,
   ) {}
 
   async follow(user: RequestUser, attorneyId: string): Promise<FollowStateDto> {
@@ -130,6 +133,8 @@ export class FollowsService {
           ? { actorId: user.sub }
           : { actorKind: 'client' },
     });
+    // Counted only when the follower was shown a boost of this author.
+    this.boostActions?.report(user.sub, { ownerId: attorneyId }, 'follow');
     return this.state(attorneyId, target.role, true);
   }
 

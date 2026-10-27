@@ -87132,6 +87132,24 @@
             "schema": {
               "$ref": "#/components/schemas/PromotionTarget"
             }
+          },
+          {
+            "name": "video",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-27: the post has a video (video prices).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "billing",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-27: what to pay for; default = the first on.",
+            "schema": {
+              "$ref": "#/components/schemas/BoostBilling"
+            }
           }
         ],
         "responses": {
@@ -88031,6 +88049,93 @@
         ]
       }
     },
+    "/promotions/{id}/action": {
+      "post": {
+        "operationId": "actionPromotion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromotionActionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromotionClickResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A real action only the app sees (watched to the end, opened the profile, tapped call)",
+        "tags": [
+          "promotions"
+        ]
+      }
+    },
     "/admin/promotions": {
       "get": {
         "operationId": "listAdminPromotions",
@@ -88369,7 +88474,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN",
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -88414,7 +88519,7 @@
             "admin": []
           }
         ],
-        "summary": "Change price / limits / on-off (super admin)",
+        "summary": "Change price / limits / on-off (super admin); a change of the prices or switches per way to pay needs a fresh 2FA step-up",
         "tags": [
           "admin-promotions"
         ]
@@ -172531,6 +172636,35 @@
           "data"
         ]
       },
+      "BoostBilling": {
+        "type": "string",
+        "enum": [
+          "impressions",
+          "reach",
+          "clicks",
+          "actions"
+        ]
+      },
+      "BoostOfferDto": {
+        "type": "object",
+        "properties": {
+          "billing": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BoostBilling"
+              }
+            ]
+          },
+          "priceCents": {
+            "type": "integer",
+            "description": "Per 1000 for impressions / reach, per one otherwise."
+          }
+        },
+        "required": [
+          "billing",
+          "priceCents"
+        ]
+      },
       "PromotionQuoteDto": {
         "type": "object",
         "properties": {
@@ -172622,6 +172756,35 @@
             "items": {
               "type": "string"
             }
+          },
+          "billing": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BoostBilling"
+              }
+            ]
+          },
+          "unitPriceCents": {
+            "type": "integer",
+            "description": "Per 1000 for impressions / reach, per one otherwise."
+          },
+          "estUnits": {
+            "type": "integer",
+            "description": "Units this budget buys in the chosen way to pay."
+          },
+          "offers": {
+            "description": "The ways to pay that are switched on.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoostOfferDto"
+            }
+          },
+          "actions": {
+            "description": "What counts as a real action (when paid per action).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -172647,7 +172810,12 @@
           "estReachMax",
           "postsEnabled",
           "casesEnabled",
-          "ctaTypes"
+          "ctaTypes",
+          "billing",
+          "unitPriceCents",
+          "estUnits",
+          "offers",
+          "actions"
         ]
       },
       "PromotionTarget": {
@@ -172800,6 +172968,34 @@
             "nullable": true,
             "description": "Impressions the budget buys (null = no cap)."
           },
+          "billing": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BoostBilling"
+              }
+            ]
+          },
+          "unitPriceCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "targetUnits": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Units the budget buys (views, people, taps, actions)."
+          },
+          "deliveredUnits": {
+            "type": "integer",
+            "description": "Units delivered so far."
+          },
+          "actions": {
+            "type": "integer",
+            "description": "Real actions counted."
+          },
+          "refundedCents": {
+            "type": "integer",
+            "description": "Money given back."
+          },
           "audience": {
             "nullable": true,
             "type": "object",
@@ -172841,6 +173037,10 @@
           "impressions",
           "reach",
           "clicks",
+          "billing",
+          "deliveredUnits",
+          "actions",
+          "refundedCents",
           "createdAt"
         ]
       },
@@ -172999,6 +173199,14 @@
             "type": "string",
             "maxLength": 500,
             "description": "https link (more, download) or a phone (call)."
+          },
+          "billing": {
+            "description": "Owner 2026-10-27: what to pay for (views, people, taps, real actions); default = the first one the owner switched on.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BoostBilling"
+              }
+            ]
           }
         },
         "required": [
@@ -173089,6 +173297,34 @@
             "nullable": true,
             "description": "Impressions the budget buys (null = no cap)."
           },
+          "billing": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BoostBilling"
+              }
+            ]
+          },
+          "unitPriceCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "targetUnits": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Units the budget buys (views, people, taps, actions)."
+          },
+          "deliveredUnits": {
+            "type": "integer",
+            "description": "Units delivered so far."
+          },
+          "actions": {
+            "type": "integer",
+            "description": "Real actions counted."
+          },
+          "refundedCents": {
+            "type": "integer",
+            "description": "Money given back."
+          },
           "audience": {
             "nullable": true,
             "type": "object",
@@ -173134,6 +173370,10 @@
           "impressions",
           "reach",
           "clicks",
+          "billing",
+          "deliveredUnits",
+          "actions",
+          "refundedCents",
           "createdAt",
           "title"
         ]
@@ -173255,6 +173495,22 @@
           "data"
         ]
       },
+      "PromotionActionDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "watched",
+              "profile_open",
+              "call"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
       "AdminPromotionRowDto": {
         "type": "object",
         "properties": {
@@ -173325,6 +173581,34 @@
             "nullable": true,
             "description": "Impressions the budget buys (null = no cap)."
           },
+          "billing": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BoostBilling"
+              }
+            ]
+          },
+          "unitPriceCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "targetUnits": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Units the budget buys (views, people, taps, actions)."
+          },
+          "deliveredUnits": {
+            "type": "integer",
+            "description": "Units delivered so far."
+          },
+          "actions": {
+            "type": "integer",
+            "description": "Real actions counted."
+          },
+          "refundedCents": {
+            "type": "integer",
+            "description": "Money given back."
+          },
           "audience": {
             "nullable": true,
             "type": "object",
@@ -173362,9 +173646,6 @@
             "type": "string",
             "nullable": true,
             "format": "uuid"
-          },
-          "refundedCents": {
-            "type": "integer"
           },
           "cpmCents": {
             "type": "integer",
@@ -173412,9 +173693,12 @@
           "impressions",
           "reach",
           "clicks",
+          "billing",
+          "deliveredUnits",
+          "actions",
+          "refundedCents",
           "createdAt",
           "caseTitle",
-          "refundedCents",
           "caseStatus",
           "ownerId"
         ]
@@ -173449,6 +173733,40 @@
         "required": [
           "status",
           "count"
+        ]
+      },
+      "PromotionModelStatDto": {
+        "type": "object",
+        "properties": {
+          "billing": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BoostBilling"
+              }
+            ]
+          },
+          "count": {
+            "type": "integer"
+          },
+          "soldCents": {
+            "type": "integer",
+            "description": "Sold for, cents."
+          },
+          "refundedCents": {
+            "type": "integer",
+            "description": "Given back, cents."
+          },
+          "delivered": {
+            "type": "integer",
+            "description": "Units delivered."
+          }
+        },
+        "required": [
+          "billing",
+          "count",
+          "soldCents",
+          "refundedCents",
+          "delivered"
         ]
       },
       "AdminPromotionStatsDto": {
@@ -173488,6 +173806,18 @@
           },
           "clicks30d": {
             "type": "integer"
+          },
+          "byModel": {
+            "description": "Owner 2026-10-27: the last 30 days by way to pay, from the nightly snapshot (empty until the first one).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromotionModelStatDto"
+            }
+          },
+          "byModelAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
           }
         },
         "required": [
@@ -173500,7 +173830,8 @@
           "pendingReview",
           "impressions30d",
           "reach30d",
-          "clicks30d"
+          "clicks30d",
+          "byModel"
         ]
       },
       "AdminPromotionStatsEnvelope": {
@@ -173515,6 +173846,111 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "ModelPriceDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "priceCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000000,
+            "description": "Per 1000 for impressions / reach, per one otherwise."
+          }
+        },
+        "required": [
+          "enabled",
+          "priceCents"
+        ]
+      },
+      "BillingModelsDto": {
+        "type": "object",
+        "properties": {
+          "impressions": {
+            "description": "Views (per 1000).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModelPriceDto"
+              }
+            ]
+          },
+          "reach": {
+            "description": "People (per 1000).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModelPriceDto"
+              }
+            ]
+          },
+          "clicks": {
+            "description": "Taps (each).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModelPriceDto"
+              }
+            ]
+          },
+          "actions": {
+            "description": "Real actions (each).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModelPriceDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "impressions",
+          "reach",
+          "clicks",
+          "actions"
+        ]
+      },
+      "TargetPricingDto": {
+        "type": "object",
+        "properties": {
+          "models": {
+            "$ref": "#/components/schemas/BillingModelsDto"
+          },
+          "actions": {
+            "maxItems": 10,
+            "description": "What counts as an action.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 20
+            }
+          }
+        },
+        "required": [
+          "models",
+          "actions"
+        ]
+      },
+      "PricingMatrixDto": {
+        "type": "object",
+        "properties": {
+          "post": {
+            "$ref": "#/components/schemas/TargetPricingDto"
+          },
+          "video": {
+            "$ref": "#/components/schemas/TargetPricingDto"
+          },
+          "case": {
+            "$ref": "#/components/schemas/TargetPricingDto"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/TargetPricingDto"
+          }
+        },
+        "required": [
+          "post",
+          "video",
+          "case",
+          "profile"
         ]
       },
       "PromotionSettingsDto": {
@@ -173630,6 +174066,14 @@
           },
           "requireSubscription": {
             "type": "boolean"
+          },
+          "pricing": {
+            "description": "Owner 2026-10-27: prices and switches per way to pay (views, people, taps, real actions) for posts, videos, cases and attorney profiles.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PricingMatrixDto"
+              }
+            ]
           }
         },
         "required": [
@@ -173655,7 +174099,8 @@
           "frequencyCapPerDay",
           "impressionsPerPerson",
           "autoApprove",
-          "requireSubscription"
+          "requireSubscription",
+          "pricing"
         ]
       },
       "PromotionSettingsEnvelope": {
@@ -173780,6 +174225,14 @@
           },
           "requireSubscription": {
             "type": "boolean"
+          },
+          "pricing": {
+            "description": "Owner 2026-10-27: prices and switches per way to pay (views, people, taps, real actions) for posts, videos, cases and attorney profiles.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PricingMatrixDto"
+              }
+            ]
           },
           "feedEveryN": {
             "type": "integer",

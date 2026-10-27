@@ -6,6 +6,7 @@ import { AdminPayrollController } from '../admin-payroll/admin-payroll.controlle
 import { AdminUsersController } from '../admin-users/admin-users.controller';
 import { AdminCasePaymentsController } from '../case-payments/admin-case-payments.controller';
 import { AdminPartnersController } from '../partners/admin-partners.controller';
+import { AdminPromotionsController } from '../promotions/admin-promotions.controller';
 import { AdminStarsController } from '../stars/stars.controller';
 import type { AdminActor } from './admin-auth.decorators';
 
@@ -195,6 +196,16 @@ const CASES: Case[] = [
         svc as never,
         auth as never,
       ).payAdminPartnerCommission(actor, { id: 'c1' }, { reason: '' }),
+  },
+  // Owner 2026-10-27: what buyers pay for a boost, per way to pay.
+  {
+    name: 'PUT /admin/promotions/settings (prices per way to pay)',
+    method: 'updateSettings',
+    run: (auth, svc) =>
+      new AdminPromotionsController(
+        svc as never,
+        auth as never,
+      ).updatePromotionSettings(actor, { pricing: {} as never }),
   },
 ];
 
