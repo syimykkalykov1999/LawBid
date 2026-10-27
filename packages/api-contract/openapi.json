@@ -124569,6 +124569,83 @@
           "admin-legal-qa"
         ]
       }
+    },
+    "/admin/staff/settings": {
+      "get": {
+        "operationId": "getStaffSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Staff package switches and numbers (all off by default)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
     }
   },
   "info": {
@@ -190932,6 +191009,43 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/AdminQaQuestionDetailDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffSettingsDto": {
+        "type": "object",
+        "properties": {
+          "switches": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "description": "Switches `staff.*_enabled` (all false by default). AI sub-switches count only with staff.ai_enabled, per-queue lease switches only with staff.lease_enabled."
+          },
+          "numbers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Thresholds and limits (`staff.*`), clamped to their admin bounds."
+          }
+        },
+        "required": [
+          "switches",
+          "numbers"
+        ]
+      },
+      "StaffSettingsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffSettingsDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

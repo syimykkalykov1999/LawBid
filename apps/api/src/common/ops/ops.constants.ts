@@ -77,6 +77,13 @@ export const HEAVY_CRON_JOBS: readonly string[] = [
   CRON_JOBS.dbBloat,
   CRON_JOBS.ledgerReconcile,
   CRON_JOBS.seoGenerate,
+  // Staff package 2026-10-27: the nightly staff aggregates wait too.
+  CRON_JOBS.staffDailyStats,
+  CRON_JOBS.staffRatingNightly,
+  CRON_JOBS.staffHeadScore,
+  CRON_JOBS.staffAnomalies,
+  CRON_JOBS.staffAiQaNightly,
+  CRON_JOBS.staffRetention,
 ];
 
 /** Queues paused as a whole (users get their file a little later). */

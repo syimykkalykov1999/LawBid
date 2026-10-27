@@ -743,6 +743,15 @@ enum AdminRole {
   @@map("admin_role")
 }
 
+/// Staff package 2026-10-27: the three workspaces (mass work, finance, owner).
+enum AdminWorkspace {
+  mass
+  finance
+  owner
+
+  @@map("admin_workspace")
+}
+
 enum DataRequestType {
   subpoena
   court_order
@@ -4012,18 +4021,27 @@ model ModerationDetection {
 }
 
 model AdminProfile {
-  user_id         String    @id @db.Uuid
-  user            User      @relation(fields: [user_id], references: [id], onDelete: Restrict)
-  admin_role      AdminRole
+  user_id           String         @id @db.Uuid
+  user              User           @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  admin_role        AdminRole
   // Per-area access for non-super admins: {"users":"view","support":"manage"}.
   // Money and API keys are never grantable (hard-denied in the API).
-  permissions     Json      @default("{}")
+  permissions       Json           @default("{}")
   /// Owner 2026-10-22: the admin's own switch for system alerts (push + e-mail)
   /// when they hold the on_call right (the owner always may).
-  on_call_enabled Boolean   @default(true)
-  created_at      DateTime  @default(now()) @db.Timestamptz
-  updated_at      DateTime  @updatedAt @db.Timestamptz
+  on_call_enabled   Boolean        @default(true)
+  /// Staff package 2026-10-27 (docs/architecture/ADMIN_STAFF_PACKAGE_PLAN_2026-10-27.md
+  /// A1): the admin's workspace. Backfilled super_admin -> owner, finance ->
+  /// finance, everyone else -> mass. Read only while `staff.workspaces_enabled`
+  /// is on; the super admin is always treated as owner.
+  workspace         AdminWorkspace @default(mass)
+  /// The workspace head (one per workspace, none in finance): a partial
+  /// unique index + CHECK in the migration, not modelled by Prisma.
+  is_workspace_head Boolean        @default(false)
+  created_at        DateTime       @default(now()) @db.Timestamptz
+  updated_at        DateTime       @updatedAt @db.Timestamptz
 
+  @@index([workspace])
   @@map("admin_profiles")
 }
 
@@ -8389,4 +8407,390 @@ model RankingEvent {
   @@index([kind, created_at])
   @@index([user_id, created_at])
   @@map("ranking_events")
+}
+
+// ---------------------------------------------------------------------------
+// Staff package 2026-10-27 (docs/architecture/ADMIN_STAFF_PACKAGE_PLAN_2026-10-27.md
+// part A2). Every table below is admin-side only, empty until its switch
+// (`staff.*_enabled`, all off) is turned on. Kind of table:
+//   [S] snapshot / aggregate, written at night or from counters; admin pages
+//       read only these;  [L] operational;  [E] append-only event journal.
+// Admin ids are plain uuids without foreign keys (like support_agents).
+// ---------------------------------------------------------------------------
+
+/// [L] One work item, one person: the routing lease («Следующий»). The
+/// UNIQUE (kind, item_id) makes the database, not the code, guarantee that
+/// two admins never hold the same item. A free / expired row is taken with
+/// INSERT … ON CONFLICT … WHERE admin_id IS NULL OR leased_until < now().
+/// A partial index (admin_id) WHERE admin_id IS NOT NULL lives in the
+/// migration (Prisma does not model partial indexes).
+model WorkLease {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// support_ticket · verification · report · media_report · mod_appeal ·
+  /// review_appeal · trust_case · refund · payout · review_sample
+  kind               String    @db.VarChar(24)
+  item_id            String    @db.Uuid
+  /// Holder; null = free (released / lost, waiting for the next taker).
+  admin_id           String?   @db.Uuid
+  taken_at           DateTime? @db.Timestamptz
+  leased_until       DateTime? @db.Timestamptz
+  last_renew_at      DateTime? @db.Timestamptz
+  attempt            Int       @default(0)
+  /// Admins who may not take it again («не решено» goes to SOMEONE ELSE).
+  excluded_admin_ids String[]  @default([]) @db.Uuid
+  priority           Int       @default(0)
+  due_at             DateTime? @db.Timestamptz
+  created_at         DateTime  @default(now()) @db.Timestamptz
+  updated_at         DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@unique([kind, item_id])
+  @@index([leased_until])
+  @@index([kind, leased_until])
+  @@map("work_leases")
+}
+
+/// [E] What happened to a lease. Kept 90 days (`staff.retention`).
+model WorkLeaseEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind       String   @db.VarChar(24)
+  item_id    String   @db.Uuid
+  admin_id   String?  @db.Uuid
+  /// taken · renewed_first · lost · handed · released · skipped · done · reopened
+  event      String   @db.VarChar(16)
+  reason     String?  @db.VarChar(40)
+  held_ms    Int?
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@index([admin_id, created_at(sort: Desc)])
+  @@index([kind, item_id, created_at])
+  @@index([created_at])
+  @@map("work_lease_events")
+}
+
+/// [L] Where a staff member stands in the queues (one row per admin).
+model StaffMemberState {
+  admin_id             String    @id @db.Uuid
+  /// active · paused · hold_owner · offboarded
+  state                String    @default("active") @db.VarChar(16)
+  state_reason         String?   @db.VarChar(200)
+  state_until          DateTime? @db.Timestamptz
+  /// Newcomer trust tier 0-3 (`staff.trust_tiers_enabled`).
+  trust_tier           Int       @default(0) @db.SmallInt
+  joined_queue_at      DateTime? @db.Timestamptz
+  /// Per-person sampling percent; null = the setting.
+  review_rate_override Int?
+  created_at           DateTime  @default(now()) @db.Timestamptz
+  updated_at           DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([state])
+  @@map("staff_member_states")
+}
+
+/// [E] Quality signals about one decision of a staff member. Kept 120 days.
+model StaffQualitySignal {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  admin_id   String   @db.Uuid
+  /// reopened · complaint · appeal_won · overturned · csat_up · csat_down ·
+  /// sample_diff · golden_pass · golden_fail · too_fast · late_sla · lease_lost
+  kind       String   @db.VarChar(24)
+  item_kind  String   @db.VarChar(24)
+  item_id    String   @db.Uuid
+  value      Int      @default(1) @db.SmallInt
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@index([admin_id, created_at(sort: Desc)])
+  @@index([kind, created_at])
+  @@index([created_at])
+  @@map("staff_quality_signals")
+}
+
+/// [L] A decision picked for a second look (random sample, golden task,
+/// peer check). AFTER the fact: never an approval step.
+model StaffReviewSample {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  decision_kind String    @db.VarChar(24)
+  item_id       String    @db.Uuid
+  /// The staff member whose decision is checked.
+  decided_by    String    @db.Uuid
+  reviewer_id   String?   @db.Uuid
+  /// pending · done
+  status        String    @default("pending") @db.VarChar(12)
+  /// same · different · worse
+  verdict       String?   @db.VarChar(12)
+  is_golden     Boolean   @default(false)
+  golden_answer Json?
+  /// sample · golden · peer · newcomer
+  stage         String?   @db.VarChar(16)
+  created_at    DateTime  @default(now()) @db.Timestamptz
+  done_at       DateTime? @db.Timestamptz
+
+  @@unique([decision_kind, item_id])
+  @@index([status, created_at])
+  @@index([reviewer_id, status])
+  @@map("staff_review_samples")
+}
+
+/// [S] Yesterday's numbers of one staff member (written incrementally).
+model StaffDailyStat {
+  admin_id       String         @db.Uuid
+  day            DateTime       @db.Date
+  workspace      AdminWorkspace
+  decided        Int            @default(0)
+  avg_handle_sec Int            @default(0)
+  p90_handle_sec Int            @default(0)
+  online_min     Int            @default(0)
+  reopened       Int            @default(0)
+  complaints     Int            @default(0)
+  csat_up        Int            @default(0)
+  csat_down      Int            @default(0)
+  sampled        Int            @default(0)
+  sample_diff    Int            @default(0)
+  golden_total   Int            @default(0)
+  golden_fail    Int            @default(0)
+  too_fast       Int            @default(0)
+  late_sla       Int            @default(0)
+  lease_lost     Int            @default(0)
+  skips          Int            @default(0)
+  updated_at     DateTime       @default(now()) @updatedAt @db.Timestamptz
+
+  @@id([admin_id, day])
+  @@index([day, workspace])
+  @@map("staff_daily_stats")
+}
+
+/// [S] Nightly rating 0-100 over the window (`staff.rating.window_days`).
+/// The newest date is app_config `staff.rating.last_date`.
+model StaffRatingSnapshot {
+  admin_id      String         @db.Uuid
+  snapshot_date DateTime       @db.Date
+  workspace     AdminWorkspace
+  /// Null while there are fewer decisions than the minimum (low_data).
+  rating        Int?
+  n_decisions   Int            @default(0)
+  /// Components, 0-100 each.
+  accuracy      Int?
+  clean         Int?
+  users_verdict Int?
+  speed         Int?
+  /// low_data · ok · yellow · red · green
+  status        String         @default("low_data") @db.VarChar(12)
+  flags         String[]       @default([])
+  rank_pct      Int?           @db.SmallInt
+  /// 3 best / 3 worst decision ids and the 8-week trend.
+  evidence      Json           @default("{}")
+  created_at    DateTime       @default(now()) @db.Timestamptz
+
+  @@id([admin_id, snapshot_date])
+  @@index([snapshot_date, status])
+  @@index([snapshot_date, workspace, rating])
+  @@map("staff_rating_snapshots")
+}
+
+/// [S]+[L] What the system SUGGESTS about a person; a human applies it.
+model StaffSuggestion {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  admin_id      String    @db.Uuid
+  /// warn · more_review · pull · replace · reward · pause · retrain
+  kind          String    @db.VarChar(16)
+  /// open · applied · dismissed · expired
+  status        String    @default("open") @db.VarChar(12)
+  snapshot_date DateTime  @db.Date
+  evidence      Json      @default("{}")
+  decided_by    String?   @db.Uuid
+  decided_at    DateTime? @db.Timestamptz
+  created_at    DateTime  @default(now()) @db.Timestamptz
+
+  @@unique([admin_id, kind, snapshot_date])
+  @@index([status, kind, created_at(sort: Desc)])
+  @@map("staff_suggestions")
+}
+
+/// [E] Every action taken about a staff member (legal record, never deleted:
+/// reason, rating snapshot, date).
+model StaffAction {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// The staff member the action is about.
+  admin_id        String    @db.Uuid
+  /// Who did it; null = the system.
+  actor_id        String?   @db.Uuid
+  /// suggestion · head · owner
+  source          String    @db.VarChar(12)
+  /// warn · more_review · pull · replace · reward · reinstate · offboard
+  kind            String    @db.VarChar(16)
+  reason_code     String    @db.VarChar(40)
+  reason_note     String?   @db.VarChar(1000)
+  rating_snapshot Json?
+  ends_at         DateTime? @db.Timestamptz
+  created_at      DateTime  @default(now()) @db.Timestamptz
+
+  @@index([admin_id, created_at(sort: Desc)])
+  @@index([actor_id, created_at(sort: Desc)])
+  @@map("staff_actions")
+}
+
+/// [L] A staff member disputes one of their cases / actions (once per case,
+/// within the window); re-reviewed by another random person of the role.
+model StaffCaseAppeal {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  admin_id    String    @db.Uuid
+  action_id   String?   @db.Uuid
+  item_kind   String    @db.VarChar(24)
+  item_id     String    @db.Uuid
+  text        String    @db.VarChar(1000)
+  /// new · rereview · done
+  status      String    @default("new") @db.VarChar(12)
+  /// upheld · reversed
+  outcome     String?   @db.VarChar(12)
+  reviewer_id String?   @db.Uuid
+  created_at  DateTime  @default(now()) @db.Timestamptz
+  decided_at  DateTime? @db.Timestamptz
+
+  @@unique([admin_id, item_kind, item_id])
+  @@index([status, created_at])
+  @@map("staff_case_appeals")
+}
+
+/// [L] A complaint against a workspace head. Read ONLY by the super admin
+/// (a separate controller; everyone else gets 404). Anonymous ones show
+/// «автор №<author_alias>»; revealing the name is a logged action.
+model AdminAppeal {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  author_id      String    @db.Uuid
+  /// Per-appeal number shown instead of the name of an anonymous author.
+  author_alias   Int       @default(autoincrement())
+  anonymous      Boolean   @default(false)
+  head_admin_id  String    @db.Uuid
+  /// unfair_pull · pressure · insult · rules · other
+  kind           String    @db.VarChar(16)
+  text           String    @db.VarChar(2000)
+  file_key       String?   @db.VarChar(300)
+  /// new · seen · resolved
+  status         String    @default("new") @db.VarChar(12)
+  owner_note     String?   @db.VarChar(2000)
+  /// none · fire_head · fire_worker · nothing
+  owner_decision String    @default("none") @db.VarChar(16)
+  ack_at         DateTime? @db.Timestamptz
+  decided_at     DateTime? @db.Timestamptz
+  /// [{ at, by }] — every reveal of an anonymous author's name.
+  reveal_log     Json      @default("[]")
+  created_at     DateTime  @default(now()) @db.Timestamptz
+  updated_at     DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([status, created_at])
+  @@index([head_admin_id, created_at])
+  @@index([author_id, created_at])
+  @@map("admin_appeals")
+}
+
+/// [L] Retaliation guard: a head acted against the author of an appeal
+/// within the window. Never blocks; the owner gets a red mark.
+model StaffRetaliationFlag {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  appeal_id        String    @db.Uuid
+  /// The appeal's author the action hit.
+  subject_admin_id String    @db.Uuid
+  action_id        String?   @db.Uuid
+  window_until     DateTime  @db.Timestamptz
+  hold_until       DateTime? @db.Timestamptz
+  /// open · cleared · upheld
+  state            String    @default("open") @db.VarChar(12)
+  created_at       DateTime  @default(now()) @db.Timestamptz
+  decided_at       DateTime? @db.Timestamptz
+
+  @@index([state, created_at])
+  @@index([subject_admin_id])
+  @@map("staff_retaliation_flags")
+}
+
+/// [S] Nightly score of a workspace head.
+model StaffHeadSnapshot {
+  head_admin_id    String   @db.Uuid
+  snapshot_date    DateTime @db.Date
+  team_quality     Int?
+  turnover_score   Int?
+  complaints_score Int?
+  speed_score      Int?
+  score            Int?
+  flags            String[] @default([])
+  created_at       DateTime @default(now()) @db.Timestamptz
+
+  @@id([head_admin_id, snapshot_date])
+  @@map("staff_head_snapshots")
+}
+
+/// [L] Piecework rate per decision kind (owner only).
+model StaffRate {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// verification · report · ticket · appeal · media_report · …
+  kind         String         @db.VarChar(24)
+  workspace    AdminWorkspace @default(mass)
+  amount_cents Int
+  currency     String         @default("usd") @db.VarChar(3)
+  valid_from   DateTime       @default(now()) @db.Timestamptz
+  valid_to     DateTime?      @db.Timestamptz
+  /// Weekly quest multiplier (×1.20), capped by the setting.
+  boost_mult   Decimal?       @db.Decimal(3, 2)
+  created_by   String         @db.Uuid
+  created_at   DateTime       @default(now()) @db.Timestamptz
+
+  @@index([kind, valid_from(sort: Desc)])
+  @@map("staff_rates")
+}
+
+/// [S] Yesterday's piecework of one person and kind; `accrual_ref` is the
+/// payroll_accruals.event_ref it was sent as ('piece:{admin}:{day}:{kind}').
+model StaffPieceworkDay {
+  admin_id     String   @db.Uuid
+  day          DateTime @db.Date
+  kind         String   @db.VarChar(24)
+  units        Int      @default(0)
+  held_units   Int      @default(0)
+  rate_cents   Int      @default(0)
+  quality_mult Decimal  @default(1.00) @db.Decimal(4, 2)
+  amount_cents Int      @default(0)
+  currency     String   @default("usd") @db.VarChar(3)
+  accrual_ref  String?  @db.VarChar(120)
+  /// accrued · reversed
+  status       String   @default("accrued") @db.VarChar(12)
+  created_at   DateTime @default(now()) @db.Timestamptz
+  updated_at   DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@id([admin_id, day, kind])
+  @@index([day])
+  @@map("staff_piecework_days")
+}
+
+/// [S] Daily anomalies against the group median (top-20 for the owner).
+model StaffAnomaly {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  day        DateTime @db.Date
+  admin_id   String   @db.Uuid
+  rule       String   @db.VarChar(40)
+  score      Int      @default(0)
+  detail     Json     @default("{}")
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@unique([day, admin_id, rule])
+  @@index([day, score(sort: Desc)])
+  @@map("staff_anomalies")
+}
+
+/// [L] Pages an admin pinned to the menu (at most `staff.pins_max`).
+model AdminNavPin {
+  admin_id   String   @db.Uuid
+  href       String   @db.VarChar(200)
+  position   Int      @default(0) @db.SmallInt
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([admin_id, href])
+  @@map("admin_nav_pins")
+}
+
+/// [S] The owner's weekly «5 чисел».
+model StaffDigest {
+  week_start DateTime @id @db.Date
+  payload    Json
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@map("staff_digests")
 }

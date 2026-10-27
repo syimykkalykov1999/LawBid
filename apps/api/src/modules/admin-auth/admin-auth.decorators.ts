@@ -8,7 +8,7 @@ import {
   type ExecutionContext,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader } from '@nestjs/swagger';
-import type { AdminRole } from '@prisma/client';
+import type { AdminRole, AdminWorkspace } from '@prisma/client';
 import type { Request } from 'express';
 import { ApiErrors, COMMON_ERRORS } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -149,6 +149,10 @@ export interface RequestAdmin {
   countries?: string[] | null;
   /** Countries assigned to this admin (empty = every country). */
   assignedCountries?: string[];
+  /** Staff package T1: the admin's workspace (super admin = owner). */
+  workspace?: AdminWorkspace;
+  /** Staff package T1: the head of that workspace. */
+  workspaceHead?: boolean;
 }
 
 /** The admin resolved by AdminAuthGuard plus the client IP (audit_log). */

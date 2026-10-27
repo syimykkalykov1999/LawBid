@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-278 tables.
+296 tables.
 
 ```mermaid
 erDiagram
@@ -1370,6 +1370,8 @@ erDiagram
     enum_AdminRole admin_role
     Json permissions
     Boolean on_call_enabled
+    enum_AdminWorkspace workspace
+    Boolean is_workspace_head
     DateTime created_at
     DateTime updated_at
   }
@@ -3534,6 +3536,223 @@ erDiagram
     String variant "nullable"
     Int value "nullable"
     Json features "nullable"
+  }
+  work_leases {
+    String id PK
+    String kind
+    String item_id
+    String admin_id "nullable"
+    DateTime taken_at "nullable"
+    DateTime leased_until "nullable"
+    DateTime last_renew_at "nullable"
+    Int attempt
+    Int priority
+    DateTime due_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  work_lease_events {
+    String id PK
+    String kind
+    String item_id
+    String admin_id "nullable"
+    String event
+    String reason "nullable"
+    Int held_ms "nullable"
+    DateTime created_at
+  }
+  staff_member_states {
+    String admin_id PK
+    String state
+    String state_reason "nullable"
+    DateTime state_until "nullable"
+    Int trust_tier
+    DateTime joined_queue_at "nullable"
+    Int review_rate_override "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  staff_quality_signals {
+    String id PK
+    String admin_id
+    String kind
+    String item_kind
+    String item_id
+    Int value
+    DateTime created_at
+  }
+  staff_review_samples {
+    String id PK
+    String decision_kind
+    String item_id
+    String decided_by
+    String reviewer_id "nullable"
+    String status
+    String verdict "nullable"
+    Boolean is_golden
+    Json golden_answer "nullable"
+    String stage "nullable"
+    DateTime created_at
+    DateTime done_at "nullable"
+  }
+  staff_daily_stats {
+    String admin_id PK
+    DateTime day PK
+    enum_AdminWorkspace workspace
+    Int decided
+    Int avg_handle_sec
+    Int p90_handle_sec
+    Int online_min
+    Int reopened
+    Int complaints
+    Int csat_up
+    Int csat_down
+    Int sampled
+    Int sample_diff
+    Int golden_total
+    Int golden_fail
+    Int too_fast
+    Int late_sla
+    Int lease_lost
+    Int skips
+    DateTime updated_at
+  }
+  staff_rating_snapshots {
+    String admin_id PK
+    DateTime snapshot_date PK
+    enum_AdminWorkspace workspace
+    Int rating "nullable"
+    Int n_decisions
+    Int accuracy "nullable"
+    Int clean "nullable"
+    Int users_verdict "nullable"
+    Int speed "nullable"
+    String status
+    Int rank_pct "nullable"
+    Json evidence
+    DateTime created_at
+  }
+  staff_suggestions {
+    String id PK
+    String admin_id
+    String kind
+    String status
+    DateTime snapshot_date
+    Json evidence
+    String decided_by "nullable"
+    DateTime decided_at "nullable"
+    DateTime created_at
+  }
+  staff_actions {
+    String id PK
+    String admin_id
+    String actor_id "nullable"
+    String source
+    String kind
+    String reason_code
+    String reason_note "nullable"
+    Json rating_snapshot "nullable"
+    DateTime ends_at "nullable"
+    DateTime created_at
+  }
+  staff_case_appeals {
+    String id PK
+    String admin_id
+    String action_id "nullable"
+    String item_kind
+    String item_id
+    String text
+    String status
+    String outcome "nullable"
+    String reviewer_id "nullable"
+    DateTime created_at
+    DateTime decided_at "nullable"
+  }
+  admin_appeals {
+    String id PK
+    String author_id
+    Int author_alias
+    Boolean anonymous
+    String head_admin_id
+    String kind
+    String text
+    String file_key "nullable"
+    String status
+    String owner_note "nullable"
+    String owner_decision
+    DateTime ack_at "nullable"
+    DateTime decided_at "nullable"
+    Json reveal_log
+    DateTime created_at
+    DateTime updated_at
+  }
+  staff_retaliation_flags {
+    String id PK
+    String appeal_id
+    String subject_admin_id
+    String action_id "nullable"
+    DateTime window_until
+    DateTime hold_until "nullable"
+    String state
+    DateTime created_at
+    DateTime decided_at "nullable"
+  }
+  staff_head_snapshots {
+    String head_admin_id PK
+    DateTime snapshot_date PK
+    Int team_quality "nullable"
+    Int turnover_score "nullable"
+    Int complaints_score "nullable"
+    Int speed_score "nullable"
+    Int score "nullable"
+    DateTime created_at
+  }
+  staff_rates {
+    String id PK
+    String kind
+    enum_AdminWorkspace workspace
+    Int amount_cents
+    String currency
+    DateTime valid_from
+    DateTime valid_to "nullable"
+    Decimal boost_mult "nullable"
+    String created_by
+    DateTime created_at
+  }
+  staff_piecework_days {
+    String admin_id PK
+    DateTime day PK
+    String kind PK
+    Int units
+    Int held_units
+    Int rate_cents
+    Decimal quality_mult
+    Int amount_cents
+    String currency
+    String accrual_ref "nullable"
+    String status
+    DateTime created_at
+    DateTime updated_at
+  }
+  staff_anomalies {
+    String id PK
+    DateTime day
+    String admin_id
+    String rule
+    Int score
+    Json detail
+    DateTime created_at
+  }
+  admin_nav_pins {
+    String admin_id PK
+    String href PK
+    Int position
+    DateTime created_at
+  }
+  staff_digests {
+    DateTime week_start PK
+    Json payload
+    DateTime created_at
   }
   users }o--o| files : "avatar_file_id"
   users }o--|| countries : "country_code"

@@ -235,6 +235,20 @@ export const CRON_JOBS = {
    * and published to the web bucket; nightly, and (mode nightly+events) a
    * debounced delayed job after an attorney is published or removed. */
   seoGenerate: 'seo.generate',
+  /** Staff package 2026-10-27 (docs/architecture/ADMIN_STAFF_PACKAGE_PLAN_2026-10-27.md
+   * B5): each is a no-op while its `staff.*_enabled` switch is off. */
+  staffLeaseSweep: 'staff.lease-sweep',
+  staffCountersFlush: 'staff.counters-flush',
+  staffToday: 'staff.today',
+  staffDailyStats: 'staff.daily-stats',
+  staffRatingNightly: 'staff.rating-nightly',
+  staffHeadScore: 'staff.head-score',
+  staffPiecework: 'staff.piecework',
+  staffAnomalies: 'staff.anomalies',
+  staffAiQaNightly: 'staff.ai-qa-nightly',
+  staffRetaliationExpire: 'staff.retaliation-expire',
+  staffRetention: 'staff.retention',
+  staffWeeklyDigest: 'staff.weekly-digest',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -376,6 +390,25 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // the admin counters), before the US morning. A no-op unless
   // `seo.generator_mode` is nightly or nightly+events.
   { name: CRON_JOBS.seoGenerate, pattern: '10 5 * * *' },
+  // Staff package 2026-10-27 (plan B5), all no-ops while switched off.
+  // Minutes moved off busy neighbours: counters-flush 07 -> 09 (legal
+  // reminders, demo sweep, cost check), piecework 02:10 -> 02:15 (privacy
+  // anonymize), retaliation-expire 03:20 -> 03:22 (legal retention,
+  // partners), ai-qa 03:30 -> 04:00 (search learn), retention 03:40 -> 03:00
+  // (crashes purge).
+  { name: CRON_JOBS.staffLeaseSweep, pattern: '* * * * *' },
+  { name: CRON_JOBS.staffCountersFlush, pattern: '9 * * * *' },
+  { name: CRON_JOBS.staffToday, pattern: '*/2 * * * *' },
+  { name: CRON_JOBS.staffDailyStats, pattern: '10 1 * * *' },
+  { name: CRON_JOBS.staffRatingNightly, pattern: '40 1 * * *' },
+  { name: CRON_JOBS.staffHeadScore, pattern: '55 1 * * *' },
+  { name: CRON_JOBS.staffPiecework, pattern: '15 2 * * *' },
+  { name: CRON_JOBS.staffAnomalies, pattern: '25 2 * * *' },
+  { name: CRON_JOBS.staffAiQaNightly, pattern: '0 4 * * *' },
+  { name: CRON_JOBS.staffRetaliationExpire, pattern: '22 3 * * *' },
+  { name: CRON_JOBS.staffRetention, pattern: '0 3 * * *' },
+  // Mondays 13:00 UTC (US morning).
+  { name: CRON_JOBS.staffWeeklyDigest, pattern: '0 13 * * 1' },
 ];
 
 const FAST_JOBS: readonly CronJobName[] = [
@@ -387,6 +420,10 @@ const FAST_JOBS: readonly CronJobName[] = [
   CRON_JOBS.taskReminders,
   CRON_JOBS.consultationsSweep,
   CRON_JOBS.videosSweep,
+  // Staff package: the every-minute lease safety net and the 2-minute
+  // «Сегодня» build (staff.counters-flush is hourly: default lane).
+  CRON_JOBS.staffLeaseSweep,
+  CRON_JOBS.staffToday,
 ];
 
 const HEAVY_JOBS: readonly CronJobName[] = [
@@ -412,6 +449,14 @@ const HEAVY_JOBS: readonly CronJobName[] = [
   CRON_JOBS.contactsPepperBackfill,
   CRON_JOBS.treasuryDaily,
   CRON_JOBS.seoGenerate,
+  // Staff package: the nightly aggregates.
+  CRON_JOBS.staffDailyStats,
+  CRON_JOBS.staffRatingNightly,
+  CRON_JOBS.staffHeadScore,
+  CRON_JOBS.staffPiecework,
+  CRON_JOBS.staffAnomalies,
+  CRON_JOBS.staffAiQaNightly,
+  CRON_JOBS.staffRetention,
 ];
 
 export function cronLaneOf(name: string): CronLane {

@@ -285,7 +285,8 @@ describe('JobsRunner', () => {
     // Owner 2026-10-24: + partition.maintain (daily) and partition.tick.
     // Online DDL: + db.bloat-check (nightly).
     // Programmatic SEO 2026-10-27: + seo.generate (nightly, no-op while off).
-    expect(upserts).toHaveLength(90);
+    // Staff package 2026-10-27: + 12 staff.* jobs (no-ops while off).
+    expect(upserts).toHaveLength(102);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );
@@ -619,6 +620,41 @@ describe('CronProcessor', () => {
     ).resolves.toEqual({
       deleted: 1,
     });
+  });
+
+  it('routes every staff.* job to its handler (staff package T1)', async () => {
+    const p = processor();
+    const fields: Record<string, string> = {
+      staffLeaseSweep: CRON_JOBS.staffLeaseSweep,
+      staffCountersFlush: CRON_JOBS.staffCountersFlush,
+      staffToday: CRON_JOBS.staffToday,
+      staffDailyStats: CRON_JOBS.staffDailyStats,
+      staffRatingNightly: CRON_JOBS.staffRatingNightly,
+      staffHeadScore: CRON_JOBS.staffHeadScore,
+      staffPiecework: CRON_JOBS.staffPiecework,
+      staffAnomalies: CRON_JOBS.staffAnomalies,
+      staffAiQaNightly: CRON_JOBS.staffAiQaNightly,
+      staffRetaliationExpire: CRON_JOBS.staffRetaliationExpire,
+      staffRetention: CRON_JOBS.staffRetention,
+      staffWeeklyDigest: CRON_JOBS.staffWeeklyDigest,
+    };
+    const handlers: Record<string, { run: jest.Mock }> = {};
+    for (const [field, name] of Object.entries(fields)) {
+      handlers[field] = {
+        run: jest.fn(() => Promise.resolve({ skipped: 'off', job: name })),
+      };
+    }
+    Object.assign(p.processor as unknown as Record<string, unknown>, handlers);
+    for (const [field, name] of Object.entries(fields)) {
+      await expect(p.processor.process(name)).resolves.toEqual({
+        skipped: 'off',
+        job: name,
+      });
+      expect(handlers[field].run).toHaveBeenCalledTimes(1);
+    }
+    expect(
+      Object.values(CRON_JOBS).filter((n) => n.startsWith('staff.')),
+    ).toHaveLength(12);
   });
 
   it('fails unknown job names instead of silently succeeding', async () => {

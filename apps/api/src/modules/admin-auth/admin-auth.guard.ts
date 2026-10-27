@@ -42,6 +42,10 @@ import {
 } from './admin-permissions';
 import { AdminSessionService } from './admin-session.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import {
+  effectiveWorkspace,
+  workspaceAllows,
+} from '../staff-core/workspace-scope';
 
 export const JUSTIFICATION_MIN = 10;
 /** Handlers whose body DTO declares `reason` (cached per handler). */
@@ -163,7 +167,14 @@ export class AdminAuthGuard implements CanActivate {
         role: true,
         status: true,
         deleted_at: true,
-        admin_profile: { select: { admin_role: true, permissions: true } },
+        admin_profile: {
+          select: {
+            admin_role: true,
+            permissions: true,
+            workspace: true,
+            is_workspace_head: true,
+          },
+        },
         admin_credential: { select: { totp_enabled_at: true } },
       },
     });
@@ -200,10 +211,39 @@ export class AdminAuthGuard implements CanActivate {
       adminRole !== 'super_admin' &&
       !partner &&
       readManageAdmins(user.admin_profile.permissions);
+    // Staff package T1 (plan C3): the workspace (mass / finance / owner).
+    const workspace = effectiveWorkspace(
+      adminRole,
+      user.admin_profile.workspace,
+    );
     if (adminRole === 'super_admin') {
       if (!allowed.includes(adminRole)) throw forbidden();
     } else {
       const path = req.originalUrl || req.url;
+      // Staff package T1: while `staff.workspaces_enabled` is on, a section
+      // of another workspace does not exist for this admin (404 + audit),
+      // whatever the area toggles say — checked before the toggles.
+      if (
+        !workspaceAllows(
+          {
+            role: adminRole,
+            workspace,
+            deputy: manageAdmins,
+            partner: !!partner,
+          },
+          routeArea(path),
+        ) &&
+        (await this.settings?.boolean('staff.workspaces_enabled'))
+      ) {
+        void this.note(
+          'admin.workspace_denied',
+          claims.sub,
+          req.method,
+          path,
+          req.ip,
+        );
+        throw hidden();
+      }
       // Owner 2026-10-02: everyone but the super admin works by the area
       // toggles; money and keys are closed for them in the API itself (not
       // only hidden in the panel). Admin management needs the right the
@@ -302,6 +342,8 @@ export class AdminAuthGuard implements CanActivate {
       partner,
       noPii,
       assignedCountries,
+      workspace,
+      workspaceHead: user.admin_profile.is_workspace_head === true,
       countries: effectiveCountries(
         adminRole === 'super_admin',
         assignedCountries,
@@ -347,7 +389,11 @@ export class AdminAuthGuard implements CanActivate {
    * refetching in a loop must not flood the log). Fire and forget. */
   private readonly recent = new Map<string, number>();
   private async note(
-    action: 'admin.access_denied' | 'admin.view' | 'admin.ip_denied',
+    action:
+      | 'admin.access_denied'
+      | 'admin.view'
+      | 'admin.ip_denied'
+      | 'admin.workspace_denied',
     adminId: string,
     method: string,
     url: string,

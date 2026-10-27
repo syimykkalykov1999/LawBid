@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GRANTABLE_AREAS, GROUPS, SECTIONS, canOpen, fitToMe, groupFor, groupsFor, summarizeRights, tabsFor } from './rbac';
+import { GRANTABLE_AREAS, GROUPS, SECTIONS, WORKSPACE_HEAD_LABEL, WORKSPACE_LABEL, canOpen, fitToMe, groupFor, groupsFor, summarizeRights, tabsFor } from './rbac';
 
 // The 38 pages the menu had before it was grouped (owner 2026-10-05):
 // every one keeps its URL and its own right.
@@ -197,5 +197,13 @@ describe('role x page visibility table', () => {
     const lead = { role: 'support' as const, countryPartnerId: 'p1', partnerLead: true, permissions: { users: 'view' as const } };
     expect(canOpen(lead, '/admins')).toBe(true);
     expect(canOpen({ ...lead, partnerLead: false }, '/admins')).toBe(false);
+  });
+});
+
+describe('staff workspaces (staff package T1)', () => {
+  it('labels the three workspaces of the API enum admin_workspace', () => {
+    expect(Object.keys(WORKSPACE_LABEL).sort()).toEqual(['finance', 'mass', 'owner']);
+    expect(Object.values(WORKSPACE_LABEL).every((l) => l.length > 0)).toBe(true);
+    expect(WORKSPACE_HEAD_LABEL).toBe('Главный пространства');
   });
 });

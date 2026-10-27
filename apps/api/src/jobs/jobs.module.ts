@@ -90,6 +90,14 @@ import { CaseLifecycleModule } from '../modules/cases/lifecycle/case-lifecycle.m
 import { BidsModule } from '../modules/bids/bids.module';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
 import { AdminAuditJobsModule } from '../modules/admin/admin-audit-jobs.module';
+import { StaffCoreModule } from '../modules/staff-core/staff-core.module';
+import { WorkLeaseCoreModule } from '../modules/work-lease/work-lease.module';
+import { StaffRatingCoreModule } from '../modules/staff-rating/staff-rating.module';
+import { StaffAppealsCoreModule } from '../modules/staff-appeals/staff-appeals.module';
+import { StaffPieceworkCoreModule } from '../modules/staff-piecework/staff-piecework.module';
+import { StaffHomeCoreModule } from '../modules/staff-home/staff-home.module';
+import { StaffSecurityCoreModule } from '../modules/staff-security/staff-security.module';
+import { StaffAiCoreModule } from '../modules/staff-ai/staff-ai.module';
 import { DisappearingSweepService } from '../modules/chat/disappearing-sweep.service';
 import { DemoCoreModule } from '../modules/demo/demo.module';
 
@@ -158,6 +166,16 @@ export class JobsModule {
         ConsultationsCoreModule,
         // Owner 2026-10-28: `admin.audit-export`, `admin.access-report`.
         AdminAuditJobsModule,
+        // Staff package 2026-10-27: the `staff.*` jobs (each a no-op while
+        // its switch is off) live in the modules that own them.
+        StaffCoreModule,
+        WorkLeaseCoreModule,
+        StaffRatingCoreModule,
+        StaffAppealsCoreModule,
+        StaffPieceworkCoreModule,
+        StaffHomeCoreModule,
+        StaffSecurityCoreModule,
+        StaffAiCoreModule,
       ],
       providers: [
         { provide: JOBS_OPTIONS, useValue: options },

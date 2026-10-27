@@ -138,6 +138,7 @@ export 'clients/deadlines_client.dart';
 export 'clients/admin_deadlines_client.dart';
 export 'clients/questions_client.dart';
 export 'clients/admin_legal_qa_client.dart';
+export 'clients/admin_staff_client.dart';
 // Data classes
 export 'models/error_code.dart';
 export 'models/error_body_dto.dart';
@@ -2335,6 +2336,8 @@ export 'models/admin_qa_question_list_envelope.dart';
 export 'models/admin_qa_answer_dto.dart';
 export 'models/admin_qa_question_detail_dto.dart';
 export 'models/admin_qa_question_detail_envelope.dart';
+export 'models/staff_settings_dto.dart';
+export 'models/staff_settings_envelope.dart';
 export 'models/progress.dart';
 export 'models/skipped.dart';
 export 'models/role.dart';

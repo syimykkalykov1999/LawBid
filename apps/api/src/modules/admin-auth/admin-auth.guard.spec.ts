@@ -166,6 +166,9 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
       partner: null,
       noPii: false,
       assignedCountries: [],
+      // Staff package T1: no stored workspace = mass, not a head.
+      workspace: 'mass',
+      workspaceHead: false,
       countries: null,
     });
   });

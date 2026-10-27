@@ -1359,6 +1359,7 @@ export const OWNER_LEGAL_QA_SAFETY_SETTINGS = {
 
 import { OWNER_TEXT_LIMIT_SETTINGS } from './text-limits';
 import { OWNER_REALTIME_SETTINGS } from './realtime-settings';
+import { OWNER_STAFF_SETTINGS } from './staff-settings';
 import {
   OWNER_CHAT_PHOTO_SETTINGS,
   OWNER_CLIENT_TUNING_SETTINGS,
@@ -1624,6 +1625,8 @@ export const APP_SETTINGS = {
   ...OWNER_CASE_FANOUT_SETTINGS,
   ...OWNER_COST_REGISTRY_SETTINGS,
   ...OWNER_INFRA_SETTINGS,
+  // Staff package T1 (2026-10-27): «Админка и сотрудники», all switches off.
+  ...OWNER_STAFF_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;
