@@ -1,7 +1,7 @@
 'use client';
 
 import { CaretRight, UserCircle } from '@phosphor-icons/react';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import Link from 'next/link';
 import { StatusPill, ROLE_TEXT, TICKET_STATUS } from '@/lib/labels';
 import { cn, formatDateTime } from '@/lib/utils';
@@ -10,7 +10,7 @@ import { CategoryBadge, initials, PriorityBadge, relativeTime, SlaBadge, type Ti
 /** One inbox row: avatar, subject, user, badges, unread dot, last activity. */
 export function TicketRowItem({ t, i, showStatus }: { t: TicketRow; i: number; showStatus?: boolean }) {
   return (
-    <motion.li
+    <m.li
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: Math.min(i, 12) * 0.03, ease: [0.16, 1, 0.3, 1] }}
@@ -68,6 +68,6 @@ export function TicketRowItem({ t, i, showStatus }: { t: TicketRow; i: number; s
         </span>
         <CaretRight size={14} className="shrink-0 text-faint transition-transform group-hover:translate-x-0.5 group-hover:text-gold-600" />
       </Link>
-    </motion.li>
+    </m.li>
   );
 }

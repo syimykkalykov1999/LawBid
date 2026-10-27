@@ -77,10 +77,13 @@ export function BulkBar({
   noun,
   onSelectAll,
   onClear,
+  cap = SELECT_ALL_CAP,
   children,
 }: {
   selectedCount: number;
   noun: Noun;
+  /** What the badge says when the cap cut the selection (default 2 000). */
+  cap?: number;
   /** Loads every id matching the filter; resolves to whether the cap cut it. */
   onSelectAll: () => Promise<boolean>;
   onClear: () => void;
@@ -97,7 +100,7 @@ export function BulkBar({
       <span className="text-sm font-medium text-ink" data-testid="bulk-count">
         {selectedCount ? `Выбрано: ${count(selectedCount, noun)}` : 'Ничего не выбрано'}
       </span>
-      {capped ? <Badge tone="warning">первые {SELECT_ALL_CAP.toLocaleString('ru-RU')}</Badge> : null}
+      {capped ? <Badge tone="warning">первые {cap.toLocaleString('ru-RU')}</Badge> : null}
       <Button
         size="sm"
         variant="ghost"
@@ -187,6 +190,10 @@ export function AuthorFilterButton({ onPick, active }: { onPick: () => void; act
 
 interface BulkRunOptions {
   ids: string[];
+  /** S18-10: «all matching the filter» — the server resolves the ids, so
+   * the dialog states this count and `sendAll` makes the one call. */
+  count?: number;
+  sendAll?: (reason: string) => Promise<BulkResult>;
   /** "Удалить" — the verb of the dialog title and button. */
   verb: string;
   /** "Удалено" — the verb of the result toast. */
@@ -208,7 +215,7 @@ export function useBulkRun() {
   const { ask, dialog } = useReason();
   const run = useMutation({
     mutationFn: async (o: BulkRunOptions) => {
-      const n = o.ids.length;
+      const n = o.count ?? o.ids.length;
       const a = await ask({
         title: `${o.verb}: ${count(n, o.noun)}?`,
         description: o.description,
@@ -217,7 +224,7 @@ export function useBulkRun() {
         danger: o.danger,
       });
       if (!a) return null;
-      const r = await runInBatches(o.ids, (batch) => o.send(batch, a.text));
+      const r = o.sendAll ? await o.sendAll(a.text) : await runInBatches(o.ids, (batch) => o.send(batch, a.text));
       return { r, o };
     },
     onSuccess: (res) => {

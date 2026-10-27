@@ -4,7 +4,7 @@ import { ArrowCounterClockwise, MagnifyingGlass, Prohibit, SignOut } from '@phos
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   BulkBar,
   bulkData,
@@ -27,7 +27,7 @@ import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { VerifiedBadge } from '@/components/verified-badge';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
-import { collectIds, dayBounds, type Noun } from '@/lib/bulk';
+import { dayBounds, type Noun } from '@/lib/bulk';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 import { US_STATES } from '@/lib/us-states';
@@ -39,6 +39,8 @@ type Role = '' | 'client' | 'attorney' | 'admin';
 type Status = '' | 'active' | 'suspended' | 'deletion_pending' | 'deleted';
 const ROLE_FILTER: Exclude<Role, ''>[] = ['client', 'attorney', 'admin'];
 type BulkAction = components['schemas']['AdminUsersBulkAction'];
+/** Mirrors the server's BULK_PREVIEW_CAP (admin-users.service.ts). */
+const BULK_CAP = 500;
 const USERS: Noun = ['пользователь', 'пользователя', 'пользователей'];
 
 /** Owner 2026-10-04: bulk actions on users, same rights as the single ones. */
@@ -67,6 +69,19 @@ export default function UsersPage() {
   const { data: me } = useMe();
   const canWrite = can(me, 'users', 'manage');
   const sel = useSelection(JSON.stringify(filters));
+  // S18-10: «select all by filter» keeps the FILTER, not 2 000 ids: the
+  // server resolves the users itself (preview count first).
+  const [byFilter, setByFilter] = useState<{ count: number; capped: boolean } | null>(null);
+  const filterKey = JSON.stringify(filters);
+  useEffect(() => setByFilter(null), [filterKey]);
+  const filterBody = {
+    q: filters.q || undefined,
+    role: filters.role || undefined,
+    status: filters.status || undefined,
+    stateCode: filters.stateCode || undefined,
+    from: filters.from,
+    to: filters.to,
+  };
   const bulk = useBulkRun();
   const fetchPage = async (cursor?: string, limit = 20) =>
     (
@@ -88,7 +103,12 @@ export default function UsersPage() {
   const onBulk = (action: BulkAction) => {
     const t = ACTION_TEXT[action];
     bulk.run({
-      ids: [...sel.selected],
+      ids: byFilter ? [] : [...sel.selected],
+      count: byFilter?.count,
+      sendAll: byFilter
+        ? async (reason) =>
+            bulkData(await api.POST('/admin/users/bulk', { body: { action, filter: filterBody, reason } }))
+        : undefined,
       verb: t.verb,
       doneVerb: t.done,
       noun: USERS,
@@ -97,6 +117,7 @@ export default function UsersPage() {
       send: async (ids, reason) => bulkData(await api.POST('/admin/users/bulk', { body: { action, ids, reason } })),
       onDone: () => {
         sel.clear();
+        setByFilter(null);
         void qc.invalidateQueries({ queryKey: ['users'] });
       },
     });
@@ -167,16 +188,18 @@ export default function UsersPage() {
       {bulk.dialog}
       {canWrite ? (
         <BulkBar
-          selectedCount={sel.selected.size}
+          selectedCount={byFilter ? byFilter.count : sel.selected.size}
           noun={USERS}
-          onClear={sel.clear}
+          cap={BULK_CAP}
+          onClear={() => {
+            sel.clear();
+            setByFilter(null);
+          }}
           onSelectAll={async () => {
-            const r = await collectIds(async (c) => {
-              const p = await fetchPage(c, 50);
-              return { data: p.data, nextCursor: p.meta?.nextCursor };
-            });
-            sel.replace(r.ids);
-            return r.capped;
+            const p = (await api.POST('/admin/users/bulk/preview', { body: { filter: filterBody } })).data!.data;
+            sel.clear();
+            setByFilter({ count: p.matched, capped: p.capped });
+            return p.capped;
           }}
         >
           <Button size="sm" variant="outline" className="text-danger" disabled={bulk.pending} onClick={() => onBulk('suspend')}>
@@ -196,7 +219,11 @@ export default function UsersPage() {
           <tr>
             {canWrite ? (
               <Th className="w-8">
-                <PageSelectBox selected={sel.selected} ids={rows.map((u) => u.id)} onToggle={sel.togglePage} />
+                <PageSelectBox selected={sel.selected} ids={rows.map((u) => u.id)} onToggle={(ids) => {
+                    setByFilter(null);
+                    sel.togglePage(ids);
+                  }}
+                />
               </Th>
             ) : null}
             <Th>Пользователь</Th>
@@ -216,7 +243,11 @@ export default function UsersPage() {
               <MotionRow key={u.id} i={i} className="cursor-pointer" onClick={() => router.push(`/users/${u.id}`)}>
                 {canWrite ? (
                   <Td>
-                    <RowSelectBox selected={sel.selected} id={u.id} onToggle={sel.toggle} />
+                    <RowSelectBox selected={sel.selected} id={u.id} onToggle={(id) => {
+                      setByFilter(null);
+                      sel.toggle(id);
+                    }}
+                  />
                   </Td>
                 ) : null}
                 <Td>

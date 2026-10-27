@@ -1,7 +1,7 @@
 'use client';
 
 import { WarningCircle } from '@phosphor-icons/react';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { errorDetail } from '@/lib/api/client';
 
 export function PageHeader({
@@ -16,7 +16,7 @@ export function PageHeader({
   eyebrow?: string;
 }) {
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -30,14 +30,14 @@ export function PageHeader({
         {subtitle ? <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted">{subtitle}</p> : null}
       </div>
       {actions ? <div className="flex w-full flex-wrap items-center gap-2 max-sm:[&>*]:flex-1 sm:w-auto">{actions}</div> : null}
-    </motion.div>
+    </m.div>
   );
 }
 
 export function ErrorNote({ text }: { text: string | null | undefined }) {
   if (!text) return null;
   return (
-    <motion.p
+    <m.p
       role="alert"
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
@@ -45,7 +45,7 @@ export function ErrorNote({ text }: { text: string | null | undefined }) {
     >
       <WarningCircle size={18} className="mt-px shrink-0" />
       <span title={errorDetail(text)}>{text}</span>
-    </motion.p>
+    </m.p>
   );
 }
 

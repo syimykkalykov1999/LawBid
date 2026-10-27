@@ -28,6 +28,8 @@ import {
   AdminUserIdParamDto,
   AdminUserListItemDto,
   AdminUsersBulkDto,
+  AdminUsersBulkPreviewDto,
+  AdminUsersBulkPreviewResultDto,
   AdminUsersQueryDto,
   SanctionResultDto,
   SuspendUserDto,
@@ -108,6 +110,22 @@ export class AdminUsersController {
     @Param() params: AdminUserIdParamDto,
   ): Promise<AdminUserContactsDto> {
     return this.users.contacts(params.id, admin.countries);
+  }
+
+  @Post('bulk/preview')
+  @HttpCode(HttpStatus.OK)
+  @Roles('super_admin', 'moderator')
+  @ApiOperation({
+    summary:
+      'S18-10: how many users a bulk filter matches (read-only, before the action)',
+  })
+  @ApiEnvelopeResponse(AdminUsersBulkPreviewResultDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
+  bulkPreview(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminUsersBulkPreviewDto,
+  ): Promise<AdminUsersBulkPreviewResultDto> {
+    return this.users.bulkPreview(dto.filter, admin.countries);
   }
 
   @Post('bulk')

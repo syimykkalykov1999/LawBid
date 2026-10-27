@@ -4,6 +4,7 @@ import {
   userInScope,
 } from '../countries/country-scope';
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   HttpException,
@@ -40,6 +41,8 @@ import type {
   AdminUserListItemDto,
   AdminUsersPage,
   AdminUsersBulkDto,
+  AdminUsersBulkPreviewResultDto,
+  AdminUsersFilterDto,
   AdminUsersQueryDto,
   SanctionResultDto,
   PhoneChangedDto,
@@ -52,7 +55,15 @@ export const USERS_AUDIT = {
   restore: 'users.restore',
   phoneChanged: 'users.phone_changed',
   passwordReset: 'users.password_reset',
+  bulkFilter: 'users.bulk_filter',
 } as const;
+
+/** S18-10: most users one filter-based bulk call touches (it runs inside
+ * one request: the panel proxy waits up to 120 s for the answer). Owner
+ * 2026-10-25: admin numbers never come from a live count over the users
+ * table, so the preview and the action both read at most cap + 1 ids and
+ * say «capped» instead of counting. */
+export const BULK_PREVIEW_CAP = 500;
 
 const LIST_DEFAULT = 20;
 const PHONE_CHANGES_PER_ADMIN_PER_DAY = 10;
@@ -134,12 +145,12 @@ export class AdminUsersService {
     @Optional() private readonly fraud?: ClientFraudService,
   ) {}
 
-  async search(
-    q: AdminUsersQueryDto,
-    countries: CountryScope = null,
-  ): Promise<AdminUsersPage> {
-    const limit = q.limit ?? LIST_DEFAULT;
-    const cursor = q.cursor ? decodeCursor(q.cursor) : undefined;
+  /** The list's filter as a Prisma where (without the paging cursor); the
+   * bulk «select all matching» (S18-10) resolves ids with the very same one. */
+  private listWhere(
+    q: AdminUsersFilterDto,
+    countries: CountryScope,
+  ): Prisma.UserWhereInput {
     const parsed = parseUserQuery(q.q);
     const byQuery: Prisma.UserWhereInput =
       parsed.kind === 'id'
@@ -164,7 +175,7 @@ export class AdminUsersService {
         ? { country_code: q.countryCode }
         : { id: { in: [] } }
       : userInScope(countries);
-    const where: Prisma.UserWhereInput = {
+    return {
       // Owner 2026-10-05: placeholder rows of partners without an account
       // are not people in the app.
       placeholder_kind: null,
@@ -189,6 +200,17 @@ export class AdminUsersService {
             ],
           }
         : {}),
+    };
+  }
+
+  async search(
+    q: AdminUsersQueryDto,
+    countries: CountryScope = null,
+  ): Promise<AdminUsersPage> {
+    const limit = q.limit ?? LIST_DEFAULT;
+    const cursor = q.cursor ? decodeCursor(q.cursor) : undefined;
+    const where: Prisma.UserWhereInput = {
+      ...this.listWhere(q, countries),
       ...(cursor
         ? {
             OR: [
@@ -637,14 +659,76 @@ export class AdminUsersService {
    * once. Each user goes through the single action (same checks, same audit
    * row per user); one that can't change is skipped, never fails the batch.
    */
-  bulk(admin: AdminActor, dto: AdminUsersBulkDto): Promise<AdminBulkResultDto> {
-    return eachId(dto.ids, (id) =>
+  async bulk(
+    admin: AdminActor,
+    dto: AdminUsersBulkDto,
+  ): Promise<AdminBulkResultDto> {
+    if ((dto.ids === undefined) === (dto.filter === undefined)) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Send exactly one of ids or filter.',
+        details: { field: 'ids' },
+      });
+    }
+    let ids = dto.ids ?? [];
+    if (dto.filter) {
+      // S18-10: the server resolves the ids itself — no stale list from the
+      // browser — and the filter itself goes on record.
+      const found = await this.resolveFilter(dto.filter, admin.countries);
+      ids = found.ids;
+      await this.audit.record({
+        adminId: admin.id,
+        action: USERS_AUDIT.bulkFilter,
+        targetType: 'user_filter',
+        targetId: null,
+        after: {
+          action: dto.action,
+          filter: { ...dto.filter },
+          matched: found.matched,
+          capped: found.capped,
+          processed: ids.length,
+        },
+        ip: admin.ip,
+      });
+    }
+    return eachId(ids, (id) =>
       dto.action === 'suspend'
         ? this.suspend(admin, id, dto.reason)
         : dto.action === 'restore'
           ? this.restore(admin, id)
           : this.revokeSessions(admin, id),
     );
+  }
+
+  /** S18-10: how many users the filter matches (for the confirm dialog):
+   * at most the cap, `capped` when there are more. */
+  async bulkPreview(
+    filter: AdminUsersFilterDto,
+    countries: CountryScope = null,
+  ): Promise<AdminUsersBulkPreviewResultDto> {
+    const found = await this.resolveFilter(filter, countries);
+    return {
+      matched: found.matched,
+      capped: found.capped,
+      cap: BULK_PREVIEW_CAP,
+    };
+  }
+
+  /** The ids the filter matches, bounded: cap + 1 rows tell whether the cap
+   * cut the list without a count over the users table, so at most the cap
+   * is ever touched whatever the filter. */
+  private async resolveFilter(
+    filter: AdminUsersFilterDto,
+    countries: CountryScope,
+  ): Promise<{ ids: string[]; matched: number; capped: boolean }> {
+    const rows = await this.prisma.user.findMany({
+      where: this.listWhere(filter, countries),
+      select: { id: true },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take: BULK_PREVIEW_CAP + 1,
+    });
+    const ids = rows.slice(0, BULK_PREVIEW_CAP).map((r) => r.id);
+    return { ids, matched: ids.length, capped: rows.length > BULK_PREVIEW_CAP };
   }
 
   /** §3.4 suspension. */

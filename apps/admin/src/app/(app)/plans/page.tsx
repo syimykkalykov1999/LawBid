@@ -2,7 +2,7 @@
 
 import { Archive, ArrowsClockwise, PencilSimple, Plus, Stack, Trash, UsersThree, X } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { useMemo, useState } from 'react';
 import { AppPricePreview, DiscountBadge, previewDiscount } from '@/components/billing/app-price-preview';
 import { dollarsToCents, fadeUp, plural, useBillingRole } from '@/components/billing/shared';
@@ -283,7 +283,7 @@ function PostAttachmentsCard({ canWrite }: { canWrite: boolean }) {
   });
   const mode = q.data?.mode ?? 'by_subscription';
   const keep = q.data?.keepAfterCancel ?? true;
-  const current = ATTACHMENT_MODES.find((m) => m.value === mode)!;
+  const current = ATTACHMENT_MODES.find((mm) => mm.value === mode)!;
   return (
     <Card className="mb-5">
       <h3 className="font-medium">Вложения в постах и рилсах</h3>
@@ -295,7 +295,7 @@ function PostAttachmentsCard({ canWrite }: { canWrite: boolean }) {
         <Tabs
           value={mode}
           onChange={(v) => canWrite && save.mutate({ mode: v, keepAfterCancel: keep })}
-          items={ATTACHMENT_MODES.map((m) => ({ value: m.value, label: m.label }))}
+          items={ATTACHMENT_MODES.map((mm) => ({ value: mm.value, label: mm.label }))}
         />
       </div>
       <p className="mt-2 text-xs text-muted">{current.note}</p>
@@ -577,7 +577,7 @@ function PlanCard({
   const canArchive = p.status !== 'archived';
   const canDelete = p.status !== 'active' && p.subscribers === 0;
   return (
-    <motion.div {...fadeUp(i)}>
+    <m.div {...fadeUp(i)}>
       <Card spotlight className={cn('flex h-full flex-col p-5', p.status === 'archived' && 'opacity-70')}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -636,13 +636,13 @@ function PlanCard({
           ) : null}
         </div>
       </Card>
-    </motion.div>
+    </m.div>
   );
 }
 
 function BaselineCard({ plan: p, catalog, canWrite, onEdit }: { plan: Plan; catalog: Def[]; canWrite: boolean; onEdit: () => void }) {
   return (
-    <motion.div {...fadeUp(0)}>
+    <m.div {...fadeUp(0)}>
       <Card className="border-dashed bg-surface/60 p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -666,7 +666,7 @@ function BaselineCard({ plan: p, catalog, canWrite, onEdit }: { plan: Plan; cata
           <Chips items={entitlementChips(p, catalog)} empty="Никаких возможностей — всё только по подписке" />
         </div>
       </Card>
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -856,9 +856,9 @@ function PlanDialog({
     [catalog, d.audience],
   );
   const groups = useMemo(() => {
-    const m = new Map<string, Def[]>();
-    for (const def of defs) m.set(def.group, [...(m.get(def.group) ?? []), def]);
-    return [...m.entries()];
+    const grp = new Map<string, Def[]>();
+    for (const def of defs) grp.set(def.group, [...(grp.get(def.group) ?? []), def]);
+    return [...grp.entries()];
   }, [defs]);
 
   // Switching the audience in "create" rebuilds the entitlement draft.

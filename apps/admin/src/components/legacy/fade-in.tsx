@@ -1,6 +1,6 @@
 'use client';
 
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 
 /** Subtle entrance: fade + 10px rise, small stagger by index. */
 export function FadeIn({
@@ -13,14 +13,14 @@ export function FadeIn({
   className?: string;
 }) {
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, delay: Math.min(i, 10) * 0.04, ease: [0.16, 1, 0.3, 1] }}
       className={className}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -37,7 +37,7 @@ export function MotionRow({
   onClick?: () => void;
 }) {
   return (
-    <motion.tr
+    <m.tr
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: Math.min(i, 12) * 0.03, ease: [0.16, 1, 0.3, 1] }}
@@ -45,6 +45,6 @@ export function MotionRow({
       onClick={onClick}
     >
       {children}
-    </motion.tr>
+    </m.tr>
   );
 }
