@@ -52,6 +52,7 @@ import { NotificationsRetentionJob } from './handlers/notifications-retention.jo
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { SearchIndexJob } from './handlers/search-index.job';
+import { CdnInvalidateJob } from './handlers/cdn-invalidate.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
 import { DbHealthJob } from './handlers/db-health.job';
 import { LedgerModule } from '../modules/ledger/ledger.public';
@@ -181,6 +182,8 @@ export class JobsModule {
         AdminSummariesJob,
         // Owner 2026-10-24: `search.index` (search-engine outbox).
         SearchIndexJob,
+        // Owner 2026-10-25: `cdn.invalidate` (queued CloudFront paths).
+        CdnInvalidateJob,
         LedgerReconcileJob,
         // DB-ops hardening: `db.health` (daily).
         DbHealthJob,

@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
+import type Redis from 'ioredis';
 import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -6,6 +12,8 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
+import { PRACTICE_TREE_CACHE_KEY } from '../../common/cache/cache-keys';
 import { caseIdsByTitle, postIdsMatching } from './admin-text-search';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -142,7 +150,13 @@ export class AdminContentService {
     private readonly fanout: BroadcastFanoutRunner,
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() private readonly summary?: AdminSummaryService,
+    // Caching round 2 (S2-5): the practice-area tree copy is dropped on edit.
+    @Optional() @Inject(REDIS_CACHE_CLIENT) private readonly cache?: Redis,
   ) {}
+
+  private async dropPracticeTree(): Promise<void> {
+    await this.cache?.del(PRACTICE_TREE_CACHE_KEY).catch(() => undefined);
+  }
 
   /** Audit 2026-10-01: the admin's content actions go through the
    * moderation status path — posts_count / comment_count / reply_count
@@ -506,6 +520,7 @@ export class AdminContentService {
       },
     });
     if (r.count === 0) throw notFound();
+    await this.dropPracticeTree();
     return this.practiceAreas();
   }
 
@@ -528,6 +543,7 @@ export class AdminContentService {
         sort: 999,
       },
     });
+    await this.dropPracticeTree();
     return this.practiceAreas();
   }
 

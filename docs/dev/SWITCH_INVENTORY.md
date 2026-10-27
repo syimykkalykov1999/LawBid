@@ -12,6 +12,7 @@ Rows are sorted by key: insert a new row at its alphabetical place (never append
 | key | Русский ярлык (админка) | default | state | what it controls | reader | ceiling key | tested | registry row (fill after #372) |
 |---|---|---|---|---|---|---|---|---|
 | `billing.stripe_tax_enabled` | Stripe Tax | off | 2 | automatic_tax on subscriptions | `modules/billing/subscriptions.service.ts:1087` | none | yes | |
+| `cache.redis_mode` | Где лежат кэши людей (отдельный Redis) | auto | 3 (off/on/auto) | per-user caches (feed first page, block set, plan terms) on the separate cache Redis or the main Redis; re-read every 30 s | `redis/cache-redis-mode.ts:56` | none | yes | |
 | `case_fanout.enabled` | Волны оповещений о делах | off | 2 | new-case alerts in waves | `modules/notifications/case-fanout/case-fanout.settings.ts:56` | `case_fanout.max_waves`, `daily_cap` | yes | |
 | `chat.link_preview_enabled` | Карточки ссылок в чате | auto | 3 (off/on/auto, old boolean accepted) | outbound page fetch | `modules/link-preview/link-preview.service.ts:121` | `chat.link_preview_per_user_per_day` (+ per-minute and global constants) | yes | |
 | `chat.search.backfill_mode` | Индексация старых сообщений для поиска | auto | 3 (off/on/auto) | landed on main after this inventory was written | `jobs/handlers/chat-search-backfill.job.ts:95` | see the setting | listed | |

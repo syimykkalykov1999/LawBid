@@ -827,6 +827,31 @@ export const OWNER_STORAGE_SETTINGS = {
   'storage.purge_after_days': 7,
   'storage.deleted_posts_media_days': 30,
   'storage.image_format': 'webp',
+  /** Owner 2026-10-25 (caching round 2, S2-1): a removed photo / file is
+   * also pulled from the CloudFront edge (one wildcard path per file,
+   * queued and sent in batches). Needs the distribution id from the infra.
+   * CloudFront bills per path after the first 1000 a month, hence the cap. */
+  'cdn.invalidate_on_delete': 'auto',
+  'cdn.invalidate_batch_paths': 500,
+  'cdn.invalidate_max_paths_day': 500,
+  'cdn.invalidate_max_paths_month': 5000,
+  /** Where per-user caches (feed first page, block set, plan terms) live:
+   * `auto` = the separate cache Redis when REDIS_CACHE_URL is set, `on` =
+   * same, `off` = the main Redis (as before the split). */
+  'cache.redis_mode': 'auto',
+  /** Ceiling in seconds on the lifetime of every shared cache entry made
+   * by the `cached()` helper (block sets, plan terms, practice areas,
+   * recommendations...). 0 = none (each key keeps its own, 60-300 s). */
+  'cache.max_ttl_sec': 0,
+  /** Caching round 2 (S2-8): seconds the viewer-independent body of a public
+   * attorney profile is kept in Redis (an own-profile edit drops it).
+   * 0 = off (every open reads the database, as before). */
+  'cache.attorney_profile_sec': 60,
+  /** S2-12: post, case, chat-list and notification answers carry a cheap
+   * version tag computed before the queries; the same tag within this many
+   * seconds (and no change of the stamps) is a 304 with no database work.
+   * 0 = off (the old body-hash tag, every call runs fully). */
+  'cache.cheap_etag_sec': 60,
   /** Owner 2026-10-25: AVIF twins of public photos (≈40-50% smaller than
    * WebP). OFF by default. `images.avif_enabled` writes the twins at
    * upload; they are served only to clients that send

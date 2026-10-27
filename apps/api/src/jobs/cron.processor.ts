@@ -48,6 +48,7 @@ import {
 import { AppSettingsService } from '../common/app-settings/app-settings.service';
 import { EventsMaintenance } from '../modules/events/events.maintenance';
 import { SearchIndexJob } from './handlers/search-index.job';
+import { CdnInvalidateJob } from './handlers/cdn-invalidate.job';
 import { ExperimentsNightlyJob } from '../modules/experiments/experiments-nightly.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
 import { DbHealthJob } from './handlers/db-health.job';
@@ -170,6 +171,8 @@ export class CronProcessor {
     @Optional() private readonly eventsMaintenance?: EventsMaintenance,
     // Owner 2026-10-24: `search.index`.
     @Optional() private readonly searchIndex?: SearchIndexJob,
+    // Owner 2026-10-25: `cdn.invalidate`.
+    @Optional() private readonly cdnInvalidate?: CdnInvalidateJob,
     // Owner 2026-10-25: `experiments.metrics`.
     @Optional() private readonly experimentsNightly?: ExperimentsNightlyJob,
     // Day-one foundations: `ledger.reconcile`.
@@ -278,6 +281,8 @@ export class CronProcessor {
         return this.opsMetrics.queueDepths();
       case CRON_JOBS.searchIndex:
         return this.searchIndex?.run() ?? null;
+      case CRON_JOBS.cdnInvalidate:
+        return this.cdnInvalidate?.run() ?? null;
       case CRON_JOBS.experimentsMetrics:
         return this.experimentsNightly?.run() ?? null;
       case CRON_JOBS.ledgerReconcile:

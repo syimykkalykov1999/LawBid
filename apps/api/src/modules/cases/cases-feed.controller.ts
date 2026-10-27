@@ -9,7 +9,10 @@ import {
   Param,
   Post,
   Query,
+  Req,
+  Res,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import {
   ApiBearerAuth,
   ApiExtension,
@@ -22,6 +25,8 @@ import {
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { conditionalGet } from '../../common/sync/cheap-etag';
+import { VersionEtagService } from '../../common/sync/version-etag.service';
 import {
   CurrentUser,
   type RequestUser,
@@ -60,7 +65,10 @@ const E = ErrorCode;
 @ApiErrors(AUTHENTICATED_ERRORS)
 @Controller()
 export class CasesFeedController {
-  constructor(private readonly feed: CasesFeedService) {}
+  constructor(
+    private readonly feed: CasesFeedService,
+    private readonly versionEtag: VersionEtagService,
+  ) {}
 
   // Audit 2026-10-02: assistants need the "cases" duty.
   @RequiresDuty('cases')
@@ -83,11 +91,21 @@ export class CasesFeedController {
   })
   @ApiEnvelopeResponse(CaseDetailForAttorneyDto)
   @ApiErrors({ 404: [E.CASE_NOT_AVAILABLE] })
-  getCaseDetail(
+  async getCaseDetail(
     @CurrentUser() user: RequestUser,
     @Param() params: CaseIdParamDto,
-  ): Promise<CaseDetailForAttorneyDto> {
-    return this.feed.getDetailForAttorney(user.sub, params.id);
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<CaseDetailForAttorneyDto | undefined> {
+    // Owner 2026-10-25 (S2-12): a version tag computed before the queries;
+    // a match is a 304 once the case is still visible to this attorney.
+    return conditionalGet(
+      req,
+      res,
+      await this.versionEtag.caseDetail(user.sub, params.id, 'attorney'),
+      () => this.feed.assertVisible(user.sub, params.id),
+      () => this.feed.getDetailForAttorney(user.sub, params.id),
+    );
   }
 
   // Audit 2026-10-02: assistants need the "cases" duty.

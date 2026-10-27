@@ -96,6 +96,7 @@ import { JournalModule } from './modules/journal/journal.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { PlansCoreModule } from './modules/plans/plans.module';
 import { AppSettingsModule } from './common/app-settings/app-settings.module';
+import { VersionEtagModule } from './common/sync/version-etag.module';
 import { VerificationModule } from './modules/verification/verification.module';
 import {
   AttorneyTrustCoreModule,
@@ -400,6 +401,7 @@ const isDev =
     JournalModule,
     SubscriptionsModule,
     AppSettingsModule,
+    VersionEtagModule,
     // Global NotificationsService.emit() seam (delivery: docs/05).
     NotificationsModule,
     VerificationModule,

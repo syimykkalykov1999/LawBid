@@ -121,6 +121,10 @@ export const envSchema = z
       .int()
       .positive()
       .default(500),
+    // Caching round 2 (S2-7): seconds the global keys (feature flags, plan
+    // terms) stay in process memory in front of Redis. 0 = off.
+    // Read by common/cache/l1-cache.ts.
+    CACHE_L1_TTL_SEC: z.coerce.number().int().min(0).max(60).default(5),
     // Owner 2026-10-22 (server load audit, finding 5): the Socket.IO Redis
     // adapter. `sharded` (Redis 7 sharded pub/sub: an event reaches only the
     // instances holding its room); `classic` = the old pub/sub, a rollback
@@ -429,6 +433,17 @@ export const envSchema = z
     CLOUDFRONT_PRIVATE_KEY_ID: optionalMatching(
       /^[A-Z0-9]{10,20}$/,
       'CLOUDFRONT_PRIVATE_KEY_ID must be a CloudFront public key id',
+    ),
+    // Owner 2026-10-25 (S2-1): the CloudFront distributions to invalidate
+    // when a public photo / private file is removed for good. Unset = the
+    // edge copy simply expires by its TTL.
+    CLOUDFRONT_MEDIA_DISTRIBUTION_ID: optionalMatching(
+      /^[A-Z0-9]{10,20}$/,
+      'CLOUDFRONT_MEDIA_DISTRIBUTION_ID must be a CloudFront distribution id',
+    ),
+    CLOUDFRONT_PRIVATE_DISTRIBUTION_ID: optionalMatching(
+      /^[A-Z0-9]{10,20}$/,
+      'CLOUDFRONT_PRIVATE_DISTRIBUTION_ID must be a CloudFront distribution id',
     ),
     CLOUDFRONT_PRIVATE_KEY_PEM: optionalMatching(
       /-----BEGIN (RSA )?PRIVATE KEY-----/,

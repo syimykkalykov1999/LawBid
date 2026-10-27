@@ -1455,6 +1455,10 @@ locals {
     # is the CLOUDFRONT_PRIVATE_KEY_PEM secret in extra_secrets).
     CLOUDFRONT_PRIVATE_DOMAIN = module.s3.documents_cdn_domain == null ? "" : module.s3.documents_cdn_domain
     CLOUDFRONT_PRIVATE_KEY_ID = module.s3.documents_cdn_key_pair_id == null ? "" : module.s3.documents_cdn_key_pair_id
+    # Caching round 2 (S2-1): the distributions to invalidate when a file is
+    # removed for good (the bunny image CDN has its own purge, not this).
+    CLOUDFRONT_MEDIA_DISTRIBUTION_ID   = var.growth.cdn_images_provider == "bunny" ? "" : module.s3.media_cdn_distribution_id
+    CLOUDFRONT_PRIVATE_DISTRIBUTION_ID = module.s3.documents_cdn_distribution_id == null ? "" : module.s3.documents_cdn_distribution_id
     # KMS key that wraps the data keys inside MESSAGE_ENC_KEYS /
     # SECRETS_MASTER_KEYS ("<kid>:kms:<base64 ciphertext>", decrypted once
     # at boot — src/common/secrets/kms-env.ts). Owner steps: DEPLOY_PROD.md.
@@ -1709,20 +1713,26 @@ locals {
 }
 
 module "ecs" {
-  source                   = "../ecs"
-  name                     = local.name
-  readonly_root_filesystem = var.ecs_readonly_root_filesystem
-  private_subnet_ids       = module.network.private_subnet_ids
-  tasks_security_group_id  = aws_security_group.tasks.id
-  api_target_group_arn     = module.alb.api_target_group_arn
-  api_ws_target_group_arn  = module.alb.api_ws_target_group_arn
-  admin_target_group_arn   = module.alb.admin_target_group_arn
-  api_image                = var.api_image
-  admin_image              = var.admin_image
-  kms_key_arn              = module.kms.key_arn
-  tracing_enabled          = var.tracing_enabled
-  tracing_sample_ratio     = var.tracing_sample_ratio
-  api_env                  = merge(local.api_env_effective, local.db_pooler_env, local.db_pooler_ca_env)
+  source                          = "../ecs"
+  name                            = local.name
+  readonly_root_filesystem        = var.ecs_readonly_root_filesystem
+  vpc_id                          = module.network.vpc_id
+  private_subnet_ids              = module.network.private_subnet_ids
+  tasks_security_group_id         = aws_security_group.tasks.id
+  api_target_group_arn            = module.alb.api_target_group_arn
+  api_ws_target_group_arn         = module.alb.api_ws_target_group_arn
+  admin_target_group_arn          = module.alb.admin_target_group_arn
+  api_image                       = var.api_image
+  admin_image                     = var.admin_image
+  kms_key_arn                     = module.kms.key_arn
+  tracing_enabled                 = var.tracing_enabled
+  tracing_sample_ratio            = var.tracing_sample_ratio
+  api_env                         = merge(local.api_env_effective, local.db_pooler_env, local.db_pooler_ca_env)
+  cloudfront_invalidation_enabled = true
+  cloudfront_invalidation_arns = concat(
+    [module.s3.media_cdn_distribution_arn],
+    module.s3.documents_cdn_distribution_arn == null ? [] : [module.s3.documents_cdn_distribution_arn],
+  )
   admin_env = {
     NODE_ENV      = "production"
     API_BASE_URL  = "https://${var.api_host}/api/v1"
