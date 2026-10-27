@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/design_system/widgets/display/pinch_to_zoom.dart';
 import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart';
 import 'package:lawbid/core/diagnostics/perf_marks.dart';
@@ -2125,10 +2126,15 @@ class GoldRingAvatar extends StatelessWidget {
     required this.size,
     this.url,
     this.ring = false,
+    this.fullUrl,
     super.key,
   });
 
   final String? url;
+
+  /// Owner 2026-10-26: the full-size photo, tried when [url] (the 256 px
+  /// preview) cannot be loaded.
+  final String? fullUrl;
   final String initials;
   final double size;
   final bool ring;
@@ -2139,11 +2145,10 @@ class GoldRingAvatar extends StatelessWidget {
     final avatar = AppAvatar(
       imageProvider: url == null
           ? null
-          : CachedNetworkImageProvider(
+          // Kept by the file, retried on a fresh link (StableNetworkImage).
+          : stableNetworkImage(
               url!,
-              // Signed URLs change per request: cache by the stable path.
-              cacheKey: Uri.parse(url!).path,
-              cacheManager: AppImageCaches.feed,
+              fallbackUrls: [if (fullUrl != null) fullUrl!],
             ),
       initials: initials,
       size: ring ? size - 4 : size,

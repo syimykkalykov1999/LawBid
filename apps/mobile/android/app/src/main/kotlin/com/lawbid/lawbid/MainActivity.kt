@@ -286,6 +286,17 @@ class MainActivity : FlutterFragmentActivity() {
                         ChatNotifications.clearAll(applicationContext)
                         result.success(null)
                     }
+                    // Owner 2026-10-26: «Ответить» / «Прочитано» on a chat
+                    // notification answer through this server with this
+                    // device's push token (PushActionReceiver).
+                    "setPushActions" -> {
+                        ChatNotifications.setPushActions(
+                            applicationContext,
+                            call.argument<String>("url"),
+                            call.argument<String>("token"),
+                        )
+                        result.success(null)
+                    }
                     "pendingOpen" -> {
                         result.success(pendingChatOpen)
                         pendingChatOpen = null

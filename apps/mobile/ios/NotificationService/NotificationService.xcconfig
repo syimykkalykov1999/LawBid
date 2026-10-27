@@ -1,0 +1,5 @@
+// Owner 2026-10-26: build settings of the NotificationService extension —
+// FLUTTER_BUILD_NAME / FLUTTER_BUILD_NUMBER come from Flutter, so the
+// extension's version matches the app's (App Store requires it). No Pods:
+// the extension links nothing but the system frameworks.
+#include? "../Flutter/Generated.xcconfig"

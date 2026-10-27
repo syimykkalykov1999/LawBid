@@ -36,7 +36,8 @@
     "i18n:import": "node dist/src/cli/import-translations.js",
     "flags:sync": "ts-node --transpile-only scripts/sync-flag-defaults.ts",
     "counters:reconcile": "ts-node --transpile-only scripts/counters-reconcile.ts",
-    "media:migrate-r2": "ts-node --transpile-only scripts/migrate-public-media-to-r2.ts"
+    "media:migrate-r2": "ts-node --transpile-only scripts/migrate-public-media-to-r2.ts",
+    "media:avatar-previews": "ts-node --transpile-only scripts/backfill-avatar-previews.ts"
   },
   "dependencies": {
     "@aws-sdk/client-application-auto-scaling": "^3.1146.0",
@@ -135,7 +136,7 @@
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.7.3",
+    "typescript": "^7.0.2",
     "typescript-eslint": "^8.71.2"
   },
   "jest": {

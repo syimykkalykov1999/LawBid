@@ -176,9 +176,12 @@ export class SearchService {
 
   /** The per-person search budget. A guest has none of their own: the
    * per-IP guest budget of JwtAuthGuard stands in for it. */
-  private async consumeSearch(user: RequestUser): Promise<void> {
+  private async consumeSearch(
+    user: RequestUser,
+    action: 'search' | 'search_suggest' = 'search',
+  ): Promise<void> {
     if (user.guest) return;
-    await this.limits.consume('search', user.sub);
+    await this.limits.consume(action, user.sub);
   }
 
   /**
@@ -370,7 +373,7 @@ export class SearchService {
     user: RequestUser,
     rawQ: string,
   ): Promise<{ code: string; nameEn: string; hit: string | null }[]> {
-    await this.consumeSearch(user);
+    await this.consumeSearch(user, 'search_suggest');
     const q = normalizeQuery(rawQ);
     if (q.length < 2) return [];
     return this.provider.practiceMatches(q, 25);
@@ -381,7 +384,7 @@ export class SearchService {
     user: RequestUser,
     rawQ: string,
   ): Promise<{ kind: 'tag' | 'person' | 'practice'; text: string }[]> {
-    await this.consumeSearch(user);
+    await this.consumeSearch(user, 'search_suggest');
     const q = normalizeQuery(rawQ);
     if (q.length < 1) return [];
     const hash = createHash('sha256').update(q).digest('base64url');
@@ -437,9 +440,21 @@ export class SearchService {
   }
 
   async tags(user: RequestUser, rawQ: string): Promise<TagDto[]> {
-    await this.consumeSearch(user);
+    await this.consumeSearch(user, 'search_suggest');
     const prefix = normalizeQuery(rawQ);
     if (prefix.length < 1) throw invalid('q', 'Empty tag.');
+    // Type-ahead, same for everyone: a short shared cache (like suggest).
+    const key = `search:tags:${createHash('sha256').update(prefix).digest('base64url')}`;
+    const hit = await this.cache.get(key);
+    if (hit) return JSON.parse(hit) as TagDto[];
+    return singleFlight(key, async () => {
+      const out = await this.tagsUncached(prefix);
+      await this.cache.set(key, JSON.stringify(out), 'EX', jitterTtl(60));
+      return out;
+    });
+  }
+
+  private async tagsUncached(prefix: string): Promise<TagDto[]> {
     const tags = await this.provider.searchTags(prefix, PAGE);
     if (tags.length === 0) return [];
     // Audit 2026-10-01: how many published posts carry each tag; the most

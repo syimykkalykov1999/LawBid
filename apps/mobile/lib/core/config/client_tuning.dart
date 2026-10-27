@@ -26,6 +26,8 @@ abstract final class ClientTuning {
   static int _videoCacheChunkS = 4;
   static double _chatPhotoMaxPx = 1600;
   static int _chatPhotoQuality = 82;
+  static int _sentryTracesPercent = 0;
+  static int _traceparentPercent = 5;
 
   /// S15-12: receive timeout of the latency-critical reads (the start's
   /// `GET /me/session` and `/config/bootstrap`) instead of the 15 s every
@@ -73,6 +75,15 @@ abstract final class ClientTuning {
   static double get chatPhotoMaxPx => _chatPhotoMaxPx;
   static int get chatPhotoQuality => _chatPhotoQuality;
 
+  /// Share of sessions (percent) whose performance trace goes to Sentry
+  /// (`client.sentry_traces_percent`); 0 = off. Also needs the person's
+  /// analytics consent (core/diagnostics/sentry_native.dart).
+  static int get sentryTracesPercent => _sentryTracesPercent;
+
+  /// Share of API calls (percent) sent with a W3C `traceparent` header
+  /// (`client.traceparent_percent`); 0 = never.
+  static int get traceparentPercent => _traceparentPercent;
+
   /// The 1, 2, 4 … wait of retry number [failures] (1-based), at most
   /// [outboxRetryMaxS] seconds. One rule for the chat outbox, the upload
   /// queue and the storage uploader.
@@ -114,6 +125,8 @@ abstract final class ClientTuning {
       4096,
     ).toDouble();
     _chatPhotoQuality = pick('media.chat_photo_quality', 82, 50, 100);
+    _sentryTracesPercent = pick('client.sentry_traces_percent', 0, 0, 100);
+    _traceparentPercent = pick('client.traceparent_percent', 5, 0, 100);
   }
 
   /// Back to the starter values (tests).
