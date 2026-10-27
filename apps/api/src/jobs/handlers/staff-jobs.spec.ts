@@ -2,7 +2,6 @@ import type { AppSettingsService } from '../../common/app-settings/app-settings.
 import type { PrismaService } from '../../prisma/prisma.service';
 import { StaffSettingsService } from '../../modules/staff-core/staff-settings.service';
 import type { StaffSwitchKey } from '../../modules/staff-core/staff-settings.defaults';
-import { StaffAiQaNightlyJob } from './staff-ai-qa-nightly.job';
 import { StaffAnomaliesJob } from './staff-anomalies.job';
 import { StaffCountersFlushJob } from './staff-counters-flush.job';
 import { StaffDailyStatsJob } from './staff-daily-stats.job';
@@ -72,11 +71,6 @@ const stubs: Array<
     ['staff.anomalies_enabled'],
   ],
   [
-    'staff.ai-qa-nightly',
-    (s) => new StaffAiQaNightlyJob(s),
-    ['staff.ai_enabled', 'staff.ai_qa_enabled'],
-  ],
-  [
     'staff.retaliation-expire',
     (s) => new StaffRetaliationExpireJob(s),
     ['staff.appeals_enabled'],
@@ -102,12 +96,7 @@ describe('staff.* cron jobs (staff package T1 stubs)', () => {
     });
   });
 
-  it('staff.ai-qa-nightly: the sub-switch alone (master off) makes no AI call', async () => {
-    const job = new StaffAiQaNightlyJob(
-      settings({ 'staff.ai_qa_enabled': true }),
-    );
-    await expect(job.run()).resolves.toEqual({ skipped: 'off' });
-  });
+  // staff.ai-qa-nightly is built (T12): see staff-ai-qa-nightly.job.spec.ts.
 });
 
 describe('staff.retention', () => {
