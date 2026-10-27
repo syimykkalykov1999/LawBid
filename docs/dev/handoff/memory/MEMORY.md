@@ -18,3 +18,4 @@
 - [Smoothness standard](smoothness-standard.md) — app+web must feel like Instagram/Telegram/WhatsApp; smoothness always in scope, look frozen
 - [Security principle](security-principle.md) — withstand automated AI attackers, zero friction for legit users; attack-and-fix loop LAST, local only
 - [Staff performance like Uber](staff-performance-uber.md) — approved 2026-10-26: admin KPI/quality/rating/auto-flags/piecework pay, owner sees only short list; build after merges, before desktop web
+- [No private narration](no-private-narration.md) — never write "Privately:/Needed next:" status lines; silent ticks output nothing
