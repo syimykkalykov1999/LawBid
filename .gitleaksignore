@@ -43,3 +43,10 @@ c97c5fb3e4326122b5d395a7c9a7d14c94d86205:apps/api/src/jobs/handlers/chat-search-
 c97c5fb3e4326122b5d395a7c9a7d14c94d86205:apps/api/src/modules/chat/chat-search-query.spec.ts:generic-api-key:11
 c97c5fb3e4326122b5d395a7c9a7d14c94d86205:apps/api/src/modules/chat/chat-search-tokens.spec.ts:generic-api-key:14
 c97c5fb3e4326122b5d395a7c9a7d14c94d86205:apps/api/test/support/blind-index-env.ts:generic-api-key:10
+# Deploy safety 2026-10-27 (PR #477): stand-in key material in the env
+# contract spec of commit 2a1cf93eb (a made-up base64 string and a PEM armor
+# around the word "stand-in"), not credentials. The next commit builds them at
+# run time, so no key-shaped literal is left; history cannot be rewritten
+# (no force-push), hence these two fingerprints.
+2a1cf93eb17c68291c3f7237b6b3f123cc529389:apps/api/src/config/config-contract.spec.ts:generic-api-key:51
+2a1cf93eb17c68291c3f7237b6b3f123cc529389:apps/api/src/config/config-contract.spec.ts:private-key:113

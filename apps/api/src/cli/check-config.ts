@@ -54,7 +54,7 @@ function safeMessage(e: unknown): string {
 async function checkPostgres(url: string): Promise<string | null> {
   const prisma = new PrismaClient({ datasources: { db: { url } } });
   try {
-    await withTimeout(prisma.$queryRawUnsafe('SELECT 1'), 10_000, 'Postgres');
+    await withTimeout(prisma.$queryRaw`SELECT 1`, 10_000, 'Postgres');
     return null;
   } catch (e) {
     return `Postgres: ${safeMessage(e)}`;

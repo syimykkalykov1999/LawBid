@@ -66,7 +66,7 @@ Terraform apply, права для SEO, пара решений «да/нет»)
 | 5 | P1 | Нет контракта env «код ↔ Terraform»; найдено: наборы «все или ни одного» `FCM_PROJECT_ID/FCM_CLIENT_EMAIL/FCM_PRIVATE_KEY` и `CLOUDFRONT_PRIVATE_DOMAIN/_KEY_ID/_KEY_PEM` — заполнили tfvars без `extra_secrets` → api не стартует | `env.schema.ts:1128-1149`; `infra/modules/stack/main.tf:786-798,1477-1580` | **Исправлено**: `src/config/config-contract.spec.ts`; `api-ci.yml` теперь запускается и на изменения `infra/modules/stack/main.tf`, `infra/modules/ecs/main.tf` |
 | 6 | P1 | `cdn.invalidate` шлёт до 500 wildcard-путей одним запросом; CloudFront держит ≤15 wildcard «в работе» → отказ, пути крутятся по кругу, копии удалённых файлов живут в CDN до TTL | `src/modules/files/storage/cdn-invalidation.ts:107`; `app-settings.defaults.ts:1021` | **Исправлено**: потолок 15 на запрос (`MAX_WILDCARD_PATHS_PER_REQUEST`) + тест |
 | 7 | P1 | Сторож «Очереди» смотрел только `cron`, а сигнальные задачи (метрики очередей, ops guard, сам сторож) переехали в `cron-fast`, тяжёлые — в `cron-heavy` | `src/common/ops/status/status-probes.service.ts:285` | **Исправлено**: все три линии, худшая определяет цвет, `lanes` в detail + тест |
-| 8 | P1 | Нет тревоги CloudWatch на: одну постоянно падающую cron-задачу (privacy.retention, ledger.reconcile, seo.generate, staff.*) — `queue-failed-critical` не включает cron-линии, `queue-failed-many` требует ≥10/5 мин; на упавшую migrate-задачу — только issue в GitHub | `infra/modules/monitoring/main.tf:369-372` | Шаг Terraform (ниже) |
+| 8 | P1 | Нет тревоги CloudWatch на: одну постоянно падающую cron-задачу (privacy.retention, ledger.reconcile, seo.generate, staff.*) — `queue-failed-critical` не включает cron-линии, `queue-failed-many` требует ≥10/5 мин; на упавшую migrate-задачу — только issue в GitHub | `infra/modules/monitoring/main.tf:369-372` | Закрыто в Terraform PR #480 (`cron-job-failing`, `migrate-failed`) — нужен apply |
 | 9 | P1 | Terraform сильно отстаёт от кода (94 файла, 15 новых модулей). Тревоги отката ECS (`alarms { rollback = true }`) при частичном apply могут откатывать хорошую версию воркера (метрика `HeapUsedMb` отсутствует → breaching) | `infra/modules/ecs/main.tf` (alarms), `infra/modules/monitoring/main.tf` | Шаг владельца: apply одним сохранённым планом, ДО выкладки кода |
 | 10 | P1 | Новые значения enum (legal_doc_type, notification_type, case_journal_event, data_request_type) пишут новые задачи; старый Prisma-клиент (8248bb3ee) падает при чтении → список юр. документов в админке ломается на время выкладки и **навсегда после отката** | `20261028600000_*`, `20261107116310_*:40`, `20261107122000_*:3-6`; `LegalDocumentsSeed.onModuleInit` | Принято как риск (только админка); откат = сначала удалить черновики новых типов (команда ниже) |
 
@@ -206,7 +206,7 @@ date» ВЫКЛ, без второго человека):
   (`stack/main.tf:1443,1479`) → при 50/20 задачах = 3. Worker теперь крутит до
   5 maintenance-задач одновременно (`CRON_LANE_CONCURRENCY`, `jobs.constants.ts:33`)
   на пуле 3 → «Timed out fetching a new connection» (P1). Решение: отдельный
-  `WORKER_DB_POOL_SIZE` ≥ 6 или PgBouncer (`db_pooler_enabled`).
+  `worker_db_pool_size` = 6 (PR #480, после apply) или PgBouncer (`db_pooler_enabled`).
 - `check "db_connection_budget"` только предупреждает и не считает админку,
   migrate, retention-клиенты, реплику.
 - Redis: +~4 соединения на worker (3 линии), staff ничего не добавил. Тревоги
@@ -307,16 +307,13 @@ date» ВЫКЛ, без второго человека):
    opensearch-serverless, org-guardrails, aws-config, audit-logs,
    cloudtrail-athena, break-glass, macie, fis-gameday) — почти все выключены
    переменными; bootstrap (роли деплоя, `AWS_PLAN_ROLE`).
-3. В тот же план (я допишу Terraform отдельным PR после вашего «да»):
-   - роль задач ECS: `s3:PutObject/DeleteObject/ListBucket` на префиксы
-     web-бакета, `cloudfront:CreateInvalidation` + `cloudfront:ListInvalidations`
-     на web-дистрибуцию; env `SEO_WEB_BUCKET`, `SEO_SITE_URL`,
-     `SEO_WEB_DISTRIBUTION_ID` (для SEO-страниц; без этого просто не
-     публикуются);
-   - тревоги: cron-линии в `queue-failed-critical` (или отдельная «одна задача
-     падает 3 раза подряд»), тревога на остановленную с ошибкой migrate-задачу
-     (EventBridge «ECS Task State Change», family `*-migrate`, exitCode≠0 → SNS);
-   - `WORKER_DB_POOL_SIZE` ≥ 6 для воркера.
+3. Уже в коде (PR #480, влит в main 2026-10-27) и войдёт в тот же план —
+   отдельно делать ничего не нужно: права роли воркера на SEO-префиксы
+   web-бакета + `cloudfront:CreateInvalidation/ListInvalidations` и env
+   `SEO_WEB_BUCKET` / `SEO_WEB_DISTRIBUTION_ID` / `SEO_SITE_URL`; тревоги
+   `cron-job-failing` (2 из 3 последних часов) и `migrate-failed` (EventBridge);
+   `worker_db_pool_size` = 6. Кнопка: `scripts/dev/tf-catchup.sh plan|apply`
+   (docs/runbooks/TF_CATCHUP.md).
 4. `aws login` — чтобы я посмотрел число строк в больших таблицах перед
    Approve (находка 3) и `last_good_tag` в SSM.
 5. Ответить «да/нет» по тумблерам, которые новый код включает сам (п. 2.5).
