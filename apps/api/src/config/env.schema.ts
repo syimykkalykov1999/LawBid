@@ -737,6 +737,8 @@ export const envSchema = z
       'OTEL_EXPORTER_OTLP_ENDPOINT must be an http(s) URL',
     ),
     SENTRY_DSN: z.string().url().optional(),
+    // S12-14: shared token of POST /internal/alarm-events (alarm-hook Lambda).
+    ALARM_HOOK_TOKEN: z.string().min(24).optional(),
     // Owner 2026-10-01: master keys for the API keys the owner manages in
     // the admin (integration_credentials, AES-256-GCM). "kid:secret[,…]"
     // like JWT_KEYS; the active kid encrypts, every listed kid decrypts
