@@ -9,13 +9,17 @@
 //     /practice-areas/<practice>: built from live data);
 //   - the site's home page, its 404 page and its own /lawyers pages are
 //     left out (the root is the app);
-//   - one sitemap.xml with both sets of addresses, one robots.txt;
+//   - one sitemap.xml with both sets of addresses (when the SEO build wrote a
+//     sitemap index, the site's addresses become one more child sitemap,
+//     sitemaps/site-<n>.xml, with the same <= 50 000 limit) and one
+//     robots.txt (the one the SEO build wrote, else a plain one);
 //   - public-paths.txt: the first path segments that belong to the public
 //     pages, read by web-deploy.yml so the app's upload never deletes them.
 //
 // Usage: node scripts/seo/merge-site.mjs --seo dist-seo --site out --site-url https://lawbid.dev
-import { cp, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { SITEMAP_HARD_LIMIT, sitemapIndexXml, urlset } from './lib/discovery.mjs';
 
 const arg = (n) => {
   const i = process.argv.indexOf(n);
@@ -62,9 +66,7 @@ export async function mergeSite({ seo, site, siteUrl }) {
     copied.push(name);
   }
 
-  const seoUrls = (await exists(join(seo, 'sitemap.xml')))
-    ? locs(await readFile(join(seo, 'sitemap.xml'), 'utf8'))
-    : [];
+  const seoXml = (await exists(join(seo, 'sitemap.xml'))) ? await readFile(join(seo, 'sitemap.xml'), 'utf8') : '';
   const siteUrls = (await exists(join(site, 'sitemap.xml')))
     ? locs(await readFile(join(site, 'sitemap.xml'), 'utf8'))
     : [];
@@ -74,20 +76,45 @@ export async function mergeSite({ seo, site, siteUrl }) {
       const path = u.slice(base.length).replace(/\/$/, '');
       return path !== '' && !path.startsWith('/lawyers');
     });
-  const all = [...new Set([`${base}/`, ...seoUrls, ...keepSite])];
-  await writeFile(
-    join(seo, 'sitemap.xml'),
-    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${all
-      .map((u) => `  <url><loc>${u}</loc></url>`)
-      .join('\n')}\n</urlset>\n`,
-  );
-  await writeFile(
-    join(seo, 'robots.txt'),
-    `User-agent: *\nAllow: /\nSitemap: ${base}/sitemap.xml\n`,
-  );
+  const siteAll = [...new Set([`${base}/`, ...keepSite])];
+  let count;
+  if (/<sitemapindex[\s>]/.test(seoXml)) {
+    // Index mode: the site's addresses are one more child sitemap per 50 000.
+    const refs = [...seoXml.matchAll(/<sitemap>([\s\S]*?)<\/sitemap>/g)].map((m) => ({
+      name: /<loc>([^<]+)<\/loc>/.exec(m[1])[1].trim().replace(/^https?:\/\/[^/]+\//, ''),
+      lastmod: /<lastmod>([^<]+)<\/lastmod>/.exec(m[1])?.[1],
+    }));
+    count = siteAll.length;
+    for (const r of refs) count += locs(await readFile(join(seo, r.name), 'utf8')).length;
+    await mkdir(join(seo, 'sitemaps'), { recursive: true });
+    for (let i = 0, n = 1; i < siteAll.length; i += SITEMAP_HARD_LIMIT, n++) {
+      const name = `sitemaps/site-${n}.xml`;
+      const part = siteAll.slice(i, i + SITEMAP_HARD_LIMIT).map((u) => ({ path: u.slice(base.length) || '/' }));
+      await writeFile(join(seo, name), urlset(base, part));
+      refs.push({ name });
+    }
+    await writeFile(join(seo, 'sitemap.xml'), sitemapIndexXml(base, refs));
+  } else {
+    // One file; the SEO pages keep their lastmod and priority.
+    const seoBlocks = [...seoXml.matchAll(/<url>[\s\S]*?<\/url>/g)].map((m) => m[0]);
+    const known = new Set(seoBlocks.map((b) => locs(b)[0]));
+    const body = [
+      ...(known.has(`${base}/`) ? [] : [`<url><loc>${base}/</loc></url>`]),
+      ...seoBlocks,
+      ...siteAll.filter((u) => !known.has(u) && u !== `${base}/`).map((u) => `<url><loc>${u}</loc></url>`),
+    ];
+    count = body.length;
+    await writeFile(
+      join(seo, 'sitemap.xml'),
+      `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body.map((x) => `  ${x}`).join('\n')}\n</urlset>\n`,
+    );
+  }
+  if (!(await exists(join(seo, 'robots.txt')))) {
+    await writeFile(join(seo, 'robots.txt'), `User-agent: *\nAllow: /\nSitemap: ${base}/sitemap.xml\n`);
+  }
   const top = (await readdir(seo)).filter((n) => n !== 'public-paths.txt');
   await writeFile(join(seo, 'public-paths.txt'), `${top.sort().join('\n')}\n`);
-  return { copied, urls: all.length, top };
+  return { copied, urls: count, top };
 }
 
 if (process.argv[1] && process.argv[1].endsWith('merge-site.mjs')) {
