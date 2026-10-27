@@ -1,4 +1,5 @@
-import type { AdminRole } from '@prisma/client';
+import type { AdminRole, AdminWorkspace } from '@prisma/client';
+import { WORKSPACE_AREAS } from '../staff-core/workspace-scope';
 
 /**
  * Per-area access for admins other than the super admin (owner
@@ -287,6 +288,78 @@ export const PARTNER_TEAM_MAX: AdminPermissions = {
   partner_report: 'view',
 };
 
+/**
+ * Staff package T2 (plan C3, «Пространства»): the most an admin of each
+ * workspace can ever be granted, whoever hands it out and whatever was
+ * stored. Built from the same area lists the guard answers 404 for
+ * (workspace-scope.ts), so a grant the API accepts is always reachable and
+ * a reachable area is always grantable: the two cannot drift apart (the
+ * parity test fails if they do).
+ *  - mass: queues and people; the people list and the dashboard are read
+ *    only, everything else of the list may be `manage`;
+ *  - finance: money, economy, budget limits and payroll (+ dashboard).
+ * Never inside any workspace: keys, admin management, sessions, rewards,
+ * settings, legal texts, exports, government requests, translations,
+ * broadcasts, e-mail templates, the audit log, the partner report and the
+ * promotion page — those are the owner's. The owner (super admin and the
+ * owner workspace) has no ceiling.
+ */
+export type SeatWorkspace = Exclude<AdminWorkspace, 'owner'>;
+
+const WORKSPACE_LEVEL_CAP: Partial<Record<AdminArea, AccessLevel>> = {
+  dashboard: 'view',
+  users: 'view',
+};
+
+function buildWorkspaceMax(ws: SeatWorkspace): AdminPermissions {
+  const out: AdminPermissions = {};
+  for (const area of WORKSPACE_AREAS[ws]) {
+    if (!(ADMIN_AREAS as readonly string[]).includes(area)) continue;
+    const a = area as AdminArea;
+    out[a] = WORKSPACE_LEVEL_CAP[a] ?? 'manage';
+  }
+  return out;
+}
+
+export const WORKSPACE_MAX: Readonly<
+  Record<SeatWorkspace, Readonly<AdminPermissions>>
+> = {
+  mass: buildWorkspaceMax('mass'),
+  finance: buildWorkspaceMax('finance'),
+};
+
+/** The ceiling of [workspace]; null = none (the owner workspace). */
+export function workspaceCeiling(
+  workspace: AdminWorkspace,
+): AdminPermissions | null {
+  return workspace === 'owner' ? null : { ...WORKSPACE_MAX[workspace] };
+}
+
+/** The areas of [perms] that lie outside [workspace]'s ceiling (empty =
+ * the grant fits). The level counts: `manage` of a read-only area is out. */
+export function outsideWorkspace(
+  workspace: AdminWorkspace,
+  perms: AdminPermissions,
+): AdminArea[] {
+  const ceiling = workspaceCeiling(workspace);
+  if (!ceiling) return [];
+  return ADMIN_AREAS.filter((a) => {
+    const want = perms[a];
+    if (!want) return false;
+    const have = ceiling[a];
+    return !have || LEVEL_RANK[have] < LEVEL_RANK[want];
+  });
+}
+
+/** [perms] cut down to [workspace]'s ceiling (levels capped). */
+export function capToWorkspace(
+  workspace: AdminWorkspace,
+  perms: AdminPermissions,
+): AdminPermissions {
+  const ceiling = workspaceCeiling(workspace);
+  return ceiling ? intersect(ceiling, perms) : perms;
+}
+
 /** The JSON stored in `admin_profiles.permissions`. */
 export function storePermissions(
   areas: AdminPermissions,
@@ -398,6 +471,7 @@ export function canAccess(
   manageAdmins = false,
   partner: PartnerMembership | null = null,
   noPii = false,
+  workspaceHead = false,
 ): boolean {
   if (role === 'super_admin') return true;
   const area = routeArea(path);
@@ -422,9 +496,10 @@ export function canAccess(
     return grants(capped, area, levelForMethod(method));
   }
   if (area === 'partner_portal') return false;
-  // Admin management: only an admin the super admin gave that right; the
-  // service narrows it further (what they may grant or touch).
-  if (area === 'admins') return manageAdmins;
+  // Admin management: only an admin the super admin gave that right (or,
+  // staff package T2, the head of a workspace while the head role is on);
+  // the service narrows it further (what they may grant or touch).
+  if (area === 'admins') return manageAdmins || workspaceHead;
   // Owner 2026-10-05: the trusted deputy (the admin who manages admins)
   // reads every section — money, audit, sessions included — but never the
   // keys, runs payroll alongside the super admin, and changes other

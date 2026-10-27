@@ -334,6 +334,25 @@ export class AdminMeDto {
   countries!: string[];
 
   @ApiProperty({
+    enum: ['mass', 'finance', 'owner'],
+    description:
+      'Staff package: the workspace this admin works in (the super admin is always the owner).',
+  })
+  workspace!: 'mass' | 'finance' | 'owner';
+
+  @ApiProperty({
+    description:
+      'Staff package: the head of the workspace, with the head role switched on (staff.head_enabled). Always false while workspaces are off.',
+  })
+  workspaceHead!: boolean;
+
+  @ApiProperty({
+    description:
+      'Staff package: staff.workspaces_enabled. Off = the panel looks exactly as before (left menu for everyone).',
+  })
+  workspacesEnabled!: boolean;
+
+  @ApiProperty({
     type: [AdminCountryTabDto],
     description:
       'Country tabs for the panel: the assigned countries, or every switched-on country for staff working everywhere.',

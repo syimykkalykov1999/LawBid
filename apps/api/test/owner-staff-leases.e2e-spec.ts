@@ -78,6 +78,15 @@ describe('Staff work leases (e2e)', () => {
     // The staff switches come from this object (default: nothing stored = all off).
     const real = app.get(AppSettingsService);
     jest.spyOn(real, 'all').mockImplementation(() => Promise.resolve(stored));
+    // …and the guard reads single switches (workspaces / head) through boolean().
+    const realBool = real.boolean.bind(real);
+    jest
+      .spyOn(real, 'boolean')
+      .mockImplementation((k) =>
+        String(k).startsWith('staff.')
+          ? Promise.resolve(stored[k] === true)
+          : realBool(k),
+      );
 
     owner = await adminSession(base, prisma, 'super_admin');
     const sup = { dashboard: 'view', support: 'manage', users: 'view' };
@@ -633,7 +642,11 @@ describe('Staff work leases (e2e)', () => {
   // --- the head ----------------------------------------------------------------
 
   it('head: sees «in work by X», releases and reassigns with a fresh 2FA code and an audit row; others cannot', async () => {
-    on('staff.lease_support_enabled', 'staff.head_enabled');
+    on(
+      'staff.lease_support_enabled',
+      'staff.head_enabled',
+      'staff.workspaces_enabled',
+    );
     await prisma.adminProfile.update({
       where: { user_id: sup1.userId },
       data: { is_workspace_head: true },

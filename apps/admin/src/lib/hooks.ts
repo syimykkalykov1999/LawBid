@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import type { AdminRole, Permissions } from '@/lib/rbac';
+import type { AdminRole, AdminWorkspace, Permissions } from '@/lib/rbac';
 
 export interface Me {
   id: string;
@@ -20,6 +20,12 @@ export interface Me {
   countryPartnerId?: string | null;
   /** The country partner themself. */
   partnerLead?: boolean;
+  /** Staff package T2: `staff.workspaces_enabled`. Off = the panel looks as before. */
+  workspacesEnabled?: boolean;
+  /** …the workspace this admin works in (the super admin: owner). */
+  workspace?: AdminWorkspace;
+  /** …the head of that workspace (true only while the head role is on). */
+  workspaceHead?: boolean;
   /** Owner 2026-10-22: may get system alerts, and the admin's own switch. */
   onCallAvailable?: boolean;
   onCallEnabled?: boolean;

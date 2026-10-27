@@ -16,8 +16,11 @@ import '../models/invite_admin_dto.dart';
 import '../models/save_admin_role_template_dto.dart';
 import '../models/set_admin_countries_dto.dart';
 import '../models/set_admin_credentials_dto.dart';
+import '../models/set_admin_head_dto.dart';
 import '../models/set_admin_permissions_dto.dart';
 import '../models/set_admin_role_dto.dart';
+import '../models/set_admin_workspace_dto.dart';
+import '../models/workspace.dart';
 
 part 'admin_admins_client.g.dart';
 
@@ -53,9 +56,12 @@ abstract class AdminAdminsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// All administrator accounts
+  /// All administrator accounts (optionally one workspace); a workspace head sees only their own workspace.
+  ///
+  /// [workspace] - Only the admins of this workspace.
   @GET('/admin/admins')
   Future<AdminAccountListEnvelope> listAdmins({
+    @Query('workspace') Workspace? workspace,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -91,6 +97,22 @@ abstract class AdminAdminsClient {
   Future<AdminAccountEnvelope> setAdminRole({
     @Path('id') required String id,
     @Body() required SetAdminRoleDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Super admin: set the workspace an admin works in (needs a fresh step-up). 409 when their sections do not fit the new workspace
+  @PATCH('/admin/admins/{id}/workspace')
+  Future<AdminAccountEnvelope> setAdminWorkspace({
+    @Path('id') required String id,
+    @Body() required SetAdminWorkspaceDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Super admin: make an admin the head of their workspace, or clear it (needs a fresh step-up). 409 when the workspace already has a head or has none (finance)
+  @PATCH('/admin/admins/{id}/head')
+  Future<AdminAccountEnvelope> setAdminHead({
+    @Path('id') required String id,
+    @Body() required SetAdminHeadDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'admin_account_dto_role.dart';
 import 'admin_account_dto_status.dart';
+import 'admin_account_dto_workspace.dart';
 import 'permissions_permissions.dart';
 
 part 'admin_account_dto.g.dart';
@@ -26,6 +27,8 @@ class AdminAccountDto {
     required this.countries,
     required this.countryPartnerId,
     required this.partnerLead,
+    required this.workspace,
+    required this.workspaceHead,
     required this.lastLoginAt,
     required this.createdAt,
   });
@@ -60,6 +63,12 @@ class AdminAccountDto {
 
   /// This admin is the country partner themself.
   final bool partnerLead;
+
+  /// Staff package: the workspace this admin works in (the super admin is always the owner).
+  final AdminAccountDtoWorkspace workspace;
+
+  /// Staff package: the head of that workspace (one per workspace, none in finance).
+  final bool workspaceHead;
   final DateTime? lastLoginAt;
   final DateTime createdAt;
 
