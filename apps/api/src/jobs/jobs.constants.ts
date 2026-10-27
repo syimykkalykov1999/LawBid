@@ -229,6 +229,10 @@ export const CRON_JOBS = {
   shardOrphanCheck: 'shard.orphan-check',
   /** Events pipeline (N-2): auto signal, stream relay, retention. */
   eventsMaintain: 'events.maintain',
+  /** Programmatic SEO (2026-10-27): the public pages built from the database
+   * and published to the web bucket; nightly, and (mode nightly+events) a
+   * debounced delayed job after an attorney is published or removed. */
+  seoGenerate: 'seo.generate',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -364,6 +368,10 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.shardOrphanCheck, pattern: '30 2 * * *' },
   // Events pipeline: every 5 minutes; a no-op unless auto / stream, prunes hourly.
   { name: CRON_JOBS.eventsMaintain, pattern: '*/5 * * * *' },
+  // 05:10 UTC daily: after the nightly snapshots (storage.snapshot 04:55,
+  // the admin counters), before the US morning. A no-op unless
+  // `seo.generator_mode` is nightly or nightly+events.
+  { name: CRON_JOBS.seoGenerate, pattern: '10 5 * * *' },
 ];
 
 const FAST_JOBS: readonly CronJobName[] = [
@@ -399,6 +407,7 @@ const HEAVY_JOBS: readonly CronJobName[] = [
   CRON_JOBS.usagePoll,
   CRON_JOBS.contactsPepperBackfill,
   CRON_JOBS.treasuryDaily,
+  CRON_JOBS.seoGenerate,
 ];
 
 export function cronLaneOf(name: string): CronLane {

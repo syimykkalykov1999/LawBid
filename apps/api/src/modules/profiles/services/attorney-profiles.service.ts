@@ -1,3 +1,4 @@
+import { notifySeoPagesChanged } from '../../../common/seo/seo-generator.trigger';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
 import { cached } from '../../../common/cache/cached';
@@ -371,6 +372,8 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
           });
         }
       });
+      // Programmatic SEO: the public page text/name/username changed.
+      notifySeoPagesChanged('attorney-edited');
     } catch (error) {
       // A concurrent request took the same username_lower after our read.
       if (

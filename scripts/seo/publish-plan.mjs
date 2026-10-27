@@ -18,7 +18,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_MAX_INVALIDATIONS, MANIFEST_NAME, deleteBatches, hashDir, pickInvalidations, planFiles } from './lib/manifest.mjs';
+import { DEFAULT_MAX_INVALIDATIONS, MANIFEST_NAME, deleteBatches, hashDir, planPublish } from './lib/manifest.mjs';
 
 const readJson = async (f) => {
   if (!f) return null;
@@ -32,16 +32,7 @@ const readJson = async (f) => {
 export async function makePlan({ dir, prev, today, maxInvalidations = DEFAULT_MAX_INVALIDATIONS }) {
   const files = await hashDir(dir);
   const built = (await readJson(join(dir, MANIFEST_NAME))) ?? {};
-  const plan = planFiles({ files, prevFiles: prev?.files });
-  const usedToday = prev?.invalidations?.date === today ? prev.invalidations.used : 0;
-  // Without a previous manifest nothing is known to be cached: no resets, a clean first upload.
-  const inv = prev
-    ? pickInvalidations({ changed: plan.changed, removed: plan.remove, max: maxInvalidations, usedToday })
-    : { paths: [], skipped: 0, used: usedToday };
-  const manifest = { ...built, version: 1, builtAt: today, files, invalidations: { date: today, used: inv.used } };
-  const prevCount = Object.keys(prev?.files ?? {}).length;
-  const massDelete = plan.remove.length > 100 && plan.remove.length > 0.3 * prevCount;
-  return { ...plan, massDelete, invalidate: inv.paths, skippedInvalidations: inv.skipped, manifest };
+  return planPublish({ files, prev, today, maxInvalidations, built });
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

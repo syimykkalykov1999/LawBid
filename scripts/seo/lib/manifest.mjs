@@ -117,3 +117,23 @@ export const deleteBatches = (keys, size = 1000) => {
   for (let i = 0; i < keys.length; i += size) out.push({ Objects: keys.slice(i, i + size).map((Key) => ({ Key })), Quiet: true });
   return out;
 };
+
+/**
+ * The whole publish decision from two { path: hash } maps, no disk: what to
+ * upload, what to remove, which CloudFront paths to reset (within the day's
+ * budget) and the manifest to store afterwards. publish-plan.mjs (the
+ * workflow) and the API's `seo.generate` job both call it.
+ * `built` is extra manifest content to keep (page states, ramp counters).
+ */
+export function planPublish({ files, prev, today, maxInvalidations = DEFAULT_MAX_INVALIDATIONS, built = {} }) {
+  const plan = planFiles({ files, prevFiles: prev?.files });
+  const usedToday = prev?.invalidations?.date === today ? prev.invalidations.used : 0;
+  // Without a previous manifest nothing is known to be cached: no resets, a clean first upload.
+  const inv = prev
+    ? pickInvalidations({ changed: plan.changed, removed: plan.remove, max: maxInvalidations, usedToday })
+    : { paths: [], skipped: 0, used: usedToday };
+  const manifest = { ...built, version: 1, builtAt: today, files, invalidations: { date: today, used: inv.used } };
+  const prevCount = Object.keys(prev?.files ?? {}).length;
+  const massDelete = plan.remove.length > 100 && plan.remove.length > 0.3 * prevCount;
+  return { ...plan, massDelete, invalidate: inv.paths, skippedInvalidations: inv.skipped, manifest };
+}

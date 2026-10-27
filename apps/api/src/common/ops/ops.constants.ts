@@ -55,6 +55,7 @@ export const HEAVY_CRON_JOBS: readonly string[] = [
   CRON_JOBS.chatSearchBackfill,
   CRON_JOBS.adminSummaries,
   CRON_JOBS.ledgerReconcile,
+  CRON_JOBS.seoGenerate,
 ];
 
 /** Queues paused as a whole (users get their file a little later). */

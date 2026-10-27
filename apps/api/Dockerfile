@@ -38,6 +38,10 @@ COPY --from=build /repo/apps/api/prisma ./apps/api/prisma
 # PDF fonts and the default legal texts (assets/legal/*.md) are read at runtime.
 COPY --from=build /repo/apps/api/assets ./apps/api/assets
 COPY --from=build /repo/apps/api/package.json ./apps/api/package.json
+# Programmatic SEO: the page library shared with the GitHub workflow
+# (scripts/seo/lib + data), loaded as ES modules by the `seo.generate` job.
+COPY scripts/seo/lib ./scripts/seo/lib
+COPY scripts/seo/data ./scripts/seo/data
 # readonlyRootFilesystem on ECS: /tmp is a task volume. Declaring it as a
 # VOLUME makes Fargate/Docker seed the mount from the image (mode 1777),
 # so the `app` user can write the worker heartbeat and sharp/pdf temp files.
