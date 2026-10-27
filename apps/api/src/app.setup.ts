@@ -33,8 +33,13 @@ export interface ConfigureAppOptions {
 /** Interactive API docs are a reconnaissance gift in production (every
  * route, DTO and error code at one URL); they stay on everywhere else,
  * including staging, where the mobile team uses them. */
-export function shouldExposeApiDocs(nodeEnv: AppEnv['NODE_ENV']): boolean {
-  return nodeEnv !== 'production';
+export function shouldExposeApiDocs(
+  nodeEnv: AppEnv['NODE_ENV'],
+  ownerSwitch: string | undefined = undefined,
+): boolean {
+  // Staff package T11: production keeps the docs closed unless the owner
+  // set API_DOCS_IN_PRODUCTION=1 on the API task.
+  return nodeEnv !== 'production' || ownerSwitch === '1';
 }
 
 /**
@@ -102,7 +107,10 @@ export function configureApp(
   const config = app.get(ConfigService);
   const nodeEnv =
     options.nodeEnv ?? config.getOrThrow<AppEnv['NODE_ENV']>('NODE_ENV');
-  const exposeDocs = shouldExposeApiDocs(nodeEnv);
+  const exposeDocs = shouldExposeApiDocs(
+    nodeEnv,
+    config.get<string>('API_DOCS_IN_PRODUCTION'),
+  );
 
   app.useLogger(app.get(Logger));
 

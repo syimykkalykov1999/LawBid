@@ -3,6 +3,7 @@ import {
   type CanActivate,
   type ExecutionContext,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
   Optional,
@@ -42,6 +43,10 @@ import {
 } from './admin-permissions';
 import { AdminSessionService } from './admin-session.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import {
+  STAFF_SECURITY,
+  type StaffSecurityPort,
+} from '../staff-core/staff-security.port';
 import {
   effectiveWorkspace,
   workspaceAllows,
@@ -99,6 +104,9 @@ export class AdminAuthGuard implements CanActivate {
     @Optional() private readonly audit?: AuditLogService,
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() private readonly security?: AdminSecurityService,
+    @Optional()
+    @Inject(STAFF_SECURITY)
+    private readonly staffSecurity?: StaffSecurityPort,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -364,6 +372,9 @@ export class AdminAuthGuard implements CanActivate {
         req.header('x-admin-country'),
       ),
     };
+    // Staff package T11: the owner's country list, the device pin and a
+    // changed network address (each behind its switch; the owner is exempt).
+    await this.staffSecurity?.checkSession(req, req.admin);
     // Last action shown in the sessions overview (fire and forget).
     void this.sessions.noteActivity(
       claims.jti,

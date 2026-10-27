@@ -126083,6 +126083,180 @@
           "admin-workspace"
         ]
       }
+    },
+    "/admin/pii/reveal": {
+      "post": {
+        "operationId": "reveal",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevealPiiDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevealPiiResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: STAFF_REVEAL_LIMIT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Show one masked phone / e-mail / document number in full (audited, limited per day)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/pii/watermark": {
+      "get": {
+        "operationId": "watermark",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffWatermarkEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Whether the panel draws the faint watermark with the admin name, and its text",
+        "tags": [
+          "admin-staff"
+        ]
+      }
     }
   },
   "info": {
@@ -126291,6 +126465,11 @@
           "ADMIN_STEP_UP_REQUIRED",
           "ADMIN_WORKSPACE_CONFLICT",
           "ADMIN_IP_NOT_ALLOWED",
+          "STAFF_REVEAL_LIMIT",
+          "STAFF_EXPORT_BLOCKED",
+          "ADMIN_COUNTRY_NOT_ALLOWED",
+          "ADMIN_DEVICE_CHANGED",
+          "ADMIN_IP_CHANGED",
           "REASON_CODE_REQUIRED",
           "AUDIT_UNAVAILABLE",
           "VIDEO_UNAVAILABLE",
@@ -193650,6 +193829,108 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/PieceworkRerunResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "RevealPiiResultDto": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "enum": [
+              "phone",
+              "email",
+              "barNumber"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "description": "The full value. Shown once; not stored."
+          },
+          "remainingToday": {
+            "type": "number",
+            "nullable": true,
+            "description": "Reveals left today (null = no daily limit for this admin)."
+          }
+        },
+        "required": [
+          "field",
+          "value",
+          "remainingToday"
+        ]
+      },
+      "RevealPiiDto": {
+        "type": "object",
+        "properties": {
+          "targetType": {
+            "enum": [
+              "user",
+              "license"
+            ],
+            "type": "string",
+            "description": "user (phone, email) or license (barNumber)."
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "field": {
+            "enum": [
+              "phone",
+              "email",
+              "barNumber"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "targetType",
+          "targetId",
+          "field"
+        ]
+      },
+      "RevealPiiResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RevealPiiResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffWatermarkDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "True when the panel must draw the watermark."
+          },
+          "text": {
+            "type": "string",
+            "description": "Who the watermark names: login (or e-mail) and a short id."
+          }
+        },
+        "required": [
+          "enabled",
+          "text"
+        ]
+      },
+      "StaffWatermarkEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffWatermarkDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

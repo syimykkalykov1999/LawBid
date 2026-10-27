@@ -9,10 +9,13 @@ import '../models/dispute_piecework_dto.dart';
 import '../models/piecework_dispute_result_envelope.dart';
 import '../models/piecework_overview_envelope.dart';
 import '../models/piecework_rerun_result_envelope.dart';
+import '../models/reveal_pii_dto.dart';
+import '../models/reveal_pii_result_envelope.dart';
 import '../models/set_staff_rate_dto.dart';
 import '../models/staff_rate_envelope.dart';
 import '../models/staff_rate_list_envelope.dart';
 import '../models/staff_settings_envelope.dart';
+import '../models/staff_watermark_envelope.dart';
 
 part 'admin_staff_client.g.dart';
 
@@ -69,6 +72,19 @@ abstract class AdminStaffClient {
   Future<PieceworkRerunResultEnvelope> rerunStaffPiecework({
     @Path('adminId') required String adminId,
     @Path('day') required String day,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Show one masked phone / e-mail / document number in full (audited, limited per day)
+  @POST('/admin/pii/reveal')
+  Future<RevealPiiResultEnvelope> reveal({
+    @Body() required RevealPiiDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Whether the panel draws the faint watermark with the admin name, and its text
+  @GET('/admin/pii/watermark')
+  Future<StaffWatermarkEnvelope> watermark({
     @Extras() Map<String, dynamic>? extras,
   });
 }
