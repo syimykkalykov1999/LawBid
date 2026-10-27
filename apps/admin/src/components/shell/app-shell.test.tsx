@@ -6,10 +6,12 @@ import type { Me } from '@/lib/hooks';
 
 let pathname = '/support';
 let currentMe: Me | undefined;
+let deskOn = false;
+const replace = vi.fn();
 
 vi.mock('next/navigation', () => ({
   usePathname: () => pathname,
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace }),
 }));
 vi.mock('next/link', () => ({
   default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => (
@@ -19,6 +21,9 @@ vi.mock('next/link', () => ({
   ),
 }));
 vi.mock('@/lib/hooks', () => ({ useMe: () => ({ data: currentMe }) }));
+vi.mock('@/lib/desk-data', () => ({
+  useDeskSettings: () => ({ loading: false, on: (k: string) => k === 'staff.desk_enabled' && deskOn, num: () => 0 }),
+}));
 vi.mock('@/lib/api/client', () => ({
   api: { GET: vi.fn().mockResolvedValue({ data: { data: {} } }) },
   ApiError: class ApiError extends Error {},
@@ -76,6 +81,8 @@ const SUPPORT_RIGHTS = { dashboard: 'view', support: 'manage', verification: 'ma
 describe('AppShell (staff package T2)', () => {
   beforeEach(() => {
     pathname = '/support';
+    deskOn = false;
+    replace.mockClear();
   });
   afterEach(cleanup);
 
@@ -133,5 +140,51 @@ describe('AppShell (staff package T2)', () => {
     const { container } = shell();
     expect(container.querySelector('aside')).not.toBeNull();
     expect(screen.queryByText('Очереди')).toBeNull();
+  });
+  describe('with the desk switch on (staff package T8)', () => {
+    const worker = () => base({ role: 'support', permissions: { ...SUPPORT_RIGHTS }, workspacesEnabled: true, workspace: 'mass' });
+    beforeEach(() => {
+      deskOn = true;
+    });
+
+    it('the page tabs of T2 are gone; a card of the desk gets a way back to the desk', () => {
+      currentMe = worker();
+      shell();
+      expect(screen.queryByTestId('tabs')).toBeNull();
+      expect(screen.getByText('← На стол').getAttribute('href')).toBe('/desk/support');
+      expect(screen.getByText('page body')).toBeTruthy();
+    });
+
+    it('on the desk itself nothing is added around the page', () => {
+      pathname = '/desk/support';
+      currentMe = worker();
+      shell();
+      expect(screen.queryByTestId('tabs')).toBeNull();
+      expect(screen.queryByText('← На стол')).toBeNull();
+      expect(screen.getByText('page body')).toBeTruthy();
+    });
+
+    it('a page of the workspace that is not on their desk: "not found"', () => {
+      pathname = '/outreach';
+      currentMe = worker();
+      shell();
+      expect(screen.queryByText('page body')).toBeNull();
+      expect(screen.getByText('Такой страницы нет.')).toBeTruthy();
+    });
+
+    it('the dashboard / «Рабочее место» send the worker to their desk', () => {
+      pathname = '/';
+      currentMe = worker();
+      shell();
+      expect(replace).toHaveBeenCalledWith('/desk/support');
+      expect(screen.queryByText('page body')).toBeNull();
+    });
+
+    it('the owner keeps the grouped menu, untouched by the desk', () => {
+      currentMe = base({ role: 'super_admin', workspacesEnabled: true, workspace: 'owner' });
+      const { container } = shell();
+      expect(container.querySelector('aside')).not.toBeNull();
+      expect(screen.queryByText('← На стол')).toBeNull();
+    });
   });
 });

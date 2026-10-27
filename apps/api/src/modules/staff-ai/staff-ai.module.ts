@@ -1,16 +1,40 @@
 import { Module } from '@nestjs/common';
 import { StaffAiQaNightlyJob } from '../../jobs/handlers/staff-ai-qa-nightly.job';
+import { StaffAiBudgetService } from './staff-ai-budget.service';
+import { STAFF_AI_FETCH, StaffAiClient } from './staff-ai-client.service';
+import { StaffAiContextService } from './staff-ai-context.service';
+import { StaffAiHintService } from './staff-ai-hint.service';
+import { StaffAiQaService } from './staff-ai-qa.service';
+import { StaffAiSummaryService } from './staff-ai-summary.service';
 import { StaffAiController } from './staff-ai.controller';
 
 /**
  * Staff package (T12): AI mode (master switch staff.ai_enabled, off = zero AI calls).
- * Core part (providers, the cron jobs), imported by
- * StaffModule (API) and JobsModule (API + worker). T1 registered the
- * stubs; everything stays a no-op while its switch is off.
+ * Core part (providers, the cron job), imported by StaffModule (API) and
+ * JobsModule (API + worker). Every provider is idle while its switch is off.
  */
 @Module({
-  providers: [StaffAiQaNightlyJob],
-  exports: [StaffAiQaNightlyJob],
+  providers: [
+    // The one transport to the Claude API; e2e swaps it for a mock.
+    {
+      provide: STAFF_AI_FETCH,
+      useValue: (url: string, init: RequestInit) => fetch(url, init),
+    },
+    StaffAiBudgetService,
+    StaffAiClient,
+    StaffAiContextService,
+    StaffAiQaService,
+    StaffAiHintService,
+    StaffAiSummaryService,
+    StaffAiQaNightlyJob,
+  ],
+  exports: [
+    StaffAiClient,
+    StaffAiBudgetService,
+    StaffAiHintService,
+    StaffAiSummaryService,
+    StaffAiQaNightlyJob,
+  ],
 })
 export class StaffAiCoreModule {}
 

@@ -1026,6 +1026,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Addresses allowed into the admin panel when the allowlist is on: IPv4/IPv6 or IPv4 CIDR (203.0.113.0/24). Needs a fresh 2FA code.',
     pattern: IP_OR_CIDR_PATTERN,
   };
+  out['admin.country_allowlist'] = {
+    ...out['admin.country_allowlist'],
+    description:
+      'Countries (two letters: US, GB, KG…) from which mass-work and finance staff may work. Works only with the switch «Блокировать вход с нового устройства или страны». Empty = no check. Needs a fresh 2FA code.',
+    pattern: /^[A-Z]{2}$/,
+  };
   out['admin.login_alert_enabled'] = {
     ...out['admin.login_alert_enabled'],
     description:

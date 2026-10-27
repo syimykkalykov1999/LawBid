@@ -954,6 +954,13 @@ export const envSchema = z
       blankToUndefined,
       z.enum(['0', '1']).optional(),
     ),
+    // Staff package T11: the owner's switch for the API docs (Swagger UI) in
+    // PRODUCTION. Closed by default; "1" on the API task opens /docs again
+    // (e.g. for a short debugging session), remove it afterwards.
+    API_DOCS_IN_PRODUCTION: z.preprocess(
+      blankToUndefined,
+      z.enum(['0', '1']).optional(),
+    ),
     // Owner 2026-10-28: bucket (infra/modules/audit-logs) that receives the
     // daily export of the admin audit log. Empty = no export.
     ADMIN_AUDIT_EXPORT_BUCKET: optionalMatching(
