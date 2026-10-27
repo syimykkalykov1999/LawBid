@@ -1,6 +1,7 @@
 import { countryInScope, type CountryScope } from '../countries/country-scope';
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
   Optional,
@@ -11,6 +12,14 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  STAFF_RECORDER,
+  type StaffRecorder,
+} from '../staff-core/staff-recorder.port';
+import {
+  STAFF_SIGNALS,
+  type StaffSignals,
+} from '../staff-core/staff-signals.port';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import {
   SUPPORT_STATUSES,
@@ -67,6 +76,12 @@ export class AdminSupportService {
     private readonly desk: SupportDeskService,
     private readonly attachments: SupportFilesService,
     @Optional() private readonly summary?: AdminSummaryService,
+    @Optional()
+    @Inject(STAFF_RECORDER)
+    private readonly staffRecorder?: StaffRecorder,
+    @Optional()
+    @Inject(STAFF_SIGNALS)
+    private readonly staffSignals?: StaffSignals,
   ) {}
 
   async list(
@@ -240,7 +255,11 @@ export class AdminSupportService {
     const internal = dto.internal ?? false;
     assertHasContent(dto.body, dto.attachments);
     await this.attachments.assertAttachable(adminId, dto.attachments);
+    let closedNow = false;
+    let lateAnswer = false;
     const { message, ticket } = await withTxRetry(this.prisma, async (tx) => {
+      closedNow = false;
+      lateAnswer = false;
       const t = await tx.supportTicket.findUnique({ where: { id } });
       if (!t) throw ticketNotFound();
       // Owner 2026-10-18 (OQ-055): `{name}` and `{ticket}` are filled here,
@@ -271,6 +290,9 @@ export class AdminSupportService {
       }
       const now = new Date();
       const next = afterAdminReply(dto.status, t.resolved_at, now);
+      closedNow = !!(next.resolvedAt && !t.resolved_at);
+      // The first public answer came after the promised time.
+      lateAnswer = !!t.sla_breached_at && !t.first_response_at;
       const updated = await tx.supportTicket.update({
         where: { id },
         data: {
@@ -314,6 +336,11 @@ export class AdminSupportService {
       );
       return { message: m, ticket: updated };
     });
+    // Staff package T5: one cheap call each (no-ops while the rating is off).
+    if (closedNow) this.recordClose(adminId, id);
+    if (lateAnswer && !internal) {
+      void this.staffSignals?.signal(adminId, 'late_sla', 'support_ticket', id);
+    }
     const [people, files] = await Promise.all([
       this.people([adminId, ticket.user_id]),
       this.attachments.forMessages([message.id]),
@@ -327,7 +354,9 @@ export class AdminSupportService {
     adminId?: string,
   ): Promise<AdminSupportTicketRowDto> {
     if (dto.assigneeId) await this.assertAdmin(dto.assigneeId);
+    let closedNow = false;
     const updated = await withTxRetry(this.prisma, async (tx) => {
+      closedNow = false;
       const t = await tx.supportTicket.findUnique({ where: { id } });
       if (!t) throw ticketNotFound();
       const data: Prisma.SupportTicketUpdateInput = {};
@@ -337,6 +366,7 @@ export class AdminSupportService {
         data.resolved_at = next.resolvedAt;
         if (next.resolvedAt && !t.resolved_at && adminId) {
           data.resolved_by = adminId;
+          closedNow = true;
         }
         // Nothing is due on a resolved or closed ticket.
         if (next.resolvedAt) data.sla_due_at = null;
@@ -349,11 +379,22 @@ export class AdminSupportService {
       if (Object.keys(data).length === 0) return t;
       return tx.supportTicket.update({ where: { id }, data });
     });
+    if (closedNow && adminId) this.recordClose(adminId, id);
     const people = await this.people([updated.user_id, updated.assignee_id]);
     return this.row(updated, people);
   }
 
   // --- helpers -----------------------------------------------------------------
+
+  /** Staff package T5: the admin closed (resolved) a ticket — one cheap call. */
+  private recordClose(adminId: string, ticketId: string): void {
+    void this.staffRecorder?.record({
+      adminId,
+      itemKind: 'support_ticket',
+      itemId: ticketId,
+      outcome: 'close',
+    });
+  }
 
   private async ticket(id: string): Promise<SupportTicket> {
     const t = await this.prisma.supportTicket.findUnique({ where: { id } });

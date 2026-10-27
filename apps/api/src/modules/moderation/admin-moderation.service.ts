@@ -1,11 +1,17 @@
 import type { CountryScope } from '../countries/country-scope';
 import {
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma, type ReportTargetType } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import {
+  STAFF_RECORDER,
+  type StaffRecorder,
+} from '../staff-core/staff-recorder.port';
 import {
   decodeCursor,
   encodeCursor,
@@ -63,6 +69,9 @@ export class AdminModerationService {
     private readonly notifications: NotificationsService,
     private readonly strikes: StrikesService,
     private readonly reporters: ReporterReputationService,
+    @Optional()
+    @Inject(STAFF_RECORDER)
+    private readonly staffRecorder?: StaffRecorder,
   ) {}
 
   async queue(
@@ -307,6 +316,16 @@ export class AdminModerationService {
       return open.length;
     });
     for (const f of after) await f();
+    // Staff package T5: closing open reports is a staff decision (one cheap
+    // call; a restore after an accepted appeal closes none and is not counted).
+    if (handled > 0) {
+      void this.staffRecorder?.record({
+        adminId: admin.id,
+        itemKind: 'report',
+        itemId: id,
+        outcome: action,
+      });
+    }
     // Owner 2026-10-27: dismissed reports count against their reporters.
     if (action === 'dismiss')
       await this.reporters.onReportsDecided(reporterIds);

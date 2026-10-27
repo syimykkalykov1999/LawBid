@@ -1,7 +1,7 @@
 import { notifySeoPagesChanged } from '../../../common/seo/seo-generator.trigger';
 import { FORMAT_UNUSUAL_FLAG } from '../bar-number-format';
 import { type CountryScope, userInScope } from '../../countries/country-scope';
-import { HttpStatus, Injectable, Optional } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Optional } from '@nestjs/common';
 import type {
   AttorneyLicense,
   Prisma,
@@ -15,6 +15,10 @@ import {
 } from '../../../common/pagination/cursor.util';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
+import {
+  STAFF_RECORDER,
+  type StaffRecorder,
+} from '../../staff-core/staff-recorder.port';
 import { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
 import {
   BLOCK_SOURCE,
@@ -112,6 +116,9 @@ export class VerificationAdminService {
     private readonly trust: AttorneyTrustService,
     private readonly blocks: BarNumberBlocksService,
     @Optional() private readonly settings?: AppSettingsService,
+    @Optional()
+    @Inject(STAFF_RECORDER)
+    private readonly staffRecorder?: StaffRecorder,
   ) {}
 
   /** Grace period and reminder window for the renewal state of a license. */
@@ -536,6 +543,13 @@ export class VerificationAdminService {
         { tx, notify: false },
       );
     });
+    // Staff package T5: one cheap call (Redis counters; no-op while the rating is off).
+    void this.staffRecorder?.record({
+      adminId: admin.id,
+      itemKind: 'verification',
+      itemId: requestId,
+      outcome: 'approve',
+    });
     return this.card(requestId);
   }
 
@@ -654,6 +668,13 @@ export class VerificationAdminService {
           tx,
         );
       }
+    });
+    // Staff package T5: one cheap call (Redis counters; no-op while the rating is off).
+    void this.staffRecorder?.record({
+      adminId: admin.id,
+      itemKind: 'verification',
+      itemId: requestId,
+      outcome: 'reject',
     });
     return this.card(requestId);
   }
