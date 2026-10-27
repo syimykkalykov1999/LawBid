@@ -14,13 +14,21 @@ const KIND_DOC =
   'Queue kind: support_ticket · verification · report · mod_appeal · review_appeal.';
 
 export class LeaseKindBodyDto {
-  @ApiProperty({ enum: LEASE_QUEUE_KINDS, description: KIND_DOC })
+  @ApiProperty({
+    enum: LEASE_QUEUE_KINDS,
+    enumName: 'LeaseQueueKind',
+    description: KIND_DOC,
+  })
   @IsIn(LEASE_QUEUE_KINDS)
   kind!: string;
 }
 
 export class LeaseItemParamDto {
-  @ApiProperty({ enum: LEASE_QUEUE_KINDS, description: KIND_DOC })
+  @ApiProperty({
+    enum: LEASE_QUEUE_KINDS,
+    enumName: 'LeaseQueueKind',
+    description: KIND_DOC,
+  })
   @IsIn(LEASE_QUEUE_KINDS)
   kind!: string;
 
@@ -30,7 +38,7 @@ export class LeaseItemParamDto {
 }
 
 export class SkipLeaseDto {
-  @ApiProperty({ enum: SKIP_REASONS })
+  @ApiProperty({ enum: SKIP_REASONS, enumName: 'LeaseSkipReason' })
   @IsIn(SKIP_REASONS)
   reason!: string;
 }
@@ -42,7 +50,7 @@ export class SetDeskStatusDto {
 }
 
 export class LeaseDto {
-  @ApiProperty({ enum: LEASE_QUEUE_KINDS })
+  @ApiProperty({ enum: LEASE_QUEUE_KINDS, enumName: 'LeaseQueueKind' })
   kind!: string;
 
   @ApiProperty({ format: 'uuid' })
@@ -66,6 +74,7 @@ export class LeaseDto {
 export class NextLeaseResultDto {
   @ApiProperty({
     enum: ['leased', 'busy', 'empty', 'wrap_up', 'away', 'offline'],
+    enumName: 'LeaseNextStatus',
     description:
       'leased = a new item is yours; busy = your hands are full (see `held`); empty = nothing waits; wrap_up = wait `retryAfterSec`; away / offline = come back online first.',
   })
@@ -82,21 +91,36 @@ export class NextLeaseResultDto {
 }
 
 export class DeskStatusDto {
-  @ApiProperty({ enum: ['online', 'away', 'offline'] })
+  @ApiProperty({
+    enum: ['online', 'away', 'offline'],
+    enumName: 'DeskPresence',
+  })
   status!: string;
 }
 
+export class LeaseCapacityDto {
+  @ApiProperty({ description: 'Support dialogs held at once.' })
+  chat!: number;
+
+  @ApiProperty({ description: 'Items of any other queue held at once.' })
+  other!: number;
+}
+
 export class MyLeasesDto {
-  @ApiProperty({ enum: ['online', 'away', 'offline'] })
+  @ApiProperty({
+    enum: ['online', 'away', 'offline'],
+    enumName: 'DeskPresence',
+  })
   status!: string;
 
   @ApiProperty({ type: [LeaseDto] })
   leases!: LeaseDto[];
 
   @ApiProperty({
+    type: LeaseCapacityDto,
     description: 'Items in hands allowed at once: support dialogs / the rest.',
   })
-  capacity!: { chat: number; other: number };
+  capacity!: LeaseCapacityDto;
 
   @ApiProperty({ description: 'Seconds of support wrap-up left (0 = none).' })
   wrapUpSec!: number;
@@ -118,7 +142,7 @@ export class SkipLeaseResultDto {
 }
 
 export class TeamTileItemDto {
-  @ApiProperty({ enum: LEASE_QUEUE_KINDS })
+  @ApiProperty({ enum: LEASE_QUEUE_KINDS, enumName: 'LeaseQueueKind' })
   kind!: string;
 
   @ApiProperty({ format: 'uuid' })
@@ -144,7 +168,10 @@ export class TeamTileDto {
   @ApiProperty()
   role!: string;
 
-  @ApiProperty({ enum: ['online', 'away', 'offline'] })
+  @ApiProperty({
+    enum: ['online', 'away', 'offline'],
+    enumName: 'DeskPresence',
+  })
   status!: string;
 
   @ApiProperty({
@@ -171,6 +198,7 @@ export class TeamAdminParamDto {
 export class TeamReleaseDto {
   @ApiPropertyOptional({
     enum: LEASE_QUEUE_KINDS,
+    enumName: 'LeaseQueueKind',
     description: 'Omit kind+itemId to take everything away from this person.',
   })
   @IsOptional()
@@ -190,7 +218,7 @@ export class TeamReleaseDto {
 }
 
 export class TeamReassignDto {
-  @ApiProperty({ enum: LEASE_QUEUE_KINDS })
+  @ApiProperty({ enum: LEASE_QUEUE_KINDS, enumName: 'LeaseQueueKind' })
   @IsIn(LEASE_QUEUE_KINDS)
   kind!: string;
 
