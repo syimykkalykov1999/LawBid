@@ -1,5 +1,20 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
+import { IsString, MinLength } from 'class-validator';
+import { MaxTextChars } from '../../common/app-settings/max-text-chars.decorator';
+import { tidy } from '../../common/utils/tidy-text';
 import { CommentAuthorDto } from '../comments/comments.dto';
+
+/** PATCH /case-comments/:id — Owner 2026-10-25: edit within the admin's
+ * time window. */
+export class EditCaseCommentDto {
+  @ApiProperty({ minLength: 1 })
+  @Transform(tidy)
+  @IsString()
+  @MinLength(1)
+  @MaxTextChars('limits.comment_chars')
+  body!: string;
+}
 
 /**
  * Owner 2026-09-30 (OQ-034): a comment under a case — same shape as a
@@ -42,6 +57,15 @@ export class CaseCommentDto {
 
   @ApiProperty()
   createdAt!: string;
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'Set when the author edited the text (earlier texts are kept on the server for legal audit).',
+  })
+  editedAt!: string | null;
 }
 
 export interface CaseCommentPage {

@@ -107,6 +107,9 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   // Owner 2026-10-05: repeat accounts of blocked fraudsters (clients).
   fraud: 'verification',
   moderation: 'moderation',
+  // Owner 2026-10-28: the only admin read path for private chats, calls
+  // and case files (reason code + audit + 2FA step-up; see AdminPrivateContent).
+  'private-content': 'moderation',
   'review-appeals': 'moderation',
   // Owner 2026-10-20: group chats (remove members, close groups).
   'group-chats': 'moderation',
@@ -155,6 +158,8 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   // …and the partner team's own page (report, goals, contract).
   'country-partner': 'partner_portal',
   'case-payments': 'money', // client → attorney payments (Stripe Connect)
+  // Stripe robustness 2026-10-27: «Проверки Stripe» (super admin only).
+  'stripe-review': 'money',
   // Owner 2026-10-05: «Прибыль и резерв» (the monthly split of the balance).
   treasury: 'money',
   integrations: 'keys',

@@ -107,6 +107,17 @@ export class RateLimitService {
     };
   }
 
+  /** Current count of a fixed window without consuming it (0 if none). */
+  async peekFixedWindow(keyParts: string[]): Promise<number> {
+    const raw = await this.redis.get(this.buildKey('rl:fixed', keyParts));
+    const n = raw === null ? 0 : Number(raw);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  async resetFixedWindow(keyParts: string[]): Promise<void> {
+    await this.redis.del(this.buildKey('rl:fixed', keyParts));
+  }
+
   /** Identifiers are hashed before touching a Redis key — raw phone/email
    * must never appear in keyspace notifications, SLOWLOG, or MONITOR
    * output, same spirit as the existing pino redaction. */

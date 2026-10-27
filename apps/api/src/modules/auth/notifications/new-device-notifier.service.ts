@@ -19,6 +19,8 @@ export interface LoginContext {
   isNewDevice: boolean;
   device: DeviceInfo;
   meta: RequestMeta;
+  /** S14-4: server-side novelty that fires the alert on its own. */
+  novelty?: { newCountry: boolean; newBrowser: boolean };
 }
 
 /** Upper bound on how long shutdown waits for in-flight alerts. */
@@ -54,9 +56,44 @@ export class NewDeviceNotifier implements OnApplicationShutdown {
   }
 
   async onLogin(ctx: LoginContext): Promise<void> {
-    const deviceId = ctx.device.deviceId;
-    if (!ctx.isNewDevice || ctx.isNewUser || !deviceId) return;
+    const novel =
+      ctx.isNewDevice ||
+      ctx.novelty?.newCountry === true ||
+      ctx.novelty?.newBrowser === true;
+    if (!novel || ctx.isNewUser) return;
+    await this.notify(ctx, {
+      reason: ctx.isNewDevice ? 'new_device' : 'new_country',
+      eventType: AUTH_EVENT_TYPES.NEW_DEVICE,
+    });
+  }
 
+  /**
+   * S14-4: a refresh (not a sign-in) arrived from a country the session was
+   * not last used from. Same alert, same channels, once per move.
+   */
+  async onRefreshFromNewCountry(ctx: {
+    user: LoginContext['user'];
+    device: DeviceInfo;
+    meta: RequestMeta;
+  }): Promise<void> {
+    await this.notify(
+      {
+        ...ctx,
+        isNewUser: false,
+        isNewDevice: false,
+      },
+      { reason: 'new_country', eventType: AUTH_EVENT_TYPES.NEW_COUNTRY },
+    );
+  }
+
+  private async notify(
+    ctx: LoginContext,
+    how: {
+      reason: 'new_device' | 'new_country';
+      eventType: (typeof AUTH_EVENT_TYPES)[keyof typeof AUTH_EVENT_TYPES];
+    },
+  ): Promise<void> {
+    const deviceId = ctx.device.deviceId;
     const notice: NewDeviceLoginNotice = {
       userId: ctx.user.id,
       verifiedEmail:
@@ -66,13 +103,15 @@ export class NewDeviceNotifier implements OnApplicationShutdown {
       deviceId,
       deviceName: ctx.device.deviceName,
       platform: ctx.device.platform,
+      reason: how.reason,
+      country: ctx.meta.country,
       at: new Date(),
     };
 
     try {
       await this.authEvents.record({
         userId: ctx.user.id,
-        eventType: AUTH_EVENT_TYPES.NEW_DEVICE,
+        eventType: how.eventType,
         success: true,
         deviceId,
         ip: ctx.meta.ip,
@@ -80,6 +119,8 @@ export class NewDeviceNotifier implements OnApplicationShutdown {
         meta: {
           deviceName: ctx.device.deviceName ?? null,
           platform: ctx.device.platform ?? null,
+          reason: how.reason,
+          country: ctx.meta.country ?? null,
           channels: this.channels.map((c) => c.name),
         },
       });

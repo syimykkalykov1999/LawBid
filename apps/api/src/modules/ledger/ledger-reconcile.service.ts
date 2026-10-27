@@ -39,6 +39,7 @@ const APP_SOURCE_TYPES = [
   'payment_refund_sync',
   'case_payment',
   'case_payment_refund',
+  'case_payment_refund_reversal',
 ];
 
 export type LedgerReconcileMode = 'off' | 'on' | 'auto';
@@ -358,6 +359,13 @@ export class LedgerReconcileService {
         SELECT COALESCE(SUM(l.amount_cents), 0) FROM ledger_lines l
           JOIN ledger_entries e ON e.id = l.entry_id
          WHERE e.source_type = 'case_payment_refund' AND l.direction = 'debit'
+      ) + (
+        -- a refund that failed / a chargeback won late is booked back (reversal entries)
+        SELECT COALESCE(SUM(l.amount_cents), 0) FROM ledger_lines l
+          JOIN ledger_entries e ON e.id = l.entry_id
+          JOIN ledger_accounts a ON a.id = l.account_id
+         WHERE e.source_type = 'case_payment_refund_reversal' AND l.direction = 'credit'
+           AND a.code IN ('connect_attorney', 'revenue_case_fees')
       ) AS diff`;
     return Number(row?.diff ?? 0);
   }

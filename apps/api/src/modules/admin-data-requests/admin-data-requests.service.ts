@@ -91,6 +91,14 @@ export class AdminDataRequestsService {
           notes: dto.notes ?? null,
           handled_by: admin.id,
           status: 'received',
+          legal_basis: dto.legalBasis ?? null,
+          country: dto.country ?? null,
+          subject_user_id: dto.subjectUserId ?? null,
+          due_at: dto.dueAt ? new Date(dto.dueAt) : null,
+          do_not_notify: dto.doNotNotify ?? false,
+          nondisclosure_until: dto.nondisclosureUntil
+            ? new Date(dto.nondisclosureUntil)
+            : null,
         },
         include: { _count: { select: { access_log: true } } },
       });
@@ -104,6 +112,10 @@ export class AdminDataRequestsService {
             requestType: dto.requestType,
             referenceNumber: dto.referenceNumber,
             agency: dto.agency,
+            legalBasis: dto.legalBasis,
+            dueAt: dto.dueAt,
+            doNotNotify: dto.doNotNotify ?? false,
+            nondisclosureUntil: dto.nondisclosureUntil,
           },
           ip: admin.ip,
         },
@@ -382,6 +394,13 @@ function present(r: Row): DataRequestDto {
     closedAt: r.closed_at?.toISOString() ?? null,
     createdAt: r.created_at.toISOString(),
     accessCount: r._count.access_log,
+    legalBasis: r.legal_basis,
+    country: r.country,
+    subjectUserId: r.subject_user_id,
+    dueAt: r.due_at?.toISOString() ?? null,
+    doNotNotify: r.do_not_notify,
+    nondisclosureUntil: r.nondisclosure_until?.toISOString() ?? null,
+    userNotifiedAt: r.user_notified_at?.toISOString() ?? null,
   };
 }
 

@@ -111,6 +111,17 @@ failed`), если что-то выключено. Для этого в `terrafo
    [journal-integrity.md](journal-integrity.md).
 6. Re-drive missed Stripe webhooks (Stripe Dashboard → Resend since the
    restore point).
+7. **Re-run the erasures (privacy, mandatory).** The restore brings back
+   people who were deleted after the restore point (their names, messages,
+   phone). The erasure ledger lives outside the restorable data too: one
+   object per person, `erasure-ledger/<user id>.json`, in the private
+   `documents` bucket. Before the app serves traffic again (or at once, with
+   the app in maintenance): `DRY_RUN=1 npm run privacy:reapply-erasures`
+   (counts only), then `npm run privacy:reapply-erasures` (anonymizes every
+   ledger id that is not anonymized; a legal hold defers one). Never skip it:
+   processing restored data of an erased person is what regulators object to.
+   Owner step: turn on S3 Object Lock (governance) for the `erasure-ledger/`
+   prefix or a dedicated bucket so the ledger itself cannot be altered.
 
 ## Before every prod migration
 

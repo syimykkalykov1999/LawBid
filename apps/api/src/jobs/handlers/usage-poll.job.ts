@@ -11,6 +11,7 @@ import {
   type FetchFn,
   type UsageLevel,
 } from '../../common/ops/usage/usage-clients';
+import { PnlService } from '../../common/pnl/pnl.service';
 import { SpendService } from '../../common/ops/spend/spend.service';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -59,6 +60,9 @@ export class UsagePollJob {
     // Owner 2026-10-24 («Расходы»): the same daily poll also stores the
     // money snapshot (AWS only if its last read is older than 6 h).
     @Optional() private readonly spend?: SpendService,
+    // Owner 2026-10-25 («Прибыль»): the P&L snapshot is recounted right after
+    // the spend poll, once a day (one grouped query, $0).
+    @Optional() private readonly pnl?: PnlService,
   ) {
     this.logger.setContext(UsagePollJob.name);
   }
@@ -71,6 +75,7 @@ export class UsagePollJob {
       .set(USAGE_SNAPSHOT_KEY, JSON.stringify(snap), 'EX', SNAPSHOT_TTL_SEC)
       .catch(() => undefined);
     await this.spend?.refresh(now, fetchFn).catch(() => undefined);
+    await this.pnl?.refresh().catch(() => undefined);
     return snap;
   }
 

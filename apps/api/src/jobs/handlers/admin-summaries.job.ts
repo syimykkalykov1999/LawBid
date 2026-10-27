@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { AnalyticsService } from '../../modules/analytics/analytics.service';
 import { BillingOverviewService } from '../../modules/admin-billing/billing-overview.service';
+import { AdminAccessReportService } from '../../modules/admin/admin-access-report.service';
 import { DashboardService } from '../../modules/admin/dashboard.service';
 import {
   AttorneyTrustService,
@@ -30,6 +31,8 @@ export class AdminSummariesJob {
     private readonly summary: AdminSummaryService,
     private readonly analytics: AnalyticsService,
     private readonly logger: PinoLogger,
+    // Owner 2026-10-28: this month's admin-access report, once a day.
+    @Optional() private readonly accessReport?: AdminAccessReportService,
   ) {
     this.logger.setContext(AdminSummariesJob.name);
   }
@@ -40,6 +43,12 @@ export class AdminSummariesJob {
       // Owner 2026-10-25: the heavy analytics SQL runs once a day (04 UTC).
       ['analytics', () => this.analytics.refreshSnapshots()],
       ['billing-overview', () => this.billing.refreshOverview()],
+      [
+        'access-report',
+        async () => {
+          await this.accessReport?.refreshDaily();
+        },
+      ],
       [
         'trust-scan',
         async () => {

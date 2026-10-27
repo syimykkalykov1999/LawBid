@@ -135,6 +135,23 @@ export class LegalExportService {
     if (row.status !== 'ready' || !row.file_bucket || !row.file_key) {
       throw bad('The archive is not ready or has expired.');
     }
+    // Owner 2026-10-28: a production leaves the system a limited number of
+    // times; the counter is bumped first and atomically, so two admins
+    // cannot both use the last download.
+    const max = await this.settings.number('legal.export_max_downloads');
+    const claimed = await this.prisma.legalExport.updateMany({
+      where: {
+        id: row.id,
+        ...(max > 0 ? { download_count: { lt: max } } : {}),
+      },
+      data: {
+        download_count: { increment: 1 },
+        last_downloaded_at: new Date(),
+      },
+    });
+    if (claimed.count === 0) {
+      throw bad('The download limit for this archive is used up.');
+    }
     const url = await this.storage.signedGetUrl(
       row.file_bucket,
       row.file_key,
@@ -146,10 +163,17 @@ export class LegalExportService {
       action: LEGAL_AUDIT.download,
       targetType: 'legal_export',
       targetId: row.id,
+      after: {
+        sha256: row.sha256,
+        manifestSha256: row.manifest_sha256,
+        downloadNumber: row.download_count + 1,
+        of: max > 0 ? max : null,
+      },
       ip: admin.ip,
       justification: admin.justification,
     });
     return {
+      downloadsLeft: max > 0 ? Math.max(0, max - row.download_count - 1) : null,
       url,
       expiresAt: new Date(Date.now() + DOWNLOAD_TTL_SEC * 1000).toISOString(),
       sha256: row.sha256,
@@ -169,6 +193,13 @@ export class LegalExportService {
     if (dto.expiresAt && new Date(dto.expiresAt) <= new Date()) {
       throw bad('expiresAt must be in the future.');
     }
+    // 18 U.S.C. 2703(f): a preservation request lasts 90 days (one renewal
+    // of 90 more = a new hold). Other requests keep "until released".
+    let expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
+    if (!expiresAt && request.request_type === 'preservation') {
+      const days = await this.settings.number('legal.preservation_days');
+      if (days > 0) expiresAt = new Date(Date.now() + days * 24 * 3600 * 1000);
+    }
     if (!(await this.targetExists(dto.targetType, dto.targetId))) {
       throw notFound('Target not found.');
     }
@@ -179,7 +210,7 @@ export class LegalExportService {
           target_type: dto.targetType,
           target_id: dto.targetId,
           created_by: admin.id,
-          expires_at: dto.expiresAt ? new Date(dto.expiresAt) : null,
+          expires_at: expiresAt,
         },
       });
       await this.audit.record(
@@ -244,6 +275,12 @@ export class LegalExportService {
         select: { id: true },
       }));
     }
+    if (type === 'case') {
+      return !!(await this.prisma.case.findUnique({
+        where: { id },
+        select: { id: true },
+      }));
+    }
     if (type === 'conversation') {
       return !!(await this.prisma.conversation.findUnique({
         where: { id },
@@ -268,6 +305,11 @@ function presentExport(r: LegalExport): LegalExportDto {
     rowCounts: (r.row_counts as Record<string, number> | null) ?? null,
     sizeBytes: r.size_bytes === null ? null : Number(r.size_bytes),
     sha256: r.sha256,
+    manifestSha256: r.manifest_sha256,
+    manifestSignature: r.manifest_signature,
+    signatureAlg: r.signature_alg,
+    downloadCount: r.download_count,
+    lastDownloadedAt: r.last_downloaded_at?.toISOString() ?? null,
     error: r.error,
     createdAt: r.created_at.toISOString(),
     finishedAt: r.finished_at?.toISOString() ?? null,

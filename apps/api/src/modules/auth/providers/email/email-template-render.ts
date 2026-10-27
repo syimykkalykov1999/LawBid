@@ -14,6 +14,8 @@ export const EMAIL_TEMPLATE_KEYS = [
   'sign_in_changed',
   'data_export',
   'notification',
+  // Owner 2026-10-25 (S13-14): "your account will be deleted", day 0 / 13.
+  'account_deletion',
 ] as const;
 export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number];
 
@@ -37,6 +39,8 @@ export const REQUIRED_TEMPLATE_VARS: Readonly<
   sign_in_changed: [],
   data_export: ['url'],
   notification: [],
+  // The cancel link is the whole point of the message.
+  account_deletion: ['cancelUrl'],
 };
 
 export function isEmailTemplateKey(v: string): v is EmailTemplateKey {

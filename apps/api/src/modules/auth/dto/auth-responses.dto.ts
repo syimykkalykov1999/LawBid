@@ -57,6 +57,30 @@ export class SessionDto {
 
   @ApiProperty({ description: 'True for the session making this request.' })
   isCurrent!: boolean;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Masked address the session was last used from (203.0.113.x); null when unknown.',
+  })
+  ipHint!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'ISO-3166 alpha-2 country the session was last used from, when the CDN reported it.',
+  })
+  country!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Browser and system label for web sessions ("Chrome · macOS").',
+  })
+  browser!: string | null;
 }
 
 export class ReauthTokenDto {

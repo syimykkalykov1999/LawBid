@@ -183,6 +183,11 @@ export class AnswerDto {
   @ApiProperty({ format: 'uuid' }) questionId!: string;
   @ApiProperty({ type: QaPersonDto }) attorney!: QaPersonDto;
   @ApiProperty() body!: string;
+  @ApiProperty({
+    description:
+      'Owner 2026-10-28: the server decides the «verified attorney answer» badge — the answerer is verified now and holds a verified licence in the question’s state.',
+  })
+  verifiedBadge!: boolean;
   @ApiProperty({ type: 'integer' }) likeCount!: number;
   @ApiProperty() likedByMe!: boolean;
   @ApiProperty() isBest!: boolean;
@@ -221,6 +226,12 @@ export class QuestionDto {
     description: 'The viewer is a verified attorney who may answer now.',
   })
   canAnswer!: boolean;
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Owner 2026-10-28: only in the answer to POST /questions — kinds of private information found in the text (ssn, address, case_number, party_name ...). With qa.pii_mode=redact they were replaced with a mask.',
+  })
+  privacyWarnings?: string[];
   @ApiProperty() createdAt!: string;
 }
 

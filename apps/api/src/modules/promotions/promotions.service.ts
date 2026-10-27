@@ -1,3 +1,4 @@
+import { AttorneyAdsService } from '../attorney-ads/attorney-ads.service';
 import {
   BadRequestException,
   ConflictException,
@@ -157,12 +158,45 @@ export class PromotionsService {
     @Optional() private readonly stars?: StarsService,
     // Owner 2026-10-22: our own card page in place of Stripe's.
     @Optional() private readonly payLink?: PayLinkService,
+    // Owner 2026-10-28: a copy of every attorney promotion (ad archive).
+    @Optional() private readonly ads?: AttorneyAdsService,
     // Day-one foundations: the double-entry money ledger (same transaction).
     @Optional() private readonly ledger?: LedgerPostingService,
     // Owner 2026-10-25: impressions / reach / clicks wait in the counter
     // aggregator until the next flush; stats add them so the answer is exact.
     @Optional() private readonly counters?: CounterAggregator,
   ) {}
+
+  /** Owner 2026-10-28: the promoted post of an attorney is paid
+   * advertising — keep the exact text that was promoted. Never throws. */
+  private async archivePromotion(
+    userId: string,
+    promotionId: string,
+    postId: string,
+  ): Promise<void> {
+    if (!this.ads) return;
+    try {
+      const [user, post] = await Promise.all([
+        this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { role: true },
+        }),
+        this.prisma.post.findUnique({
+          where: { id: postId },
+          select: { title: true, body: true },
+        }),
+      ]);
+      if (user?.role !== 'attorney' || !post) return;
+      await this.ads.archive(
+        userId,
+        'promotion',
+        promotionId,
+        post.title ? `${post.title}\n${post.body}` : post.body,
+      );
+    } catch {
+      // The archive never blocks a purchase.
+    }
+  }
 
   /** Rows with the not yet flushed impressions / reach / clicks added. */
   private async withPending<T extends CasePromotion>(rows: T[]): Promise<T[]> {
@@ -573,6 +607,7 @@ export class PromotionsService {
       },
     );
 
+    if (type === 'post') await this.archivePromotion(userId, row.id, id);
     if (row.status !== 'pending_payment') {
       if (row.status === 'active') await this.started(row);
       return {

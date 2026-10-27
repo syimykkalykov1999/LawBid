@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'csam_audit_event_dto.dart';
 import 'csam_report_dto_status.dart';
 
 part 'csam_report_dto.g.dart';
@@ -16,6 +17,7 @@ class CsamReportDto {
     required this.status,
     required this.externalReportId,
     required this.error,
+    required this.audit,
     required this.createdAt,
   });
 
@@ -27,6 +29,9 @@ class CsamReportDto {
   final CsamReportDtoStatus status;
   final String? externalReportId;
   final String? error;
+
+  /// Owner 2026-10-28: append-only trail of this report (who opened it, whether the NCMEC call was made).
+  final List<CsamAuditEventDto> audit;
   final String createdAt;
 
   Map<String, Object?> toJson() => _$CsamReportDtoToJson(this);

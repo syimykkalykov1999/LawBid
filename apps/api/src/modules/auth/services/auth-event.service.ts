@@ -60,6 +60,10 @@ export const AUTH_EVENT_TYPES = {
   // docs/01 §10.6: a login created a session on a device_id this existing
   // user never used before (NewDeviceNotifier).
   NEW_DEVICE: 'new_device',
+  // S14-4: a refresh arrived from a country the session was not last used
+  // from; "this wasn't me" pressed on an alert (all sessions ended).
+  NEW_COUNTRY: 'new_country',
+  WASNT_ME: 'wasnt_me',
   // Refresh-token rotation hit the per-session-chain limit.
   REFRESH_RATE_LIMITED: 'refresh_rate_limited',
   // docs/04 §12: every entry into "История кейсов" (docs/02 §4.A list).

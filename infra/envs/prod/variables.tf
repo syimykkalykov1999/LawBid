@@ -442,6 +442,11 @@ variable "backup_retention_days" {
   type    = number
   default = 35
 }
+variable "backup_restore_test_enabled" {
+  type        = bool
+  default     = false
+  description = "Monthly automatic restore test of the newest database backup (cents per month); off by default."
+}
 variable "backup_copy_account_id" {
   type        = string
   default     = ""
@@ -656,6 +661,11 @@ variable "audit_logs_object_lock" {
   default     = false
   description = "S3 Object Lock on the audit log bucket (irreversible per bucket). WARNING (AWS docs, checked 2026-10-24): a bucket with Object Lock cannot receive S3 server access logs, so with this on the documents access log (modules/s3) stops being delivered. Keep false; the bucket already denies deletes by IAM and versioning keeps history."
 }
+variable "admin_audit_export_enabled" {
+  type        = bool
+  default     = false
+  description = "The API copies the admin audit log once a day into the audit log bucket (needs audit_logs_enabled). Guide: docs/runbooks/ADMIN_HARDENING.md."
+}
 variable "vpc_flow_logs_traffic" {
   type    = string
   default = "ALL"
@@ -677,6 +687,12 @@ variable "backup_vault_lock_mode" {
 variable "backup_vault_lock_cooling_off_days" {
   type    = number
   default = 7
+}
+
+variable "db_replica_toggle" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-10-24: true = the admin «Масштаб» page can create / delete ONE read replica of the database (one 2FA step-up). Adds IAM for exactly that instance name and one small monitoring role; creates no database. docs/runbooks/db-replica.md."
 }
 
 # AWS guardrails pass 2026-10-25 (docs/runbooks/aws-guardrails.md)

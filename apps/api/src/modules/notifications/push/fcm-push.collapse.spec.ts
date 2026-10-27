@@ -148,7 +148,7 @@ describe('PushDispatcher message collapse', () => {
       chatGroupMember: {
         findUnique: () => Promise.resolve({ muted_until: null, left_at: null }),
       },
-      chatGroupMessage: { findUnique: () => Promise.resolve(message) },
+      chatGroupMessage: { findFirst: () => Promise.resolve(message) },
       chatGroup: {
         findUnique: () =>
           Promise.resolve({

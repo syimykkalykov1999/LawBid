@@ -58,11 +58,18 @@ function setup(notification?: Record<string, unknown>) {
       findUnique: () =>
         Promise.resolve({ muted_until: null, last_read_message_id: null }),
     },
-    message: { findUnique: () => Promise.resolve(message) },
+    // #358: compound keys — the dispatcher reads by id with findFirst.
+    message: {
+      findUnique: () => Promise.resolve(message),
+      findFirst: () => Promise.resolve(message),
+    },
     chatGroupMember: {
       findUnique: () => Promise.resolve({ muted_until: null, left_at: null }),
     },
-    chatGroupMessage: { findUnique: () => Promise.resolve(message) },
+    chatGroupMessage: {
+      findUnique: () => Promise.resolve(message),
+      findFirst: () => Promise.resolve(message),
+    },
     chatGroup: {
       findUnique: () =>
         Promise.resolve({
@@ -71,7 +78,10 @@ function setup(notification?: Record<string, unknown>) {
           avatar_file_id: null,
         }),
     },
-    notification: { findUnique: () => Promise.resolve(notification ?? null) },
+    notification: {
+      findUnique: () => Promise.resolve(notification ?? null),
+      findFirst: () => Promise.resolve(notification ?? null),
+    },
     notificationSetting: { findUnique: () => Promise.resolve(null) },
     notificationQuietHours: { findUnique: () => Promise.resolve(null) },
   };

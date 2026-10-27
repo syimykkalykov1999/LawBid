@@ -105,7 +105,7 @@ describe('notification topics', () => {
       const sent: PushMessage[] = [];
       const prisma = {
         notification: {
-          findUnique: () =>
+          findFirst: () =>
             Promise.resolve({
               id: 'n1',
               type,

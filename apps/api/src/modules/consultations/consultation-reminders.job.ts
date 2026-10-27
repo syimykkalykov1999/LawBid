@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
+import { CalendarSyncService } from '../calendar/calendar-sync.service';
+import { NoShowService } from '../calendar/no-show.service';
 import { ConsultationsService } from './consultations.service';
 
 const HOUR_MS = 3_600_000;
@@ -15,6 +17,10 @@ export interface ConsultationSweepResult {
   day: number;
   hour: number;
   ended: number;
+  /** Owner 2026-10-28 */
+  noShowFinal: number;
+  noShowDetected: number;
+  calendarSynced: number;
 }
 
 /**
@@ -29,6 +35,8 @@ export class ConsultationRemindersJob {
   constructor(
     private readonly prisma: PrismaService,
     private readonly consultations: ConsultationsService,
+    private readonly noShows: NoShowService,
+    private readonly calendarSync: CalendarSyncService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(ConsultationRemindersJob.name);
@@ -40,12 +48,37 @@ export class ConsultationRemindersJob {
       day: 0,
       hour: 0,
       ended: 0,
+      noShowFinal: 0,
+      noShowDetected: 0,
+      calendarSynced: 0,
     };
     result.expired = await this.expirePending(now);
     result.hour = await this.remindHour(now);
     result.day = await this.remindDay(now);
     result.ended = await this.markEnded(now);
-    if (result.expired || result.day || result.hour || result.ended) {
+    // Owner 2026-10-28: each part is isolated — a failing calendar vendor
+    // must never stop reminders or no-show handling.
+    try {
+      const ns = await this.noShows.sweep(now);
+      result.noShowFinal = ns.finalized;
+      result.noShowDetected = ns.detected;
+    } catch (e) {
+      this.logger.warn({ err: String(e) }, 'no-show sweep failed');
+    }
+    try {
+      result.calendarSynced = await this.calendarSync.sweep(now);
+    } catch (e) {
+      this.logger.warn({ err: String(e) }, 'calendar sync failed');
+    }
+    if (
+      result.expired ||
+      result.day ||
+      result.hour ||
+      result.ended ||
+      result.noShowFinal ||
+      result.noShowDetected ||
+      result.calendarSynced
+    ) {
       this.logger.info(result, 'consultation sweep');
     }
     return result;

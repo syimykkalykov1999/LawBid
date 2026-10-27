@@ -21,6 +21,7 @@ abstract final class ClientTuning {
   static int _qrPollS = 10;
   static int _resumeMinAwayS = 30;
   static int _videoPrefetchAhead = 3;
+  static String _videoPrefetchMode = 'auto';
   static int _videoCacheMb = 100;
   static int _videoCacheChunkS = 4;
   static double _chatPhotoMaxPx = 1600;
@@ -56,6 +57,10 @@ abstract final class ClientTuning {
 
   /// Reels warmed ahead of the one on screen (`client.video_prefetch_ahead`).
   static int get videoPrefetchAhead => _videoPrefetchAhead;
+
+  /// Reel warm-up switch (`client.video_prefetch_mode`): `off` | `on` |
+  /// `auto` (unmetered link only; the default). Anything else means auto.
+  static String get videoPrefetchMode => _videoPrefetchMode;
 
   /// Disk ceiling of the video chunk cache, MB; 0 = off
   /// (`client.video_cache_mb`).
@@ -105,6 +110,12 @@ abstract final class ClientTuning {
     _qrPollS = pick('client.qr_poll_s', 10, 5, 60);
     _resumeMinAwayS = pick('client.resume_refresh_min_away_s', 30, 5, 3600);
     _videoPrefetchAhead = pick('client.video_prefetch_ahead', 3, 0, 6);
+    final mode = config['client.video_prefetch_mode']?.trim().toLowerCase();
+    _videoPrefetchMode = switch (mode) {
+      'off' => 'off',
+      'on' => 'on',
+      _ => 'auto',
+    };
     _videoCacheMb = pick('client.video_cache_mb', 100, 0, 1000);
     _videoCacheChunkS = pick('client.video_cache_chunk_s', 4, 1, 15);
     _chatPhotoMaxPx = pick(

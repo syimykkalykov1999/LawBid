@@ -809,6 +809,10 @@ class _ListSlice {
 
 class _MessageListState extends ConsumerState<_MessageList> {
   late final ChatListController _c;
+
+  /// Row key → index, built on first use after the rows change.
+  Map<Key, int>? _indexByKey;
+
   final _listKey = GlobalKey();
   ChatListLayout? _layout;
   List<ChatListEntry> get _entries => _layout?.entries ?? const [];
@@ -979,6 +983,12 @@ class _MessageListState extends ConsumerState<_MessageList> {
             lastReadId: lastRead,
             lastDeliveredId: lastDelivered,
           );
+    if (!identical(layout, cached)) {
+      _indexByKey = null;
+      // S16-6: keys of messages that left the thread are dropped (the map
+      // used to grow with every message ever shown).
+      _c.pruneKeys({for (final e in layout.entries) e.newest.id});
+    }
     _layout = layout;
     final entries = layout.entries;
     _newestId ??= items.first.id;
@@ -1001,6 +1011,16 @@ class _MessageListState extends ConsumerState<_MessageList> {
             vertical: AppSpacing.md,
           ),
           itemCount: entries.length + (state.nextCursor != null ? 1 : 0),
+          // S16-6: rows are keyed by their newest message; when messages
+          // come in at the bottom the others move one index and Flutter
+          // finds them by key instead of rebuilding their elements.
+          findChildIndexCallback: (key) {
+            final byKey = _indexByKey ??= {
+              for (var i = 0; i < entries.length; i++)
+                _c.keyFor(entries[i].newest.id): i,
+            };
+            return byKey[key];
+          },
           itemBuilder: (context, i) {
             if (i == entries.length) {
               if (state.loadMoreFailed) {

@@ -55,6 +55,24 @@ class AppStartupController extends Notifier<StartupStatus> {
     return StartupStatus.running;
   }
 
+  Future<void>? _early;
+
+  /// S16-1: the first run, started by `runLawBid` before `runApp` so the
+  /// keychain read + token refresh overlap the first frame and the
+  /// translation load instead of waiting for the splash's post-frame
+  /// callback (Instagram/WhatsApp open from the local copy and sync behind
+  /// it).
+  Future<void> prime() => _early ??= run();
+
+  /// What the splash calls on mount: it joins the run [prime] started (once);
+  /// any later visit to the splash (demo switch, sign-out) runs again.
+  Future<void> start() {
+    final early = _early;
+    if (early == null) return run();
+    _early = null;
+    return early;
+  }
+
   /// Idempotent while in flight; safe to call again from Retry.
   Future<void> run() {
     _offlineRetry?.cancel();

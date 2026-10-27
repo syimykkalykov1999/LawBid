@@ -9,6 +9,7 @@ import '../models/add_expense_dto.dart';
 import '../models/add_time_dto.dart';
 import '../models/case_billing_envelope.dart';
 import '../models/issue_invoice_dto.dart';
+import '../models/record_invoice_payment_dto.dart';
 import '../models/running_timer_envelope.dart';
 import '../models/set_rate_dto.dart';
 import '../models/stop_timer_dto.dart';
@@ -102,6 +103,39 @@ abstract class CaseBillingClient {
   Future<CaseBillingEnvelope> issueCaseInvoice({
     @Path('id') required String id,
     @Body() required IssueInvoiceDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Attorney: send a draft invoice (the client sees it now)
+  @POST('/cases/{id}/billing/invoices/{invoiceId}/send')
+  Future<CaseBillingEnvelope> sendCaseInvoice({
+    @Path('id') required String id,
+    @Path('invoiceId') required String invoiceId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Attorney: void an unpaid invoice; its time and expenses become billable again
+  @POST('/cases/{id}/billing/invoices/{invoiceId}/void')
+  Future<CaseBillingEnvelope> voidCaseInvoice({
+    @Path('id') required String id,
+    @Path('invoiceId') required String invoiceId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Attorney: remind the client about an unpaid invoice now
+  @POST('/cases/{id}/billing/invoices/{invoiceId}/remind')
+  Future<CaseBillingEnvelope> remindCaseInvoice({
+    @Path('id') required String id,
+    @Path('invoiceId') required String invoiceId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Attorney: record money received outside the app (partially paid / paid)
+  @POST('/cases/{id}/billing/invoices/{invoiceId}/payment')
+  Future<CaseBillingEnvelope> recordCaseInvoicePayment({
+    @Path('id') required String id,
+    @Path('invoiceId') required String invoiceId,
+    @Body() required RecordInvoicePaymentDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

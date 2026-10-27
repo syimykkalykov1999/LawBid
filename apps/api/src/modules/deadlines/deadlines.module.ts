@@ -12,5 +12,6 @@ import { DeadlinesService } from './deadlines.service';
   imports: [AdminAccessModule, FeatureFlagsModule],
   controllers: [DeadlinesController, AdminDeadlinesController],
   providers: [DeadlinesService],
+  exports: [DeadlinesService],
 })
 export class DeadlinesModule {}

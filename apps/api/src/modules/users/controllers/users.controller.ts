@@ -13,7 +13,12 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { ApiBearerAuth, ApiHeader, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiHeader,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -24,6 +29,7 @@ import {
   ConsentsSavedDto,
   ContactCodeSentDto,
   ContactVerifiedDto,
+  DeletionCancelledDto,
   DeletionPendingDto,
   IdentifierDto,
   MeDto,
@@ -287,6 +293,26 @@ export class UsersController {
   ): Promise<DeletionPendingDto> {
     await this.accountDeletion.requestDeletion(user.sub, this.meta(req));
     return { deletionPending: true };
+  }
+
+  @Post('deletion/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Cancel a pending account deletion (privacy round 13): a sign-in does not do it by itself any more',
+  })
+  @ApiEnvelopeResponse(DeletionCancelledDto)
+  @ApiErrors({ 401: [E.UNAUTHORIZED, E.TOKEN_EXPIRED, E.AUTH_SESSION_REVOKED] })
+  async cancelDeletion(
+    @CurrentUser() user: RequestUser,
+    @Req() req: Request,
+  ): Promise<DeletionCancelledDto> {
+    return {
+      cancelled: await this.accountDeletion.cancelDeletion(
+        user.sub,
+        this.meta(req),
+      ),
+    };
   }
 
   private meta(req: Request): RequestMeta {

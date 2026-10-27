@@ -11,9 +11,11 @@
  * so a wrong value can neither silence the app nor make it hammer us.
  */
 export interface ClientTuningDef {
-  readonly default: number | boolean;
+  readonly default: number | boolean | string;
   readonly min?: number;
   readonly max?: number;
+  /** For string values: the allowed shape (checked on save). */
+  readonly pattern?: RegExp;
   /** English text for the admin config page (key name stays English). */
   readonly description: string;
 }
@@ -78,6 +80,13 @@ export const CLIENT_TUNING_DEFS = {
     max: 6,
     description:
       'How many reels ahead the app warms (playlist + first segment, up to 1 MB each) while someone swipes. Video traffic is the biggest cost: lower it to save money, 0 = no warm-up.',
+  },
+  // S20-9 (2026-10-25): 3-state switch over the number above.
+  'client.video_prefetch_mode': {
+    default: 'auto',
+    pattern: /^(off|on|auto)$/,
+    description:
+      'Reel warm-up switch. off = never warm up; on = always the numbers below, whatever the network; auto (default) = «ahead» on Wi-Fi, «cellular» on mobile data, and 0 while Bunny video traffic this month is over its warning level (Usage alarms).',
   },
   // S12-5 (observability round 12). Both need the person's analytics consent
   // (Settings → Privacy → «Usage statistics») and a Sentry DSN for the first.

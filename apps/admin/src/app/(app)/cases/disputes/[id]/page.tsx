@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { FadeIn } from '@/components/legacy/fade-in';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
+import { useViewReason } from '@/components/use-view-reason';
 import { Button } from '@/components/ui/button';
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
@@ -21,9 +22,12 @@ export default function DisputeCardPage() {
   const qc = useQueryClient();
   const { ask, dialog } = useReason();
   const toast = useToast();
+  const view = useViewReason('Причина просмотра спора');
   const q = useQuery({
     queryKey: ['dispute', id],
-    queryFn: async () => (await api.GET('/admin/case-disputes/{id}', { params: { path: { id } } })).data!.data,
+    enabled: view.ready,
+    queryFn: async () =>
+      (await api.GET('/admin/case-disputes/{id}', { params: { path: { id }, header: { 'X-Justification': view.header } } })).data!.data,
   });
   const d = q.data;
   const resolve = useMutation({
@@ -68,6 +72,7 @@ export default function DisputeCardPage() {
   return (
     <>
       {dialog}
+      {view.dialog}
       <PageHeader
         eyebrow="Кейсы · Спор"
         title={d.case.title}

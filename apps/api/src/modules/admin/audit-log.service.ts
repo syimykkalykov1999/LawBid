@@ -67,6 +67,7 @@ export class AuditLogQueryService {
         targetType: r.target_type,
         targetId: r.target_id,
         justification: r.justification,
+        reasonCode: r.reason_code,
         before: r.before,
         after: r.after,
         ip: r.ip,

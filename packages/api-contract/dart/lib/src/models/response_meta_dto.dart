@@ -4,11 +4,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'legal_disclaimer_dto.dart';
+
 part 'response_meta_dto.g.dart';
 
 @JsonSerializable()
 class ResponseMetaDto {
-  const ResponseMetaDto({this.nextCursor, this.deletedIds, this.syncedAt});
+  const ResponseMetaDto({
+    this.nextCursor,
+    this.deletedIds,
+    this.syncedAt,
+    this.disclaimer,
+  });
 
   factory ResponseMetaDto.fromJson(Map<String, Object?> json) =>
       _$ResponseMetaDtoFromJson(json);
@@ -21,6 +28,9 @@ class ResponseMetaDto {
 
   /// Owner 2026-10-22 (delta sync): with ?updatedSince — the newest updated_at of this answer; pass it back as updatedSince next time.
   final DateTime? syncedAt;
+
+  /// Owner 2026-10-28 (legal safety): on Q&A, template and deadline responses — the "general information, not legal advice" notice, worded in the admin (per state). Show it next to the content.
+  final LegalDisclaimerDto? disclaimer;
 
   Map<String, Object?> toJson() => _$ResponseMetaDtoToJson(this);
 }

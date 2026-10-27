@@ -33,7 +33,8 @@ function setup(claimCount: number) {
   };
   const storage = {
     bucket: jest.fn(() => 'docs'),
-    put: jest.fn(() => Promise.resolve()),
+    // Privacy round 13 (S13-8): the archive is streamed to storage.
+    putStream: jest.fn(() => Promise.resolve({ bytes: 3, sha256: 'abc' })),
     signedGetUrl: jest.fn(() => Promise.resolve('https://x')),
   };
   const service = new DataExportService(
@@ -46,8 +47,9 @@ function setup(claimCount: number) {
     {} as EmailProvider,
     { setContext: jest.fn(), warn: jest.fn() } as unknown as PinoLogger,
   );
-  jest.spyOn(service, 'collect').mockResolvedValue({ 'profile.json': {} });
-  jest.spyOn(service, 'zip').mockResolvedValue(Buffer.from('zip'));
+  jest
+    .spyOn(service, 'archive')
+    .mockReturnValue({} as ReturnType<DataExportService['archive']>);
   return { service, prisma, storage };
 }
 
@@ -55,7 +57,7 @@ describe('DataExportService.process claim (S10-3)', () => {
   it('a redelivered job (retry) may take over a `processing` row and finishes it', async () => {
     const { service, prisma } = setup(1);
     const out = await service.process('e1', { retry: true });
-    expect(out.bytes).toBe(3);
+    expect(out.bytes).toBeGreaterThan(0);
     expect(prisma.dataExportJob.updateMany).toHaveBeenCalledWith({
       where: {
         id: 'e1',

@@ -21,7 +21,10 @@ export type RevokeReason =
   | 'credentials_changed'
   // Owner 2026-10-22 (security audit #3, finding 6): the attorney (or the
   // admin) removed the assistant — their own sign-ins end too.
-  | 'assistant_removed';
+  | 'assistant_removed'
+  // 2026-10-25 (COPPA): an admin flagged or deleted a suspected minor.
+  | 'minor_flagged'
+  | 'minor_deleted';
 
 /**
  * Single choke point for every way a session can end (logout, logout-all,

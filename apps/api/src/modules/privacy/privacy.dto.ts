@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsUUID } from 'class-validator';
 
 export const DATA_EXPORT_STATUSES = [
@@ -31,6 +31,15 @@ export class DataExportJobDto {
 
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
+
+  @ApiPropertyOptional({
+    type: 'object',
+    nullable: true,
+    description:
+      'While the export is being built: rows written and bytes so far.',
+    properties: { rows: { type: 'integer' }, bytes: { type: 'integer' } },
+  })
+  progress?: { rows: number; bytes: number } | null;
 }
 
 export class DataExportIdParamDto {

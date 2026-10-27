@@ -41,18 +41,21 @@ void main() {
       final dio = build();
       await dio.post<dynamic>('/auth/otp/request', data: {'channel': 'phone'});
       await dio.post<dynamic>('/auth/phone/status');
+      // S14-13: the sign-in routes share the App Check route list.
+      await dio.post<dynamic>('/auth/otp/verify');
+      await dio.post<dynamic>('/auth/password/login');
       for (final r in adapter.requests) {
         expect(r.headers[TurnstileInterceptor.header], 'ts-1');
       }
-      expect(asked, ['0x4AAA', '0x4AAA']);
+      expect(asked, ['0x4AAA', '0x4AAA', '0x4AAA', '0x4AAA']);
 
-      await dio.post<dynamic>('/auth/otp/verify');
+      await dio.post<dynamic>('/auth/qr');
       await dio.get<dynamic>('/auth/phone/status');
       await dio.post<dynamic>('/cases');
-      for (final r in adapter.requests.skip(2)) {
+      for (final r in adapter.requests.skip(4)) {
         expect(r.headers.containsKey(TurnstileInterceptor.header), isFalse);
       }
-      expect(asked, hasLength(2));
+      expect(asked, hasLength(4));
     });
 
     test('does nothing without a site key (Turnstile off)', () async {

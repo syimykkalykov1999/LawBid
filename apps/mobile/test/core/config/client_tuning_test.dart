@@ -41,6 +41,16 @@ void main() {
     expect(ClientTuning.outboxBackoff(9).inSeconds, 120);
   });
 
+  test('the reel warm-up switch is a word: off | on | auto', () {
+    expect(ClientTuning.videoPrefetchMode, 'auto');
+    ClientTuning.apply({'client.video_prefetch_mode': 'off'});
+    expect(ClientTuning.videoPrefetchMode, 'off');
+    ClientTuning.apply({'client.video_prefetch_mode': 'On'});
+    expect(ClientTuning.videoPrefetchMode, 'on');
+    ClientTuning.apply({'client.video_prefetch_mode': '2'});
+    expect(ClientTuning.videoPrefetchMode, 'auto');
+  });
+
   test('a wrong value can neither silence nor hammer the app', () {
     ClientTuning.apply({
       'client.retry_base_ms': '0',

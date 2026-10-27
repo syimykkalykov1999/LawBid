@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
@@ -59,6 +60,21 @@ export class ModerationQueueQueryDto {
   @IsOptional()
   @IsIn(REPORT_TARGET_TYPES)
   targetType?: ReportTargetName;
+
+  @ApiPropertyOptional({
+    description:
+      'Only objects flagged for priority review (verified attorneys).',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' || value === true
+      ? true
+      : value === 'false' || value === false
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  priority?: boolean;
 
   @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
   @IsOptional()
@@ -142,6 +158,11 @@ export class ModerationQueueItemDto {
   excerpt!: string | null;
   @ApiProperty({ type: ModerationAuthorDto, nullable: true })
   author!: ModerationAuthorDto | null;
+  @ApiProperty({
+    description:
+      'Owner 2026-10-27: enough weighted reports hit a verified attorney; a person looks at it first (not hidden).',
+  })
+  priority!: boolean;
 }
 
 export interface ModerationQueuePage {

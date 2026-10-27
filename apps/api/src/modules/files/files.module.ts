@@ -7,6 +7,7 @@ import { FilesController } from './files.controller';
 import { FilesService } from './files.service';
 import { FileAccessService } from './file-access.service';
 import { filesCoreProviders } from './files-core.providers';
+import { FileReleaseService } from './storage/file-release.service';
 import { S3StorageService } from './storage/s3-storage.service';
 import { FilesBootstrapService } from './storage/files-bootstrap.service';
 
@@ -33,6 +34,6 @@ import { FilesBootstrapService } from './storage/files-bootstrap.service';
     FileAccessService,
     FilesBootstrapService,
   ],
-  exports: [FilesService, S3StorageService],
+  exports: [FilesService, S3StorageService, FileReleaseService],
 })
 export class FilesModule {}

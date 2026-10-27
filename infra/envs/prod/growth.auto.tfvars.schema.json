@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "GENERATED from apps/api/src/common/ops/infra-switches.ts (UPDATE_INFRA_SCHEMA=1 npx jest infra-switches). Only these keys may ever be written to growth.auto.tfvars.json.",
+  "title": "LawBid prod switches changed from the admin",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "api_min_tasks": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4
+    },
+    "api_spot": {
+      "type": "boolean"
+    },
+    "audit_logs_enabled": {
+      "type": "boolean"
+    },
+    "cdn_waf_enabled": {
+      "type": "boolean"
+    },
+    "cloudtrail_athena_enabled": {
+      "type": "boolean"
+    },
+    "config_enabled": {
+      "type": "boolean"
+    },
+    "container_insights": {
+      "type": "string",
+      "enum": [
+        "disabled",
+        "enabled",
+        "enhanced"
+      ]
+    },
+    "cpu_architecture": {
+      "type": "string",
+      "enum": [
+        "X86_64",
+        "ARM64"
+      ]
+    },
+    "db_pooler_enabled": {
+      "type": "boolean"
+    },
+    "growth_switches": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rds_read_replicas": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "opensearch_enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "guardduty_ebs_malware": {
+      "type": "boolean"
+    },
+    "guardduty_enabled": {
+      "type": "boolean"
+    },
+    "guardduty_runtime_monitoring": {
+      "type": "boolean"
+    },
+    "inspector_enabled": {
+      "type": "boolean"
+    },
+    "livekit_enabled": {
+      "type": "boolean"
+    },
+    "macie_enabled": {
+      "type": "boolean"
+    },
+    "nat_per_az": {
+      "type": "boolean"
+    },
+    "rds_cross_region_backups": {
+      "type": "boolean"
+    },
+    "replicate_media": {
+      "type": "boolean"
+    },
+    "security_hub_enabled": {
+      "type": "boolean"
+    },
+    "turn_enabled": {
+      "type": "boolean"
+    },
+    "turn_second_enabled": {
+      "type": "boolean"
+    },
+    "uptime_check": {
+      "type": "string",
+      "enum": [
+        "off",
+        "route53",
+        "synthetics"
+      ]
+    },
+    "waf_auth_rate_action": {
+      "type": "string",
+      "enum": [
+        "count",
+        "block"
+      ]
+    },
+    "waf_auth_rules_enabled": {
+      "type": "boolean"
+    },
+    "waf_bot_control_enabled": {
+      "type": "boolean"
+    },
+    "waf_device_header": {
+      "type": "string",
+      "enum": [
+        "",
+        "x-device-id"
+      ]
+    },
+    "waf_enabled": {
+      "type": "boolean"
+    },
+    "worker_spot": {
+      "type": "boolean"
+    }
+  }
+}

@@ -34,6 +34,18 @@ SignRequestDto _$SignRequestDtoFromJson(Map<String, dynamic> json) =>
               json['declinedByRole'] as String,
             ),
       declineReason: json['declineReason'] as String?,
+      expiresAt: json['expiresAt'] == null
+          ? null
+          : DateTime.parse(json['expiresAt'] as String),
+      expired: json['expired'] as bool,
+      remindersSent: json['remindersSent'] as num,
+      lastRemindedAt: json['lastRemindedAt'] == null
+          ? null
+          : DateTime.parse(json['lastRemindedAt'] as String),
+      views: (json['views'] as List<dynamic>)
+          .map((e) => SignViewDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      canResend: json['canResend'] as bool,
     );
 
 Map<String, dynamic> _$SignRequestDtoToJson(SignRequestDto instance) =>
@@ -54,4 +66,10 @@ Map<String, dynamic> _$SignRequestDtoToJson(SignRequestDto instance) =>
       'canCancel': instance.canCancel,
       'declinedByRole': ?instance.declinedByRole?.toJson(),
       'declineReason': ?instance.declineReason,
+      'expiresAt': ?instance.expiresAt?.toIso8601String(),
+      'expired': instance.expired,
+      'remindersSent': instance.remindersSent,
+      'lastRemindedAt': ?instance.lastRemindedAt?.toIso8601String(),
+      'views': instance.views.map((e) => e.toJson()).toList(),
+      'canResend': instance.canResend,
     };

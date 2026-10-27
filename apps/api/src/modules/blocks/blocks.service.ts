@@ -9,7 +9,8 @@ import type { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
+import { bumpFeedVersion } from '../../common/cache/feed-version';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import {
   CounterAggregator,
@@ -37,7 +38,8 @@ export class BlocksService {
     private readonly prisma: PrismaService,
     private readonly files: FilesService,
     private readonly counters: CounterAggregator,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    // Caching round 2 (S2-2): the block set is a per-user cache.
+    @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
   ) {}
 
   async block(userId: string, targetId: string): Promise<void> {
@@ -83,6 +85,8 @@ export class BlocksService {
     );
     // Owner 2026-10-18 (speed): both users' cached block sets are stale now.
     await dropBlockSets(this.redis, userId, targetId);
+    // S2-3: both feeds change (blocked authors, removed follows).
+    await bumpFeedVersion(this.redis, userId, targetId);
     // Audit 2026-10-01: the removed follows leave both profiles' counters
     // (followers / following) — as an unfollow does.
     for (const f of removed) {
@@ -106,6 +110,7 @@ export class BlocksService {
       where: { blocker_id: userId, blocked_id: targetId },
     });
     await dropBlockSets(this.redis, userId, targetId);
+    await bumpFeedVersion(this.redis, userId, targetId);
   }
 
   /** `{ isBlocked, hasBlockedMe }` between a viewer and a target. */

@@ -7,6 +7,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { DeviceInfoDto } from './device-info.dto';
+import { AgeAttestationDto } from '../../compliance/age-attestation.dto';
 
 /**
  * firstName/lastName: Apple only sends the user's name in the
@@ -41,4 +42,10 @@ export class SocialLoginDto {
   @ValidateNested()
   @Type(() => DeviceInfoDto)
   deviceInfo?: DeviceInfoDto;
+
+  /** 2026-10-25 (COPPA): "I am 18 or older", for a NEW account only. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AgeAttestationDto)
+  ageAttestation?: AgeAttestationDto;
 }

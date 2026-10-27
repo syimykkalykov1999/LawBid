@@ -5,7 +5,12 @@ export interface NewDeviceLoginNotice {
   userId: string;
   /** Verified email, or undefined when the user has none. */
   verifiedEmail?: string;
-  deviceId: string;
+  /** Absent when the sign-in sent no device id (S14-4). */
+  deviceId?: string;
+  /** Why this alert fired: a device never seen, or a country never seen. */
+  reason?: 'new_device' | 'new_country';
+  /** Country the sign-in came from, when the CDN reported it. */
+  country?: string;
   deviceName?: string;
   platform?: string;
   at: Date;

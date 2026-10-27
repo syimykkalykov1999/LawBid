@@ -283,3 +283,12 @@ export class DeletionPendingDto {
   @ApiProperty({ description: 'Always true.' })
   deletionPending!: boolean;
 }
+
+/** POST /users/me/deletion/cancel (privacy round 13, S13-14). */
+export class DeletionCancelledDto {
+  @ApiProperty({
+    description:
+      'True when a pending deletion was cancelled; false when there was none.',
+  })
+  cancelled!: boolean;
+}

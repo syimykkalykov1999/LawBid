@@ -133,6 +133,7 @@ module "stack" {
   # depth, cheaper endpoint placement, optional cache-only Redis.
   database_multi_az                      = var.database_multi_az
   db_autoscale_enabled                   = var.db_autoscale_enabled
+  db_replica_toggle                      = var.db_replica_toggle
   db_autoscale_min_class                 = var.db_autoscale_min_class
   db_autoscale_max_class                 = var.db_autoscale_max_class
   db_autoscale_mode                      = var.db_autoscale_mode
@@ -148,6 +149,7 @@ module "stack" {
   existing_database_identifier           = var.existing_database_identifier
   backup_enabled                         = var.backup_enabled
   backup_retention_days                  = var.backup_retention_days
+  backup_restore_test_enabled            = var.backup_restore_test_enabled
   backup_copy_account_id                 = var.backup_copy_account_id
   backup_copy_vault_name                 = var.backup_copy_vault_name
   backup_copy_region                     = var.backup_copy_region
@@ -199,6 +201,7 @@ module "stack" {
   break_glass_principal_arns         = var.break_glass_principal_arns
   cloudtrail_athena_enabled          = var.cloudtrail_athena_enabled
   anomaly_to_alerts_topic            = var.anomaly_to_alerts_topic
+  admin_audit_export_enabled         = var.admin_audit_export_enabled
   vpc_flow_logs_traffic              = var.vpc_flow_logs_traffic
   macie_enabled                      = var.macie_enabled
   macie_sampling_percentage          = var.macie_sampling_percentage
@@ -215,7 +218,7 @@ module "stack" {
   dmarc_policy                       = var.dmarc_policy
 
   # Load audit 6: growth switches (growth.tf).
-  growth = var.growth
+  growth = merge(var.growth, var.growth_switches)
 }
 
 output "stack" { value = module.stack }

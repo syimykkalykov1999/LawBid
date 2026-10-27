@@ -1,5 +1,6 @@
 import { demoContext } from '../common/demo/demo-context';
 import { PrismaReadService } from './prisma-read.service';
+import { resolveReplicaUrl } from './replica-url';
 import { withPoolDefaults } from './prisma.service';
 import type { PrismaService } from './prisma.service';
 
@@ -26,6 +27,24 @@ describe('PrismaReadService', () => {
     expect(s.db).toBe(s.db); // one client, created once
     expect(s.usingReplica).toBe(true);
     await s.onModuleDestroy();
+  });
+
+  it('builds the replica URL from DATABASE_URL + DB_REPLICA_HOST (no extra secret)', async () => {
+    delete process.env.DATABASE_REPLICA_URL;
+    process.env.DATABASE_URL = 'postgresql://u:p@primary.example:5432/lawbid';
+    process.env.DB_REPLICA_HOST = 'replica-1.example';
+    const s = new PrismaReadService(primary);
+    expect(s.usingReplica).toBe(true);
+    expect(resolveReplicaUrl()).toBe(
+      'postgresql://u:p@replica-1.example:5432/lawbid',
+    );
+    await s.onModuleDestroy();
+  });
+
+  it('stays on the primary once shard databases are configured', () => {
+    process.env.DATABASE_REPLICA_URL = 'postgresql://u:p@replica.example/x';
+    process.env.DATABASE_URL_SHARDS = '{"s1":"postgresql://u:p@s1/x"}';
+    expect(new PrismaReadService(primary).db).toBe(primary);
   });
 
   it('can be switched off without removing the URL', () => {

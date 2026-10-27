@@ -1,7 +1,7 @@
 'use client';
 
 import { CaretDown } from '@phosphor-icons/react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, m } from 'motion/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -151,7 +151,7 @@ export function OverflowTabs({ items, active, label, className }: { items: Overf
       </div>
       <AnimatePresence>
         {open && hidden.length ? (
-          <motion.div
+          <m.div
             ref={menu}
             role="menu"
             initial={{ opacity: 0, y: -4, scale: 0.98 }}
@@ -177,7 +177,7 @@ export function OverflowTabs({ items, active, label, className }: { items: Overf
                 </Link>
               );
             })}
-          </motion.div>
+          </m.div>
         ) : null}
       </AnimatePresence>
     </nav>

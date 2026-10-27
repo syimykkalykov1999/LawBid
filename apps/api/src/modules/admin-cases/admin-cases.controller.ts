@@ -5,7 +5,10 @@ import {
   ApiErrors,
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
-import { AdminEndpoint } from '../admin-auth/admin-auth.decorators';
+import {
+  AdminEndpoint,
+  Justification,
+} from '../admin-auth/admin-auth.decorators';
 import {
   AdminContactIssueCardDto,
   AdminContactIssueDto,
@@ -40,6 +43,7 @@ export class AdminCasesController {
   }
 
   @Get('case-disputes/:id')
+  @Justification()
   @ApiOperation({ summary: 'Dispute with the case journal chronology' })
   @ApiEnvelopeResponse(AdminDisputeCardDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
@@ -60,6 +64,7 @@ export class AdminCasesController {
   }
 
   @Get('contact-issues/:id')
+  @Justification()
   @ApiOperation({
     summary: 'Report with disclosure details and the client history',
   })

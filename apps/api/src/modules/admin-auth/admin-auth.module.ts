@@ -5,6 +5,7 @@ import { AdminAuditInterceptor } from './admin-audit.interceptor';
 import { AdminAuthController } from './admin-auth.controller';
 import { AdminAuthGuard } from './admin-auth.guard';
 import { AdminAuthService } from './admin-auth.service';
+import { AdminSecurityService } from './admin-security.service';
 import { AdminSessionService } from './admin-session.service';
 
 /**
@@ -20,6 +21,7 @@ import { AdminSessionService } from './admin-session.service';
   providers: [
     AdminAuthService,
     AdminSessionService,
+    AdminSecurityService,
     AdminAuthGuard,
     AdminAuditInterceptor,
   ],
@@ -31,6 +33,7 @@ import { AdminSessionService } from './admin-session.service';
     AuthModule,
     AdminAccessModule,
     AdminSessionService,
+    AdminSecurityService,
     AdminAuthGuard,
     AdminAuditInterceptor,
   ],

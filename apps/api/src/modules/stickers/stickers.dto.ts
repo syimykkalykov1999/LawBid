@@ -1,7 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ReportReason } from '@prisma/client';
+import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsEnum,
   IsOptional,
   IsString,
   IsUUID,
@@ -119,4 +122,20 @@ export class StickerIdParamDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('all')
   id!: string;
+}
+
+/** Owner 2026-10-28 (legal safety): report a user's sticker pack. */
+export class ReportStickerPackDto {
+  @ApiProperty({ enum: ReportReason, enumName: 'ReportReason' })
+  @IsEnum(ReportReason)
+  reason!: ReportReason;
+
+  @ApiPropertyOptional({ maxLength: 1000 })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MaxLength(1000)
+  note?: string;
 }

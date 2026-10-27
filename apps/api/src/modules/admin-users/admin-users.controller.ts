@@ -28,11 +28,15 @@ import {
   AdminUserIdParamDto,
   AdminUserListItemDto,
   AdminUsersBulkDto,
+  AdminUsersBulkPreviewDto,
+  AdminUsersBulkPreviewResultDto,
   AdminUsersQueryDto,
   SanctionResultDto,
   SuspendUserDto,
   WarnUserDto,
   ChangeUserPhoneDto,
+  ConfirmMinorDto,
+  MinorConfirmedDto,
   PhoneChangedDto,
   type AdminUsersPage,
 } from './admin-users.dto';
@@ -108,6 +112,22 @@ export class AdminUsersController {
     @Param() params: AdminUserIdParamDto,
   ): Promise<AdminUserContactsDto> {
     return this.users.contacts(params.id, admin.countries);
+  }
+
+  @Post('bulk/preview')
+  @HttpCode(HttpStatus.OK)
+  @Roles('super_admin', 'moderator')
+  @ApiOperation({
+    summary:
+      'S18-10: how many users a bulk filter matches (read-only, before the action)',
+  })
+  @ApiEnvelopeResponse(AdminUsersBulkPreviewResultDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
+  bulkPreview(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminUsersBulkPreviewDto,
+  ): Promise<AdminUsersBulkPreviewResultDto> {
+    return this.users.bulkPreview(dto.filter, admin.countries);
   }
 
   @Post('bulk')
@@ -189,6 +209,27 @@ export class AdminUsersController {
     // System audit #2, item 2: the phone signs in — step-up.
     await this.auth.assertStepUp(admin.sessionId);
     return this.users.changePhone(admin, params.id, dto.phone, dto.reason);
+  }
+
+  @Post(':id/minor-confirmed')
+  @HttpCode(HttpStatus.OK)
+  // Irreversible erasure: super admins only, fresh 2FA step-up, no second
+  // admin (owner works alone).
+  @Roles('super_admin')
+  @SkipAutoAudit()
+  @ApiOperation({
+    summary:
+      'Privacy round 13: the person is a minor — erase the account now (no 14-day grace) and keep the fraud hashes blocking',
+  })
+  @ApiEnvelopeResponse(MinorConfirmedDto)
+  @ApiErrors(STEP_UP_TARGET_ERRORS)
+  async confirmMinor(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() params: AdminUserIdParamDto,
+    @Body() dto: ConfirmMinorDto,
+  ): Promise<MinorConfirmedDto> {
+    await this.auth.assertStepUp(admin.sessionId);
+    return this.users.confirmMinor(admin, params.id, dto.reason);
   }
 
   @Post(':id/warn')

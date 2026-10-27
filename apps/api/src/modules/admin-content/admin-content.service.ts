@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
+import type Redis from 'ioredis';
 import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -6,6 +12,8 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
+import { PRACTICE_TREE_CACHE_KEY } from '../../common/cache/cache-keys';
 import { caseIdsByTitle, postIdsMatching } from './admin-text-search';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -91,15 +99,42 @@ function page<T extends { id: string; created_at: Date }, R>(
   };
 }
 
-const csvCell = (v: unknown): string => {
+/** First character of a text cell that Excel / Sheets would run as a formula. */
+const FORMULA_START = /^[=+\-@\t\r]/;
+
+/**
+ * S18-2 (OWASP CSV injection): a text cell starting with = + - @ tab or CR
+ * gets a leading apostrophe so a spreadsheet shows it as text. Numbers and
+ * booleans are never prefixed (a negative amount stays a number).
+ */
+export const csvCell = (v: unknown): string => {
   let s = '';
-  if (typeof v === 'string') s = v;
+  if (typeof v === 'string') s = FORMULA_START.test(v) ? `'${v}` : v;
   else if (typeof v === 'number' || typeof v === 'boolean') s = `${v}`;
   else if (typeof v === 'bigint') s = v.toString();
   else if (v instanceof Date) s = v.toISOString();
-  else if (v !== null && v !== undefined) s = JSON.stringify(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  else if (v !== null && v !== undefined) {
+    s = JSON.stringify(v);
+    if (FORMULA_START.test(s)) s = `'${s}`;
+  }
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
+
+const csvLine = (cells: unknown[]): string =>
+  cells.map(csvCell).join(',') + '\n';
+
+/** S18-3 export limits. */
+export const CSV_EXPORT_LIMIT = 50_000;
+const CSV_EXPORT_PAGE = 2_000;
+export const CSV_TRUNCATED_NOTE = `# ВЫГРУЗКА ОБРЕЗАНА: показаны первые ${CSV_EXPORT_LIMIT} строк, в таблице их больше`;
+
+interface ExportSpec {
+  header: string[];
+  page: (
+    take: number,
+    cursor?: string,
+  ) => Promise<{ id: string; row: unknown[] }[]>;
+}
 
 /**
  * Owner 2026-09-30 — admin panel sections: posts / news, comments,
@@ -115,7 +150,13 @@ export class AdminContentService {
     private readonly fanout: BroadcastFanoutRunner,
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() private readonly summary?: AdminSummaryService,
+    // Caching round 2 (S2-5): the practice-area tree copy is dropped on edit.
+    @Optional() @Inject(REDIS_CACHE_CLIENT) private readonly cache?: Redis,
   ) {}
+
+  private async dropPracticeTree(): Promise<void> {
+    await this.cache?.del(PRACTICE_TREE_CACHE_KEY).catch(() => undefined);
+  }
 
   /** Audit 2026-10-01: the admin's content actions go through the
    * moderation status path — posts_count / comment_count / reply_count
@@ -479,6 +520,7 @@ export class AdminContentService {
       },
     });
     if (r.count === 0) throw notFound();
+    await this.dropPracticeTree();
     return this.practiceAreas();
   }
 
@@ -501,6 +543,7 @@ export class AdminContentService {
         sort: 999,
       },
     });
+    await this.dropPracticeTree();
     return this.practiceAreas();
   }
 
@@ -575,231 +618,297 @@ export class AdminContentService {
 
   // --- CSV ---------------------------------------------------------------------
 
-  async exportCsv(entity: string): Promise<string> {
-    const LIMIT = 50_000;
-    let header: string[] = [];
-    let rows: unknown[][] = [];
-    if (entity === 'users') {
-      const us = await this.prisma.user.findMany({
-        take: LIMIT,
-        orderBy: { created_at: 'desc' },
-        select: {
-          id: true,
-          role: true,
-          status: true,
-          first_name: true,
-          last_name: true,
-          phone_e164: true,
-          email: true,
-          created_at: true,
-        },
-      });
-      header = [
-        'id',
-        'role',
-        'status',
-        'first_name',
-        'last_name',
-        'phone',
-        'email',
-        'created_at',
-      ];
-      rows = us.map((u) => [
-        u.id,
-        u.role,
-        u.status,
-        u.first_name,
-        u.last_name,
-        u.phone_e164,
-        u.email,
-        u.created_at.toISOString(),
-      ]);
-    } else if (entity === 'cases') {
-      const cs = await this.prisma.case.findMany({
-        take: LIMIT,
-        orderBy: { created_at: 'desc' },
-        include: { practice_area: { select: { code: true } } },
-      });
-      header = [
-        'id',
-        'title',
-        'status',
-        'practice',
-        'state',
-        'budget_cents',
-        'bids',
-        'views',
-        'created_at',
-      ];
-      rows = cs.map((c) => [
-        c.id,
-        c.title,
-        c.status,
-        c.practice_area.code,
-        c.primary_state_code,
-        c.budget_cents,
-        c.bids_count,
-        c.view_count,
-        c.created_at.toISOString(),
-      ]);
-    } else if (entity === 'bids') {
-      const bs = await this.prisma.bid.findMany({
-        take: LIMIT,
-        orderBy: { created_at: 'desc' },
-      });
-      header = [
-        'id',
-        'case_id',
-        'attorney_id',
-        'status',
-        'fee_type',
-        'amount_cents',
-        'rounds',
-        'outside_practice',
-        'created_at',
-      ];
-      rows = bs.map((b) => [
-        b.id,
-        b.case_id,
-        b.attorney_id,
-        b.status,
-        b.fee_type,
-        b.amount_cents,
-        b.round_count,
-        b.outside_practice,
-        b.created_at.toISOString(),
-      ]);
-    } else if (entity === 'payments') {
-      const ps = await this.prisma.payment.findMany({
-        take: LIMIT,
-        orderBy: { created_at: 'desc' },
-      });
-      header = [
-        'id',
-        'user_id',
-        'amount_cents',
-        'currency',
-        'status',
-        'paid_at',
-        'failure_code',
-        'created_at',
-      ];
-      rows = ps.map((p) => [
-        p.id,
-        p.user_id,
-        p.amount_cents,
-        p.currency,
-        p.status,
-        p.paid_at?.toISOString(),
-        p.failure_code,
-        p.created_at.toISOString(),
-      ]);
-    } else if (entity === 'case_payments') {
-      // Owner 2026-10-05: client → attorney payments (Stripe Connect).
-      const ps = await this.prisma.casePayment.findMany({
-        take: LIMIT,
-        orderBy: { created_at: 'desc' },
-      });
-      header = [
-        'id',
-        'case_id',
-        'client_id',
-        'attorney_id',
-        'kind',
-        'status',
-        'amount_cents',
-        'platform_fee_cents',
-        'processing_fee_cents',
-        'client_total_cents',
-        'attorney_net_cents',
-        'refunded_cents',
-        'fee_type',
-        'fee_payer',
-        'currency',
-        'dispute_status',
-        'stripe_payment_intent_id',
-        'paid_at',
-        'created_at',
-      ];
-      rows = ps.map((p) => [
-        p.id,
-        p.case_id,
-        p.client_id,
-        p.attorney_id,
-        p.kind,
-        p.status,
-        p.amount_cents,
-        p.platform_fee_cents,
-        p.processing_fee_cents,
-        p.client_total_cents,
-        p.attorney_net_cents,
-        p.refunded_cents,
-        p.fee_type,
-        p.fee_payer,
-        p.currency,
-        p.dispute_status,
-        p.stripe_payment_intent_id,
-        p.paid_at?.toISOString(),
-        p.created_at.toISOString(),
-      ]);
-    } else if (entity === 'posts') {
-      const ps = await this.prisma.post.findMany({
-        take: LIMIT,
-        orderBy: { created_at: 'desc' },
-      });
-      header = [
-        'id',
-        'author_id',
-        'kind',
-        'title',
-        'status',
-        'likes',
-        'comments',
-        'deleted',
-        'created_at',
-      ];
-      rows = ps.map((p) => [
-        p.id,
-        p.author_id,
-        p.kind,
-        p.title,
-        p.status,
-        p.like_count,
-        p.comment_count,
-        p.deleted_at !== null,
-        p.created_at.toISOString(),
-      ]);
-    } else {
-      const ms = await this.prisma.assistantMembership.findMany({
-        take: LIMIT,
-        orderBy: { created_at: 'desc' },
-      });
-      header = [
-        'membership_id',
-        'attorney_id',
-        'assistant_user_id',
-        'phone',
-        'status',
-        'approval',
-        'duties',
-        'joined_at',
-        'created_at',
-      ];
-      rows = ms.map((m) => [
-        m.id,
-        m.attorney_id,
-        m.assistant_user_id,
-        m.phone_e164,
-        m.status,
-        m.approval,
-        m.duties.join('|'),
-        m.joined_at?.toISOString(),
-        m.created_at.toISOString(),
-      ]);
+  /**
+   * S18-3: the export is read in keyset pages of 2 000 and written to the
+   * response as it goes, so a big table never sits in the API's memory.
+   * At most CSV_EXPORT_LIMIT rows; when more exist a last line says so
+   * (the file must never look complete when it is not).
+   */
+  async exportCsvStream(
+    entity: string,
+    write: (chunk: string) => Promise<void> | void,
+  ): Promise<{ rows: number; truncated: boolean }> {
+    const spec = this.exportSpec(entity);
+    await write(csvLine(spec.header));
+    let rows = 0;
+    let cursor: string | undefined;
+    for (;;) {
+      const left = CSV_EXPORT_LIMIT - rows;
+      // One extra row tells whether the cap cut the table off.
+      const take = Math.min(CSV_EXPORT_PAGE, left + 1);
+      const page = await spec.page(take, cursor);
+      const usable = page.slice(0, left);
+      if (usable.length) {
+        await write(usable.map((r) => csvLine(r.row)).join(''));
+        rows += usable.length;
+      }
+      if (page.length > left) {
+        await write(csvLine([CSV_TRUNCATED_NOTE]));
+        return { rows, truncated: true };
+      }
+      if (page.length < take) return { rows, truncated: false };
+      cursor = page[page.length - 1].id;
     }
-    return (
-      [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\n') + '\n'
-    );
+  }
+
+  private exportSpec(entity: string): ExportSpec {
+    const keyset = (take: number, cursor?: string) => ({
+      take,
+      orderBy: [{ created_at: 'desc' as const }, { id: 'desc' as const }],
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+    const iso = (d: Date | null | undefined) => d?.toISOString();
+    switch (entity) {
+      case 'users':
+        return {
+          header: [
+            'id',
+            'role',
+            'status',
+            'first_name',
+            'last_name',
+            'phone',
+            'email',
+            'created_at',
+          ],
+          page: async (take, cursor) =>
+            (
+              await this.prisma.user.findMany({
+                ...keyset(take, cursor),
+                select: {
+                  id: true,
+                  role: true,
+                  status: true,
+                  first_name: true,
+                  last_name: true,
+                  phone_e164: true,
+                  email: true,
+                  created_at: true,
+                },
+              })
+            ).map((u) => ({
+              id: u.id,
+              row: [
+                u.id,
+                u.role,
+                u.status,
+                u.first_name,
+                u.last_name,
+                u.phone_e164,
+                u.email,
+                iso(u.created_at),
+              ],
+            })),
+        };
+      case 'cases':
+        return {
+          header: [
+            'id',
+            'title',
+            'status',
+            'practice',
+            'state',
+            'budget_cents',
+            'bids',
+            'views',
+            'created_at',
+          ],
+          page: async (take, cursor) =>
+            (
+              await this.prisma.case.findMany({
+                ...keyset(take, cursor),
+                include: { practice_area: { select: { code: true } } },
+              })
+            ).map((c) => ({
+              id: c.id,
+              row: [
+                c.id,
+                c.title,
+                c.status,
+                c.practice_area.code,
+                c.primary_state_code,
+                c.budget_cents,
+                c.bids_count,
+                c.view_count,
+                iso(c.created_at),
+              ],
+            })),
+        };
+      case 'bids':
+        return {
+          header: [
+            'id',
+            'case_id',
+            'attorney_id',
+            'status',
+            'fee_type',
+            'amount_cents',
+            'rounds',
+            'outside_practice',
+            'created_at',
+          ],
+          page: async (take, cursor) =>
+            (await this.prisma.bid.findMany(keyset(take, cursor))).map((b) => ({
+              id: b.id,
+              row: [
+                b.id,
+                b.case_id,
+                b.attorney_id,
+                b.status,
+                b.fee_type,
+                b.amount_cents,
+                b.round_count,
+                b.outside_practice,
+                iso(b.created_at),
+              ],
+            })),
+        };
+      case 'payments':
+        return {
+          header: [
+            'id',
+            'user_id',
+            'amount_cents',
+            'currency',
+            'status',
+            'paid_at',
+            'failure_code',
+            'created_at',
+          ],
+          page: async (take, cursor) =>
+            (await this.prisma.payment.findMany(keyset(take, cursor))).map(
+              (p) => ({
+                id: p.id,
+                row: [
+                  p.id,
+                  p.user_id,
+                  p.amount_cents,
+                  p.currency,
+                  p.status,
+                  iso(p.paid_at),
+                  p.failure_code,
+                  iso(p.created_at),
+                ],
+              }),
+            ),
+        };
+      case 'case_payments':
+        // Owner 2026-10-05: client → attorney payments (Stripe Connect).
+        return {
+          header: [
+            'id',
+            'case_id',
+            'client_id',
+            'attorney_id',
+            'kind',
+            'status',
+            'amount_cents',
+            'platform_fee_cents',
+            'processing_fee_cents',
+            'client_total_cents',
+            'attorney_net_cents',
+            'refunded_cents',
+            'fee_type',
+            'fee_payer',
+            'currency',
+            'dispute_status',
+            'stripe_payment_intent_id',
+            'paid_at',
+            'created_at',
+          ],
+          page: async (take, cursor) =>
+            (await this.prisma.casePayment.findMany(keyset(take, cursor))).map(
+              (p) => ({
+                id: p.id,
+                row: [
+                  p.id,
+                  p.case_id,
+                  p.client_id,
+                  p.attorney_id,
+                  p.kind,
+                  p.status,
+                  p.amount_cents,
+                  p.platform_fee_cents,
+                  p.processing_fee_cents,
+                  p.client_total_cents,
+                  p.attorney_net_cents,
+                  p.refunded_cents,
+                  p.fee_type,
+                  p.fee_payer,
+                  p.currency,
+                  p.dispute_status,
+                  p.stripe_payment_intent_id,
+                  iso(p.paid_at),
+                  iso(p.created_at),
+                ],
+              }),
+            ),
+        };
+      case 'posts':
+        return {
+          header: [
+            'id',
+            'author_id',
+            'kind',
+            'title',
+            'status',
+            'likes',
+            'comments',
+            'deleted',
+            'created_at',
+          ],
+          page: async (take, cursor) =>
+            (await this.prisma.post.findMany(keyset(take, cursor))).map(
+              (p) => ({
+                id: p.id,
+                row: [
+                  p.id,
+                  p.author_id,
+                  p.kind,
+                  p.title,
+                  p.status,
+                  p.like_count,
+                  p.comment_count,
+                  p.deleted_at !== null,
+                  iso(p.created_at),
+                ],
+              }),
+            ),
+        };
+      default:
+        return {
+          header: [
+            'membership_id',
+            'attorney_id',
+            'assistant_user_id',
+            'phone',
+            'status',
+            'approval',
+            'duties',
+            'joined_at',
+            'created_at',
+          ],
+          page: async (take, cursor) =>
+            (
+              await this.prisma.assistantMembership.findMany(
+                keyset(take, cursor),
+              )
+            ).map((m) => ({
+              id: m.id,
+              row: [
+                m.id,
+                m.attorney_id,
+                m.assistant_user_id,
+                m.phone_e164,
+                m.status,
+                m.approval,
+                m.duties.join('|'),
+                iso(m.joined_at),
+                iso(m.created_at),
+              ],
+            })),
+        };
+    }
   }
 
   // --- overview -----------------------------------------------------------------

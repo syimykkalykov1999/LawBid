@@ -137,7 +137,7 @@ describe('forced authenticator setup at sign-in', () => {
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'admin.login',
-        after: { method: 'totp_setup' },
+        after: expect.objectContaining({ method: 'totp_setup' }),
       }),
     );
   });

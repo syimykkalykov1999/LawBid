@@ -2,7 +2,7 @@
 
 import { ArrowRight, BracketsCurly, EnvelopeSimple } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import Link from 'next/link';
 import { LOCALE_LABEL, type EmailTemplateSummary } from '@/components/email/email-utils';
 import { ErrorNote, PageHeader } from '@/components/page-header';
@@ -58,7 +58,7 @@ function TemplateCard({ t, i }: { t: EmailTemplateSummary; i: number }) {
     .sort()
     .pop();
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, delay: i * 0.04, ease: [0.16, 1, 0.3, 1] }}
@@ -105,6 +105,6 @@ function TemplateCard({ t, i }: { t: EmailTemplateSummary; i: number }) {
           </div>
         </Card>
       </Link>
-    </motion.div>
+    </m.div>
   );
 }

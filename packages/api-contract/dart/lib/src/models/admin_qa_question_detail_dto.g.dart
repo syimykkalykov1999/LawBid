@@ -19,6 +19,9 @@ AdminQaQuestionDetailDto _$AdminQaQuestionDetailDtoFromJson(
   stateCode: json['stateCode'] as String?,
   practiceArea: json['practiceArea'] as String?,
   author: AdminQaPersonDto.fromJson(json['author'] as Map<String, dynamic>),
+  safetyFlags: (json['safetyFlags'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
   createdAt: DateTime.parse(json['createdAt'] as String),
   answers: (json['answers'] as List<dynamic>)
       .map((e) => AdminQaAnswerDto.fromJson(e as Map<String, dynamic>))
@@ -38,6 +41,7 @@ Map<String, dynamic> _$AdminQaQuestionDetailDtoToJson(
   'stateCode': ?instance.stateCode,
   'practiceArea': ?instance.practiceArea,
   'author': instance.author.toJson(),
+  'safetyFlags': instance.safetyFlags,
   'createdAt': instance.createdAt.toIso8601String(),
   'answers': instance.answers.map((e) => e.toJson()).toList(),
 };

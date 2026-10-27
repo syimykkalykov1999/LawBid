@@ -9,6 +9,7 @@ import {
 import { Type } from 'class-transformer';
 import { IsIdentifierForChannel } from './validators';
 import { DeviceInfoDto } from './device-info.dto';
+import { AgeAttestationDto } from '../../compliance/age-attestation.dto';
 
 export class OtpVerifyDto {
   @IsIn(['phone', 'email'])
@@ -27,4 +28,10 @@ export class OtpVerifyDto {
   @ValidateNested()
   @Type(() => DeviceInfoDto)
   deviceInfo?: DeviceInfoDto;
+
+  /** 2026-10-25 (COPPA): "I am 18 or older", for a NEW account only. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AgeAttestationDto)
+  ageAttestation?: AgeAttestationDto;
 }
