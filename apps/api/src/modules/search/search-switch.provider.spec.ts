@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { EngineError } from './engine/opensearch.client';
 import { diffIds, SwitchingSearchProvider } from './search-switch.provider';
 import type { OpenSearchProvider } from './engine/opensearch-search.provider';
 import type { PostgresSearchProvider } from './postgres-search.provider';
@@ -144,24 +145,37 @@ describe('SwitchingSearchProvider', () => {
 
   it('engine: an error falls back to Postgres for that request', async () => {
     const { sw, pg, engine } = make('engine');
-    engine.searchPosts.mockRejectedValue(new Error('503'));
+    engine.searchPosts.mockRejectedValue(new EngineError('503', 503));
     expect(await sw.searchPosts('visa', 10)).toEqual(['a', 'b', 'c']);
     expect(pg.searchPosts).toHaveBeenCalledTimes(1);
     expect(sw.stats.fallbacks).toBe(1);
   });
 
-  it('engine: a slow engine times out and Postgres answers', async () => {
+  it('engine: a missing index (404) or a timeout falls back to Postgres', async () => {
     const { sw, pg, engine } = make('engine', 20);
-    engine.searchPosts.mockReturnValue(new Promise(() => undefined));
+    engine.searchPosts.mockRejectedValue(
+      new EngineError('search index or alias is missing (404)', 404),
+    );
     expect(await sw.searchPosts('visa', 10)).toEqual(['a', 'b', 'c']);
     expect(pg.searchPosts).toHaveBeenCalledTimes(1);
+  });
+
+  it('engine: an empty answer is an answer (no fallback); a non-engine error is not hidden', async () => {
+    const { sw, pg, engine } = make('engine');
+    engine.searchPosts.mockResolvedValue([]);
+    expect(await sw.searchPosts('visa', 10)).toEqual([]);
+    expect(pg.searchPosts).not.toHaveBeenCalled();
+    engine.searchPosts.mockRejectedValue(new Error('postgres filter broke'));
+    await expect(sw.searchPosts('visa', 10)).rejects.toThrow('filter broke');
+    expect(pg.searchPosts).not.toHaveBeenCalled();
+    expect(sw.stats.fallbacks).toBe(0);
   });
 
   it('engine: after repeated failures the engine is skipped for a while, then retried', async () => {
     const { sw, pg, engine } = make('engine');
     let t = 1_000;
     sw.now = () => t;
-    engine.searchPosts.mockRejectedValue(new Error('down'));
+    engine.searchPosts.mockRejectedValue(new EngineError('down'));
     for (let i = 0; i < 5; i++) await sw.searchPosts('visa', 10);
     expect(engine.searchPosts).toHaveBeenCalledTimes(5);
     await sw.searchPosts('visa', 10); // circuit open: not even tried

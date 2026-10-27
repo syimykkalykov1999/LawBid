@@ -98,6 +98,8 @@ export const FILE_05_SETTINGS = {
   'rate_limit.follow_per_day': 200,
   'rate_limit.message_per_minute': 60,
   'rate_limit.search_per_minute': 30,
+  // S7-2: type-ahead (suggest, practices, tags): own budget, per keystroke.
+  'rate_limit.search_suggest_per_minute': 240,
   // Owner 2026-10-22: address-book uploads per hour. The app sends the whole
   // book in one request (old builds: 100-hash parts, ~8 per pass), so this
   // only stops a runaway loop; the real cap is distinct hashes per day
@@ -282,6 +284,15 @@ export const OWNER_MEDIA_SETTINGS = {
   'media.avatar_max_px': 1024,
   // Owner 2026-10-19: the profile photo is small and seen up close — its
   // own, higher quality.
+  // Owner 2026-10-26 (events pipeline, N-2): the internal domain-event bus.
+  // off = nothing is recorded; db = table `domain_events` (default, cheap);
+  // stream = table + Kinesis (needs events_stream_enabled in Terraform);
+  // auto = db, switches to stream above the daily ceiling.
+  // Perf review 2026-10-26 (R-41): auto = off until a consumer needs events.
+  'events.sink': 'auto',
+  'events.max_per_day': 1000000,
+  'events.retention_days': 30,
+  'events.auto_ceiling_per_day': 2000000,
   'media.avatar_quality': 95,
   // Owner 2026-10-05: reels are re-encoded on the phone before upload —
   // at most this height (1080 = Full HD, no visible loss on a phone),
@@ -1057,6 +1068,18 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
   'push.chat_preview': true,
 };
 
+/** S12-8 (observability round 12): per-route request / error / latency
+ * metrics for ~15 journey routes, written as CloudWatch EMF lines
+ * (namespace LawBid/Routes, dimension Route). 3 metrics x 15 routes = 45
+ * custom metrics = about $13.5 a month once every route has data.
+ * `off` — nothing written; `on` — every minute for every route; `auto`
+ * (default) — a route writes a minute only while it has 5xx answers or a
+ * slow 95th percentile (> 1 s), so a healthy system costs nothing and a
+ * sick route is visible at once. RED dashboard in infra/modules/monitoring. */
+export const OWNER_OBSERVABILITY_SETTINGS = {
+  'ops.route_metrics.mode': 'auto',
+};
+
 /**
  * Owner 2026-10-25: new-case alerts in waves (docs/CASE_FANOUT.md). The
  * defaults keep today's reach: one wave of up to 5000 attorneys, no daily
@@ -1143,6 +1166,7 @@ export const APP_SETTINGS = {
   ...OWNER_CLIENT_TUNING_SETTINGS,
   ...OWNER_CHAT_PHOTO_SETTINGS,
   ...OWNER_LEGAL_SECURITY_SETTINGS,
+  ...OWNER_OBSERVABILITY_SETTINGS,
   ...OWNER_CASE_FANOUT_SETTINGS,
   ...OWNER_COST_REGISTRY_SETTINGS,
 };

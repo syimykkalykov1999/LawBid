@@ -69,9 +69,8 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
         ),
       );
     }
-    ref
-      ..invalidate(channelRunningCallProvider(channel.id))
-      ..invalidate(channelListProvider);
+    ref.invalidate(channelRunningCallProvider(channel.id));
+    ref.read(channelListHubProvider).catchUp();
   }
 
   @override
@@ -251,7 +250,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
     if (!ok || !context.mounted) return;
     try {
       await ref.read(channelsRepositoryProvider).delete(channel.id);
-      ref.invalidate(channelListProvider);
+      ref.read(channelListHubProvider).drop(channel.id);
       if (context.mounted) context.go(ChannelsRoutes.list);
     } on Object catch (e) {
       if (context.mounted) showAppSnackBar(context, channelErrorText(t, e));
