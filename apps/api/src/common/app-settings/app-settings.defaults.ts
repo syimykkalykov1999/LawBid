@@ -1149,6 +1149,18 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
   'push.chat_preview': true,
 };
 
+/** S12-8 (observability round 12): per-route request / error / latency
+ * metrics for ~15 journey routes, written as CloudWatch EMF lines
+ * (namespace LawBid/Routes, dimension Route). 3 metrics x 15 routes = 45
+ * custom metrics = about $13.5 a month once every route has data.
+ * `off` — nothing written; `on` — every minute for every route; `auto`
+ * (default) — a route writes a minute only while it has 5xx answers or a
+ * slow 95th percentile (> 1 s), so a healthy system costs nothing and a
+ * sick route is visible at once. RED dashboard in infra/modules/monitoring. */
+export const OWNER_OBSERVABILITY_SETTINGS = {
+  'ops.route_metrics.mode': 'auto',
+};
+
 /**
  * Owner 2026-10-25: new-case alerts in waves (docs/CASE_FANOUT.md). The
  * defaults keep today's reach: one wave of up to 5000 attorneys, no daily
@@ -1235,6 +1247,7 @@ export const APP_SETTINGS = {
   ...OWNER_CLIENT_TUNING_SETTINGS,
   ...OWNER_CHAT_PHOTO_SETTINGS,
   ...OWNER_LEGAL_SECURITY_SETTINGS,
+  ...OWNER_OBSERVABILITY_SETTINGS,
   ...OWNER_CASE_FANOUT_SETTINGS,
   ...OWNER_COST_REGISTRY_SETTINGS,
 };
