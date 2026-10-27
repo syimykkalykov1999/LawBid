@@ -10,6 +10,7 @@ import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/time/local_now.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_providers.dart';
+import 'package:lawbid/features/profile/application/profile_spotlight.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart';
 import 'package:lawbid/features/profile/data/own_profile_saved.dart';
 import 'package:lawbid/features/profile/data/profile_repositories.dart';
@@ -96,8 +97,14 @@ final publicClientProfileProvider =
 
 final publicAttorneyProfileProvider =
     FutureProvider.autoDispose.family<PublicAttorneyProfile, String>(
-  (ref, username) =>
-      ref.watch(attorneyProfileRepositoryProvider).fetchPublic(username),
+  (ref, username) async {
+    final repo = ref.watch(attorneyProfileRepositoryProvider);
+    final profile = await repo.fetchPublic(username);
+    // Owner 2026-10-27 (app indexing): iPhone Spotlight remembers the
+    // profiles the user opened (core/platform/spotlight_index.dart).
+    indexViewedAttorney(ref, profile);
+    return profile;
+  },
   retry: (_, __) => null,
 );
 

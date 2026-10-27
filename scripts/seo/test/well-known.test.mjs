@@ -20,9 +20,14 @@ test('iOS file: team + bundle id and the QR, sign-in and group paths', () => {
   assert.deepEqual(j.webcredentials, { apps: ['78T56RPM74.com.lawbid.lawbid'] });
   const paths = d.components.map((c) => c['/']);
   assert.deepEqual(j.webcredentials, { apps: ['78T56RPM74.com.lawbid.lawbid'] });
-  for (const p of ['/u/*', '/q/*', '/g/*', '/lawyer/*', '/case/*', '/post/*', '/r/*', '/auth/email-code']) {
+  for (const p of ['/u/*', '/q/*', '/g/*', '/lawyer/*', '/attorneys/*', '/case/*', '/post/*', '/r/*', '/auth/email-code']) {
     assert.ok(paths.includes(p), p);
   }
+});
+
+test('the /lawyers/ catalog tree is never claimed by the app', () => {
+  const paths = APP_PATHS.map(([p]) => p);
+  assert.ok(!paths.some((p) => p.startsWith('/lawyers')), 'catalog pages stay in the browser');
 });
 
 test('the checked-in copy in docs/deeplinks is the generated file', () => {
