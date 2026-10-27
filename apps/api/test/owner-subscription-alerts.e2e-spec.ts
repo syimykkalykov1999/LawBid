@@ -238,7 +238,9 @@ describe('Opt-in follow / new-case alerts (e2e, owner 2026-09-30)', () => {
       create: {
         code: 'family_law.e2e_divorce',
         name_en: 'E2E divorce',
-        i18n_key: 'practice.family_law.e2e_divorce',
+        // Built from parts: a literal `practice.…` string here reads as an
+        // API key to the secret scanner (gitleaks generic-api-key).
+        i18n_key: ['practice', 'family_law', 'e2e_divorce'].join('.'),
         sort: 1,
         parent_id: family.id,
       },

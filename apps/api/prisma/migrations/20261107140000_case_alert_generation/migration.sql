@@ -4,4 +4,7 @@
 -- second round is not swallowed by the rows and the stored job of the first.
 -- Generation 0 keeps the old key `case_fanout:<id>` (rows written before
 -- this column still count as "already alerted").
+-- docs/architecture/ONLINE_DDL.md: never queue behind a long query.
+SET LOCAL lock_timeout = '5s';
+-- A constant default: PostgreSQL 11+ does not rewrite the table.
 ALTER TABLE "cases" ADD COLUMN "alert_generation" INTEGER NOT NULL DEFAULT 0;
