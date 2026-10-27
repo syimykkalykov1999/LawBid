@@ -289,6 +289,45 @@ export class AdminOpsController {
     return this.backfills.list();
   }
 
+  @Post('backfills/:name/:action')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Pause / resume / abort a backfill (needs step-up)',
+  })
+  @ApiEnvelopeResponse(BackfillRunDto, { isArray: true })
+  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED], 404: [E.NOT_FOUND] })
+  async actOnBackfill(
+    @CurrentAdmin() admin: AdminActor,
+    @Param('name') name: string,
+    @Param('action') action: string,
+  ): Promise<BackfillRunDto[]> {
+    await this.auth.assertStepUp(admin.sessionId);
+    if (
+      !/^[a-z0-9][a-z0-9-]{0,79}$/.test(name) ||
+      !['pause', 'resume', 'abort'].includes(action)
+    ) {
+      throw new HttpException(
+        { code: E.NOT_FOUND, message: 'No such backfill action.' },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    const ok = await this.backfills.act(
+      name,
+      action as 'pause' | 'resume' | 'abort',
+    );
+    if (!ok) {
+      throw new HttpException(
+        {
+          code: E.NOT_FOUND,
+          message: 'Nothing to do: unknown backfill or wrong state.',
+        },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    await this.log(admin, `ops.backfill_${action}`, { name });
+    return this.backfills.list();
+  }
+
   @Post('restart-worker')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Replace the background worker (needs step-up)' })

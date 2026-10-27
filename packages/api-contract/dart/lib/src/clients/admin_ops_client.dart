@@ -130,6 +130,14 @@ abstract class AdminOpsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Pause / resume / abort a backfill (needs step-up)
+  @POST('/admin/system-health/backfills/{name}/{action}')
+  Future<BackfillRunListEnvelope> actOnBackfill({
+    @Path('name') required String name,
+    @Path('action') required String action,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Replace the background worker (needs step-up)
   @POST('/admin/system-health/restart-worker')
   Future<SystemHealthEnvelope> restartOpsWorker({
