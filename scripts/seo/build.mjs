@@ -48,8 +48,8 @@
 //   The posts and questions come from the data file (`--offline`: keys `posts`, `questions`) or from the
 //   API job `seo.generate`, which reads them from the database; the public directory API has no endpoint
 //   for them, so a build with `--api` renders these types only from attorney data (the city hubs).
-//   TODO(#456): the admin toggles for these three switches and the pass-through in seo-deploy.yml wait for
-//   the «Продвижение» admin page (branch claude/pseo-admin-promotion), which owns both files.
+//   TODO: the admin toggles for these three switches (page «Продвижение», #456) and the pass-through in
+//   seo-deploy.yml are a follow-up; today they are environment variables / flags only.
 // The page rendering itself is lib/render.mjs (shared with the API's `seo.generate`
 // job, which does the same from the database instead of from this script).
 // Always on: no aggregateRating in the attorney JSON-LD; lastmod is the
