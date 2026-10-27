@@ -5,6 +5,8 @@ import { SecretsService } from '../../../common/secrets/secrets.service';
 
 /** The workflow file the API may start, and the only one it trusts. */
 export const INFRA_WORKFLOW_FILE = 'infra-apply.yml';
+/** Other workflows the API may start (dry runs only; the caller picks the inputs). */
+export const DISPATCHABLE_WORKFLOWS: readonly string[] = ['seo-deploy.yml'];
 /** Audience the workflow asks GitHub for when it calls the API. */
 export const INFRA_OIDC_AUDIENCE = 'lawbid-infra-apply';
 const GITHUB_OIDC_ISSUER = 'https://token.actions.githubusercontent.com';
@@ -131,6 +133,37 @@ export class InfraGithubClient {
       throw new Error(`GitHub did not start the workflow (HTTP ${res.status})`);
     }
     this.log.log(`infra-apply dispatched for request ${requestId}`);
+  }
+
+  /**
+   * Owner 2026-10-27 («Продвижение»): starts one of DISPATCHABLE_WORKFLOWS on
+   * main with [inputs] (string values). Returns the repository so the admin
+   * can link to the run list. Throws on failure.
+   */
+  async dispatchWorkflow(
+    file: string,
+    inputs: Record<string, string>,
+  ): Promise<{ repo: string }> {
+    if (!DISPATCHABLE_WORKFLOWS.includes(file)) {
+      throw new Error(`workflow ${file} is not allowed`);
+    }
+    const c = await this.creds();
+    if (!c) throw new Error('GitHub App is not configured');
+    const token = await this.installationToken(c);
+    const res = await fetch(
+      `${GH_API}/repos/${c.repo}/actions/workflows/${file}/dispatches`,
+      {
+        method: 'POST',
+        headers: this.headers(token),
+        body: JSON.stringify({ ref: 'main', inputs }),
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+    if (res.status !== 204 && res.status !== 200) {
+      throw new Error(`GitHub did not start the workflow (HTTP ${res.status})`);
+    }
+    this.log.log(`${file} dispatched`);
+    return { repo: c.repo };
   }
 
   /**

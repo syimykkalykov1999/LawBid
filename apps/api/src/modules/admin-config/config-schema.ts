@@ -787,6 +787,40 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Hours (America/Chicago) when a cloud change may be applied, "HH:MM-HH:MM", e.g. 01:00-06:00; empty = any time.',
     pattern: /^$|^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/,
   };
+  // Owner 2026-10-27: admin «Продвижение» (static SEO pages + channel list).
+  // Switched on the «Продвижение» page; the generator reads them from GET
+  // /public/seo-settings (no stored row = the repository variable decides).
+  const seoText: Record<string, string> = {
+    'seo.incremental_enabled':
+      'Public SEO pages: upload only the files that changed and reset the CDN only for them (at most 30 paths a day). Changed on the «Продвижение» page.',
+    'seo.llms_enabled':
+      'Public SEO pages: publish /llms.txt and /llms-full.txt. Changed on the «Продвижение» page.',
+    'seo.quality_gate_enabled':
+      'Public SEO pages: thin pages get noindex and leave the sitemap. Turn on only after the page texts are longer (dry run first). Changed on the «Продвижение» page.',
+    'seo.ramp_per_day':
+      'Public SEO pages: at most this many NEW pages enter the index a day; 0 = no limit. Changed on the «Продвижение» page.',
+    'seo.robots_ai_enabled':
+      'Public SEO pages: robots.txt lets search and answer bots in and keeps training bots out. Changed on the «Продвижение» page.',
+    'seo.sitemap_index_enabled':
+      'Public SEO pages: /sitemap.xml becomes an index of /sitemaps/*.xml. Changed on the «Продвижение» page.',
+  };
+  for (const [k, description] of Object.entries(seoText)) {
+    out[k] = { ...out[k], description };
+  }
+  out['seo.ramp_per_day'] = {
+    ...out['seo.ramp_per_day'],
+    min: 0,
+    max: 5000,
+  };
+  for (const k of Object.keys(out)) {
+    if (k.startsWith('seo.checklist.')) {
+      out[k] = {
+        ...out[k],
+        description:
+          'Promotion checklist: the owner ticked this channel as done. Changed on the «Продвижение» page.',
+      };
+    }
+  }
   out['scale.capacity_ceiling.mode'] = {
     type: 'string',
     defaultValue: 'auto',

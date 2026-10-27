@@ -3,6 +3,7 @@ import {
   readCountries,
   canAccess,
   covers,
+  defaultPermissionsForRole,
   intersect,
   parsePermissions,
   readManageAdmins,
@@ -274,6 +275,40 @@ describe('grantable money, economy, budget limits, chats, audit (owner 2026-10-1
       ),
     ).toBe(true);
     expect(canAccess('support', {}, `${base}/chats`, 'GET')).toBe(false);
+  });
+
+  it('«Продвижение» is its own switch: nobody has it unless the owner hands it out', () => {
+    expect(ADMIN_AREAS as readonly string[]).toContain('promotion');
+    expect(routeArea(`${base}/promotion`)).toBe('promotion');
+    expect(routeArea(`${base}/promotion/settings/seo.llms_enabled`)).toBe(
+      'promotion',
+    );
+    const view = parsePermissions({ promotion: 'view' });
+    const manage = parsePermissions({ promotion: 'manage' });
+    // The role label decides nothing: only the toggle does.
+    for (const role of ['moderator', 'support', 'finance'] as const) {
+      expect(canAccess(role, {}, `${base}/promotion`, 'GET')).toBe(false);
+      expect(
+        canAccess(
+          role,
+          defaultPermissionsForRole(role),
+          `${base}/promotion`,
+          'GET',
+        ),
+      ).toBe(false);
+    }
+    expect(canAccess('support', view, `${base}/promotion`, 'GET')).toBe(true);
+    expect(
+      canAccess('support', view, `${base}/promotion/dry-run`, 'POST'),
+    ).toBe(false);
+    expect(
+      canAccess('support', manage, `${base}/promotion/dry-run`, 'POST'),
+    ).toBe(true);
+    // …and it opens nothing else.
+    expect(canAccess('support', manage, `${base}/config`, 'GET')).toBe(false);
+    expect(canAccess('support', manage, `${base}/feature-flags`, 'PATCH')).toBe(
+      false,
+    );
   });
 
   it('budget caps are their own switch, apart from Настройки', () => {
