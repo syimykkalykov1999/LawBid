@@ -5,9 +5,7 @@ import type { StaffSwitchKey } from '../../modules/staff-core/staff-settings.def
 import { StaffAiQaNightlyJob } from './staff-ai-qa-nightly.job';
 import { StaffAnomaliesJob } from './staff-anomalies.job';
 import { StaffCountersFlushJob } from './staff-counters-flush.job';
-import { StaffHeadScoreJob } from './staff-head-score.job';
 import { StaffLeaseSweepJob } from './staff-lease-sweep.job';
-import { StaffRetaliationExpireJob } from './staff-retaliation-expire.job';
 import {
   STAFF_RETENTION_BATCH,
   StaffRetentionJob,
@@ -47,7 +45,6 @@ const stubs: Array<
     ['staff.rating_enabled'],
   ],
   ['staff.today', (s) => new StaffTodayJob(s), ['staff.owner_home_enabled']],
-  ['staff.head-score', (s) => new StaffHeadScoreJob(s), ['staff.head_enabled']],
   [
     'staff.anomalies',
     (s) => new StaffAnomaliesJob(s),
@@ -59,18 +56,13 @@ const stubs: Array<
     ['staff.ai_enabled', 'staff.ai_qa_enabled'],
   ],
   [
-    'staff.retaliation-expire',
-    (s) => new StaffRetaliationExpireJob(s),
-    ['staff.appeals_enabled'],
-  ],
-  [
     'staff.weekly-digest',
     (s) => new StaffWeeklyDigestJob(s),
     ['staff.weekly_digest_enabled'],
   ],
 ];
 
-describe('staff.* cron jobs (staff package T1 stubs; daily-stats and rating-nightly are T5, see staff-rating-jobs.spec.ts)', () => {
+describe('staff.* cron jobs (staff package T1 stubs; daily-stats and rating-nightly are T5, head-score and retaliation-expire are T6)', () => {
   describe.each(stubs)('%s', (_name, make, keys) => {
     it('switch off (the default): returns at once, no work', async () => {
       await expect(make(settings()).run()).resolves.toEqual({ skipped: 'off' });
