@@ -127,7 +127,9 @@ describe('Economy (e2e)', () => {
       Math.max(350, r.figures.revenue30dUsd * 0.5),
       1,
     );
-    expect(r.figures.lines).toHaveLength(4);
+    // #370: every billable line is in the guard (aws, sms, email, id checks,
+    // storage, translation, video), not only the first four.
+    expect(r.figures.lines).toHaveLength(7);
     expect(r.containers.onAws).toBe(false);
     expect(r.capacity.dbTiers.length).toBeGreaterThan(0);
   });

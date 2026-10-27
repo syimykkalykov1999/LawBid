@@ -54,13 +54,26 @@ const u = new URL(base);
 u.pathname = `/${dbName}`;
 const url = u.toString();
 console.log(`N-1: ${dirs.length} migrations, database ${dbName}`);
-const created = run('psql', [base, '-v', 'ON_ERROR_STOP=1', '-c', `CREATE DATABASE "${dbName}"`]);
+// psql rejects Prisma's `?schema=public` query parameter: strip the query for psql.
+const psqlUrl = new URL(base);
+psqlUrl.search = '';
+const created = run('psql', [psqlUrl.toString(), '-v', 'ON_ERROR_STOP=1', '-c', `CREATE DATABASE "${dbName}"`]);
 if (created.status !== 0) process.exit(1);
 const env = { ...process.env, DATABASE_URL: url };
-if (run('npx', ['prisma', 'migrate', 'deploy'], { cwd: here, env }).status !== 0) process.exit(1);
+// Only the previous checkout has node_modules (the job runs `npm ci` there), so the
+// migrations (already copied in above) are applied with ITS Prisma CLI; `npx prisma`
+// in this checkout would download the newest Prisma from the registry instead.
+if (run('npx', ['--no-install', 'prisma', 'migrate', 'deploy'], { cwd: prevApi, env }).status !== 0) process.exit(1);
 if (existsSync(join(here, 'prisma/run-concurrent.mjs'))) {
   console.log('N-1: running prisma/concurrent (online-DDL runner)');
-  if (run('node', ['prisma/run-concurrent.mjs'], { cwd: here, env }).status !== 0) process.exit(1);
+  // Same reason: the runner imports @prisma/client, which resolves next to the file.
+  cpSync(join(here, 'prisma/run-concurrent.mjs'), join(prevApi, 'prisma/run-concurrent.mjs'));
+  const conc = join(here, 'prisma/concurrent');
+  if (existsSync(conc)) {
+    rmSync(join(prevApi, 'prisma/concurrent'), { recursive: true, force: true });
+    cpSync(conc, join(prevApi, 'prisma/concurrent'), { recursive: true });
+  }
+  if (run('node', ['prisma/run-concurrent.mjs'], { cwd: prevApi, env }).status !== 0) process.exit(1);
 }
 
 // 3. the old suites, on the new schema
