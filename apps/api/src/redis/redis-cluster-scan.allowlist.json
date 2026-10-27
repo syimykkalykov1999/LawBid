@@ -115,8 +115,43 @@
     "reason": "hits and block keys share the tag of the throttled subject (ck(tag, ...))."
   },
   {
+    "file": "modules/moderation/text-detector.service.ts",
+    "kind": "multi",
+    "reason": "INCR+EXPIRE on the single daily detect counter key."
+  },
+  {
     "file": "modules/realtime/realtime-event-log.ts",
     "kind": "lua-multi-key",
     "reason": "NEXT_SEQ_LUA keys rt:seq and rt:epoch both go through ck('rtseq', ...): one slot in cluster mode."
+  },
+  {
+    "file": "common/heavy-hitters/heavy-hitters.service.ts",
+    "kind": "pipeline-raw",
+    "reason": "every key carries the {hh} hash tag, so the whole pipeline stays in one cluster slot."
+  },
+  {
+    "file": "common/heavy-hitters/heavy-hitters.service.ts",
+    "kind": "eval-spread-keys",
+    "reason": "the tmp and bucket keys all carry the {hh} hash tag: one slot in cluster mode."
+  },
+  {
+    "file": "modules/staff-security/staff-card-watch.ts",
+    "kind": "multi",
+    "reason": "Every key of the MULTI is built with ck('adm', ...): the per-minute counter and the day hash share the {adm} hash tag, one slot in cluster mode."
+  },
+  {
+    "file": "modules/privacy/personal-data-erasure.service.ts",
+    "kind": "scan",
+    "reason": "Cluster mode scans every master node (nodes('master')); standalone scans the one node. Matched keys are deleted with delSafe (one DEL per key in cluster mode)."
+  },
+  {
+    "file": "modules/work-lease/staff-presence.service.ts",
+    "kind": "mget",
+    "reason": "The four presence keys of ONE admin all carry the {staff:<adminId>} hash tag (key()): one slot."
+  },
+  {
+    "file": "modules/work-lease/staff-presence.service.ts",
+    "kind": "pipeline-raw",
+    "reason": "Every command of one heartbeat pipeline names a key of the same admin ({staff:<adminId>} hash tag): one slot."
   }
 ]

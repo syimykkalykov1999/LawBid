@@ -16,6 +16,7 @@ class AuditLogEntryDto {
     required this.targetType,
     required this.targetId,
     required this.justification,
+    required this.reasonCode,
     required this.before,
     required this.after,
     required this.ip,
@@ -32,6 +33,9 @@ class AuditLogEntryDto {
   final String targetType;
   final String? targetId;
   final String? justification;
+
+  /// Coded reason of a private-content read.
+  final String? reasonCode;
   final dynamic before;
   final dynamic after;
   final String? ip;

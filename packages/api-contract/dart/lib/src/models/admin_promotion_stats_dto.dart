@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'promotion_model_stat_dto.dart';
 import 'promotion_status_count_dto.dart';
 
 part 'admin_promotion_stats_dto.g.dart';
@@ -21,6 +22,8 @@ class AdminPromotionStatsDto {
     required this.impressions30d,
     required this.reach30d,
     required this.clicks30d,
+    required this.byModel,
+    this.byModelAt,
   });
 
   factory AdminPromotionStatsDto.fromJson(Map<String, Object?> json) =>
@@ -40,6 +43,10 @@ class AdminPromotionStatsDto {
   final int impressions30d;
   final int reach30d;
   final int clicks30d;
+
+  /// Owner 2026-10-27: the last 30 days by way to pay, from the nightly snapshot (empty until the first one).
+  final List<PromotionModelStatDto> byModel;
+  final DateTime? byModelAt;
 
   Map<String, Object?> toJson() => _$AdminPromotionStatsDtoToJson(this);
 }

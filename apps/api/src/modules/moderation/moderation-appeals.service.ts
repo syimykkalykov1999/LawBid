@@ -1,10 +1,20 @@
 import {
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma, type ReportTargetType } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import {
+  STAFF_RECORDER,
+  type StaffRecorder,
+} from '../staff-core/staff-recorder.port';
+import {
+  STAFF_SIGNALS,
+  type StaffSignals,
+} from '../staff-core/staff-signals.port';
 import {
   decodeCursor,
   encodeCursor,
@@ -24,6 +34,7 @@ import type {
   MyReportDto,
 } from './moderation-appeals.dto';
 import { ModerationService } from './moderation.service';
+import { StrikesService } from './strikes.service';
 
 /** An appeal can be filed this long after the decision. */
 export const APPEAL_WINDOW_DAYS = 30;
@@ -56,6 +67,13 @@ export class ModerationAppealsService {
     private readonly adminModeration: AdminModerationService,
     private readonly audit: AuditLogService,
     private readonly notifications: NotificationsService,
+    private readonly strikes: StrikesService,
+    @Optional()
+    @Inject(STAFF_RECORDER)
+    private readonly staffRecorder?: StaffRecorder,
+    @Optional()
+    @Inject(STAFF_SIGNALS)
+    private readonly staffSignals?: StaffSignals,
   ) {}
 
   // ----- the author's side -----
@@ -187,6 +205,14 @@ export class ModerationAppealsService {
       }
       throw e;
     }
+    // Staff package T5: an appeal after a close is a quality signal against
+    // the moderator who took the action (one cheap call).
+    void this.staffSignals?.signal(
+      action.admin_id,
+      'complaint',
+      'report',
+      action.target_id,
+    );
     const list = await this.notices(userId);
     const mine = list.find((n) => n.actionId === action.id);
     if (!mine) throw this.notFound();
@@ -358,6 +384,14 @@ export class ModerationAppealsService {
         throw e;
       }
     }
+    // Owner 2026-10-27: winning the appeal also lifts the strike (and its limit).
+    if (accept) {
+      await this.strikes.revokeByAction(
+        admin,
+        appeal.action_id,
+        `Appeal accepted: ${note}`,
+      );
+    }
     await this.audit.record({
       adminId: admin.id,
       action: `moderation.appeal_${status}`,
@@ -377,6 +411,22 @@ export class ModerationAppealsService {
         reason: note,
       },
     });
+    // Staff package T5: the appeal decision is a staff decision; an accepted
+    // appeal also overturns the first moderator's action (one cheap call each).
+    void this.staffRecorder?.record({
+      adminId: admin.id,
+      itemKind: 'appeal',
+      itemId: id,
+      outcome: accept ? 'accept' : 'reject',
+    });
+    if (accept) {
+      void this.staffSignals?.signalForModerationAction(
+        appeal.action_id,
+        'overturned',
+        'report',
+        appeal.target_id,
+      );
+    }
     return status;
   }
 

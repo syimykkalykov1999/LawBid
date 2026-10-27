@@ -2,7 +2,9 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { type Plan, Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT, REDIS_CLIENT } from '../../redis/redis.constants';
+import { cached } from '../../common/cache/cached';
+import { L1Cache } from '../../common/cache/l1-cache';
 import { SEATS_HARD_CAP } from '../billing/billing.constants';
 import { clientBadgeActive } from '../client-badge/client-badge.util';
 import {
@@ -80,25 +82,30 @@ export class EntitlementsService {
     private readonly plans: PlansService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Optional() private readonly custom?: CustomEntitlementsService,
-  ) {}
+    // Caching round 2 (S2-2): the per-user answers are caches (evictable
+    // cache Redis); the global version number stays on the main client.
+    @Optional() @Inject(REDIS_CACHE_CLIENT) cache?: Redis,
+  ) {
+    this.cache = cache ?? redis;
+  }
+
+  private readonly cache: Redis;
+  /** S2-7: the global version in memory for a few seconds (this process
+   * clears it the moment a plan changes; other pods within the TTL). */
+  private readonly versionL1 = new L1Cache<string>('ent-ver');
 
   async forUser(userId: string): Promise<ResolvedEntitlements> {
     const ver = await this.version();
-    const key = cacheKey(ver, userId);
-    const cached = await this.redis.get(key).catch(() => null);
-    if (cached) {
-      try {
-        return JSON.parse(cached) as ResolvedEntitlements;
-      } catch {
-        /* fall through */
-      }
-    }
-    await this.custom?.ensureFresh().catch(() => undefined);
-    const resolved = await this.compute(userId);
-    await this.redis
-      .set(key, JSON.stringify(resolved), 'EX', CACHE_TTL_SECONDS)
-      .catch(() => undefined);
-    return resolved;
+    // S2-6: the shared helper (single-flight, lease, jittered TTL).
+    return cached<ResolvedEntitlements>(
+      this.cache,
+      cacheKey(ver, userId),
+      { ttlSec: CACHE_TTL_SECONDS },
+      async () => {
+        await this.custom?.ensureFresh().catch(() => undefined);
+        return this.compute(userId);
+      },
+    );
   }
 
   async has(userId: string, key: string): Promise<boolean> {
@@ -125,13 +132,14 @@ export class EntitlementsService {
   /** The user's subscription changed. */
   async invalidateUser(userId: string): Promise<void> {
     const ver = await this.version();
-    await this.redis.del(cacheKey(ver, userId)).catch(() => undefined);
+    await this.cache.del(cacheKey(ver, userId)).catch(() => undefined);
   }
 
   /** A plan changed: every cached answer is stale. */
   async invalidateAll(): Promise<void> {
     this.plans.invalidate();
     await this.redis.incr(VERSION_KEY).catch(() => undefined);
+    this.versionL1.clear();
   }
 
   /** Attorney: the entitlements the plan [plan] gives, with the seats a
@@ -160,7 +168,10 @@ export class EntitlementsService {
   }
 
   private async version(): Promise<string> {
-    return (await this.redis.get(VERSION_KEY).catch(() => null)) ?? '0';
+    return this.versionL1.getOrLoad(
+      VERSION_KEY,
+      async () => (await this.redis.get(VERSION_KEY).catch(() => null)) ?? '0',
+    );
   }
 
   private async compute(userId: string): Promise<ResolvedEntitlements> {

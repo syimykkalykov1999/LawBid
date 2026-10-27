@@ -2,7 +2,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/media/image_size.dart';
 import 'package:lawbid/core/media/video_size.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -383,8 +383,7 @@ final chatFolderCountsProvider = FutureProvider.autoDispose<
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
       if (e.name == 'message:new') {
         if (gate.onMessage(e).waiting) debounce.poke();
-      } else if (e.name == 'conversation:update' ||
-          e.name == 'group:invite') {
+      } else if (e.name == 'conversation:update' || e.name == 'group:invite') {
         debounce.poke();
       }
     });
@@ -414,8 +413,7 @@ final messageRequestsCountProvider = FutureProvider.autoDispose<int>(
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
       if (e.name == 'message:new') {
         if (gate.onMessage(e).requests) debounce.poke();
-      } else if (e.name == 'conversation:update' ||
-          e.name == 'group:invite') {
+      } else if (e.name == 'conversation:update' || e.name == 'group:invite') {
         debounce.poke();
       }
     });
@@ -657,6 +655,56 @@ final deliveryAckerProvider = Provider<DeliveryAcker>(DeliveryAcker.new);
 
 // --- One conversation (docs/05 §8.2) -----------------------------------------
 
+/// [ChatThreadState.all] for these lists: the outbox and the voice outbox
+/// (newest first) on top of the server messages that have not disappeared
+/// yet. Kept per `messages` list until one of the inputs changes or a
+/// disappearing message is due, so it is the same list on every read.
+@visibleForTesting
+List<ChatMessage> chatAllMessages(
+  List<ChatMessage> messages,
+  List<ChatMessage> outbox,
+  List<ChatMessage> voiceOutbox,
+) {
+  final now = DateTime.now();
+  final hit = _allMemo[messages];
+  if (hit != null &&
+      identical(hit.outbox, outbox) &&
+      identical(hit.voiceOutbox, voiceOutbox) &&
+      (hit.validUntil == null || now.isBefore(hit.validUntil!))) {
+    return hit.result;
+  }
+  final pending = [...outbox, ...voiceOutbox]
+    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  // Owner 2026-10-21: disappearing messages vanish by the clock, before
+  // the server's sweep (and from a cached page) reaches the device.
+  DateTime? validUntil;
+  final kept = <ChatMessage>[];
+  for (final m in messages) {
+    if (m.isExpired(now)) continue;
+    kept.add(m);
+    final at = m.expiresAt;
+    if (at != null && (validUntil == null || at.isBefore(validUntil))) {
+      validUntil = at;
+    }
+  }
+  final result = List<ChatMessage>.unmodifiable([...pending, ...kept]);
+  _allMemo[messages] = (
+    outbox: outbox,
+    voiceOutbox: voiceOutbox,
+    result: result,
+    validUntil: validUntil,
+  );
+  return result;
+}
+
+final _allMemo = Expando<
+    ({
+      List<ChatMessage> outbox,
+      List<ChatMessage> voiceOutbox,
+      List<ChatMessage> result,
+      DateTime? validUntil,
+    })>('chat.all');
+
 @immutable
 class ChatThreadState {
   const ChatThreadState({
@@ -715,17 +763,12 @@ class ChatThreadState {
   final List<ChatMessage> voiceOutbox;
 
   /// Newest first, the outbox on top.
-  List<ChatMessage> get all {
-    final pending = [...outbox, ...voiceOutbox]
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    // Owner 2026-10-21: disappearing messages vanish by the clock, before
-    // the server's sweep (and from a cached page) reaches the device.
-    final now = DateTime.now();
-    return [
-      ...pending,
-      ...messages.where((m) => !m.isExpired(now)),
-    ];
-  }
+  ///
+  /// Owner 2026-10-26 (smoothness): worked out once per change of the
+  /// three lists (by identity) and kept until the next disappearing
+  /// message is due, instead of copying and sorting on every read. The
+  /// result is read-only.
+  List<ChatMessage> get all => chatAllMessages(messages, outbox, voiceOutbox);
 
   ChatThreadState copyWith({
     Conversation? conversation,
@@ -912,11 +955,24 @@ class ChatThread extends Notifier<ChatThreadState> {
           if (--left == 0) break;
         }
       }
+      // The page replaces the list (a 409 reload must drop the stale copy),
+      // but a message that arrived by realtime while the page was loading
+      // (newer than the page) stays.
+      final pageIds = {for (final m in page.items) m.id};
+      final newestOnPage = page.items.firstOrNull?.createdAt;
+      final arrived = [
+        for (final m in state.messages)
+          if (!pageIds.contains(m.id) &&
+              newestOnPage != null &&
+              m.createdAt.isAfter(newestOnPage))
+            m,
+      ];
+      state = state.copyWith(messages: page.items);
+      _merge(arrived);
       state = state.copyWith(
         conversation: conv,
         unreadFromId: firstUnread,
         unreadCount: firstUnread == null ? null : conv.unreadCount,
-        messages: page.items,
         nextCursor: page.nextCursor,
         clearCursor: page.nextCursor == null,
         loading: false,
@@ -944,12 +1000,30 @@ class ChatThread extends Notifier<ChatThreadState> {
     }
   }
 
-  Future<void> loadMore() async {
+  Future<void>? _loadMoreRunning;
+
+  /// One older page; a second caller (e.g. a jump to a quoted message)
+  /// waits for the one already running instead of returning at once.
+  Future<void> loadMore() {
+    final running = _loadMoreRunning;
+    if (running != null) return running;
+    final f = _loadMore().whenComplete(() => _loadMoreRunning = null);
+    _loadMoreRunning = f;
+    return f;
+  }
+
+  Future<void> _loadMore() async {
     final cursor = state.nextCursor;
     if (cursor == null || state.loadingMore) return;
     state = state.copyWith(loadingMore: true, loadMoreFailed: false);
     if (cursor == localCursor) {
-      await _loadMoreLocal();
+      try {
+        await _loadMoreLocal();
+      } on Object {
+        if (ref.mounted) {
+          state = state.copyWith(loadingMore: false, loadMoreFailed: true);
+        }
+      }
       return;
     }
     try {
@@ -1077,7 +1151,10 @@ class ChatThread extends Notifier<ChatThreadState> {
     /// call); the queue uploads them at once and sends them in order.
     Future<void>? after,
   }) async {
+    // Read before the first await: the screen may be left meanwhile (this
+    // provider is auto-disposed) and the photo must still be queued.
     final queue = ref.read(chatMediaOutboxProvider);
+    final files = ref.read(uploadFilesProvider);
     if (queue.ownerId == null) return;
     final cmid = newClientMessageId();
     final isImage = mime.startsWith('image/');
@@ -1085,10 +1162,10 @@ class ChatThread extends Notifier<ChatThreadState> {
         ? await imageSizeOf(bytes)
         : (mime.startsWith('video/') ? videoSizeOf(bytes) : null);
     _previewBytes[cmid] = bytes;
-    final file = await ref.read(uploadFilesProvider).keep(
-          '$cmid.bin',
-          bytes: bytes,
-        );
+    final file = await files.keep(
+      '$cmid.bin',
+      bytes: bytes,
+    );
     if (after != null) {
       try {
         await after;
@@ -1268,7 +1345,7 @@ class ChatThread extends Notifier<ChatThreadState> {
     final queue = ref.read(chatMediaOutboxProvider);
     if (queue.ownerId == null) return;
     // ignore: unawaited_futures
-    HapticFeedback.selectionClick();
+    AppHaptics.selection();
     await queue.enqueue(
       id: newClientMessageId(),
       kind: ChatMediaKind.sticker,
@@ -1589,6 +1666,9 @@ class ChatThread extends Notifier<ChatThreadState> {
       messages: merged,
       outbox:
           state.outbox.where((o) => !done.contains(o.clientMessageId)).toList(),
+      voiceOutbox: state.voiceOutbox
+          .where((o) => !done.contains(o.clientMessageId))
+          .toList(),
     );
   }
 
@@ -1688,6 +1768,10 @@ class ChatThread extends Notifier<ChatThreadState> {
         unawaited(_catchUp());
     }
   }
+
+  /// Re-reads only the conversation header (pin, note, block...) — the
+  /// loaded messages, local bubbles and outbox stay.
+  Future<void> refreshConversation() => _refreshConversation();
 
   Future<void> _refreshConversation() async {
     try {

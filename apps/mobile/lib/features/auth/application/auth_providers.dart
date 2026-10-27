@@ -35,8 +35,8 @@ final deviceInfoProvider = Provider<DeviceInfo>(
 /// (docs/CHANGELOG.md stage 1.5). Real-backend wiring pass
 /// (docs/CHANGELOG.md, stage-1.7-auth): `RealAuthRepository` is now the
 /// default — dio-backed against the live `/auth/*` endpoints.
-/// `StubAuthRepository` stays in the codebase for widget/golden tests but
-/// is no longer wired here by default; override this provider explicitly
+/// `StubAuthRepository` lives in test/helpers (widget/golden tests only) and
+/// is not wired here by default; override this provider explicitly
 /// wherever a test still needs it. No screen or notifier should reference
 /// either implementation directly — always go through this provider.
 final authRepositoryProvider = Provider<AuthRepository>(

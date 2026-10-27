@@ -2,17 +2,21 @@ import { RuntimeStatsModule } from '../common/ops/runtime-stats.service';
 import { SloMetricsModule } from '../common/ops/slo-metrics.service';
 import { ServerTextsModule } from '../common/i18n/server-texts.service';
 import { CountriesCoreModule } from '../modules/countries/countries.module';
+import { AttorneyAdsCoreModule } from '../modules/attorney-ads/attorney-ads.module';
 import { Module } from '@nestjs/common';
+import { VersionEtagModule } from '../common/sync/version-etag.module';
 import { LoggerModule } from 'nestjs-pino';
 import { ConfigModule } from '../config/config.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
 import { AdminSummaryModule } from '../common/admin-summary/admin-summary.module';
 import { OpsModule } from '../common/ops/ops.module';
+import { SeoGeneratorModule } from '../common/seo/seo-generator.module';
 import { AppSettingsModule } from '../common/app-settings/app-settings.module';
 import { EconomyModule } from '../common/economy/economy.module';
 import { CostGuardModule } from '../common/cost-guard/cost-guard.module';
 import { JobsModule } from './jobs.module';
+import { EventsModule } from '../modules/events/events.module';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { FilesWorkerModule } from '../modules/files/files-worker.module';
 import { CaseHistoryModule } from '../modules/case-history/case-history.module';
@@ -43,6 +47,8 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
 @Module({
   imports: [
     ConfigModule,
+    // S2-12: controllers of the modules below inject the version ETags.
+    VersionEtagModule,
     LoggerModule.forRoot({
       pinoHttp: {
         level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
@@ -58,6 +64,9 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     AdminSummaryModule,
     // Owner 2026-10-05: ops guard (DB probe, budget, backups) + heartbeat.
     OpsModule,
+    SeoGeneratorModule,
+    // N-2: domain-event bus (events.maintain).
+    EventsModule,
     // LicenseExpiryJob: typed app_config reads + the notifications seam.
     AppSettingsModule,
     // Global paid-provider caps: FilesService (calls, client reviews in
@@ -78,6 +87,7 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     ClientFraudCoreModule,
 
     CountriesCoreModule,
+    AttorneyAdsCoreModule,
     JobsModule.register({ mode: 'worker' }),
     // docs/03 stage 3.2: antivirus scan + image processing (`files` queue).
     FilesWorkerModule,

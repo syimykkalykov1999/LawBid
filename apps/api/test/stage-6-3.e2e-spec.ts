@@ -9,6 +9,10 @@ import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { adminSession, adminStepUp, OPS_RIGHTS } from './support/admin-login';
 
+// audit_log.seq (hash chain) is a BigInt, which JSON.stringify refuses.
+const bigintSafe = (_k: string, v: unknown) =>
+  typeof v === 'bigint' ? v.toString() : v;
+
 jest.setTimeout(90_000);
 
 interface Body {
@@ -416,7 +420,7 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
       where: { target_id: c.id, action: 'users.phone_changed' },
     });
     expect(JSON.stringify(log?.after)).toContain('Lost phone');
-    expect(JSON.stringify(log)).not.toContain(fresh);
+    expect(JSON.stringify(log, bigintSafe)).not.toContain(fresh);
   });
 
   it('suspends a client per §3.4: sessions revoked, login blocked, open cases archived + bids rejected, in_progress kept; restore keeps the archive', async () => {

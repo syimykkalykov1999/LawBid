@@ -61,7 +61,7 @@ export const COUNTERS = {
   case_promotion: {
     table: 'case_promotions',
     key: 'id',
-    fields: ['impressions', 'reach', 'clicks'],
+    fields: ['impressions', 'reach', 'clicks', 'actions'],
     recount: false,
   },
   channel: {
@@ -122,6 +122,15 @@ export const legacyKey = (e: string, f: string) => ck(e, `cnt:${e}:${f}`);
 export const pendingKey = (e: string, f: string, shard: number) =>
   ck(e, `cnt:${e}:${f}:${shard}`);
 export const touchedKey = (e: string) => ck(e, `cnt:touched:${e}`);
+/** Review R-57: SET of `field:shard` members that have pending deltas. A
+ * flush drains only those instead of scanning every field x shard x legacy
+ * hash (≈ 374 HSCANs every 10 s per process, idle or not). */
+export const dirtyKey = (e: string) => ck(e, `cnt:dirty:${e}`);
+/** Every Nth flush still sweeps ALL hashes: a pod running the code from
+ * before the marker (rolling deploy), or a lost marker, can leave deltas
+ * nobody marked. */
+export const FULL_SWEEP_EVERY = 30;
+const DIRTY_BATCH = 1000;
 const TOUCHED_TTL_SEC = 2 * 24 * 3600;
 export const COUNTER_FLUSH_MS = 10_000;
 /** Per-process aggregation window before the deltas go to Redis. */
@@ -134,14 +143,17 @@ local vals = redis.call('HMGET', KEYS[1], unpack(ARGV))
 redis.call('HDEL', KEYS[1], unpack(ARGV))
 return vals`;
 
-/** Pending bumps of one hash shard + "touched today" marks in one call:
- * ARGV = ttl, then id, delta, id, delta ... */
+/** Pending bumps of one hash shard + "touched today" marks + the dirty
+ * marker of that shard in one call: ARGV = ttl, dirty member, then id,
+ * delta, id, delta ... */
 const BUMP_MANY = `
-for i = 2, #ARGV, 2 do
+for i = 3, #ARGV, 2 do
   redis.call('HINCRBY', KEYS[1], ARGV[i], ARGV[i + 1])
   redis.call('SADD', KEYS[2], ARGV[i])
 end
+redis.call('SADD', KEYS[3], ARGV[2])
 redis.call('EXPIRE', KEYS[2], ARGV[1])
+redis.call('EXPIRE', KEYS[3], ARGV[1])
 return 1`;
 
 @Injectable()
@@ -166,6 +178,8 @@ export class CounterAggregator
    * skip the extra HMGET. Flush keeps draining the legacy hashes anyway. */
   private legacyDrained = false;
   private legacyFound = 0;
+  /** Flushes run by this process (every FULL_SWEEP_EVERY-th is a full sweep). */
+  private flushRuns = 0;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -250,10 +264,12 @@ export class CounterAggregator
         try {
           await this.redis.eval(
             BUMP_MANY,
-            2,
+            3,
             pendingKey(g.entity, g.field, g.shard),
             touchedKey(g.entity),
+            dirtyKey(g.entity),
             TOUCHED_TTL_SEC,
+            `${g.field}:${g.shard}`,
             ...g.args,
           );
         } catch (error) {
@@ -346,16 +362,62 @@ export class CounterAggregator
       COUNTER_FLUSH_MS,
       async () => {
         let rows = 0;
-        this.legacyFound = 0;
-        for (const [entity, def] of Object.entries(COUNTERS)) {
-          for (const field of def.fields) {
-            rows += await this.flushField(entity, def.table, def.key, field);
+        const full = this.flushRuns % FULL_SWEEP_EVERY === 0;
+        this.flushRuns += 1;
+        if (full) {
+          this.legacyFound = 0;
+          for (const [entity, def] of Object.entries(COUNTERS)) {
+            for (const field of def.fields) {
+              rows += await this.flushField(entity, def.table, def.key, field);
+            }
           }
+          if (this.legacyFound === 0) this.legacyDrained = true;
+          return rows;
         }
-        if (this.legacyFound === 0) this.legacyDrained = true;
+        for (const [entity, def] of Object.entries(COUNTERS)) {
+          rows += await this.flushDirty(entity, def);
+        }
         return rows;
       },
     );
+  }
+
+  /** Drains only the hashes whose dirty marker is set (one SPOP per entity
+   * when nothing happened). A marker is put back if its hash failed. */
+  private async flushDirty(
+    entity: string,
+    def: (typeof COUNTERS)[CounterEntity],
+  ): Promise<number> {
+    const popped = (await this.redis.spop(dirtyKey(entity), DIRTY_BATCH)) as
+      string[] | null;
+    const members = popped ?? [];
+    let applied = 0;
+    for (let i = 0; i < members.length; i += 1) {
+      const [field, shardText] = members[i].split(':');
+      const shard = Number(shardText);
+      const known = (def.fields as readonly string[]).includes(field);
+      if (
+        !known ||
+        !Number.isInteger(shard) ||
+        shard < 0 ||
+        shard >= COUNTER_SHARDS
+      )
+        continue;
+      try {
+        applied += await this.flushHash(
+          entity,
+          pendingKey(entity, field, shard),
+          def.table,
+          def.key,
+          field,
+        );
+      } catch (error) {
+        // This marker and every one not reached yet go back.
+        await this.redis.sadd(dirtyKey(entity), ...members.slice(i));
+        throw error;
+      }
+    }
+    return applied;
   }
 
   private async flushField(
@@ -481,6 +543,66 @@ export class CounterAggregator
       },
     );
     return { rows: result ?? 0 };
+  }
+
+  /**
+   * Owner 2026-10-26 (stale profile counters): the nightly reconcile above
+   * only repairs rows touched in the last 2 days, so a profile whose
+   * counter once drifted stayed wrong for good. This walks the profile
+   * tables in id order (a cursor kept in Redis), [cap] rows per run per
+   * table, recounts them from posts / follows and fixes the ones that
+   * differ. A full lap takes ceil(rows / cap) nights; the cursor wraps.
+   */
+  async driftSweep(
+    cap: number,
+  ): Promise<{ scanned: number; fixed: number; wrapped: boolean }> {
+    if (cap <= 0) return { scanned: 0, fixed: 0, wrapped: false };
+    await this.flushLocal();
+    let scanned = 0;
+    let fixed = 0;
+    let wrapped = false;
+    for (const entity of ['attorney', 'client'] as const) {
+      const table = Prisma.raw(COUNTERS[entity].table);
+      const cursorKey = ck(entity, `cnt:drift-cursor:${entity}`);
+      const cursor =
+        (await this.redis.get(cursorKey)) ??
+        '00000000-0000-0000-0000-000000000000';
+      const before = await this.prisma.global().$queryRaw<
+        {
+          id: string;
+          p: number;
+          f: number;
+          g: number;
+        }[]
+      >(Prisma.sql`SELECT user_id::TEXT AS id, posts_count AS p,
+            followers_count AS f, following_count AS g
+          FROM ${table} WHERE user_id > ${cursor}::UUID
+          ORDER BY user_id LIMIT ${cap}`);
+      if (before.length < cap) {
+        wrapped = true;
+        await this.redis.del(cursorKey);
+      } else {
+        await this.redis.set(cursorKey, before[before.length - 1].id);
+      }
+      if (before.length === 0) continue;
+      const ids = before.map((r) => r.id);
+      for (const field of COUNTERS[entity].fields) {
+        await this.dropPending(entity, field, ids);
+      }
+      await this.recount(entity, ids);
+      const after = await this.prisma.global().$queryRaw<
+        { id: string; p: number; f: number; g: number }[]
+      >(Prisma.sql`SELECT user_id::TEXT AS id, posts_count AS p,
+            followers_count AS f, following_count AS g
+          FROM ${table} WHERE user_id = ANY(${ids}::UUID[])`);
+      const was = new Map(before.map((r) => [r.id, r]));
+      for (const r of after) {
+        const w = was.get(r.id);
+        if (w && (w.p !== r.p || w.f !== r.f || w.g !== r.g)) fixed += 1;
+      }
+      scanned += ids.length;
+    }
+    return { scanned, fixed, wrapped };
   }
 
   /** Forgets the pending deltas of [ids] (the recount is the truth). */

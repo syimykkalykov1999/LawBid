@@ -4,7 +4,7 @@ import {
   ArrowCounterClockwise, ArrowLeft, CaretDown, CopySimple, FloppyDisk, Info, PaperPlaneTilt,
 } from '@phosphor-icons/react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, m } from 'motion/react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -13,7 +13,7 @@ import {
   EMPTY_FORM, fieldErrors, HTML_MAX, LOCALE_LABEL, LOCALES, SUBJECT_MAX, TEXT_MAX, unsample,
   type EmailForm, type EmailKey, type EmailLocale, type EmailTemplateDetail, type FieldName,
 } from '@/components/email/email-utils';
-import { useDebounced } from '@/components/email/use-debounced';
+import { useDebounced } from '@/components/legacy/use-debounced';
 import { VariableChips } from '@/components/email/variable-chips';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -369,7 +369,7 @@ export default function EmailTemplateEditorPage() {
               </button>
               <AnimatePresence initial={false}>
                 {showDefault ? (
-                  <motion.div
+                  <m.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
@@ -392,7 +392,7 @@ export default function EmailTemplateEditorPage() {
                         <CopySimple size={15} weight="light" /> Взять стандартный за основу
                       </Button>
                     </div>
-                  </motion.div>
+                  </m.div>
                 ) : null}
               </AnimatePresence>
             </Card>
@@ -473,7 +473,7 @@ function FieldBox({
       {children}
       <AnimatePresence initial={false}>
         {error ? (
-          <motion.p
+          <m.p
             role="alert"
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
@@ -481,7 +481,7 @@ function FieldBox({
             className="text-xs text-danger"
           >
             {error}
-          </motion.p>
+          </m.p>
         ) : null}
       </AnimatePresence>
       {hint && !error ? <p className="text-xs text-muted">{hint}</p> : null}

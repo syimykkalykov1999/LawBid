@@ -59,12 +59,32 @@ export class AppCheckService {
     this.logger.setContext(AppCheckService.name);
   }
 
-  async verify(token: string | undefined): Promise<AppCheckResult> {
+  /**
+   * `consume: true` is Firebase's replay protection (Admin SDK 14,
+   * `verifyToken(token, { consume: true })`, one more call to the App Check
+   * backend): the token is marked used and a second presentation comes back
+   * `alreadyConsumed`, which is reported as `invalid`. Only limited-use
+   * tokens (client `getLimitedUseToken()`) are meant for it.
+   */
+  async verify(
+    token: string | undefined,
+    opts: { consume?: boolean } = {},
+  ): Promise<AppCheckResult> {
     const app = await this.current();
     if (!app) return { verdict: 'unconfigured' };
     if (!token) return { verdict: 'missing' };
     try {
-      const res = await getAppCheck(app).verifyToken(token);
+      const res = await getAppCheck(app).verifyToken(
+        token,
+        opts.consume ? { consume: true } : undefined,
+      );
+      if (res.alreadyConsumed === true) {
+        return {
+          verdict: 'invalid',
+          appId: res.appId,
+          reason: 'already-consumed',
+        };
+      }
       return { verdict: 'valid', appId: res.appId };
     } catch (error: unknown) {
       const e = error as { code?: unknown; message?: unknown };

@@ -28,6 +28,10 @@ abstract final class ApiErrorCodes {
   /// older than the server keeps — reload the list from the first page.
   static const syncTooOld = 'SYNC_TOO_OLD';
 
+  /// Owner 2026-10-25 (experiments, 409): the action does not fit the
+  /// experiment's state (start a running one, ramp up a stopped one ...).
+  static const experimentStateInvalid = 'EXPERIMENT_STATE_INVALID';
+
   /// A write sent an old `version` (409): somebody else saved first.
   static const staleVersion = 'STALE_VERSION';
 
@@ -74,6 +78,10 @@ abstract final class ApiErrorCodes {
   static const accountSuspended = 'ACCOUNT_SUSPENDED';
   // Owner 2026-10-05 (client fraud): limited while staff check the account.
   static const accountRestricted = 'ACCOUNT_RESTRICTED';
+  // Owner 2026-10-27: unfounded reports -> reporting paused (details.until).
+  static const reportingSuspended = 'REPORTING_SUSPENDED';
+  // Owner 2026-10-27: strike ladder, may not publish (details.level / until).
+  static const accountStrikeLimited = 'ACCOUNT_STRIKE_LIMITED';
   static const accountDeleted = 'ACCOUNT_DELETED';
 
   // Onboarding (docs/01 §11, stage 1.7)
@@ -253,6 +261,15 @@ abstract final class ApiErrorCodes {
   static const integrationsNotConfigured = 'INTEGRATIONS_NOT_CONFIGURED';
   static const integrationConflict = 'INTEGRATION_CONFLICT';
   static const adminStepUpRequired = 'ADMIN_STEP_UP_REQUIRED';
+  static const adminIpNotAllowed = 'ADMIN_IP_NOT_ALLOWED';
+  static const adminWorkspaceConflict = 'ADMIN_WORKSPACE_CONFLICT';
+  static const staffRevealLimit = 'STAFF_REVEAL_LIMIT';
+  static const staffExportBlocked = 'STAFF_EXPORT_BLOCKED';
+  static const adminCountryNotAllowed = 'ADMIN_COUNTRY_NOT_ALLOWED';
+  static const adminDeviceChanged = 'ADMIN_DEVICE_CHANGED';
+  static const adminIpChanged = 'ADMIN_IP_CHANGED';
+  static const reasonCodeRequired = 'REASON_CODE_REQUIRED';
+  static const auditUnavailable = 'AUDIT_UNAVAILABLE';
   static const videoUnavailable = 'VIDEO_UNAVAILABLE';
   static const translationUnavailable = 'TRANSLATION_UNAVAILABLE';
   static const videoTooLong = 'VIDEO_TOO_LONG';
@@ -271,11 +288,8 @@ abstract final class ApiErrorCodes {
   static const adminCredentialsInvalid = 'ADMIN_CREDENTIALS_INVALID';
   static const adminLoginTaken = 'ADMIN_LOGIN_TAKEN';
   static const adminRecoveryFailed = 'ADMIN_RECOVERY_FAILED';
-  // Owner 2026-10-22: mandatory authenticator, second admin's approval.
+  // Owner 2026-10-22: mandatory authenticator.
   static const adminTotpSetupRequired = 'ADMIN_TOTP_SETUP_REQUIRED';
-  static const adminApprovalPending = 'ADMIN_APPROVAL_PENDING';
-  static const adminApprovalSelf = 'ADMIN_APPROVAL_SELF';
-  static const adminApprovalNotPending = 'ADMIN_APPROVAL_NOT_PENDING';
   static const referralCodeInvalid = 'REFERRAL_CODE_INVALID';
   static const referralNotAllowed = 'REFERRAL_NOT_ALLOWED';
   static const referralInvalidState = 'REFERRAL_INVALID_STATE';
@@ -326,6 +340,10 @@ abstract final class ApiErrorCodes {
   static const demoUnavailable = 'DEMO_UNAVAILABLE';
   static const demoCodeInvalid = 'DEMO_CODE_INVALID';
 
+  // Age gate (PR #388): signup age attestation.
+  static const ageAttestationRequired = 'AGE_ATTESTATION_REQUIRED';
+  static const ageUnderMinimum = 'AGE_UNDER_MINIMUM';
+
   /// Every server code, in enum order.
   static const messagePinLimit = 'MESSAGE_PIN_LIMIT';
   static const all = <String>[
@@ -339,6 +357,7 @@ abstract final class ApiErrorCodes {
     idempotencyKeyConflict,
     appUpdateRequired,
     syncTooOld,
+    experimentStateInvalid,
     staleVersion,
     tokenExpired,
     authOtpInvalid,
@@ -371,6 +390,8 @@ abstract final class ApiErrorCodes {
     turnstileFailed,
     accountSuspended,
     accountRestricted,
+    reportingSuspended,
+    accountStrikeLimited,
     accountDeleted,
     clientContactsIncomplete,
     onboardingIncomplete,
@@ -507,6 +528,15 @@ abstract final class ApiErrorCodes {
     integrationsNotConfigured,
     integrationConflict,
     adminStepUpRequired,
+    adminIpNotAllowed,
+    adminWorkspaceConflict,
+    staffRevealLimit,
+    staffExportBlocked,
+    adminCountryNotAllowed,
+    adminDeviceChanged,
+    adminIpChanged,
+    reasonCodeRequired,
+    auditUnavailable,
     videoUnavailable,
     translationUnavailable,
     videoTooLong,
@@ -522,9 +552,6 @@ abstract final class ApiErrorCodes {
     adminLoginTaken,
     adminRecoveryFailed,
     adminTotpSetupRequired,
-    adminApprovalPending,
-    adminApprovalSelf,
-    adminApprovalNotPending,
     referralCodeInvalid,
     referralNotAllowed,
     referralInvalidState,
@@ -572,6 +599,8 @@ abstract final class ApiErrorCodes {
     channelUsernameTaken,
     messageWindowExpired,
     messagePinLimit,
+    ageAttestationRequired,
+    ageUnderMinimum,
   ];
 }
 

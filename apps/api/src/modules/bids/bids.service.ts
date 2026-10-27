@@ -1,4 +1,8 @@
 import { forEachDatabase } from '../../sharding/for-each-database';
+import {
+  DomainEvents,
+  type DomainEventTicket,
+} from '../events/domain-events.service';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { BidPacksService } from '../bid-packs/bid-packs.service';
 import {
@@ -13,6 +17,7 @@ import { Bid, BidOffer, PartyRole, Prisma } from '@prisma/client';
 import { BUMP_VERSION } from '../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BoostActions } from '../promotions/boost-actions.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { CaseAccessPolicy } from '../cases/policies/case-access.policy';
@@ -107,6 +112,10 @@ export class BidsService {
     @Optional() private readonly conflicts?: ConflictCheckService,
     // Owner 2026-10-25: per-day / per-hour caps against scripts.
     @Optional() private readonly limits?: UsageLimitsService,
+    // N-2: the domain-event bus.
+    @Optional() private readonly events?: DomainEvents,
+    // Owner 2026-10-27: a bid counts for the case's boost paid per action.
+    @Optional() private readonly boostActions?: BoostActions,
   ) {}
 
   /** Codes of the case's topics (the first and the extras). */
@@ -290,7 +299,9 @@ export class BidsService {
     }
 
     try {
+      const eventTickets: Array<DomainEventTicket | null | undefined> = [];
       const bid = await withTxRetry(this.prisma, async (tx) => {
+        eventTickets.length = 0;
         const kase = await tx.case.findUnique({
           where: { id: caseId },
           select: { client_id: true, status: true, deleted_at: true },
@@ -391,12 +402,40 @@ export class BidsService {
           {
             type: 'bid_received',
             recipientId: kase.client_id,
-            payload: { caseId, bidId: created.id, attorneyId: user.sub },
+            payload: {
+              caseId,
+              bidId: created.id,
+              attorneyId: user.sub,
+              // Delta audit D-P4: the realtime event patches the bid row.
+              ...(created.amount_cents !== null
+                ? { amountCents: created.amount_cents }
+                : {}),
+              ...(created.percent_bps !== null
+                ? { percentBps: created.percent_bps }
+                : {}),
+            },
           },
           tx,
         );
+        eventTickets.push(
+          await this.events?.emit(
+            tx,
+            'bid.placed',
+            {
+              bidId: created.id,
+              caseId,
+              attorneyId: user.sub,
+              feeType: created.fee_type,
+            },
+            {
+              actorId: user.sub,
+              key: `bid.placed:${created.id}:${now.getTime()}`,
+            },
+          ),
+        );
         return { ...created, offers: [offer] };
       });
+      await this.events?.flush(eventTickets);
       // OQ-048: the assistant's draft for this case is used up.
       await this.prisma.bidDraft
         .deleteMany({ where: { attorney_id: user.sub, case_id: caseId } })
@@ -404,6 +443,7 @@ export class BidsService {
       // Owner 2026-10-20: the conflict check of this bid, kept as the
       // attorney's own record (a warning, never a block).
       await this.conflicts?.onBid(user.sub, caseId, bid.id);
+      this.boostActions?.report(user.sub, { caseId }, 'bid');
       return toBidDto(bid);
     } catch (error) {
       // The offer did not go through: the bought one comes back.
@@ -622,6 +662,8 @@ export class BidsService {
         action,
         by,
         plan,
+        amountCents: extra.amountCents,
+        percentBps: extra.percentBps,
         tx,
       });
       if (action !== 'counter') {
@@ -656,6 +698,8 @@ export class BidsService {
     action: 'withdraw' | 'decline' | 'counter';
     by: PartyRole;
     plan: { to: string; event: string };
+    amountCents?: number;
+    percentBps?: number;
     tx: Prisma.TransactionClient;
   }): Promise<void> {
     const { caseId, attorneyId, clientId, bidId, action, by, plan, tx } = input;
@@ -706,7 +750,17 @@ export class BidsService {
         {
           type: 'offer_countered',
           recipientId,
-          payload: { caseId, bidId, byRole: by },
+          payload: {
+            caseId,
+            bidId,
+            byRole: by,
+            ...(input.amountCents !== undefined
+              ? { amountCents: input.amountCents }
+              : {}),
+            ...(input.percentBps !== undefined
+              ? { percentBps: input.percentBps }
+              : {}),
+          },
         },
         tx,
       );

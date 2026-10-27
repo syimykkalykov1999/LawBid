@@ -12,6 +12,8 @@ import {
 import { recalcAttorneyRating } from '../reviews/review-rating';
 import { fileNameAad } from '../../common/secrets/field-aad';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
+import { AutoModerationService } from './auto-moderation.service';
+import { ReporterReputationService } from './reporter-reputation.service';
 
 export type Tx = Prisma.TransactionClient;
 
@@ -54,6 +56,9 @@ export class ModerationService {
     private readonly settings: AppSettingsService,
     private readonly files: FilesService,
     @Optional() private readonly cipher?: MessageBodyCipher,
+    // Owner 2026-10-27: reporter weights (absent = the old plain count).
+    @Optional() private readonly reputation?: ReporterReputationService,
+    @Optional() private readonly auto?: AutoModerationService,
   ) {}
 
   async resolve(
@@ -145,7 +150,9 @@ export class ModerationService {
           : null;
       }
       case 'message': {
-        const m = await db.message.findUnique({
+        // The report names the message by id only: a probe of every hash
+        // partition's primary key (one moderator click).
+        const m = await db.message.findFirst({
           // Soft-deleted rows stay resolvable (the queue shows them as removed).
           where: withDeleted({ id }),
           select: {
@@ -702,15 +709,21 @@ export class ModerationService {
         // OQ-B: hide = remove for a message (deleted_at); restore clears it.
         if (action === 'restore') {
           if (target.status !== 'removed') return null;
-          await tx.message.update({
-            where: { id: target.id },
+          await tx.message.updateMany({
+            where: {
+              id: target.id,
+              conversation_id: target.context.conversationId ?? undefined,
+            },
             data: { deleted_at: null },
           });
           return 'removed';
         }
         if (target.status === 'removed') return null;
-        await tx.message.update({
-          where: { id: target.id },
+        await tx.message.updateMany({
+          where: {
+            id: target.id,
+            conversation_id: target.context.conversationId ?? undefined,
+          },
           data: { deleted_at: new Date() },
         });
         return 'published';
@@ -721,20 +734,34 @@ export class ModerationService {
   }
 
   /**
-   * §3.3 "3 подтверждённых жалобы на один объект автоматически ставят его
-   * в hidden до решения модератора" — distinct reporters with an open or
-   * actioned report (OQ-C: confirmed = not dismissed). Called after a
-   * report is stored; best effort, never fails the report.
+   * §3.3 auto-hide after reports (OQ-C: confirmed = not dismissed). Called
+   * after a report is stored; best effort, never fails the report.
+   *
+   * Owner 2026-10-27: `moderation.auto_hide_mode`
+   *  - `count`: the old rule, N distinct reporters;
+   *  - `weighted` (default): the reporters' weights (account age, verified
+   *    contact, past accuracy, shared device / network, sign-up bursts)
+   *    must add up to `moderation.auto_hide_score`. Three fresh sock-puppet
+   *    accounts weigh a small fraction of that.
+   * Content of a verified attorney is never hidden by reports alone when
+   * `moderation.verified_attorney_action` is `review`: the reports get the
+   * priority flag and a person decides; with `hide` it needs the higher
+   * `moderation.verified_attorney_score`.
    */
   async autoHideIfThreshold(
     type: ReportTargetType,
     id: string,
   ): Promise<boolean> {
     try {
-      const threshold = await this.settings.number(
-        'moderation.auto_hide_reports',
-      );
-      if (threshold <= 0) return false;
+      if (type === 'user' || type === 'case') {
+        // Not hidden here, but the reports count towards the account score.
+        await this.accountSignal(type, id);
+        return false;
+      }
+      const mode = await this.settings.string('moderation.auto_hide_mode');
+      const weighted = mode !== 'count' && !!this.reputation;
+      const count = await this.settings.number('moderation.auto_hide_reports');
+      if (!weighted && count <= 0) return false;
       const rows = await this.prisma.report.findMany({
         where: {
           target_type: type,
@@ -743,24 +770,108 @@ export class ModerationService {
         },
         select: { reporter_id: true },
         distinct: ['reporter_id'],
-        take: threshold,
+        take: weighted ? 50 : count,
       });
-      if (rows.length < threshold) return false;
+      let score = rows.length;
+      let limit = count;
+      // Assigned inside the transaction callback below.
+      let owner = null as string | null;
+      if (!weighted) {
+        if (rows.length < count) return false;
+      } else {
+        const target = await this.resolve(type, id);
+        if (!target || target.status !== 'published') return false;
+        owner = target.authorId;
+        await this.stampAndScore(type, id, target.authorId);
+        const need = await this.settings.number('moderation.auto_hide_score');
+        if (need <= 0) return false;
+        const result = await this.reputation.weigh(
+          rows.map((r) => r.reporter_id),
+          target.authorId,
+        );
+        score = result.total;
+        limit = need;
+        if (result.total < need) return false;
+        if (await this.isVerifiedAttorney(target.authorId)) {
+          const action = await this.settings.string(
+            'moderation.verified_attorney_action',
+          );
+          if (action !== 'hide') {
+            await this.prisma.report.updateMany({
+              where: { target_type: type, target_id: id, status: 'open' },
+              data: { priority_review: true },
+            });
+            return false;
+          }
+          const higher = await this.settings.number(
+            'moderation.verified_attorney_score',
+          );
+          if (result.total < Math.max(higher, need)) return false;
+          limit = Math.max(higher, need);
+        }
+      }
       const after: (() => Promise<void>)[] = [];
       const hidden = await withTxRetry(this.prisma, async (tx) => {
         after.length = 0;
         const target = await this.resolve(type, id, tx);
         if (!target || target.status !== 'published') return false;
-        if (type === 'user' || type === 'case') return false;
+        owner = target.authorId;
         return (
           (await this.setContentStatus(tx, target, 'hide', after)) !== null
         );
       });
       for (const f of after) await f();
+      if (hidden && owner) {
+        // Owner 2026-10-27: an appealable automatic decision.
+        await this.auto?.recordContentHide({
+          userId: owner,
+          targetType: type,
+          targetId: id,
+          score,
+          threshold: limit,
+        });
+      }
       return hidden;
     } catch (e) {
       this.logger.error(`auto-hide failed for ${type}/${id}: ${String(e)}`);
       return false;
     }
+  }
+
+  /** Remember the owner on the object's reports and re-score the account. */
+  private async stampAndScore(
+    type: ReportTargetType,
+    id: string,
+    ownerId: string | null,
+  ): Promise<void> {
+    if (!ownerId) return;
+    await this.prisma.report.updateMany({
+      where: { target_type: type, target_id: id, target_author_id: null },
+      data: { target_author_id: ownerId },
+    });
+    await this.auto?.evaluateAccount(ownerId);
+  }
+
+  private async accountSignal(
+    type: ReportTargetType,
+    id: string,
+  ): Promise<void> {
+    if (!this.auto || !this.reputation) return;
+    const target = await this.resolve(type, id);
+    await this.stampAndScore(type, id, target?.authorId ?? null);
+  }
+
+  /** 403 REPORTING_SUSPENDED while this person's reports are paused. */
+  async assertCanReport(userId: string): Promise<void> {
+    await this.reputation?.assertCanReport(userId);
+  }
+
+  private async isVerifiedAttorney(userId: string | null): Promise<boolean> {
+    if (!userId) return false;
+    const p = await this.prisma.attorneyProfile.findUnique({
+      where: { user_id: userId },
+      select: { verification_status: true },
+    });
+    return p?.verification_status === 'verified';
   }
 }

@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
@@ -45,8 +46,16 @@ class VoiceMessageBody extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final m = message;
     final v = m.voice!;
-    final playback = ref.watch(voicePlayerProvider);
-    final active = playback.messageId == m.id;
+    // Only the playing bubble follows every position tick; the others
+    // rebuild when the speed (shown on them) or their own state changes.
+    final (VoicePlayback? current, double _) = ref.watch(
+      voicePlayerProvider.select(
+        (p) => (p.messageId == m.id ? p : null, p.speed),
+      ),
+    );
+    // ignore: omit_local_variable_types
+    final VoicePlayback playback = current ?? ref.read(voicePlayerProvider);
+    final active = current != null;
     final total = voiceLength(v);
     final progress = active && total.inMilliseconds > 0
         ? playback.position.inMilliseconds / total.inMilliseconds
@@ -296,11 +305,9 @@ class _MicAvatar extends StatelessWidget {
           initials: avatarInitials((name ?? '').trim().isEmpty ? '?' : name!),
           imageProvider: url == null
               ? null
-              : CachedNetworkImageProvider(
-                  url!,
-                  // Signed URLs change per request: cache by the path.
-                  cacheKey: Uri.parse(url!).path,
-                ),
+              // Kept by the file (cache keyed by path), retried on a fresh
+              // link.
+              : stableNetworkImage(url!, cache: AppImageCaches.chatMedia),
         ),
         PositionedDirectional(
           bottom: -2,

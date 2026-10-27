@@ -43,6 +43,21 @@ variable "env" {
   type    = string
   default = "prod"
 }
+# S11-2: the deploy role is assumable only by these workflow files, as they are
+# on main. A branch that edits deploy.yml (and an owner who clicks Approve on a
+# normal-looking prompt) gets `job_workflow_ref = ...@refs/heads/<branch>` and
+# is refused by AWS. The list is every workflow that uses AWS_DEPLOY_ROLE_PROD;
+# a NEW workflow that needs the role must be added here before its first run.
+variable "bind_deploy_workflows" {
+  type        = bool
+  default     = true
+  description = "Require the OIDC claim job_workflow_ref to be one of deploy_workflows@refs/heads/main on the deploy role."
+}
+variable "deploy_workflows" {
+  type        = list(string)
+  default     = ["deploy.yml", "rollback.yml", "web-deploy.yml", "seo-deploy.yml", "self-check.yml", "build-pgbouncer.yml", "mirror-clamav.yml", "aws-inventory.yml"]
+  description = "Workflow files under .github/workflows that may assume the deploy role."
+}
 
 provider "aws" {
   region = var.region
@@ -56,6 +71,13 @@ data "aws_caller_identity" "current" {}
 locals {
   name    = "lawbid-${var.env}"
   account = data.aws_caller_identity.current.account_id
+  # job_workflow_ref carries the repository NAME (not the immutable ids), in the
+  # case the repository has; both spellings are listed like the `sub` values.
+  deploy_workflow_refs = flatten([
+    for r in distinct([var.github_repo, lower(var.github_repo)]) : [
+      for w in var.deploy_workflows : "${r}/.github/workflows/${w}@refs/heads/main"
+    ]
+  ])
 }
 
 # --- Terraform state ---------------------------------------------------------
@@ -197,8 +219,28 @@ data "aws_iam_policy_document" "deploy_trust" {
           "repo:${var.github_repo}:ref:refs/heads/main",
           "repo:${lower(var.github_repo)}:ref:refs/heads/main",
           "repo:${var.github_repo_immutable}:ref:refs/heads/main",
+        ] : [],
+        # Owner 2026-10-26: the `infra-apply` workflow (infra switches from
+        # the admin) runs in the GitHub environment `infra-apply`.
+        var.infra_apply_enabled ? [
+          "repo:${var.github_repo}:environment:infra-apply",
+          "repo:${lower(var.github_repo)}:environment:infra-apply",
+          "repo:${var.github_repo_immutable}:environment:infra-apply",
         ] : []
       )
+    }
+    # S11-2: bind the role to the protected workflow files on main (see
+    # var.bind_deploy_workflows). The GitHub environment `production` should
+    # ALSO be limited to the `main` branch (Settings -> Environments ->
+    # production -> Deployment branches and tags -> Selected branches: main),
+    # which is a repository setting, not Terraform.
+    dynamic "condition" {
+      for_each = var.bind_deploy_workflows ? [1] : []
+      content {
+        test     = "StringLike"
+        variable = "token.actions.githubusercontent.com:job_workflow_ref"
+        values   = local.deploy_workflow_refs
+      }
     }
   }
 }
@@ -236,6 +278,16 @@ data "aws_iam_policy_document" "deploy" {
     actions   = ["ecs:DescribeServices", "ecs:UpdateService"]
     resources = ["arn:aws:ecs:*:${local.account}:service/${local.name}/*"]
   }
+  # Canary (scripts/deploy/canary.sh, off unless CANARY_ENABLED): one temporary
+  # service api-canary, nothing else can be created or deleted.
+  statement {
+    actions   = ["ecs:CreateService", "ecs:DeleteService", "ecs:TagResource"]
+    resources = ["arn:aws:ecs:*:${local.account}:service/${local.name}/api-canary"]
+  }
+  statement {
+    actions   = ["cloudwatch:DescribeAlarms"]
+    resources = ["*"] # no resource-level permission exists for this read
+  }
   statement {
     actions   = ["ecs:RunTask"]
     resources = ["arn:aws:ecs:*:${local.account}:task-definition/${local.name}-*:*"]
@@ -246,8 +298,29 @@ data "aws_iam_policy_document" "deploy" {
     }
   }
   statement {
-    actions   = ["ecs:DescribeTasks"]
+    # S11-4: DescribeTasks, plus StopTask (a migrate task past its deadline or
+    # cancelled) and ListTasks (refuse a second concurrent migration).
+    actions   = ["ecs:DescribeTasks", "ecs:StopTask"]
     resources = ["arn:aws:ecs:*:${local.account}:task/${local.name}/*"]
+  }
+  statement {
+    actions   = ["ecs:ListTasks"]
+    resources = ["*"] # ListTasks has no resource-level permission
+  }
+  # S11-14: the real backup check (LatestRestorableTime) and the named snapshot
+  # taken before a contract migration. One database, one snapshot name pattern.
+  statement {
+    actions   = ["rds:DescribeDBInstances", "rds:CreateDBSnapshot"]
+    resources = ["arn:aws:rds:${var.region}:${local.account}:db:${local.name}-postgres"]
+  }
+  statement {
+    actions   = ["rds:CreateDBSnapshot", "rds:DescribeDBSnapshots", "rds:AddTagsToResource"]
+    resources = ["arn:aws:rds:${var.region}:${local.account}:snapshot:pre-migrate-*"]
+  }
+  # S11-9: the last release that passed smoke (rollback's default target).
+  statement {
+    actions   = ["ssm:GetParameter", "ssm:PutParameter"]
+    resources = ["arn:aws:ssm:${var.region}:${local.account}:parameter/${local.name}/deploy/*"]
   }
   statement {
     actions   = ["iam:PassRole"]
@@ -269,7 +342,62 @@ resource "aws_iam_role_policy" "deploy" {
   policy = data.aws_iam_policy_document.deploy.json
 }
 
+# --- CI failure notifications (S11-6) -------------------------------------------
+# .github/workflows/notify-failure.yml publishes one line to the existing alerts
+# topic (infra/modules/monitoring: <name>-alerts, e-mail subscribers). Trusted only
+# for that reusable workflow on main; may do nothing but sns:Publish.
+data "aws_iam_policy_document" "notify_trust" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github.arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:job_workflow_ref"
+      values   = [for r in distinct([var.github_repo, lower(var.github_repo)]) : "${r}/.github/workflows/notify-failure.yml@refs/heads/main"]
+    }
+    # Called from any workflow on main (push, schedule) or the production environment.
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values = [
+        "repo:${var.github_repo}:ref:refs/heads/main",
+        "repo:${lower(var.github_repo)}:ref:refs/heads/main",
+        "repo:${var.github_repo_immutable}:ref:refs/heads/main",
+      ]
+    }
+  }
+}
+
+resource "aws_iam_role" "notify" {
+  name               = "${local.name}-github-notify"
+  assume_role_policy = data.aws_iam_policy_document.notify_trust.json
+}
+
+resource "aws_iam_role_policy" "notify" {
+  role = aws_iam_role.notify.name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["sns:Publish"]
+      Resource = "arn:aws:sns:${var.region}:${local.account}:${local.name}-alerts"
+    }]
+  })
+}
+
 # --- outputs -------------------------------------------------------------------
+output "notify_role_arn" {
+  description = "GitHub secret AWS_NOTIFY_ROLE (notify-failure.yml)."
+  value       = aws_iam_role.notify.arn
+}
 output "acm_certificate_arn" { value = aws_acm_certificate.app.arn }
 output "acm_dns_records" {
   description = "Add each as a CNAME at the registrar (Namecheap: Host = name without the domain)."

@@ -261,6 +261,21 @@ export class AdminConfigService {
     key: string,
     value: unknown,
   ): Promise<void> {
+    if (key === 'search.engine_kind' && value === 'serverless') {
+      const sf = (await this.secrets?.get('opensearch'))?.fields ?? {};
+      const surl = (
+        sf.serverless_url ??
+        this.config.get<string>('OPENSEARCH_SERVERLESS_URL') ??
+        ''
+      ).trim();
+      if (surl) return;
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message:
+          'OpenSearch Serverless is not configured: set growth.opensearch_serverless_enabled in Terraform (it sets OPENSEARCH_SERVERLESS_URL) first.',
+        details: { field: 'value', missing: ['OPENSEARCH_SERVERLESS_URL'] },
+      });
+    }
     if (key !== 'search.engine' || value === 'postgres') return;
     const f = (await this.secrets?.get('opensearch'))?.fields ?? {};
     const url = (

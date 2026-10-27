@@ -136,7 +136,6 @@ GET /admin/moderation/targets/{type}/{id} added the new `legal_answer` enum valu
 GET /admin/moderation/targets/{type}/{id} added the new `legal_question` enum value to the `data/targetType` response property for the response status `200`
 POST /admin/moderation/targets/{type}/{id}/actions added the new `legal_answer` enum value to the `data/targetType` response property for the response status `200`
 POST /admin/moderation/targets/{type}/{id}/actions added the new `legal_question` enum value to the `data/targetType` response property for the response status `200`
->>>>>>> origin/claude/release-20oct
 # release-20oct: новые enum legal_answer/legal_question, типы contact/place, conversationId nullable у звонков (групповые) — все изменения намеренные, старых клиентов в магазинах ещё нет
 GET /admin/moderation/appeals added the new `legal_answer` enum value to the `data/items/targetType` response property for the response status `200`
 GET /admin/moderation/appeals added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`
@@ -426,6 +425,15 @@ POST /admin/system-health/scale added the new `cloudflare_usage` enum value to t
 GET /admin/economy added the new `scaled_down` enum value to the `data/events/items/kind` response property for the response status `200`
 POST /admin/economy/increase added the new `scaled_down` enum value to the `data/events/items/kind` response property for the response status `200`
 PATCH /admin/economy/settings added the new `scaled_down` enum value to the `data/events/items/kind` response property for the response status `200`
+GET /admin/email-templates added the new `account_deletion` enum value to the `data/items/key` response property for the response status `200`
+GET /admin/email-templates/{key}/{locale} added the new `account_deletion` enum value to the `data/key` response property for the response status `200`
+PUT /admin/email-templates/{key}/{locale} added the new `account_deletion` enum value to the `data/key` response property for the response status `200`
+GET /admin/system-health added the new `table_growth` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `table_growth` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `table_growth` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `table_growth` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `table_growth` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `table_growth` enum value to the `data/items/items/key` response property for the response status `200`
 GET /admin/system-health added the new `secret_rotation` enum value to the `data/items/items/key` response property for the response status `200`
 POST /admin/system-health/heavy-jobs added the new `secret_rotation` enum value to the `data/items/items/key` response property for the response status `200`
 POST /admin/system-health/message-reencrypt/restart added the new `secret_rotation` enum value to the `data/items/items/key` response property for the response status `200`
@@ -489,3 +497,80 @@ POST /users/me/role added the new `sms_terms` enum value to the `data/pendingLeg
 PUT /admin/legal/documents/{type}/{locale}/draft added the new `advertising_disclosure` enum value to the `data/docType` response property for the response status `200`
 PUT /admin/legal/documents/{type}/{locale}/draft added the new `community_guidelines` enum value to the `data/docType` response property for the response status `200`
 PUT /admin/legal/documents/{type}/{locale}/draft added the new `sms_terms` enum value to the `data/docType` response property for the response status `200`
+GET /admin/data-requests added the new `civil` enum value to the `data/items/requestType` response property for the response status `200`
+GET /admin/data-requests added the new `emergency` enum value to the `data/items/requestType` response property for the response status `200`
+GET /admin/data-requests added the new `other` enum value to the `data/items/requestType` response property for the response status `200`
+GET /admin/data-requests added the new `preservation` enum value to the `data/items/requestType` response property for the response status `200`
+GET /admin/data-requests added the new `search_warrant` enum value to the `data/items/requestType` response property for the response status `200`
+POST /admin/data-requests added the new `civil` enum value to the `data/requestType` response property for the response status `201`
+POST /admin/data-requests added the new `emergency` enum value to the `data/requestType` response property for the response status `201`
+POST /admin/data-requests added the new `other` enum value to the `data/requestType` response property for the response status `201`
+POST /admin/data-requests added the new `preservation` enum value to the `data/requestType` response property for the response status `201`
+POST /admin/data-requests added the new `search_warrant` enum value to the `data/requestType` response property for the response status `201`
+DELETE /admin/data-requests/legal/holds/{holdId} added the new `case` enum value to the `data/targetType` response property for the response status `200`
+GET /admin/data-requests/legal/requests/{requestId}/holds added the new `case` enum value to the `data/items/targetType` response property for the response status `200`
+POST /admin/data-requests/legal/requests/{requestId}/holds added the new `case` enum value to the `data/targetType` response property for the response status `201`
+GET /admin/data-requests/{id} added the new `civil` enum value to the `data/requestType` response property for the response status `200`
+GET /admin/data-requests/{id} added the new `emergency` enum value to the `data/requestType` response property for the response status `200`
+GET /admin/data-requests/{id} added the new `other` enum value to the `data/requestType` response property for the response status `200`
+GET /admin/data-requests/{id} added the new `preservation` enum value to the `data/requestType` response property for the response status `200`
+GET /admin/data-requests/{id} added the new `search_warrant` enum value to the `data/requestType` response property for the response status `200`
+PATCH /admin/data-requests/{id}/status added the new `civil` enum value to the `data/requestType` response property for the response status `200`
+PATCH /admin/data-requests/{id}/status added the new `emergency` enum value to the `data/requestType` response property for the response status `200`
+PATCH /admin/data-requests/{id}/status added the new `other` enum value to the `data/requestType` response property for the response status `200`
+PATCH /admin/data-requests/{id}/status added the new `preservation` enum value to the `data/requestType` response property for the response status `200`
+PATCH /admin/data-requests/{id}/status added the new `search_warrant` enum value to the `data/requestType` response property for the response status `200`
+# Owner 2026-10-26 (PR #382, dedup cleanup): intentional removal: no second admin — the owner forbids four-eyes approvals, so the admin approvals queue is gone (the admin panel drops its page in the same PR; no other client calls it)
+GET /admin/approvals api path removed without deprecation
+GET /admin/approvals/count api path removed without deprecation
+POST /admin/approvals/{id}/approve api path removed without deprecation
+POST /admin/approvals/{id}/reject api path removed without deprecation
+GET /admin/counts removed the required property `data/approvalsPending` from the response with the `200` status
+# PR #366 (monthly restore test): the admin health card list gains restore_drill; the admin reads keys as strings
+GET /admin/system-health added the new `restore_drill` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `restore_drill` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `restore_drill` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `restore_drill` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `restore_drill` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `restore_drill` enum value to the `data/items/items/key` response property for the response status `200`
+# PR #370 (cost hardening S9-1/S9-2/S9-11): admin economy gains cost lines id_check/email/image_moderation/cloudflare, the three economy.*_unit_usd settings move to one price book, spend vendors gain google and sentry; only the admin reads these and it changes in the same PR
+GET /admin/economy added the new `cloudflare` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+GET /admin/economy added the new `email` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+GET /admin/economy added the new `id_check` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+GET /admin/economy added the new `image_moderation` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+GET /admin/economy removed the required property `data/settings/smsUnitUsd` from the response with the `200` status
+GET /admin/economy removed the required property `data/settings/translateUnitUsd` from the response with the `200` status
+GET /admin/economy removed the required property `data/settings/videoUnitUsd` from the response with the `200` status
+POST /admin/economy/decrease added the new `cloudflare` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+POST /admin/economy/decrease added the new `email` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+POST /admin/economy/decrease added the new `id_check` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+POST /admin/economy/decrease added the new `image_moderation` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+POST /admin/economy/decrease removed the required property `data/settings/smsUnitUsd` from the response with the `200` status
+POST /admin/economy/decrease removed the required property `data/settings/translateUnitUsd` from the response with the `200` status
+POST /admin/economy/decrease removed the required property `data/settings/videoUnitUsd` from the response with the `200` status
+POST /admin/economy/increase added the new `cloudflare` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+POST /admin/economy/increase added the new `email` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+POST /admin/economy/increase added the new `id_check` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+POST /admin/economy/increase added the new `image_moderation` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+POST /admin/economy/increase removed the required property `data/settings/smsUnitUsd` from the response with the `200` status
+POST /admin/economy/increase removed the required property `data/settings/translateUnitUsd` from the response with the `200` status
+POST /admin/economy/increase removed the required property `data/settings/videoUnitUsd` from the response with the `200` status
+PATCH /admin/economy/settings added the new `cloudflare` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+PATCH /admin/economy/settings added the new `email` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+PATCH /admin/economy/settings added the new `id_check` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+PATCH /admin/economy/settings added the new `image_moderation` enum value to the `data/figures/lines/items/key` response property for the response status `200`
+PATCH /admin/economy/settings removed the required property `data/settings/smsUnitUsd` from the response with the `200` status
+PATCH /admin/economy/settings removed the required property `data/settings/translateUnitUsd` from the response with the `200` status
+PATCH /admin/economy/settings removed the required property `data/settings/videoUnitUsd` from the response with the `200` status
+GET /admin/spend added the new `google` enum value to the `data/vendors/items/id` response property for the response status `200`
+GET /admin/spend added the new `sentry` enum value to the `data/vendors/items/id` response property for the response status `200`
+PUT /admin/spend/fixed-costs added the new `google` enum value to the `data/vendors/items/id` response property for the response status `200`
+PUT /admin/spend/fixed-costs added the new `sentry` enum value to the `data/vendors/items/id` response property for the response status `200`
+PUT /admin/spend/prices added the new `google` enum value to the `data/vendors/items/id` response property for the response status `200`
+PUT /admin/spend/prices added the new `sentry` enum value to the `data/vendors/items/id` response property for the response status `200`
+POST /admin/spend/refresh added the new `google` enum value to the `data/vendors/items/id` response property for the response status `200`
+POST /admin/spend/refresh added the new `sentry` enum value to the `data/vendors/items/id` response property for the response status `200`
+GET /admin/case-disputes/{id} added the new required `header` request parameter `x-justification`
+GET /admin/cases/{id} added the new required `header` request parameter `x-justification`
+GET /admin/contact-issues/{id} added the new required `header` request parameter `x-justification`
+PUT /admin/legal/settings added the new required request property `texts/en/privilegedContentPolicy` (shared schema: `LegalTextsDto`, also at `texts/ru/privilegedContentPolicy`)

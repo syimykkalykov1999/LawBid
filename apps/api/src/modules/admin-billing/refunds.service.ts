@@ -134,7 +134,20 @@ export class RefundsService {
     return toPage(rows, ADMIN_BILLING_PAGE, (r) => presentRefund(r, users));
   }
 
-  async refund(admin: AdminActor, dto: CreateRefundDto): Promise<RefundDto> {
+  /**
+   * Owner 2026-10-27: a refund the system makes by itself (the unspent part
+   * of a Boost paid per result). Same reservation, provider call and ledger
+   * booking as a staff refund, with no staff member behind it (admin_id
+   * null, no audit row: the refund row itself is the record).
+   */
+  refundBySystem(dto: CreateRefundDto): Promise<RefundDto> {
+    return this.refund(null, dto);
+  }
+
+  async refund(
+    admin: AdminActor | null,
+    dto: CreateRefundDto,
+  ): Promise<RefundDto> {
     const payment = await this.prisma.payment.findUnique({
       where: { id: dto.paymentId },
     });
@@ -175,7 +188,7 @@ export class RefundsService {
           amount_cents: dto.amountCents,
           reason: dto.reason,
           status: 'pending',
-          admin_id: admin.id,
+          admin_id: admin?.id ?? null,
         },
       });
       return { row: created, left: remaining };
@@ -220,14 +233,14 @@ export class RefundsService {
         where: { id: row.id },
         data: { status: 'failed', failure_reason: message.slice(0, 500) },
       });
-      await this.record(admin, row, payment, 'failed', message);
+      if (admin) await this.record(admin, row, payment, 'failed', message);
       this.logger.error(`refund ${row.id} failed: ${message}`);
       throw new BadGatewayException({
         code: ErrorCode.REFUND_PROVIDER_FAILED,
         message: 'The payment provider refused the refund.',
       });
     }
-    await this.record(admin, result, payment, result.status, null);
+    if (admin) await this.record(admin, result, payment, result.status, null);
     return presentRefund(
       result,
       await usersById(this.prisma, [result.user_id]),

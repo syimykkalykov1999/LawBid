@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
+import { heldIds, heldTargets } from '../../common/privacy/legal-hold';
 import { PrismaService } from '../../prisma/prisma.service';
 import { S3StorageService } from '../files/storage/s3-storage.service';
 
@@ -45,15 +46,39 @@ export class ExportsCleanupService {
     now: Date = new Date(),
   ): Promise<{ expired: number; failed: number; webhookEvents: number }> {
     const webhookEvents = await this.pruneWebhookEvents(now);
+    const held = await heldTargets(this.prisma, 'user', now);
     const due = await this.prisma.dataExportJob.findMany({
-      where: { status: 'ready', expires_at: { lt: now } },
+      where: {
+        status: 'ready',
+        expires_at: { lt: now },
+        user_id: held.length ? { notIn: held } : undefined,
+      },
       include: {
         file: { select: { id: true, s3_bucket: true, s3_key: true } },
       },
       take: 1000,
     });
+    // Round 13 (S13-6): an export of a person under a legal hold is evidence.
+    const heldFiles = await heldIds(
+      this.prisma,
+      'file',
+      due.flatMap((j) => (j.file ? [j.file.id] : [])),
+      now,
+    );
+    const heldUsers = await heldIds(
+      this.prisma,
+      'user',
+      [...new Set(due.map((j) => j.user_id))],
+      now,
+    );
     let expired = 0;
     for (const job of due) {
+      if (
+        (job.file && heldFiles.has(job.file.id)) ||
+        heldUsers.has(job.user_id)
+      ) {
+        continue;
+      }
       if (job.file) {
         if (this.storage.configured) {
           await this.storage.remove(job.file.s3_bucket, [job.file.s3_key]);

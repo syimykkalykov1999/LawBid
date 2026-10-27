@@ -266,12 +266,27 @@ describe('JobsRunner', () => {
     // Owner 2026-10-23: + admin.summaries (every 2 minutes).
     // Batch C: + ops.usage-poll (daily).
     // Shard-ready step 7: + outbox.sweep (every minute).
+    // Shard-ready steps 9-10: + shard.move-tick (every minute) and
+    // shard.orphan-check (nightly).
     // Owner 2026-10-24: + search.index (every minute).
+    // Owner 2026-10-25: + cdn.invalidate (every other minute).
+    // Owner 2026-10-27: + moderation.appeal-sla (hourly).
+    // Owner 2026-10-25: + case-tools.sweep (daily).
     // Day-one foundations: + ledger.reconcile (nightly).
+    // Owner 2026-10-28: + legal.reminders (hourly).
+    // Privacy round 13: + privacy.retention, privacy.reconcile and
+    // privacy.deletion-notices (daily).
     // DB-ops hardening: + db.health (daily).
+    // Day-one foundations: + ledger.reconcile (nightly); admin hardening: + admin.audit-export, admin.access-report.
     // S1-3: + chat.redeliver (every minute).
     // BUG-1 (package N-12b): + chat.search-backfill (every 5 minutes).
-    expect(upserts).toHaveLength(70);
+    // N-2: + events.maintain (every 5 minutes).
+    // Experiments: + experiments.metrics (nightly).
+    // Owner 2026-10-24: + partition.maintain (daily) and partition.tick.
+    // Online DDL: + db.bloat-check (nightly).
+    // Programmatic SEO 2026-10-27: + seo.generate (nightly, no-op while off).
+    // Staff package 2026-10-27: + 12 staff.* jobs (no-ops while off).
+    expect(upserts).toHaveLength(102);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );
@@ -279,12 +294,15 @@ describe('JobsRunner', () => {
       pattern: '* * * * *',
       tz: 'UTC',
     });
-    for (const name of [CRON_JOBS.opsCostCheck, CRON_JOBS.opsBackupCheck]) {
-      expect(byName[name]).toEqual({
-        pattern: expect.stringMatching(/^\d+ \* \* \* \*$/),
-        tz: 'UTC',
-      });
-    }
+    expect(byName[CRON_JOBS.opsCostCheck]).toEqual({
+      pattern: expect.stringMatching(/^\d+ \* \* \* \*$/),
+      tz: 'UTC',
+    });
+    // S20-5: the backup check (RDS restorable time) is daily.
+    expect(byName[CRON_JOBS.opsBackupCheck]).toEqual({
+      pattern: '12 5 * * *',
+      tz: 'UTC',
+    });
     // Daily = fixed minute+hour, any day; monthly = fixed day-of-month.
     expect(byName[CRON_JOBS.sessionsCleanup]).toEqual({
       pattern: expect.stringMatching(/^\d+ \d+ \* \* \*$/),
@@ -605,6 +623,41 @@ describe('CronProcessor', () => {
     ).resolves.toEqual({
       deleted: 1,
     });
+  });
+
+  it('routes every staff.* job to its handler (staff package T1)', async () => {
+    const p = processor();
+    const fields: Record<string, string> = {
+      staffLeaseSweep: CRON_JOBS.staffLeaseSweep,
+      staffCountersFlush: CRON_JOBS.staffCountersFlush,
+      staffToday: CRON_JOBS.staffToday,
+      staffDailyStats: CRON_JOBS.staffDailyStats,
+      staffRatingNightly: CRON_JOBS.staffRatingNightly,
+      staffHeadScore: CRON_JOBS.staffHeadScore,
+      staffPiecework: CRON_JOBS.staffPiecework,
+      staffAnomalies: CRON_JOBS.staffAnomalies,
+      staffAiQaNightly: CRON_JOBS.staffAiQaNightly,
+      staffRetaliationExpire: CRON_JOBS.staffRetaliationExpire,
+      staffRetention: CRON_JOBS.staffRetention,
+      staffWeeklyDigest: CRON_JOBS.staffWeeklyDigest,
+    };
+    const handlers: Record<string, { run: jest.Mock }> = {};
+    for (const [field, name] of Object.entries(fields)) {
+      handlers[field] = {
+        run: jest.fn(() => Promise.resolve({ skipped: 'off', job: name })),
+      };
+    }
+    Object.assign(p.processor as unknown as Record<string, unknown>, handlers);
+    for (const [field, name] of Object.entries(fields)) {
+      await expect(p.processor.process(name)).resolves.toEqual({
+        skipped: 'off',
+        job: name,
+      });
+      expect(handlers[field].run).toHaveBeenCalledTimes(1);
+    }
+    expect(
+      Object.values(CRON_JOBS).filter((n) => n.startsWith('staff.')),
+    ).toHaveLength(12);
   });
 
   it('fails unknown job names instead of silently succeeding', async () => {

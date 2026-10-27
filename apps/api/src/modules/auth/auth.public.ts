@@ -24,3 +24,13 @@ export {
 } from './passkeys/passkey.dto';
 export { RateLimitService } from './services/rate-limit.service';
 export { QR_LOGIN_TTL_SEC } from './services/qr-login.service';
+// Compliance (#388): the provider contracts the e-mail / SMS suppression
+// wrappers implement.
+export type {
+  EmailMessage,
+  EmailProvider,
+} from './providers/email/email-provider.interface';
+export type { SmsProvider } from './providers/sms/sms-provider.interface';
+// Legal requests (#379): the notice e-mail to the person concerned.
+export { EMAIL_PROVIDER } from './providers/provider.tokens';
+export { buildNotificationEmail } from './notifications/email-templates';

@@ -14,6 +14,7 @@
     "start:prod": "node dist/src/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "seed:demo": "ts-node --transpile-only prisma/seed-demo.ts",
+    "seed:perf": "ts-node --transpile-only prisma/seed-perf.ts",
     "seed:economy": "ts-node --transpile-only scripts/seed-economy.ts",
     "seed:i18n": "ts-node --transpile-only prisma/seed.ts --i18n-only",
     "test": "jest",
@@ -28,29 +29,37 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:e2e:sharded": "node scripts/run-e2e-sharded.mjs",
     "test:e2e:two-db": "node scripts/run-e2e-two-db.mjs",
+    "shard:move": "ts-node --transpile-only scripts/shard-move.ts",
     "db:erd": "ts-node --transpile-only scripts/generate-erd.ts",
     "db:erd:fast": "bash ../../scripts/dev/skip-if-unchanged.sh api-erd apps/api/prisma/schema.prisma apps/api/scripts/generate-erd.ts -- docs/db/ERD.md -- npm run db:erd --workspace apps/api",
     "openapi:export": "nest build && node dist/src/openapi/export-openapi.js",
+    "privacy:reapply-erasures": "node dist/src/cli/reapply-erasures.js",
+    "breach:affected": "node dist/src/cli/breach-affected.js",
     "admin:set-credentials": "node dist/src/cli/set-admin-credentials.js",
     "i18n:import": "node dist/src/cli/import-translations.js",
     "flags:sync": "ts-node --transpile-only scripts/sync-flag-defaults.ts",
-    "media:migrate-r2": "ts-node --transpile-only scripts/migrate-public-media-to-r2.ts"
+    "counters:reconcile": "ts-node --transpile-only scripts/counters-reconcile.ts",
+    "media:migrate-r2": "ts-node --transpile-only scripts/migrate-public-media-to-r2.ts",
+    "media:avatar-previews": "ts-node --transpile-only scripts/backfill-avatar-previews.ts"
   },
   "dependencies": {
     "@aws-sdk/client-application-auto-scaling": "^3.1146.0",
+    "@aws-sdk/client-backup": "^3.1152.0",
     "@aws-sdk/client-budgets": "^3.1146.0",
     "@aws-sdk/client-cloudwatch": "^3.1152.0",
-    "@aws-sdk/client-ecs": "^3.1146.0",
     "@aws-sdk/client-cost-explorer": "^3.1146.0",
+    "@aws-sdk/client-ecs": "^3.1146.0",
     "@aws-sdk/client-elasticache": "^3.1152.0",
     "@aws-sdk/client-kms": "^3.1152.0",
     "@aws-sdk/client-rds": "^3.1152.0",
     "@aws-sdk/client-rekognition": "^3.1152.0",
-    "@aws-sdk/client-s3": "^3.1141.0",
+    "@aws-sdk/client-s3": "^3.1152.0",
     "@aws-sdk/client-ses": "^3.1137.0",
     "@aws-sdk/client-sns": "^3.1146.0",
     "@aws-sdk/client-ssm": "^3.1152.0",
     "@aws-sdk/cloudfront-signer": "^3.1149.0",
+    "@aws-sdk/credential-provider-node": "^3.972.86",
+    "@aws-sdk/lib-storage": "^3.1152.0",
     "@aws-sdk/s3-presigned-post": "^3.1141.0",
     "@aws-sdk/s3-request-presigner": "^3.1141.0",
     "@nestjs/common": "^11.0.1",
@@ -71,9 +80,9 @@
     "@prisma/client": "6.19.3",
     "@sentry/nestjs": "^11.1.0",
     "@simplewebauthn/server": "^14.0.3",
+    "@smithy/signature-v4": "^5.7.4",
     "@socket.io/redis-adapter": "^8.3.0",
     "@socket.io/redis-emitter": "^5.1.0",
-    "@types/archiver": "^5.3.4",
     "archiver": "^5.3.2",
     "bullmq": "^6.3.9",
     "cheerio": "^1.2.0",
@@ -87,9 +96,9 @@
     "helmet": "^8.3.0",
     "ioredis": "^6.0.0",
     "jose": "^6.2.12",
-    "libphonenumber-js": "^1.13.13",
+    "libphonenumber-js": "^1.13.15",
     "livekit-server-sdk": "^2.19.1",
-    "nestjs-pino": "^5.2.0",
+    "nestjs-pino": "^5.3.1",
     "nodemailer": "^10.0.10",
     "pdf-lib": "^1.17.1",
     "pdfkit": "^0.20.2",
@@ -100,7 +109,8 @@
     "sharp": "^0.35.5",
     "socket.io": "^4.8.4",
     "stripe": "^22.6.2",
-    "twilio": "^6.1.1",
+    "twilio": "^6.2.0",
+    "undici": "^7.30.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -109,11 +119,12 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@types/archiver": "^5.3.4",
     "@types/compression": "^1.8.1",
     "@types/express": "^5.0.0",
     "@types/heic-decode": "^2.0.0",
     "@types/jest": "^30.0.0",
-    "@types/multer": "^2.0.0",
+    "@types/multer": "^2.3.0",
     "@types/node": "^24.0.0",
     "@types/nodemailer": "^8.0.2",
     "@types/pdfkit": "^0.17.6",
@@ -134,7 +145,7 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.20.0"
+    "typescript-eslint": "^8.71.2"
   },
   "jest": {
     "moduleFileExtensions": [
@@ -151,12 +162,29 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
+    "coverageReporters": [
+      "json-summary",
+      "text-summary",
+      "lcov"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "statements": 57,
+        "branches": 45,
+        "functions": 33,
+        "lines": 58
+      }
+    },
     "testEnvironment": "node",
     "transformIgnorePatterns": [
       "node_modules/(?!(@nestjs/jwt|jose)/)"
-    ]
+    ],
+    "workerIdleMemoryLimit": "1GB"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
+  },
+  "engines": {
+    "node": ">=22.23.4 <23"
   }
 }

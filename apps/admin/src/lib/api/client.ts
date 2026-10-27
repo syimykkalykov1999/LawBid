@@ -1,6 +1,7 @@
 'use client';
 
 import createClient, { type Middleware } from 'openapi-fetch';
+import { isBackgroundNow } from '../activity';
 import { countryTab } from '../country-tab';
 import type { paths } from './schema';
 
@@ -53,6 +54,9 @@ async function reroute(
   const headers = new Headers(request.headers);
   const country = countryTab();
   if (country) headers.set('x-admin-country', country);
+  // S18-1: reads made while nobody touches the screen must not keep the
+  // 30-minute idle session alive.
+  if (request.method === 'GET' && isBackgroundNow()) headers.set('x-background', '1');
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
   const body = hasBody ? await request.text() : undefined;
   const out = new Request(url, {
@@ -106,7 +110,7 @@ async function stepUpAndRetry(request: Request, response: Response): Promise<Res
   );
 }
 
-const toProxy: Middleware = {
+export const toProxy: Middleware = {
   // `/admin/x` → `/api/proxy/x`
   onRequest: ({ request }) =>
     reroute(request, (p) => p.replace(/^\/admin\//, '/api/proxy/')),
@@ -155,10 +159,12 @@ const ERROR_TEXT: Record<string, string> = {
   ADMIN_RECOVERY_FAILED: 'Ответ неверный.',
   ADMIN_STEP_UP_REQUIRED: 'Подтвердите действие кодом из аутентификатора.',
   ADMIN_STEP_UP_CANCELLED: 'Действие отменено: код подтверждения не введён.',
-  ADMIN_APPROVAL_PENDING:
-    'Включена проверка вторым админом (admin.dual_control): запрос отправлен второму админу и выполнится, когда он подтвердит («Деньги → Требуют подтверждения»).',
-  ADMIN_APPROVAL_SELF: 'Свой запрос подтвердить нельзя — это делает другой админ.',
-  ADMIN_APPROVAL_NOT_PENDING: 'Этот запрос уже решён или истёк (72 часа).',
+  ADMIN_WORKSPACE_CONFLICT: 'Так нельзя: в пространстве один главный, у «Финансов» главного нет, а разделы админа должны входить в его пространство.',
+  STAFF_REVEAL_LIMIT: 'На сегодня лимит «Показать полностью» исчерпан. Завтра лимит обновится; срочное — через главного.',
+  STAFF_EXPORT_BLOCKED: 'Выгрузки для вашей работы закрыты. Нужны данные — обратитесь к главному.',
+  ADMIN_COUNTRY_NOT_ALLOWED: 'Вход из этой страны закрыт владельцем. Если вы в поездке, напишите владельцу.',
+  ADMIN_DEVICE_CHANGED: 'Сессия открыта на другом устройстве. Войдите заново.',
+  ADMIN_IP_CHANGED: 'Ваш адрес в сети изменился. Войдите заново (пароль и код).',
   ADMIN_TOTP_SETUP_REQUIRED: 'Подключите приложение-аутентификатор: войдите заново.',
   // Owner 2026-10-22: passkeys (Face ID / Touch ID / Windows Hello / hardware key).
   PASSKEY_INVALID: 'Ключ доступа не подошёл. Попробуйте ещё раз или введите код из приложения.',

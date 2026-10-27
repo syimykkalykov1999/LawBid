@@ -1,5 +1,7 @@
 import { PostsModule } from '../modules/posts/posts.module';
+import { ExperimentsCoreModule } from '../modules/experiments/experiments.module';
 import { CasePaymentsCoreModule } from '../modules/case-payments/case-payments.module';
+import { CaseToolsSweepModule } from '../modules/cases/tools/case-tools-sweep.module';
 import { PromotionsCoreModule } from '../modules/promotions/promotions.module';
 import { StarsCoreModule } from '../modules/stars/stars.module';
 import { PartnersCoreModule } from '../modules/partners/partners.module';
@@ -50,8 +52,16 @@ import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
+import { PartitionService } from '../partitioning/partition.service';
 import { SearchIndexJob } from './handlers/search-index.job';
+import { DbBloatJob } from './handlers/db-bloat.job';
+import { CdnInvalidateJob } from './handlers/cdn-invalidate.job';
+import { PublicDirectoryService } from '../modules/public-directory/public-directory.service';
+import { SeoGenerateJob } from './handlers/seo-generate.job';
+import { PrivacyReconcileJob } from './handlers/privacy-reconcile.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
+import { StripeOpsJob } from './handlers/stripe-ops.job';
+import { StripeOpsCoreModule } from '../modules/stripe-ops/stripe-ops.module';
 import { DbHealthJob } from './handlers/db-health.job';
 import { LedgerModule } from '../modules/ledger/ledger.public';
 import { OPENSEARCH_CLIENT_PROVIDER } from '../modules/search/engine/opensearch.client';
@@ -65,6 +75,8 @@ import { DashboardService } from '../modules/admin/dashboard.service';
 import { BillingOverviewService } from '../modules/admin-billing/billing-overview.service';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
+import { PnlService } from '../common/pnl/pnl.service';
+import { LegalRemindersJob } from './handlers/legal-reminders.job';
 import { UsagePollJob } from './handlers/usage-poll.job';
 import {
   TaskArchivePurgeJob,
@@ -77,6 +89,15 @@ import { ClientReviewsCoreModule } from '../modules/client-reviews/client-review
 import { CaseLifecycleModule } from '../modules/cases/lifecycle/case-lifecycle.module';
 import { BidsModule } from '../modules/bids/bids.module';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
+import { AdminAuditJobsModule } from '../modules/admin/admin-audit-jobs.module';
+import { StaffCoreModule } from '../modules/staff-core/staff-core.module';
+import { WorkLeaseCoreModule } from '../modules/work-lease/work-lease.module';
+import { StaffRatingCoreModule } from '../modules/staff-rating/staff-rating.module';
+import { StaffAppealsCoreModule } from '../modules/staff-appeals/staff-appeals.module';
+import { StaffPieceworkCoreModule } from '../modules/staff-piecework/staff-piecework.module';
+import { StaffHomeCoreModule } from '../modules/staff-home/staff-home.module';
+import { StaffSecurityCoreModule } from '../modules/staff-security/staff-security.module';
+import { StaffAiCoreModule } from '../modules/staff-ai/staff-ai.module';
 import { DisappearingSweepService } from '../modules/chat/disappearing-sweep.service';
 import { DemoCoreModule } from '../modules/demo/demo.module';
 
@@ -96,6 +117,8 @@ export class JobsModule {
     return {
       module: JobsModule,
       imports: [
+        // Owner 2026-10-25: `experiments.metrics`.
+        ExperimentsCoreModule,
         NotificationsModule,
         // AppEventsService (analytics snapshot) needs the flags.
         FeatureFlagsModule,
@@ -115,6 +138,8 @@ export class JobsModule {
         StarsCoreModule,
         // Owner 2026-10-05: `case-payments.expire`.
         CasePaymentsCoreModule,
+        // Owner 2026-10-25: `case-tools.sweep`.
+        CaseToolsSweepModule,
         // Owner 2026-10-05: `partners.sweep`.
         PartnersCoreModule,
         // Owner 2026-10-06: `country-partners.sweep`.
@@ -135,8 +160,22 @@ export class JobsModule {
         TreasuryCoreModule,
         // Day-one foundations: `ledger.reconcile`.
         LedgerModule,
+        // Stripe robustness: `stripe-ops.sweep`, `stripe-ops.dispute-reminders`.
+        StripeOpsCoreModule,
         // Owner 2026-10-20: `consultations.sweep`.
         ConsultationsCoreModule,
+        // Owner 2026-10-28: `admin.audit-export`, `admin.access-report`.
+        AdminAuditJobsModule,
+        // Staff package 2026-10-27: the `staff.*` jobs (each a no-op while
+        // its switch is off) live in the modules that own them.
+        StaffCoreModule,
+        WorkLeaseCoreModule,
+        StaffRatingCoreModule,
+        StaffAppealsCoreModule,
+        StaffPieceworkCoreModule,
+        StaffHomeCoreModule,
+        StaffSecurityCoreModule,
+        StaffAiCoreModule,
       ],
       providers: [
         { provide: JOBS_OPTIONS, useValue: options },
@@ -177,7 +216,18 @@ export class JobsModule {
         AdminSummariesJob,
         // Owner 2026-10-24: `search.index` (search-engine outbox).
         SearchIndexJob,
+        // Owner 2026-10-25: `db.bloat-check`.
+        DbBloatJob,
+        // Owner 2026-10-25: `cdn.invalidate` (queued CloudFront paths).
+        CdnInvalidateJob,
+        // Programmatic SEO 2026-10-27: `seo.generate` (pages from the DB read path).
+        PublicDirectoryService,
+        SeoGenerateJob,
+        PartitionService,
         LedgerReconcileJob,
+        // Privacy round 13: `privacy.reconcile`.
+        PrivacyReconcileJob,
+        StripeOpsJob,
         // DB-ops hardening: `db.health` (daily).
         DbHealthJob,
         SearchIndexerService,
@@ -190,6 +240,8 @@ export class JobsModule {
         BillingOverviewService,
         OpsGuardJob,
         StatusWatchdogJob,
+        PnlService,
+        LegalRemindersJob,
         UsagePollJob,
         // Owner 2026-10-05: the planner's reminders and archive cleanup.
         TaskRemindersJob,

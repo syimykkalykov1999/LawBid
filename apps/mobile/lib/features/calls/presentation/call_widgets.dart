@@ -2,11 +2,11 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 
@@ -287,7 +287,7 @@ class _CallPressScaleState extends State<CallPressScale> {
         onTap: widget.onTap == null
             ? null
             : () {
-                HapticFeedback.lightImpact();
+                AppHaptics.light();
                 widget.onTap!();
               },
         child: AnimatedScale(

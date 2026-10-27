@@ -15,7 +15,9 @@ import { EconomyService } from '../economy/economy.service';
 import { FileAccessService } from '../../modules/files/file-access.service';
 import { viewerContext } from '../viewer/viewer-context';
 import { readSwitchMode } from './switch-mode';
+import { configSchema } from '../../modules/admin-config/config-schema';
 import { parseAppCheckMode } from '../../modules/auth/app-check/app-check.guard';
+import { SeoGenerateJob } from '../../jobs/handlers/seo-generate.job';
 
 /**
  * Switch contract (docs/dev/SWITCH_INVENTORY.md): for every admin switch
@@ -48,6 +50,7 @@ describe('switch contract: defaults (a)', () => {
     ['trust.enabled', true],
     ['ops.auto_pause_heavy_jobs', true],
     ['ops.auto_scale_down_on_budget', true],
+    ['seo.generator_mode', 'off'],
   ];
   it.each(table)('%s defaults to %p with nothing stored', async (key, want) => {
     expect(APP_SETTINGS[key]).toBe(want);
@@ -243,28 +246,38 @@ describe('billing.stripe_tax_enabled', () => {
 });
 
 describe('sms.login_code_enabled', () => {
+  // S14-1 (#367): a registered number is no longer refused with a 409 (that
+  // told anyone who is registered). It gets the same 200 `sent` as a new
+  // number and no SMS: assertSmsOnlyForNewNumber returns true = "send nothing".
   const run = (stored: Record<string, unknown>) => {
-    const findUnique = jest.fn().mockResolvedValue({
-      user_id: 'u9',
-      user: { password_hash: 'x' },
-    });
+    const findUnique = jest.fn().mockResolvedValue({ user_id: 'u9' });
+    const allowed = { allowed: true, retryAfterSeconds: 0, remaining: 1 };
+    const rateLimit = {
+      hashIdentifier: jest.fn((v: string) => `h:${v}`),
+      consumeFixedWindow: jest.fn().mockResolvedValue(allowed),
+      consumeSlidingWindow: jest.fn().mockResolvedValue(allowed),
+    };
     const self = {
       settings: settingsWith(stored),
       prisma: { userIdentifier: { findUnique } },
+      rateLimit,
     };
     const call = (
       AuthService.prototype as unknown as {
-        assertSmsOnlyForNewNumber(i: string, c?: string): Promise<void>;
+        assertSmsOnlyForNewNumber(i: string, c?: string): Promise<boolean>;
       }
     ).assertSmsOnlyForNewNumber.call(self, '+10000000000');
-    return { call, findUnique };
+    return { call, findUnique, rateLimit };
   };
-  it('off (default): a registered number is refused a code', async () => {
-    await expect(run({}).call).rejects.toMatchObject({ status: 409 });
+  it('off (default): a registered number gets no code (silently, no 409)', async () => {
+    const { call, rateLimit } = run({});
+    await expect(call).resolves.toBe(true);
+    // The cooldown counts for every number, so a 429 does not tell either.
+    expect(rateLimit.consumeFixedWindow).toHaveBeenCalled();
   });
   it('on: the old passwordless code is allowed again, no lookup', async () => {
     const { call, findUnique } = run({ 'sms.login_code_enabled': true });
-    await expect(call).resolves.toBeUndefined();
+    await expect(call).resolves.toBe(false);
     expect(findUnique).not.toHaveBeenCalled();
   });
 });
@@ -291,5 +304,52 @@ describe('economy.ceiling_mode (auto | manual)', () => {
     expect(await get({})).toBe('auto');
     expect(await get({ 'economy.ceiling_mode': 'manual' })).toBe('manual');
     expect(await get({ 'economy.ceiling_mode': 'zzz' })).toBe('auto');
+  });
+});
+
+describe('seo.generator_mode (off | nightly | nightly+events)', () => {
+  const job = (stored: Record<string, unknown>) => {
+    const directory = {
+      attorneys: jest.fn(() => Promise.reject(new Error('DB touched'))),
+    };
+    const config = {
+      get: (k: string) =>
+        ({ SEO_WEB_BUCKET: 'b', SEO_SITE_URL: 'https://example.test' })[k],
+    };
+    const logger = { setContext: jest.fn(), info: jest.fn(), error: jest.fn() };
+    const Ctor = SeoGenerateJob as unknown as new (
+      ...a: unknown[]
+    ) => SeoGenerateJob;
+    return {
+      job: new Ctor(config, directory, logger, settingsWith(stored)),
+      directory,
+    };
+  };
+  it('off (the default) and a typo: the job returns before it reads anything', async () => {
+    for (const stored of [{}, { 'seo.generator_mode': 'nightlyy' }]) {
+      const t = job(stored);
+      await expect(t.job.run()).resolves.toEqual({ skipped: 'off' });
+      expect(t.directory.attorneys).not.toHaveBeenCalled();
+    }
+  });
+  it('nightly / nightly+events: the job starts (it reads the directory)', async () => {
+    for (const mode of ['nightly', 'nightly+events']) {
+      const t = job({ 'seo.generator_mode': mode });
+      await expect(t.job.run()).rejects.toThrow('DB touched');
+      expect(t.directory.attorneys).toHaveBeenCalledTimes(1);
+    }
+  });
+  it('the ceilings are clamped by the admin schema', () => {
+    const schema = configSchema();
+    expect(schema['seo.generator_max_attorneys']).toMatchObject({
+      min: 100,
+      max: 50000,
+    });
+    expect(schema['seo.max_invalidation_paths_per_day']).toMatchObject({
+      min: 0,
+      max: 500,
+    });
+    expect('nightly+events').toMatch(schema['seo.generator_mode'].pattern!);
+    expect('events').not.toMatch(schema['seo.generator_mode'].pattern!);
   });
 });

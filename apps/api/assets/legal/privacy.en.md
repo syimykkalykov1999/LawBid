@@ -40,7 +40,7 @@ Categories disclosed for a business purpose in the last 12 months: identifiers, 
 
 ## 5. Retention
 
-Account data: while the account is open and 90 days after deletion for fraud and legal-request purposes, then removed or anonymized. Messages and files: per your chat settings; deleted with the account. Reports and moderation records: up to [3] years. Payment records: 7 years (tax law). Reported illegal material: preserved for 1 year as the law requires. Backups expire within [35] days. Legal holds may extend retention.
+Account data: while the account is open and 90 days after deletion for fraud and legal-request purposes, then removed or anonymized. Messages and files: per your chat settings; deleted with the account. Reports and moderation records: up to [3] years. Payment records: 7 years (tax law). Reported illegal material: preserved for 1 year as the law requires. Backups expire within [35] days. Legal holds may extend retention. Sign-in and security logs (IP address, device, browser): 2 years, and the IP address and browser of a session are removed after 90 days without use. Admin action log and records of what an official request looked at: 5 years. IP address and device stored with a contact disclosure: 2 years. Messages you delete are removed from view at once and the text is kept for up to 90 days in case of an official request, then erased. Your phone-book upload (one-way hashes): until you turn sync off or delete your account. Notifications: 180 days. Database backups are overwritten within 35 days and older versions of stored files within 90 days of deletion.
 
 ## 6. Your choices and rights
 

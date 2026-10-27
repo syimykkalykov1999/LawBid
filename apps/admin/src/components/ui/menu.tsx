@@ -1,7 +1,7 @@
 'use client';
 
 import { DotsThreeVertical } from '@phosphor-icons/react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, m } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -53,7 +53,7 @@ export function RowMenu({ items, label = 'Действия', className }: { item
       </button>
       <AnimatePresence>
         {open ? (
-          <motion.div
+          <m.div
             role="menu"
             initial={{ opacity: 0, y: -4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -80,7 +80,7 @@ export function RowMenu({ items, label = 'Действия', className }: { item
                 <span className="min-w-0 break-words">{it.label}</span>
               </button>
             ))}
-          </motion.div>
+          </m.div>
         ) : null}
       </AnimatePresence>
     </div>

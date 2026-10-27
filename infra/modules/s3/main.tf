@@ -46,6 +46,21 @@ variable "documents_cdn_public_key_pem" {
   default     = ""
   description = "Owner 2026-10-22 (systems checklist §22): PEM public key of the CloudFront signing key pair for private media (chat photos/voice/files, case files, documents). Empty = no documents CloudFront; the API keeps presigned S3 GET links. The private key goes to Secrets Manager as CLOUDFRONT_PRIVATE_KEY_PEM (extra_secrets)."
 }
+# R-3: the API sends `Cache-Control: private, max-age=3600` for private files.
+# CloudFront never stores a `private` answer while min_ttl is 0, so the edge
+# cache would be dead (every chat photo/video view and Range request would hit
+# S3). A min_ttl above 0 overrides `private` at the edge only; browsers still
+# honour `private`. Validation keeps it from silently going back to 0.
+variable "documents_edge_min_ttl" {
+  type        = number
+  default     = 60
+  description = "Seconds CloudFront keeps a private media object even though the origin says `private` (must stay between 60 and the 3600 s max TTL)."
+  validation {
+    condition     = var.documents_edge_min_ttl >= 60 && var.documents_edge_min_ttl <= 3600
+    error_message = "documents_edge_min_ttl must be 60..3600: 0 stops CloudFront caching `Cache-Control: private` private media."
+  }
+}
+
 variable "cors_allowed_origins" {
   type        = list(string)
   default     = ["https://syimykkalykov1999.github.io"]
@@ -325,6 +340,20 @@ resource "aws_s3_bucket_lifecycle_configuration" "documents_replica" {
     filter { prefix = "" }
     expiration { expired_object_delete_marker = true }
   }
+  # S9-8 (2026-10-25): the primary already tiers (intelligent-tiering rule
+  # above); the replica is written as STANDARD_IA by the replication rule
+  # (30-day minimum), and after those 30 days a copy nobody reads moves on to
+  # Intelligent-Tiering like the primary. Small files stay where they are
+  # (IA bills 128 KB minimum anyway).
+  rule {
+    id     = "intelligent-tiering-after-ia"
+    status = "Enabled"
+    filter { object_size_greater_than = 131072 }
+    transition {
+      days          = 30
+      storage_class = "INTELLIGENT_TIERING"
+    }
+  }
   depends_on = [aws_s3_bucket_versioning.documents_replica]
 }
 
@@ -398,11 +427,22 @@ resource "aws_cloudfront_response_headers_policy" "media_cors" {
   }
 }
 
+variable "cdn_additional_metrics" {
+  type        = bool
+  default     = true
+  description = "S8-6: CloudFront additional metrics (CacheHitRate, OriginLatency, 4xx/5xx by status) on the media and documents distributions. About $0.01 per metric per distribution per month (8 metrics x 2 = ~$0.16/month, fixed at any scale). false = off."
+}
+
 resource "aws_cloudfront_distribution" "media" {
   enabled         = true
   comment         = "${var.name} media"
   price_class     = "PriceClass_100"
   is_ipv6_enabled = true
+  # Caching round 2 (S2-9): HTTP/3 (QUIC) on top of HTTP/2 — faster first
+  # byte on bad mobile networks, no extra cost. The price class stays
+  # PriceClass_100 (no Asia / Middle East edges): switching to
+  # PriceClass_200 is a one-word change once real user geography is known.
+  http_version = "http2and3"
   # Security research #5 (2026-10-22), A3: a per-IP rate limit on the media
   # CDN (hotlinking / download loops cost egress).
   web_acl_id = var.media_web_acl_arn == "" ? null : var.media_web_acl_arn
@@ -529,10 +569,10 @@ resource "aws_cloudfront_origin_access_control" "documents" {
 resource "aws_cloudfront_cache_policy" "documents" {
   count       = local.documents_cdn
   name        = "${var.name}-documents-signed"
-  comment     = "Immutable private media: cache a day, key on the response-* params"
-  default_ttl = 86400
-  max_ttl     = 86400
-  min_ttl     = 0
+  comment     = "Private media: edge copy at most an hour (a deleted file must not outlive it), key on the response-* params"
+  default_ttl = 3600
+  max_ttl     = 3600
+  min_ttl     = var.documents_edge_min_ttl
   parameters_in_cache_key_and_forwarded_to_origin {
     enable_accept_encoding_brotli = true
     enable_accept_encoding_gzip   = true
@@ -569,6 +609,7 @@ resource "aws_cloudfront_distribution" "documents" {
   comment         = "${var.name} private media (signed URLs)"
   price_class     = "PriceClass_100"
   is_ipv6_enabled = true
+  http_version    = "http2and3"
   web_acl_id      = var.media_web_acl_arn == "" ? null : var.media_web_acl_arn
 
   origin {
@@ -637,6 +678,10 @@ output "documents_bucket_arn" { value = aws_s3_bucket.documents.arn }
 output "media_bucket" { value = aws_s3_bucket.media.bucket }
 output "media_bucket_arn" { value = aws_s3_bucket.media.arn }
 output "media_cdn_domain" { value = aws_cloudfront_distribution.media.domain_name }
+output "media_cdn_distribution_id" { value = aws_cloudfront_distribution.media.id }
+output "media_cdn_distribution_arn" { value = aws_cloudfront_distribution.media.arn }
+output "documents_cdn_distribution_id" { value = one(aws_cloudfront_distribution.documents[*].id) }
+output "documents_cdn_distribution_arn" { value = one(aws_cloudfront_distribution.documents[*].arn) }
 output "media_distribution_id" { value = aws_cloudfront_distribution.media.id }
 output "documents_distribution_id" { value = one(aws_cloudfront_distribution.documents[*].id) }
 output "documents_cdn_domain" { value = one(aws_cloudfront_distribution.documents[*].domain_name) }
@@ -757,3 +802,26 @@ resource "aws_s3_bucket_replication_configuration" "media" {
 }
 
 output "media_replica_bucket" { value = var.replicate_media ? aws_s3_bucket.media_replica[0].id : "" }
+
+# S8-6: nothing could say the cache-hit ratio or origin latency of the CDN.
+# Opt-in per distribution (AWS CloudFront developer guide, "Additional
+# metrics"); the alarms live in module monitoring.
+resource "aws_cloudfront_monitoring_subscription" "media" {
+  count           = var.cdn_additional_metrics ? 1 : 0
+  distribution_id = aws_cloudfront_distribution.media.id
+  monitoring_subscription {
+    realtime_metrics_subscription_config {
+      realtime_metrics_subscription_status = "Enabled" # the API name for the additional-metrics switch
+    }
+  }
+}
+resource "aws_cloudfront_monitoring_subscription" "documents" {
+  count           = var.cdn_additional_metrics && length(aws_cloudfront_distribution.documents) > 0 ? 1 : 0
+  distribution_id = aws_cloudfront_distribution.documents[0].id
+  monitoring_subscription {
+    realtime_metrics_subscription_config {
+      realtime_metrics_subscription_status = "Enabled"
+    }
+  }
+}
+output "media_distribution_id" { value = aws_cloudfront_distribution.media.id }

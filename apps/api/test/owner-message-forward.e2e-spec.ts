@@ -330,7 +330,7 @@ describe('Forward messages (e2e, owner 2026-10-21)', () => {
     }).expect(200);
     const sent = (back.body.data.results as Result[])[0];
     expect(sent.status).toBe('sent');
-    const msg = await prisma.message.findUniqueOrThrow({
+    const msg = await prisma.message.findFirstOrThrow({
       where: { id: sent.messageId! },
     });
     expect(msg.forwarded).toBe(true);
@@ -344,7 +344,7 @@ describe('Forward messages (e2e, owner 2026-10-21)', () => {
     const conv = await conversation(c, a);
     const other = await conversation(c, await attorney('Bo'));
     const m = await say(conv, c, { body: 'gone soon' });
-    await prisma.message.update({
+    await prisma.message.updateMany({
       where: { id: m.id },
       data: { expires_at: new Date(Date.now() + 3600_000) },
     });

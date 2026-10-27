@@ -9,6 +9,10 @@ import {
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import {
+  DomainEvents,
+  type DomainEventTicket,
+} from '../events/domain-events.service';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import type {
@@ -44,6 +48,9 @@ import { FeatureFlagsService } from '../feature-flags/services/feature-flags.ser
 import { EntitlementsService } from '../plans/entitlements.service';
 import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { DisputeService } from '../stripe-ops/dispute.service';
+import { efwAutoRefund } from '../stripe-ops/stripe-ops.helpers';
+import { StripeReviewService } from '../stripe-ops/stripe-review.service';
 import type {
   CasePaymentDto,
   CasePaymentPartyDto,
@@ -96,6 +103,9 @@ const PAID_STATUSES: PaymentStatus[] = [
   'disputed',
 ];
 const DAY_MS = 86_400_000;
+/** `expire`: keyset page size and Stripe reads per run (R-36). */
+export const EXPIRE_PAGE = 200;
+export const EXPIRE_MAX_CHECKS = 1000;
 
 type Db = Prisma.TransactionClient | PrismaService;
 
@@ -224,6 +234,11 @@ export class CasePaymentsService {
     @Optional() private readonly trust?: AttorneyTrustService,
     // Day-one foundations: the double-entry money ledger (same transaction).
     @Optional() private readonly ledger?: LedgerPostingService,
+    // Stripe robustness 2026-10-27: the admin review queue and disputes.
+    @Optional() private readonly review?: StripeReviewService,
+    @Optional() private readonly disputes?: DisputeService,
+    // N-2: the domain-event bus.
+    @Optional() private readonly events?: DomainEvents,
   ) {}
 
   // ---- settings -------------------------------------------------------------
@@ -523,6 +538,13 @@ export class CasePaymentsService {
    * when it differs from what Stripe was last told. */
   async syncPayoutDelay(attorneyId: string, accountId: string): Promise<void> {
     if (!this.trust || !this.provider?.updateConnectPayoutDelay) return;
+    // Stripe robustness 2026-10-27: payouts are paused (manual schedule)
+    // while a dispute is open; the delay is restored on release.
+    const held = await this.prisma.payoutAccount.findUnique({
+      where: { user_id: attorneyId },
+      select: { payouts_held: true },
+    });
+    if (held?.payouts_held) return;
     const desired = await this.trust.desiredPayoutDelayDays(attorneyId);
     const synced = await this.prisma.attorneyTrust.findUnique({
       where: { attorney_id: attorneyId },
@@ -685,6 +707,13 @@ export class CasePaymentsService {
       processingFeePayer: payer,
     });
 
+    const superseded = await this.prisma.casePayment.findMany({
+      where: {
+        case_id: caseId,
+        client_id: user.sub,
+        status: 'pending_payment',
+      },
+    });
     const row = await withTxRetry(this.prisma, async (tx) => {
       // An earlier unpaid checkout on this case is superseded.
       await tx.casePayment.updateMany({
@@ -770,6 +799,9 @@ export class CasePaymentsService {
       where: { id: row.id },
       data: { stripe_checkout_id: session.id },
     });
+    // Stripe robustness 2026-10-27: close the superseded checkouts on
+    // Stripe too (and keep one that was paid in the meantime).
+    for (const old of superseded) await this.settleSession(old);
     const [payment] = await this.present([updated], s);
     return { paymentId: row.id, checkoutUrl: session.url, quote, payment };
   }
@@ -784,6 +816,18 @@ export class CasePaymentsService {
       throw new ConflictException({
         code: ErrorCode.PAYMENT_INVALID_STATE,
         message: 'Only an unpaid checkout can be canceled.',
+      });
+    }
+    // Stripe robustness 2026-10-27: ask Stripe first; a checkout that was
+    // paid a moment ago is recorded as paid, never canceled.
+    const verdict = await this.settleSession(row);
+    if (verdict !== 'closed') {
+      throw new ConflictException({
+        code: ErrorCode.PAYMENT_INVALID_STATE,
+        message:
+          verdict === 'paid'
+            ? 'This payment has just gone through.'
+            : 'Could not confirm with Stripe that the checkout is closed. Try again.',
       });
     }
     const updated = await this.prisma.casePayment.update({
@@ -830,7 +874,7 @@ export class CasePaymentsService {
   async refundPayment(
     row: CasePayment,
     dto: RefundCasePaymentDto,
-    by: { type: 'attorney' | 'admin'; id: string },
+    by: { type: 'attorney' | 'admin' | 'stripe'; id: string | null },
   ): Promise<CasePayment> {
     if (row.status === 'refunded') {
       throw new ConflictException({
@@ -969,7 +1013,9 @@ export class CasePaymentsService {
     if (session.paymentStatus && session.paymentStatus !== 'paid') return false;
     const id = session.metadata.paymentId;
     if (!id) return false;
+    const eventTickets: Array<DomainEventTicket | null | undefined> = [];
     const paid = await withTxRetry(this.prisma, async (tx) => {
+      eventTickets.length = 0;
       const p = await tx.casePayment.findUnique({ where: { id } });
       if (!p || p.stripe_checkout_id !== session.id) return null;
       // Pending, or a system cancel (expired / superseded) a late payment
@@ -1005,9 +1051,22 @@ export class CasePaymentsService {
           },
         });
       }
+      eventTickets.push(
+        await this.events?.emit(
+          tx,
+          'payment.succeeded',
+          {
+            paymentId: id,
+            caseId: p.case_id,
+            amountCents: paidRow.client_total_cents,
+          },
+          { actorId: p.client_id, key: `payment.succeeded:${id}` },
+        ),
+      );
       return p;
     });
     if (!paid) return false;
+    await this.events?.flush(eventTickets);
     await this.chatLine(paid.case_id, 'payment_received', paid.amount_cents);
     await this.notify(paid.attorney_id, 'case_payment_received', {
       caseId: paid.case_id,
@@ -1050,7 +1109,34 @@ export class CasePaymentsService {
       case 'charge.dispute.created':
       case 'charge.dispute.updated':
       case 'charge.dispute.closed':
-        await this.onDispute(event.type, o);
+        await this.onDispute(event.type, o, account);
+        return;
+      case 'charge.dispute.funds_withdrawn':
+      case 'charge.dispute.funds_reinstated':
+        await this.onDisputeFunds(event.type, o);
+        return;
+      // ---- Stripe robustness 2026-10-27 ---------------------------------
+      case 'payment_intent.payment_failed':
+        await this.onPaymentFailed(o);
+        return;
+      case 'checkout.session.expired':
+        await this.onCheckoutExpired(o, account);
+        return;
+      case 'charge.refund.updated':
+      case 'refund.updated':
+        await this.onRefundUpdated(o);
+        return;
+      case 'payout.failed':
+        await this.onPayoutFailed(o, account);
+        return;
+      case 'account.application.deauthorized':
+        await this.onDeauthorized(account);
+        return;
+      case 'capability.updated':
+        await this.onCapabilityUpdated(o, account);
+        return;
+      case 'radar.early_fraud_warning.created':
+        await this.onEarlyFraudWarning(o, account);
         return;
       default:
         this.logger.debug(`ignored connect event ${event.type}`);
@@ -1060,22 +1146,53 @@ export class CasePaymentsService {
   private async onDispute(
     type: string,
     o: ProviderEvent['object'],
+    account: string | null = null,
   ): Promise<void> {
     const chargeId = typeof o.charge === 'string' ? o.charge : null;
-    if (!chargeId) return;
-    const row = await this.prisma.casePayment.findFirst({
-      where: { stripe_charge_id: chargeId },
-    });
-    if (!row) return;
-    const status = typeof o.status === 'string' ? o.status : 'needs_response';
+    const dispute = {
+      id: o.id,
+      status: typeof o.status === 'string' ? o.status : 'needs_response',
+      reason: typeof o.reason === 'string' ? o.reason : undefined,
+      amount: typeof o.amount === 'number' ? o.amount : undefined,
+      currency: typeof o.currency === 'string' ? o.currency : undefined,
+      dueBy:
+        o.evidence_details &&
+        typeof (o.evidence_details as { due_by?: unknown }).due_by === 'number'
+          ? (o.evidence_details as { due_by: number }).due_by
+          : null,
+    };
+    const row = chargeId
+      ? await this.prisma.casePayment.findFirst({
+          where: { stripe_charge_id: chargeId },
+        })
+      : null;
+    if (!row) {
+      // A dispute on the platform's own charge (subscription, pack, boost):
+      // not a case payment; it goes to the review queue.
+      if (!account) {
+        const pi =
+          typeof o.payment_intent === 'string' ? o.payment_intent : null;
+        await this.disputes?.onPlatformDispute(dispute, pi);
+      }
+      return;
+    }
+    const status = dispute.status;
     const lost = status === 'lost';
     const won = status === 'won';
+    const isNew = row.dispute_id !== dispute.id;
     // The status change, the chargeback refund row and the ledger entry commit together.
     await this.prisma.$transaction(async (tx) => {
       const next = await tx.casePayment.update({
         where: { id: row.id },
         data: {
           dispute_status: status,
+          dispute_id: dispute.id,
+          dispute_reason: dispute.reason ?? row.dispute_reason ?? null,
+          dispute_amount_cents:
+            dispute.amount ?? row.dispute_amount_cents ?? null,
+          dispute_due_by: dispute.dueBy
+            ? new Date(dispute.dueBy * 1000)
+            : (row.dispute_due_by ?? null),
           disputed_at: row.disputed_at ?? new Date(),
           status: lost
             ? 'refunded'
@@ -1106,6 +1223,12 @@ export class CasePaymentsService {
         });
       }
     });
+    // Stripe calls happen after the commit (evidence draft, payout hold).
+    await this.disputes?.onCaseDispute(
+      { ...row, dispute_id: dispute.id },
+      dispute,
+      isNew && type === 'charge.dispute.created',
+    );
     if (type === 'charge.dispute.created') {
       await this.notify(row.attorney_id, 'case_payment_disputed', {
         caseId: row.case_id,
@@ -1113,6 +1236,356 @@ export class CasePaymentsService {
         amountCents: row.client_total_cents,
       });
     }
+  }
+
+  /** funds_withdrawn / funds_reinstated: Stripe moved the disputed money.
+   * The attorney's balance is Stripe's, so the platform ledger books
+   * nothing on a withdrawal (the chargeback is booked when the dispute is
+   * LOST); a reinstatement after a booked loss reverses that loss. */
+  private async onDisputeFunds(
+    type: string,
+    o: ProviderEvent['object'],
+  ): Promise<void> {
+    const chargeId = typeof o.charge === 'string' ? o.charge : null;
+    const row = chargeId
+      ? await this.prisma.casePayment.findFirst({
+          where: { stripe_charge_id: chargeId },
+        })
+      : null;
+    if (!row) return;
+    if (type === 'charge.dispute.funds_withdrawn') {
+      await this.prisma.casePayment.update({
+        where: { id: row.id },
+        data: { dispute_funds_withdrawn_at: new Date() },
+      });
+      return;
+    }
+    await this.prisma.$transaction(async (tx) => {
+      const cb = await tx.casePaymentRefund.findFirst({
+        where: {
+          payment_id: row.id,
+          initiated_by_type: 'stripe',
+          reason: 'Dispute lost (chargeback)',
+          status: 'succeeded',
+        },
+      });
+      let refunded = row.refunded_cents;
+      if (cb) {
+        await this.ledger?.reverseCaseEntry(tx, {
+          originalSourceType: 'case_payment_refund',
+          originalSourceId: cb.id,
+          reason: 'dispute_reinstated',
+          partyUserId: row.attorney_id,
+        });
+        await tx.casePaymentRefund.update({
+          where: { id: cb.id },
+          data: {
+            status: 'failed',
+            failure_reason: 'Dispute won: funds reinstated',
+          },
+        });
+        refunded = Math.max(0, row.refunded_cents - cb.amount_cents);
+      }
+      await tx.casePayment.update({
+        where: { id: row.id },
+        data: {
+          dispute_funds_reinstated_at: new Date(),
+          refunded_cents: refunded,
+          ...(cb
+            ? {
+                status: refunded > 0 ? 'partially_refunded' : 'succeeded',
+                dispute_status: 'won',
+              }
+            : {}),
+        },
+      });
+    });
+  }
+
+  /** payment_intent.payment_failed on a connected checkout: the client may
+   * retry in the same session, so the payment stays pending; the decline
+   * code is kept for support and the admin list. */
+  private async onPaymentFailed(o: ProviderEvent['object']): Promise<void> {
+    const meta = o.metadata as Record<string, string> | undefined;
+    const id = meta?.paymentId;
+    if (!id) return;
+    const err = o.last_payment_error as
+      { code?: string; decline_code?: string } | undefined;
+    const code = (err?.decline_code ?? err?.code ?? 'payment_failed').slice(
+      0,
+      100,
+    );
+    await this.prisma.casePayment.updateMany({
+      where: { id, status: 'pending_payment' },
+      data: { failure_code: code },
+    });
+  }
+
+  /** checkout.session.expired: cancel only after Stripe confirms it. */
+  private async onCheckoutExpired(
+    o: ProviderEvent['object'],
+    account: string | null,
+  ): Promise<void> {
+    const row = await this.prisma.casePayment.findUnique({
+      where: { stripe_checkout_id: o.id },
+    });
+    if (!row || row.status !== 'pending_payment') return;
+    if (account && !row.stripe_account_id) return;
+    const verdict = await this.settleSession(row);
+    if (verdict !== 'closed') return;
+    await this.prisma.casePayment.updateMany({
+      where: { id: row.id, status: 'pending_payment' },
+      data: { status: 'canceled', canceled_reason: 'checkout_expired' },
+    });
+  }
+
+  /** charge.refund.updated: a refund that was pending ended (or failed). */
+  private async onRefundUpdated(o: ProviderEvent['object']): Promise<void> {
+    const status = typeof o.status === 'string' ? o.status : null;
+    if (!status) return;
+    if (status === 'failed' || status === 'canceled') {
+      await this.failRefund(
+        o.id,
+        typeof o.failure_reason === 'string' ? o.failure_reason : status,
+      );
+    } else if (status === 'succeeded') {
+      await this.prisma.casePaymentRefund.updateMany({
+        where: { stripe_refund_id: o.id, status: 'pending' },
+        data: { status: 'succeeded' },
+      });
+    }
+  }
+
+  /** A refund failed at the bank: the money did not go back. Undo the
+   * totals and the ledger entry made when it was created, tell the client's
+   * side nothing false, and put it in the queue for a human to redo. */
+  private async failRefund(
+    stripeRefundId: string,
+    reason: string | null,
+  ): Promise<void> {
+    const refund = await this.prisma.casePaymentRefund.findUnique({
+      where: { stripe_refund_id: stripeRefundId },
+    });
+    if (!refund || refund.status === 'failed') return;
+    const pay = await this.prisma.casePayment.findUnique({
+      where: { id: refund.payment_id },
+    });
+    if (!pay) return;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.casePaymentRefund.update({
+        where: { id: refund.id },
+        data: {
+          status: 'failed',
+          failure_reason: reason?.slice(0, 500) ?? null,
+        },
+      });
+      // Only a refund that counted (pending or succeeded) is taken back.
+      const refunded = Math.max(0, pay.refunded_cents - refund.amount_cents);
+      await tx.casePayment.update({
+        where: { id: pay.id },
+        data: {
+          refunded_cents: refunded,
+          ...(pay.status === 'refunded' || pay.status === 'partially_refunded'
+            ? { status: refunded > 0 ? 'partially_refunded' : 'succeeded' }
+            : {}),
+        },
+      });
+      await this.ledger?.reverseCaseEntry(tx, {
+        originalSourceType: 'case_payment_refund',
+        originalSourceId: refund.id,
+        reason: 'refund_failed',
+        partyUserId: pay.attorney_id,
+        stripeRef: stripeRefundId,
+      });
+    });
+    await this.review?.open({
+      kind: 'refund_failed',
+      stripeRef: stripeRefundId,
+      casePaymentId: pay.id,
+      userId: pay.client_id,
+      amountCents: refund.amount_cents,
+      currency: pay.currency,
+      summary: `Refund of ${(refund.amount_cents / 100).toFixed(2)} ${pay.currency.toUpperCase()} failed at the bank (${reason ?? 'unknown'}): the client has NOT been repaid.`,
+      details: { refundId: refund.id, reason },
+    });
+  }
+
+  /** payout.failed on an attorney's account: Stripe disables the bank
+   * account until it is updated. Nothing moves on the platform books. */
+  private async onPayoutFailed(
+    o: ProviderEvent['object'],
+    account: string | null,
+  ): Promise<void> {
+    if (!account) return;
+    const acct = await this.prisma.payoutAccount.findUnique({
+      where: { stripe_account_id: account },
+    });
+    if (!acct) return;
+    const code =
+      typeof o.failure_code === 'string' ? o.failure_code : 'payout_failed';
+    await this.prisma.payoutAccount.update({
+      where: { user_id: acct.user_id },
+      data: {
+        last_payout_failure_at: new Date(),
+        last_payout_failure_code: code,
+      },
+    });
+    await this.review?.open({
+      kind: 'payout_failed',
+      stripeRef: o.id,
+      userId: acct.user_id,
+      amountCents: typeof o.amount === 'number' ? o.amount : null,
+      currency: typeof o.currency === 'string' ? o.currency : 'usd',
+      summary: `A payout to attorney ${acct.user_id} failed (${code}). Stripe disabled the bank account until the attorney fixes it.`,
+      details: {
+        failureMessage:
+          typeof o.failure_message === 'string' ? o.failure_message : null,
+      },
+    });
+    // The attorney is told through the existing payout-account status notice.
+    await this.notify(acct.user_id, 'payout_account_status', {
+      status: 'restricted',
+    });
+  }
+
+  /** The attorney disconnected LawBid from their Stripe account. */
+  private async onDeauthorized(account: string | null): Promise<void> {
+    if (!account) return;
+    const acct = await this.prisma.payoutAccount.findUnique({
+      where: { stripe_account_id: account },
+    });
+    if (!acct) return;
+    await this.prisma.payoutAccount.update({
+      where: { user_id: acct.user_id },
+      data: {
+        status: 'disabled',
+        charges_enabled: false,
+        payouts_enabled: false,
+        disabled_reason: 'disconnected from LawBid',
+        deauthorized_at: new Date(),
+      },
+    });
+    await this.review?.open({
+      kind: 'account_deauthorized',
+      stripeRef: account,
+      userId: acct.user_id,
+      summary: `Attorney ${acct.user_id} disconnected LawBid from their Stripe account. New payments to them are closed.`,
+    });
+    await this.notify(acct.user_id, 'payout_account_status', {
+      status: 'disabled',
+    });
+  }
+
+  /** capability.updated: re-read the account (status, charges, payouts);
+   * a capability that turned inactive is queued. */
+  private async onCapabilityUpdated(
+    o: ProviderEvent['object'],
+    account: string | null,
+  ): Promise<void> {
+    const acctId =
+      account ?? (typeof o.account === 'string' ? o.account : null);
+    if (!acctId) return;
+    const before = await this.prisma.payoutAccount.findUnique({
+      where: { stripe_account_id: acctId },
+    });
+    if (!before) return;
+    const after = await this.syncAccount(acctId);
+    const lost =
+      (before.charges_enabled && after && !after.charges_enabled) ||
+      (before.payouts_enabled && after && !after.payouts_enabled);
+    if (lost) {
+      await this.review?.open({
+        kind: 'capability_disabled',
+        stripeRef: `${acctId}:${typeof o.id === 'string' ? o.id : 'capability'}`,
+        userId: before.user_id,
+        summary: `Stripe capability ${typeof o.id === 'string' ? o.id : ''} became inactive for attorney ${before.user_id}: charges or payouts are off.`,
+        details: { status: typeof o.status === 'string' ? o.status : null },
+      });
+    }
+  }
+
+  /** radar.early_fraud_warning.created: the bank flagged a payment. Queue
+   * it; refund by itself only when the charge is cheap (admin setting,
+   * off by default). */
+  private async onEarlyFraudWarning(
+    o: ProviderEvent['object'],
+    account: string | null,
+  ): Promise<void> {
+    const chargeId = typeof o.charge === 'string' ? o.charge : null;
+    if (!chargeId) return;
+    const row = await this.prisma.casePayment.findFirst({
+      where: { stripe_charge_id: chargeId },
+    });
+    if (!row) {
+      // The platform's own charge (subscription, pack, boost): queue it.
+      if (account) return;
+      const pi = typeof o.payment_intent === 'string' ? o.payment_intent : null;
+      const pay = pi
+        ? await this.prisma.payment.findFirst({
+            where: { stripe_payment_intent_id: pi },
+            select: { user_id: true, amount_cents: true, currency: true },
+          })
+        : null;
+      await this.review?.open({
+        kind: 'early_fraud_warning',
+        stripeRef: o.id,
+        userId: pay?.user_id ?? null,
+        amountCents: pay?.amount_cents ?? null,
+        currency: pay?.currency ?? 'usd',
+        summary: `Early fraud warning (${typeof o.fraud_type === 'string' ? o.fraud_type : 'unknown'}) on a LawBid charge.`,
+        details: { scope: 'platform', chargeId },
+      });
+      return;
+    }
+    const maxCents = await this.autoRefundMax();
+    const auto = efwAutoRefund({
+      maxCents,
+      chargeCents: row.client_total_cents,
+      alreadyRefundedCents: row.refunded_cents,
+      disputed: !!row.dispute_status,
+    });
+    let refunded = false;
+    if (auto && row.status === 'succeeded') {
+      try {
+        await this.refundPayment(
+          row,
+          {
+            reason: 'Refunded automatically after an early fraud warning',
+          },
+          { type: 'stripe', id: null },
+        );
+        refunded = true;
+      } catch (e) {
+        this.logger.warn(`efw auto refund failed: ${String(e)}`);
+      }
+    }
+    await this.review?.open({
+      kind: 'early_fraud_warning',
+      stripeRef: o.id,
+      casePaymentId: row.id,
+      userId: row.client_id,
+      amountCents: row.client_total_cents,
+      currency: row.currency,
+      summary: `Early fraud warning (${typeof o.fraud_type === 'string' ? o.fraud_type : 'unknown'}) on a client payment${refunded ? ' - refunded automatically' : ''}. Account ${account ?? ''}.`,
+      details: {
+        fraudType: typeof o.fraud_type === 'string' ? o.fraud_type : null,
+        actionable: o.actionable === true,
+        autoRefunded: refunded,
+      },
+    });
+    if (refunded)
+      await this.review?.closeByRef(
+        'early_fraud_warning',
+        o.id,
+        'Refunded automatically (setting)',
+      );
+  }
+
+  private async autoRefundMax(): Promise<number> {
+    const row = await this.prisma.appConfig.findUnique({
+      where: { key: 'stripe_ops.efw_auto_refund_max_cents' },
+    });
+    return typeof row?.value === 'number' ? row.value : 0;
   }
 
   private async syncCharge(accountId: string, chargeId: string): Promise<void> {
@@ -1873,17 +2346,239 @@ export class CasePaymentsService {
 
   // ---- housekeeping ------------------------------------------------------------
 
-  /** Cron `case-payments.expire`: unpaid checkouts older than a day →
-   * canceled. */
-  async expire(now = new Date()): Promise<{ abandoned: number }> {
-    const res = await this.prisma.casePayment.updateMany({
+  /**
+   * Asks Stripe what really happened to an unpaid checkout and closes it
+   * there. 'paid' = it was paid (recorded now, never cancel); 'closed' = no
+   * session, expired or not found: safe to cancel; 'unknown' = Stripe could
+   * not tell (error, still open, payment pending): leave the row alone.
+   */
+  private async settleSession(
+    row: CasePayment,
+  ): Promise<'paid' | 'closed' | 'unknown'> {
+    if (!row.stripe_checkout_id) return 'closed';
+    if (!row.stripe_account_id || !this.provider?.retrieveConnectedCheckout) {
+      return 'unknown';
+    }
+    try {
+      let s = await this.provider.retrieveConnectedCheckout(
+        row.stripe_account_id,
+        row.stripe_checkout_id,
+      );
+      if (!s) return 'closed';
+      if (s.status === 'open' && this.provider.expireConnectedCheckout) {
+        s =
+          (await this.provider.expireConnectedCheckout(
+            row.stripe_account_id,
+            row.stripe_checkout_id,
+          )) ?? s;
+      }
+      if (s.status === 'complete') {
+        if (s.paymentStatus && s.paymentStatus !== 'paid') {
+          return s.paymentStatus === 'no_payment_required'
+            ? 'closed'
+            : 'unknown';
+        }
+        await this.applyCheckout(s);
+        return 'paid';
+      }
+      return s.status === 'expired' ? 'closed' : 'unknown';
+    } catch (e) {
+      this.logger.warn(
+        { paymentId: row.id, err: String(e) },
+        'checkout state check failed',
+      );
+      return 'unknown';
+    }
+  }
+
+  /** Keyset position of `expire` between runs (worker process lifetime). */
+  private expireCursor: { created_at: Date; id: string } | null = null;
+
+  /** Cron `case-payments.expire`: unpaid checkouts older than a day are
+   * canceled ONLY after Stripe confirmed they are closed; a paid one is
+   * recorded as paid instead (Stripe robustness 2026-10-27).
+   *
+   * Perf review 2026-10-26 (R-36): rows Stripe cannot settle ('unknown')
+   * used to sort first forever (`take 200 order by created_at`), so newer
+   * checkouts never expired and the same 200 Stripe reads repeated every
+   * 10 minutes. Now: (1) payments that never got a checkout are expired in
+   * their own single UPDATE (nothing to ask Stripe); (2) the rest are walked
+   * by keyset pages (created_at, id) from a cursor kept between runs, at most
+   * EXPIRE_MAX_CHECKS Stripe reads per run, wrapping to the oldest at the end,
+   * so an unresolved row never blocks the ones behind it. */
+  async expire(
+    now = new Date(),
+  ): Promise<{ abandoned: number; recovered: number; deferred: number }> {
+    const cutoff = new Date(now.getTime() - PENDING_PAYMENT_TTL_MS);
+    const bare = await this.prisma.casePayment.updateMany({
       where: {
         status: 'pending_payment',
-        created_at: { lt: new Date(now.getTime() - PENDING_PAYMENT_TTL_MS) },
+        created_at: { lt: cutoff },
+        stripe_checkout_id: null,
       },
       data: { status: 'canceled', canceled_reason: 'checkout_expired' },
     });
-    return { abandoned: res.count };
+    let abandoned = bare.count;
+    let recovered = 0;
+    let deferred = 0;
+    let checks = 0;
+    while (checks < EXPIRE_MAX_CHECKS) {
+      const after = this.expireCursor;
+      const rows = await this.prisma.casePayment.findMany({
+        where: {
+          status: 'pending_payment',
+          created_at: { lt: cutoff },
+          stripe_checkout_id: { not: null },
+          ...(after
+            ? {
+                OR: [
+                  { created_at: { gt: after.created_at } },
+                  { created_at: after.created_at, id: { gt: after.id } },
+                ],
+              }
+            : {}),
+        },
+        orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+        take: EXPIRE_PAGE,
+      });
+      for (const row of rows) {
+        checks += 1;
+        const verdict = await this.settleSession(row);
+        if (verdict === 'paid') {
+          recovered += 1;
+          continue;
+        }
+        if (verdict === 'unknown') {
+          deferred += 1;
+          continue;
+        }
+        const res = await this.prisma.casePayment.updateMany({
+          where: { id: row.id, status: 'pending_payment' },
+          data: { status: 'canceled', canceled_reason: 'checkout_expired' },
+        });
+        abandoned += res.count;
+      }
+      if (rows.length < EXPIRE_PAGE) {
+        this.expireCursor = null; // end reached: next run starts at the oldest
+        break;
+      }
+      const last = rows[rows.length - 1];
+      this.expireCursor = { created_at: last.created_at, id: last.id };
+    }
+    return { abandoned, recovered, deferred };
+  }
+
+  /**
+   * Nightly sweep (`stripe-ops.sweep`): compares recent payments with
+   * Stripe and repairs what a lost webhook left behind. Payments created in
+   * the last [lookbackDays]: a pending one that Stripe says is paid is
+   * recorded; a paid one whose charge was refunded / disputed at Stripe is
+   * mirrored; a refund still `pending` here is re-read. Anything it cannot
+   * fix opens a `reconcile_drift` item in the review queue.
+   */
+  async reconcileWithStripe(
+    lookbackDays: number,
+    now = new Date(),
+  ): Promise<{ checked: number; repaired: number; drift: number }> {
+    if (!this.provider?.retrieveConnectedCheckout) {
+      return { checked: 0, repaired: 0, drift: 0 };
+    }
+    const since = new Date(now.getTime() - lookbackDays * 86_400_000);
+    const rows = await this.prisma.casePayment.findMany({
+      where: {
+        created_at: { gte: since },
+        status: {
+          in: [
+            'pending_payment',
+            'succeeded',
+            'partially_refunded',
+            'canceled',
+          ],
+        },
+        stripe_account_id: { not: null },
+      },
+      orderBy: { created_at: 'desc' },
+      take: 500,
+    });
+    let repaired = 0;
+    let drift = 0;
+    for (const row of rows) {
+      try {
+        const acct = row.stripe_account_id as string;
+        if (
+          (row.status === 'pending_payment' || row.status === 'canceled') &&
+          row.stripe_checkout_id &&
+          row.canceled_reason !== 'client'
+        ) {
+          const s = await this.provider.retrieveConnectedCheckout(
+            acct,
+            row.stripe_checkout_id,
+          );
+          if (s && (await this.applyCheckout(s))) repaired += 1;
+          continue;
+        }
+        if (row.stripe_charge_id && this.provider.retrieveConnectedCharge) {
+          const ch = await this.provider.retrieveConnectedCharge(
+            acct,
+            row.stripe_charge_id,
+          );
+          if (!ch) continue;
+          if (ch.amountRefundedCents > row.refunded_cents) {
+            await this.syncCharge(acct, row.stripe_charge_id);
+            repaired += 1;
+          }
+          if (ch.disputed && !row.dispute_status) {
+            drift += 1;
+            await this.review?.open({
+              kind: 'reconcile_drift',
+              stripeRef: `dispute-missed:${row.stripe_charge_id}`,
+              casePaymentId: row.id,
+              userId: row.attorney_id,
+              amountCents: row.client_total_cents,
+              currency: row.currency,
+              summary: `Stripe shows a dispute on charge ${row.stripe_charge_id} that LawBid never received a webhook for.`,
+              details: { disputeStatus: ch.disputeStatus },
+            });
+          }
+        }
+      } catch (e) {
+        this.logger.warn(
+          { paymentId: row.id, err: String(e) },
+          'sweep check failed',
+        );
+      }
+    }
+    // A refund that stayed `pending` for over a day: ask Stripe how it ended.
+    const stuck = await this.prisma.casePaymentRefund.findMany({
+      where: {
+        status: 'pending',
+        stripe_refund_id: { not: null },
+        created_at: { lt: new Date(now.getTime() - 86_400_000) },
+      },
+      take: 100,
+    });
+    for (const r of stuck) {
+      const pay = await this.prisma.casePayment.findUnique({
+        where: { id: r.payment_id },
+      });
+      if (!pay?.stripe_account_id || !r.stripe_refund_id) continue;
+      const fresh = await this.provider.retrieveConnectedRefund?.(
+        pay.stripe_account_id,
+        r.stripe_refund_id,
+      );
+      if (!fresh) continue;
+      if (fresh.status === 'failed') {
+        await this.failRefund(r.stripe_refund_id, fresh.failureReason);
+        repaired += 1;
+      } else if (fresh.status === 'succeeded') {
+        await this.prisma.casePaymentRefund.update({
+          where: { id: r.id },
+          data: { status: 'succeeded' },
+        });
+        repaired += 1;
+      }
+    }
+    return { checked: rows.length, repaired, drift };
   }
 
   // ---- presentation -------------------------------------------------------------

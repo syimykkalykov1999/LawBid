@@ -171,6 +171,11 @@ variable "nat_traffic_alarm_gb_per_day" {
   default     = 20
   description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h (0 = off). docs/runbooks/nat-endpoints.md."
 }
+variable "media_replication_max_gb_per_day" {
+  type        = number
+  default     = 50
+  description = "Ceiling for the media copy to the other Region: alarm when media grows more than this many GB in a day (0 = off). The copy has no hard byte cap in S3: on the alarm set replicate_media = false. Registry row aws.s3."
+}
 variable "budget_forecast_thresholds" {
   type        = list(number)
   default     = [80, 100]
@@ -293,6 +298,22 @@ variable "web_create_certificate" {
 variable "web_extra_hosts" {
   type    = list(string)
   default = []
+}
+variable "status_page_enabled" {
+  type    = bool
+  default = false
+}
+variable "status_host" {
+  type    = string
+  default = ""
+}
+variable "status_certificate_arn" {
+  type    = string
+  default = ""
+}
+variable "status_create_certificate" {
+  type    = bool
+  default = false
 }
 variable "create_database" {
   type    = bool
@@ -421,6 +442,11 @@ variable "backup_retention_days" {
   type    = number
   default = 35
 }
+variable "backup_restore_test_enabled" {
+  type        = bool
+  default     = false
+  description = "Monthly automatic restore test of the newest database backup (cents per month); off by default."
+}
 variable "backup_copy_account_id" {
   type        = string
   default     = ""
@@ -500,8 +526,13 @@ variable "livekit_egress_alarm_gb_per_day" {
 
 variable "uptime_check" {
   type        = string
-  default     = "synthetics"
-  description = "synthetics (≈ $10/month) or route53 (≈ $2/month, us-east-1 only)."
+  default     = "route53"
+  description = "off ($0), route53 (≈ $2/month, us-east-1 only) or synthetics (≈ $10/month)."
+}
+variable "anomaly_alarms_enabled" {
+  type        = bool
+  default     = false
+  description = "Anomaly-band alarms (about $5.40 a month). OFF at launch; registry row aws.anomaly_alarms."
 }
 variable "cpu_architecture" {
   type        = string
@@ -606,6 +637,11 @@ variable "critical_api_alerts_enabled" {
   default     = true
   description = "Alerts on key deletion, CloudTrail off, backup vault/lock deletion, root use. Free."
 }
+variable "signing_guard_enabled" {
+  type        = bool
+  default     = false
+  description = "S11-10: alert when an ECS task starts from an image without a cosign signature (modules/signing-guard). Enable after the first signed release."
+}
 variable "documents_data_events" {
   type        = bool
   default     = false
@@ -624,6 +660,11 @@ variable "audit_logs_object_lock" {
   type        = bool
   default     = false
   description = "S3 Object Lock on the audit log bucket (irreversible per bucket). WARNING (AWS docs, checked 2026-10-24): a bucket with Object Lock cannot receive S3 server access logs, so with this on the documents access log (modules/s3) stops being delivered. Keep false; the bucket already denies deletes by IAM and versioning keeps history."
+}
+variable "admin_audit_export_enabled" {
+  type        = bool
+  default     = false
+  description = "The API copies the admin audit log once a day into the audit log bucket (needs audit_logs_enabled). Guide: docs/runbooks/ADMIN_HARDENING.md."
 }
 variable "vpc_flow_logs_traffic" {
   type    = string
@@ -646,6 +687,12 @@ variable "backup_vault_lock_mode" {
 variable "backup_vault_lock_cooling_off_days" {
   type    = number
   default = 7
+}
+
+variable "db_replica_toggle" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-10-24: true = the admin «Масштаб» page can create / delete ONE read replica of the database (one 2FA step-up). Adds IAM for exactly that instance name and one small monitoring role; creates no database. docs/runbooks/db-replica.md."
 }
 
 # AWS guardrails pass 2026-10-25 (docs/runbooks/aws-guardrails.md)
@@ -748,4 +795,29 @@ variable "alb_least_outstanding_requests" {
 variable "alb_websocket_target_group" {
   type    = bool
   default = false
+}
+
+# Observability round 12: everything billable starts OFF (docs/runbooks/slo.md).
+variable "tracing_enabled" {
+  type        = bool
+  default     = false
+  description = "ADOT collector sidecar + OTEL env: spans to AWS X-Ray, 5 % sampled. X-Ray first 100k traces/month free, then $5 per million."
+}
+variable "synthetic_journey_enabled" {
+  type        = bool
+  default     = false
+  description = "Synthetic sign-in + feed + message canary, about $3.5/month."
+}
+variable "synthetic_journey_secret_arn" {
+  type    = string
+  default = null
+}
+variable "synthetic_journey_conversation_id" {
+  type    = string
+  default = null
+}
+variable "alarm_incident_hook_enabled" {
+  type        = bool
+  default     = false
+  description = "Lambda: CloudWatch alarm state changes become incident rows in the admin."
 }

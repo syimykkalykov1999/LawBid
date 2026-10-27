@@ -171,45 +171,179 @@ void _rereadOn(Ref ref, bool Function(RealtimeEvent e) test) {
   ref.onDispose(sub.cancel);
 }
 
-final ownerCaseProvider = FutureProvider.autoDispose.family<OwnerCase, String>(
-  (ref, id) {
-    _rereadOn(ref, (e) => caseEventFor(e, id));
+/// The one-bid patch a bid `case:update` carries (delta audit D-P4):
+/// `{bid: {bidId, status, amountCents?, percentBps?}}`, or null.
+({String bidId, BidStatus status, int? amountCents, int? percentBps})?
+    bidPatchOf(RealtimeEvent e) {
+  final data = e.data;
+  final raw = data is Map ? data['bid'] : null;
+  if (raw is! Map || raw['bidId'] is! String || raw['status'] is! String) {
+    return null;
+  }
+  final status = BidStatus.values
+      .where((s) => s.json == raw['status'])
+      .cast<BidStatus?>()
+      .firstOrNull;
+  if (status == null) return null;
+  return (
+    bidId: raw['bidId'] as String,
+    status: status,
+    amountCents: raw['amountCents'] is int ? raw['amountCents'] as int : null,
+    percentBps: raw['percentBps'] is int ? raw['percentBps'] as int : null,
+  );
+}
+
+/// Owner 2026-10-22 (delta audit D-P4): the owner's case card is edited
+/// by what the event says (a new bid moves the counter; a counter / a
+/// decline / a withdrawal touches nothing on the card: 0 requests); only
+/// an event the card cannot be edited from (accepted, closed, updated …)
+/// re-reads it.
+class OwnerCaseNotifier extends AsyncNotifier<OwnerCase> {
+  OwnerCaseNotifier(this.id);
+
+  final String id;
+
+  final _counted = <String>{};
+
+  @override
+  Future<OwnerCase> build() {
+    final sub = ref.watch(realtimeEventsProvider).listen(_onEvent);
+    ref.onDispose(sub.cancel);
     return ref.watch(casesRepositoryProvider).ownerCase(id);
-  },
+  }
+
+  void _onEvent(RealtimeEvent e) {
+    if (!caseEventFor(e, id)) return;
+    final current = state.value;
+    final patch = bidPatchOf(e);
+    final kind = (e.data! as Map)['kind'];
+    if (current != null && patch != null) {
+      if (kind == 'bid_new') {
+        // bids_count counts bid rows: this one is counted once.
+        if (_counted.add(patch.bidId)) {
+          state = AsyncData(
+            current.withBidsCount(
+              current.bidsCount + 1,
+              activeAt: DateTime.now(),
+            ),
+          );
+        }
+        return;
+      }
+      if (kind == 'bid_countered' ||
+          kind == 'bid_declined' ||
+          kind == 'bid_withdrawn') {
+        // The card shows none of it; the bids list edits its row.
+        return;
+      }
+    }
+    ref.invalidateSelf();
+  }
+}
+
+final ownerCaseProvider = AsyncNotifierProvider.autoDispose
+    .family<OwnerCaseNotifier, OwnerCase, String>(
+  OwnerCaseNotifier.new,
   retry: _noRetry,
 );
 
 typedef CaseBidsKey = ({String caseId, BidsSort sort});
 
-class CaseBidsNotifier extends PagedNotifier<CaseBid> {
+/// Owner 2026-10-22 (delta audit D-P4, Telegram): the bids of my case are
+/// never reloaded whole. My own answer replaces its row; a bid event
+/// carries `{bidId, status, amount}` and edits the row (0 requests); a
+/// bid the list does not hold yet, or an event without a patch, is one
+/// small `?updatedSince`.
+class CaseBidsNotifier extends SyncedListNotifier<CaseBid> {
   CaseBidsNotifier(this.key);
 
   final CaseBidsKey key;
 
   @override
+  String get listKey => 'case_bids:${key.caseId}:${key.sort.name}';
+
+  @override
+  bool get catchesUp => ref.read(casesSyncProvider) != null;
+
+  // Memory only: the list keeps no saved copy.
+  @override
+  String? get syncOwner => null;
+
+  @override
+  String keyOf(CaseBid item) => item.id;
+
+  @override
+  DateTime? updatedAtOf(CaseBid item) => null;
+
+  @override
+  int Function(CaseBid, CaseBid)? get order => switch (key.sort) {
+        BidsSort.newest => (a, b) {
+            final byTime = b.createdAt.compareTo(a.createdAt);
+            return byTime != 0 ? byTime : b.id.compareTo(a.id);
+          },
+        BidsSort.lowestPrice => (a, b) {
+            final byPrice = a.amountCents.compareTo(b.amountCents);
+            return byPrice != 0 ? byPrice : a.id.compareTo(b.id);
+          },
+        BidsSort.highestRating => (a, b) {
+            final byRating = (b.attorney?.ratingAvg ?? 0)
+                .compareTo(a.attorney?.ratingAvg ?? 0);
+            return byRating != 0 ? byRating : b.id.compareTo(a.id);
+          },
+      };
+
+  @override
   Future<PaginatedList<CaseBid>> build() {
-    // Package E: my own answer to a bid replaces its row; a bid event on
-    // this case (someone else's move) re-reads the list — it has no delta.
+    // My own answer to a bid replaces its row.
     ref.listen(lastChangedBidProvider, (_, bid) {
       if (bid == null || bid.caseId != key.caseId) return;
-      final current = state.value;
-      if (current == null) return;
-      setItems([
-        for (final b in current.items)
-          if (b.id == bid.id) bid else b,
-      ]);
+      applyRow(bid.id, (_) => bid);
     });
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
-      if (caseEventFor(e, key.caseId)) {
-        unawaited(refresh().catchError((Object _) {}));
+      if (e.name == RealtimeEvent.reconnected) {
+        catchUp();
+        return;
       }
+      if (!caseEventFor(e, key.caseId)) return;
+      final kind = (e.data! as Map)['kind'];
+      if (kind is! String || !kind.startsWith('bid_')) return;
+      final patch = bidPatchOf(e);
+      if (patch != null) {
+        final held = applyRow(
+          patch.bidId,
+          (b) => b?.patched(
+            status: patch.status,
+            amountCents: patch.amountCents,
+            percentBps: patch.percentBps,
+          ),
+        );
+        if (held) return;
+      }
+      // A bid this list does not hold (new), or an event without a patch.
+      catchUp();
     });
     ref.onDispose(sub.cancel);
     return super.build();
   }
 
   @override
-  Future<CursorPage<CaseBid>> fetch(String? cursor) async {
+  Future<SyncedPage<CaseBid>> fetchChanged(DateTime since) async {
+    final page = await ref
+        .read(casesSyncProvider)!
+        .caseBidsChangedSince(key.caseId, since);
+    unawaited(_markSeen(page.items));
+    return page;
+  }
+
+  Future<void> _markSeen(List<CaseBid> bids) => ref
+          .read(casesLocalDatabaseProvider)
+          .markSeen(key.caseId, bids.map((b) => b.id))
+          .then((_) {
+        if (ref.mounted) ref.invalidate(seenBidCountsProvider);
+      });
+
+  @override
+  Future<CursorPage<CaseBid>> fetchPage(String? cursor) async {
     final page = await ref
         .read(casesRepositoryProvider)
         .caseBids(key.caseId, key.sort, cursor: cursor);
@@ -338,45 +472,6 @@ final attorneyCaseProvider =
 );
 
 // --- Attorney: "Моё" (docs/04 §11.2) ----------------------------------------
-
-class MyBidsNotifier extends SyncedListNotifier<MyBid>
-    with CaseListSync<MyBid> {
-  MyBidsNotifier(this.filter);
-
-  final MyBidsFilter filter;
-
-  @override
-  String get listKey => 'my_bids:${filter.name}';
-
-  @override
-  bool get catchesUp => ref.read(casesSyncProvider) != null;
-
-  @override
-  Future<PaginatedList<MyBid>> build() {
-    listenForChanges();
-    return super.build();
-  }
-
-  @override
-  Future<CursorPage<MyBid>> fetchPage(String? cursor) =>
-      ref.read(casesRepositoryProvider).myBids(filter, cursor: cursor);
-
-  @override
-  Future<SyncedPage<MyBid>> fetchChanged(DateTime since) =>
-      ref.read(casesSyncProvider)!.myBidsChangedSince(filter, since);
-
-  @override
-  String keyOf(MyBid item) => item.bid.id;
-
-  @override
-  Object idOf(MyBid item) => item.bid.id;
-}
-
-final myBidsProvider = AsyncNotifierProvider.autoDispose
-    .family<MyBidsNotifier, PaginatedList<MyBid>, MyBidsFilter>(
-  MyBidsNotifier.new,
-  retry: _noRetry,
-);
 
 class MyWorkNotifier extends SyncedListNotifier<WorkItem>
     with CaseListSync<WorkItem> {

@@ -4,19 +4,29 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsISO8601,
   IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
+  Length,
   MaxLength,
 } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 
-export const DATA_REQUEST_TYPES = ['subpoena', 'court_order'] as const;
+export const DATA_REQUEST_TYPES = [
+  'subpoena',
+  'court_order',
+  'search_warrant',
+  'preservation',
+  'emergency',
+  'civil',
+  'other',
+] as const;
 export const DATA_REQUEST_STATUSES = [
   'received',
   'in_progress',
@@ -73,6 +83,82 @@ export class CreateDataRequestDto {
   @IsString()
   @MaxLength(2000)
   notes?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 300,
+    description: 'The law the request rests on, e.g. "18 U.S.C. 2703(d)".',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(300)
+  legalBasis?: string;
+
+  @ApiPropertyOptional({ description: 'Two-letter country of the authority.' })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
+  @IsString()
+  @Length(2, 2)
+  country?: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'The person it concerns.',
+  })
+  @IsOptional()
+  @IsUUID('all')
+  subjectUserId?: string;
+
+  @ApiPropertyOptional({ format: 'date-time', description: 'Answer due.' })
+  @IsOptional()
+  @IsISO8601()
+  dueAt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Gag / non-disclosure order: do not tell the user.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  doNotNotify?: boolean;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description: 'The gag order ends (reminder to notify the user).',
+  })
+  @IsOptional()
+  @IsISO8601()
+  nondisclosureUntil?: string;
+}
+
+export class UpdateDataRequestIntakeDto {
+  @ApiPropertyOptional({ maxLength: 300 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(300)
+  legalBasis?: string;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsISO8601()
+  dueAt?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  subjectUserId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  doNotNotify?: boolean;
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsISO8601()
+  nondisclosureUntil?: string;
 }
 
 export class UpdateDataRequestStatusDto {
@@ -136,6 +222,16 @@ export class DataRequestDto {
   closedAt!: string | null;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
   @ApiProperty({ type: 'integer' }) accessCount!: number;
+  @ApiProperty({ type: String, nullable: true }) legalBasis!: string | null;
+  @ApiProperty({ type: String, nullable: true }) country!: string | null;
+  @ApiProperty({ type: String, nullable: true }) subjectUserId!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  dueAt!: string | null;
+  @ApiProperty() doNotNotify!: boolean;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  nondisclosureUntil!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  userNotifiedAt!: string | null;
 }
 
 export class DataRequestCardDto extends DataRequestDto {

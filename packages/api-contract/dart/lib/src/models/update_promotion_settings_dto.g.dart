@@ -37,6 +37,9 @@ UpdatePromotionSettingsDto _$UpdatePromotionSettingsDtoFromJson(
   impressionsPerPerson: json['impressionsPerPerson'] as num?,
   autoApprove: json['autoApprove'] as bool?,
   requireSubscription: json['requireSubscription'] as bool?,
+  pricing: json['pricing'] == null
+      ? null
+      : PricingMatrixDto.fromJson(json['pricing'] as Map<String, dynamic>),
   feedEveryN: (json['feedEveryN'] as num?)?.toInt(),
 );
 
@@ -65,5 +68,6 @@ Map<String, dynamic> _$UpdatePromotionSettingsDtoToJson(
   'impressionsPerPerson': ?instance.impressionsPerPerson,
   'autoApprove': ?instance.autoApprove,
   'requireSubscription': ?instance.requireSubscription,
+  'pricing': ?instance.pricing?.toJson(),
   'feedEveryN': ?instance.feedEveryN,
 };

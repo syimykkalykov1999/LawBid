@@ -9,10 +9,15 @@ import {
   Patch,
   Post,
   Query,
+  Req,
+  Res,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { AnonymousCache } from '../../common/cache/http-cache';
+import { conditionalGet } from '../../common/sync/cheap-etag';
+import { VersionEtagService } from '../../common/sync/version-etag.service';
 import { OptionalAuth } from '../auth/decorators/optional-auth.decorator';
 import {
   ApiBearerAuth,
@@ -74,6 +79,7 @@ export class PostsController {
     private readonly engagement: PostEngagementService,
     private readonly attachmentsPolicy: PostAttachmentsPolicy,
     private readonly insightsService: PostInsightsService,
+    private readonly versionEtag: VersionEtagService,
   ) {}
 
   @Get('posts/attachments-allowed')
@@ -119,11 +125,21 @@ export class PostsController {
   @ApiOperation({ summary: 'A post (docs/05 §3.5)' })
   @ApiEnvelopeResponse(PostDto)
   @ApiErrors({ 404: [E.POST_NOT_FOUND] })
-  getPost(
+  async getPost(
     @CurrentUser() user: RequestUser,
     @Param() p: PostIdParamDto,
-  ): Promise<PostDto> {
-    return this.posts.get(user, p.id);
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<PostDto | undefined> {
+    // Owner 2026-10-25 (S2-12): a version tag computed before the queries;
+    // a match is a 304 (the post must still be visible to this viewer).
+    return conditionalGet(
+      req,
+      res,
+      await this.versionEtag.post(user.sub, p.id),
+      () => this.posts.assertVisible(user, p.id),
+      () => this.posts.get(user, p.id),
+    );
   }
 
   // OQ-049: or an assistant the attorney trusted (their responsibility).

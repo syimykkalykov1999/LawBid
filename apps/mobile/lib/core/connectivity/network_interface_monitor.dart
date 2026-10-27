@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/services.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 
 /// OS-level "is any network interface up" signal. Abstracted so the
 /// `ConnectivityService` logic is testable without platform channels.
@@ -28,8 +29,21 @@ class ConnectivityPlusMonitor implements NetworkInterfaceMonitor {
 
   final Connectivity _connectivity;
 
-  static bool _isUp(List<ConnectivityResult> results) =>
-      results.any((r) => r != ConnectivityResult.none);
+  /// Mobile data is the only way online (S20-9: reel warm-up is lighter
+  /// there). Wi-Fi, ethernet or VPN next to it means not metered.
+  static bool isMetered(List<ConnectivityResult> results) =>
+      results.contains(ConnectivityResult.mobile) &&
+      !results.any(
+        (r) =>
+            r == ConnectivityResult.wifi ||
+            r == ConnectivityResult.ethernet ||
+            r == ConnectivityResult.vpn,
+      );
+
+  static bool _isUp(List<ConnectivityResult> results) {
+    ClientTuning.metered = isMetered(results);
+    return results.any((r) => r != ConnectivityResult.none);
+  }
 
   @override
   Future<bool> hasNetwork() async {

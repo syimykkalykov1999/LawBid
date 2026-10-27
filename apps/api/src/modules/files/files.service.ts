@@ -105,6 +105,7 @@ import { viewerContext } from '../../common/viewer/viewer-context';
 import { PrivacySettingsService } from '../privacy-settings/privacy-settings.service';
 import { demoContext } from '../../common/demo/demo-context';
 import { FileAccessService } from './file-access.service';
+import { HeavyHittersService } from '../../common/heavy-hitters/heavy-hitters.service';
 import { DEMO_SETTINGS_KEY, parseDemoSettings } from '../demo/demo.settings';
 export interface SignedAttachment {
   url: string;
@@ -134,6 +135,8 @@ export class FilesService {
     @Optional() private readonly privacy?: PrivacySettingsService,
     // Security & legal pass 2026-10-24: who opened a confidential file.
     @Optional() private readonly access?: FileAccessService,
+    // WP-G: who uploads the most bytes (admin «Масштаб»).
+    @Optional() private readonly heavy?: HeavyHittersService,
   ) {
     this.logger.setContext(FilesService.name);
   }
@@ -335,6 +338,7 @@ export class FilesService {
         throw err;
       }
     }
+    this.heavy?.upload(userId, data.length);
     await this.redis.del(intentKey(fileId));
     await this.redis.zrem(
       PENDING_UPLOADS_KEY,
@@ -451,8 +455,7 @@ export class FilesService {
     if ((await this.photoHiddenFrom([file.id])).has(file.id)) return none;
     const url = await this.mediaUrlOf(file);
     if (!url) return none;
-    const url256 = file.width !== null ? await this.imageLink(file, 256) : null;
-    return { url, url256 };
+    return { url, url256: await this.avatarPreviewLink(file, url) };
   }
 
   /**
@@ -500,9 +503,10 @@ export class FilesService {
       files.map(async (file) => {
         const url = await this.mediaUrlOf(file);
         if (!url) return;
-        const url256 =
-          file.width !== null ? await this.imageLink(file, 256) : null;
-        out.set(file.id, { url, url256 });
+        out.set(file.id, {
+          url,
+          url256: await this.avatarPreviewLink(file, url),
+        });
       }),
     );
     return out;
@@ -1117,6 +1121,18 @@ export class FilesService {
       }
     }
     return this.mediaLink(file.s3_bucket, key);
+  }
+
+  /**
+   * Owner 2026-10-26 («аватарки иногда не показываются»): the 256 px
+   * preview of a clean avatar, or the full picture when the file has no
+   * preview. Every list (chats, groups, comments, notifications, pushes)
+   * shows `url256 ?? null`; a file without a width (no processed
+   * variants) used to give null there — the avatar vanished from every
+   * list while the profile, which uses `url`, still showed it.
+   */
+  private async avatarPreviewLink(file: File, url: string): Promise<string> {
+    return file.width !== null ? this.imageLink(file, 256) : url;
   }
 
   private async mediaUrlOf(file: File): Promise<string | null> {

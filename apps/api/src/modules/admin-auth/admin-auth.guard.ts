@@ -3,9 +3,11 @@ import {
   type CanActivate,
   type ExecutionContext,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
   Optional,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -22,8 +24,11 @@ import {
 import {
   ADMIN_ROLES_KEY,
   JUSTIFICATION_KEY,
+  PRIVATE_READ_KEY,
   type RequestAdmin,
 } from './admin-auth.decorators';
+import { readReasonCode } from './admin-private-content';
+import { AdminSecurityService } from './admin-security.service';
 import {
   canAccess,
   effectiveCountries,
@@ -38,6 +43,14 @@ import {
 } from './admin-permissions';
 import { AdminSessionService } from './admin-session.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import {
+  STAFF_SECURITY,
+  type StaffSecurityPort,
+} from '../staff-core/staff-security.port';
+import {
+  effectiveWorkspace,
+  workspaceAllows,
+} from '../staff-core/workspace-scope';
 
 export const JUSTIFICATION_MIN = 10;
 /** Handlers whose body DTO declares `reason` (cached per handler). */
@@ -90,6 +103,10 @@ export class AdminAuthGuard implements CanActivate {
     private readonly prisma: PrismaService,
     @Optional() private readonly audit?: AuditLogService,
     @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly security?: AdminSecurityService,
+    @Optional()
+    @Inject(STAFF_SECURITY)
+    private readonly staffSecurity?: StaffSecurityPort,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -118,7 +135,27 @@ export class AdminAuthGuard implements CanActivate {
       throw error;
     }
 
-    const sessionUser = await this.sessions.touch(claims.jti);
+    // Owner 2026-10-28: the optional IP allowlist (OFF by default).
+    try {
+      await this.security?.assertIpAllowed(req.ip);
+    } catch (e) {
+      void this.note(
+        'admin.ip_denied',
+        claims.sub,
+        req.method,
+        req.originalUrl || req.url,
+        req.ip,
+      );
+      throw e;
+    }
+
+    // Owner 2026-10-25 (S18-1): a background poll (`x-background: 1`, GET
+    // only) must not extend the 30-minute idle window, or a forgotten open
+    // tab would keep the session alive until the JWT expires.
+    const sessionUser =
+      req.method === 'GET' && req.header('x-background') === '1'
+        ? await this.sessions.ownerOf(claims.jti)
+        : await this.sessions.touch(claims.jti);
     if (!sessionUser || sessionUser !== claims.sub) {
       throw new UnauthorizedException({
         code: ErrorCode.AUTH_SESSION_REVOKED,
@@ -138,7 +175,14 @@ export class AdminAuthGuard implements CanActivate {
         role: true,
         status: true,
         deleted_at: true,
-        admin_profile: { select: { admin_role: true, permissions: true } },
+        admin_profile: {
+          select: {
+            admin_role: true,
+            permissions: true,
+            workspace: true,
+            is_workspace_head: true,
+          },
+        },
         admin_credential: { select: { totp_enabled_at: true } },
       },
     });
@@ -175,10 +219,52 @@ export class AdminAuthGuard implements CanActivate {
       adminRole !== 'super_admin' &&
       !partner &&
       readManageAdmins(user.admin_profile.permissions);
+    // Staff package T1 (plan C3): the workspace (mass / finance / owner).
+    const workspace = effectiveWorkspace(
+      adminRole,
+      user.admin_profile.workspace,
+    );
+    // Staff package T2: the head of a workspace manages their own team
+    // (the «Администраторы» page, limited by the service to their
+    // workspace and ceiling). Only while workspaces AND the head role are
+    // switched on, never for the deputy, a partner team or the owner.
+    const headOn =
+      adminRole !== 'super_admin' &&
+      workspace !== 'owner' &&
+      !partner &&
+      !manageAdmins &&
+      user.admin_profile.is_workspace_head === true &&
+      (await this.settings?.boolean('staff.workspaces_enabled')) === true &&
+      (await this.settings?.boolean('staff.head_enabled')) === true;
     if (adminRole === 'super_admin') {
       if (!allowed.includes(adminRole)) throw forbidden();
     } else {
       const path = req.originalUrl || req.url;
+      // Staff package T1: while `staff.workspaces_enabled` is on, a section
+      // of another workspace does not exist for this admin (404 + audit),
+      // whatever the area toggles say — checked before the toggles.
+      if (
+        !workspaceAllows(
+          {
+            role: adminRole,
+            workspace,
+            deputy: manageAdmins,
+            partner: !!partner,
+          },
+          routeArea(path),
+        ) &&
+        !(headOn && routeArea(path) === 'admins') &&
+        (await this.settings?.boolean('staff.workspaces_enabled'))
+      ) {
+        void this.note(
+          'admin.workspace_denied',
+          claims.sub,
+          req.method,
+          path,
+          req.ip,
+        );
+        throw hidden();
+      }
       // Owner 2026-10-02: everyone but the super admin works by the area
       // toggles; money and keys are closed for them in the API itself (not
       // only hidden in the panel). Admin management needs the right the
@@ -201,11 +287,18 @@ export class AdminAuthGuard implements CanActivate {
           manageAdmins,
           partner,
           noPii,
+          headOn,
         )
       ) {
         // Owner 2026-10-05: a section the admin has no right to answers
         // like it doesn't exist (404, not 403), and the attempt is audited.
-        this.note('admin.access_denied', claims.sub, req.method, path, req.ip);
+        void this.note(
+          'admin.access_denied',
+          claims.sub,
+          req.method,
+          path,
+          req.ip,
+        );
         throw hidden();
       }
       // Owner 2026-10-05: who looked at money is visible in the audit log.
@@ -216,7 +309,16 @@ export class AdminAuthGuard implements CanActivate {
         VIEW_AUDITED_AREAS.has(area) &&
         levelForMethod(req.method) === 'view'
       ) {
-        this.note('admin.view', claims.sub, req.method, path, req.ip);
+        // Owner 2026-10-28: fail closed — money is not shown when the
+        // "who looked" row cannot be written.
+        await this.note(
+          'admin.view',
+          claims.sub,
+          req.method,
+          path,
+          req.ip,
+          true,
+        );
       }
     }
 
@@ -224,8 +326,18 @@ export class AdminAuthGuard implements CanActivate {
       JUSTIFICATION_KEY,
       [context.getHandler(), context.getClass()],
     );
+    const privateKind = this.reflector.getAllAndOverride<string | undefined>(
+      PRIVATE_READ_KEY,
+      [context.getHandler(), context.getClass()],
+    );
     let justification: string | null = null;
-    if (needsJustification) {
+    let reasonCode: string | null = null;
+    if (privateKind) {
+      // Owner 2026-10-28: private content is never read without a coded
+      // reason AND free text — not even by the owner.
+      reasonCode = readReasonCode(req.header('x-reason-code'));
+      justification = readJustification(req.header('x-justification'));
+    } else if (needsJustification) {
       // Owner 2026-10-05: the owner never has to explain; the access is
       // still written to the log (with the text when one is given). A
       // legal data-request package keeps its basis (subpoena record).
@@ -246,17 +358,23 @@ export class AdminAuthGuard implements CanActivate {
       adminRole,
       sessionId: claims.jti,
       justification,
+      reasonCode,
       permissions,
       manageAdmins,
       partner,
       noPii,
       assignedCountries,
+      workspace,
+      workspaceHead: headOn,
       countries: effectiveCountries(
         adminRole === 'super_admin',
         assignedCountries,
         req.header('x-admin-country'),
       ),
     };
+    // Staff package T11: the owner's country list, the device pin and a
+    // changed network address (each behind its switch; the owner is exempt).
+    await this.staffSecurity?.checkSession(req, req.admin);
     // Last action shown in the sessions overview (fire and forget).
     void this.sessions.noteActivity(
       claims.jti,
@@ -295,30 +413,47 @@ export class AdminAuthGuard implements CanActivate {
   /** One audit row per action + admin + route per minute (a page
    * refetching in a loop must not flood the log). Fire and forget. */
   private readonly recent = new Map<string, number>();
-  private note(
-    action: 'admin.access_denied' | 'admin.view',
+  private async note(
+    action:
+      | 'admin.access_denied'
+      | 'admin.view'
+      | 'admin.ip_denied'
+      | 'admin.workspace_denied',
     adminId: string,
     method: string,
     url: string,
     ip: string | undefined,
-  ): void {
+    strict = false,
+  ): Promise<void> {
     if (!this.audit) return;
     const path = url.split('?')[0];
     const key = `${action} ${adminId} ${method} ${path}`;
     const now = Date.now();
     if ((this.recent.get(key) ?? 0) > now - 60_000) return;
     if (this.recent.size > 5_000) this.recent.clear();
-    this.recent.set(key, now);
-    void this.audit
-      .record({
-        adminId,
-        action,
-        targetType: 'route',
-        targetId: null,
-        after: { method, path },
-        ip: ip ?? null,
-      })
-      .catch(() => undefined);
+    const write = this.audit.record({
+      adminId,
+      action,
+      targetType: 'route',
+      targetId: null,
+      after: { method, path },
+      ip: ip ?? null,
+    });
+    if (!strict) {
+      this.recent.set(key, now);
+      void write.catch(() => undefined);
+      return;
+    }
+    try {
+      await write;
+      this.recent.set(key, now);
+    } catch {
+      throw new ServiceUnavailableException({
+        code: ErrorCode.AUDIT_UNAVAILABLE,
+        message:
+          'The page was refused because the view could not be written to the audit log.',
+      });
+    }
   }
 }
 

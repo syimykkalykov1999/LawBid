@@ -33,8 +33,13 @@ export interface ConfigureAppOptions {
 /** Interactive API docs are a reconnaissance gift in production (every
  * route, DTO and error code at one URL); they stay on everywhere else,
  * including staging, where the mobile team uses them. */
-export function shouldExposeApiDocs(nodeEnv: AppEnv['NODE_ENV']): boolean {
-  return nodeEnv !== 'production';
+export function shouldExposeApiDocs(
+  nodeEnv: AppEnv['NODE_ENV'],
+  ownerSwitch: string | undefined = undefined,
+): boolean {
+  // Staff package T11: production keeps the docs closed unless the owner
+  // set API_DOCS_IN_PRODUCTION=1 on the API task.
+  return nodeEnv !== 'production' || ownerSwitch === '1';
 }
 
 /**
@@ -84,6 +89,12 @@ export function useBodyParsers(
       },
     }),
   );
+  // 2026-10-25: Amazon SNS (SES bounce / complaint events) posts its JSON
+  // as `text/plain`; the controller verifies the signature on the string.
+  app.use(
+    `/${GLOBAL_PREFIX}/webhooks/ses`,
+    express.text({ type: () => true, limit: '256kb' }),
+  );
   app.use(CONTACTS_SYNC_PATH, express.json({ limit: CONTACTS_BODY_LIMIT }));
   app.use(express.json({ limit: bodyLimit }));
   app.use(express.urlencoded({ limit: bodyLimit, extended: false }));
@@ -96,7 +107,10 @@ export function configureApp(
   const config = app.get(ConfigService);
   const nodeEnv =
     options.nodeEnv ?? config.getOrThrow<AppEnv['NODE_ENV']>('NODE_ENV');
-  const exposeDocs = shouldExposeApiDocs(nodeEnv);
+  const exposeDocs = shouldExposeApiDocs(
+    nodeEnv,
+    config.get<string>('API_DOCS_IN_PRODUCTION'),
+  );
 
   app.useLogger(app.get(Logger));
 
@@ -181,11 +195,17 @@ export function configureApp(
         // Owner 2026-10-23 (web pass): the app's own HTTP cache revalidates
         // with If-None-Match (a 304 instead of the whole answer) ...
         'If-None-Match',
+        // Owner 2026-10-25 (S17-6): the web app asks for AVIF photo twins.
+        'X-Image-Formats',
       ],
       // ... and reads the tag from `ETag`, which a cross-origin page may
       // not see unless it is exposed.
       exposedHeaders: ['ETag'],
-      maxAge: 600,
+      // Owner 2026-10-25 (S17-1): the preflight answer is cached per URL; the
+      // browsers cap it themselves (Chrome 2 h = 7200, Firefox 24 h), so ask
+      // for the Chrome maximum. The real fix is same-origin /api on the web
+      // distribution (infra/modules/web, `api_proxy_host`): no preflight at all.
+      maxAge: 7200,
     }),
   );
 

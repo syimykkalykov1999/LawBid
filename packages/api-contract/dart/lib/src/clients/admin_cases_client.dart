@@ -15,8 +15,8 @@ import '../models/admin_contact_issue_card_envelope.dart';
 import '../models/admin_contact_issue_list_envelope.dart';
 import '../models/admin_dispute_card_envelope.dart';
 import '../models/admin_dispute_list_envelope.dart';
+import '../models/status4.dart';
 import '../models/status5.dart';
-import '../models/status6.dart';
 
 part 'admin_cases_client.g.dart';
 
@@ -30,15 +30,18 @@ abstract class AdminCasesClient {
   @GET('/admin/case-disputes')
   Future<AdminDisputeListEnvelope> listCaseDisputes({
     @Query('limit') int? limit = 20,
-    @Query('status') Status5? status = Status5.open,
+    @Query('status') Status4? status = Status4.open,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Dispute with the case journal chronology
+  /// Dispute with the case journal chronology.
+  ///
+  /// [xJustification] - Why the data is being viewed (10–500 characters).
   @GET('/admin/case-disputes/{id}')
   Future<AdminDisputeCardEnvelope> getCaseDispute({
     @Path('id') required String id,
+    @Header('X-Justification') required String xJustification,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -48,15 +51,18 @@ abstract class AdminCasesClient {
   @GET('/admin/contact-issues')
   Future<AdminContactIssueListEnvelope> listContactIssues({
     @Query('limit') int? limit = 20,
-    @Query('status') Status6? status = Status6.open,
+    @Query('status') Status5? status = Status5.open,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Report with disclosure details and the client history
+  /// Report with disclosure details and the client history.
+  ///
+  /// [xJustification] - Why the data is being viewed (10–500 characters).
   @GET('/admin/contact-issues/{id}')
   Future<AdminContactIssueCardEnvelope> getContactIssue({
     @Path('id') required String id,
+    @Header('X-Justification') required String xJustification,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -85,10 +91,13 @@ abstract class AdminCasesClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Case card: description, bids, journal, reports, disputes
+  /// Case card: description, bids, journal, reports, disputes.
+  ///
+  /// [xJustification] - Why the data is being viewed (10–500 characters).
   @GET('/admin/cases/{id}')
   Future<AdminCaseCardEnvelope> getAdminCase({
     @Path('id') required String id,
+    @Header('X-Justification') required String xJustification,
     @Extras() Map<String, dynamic>? extras,
   });
 

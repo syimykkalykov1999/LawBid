@@ -139,7 +139,18 @@ resource "aws_db_parameter_group" "this" {
   # Slow queries land in the log (the admin's «здоровье системы» reads them).
   parameter {
     name  = "log_min_duration_statement"
-    value = "500"
+    value = tostring(var.slow_query_log_ms)
+  }
+  # S20-3: never write the bind values ($1 = 'phone / e-mail / message id')
+  # next to a slow statement; the CloudWatch export is not a place for PII.
+  # Both are dynamic parameters (no reboot).
+  parameter {
+    name  = "log_parameter_max_length"
+    value = "0"
+  }
+  parameter {
+    name  = "log_parameter_max_length_on_error"
+    value = "0"
   }
   parameter {
     name         = "shared_preload_libraries"
@@ -241,6 +252,24 @@ resource "aws_secretsmanager_secret_version" "master" {
   })
 }
 
+variable "slow_query_log_ms" {
+  type        = number
+  default     = 500
+  description = "log_min_duration_statement, milliseconds (S20-3, cost registry row aws.cloudwatch_slowlog). Raise to 2000 during a slow-database storm (ops.db_slow_log_mode auto / on in the admin tells you when) to stop the slow log from flooding CloudWatch."
+  validation {
+    condition     = var.slow_query_log_ms >= 100 && var.slow_query_log_ms <= 60000
+    error_message = "slow_query_log_ms must be 100..60000."
+  }
+}
+variable "log_group_class" {
+  type        = string
+  default     = "INFREQUENT_ACCESS"
+  description = "CloudWatch log class of the RDS postgresql / upgrade logs (S20-11, cost registry row aws.cloudwatch_ia). INFREQUENT_ACCESS = half the ingest price; it has no metric filters / subscriptions, and nothing here uses them. STANDARD = old behaviour. Immutable in AWS: changing it replaces the group (its old lines are dropped)."
+  validation {
+    condition     = contains(["STANDARD", "INFREQUENT_ACCESS"], var.log_group_class)
+    error_message = "log_group_class must be STANDARD or INFREQUENT_ACCESS."
+  }
+}
 variable "log_retention_days" {
   type        = number
   default     = 30
@@ -256,6 +285,7 @@ resource "aws_cloudwatch_log_group" "rds" {
   for_each          = toset(["postgresql", "upgrade"])
   name              = "/aws/rds/instance/${var.name}-postgres/${each.key}"
   retention_in_days = var.log_retention_days
+  log_group_class   = var.log_group_class
   kms_key_id        = var.kms_key_arn
   tags              = var.tags
 }

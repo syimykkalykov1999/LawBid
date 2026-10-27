@@ -10,6 +10,10 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { totpCode } from '../src/modules/admin-auth/totp.util';
 import { adminSession } from './support/admin-login';
 
+// audit_log.seq (hash chain) is a BigInt, which JSON.stringify refuses.
+const bigintSafe = (_k: string, v: unknown) =>
+  typeof v === 'bigint' ? v.toString() : v;
+
 /**
  * Owner 2026-10-01 — Admin → Integrations & API keys: super_admin only,
  * a fresh 2FA code before any change, values write-only (masked), a new
@@ -187,8 +191,8 @@ describe('Admin integrations & API keys (e2e, owner 2026-10-01)', () => {
         'integration.delete',
       ]),
     );
-    expect(JSON.stringify(audit)).not.toContain(SECRET_1);
-    expect(JSON.stringify(audit)).not.toContain(SECRET_2);
+    expect(JSON.stringify(audit, bigintSafe)).not.toContain(SECRET_1);
+    expect(JSON.stringify(audit, bigintSafe)).not.toContain(SECRET_2);
   });
 
   it('a Sentry DSN pasted in the admin is saved, goes live as «configured» and is removable', async () => {

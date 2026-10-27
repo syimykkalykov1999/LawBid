@@ -17,6 +17,7 @@ import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PostEngagementService } from '../../posts/post-engagement.service';
 import { CounterAggregator } from '../../counters/counter-aggregator.service';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { BoostActions } from '../../promotions/boost-actions.service';
 import {
   CaseDetailForAttorneyDto,
   CaseFeedItemDto,
@@ -109,6 +110,8 @@ export class CasesFeedService {
     @Optional() private readonly clientActivity?: ClientActivityService,
     // S3-5: private details are stored sealed (only their length is shown).
     @Optional() private readonly cipher?: MessageBodyCipher,
+    // Owner 2026-10-27: a save counts for a boost paid per action.
+    @Optional() private readonly boostActions?: BoostActions,
   ) {}
 
   /** GET /cases (docs/04 §4.2). Empty page, not an error, for a caller
@@ -323,6 +326,12 @@ export class CasesFeedService {
 
   /** GET /cases/:id for an attorney (docs/04 §4.3): CASE_NOT_AVAILABLE,
    * never CASE_NOT_FOUND, and never a client field. */
+  /** 404 CASE_NOT_AVAILABLE unless [attorneyId] may see the case (the
+   * cheap check before a 304). */
+  async assertVisible(attorneyId: string, caseId: string): Promise<void> {
+    await this.access.assertVisibleToAttorney(attorneyId, caseId);
+  }
+
   async getDetailForAttorney(
     attorneyId: string,
     caseId: string,
@@ -413,7 +422,9 @@ export class CasesFeedService {
   async save(viewer: CaseViewer, dto: SavedItemDto): Promise<void> {
     // docs/05 §4: posts are saved by anyone who can see them.
     if (dto.itemType === 'post') {
-      return this.posts.save(viewer.userId, dto.itemId);
+      await this.posts.save(viewer.userId, dto.itemId);
+      this.boostActions?.report(viewer.userId, { postId: dto.itemId }, 'save');
+      return;
     }
     if (viewer.role !== 'attorney') {
       throw forbidden('Only attorneys save cases (§11.2).');
@@ -434,6 +445,7 @@ export class CasesFeedService {
       },
       update: {},
     });
+    this.boostActions?.report(viewer.userId, { caseId: dto.itemId }, 'save');
   }
 
   /** DELETE /saved-items. No visibility check on the way out: unsaving a

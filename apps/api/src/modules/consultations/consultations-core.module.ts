@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
+import { CalendarCoreModule } from '../calendar/calendar-core.module';
 import { BlocksModule } from '../blocks/blocks.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { ChatSystemModule } from '../chat/chat-system.module';
@@ -13,6 +14,7 @@ import { ConsultationsService } from './consultations.service';
 @Module({
   imports: [
     BlocksModule,
+    CalendarCoreModule,
     FeatureFlagsModule,
     ChatSystemModule,
     FilesModule,

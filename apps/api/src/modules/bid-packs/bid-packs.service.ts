@@ -22,6 +22,7 @@ import {
   type OneTimePaySession,
 } from '../billing/one-time-pay-page';
 import { PayLinkService } from '../billing/pay-link.service';
+import { AttorneyAdsService } from '../attorney-ads/attorney-ads.service';
 import type {
   PaymentProvider,
   ProviderCheckoutSession,
@@ -88,6 +89,8 @@ export class BidPacksService {
     @Optional() private readonly settings?: AppSettingsService,
     // Owner 2026-10-22: our own card page in place of Stripe's.
     @Optional() private readonly payLink?: PayLinkService,
+    // Owner 2026-10-28: per-state flag «bid packs allowed» (default on).
+    @Optional() private readonly ads?: AttorneyAdsService,
     // Day-one foundations: the double-entry money ledger (same transaction).
     @Optional() private readonly ledger?: LedgerPostingService,
   ) {}
@@ -207,6 +210,7 @@ export class BidPacksService {
       });
     }
     await this.assertVerified(userId);
+    await this.ads?.assertBidPacksAllowed(userId);
     const pack = (await this.packs()).find((p) => p.id === packId);
     if (!pack) {
       throw new NotFoundException({

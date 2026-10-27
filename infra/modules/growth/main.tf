@@ -62,6 +62,26 @@ variable "rds_replica_instance_class" {
   default     = ""
   description = "Empty = the same class as the primary; replicas can be resized in the RDS console without Terraform undoing it."
 }
+variable "rds_kms_key_arn" {
+  type        = string
+  default     = ""
+  description = "KMS key of the PRIMARY database. A same-region replica of an encrypted primary must use the same key. Empty = kms_key_arn (the stack key)."
+}
+variable "rds_parameter_group_name" {
+  type        = string
+  default     = ""
+  description = "Parameter group of the primary (same postgres16 family: rds.force_ssl, slow-query log, pg_stat_statements). Empty = the RDS default group."
+}
+variable "rds_deletion_protection" {
+  type        = bool
+  default     = true
+  description = "Replicas carry deletion protection like the primary. Throw-away load-test stacks: false."
+}
+variable "rds_replica_lag_alarm_seconds" {
+  type        = number
+  default     = 60
+  description = "Alarm when ReplicaLag stays above this many seconds for 10 minutes (the app reads search / profiles / feeds from the replica, a few seconds old is fine, minutes is not). 0 = no alarm."
+}
 variable "rds_primary_instance_class" {
   type    = string
   default = "db.t4g.medium"
@@ -119,6 +139,27 @@ data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
 # ===== read replicas ==========================================================
+# Enhanced monitoring role: only when a replica exists.
+resource "aws_iam_role" "replica_monitoring" {
+  count = var.has_source_db && var.rds_read_replicas > 0 ? 1 : 0
+  name  = "${var.name}-rds-replica-monitoring"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRole"
+      Principal = { Service = "monitoring.rds.amazonaws.com" }
+    }]
+  })
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "replica_monitoring" {
+  count      = length(aws_iam_role.replica_monitoring)
+  role       = aws_iam_role.replica_monitoring[0].name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
+}
+
 resource "aws_db_instance" "replica" {
   count               = var.has_source_db ? var.rds_read_replicas : 0
   identifier          = "${var.name}-postgres-replica-${count.index + 1}"
@@ -127,22 +168,51 @@ resource "aws_db_instance" "replica" {
 
   db_subnet_group_name   = var.rds_subnet_group_name != "" ? var.rds_subnet_group_name : null
   vpc_security_group_ids = length(var.rds_security_group_ids) > 0 ? var.rds_security_group_ids : null
+  parameter_group_name   = var.rds_parameter_group_name != "" ? var.rds_parameter_group_name : null
   publicly_accessible    = false
   storage_encrypted      = true
-  kms_key_id             = var.kms_key_arn
+  kms_key_id             = var.rds_kms_key_arn != "" ? var.rds_kms_key_arn : var.kms_key_arn
 
   # A replica is rebuilt from the primary: no backups of its own.
-  backup_retention_period               = 0
-  skip_final_snapshot                   = true
-  auto_minor_version_upgrade            = true
+  backup_retention_period    = 0
+  skip_final_snapshot        = true
+  deletion_protection        = var.rds_deletion_protection
+  auto_minor_version_upgrade = true
+
   performance_insights_enabled          = true
   performance_insights_retention_period = 7 # free tier
+  performance_insights_kms_key_id       = var.rds_kms_key_arn != "" ? var.rds_kms_key_arn : var.kms_key_arn
+  monitoring_interval                   = 60
+  monitoring_role_arn                   = aws_iam_role.replica_monitoring[0].arn
   tags                                  = merge(var.tags, { Role = "read-replica" })
+
+  depends_on = [aws_iam_role_policy_attachment.replica_monitoring]
 
   # The admin («Экономика» → «Увеличить») may move it one tier up.
   lifecycle {
     ignore_changes = [instance_class]
   }
+}
+
+# ReplicaLag: seconds the replica is behind. The app falls back to the
+# primary only when the replica is unreachable, not when it is late, so a long
+# lag must reach a human (runbook: docs/runbooks/db-replica.md).
+resource "aws_cloudwatch_metric_alarm" "replica_lag" {
+  count               = var.has_source_db && var.alarms_enabled && var.rds_replica_lag_alarm_seconds > 0 ? var.rds_read_replicas : 0
+  alarm_name          = "${var.name}-replica-${count.index + 1}-lag"
+  alarm_description   = "Read replica ${count.index + 1} is more than ${var.rds_replica_lag_alarm_seconds} s behind the primary for 10 minutes: search / profiles / feeds show old data. Set DB_REPLICA_ENABLED=false (reads go back to the primary) and read docs/runbooks/db-replica.md."
+  namespace           = "AWS/RDS"
+  metric_name         = "ReplicaLag"
+  dimensions          = { DBInstanceIdentifier = aws_db_instance.replica[count.index].identifier }
+  statistic           = "Maximum"
+  period              = 60
+  evaluation_periods  = 10
+  datapoints_to_alarm = 10
+  threshold           = var.rds_replica_lag_alarm_seconds
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [var.alerts_topic_arn]
+  tags                = var.tags
 }
 
 # ===== RDS Proxy ==============================================================
@@ -335,8 +405,9 @@ resource "aws_opensearch_domain" "search" {
 # A provisioned domain does NOT add or remove nodes by itself. The signals
 # below say "make it one size bigger" (opensearch_instance_type / _count /
 # _volume_gb in tfvars, one apply; the app answers from Postgres while a node
-# is replaced). The pay-per-use alternative, OpenSearch Serverless, was
-# rejected in docs/architecture/SEARCH_READY.md (price floor, request signing).
+# is replaced). The pay-per-use alternative, OpenSearch Serverless, is
+# modules/opensearch-serverless (growth.opensearch_serverless_enabled, default
+# off: price floor about $350 a month; the app now signs requests with SigV4).
 locals {
   opensearch_alarms = var.opensearch_enabled && var.alarms_enabled ? {
     cpu = {
@@ -396,26 +467,14 @@ resource "aws_cloudwatch_metric_alarm" "event_loop" {
   tags                = var.tags
 }
 
-# The signal for the first database step: the database processor stays high.
-resource "aws_cloudwatch_metric_alarm" "db_cpu" {
-  count               = var.has_source_db && var.alarms_enabled ? 1 : 0
-  alarm_name          = "${var.name}-db-cpu"
-  alarm_description   = "The database processor is above 70 % for 15 minutes: move the database one size up (admin Экономика → Увеличить) or add a read replica (growth.rds_read_replicas)."
-  namespace           = "AWS/RDS"
-  metric_name         = "CPUUtilization"
-  dimensions          = { DBInstanceIdentifier = var.rds_source_identifier }
-  statistic           = "Average"
-  period              = 60
-  evaluation_periods  = 15
-  datapoints_to_alarm = 15
-  threshold           = 70
-  comparison_operator = "GreaterThanThreshold"
-  treat_missing_data  = "notBreaching"
-  alarm_actions       = [var.alerts_topic_arn]
-  tags                = var.tags
-}
+# Dedup D-21: the database CPU alarm (`<name>-db-cpu`) lives in
+# modules/monitoring/coverage.tf (85 % for 15 minutes, with a runbook and OK
+# actions, also for an existing database). The copy that was here used the
+# same alarm name with a 70 % threshold, so the two fought over one alarm.
 
 output "replica_endpoints" { value = aws_db_instance.replica[*].address }
+# First replica's address: the stack hands it to the tasks as DB_REPLICA_HOST.
+output "replica_host" { value = try(aws_db_instance.replica[0].address, "") }
 output "db_proxy_endpoint" { value = one(aws_db_proxy.this[*].endpoint) }
 output "opensearch_endpoint" { value = one(aws_opensearch_domain.search[*].endpoint) }
 # Index replicas for the app (OPENSEARCH_REPLICAS): one copy per index once

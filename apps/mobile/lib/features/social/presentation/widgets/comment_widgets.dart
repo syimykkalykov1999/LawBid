@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -66,7 +66,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
     final before = _c;
     final liked = !before.likedByMe;
     // ignore: unawaited_futures
-    HapticFeedback.selectionClick();
+    AppHaptics.selection();
     setState(() {
       _busy = true;
       _c = before.copyWith(
@@ -78,6 +78,18 @@ class _CommentTileState extends ConsumerState<CommentTile> {
       await ref
           .read(socialRepositoryProvider)
           .setCommentLiked(before.id, liked: liked);
+      // Audit C12: the list keeps the new state (a rebuilt tile would
+      // otherwise show the old one).
+      if (mounted) {
+        final parent = _c.parentId;
+        if (parent != null) {
+          if (ref.exists(repliesProvider(parent))) {
+            ref.read(repliesProvider(parent).notifier).replace(_c);
+          }
+        } else if (ref.exists(commentsProvider(_c.postId))) {
+          ref.read(commentsProvider(_c.postId).notifier).replace(_c);
+        }
+      }
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _c = before);

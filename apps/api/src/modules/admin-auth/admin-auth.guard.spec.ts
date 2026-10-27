@@ -16,6 +16,7 @@ import {
 import {
   ADMIN_ROLES_KEY,
   JUSTIFICATION_KEY,
+  PRIVATE_READ_KEY,
   type RequestAdmin,
 } from './admin-auth.decorators';
 import {
@@ -43,6 +44,8 @@ interface Opts {
   headers?: Record<string, string>;
   url?: string;
   method?: string;
+  privateKind?: string;
+  security?: { assertIpAllowed: jest.Mock };
 }
 
 function setup(opts: Opts) {
@@ -52,7 +55,9 @@ function setup(opts: Opts) {
         ? opts.allowed
         : key === JUSTIFICATION_KEY
           ? opts.justification
-          : undefined,
+          : key === PRIVATE_READ_KEY
+            ? opts.privateKind
+            : undefined,
   } as unknown as Reflector;
   const tokens = {
     verifyAdminToken: opts.verify ?? (() => CLAIMS),
@@ -84,7 +89,9 @@ function setup(opts: Opts) {
     admin?: RequestAdmin;
     originalUrl: string;
     method: string;
+    ip?: string;
   } = {
+    ip: '203.0.113.9',
     header: (n) => headers[n.toLowerCase()],
     originalUrl: opts.url ?? '/api/v1/admin/verification/requests',
     method: opts.method ?? 'GET',
@@ -95,7 +102,15 @@ function setup(opts: Opts) {
     switchToHttp: () => ({ getRequest: () => req }),
   } as unknown as ExecutionContext;
   return {
-    guard: new AdminAuthGuard(reflector, tokens, sessions, prisma),
+    guard: new AdminAuthGuard(
+      reflector,
+      tokens,
+      sessions,
+      prisma,
+      undefined,
+      undefined,
+      opts.security as never,
+    ),
     ctx,
     req,
   };
@@ -144,12 +159,16 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
       id: 'u1',
       adminRole: 'verifier',
       sessionId: 's1',
+      reasonCode: null,
       justification: null,
       permissions: { verification: 'manage' },
       manageAdmins: false,
       partner: null,
       noPii: false,
       assignedCountries: [],
+      // Staff package T1: no stored workspace = mass, not a head.
+      workspace: 'mass',
+      workspaceHead: false,
       countries: null,
     });
   });
@@ -454,6 +473,80 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
     });
     await expect(ok.guard.canActivate(ok.ctx)).resolves.toBe(true);
     expect(ok.req.admin?.justification).toBe(reason);
+  });
+});
+
+describe('AdminAuthGuard: private content (owner 2026-10-28)', () => {
+  const HEADERS = {
+    'x-reason-code': 'report_review',
+    'x-justification': 'Report 42: harassment in chat',
+  };
+
+  it('needs a reason code AND free text, from the owner too', async () => {
+    const noCode = setup({
+      allowed: ['super_admin'],
+      privateKind: 'chat_messages',
+      row: admin('super_admin'),
+      headers: { 'x-justification': 'Report 42: harassment in chat' },
+    });
+    await expect(noCode.guard.canActivate(noCode.ctx)).rejects.toMatchObject({
+      response: { code: 'REASON_CODE_REQUIRED' },
+    });
+    const badCode = setup({
+      allowed: ['super_admin'],
+      privateKind: 'chat_messages',
+      row: admin('super_admin'),
+      headers: { ...HEADERS, 'x-reason-code': 'curiosity' },
+    });
+    await expect(badCode.guard.canActivate(badCode.ctx)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    const noText = setup({
+      allowed: ['super_admin'],
+      privateKind: 'chat_messages',
+      row: admin('super_admin'),
+      headers: { 'x-reason-code': 'report_review' },
+    });
+    await expect(noText.guard.canActivate(noText.ctx)).rejects.toMatchObject({
+      response: { code: 'JUSTIFICATION_REQUIRED' },
+    });
+  });
+
+  it('passes with both and exposes them on req.admin', async () => {
+    const ok = setup({
+      allowed: ['super_admin'],
+      privateKind: 'chat_messages',
+      row: admin('super_admin'),
+      headers: HEADERS,
+    });
+    await expect(ok.guard.canActivate(ok.ctx)).resolves.toBe(true);
+    expect(ok.req.admin?.reasonCode).toBe('report_review');
+    expect(ok.req.admin?.justification).toBe('Report 42: harassment in chat');
+  });
+});
+
+describe('AdminAuthGuard: IP allowlist (owner 2026-10-28)', () => {
+  it('refuses before touching the session when the address is not allowed', async () => {
+    const security = {
+      assertIpAllowed: jest
+        .fn()
+        .mockRejectedValue(
+          new ForbiddenException({ code: 'ADMIN_IP_NOT_ALLOWED' }),
+        ),
+    };
+    const t = setup({ allowed: ['verifier'], security });
+    await expect(t.guard.canActivate(t.ctx)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(security.assertIpAllowed).toHaveBeenCalledWith('203.0.113.9');
+  });
+
+  it('lets an allowed address through', async () => {
+    const security = {
+      assertIpAllowed: jest.fn().mockResolvedValue(undefined),
+    };
+    const t = setup({ allowed: ['verifier'], security });
+    await expect(t.guard.canActivate(t.ctx)).resolves.toBe(true);
   });
 });
 

@@ -23,6 +23,7 @@ import {
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { LegalDisclaimerNotice } from '../../common/legal-disclaimer/legal-disclaimer.interceptor';
 import { IdempotencyInterceptor } from '../../idempotency/idempotency.interceptor';
 import {
   CurrentUser,
@@ -56,6 +57,7 @@ export class LegalQaController {
   constructor(private readonly qa: LegalQaService) {}
 
   @Get()
+  @LegalDisclaimerNotice('qa')
   @ApiOperation({ summary: 'Public questions to lawyers (search, filters)' })
   @ApiEnvelopeResponse(QuestionDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FEATURE_DISABLED] })
@@ -68,6 +70,7 @@ export class LegalQaController {
 
   @Post()
   @UseInterceptors(IdempotencyInterceptor)
+  @LegalDisclaimerNotice('qa')
   @ApiOperation({ summary: 'Ask a question (client)' })
   @ApiHeader(IDEMPOTENCY_HEADER)
   @ApiEnvelopeResponse(QuestionDto, { status: HttpStatus.CREATED })
@@ -90,6 +93,7 @@ export class LegalQaController {
   }
 
   @Get(':id')
+  @LegalDisclaimerNotice('qa')
   @ApiOperation({ summary: 'A question with its answers' })
   @ApiEnvelopeResponse(QuestionDetailDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
@@ -127,6 +131,7 @@ export class LegalQaController {
   // posts and comments.
   @AttorneyOnly('publish')
   @Put(':id/answer')
+  @LegalDisclaimerNotice('qa')
   @ApiOperation({ summary: 'Answer (or edit my answer) — verified attorney' })
   @ApiEnvelopeResponse(AnswerDto)
   @ApiErrors({
@@ -157,6 +162,7 @@ export class LegalQaController {
   }
 
   @Put(':id/answers/:answerId/like')
+  @LegalDisclaimerNotice('qa')
   @ApiOperation({ summary: 'Like an answer' })
   @ApiEnvelopeResponse(AnswerDto)
   @ApiErrors({ 403: [E.FORBIDDEN, E.USER_BLOCKED], 404: [E.NOT_FOUND] })
@@ -168,6 +174,7 @@ export class LegalQaController {
   }
 
   @Delete(':id/answers/:answerId/like')
+  @LegalDisclaimerNotice('qa')
   @ApiOperation({ summary: 'Remove my like' })
   @ApiEnvelopeResponse(AnswerDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
@@ -179,6 +186,7 @@ export class LegalQaController {
   }
 
   @Put(':id/best')
+  @LegalDisclaimerNotice('qa')
   @ApiOperation({ summary: 'Mark the best answer (the question author)' })
   @ApiEnvelopeResponse(QuestionDetailDto)
   @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
@@ -191,6 +199,7 @@ export class LegalQaController {
   }
 
   @Delete(':id/best')
+  @LegalDisclaimerNotice('qa')
   @ApiOperation({ summary: 'Clear the best-answer mark' })
   @ApiEnvelopeResponse(QuestionDetailDto)
   @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })

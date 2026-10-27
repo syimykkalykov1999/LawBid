@@ -74,8 +74,29 @@ export const CRON_JOBS = {
   searchTagTopics: 'search.tag-topics',
   /** Owner 2026-10-24: search-engine outbox → engine (off = prune only). */
   searchIndex: 'search.index',
+  /** Owner 2026-10-27: appeals of automatic moderation past the SLA. */
+  moderationAppealSla: 'moderation.appeal-sla',
+  /** Owner 2026-10-28: daily copy of the admin audit log to the locked S3 bucket. */
+  adminAuditExport: 'admin.audit-export',
+  /** Owner 2026-10-28: monthly e-mail of admin access to private content. */
+  adminAccessReport: 'admin.access-report',
+  /** Owner 2026-10-25: experiment reports, guardrails, ranking_events partitions. */
+  experimentsMetrics: 'experiments.metrics',
   /** Day-one foundations: nightly money-ledger checks + Stripe comparison. */
   ledgerReconcile: 'ledger.reconcile',
+  /** Privacy round 13 (S13-5): audit_log / data_access_log past their
+   * policy period, IP of old sessions and contact disclosures. Holds skip. */
+  privacyRetention: 'privacy.retention',
+  /** Privacy round 13 (S13-1/S13-10): ledger copies to the bucket, erased
+   * people out of the search index again, failed deletion steps counted. */
+  privacyReconcile: 'privacy.reconcile',
+  /** Privacy round 13 (S13-14): "will be deleted tomorrow" at day 13. */
+  privacyDeletionNotices: 'privacy.deletion-notices',
+  /** Stripe robustness 2026-10-27: nightly Stripe sweep + dispute rate. */
+  stripeOpsSweep: 'stripe-ops.sweep',
+  /** …and the hourly dispute deadline reminders. */
+  stripeOpsDisputeReminders: 'stripe-ops.dispute-reminders',
+  stripeWebhooksRequeue: 'stripe-webhooks.requeue',
   /** DB-ops hardening: daily table size / dead-tuple ratio / txid age → log metrics. */
   dbHealth: 'db.health',
   /** Owner 2026-10-15: crash reports older than 30 days go. */
@@ -92,6 +113,8 @@ export const CRON_JOBS = {
   legalExports: 'legal.exports',
   /** Owner 2026-10-20: deleted content past 90 days is scrubbed (holds skip). */
   legalRetention: 'legal.retention',
+  /** Owner 2026-10-28: due dates of legal requests and gag-order ends. */
+  legalReminders: 'legal.reminders',
   /** docs/06 §5.3: expired export files. */
   exportsCleanup: 'exports.cleanup',
   /** docs/06 §8: queue depth / oldest job age → CloudWatch (log metric). */
@@ -135,6 +158,9 @@ export const CRON_JOBS = {
   casePaymentsExpire: 'case-payments.expire',
   /** Owner 2026-10-05: payment-request reminders (due soon / overdue). */
   casePaymentsRemind: 'case-payments.remind',
+  /** Owner 2026-10-25: invoice overdue / late fee / reminders and signing
+   * request expiry / reminders. */
+  caseToolsSweep: 'case-tools.sweep',
   /** Owner 2026-10-05: partner commissions past their hold → approved,
    * monthly base accrued. */
   partnersSweep: 'partners.sweep',
@@ -190,6 +216,39 @@ export const CRON_JOBS = {
   adminSummaries: 'admin.summaries',
   // Shard-ready step 7: the cross-family outbox relay.
   outboxSweep: 'outbox.sweep',
+  /** Owner 2026-10-25 (online DDL): nightly table / index bloat of the hot tables. */
+  dbBloat: 'db.bloat-check',
+  /** Owner 2026-10-25 (S2-1): queued CloudFront invalidations of removed
+   * files, one batched request per distribution. */
+  cdnInvalidate: 'cdn.invalidate',
+  /** Owner 2026-10-24: pre-create the next months of the partitioned tables. */
+  partitionMaintain: 'partition.maintain',
+  /** Owner 2026-10-24: advance an admin-started online partition conversion. */
+  partitionTick: 'partition.tick',
+  // Shard-ready steps 9-10: resume/continue shard moves + delete old rows
+  // after 7 days; nightly check for rows whose cross-family parent is gone.
+  shardMoveTick: 'shard.move-tick',
+  shardOrphanCheck: 'shard.orphan-check',
+  /** Events pipeline (N-2): auto signal, stream relay, retention. */
+  eventsMaintain: 'events.maintain',
+  /** Programmatic SEO (2026-10-27): the public pages built from the database
+   * and published to the web bucket; nightly, and (mode nightly+events) a
+   * debounced delayed job after an attorney is published or removed. */
+  seoGenerate: 'seo.generate',
+  /** Staff package 2026-10-27 (docs/architecture/ADMIN_STAFF_PACKAGE_PLAN_2026-10-27.md
+   * B5): each is a no-op while its `staff.*_enabled` switch is off. */
+  staffLeaseSweep: 'staff.lease-sweep',
+  staffCountersFlush: 'staff.counters-flush',
+  staffToday: 'staff.today',
+  staffDailyStats: 'staff.daily-stats',
+  staffRatingNightly: 'staff.rating-nightly',
+  staffHeadScore: 'staff.head-score',
+  staffPiecework: 'staff.piecework',
+  staffAnomalies: 'staff.anomalies',
+  staffAiQaNightly: 'staff.ai-qa-nightly',
+  staffRetaliationExpire: 'staff.retaliation-expire',
+  staffRetention: 'staff.retention',
+  staffWeeklyDigest: 'staff.weekly-digest',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -229,6 +288,11 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.searchLearn, pattern: '30 3 * * *' },
   { name: CRON_JOBS.searchTagTopics, pattern: '3-58/5 * * * *' },
   { name: CRON_JOBS.searchIndex, pattern: '* * * * *' },
+  { name: CRON_JOBS.moderationAppealSla, pattern: '25 * * * *' },
+  { name: CRON_JOBS.adminAuditExport, pattern: '30 1 * * *' },
+  { name: CRON_JOBS.adminAccessReport, pattern: '15 7 1 * *' },
+  // 02:20 UTC: after a full UTC day of events, before the US morning.
+  { name: CRON_JOBS.experimentsMetrics, pattern: '20 2 * * *' },
   { name: CRON_JOBS.crashesPurge, pattern: '40 3 * * *' },
   { name: CRON_JOBS.notificationsRetention, pattern: '40 4 * * *' },
   { name: CRON_JOBS.privacyAnonymize, pattern: '10 2 * * *' },
@@ -237,6 +301,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.exportsCleanup, pattern: '10 3 * * *' },
   { name: CRON_JOBS.legalExports, pattern: '* * * * *' },
   { name: CRON_JOBS.legalRetention, pattern: '20 3 * * *' },
+  { name: CRON_JOBS.legalReminders, pattern: '7 * * * *' },
   { name: CRON_JOBS.opsQueueMetrics, pattern: '* * * * *' },
   { name: CRON_JOBS.opsBusinessMetrics, pattern: '*/10 * * * *' },
   { name: CRON_JOBS.callsSweep, pattern: '* * * * *' },
@@ -260,6 +325,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // Hourly: each client is reminded in their own morning (09:00–21:00
   // local), so a missed run is caught up the same day.
   { name: CRON_JOBS.casePaymentsRemind, pattern: '0 * * * *' },
+  { name: CRON_JOBS.caseToolsSweep, pattern: '30 6 * * *' },
   { name: CRON_JOBS.partnersSweep, pattern: '20 3 * * *' },
   // 04:25 UTC daily: the 1st settles the month just finished.
   { name: CRON_JOBS.countryPartnersSweep, pattern: '25 4 * * *' },
@@ -281,13 +347,25 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // 06:25 UTC daily (the providers' stats lag by hours).
   { name: CRON_JOBS.usagePoll, pattern: '25 6 * * *' },
   { name: CRON_JOBS.opsCostCheck, pattern: '7 * * * *' },
-  { name: CRON_JOBS.opsBackupCheck, pattern: '12 * * * *' },
+  // Daily: the RDS restorable time moves by the minute, a day is plenty.
+  { name: CRON_JOBS.opsBackupCheck, pattern: '12 5 * * *' },
   { name: CRON_JOBS.costAutoscale, pattern: '17 * * * *' },
   { name: CRON_JOBS.economyGuard, pattern: '*/5 * * * *' },
   // 15:40 UTC ≈ 08:40 Pacific: a weekday-morning payout starts that day.
   { name: CRON_JOBS.treasuryDaily, pattern: '40 15 * * *' },
   // Nightly, after Stripe has settled the previous day (UTC).
   { name: CRON_JOBS.ledgerReconcile, pattern: '15 5 * * *' },
+  // Privacy round 13: retention after the storage one, reconcile after the
+  // daily anonymization (02:10), the day-13 notice in the US morning.
+  { name: CRON_JOBS.privacyRetention, pattern: '45 3 * * *' },
+  { name: CRON_JOBS.privacyReconcile, pattern: '30 5 * * *' },
+  { name: CRON_JOBS.privacyDeletionNotices, pattern: '20 15 * * *' },
+  // Stripe robustness: after the ledger check, then hourly reminders.
+  { name: CRON_JOBS.stripeOpsSweep, pattern: '45 5 * * *' },
+  { name: CRON_JOBS.stripeOpsDisputeReminders, pattern: '23 * * * *' },
+  // Every minute: a stored webhook event whose queue job was lost (Redis
+  // down / failover) is queued again; idempotent (jobId = event id).
+  { name: CRON_JOBS.stripeWebhooksRequeue, pattern: '* * * * *' },
   // Daily, off the busy hours: read-only statistics of every database.
   { name: CRON_JOBS.dbHealth, pattern: '35 4 * * *' },
   // Every second minute: a 1-minute cron would hold consecutive runs.
@@ -295,6 +373,43 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // Every minute: applies cross-family events a request could not (retries
   // with backoff, dead letter); a no-op while there is one database.
   { name: CRON_JOBS.outboxSweep, pattern: '* * * * *' },
+  // Nightly 03:35 UTC (quiet hours): pgstattuple on the hot tables.
+  { name: CRON_JOBS.dbBloat, pattern: '35 3 * * *' },
+  // Every other minute: batches the paths of removed files (S2-1).
+  { name: CRON_JOBS.cdnInvalidate, pattern: '1-59/2 * * * *' },
+  // 02:40 UTC daily: the next 2 months always exist (rows beyond the last
+  // partition would fall into the DEFAULT one).
+  { name: CRON_JOBS.partitionMaintain, pattern: '40 2 * * *' },
+  // Every minute; a no-op unless PARTITION_DATABASE_URL is set and a
+  // conversion was started from the admin.
+  { name: CRON_JOBS.partitionTick, pattern: '* * * * *' },
+  { name: CRON_JOBS.shardMoveTick, pattern: '* * * * *' },
+  { name: CRON_JOBS.shardOrphanCheck, pattern: '30 2 * * *' },
+  // Events pipeline: every 5 minutes; a no-op unless auto / stream, prunes hourly.
+  { name: CRON_JOBS.eventsMaintain, pattern: '*/5 * * * *' },
+  // 05:10 UTC daily: after the nightly snapshots (storage.snapshot 04:55,
+  // the admin counters), before the US morning. A no-op unless
+  // `seo.generator_mode` is nightly or nightly+events.
+  { name: CRON_JOBS.seoGenerate, pattern: '10 5 * * *' },
+  // Staff package 2026-10-27 (plan B5), all no-ops while switched off.
+  // Minutes moved off busy neighbours: counters-flush 07 -> 09 (legal
+  // reminders, demo sweep, cost check), piecework 02:10 -> 02:15 (privacy
+  // anonymize), retaliation-expire 03:20 -> 03:22 (legal retention,
+  // partners), ai-qa 03:30 -> 04:00 (search learn), retention 03:40 -> 03:00
+  // (crashes purge).
+  { name: CRON_JOBS.staffLeaseSweep, pattern: '* * * * *' },
+  { name: CRON_JOBS.staffCountersFlush, pattern: '9 * * * *' },
+  { name: CRON_JOBS.staffToday, pattern: '*/2 * * * *' },
+  { name: CRON_JOBS.staffDailyStats, pattern: '10 1 * * *' },
+  { name: CRON_JOBS.staffRatingNightly, pattern: '40 1 * * *' },
+  { name: CRON_JOBS.staffHeadScore, pattern: '55 1 * * *' },
+  { name: CRON_JOBS.staffPiecework, pattern: '15 2 * * *' },
+  { name: CRON_JOBS.staffAnomalies, pattern: '25 2 * * *' },
+  { name: CRON_JOBS.staffAiQaNightly, pattern: '0 4 * * *' },
+  { name: CRON_JOBS.staffRetaliationExpire, pattern: '22 3 * * *' },
+  { name: CRON_JOBS.staffRetention, pattern: '0 3 * * *' },
+  // Mondays 13:00 UTC (US morning).
+  { name: CRON_JOBS.staffWeeklyDigest, pattern: '0 13 * * 1' },
 ];
 
 const FAST_JOBS: readonly CronJobName[] = [
@@ -306,6 +421,10 @@ const FAST_JOBS: readonly CronJobName[] = [
   CRON_JOBS.taskReminders,
   CRON_JOBS.consultationsSweep,
   CRON_JOBS.videosSweep,
+  // Staff package: the every-minute lease safety net and the 2-minute
+  // «Сегодня» build (staff.counters-flush is hourly: default lane).
+  CRON_JOBS.staffLeaseSweep,
+  CRON_JOBS.staffToday,
 ];
 
 const HEAVY_JOBS: readonly CronJobName[] = [
@@ -330,6 +449,15 @@ const HEAVY_JOBS: readonly CronJobName[] = [
   CRON_JOBS.usagePoll,
   CRON_JOBS.contactsPepperBackfill,
   CRON_JOBS.treasuryDaily,
+  CRON_JOBS.seoGenerate,
+  // Staff package: the nightly aggregates.
+  CRON_JOBS.staffDailyStats,
+  CRON_JOBS.staffRatingNightly,
+  CRON_JOBS.staffHeadScore,
+  CRON_JOBS.staffPiecework,
+  CRON_JOBS.staffAnomalies,
+  CRON_JOBS.staffAiQaNightly,
+  CRON_JOBS.staffRetention,
 ];
 
 export function cronLaneOf(name: string): CronLane {

@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
+import { heldSql } from '../../common/privacy/legal-hold';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -53,6 +54,7 @@ export interface RetentionResult {
  *   largest tables. `pending` and `dead` outbox rows are never touched. The
  *   outbox's oldest still-pending age is logged by the relay itself
  *   (`outbox.sweep`, metric `cross_family_outbox_oldest_pending`).
+ * A person under a legal hold keeps their login history (round 13, S13-6).
  * 0 days = keep forever. Already handled elsewhere: notifications
  * (notifications.retention_days), sessions, OTP, processed Stripe webhooks
  * (30 days), the case journal (5 years), archived tasks. Never touched:
@@ -95,6 +97,9 @@ export class DataRetentionService implements OnModuleDestroy {
       this.settings.number('storage.retention_inbox_days'),
     ]);
     const before = (days: number) => new Date(now.getTime() - days * DAY_MS);
+    // Owner 2026-10-28: activity rows of a person under a legal hold stay.
+    const ok = (col: string) =>
+      Prisma.sql`NOT ${heldSql('user', Prisma.raw(col))}`;
     const result: RetentionResult = {
       authEvents: authDays > 0 ? await this.authEvents(before(authDays)) : 0,
       assistantActivity:
@@ -105,6 +110,7 @@ export class DataRetentionService implements OnModuleDestroy {
                 WHERE ctid IN (
                   SELECT ctid FROM assistant_activity
                   WHERE created_at < ${before(activityDays)}
+                    AND ${ok('attorney_id')}
                   ORDER BY created_at LIMIT ${limit})`,
             )
           : 0,
@@ -125,6 +131,7 @@ export class DataRetentionService implements OnModuleDestroy {
                 WHERE ctid IN (
                   SELECT ctid FROM post_views
                   WHERE created_at < ${before(viewsDays)}
+                    AND ${ok('user_id')}
                   ORDER BY created_at LIMIT ${limit})`,
               ),
             )
@@ -146,6 +153,7 @@ export class DataRetentionService implements OnModuleDestroy {
                 WHERE ctid IN (
                   SELECT ctid FROM post_view_events
                   WHERE created_at < ${before(viewEventsDays)}
+                    AND ${ok('viewer_id')}
                   LIMIT ${limit})`,
               ),
             )
@@ -158,6 +166,7 @@ export class DataRetentionService implements OnModuleDestroy {
                 WHERE ctid IN (
                   SELECT ctid FROM user_activity_days
                   WHERE day < ${before(activeDaysDays)}::DATE
+                    AND ${ok('user_id')}
                   LIMIT ${limit})`,
             )
           : 0,
@@ -206,9 +215,10 @@ export class DataRetentionService implements OnModuleDestroy {
       total += await this.batched(
         (limit) => db.$executeRaw`
           DELETE FROM auth_events
-          WHERE ctid IN (
-            SELECT ctid FROM auth_events
+          WHERE (id, created_at) IN (
+            SELECT id, created_at FROM auth_events
             WHERE created_shard = ${shard} AND created_at < ${before}
+              AND (user_id IS NULL OR NOT ${heldSql('user', Prisma.sql`user_id`)})
             ORDER BY created_at LIMIT ${limit})`,
       );
     }

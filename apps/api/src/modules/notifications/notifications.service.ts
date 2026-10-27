@@ -109,6 +109,7 @@ export const NOTIFICATION_CATEGORY: Record<
   subscription_payment_failed: 'system',
   subscription_status: 'system',
   data_export_ready: 'system',
+  account_deletion_scheduled: 'system',
   case_history_export_ready: 'system',
   moderation_notice: 'system',
   security_new_device: 'system',
@@ -201,6 +202,7 @@ export const NOTIFICATION_IMPORTANT: Record<NotificationType, boolean> = {
   subscription_payment_failed: true,
   subscription_status: true,
   data_export_ready: false,
+  account_deletion_scheduled: true,
   case_history_export_ready: false,
   moderation_notice: true,
   security_new_device: false,
@@ -308,6 +310,7 @@ export class NotificationsService {
     await this.push?.enqueueMany(
       rows.map((r) => r.id),
       input.type,
+      rows.map((r) => r.user_id),
     );
     return rows.length;
   }
@@ -451,7 +454,12 @@ export class NotificationsService {
                       updated_at = now()
         RETURNING id::TEXT AS id, aggregate_count::INT8 AS n`;
       await this.badges?.invalidateNotifications(input.recipientId);
-      await this.push?.enqueue(row.id, input.type, Number(row.n));
+      await this.push?.enqueue(
+        row.id,
+        input.type,
+        Number(row.n),
+        input.recipientId,
+      );
       return { id: row.id };
     }
     const row = await db.notification.create({
@@ -467,7 +475,7 @@ export class NotificationsService {
     // the caller's transaction commits first (a rolled-back row is dropped
     // by the dispatcher).
     await this.badges?.invalidateNotifications(input.recipientId);
-    await this.push?.enqueue(row.id, input.type);
+    await this.push?.enqueue(row.id, input.type, 1, input.recipientId);
     return row;
   }
 }

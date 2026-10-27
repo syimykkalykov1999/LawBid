@@ -4,7 +4,7 @@ import {
   ArrowRight, ChatCircleDots, Flag, Gavel, Medal, Scales, SealCheck, Trophy, Wallet, type Icon,
 } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import Link from 'next/link';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { NextTicketButton } from '@/components/support/support-nav';
@@ -125,7 +125,7 @@ export default function WorkspacePage() {
                 ) : null
               ) : null;
             return (
-              <motion.div
+              <m.div
                 key={q.key}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -162,7 +162,7 @@ export default function WorkspacePage() {
                     </Link>
                   </div>
                 </Card>
-              </motion.div>
+              </m.div>
             );
           })}
         </div>

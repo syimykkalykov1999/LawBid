@@ -2,10 +2,12 @@ import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { jitterTtl, singleFlight } from '../../../common/cache/single-flight';
+import { L1Cache } from '../../../common/cache/l1-cache';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { FLAG_CATALOG } from '../flag-catalog';
 import { lockFlags } from '../../../common/feature-flags/locked-flags';
 import { bumpConfigVersion } from './config-version';
+import { inRollout } from '../../experiments/experiment-math';
 
 /** Same reasoning as I18nBundleService's bundle-version TTL
  * (i18n-bundle.service.ts): the admin's flag toggle writes straight to
@@ -20,6 +22,8 @@ import { bumpConfigVersion } from './config-version';
  * hits Redis, not the DB, for all but one of them. */
 const FLAGS_CACHE_TTL_SECONDS = 30;
 export const FLAGS_CACHE_KEY = 'config:feature_flags';
+/** `{key: percent}` of the enabled flags that are on for only part of the users. */
+export const ROLLOUT_CACHE_KEY = 'config:feature_flag_rollout';
 
 /**
  * Reads the full `feature_flags` table as a flat `{key: enabled}` map —
@@ -27,18 +31,22 @@ export const FLAGS_CACHE_KEY = 'config:feature_flags';
  * §15, "Этап 1.8": "флаги ... эндпоинт GET /config/bootstrap"). Redis
  * cache-aside, same pattern as I18nBundleService.getCurrentVersion.
  *
- * `rollout_percent` (schema.prisma `FeatureFlag`) is read from the DB but
- * deliberately not applied here: docs/01_FOUNDATION_AUTH.md never
- * describes per-user/per-cohort rollout for stage 1.8 (§15's acceptance
- * criterion is only "смена флага в БД отражается в приложении", a global
- * on/off), and `GET /config/bootstrap` is `@Public()` — there is no
- * authenticated user identity available at this endpoint to key a
- * percentage rollout on anyway. The column exists in the schema for a
- * later stage to use; this service just doesn't read it yet.
+ * `rollout_percent` (owner 2026-10-25): a flag that is enabled with a
+ * percentage below 100 is ON for that share of users, chosen by a stable hash
+ * of (flag, user id) (the same hash experiments use), so a user never flips
+ * between on and off and raising 10% to 30% keeps the first 10%. Where there
+ * is no user (`GET /config/bootstrap` is public and CDN-cached, `getFlags()`,
+ * `isEnabled()`) a partly rolled-out flag reads as OFF; use `isEnabledFor`
+ * (server code with a user) or `getFlagsFor` (`GET /config/flags`, signed in).
  */
 @Injectable()
 export class FeatureFlagsService implements OnModuleInit {
   private readonly logger = new Logger(FeatureFlagsService.name);
+  /** Caching round 2 (S2-7): the flag map in memory for a few seconds, so a
+   * flag read is not a Redis round trip on every request. `invalidate()`
+   * clears it at once on this instance; another instance within the TTL
+   * (`CACHE_L1_TTL_SEC`, default 5, 0 = off). */
+  private readonly l1 = new L1Cache<Record<string, boolean>>('flags');
 
   constructor(
     private readonly prisma: PrismaService,
@@ -69,6 +77,7 @@ export class FeatureFlagsService implements OnModuleInit {
       });
       if (made.count > 0) {
         await this.redis.del(FLAGS_CACHE_KEY);
+        this.l1.clear();
         this.logger.log(
           `feature flags created from the catalog: ${made.count}`,
         );
@@ -82,27 +91,71 @@ export class FeatureFlagsService implements OnModuleInit {
     return lockFlags(await this.readFlags());
   }
 
-  private async readFlags(): Promise<Record<string, boolean>> {
+  private readFlags(): Promise<Record<string, boolean>> {
+    return this.l1.getOrLoad('flags', () => this.readFlagsFromRedis());
+  }
+
+  private async readFlagsFromRedis(): Promise<Record<string, boolean>> {
     const cached = await this.redis.get(FLAGS_CACHE_KEY);
     if (cached !== null) return JSON.parse(cached) as Record<string, boolean>;
+    return (await this.fill()).flags;
+  }
 
-    // Load audit 6: after an admin edit clears the key every request would
-    // read the table; one refill per pod instead.
+  private async readRollouts(): Promise<Record<string, number>> {
+    const cached = await this.redis.get(ROLLOUT_CACHE_KEY);
+    if (cached !== null) return JSON.parse(cached) as Record<string, number>;
+    return (await this.fill()).rollouts;
+  }
+
+  // Load audit 6: after an admin edit clears the key every request would
+  // read the table; one refill per pod instead.
+  private fill(): Promise<{
+    flags: Record<string, boolean>;
+    rollouts: Record<string, number>;
+  }> {
     return singleFlight(FLAGS_CACHE_KEY, async () => {
       const rows = await this.prisma.featureFlag.findMany({
-        select: { key: true, enabled: true },
+        select: { key: true, enabled: true, rollout_percent: true },
       });
       const flags: Record<string, boolean> = {};
-      for (const row of rows) flags[row.key] = row.enabled;
-
+      const rollouts: Record<string, number> = {};
+      for (const row of rows) {
+        const pct = row.rollout_percent ?? 100;
+        // Partly rolled out: unknown without a user, so off here.
+        flags[row.key] = row.enabled && pct >= 100;
+        if (row.enabled && pct > 0 && pct < 100) rollouts[row.key] = pct;
+      }
+      const ttl = jitterTtl(FLAGS_CACHE_TTL_SECONDS);
+      await this.redis.set(FLAGS_CACHE_KEY, JSON.stringify(flags), 'EX', ttl);
       await this.redis.set(
-        FLAGS_CACHE_KEY,
-        JSON.stringify(flags),
+        ROLLOUT_CACHE_KEY,
+        JSON.stringify(rollouts),
         'EX',
-        jitterTtl(FLAGS_CACHE_TTL_SECONDS),
+        ttl,
       );
-      return flags;
+      return { flags, rollouts };
     });
+  }
+
+  /** Every flag as this user sees it (partial rollouts resolved by hash). */
+  async getFlagsFor(userId: string): Promise<Record<string, boolean>> {
+    const flags = await this.readFlags();
+    const rollouts = await this.readRollouts();
+    const out = { ...flags };
+    for (const [key, pct] of Object.entries(rollouts)) {
+      out[key] = inRollout(key, userId, pct);
+    }
+    return lockFlags(out);
+  }
+
+  /** One flag for one user, honouring `rollout_percent`. */
+  async isEnabledFor(
+    key: string,
+    defaultValue: boolean,
+    userId: string,
+  ): Promise<boolean> {
+    const flags = await this.getFlagsFor(userId);
+    return flags[key] ?? defaultValue;
   }
 
   /** One flag, for server-side enforcement (login methods, device
@@ -117,7 +170,9 @@ export class FeatureFlagsService implements OnModuleInit {
   /** Drops the cached flag set so the next read goes to the DB — for a
    * writer that changes `feature_flags` (admin panel, file 6; e2e). */
   async invalidate(): Promise<void> {
+    this.l1.clear();
     await this.redis.del(FLAGS_CACHE_KEY);
+    await this.redis.del(ROLLOUT_CACHE_KEY);
     await bumpConfigVersion(this.redis);
   }
 }

@@ -28,6 +28,7 @@ class QuestionDto {
     this.author,
     this.bestAnswerId,
     this.myAnswerId,
+    this.privacyWarnings,
   });
 
   factory QuestionDto.fromJson(Map<String, Object?> json) =>
@@ -55,6 +56,9 @@ class QuestionDto {
 
   /// The viewer is a verified attorney who may answer now.
   final bool canAnswer;
+
+  /// Owner 2026-10-28: only in the answer to POST /questions — kinds of private information found in the text (ssn, address, case_number, party_name ...). With qa.pii_mode=redact they were replaced with a mask.
+  final List<String>? privacyWarnings;
   final String createdAt;
 
   Map<String, Object?> toJson() => _$QuestionDtoToJson(this);

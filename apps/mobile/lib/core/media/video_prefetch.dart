@@ -4,6 +4,7 @@ import 'dart:collection' show Queue;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
+import 'package:lawbid/core/network/http_transport.dart';
 
 /// Owner 2026-10-23 (Instagram: "content opens instantly"): how Instagram
 /// and TikTok start a video at once is (1) the poster frame is on screen
@@ -26,13 +27,23 @@ class HlsPrefetcher {
     this.maxConcurrent = 2,
     this.maxRemembered = 16,
     this.maxSegmentBytes = 1024 * 1024,
-  }) : _dio = dio ?? Dio(BaseOptions(connectTimeout: _timeout));
+  }) : _dio = dio ?? _newDio();
+
+  static Dio _newDio() {
+    final d = Dio(BaseOptions(connectTimeout: _timeout));
+    HttpTransport.apply(d); // S8-1: native stack, same connections as the API
+    return d;
+  }
 
   static const _timeout = Duration(seconds: 8);
 
   static final HlsPrefetcher instance = HlsPrefetcher();
 
   final Dio _dio;
+
+  /// S16-4: asked before any warm-up (admin mode, data saver, metered
+  /// link — see prefetch_policy.dart). Default: allowed.
+  bool Function() allow = () => true;
 
   /// At most this many streams are fetched at once.
   final int maxConcurrent;
@@ -60,6 +71,7 @@ class HlsPrefetcher {
   /// again for the same stream is free.
   void prefetch(String url) {
     if (!url.contains('.m3u8')) return;
+    if (!allow()) return;
     if (_done.contains(url) ||
         _running.containsKey(url) ||
         _queue.contains(url)) {

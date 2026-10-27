@@ -22,6 +22,7 @@ class CaseCommentDto {
     required this.canDelete,
     required this.isMine,
     required this.createdAt,
+    required this.editedAt,
     this.parentCommentId,
   });
 
@@ -44,6 +45,9 @@ class CaseCommentDto {
   final bool canDelete;
   final bool isMine;
   final String createdAt;
+
+  /// Set when the author edited the text (earlier texts are kept on the server for legal audit).
+  final DateTime? editedAt;
 
   Map<String, Object?> toJson() => _$CaseCommentDtoToJson(this);
 }

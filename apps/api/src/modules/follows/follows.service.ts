@@ -16,7 +16,9 @@ import {
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BoostActions } from '../promotions/boost-actions.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
+import { bumpFeedVersion } from '../../common/cache/feed-version';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import {
   CounterAggregator,
@@ -71,6 +73,8 @@ export class FollowsService {
     @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
     // Owner 2026-10-13: personal ranking of the suggestions.
     @Optional() private readonly recommendations?: RecommendationsService,
+    // Owner 2026-10-27: a follow counts for the author's boost paid per action.
+    @Optional() private readonly boostActions?: BoostActions,
   ) {}
 
   async follow(user: RequestUser, attorneyId: string): Promise<FollowStateDto> {
@@ -105,6 +109,8 @@ export class FollowsService {
       skipDuplicates: true,
     });
     if (count === 0) return this.state(attorneyId, target.role, true);
+    // S2-3: the follower's feed now includes the new followee.
+    await bumpFeedVersion(this.redis, user.sub);
     await this.counters.bump(
       profileEntity(target.role),
       attorneyId,
@@ -127,6 +133,8 @@ export class FollowsService {
           ? { actorId: user.sub }
           : { actorKind: 'client' },
     });
+    // Counted only when the follower was shown a boost of this author.
+    this.boostActions?.report(user.sub, { ownerId: attorneyId }, 'follow');
     return this.state(attorneyId, target.role, true);
   }
 
@@ -142,6 +150,7 @@ export class FollowsService {
       where: { follower_id: user.sub, followee_id: attorneyId },
     });
     if (count === 0) return this.state(attorneyId, target?.role, false);
+    await bumpFeedVersion(this.redis, user.sub);
     await this.counters.bump(
       profileEntity(target?.role),
       attorneyId,
@@ -554,6 +563,10 @@ export class FollowsService {
     ids: string[],
     viewerId: string,
   ): Promise<AttorneyListItemDto[]> {
+    if (ids.length === 0) return [];
+    // S7-1: blocked either way = not in any list (search, follows, suggestions).
+    const hidden = await this.blocks.hiddenIds(viewerId);
+    if (hidden.size > 0) ids = ids.filter((id) => !hidden.has(id));
     if (ids.length === 0) return [];
     const [users, mine] = await Promise.all([
       this.prisma.user.findMany({

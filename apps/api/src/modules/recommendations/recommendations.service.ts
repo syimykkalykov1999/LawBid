@@ -6,6 +6,7 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import type { AppSettingKey } from '../../common/app-settings/app-settings.defaults';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
+import { cached } from '../../common/cache/cached';
 import {
   type CaseCandidate,
   type CaseViewer,
@@ -786,11 +787,8 @@ export class RecommendationsService {
     ttlSec: number,
     load: () => Promise<string[]>,
   ): Promise<string[]> {
-    const hit = await this.redis.get(key);
-    if (hit) return JSON.parse(hit) as string[];
-    const ids = await load();
-    await this.redis.set(key, JSON.stringify(ids), 'EX', ttlSec);
-    return ids;
+    // Caching round 2 (S2-6): the shared helper (single-flight, lease, jitter).
+    return cached<string[]>(this.redis, key, { ttlSec }, load);
   }
 }
 

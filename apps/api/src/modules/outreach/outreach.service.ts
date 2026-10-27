@@ -545,6 +545,23 @@ export class OutreachService {
 
   // ---- cold email -------------------------------------------------------------
 
+  /** True when [email] is in email_suppressions (bounce / complaint) or
+   * the outreach stop-list. */
+  async addressSuppressed(email: string): Promise<boolean> {
+    const value = normalizeEmail(email) ?? email.trim().toLowerCase();
+    const [ses, stop] = await Promise.all([
+      this.prisma.emailSuppression.findUnique({
+        where: { email: value },
+        select: { id: true },
+      }),
+      this.prisma.outreachSuppression.findFirst({
+        where: { kind: 'email', value },
+        select: { id: true },
+      }),
+    ]);
+    return !!ses || !!stop;
+  }
+
   /** Daily budget left for this employee (partner) or manager. */
   async emailsLeftToday(
     scope: OutreachScope,
@@ -631,6 +648,13 @@ export class OutreachService {
       );
     }
     if (!this.email) throw invalidState('Email sending is not configured.');
+    // 2026-10-25 (CAN-SPAM, Gmail/Yahoo): an address that bounced or
+    // complained (SES events) or is on the stop-list is never written to.
+    if (await this.addressSuppressed(lead.email)) {
+      throw invalidState(
+        'This address is on the suppression list (bounced, complained or stopped); nothing was sent.',
+      );
+    }
     // The link belongs to the lead's partner; an unassigned lead sent by an
     // employee becomes theirs, a manager's send uses the manager's own code.
     const partner = lead.partner ?? scope.partner;
@@ -676,6 +700,7 @@ export class OutreachService {
     const message: EmailMessage = {
       to: lead.email,
       ...rendered,
+      kind: 'marketing',
       // RFC 8058 one-click unsubscribe (Gmail/Yahoo bulk-sender rules).
       headers: {
         'List-Unsubscribe': `<${unsubscribeUrl}>`,

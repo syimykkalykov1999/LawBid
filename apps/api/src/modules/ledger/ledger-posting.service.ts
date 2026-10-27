@@ -230,6 +230,48 @@ export class LedgerPostingService {
     });
   }
 
+  /**
+   * Stripe robustness 2026-10-27: a refund that was booked when it was
+   * created (pending counts as money moving) failed afterwards, or a lost
+   * chargeback was won late (funds reinstated): post the mirror image of the
+   * earlier entry. Append-only, idempotent (one reversal per original), and a
+   * no-op when the original was never booked.
+   */
+  async reverseCaseEntry(
+    db: LedgerDb,
+    input: {
+      /** 'case_payment_refund' with the refund row id. */
+      originalSourceType: 'case_payment_refund';
+      originalSourceId: string;
+      reason: 'refund_failed' | 'dispute_reinstated';
+      partyUserId?: string | null;
+      stripeRef?: string | null;
+    },
+  ): Promise<{ created: boolean }> {
+    const orig = await this.ledger.linesOf(db, {
+      sourceType: input.originalSourceType,
+      sourceId: input.originalSourceId,
+      event: 'succeeded',
+    });
+    if (!orig) return { created: false };
+    return this.ledger.post(db, {
+      sourceType: `${input.originalSourceType}_reversal`,
+      sourceId: input.originalSourceId,
+      event: input.reason,
+      currency: orig.currency,
+      description:
+        input.reason === 'refund_failed'
+          ? 'Refund failed at Stripe: money stays with the attorney'
+          : 'Dispute won late: chargeback reversed',
+      stripeRef: input.stripeRef ?? null,
+      partyUserId: input.partyUserId ?? null,
+      lines: orig.lines.map((l) => ({
+        ...l,
+        direction: l.direction === 'debit' ? 'credit' : 'debit',
+      })),
+    });
+  }
+
   /** Cash the platform paid out for a cost (staff pay, partner commission). */
   expensePaid(
     db: LedgerDb,

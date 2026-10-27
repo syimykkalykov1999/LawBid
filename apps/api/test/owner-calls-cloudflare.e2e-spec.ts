@@ -129,8 +129,10 @@ describe('Calls: Cloudflare primary, own path as automatic backup (e2e, T3/T4)',
     tokens = app.get(TokenService);
     redis = app.get<Redis>(REDIS_CLIENT);
     // The relay's UDP check never leaves the machine.
-    app.get(CallsService).relayCheck = goodCheck;
-    app.get(StatusProbesService).relayCheck = goodCheck;
+    // `relayCheck` is a private seam: the test swaps it on purpose.
+    type Seam = { relayCheck: typeof goodCheck };
+    app.get<Seam>(CallsService).relayCheck = goodCheck;
+    app.get<Seam>(StatusProbesService).relayCheck = goodCheck;
     await prisma.integrationCredential.deleteMany({
       where: { provider: { in: ['cloudflare_turn', 'cloudflare_sfu'] } },
     });

@@ -10,7 +10,7 @@
 //   server -> "43/realtime,<id>[...]"        the ack
 //   server -> "42/realtime,[\"event\",{...}]"      an event for us
 //
-// Same framing as apps/api/k6/chat.js; the namespace is REALTIME_NAMESPACE
+// Socket.IO v4 framing; the namespace is REALTIME_NAMESPACE
 // (/realtime, apps/api/src/modules/realtime). Why not the socket.io client
 // in a bundle: it needs a bundler step and XHR polling; the framing above is
 // exactly what the app's websocket transport sends, so the server work is

@@ -55,13 +55,14 @@ export class PushQueueService
     notificationId: string,
     type: NotificationType,
     seq = 1,
+    userId?: string,
   ): Promise<void> {
     if (!this.queue || demoContext.isDemo()) return;
     const push = seq === 1 && !NO_PUSH_TYPES.has(type);
     try {
       await this.queue.add(
         PUSH_JOB,
-        { kind: 'notification', notificationId, push },
+        { kind: 'notification', notificationId, userId, push },
         {
           ...PUSH_JOB_OPTS,
           priority: PUSH_PRIORITY.notification,
@@ -84,6 +85,7 @@ export class PushQueueService
   async enqueueMany(
     notificationIds: string[],
     type: NotificationType,
+    userIds: string[] = [],
   ): Promise<void> {
     if (!this.queue || demoContext.isDemo() || notificationIds.length === 0) {
       return;
@@ -91,9 +93,14 @@ export class PushQueueService
     const push = !NO_PUSH_TYPES.has(type);
     try {
       await this.queue.addBulk(
-        notificationIds.map((notificationId) => ({
+        notificationIds.map((notificationId, i) => ({
           name: PUSH_JOB,
-          data: { kind: 'notification' as const, notificationId, push },
+          data: {
+            kind: 'notification' as const,
+            notificationId,
+            userId: userIds[i],
+            push,
+          },
           opts: {
             ...PUSH_JOB_OPTS,
             priority: PUSH_PRIORITY.bulk,

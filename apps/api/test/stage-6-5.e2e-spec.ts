@@ -230,6 +230,7 @@ describe('stage 6.5 — disputes, contact issues, data requests (e2e)', () => {
     const card = await api()
       .get(`/api/v1/admin/case-disputes/${dispute.id}`)
       .set(support.auth)
+      .set('X-Justification', 'Support review of the case (e2e)')
       .expect(200);
     const journal = (card.body as Body).data.journal as Array<{
       eventType: string;
@@ -342,6 +343,7 @@ describe('stage 6.5 — disputes, contact issues, data requests (e2e)', () => {
     const card = await api()
       .get(`/api/v1/admin/contact-issues/${reports[0]}`)
       .set(support.auth)
+      .set('X-Justification', 'Support review of the case (e2e)')
       .expect(200);
     expect((card.body as Body).data).toMatchObject({
       disclosedFields: ['phone'],

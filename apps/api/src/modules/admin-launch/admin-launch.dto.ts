@@ -124,7 +124,17 @@ export class FreeTierDto {
 }
 
 export class VendorSpendDto {
-  @ApiProperty({ enum: ['aws', 'twilio', 'bunny', 'cloudflare', 'stripe'] })
+  @ApiProperty({
+    enum: [
+      'aws',
+      'twilio',
+      'bunny',
+      'cloudflare',
+      'stripe',
+      'google',
+      'sentry',
+    ],
+  })
   id!: string;
   @ApiProperty() label!: string;
   @ApiProperty({ enum: ['ok', 'stale', 'nodata'] }) status!: string;
@@ -247,6 +257,11 @@ export class CostRegistryRowDto {
   controlKey!: string;
   @ApiProperty({ description: 'The owner can flip it from this page.' })
   editable!: boolean;
+  @ApiProperty({
+    description:
+      'A Terraform switch: Выкл / Вкл creates a cloud change request (POST /admin/infra/requests).',
+  })
+  infraSwitch!: boolean;
   @ApiProperty({ type: String, nullable: true }) lockedReason!: string | null;
   @ApiProperty({ type: [String], enum: ['off', 'on', 'auto'] })
   states!: ('off' | 'on' | 'auto')[];

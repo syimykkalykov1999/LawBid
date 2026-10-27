@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
+import 'package:lawbid/core/media/video_cache/video_cache.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
@@ -93,7 +95,7 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
     // Only the first frame is wanted, never the sound: mixWithOthers keeps
     // the tile from taking the audio session from a call or music.
     final c = VideoPlayerController.networkUrl(
-      Uri.parse(url),
+      Uri.parse(VideoCache.resolve(url)),
       videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
     );
     _c = c;
@@ -298,7 +300,7 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
     if (_inCall) return;
     setState(() => _muted = !_muted);
     _fadeTo(_muted ? 0 : 1, const Duration(milliseconds: 140));
-    unawaited(HapticFeedback.selectionClick());
+    unawaited(AppHaptics.selection());
   }
 
   /// Owner 2026-10-20: no click — volume moves along an eased slope (the
@@ -366,7 +368,7 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
     _muted = _inCall;
     _vol = _inCall ? 0 : 1;
     _c = VideoPlayerController.networkUrl(
-      Uri.parse(widget.url),
+      Uri.parse(VideoCache.resolve(widget.url)),
       videoPlayerOptions: VideoPlayerOptions(mixWithOthers: _inCall),
     );
     if (_inCall) unawaited(_c.setVolume(0));
@@ -479,7 +481,7 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
       _scheduleHide();
     }
     // After the sound moved: the buzz is only a touch cue.
-    unawaited(HapticFeedback.selectionClick());
+    unawaited(AppHaptics.selection());
   }
 
   @override

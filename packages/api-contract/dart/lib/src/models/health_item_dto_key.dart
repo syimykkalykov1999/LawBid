@@ -26,6 +26,8 @@ enum HealthItemDtoKey {
   cost('cost'),
   @JsonValue('message_keys')
   messageKeys('message_keys'),
+  @JsonValue('restore_drill')
+  restoreDrill('restore_drill'),
   @JsonValue('secret_rotation')
   secretRotation('secret_rotation'),
   @JsonValue('stripe_webhooks')
@@ -50,6 +52,8 @@ enum HealthItemDtoKey {
   cloudflareUsage('cloudflare_usage'),
   @JsonValue('bunny_usage')
   bunnyUsage('bunny_usage'),
+  @JsonValue('table_growth')
+  tableGrowth('table_growth'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

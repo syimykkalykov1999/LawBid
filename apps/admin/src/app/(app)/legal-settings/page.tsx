@@ -73,6 +73,7 @@ const TEXT_FIELDS: { key: keyof LegalTexts; label: string; hint: string; max: nu
   { key: 'translationNote', label: 'Машинный перевод', hint: 'предупреждение рядом с переведённым текстом', max: 300, rows: 2 },
   { key: 'reviewReplyWarning', label: 'Ответ адвоката на отзыв', hint: 'не раскрывать конфиденциальное, отвечать коротко и по фактам', max: 400, rows: 2 },
   { key: 'sponsoredLabel', label: 'Метка платного размещения', hint: '«Sponsored» на бустах и продвигаемых профилях', max: 60, rows: 1 },
+  { key: 'privilegedContentPolicy', label: 'Приватный контент: политика', hint: 'страница «кто из сотрудников и когда может читать приватные чаты, звонки и файлы» (привилегия адвокат-клиент)', max: 4000, rows: 10 },
 ];
 
 /**

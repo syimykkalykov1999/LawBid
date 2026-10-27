@@ -79,6 +79,7 @@ class ConsultationSlotPicker extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final slots = ref.watch(consultationSlotsProvider(attorneyId));
+    final dayFormat = DateFormat('EEE d', f.locale);
     return slots.when(
       loading: () => const Padding(
         padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
@@ -115,7 +116,7 @@ class ConsultationSlotPicker extends ConsumerWidget {
                       key: ValueKey('consult-day-$d'),
                       height: 44,
                       label: f.digits(
-                        DateFormat('EEE d', f.locale).format(isoDayToDate(d)),
+                        dayFormat.format(isoDayToDate(d)),
                       ),
                       selected: d == active,
                       onTap: () => onDay(d),
@@ -196,6 +197,7 @@ class _BookingSheetState extends ConsumerState<_BookingSheet> {
             ?.autoConfirm ??
         false;
     setState(() => _busy = true);
+    final container = ProviderScope.containerOf(context);
     try {
       final c = await ref.read(consultationsRepositoryProvider).book(
             attorneyId: widget.attorneyId,
@@ -203,7 +205,7 @@ class _BookingSheetState extends ConsumerState<_BookingSheet> {
             note: _note.text,
             caseId: _caseId,
           );
-      ref
+      container
         ..invalidate(consultationsListProvider)
         ..invalidate(consultationSlotsProvider);
       if (!mounted) return;
@@ -362,11 +364,12 @@ class _RescheduleSheetState extends ConsumerState<_RescheduleSheet> {
     if (slot == null) return;
     final t = ref.read(translatorProvider);
     setState(() => _busy = true);
+    final container = ProviderScope.containerOf(context);
     try {
       await ref
           .read(consultationsRepositoryProvider)
           .reschedule(widget.consultation.id, slot.startsAt);
-      refreshConsultations(ref, id: widget.consultation.id);
+      refreshConsultationsIn(container, id: widget.consultation.id);
       if (!mounted) return;
       Navigator.of(context).pop(true);
       showAppSnackBar(context, t.t('consult.moved'));

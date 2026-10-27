@@ -67,6 +67,11 @@ export enum ErrorCode {
   // 2026-10-24 (abuse batch B): 403 — the web page's Cloudflare Turnstile
   // token was rejected (security.turnstile.mode = enforce).
   TURNSTILE_FAILED = 'TURNSTILE_FAILED',
+  // 2026-10-25 (legal register, 18+ / COPPA): a new account needs the "I am
+  // 18 or older" attestation (compliance.age_gate.mode = enforce); the
+  // second code is a birth date under the minimum age.
+  AGE_ATTESTATION_REQUIRED = 'AGE_ATTESTATION_REQUIRED',
+  AGE_UNDER_MINIMUM = 'AGE_UNDER_MINIMUM',
   ACCOUNT_SUSPENDED = 'ACCOUNT_SUSPENDED',
   ACCOUNT_DELETED = 'ACCOUNT_DELETED',
 
@@ -212,6 +217,13 @@ export enum ErrorCode {
   // account); it cannot publish cases or write to attorneys. Support chat
   // stays open for an appeal.
   ACCOUNT_RESTRICTED = 'ACCOUNT_RESTRICTED',
+  // 403 (owner 2026-10-27, DSA Art. 23 style): the person filed many
+  // reports moderators found unfounded; processing of their reports is
+  // paused until `details.until`. They may appeal.
+  REPORTING_SUSPENDED = 'REPORTING_SUSPENDED',
+  // 403 (owner 2026-10-27): strike ladder: the account may not publish for
+  // now (`details.level`, `details.until`). The notice can be appealed.
+  ACCOUNT_STRIKE_LIMITED = 'ACCOUNT_STRIKE_LIMITED',
   // Admin panel (docs/06 §2.1, stage 6.2)
   // 400: sensitive view without X-Justification (10–500 chars).
   JUSTIFICATION_REQUIRED = 'JUSTIFICATION_REQUIRED',
@@ -238,14 +250,6 @@ export enum ErrorCode {
   // 401 (owner 2026-10-22): this admin has no authenticator yet — sign in
   // again; the sign-in walks through the forced authenticator setup.
   ADMIN_TOTP_SETUP_REQUIRED = 'ADMIN_TOTP_SETUP_REQUIRED',
-  // Owner 2026-10-22 (maker-checker, billing.dual_approval_min_cents):
-  // 409: the action was NOT run — it waits for a second admin's approval
-  // (details.approvalId).
-  ADMIN_APPROVAL_PENDING = 'ADMIN_APPROVAL_PENDING',
-  // 403: the admin who asked cannot approve their own request.
-  ADMIN_APPROVAL_SELF = 'ADMIN_APPROVAL_SELF',
-  // 409: the request was already decided (or expired after 72 hours).
-  ADMIN_APPROVAL_NOT_PENDING = 'ADMIN_APPROVAL_NOT_PENDING',
   // Moderation (docs/06 §3, stage 6.4)
   // 422: the rule-based check (blocked terms) refused the publication.
   CONTENT_BLOCKED = 'CONTENT_BLOCKED',
@@ -406,6 +410,26 @@ export enum ErrorCode {
   INTEGRATION_CONFLICT = 'INTEGRATION_CONFLICT',
   // 403: a sensitive admin action needs a fresh 2FA code (owner 2026-10-01).
   ADMIN_STEP_UP_REQUIRED = 'ADMIN_STEP_UP_REQUIRED',
+  // 409: the workspace rules refuse it — a second head, a head of finance,
+  // an admin whose sections do not fit the workspace (staff package T2).
+  ADMIN_WORKSPACE_CONFLICT = 'ADMIN_WORKSPACE_CONFLICT',
+  // 403: the admin IP allowlist is on and this address is not on it (2026-10-28).
+  ADMIN_IP_NOT_ALLOWED = 'ADMIN_IP_NOT_ALLOWED',
+  // Staff package T11 (data security), all behind staff.* switches:
+  // 429: the staff member used all their daily «показать полностью» reveals.
+  STAFF_REVEAL_LIMIT = 'STAFF_REVEAL_LIMIT',
+  // 403: CSV / bulk exports are closed for the mass-work workspace.
+  STAFF_EXPORT_BLOCKED = 'STAFF_EXPORT_BLOCKED',
+  // 403: the owner's country list does not include the country of the request.
+  ADMIN_COUNTRY_NOT_ALLOWED = 'ADMIN_COUNTRY_NOT_ALLOWED',
+  // 401: the session was opened on another device: sign in again.
+  ADMIN_DEVICE_CHANGED = 'ADMIN_DEVICE_CHANGED',
+  // 401: the network address changed in the middle of a session: sign in again.
+  ADMIN_IP_CHANGED = 'ADMIN_IP_CHANGED',
+  // 400: reading private content needs a reason code (X-Reason-Code) (2026-10-28).
+  REASON_CODE_REQUIRED = 'REASON_CODE_REQUIRED',
+  // 503: a sensitive admin action was refused because its audit row could not be written.
+  AUDIT_UNAVAILABLE = 'AUDIT_UNAVAILABLE',
   // 403 / 409: video posts are off, not configured or over a limit.
   VIDEO_UNAVAILABLE = 'VIDEO_UNAVAILABLE',
   VIDEO_TOO_LONG = 'VIDEO_TOO_LONG',
@@ -548,6 +572,9 @@ export enum ErrorCode {
   // Owner 2026-10-22 (client economy plan §4). 409: `updatedSince` is
   // older than 7 days — the app reloads the list from page 1.
   SYNC_TOO_OLD = 'SYNC_TOO_OLD',
+  // Owner 2026-10-25 (experiments). 409: the action does not fit the
+  // experiment's state (start a running one, ramp up a stopped one ...).
+  EXPERIMENT_STATE_INVALID = 'EXPERIMENT_STATE_INVALID',
 
   // Day-one foundations (2026-10-24). 409: the client sent `If-Match: <version>`
   // and the row was saved by someone else since; reload and retry. details:

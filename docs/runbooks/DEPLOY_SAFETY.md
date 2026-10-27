@@ -157,3 +157,90 @@ GitHub -> Settings -> Variables -> `SIGN_REQUIRED` = `true`. Тогда
 
 Источники: Sigstore blog «Cosign v3 is now available»; релизы
 sigstore/cosign-installer и anchore/sbom-action (GitHub, 2026).
+
+## 4. Зелёный CI перед продом, очередь слияния, оповещения (S11, 2026-10-25)
+
+Что теперь делает репозиторий сам (всё в `.github/workflows`, `scripts/ci`, `scripts/deploy`):
+
+- **Ворота «зелёный CI»**: Deploy и Web deploy сначала ждут, пока все проверки
+  этого коммита закончатся зелёными (`scripts/ci/require-green.sh`). Красный
+  или непроверенный `main` не доходит до кнопки Approve. Запуск Deploy вручную
+  с `image_tag` (готовый образ) ворота пропускает: так выкатывают заведомо
+  хорошую версию.
+- **`cancel-in-progress` только для PR**: пуш в `main` теперь всегда доезжает до конца.
+- **Одна обязательная проверка `API CI`** (зависит от static, e2e 1-3, two-db, n1).
+- **N-1** (`n1`): если PR меняет миграции, старый релиз прогоняет свои e2e-тесты
+  на новой схеме (`scripts/ci/n1-compat.mjs`). Красный = миграцию надо разбить
+  на «добавить сейчас, убрать в следующем релизе».
+- **Smoke проверяет версию**: `/health/ready` отдаёт `version` (тег образа);
+  smoke ждёт 12 ответов подряд именно от нового тега. Потом синтетический
+  пользователь (`scripts/ops/synthetic-check.mjs`), а каждые 5 минут то же самое
+  делает `synthetic.yml`.
+- **Порядок выкладки**: проверка бэкапа (реальная, `LatestRestorableTime` RDS,
+  не старше 26 ч) → снимок базы, если в релизе есть миграция `contract` →
+  миграция (30 минут максимум, задача останавливается сама, вторая не стартует,
+  пока жива первая) → api → smoke → worker и admin → синтетика → тег пишется в
+  SSM `/lawbid-prod/deploy/last_good_tag`.
+- **Откат** (`rollback.yml`) имеет свою очередь (`rollback`), не ждёт чужой Deploy;
+  с пустым тегом идёт на последний хороший релиз; можно откатить один сервис
+  (`services`). Подробно о миграции, которая упала: [migrate-resolve.md](migrate-resolve.md).
+- **Оповещения** (`notify-failure.yml`): упавший Deploy/Rollback/Self-check/Drift/
+  скан на main/красный CI на main/синтетика → issue с меткой `ci-alert` (по одному
+  на вид, без спама) + письмо через SNS `lawbid-prod-alerts` + чат-вебхук. По
+  понедельникам приходит «последний зелёный деплой» (heartbeat): тишина = сломано
+  само оповещение. Deploy, который ждёт Approve больше 12 часов, отменяется.
+
+### Что должен сделать владелец (GitHub и AWS; Claude может провести по шагам)
+
+1. **Ruleset на `main`** (Settings -> Rules -> Rulesets -> New branch ruleset, Target:
+   `main`): Require a pull request; Require status checks: `API CI`, `Admin CI`,
+   `gitleaks`, `Analyze, lint checks, unit/widget/golden tests`;
+   Require merge queue; Block force pushes. (Создать его может только владелец.)
+   CodeQL и Container scan (`Build image + Trivy`) не обязательные: они идут только
+   после слияния в main и раз в день, не на каждом PR.
+2. **Merge queue**: включается в том же ruleset (Require merge queue, метод Squash).
+   Во всех CI-workflow, которые идут на PR, уже есть триггер `merge_group`.
+3. **Environment `production`** -> Deployment branches and tags -> Selected branches
+   -> `main` (то же для `release` и `load-test`). Это вторая половина защиты: первая
+   в Terraform (`job_workflow_ref`, `infra/bootstrap`): роль деплоя отдаётся только
+   workflow-файлам `deploy.yml`, `rollback.yml`, `web-deploy.yml`... из `main`.
+   Новый workflow, которому нужна роль, надо сначала добавить в `deploy_workflows`.
+4. **Terraform apply** в `infra/bootstrap` (новые права: StopTask/ListTasks, RDS
+   describe+snapshot, SSM `/lawbid-prod/deploy/*`, роль `lawbid-prod-github-notify`).
+   Claude делает plan, вы подтверждаете.
+5. **Секреты/переменные GitHub**: `AWS_NOTIFY_ROLE` (output `notify_role_arn`),
+   `ALERT_WEBHOOK_URL` (по желанию), `SYNTHETIC_IDENTIFIER` + `SYNTHETIC_PASSWORD`
+   (отдельный тестовый аккаунт с паролем, не живой пользователь), переменные
+   `BACKUP_CHECK_STRICT=true` (после apply), `DEPENDABOT_AUTOMERGE=true` (после
+   ruleset и Settings -> General -> Allow auto-merge), `FLAG_FIRST_ENFORCE=true`
+   (когда привыкнем).
+6. **`SIGN_REQUIRED=true`** (Variables) после первого запуска Deploy, где в логе
+   «signature OK»; затем `signing_guard_enabled = true` в Terraform (тревога, если
+   задача запущена из образа без подписи).
+
+### Стоимость (S11)
+
+| Что | Включено по умолчанию | Выключатель | Цена в месяц (старт / 1 млн пользователей) | Тревога |
+|---|---|---|---|---|
+| Синтетика каждые 5 мин (`synthetic.yml`) | нет | переменная `SYNTHETIC_ENABLED=true` | публичный репозиторий: $0 (около 8 600 мин Actions); приватный: около $70 | `[ci-alert:synthetic]` |
+| CI API (5 параллельных job вместо одного) | да, на PR/пуш | пути в `api-ci.yml` | публичный: $0; минут примерно в 1,5-2 раза больше прежнего | красный `API CI` |
+| EventBridge + Lambda «образ без подписи» | нет | `signing_guard_enabled` в Terraform | меньше $0,10 / меньше $0,10 (вызовов столько же, сколько запусков задач) | письмо в `lawbid-prod-alerts` |
+| Параметры SSM `last_good_tag` | да | нет (Standard = бесплатно) | $0 / $0 | нет |
+| Снимок RDS перед миграцией `contract` | да, только при такой миграции | переменная `PRE_MIGRATE_SNAPSHOT=false` | около $0,095 за ГБ в месяц, пока снимок жив (100 ГБ ≈ $9,5 за неделю хранения ≈ $2) / растёт с базой: удаляйте через неделю | `snapshot ... not available` в Deploy |
+| SNS-оповещения, heartbeat, ночной карантин | да | нет секретов = нет канала | $0 / копейки | сам heartbeat |
+
+## Канарейка (выключена по умолчанию)
+
+Что это: перед обычной выкаткой запускается ОДНА лишняя задача API с новой версией за тем же балансировщиком; она получает малую долю живого трафика. Пока идёт проверка (по умолчанию 5 минут), смотрим те же тревоги, что и ECS при выкатке (5xx, медленные ответы, нездоровые хосты). Если тревога загорелась (а до канарейки не горела), задача не поднялась или остановилась, выкатка останавливается до того, как тронут настоящий API. Лишняя задача удаляется всегда.
+
+Как включить: GitHub → Settings → Variables → `CANARY_ENABLED` = `true` (по желанию `CANARY_BAKE_MINUTES`, по умолчанию 5). Выключить: удалить переменную или поставить `false`.
+
+Стоимость: только минуты одной лишней задачи (около 7–15 минут на выкатку); при выключенной канарейке стоимость 0. Круглосуточных ресурсов не создаётся.
+
+Права: роли выкатки разрешены только создание и удаление сервиса `api-canary` и чтение тревог (infra/bootstrap, применяет владелец).
+
+## Как проверить
+
+1. Включить `CANARY_ENABLED=true`, запустить выкатку: в шаге «Canary» видно «task healthy, watching 5 min» и «passed».
+2. Во время проверки в консоли ECS виден сервис `api-canary` с 1 задачей; после шага его уже нет.
+3. Для проверки отказа: выкатить заведомо битую версию — шаг «Canary» красный, настоящий `api` остался на старой версии.

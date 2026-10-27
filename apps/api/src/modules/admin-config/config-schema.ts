@@ -1,5 +1,9 @@
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { REALTIME_SETTING_DEFS } from '../../common/app-settings/realtime-settings';
+import {
+  STAFF_NUMBER_DEFS,
+  STAFF_SWITCH_LABELS,
+} from '../../common/app-settings/staff-settings';
 import { TEXT_LIMIT_DEFS } from '../../common/app-settings/text-limits';
 import {
   CLIENT_TUNING_DEFS,
@@ -36,6 +40,9 @@ export interface ConfigKeySchema {
 /** An admin area key (admin-permissions ADMIN_AREAS) or `money`. */
 const REASON_AREA_PATTERN = new RegExp(`^(${[...ADMIN_AREAS].join('|')})$`);
 
+/** An IPv4/IPv6 address or an IPv4 CIDR (checked again by parseAllowlistEntry). */
+const IP_OR_CIDR_PATTERN = /^[0-9a-fA-F:.]{2,45}(\/\d{1,2})?$/;
+
 export function configSchema(): Record<string, ConfigKeySchema> {
   const out: Record<string, ConfigKeySchema> = {};
   for (const [key, def] of Object.entries(APP_SETTINGS)) {
@@ -55,12 +62,34 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     pattern: /^(aws|r2)$/,
   };
   // Owner 2026-10-24 (search-ready): checked again on save (engine keys).
+  out['ledger.reconcile_mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'Nightly check of the money ledger. off: not run. on: the whole ledger every night (grows with the table). auto (default): the last N days every night and the whole ledger once a week.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['ledger.reconcile_window_days'] = {
+    type: 'integer',
+    defaultValue: 7,
+    description:
+      'Days the nightly ledger check covers in auto mode (the whole ledger is still checked weekly).',
+    min: 1,
+    max: 90,
+  };
   out['search.engine'] = {
     type: 'string',
     defaultValue: 'postgres',
     description:
       'Who answers searches: postgres (today), shadow (ask the search engine too, show Postgres, log the differences) or engine (the search engine, Postgres if it fails or is slow). The engine needs Integrations → Search engine (OpenSearch).',
     pattern: /^(postgres|shadow|engine)$/,
+  };
+  out['search.engine_kind'] = {
+    type: 'string',
+    defaultValue: 'domain',
+    description:
+      'Which search engine the app talks to: domain (OpenSearch domain, about $25 a month for the smallest) or serverless (Amazon OpenSearch Serverless, from about $350 a month, no servers to size). Serverless needs growth.opensearch_serverless_enabled in Terraform. Changing it needs a reindex.',
+    pattern: /^(domain|serverless)$/,
   };
   out['search.engine_timeout_ms'] = {
     type: 'integer',
@@ -77,6 +106,36 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'After a search reindex, the old index is kept this many days so you can roll back, then deleted.',
     min: 1,
     max: 60,
+  };
+  out['events.sink'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'Internal event stream (user signed up, case created, bid placed, payment, post...): off (not recorded), db (own table), stream (table + Kinesis; needs the stream turned on in infrastructure) or auto (default: not recorded until a consumer such as experiments / analytics needs the events; then db, moving to stream when events per day pass the ceiling below).',
+    pattern: /^(off|db|stream|auto)$/,
+  };
+  out['events.max_per_day'] = {
+    type: 'integer',
+    defaultValue: 1000000,
+    description:
+      'Hard ceiling: events recorded per day at most, in every mode; past it the rest of the day records nothing.',
+    min: 1000,
+    max: 2000000000,
+  };
+  out['events.retention_days'] = {
+    type: 'integer',
+    defaultValue: 30,
+    description: 'Recorded events are deleted after this many days.',
+    min: 1,
+    max: 365,
+  };
+  out['events.auto_ceiling_per_day'] = {
+    type: 'integer',
+    defaultValue: 2000000,
+    description:
+      'In auto mode: when events per day pass this number the stream is used instead of only the database.',
+    min: 1000,
+    max: 2000000000,
   };
   out['search.reindex_throttle_ms'] = {
     type: 'integer',
@@ -189,10 +248,43 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     type: 'integer',
     defaultValue: null,
     description:
-      'Daily money cap for all paid services together, in US cents (empty = BUDGET_GLOBAL_DAILY_CENTS, $500; 0 = none). An alert fires at 80 %.',
+      'Daily money cap for all paid services together, in US cents (empty = automatic: allowed spend / 30 x economy.daily_brake_days, about $15 a day at launch; 0 = none). An alert fires at 80 %.',
     min: 0,
     max: 100_000_000,
   };
+  out['scale.endpoints.mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'VPC interface endpoints (about $29 a month): auto = created / removed by NAT traffic, on = always kept, off = never.',
+    pattern: /^(auto|on|off)$/,
+  };
+  out['scale.endpoints.ceiling'] = {
+    type: 'integer',
+    defaultValue: 4,
+    description:
+      'Most VPC interface endpoints the automation may keep (0 = none, 4 = all).',
+    min: 0,
+    max: 4,
+  };
+  out['budget.sms.monthly_cents'] = {
+    type: 'integer',
+    defaultValue: null,
+    description:
+      'Monthly money cap for SMS, in US cents (empty = BUDGET_SMS_MONTHLY_CENTS, $100; 0 = none).',
+    min: 0,
+    max: 100_000_000,
+  };
+  // S9-2: the one price book. Empty = the list price in cost-prices.ts.
+  for (const provider of COST_PROVIDERS) {
+    out[`cost.unit_millicents.${provider}`] = {
+      type: 'integer',
+      defaultValue: null,
+      description: `Price of one unit of ${provider} in millicents (1/1000 of a cent), overrides the list price used by the money brakes and the economy guard (empty = list price).`,
+      min: 0,
+      max: 100_000_000,
+    };
+  }
   out['budget.money.user_daily_cents'] = {
     type: 'integer',
     defaultValue: null,
@@ -208,6 +300,25 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       ...out[key],
       type: 'integer',
       description: `${def.label}: most characters (${def.min}–${def.max}). The app shows a counter and stops at the same number.`,
+      min: def.min,
+      max: def.max,
+    };
+  }
+  // Staff package T1 (2026-10-27): switches (all off) and numbers with
+  // their bounds; Russian label + key, like the realtime timings.
+  for (const [key, labelRu] of Object.entries(STAFF_SWITCH_LABELS)) {
+    out[key] = {
+      type: 'boolean',
+      defaultValue: false,
+      description: `${labelRu} (${key}). По умолчанию выключено.`,
+    };
+  }
+  for (const [key, def] of Object.entries(STAFF_NUMBER_DEFS)) {
+    const defaultValue = APP_SETTINGS[key as keyof typeof APP_SETTINGS];
+    out[key] = {
+      type: 'integer',
+      defaultValue,
+      description: `${def.labelRu} (${key}). По умолчанию ${String(defaultValue)}, от ${def.min} до ${def.max}.`,
       min: def.min,
       max: def.max,
     };
@@ -297,6 +408,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'rate_limit.case_create_per_day',
     'rate_limit.chat_save_per_minute',
     'rate_limit.forward_per_minute',
+    'rate_limit.search_suggest_per_minute',
   ] as const) {
     out[key] = { ...out[key], min: 1, max: 100000 };
   }
@@ -360,6 +472,62 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'Cloudflare Turnstile на сайте (не в приложении): off (по умолчанию) | monitor (проверять и писать в лог, не блокировать) | enforce (неверный токен — 403 TURNSTILE_FAILED, верный пропускает без App Check). Нужен секретный ключ в Интеграции → Cloudflare Turnstile.',
     pattern: /^(off|monitor|enforce)$/,
+  };
+  out['security.app_check.replay_protection'] = {
+    ...out['security.app_check.replay_protection'],
+    description:
+      'With App Check on enforce: every token is accepted once on the sign-in code (phone), password-reset code and phone-status routes (replay protection, one extra round trip). Turn on only after the app sends limited-use tokens there.',
+  };
+  out['security.auth_challenge_after_failures'] = {
+    ...out['security.auth_challenge_after_failures'],
+    description:
+      'After this many wrong passwords or codes for one account in 15 minutes (5 times as many from one address) the next attempt must carry a valid App Check or Turnstile token. 0 = never (default).',
+    min: 0,
+    max: 50,
+  };
+  out['security.otp_legacy_purpose_fallback'] = {
+    ...out['security.otp_legacy_purpose_fallback'],
+    description:
+      'On (default): a re-authentication or add-a-sign-in-method code asked by an older app build (without its purpose) is still accepted. Off: a code works only for the flow it was asked for.',
+  };
+  out['security.signup_block_disposable_email'] = {
+    ...out['security.signup_block_disposable_email'],
+    description:
+      'On (default): a new account cannot be opened with an e-mail from the disposable-domain list (code by e-mail or Google / Apple sign-in). Existing accounts are not affected.',
+  };
+  out['security.new_country_alert_enabled'] = {
+    ...out['security.new_country_alert_enabled'],
+    description:
+      'On: the owner gets the new-device alert when a session is used from a country it was not used from before. Off by default (costs an e-mail and a push; max one per account per 24 h). Needs the CloudFront-Viewer-Country header.',
+  };
+  // Legal register 2026-10-25: 18+ gate, text messages, e-mail footers.
+  out['compliance.age_gate.mode'] = {
+    ...out['compliance.age_gate.mode'],
+    description:
+      'Возрастной барьер 18+: off (по умолчанию) | record (записывать подтверждение, если приложение его прислало) | enforce (новый аккаунт без подтверждения 18+ получает 403 AGE_ATTESTATION_REQUIRED). enforce включать только после того, как приложение покажет галочку и начнёт слать ageAttestation.',
+    pattern: /^(off|record|enforce)$/,
+  };
+  out['compliance.age_gate.min_age'] = {
+    ...out['compliance.age_gate.min_age'],
+    min: 13,
+    max: 21,
+  };
+  out['compliance.sms.quiet_start_hour'] = {
+    ...out['compliance.sms.quiet_start_hour'],
+    min: 0,
+    max: 23,
+  };
+  out['compliance.sms.quiet_end_hour'] = {
+    ...out['compliance.sms.quiet_end_hour'],
+    min: 0,
+    max: 23,
+  };
+  // S12-8: per-route metrics (CloudWatch custom metrics are billed).
+  out['ops.route_metrics.mode'] = {
+    ...out['ops.route_metrics.mode'],
+    description:
+      'Per-route request / error / latency metrics for about 15 key routes (CloudWatch LawBid/Routes, about $13.5 a month when all routes report): off | on (always) | auto (default: a route reports only while it has 5xx answers or p95 above 1 s).',
+    pattern: /^(off|on|auto)$/,
   };
   // Legal-grade protection of client documents (2026-10-24).
   out['security.attorney_strong_auth'] = {
@@ -513,6 +681,29 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 1_000_000,
   };
+  out['sms.cap_mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'How the SMS caps above behave. auto (default): each cap is a floor and grows to the highest day of the last 7 days times «sms.burst_multiplier» (up to «sms.burst_ceiling_multiplier» times the cap), with an alert when the extra room is used, so a launch or marketing spike is not silently dropped. fixed: exactly the numbers typed.',
+    pattern: /^(auto|fixed)$/,
+  };
+  out['sms.burst_multiplier'] = {
+    type: 'number',
+    defaultValue: 3,
+    description:
+      'Auto mode: the allowed number is the 7-day baseline times this (never below the typed cap).',
+    min: 1,
+    max: 20,
+  };
+  out['sms.burst_ceiling_multiplier'] = {
+    type: 'number',
+    defaultValue: 10,
+    description:
+      'Auto mode: the allowed number never exceeds the typed cap times this.',
+    min: 1,
+    max: 100,
+  };
   out['storage.daily_upload_mb_per_user'] = {
     ...out['storage.daily_upload_mb_per_user'],
     description:
@@ -521,6 +712,32 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     max: 1_000_000,
   };
   // Owner 2026-10-05: zero-maintenance operations (Система → Здоровье системы).
+  out['db.bloat_mode'] = {
+    ...out['db.bloat_mode'],
+    description:
+      'Nightly table/index bloat check: off | on (heap estimate for every big table) | auto (default: only where statistics show 10 %+ dead rows). Indexes are estimated from statistics, never read.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['db.bloat_scan_max_mb'] = {
+    ...out['db.bloat_scan_max_mb'],
+    description:
+      'Bloat check: biggest table (MB) the heap estimate may read; bigger tables use statistics only.',
+    min: 0,
+    max: 100000,
+  };
+  out['privacy.retention_batch'] = {
+    ...out['privacy.retention_batch'],
+    description: 'Privacy retention: rows per statement (short transactions).',
+    min: 100,
+    max: 50000,
+  };
+  out['privacy.retention_max_rows'] = {
+    ...out['privacy.retention_max_rows'],
+    description:
+      'Privacy retention: rows per table per night; the next night continues.',
+    min: 1000,
+    max: 100000000,
+  };
   out['ops.db_slow_ms'] = {
     ...out['ops.db_slow_ms'],
     description:
@@ -534,6 +751,54 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Alert when the newest database backup is older than this many hours.',
     min: 2,
     max: 24 * 14,
+  };
+  // Round 20 (2026-10-25): hidden-cost switches, off | on | auto.
+  const triState = (key: string, description: string) => {
+    out[key] = {
+      ...out[key],
+      description,
+      pattern: /^(off|on|auto)$/,
+    };
+  };
+  triState(
+    'ops.admin_summaries_mode',
+    'Heavy admin counts (dashboard, billing, trust scan): auto = every 2 minutes only while an admin was active in the last 10 minutes, otherwise hourly; on = always every 2 minutes; off = every 6 hours.',
+  );
+  triState(
+    'ops.cron_idle_backoff',
+    'Every-minute background sweeps (government exports, search outbox, video and consultation sweeps) with nothing to do: auto = after N empty runs run every few minutes until work appears; on = always the slow pace; off = every minute, as before.',
+  );
+  out['ops.cron_idle_after_runs'] = {
+    ...out['ops.cron_idle_after_runs'],
+    description:
+      'Empty runs in a row before an every-minute sweep slows down (auto mode).',
+    min: 3,
+    max: 1000,
+  };
+  out['ops.cron_idle_every_min'] = {
+    ...out['ops.cron_idle_every_min'],
+    description:
+      'Minutes between runs of an idle sweep. Ceiling 30: nothing waits longer than that.',
+    min: 2,
+    max: 30,
+  };
+  out['ops.reencrypt_rows_per_min'] = {
+    ...out['ops.reencrypt_rows_per_min'],
+    description:
+      'Ceiling of the message re-encryption pass, rows per minute (0 = paused, the pass keeps its place). Lower it if the database is busy.',
+    min: 0,
+    max: 20_000,
+  };
+  triState(
+    'log.ws_events',
+    'WebSocket connect / disconnect log lines: auto = a weighted sample, every line for 30 minutes while reconnects spike; on = every line; off = the sample only (the counters on the status board are always complete).',
+  );
+  out['log.ws_sample_percent'] = {
+    ...out['log.ws_sample_percent'],
+    description:
+      'Percent of WebSocket connect / disconnect events written as log lines (each line counts for 100/percent events).',
+    min: 1,
+    max: 100,
   };
   out['search.ranked_cache_ttl_sec'] = {
     ...out['search.ranked_cache_ttl_sec'],
@@ -563,6 +828,61 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 1000000,
   };
+  // Owner 2026-10-26: infra switches from the admin.
+  out['infra.dry_run'] = {
+    type: 'boolean',
+    defaultValue: true,
+    description:
+      'Cloud changes from the admin are only planned, never applied (the plan is shown, nothing changes). false = after the plan and your 2FA code the change is applied.',
+  };
+  out['infra.daily_cap'] = {
+    type: 'integer',
+    defaultValue: 3,
+    description: 'At most this many cloud change requests per 24 hours.',
+    min: 1,
+    max: 10,
+  };
+  out['infra.quiet_hours'] = {
+    type: 'string',
+    defaultValue: '',
+    description:
+      'Hours (America/Chicago) when a cloud change may be applied, "HH:MM-HH:MM", e.g. 01:00-06:00; empty = any time.',
+    pattern: /^$|^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/,
+  };
+  // Owner 2026-10-27: admin «Продвижение» (static SEO pages + channel list).
+  // Switched on the «Продвижение» page; the generator reads them from GET
+  // /public/seo-settings (no stored row = the repository variable decides).
+  const seoText: Record<string, string> = {
+    'seo.incremental_enabled':
+      'Public SEO pages: upload only the files that changed and reset the CDN only for them (at most 30 paths a day). Changed on the «Продвижение» page.',
+    'seo.llms_enabled':
+      'Public SEO pages: publish /llms.txt and /llms-full.txt. Changed on the «Продвижение» page.',
+    'seo.quality_gate_enabled':
+      'Public SEO pages: thin pages get noindex and leave the sitemap. Turn on only after the page texts are longer (dry run first). Changed on the «Продвижение» page.',
+    'seo.ramp_per_day':
+      'Public SEO pages: at most this many NEW pages enter the index a day; 0 = no limit. Changed on the «Продвижение» page.',
+    'seo.robots_ai_enabled':
+      'Public SEO pages: robots.txt lets search and answer bots in and keeps training bots out. Changed on the «Продвижение» page.',
+    'seo.sitemap_index_enabled':
+      'Public SEO pages: /sitemap.xml becomes an index of /sitemaps/*.xml. Changed on the «Продвижение» page.',
+  };
+  for (const [k, description] of Object.entries(seoText)) {
+    out[k] = { ...out[k], description };
+  }
+  out['seo.ramp_per_day'] = {
+    ...out['seo.ramp_per_day'],
+    min: 0,
+    max: 5000,
+  };
+  for (const k of Object.keys(out)) {
+    if (k.startsWith('seo.checklist.')) {
+      out[k] = {
+        ...out[k],
+        description:
+          'Promotion checklist: the owner ticked this channel as done. Changed on the «Продвижение» page.',
+      };
+    }
+  }
   out['scale.capacity_ceiling.mode'] = {
     type: 'string',
     defaultValue: 'auto',
@@ -582,6 +902,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     defaultValue: 'auto',
     description:
       'Group video calls on Cloudflare SFU: auto = fall back to device-to-device when this month’s Cloudflare traffic reaches the urgent threshold, on = fallen back now, off = never. Calls are never refused. Changed on the «Расходы» page.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['ops.outbox_sweep.mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'Relay of events that cross database families (idle while there is one database): auto = run only when an event is waiting, on = every minute, off = never. Changed on the «Расходы» page.',
     pattern: /^(off|on|auto)$/,
   };
   out['usage.bunny_bandwidth_crit_gb'] = {
@@ -611,6 +938,49 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 100,
   };
+  out['ranking.events_mode'] = {
+    ...out['ranking.events_mode'],
+    description:
+      'Ranking events log: off, on, or auto (impressions only while an experiment runs).',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['ranking.impression_sample_percent'] = {
+    ...out['ranking.impression_sample_percent'],
+    min: 0,
+    max: 100,
+  };
+  // Programmatic SEO (2026-10-27): the page generator job. Off by default.
+  out['seo.generator_mode'] = {
+    ...out['seo.generator_mode'],
+    description:
+      'Public SEO pages built by the API: off (default, nothing runs) | nightly (after the nightly snapshot jobs) | nightly+events (also a minute after an attorney is published or removed).',
+    pattern: /^(off|nightly|nightly\+events)$/,
+  };
+  out['seo.generator_debounce_seconds'] = {
+    ...out['seo.generator_debounce_seconds'],
+    min: 10,
+    max: 3600,
+  };
+  out['seo.generator_min_interval_minutes'] = {
+    ...out['seo.generator_min_interval_minutes'],
+    min: 1,
+    max: 1440,
+  };
+  out['seo.generator_max_attorneys'] = {
+    ...out['seo.generator_max_attorneys'],
+    min: 100,
+    max: 50000,
+  };
+  out['seo.generator_max_uploads_per_run'] = {
+    ...out['seo.generator_max_uploads_per_run'],
+    min: 10,
+    max: 50000,
+  };
+  out['seo.max_invalidation_paths_per_day'] = {
+    ...out['seo.max_invalidation_paths_per_day'],
+    min: 0,
+    max: 500,
+  };
   out['chat.search.backfill_mode'] = {
     ...out['chat.search.backfill_mode'],
     description:
@@ -621,6 +991,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['chat.search.backfill_rows_per_run'],
     min: 100,
     max: 100000,
+  };
+  out['chat.search.max_tokens_per_message'] = {
+    ...out['chat.search.max_tokens_per_message'],
+    description:
+      'Chat search: index rows written per message (distinct words of 2+ characters, stop-words skipped; prefixes count too).',
+    min: 8,
+    max: 400,
+  };
+  out['chat.search.backfill_batch'] = {
+    ...out['chat.search.backfill_batch'],
+    description:
+      'Chat search backfill: messages per batch (one short transaction each).',
+    min: 50,
+    max: 5000,
   };
   out['economy.ceiling_mode'] = {
     ...out['economy.ceiling_mode'],
@@ -670,17 +1054,51 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: TRIAL_DAYS_MAX,
   };
-  out['billing.dual_approval_min_cents'] = {
-    ...out['billing.dual_approval_min_cents'],
+  out['admin.ip_allowlist_enabled'] = {
+    ...out['admin.ip_allowlist_enabled'],
     description:
-      'Bulk payouts and refunds of this many cents or more wait for a second admin to approve them (0 = all of them). Changing it needs a fresh 2FA code.',
-    min: 0,
-    max: 100_000_000,
+      'Only the addresses in admin.ip_allowlist may use the admin panel. Needs a fresh 2FA code; refused if your own address is not on the list. Emergency bypass: docs/runbooks/ADMIN_HARDENING.md.',
   };
-  out['admin.dual_control'] = {
-    ...out['admin.dual_control'],
+  out['admin.ip_allowlist'] = {
+    ...out['admin.ip_allowlist'],
     description:
-      'Second-admin approval for payouts, refunds, bonuses and the ops buttons. Off (default): the admin who asks runs the action at once after a fresh 2FA code. On: amounts from billing.dual_approval_min_cents wait for another admin.',
+      'Addresses allowed into the admin panel when the allowlist is on: IPv4/IPv6 or IPv4 CIDR (203.0.113.0/24). Needs a fresh 2FA code.',
+    pattern: IP_OR_CIDR_PATTERN,
+  };
+  out['admin.country_allowlist'] = {
+    ...out['admin.country_allowlist'],
+    description:
+      'Countries (two letters: US, GB, KG…) from which mass-work and finance staff may work. Works only with the switch «Блокировать вход с нового устройства или страны». Empty = no check. Needs a fresh 2FA code.',
+    pattern: /^[A-Z]{2}$/,
+  };
+  out['admin.login_alert_enabled'] = {
+    ...out['admin.login_alert_enabled'],
+    description:
+      'E-mail the owner when an admin signs in from a new device or a new address.',
+  };
+  out['admin.max_concurrent_sessions'] = {
+    ...out['admin.max_concurrent_sessions'],
+    description:
+      'Live sessions per admin; a new sign-in ends the oldest one (0 = no limit). Needs a fresh 2FA code.',
+    min: 0,
+    max: 20,
+  };
+  out['admin.private_stepup_seconds'] = {
+    ...out['admin.private_stepup_seconds'],
+    description:
+      'Revealing a private message needs a 2FA code entered within this many seconds (30–300).',
+    min: 30,
+    max: 300,
+  };
+  out['admin.audit_export_enabled'] = {
+    ...out['admin.audit_export_enabled'],
+    description:
+      'Daily copy of the audit log to the locked audit bucket (works only when the bucket is set up in Terraform).',
+  };
+  out['admin.access_report_enabled'] = {
+    ...out['admin.access_report_enabled'],
+    description:
+      'Monthly e-mail to the owner: who read private content, how many times and why.',
   };
   out['admin.reason_required_areas'] = {
     ...out['admin.reason_required_areas'],
@@ -727,6 +1145,22 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description: '«Лучший сотрудник» period: month or week.',
     pattern: /^(month|week)$/,
   };
+  // Owner 2026-10-26: hash partitioning of messages / group messages /
+  // notifications is opt-in (off | on | auto at partition.auto_rows).
+  for (const t of ['messages', 'chat_group_messages', 'notifications']) {
+    out[`partition.${t}_mode`] = {
+      ...out[`partition.${t}_mode`],
+      description: `Hash partitioning of ${t}: off = plain table (default, faster while small), on = the online runner converts now, auto = converts at partition.auto_rows.`,
+      pattern: /^(off|on|auto)$/,
+    };
+  }
+  out['partition.auto_rows'] = {
+    ...out['partition.auto_rows'],
+    description:
+      'Rows at which the «auto» partition mode converts a table (default 50 million).',
+    min: 1_000_000,
+    max: 5_000_000_000,
+  };
   out['sms.allowed_country_codes'] = {
     type: 'string[]',
     defaultValue: ['US'],
@@ -744,6 +1178,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       description: def.description,
       ...(def.min !== undefined ? { min: def.min } : {}),
       ...(def.max !== undefined ? { max: def.max } : {}),
+      ...(def.pattern ? { pattern: def.pattern } : {}),
     };
   }
   out['media.chat_photo_max_px'] = {
@@ -783,7 +1218,96 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       pattern: /^\d+\.\d+\.\d+$/,
     };
   }
+  // Owner 2026-10-28 (legal safety): enumerated modes and sane ranges.
+  out['qa.pii_mode'] = {
+    ...out['qa.pii_mode'],
+    pattern: /^(off|warn|redact|block)$/,
+  };
+  out['qa.pii_kinds'] = {
+    ...out['qa.pii_kinds'],
+    pattern:
+      /^(?:(?:ssn|card|address|case_number|party_name|immigration_id|dob|id_number|phone|email)(?:\s*,\s*|$))+$/,
+  };
+  out['qa.advice_flag_mode'] = {
+    ...out['qa.advice_flag_mode'],
+    pattern: /^(off|flag|hold)$/,
+  };
+  out['legal.disclaimer.by_state'] = {
+    ...out['legal.disclaimer.by_state'],
+    pattern: /^\{[\s\S]{0,20000}\}$/,
+  };
+  out['qa.new_account_cooldown_hours'] = {
+    ...out['qa.new_account_cooldown_hours'],
+    min: 0,
+    max: 720,
+  };
+  out['qa.max_links'] = { ...out['qa.max_links'], min: 0, max: 50 };
+  out['qa.duplicate_window_days'] = {
+    ...out['qa.duplicate_window_days'],
+    min: 0,
+    max: 365,
+  };
+  out['qa.duplicate_cross_user_max'] = {
+    ...out['qa.duplicate_cross_user_max'],
+    min: 1,
+    max: 100,
+  };
+  out['qa.answer_duplicate_max'] = {
+    ...out['qa.answer_duplicate_max'],
+    min: 1,
+    max: 100,
+  };
+  out['rate_limit.answer_per_day'] = {
+    ...out['rate_limit.answer_per_day'],
+    min: 1,
+    max: 10_000,
+  };
+  moderationTuning(out);
   return out;
+}
+
+/** Owner 2026-10-27: scores take decimals, modes take fixed words,
+ * classifier confidences stay within 0–1. */
+function moderationTuning(out: Record<string, ConfigKeySchema>): void {
+  for (const k of [
+    'moderation.auto_hide_score',
+    'moderation.verified_attorney_score',
+    'moderation.auto.strike_score',
+    'moderation.auto.detect_score',
+    'moderation.auto.limit_at',
+    'moderation.auto.suspend_temp_at',
+    'moderation.auto.suspend_at',
+    'moderation.auto.verified_attorney_multiplier',
+    'moderation.weight.verified_reporter',
+  ]) {
+    if (out[k]) out[k] = { ...out[k], type: 'number', max: 1000 };
+  }
+  for (const k of [
+    'moderation.weight.new_account',
+    'moderation.weight.unverified_contact',
+    'moderation.weight.burst',
+    'moderation.detect.hold_at',
+    'moderation.detect.block_at',
+    'moderation.detect.log_at',
+  ]) {
+    if (out[k]) out[k] = { ...out[k], type: 'number', max: 1 };
+  }
+  const patterns: Record<string, RegExp> = {
+    'moderation.auto_hide_mode': /^(weighted|count)$/,
+    'moderation.verified_attorney_action': /^(review|hide)$/,
+    'moderation.auto.verified_attorney_action': /^(review|higher_bar)$/,
+    'moderation.auto.account_mode': /^(off|shadow|enforce)$/,
+    'moderation.detect.mode': /^(off|shadow|enforce)$/,
+    'moderation.detect.provider': /^openai$/,
+    'moderation.detect.categories':
+      /^(harassment|harassment\/threatening|hate|hate\/threatening|illicit|illicit\/violent|sexual|sexual\/minors|self-harm|violence|violence\/graphic)$/,
+  };
+  for (const [k, pattern] of Object.entries(patterns)) {
+    if (out[k]) out[k] = { ...out[k], pattern };
+  }
+  if (out['moderation.report_abuse.unfounded_percent']) {
+    out['moderation.report_abuse.unfounded_percent'].max = 100;
+  }
 }
 
 function inferred(def: unknown): ConfigKeySchema {

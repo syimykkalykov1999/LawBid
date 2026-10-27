@@ -13,7 +13,9 @@ import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart'
     show topicTagFor;
+import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/social/application/post_insights_providers.dart';
+import 'package:lawbid/features/social/application/post_spotlight.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -41,6 +43,12 @@ final savedJsonProvider = Provider<SavedJson>(
     ref.watch(currentUserIdProvider),
   ),
 );
+
+/// Profile headers (post counters) read again — after a post is deleted or a
+/// reel is published (audit C6); the grids are not touched.
+void refreshProfileCounters(Ref ref) => ref
+  ..invalidate(publicAttorneyProfileProvider)
+  ..invalidate(publicClientProfileProvider);
 
 /// The signed-in user's id (JWT `sub`), or null signed out.
 /// The account the app acts as — for an assistant (OQ-048) the attorney
@@ -190,8 +198,8 @@ class FeedNotifier extends PagedNotifier<Post> {
       if (cursor == null) {
         fromCache = false;
         ref
-            .read(postOverridesProvider.notifier)
-            .clearFor(page.items.map((p) => p.id));
+            .read(socialActionsProvider)
+            .applyServerTruth(page.items.map((p) => p.id));
       }
       return page;
     } on ApiException catch (e) {
@@ -784,14 +792,23 @@ class SocialActions {
     return done.future;
   }
 
-  Future<Object?> _flushLike(Post post) => _guard('like:${post.id}', () async {
+  /// Posts whose like request loop is running.
+  final _likeFlushing = <String>{};
+
+  /// Sends the final like state. A flush that finds another one running
+  /// returns at once: the running one re-reads the latest state after its
+  /// request and goes on until the server knows it (audit C1).
+  Future<Object?> _flushLike(Post post) async {
+    if (!_likeFlushing.add(post.id)) return null;
+    try {
+      while (true) {
         final now = _latest(post);
         final liked = now.likedByMe;
-        if (_likeKnown[post.id] == liked) return; // back where it was
+        if (_likeKnown[post.id] == liked) return null; // back where it was
         try {
           await _repo.setLiked(post.id, liked: liked);
           _likeKnown[post.id] = liked;
-        } on Object {
+        } on Object catch (e) {
           _ref.read(postOverridesProvider.notifier).put(
                 now.copyWith(
                   likedByMe: !liked,
@@ -799,9 +816,45 @@ class SocialActions {
                       (now.likeCount + (liked ? -1 : 1)).clamp(0, 1 << 31),
                 ),
               );
-          rethrow;
+          return e;
         }
-      });
+      }
+    } finally {
+      _likeFlushing.remove(post.id);
+    }
+  }
+
+  /// A like of this post is waiting or in flight.
+  bool likePending(String id) =>
+      _likeTimers.containsKey(id) || _likeFlushing.contains(id);
+
+  /// Fresh server data for these posts (first feed page): the server is
+  /// the truth again, except for posts with a like still on its way
+  /// (audit C2, C15).
+  void applyServerTruth(Iterable<String> ids) {
+    final settled = [
+      for (final id in ids)
+        if (!likePending(id)) id,
+    ];
+    for (final id in settled) {
+      _likeKnown.remove(id);
+    }
+    _ref.read(postOverridesProvider.notifier).clearFor(settled);
+  }
+
+  /// The account changed: nothing waits any more.
+  void dispose() {
+    for (final t in _likeTimers.values) {
+      t.cancel();
+    }
+    _likeTimers.clear();
+    for (final ws in _likeWaiters.values) {
+      for (final w in ws) {
+        if (!w.isCompleted) w.complete(null);
+      }
+    }
+    _likeWaiters.clear();
+  }
 
   /// Owner 2026-10-07: Threads-style repost — optimistic like a like.
   /// One's own post can't be reposted (the server answers 409 too).
@@ -883,6 +936,8 @@ class SocialActions {
           _ref.read(postOverridesProvider.notifier).put(before);
           rethrow;
         }
+        // Owner 2026-10-27 (app indexing): iPhone Spotlight finds saved posts.
+        spotlightPostSaved(_ref, before, saved: saved);
       });
 
   Future<Object?> deletePost(Post post) => _guard('del:${post.id}', () async {
@@ -890,8 +945,10 @@ class SocialActions {
         _ref.read(deletedPostsProvider.notifier).add(post.id);
         // The post is hidden at once by deletedPostsProvider; the profile
         // grids and counters are not refetched now (delta audit P6) — they
-        // read again the next time they are opened.
+        // read again the next time they are opened. Only the profile header
+        // (its post counter) is re-read (audit C6).
         _ref.invalidate(archivedPostsProvider);
+        refreshProfileCounters(_ref);
       });
 
   /// Owner 2026-10-12: pin to slot 1..3 / unpin; the profile lists reload
@@ -1073,7 +1130,13 @@ class SocialActions {
       );
 }
 
-final socialActionsProvider = Provider<SocialActions>(SocialActions.new);
+final socialActionsProvider = Provider<SocialActions>((ref) {
+  // Audit C2: another account starts with clean like bookkeeping.
+  ref.watch(currentUserIdProvider);
+  final actions = SocialActions(ref);
+  ref.onDispose(actions.dispose);
+  return actions;
+});
 
 /// Whether to draw [post]'s like counter for this viewer: the author always
 /// sees it; others unless the author hid it or the viewer hides them all

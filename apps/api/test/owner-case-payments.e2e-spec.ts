@@ -1604,4 +1604,255 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
     );
     await prisma.appConfig.deleteMany({ where: { key: PAYMENT_SETTINGS_KEY } });
   });
+  // ---- Stripe robustness 2026-10-27 -------------------------------------
+
+  /** A paid case payment on a fresh attorney account. */
+  async function paidPayment(amountCents = 20_000) {
+    const att = await attorney();
+    const cli = await client();
+    const acct = await onboard(att);
+    const c = await caseInProgress(cli, att, amountCents);
+    const res = await pay(cli, c.id, { kind: 'bid' });
+    const id = (res.body as Body).data.paymentId as string;
+    let row = await prisma.casePayment.findUniqueOrThrow({ where: { id } });
+    fake.payConnectedCheckout(row.stripe_checkout_id!);
+    await service.applyCheckoutById(row.stripe_checkout_id!, acct);
+    row = await prisma.casePayment.findUniqueOrThrow({ where: { id } });
+    return { att, cli, acct, c, id, row };
+  }
+
+  it('expire() asks Stripe: a checkout paid but never confirmed is recorded, not cancelled', async () => {
+    const att = await attorney();
+    const cli = await client();
+    const acct = await onboard(att);
+    const c = await caseInProgress(cli, att, 12_000);
+    const res = await pay(cli, c.id, { kind: 'bid' });
+    const id = (res.body as Body).data.paymentId as string;
+    const row = await prisma.casePayment.findUniqueOrThrow({ where: { id } });
+    // Paid at Stripe, the webhook and the app return both lost.
+    fake.payConnectedCheckout(row.stripe_checkout_id!);
+    await prisma.casePayment.update({
+      where: { id },
+      data: { created_at: new Date(Date.now() - 2 * 86_400_000) },
+    });
+    const out = await service.expire();
+    expect(out.recovered).toBeGreaterThanOrEqual(1);
+    const after = await prisma.casePayment.findUniqueOrThrow({ where: { id } });
+    expect(after.status).toBe('succeeded');
+    expect(
+      await prisma.ledgerEntry.count({
+        where: { source_type: 'case_payment', source_id: id },
+      }),
+    ).toBe(1);
+    expect(acct).toBeTruthy();
+  });
+
+  it('dispute: evidence draft in Stripe, payouts held, queue item; admin submits with 2FA; won releases the hold', async () => {
+    const { att, acct, id, row } = await paidPayment();
+    const dueBy = Math.floor(Date.now() / 1000) + 7 * 86_400;
+    fake.disputes.set('dp_e2e_1', {
+      id: 'dp_e2e_1',
+      accountId: acct,
+      chargeId: row.stripe_charge_id,
+      paymentIntentId: row.stripe_payment_intent_id,
+      status: 'needs_response',
+      reason: 'fraudulent',
+      amountCents: row.client_total_cents,
+      currency: 'usd',
+      dueBy,
+      hasEvidence: false,
+      pastDue: false,
+      submissionCount: 0,
+      evidence: {},
+    });
+    const opened = await connectWebhook(
+      'charge.dispute.created',
+      {
+        object: 'dispute',
+        id: 'dp_e2e_1',
+        charge: row.stripe_charge_id,
+        status: 'needs_response',
+        reason: 'fraudulent',
+        amount: row.client_total_cents,
+        evidence_details: { due_by: dueBy },
+      },
+      acct,
+    );
+    await processed(opened.id);
+    const after = await prisma.casePayment.findUniqueOrThrow({ where: { id } });
+    expect(after).toMatchObject({
+      status: 'disputed',
+      dispute_id: 'dp_e2e_1',
+      dispute_reason: 'fraudulent',
+      dispute_evidence_status: 'draft',
+    });
+    // The draft is in Stripe, NOT submitted.
+    const inStripe = fake.disputes.get('dp_e2e_1')!;
+    expect(inStripe.submissionCount).toBe(0);
+    expect(inStripe.evidence.product_description).toContain('Payments case');
+    expect(inStripe.evidence.service_documentation).toMatch(/^file_fake_/);
+    // Payouts to this attorney are paused.
+    expect(fake.payoutsHeld.get(acct)).toBe(true);
+    expect(
+      (
+        await prisma.payoutAccount.findUniqueOrThrow({
+          where: { user_id: att.id },
+        })
+      ).payouts_held,
+    ).toBe(true);
+
+    const root = await adminSession(baseUrl, prisma, 'super_admin');
+    const queue = await api()
+      .get('/api/v1/admin/stripe-review')
+      .set(root.auth)
+      .expect(200);
+    const items = (queue.body as { data: Record<string, unknown>[] }).data;
+    const item = items.find((i) => i.stripeRef === 'dp_e2e_1');
+    expect(item).toMatchObject({ kind: 'dispute', status: 'open', sla: 'ok' });
+
+    // Submitting needs a fresh 2FA code (and no second admin).
+    const denied = await api()
+      .post(`/api/v1/admin/stripe-review/disputes/${id}/submit`)
+      .set(root.auth);
+    expect(denied.status).toBe(403);
+    expect(fake.disputes.get('dp_e2e_1')!.submissionCount).toBe(0);
+    await adminStepUp(baseUrl, root);
+    const sent = await api()
+      .post(`/api/v1/admin/stripe-review/disputes/${id}/submit`)
+      .set(root.auth)
+      .expect(200);
+    expect((sent.body as Body).data).toMatchObject({ submissionCount: 1 });
+    expect(
+      (await prisma.casePayment.findUniqueOrThrow({ where: { id } }))
+        .dispute_evidence_status,
+    ).toBe('submitted');
+
+    const won = await connectWebhook(
+      'charge.dispute.closed',
+      {
+        object: 'dispute',
+        id: 'dp_e2e_1',
+        charge: row.stripe_charge_id,
+        status: 'won',
+      },
+      acct,
+    );
+    await processed(won.id);
+    expect(fake.payoutsHeld.get(acct)).toBe(false);
+    expect(
+      (await prisma.casePayment.findUniqueOrThrow({ where: { id } })).status,
+    ).toBe('succeeded');
+  });
+
+  it('a refund that fails at the bank is undone in totals and ledger and queued', async () => {
+    const { att, acct, id } = await paidPayment();
+    await api()
+      .post(`/api/v1/payments/${id}/refund`)
+      .set(att.auth)
+      .send({ amountCents: 5_000, reason: 'Goodwill refund' })
+      .expect(200);
+    const refund = await prisma.casePaymentRefund.findFirstOrThrow({
+      where: { payment_id: id },
+    });
+    expect(refund.stripe_refund_id).toBeTruthy();
+    expect(
+      (await prisma.casePayment.findUniqueOrThrow({ where: { id } }))
+        .refunded_cents,
+    ).toBe(5_000);
+
+    const failed = await connectWebhook(
+      'charge.refund.updated',
+      {
+        object: 'refund',
+        id: refund.stripe_refund_id,
+        status: 'failed',
+        failure_reason: 'expired_or_canceled_card',
+      },
+      acct,
+    );
+    await processed(failed.id);
+    expect(
+      await prisma.casePaymentRefund.findUniqueOrThrow({
+        where: { id: refund.id },
+      }),
+    ).toMatchObject({ status: 'failed' });
+    expect(
+      await prisma.casePayment.findUniqueOrThrow({ where: { id } }),
+    ).toMatchObject({ refunded_cents: 0, status: 'succeeded' });
+    expect(
+      await prisma.ledgerEntry.count({
+        where: {
+          source_type: 'case_payment_refund_reversal',
+          source_id: refund.id,
+        },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.stripeReviewItem.findFirst({
+        where: { kind: 'refund_failed', stripe_ref: refund.stripe_refund_id! },
+      }),
+    ).toMatchObject({ status: 'open', case_payment_id: id });
+
+    // Resolving the item takes one 2FA code and writes the audit trail.
+    const root = await adminSession(baseUrl, prisma, 'super_admin');
+    const item = await prisma.stripeReviewItem.findFirstOrThrow({
+      where: { kind: 'refund_failed', stripe_ref: refund.stripe_refund_id! },
+    });
+    const noCode = await api()
+      .post(`/api/v1/admin/stripe-review/${item.id}/resolve`)
+      .set(root.auth)
+      .send({ resolution: 'Refunded by bank transfer' });
+    expect(noCode.status).toBe(403);
+    await adminStepUp(baseUrl, root);
+    await api()
+      .post(`/api/v1/admin/stripe-review/${item.id}/resolve`)
+      .set(root.auth)
+      .send({ resolution: 'Refunded by bank transfer' })
+      .expect(200);
+    expect(
+      (
+        await prisma.stripeReviewItem.findUniqueOrThrow({
+          where: { id: item.id },
+        })
+      ).status,
+    ).toBe('resolved');
+  });
+
+  it('payout.failed and a disconnect are queued; the attorney account reflects them', async () => {
+    const { att, acct } = await paidPayment(15_000);
+    const failed = await connectWebhook(
+      'payout.failed',
+      {
+        object: 'payout',
+        id: `po_${randomUUID().slice(0, 8)}`,
+        failure_code: 'account_closed',
+        amount: 14_000,
+        currency: 'usd',
+      },
+      acct,
+    );
+    await processed(failed.id);
+    expect(
+      await prisma.payoutAccount.findUniqueOrThrow({
+        where: { user_id: att.id },
+      }),
+    ).toMatchObject({ last_payout_failure_code: 'account_closed' });
+    const gone = await connectWebhook(
+      'account.application.deauthorized',
+      { object: 'application', id: 'ca_lawbid' },
+      acct,
+    );
+    await processed(gone.id);
+    expect(
+      await prisma.payoutAccount.findUniqueOrThrow({
+        where: { user_id: att.id },
+      }),
+    ).toMatchObject({ status: 'disabled', payouts_enabled: false });
+    const kinds = (
+      await prisma.stripeReviewItem.findMany({ where: { user_id: att.id } })
+    ).map((i) => i.kind);
+    expect(kinds).toEqual(
+      expect.arrayContaining(['payout_failed', 'account_deauthorized']),
+    );
+  });
 });

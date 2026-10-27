@@ -1,4 +1,8 @@
+import { AttorneyAdsService } from '../attorney-ads/attorney-ads.service';
+import { onlyDeleted } from '../../prisma/soft-delete.extension';
 import { PromotionDeliveryService } from '../promotions/promotion-delivery.service';
+
+import { DomainEvents } from '../events/domain-events.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
   BadRequestException,
@@ -51,7 +55,8 @@ import {
   postPracticeWhere,
 } from './hidden-tags';
 import type Redis from 'ioredis';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
+import { bumpFeedVersion } from '../../common/cache/feed-version';
 import { cachedBlockSet } from '../blocks/block-set.cache';
 import { extractHashtags } from './hashtags';
 import { PostAttachmentsPolicy } from './post-attachments.policy';
@@ -124,10 +129,15 @@ export class PostsService {
     private readonly notifications: NotificationsService,
     private readonly attachmentsPolicy: PostAttachmentsPolicy,
     private readonly settings: AppSettingsService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    // Caching round 2 (S2-2): block set + feed version are per-user caches.
+    @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
     @Optional() private readonly alerts?: SubscriptionAlertsService,
     @Optional() private readonly promoDelivery?: PromotionDeliveryService,
     @Optional() private readonly flags?: FeatureFlagsService,
+    // Owner 2026-10-28: attorney ad-text checker + archive (off by default).
+    @Optional() private readonly ads?: AttorneyAdsService,
+    // N-2: the domain-event bus.
+    @Optional() private readonly events?: DomainEvents,
   ) {}
 
   /** Owner 2026-10-06: News is switched off for now (flag `news_posts`,
@@ -179,6 +189,11 @@ export class PostsService {
     // Owner 2026-10-18: the title and the text are optional when photos, a
     // video or files are attached (Instagram / TikTok); an empty post is not.
     assertNotEmptyPost(dto.title, dto.body, hasFiles);
+    // Owner 2026-10-28: an attorney's post is attorney advertising —
+    // checked per the author's states (block mode refuses a guarantee).
+    if (user.role === 'attorney') {
+      await this.ads?.enforce(user.sub, [`${dto.title ?? ''}\n${dto.body}`]);
+    }
     // Owner 2026-10-13: documents need the right to attach (the admin's
     // setting + plan). Owner 2026-10-16: photos (up to the admin's count,
     // 9) and a reel's video never do.
@@ -331,6 +346,14 @@ export class PostsService {
       }
     }
     if (finalStatus === 'published') await this.afterPublish(post.id);
+    if (user.role === 'attorney' && finalStatus !== 'hidden') {
+      await this.ads?.archive(
+        user.sub,
+        'post',
+        post.id,
+        post.title ? `${post.title}\n${post.body}` : post.body,
+      );
+    }
     return (await this.presenter.present([post], user.sub))[0];
   }
 
@@ -352,6 +375,8 @@ export class PostsService {
     // Owner 2026-10-18: an archived post is not public (it counts and
     // alerts when the author shows it in the profile again).
     if (!post || post.archived_at) return;
+    // S2-3: the author's own feed (first page cache) shows the new post now.
+    await bumpFeedVersion(this.redis, post.author_id);
     // Shard-ready step 6: the author's role from the user directory.
     const author = await userDirectory(this.prisma).one(post.author_id, {
       role: true,
@@ -377,6 +402,11 @@ export class PostsService {
       post._count.media === 0 &&
       post._count.attachments === 0;
     alerts?.later(() => alerts.followersOfPost(post.author_id, post.id, brief));
+    await this.events?.record(
+      'post.published',
+      { postId: post.id, authorId: post.author_id },
+      { actorId: post.author_id, key: `post.published:${post.id}` },
+    );
   }
 
   /** Owner 2026-10-01: the reel's video could not be used. */
@@ -532,6 +562,9 @@ export class PostsService {
             })
           )?.code
         : undefined);
+    if (user.role === 'attorney') {
+      await this.ads?.enforce(user.sub, [title ? `${title}\n${body}` : body]);
+    }
     const verdict = await this.moderate(
       title ? `${title}\n${body}` : body,
       user.sub,
@@ -595,6 +628,14 @@ export class PostsService {
         -1,
       );
     }
+    if (user.role === 'attorney' && post.status === 'published') {
+      await this.ads?.archive(
+        user.sub,
+        'post',
+        id,
+        title ? `${title}\n${body}` : body,
+      );
+    }
     return (await this.presenter.present([post], user.sub))[0];
   }
 
@@ -605,19 +646,18 @@ export class PostsService {
       data: { deleted_at: new Date(), pin_slot: null, pin_group: null },
     });
     if (count !== 1) throw postNotFound();
+    // S2-3: the deleted post leaves the author's cached first page at once.
+    await bumpFeedVersion(this.redis, user.sub);
+    // Owner 2026-10-26 (ROOT CAUSE): the row is soft-deleted now, and every
+    // read hides soft-deleted rows, so this lookup came back empty: the
+    // profile counter never dropped (and the reel's video was never
+    // purged). Read it with onlyDeleted().
     const post = await this.prisma.post.findFirst({
-      where: { id },
+      where: onlyDeleted({ id }),
       select: { status: true, video_asset_id: true, archived_at: true },
     });
-    // Owner 2026-10-01: the reel's video goes with the post.
-    if (post?.video_asset_id) {
-      await this.videos.markDeleted([post.video_asset_id]);
-      const asset = await this.prisma.videoAsset.findUnique({
-        where: { id: post.video_asset_id },
-      });
-      if (asset) await this.videos.purgeNow(asset);
-    }
-    // An archived post is already out of the profile count.
+    // The counter drops BEFORE the video purge (a purge error must not
+    // leave it stale). An archived post is already out of the count.
     if (post?.status === 'published' && !post.archived_at) {
       await this.counters.bump(
         profileEntity(user.role),
@@ -625,6 +665,14 @@ export class PostsService {
         'posts_count',
         -1,
       );
+    }
+    // Owner 2026-10-01: the reel's video goes with the post.
+    if (post?.video_asset_id) {
+      await this.videos.markDeleted([post.video_asset_id]);
+      const asset = await this.prisma.videoAsset.findUnique({
+        where: { id: post.video_asset_id },
+      });
+      if (asset) await this.videos.purgeNow(asset);
     }
     return { deleted: true };
   }
@@ -799,6 +847,19 @@ export class PostsService {
   }
 
   /** GET /posts/:id — the author also sees their own hidden post. */
+  /** 404 unless [user] may see the post (the cheap check before a 304). */
+  async assertVisible(user: RequestUser, id: string): Promise<void> {
+    const post = await this.prisma.post.findFirst({
+      where: {
+        id,
+        deleted_at: null,
+        OR: [VISIBLE_POST_WHERE, { author_id: user.sub }],
+      },
+      select: { id: true },
+    });
+    if (!post) throw postNotFound();
+  }
+
   async get(user: RequestUser, id: string): Promise<PostDto> {
     const post = await this.prisma.post.findFirst({
       where: {

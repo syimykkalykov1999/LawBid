@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/perf/build_counter.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/calls/presentation/call_log_entry.dart'
     show callLogKey;
@@ -87,16 +88,35 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
       : ChatListFolder.all;
 
   /// Owner 2026-10-18: the search box of the chats list ('' = none).
-  String _query = '';
+  /// Owner 2026-10-26 (smoothness): a new query rebuilds the chats page
+  /// only (the header too while chats are being selected).
+  final _query = ValueNotifier<String>('');
+
+  @override
+  void initState() {
+    super.initState();
+    _query.addListener(_onQuery);
+  }
+
+  void _onQuery() {
+    if (mounted && ref.read(chatSelectionProvider) != null) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
 
   /// The rows of the folder on screen (Select all, the bulk bar): direct
   /// chats and, in «All», my groups.
   List<ChatListEntry> _visibleEntries() {
     if (_folder == ChatListFolder.requests) return const [];
-    if (_query.isNotEmpty) {
+    final query = _query.value;
+    if (query.isNotEmpty) {
       return ref
               .watch(
-                mergedChatSearchProvider((folder: _folder, q: _query)),
+                mergedChatSearchProvider((folder: _folder, q: query)),
               )
               .value
               ?.items ??
@@ -115,9 +135,13 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
 
   @override
   Widget build(BuildContext context) {
+    BuildCounter.hit('inbox.screen');
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final badges = ref.watch(badgesProvider);
+    // Owner 2026-10-26 (smoothness): only the two counts drawn here.
+    final badges = ref.watch(
+      badgesProvider.select((b) => (b.chats, b.notifications)),
+    );
     final selection = ref.watch(chatSelectionProvider);
     final selecting = selection != null;
     final entries = selecting ? _visibleEntries() : const <ChatListEntry>[];
@@ -139,7 +163,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     var tab = !showTeam && _tab == InboxTab.team ? InboxTab.chats : _tab;
     if (!chatsAllowed && tab == InboxTab.chats) tab = InboxTab.notifications;
     final bell = _Bell(
-      count: badges.notifications,
+      count: badges.$2,
       selected: tab == InboxTab.notifications,
       label: t.t('inbox.tab.notifications'),
       onTap: () => setState(
@@ -233,7 +257,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                               (
                                 InboxTab.chats,
                                 t.t('inbox.tab.chats'),
-                                badges.chats + requests,
+                                badges.$1 + requests,
                               ),
                             if (showTeam)
                               (
@@ -323,7 +347,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                 // The settings button is the old «filter»: it
                                 // always opened the settings, so no filter is lost.
                                 if (tab == InboxTab.notifications) ...[
-                                  if (badges.notifications > 0)
+                                  if (badges.$2 > 0)
                                     AppIconButton(
                                       key: const ValueKey('notif-mark-all'),
                                       compact: true,
@@ -405,11 +429,15 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                   ];
                   Widget pageFor(InboxTab v) => switch (v) {
                         InboxTab.chats => chatsAllowed
-                            ? ConversationsView(
-                                folder: _folder,
-                                onFolder: (f) => setState(() => _folder = f),
-                                query: _query,
-                                onQuery: (q) => setState(() => _query = q),
+                            ? ValueListenableBuilder<String>(
+                                valueListenable: _query,
+                                builder: (context, query, _) =>
+                                    ConversationsView(
+                                  folder: _folder,
+                                  onFolder: (f) => setState(() => _folder = f),
+                                  query: query,
+                                  onQuery: (q) => _query.value = q,
+                                ),
                               )
                             : const SizedBox.shrink(),
                         InboxTab.notifications => NotificationsView(
@@ -1548,6 +1576,7 @@ class CounterpartAvatar extends StatelessWidget {
     final name = counterpart.displayName ?? counterpart.username ?? '?';
     final avatar = GoldRingAvatar(
       url: counterpart.avatarUrl,
+      fullUrl: counterpart.avatarFullUrl,
       initials: avatarInitials(name),
       size: size,
       ring: counterpart.verified,

@@ -1,12 +1,12 @@
 'use client';
 
 import { ArrowRight, MagnifyingGlass, MoonStars, Sun, User } from '@phosphor-icons/react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, m } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Me } from '@/lib/hooks';
-import { can, sectionsFor } from '@/lib/rbac';
+import { canOpen, sectionsFor } from '@/lib/rbac';
 import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { ICONS } from './icons';
@@ -59,7 +59,7 @@ export function CommandPalette({ me, open, setOpen }: { me: Me | undefined; open
         return { id: x.href, label: x.label, hint: x.hint, icon: I ? <I size={18} weight="light" /> : null, run: go(x.href) };
       });
     const extra: Item[] = [];
-    if (s && me && can(me, 'users')) {
+    if (s && me && canOpen(me, '/users')) {
       extra.push({
         id: 'find-user',
         label: `Найти пользователя «${q.trim()}»`,
@@ -90,7 +90,7 @@ export function CommandPalette({ me, open, setOpen }: { me: Me | undefined; open
   return createPortal(
     <AnimatePresence>
       {open ? (
-        <motion.div
+        <m.div
           className="fixed inset-0 z-[65] flex items-start justify-center px-4 pt-[12vh]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -98,7 +98,7 @@ export function CommandPalette({ me, open, setOpen }: { me: Me | undefined; open
           transition={{ duration: 0.15 }}
         >
           <div className="absolute inset-0 bg-[#05060a]/50 backdrop-blur-[6px]" onClick={() => setOpen(false)} />
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: -12, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
@@ -154,8 +154,8 @@ export function CommandPalette({ me, open, setOpen }: { me: Me | undefined; open
                 ))
               )}
             </div>
-          </motion.div>
-        </motion.div>
+          </m.div>
+        </m.div>
       ) : null}
     </AnimatePresence>,
     document.body,

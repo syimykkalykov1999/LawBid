@@ -1,11 +1,19 @@
+import { notifySeoPagesChanged } from '../../../common/seo/seo-generator.trigger';
 import { ConfigService } from '@nestjs/config';
+import type Redis from 'ioredis';
+import { cached } from '../../../common/cache/cached';
+import { delSafe } from '../../../redis/redis-cluster-safe';
+import { imageFormatContext } from '../../files/files.public';
+import { REDIS_CACHE_CLIENT } from '../../../redis/redis.constants';
 import { attorneyPublicUrl } from '../../../common/utils/public-urls';
 import { AttorneyAdvertisingService } from '../../countries/attorney-advertising.service';
+import { AttorneyAdsService } from '../../attorney-ads/attorney-ads.service';
 import { UsernamePolicyService } from '../../usernames/username-policy.service';
 import { AttorneyStatsDto } from '../dto/attorney-stats.dto';
 import {
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
   OnApplicationShutdown,
   Optional,
@@ -15,8 +23,8 @@ import { PrivacySettingsService } from '../../privacy-settings/privacy-settings.
 import { ConsultationsService } from '../../consultations/consultations.service';
 import { Prisma } from '@prisma/client';
 import { CounterAggregator } from '../../counters/counter-aggregator.service';
-import { PrismaService } from '../../../prisma/prisma.service';
 import { PrismaReadService } from '../../../prisma/prisma-read.service';
+import { PrismaService } from '../../../prisma/prisma.service';
 import { weakEtag } from '../../../common/sync/cheap-etag';
 
 /** The public profile ETag rotates at least this often (see publicEtag). */
@@ -92,6 +100,43 @@ const LICENSE_SELECT = {
  * narrow select — bar numbers, documents and contacts are never read for
  * it, so they cannot leak through a later refactor of the DTO.
  */
+/** The part of GET /attorneys/:username that is the same for every viewer
+ * (cached in Redis, so JSON-safe: no Date / Decimal / undefined). */
+type PublicCore = Pick<
+  PublicAttorneyProfileDto,
+  | 'username'
+  | 'firstName'
+  | 'lastName'
+  | 'bio'
+  | 'firmName'
+  | 'firms'
+  | 'firm'
+  | 'avatarUrl'
+  | 'avatarUrl256'
+  | 'languages'
+  | 'verifiedBadge'
+  | 'advertisingLabel'
+  | 'sponsored'
+  | 'advertisingDisclaimer'
+  | 'publicUrl'
+  | 'trustLevel'
+  | 'licensedStates'
+  | 'practiceAreas'
+  | 'qa'
+  | 'rating'
+  | 'counters'
+> & {
+  userId: string;
+  consultationBookable: boolean;
+  /** profile + user `updated_at` when cached: a cache hit is served only
+   * while both still match (suspension, avatar, name are seen at once). */
+  stamp: string;
+};
+
+type PublicCoreRow = Awaited<
+  ReturnType<AttorneyProfilesService['publicCoreRow']>
+>;
+
 @Injectable()
 export class AttorneyProfilesService implements OnApplicationShutdown {
   constructor(
@@ -110,13 +155,34 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     // canonical public link.
     @Optional() private readonly advertising?: AttorneyAdvertisingService,
     @Optional() private readonly config?: ConfigService,
+    // Caching round 2 (S2-8): the viewer-independent body of the public
+    // profile is cached per username on the evictable cache Redis.
+    @Optional() @Inject(REDIS_CACHE_CLIENT) private readonly cache?: Redis,
+    // Owner 2026-10-28: ad-text checker + archive for the bio.
+    @Optional() private readonly ads?: AttorneyAdsService,
     // DB-ops S5-6: the public profile row may be a few seconds old.
     @Optional() private readonly read?: PrismaReadService,
   ) {}
 
   /** «Attorney Advertising» for an attorney licensed in [stateCodes]. */
-  private async labelFor(stateCodes: Iterable<string>): Promise<boolean> {
-    return (await this.advertising?.requiresLabel(stateCodes)) ?? false;
+  private async labelFor(
+    attorneyId: string,
+    stateCodes: Iterable<string>,
+  ): Promise<boolean> {
+    return (await this.advertising?.labelFor(attorneyId, stateCodes)) ?? false;
+  }
+
+  /** The per-state results disclaimer under the bio (owner 2026-10-28). */
+  private async disclaimerFor(
+    attorneyId: string,
+    bio: string | null,
+  ): Promise<string | null> {
+    if (!this.advertising || !bio) return null;
+    return this.advertising.disclaimerFor(
+      await this.advertising.resultsDisclaimers([attorneyId]),
+      attorneyId,
+      bio,
+    );
   }
 
   private publicUrl(username: string): string {
@@ -168,10 +234,12 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       // (AttorneyTrustService keeps attorney_profiles.trust_badge).
       verifiedBadge: row.trust_badge,
       advertisingLabel: await this.labelFor(
+        row.user_id,
         row.licenses
           .filter((l) => l.license_status === 'verified')
           .map((l) => l.state_code),
       ),
+      advertisingDisclaimer: await this.disclaimerFor(row.user_id, row.bio),
       publicUrl: this.publicUrl(row.username),
       trustLevel: row.trust_level,
       nameMismatch: row.name_mismatch,
@@ -213,7 +281,11 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     const cooldownDays = await this.settings.number(
       'profile.username_change_cooldown_days',
     );
+    // Owner 2026-10-28: the bio is attorney advertising — checked per the
+    // attorney's states (off by default).
+    if (dto.bio) await this.ads?.enforce(userId, [dto.bio]);
 
+    const touched = new Set<string>();
     try {
       await withTxRetry(this.prisma, async (tx) => {
         const current = await tx.attorneyProfile.findUnique({
@@ -221,6 +293,7 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
           include: { user: { select: { first_name: true, last_name: true } } },
         });
         if (!current) throw notFound();
+        touched.add(current.username_lower);
         assertExpectedVersion(current.version, expectedVersion);
 
         const data: Prisma.AttorneyProfileUpdateInput = {
@@ -277,6 +350,7 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
           }
           data.username = dto.username;
           data.username_lower = lower;
+          touched.add(lower);
           data.username_changed_at = now;
         }
 
@@ -298,6 +372,8 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
           });
         }
       });
+      // Programmatic SEO: the public page text/name/username changed.
+      notifySeoPagesChanged('attorney-edited');
     } catch (error) {
       // A concurrent request took the same username_lower after our read.
       if (
@@ -308,6 +384,10 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       }
       throw error;
     }
+    // S2-8: the cached public body of the old and new @username is stale.
+    await this.dropPublicCore(...touched);
+    if (dto.bio)
+      await this.ads?.archive(userId, 'profile_bio', userId, dto.bio);
     return this.getOwn(userId, now);
   }
 
@@ -448,9 +528,130 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     );
   }
 
-  private publicRow(db: PrismaService, username: string) {
+  /** Key of the cached public body: the @username and whether the client
+   * decodes AVIF (the avatar links differ). */
+  private publicCoreKey(usernameLower: string): string {
+    return `attorney:public:${usernameLower}:${imageFormatContext.wantsAvif() ? 'a' : 'w'}`;
+  }
+
+  /** Drops the cached public body of [usernames] (both image flavours). */
+  private async dropPublicCore(...usernames: string[]): Promise<void> {
+    if (!this.cache || usernames.length === 0) return;
+    const keys = usernames.flatMap((u) => [
+      `attorney:public:${u}:a`,
+      `attorney:public:${u}:w`,
+    ]);
+    await delSafe(this.cache, keys).catch(() => undefined);
+  }
+
+  async getPublic(
+    username: string,
+    viewerId: string,
+  ): Promise<PublicAttorneyProfileDto> {
+    if (!isValidUsername(username)) throw notFound();
+    // Caching round 2 (S2-8): everything that is the same for every viewer
+    // is loaded once per `cache.attorney_profile_sec` (default 60 s, 0 =
+    // off, an own-profile edit drops it); the viewer's own parts (privacy,
+    // follow, block, "is it me") are computed per request below.
+    const ttl = this.cache
+      ? await this.settings.number('cache.attorney_profile_sec')
+      : 0;
+    const lower = username.toLowerCase();
+    let core =
+      this.cache && ttl > 0
+        ? await cached<PublicCore>(
+            this.cache,
+            this.publicCoreKey(lower),
+            { ttlSec: ttl },
+            () => this.loadPublicCore(lower),
+          )
+        : await this.loadPublicCore(lower);
+    if (this.cache && ttl > 0) {
+      // One primary-key read keeps the cached body honest: a suspended or
+      // changed profile (another module's write) is never served stale.
+      const now = await this.prisma.attorneyProfile.findUnique({
+        where: { user_id: core.userId },
+        select: { updated_at: true, user: { select: { updated_at: true } } },
+      });
+      const stamp = now
+        ? `${now.updated_at.toISOString()}|${now.user.updated_at.toISOString()}`
+        : null;
+      if (stamp !== core.stamp) {
+        await this.dropPublicCore(lower);
+        core = await this.loadPublicCore(lower);
+      }
+    }
+    if (core.userId !== viewerId) this.recordView(core.userId);
+    const [follow, [photoOk, aboutOk], relation] = await Promise.all([
+      this.prisma.follow.findUnique({
+        where: {
+          follower_id_followee_id: {
+            follower_id: viewerId,
+            followee_id: core.userId,
+          },
+        },
+        select: { follower_id: true },
+      }),
+      this.privacy
+        ? Promise.all([
+            this.privacy.visibleTo(viewerId, [core.userId], 'photo_from'),
+            this.privacy.visibleTo(viewerId, [core.userId], 'about_from'),
+          ])
+        : Promise.resolve([new Set([core.userId]), new Set([core.userId])]),
+      this.blocks.relation(viewerId, core.userId),
+    ]);
+    return {
+      id: core.userId,
+      username: core.username,
+      firstName: core.firstName,
+      lastName: core.lastName,
+      bio: aboutOk.has(core.userId) ? core.bio : null,
+      firmName: core.firmName,
+      firms: core.firms,
+      firm: core.firm,
+      avatarUrl: photoOk.has(core.userId) ? core.avatarUrl : null,
+      avatarUrl256: photoOk.has(core.userId) ? core.avatarUrl256 : null,
+      languages: core.languages,
+      verifiedBadge: core.verifiedBadge,
+      advertisingLabel: core.advertisingLabel,
+      sponsored: core.sponsored,
+      advertisingDisclaimer: aboutOk.has(core.userId)
+        ? core.advertisingDisclaimer
+        : null,
+      publicUrl: core.publicUrl,
+      trustLevel: core.trustLevel,
+      licensedStates: core.licensedStates,
+      practiceAreas: core.practiceAreas,
+      qa: core.qa,
+      rating: core.rating,
+      counters: core.counters,
+      isSelf: core.userId === viewerId,
+      isFollowing: follow !== null,
+      consultationEnabled:
+        core.userId !== viewerId && core.consultationBookable,
+      ...relation,
+    };
+  }
+
+  /** The viewer-independent part of the public profile (JSON-safe, so it
+   * can sit in Redis). 404 for an unknown / unavailable profile (never
+   * cached: the loader throws). */
+  private async loadPublicCore(usernameLower: string): Promise<PublicCore> {
+    // DB-ops S5-6: the body tolerates a few seconds of replica lag (it is
+    // cached anyway); a miss may only be lag, so it is asked of the primary.
+    const reader = this.read?.db ?? this.prisma;
+    const first = await this.publicCoreRow(reader, usernameLower);
+    const row =
+      first || reader === this.prisma
+        ? first
+        : await this.publicCoreRow(this.prisma, usernameLower);
+    return this.publicCoreOf(row);
+  }
+
+  /** @internal The public profile row (one indexed read). */
+  publicCoreRow(db: PrismaService, usernameLower: string) {
     return db.attorneyProfile.findUnique({
-      where: { username_lower: username.toLowerCase() },
+      where: { username_lower: usernameLower },
       select: {
         user_id: true,
         username: true,
@@ -462,6 +663,7 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
         name_mismatch: true,
         trust_level: true,
         trust_badge: true,
+        updated_at: true,
         rating_avg: true,
         rating_count: true,
         posts_count: true,
@@ -475,6 +677,7 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
             first_name: true,
             last_name: true,
             avatar_file_id: true,
+            updated_at: true,
           },
         },
         licenses: {
@@ -486,21 +689,7 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     });
   }
 
-  async getPublic(
-    username: string,
-    viewerId: string,
-  ): Promise<PublicAttorneyProfileDto> {
-    if (!isValidUsername(username)) throw notFound();
-    // DB-ops S5-6: the profile row itself tolerates a few seconds of replica
-    // lag (the counters shown are stale by their flush interval anyway). The
-    // viewer's own relations below stay on the primary, and so does the
-    // viewer's own profile (read-your-writes after an edit).
-    const reader = this.read?.db ?? this.prisma;
-    let row = await this.publicRow(reader, username);
-    // A miss may only be lag (a profile created seconds ago): ask the primary.
-    if (reader !== this.prisma && (!row || row.user_id === viewerId)) {
-      row = await this.publicRow(this.prisma, username);
-    }
+  private async publicCoreOf(row: PublicCoreRow): Promise<PublicCore> {
     if (
       !row ||
       row.verification_status === 'suspended' ||
@@ -510,61 +699,48 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     ) {
       throw notFound('Profile is unavailable.');
     }
-    if (row.user_id !== viewerId) this.recordView(row.user_id);
     const states = new Map<string, string>();
     for (const l of row.licenses) states.set(l.state.code, l.state.name);
     // Public photo only (a clean `avatar` file); documents never.
-    const [
-      avatar,
-      practiceAreas,
-      follow,
-      pPosts,
-      pFollowers,
-      pFollowing,
-      membership,
-    ] = await Promise.all([
-      this.files.avatarUrls(row.user.avatar_file_id),
-      this.practices.selectedOf(row.user_id),
-      this.prisma.follow.findUnique({
-        where: {
-          follower_id_followee_id: {
-            follower_id: viewerId,
-            followee_id: row.user_id,
-          },
-        },
-        select: { follower_id: true },
-      }),
-      // docs/05 §4–§6: counters shown = DB + not yet flushed deltas.
-      this.counters.pending('attorney', 'posts_count', [row.user_id]),
-      this.counters.pending('attorney', 'followers_count', [row.user_id]),
-      this.counters.pending('attorney', 'following_count', [row.user_id]),
-      this.prisma.firmMember.findFirst({
-        where: { attorney_id: row.user_id, status: 'active' },
-        select: { firm: { select: { id: true, name: true } } },
-      }),
-    ]);
+    const [avatar, practiceAreas, pPosts, pFollowers, pFollowing, membership] =
+      await Promise.all([
+        this.files.avatarUrls(row.user.avatar_file_id),
+        this.practices.selectedOf(row.user_id),
+        // docs/05 §4–§6: counters shown = DB + not yet flushed deltas.
+        this.counters.pending('attorney', 'posts_count', [row.user_id]),
+        this.counters.pending('attorney', 'followers_count', [row.user_id]),
+        this.counters.pending('attorney', 'following_count', [row.user_id]),
+        this.prisma.firmMember.findFirst({
+          where: { attorney_id: row.user_id, status: 'active' },
+          select: { firm: { select: { id: true, name: true } } },
+        }),
+      ]);
     const plus = (base: number, m: Map<string, number>) =>
       Math.max(0, base + (m.get(row.user_id) ?? 0));
-    const [photoOk, aboutOk] = this.privacy
-      ? await Promise.all([
-          this.privacy.visibleTo(viewerId, [row.user_id], 'photo_from'),
-          this.privacy.visibleTo(viewerId, [row.user_id], 'about_from'),
-        ])
-      : [new Set([row.user_id]), new Set([row.user_id])];
+    // One cached query for both advertising flags (review R-72).
+    const flags = (await this.advertising?.profileFlags(
+      row.user_id,
+      states.keys(),
+    )) ?? { advertisingLabel: false, sponsored: false };
     return {
-      id: row.user_id,
+      userId: row.user_id,
+      stamp: `${row.updated_at.toISOString()}|${row.user.updated_at.toISOString()}`,
       username: row.username,
       firstName: row.user.first_name,
       lastName: row.user.last_name,
-      bio: aboutOk.has(row.user_id) ? row.bio : null,
+      bio: row.bio,
       firmName: row.firm_name,
       firms: firmsOf(row),
       firm: membership?.firm ?? null,
-      avatarUrl: photoOk.has(row.user_id) ? avatar.url : null,
-      avatarUrl256: photoOk.has(row.user_id) ? avatar.url256 : null,
+      avatarUrl: avatar.url ?? null,
+      avatarUrl256: avatar.url256 ?? null,
       languages: row.languages,
       verifiedBadge: row.trust_badge,
-      advertisingLabel: await this.labelFor(states.keys()),
+      advertisingLabel: flags.advertisingLabel,
+      sponsored: flags.sponsored,
+      // Union (#368 cache + #352): computed for every viewer here; the
+      // viewer layer hides it when the bio itself is hidden («about_from»).
+      advertisingDisclaimer: await this.disclaimerFor(row.user_id, row.bio),
       publicUrl: this.publicUrl(row.username),
       trustLevel: row.trust_level,
       licensedStates: [...states].map(([code, name]) => ({ code, name })),
@@ -576,12 +752,8 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
         followers: plus(row.followers_count, pFollowers),
         following: plus(row.following_count, pFollowing),
       },
-      isSelf: row.user_id === viewerId,
-      isFollowing: follow !== null,
-      consultationEnabled:
-        row.user_id !== viewerId &&
-        ((await this.consultations?.isBookable(row.user_id)) ?? false),
-      ...(await this.blocks.relation(viewerId, row.user_id)),
+      consultationBookable:
+        (await this.consultations?.isBookable(row.user_id)) ?? false,
     };
   }
 

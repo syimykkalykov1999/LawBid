@@ -11,6 +11,8 @@ import '../models/consultation_reason_dto.dart';
 import '../models/consultation_settings_envelope.dart';
 import '../models/consultation_slots_envelope.dart';
 import '../models/create_consultation_dto.dart';
+import '../models/dispute_no_show_dto.dart';
+import '../models/no_show_info_envelope.dart';
 import '../models/reschedule_consultation_dto.dart';
 import '../models/update_consultation_settings_dto.dart';
 import '../models/view.dart';
@@ -99,6 +101,35 @@ abstract class ConsultationsClient {
   Future<ConsultationEnvelope> rescheduleConsultation({
     @Path('id') required String id,
     @Body() required RescheduleConsultationDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// No-show marks of a consultation (both sides see them)
+  @GET('/consultations/{id}/no-show')
+  Future<NoShowInfoEnvelope> listNoShows({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Mark the other side as absent (after the grace window; they can dispute)
+  @POST('/consultations/{id}/no-show')
+  Future<NoShowInfoEnvelope> markNoShow({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// I was there: dispute the mark against me
+  @POST('/consultations/{id}/no-show/dispute')
+  Future<NoShowInfoEnvelope> disputeNoShow({
+    @Path('id') required String id,
+    @Body() required DisputeNoShowDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Take back my own mark
+  @POST('/consultations/{id}/no-show/withdraw')
+  Future<NoShowInfoEnvelope> withdrawNoShow({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 }

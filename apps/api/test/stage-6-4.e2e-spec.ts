@@ -7,6 +7,7 @@ import type Redis from 'ioredis';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { TokenService } from '../src/modules/auth/services/token.service';
@@ -57,6 +58,9 @@ describe('stage 6.4 — moderation (e2e)', () => {
     counters = app.get(CounterAggregator);
     await setConfig('moderation.blocked_terms', ['casino bonus']);
     await setConfig('moderation.hold_terms', ['guaranteed win']);
+    // This suite checks the plain «3 distinct reporters» rule; the weighted
+    // rule (#364, the default) has its own suite (report-abuse.e2e-spec).
+    await setConfig('moderation.auto_hide_mode', 'count');
     await prisma.state.upsert({
       where: { code: 'NJ' },
       create: { code: 'NJ', name: 'New Jersey', is_active: true },
@@ -79,6 +83,7 @@ describe('stage 6.4 — moderation (e2e)', () => {
   afterAll(async () => {
     await setConfig('moderation.blocked_terms', []);
     await setConfig('moderation.hold_terms', []);
+    await setConfig('moderation.auto_hide_mode', 'weighted');
     await app.close();
   });
 
@@ -88,8 +93,9 @@ describe('stage 6.4 — moderation (e2e)', () => {
       create: { key, value: value as never },
       update: { value: value as never },
     });
-    // AppConfigService caches the whole table in Redis for 30 s.
-    await redis.del('config:app_config');
+    // AppConfigService caches the whole table in Redis for 30 s; the
+    // version bump also drops the per-version caches (blocked terms).
+    await dropAppConfigCache(redis);
   }
 
   const auth = (id: string, role: string, verified = false) => ({
@@ -513,6 +519,8 @@ describe('stage 6.4 — moderation (e2e)', () => {
       'moderation.hide',
       'moderation.warn',
       'moderation.dismiss',
+      // #364: a removal also gives the author a strike (audited first).
+      'moderation.strike_issued',
       'moderation.remove',
     ]);
     expect(audit[0]).toMatchObject({
@@ -578,7 +586,7 @@ describe('stage 6.4 — moderation (e2e)', () => {
     expect((r.body as Body).data.status).toBe('removed');
     expect(
       (
-        await prisma.message.findUniqueOrThrow({
+        await prisma.message.findFirstOrThrow({
           where: withDeleted({ id: msg.id }),
         })
       ).deleted_at,
