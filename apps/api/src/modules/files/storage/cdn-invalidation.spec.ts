@@ -1,6 +1,7 @@
 import type Redis from 'ioredis';
 import {
   CdnInvalidationQueue,
+  MAX_WILDCARD_PATHS_PER_REQUEST,
   baseKeyOf,
   invalidationPath,
   invalidationPaths,
@@ -169,5 +170,25 @@ describe('CdnInvalidationQueue', () => {
     // Next day: it goes.
     const tomorrow = new Date('2026-10-26T10:00:00Z');
     expect((await q.flush(send, { ...opts, now: tomorrow })).paths).toBe(1);
+  });
+
+  it('never sends more than 15 wildcard paths in one request (CloudFront quota)', async () => {
+    const { redis } = fakeRedis();
+    const q = new CdnInvalidationQueue(redis);
+    const keys = Array.from({ length: 40 }, (_, i) => `a/f${i}`);
+    await q.enqueue('media', keys);
+    const send = jest.fn(() => Promise.resolve());
+    const res = await q.flush(send, {
+      distributions: { media: 'EMEDIA12345' },
+      batchMax: 500,
+      monthlyCap: 0,
+      now,
+    });
+    expect(MAX_WILDCARD_PATHS_PER_REQUEST).toBe(15);
+    expect(send).toHaveBeenCalledTimes(1);
+    const [sent] = send.mock.calls[0] as unknown as [{ paths: string[] }];
+    expect(sent.paths).toHaveLength(15);
+    expect(res.paths).toBe(15);
+    expect(await q.pending('media')).toBe(25);
   });
 });

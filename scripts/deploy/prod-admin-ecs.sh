@@ -9,6 +9,12 @@
 #        uploads in Admin → Localization — are never overwritten
 #   scripts/deploy/prod-admin-ecs.sh <image tag> i18n-full  re-import the
 #        whole table, overwriting what differs (by hand only)
+#   scripts/deploy/prod-admin-ecs.sh <image tag> config   preflight before
+#        migrations (every release, deploy.yml; deploy safety audit
+#        2026-10-27): the NEW image's env rules against the REAL api task
+#        env + secrets, the KMS unwrap, one Postgres and one Redis round
+#        trip. Runs with the app's own DATABASE_URL (not the migrator), prints
+#        names only, exit 1 stops the deploy before anything changes.
 # Seed = reference data + all 85 languages from prisma/seed/translations_seed
 # .xlsx (in the image) + the admin row. The e-mail, login and password are
 # typed here (hidden), go into a temporary Secrets Manager secret that only
@@ -84,14 +90,19 @@ case "$MODE" in
     TMP_SECRET_ARN_FOR_TD=""
     CMD='node dist/src/cli/import-translations.js prisma/seed/translations_seed.xlsx 2>&1 | cut -c1-300'
     ;;
-  *) echo "unknown mode: $MODE (admin | i18n | i18n-full)" >&2; exit 2 ;;
+  config)
+    echo "1/3 (no secret needed)"
+    TMP_SECRET_ARN_FOR_TD=""
+    CMD='{ node dist/src/cli/check-config.js 2>&1; echo $? > /tmp/check.rc; } | cut -c1-300; exit "$(cat /tmp/check.rc)"'
+    ;;
+  *) echo "unknown mode: $MODE (admin | i18n | i18n-full | config)" >&2; exit 2 ;;
 esac
 
 echo "2/3 task definition (copy of ${CLUSTER}-api, image ${TAG})"
 aws ecs describe-task-definition --task-definition "${CLUSTER}-api" --query taskDefinition > "$WORK/api.json"
 MIGRATOR_ARN="$(aws ecs describe-task-definition --task-definition "${CLUSTER}-migrate" \
   --query 'taskDefinition.containerDefinitions[0].secrets[?name==`DATABASE_URL`].valueFrom | [0]' --output text)"
-IMAGE="$IMAGE" FAMILY="$FAMILY" MIGRATOR_ARN="$MIGRATOR_ARN" TMP="$TMP_SECRET_ARN_FOR_TD" node -e '
+IMAGE="$IMAGE" FAMILY="$FAMILY" MIGRATOR_ARN="$MIGRATOR_ARN" TMP="$TMP_SECRET_ARN_FOR_TD" MODE="$MODE" node -e '
   const fs=require("fs"); const td=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
   for (const k of ["taskDefinitionArn","revision","status","requiresAttributes","compatibilities","registeredAt","registeredBy","deregisteredAt"]) delete td[k];
   td.family=process.env.FAMILY;
@@ -99,7 +110,7 @@ IMAGE="$IMAGE" FAMILY="$FAMILY" MIGRATOR_ARN="$MIGRATOR_ARN" TMP="$TMP_SECRET_AR
   td.containerDefinitions=[c];
   c.image=process.env.IMAGE; delete c.healthCheck; c.portMappings=[];
   c.environment=(c.environment||[]).filter(e=>e.name!=="JOBS_ENABLED").concat([{name:"JOBS_ENABLED",value:"false"}]);
-  c.secrets=(c.secrets||[]).filter(s=>s.name!=="DATABASE_URL").concat([{name:"DATABASE_URL",valueFrom:process.env.MIGRATOR_ARN}]);
+  if (process.env.MODE!=="config") c.secrets=(c.secrets||[]).filter(s=>s.name!=="DATABASE_URL").concat([{name:"DATABASE_URL",valueFrom:process.env.MIGRATOR_ARN}]);
   const t=process.env.TMP;
   if (t) c.secrets.push({name:"SEED_ADMIN_EMAIL",valueFrom:t+":email::"},{name:"ADMIN_SET_LOGIN",valueFrom:t+":login::"},{name:"ADMIN_SET_PASSWORD",valueFrom:t+":password::"});
   fs.writeFileSync(process.argv[2],JSON.stringify(td));' "$WORK/api.json" "$WORK/td.json"

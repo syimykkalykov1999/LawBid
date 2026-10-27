@@ -23,6 +23,15 @@ const PENDING_PREFIX = 'cdn:inval:pending:';
 const MONTH_PREFIX = 'cdn:inval:month:';
 /** A queue nobody drains (no distribution id configured) is forgotten. */
 const PENDING_TTL_SEC = 7 * 24 * 3600;
+/**
+ * CloudFront accepts at most 15 wildcard (`*`) paths IN PROGRESS per
+ * distribution ("Quotas on invalidations", CloudFront Developer Guide); every
+ * path here is a wildcard, so a bigger request is refused with
+ * TooManyInvalidationsInProgress and the batch would bounce back into the
+ * queue forever (deploy safety audit 2026-10-27). The admin batch setting
+ * can only lower this.
+ */
+export const MAX_WILDCARD_PATHS_PER_REQUEST = 15;
 
 /** `key`, `key_w320`, `key.avif`, `key_w1080.avif` → `key`. */
 export function baseKeyOf(key: string): string {
@@ -113,7 +122,10 @@ export class CdnInvalidationQueue {
         (opts.dailyCap ?? 0) > 0
           ? Math.max(0, (opts.dailyCap as number) - usedToday)
           : Number.POSITIVE_INFINITY;
-      const take = Math.max(1, Math.floor(opts.batchMax));
+      const take = Math.max(
+        1,
+        Math.min(MAX_WILDCARD_PATHS_PER_REQUEST, Math.floor(opts.batchMax)),
+      );
       const popped = await this.redis.spop(k, take);
       if (!popped || popped.length === 0) continue;
       // Past the month's ceiling a path is dropped (its edge copy expires by

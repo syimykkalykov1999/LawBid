@@ -436,3 +436,43 @@ describe('StatusProbesService.callsPath (Integrations -> «Связь для з�
     expect(r).toMatchObject({ transport: 'own', carrying: 'own' });
   });
 });
+
+describe('StatusProbesService queues probe (deploy safety 2026-10-27)', () => {
+  // A stuck `cron-fast` or `cron-heavy` lane must turn «Очереди» red, not
+  // only the old `cron` queue.
+  function withLanes(oldestAgeSec: Record<string, number>) {
+    const svc = make({}) as unknown as {
+      queue: (name: string) => unknown;
+      queuesProbe: (now: Date) => Promise<{
+        status: string;
+        detail: Record<string, unknown>;
+      }>;
+    };
+    const now = new Date('2026-10-27T12:00:00Z');
+    svc.queue = (name: string) => ({
+      getJobCounts: () => Promise.resolve({ waiting: 1, failed: 0 }),
+      getWaiting: () =>
+        Promise.resolve(
+          oldestAgeSec[name] !== undefined
+            ? [{ timestamp: now.getTime() - oldestAgeSec[name] * 1000 }]
+            : [],
+        ),
+    });
+    return svc.queuesProbe(now);
+  }
+
+  it('is red when only cron-fast is stuck', async () => {
+    const r = await withLanes({ 'cron-fast': 600, cron: 5 });
+    expect(r.status).toBe('red');
+    expect(r.detail).toMatchObject({ oldestSec: 600, waiting: 3 });
+    expect(Object.keys(r.detail.lanes as object).sort()).toEqual([
+      'cron',
+      'cron-fast',
+      'cron-heavy',
+    ]);
+  });
+
+  it('is green when every lane moves', async () => {
+    expect((await withLanes({ cron: 10 })).status).toBe('green');
+  });
+});
