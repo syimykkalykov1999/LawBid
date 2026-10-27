@@ -162,7 +162,7 @@ export const CHANNELS: readonly ChannelInfo[] = [
   {
     id: 'app_store_connect',
     name: 'App Store Connect',
-    system: 'Тексты для магазина, ключевые слова и список скриншотов готовятся отдельной задачей пакета (ASO).',
+    system: 'Тексты для магазина, ключевые слова и список скриншотов уже готовы: папка docs/aso (файлы app-store/en-US, KEYWORDS.md, SCREENSHOTS.md, шаги по пунктам — CHECKLIST.md).',
     owner: [
       'Product Page Optimization и Custom Product Pages: проверка разных страниц приложения.',
       'In-App Events: события внутри приложения на странице магазина.',
@@ -174,7 +174,7 @@ export const CHANNELS: readonly ChannelInfo[] = [
   {
     id: 'play_console',
     name: 'Play Console',
-    system: 'Тексты и список страниц магазина готовятся отдельной задачей пакета (ASO). Файл assetlinks.json система публикует сама, как только задан ANDROID_APP_SHA256.',
+    system: 'Тексты и список страниц магазина уже готовы: папка docs/aso (файлы google-play/en-US, CUSTOM_PRODUCT_PAGES.md, шаги по пунктам — CHECKLIST.md). Файл assetlinks.json система публикует сама, как только задан ANDROID_APP_SHA256.',
     owner: [
       'Grow users → Store presence → Custom store listings: свои страницы под разные аудитории.',
       'Test and release → App integrity → App signing key certificate: скопируйте SHA-256.',
