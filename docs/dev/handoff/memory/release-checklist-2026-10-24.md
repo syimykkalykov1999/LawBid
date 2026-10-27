@@ -80,3 +80,4 @@ Queued 2026-10-25 (owner OK):
 - check the referral bonus: only on the first completed case, with expiry.
 Owner 2026-10-25: PRIORITY NOW is the core platform only. Order: DB split (steps 9-10 + the «Разделить базу» button), Redis cluster readiness, the search p95 alert, then P1 infra. Do not start small product features such as referrals before these.
 - 2026-10-25: after systems work, build desktop-class web (full plan, no stops); phone look unchanged, verified by goldens.
+- 2026-10-26 owner: programmatic SEO/ASO (pSEO) approved: self-scaling public pages for attorneys/posts/practice×city, prebuilt into CDN, zero API/DB load, no cost surprises, quality gates; do after the merge train, before desktop web.
