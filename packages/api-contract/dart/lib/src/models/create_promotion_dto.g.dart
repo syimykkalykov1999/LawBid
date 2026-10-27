@@ -28,6 +28,9 @@ CreatePromotionDto _$CreatePromotionDtoFromJson(Map<String, dynamic> json) =>
           ? null
           : CreatePromotionDtoCtaType.fromJson(json['ctaType'] as String),
       ctaValue: json['ctaValue'] as String?,
+      billing: json['billing'] == null
+          ? null
+          : BoostBilling.fromJson(json['billing'] as String),
     );
 
 Map<String, dynamic> _$CreatePromotionDtoToJson(CreatePromotionDto instance) =>
@@ -42,4 +45,5 @@ Map<String, dynamic> _$CreatePromotionDtoToJson(CreatePromotionDto instance) =>
       'goal': ?instance.goal?.toJson(),
       'ctaType': ?instance.ctaType?.toJson(),
       'ctaValue': ?instance.ctaValue,
+      'billing': ?instance.billing?.toJson(),
     };

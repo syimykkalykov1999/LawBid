@@ -17,6 +17,7 @@ import { Bid, BidOffer, PartyRole, Prisma } from '@prisma/client';
 import { BUMP_VERSION } from '../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BoostActions } from '../promotions/boost-actions.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { CaseAccessPolicy } from '../cases/policies/case-access.policy';
@@ -113,6 +114,8 @@ export class BidsService {
     @Optional() private readonly limits?: UsageLimitsService,
     // N-2: the domain-event bus.
     @Optional() private readonly events?: DomainEvents,
+    // Owner 2026-10-27: a bid counts for the case's boost paid per action.
+    @Optional() private readonly boostActions?: BoostActions,
   ) {}
 
   /** Codes of the case's topics (the first and the extras). */
@@ -440,6 +443,7 @@ export class BidsService {
       // Owner 2026-10-20: the conflict check of this bid, kept as the
       // attorney's own record (a warning, never a block).
       await this.conflicts?.onBid(user.sub, caseId, bid.id);
+      this.boostActions?.report(user.sub, { caseId }, 'bid');
       return toBidDto(bid);
     } catch (error) {
       // The offer did not go through: the bought one comes back.

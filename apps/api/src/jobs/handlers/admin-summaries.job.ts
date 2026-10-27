@@ -9,6 +9,7 @@ import { triMode } from '../../common/ops/tri-mode';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { AnalyticsService } from '../../modules/analytics/analytics.service';
+import { PromotionsRollupService } from '../../modules/promotions/promotions-rollup.service';
 import { BillingOverviewService } from '../../modules/admin-billing/billing-overview.service';
 import { AdminAccessReportService } from '../../modules/admin/admin-access-report.service';
 import { DashboardService } from '../../modules/admin/dashboard.service';
@@ -42,6 +43,8 @@ export class AdminSummariesJob {
     @Optional() private readonly accessReport?: AdminAccessReportService,
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
+    // Owner 2026-10-27: Boost money by way to pay, recounted every ~6 hours.
+    @Optional() private readonly promotions?: PromotionsRollupService,
   ) {
     this.logger.setContext(AdminSummariesJob.name);
   }
@@ -101,6 +104,12 @@ export class AdminSummariesJob {
             Date.now() - Date.parse(hit.computedAt) > TRUST_SCAN_EVERY_MS
           )
             await this.trust.refreshScan();
+        },
+      ],
+      [
+        'promotions-by-model',
+        async () => {
+          await this.promotions?.refreshIfStale();
         },
       ],
     ];

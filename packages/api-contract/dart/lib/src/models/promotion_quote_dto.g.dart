@@ -37,6 +37,15 @@ PromotionQuoteDto _$PromotionQuoteDtoFromJson(Map<String, dynamic> json) =>
       ctaTypes: (json['ctaTypes'] as List<dynamic>)
           .map((e) => e as String)
           .toList(),
+      billing: BoostBilling.fromJson(json['billing'] as String),
+      unitPriceCents: (json['unitPriceCents'] as num).toInt(),
+      estUnits: (json['estUnits'] as num).toInt(),
+      offers: (json['offers'] as List<dynamic>)
+          .map((e) => BoostOfferDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      actions: (json['actions'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
     );
 
 Map<String, dynamic> _$PromotionQuoteDtoToJson(PromotionQuoteDto instance) =>
@@ -64,4 +73,9 @@ Map<String, dynamic> _$PromotionQuoteDtoToJson(PromotionQuoteDto instance) =>
       'postsEnabled': instance.postsEnabled,
       'casesEnabled': instance.casesEnabled,
       'ctaTypes': instance.ctaTypes,
+      'billing': instance.billing.toJson(),
+      'unitPriceCents': instance.unitPriceCents,
+      'estUnits': instance.estUnits,
+      'offers': instance.offers.map((e) => e.toJson()).toList(),
+      'actions': instance.actions,
     };

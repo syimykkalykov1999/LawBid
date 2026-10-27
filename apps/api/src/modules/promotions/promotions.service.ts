@@ -45,15 +45,22 @@ import type {
   PromotionStatsDto,
 } from './promotions.dto';
 import { PromotionDeliveryService } from './promotion-delivery.service';
+import { PromotionRefundsService } from './promotion-refunds.service';
 import {
-  impressionsFor,
+  billingOf,
+  deliveredUnits,
   isAllowedAdLink,
+  offersFor,
   parseAudience,
   parsePromotionSettings,
   PENDING_PAYMENT_TTL_MS,
+  pricingTargetOf,
   PROMOTION_SETTINGS_KEY,
   quotePromotion,
   reachRange,
+  targetUnits,
+  unitsFor,
+  type BillingModel,
   type PromoDiscount,
   type PromotionSettings,
   type PromotionStatus,
@@ -83,6 +90,12 @@ export function toPromotionDto(p: CasePromotion): CasePromotionDto {
     reach: p.reach,
     clicks: p.clicks,
     targetImpressions: p.target_impressions,
+    billing: billingOf(p.billing),
+    unitPriceCents: p.unit_price_cents,
+    targetUnits: targetUnits(p),
+    deliveredUnits: deliveredUnits(p),
+    actions: p.actions,
+    refundedCents: p.refunded_cents,
     audience: p.audience ? parseAudience(p.audience) : null,
     cancelReason: p.cancel_reason,
     goal: p.goal,
@@ -165,6 +178,8 @@ export class PromotionsService {
     // Owner 2026-10-25: impressions / reach / clicks wait in the counter
     // aggregator until the next flush; stats add them so the answer is exact.
     @Optional() private readonly counters?: CounterAggregator,
+    // Owner 2026-10-27: the unspent part of a boost paid per result goes back.
+    @Optional() private readonly unspent?: PromotionRefundsService,
   ) {}
 
   /** Owner 2026-10-28: the promoted post of an attorney is paid
@@ -198,20 +213,22 @@ export class PromotionsService {
     }
   }
 
-  /** Rows with the not yet flushed impressions / reach / clicks added. */
+  /** Rows with the not yet flushed impressions / reach / clicks / actions added. */
   private async withPending<T extends CasePromotion>(rows: T[]): Promise<T[]> {
     if (!this.counters || rows.length === 0) return rows;
     const ids = rows.map((r) => r.id);
-    const [imp, reach, clicks] = await Promise.all([
+    const [imp, reach, clicks, actions] = await Promise.all([
       this.counters.pending('case_promotion', 'impressions', ids),
       this.counters.pending('case_promotion', 'reach', ids),
       this.counters.pending('case_promotion', 'clicks', ids),
+      this.counters.pending('case_promotion', 'actions', ids),
     ]);
     return rows.map((r) => ({
       ...r,
       impressions: r.impressions + (imp.get(r.id) ?? 0),
       reach: r.reach + (reach.get(r.id) ?? 0),
       clicks: r.clicks + (clicks.get(r.id) ?? 0),
+      actions: r.actions + (actions.get(r.id) ?? 0),
     }));
   }
 
@@ -269,8 +286,43 @@ export class PromotionsService {
     });
     if (u?.role === 'attorney' && !settings.attorneysEnabled) return false;
     if (u?.role === 'client' && !settings.clientsEnabled) return false;
+    // Owner 2026-10-27: a thing with every way to pay switched off cannot
+    // be boosted.
+    if (
+      offersFor(settings.pricing, pricingTargetOf(type, video)).length === 0
+    ) {
+      return false;
+    }
     if (type === 'case') return settings.enabled;
     return video ? settings.reelsEnabled : settings.postsEnabled;
+  }
+
+  /**
+   * Owner 2026-10-27: which way to pay a purchase uses. The buyer's choice
+   * when it is switched on; otherwise the first one on (the app does not send
+   * a choice yet, so the owner's switches decide). Null = none is on.
+   */
+  private pick(
+    settings: PromotionSettings,
+    type: PromotionTarget,
+    video: boolean,
+    asked?: BillingModel,
+  ): {
+    billing: BillingModel;
+    priceCents: number;
+    actions: string[];
+    offers: { billing: BillingModel; priceCents: number }[];
+  } | null {
+    const t = pricingTargetOf(type, video);
+    const offers = offersFor(settings.pricing, t);
+    const chosen = offers.find((o) => o.billing === asked) ?? offers[0];
+    if (!chosen) return null;
+    return {
+      ...chosen,
+      actions:
+        chosen.billing === 'actions' ? [...settings.pricing[t].actions] : [],
+      offers,
+    };
   }
 
   async settings(db: Db = this.prisma): Promise<PromotionSettings> {
@@ -289,6 +341,7 @@ export class PromotionsService {
     dailyBudgetCents?: number,
     target: PromotionTarget = 'case',
     video = false,
+    asked?: BillingModel,
   ): Promise<PromotionQuoteDto> {
     const settings = await this.settings();
     await this.assertEntitled(userId, settings);
@@ -303,8 +356,27 @@ export class PromotionsService {
       useCredits: true,
       creditDayValueCents: settings.priceCentsPerDay,
     });
-    const estImpressions = impressionsFor(q.grossCents, settings.cpmCents);
-    const reach = reachRange(estImpressions, settings.impressionsPerPerson);
+    const model = this.pick(settings, target, video, asked);
+    const views =
+      settings.pricing[pricingTargetOf(target, video)].models.impressions
+        .priceCents;
+    // The estimate is in people. Views / people are paid in exactly that
+    // unit; for taps and actions it is what the same budget shows at the
+    // views price (an upper bound: nobody is charged for it).
+    const units = model
+      ? unitsFor(model.billing, q.grossCents, model.priceCents)
+      : 0;
+    const perPerson = settings.impressionsPerPerson;
+    const estImpressions =
+      model?.billing === 'reach'
+        ? Math.round(units * perPerson)
+        : model?.billing === 'impressions'
+          ? units
+          : unitsFor('impressions', q.grossCents, views);
+    const reach =
+      model?.billing === 'reach'
+        ? { min: units, max: units }
+        : reachRange(estImpressions, perPerson);
     return {
       days,
       priceCentsPerDay: q.priceCentsPerDay,
@@ -322,13 +394,18 @@ export class PromotionsService {
       maxDailyBudgetCents: settings.maxDailyBudgetCents,
       budgetPresetsCents: settings.budgetPresetsCents,
       durationPresets: settings.durationPresets,
-      cpmCents: settings.cpmCents,
+      cpmCents: views,
       estImpressions,
       estReachMin: reach.min,
       estReachMax: reach.max,
       postsEnabled: settings.postsEnabled,
       casesEnabled: settings.enabled,
       ctaTypes: settings.ctaEnabled ? settings.ctaTypes : [],
+      billing: model?.billing ?? 'impressions',
+      unitPriceCents: model?.priceCents ?? views,
+      estUnits: units,
+      offers: model?.offers ?? [],
+      actions: model?.actions ?? [],
     };
   }
 
@@ -439,6 +516,16 @@ export class PromotionsService {
     }
     this.assertDays(dto.days, settings);
     const daily = this.dailyBudget(dto.dailyBudgetCents, settings, true);
+    // Owner 2026-10-27: what the buyer pays for. The price and the units are
+    // frozen on the row now; a later change of the admin prices never
+    // touches a boost that is already bought.
+    const model = this.pick(settings, type, target.video, dto.billing);
+    if (!model || (dto.billing && model.billing !== dto.billing)) {
+      throw new ForbiddenException({
+        code: ErrorCode.FEATURE_DISABLED,
+        message: 'This way to pay is not available right now.',
+      });
+    }
     if (!target.promotable) {
       throw new ConflictException({
         code: ErrorCode.CASE_INVALID_STATE,
@@ -549,8 +636,25 @@ export class PromotionsService {
             days: dto.days,
             price_cents_per_day: daily,
             total_cents: q.totalCents,
-            cpm_cents: settings.cpmCents,
-            target_impressions: impressionsFor(q.grossCents, settings.cpmCents),
+            billing: model.billing,
+            unit_price_cents: model.priceCents,
+            target_units: unitsFor(
+              model.billing,
+              q.grossCents,
+              model.priceCents,
+            ),
+            billed_actions: model.actions,
+            // The older columns keep their meaning for views.
+            ...(model.billing === 'impressions'
+              ? {
+                  cpm_cents: model.priceCents,
+                  target_impressions: unitsFor(
+                    'impressions',
+                    q.grossCents,
+                    model.priceCents,
+                  ),
+                }
+              : {}),
             goal: dto.goal ?? null,
             cta_type: cta?.type ?? null,
             cta_value: cta?.value ?? null,
@@ -806,7 +910,8 @@ export class PromotionsService {
     );
   }
 
-  /** POST /promotions/:id/stop — the owner stops it early (no refund). */
+  /** POST /promotions/:id/stop — the owner stops it early (views: no refund;
+   * per people / taps / actions: the unspent part goes back). */
   async stop(userId: string, id: string): Promise<CasePromotionDto> {
     const p = await this.prisma.casePromotion.findUnique({ where: { id } });
     if (!p || p.user_id !== userId) {
@@ -827,7 +932,7 @@ export class PromotionsService {
       }
       await this.abandon(p.id, userId, 'stopped_by_owner');
     } else if (p.status === 'active') {
-      await this.prisma.casePromotion.updateMany({
+      const stopped = await this.prisma.casePromotion.updateMany({
         where: { id, status: 'active' },
         data: {
           status: 'finished',
@@ -836,6 +941,8 @@ export class PromotionsService {
         },
       });
       this.delivery?.invalidate();
+      // Paid per people / taps / actions: what was not used goes back.
+      if (stopped.count > 0) await this.unspent?.refundUnspent(id);
     } else {
       throw new ConflictException({
         code: ErrorCode.PROMOTION_INVALID_STATE,

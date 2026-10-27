@@ -48,7 +48,7 @@ abstract class AdminPromotionsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Change price / limits / on-off (super admin)
+  /// Change price / limits / on-off (super admin); a change of the prices or switches per way to pay needs a fresh 2FA step-up
   @PUT('/admin/promotions/settings')
   Future<PromotionSettingsEnvelope> updatePromotionSettings({
     @Body() required UpdatePromotionSettingsDto body,
