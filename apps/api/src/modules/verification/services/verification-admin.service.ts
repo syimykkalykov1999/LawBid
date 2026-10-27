@@ -1,3 +1,4 @@
+import { notifySeoPagesChanged } from '../../../common/seo/seo-generator.trigger';
 import { FORMAT_UNUSUAL_FLAG } from '../bar-number-format';
 import { type CountryScope, userInScope } from '../../countries/country-scope';
 import { HttpStatus, Injectable, Optional } from '@nestjs/common';
@@ -1064,6 +1065,8 @@ export class VerificationAdminService {
         where: { user_id: attorneyId },
         data: { verification_status: 'suspended' },
       });
+      // Programmatic SEO: the public page goes.
+      notifySeoPagesChanged('attorney-removed');
       const count = await this.withdrawActiveBids(tx, attorneyId, reason);
       await this.audit.record(
         {
@@ -1154,6 +1157,7 @@ export class VerificationAdminService {
         where: { user_id: attorneyId },
         data: { verification_status: restored },
       });
+      if (restored === 'verified') notifySeoPagesChanged('attorney-published');
       await this.audit.record(
         {
           adminId: admin.id,

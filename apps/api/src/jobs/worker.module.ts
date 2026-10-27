@@ -11,6 +11,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
 import { AdminSummaryModule } from '../common/admin-summary/admin-summary.module';
 import { OpsModule } from '../common/ops/ops.module';
+import { SeoGeneratorModule } from '../common/seo/seo-generator.module';
 import { AppSettingsModule } from '../common/app-settings/app-settings.module';
 import { EconomyModule } from '../common/economy/economy.module';
 import { CostGuardModule } from '../common/cost-guard/cost-guard.module';
@@ -63,6 +64,7 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     AdminSummaryModule,
     // Owner 2026-10-05: ops guard (DB probe, budget, backups) + heartbeat.
     OpsModule,
+    SeoGeneratorModule,
     // N-2: domain-event bus (events.maintain).
     EventsModule,
     // LicenseExpiryJob: typed app_config reads + the notifications seam.

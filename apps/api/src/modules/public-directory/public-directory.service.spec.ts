@@ -14,6 +14,7 @@ const row = (avatar: string | null, photoFrom = 'everyone') => ({
   rating_avg: 4.5,
   rating_count: 3,
   trust_badge: null,
+  updated_at: new Date('2026-10-20T09:15:00.000Z'),
   user: {
     first_name: 'Jane',
     last_name: 'Doe',
@@ -63,6 +64,19 @@ function make(opts: {
     storage,
   };
 }
+
+describe('PublicDirectoryService updatedAt (sitemap lastmod)', () => {
+  it('hands out the profile change time as ISO 8601 and reads the column once per page', async () => {
+    const { svc, prisma } = make({ rows: [row(null)] });
+    const page = await svc.attorneys({});
+    expect(page.items[0].updatedAt).toBe('2026-10-20T09:15:00.000Z');
+    const arg = prisma.attorneyProfile.findMany.mock.calls[0][0] as {
+      select: Record<string, unknown>;
+    };
+    expect(arg.select.updated_at).toBe(true);
+    expect(prisma.attorneyProfile.findMany).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('PublicDirectoryService photoUrl (og:image)', () => {
   it('uses the R2 public domain for an R2 avatar, no AWS CDN configured', async () => {

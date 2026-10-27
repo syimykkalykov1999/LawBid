@@ -15,7 +15,9 @@ import { EconomyService } from '../economy/economy.service';
 import { FileAccessService } from '../../modules/files/file-access.service';
 import { viewerContext } from '../viewer/viewer-context';
 import { readSwitchMode } from './switch-mode';
+import { configSchema } from '../../modules/admin-config/config-schema';
 import { parseAppCheckMode } from '../../modules/auth/app-check/app-check.guard';
+import { SeoGenerateJob } from '../../jobs/handlers/seo-generate.job';
 
 /**
  * Switch contract (docs/dev/SWITCH_INVENTORY.md): for every admin switch
@@ -48,6 +50,7 @@ describe('switch contract: defaults (a)', () => {
     ['trust.enabled', true],
     ['ops.auto_pause_heavy_jobs', true],
     ['ops.auto_scale_down_on_budget', true],
+    ['seo.generator_mode', 'off'],
   ];
   it.each(table)('%s defaults to %p with nothing stored', async (key, want) => {
     expect(APP_SETTINGS[key]).toBe(want);
@@ -301,5 +304,52 @@ describe('economy.ceiling_mode (auto | manual)', () => {
     expect(await get({})).toBe('auto');
     expect(await get({ 'economy.ceiling_mode': 'manual' })).toBe('manual');
     expect(await get({ 'economy.ceiling_mode': 'zzz' })).toBe('auto');
+  });
+});
+
+describe('seo.generator_mode (off | nightly | nightly+events)', () => {
+  const job = (stored: Record<string, unknown>) => {
+    const directory = {
+      attorneys: jest.fn(() => Promise.reject(new Error('DB touched'))),
+    };
+    const config = {
+      get: (k: string) =>
+        ({ SEO_WEB_BUCKET: 'b', SEO_SITE_URL: 'https://example.test' })[k],
+    };
+    const logger = { setContext: jest.fn(), info: jest.fn(), error: jest.fn() };
+    const Ctor = SeoGenerateJob as unknown as new (
+      ...a: unknown[]
+    ) => SeoGenerateJob;
+    return {
+      job: new Ctor(config, directory, logger, settingsWith(stored)),
+      directory,
+    };
+  };
+  it('off (the default) and a typo: the job returns before it reads anything', async () => {
+    for (const stored of [{}, { 'seo.generator_mode': 'nightlyy' }]) {
+      const t = job(stored);
+      await expect(t.job.run()).resolves.toEqual({ skipped: 'off' });
+      expect(t.directory.attorneys).not.toHaveBeenCalled();
+    }
+  });
+  it('nightly / nightly+events: the job starts (it reads the directory)', async () => {
+    for (const mode of ['nightly', 'nightly+events']) {
+      const t = job({ 'seo.generator_mode': mode });
+      await expect(t.job.run()).rejects.toThrow('DB touched');
+      expect(t.directory.attorneys).toHaveBeenCalledTimes(1);
+    }
+  });
+  it('the ceilings are clamped by the admin schema', () => {
+    const schema = configSchema();
+    expect(schema['seo.generator_max_attorneys']).toMatchObject({
+      min: 100,
+      max: 50000,
+    });
+    expect(schema['seo.max_invalidation_paths_per_day']).toMatchObject({
+      min: 0,
+      max: 500,
+    });
+    expect('nightly+events').toMatch(schema['seo.generator_mode'].pattern!);
+    expect('events').not.toMatch(schema['seo.generator_mode'].pattern!);
   });
 });

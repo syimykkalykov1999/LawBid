@@ -24,6 +24,7 @@ import { HeavyHittersModule } from './common/heavy-hitters/heavy-hitters.module'
 import { HeavyHittersInterceptor } from './common/heavy-hitters/heavy-hitters.interceptor';
 import { AdminSummaryModule } from './common/admin-summary/admin-summary.module';
 import { OpsModule } from './common/ops/ops.module';
+import { SeoGeneratorModule } from './common/seo/seo-generator.module';
 import { EconomyModule } from './common/economy/economy.module';
 import { ThrottlerModule } from './throttler/throttler.module';
 import { UserThrottlerGuard } from './throttler/user-throttler.guard';
@@ -286,6 +287,7 @@ const isDev =
     AdminSummaryModule,
     // Owner 2026-10-05: zero-maintenance operations (Система → Здоровье системы).
     OpsModule,
+    SeoGeneratorModule,
     // Owner 2026-10-05: plans + the entitlements gate (global).
     PlansCoreModule,
     ThrottlerModule,

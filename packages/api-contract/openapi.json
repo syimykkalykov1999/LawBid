@@ -185830,6 +185830,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "When the profile last changed (ISO 8601, UTC).",
+            "format": "date-time",
+            "example": "2026-10-20T09:15:00.000Z"
           }
         },
         "required": [
@@ -185842,7 +185848,8 @@
           "trustBadge",
           "photoUrl",
           "practiceAreas",
-          "licensedStates"
+          "licensedStates",
+          "updatedAt"
         ]
       },
       "PublicAttorneyListEnvelope": {
