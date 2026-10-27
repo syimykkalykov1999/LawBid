@@ -19,7 +19,9 @@ const config = { get: (k: string) => env[k] } as unknown as ConfigService;
 const cipher = new MessageBodyCipher(config);
 const settings = {
   boolean: jest.fn(async () => false),
-  number: jest.fn(async () => 15),
+  number: jest.fn(async (k: string) =>
+    k === 'chat.search.max_tokens_per_message' ? 64 : 15,
+  ),
 } as unknown as AppSettingsService;
 const index = new MessageSearchIndex(config, cipher, settings);
 
