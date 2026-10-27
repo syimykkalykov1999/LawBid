@@ -626,11 +626,18 @@ export const envSchema = z
     // one person's own spend (translations, uploads, video). 0 = no money
     // cap. Per provider: BUDGET_<PROVIDER>_DAILY_CENTS, else the call cap
     // above converted with the price table (cost-prices.ts).
-    BUDGET_GLOBAL_DAILY_CENTS: z.coerce
+    // S9-4 (2026-10-25): 0 (the default) = AUTO — the economy guard keeps the
+    // cap at allowed / 30 × economy.daily_brake_days (≈ $15/day at launch,
+    // grows with revenue). A positive value fixes the cap; the admin value
+    // `budget.money.global_daily_cents` (0 = none) wins over both.
+    BUDGET_GLOBAL_DAILY_CENTS: z.coerce.number().int().nonnegative().default(0),
+    // S9-4: SMS monthly money cap in cents (a tier-c route costs $0.30, so
+    // 9 000 calls alone could be $2 700); 0 = off.
+    BUDGET_SMS_MONTHLY_CENTS: z.coerce
       .number()
       .int()
       .nonnegative()
-      .default(50_000),
+      .default(10_000),
     BUDGET_USER_DAILY_CENTS: z.coerce.number().int().nonnegative().default(500),
     BUDGET_SMS_DAILY_CENTS: z.coerce.number().int().nonnegative().optional(),
     BUDGET_EMAIL_DAILY_CENTS: z.coerce.number().int().nonnegative().optional(),

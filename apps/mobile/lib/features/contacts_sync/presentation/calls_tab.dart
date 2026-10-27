@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -250,7 +250,7 @@ class CallHistoryRow extends ConsumerWidget {
     final picking = picked != null;
     final on = picked?.contains(e.id) ?? false;
     void pick() {
-      unawaited(HapticFeedback.selectionClick());
+      unawaited(AppHaptics.selection());
       ref.read(callLogSelectionProvider.notifier).toggle(ids);
     }
 
@@ -345,7 +345,7 @@ class CallHistoryRow extends ConsumerWidget {
     if (e.isGroup) {
       // The group chat has the call buttons (and the running call's banner).
       // A literal path: the groups feature stays out of this one's imports.
-      unawaited(HapticFeedback.selectionClick());
+      unawaited(AppHaptics.selection());
       await context.push('/group/${Uri.encodeComponent(e.groupId!)}');
       return;
     }
@@ -366,7 +366,7 @@ class CallHistoryRow extends ConsumerWidget {
         }
         return;
       }
-      await HapticFeedback.mediumImpact();
+      await AppHaptics.medium();
       await ref
           .read(callControllerProvider.notifier)
           .call(conv.id, peer: e.peer, video: video);

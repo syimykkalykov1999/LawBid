@@ -17,6 +17,11 @@ interface Opts {
   awsActual?: number | null;
   awsForecast?: number | null;
   smsMonth?: number;
+  idCheckMonth?: number;
+  /** Vendor readings from the spend snapshot (S9-1). */
+  vendors?: Record<string, unknown>[];
+  refundedCents?: number;
+  paymentCount?: number;
   onAws?: boolean;
   scaleMode?: ScaleMode | null;
   running?: { api: number; worker: number };
@@ -78,9 +83,9 @@ function setup(o: Opts = {}) {
     'economy.ceiling_mode': o.mode ?? 'auto',
     'economy.manual_api_max': 6,
     'economy.manual_worker_max': 3,
-    'economy.sms_unit_usd': 0.01,
-    'economy.video_unit_usd': 0.05,
-    'economy.translate_unit_usd': 0.002,
+    'economy.daily_brake_days': 3,
+    'scale.endpoints.mode': 'auto',
+    'scale.endpoints.ceiling': 4,
     'economy.aws_fallback_usd': 150,
   };
   const settings = {
@@ -89,11 +94,15 @@ function setup(o: Opts = {}) {
   };
 
   const prisma = {
-    payment: {
-      aggregate: jest.fn(async () => ({
-        _sum: { amount_cents: o.revenueCents ?? 0 },
-      })),
-    },
+    // S9-3: one raw query per window; revenueCents = price before tax.
+    $queryRaw: jest.fn(async () => [
+      {
+        subtotal_cents: o.revenueCents ?? 0,
+        gross_cents: o.revenueCents ?? 0,
+        payments: o.paymentCount ?? 0,
+        refunded_cents: o.refundedCents ?? 0,
+      },
+    ]),
     appConfig: {
       upsert: jest.fn(
         async (a: { where: { key: string }; update: { value: unknown } }) => {
@@ -105,7 +114,11 @@ function setup(o: Opts = {}) {
       }),
     },
   };
-  const redis = { del: jest.fn(async () => 1) };
+  const redis = {
+    del: jest.fn(async () => 1),
+    set: jest.fn(async () => 'OK'),
+    get: jest.fn(async () => null),
+  };
   const flagSvc = { isEnabled: jest.fn(async () => o.flag ?? true) };
 
   const aws = {
@@ -150,7 +163,12 @@ function setup(o: Opts = {}) {
   const autoscale = {
     usage: jest.fn(async (p: string) => ({
       today: 0,
-      month: p === 'sms' ? (o.smsMonth ?? 0) : 0,
+      month:
+        p === 'sms'
+          ? (o.smsMonth ?? 0)
+          : p === 'id_check'
+            ? (o.idCheckMonth ?? 0)
+            : 0,
     })),
     readSettings: jest.fn(async () => ({
       settings: new Proxy(
@@ -179,6 +197,13 @@ function setup(o: Opts = {}) {
     ),
   };
   const logger = { setContext: jest.fn(), warn: jest.fn(), info: jest.fn() };
+  const storage = {
+    awsBucket: jest.fn(() => 'docs-bucket'),
+    put: jest.fn(async () => undefined),
+  };
+  const spend = {
+    report: jest.fn(async () => ({ vendors: o.vendors ?? [] })),
+  };
 
   const svc = new EconomyService(
     prisma as never,
@@ -190,6 +215,8 @@ function setup(o: Opts = {}) {
     ops as never,
     autoscale as never,
     logger as never,
+    spend as never,
+    storage as never,
   );
   return {
     svc,
@@ -198,6 +225,8 @@ function setup(o: Opts = {}) {
     cap,
     prisma,
     logger,
+    redis,
+    storage,
     stored,
     events,
     state: () => economy,
@@ -209,10 +238,11 @@ function setup(o: Opts = {}) {
 describe('EconomyService.figures', () => {
   it('allows 50 % of revenue, never below the $150 threshold', async () => {
     const lowRevenue = await setup({ revenueCents: 10_000 }).svc.figures(NOW);
-    expect(lowRevenue.revenue30dUsd).toBe(100);
+    // net: $100 minus the 2.9 % Stripe fee (S9-3)
+    expect(lowRevenue.revenue30dUsd).toBe(97.1);
     expect(lowRevenue.allowedUsd).toBe(150);
     const rich = await setup({ revenueCents: 1_000_000 }).svc.figures(NOW);
-    expect(rich.allowedUsd).toBe(5000);
+    expect(rich.allowedUsd).toBe(4855);
   });
 
   it('adds AWS (actual), SMS (units × price) into the projection', async () => {
@@ -228,10 +258,71 @@ describe('EconomyService.figures', () => {
       projectedUsd: 160,
       source: 'actual',
     });
-    // 1000 SMS × $0.01 = $10 in 16 days of 31 → $19.38 projected.
-    expect(sms.monthToDateUsd).toBe(10);
-    expect(sms.projectedUsd).toBeCloseTo(19.38, 1);
-    expect(f.projectedUsd).toBeCloseTo(160 + 19.38, 1);
+    // 1000 SMS × $0.0115 (the price book) = $11.5 in 16 days of 31.
+    expect(sms.monthToDateUsd).toBe(11.5);
+    expect(sms.projectedUsd).toBeCloseTo(22.28, 1);
+    expect(f.projectedUsd).toBeCloseTo(160 + 22.28, 1);
+  });
+
+  it('S9-1: counts identity checks ($1.50 each) in the projection', async () => {
+    const f = await setup({
+      awsActual: 80,
+      awsForecast: 160,
+      idCheckMonth: 10,
+    }).svc.figures(NOW);
+    const id = f.lines.find((l) => l.key === 'id_check')!;
+    expect(id.monthToDateUsd).toBe(15);
+    expect(f.projectedUsd).toBeGreaterThan(160 + 15);
+  });
+
+  it('S9-1: e-mail and moderation lines are shown but not added twice when AWS is read', async () => {
+    const f = await setup({ awsActual: 80, awsForecast: 160 }).svc.figures(NOW);
+    expect(f.lines.find((l) => l.key === 'email')).toMatchObject({
+      coveredBy: 'aws',
+    });
+    const off = await setup({ awsActual: null }).svc.figures(NOW);
+    expect(off.lines.find((l) => l.key === 'email')?.coveredBy).toBeUndefined();
+  });
+
+  it('S9-1: uses the vendor number (Twilio) first, the counters only when it is down', async () => {
+    const twilio = {
+      id: 'twilio',
+      status: 'ok',
+      monthToDateUsd: 40,
+      forecastUsd: 80,
+      updatedAt: NOW.toISOString(),
+    };
+    const up = await setup({
+      awsActual: 80,
+      awsForecast: 160,
+      smsMonth: 1000,
+      vendors: [twilio],
+    }).svc.figures(NOW);
+    expect(up.lines.find((l) => l.key === 'sms')).toMatchObject({
+      monthToDateUsd: 40,
+      projectedUsd: 80,
+      source: 'actual',
+    });
+    const down = await setup({
+      awsActual: 80,
+      awsForecast: 160,
+      smsMonth: 1000,
+      vendors: [{ ...twilio, status: 'nodata', monthToDateUsd: null }],
+    }).svc.figures(NOW);
+    expect(down.lines.find((l) => l.key === 'sms')).toMatchObject({
+      monthToDateUsd: 11.5,
+      source: 'estimate',
+    });
+  });
+
+  it('S9-3: revenue is net of tax, refunds and the Stripe fee', async () => {
+    const f = await setup({
+      revenueCents: 100_000,
+      refundedCents: 10_000,
+      paymentCount: 10,
+    }).svc.figures(NOW);
+    // 1000 - 100 refunds - (2.9 % of 1000 = 29 + 10 × 0.30 = 3) = $868
+    expect(f.revenue30dUsd).toBe(868);
   });
 
   it('falls back to the configured AWS amount when Budgets is unreadable', async () => {
@@ -245,6 +336,35 @@ describe('EconomyService.figures', () => {
 });
 
 describe('EconomyService.tick', () => {
+  it('owner rule: publishes the off/on/auto control and ceiling for the Lambda, only when changed', async () => {
+    const t = setup({ awsActual: 50, awsForecast: 100 });
+    await t.svc.tick(NOW);
+    expect(t.storage.put).toHaveBeenCalledWith(
+      'docs-bucket',
+      'ops/scale-controls.json',
+      Buffer.from('{"endpoints":{"mode":"auto","ceiling":4}}'),
+      'application/json',
+    );
+    (t.redis.get as jest.Mock).mockResolvedValue(
+      '{"endpoints":{"mode":"auto","ceiling":4}}',
+    );
+    t.storage.put.mockClear();
+    await t.svc.tick(NOW);
+    expect(t.storage.put).not.toHaveBeenCalled();
+  });
+
+  it('S9-4: publishes the daily money brake from the allowance', async () => {
+    const t = setup({ awsActual: 50, awsForecast: 100 });
+    await t.svc.tick(NOW);
+    // allowed $150 / 30 × 3 days = $15 = 1500 cents
+    expect(t.redis.set).toHaveBeenCalledWith(
+      'economy:daily_brake_cents',
+      '1500',
+      'EX',
+      86_400,
+    );
+  });
+
   it('does nothing restrictive while spend is under the rule', async () => {
     const t = setup({ awsActual: 50, awsForecast: 100 });
     await t.svc.tick(NOW);

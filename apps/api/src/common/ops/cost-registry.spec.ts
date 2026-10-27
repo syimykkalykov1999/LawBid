@@ -186,12 +186,13 @@ describe('cost registry: hidden costs and load (owner rule)', () => {
 });
 
 describe('cost registry: the ladder numbers', () => {
-  it('day-1 total is the real ≈ $277–287, not the old $150-170', () => {
+  // #370: the four VPC endpoints are «Авто» and absent on day 1 (−$29).
+  it('day-1 total is the real ≈ $248–258, not the old $150-170', () => {
     const t = dayOneTotals();
-    expect(t.aws[0]).toBeGreaterThanOrEqual(255);
-    expect(t.aws[1]).toBeLessThanOrEqual(275);
-    expect(t.all[0]).toBeGreaterThanOrEqual(262);
-    expect(t.all[1]).toBeLessThanOrEqual(295);
+    expect(t.aws[0]).toBeGreaterThanOrEqual(226);
+    expect(t.aws[1]).toBeLessThanOrEqual(246);
+    expect(t.all[0]).toBeGreaterThanOrEqual(233);
+    expect(t.all[1]).toBeLessThanOrEqual(266);
   });
 
   it('the bill grows with users and the points are ordered', () => {
