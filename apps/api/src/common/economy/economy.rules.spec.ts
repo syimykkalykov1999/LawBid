@@ -4,7 +4,12 @@ import {
   DB_CEILING_SHARE,
   REDIS_CEILING_SHARE,
   allowedSpendUsd,
+  dailyBrakeCents,
   dbMaxConnections,
+  dbStorageMonthUsd,
+  netRevenueUsd,
+  pickVendorLine,
+  taskPriceFactor,
   DB_TIERS,
   fargateTaskMonthUsd,
   limitStepUp,
@@ -201,6 +206,75 @@ describe('prevTier / shrinkBlocker', () => {
     expect(
       shrinkBlocker('redis', r1, r0, { ...idle, redisMemoryPercent: 30 }),
     ).toContain('Redis');
+  });
+});
+
+describe('S9 rules', () => {
+  it('netRevenueUsd: price before tax − refunds − Stripe fee', () => {
+    expect(
+      netRevenueUsd({
+        subtotalCents: 100_000,
+        grossCents: 120_000,
+        refundedCents: 5_000,
+        payments: 10,
+      }),
+    ).toBeCloseTo((100_000 - 5_000 - 3_480 - 300) / 100, 5);
+    expect(
+      netRevenueUsd({
+        subtotalCents: 100,
+        grossCents: 100,
+        refundedCents: 0,
+        payments: 5,
+      }),
+    ).toBe(0);
+  });
+
+  it('dailyBrakeCents scales with the allowance (never 0)', () => {
+    expect(dailyBrakeCents(150, 3)).toBe(1_500);
+    expect(dailyBrakeCents(5_000, 3)).toBe(50_000);
+    expect(dailyBrakeCents(0, 3)).toBe(1);
+  });
+
+  it('pickVendorLine: vendor first, counters when down or old', () => {
+    const now = new Date('2026-10-16T12:00:00Z');
+    const ok = {
+      status: 'ok' as const,
+      monthToDateUsd: 30,
+      forecastUsd: null,
+      updatedAt: now.toISOString(),
+    };
+    expect(pickVendorLine(ok, 5, now)).toMatchObject({
+      monthToDateUsd: 30,
+      source: 'actual',
+    });
+    expect(pickVendorLine({ ...ok, status: 'nodata' }, 5, now).source).toBe(
+      'estimate',
+    );
+    const old = new Date(now.getTime() - 4 * 86_400_000).toISOString();
+    expect(
+      pickVendorLine({ ...ok, updatedAt: old }, 5, now).monthToDateUsd,
+    ).toBe(5);
+    expect(pickVendorLine(null, 5, now).monthToDateUsd).toBe(5);
+  });
+
+  it('taskPriceFactor: ARM ×0.8, Spot ×0.45, both multiply', () => {
+    expect(taskPriceFactor({ spot: false })).toBe(1);
+    expect(taskPriceFactor({ arch: 'ARM64', spot: false })).toBe(0.8);
+    expect(taskPriceFactor({ arch: 'X86_64', spot: true })).toBe(0.45);
+    expect(taskPriceFactor({ arch: 'ARM64', spot: true })).toBeCloseTo(0.36);
+    expect(
+      taskPriceFactor({
+        arch: 'ARM64',
+        spot: true,
+        armFactor: 0.5,
+        spotFactor: 0.5,
+      }),
+    ).toBe(0.25);
+  });
+
+  it('dbStorageMonthUsd: gp3, Multi-AZ doubles', () => {
+    expect(dbStorageMonthUsd(100, true)).toBe(23);
+    expect(dbStorageMonthUsd(100, false)).toBe(11.5);
   });
 });
 
