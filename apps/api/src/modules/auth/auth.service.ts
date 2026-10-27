@@ -1,4 +1,5 @@
 import { ClientFraudService } from '../client-fraud/client-fraud.service';
+import { DomainEvents } from '../events/domain-events.service';
 import { AccountBansService } from '../account-bans/account-bans.service';
 import {
   OTP_DAILY_WINDOW_SECONDS,
@@ -116,6 +117,8 @@ export class AuthService {
     @Optional() private readonly settings?: AppSettingsService,
     // Owner 2026-10-22 (security audit #3): "a sign-in method was added".
     @Optional() private readonly signInChange?: SignInChangeNotifier,
+    // N-2: the domain-event bus.
+    @Optional() private readonly events?: DomainEvents,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -785,6 +788,14 @@ export class AuthService {
 
     // Hashes of this sign-in's signals + re-score (never fails the login).
     await this.fraud?.recordSignIn(user.id, fraudSignals);
+
+    if (isNewUser) {
+      await this.events?.record(
+        'user.signed_up',
+        { userId: user.id, role: user.role ?? '' },
+        { actorId: user.id, key: `user.signed_up:${user.id}` },
+      );
+    }
 
     return {
       accessToken,

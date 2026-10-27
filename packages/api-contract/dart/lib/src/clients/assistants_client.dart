@@ -150,6 +150,8 @@ abstract class AssistantsClient {
   ///
   /// [q] - Search the text.
   ///
+  /// [updatedSince] - Owner 2026-10-22 (delta audit D-P3): only the tasks changed since (ISO) that fit `view`; tasks that left the view come back as meta.deletedIds, meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD. A deleted task is not reported (the client applies its own delete).
+  ///
   /// [mine] - Assistant: only the tasks they set (their Results).
   ///
   /// [from] - From this day (YYYY-MM-DD).
@@ -162,6 +164,7 @@ abstract class AssistantsClient {
     @Query('dueTo') DateTime? dueTo,
     @Query('overdue') bool? overdue,
     @Query('q') String? q,
+    @Query('updatedSince') DateTime? updatedSince,
     @Query('sort') TasksSort? sort,
     @Query('mine') bool? mine,
     @Query('from') DateTime? from,

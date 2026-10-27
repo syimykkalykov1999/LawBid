@@ -190,13 +190,17 @@ class ChannelsArchiveScreen extends ConsumerWidget {
           ? CasesErrorView(
               error: value.error!,
               t: t,
-              onRetry: () => ref.invalidate(archivedChannelsProvider),
+              onRetry: () =>
+                  ref.invalidate(channelListSyncProvider(archivedChannelsKey)),
             )
           : value.isLoading && !value.hasValue
               ? const CasesListSkeleton()
               : RefreshIndicator(
-                  onRefresh: () async =>
-                      ref.refresh(archivedChannelsProvider.future),
+                  onRefresh: () => ref
+                      .read(
+                        channelListSyncProvider(archivedChannelsKey).notifier,
+                      )
+                      .refresh(),
                   child: channels.isEmpty
                       ? ListView(
                           physics: const AlwaysScrollableScrollPhysics(),

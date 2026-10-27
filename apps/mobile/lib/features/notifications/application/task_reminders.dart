@@ -144,8 +144,14 @@ final taskReminderSyncProvider = Provider<void>((ref) {
   // (or the clock was moved), so it is read again — at most every 10 minutes.
   final observer = _ResumeObserver(
     () {
+      // Delta audit D-P3: one small `updatedSince`, not the whole list.
+      final again = recheck;
       recheck = false;
-      ref.invalidate(tasksProvider((done: false, mine: false)));
+      ref
+          .read(tasksProvider((done: false, mine: false)).notifier)
+          .catchUp();
+      // Back from the «Alarms & reminders» screen: arm again at once.
+      if (again) unawaited(sync());
     },
     () => recheck,
   );
@@ -191,13 +197,69 @@ Future<void> _reportArmed(Ref ref, List<ReminderSlot> slots) async {
     // Notifications switched off: no alarm will show, so nothing counts as
     // armed and the push goes out (it may be allowed separately).
     final on = await ref.read(systemNotificationsProvider).enabled();
-    await ref.read(notificationsRepositoryProvider).setArmedReminders(token, [
+    final ids = [
       if (on)
         for (final s in slots) '${s.taskId}@${s.at.millisecondsSinceEpoch}',
-    ]);
+    ];
+    // Owner 2026-10-22 (delta audit D-P3): the set goes to the server only
+    // when it changed (or once a day, in case the server lost it).
+    final prefs = ref.read(sharedPreferencesProvider);
+    final digest = armedDigest(ref.read(currentUserIdProvider), token, ids);
+    final now = DateTime.now();
+    if (!armedNeedsSending(prefs.getString(_armedSentKey), digest, now)) {
+      return;
+    }
+    await ref.read(notificationsRepositoryProvider).setArmedReminders(
+          token,
+          ids,
+        );
+    await prefs.setString(
+      _armedSentKey,
+      '$digest@${now.millisecondsSinceEpoch}',
+    );
   } on Object catch (e) {
     debugPrint('armed reminders not reported: $e');
   }
+}
+
+const _armedSentKey = 'reminders.armedSent';
+
+/// How long a reported set counts as known to the server.
+const armedResendAfter = Duration(hours: 24);
+
+/// A stable digest (two 32-bit FNV-1a runs) of the account, the device token
+/// and the armed set (order does not matter) — `hashCode` is not stable
+/// between runs.
+String armedDigest(String? userId, String token, List<String> ids) {
+  var h1 = 0x811c9dc5;
+  var h2 = 0x9747b28c;
+  void feed(String text) {
+    for (final unit in [...text.codeUnits, 0x1f]) {
+      h1 = ((h1 ^ unit) * 0x01000193) & 0xffffffff;
+      h2 = ((h2 ^ unit) * 0x01000193) & 0xffffffff;
+      h2 = (h2 ^ (h2 >> 13)) & 0xffffffff;
+    }
+  }
+
+  feed(userId ?? '');
+  feed(token);
+  for (final id in [...ids]..sort()) {
+    feed(id);
+  }
+  return '${h1.toRadixString(16)}${h2.toRadixString(16)}';
+}
+
+/// True when [digest] differs from the last reported one ([stored] is
+/// `<digest>@<epoch ms>` or null), or the report is older than
+/// [armedResendAfter].
+bool armedNeedsSending(String? stored, String digest, DateTime now) {
+  if (stored == null) return true;
+  final at = stored.lastIndexOf('@');
+  if (at < 0 || stored.substring(0, at) != digest) return true;
+  final sent = int.tryParse(stored.substring(at + 1));
+  if (sent == null) return true;
+  return now.millisecondsSinceEpoch - sent >=
+      armedResendAfter.inMilliseconds;
 }
 
 /// Owner 2026-10-20: asked at the moment it matters — when a reminder is
@@ -212,9 +274,8 @@ Future<bool> _ensureReminderPermission(Ref ref) async {
     await _tellNotificationsOff(ref, system);
     return false;
   }
-  final opened = await _askExactAlarms(ref);
-  if (opened) ref.invalidate(tasksProvider((done: false, mine: false)));
-  return opened;
+  // The resume observer re-arms the alarms when the person comes back.
+  return _askExactAlarms(ref);
 }
 
 /// Android 12+: an alarm at the minute needs the person's «Alarms & reminders»

@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart' show SyncedPage;
 import 'package:lawbid/features/channels/application/channel_compose.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/data/channels_repository.dart';
@@ -151,6 +152,25 @@ class FakeChannelsRepository implements ChannelsRepository {
       _run(
         'list:${scope.name}:${q ?? ''}${archived ? ':archived' : ''}',
         () => archived ? archivedListed : listed,
+      );
+
+  /// What an `updatedSince` answer carries (delta audit D-P2).
+  List<Channel> changedRows = [];
+  List<String> deletedRows = [];
+
+  @override
+  Future<SyncedPage<Channel>> listChangedSince(
+    ChannelScope scope,
+    DateTime since, {
+    bool archived = false,
+  }) =>
+      _run(
+        'delta:${scope.name}${archived ? ':archived' : ''}',
+        () => SyncedPage(
+          items: changedRows,
+          deletedIds: deletedRows,
+          syncedAt: DateTime.utc(2026, 10, 22, 12),
+        ),
       );
 
   @override

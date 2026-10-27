@@ -118,6 +118,56 @@ describe('Tasks planner (e2e, owner 2026-10-05)', () => {
     return { id: u.id, membershipId: m.id, auth: bearer(u.id, 'assistant') };
   }
 
+  it('delta audit D-P3: ?updatedSince returns only changed tasks; one that left the view is an id; nothing changed is empty', async () => {
+    const att = await attorney();
+    const since = new Date(Date.now() - 60_000).toISOString();
+    const created = await api()
+      .post('/api/v1/tasks')
+      .set(att.auth)
+      .send({ kind: 'call', title: 'Delta task', dueAt: inHours(5) })
+      .expect(201);
+    const id = created.body.data.id as string;
+
+    const first = await api()
+      .get('/api/v1/tasks')
+      .set(att.auth)
+      .query({ updatedSince: since })
+      .expect(200);
+    expect((first.body.data as { id: string }[]).map((x) => x.id)).toEqual([
+      id,
+    ]);
+    expect(first.body.meta.deletedIds).toEqual([]);
+    const syncedAt = first.body.meta.syncedAt as string;
+
+    // Nothing changed since: an empty answer, the position stays.
+    const empty = await api()
+      .get('/api/v1/tasks')
+      .set(att.auth)
+      .query({ updatedSince: new Date(Date.parse(syncedAt) + 1).toISOString() })
+      .expect(200);
+    expect(empty.body.data).toEqual([]);
+    expect(empty.body.meta.deletedIds).toEqual([]);
+
+    // Archived (cancelled) → it leaves the active view as an id.
+    await prisma.attorneyTask.update({
+      where: { id },
+      data: { status: 'cancelled' },
+    });
+    const left = await api()
+      .get('/api/v1/tasks')
+      .set(att.auth)
+      .query({ updatedSince: syncedAt, view: 'active' })
+      .expect(200);
+    expect(left.body.data).toEqual([]);
+    expect(left.body.meta.deletedIds).toEqual([id]);
+
+    await api()
+      .get('/api/v1/tasks')
+      .set(att.auth)
+      .query({ updatedSince: '2020-01-01T00:00:00Z' })
+      .expect(409);
+  });
+
   it('many places and people on one task; app people only when known', async () => {
     const att = await attorney();
     const colleague = await attorney('Bea');
