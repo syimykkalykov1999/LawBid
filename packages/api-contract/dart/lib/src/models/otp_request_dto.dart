@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'otp_request_dto_channel.dart';
+import 'otp_request_dto_purpose.dart';
 
 part 'otp_request_dto.g.dart';
 
@@ -14,6 +15,7 @@ class OtpRequestDto {
     required this.channel,
     required this.identifier,
     this.linkChallenge,
+    this.purpose,
   });
 
   factory OtpRequestDto.fromJson(Map<String, Object?> json) =>
@@ -28,6 +30,12 @@ class OtpRequestDto {
   /// (POST /auth/otp/verify-link), so a leaked link is useless. Omit it and.
   /// the email contains the code only.
   final String? linkChallenge;
+
+  /// What the code is for. Omit it for a sign-in / sign-up code. `reauth`.
+  /// (a step-up before a sensitive change) and `link` (adding a sign-in.
+  /// method) need the caller's bearer token: the code is then good only for.
+  /// that flow and that session (POST /auth/reauth, POST /auth/identifiers).
+  final OtpRequestDtoPurpose? purpose;
 
   Map<String, Object?> toJson() => _$OtpRequestDtoToJson(this);
 }

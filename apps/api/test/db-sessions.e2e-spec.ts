@@ -71,8 +71,9 @@ describe('DB sessions — (user_id, device_id) lookup (e2e)', () => {
     await expect(sessions.isNewDevice(userIds[0], 'dev-1-0')).resolves.toBe(
       true,
     );
+    // S14-4: a sign-in that sends no device id counts as a NEW device.
     await expect(sessions.isNewDevice(userIds[0], undefined)).resolves.toBe(
-      false,
+      true,
     );
   });
 

@@ -1144,6 +1144,39 @@ resource "aws_cloudwatch_metric_alarm" "cost_budget" {
   tags                = var.tags
 }
 
+# 2026-10-25 (S14-13): every wrong password / wrong sign-in code / wrong
+# reset code logs `{metric: "auth_failure", kind}` (auth-challenge.service.ts).
+# A sustained rate means credential stuffing or code guessing: the answer is
+# the per-person challenge (admin Настройки → security.auth_challenge_after_
+# failures) and, at the edge, the WAF rules (docs/runbooks/auth-abuse.md).
+# 300 failures in 5 minutes is far above a busy day of honest typos.
+resource "aws_cloudwatch_log_metric_filter" "auth_failure" {
+  name           = "${var.name}-auth-failure"
+  log_group_name = var.api_log_group
+  pattern        = "{ $.metric = \"auth_failure\" }"
+  metric_transformation {
+    name      = "AuthFailures"
+    namespace = local.ns
+    value     = "1"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "auth_failure_rate" {
+  alarm_name          = "${var.name}-auth-failure-rate"
+  alarm_description   = "LawBid: Много неудачных входов (неверный пароль или код). Что делать: возможен подбор паролей. Админка → Система → Настройки: security.auth_challenge_after_failures (проверка «вы не робот» после нескольких ошибок) и security.app_check.mode = enforce. (EN: Wrong passwords / sign-in codes are arriving at a credential-stuffing rate.)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  period              = 300
+  threshold           = 300
+  statistic           = "Sum"
+  metric_name         = "AuthFailures"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+}
+
 # --- zero maintenance (owner 2026-10-05) ------------------------------------
 # The worker's `ops.guard` job probes the database every minute and logs
 # `metric: db_health`; `ops.cost-check` / `ops.backup-check` log

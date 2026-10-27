@@ -4,6 +4,8 @@ import { LoggerErrorInterceptor, Logger } from 'nestjs-pino';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import type Redis from 'ioredis';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §15, stage 1.4 acceptance criteria — the
@@ -40,6 +42,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 describe('Auth (e2e) — stage 1.4 acceptance criteria', () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  let redis: Redis;
   const FIXED_CODE = '000000';
   const WRONG_CODE = '999999';
 
@@ -69,6 +72,7 @@ describe('Auth (e2e) — stage 1.4 acceptance criteria', () => {
     // intermittent ECONNRESET under load.
     await app.listen(0, '127.0.0.1');
     prisma = app.get(PrismaService);
+    redis = app.get<Redis>(REDIS_CLIENT);
   });
 
   afterAll(async () => {
@@ -223,10 +227,23 @@ describe('Auth (e2e) — stage 1.4 acceptance criteria', () => {
       expect(rotated.status).toBe(201);
       const refreshToken2 = rotated.body.data.refreshToken as string;
 
-      // Attacker replays the OLD (already-rotated-away) token from a
-      // DIFFERENT device — fails the benign-retry grace-window match
-      // (SessionService.isBenignRetry requires the same device_id as
-      // the replacement session), so this is genuine reuse detection.
+      // Attacker replays the OLD (already-rotated-away) token once the 10 s
+      // replay cache of the rotation is gone (S14-3: inside it an idempotent
+      // retry gets the same child pair) — genuine reuse detection. The
+      // grace window is also over: inside it a missing cache answers a
+      // retryable 503, never a chain-ending 401 (review R-64), so the
+      // rotated row is moved back past the window instead of waiting 10 s.
+      await redis.del(
+        ...(await redis.keys('auth:refresh-replay:*')),
+        'auth:refresh-replay:none',
+      );
+      await prisma.session.updateMany({
+        where: {
+          user_id: await findUserIdByPhone(identifier),
+          revoked_reason: 'rotated',
+        },
+        data: { updated_at: new Date(Date.now() - 60 * 60 * 1000) },
+      });
       const replay = await api()
         .post('/api/v1/auth/refresh')
         .send({
@@ -249,7 +266,7 @@ describe('Auth (e2e) — stage 1.4 acceptance criteria', () => {
       expect(newestNowDead.body.error.code).toBe('AUTH_REFRESH_INVALID');
     });
 
-    it('does NOT revoke the chain for a same-device retry inside the grace window (benign retry)', async () => {
+    it('S14-3: a retry of the just-rotated token inside the window gets the SAME child pair (idempotent) and the chain lives on', async () => {
       const identifier = '+12025553002';
       const login = await otpLogin(identifier);
       const refreshToken1 = login.body.data.refreshToken as string;
@@ -261,22 +278,19 @@ describe('Auth (e2e) — stage 1.4 acceptance criteria', () => {
           deviceInfo: { deviceId: 'device-same' },
         });
       expect(rotated.status).toBe(201);
+      const refreshToken2 = rotated.body.data.refreshToken as string;
 
-      // Same device retries the OLD token (e.g. a client that didn't
-      // see the first response due to a network blip) — REFRESH_ROTATION_
-      // GRACE_SECONDS=10 in test env, so this must be treated as benign:
-      // rejected as merely invalid, WITHOUT nuking the chain.
+      // A client that never saw the first answer retries the OLD token: the
+      // same child comes back (no device-id guessing, no chain revoke).
       const retry = await api()
         .post('/api/v1/auth/refresh')
         .send({
           refreshToken: refreshToken1,
-          deviceInfo: { deviceId: 'device-same' },
+          deviceInfo: { deviceId: 'whatever' },
         });
-      expect(retry.status).toBe(401);
-      expect(retry.body.error.code).toBe('AUTH_REFRESH_INVALID');
-      expect(retry.body.error.code).not.toBe('AUTH_REFRESH_REUSE_DETECTED');
+      expect(retry.status).toBe(201);
+      expect(retry.body.data.refreshToken).toBe(refreshToken2);
 
-      const refreshToken2 = rotated.body.data.refreshToken as string;
       const stillGood = await api()
         .post('/api/v1/auth/refresh')
         .send({
@@ -284,6 +298,34 @@ describe('Auth (e2e) — stage 1.4 acceptance criteria', () => {
           deviceInfo: { deviceId: 'device-same' },
         });
       expect(stillGood.status).toBe(201);
+    });
+
+    it('S14-3: two parallel refreshes with one live token fork nothing — exactly one child is live', async () => {
+      const identifier = '+12025553003';
+      const login = await otpLogin(identifier);
+      const refreshToken1 = login.body.data.refreshToken as string;
+      const both = await Promise.all(
+        [1, 2].map(() =>
+          api()
+            .post('/api/v1/auth/refresh')
+            .send({ refreshToken: refreshToken1 }),
+        ),
+      );
+      // The winner rotates; the loser is handed the same pair (or a plain
+      // 401 invalid) — never a second, different valid child.
+      const ok = both.filter((r) => r.status === 201);
+      expect(ok.length).toBeGreaterThanOrEqual(1);
+      const tokens = new Set(ok.map((r) => r.body.data.refreshToken as string));
+      expect(tokens.size).toBe(1);
+      for (const r of both.filter((x) => x.status !== 201)) {
+        expect(r.body.error.code).toBe('AUTH_REFRESH_INVALID');
+      }
+      const userId = await findUserIdByPhone(identifier);
+      expect(
+        await prisma.session.count({
+          where: { user_id: userId, revoked_at: null },
+        }),
+      ).toBe(1);
     });
   });
 

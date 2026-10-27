@@ -44,6 +44,8 @@ import { PasswordAuthService } from './password-auth.service';
 import { PasswordService } from './services/password.service';
 import { LoginMethodPolicy } from './services/login-method-policy.service';
 import { NewDeviceNotifier } from './notifications/new-device-notifier.service';
+import { AuthNoveltyService } from './services/auth-novelty.service';
+import { AuthChallengeService } from './services/auth-challenge.service';
 import { SignInChangeNotifier } from './notifications/sign-in-change-notifier.service';
 import { EmailLoginNotificationChannel } from './notifications/email-login-notification.channel';
 import { PushLoginNotificationChannel } from './notifications/push-login-notification.channel';
@@ -138,6 +140,9 @@ import { demoNoop } from '../../common/demo/demo-guards';
       inject: [EmailLoginNotificationChannel, PushLoginNotificationChannel],
     },
     NewDeviceNotifier,
+    // 2026-10-25 (S14-4 / S14-13): server-side novelty, challenge after failures.
+    AuthNoveltyService,
+    AuthChallengeService,
     // Owner 2026-10-22 (security audit #3): "your sign-in settings changed".
     SignInChangeNotifier,
     AssistantContextService,

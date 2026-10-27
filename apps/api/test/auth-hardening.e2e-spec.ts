@@ -13,6 +13,9 @@ import type {
 } from '../src/modules/auth/providers/email/email-provider.interface';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import { NewDeviceNotifier } from '../src/modules/auth/notifications/new-device-notifier.service';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import type Redis from 'ioredis';
+import { randomUUID } from 'node:crypto';
 
 /** Captures every email instead of dialing SMTP/SES. */
 class RecordingEmailProvider implements EmailProvider {
@@ -40,6 +43,7 @@ describe('Auth hardening (e2e)', () => {
   let prisma: PrismaService;
   let flags: FeatureFlagsService;
   let notifier: NewDeviceNotifier;
+  let redis: Redis;
   const email = new RecordingEmailProvider();
   let googlePayload: Record<string, unknown> = {};
   let verifyIdTokenSpy: jest.Mock;
@@ -48,6 +52,8 @@ describe('Auth hardening (e2e)', () => {
     process.env.NODE_ENV = 'test';
     process.env.GOOGLE_CLIENT_IDS = GOOGLE_AUDIENCE;
     process.env.AUTH_REFRESH_LIMIT_PER_SESSION_PER_HOUR = '3';
+    // X-Forwarded-For names the caller (the address-scoped tests below).
+    process.env.TRUST_PROXY_HOPS = '1';
     process.env.APP_LINK_BASE_URL = 'https://links.lawbid.test';
 
     // Signature/audience/expiry are google-auth-library's job (and need
@@ -78,6 +84,7 @@ describe('Auth hardening (e2e)', () => {
     prisma = app.get(PrismaService);
     flags = app.get(FeatureFlagsService);
     notifier = app.get(NewDeviceNotifier);
+    redis = app.get<Redis>(REDIS_CLIENT);
   });
 
   afterAll(async () => {
@@ -485,6 +492,332 @@ describe('Auth hardening (e2e)', () => {
         .set('Authorization', `Bearer ${first.body.data.accessToken}`);
       expect(old.status).toBe(401);
       expect(old.body.error.code).toBe('AUTH_SIGNED_IN_ELSEWHERE');
+    });
+  });
+
+  // -------------------------------------------------------------------
+  describe('hardening 2 (S14-4 / 5 / 6 / 8 / 10 / 12)', () => {
+    const setting = async (key: string, value: unknown) => {
+      await prisma.appConfig.upsert({
+        where: { key },
+        create: { key, value: value as never },
+        update: { value: value as never },
+      });
+      await redis.del('config:app_config');
+    };
+    const ipOf = (n: number) => `198.51.100.${n}`;
+
+    it('S14-6: a disposable e-mail opens no NEW account, an existing one still signs in', async () => {
+      await prisma.blockedEmailDomain.upsert({
+        where: { domain: 'junk-mail.test' },
+        create: { domain: 'junk-mail.test', reason: 'e2e' },
+        update: {},
+      });
+      const blocked = await api()
+        .post('/api/v1/auth/otp/request')
+        .send({ channel: 'email', identifier: 'fresh@junk-mail.test' });
+      expect(blocked.status).toBe(403);
+      expect(blocked.body.error.code).toBe('CONTACT_DOMAIN_BLOCKED');
+      // An address that already signs someone in is never refused.
+      const user = await prisma.user.create({
+        data: { role: 'client', status: 'active', email: 'old@junk-mail.test' },
+      });
+      await prisma.userIdentifier.create({
+        data: {
+          user_id: user.id,
+          provider: 'email',
+          provider_uid: 'old@junk-mail.test',
+        },
+      });
+      await api()
+        .post('/api/v1/auth/otp/request')
+        .send({ channel: 'email', identifier: 'old@junk-mail.test' })
+        .expect(200);
+      // Switch off: the same new address is accepted.
+      await setting('security.signup_block_disposable_email', false);
+      await api()
+        .post('/api/v1/auth/otp/request')
+        .send({ channel: 'email', identifier: 'fresh2@junk-mail.test' })
+        .expect(200);
+      await setting('security.signup_block_disposable_email', true);
+    });
+
+    it('S14-6: Gmail dots and +tags share one hourly budget', async () => {
+      const variants = [
+        'tag.fold@gmail.com',
+        'tagfold@gmail.com',
+        'tag.fold+a@gmail.com',
+        'ta.g.fold+b@gmail.com',
+      ];
+      for (const v of variants) {
+        await api()
+          .post('/api/v1/auth/otp/request')
+          .set('X-Forwarded-For', ipOf(40))
+          .send({ channel: 'email', identifier: v });
+      }
+      const key = `rl:sliding:otp-req:id:${createHash('sha256')
+        .update('tagfold@gmail.com')
+        .digest('hex')
+        .slice(0, 32)}`;
+      expect(await redis.zcard(key)).toBe(variants.length);
+    });
+
+    it('S14-8: wrong codes lock per address — another address still signs in', async () => {
+      const phone = '+12025558701';
+      await api()
+        .post('/api/v1/auth/otp/request')
+        .set('X-Forwarded-For', ipOf(50))
+        .send({ channel: 'phone', identifier: phone })
+        .expect(200);
+      let last = 0;
+      for (let i = 0; i < 5; i += 1) {
+        last = (
+          await api()
+            .post('/api/v1/auth/otp/verify')
+            .set('X-Forwarded-For', ipOf(51))
+            .send({ channel: 'phone', identifier: phone, code: '999999' })
+        ).status;
+      }
+      expect(last).toBe(423);
+      // The attacker's address is locked even for the right code...
+      const locked = await api()
+        .post('/api/v1/auth/otp/verify')
+        .set('X-Forwarded-For', ipOf(51))
+        .send({ channel: 'phone', identifier: phone, code: FIXED_CODE });
+      expect(locked.status).toBe(423);
+      // ...the owner's address is not.
+      const ok = await api()
+        .post('/api/v1/auth/otp/verify')
+        .set('X-Forwarded-For', ipOf(52))
+        .send({ channel: 'phone', identifier: phone, code: FIXED_CODE });
+      expect(ok.status).toBe(201);
+    });
+
+    it('S14-12: a re-authentication code is its own purpose, bound to the session', async () => {
+      const phone = '+12025558702';
+      const tokens = await otpLogin('phone', phone, 'reauth-dev');
+      const bearer = { Authorization: `Bearer ${tokens.accessToken}` };
+      await setting('security.otp_legacy_purpose_fallback', false);
+      try {
+        // A plain sign-in code does not step up any more.
+        await api()
+          .post('/api/v1/auth/otp/request')
+          .set('X-Forwarded-For', ipOf(60))
+          .send({ channel: 'phone', identifier: phone })
+          .expect(200);
+        const plain = await api()
+          .post('/api/v1/auth/reauth')
+          .set(bearer)
+          .send({ method: 'otp', identifier: phone, code: FIXED_CODE });
+        expect(plain.status).toBe(401);
+        expect(plain.body.error.code).toBe('REAUTH_INVALID');
+        // The same code asked as `reauth` does.
+        const cool = await redis.keys('*sms-resend*');
+        if (cool.length > 0) await redis.del(...cool);
+        await api()
+          .post('/api/v1/auth/otp/request')
+          .set(bearer)
+          .set('X-Forwarded-For', ipOf(61))
+          .send({ channel: 'phone', identifier: phone, purpose: 'reauth' })
+          .expect(200);
+        await api()
+          .post('/api/v1/auth/reauth')
+          .set(bearer)
+          .send({ method: 'otp', identifier: phone, code: FIXED_CODE })
+          .expect(201);
+        // `reauth` / `link` need a signed-in caller...
+        const anon = await api()
+          .post('/api/v1/auth/otp/request')
+          .send({ channel: 'phone', identifier: phone, purpose: 'reauth' });
+        expect(anon.status).toBe(401);
+        // ...and a reauth code is only for the caller's OWN contact.
+        const foreign = await api()
+          .post('/api/v1/auth/otp/request')
+          .set(bearer)
+          .send({
+            channel: 'phone',
+            identifier: '+12025558799',
+            purpose: 'reauth',
+          });
+        expect(foreign.status).toBe(401);
+        expect(foreign.body.error.code).toBe('REAUTH_INVALID');
+      } finally {
+        await setting('security.otp_legacy_purpose_fallback', true);
+      }
+    });
+
+    it('S14-10: the session list says where from (masked address, country, browser)', async () => {
+      const phone = '+12025558703';
+      await api()
+        .post('/api/v1/auth/otp/request')
+        .send({ channel: 'phone', identifier: phone })
+        .expect(200);
+      const res = await api()
+        .post('/api/v1/auth/otp/verify')
+        .set('X-Forwarded-For', ipOf(70))
+        .set('CloudFront-Viewer-Country', 'US')
+        .set(
+          'User-Agent',
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+        )
+        .send({
+          channel: 'phone',
+          identifier: phone,
+          code: FIXED_CODE,
+          deviceInfo: { deviceId: 'list-dev', platform: 'ios' },
+        })
+        .expect(201);
+      const list = await api()
+        .get('/api/v1/auth/sessions')
+        .set('Authorization', `Bearer ${res.body.data.accessToken as string}`)
+        .expect(200);
+      expect(list.body.data).toHaveLength(1);
+      expect(list.body.data[0]).toMatchObject({
+        ipHint: '198.51.100.x',
+        country: 'US',
+        browser: 'Safari · macOS',
+        isCurrent: true,
+      });
+    });
+
+    it('S14-4: a refresh from a new country alerts once; "this wasn\'t me" ends every session', async () => {
+      const phone = '+12025558704';
+      await setting('security.new_country_alert_enabled', true);
+      await api()
+        .post('/api/v1/auth/otp/request')
+        .send({ channel: 'phone', identifier: phone })
+        .expect(200);
+      const login = await api()
+        .post('/api/v1/auth/otp/verify')
+        .set('CloudFront-Viewer-Country', 'US')
+        .send({
+          channel: 'phone',
+          identifier: phone,
+          code: FIXED_CODE,
+          deviceInfo: { deviceId: 'nc-dev' },
+        })
+        .expect(201);
+      const userId = await userIdFor('phone', phone);
+      const refreshFrom = (token: string, country: string) =>
+        api()
+          .post('/api/v1/auth/refresh')
+          .set('CloudFront-Viewer-Country', country)
+          .send({ refreshToken: token });
+      const same = await refreshFrom(login.body.data.refreshToken, 'US');
+      expect(same.status).toBe(201);
+      await notifier.drain();
+      const alerts = () =>
+        prisma.authEvent.count({
+          where: { user_id: userId, event_type: 'new_country' },
+        });
+      expect(await alerts()).toBe(0);
+      const moved = await refreshFrom(same.body.data.refreshToken, 'DE');
+      expect(moved.status).toBe(201);
+      await notifier.drain();
+      expect(await alerts()).toBe(1);
+      const again = await refreshFrom(moved.body.data.refreshToken, 'DE');
+      expect(again.status).toBe(201);
+      await notifier.drain();
+      expect(await alerts()).toBe(1);
+
+      const bearer = {
+        Authorization: `Bearer ${again.body.data.accessToken as string}`,
+      };
+      await api().post('/api/v1/auth/wasnt-me').set(bearer).expect(200);
+      expect(
+        await prisma.authEvent.count({
+          where: { user_id: userId, event_type: 'wasnt_me' },
+        }),
+      ).toBe(1);
+      expect(
+        await prisma.session.count({
+          where: { user_id: userId, revoked_at: null },
+        }),
+      ).toBe(0);
+      await api().get('/api/v1/auth/sessions').set(bearer).expect(401);
+    });
+
+    it('S14-5: social sign-in honours the ban list (device and e-mail)', async () => {
+      const raw = 'e2e-raw-nonce-0123456789abcdef';
+      const device = `ban-dev-${randomUUID()}`;
+      await prisma.accountBan.create({
+        data: {
+          kind: 'device',
+          value: device,
+          reason: 'fraud',
+          created_by: randomUUID(),
+        },
+      });
+      googlePayload = {
+        sub: `google-banned-${device}`,
+        nonce: raw,
+        email: 'clean@example.com',
+        email_verified: true,
+      };
+      const byDevice = await api()
+        .post('/api/v1/auth/social')
+        .send({
+          provider: 'google',
+          idToken: 'header.payload.sig',
+          nonce: raw,
+          deviceInfo: { deviceId: device },
+        });
+      expect(byDevice.status).toBe(403);
+      expect(byDevice.body.error.code).toBe('ACCOUNT_SUSPENDED');
+      expect(
+        await prisma.userIdentifier.count({
+          where: {
+            provider: 'google',
+            provider_uid: googlePayload.sub as string,
+          },
+        }),
+      ).toBe(0);
+
+      const bannedMail = `banned-${randomUUID()}@example.com`;
+      await prisma.accountBan.create({
+        data: {
+          kind: 'email',
+          value: bannedMail,
+          reason: 'fraud',
+          created_by: randomUUID(),
+        },
+      });
+      googlePayload = {
+        sub: `google-banned-mail-${bannedMail}`,
+        nonce: raw,
+        email: bannedMail,
+        email_verified: true,
+      };
+      const byMail = await api()
+        .post('/api/v1/auth/social')
+        .send({
+          provider: 'google',
+          idToken: 'header.payload.sig',
+          nonce: raw,
+          deviceInfo: { deviceId: `ok-${randomUUID()}` },
+        });
+      expect(byMail.status).toBe(403);
+      expect(byMail.body.error.code).toBe('ACCOUNT_SUSPENDED');
+    });
+
+    it('S14-6: a first Google sign-in with a disposable e-mail opens no account', async () => {
+      const raw = 'e2e-raw-nonce-0123456789abcdef';
+      googlePayload = {
+        sub: 'google-disposable-1',
+        nonce: raw,
+        email: 'throwaway@junk-mail.test',
+        email_verified: true,
+      };
+      const res = await api()
+        .post('/api/v1/auth/social')
+        .send({
+          provider: 'google',
+          idToken: 'header.payload.sig',
+          nonce: raw,
+          deviceInfo: { deviceId: `dis-${randomUUID()}` },
+        });
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('CONTACT_DOMAIN_BLOCKED');
     });
   });
 });

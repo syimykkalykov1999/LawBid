@@ -243,28 +243,38 @@ describe('billing.stripe_tax_enabled', () => {
 });
 
 describe('sms.login_code_enabled', () => {
+  // S14-1 (#367): a registered number is no longer refused with a 409 (that
+  // told anyone who is registered). It gets the same 200 `sent` as a new
+  // number and no SMS: assertSmsOnlyForNewNumber returns true = "send nothing".
   const run = (stored: Record<string, unknown>) => {
-    const findUnique = jest.fn().mockResolvedValue({
-      user_id: 'u9',
-      user: { password_hash: 'x' },
-    });
+    const findUnique = jest.fn().mockResolvedValue({ user_id: 'u9' });
+    const allowed = { allowed: true, retryAfterSeconds: 0, remaining: 1 };
+    const rateLimit = {
+      hashIdentifier: jest.fn((v: string) => `h:${v}`),
+      consumeFixedWindow: jest.fn().mockResolvedValue(allowed),
+      consumeSlidingWindow: jest.fn().mockResolvedValue(allowed),
+    };
     const self = {
       settings: settingsWith(stored),
       prisma: { userIdentifier: { findUnique } },
+      rateLimit,
     };
     const call = (
       AuthService.prototype as unknown as {
-        assertSmsOnlyForNewNumber(i: string, c?: string): Promise<void>;
+        assertSmsOnlyForNewNumber(i: string, c?: string): Promise<boolean>;
       }
     ).assertSmsOnlyForNewNumber.call(self, '+10000000000');
-    return { call, findUnique };
+    return { call, findUnique, rateLimit };
   };
-  it('off (default): a registered number is refused a code', async () => {
-    await expect(run({}).call).rejects.toMatchObject({ status: 409 });
+  it('off (default): a registered number gets no code (silently, no 409)', async () => {
+    const { call, rateLimit } = run({});
+    await expect(call).resolves.toBe(true);
+    // The cooldown counts for every number, so a 429 does not tell either.
+    expect(rateLimit.consumeFixedWindow).toHaveBeenCalled();
   });
   it('on: the old passwordless code is allowed again, no lookup', async () => {
     const { call, findUnique } = run({ 'sms.login_code_enabled': true });
-    await expect(call).resolves.toBeUndefined();
+    await expect(call).resolves.toBe(false);
     expect(findUnique).not.toHaveBeenCalled();
   });
 });

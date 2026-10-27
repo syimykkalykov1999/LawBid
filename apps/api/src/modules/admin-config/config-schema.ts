@@ -408,6 +408,33 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Cloudflare Turnstile на сайте (не в приложении): off (по умолчанию) | monitor (проверять и писать в лог, не блокировать) | enforce (неверный токен — 403 TURNSTILE_FAILED, верный пропускает без App Check). Нужен секретный ключ в Интеграции → Cloudflare Turnstile.',
     pattern: /^(off|monitor|enforce)$/,
   };
+  out['security.app_check.replay_protection'] = {
+    ...out['security.app_check.replay_protection'],
+    description:
+      'With App Check on enforce: every token is accepted once on the sign-in code (phone), password-reset code and phone-status routes (replay protection, one extra round trip). Turn on only after the app sends limited-use tokens there.',
+  };
+  out['security.auth_challenge_after_failures'] = {
+    ...out['security.auth_challenge_after_failures'],
+    description:
+      'After this many wrong passwords or codes for one account in 15 minutes (5 times as many from one address) the next attempt must carry a valid App Check or Turnstile token. 0 = never (default).',
+    min: 0,
+    max: 50,
+  };
+  out['security.otp_legacy_purpose_fallback'] = {
+    ...out['security.otp_legacy_purpose_fallback'],
+    description:
+      'On (default): a re-authentication or add-a-sign-in-method code asked by an older app build (without its purpose) is still accepted. Off: a code works only for the flow it was asked for.',
+  };
+  out['security.signup_block_disposable_email'] = {
+    ...out['security.signup_block_disposable_email'],
+    description:
+      'On (default): a new account cannot be opened with an e-mail from the disposable-domain list (code by e-mail or Google / Apple sign-in). Existing accounts are not affected.',
+  };
+  out['security.new_country_alert_enabled'] = {
+    ...out['security.new_country_alert_enabled'],
+    description:
+      'On: the owner gets the new-device alert when a session is used from a country it was not used from before. Off by default (costs an e-mail and a push; max one per account per 24 h). Needs the CloudFront-Viewer-Country header.',
+  };
   // S12-8: per-route metrics (CloudWatch custom metrics are billed).
   out['ops.route_metrics.mode'] = {
     ...out['ops.route_metrics.mode'],

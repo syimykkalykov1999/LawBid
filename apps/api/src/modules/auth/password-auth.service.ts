@@ -4,9 +4,11 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { User } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -35,6 +37,8 @@ import type {
   SetPasswordDto,
 } from './dto/password.dto';
 import { SignInChangeNotifier } from './notifications/sign-in-change-notifier.service';
+import { AuthChallengeService } from './services/auth-challenge.service';
+import { simulateSend, timedSend } from './uniform-response.util';
 
 const WINDOW_SECONDS = 3600;
 /** Wrong-password guesses per phone / e-mail and per IP, per hour. */
@@ -93,7 +97,13 @@ export class PasswordAuthService {
     @Optional() private readonly settings?: AppSettingsService,
     // Owner 2026-10-22 (security audit #3): "your password changed".
     @Optional() private readonly signInChange?: SignInChangeNotifier,
+    // 2026-10-25 (S14-13): failed-attempt counting / challenge.
+    @Optional() private readonly challenge?: AuthChallengeService,
+    // 2026-10-25 (S14-2): first guess of a real SMS send's duration.
+    @Optional() private readonly config?: ConfigService,
   ) {}
+
+  private readonly log = new Logger(PasswordAuthService.name);
 
   // POST /auth/password/login
   async login(
@@ -126,6 +136,7 @@ export class PasswordAuthService {
       user?.password_hash ?? null,
     );
     if (!user || !ok) {
+      await this.challenge?.recordFailure('password', identifier, meta.ip);
       await this.limit(
         ['pwd-login-fail', 'id', idHash],
         LOGIN_FAILURES_PER_IDENTIFIER,
@@ -152,6 +163,7 @@ export class PasswordAuthService {
       deviceId: deviceInfo.deviceId,
     });
     await this.assertNotDowngraded(user, identifier, deviceInfo, meta);
+    await this.challenge?.clear(identifier);
     await this.upgradeHash(user.id, dto.password, user.password_hash);
     return this.signIn(user, `password:${identifier}`, deviceInfo, meta);
   }
@@ -297,25 +309,40 @@ export class PasswordAuthService {
       channel === 'phone' ? await this.findUser(channel, identifier) : null;
     const target = user ? this.resetTarget(user) : null;
     if (user && target) {
-      await this.bans.assertAllowed({
-        userId: user.id,
-        phone: user.phone_e164,
-        email: user.email,
-        deviceId: meta.deviceId,
-      });
-      await this.otp.requestOtp(target.channel, target.destination, 'reset');
-      await this.authEvents.record({
-        userId: user.id,
-        eventType: AUTH_EVENT_TYPES.PASSWORD_RESET_REQUESTED,
-        success: true,
-        identifier,
-        ip: meta.ip,
-        userAgent: meta.userAgent,
-        meta: { channel: target.channel },
-      });
+      // S14-2: a failure here (a banned account, a provider outage, an
+      // exhausted budget) must not be visible to the caller either — the
+      // answer is the same `sent` as for an unknown number.
+      try {
+        await this.bans.assertAllowed({
+          userId: user.id,
+          phone: user.phone_e164,
+          email: user.email,
+          deviceId: meta.deviceId,
+        });
+        await timedSend(() =>
+          this.otp.requestOtp(target.channel, target.destination, 'reset'),
+        );
+        await this.authEvents.record({
+          userId: user.id,
+          eventType: AUTH_EVENT_TYPES.PASSWORD_RESET_REQUESTED,
+          success: true,
+          identifier,
+          ip: meta.ip,
+          userAgent: meta.userAgent,
+          meta: { channel: target.channel },
+        });
+      } catch (error) {
+        this.log.warn(
+          { err: error, userId: user.id },
+          'password reset code not sent',
+        );
+      }
+    } else {
+      // Unknown account: nothing is sent, nothing is paid — and the answer
+      // takes as long as a real send lately did (no stopwatch oracle).
+      await simulateSend(this.uniformDelayMs());
     }
-    // Same answer for an unknown account: nothing is sent, nothing is paid.
-    return { sent: true, channel: target?.channel ?? channel };
+    return { sent: true, channel: 'phone' };
   }
 
   // POST /auth/password/reset/confirm
@@ -344,16 +371,19 @@ export class PasswordAuthService {
     const user =
       channel === 'phone' ? await this.findUser(channel, identifier) : null;
     const target = user ? this.resetTarget(user) : null;
-    // Unknown account: the same "incorrect code" as a wrong code.
-    const result = target
-      ? await this.otp.verifyOtp(
-          target.channel,
-          target.destination,
-          dto.code,
-          'reset',
-        )
-      : 'invalid';
-    if (!user || result !== 'ok') {
+    // S14-2: an unknown account runs the SAME verification (against the
+    // identifier itself, where no reset code ever exists): its answer, its
+    // attempt counting and its lock-out ladder are those of a known account
+    // with no outstanding code.
+    const result = await this.otp.verifyOtp(
+      target?.channel ?? 'phone',
+      target?.destination ?? identifier,
+      dto.code,
+      'reset',
+      { source: meta.ip },
+    );
+    if (!user || !target || result !== 'ok') {
+      await this.challenge?.recordFailure('reset_confirm', identifier, meta.ip);
       if (result === 'locked') {
         throw new HttpException(
           {
@@ -364,15 +394,10 @@ export class PasswordAuthService {
           HttpStatus.LOCKED,
         );
       }
-      if (result === 'expired') {
-        throw new UnauthorizedException({
-          code: ErrorCode.AUTH_OTP_EXPIRED,
-          message: 'Code expired. Request a new one.',
-        });
-      }
+      // One answer for "wrong", "expired" and "no such account" alike.
       throw new UnauthorizedException({
         code: ErrorCode.AUTH_OTP_INVALID,
-        message: 'Incorrect code.',
+        message: 'Incorrect or expired code.',
       });
     }
 
@@ -475,6 +500,11 @@ export class PasswordAuthService {
       include: { user: true },
     });
     return row?.user ?? null;
+  }
+
+  private uniformDelayMs(): number {
+    const v = this.config?.get<number>('AUTH_UNIFORM_MIN_DELAY_MS');
+    return typeof v === 'number' && v > 0 ? v : 0;
   }
 
   /** The verified e-mail when there is one (free), else the verified phone

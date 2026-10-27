@@ -113,6 +113,11 @@ describe('passkeys (e2e)', () => {
     expect(
       (options.authenticatorSelection as { residentKey: string }).residentKey,
     ).toBe('required');
+    // S14-9: registration asks for user verification too.
+    expect(
+      (options.authenticatorSelection as { userVerification: string })
+        .userVerification,
+    ).toBe('required');
 
     const created = await api()
       .post('/api/v1/auth/passkeys/register')
@@ -186,6 +191,28 @@ describe('passkeys (e2e)', () => {
       })
       .expect(401);
     expect(code(bad)).toBe('PASSKEY_INVALID');
+
+    // S14-9: the step-up needs USER VERIFICATION — a bare touch (UP only)
+    // is refused, and the options ask for it.
+    const bareOpts = await api()
+      .post('/api/v1/auth/passkeys/reauth/options')
+      .set('Authorization', me.bearer)
+      .expect(200);
+    expect(
+      (data(bareOpts).options as { userVerification: string }).userVerification,
+    ).toBe('required');
+    const bare = await api()
+      .post('/api/v1/auth/passkeys/reauth')
+      .set('Authorization', me.bearer)
+      .send({
+        challengeId: data(bareOpts).challengeId,
+        response: authenticator.get(
+          data(bareOpts).options as Record<string, unknown>,
+          { userVerified: false },
+        ),
+      })
+      .expect(401);
+    expect(code(bare)).toBe('PASSKEY_INVALID');
 
     // Reauth with the passkey: a single-use X-Reauth-Token.
     const reauthOpts = await api()
