@@ -29,6 +29,8 @@ function make(
     {} as never,
     {} as never,
     logger as never,
+    undefined, // spend (#370)
+    undefined, // storage (#370)
     ssm as never,
   );
   const run = (f: Fig) =>

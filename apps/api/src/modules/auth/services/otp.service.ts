@@ -89,6 +89,26 @@ end
 return {'invalid', tonumber(ARGV[2]) - attempts}
 `;
 
+/** S9-13: codes an hour to one (small) recipient domain before it counts as
+ * e-mail pumping. */
+export const EMAIL_DOMAIN_HOURLY_MAX = 30;
+const EMAIL_BIG_PROVIDERS = new Set([
+  'gmail.com',
+  'googlemail.com',
+  'outlook.com',
+  'hotmail.com',
+  'live.com',
+  'yahoo.com',
+  'icloud.com',
+  'me.com',
+  'proton.me',
+  'protonmail.com',
+  'aol.com',
+  'mail.ru',
+  'yandex.ru',
+  'yandex.com',
+]);
+
 /**
  * Owns OTP generation, hashing, delivery, and the attempt/lockout state
  * machine for BOTH stage 1.4's login flow (purpose='login') and stage
@@ -192,6 +212,10 @@ export class OtpService {
       // Owner 2026-10-22 (audit #4 §6): priced by the destination country.
       await this.costGuard.consume('sms', 1, { country });
     } else {
+      // S9-13: per-recipient-domain velocity (e-mail pumping through one
+      // throw-away domain). A tripped domain sends nothing and answers like
+      // a normal request, like the SMS prefix guard.
+      if (await this.emailDomainTripped(identifier)) return;
       await this.costGuard.consume('email');
     }
 
@@ -436,5 +460,23 @@ export class OtpService {
       .digest('hex')
       .slice(0, 32);
     return `otp:link:${h}`;
+  }
+
+  /** S9-13: more than EMAIL_DOMAIN_HOURLY_MAX codes an hour to one
+   * recipient domain (big mailbox providers excepted) = pumping. Redis
+   * trouble lets the code through (the global e-mail caps still apply). */
+  private async emailDomainTripped(identifier: string): Promise<boolean> {
+    if (!this.smsCostsMoney()) return false; // dev / e2e reuse one domain
+    const domain = identifier.split('@')[1]?.trim().toLowerCase();
+    if (!domain || EMAIL_BIG_PROVIDERS.has(domain)) return false;
+    try {
+      const hour = new Date().toISOString().slice(0, 13);
+      const key = `otp:email-domain:${hour}:${domain}`;
+      const n = await this.redis.incr(key);
+      if (n === 1) await this.redis.expire(key, 2 * 3600);
+      return n > EMAIL_DOMAIN_HOURLY_MAX;
+    } catch {
+      return false;
+    }
   }
 }

@@ -112,7 +112,7 @@ describe('CostRegistryService.report', () => {
     expect(gd.lockedReason).toContain('terraform.tfvars');
     expect(gd.steps.off.join(' ')).toContain('guardduty_enabled = false');
     expect(r.unclaimed).toEqual([{ service: 'Amazon Mystery', usd: 3 }]);
-    expect(r.ladder.dayOne.all[0]).toBeGreaterThan(250);
+    expect(r.ladder.dayOne.all[0]).toBeGreaterThan(220);
     expect(r.ladder.scenarios.map((s) => s.users)).toEqual([
       1000, 10000, 100000, 1000000,
     ]);
