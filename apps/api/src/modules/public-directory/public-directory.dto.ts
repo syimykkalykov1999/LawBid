@@ -96,4 +96,15 @@ export class PublicAttorneyDto {
     description: 'States of verified licenses.',
   })
   licensedStates!: string[];
+
+  /** Owner 2026-10-27 (programmatic SEO): when the public facts of this
+   * profile last changed; the pages' sitemap `lastmod` is this day, not the
+   * day of the build. */
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    example: '2026-10-20T09:15:00.000Z',
+    description: 'When the profile last changed (ISO 8601, UTC).',
+  })
+  updatedAt!: string;
 }

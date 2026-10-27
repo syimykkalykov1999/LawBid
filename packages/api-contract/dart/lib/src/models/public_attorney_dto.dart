@@ -21,6 +21,7 @@ class PublicAttorneyDto {
     required this.photoUrl,
     required this.practiceAreas,
     required this.licensedStates,
+    required this.updatedAt,
     this.bio,
   });
 
@@ -46,6 +47,9 @@ class PublicAttorneyDto {
 
   /// States of verified licenses.
   final List<String> licensedStates;
+
+  /// When the profile last changed (ISO 8601, UTC).
+  final DateTime updatedAt;
 
   Map<String, Object?> toJson() => _$PublicAttorneyDtoToJson(this);
 }

@@ -853,6 +853,38 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 100,
   };
+  // Programmatic SEO (2026-10-27): the page generator job. Off by default.
+  out['seo.generator_mode'] = {
+    ...out['seo.generator_mode'],
+    description:
+      'Public SEO pages built by the API: off (default, nothing runs) | nightly (after the nightly snapshot jobs) | nightly+events (also a minute after an attorney is published or removed).',
+    pattern: /^(off|nightly|nightly\+events)$/,
+  };
+  out['seo.generator_debounce_seconds'] = {
+    ...out['seo.generator_debounce_seconds'],
+    min: 10,
+    max: 3600,
+  };
+  out['seo.generator_min_interval_minutes'] = {
+    ...out['seo.generator_min_interval_minutes'],
+    min: 1,
+    max: 1440,
+  };
+  out['seo.generator_max_attorneys'] = {
+    ...out['seo.generator_max_attorneys'],
+    min: 100,
+    max: 50000,
+  };
+  out['seo.generator_max_uploads_per_run'] = {
+    ...out['seo.generator_max_uploads_per_run'],
+    min: 10,
+    max: 50000,
+  };
+  out['seo.max_invalidation_paths_per_day'] = {
+    ...out['seo.max_invalidation_paths_per_day'],
+    min: 0,
+    max: 500,
+  };
   out['chat.search.backfill_mode'] = {
     ...out['chat.search.backfill_mode'],
     description:
