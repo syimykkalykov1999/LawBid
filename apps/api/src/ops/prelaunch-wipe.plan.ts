@@ -249,6 +249,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   notifications: 'in-app notifications',
   cross_family_outbox: 'pending cross-database events (shard-ready step 7)',
   cross_family_inbox: 'applied-event keys (shard-ready step 7)',
+  domain_events: 'internal domain-event stream of the test period (N-2)',
   notification_settings: 'notification settings',
   notification_quiet_hours: 'quiet hours',
   admin_broadcasts: 'pushes sent to testers',
