@@ -108,10 +108,13 @@ describe('Chat search over sealed texts (e2e, BUG-1)', () => {
       const r = await job.run(night, async () => {});
       if (!('done' in r) || r.done) break;
     }
-    // please, send, the, елка, invoice, by, friday
+    // please, send, елка, invoice, friday — «the» and «by» are stop-words
+    // (R-24: SEARCH_STOP_WORDS are neither indexed nor required in a query);
+    // 5 rows, well under the per-message cap.
     expect(
       await prisma.messageSearchToken.count({ where: { message_id: old.id } }),
-    ).toBe(7);
+    ).toBe(5);
+    expect(index.maxTokens).toBeGreaterThanOrEqual(5);
 
     const tokens = app.get(TokenService);
     const auth = {
@@ -138,6 +141,10 @@ describe('Chat search over sealed texts (e2e, BUG-1)', () => {
     expect(hit.map((x) => x.id)).toEqual([conv.id]);
     expect(hit[0].matchedMessage).toContain('invoice');
     expect((await search('garage')).map((x) => x.id)).toEqual([conv.id]);
+    // Stop-words in the query are skipped, like in the message.
+    expect((await search('the invoice by Friday')).map((x) => x.id)).toEqual([
+      conv.id,
+    ]);
     // Every word must be in ONE message.
     expect(await search('invoice garage')).toEqual([]);
     expect(await search('invoice nonexistentword')).toEqual([]);
