@@ -51,6 +51,7 @@ import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
+import { PartitionService } from '../partitioning/partition.service';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { CdnInvalidateJob } from './handlers/cdn-invalidate.job';
 import { PrivacyReconcileJob } from './handlers/privacy-reconcile.job';
@@ -186,6 +187,7 @@ export class JobsModule {
         SearchIndexJob,
         // Owner 2026-10-25: `cdn.invalidate` (queued CloudFront paths).
         CdnInvalidateJob,
+        PartitionService,
         LedgerReconcileJob,
         // Privacy round 13: `privacy.reconcile`.
         PrivacyReconcileJob,

@@ -3,6 +3,8 @@ import { AppSettingsService } from '../common/app-settings/app-settings.service'
 import { PrismaClient } from '@prisma/client';
 import { demoContext } from '../common/demo/demo-context';
 import { withPoolerRouting } from './pooler-url';
+import { resolveReplicaUrl } from './replica-url';
+import { shardContext } from '../sharding/shard-context';
 import {
   extend,
   PrismaService,
@@ -52,6 +54,7 @@ export class PrismaReadService implements OnModuleDestroy {
   private readonly log = new Logger('PrismaRead');
   private raw: PrismaClient | null = null;
   private replica: PrismaService | null = null;
+  private replicaUrl = '';
   private downUntil = 0;
   /** Last sampled lag in ms; null = not sampled yet / sampling failed. */
   private lagMs: number | null = null;
@@ -168,10 +171,17 @@ export class PrismaReadService implements OnModuleDestroy {
   }
 
   private client(maxStalenessMs?: number): PrismaService | null {
-    const url = process.env.DATABASE_REPLICA_URL?.trim();
+    // #334: the admin «Копия базы для чтения» switch can create the replica
+    // later; its address comes from the env or the switch's stored value.
+    const url = resolveReplicaUrl();
     if (!url || process.env.DB_REPLICA_ENABLED === 'false') return null;
     if (demoContext.isDemo()) return null;
     if (this.shardedDatabases()) return null;
+    // The replica copies the PRIMARY family only: a request pinned to another
+    // physical database, or any request once extra shard databases are
+    // configured, reads from its own primary (SHARDING_READY.md).
+    if (shardContext.current()?.physical) return null;
+    if (process.env.DATABASE_URL_SHARDS?.trim()) return null;
     if (Date.now() < this.downUntil) return null;
     // Admin switch: off = primary only; on = replica whatever its lag.
     if (this.mode === 'off') return null;
@@ -185,7 +195,15 @@ export class PrismaReadService implements OnModuleDestroy {
     ) {
       return null;
     }
+    if (this.replica && this.replicaUrl !== url) {
+      // The replica moved (admin button: deleted and created again).
+      const old = this.raw;
+      this.replica = null;
+      this.raw = null;
+      if (old) void old.$disconnect().catch(() => undefined);
+    }
     if (!this.replica) {
+      this.replicaUrl = url;
       const datasourceUrl = withPoolDefaults(
         withPoolerRouting(url, process.env, 'DB_REPLICA_POOLER_HOST'),
         process.env,

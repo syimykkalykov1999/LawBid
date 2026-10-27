@@ -47,6 +47,7 @@ import {
 } from '../sharding/outbox/cross-family-outbox';
 import { AppSettingsService } from '../common/app-settings/app-settings.service';
 import { EventsMaintenance } from '../modules/events/events.maintenance';
+import { PartitionService } from '../partitioning/partition.service';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { CdnInvalidateJob } from './handlers/cdn-invalidate.job';
 import { ExperimentsNightlyJob } from '../modules/experiments/experiments-nightly.job';
@@ -181,6 +182,7 @@ export class CronProcessor {
     @Optional() private readonly cdnInvalidate?: CdnInvalidateJob,
     // Owner 2026-10-27: `moderation.appeal-sla`.
     @Optional() private readonly autoAppeals?: AutoAppealsService,
+    @Optional() private readonly partitioning?: PartitionService,
     // Owner 2026-10-25: `experiments.metrics`.
     @Optional() private readonly experimentsNightly?: ExperimentsNightlyJob,
     // Day-one foundations: `ledger.reconcile`.
@@ -312,6 +314,10 @@ export class CronProcessor {
         return this.dbHealth?.run() ?? null;
       case CRON_JOBS.adminSummaries:
         return this.adminSummaries?.run() ?? null;
+      case CRON_JOBS.partitionMaintain:
+        return this.partitioning?.maintain() ?? null;
+      case CRON_JOBS.partitionTick:
+        return this.partitioning?.tick() ?? null;
       case CRON_JOBS.outboxSweep:
         return this.outbox
           ? this.outbox.sweep(

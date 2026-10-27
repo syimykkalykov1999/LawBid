@@ -18,6 +18,7 @@ import {
   OBSERVED_QUEUES,
   SLOW_LANE_QUEUES,
 } from '../../jobs/handlers/ops-metrics.job';
+import { PartitionService } from '../../partitioning/partition.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
@@ -77,6 +78,8 @@ export class SystemHealthService implements OnModuleDestroy {
     @Optional() private readonly incidents?: IncidentsService,
     // WP-G: monthly AWS Backup restore test.
     @Optional() private readonly drill?: RestoreDrillService,
+    // Owner 2026-10-24: «a table passed 50 million rows» signal.
+    @Optional() private readonly partitions?: PartitionService,
     // Owner 2026-10-25: last / next rotation per rotated secret.
     @Optional() private readonly rotation?: SecretRotationService,
   ) {}
@@ -94,6 +97,7 @@ export class SystemHealthService implements OnModuleDestroy {
       this.safe('cost', () => this.cost()),
       this.safe('message_keys', () => this.messageKeys()),
       this.safe('restore_drill', () => this.restoreDrill(now)),
+      this.safe('table_growth', () => this.tableGrowth()),
     ]);
     if (this.rotation?.enabled) {
       items.push(
@@ -283,6 +287,25 @@ export class SystemHealthService implements OnModuleDestroy {
       status: latencyMs > slowMs ? 'yellow' : 'green',
       detail: { latencyMs, slowMs },
     };
+  }
+
+  /**
+   * Owner 2026-10-24: yellow when a table that is NOT partitioned holds 50
+   * million rows or more (time to run «Разделить таблицу по месяцам» on the
+   * «Масштаб» page). Estimates from pg_class, free to read. Grey when the
+   * probe is not available (tests, local).
+   */
+  private async tableGrowth(): Promise<Omit<HealthItemDto, 'key'>> {
+    if (!this.partitions) return { status: 'grey', detail: {} };
+    try {
+      const g = await this.partitions.growthSignal();
+      return {
+        status: g.over.length > 0 ? 'yellow' : 'green',
+        detail: { over: g.over, top: g.top, thresholdRows: 50_000_000 },
+      };
+    } catch {
+      return { status: 'grey', detail: {} };
+    }
   }
 
   private async redisItem(): Promise<Omit<HealthItemDto, 'key'>> {

@@ -1714,6 +1714,22 @@ module "pgbouncer" {
 # What the api / worker get when the pooler is on (src/prisma/pooler-url.ts
 # swaps host and port of DATABASE_URL; the secret itself is untouched).
 locals {
+  # Read replica (growth.rds_read_replicas > 0): the tasks get only the HOST;
+  # the app builds DATABASE_REPLICA_URL from DATABASE_URL (same role, password
+  # and database) with this host (src/prisma/replica-url.ts), so no secret has
+  # to be filled by hand. Empty map while the switch is off = env unchanged.
+  db_replica_env = merge(
+    var.growth.rds_read_replicas > 0 ? {
+      DB_REPLICA_HOST = module.growth.replica_host
+    } : {},
+    # Admin button «Копия базы для чтения» (owner 2026-10-24): the API creates
+    # and deletes ONE replica itself through the RDS API. Only these names are
+    # added, and only when db_replica_toggle is true.
+    var.db_replica_toggle ? merge(
+      { OPS_DB_REPLICA_TOGGLE = "on" },
+      var.db_replica_monitoring ? { OPS_DB_REPLICA_MONITORING_ROLE_ARN = aws_iam_role.db_replica_monitoring[0].arn } : {},
+    ) : {},
+  )
   db_pooler_env = var.db_pooler_enabled ? {
     DB_POOLER_HOST = module.pgbouncer[0].endpoint
     DB_POOLER_PORT = tostring(module.pgbouncer[0].port)
@@ -1941,10 +1957,95 @@ data "aws_iam_policy_document" "ops" {
     actions   = ["rds:DescribeDBInstances", "rds:ModifyDBInstance"]
     resources = ["arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.name}-postgres"]
   }
+  # Admin button «Копия базы для чтения»: create / describe / delete exactly one
+  # instance named <database>-readreplica. Nothing else on RDS changes.
+  dynamic "statement" {
+    for_each = var.db_replica_toggle ? [1] : []
+    content {
+      actions = ["rds:DescribeDBInstances"]
+      resources = [
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica",
+      ]
+    }
+  }
+  dynamic "statement" {
+    for_each = var.db_replica_toggle ? [1] : []
+    content {
+      actions = ["rds:CreateDBInstanceReadReplica", "rds:AddTagsToResource"]
+      resources = [
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:pg:*",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:og:*",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:subgrp:*",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secgrp:*",
+      ]
+    }
+  }
+  dynamic "statement" {
+    for_each = var.db_replica_toggle ? [1] : []
+    content {
+      actions   = ["rds:DeleteDBInstance"]
+      resources = ["arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica"]
+    }
+  }
+  dynamic "statement" {
+    for_each = var.db_replica_toggle && var.db_replica_monitoring ? [1] : []
+    content {
+      actions   = ["iam:PassRole"]
+      resources = [aws_iam_role.db_replica_monitoring[0].arn]
+      condition {
+        test     = "StringEquals"
+        variable = "iam:PassedToService"
+        values   = ["monitoring.rds.amazonaws.com"]
+      }
+    }
+  }
+  # The replica uses the primary's KMS key (storage and Performance Insights).
+  dynamic "statement" {
+    for_each = var.db_replica_toggle ? [1] : []
+    content {
+      actions   = ["kms:DescribeKey", "kms:CreateGrant", "kms:Decrypt", "kms:GenerateDataKeyWithoutPlaintext", "kms:ReEncrypt*"]
+      resources = [module.kms.key_arn]
+    }
+  }
   statement {
     actions   = ["elasticache:DescribeReplicationGroups", "elasticache:ModifyReplicationGroup"]
     resources = ["arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:replicationgroup:${local.name}-redis"]
   }
+}
+
+# --- admin button: read copy of the database (owner 2026-10-24) -------------------
+variable "db_replica_toggle" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-10-24: lets the API task create and delete ONE read replica of the database from the admin «Масштаб» page (one 2FA step-up). false (default): no IAM, no env, the button says it is unavailable. The replica is created by the API, not by Terraform, so apply never touches it. docs/runbooks/db-replica.md."
+}
+variable "db_replica_monitoring" {
+  type        = bool
+  default     = true
+  description = "Give the admin-made replica Enhanced Monitoring (60 s). Needs the small IAM role created here."
+}
+
+resource "aws_iam_role" "db_replica_monitoring" {
+  count = var.db_replica_toggle && var.db_replica_monitoring ? 1 : 0
+  name  = "${local.name}-rds-replica-monitoring"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRole"
+      Principal = { Service = "monitoring.rds.amazonaws.com" }
+    }]
+  })
+  tags = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "db_replica_monitoring" {
+  count      = length(aws_iam_role.db_replica_monitoring)
+  role       = aws_iam_role.db_replica_monitoring[0].name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 }
 
 variable "ops_role_split" {

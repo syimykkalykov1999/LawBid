@@ -207,6 +207,10 @@ export const CRON_JOBS = {
   /** Owner 2026-10-25 (S2-1): queued CloudFront invalidations of removed
    * files, one batched request per distribution. */
   cdnInvalidate: 'cdn.invalidate',
+  /** Owner 2026-10-24: pre-create the next months of the partitioned tables. */
+  partitionMaintain: 'partition.maintain',
+  /** Owner 2026-10-24: advance an admin-started online partition conversion. */
+  partitionTick: 'partition.tick',
   /** Events pipeline (N-2): auto signal, stream relay, retention. */
   eventsMaintain: 'events.maintain',
 } as const;
@@ -325,6 +329,12 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.outboxSweep, pattern: '* * * * *' },
   // Every other minute: batches the paths of removed files (S2-1).
   { name: CRON_JOBS.cdnInvalidate, pattern: '1-59/2 * * * *' },
+  // 02:40 UTC daily: the next 2 months always exist (rows beyond the last
+  // partition would fall into the DEFAULT one).
+  { name: CRON_JOBS.partitionMaintain, pattern: '40 2 * * *' },
+  // Every minute; a no-op unless PARTITION_DATABASE_URL is set and a
+  // conversion was started from the admin.
+  { name: CRON_JOBS.partitionTick, pattern: '* * * * *' },
   // Events pipeline: every 5 minutes; a no-op unless auto / stream, prunes hourly.
   { name: CRON_JOBS.eventsMaintain, pattern: '*/5 * * * *' },
 ];
