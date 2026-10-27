@@ -90,6 +90,8 @@ export const SWEEPS: Readonly<Record<string, readonly string[]>> = {
   SearchClick: ['user_id'],
   // Ranking analytics (impressions / clicks per user): personal, swept.
   RankingEvent: ['user_id'],
+  // Internal domain-event stream (events pipeline): the actor's own events, swept.
+  DomainEvent: ['actor_user_id'],
 };
 
 const list = (...models: string[]): string[] => models;
