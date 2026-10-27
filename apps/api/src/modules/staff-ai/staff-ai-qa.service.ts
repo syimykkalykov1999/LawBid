@@ -12,6 +12,7 @@ import { StaffAiContextService } from './staff-ai-context.service';
 import { qaSystem } from './staff-ai-rubrics';
 import { QA_SCHEMA } from './staff-ai-schemas';
 import {
+  AI_ITEM_KINDS,
   StaffAiApiError,
   isAiItemKind,
   modelForTier,
@@ -376,6 +377,7 @@ export class StaffAiQaService {
       where: {
         created_at: window,
         is_golden: false,
+        decision_kind: { in: [...AI_ITEM_KINDS] },
         stage: { in: ['sample', 'newcomer'] },
       },
       orderBy: { created_at: 'asc' },

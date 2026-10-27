@@ -89,17 +89,21 @@ describe('Staff AI mode routes (e2e)', () => {
 
   const api = () => request(base);
 
+  /** Flips a switch through the owner's settings editor (step-up only if asked). */
   async function setSwitch(owner: AdminSession, key: string, value: boolean) {
-    await api()
-      .post('/api/v1/admin/auth/step-up')
-      .set(owner.auth)
-      .send({ code: totpCode(owner.totpSecret, Date.now() + 30_000) })
-      .expect(200);
-    await api()
-      .put(`/api/v1/admin/config/${key}`)
-      .set(owner.auth)
-      .send({ value })
-      .expect(200);
+    const put = () =>
+      api().put(`/api/v1/admin/config/${key}`).set(owner.auth).send({ value });
+    const first = await put();
+    if (first.status === 403) {
+      await api()
+        .post('/api/v1/admin/auth/step-up')
+        .set(owner.auth)
+        .send({ code: totpCode(owner.totpSecret, Date.now() + 30_000) })
+        .expect(200);
+      await put().expect(200);
+    } else {
+      expect(first.status).toBe(200);
+    }
   }
 
   it('off by default: both routes are 404 for everyone and the model is never called', async () => {
