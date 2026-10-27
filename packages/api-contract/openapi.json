@@ -71663,6 +71663,160 @@
         ]
       }
     },
+    "/admin/pnl": {
+      "get": {
+        "operationId": "pnlReport",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PnlReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Profit and loss from the daily snapshot",
+        "tags": [
+          "admin-pnl"
+        ]
+      }
+    },
+    "/admin/pnl/refresh": {
+      "post": {
+        "operationId": "pnlRefresh",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PnlReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Recount now (max once per 10 min)",
+        "tags": [
+          "admin-pnl"
+        ]
+      }
+    },
     "/referrals/me": {
       "get": {
         "operationId": "getMyReferrals",
@@ -153327,6 +153481,200 @@
         },
         "required": [
           "target"
+        ]
+      },
+      "PnlPeriodDto": {
+        "type": "object",
+        "properties": {
+          "revenueUsd": {
+            "type": "number"
+          },
+          "vendorCostUsd": {
+            "type": "number"
+          },
+          "fixedCostUsd": {
+            "type": "number"
+          },
+          "costUsd": {
+            "type": "number"
+          },
+          "profitUsd": {
+            "type": "number"
+          },
+          "marginPercent": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "revenueUsd",
+          "vendorCostUsd",
+          "fixedCostUsd",
+          "costUsd",
+          "profitUsd",
+          "marginPercent"
+        ]
+      },
+      "PnlWeekDto": {
+        "type": "object",
+        "properties": {
+          "weekStart": {
+            "type": "string"
+          },
+          "revenueUsd": {
+            "type": "number"
+          },
+          "costUsd": {
+            "type": "number"
+          },
+          "profitUsd": {
+            "type": "number"
+          },
+          "marginPercent": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "weekStart",
+          "revenueUsd",
+          "costUsd",
+          "profitUsd",
+          "marginPercent"
+        ]
+      },
+      "PnlDayDto": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string"
+          },
+          "revenueUsd": {
+            "type": "number"
+          },
+          "costUsd": {
+            "type": "number"
+          },
+          "profitUsd": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "day",
+          "revenueUsd",
+          "costUsd",
+          "profitUsd"
+        ]
+      },
+      "PnlKindLineDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "subscriptions",
+              "seats",
+              "promotions",
+              "client_subscriptions",
+              "stars",
+              "bid_packs"
+            ]
+          },
+          "revenueUsd": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "revenueUsd"
+        ]
+      },
+      "PnlReportDto": {
+        "type": "object",
+        "properties": {
+          "computedAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Stored snapshot time; null before the first count."
+          },
+          "asOf": {
+            "type": "string",
+            "nullable": true
+          },
+          "today": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PnlPeriodDto"
+              }
+            ]
+          },
+          "week": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PnlPeriodDto"
+              }
+            ]
+          },
+          "month": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PnlPeriodDto"
+              }
+            ]
+          },
+          "weeks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PnlWeekDto"
+            }
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PnlDayDto"
+            }
+          },
+          "byKind": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PnlKindLineDto"
+            }
+          },
+          "vendorDataFrom": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "computedAt",
+          "asOf",
+          "today",
+          "week",
+          "month",
+          "weeks",
+          "days",
+          "byKind",
+          "vendorDataFrom"
+        ]
+      },
+      "PnlReportEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PnlReportDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "ReferralStatus": {

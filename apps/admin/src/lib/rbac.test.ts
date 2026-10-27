@@ -185,7 +185,7 @@ describe('role x page visibility table', () => {
   const expectVisible: Record<string, string[]> = {
     moderator: ['/', '/workspace', '/moderation', '/media-moderation', '/review-appeals', '/moderation-appeals', '/moderation-journal', '/content', '/media', '/legal-qa', '/group-chats', '/practice-areas', '/document-templates', '/form-templates', '/search'],
     support: ['/', '/workspace', '/users', '/support'],
-    finance: ['/', '/workspace', '/subscriptions', '/payments', '/promo-codes', '/referrals', '/partners', '/contracts', '/promotions', '/treasury', '/payroll', '/exports'],
+    finance: ['/', '/workspace', '/subscriptions', '/payments', '/promo-codes', '/referrals', '/partners', '/contracts', '/promotions', '/treasury', '/payroll', '/exports', '/pnl'],
   };
   it.each(Object.keys(expectVisible))('%s sees exactly their pages', (name) => {
     const me = roles[name as keyof typeof roles];

@@ -145,6 +145,9 @@ interface Section {
   /** Owner 2026-10-25: only the super admin sees and opens it. For everyone
    * else it is not in the menu and `canOpen` answers false (the 403 page). */
   ownerOnly?: boolean;
+  /** Owner 2026-10-26: besides the super admin, only these roles open it
+   * (not tied to a granted area); nobody else, whatever they are granted. */
+  onlyRoles?: readonly AdminRole[];
 }
 
 /** Owner 2026-10-25 (ADM-NAV): the menu is eight tabs (the dashboard plus
@@ -198,6 +201,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/stars', label: 'Звёзды', icon: 'star', area: 'moneyOwner', ownerOnly: true, hint: 'пакеты звёзд, подарки, цены наборов стикеров, отчёт' },
       { href: '/prices', label: 'Цены', icon: 'tag', area: 'moneyOwner', ownerOnly: true, hint: 'стоимость тарифов и галочки' },
       { href: '/plans', label: 'Планы', icon: 'stack', area: 'moneyOwner', ownerOnly: true, hint: 'планы подписок и их возможности' },
+      { href: '/pnl', label: 'Прибыль', icon: 'chart-line', area: 'super', onlyRoles: ['finance'], hint: 'доход после возвратов и комиссии Stripe минус счета сервисов: день, неделя, месяц, 12 недель' },
       { href: '/treasury', label: 'Прибыль и резерв', icon: 'bank', area: 'money', hint: 'расходы отдельно, на карту: чистая прибыль' },
       { href: '/payroll', label: 'Зарплаты', icon: 'wallet', area: 'payroll', hint: 'сотрудники, массовая выплата' },
       { href: '/economy', label: 'Экономика', icon: 'chart-line', area: 'super', ownerOnly: true, hint: 'доход и расходы на сторонние сервисы, потолок серверов' },
@@ -301,6 +305,7 @@ function opens(me: AccessSubject, s: Section): boolean {
   // Owner 2026-10-25: owner-only pages are the super admin's and nobody
   // else's (the deputy and the accountant do not see them at all). One
   // exception: a country partner's lead hires their own team on /admins.
+  if (s.onlyRoles) return me.role === 'super_admin' || s.onlyRoles.includes(me.role);
   if (s.ownerOnly) {
     if (me.role === 'super_admin') return true;
     return s.href === '/admins' && me.partnerLead === true;

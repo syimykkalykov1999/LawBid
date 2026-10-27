@@ -60,6 +60,7 @@ import {
   ExperimentsCoreModule,
 } from './modules/experiments/experiments.module';
 import { AdminEconomyModule } from './modules/admin-economy/admin-economy.module';
+import { AdminPnlModule } from './modules/admin-pnl/admin-pnl.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
 import { CasePaymentsModule } from './modules/case-payments/case-payments.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
@@ -365,6 +366,7 @@ const isDev =
     ExperimentsCoreModule,
     AdminExperimentsModule,
     AdminEconomyModule,
+    AdminPnlModule,
     // Owner 2026-10-02: referrals + paid case promotion.
     ReferralsModule,
     PartnersModule,
