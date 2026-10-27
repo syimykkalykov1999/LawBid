@@ -189,7 +189,7 @@ describe('search.engine switch, outbox and indexer (e2e)', () => {
     expect(await outbox()).toEqual([]);
   });
 
-  it('writes one event per searchable change, none for a counter', async () => {
+  it('writes one pending event per searchable row (repeats collapse), none for a counter', async () => {
     await setEngine('shadow');
     const author = await prisma.user.create({ data: { role: 'client' } });
     const before = (await outbox()).length;
@@ -208,11 +208,12 @@ describe('search.engine switch, outbox and indexer (e2e)', () => {
       where: { id: post.id },
       data: { body: 'outbox probe body, edited' },
     });
-    expect((await outbox()).length).toBe(before + 2);
+    expect((await outbox()).length).toBe(before + 1); // coalesced (S7-5)
 
     await prisma.post.delete({ where: { id: post.id } });
+    expect((await outbox()).length).toBe(before + 1); // still one pending
     const rows = (await outbox()).slice(before);
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(1);
     expect(
       rows.every((r) => r.entity === 'post' && r.entity_id === post.id),
     ).toBe(true);

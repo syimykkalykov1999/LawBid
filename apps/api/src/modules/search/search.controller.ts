@@ -167,10 +167,9 @@ export class SearchController {
     return this.search.postsByText(user, q.q, q.cursor, q);
   }
 
-  // Security research #5 (2026-10-22), A5: a full-text / ranked query over
-  // the whole table; 30 a minute per person is a human searching, not a
-  // script pulling the catalog.
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  // S7-2: tag type-ahead fires on every keystroke: 240 a minute, like
+  // suggest (the full-text ones stay at 30).
+  @Throttle({ default: { limit: 240, ttl: 60_000 } })
   @OptionalAuth()
   @Get('search/tags')
   @ApiOperation({ summary: 'Hashtags by prefix (docs/05 §7.5)' })

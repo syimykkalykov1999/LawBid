@@ -20,6 +20,7 @@ export type LimitedAction =
   | 'follow'
   | 'message'
   | 'search'
+  | 'search_suggest'
   | 'contacts_sync'
   | 'report'
   | 'video_upload'
@@ -57,6 +58,13 @@ export const USAGE_LIMITS: Record<
   follow: { setting: 'rate_limit.follow_per_day', windowSec: DAY },
   message: { setting: 'rate_limit.message_per_minute', windowSec: 60 },
   search: { setting: 'rate_limit.search_per_minute', windowSec: 60 },
+  // S7-2: type-ahead fires on every keystroke, so it has its own, larger
+  // budget (Elastic/Algolia both bill and limit search-as-you-type apart
+  // from full queries); a full search keeps the strict one above.
+  search_suggest: {
+    setting: 'rate_limit.search_suggest_per_minute',
+    windowSec: 60,
+  },
   contacts_sync: {
     setting: 'rate_limit.contacts_sync_per_hour',
     windowSec: HOUR,

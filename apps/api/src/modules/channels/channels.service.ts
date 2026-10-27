@@ -164,15 +164,22 @@ export class ChannelsService {
       const alive = changed.filter(
         (c) => c.status !== 'banned' && c.deleted_at === null,
       );
-      const items = (await this.presentChannels(alive, me)).filter(
-        (c) => c.isArchived === archived,
-      );
+      const presented = await this.presentChannels(alive, me);
+      const items = presented.filter((c) => c.isArchived === archived);
+      // Delta audit D-P2: a channel that moved to the other (Archive / main)
+      // list leaves this one too.
+      const elsewhere = presented
+        .filter((c) => c.isArchived !== archived)
+        .map((c) => c.id);
       return {
         items,
         nextCursor: null,
-        deletedIds: changed
-          .filter((c) => c.status === 'banned' || c.deleted_at !== null)
-          .map((c) => c.id),
+        deletedIds: [
+          ...changed
+            .filter((c) => c.status === 'banned' || c.deleted_at !== null)
+            .map((c) => c.id),
+          ...elsewhere,
+        ],
         syncedAt: syncedAt(
           changed.map((c) => c.updated_at),
           since,

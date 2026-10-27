@@ -1,5 +1,9 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/cases/workspace/workspace_data.dart'
@@ -251,73 +255,213 @@ final tasksProvider = AsyncNotifierProvider.autoDispose
   retry: _noRetry,
 );
 
+/// Owner 2026-10-22 (delta audit D-P3, Telegram): every live planner list,
+/// so one answer of mine (a status, a step, a move, a delete) is placed in
+/// all the lists that show the task (no list is read again for it), and
+/// anything the phone cannot place is one `?updatedSince` per list.
+class TasksHub {
+  final _lists = <TasksController>{};
+
+  void _add(TasksController c) => _lists.add(c);
+  void _remove(TasksController c) => _lists.remove(c);
+
+  /// The server's copy of [task] goes into every list: it replaces its
+  /// row, enters (when it belongs), or leaves (moved to the other view).
+  void apply(TaskItem task) {
+    for (final c in [..._lists]) {
+      c.applyTask(task);
+    }
+  }
+
+  /// A task I deleted leaves every list.
+  void drop(String id) {
+    for (final c in [..._lists]) {
+      c.dropTask(id);
+    }
+  }
+
+  /// Something changed that the phone cannot place (a bulk action, a new
+  /// task from another screen): one small request per live list.
+  void catchUp() {
+    for (final c in [..._lists]) {
+      c.catchUp();
+    }
+  }
+}
+
+final tasksHubProvider = Provider<TasksHub>((ref) => TasksHub());
+
 class TasksController extends AsyncNotifier<List<TaskItem>> {
   TasksController(this.key);
 
   final TasksKey key;
 
-  @override
-  Future<List<TaskItem>> build() =>
-      ref.watch(teamRepositoryProvider).tasks(done: key.done, mine: key.mine);
+  /// The phone's clock may run ahead of the server's: a full read counts as
+  /// caught up to «now» less this margin.
+  static const _skew = Duration(minutes: 2);
+  static const _catchUpDelay = Duration(milliseconds: 600);
 
+  DateTime? _syncedAt;
+  Timer? _timer;
+  bool _pulling = false;
+
+  @override
+  Future<List<TaskItem>> build() async {
+    final hub = ref.read(tasksHubProvider).._add(this);
+    ref.onDispose(() {
+      hub._remove(this);
+      _timer?.cancel();
+    });
+    final repo = ref.watch(teamRepositoryProvider);
+    final list = await repo.tasks(done: key.done, mine: key.mine);
+    _syncedAt = DateTime.now().subtract(_skew);
+    return list;
+  }
+
+  /// A full read: the user pulled to refresh.
   Future<void> refresh() async {
     final next = await AsyncValue.guard(
       () => ref
           .read(teamRepositoryProvider)
           .tasks(done: key.done, mine: key.mine),
     );
-    if (ref.mounted) state = next;
+    if (ref.mounted) {
+      state = next;
+      if (next.hasValue) _syncedAt = DateTime.now().subtract(_skew);
+    }
     if (!key.mine) ref.invalidate(taskBoardProvider(key.done));
   }
 
-  /// Applies a status change locally first (the checkbox feels instant),
-  /// then the server's answer; a failure restores the row.
+  /// One `updatedSince` request for what changed (debounced: a burst of
+  /// changes is one request). A repository without deltas reads the list.
+  void catchUp() {
+    _timer?.cancel();
+    _timer = Timer(_catchUpDelay, () {
+      if (ref.mounted) unawaited(_pull());
+    });
+  }
+
+  Future<void> _pull() async {
+    if (_pulling) {
+      catchUp();
+      return;
+    }
+    final repo = ref.read(teamRepositoryProvider);
+    final since = _syncedAt;
+    if (state.value == null) return;
+    if (repo is! TeamTasksSync || since == null) {
+      await refresh();
+      return;
+    }
+    _pulling = true;
+    try {
+      final page = await (repo as TeamTasksSync)
+          .tasksChangedSince(since, done: key.done, mine: key.mine);
+      if (!ref.mounted) return;
+      final current = state.value ?? const <TaskItem>[];
+      final deleted = page.deletedIds.toSet();
+      final byId = {for (final t in page.items) t.id: t};
+      state = AsyncData(
+        _sorted([
+          for (final t in current)
+            if (!deleted.contains(t.id)) byId.remove(t.id) ?? t,
+          ...byId.values,
+        ]),
+      );
+      _syncedAt = page.syncedAt ?? since;
+    } on ApiException catch (e) {
+      if (e.code == ApiErrorCodes.syncTooOld) {
+        await refresh();
+      } else {
+        debugPrint('tasks catch-up: $e');
+      }
+    } on Object catch (e) {
+      // Offline / 5xx: the next resume or reconnect asks again.
+      debugPrint('tasks catch-up: $e');
+    } finally {
+      _pulling = false;
+    }
+  }
+
+  /// The server's order of the list: the calendar (due, then created) for
+  /// the active view, the newest archived first for the archive.
+  List<TaskItem> _sorted(List<TaskItem> list) {
+    int due(TaskItem a, TaskItem b) {
+      final x = a.dueAt;
+      final y = b.dueAt;
+      if (x == null || y == null) return x == y ? 0 : (x == null ? 1 : -1);
+      return x.compareTo(y);
+    }
+
+    int newestFirst(DateTime? x, DateTime? y) {
+      if (x == null || y == null) return x == y ? 0 : (x == null ? 1 : -1);
+      return y.compareTo(x);
+    }
+
+    return [...list]..sort(
+        key.done
+            ? (a, b) {
+                final c = newestFirst(a.archivedAt, b.archivedAt);
+                return c != 0 ? c : b.createdAt.compareTo(a.createdAt);
+              }
+            : (a, b) {
+                final c = due(a, b);
+                return c != 0 ? c : a.createdAt.compareTo(b.createdAt);
+              },
+      );
+  }
+
+  /// Puts the server's copy of [task] into this list: its row is replaced,
+  /// it enters when it belongs here, it leaves when it moved to the other
+  /// view (active / archive). An assistant's Results list only edits rows
+  /// it already holds.
+  void applyTask(TaskItem task) {
+    final current = state.value;
+    if (!ref.mounted || current == null) return;
+    final keep = key.done ? task.archived : !task.archived;
+    final had = current.any((t) => t.id == task.id);
+    if (!had && (!keep || key.mine)) return;
+    state = AsyncData(
+      had
+          ? [
+              for (final t in current)
+                if (t.id != task.id) t else if (keep) task,
+            ]
+          : _sorted([...current, task]),
+    );
+  }
+
+  void dropTask(String id) {
+    final current = state.value;
+    if (!ref.mounted || current == null) return;
+    if (!current.any((t) => t.id == id)) return;
+    state = AsyncData([
+      for (final t in current)
+        if (t.id != id) t,
+    ]);
+  }
+
+  /// Applies a status change; a failure keeps the row. The answered copy
+  /// goes into every list (it may move to the other view).
   Future<TaskItem> setStatus(
     TaskItem task,
     TaskStatus status, {
     String? note,
     DateTime? rescheduleTo,
   }) async {
-    final before = state.value;
-    try {
-      final updated = await ref.read(teamRepositoryProvider).setTaskStatus(
-            task.id,
-            status,
-            note: note,
-            rescheduleTo: rescheduleTo,
-          );
-      final current = state.value ?? const <TaskItem>[];
-      final keep = key.done ? updated.archived : !updated.archived;
-      if (ref.mounted) {
-        state = AsyncData([
-          for (final t in current)
-            if (t.id != task.id) t else if (keep) updated,
-        ]);
-      }
-      ref.invalidate(tasksProvider((done: !key.done, mine: key.mine)));
-      return updated;
-    } on Object {
-      if (ref.mounted && before != null) state = AsyncData(before);
-      rethrow;
-    }
+    final updated = await ref.read(teamRepositoryProvider).setTaskStatus(
+          task.id,
+          status,
+          note: note,
+          rescheduleTo: rescheduleTo,
+        );
+    ref.read(tasksHubProvider).apply(updated);
+    return updated;
   }
 
-  /// Owner 2026-10-01: puts the server's copy of [updated] into the list
+  /// Owner 2026-10-01: puts the server's copy of [updated] into the lists
   /// (it moves to Done when its last step was checked).
-  void _put(TaskItem updated) {
-    final current = state.value ?? const <TaskItem>[];
-    final keep = key.done ? updated.archived : !updated.archived;
-    final had = current.any((t) => t.id == updated.id);
-    if (!ref.mounted) return;
-    state = AsyncData([
-      for (final t in current)
-        if (t.id != updated.id) t else if (keep) updated,
-      if (!had && keep) updated,
-    ]);
-    if (!keep) {
-      ref.invalidate(tasksProvider((done: !key.done, mine: key.mine)));
-    }
-  }
+  void _put(TaskItem updated) => ref.read(tasksHubProvider).apply(updated);
 
   /// A step's checkmark — instant locally, then the server's answer.
   Future<TaskItem> checkStep(
@@ -409,7 +553,8 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
   }
 }
 
-/// Owner 2026-10-05: the same action on many tasks; both lists reload.
+/// Owner 2026-10-05: the same action on many tasks; every list on screen
+/// then asks one `?updatedSince` (delta audit D-P3).
 Future<({int affected, int skipped})> bulkTasks(
   WidgetRef ref,
   List<String> ids,
@@ -425,16 +570,18 @@ Future<({int affected, int skipped})> bulkTasks(
         priority: priority,
         assigneeMembershipId: assigneeMembershipId,
       );
-  invalidateAllTasks(ref);
+  syncAllTasks(ref);
   return r;
 }
 
-/// Every task list (active, archive, an assistant's Results).
-void invalidateAllTasks(WidgetRef ref) {
-  for (final done in [false, true]) {
-    ref.invalidate(taskBoardProvider(done));
-    for (final mine in [false, true]) {
-      ref.invalidate(tasksProvider((done: done, mine: mine)));
+/// A change the phone cannot place on its own: every task list on screen
+/// asks one small `?updatedSince`. [board] also reads the cases' board
+/// again (it has no delta) — only for an action that touches a case task.
+void syncAllTasks(WidgetRef ref, {bool board = false}) {
+  ref.read(tasksHubProvider).catchUp();
+  if (board) {
+    for (final done in [false, true]) {
+      ref.invalidate(taskBoardProvider(done));
     }
   }
 }
