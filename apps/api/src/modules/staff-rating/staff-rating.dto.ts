@@ -222,3 +222,39 @@ export class StaffPersonDetailDto extends StaffPersonDto {
   })
   suggestions!: StaffSuggestionDto[];
 }
+
+export class StaffMyOpenSuggestionDto {
+  @ApiProperty({
+    enum: ['reward', 'retrain', 'more_review'],
+    description: 'Only the soft ones are ever shown to the person themself.',
+  })
+  kind!: string;
+}
+
+export class StaffMyProgressEvidenceDto {
+  @ApiProperty({
+    type: 'array',
+    items: {},
+    description: 'The weekly trend of the rating (oldest first).',
+  })
+  trend!: unknown[];
+}
+
+/** «Мой рейтинг»: the worker's OWN nightly rating, nobody else's. */
+export class StaffMyProgressDto {
+  @ApiProperty({ type: String, format: 'date' }) snapshotDate!: string;
+  @ApiProperty({ type: Number, nullable: true }) rating!: number | null;
+  @ApiProperty({ enum: STAFF_STATUSES, enumName: 'StaffRatingStatus' })
+  status!: string;
+  @ApiProperty({ type: 'integer' }) decisions!: number;
+  @ApiProperty({ type: Number, nullable: true }) rankPct!: number | null;
+  @ApiProperty({ type: [String] }) flags!: string[];
+  @ApiProperty({ type: Number, nullable: true }) accuracy!: number | null;
+  @ApiProperty({ type: Number, nullable: true }) clean!: number | null;
+  @ApiProperty({ type: Number, nullable: true }) usersVerdict!: number | null;
+  @ApiProperty({ type: Number, nullable: true }) speed!: number | null;
+  @ApiProperty({ type: [StaffMyOpenSuggestionDto] })
+  openSuggestions!: StaffMyOpenSuggestionDto[];
+  @ApiProperty({ type: () => StaffMyProgressEvidenceDto })
+  evidence!: StaffMyProgressEvidenceDto;
+}

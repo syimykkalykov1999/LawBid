@@ -127171,6 +127171,93 @@
         ]
       }
     },
+    "/admin/staff/me/progress": {
+      "get": {
+        "operationId": "staffMyProgress",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffMyProgressEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "My own rating and the reasons behind it (only mine)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
     "/admin/workspace/review/me": {
       "get": {
         "operationId": "reviewMe",
@@ -129673,6 +129760,404 @@
         "summary": "My piecework days (a head: the workspace totals; the owner: everyone)",
         "tags": [
           "admin-workspace"
+        ]
+      }
+    },
+    "/admin/staff/today": {
+      "get": {
+        "operationId": "staffToday",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffTodayEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "The owner «Сегодня»: what needs attention (one stored snapshot)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/staff/digest": {
+      "get": {
+        "operationId": "staffDigest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffDigestListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "The weekly «5 чисел» (last 8 weeks)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/staff/people/{adminId}/history": {
+      "get": {
+        "operationId": "staffPersonHistory",
+        "parameters": [
+          {
+            "name": "adminId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffPersonHistoryEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "A person: state, 30-day signals, last actions and the text of open suggestions",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/staff/suggestions/{id}/decide": {
+      "post": {
+        "operationId": "decideStaffSuggestion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffDecideSuggestionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffDecideSuggestionResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Apply or dismiss a suggestion; applying needs a fresh 2FA code and is journaled",
+        "tags": [
+          "admin-staff"
         ]
       }
     },
@@ -198271,6 +198756,122 @@
           "data"
         ]
       },
+      "StaffMyOpenSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "reward",
+              "retrain",
+              "more_review"
+            ],
+            "description": "Only the soft ones are ever shown to the person themself."
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "StaffMyProgressEvidenceDto": {
+        "type": "object",
+        "properties": {
+          "trend": {
+            "type": "array",
+            "items": {},
+            "description": "The weekly trend of the rating (oldest first)."
+          }
+        },
+        "required": [
+          "trend"
+        ]
+      },
+      "StaffMyProgressDto": {
+        "type": "object",
+        "properties": {
+          "snapshotDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "rating": {
+            "type": "number",
+            "nullable": true
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffRatingStatus"
+              }
+            ]
+          },
+          "decisions": {
+            "type": "integer"
+          },
+          "rankPct": {
+            "type": "number",
+            "nullable": true
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "accuracy": {
+            "type": "number",
+            "nullable": true
+          },
+          "clean": {
+            "type": "number",
+            "nullable": true
+          },
+          "usersVerdict": {
+            "type": "number",
+            "nullable": true
+          },
+          "speed": {
+            "type": "number",
+            "nullable": true
+          },
+          "openSuggestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffMyOpenSuggestionDto"
+            }
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/StaffMyProgressEvidenceDto"
+          }
+        },
+        "required": [
+          "snapshotDate",
+          "rating",
+          "status",
+          "decisions",
+          "rankPct",
+          "flags",
+          "accuracy",
+          "clean",
+          "usersVerdict",
+          "speed",
+          "openSuggestions",
+          "evidence"
+        ]
+      },
+      "StaffMyProgressEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffMyProgressDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "StaffReviewLevel": {
         "type": "string",
         "enum": [
@@ -200100,6 +200701,728 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/PieceworkRerunResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffDecisionOfDayDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "href": {
+            "type": "string",
+            "description": "Where to decide it (an admin page)."
+          }
+        },
+        "required": [
+          "code",
+          "title",
+          "text",
+          "href"
+        ]
+      },
+      "StaffTodayAppealDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "number",
+            "description": "Appeal number («№N»)."
+          },
+          "kind": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "new",
+              "seen"
+            ]
+          },
+          "headName": {
+            "type": "string",
+            "description": "The head the complaint is about."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "kind",
+          "status",
+          "headName",
+          "createdAt"
+        ]
+      },
+      "StaffTodayAppealsDto": {
+        "type": "object",
+        "properties": {
+          "open": {
+            "type": "integer",
+            "description": "New or seen, not decided."
+          },
+          "newest": {
+            "description": "The 3 newest.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffTodayAppealDto"
+            }
+          }
+        },
+        "required": [
+          "open",
+          "newest"
+        ]
+      },
+      "StaffTodayFlagsDto": {
+        "type": "object",
+        "properties": {
+          "open": {
+            "type": "integer",
+            "description": "Open red marks."
+          }
+        },
+        "required": [
+          "open"
+        ]
+      },
+      "StaffTodayPersonDto": {
+        "type": "object",
+        "properties": {
+          "adminId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "workspace": {
+            "type": "string",
+            "enum": [
+              "mass",
+              "finance"
+            ]
+          },
+          "rating": {
+            "type": "number",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "decisions": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "adminId",
+          "name",
+          "workspace",
+          "rating",
+          "status",
+          "flags",
+          "decisions"
+        ]
+      },
+      "StaffTodayShortlistDto": {
+        "type": "object",
+        "properties": {
+          "snapshotDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "worst": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffTodayPersonDto"
+            }
+          },
+          "best": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffTodayPersonDto"
+            }
+          }
+        },
+        "required": [
+          "snapshotDate",
+          "worst",
+          "best"
+        ]
+      },
+      "StaffRecommendationDto": {
+        "type": "object",
+        "properties": {
+          "advice": {
+            "type": "string",
+            "enum": [
+              "reward",
+              "train",
+              "replace"
+            ]
+          },
+          "adviceLabel": {
+            "type": "string",
+            "description": "«Премировать» / «Обучить» / «Заменить»."
+          },
+          "actionLabel": {
+            "type": "string",
+            "description": "What the button will do."
+          },
+          "headline": {
+            "type": "string"
+          },
+          "lines": {
+            "description": "The proof, one number a line.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "advice",
+          "adviceLabel",
+          "actionLabel",
+          "headline",
+          "lines"
+        ]
+      },
+      "StaffTodaySuggestionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "adminId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "workspace": {
+            "type": "string",
+            "enum": [
+              "mass",
+              "finance"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recommendation": {
+            "$ref": "#/components/schemas/StaffRecommendationDto"
+          }
+        },
+        "required": [
+          "id",
+          "adminId",
+          "name",
+          "workspace",
+          "kind",
+          "createdAt",
+          "recommendation"
+        ]
+      },
+      "StaffTodaySuggestionsDto": {
+        "type": "object",
+        "properties": {
+          "open": {
+            "type": "integer",
+            "description": "All open ones."
+          },
+          "items": {
+            "description": "The 5 most serious.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffTodaySuggestionDto"
+            }
+          }
+        },
+        "required": [
+          "open",
+          "items"
+        ]
+      },
+      "StaffTodayAnomalyDto": {
+        "type": "object",
+        "properties": {
+          "adminId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rule": {
+            "type": "string"
+          },
+          "ruleLabel": {
+            "type": "string"
+          },
+          "score": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "adminId",
+          "name",
+          "rule",
+          "ruleLabel",
+          "score"
+        ]
+      },
+      "StaffTodayAnomaliesDto": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "nullable": true,
+            "description": "Newest day."
+          },
+          "total": {
+            "type": "integer"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffTodayAnomalyDto"
+            }
+          }
+        },
+        "required": [
+          "day",
+          "total",
+          "items"
+        ]
+      },
+      "StaffTodayPieceworkDto": {
+        "type": "object",
+        "properties": {
+          "disputedDays": {
+            "type": "integer",
+            "description": "Days held in dispute (last 31 days)."
+          }
+        },
+        "required": [
+          "disputedDays"
+        ]
+      },
+      "StaffTodayDto": {
+        "type": "object",
+        "properties": {
+          "computedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decision": {
+            "nullable": true,
+            "description": "The one most important thing to decide today, or null.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffDecisionOfDayDto"
+              }
+            ]
+          },
+          "appeals": {
+            "nullable": true,
+            "description": "null = its switch is off.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffTodayAppealsDto"
+              }
+            ]
+          },
+          "flags": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffTodayFlagsDto"
+              }
+            ]
+          },
+          "shortlist": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffTodayShortlistDto"
+              }
+            ]
+          },
+          "suggestions": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffTodaySuggestionsDto"
+              }
+            ]
+          },
+          "anomalies": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffTodayAnomaliesDto"
+              }
+            ]
+          },
+          "piecework": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffTodayPieceworkDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "computedAt"
+        ]
+      },
+      "StaffTodayEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffTodayDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffDigestNumbersDto": {
+        "type": "object",
+        "properties": {
+          "decisions": {
+            "type": "integer",
+            "description": "Decisions of the week."
+          },
+          "returnedPct": {
+            "type": "number",
+            "nullable": true,
+            "description": "Share of decisions that came back, percent."
+          },
+          "appeals": {
+            "type": "integer",
+            "description": "New complaints about heads."
+          },
+          "worstCount": {
+            "type": "integer",
+            "description": "Red + yellow people."
+          },
+          "bestCount": {
+            "type": "integer",
+            "description": "Green people."
+          },
+          "worstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "bestName": {
+            "type": "string",
+            "nullable": true
+          },
+          "pieceworkCents": {
+            "type": "integer",
+            "description": "Piecework pay of the week."
+          },
+          "currency": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "decisions",
+          "returnedPct",
+          "appeals",
+          "worstCount",
+          "bestCount",
+          "worstName",
+          "bestName",
+          "pieceworkCents",
+          "currency"
+        ]
+      },
+      "StaffDigestDto": {
+        "type": "object",
+        "properties": {
+          "weekStart": {
+            "type": "string",
+            "example": "2026-10-19",
+            "description": "Monday of the week."
+          },
+          "numbers": {
+            "$ref": "#/components/schemas/StaffDigestNumbersDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "weekStart",
+          "numbers",
+          "createdAt"
+        ]
+      },
+      "StaffDigestListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "description": "Newest first, ≤ 8.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffDigestDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "StaffDigestListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffDigestListDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffSignalCountDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "count"
+        ]
+      },
+      "StaffActionRowDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "reasonNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "source",
+          "reasonCode",
+          "reasonNote",
+          "createdAt"
+        ]
+      },
+      "StaffOpenRecommendationDto": {
+        "type": "object",
+        "properties": {
+          "suggestionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "recommendation": {
+            "$ref": "#/components/schemas/StaffRecommendationDto"
+          }
+        },
+        "required": [
+          "suggestionId",
+          "kind",
+          "recommendation"
+        ]
+      },
+      "StaffPersonHistoryDto": {
+        "type": "object",
+        "properties": {
+          "adminId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "paused",
+              "hold_owner",
+              "offboarded"
+            ],
+            "description": "Where the person stands in the queues."
+          },
+          "stateUntil": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "signals": {
+            "description": "Last 30 days.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffSignalCountDto"
+            }
+          },
+          "actions": {
+            "description": "Last 20 actions.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffActionRowDto"
+            }
+          },
+          "recommendations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffOpenRecommendationDto"
+            }
+          }
+        },
+        "required": [
+          "adminId",
+          "state",
+          "stateUntil",
+          "signals",
+          "actions",
+          "recommendations"
+        ]
+      },
+      "StaffPersonHistoryEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffPersonHistoryDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffDecideSuggestionResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "dismissed"
+            ]
+          },
+          "done": {
+            "type": "string",
+            "description": "What was done, in words (e.g. «Снят с очереди до 3 ноября»)."
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "done"
+        ]
+      },
+      "StaffDecideSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "enum": [
+              "apply",
+              "dismiss"
+            ],
+            "type": "string",
+            "description": "apply = do it (needs a fresh 2FA code); dismiss = not now."
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Why (kept in the journal)."
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "StaffDecideSuggestionResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffDecideSuggestionResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

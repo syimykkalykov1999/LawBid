@@ -154,7 +154,7 @@ describe('role x page visibility table', () => {
     expect(ownerOnly.sort()).toEqual([
       '/admins', '/analytics', '/audit-log', '/case-payments', '/config', '/country-partners', '/economy', '/experiments',
       '/flags', '/growth-plan', '/guides', '/integrations', '/launch', '/plans', '/prices', '/rewards', '/scale', '/sessions',
-      '/spend', '/stars', '/status-page', '/system-health',
+      '/spend', '/staff', '/staff/appeals', '/staff/rates', '/stars', '/status-page', '/system-health', '/today',
     ]);
   });
 

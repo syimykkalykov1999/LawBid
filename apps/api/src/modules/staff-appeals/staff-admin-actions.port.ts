@@ -1,3 +1,4 @@
+import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import type { AppealDecision } from './staff-appeals.logic';
 
 /**
@@ -8,11 +9,10 @@ import type { AppealDecision } from './staff-appeals.logic';
  *  - fire_head   -> POST admin/admins/:id/disable (AdminsController.disable)
  *  - fire_worker -> POST admin/staff/actions/offboard/:adminId (T2, plan B3)
  *
- * TODO(T2 merged): bind STAFF_ADMIN_ACTIONS to an adapter that calls
- * AdminsService.setEnabled / the offboard service. Until then the default
- * `PendingAdminActions` runs nothing, so the answer carries
- * `followUp.applied = false` and the owner presses the named call himself
- * in the administrators list (never a silent firing).
+ * T10 binds STAFF_ADMIN_ACTIONS to StaffAdminActionsAdapter (both follow-ups
+ * call AdminsService.setEnabled(false), the same call as the administrators'
+ * page). `PendingAdminActions` (runs nothing: `followUp.applied = false`, the
+ * owner presses the named call himself) stays for tests and as the fallback.
  */
 export const STAFF_ADMIN_ACTIONS = Symbol('STAFF_ADMIN_ACTIONS');
 
@@ -36,6 +36,8 @@ export interface AdminActionRequest {
    * for an anonymous author. */
   targetAdminId: string;
   ownerId: string;
+  /** The acting owner (T10): the follow-up runs as them. */
+  actor?: AdminActor;
 }
 
 export interface StaffAdminActionsPort {

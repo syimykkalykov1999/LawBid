@@ -12,6 +12,7 @@ import {
 } from '../admin-auth/admin-auth.decorators';
 import {
   StaffAdminParamDto,
+  StaffMyProgressDto,
   StaffPeopleListDto,
   StaffPeopleQueryDto,
   StaffPersonDetailDto,
@@ -101,5 +102,32 @@ export class StaffShortlistController {
     @Query() q: StaffSuggestionsQueryDto,
   ): Promise<StaffSuggestionListDto> {
     return this.read.suggestions(ratingScope(admin, q.workspace), q);
+  }
+}
+
+/**
+ * Staff package T10 (the desk's «Мой рейтинг»): `admin/staff/me/progress` —
+ * the signed-in worker's OWN rating, from the latest nightly snapshot. The
+ * id is the session's, never a parameter, so nobody can read somebody else's
+ * card here; 404 while `staff.rating_enabled` or
+ * `staff.worker_progress_enabled` is off.
+ */
+// flag: staff.rating_enabled + staff.worker_progress_enabled — off answers 404, nothing is read
+@ApiTags('admin-staff')
+@AdminEndpoint('super_admin', 'moderator', 'verifier', 'support', 'finance')
+@Controller('admin/staff/me')
+export class StaffMeController {
+  constructor(private readonly read: StaffRatingReadService) {}
+
+  @Get('progress')
+  @ApiOperation({
+    summary: 'My own rating and the reasons behind it (only mine)',
+  })
+  @ApiEnvelopeResponse(StaffMyProgressDto)
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  staffMyProgress(
+    @CurrentAdmin() admin: AdminActor,
+  ): Promise<StaffMyProgressDto> {
+    return this.read.mine(admin.id);
   }
 }
