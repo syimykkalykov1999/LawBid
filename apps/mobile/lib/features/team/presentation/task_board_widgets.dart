@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/l10n/week_start.dart';
@@ -355,7 +355,7 @@ class TaskRingCard extends StatelessWidget {
         onDoubleTap: onDoubleTap == null
             ? null
             : () {
-                HapticFeedback.mediumImpact();
+                AppHaptics.medium();
                 onDoubleTap!();
               },
         child: AppPressable(

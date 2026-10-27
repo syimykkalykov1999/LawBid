@@ -5,8 +5,6 @@
  */
 export const DISAPPEAR_OPTIONS_S = [86_400, 604_800, 7_776_000] as const;
 
-export type DisappearAfterS = (typeof DISAPPEAR_OPTIONS_S)[number];
-
 /** The `expires_at` of a message sent at [now] under timer [afterS]. */
 export function expiresAtFor(
   afterS: number | null | undefined,

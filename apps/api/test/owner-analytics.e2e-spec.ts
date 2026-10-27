@@ -7,6 +7,8 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { adminSession } from './support/admin-login';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
 
 /**
  * Owner 2026-10-15: own analytics. Opening the app counts a person once a
@@ -85,6 +87,9 @@ describe('Own analytics (e2e)', () => {
   });
 
   it('the admin sees DAU/MAU, the funnel, retention, churn and purchases', async () => {
+    // The page reads the stored snapshot (#377); another suite may have
+    // stored one before this suite's activity rows existed.
+    await app.get<Redis>(REDIS_CLIENT).del('adm:sum:analytics:30');
     const admin = await adminSession(base, prisma, 'super_admin');
     const r = await api()
       .get('/api/v1/admin/analytics')

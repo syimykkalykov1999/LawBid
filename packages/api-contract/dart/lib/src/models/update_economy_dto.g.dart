@@ -15,9 +15,7 @@ UpdateEconomyDto _$UpdateEconomyDtoFromJson(Map<String, dynamic> json) =>
           : UpdateEconomyDtoCeilingMode.fromJson(json['ceilingMode'] as String),
       manualApi: json['manualApi'] as num?,
       manualWorker: json['manualWorker'] as num?,
-      smsUnitUsd: json['smsUnitUsd'] as num?,
-      videoUnitUsd: json['videoUnitUsd'] as num?,
-      translateUnitUsd: json['translateUnitUsd'] as num?,
+      dailyBrakeDays: json['dailyBrakeDays'] as num?,
       awsFallbackUsd: json['awsFallbackUsd'] as num?,
       guardEnabled: json['guardEnabled'] as bool?,
     );
@@ -29,9 +27,7 @@ Map<String, dynamic> _$UpdateEconomyDtoToJson(UpdateEconomyDto instance) =>
       'ceilingMode': ?instance.ceilingMode?.toJson(),
       'manualApi': ?instance.manualApi,
       'manualWorker': ?instance.manualWorker,
-      'smsUnitUsd': ?instance.smsUnitUsd,
-      'videoUnitUsd': ?instance.videoUnitUsd,
-      'translateUnitUsd': ?instance.translateUnitUsd,
+      'dailyBrakeDays': ?instance.dailyBrakeDays,
       'awsFallbackUsd': ?instance.awsFallbackUsd,
       'guardEnabled': ?instance.guardEnabled,
     };

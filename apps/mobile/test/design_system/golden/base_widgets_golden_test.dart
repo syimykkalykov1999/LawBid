@@ -234,29 +234,6 @@ void main() {
       );
     });
 
-    testGoldens('AppConnectivityBanner - $name', (tester) async {
-      await golden(
-        tester,
-        'app_connectivity_banner_$name',
-        theme,
-        Column(
-          children: [
-            AppConnectivityBanner(
-              message: 'No internet connection',
-              actionLabel: 'Retry',
-              onAction: () {},
-            ),
-            const SizedBox(height: AppSpacing.md),
-            const AppConnectivityBanner(
-              message: 'Back online',
-              tone: AppConnectivityBannerTone.restored,
-            ),
-          ],
-        ),
-        size: const Size(390, 170),
-      );
-    });
-
     testGoldens('AppPaginationFooter - $name', (tester) async {
       await golden(
         tester,

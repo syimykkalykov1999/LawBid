@@ -15,13 +15,13 @@ scale (5M+ users / 500k DAU / 5k RPS design target).
 - `packages/api-contract` — generated shared API client/types
 - `infra` — Terraform infrastructure as code
 - `docs` — the 7-file technical specification (ground truth) + CHANGELOG
-- `.cursorrules` — mandatory rules for any AI-assisted work in this repo
+- `docs/archive/` — old plans and the former Cursor rules, kept for history only
 
 ## Ground truth
 All behavior, schema, and design decisions come from `docs/01`–`docs/07`.
-If specs conflict, `.cursorrules` defines which file wins per area
-(DB schema -> 02, case/bid logic -> 04, visuals -> 07).
+If specs conflict, which file wins per area: DB schema -> 02, case/bid logic ->
+04, visuals -> 07. Current rules for helpers: `docs/dev/HELPER_RULES.md`.
 
 ## Status
-Stage 0 complete (`.cursorrules`, docs, skeleton). Stage 1.1 (NestJS +
+Stage 0 complete (docs, skeleton). Stage 1.1 (NestJS +
 Flutter bootstrap) not yet started — see `docs/CHANGELOG.md`.

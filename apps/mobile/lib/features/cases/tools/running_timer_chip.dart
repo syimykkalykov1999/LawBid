@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/time/shown_tick.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-20: the attorney's running case timer, if any. The server
@@ -36,7 +37,8 @@ class RunningTimerChip extends ConsumerStatefulWidget {
   ConsumerState<RunningTimerChip> createState() => _RunningTimerChipState();
 }
 
-class _RunningTimerChipState extends ConsumerState<RunningTimerChip> {
+class _RunningTimerChipState extends ConsumerState<RunningTimerChip>
+    with ShownTick<RunningTimerChip> {
   Timer? _tick;
 
   @override
@@ -47,9 +49,8 @@ class _RunningTimerChipState extends ConsumerState<RunningTimerChip> {
 
   void _ensureTick(bool running) {
     if (running && _tick == null) {
-      _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() {});
-      });
+      // Not while «Mine» is a hidden tab (2026-10-26 smoothness P7).
+      _tick = Timer.periodic(const Duration(seconds: 1), (_) => shownTick());
     } else if (!running && _tick != null) {
       _tick!.cancel();
       _tick = null;
@@ -64,6 +65,7 @@ class _RunningTimerChipState extends ConsumerState<RunningTimerChip> {
 
   @override
   Widget build(BuildContext context) {
+    trackShown(context);
     final timer = ref.watch(runningTimerProvider).value;
     _ensureTick(timer != null);
     if (timer == null) return const SizedBox.shrink();

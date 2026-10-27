@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 
@@ -45,7 +44,3 @@ final handleCheckProvider =
     suggestions: s is List ? s.whereType<String>().toList() : const [],
   );
 });
-
-/// Dio errors (offline, 429) fall back to «no verdict»; the server checks again
-/// on save.
-bool isHandleCheckFailure(Object e) => e is DioException;

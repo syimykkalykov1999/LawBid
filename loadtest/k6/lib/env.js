@@ -10,6 +10,9 @@
 //   TOKENS_FILE, FIXTURES_FILE  produced by scripts/mint-tokens.sh + discover.mjs
 //   PROD_HOSTS comma list of hostnames that must never be loaded
 //   ALLOW_LOCAL=1  allows localhost (run-local.sh sets it)
+//   ALLOW_HOSTS comma list of extra host names that may be loaded although their
+//              name has no "loadtest" (the nightly staging run passes its own
+//              staging host); PROD_HOSTS is still checked first and always wins
 export const API_URL = (__ENV.API_URL || '').replace(/\/$/, '');
 export const WS_URL = (__ENV.WS_URL || '').replace(/\/$/, '');
 export const HOST_HEADER = __ENV.HOST_HEADER || '';
@@ -39,7 +42,8 @@ export function assertSafeTarget() {
   const local = host === 'localhost' || host === '127.0.0.1';
   const loadtest = host.indexOf('lawbid-loadtest') !== -1 || host.indexOf('loadtest') !== -1;
   if (local && __ENV.ALLOW_LOCAL !== '1') throw new Error('localhost needs ALLOW_LOCAL=1 (run-local.sh)');
-  if (!local && !loadtest) {
+  const allowed = (__ENV.ALLOW_HOSTS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (!local && !loadtest && allowed.indexOf(host) === -1) {
     throw new Error(`REFUSING: ${host} does not look like a load-test stack (its name must contain "loadtest")`);
   }
 }

@@ -9,9 +9,13 @@ export function usd(n: number): string {
 
 const LINES: Record<string, { title: string; hint: string }> = {
   aws: { title: 'AWS (серверы, база, трафик)', hint: 'счёт за месяц из бюджета AWS' },
-  sms: { title: 'SMS (Twilio)', hint: 'коды входа и сброса пароля × цена за SMS' },
-  video: { title: 'Видео (Bunny)', hint: 'загрузки роликов × цена за загрузку' },
-  translate: { title: 'Переводы (Google)', hint: 'переводы сообщений × цена за перевод' },
+  sms: { title: 'SMS (Twilio)', hint: 'счёт Twilio; если он не отвечает — коды × цена за SMS' },
+  video: { title: 'Видео (Bunny)', hint: 'счёт Bunny; если он не отвечает — загрузки × цена' },
+  translate: { title: 'Переводы (Google)', hint: 'символы × цена Google; если счётчика нет — переводы × цена' },
+  id_check: { title: 'Проверка личности (Stripe Identity)', hint: 'проверки × 1,50 $' },
+  email: { title: 'Письма (SES)', hint: 'уже входит в счёт AWS, второй раз не прибавляется' },
+  image_moderation: { title: 'Проверка картинок (Rekognition)', hint: 'уже входит в счёт AWS, второй раз не прибавляется' },
+  cloudflare: { title: 'Cloudflare (звонки, фото)', hint: 'трафик звонков сверх бесплатного и фото R2' },
 };
 
 export function economyLine(key: string): { title: string; hint: string } {

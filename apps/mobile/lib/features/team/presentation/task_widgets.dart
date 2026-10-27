@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -177,13 +177,13 @@ class TaskRow extends StatelessWidget {
         onDoubleTap: onCheck == null
             ? null
             : () {
-                HapticFeedback.mediumImpact();
+                AppHaptics.medium();
                 onCheck!();
               },
         onLongPress: onLongPress == null
             ? null
             : () {
-                HapticFeedback.mediumImpact();
+                AppHaptics.medium();
                 onLongPress!();
               },
         child: AppPressable(
@@ -743,7 +743,7 @@ class TaskStepCheck extends StatelessWidget {
         onTap: onTap == null
             ? null
             : () {
-                HapticFeedback.selectionClick();
+                AppHaptics.selection();
                 onTap!();
               },
         child: Padding(
@@ -876,7 +876,7 @@ class TaskMark extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
-          HapticFeedback.selectionClick();
+          AppHaptics.selection();
           onTap!();
         },
         child: ConstrainedBox(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -247,7 +248,7 @@ class _ShareSheet extends StatelessWidget {
             key: ValueKey('share-$key'),
             borderRadius: BorderRadius.circular(AppRadii.card),
             onTap: () {
-              HapticFeedback.selectionClick();
+              AppHaptics.selection();
               Navigator.of(context).pop(key);
             },
             child: Padding(
