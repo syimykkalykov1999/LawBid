@@ -55,6 +55,7 @@ import { SearchIndexJob } from './handlers/search-index.job';
 import { CdnInvalidateJob } from './handlers/cdn-invalidate.job';
 import { ExperimentsNightlyJob } from '../modules/experiments/experiments-nightly.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
+import { StripeOpsJob } from './handlers/stripe-ops.job';
 import { DbHealthJob } from './handlers/db-health.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
@@ -207,6 +208,8 @@ export class CronProcessor {
     @Optional() private readonly privacyRetention?: PrivacyRetentionService,
     @Optional() private readonly privacyReconcile?: PrivacyReconcileJob,
     @Optional() private readonly deletionNotices?: DeletionNoticesService,
+    // Stripe robustness 2026-10-27.
+    @Optional() private readonly stripeOps?: StripeOpsJob,
     // DB-ops hardening: `db.health`.
     @Optional() private readonly dbHealth?: DbHealthJob,
     // S10-13: one lock per job name for every schedule.
@@ -327,6 +330,12 @@ export class CronProcessor {
         return this.privacyReconcile?.run() ?? null;
       case CRON_JOBS.privacyDeletionNotices:
         return this.deletionNotices?.sendDay13Due() ?? null;
+      case CRON_JOBS.stripeOpsSweep:
+        return this.stripeOps?.sweep() ?? null;
+      case CRON_JOBS.stripeWebhooksRequeue:
+        return this.stripeOps?.requeueWebhooks() ?? null;
+      case CRON_JOBS.stripeOpsDisputeReminders:
+        return this.stripeOps?.remindDisputes() ?? null;
       case CRON_JOBS.dbHealth:
         return this.dbHealth?.run() ?? null;
       case CRON_JOBS.adminSummaries:

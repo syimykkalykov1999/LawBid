@@ -794,6 +794,36 @@ export const OWNER_FRAUD_SETTINGS = {
   'fraud.blocked_retention_days': 1095,
 } as const;
 
+/** Stripe robustness 2026-10-27 (docs/runbooks/STRIPE_ROBUSTNESS.md): the
+ * admin review queue, disputes and early fraud warnings. All admin-tunable
+ * (Система → Настройки). */
+export const OWNER_STRIPE_OPS_SETTINGS = {
+  /** Pause the attorney's Stripe payouts (manual schedule) while a dispute
+   * against them is open; restored when the last one closes. */
+  'stripe_ops.hold_payouts_on_dispute': true,
+  /** Build the evidence packet and save it as a DRAFT in Stripe when a
+   * dispute opens (an admin reviews it and submits with a 2FA code). */
+  'stripe_ops.dispute_auto_draft': true,
+  /** Days before Stripe's evidence deadline on which staff are reminded. */
+  'stripe_ops.dispute_reminder_days': [5, 2, 1],
+  /** Early fraud warning on a charge of at most this many cents is refunded
+   * by itself (Stripe's guidance: about the dispute fee). 0 = never. */
+  'stripe_ops.efw_auto_refund_max_cents': 0,
+  /** Hours staff have to look at a review item that has no Stripe deadline. */
+  'stripe_ops.review_sla_hours': 24,
+  /** E-mail the super admins about new review items and deadlines. */
+  'stripe_ops.notify_staff': true,
+  /** Dispute rate (disputes / payments, last 30 days) that raises a warning:
+   * Visa VAMP non-compliant level is 0.5 %. */
+  'stripe_ops.dispute_rate_warn_percent': 0.5,
+  /** …and an alarm: Visa VAMP excessive / Mastercard ECM start at 1.5 %. */
+  'stripe_ops.dispute_rate_alarm_percent': 1,
+  /** No rate alarm below this many disputes in the window (tiny volume). */
+  'stripe_ops.dispute_rate_min_count': 3,
+  /** The nightly sweep looks at payments created in the last N days. */
+  'stripe_ops.sweep_lookback_days': 7,
+} as const;
+
 /** Owner 2026-10-05: countries (Система → Страны). People who asked to
  * be told get an e-mail by themselves when their country is switched on. */
 export const OWNER_COUNTRY_SETTINGS = {
@@ -1549,6 +1579,7 @@ export const APP_SETTINGS = {
   ...OWNER_STORAGE_SETTINGS,
   ...OWNER_CHAT_ACTION_SETTINGS,
   ...OWNER_FRAUD_SETTINGS,
+  ...OWNER_STRIPE_OPS_SETTINGS,
   ...OWNER_OPS_SETTINGS,
   ...OWNER_TREASURY_SETTINGS,
   ...OWNER_FEED_SETTINGS,

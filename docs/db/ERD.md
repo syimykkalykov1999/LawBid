@@ -1199,6 +1199,24 @@ erDiagram
     Int amount_cents
     DateTime created_at
   }
+  stripe_review_items {
+    String id PK
+    String kind
+    String status
+    String stripe_ref
+    String case_payment_id "nullable"
+    String user_id "nullable"
+    Int amount_cents "nullable"
+    String currency
+    String summary
+    Json details
+    DateTime opened_at
+    DateTime due_at "nullable"
+    DateTime reminded_at "nullable"
+    DateTime resolved_at "nullable"
+    String resolved_by "nullable"
+    String resolution "nullable"
+  }
   stripe_webhook_events {
     String stripe_event_id PK
     String type
@@ -2495,6 +2513,12 @@ erDiagram
     String country "nullable"
     String processing_fee_payer "nullable"
     DateTime last_synced_at "nullable"
+    Boolean payouts_held
+    String payouts_hold_reason "nullable"
+    DateTime payouts_held_at "nullable"
+    DateTime last_payout_failure_at "nullable"
+    String last_payout_failure_code "nullable"
+    DateTime deauthorized_at "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -2525,6 +2549,13 @@ erDiagram
     Int refunded_cents
     String dispute_status "nullable"
     DateTime disputed_at "nullable"
+    String dispute_id "nullable"
+    String dispute_reason "nullable"
+    Int dispute_amount_cents "nullable"
+    DateTime dispute_due_by "nullable"
+    String dispute_evidence_status "nullable"
+    DateTime dispute_funds_withdrawn_at "nullable"
+    DateTime dispute_funds_reinstated_at "nullable"
     DateTime paid_at "nullable"
     String canceled_reason "nullable"
     String failure_code "nullable"

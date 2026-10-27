@@ -372,6 +372,8 @@ export const GLOBAL_MODELS: readonly string[] = [
   // accounts and cross-party entries; docs/architecture/MONEY_LEDGER.md).
   'LedgerAccount',
   'LedgerEntry',
+  // Stripe robustness 2026-10-27: the admin review queue (global).
+  'StripeReviewItem',
   'LedgerLine',
   // BUG-1 (package N-12b): the chat search blind index. Global for now (no
   // shard trigger needed); it joins the case family when that is split.

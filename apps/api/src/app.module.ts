@@ -65,6 +65,7 @@ import {
 import { AdminEconomyModule } from './modules/admin-economy/admin-economy.module';
 import { AdminPnlModule } from './modules/admin-pnl/admin-pnl.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
+import { StripeOpsModule } from './modules/stripe-ops/stripe-ops.module';
 import { CasePaymentsModule } from './modules/case-payments/case-payments.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { BidPacksModule } from './modules/bid-packs/bid-packs.module';
@@ -397,6 +398,7 @@ const isDev =
     FirmsModule,
     // Owner 2026-10-05: client → attorney payments via Stripe Connect.
     CasePaymentsModule,
+    StripeOpsModule,
     ClientBadgeModule,
     // docs/05 §8 chats + §8.5 realtime (publisher global, gateway API-only).
     RealtimeModule,

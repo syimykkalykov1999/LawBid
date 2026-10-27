@@ -92,6 +92,11 @@ export const CRON_JOBS = {
   privacyReconcile: 'privacy.reconcile',
   /** Privacy round 13 (S13-14): "will be deleted tomorrow" at day 13. */
   privacyDeletionNotices: 'privacy.deletion-notices',
+  /** Stripe robustness 2026-10-27: nightly Stripe sweep + dispute rate. */
+  stripeOpsSweep: 'stripe-ops.sweep',
+  /** …and the hourly dispute deadline reminders. */
+  stripeOpsDisputeReminders: 'stripe-ops.dispute-reminders',
+  stripeWebhooksRequeue: 'stripe-webhooks.requeue',
   /** DB-ops hardening: daily table size / dead-tuple ratio / txid age → log metrics. */
   dbHealth: 'db.health',
   /** Owner 2026-10-15: crash reports older than 30 days go. */
@@ -334,6 +339,12 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.privacyRetention, pattern: '45 3 * * *' },
   { name: CRON_JOBS.privacyReconcile, pattern: '30 5 * * *' },
   { name: CRON_JOBS.privacyDeletionNotices, pattern: '20 15 * * *' },
+  // Stripe robustness: after the ledger check, then hourly reminders.
+  { name: CRON_JOBS.stripeOpsSweep, pattern: '45 5 * * *' },
+  { name: CRON_JOBS.stripeOpsDisputeReminders, pattern: '23 * * * *' },
+  // Every minute: a stored webhook event whose queue job was lost (Redis
+  // down / failover) is queued again; idempotent (jobId = event id).
+  { name: CRON_JOBS.stripeWebhooksRequeue, pattern: '* * * * *' },
   // Daily, off the busy hours: read-only statistics of every database.
   { name: CRON_JOBS.dbHealth, pattern: '35 4 * * *' },
   // Every second minute: a 1-minute cron would hold consecutive runs.
