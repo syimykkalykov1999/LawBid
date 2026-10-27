@@ -464,6 +464,21 @@ export const envSchema = z
       /^[A-Z0-9]{10,20}$/,
       'CLOUDFRONT_PRIVATE_DISTRIBUTION_ID must be a CloudFront distribution id',
     ),
+    // Programmatic SEO (2026-10-27): where the `seo.generate` job publishes
+    // the static pages. All three unset = the job renders nothing and writes
+    // nothing (it also stays off until `seo.generator_mode` is switched on).
+    SEO_WEB_BUCKET: optionalMatching(
+      /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/,
+      'SEO_WEB_BUCKET must be an S3 bucket name',
+    ),
+    SEO_WEB_DISTRIBUTION_ID: optionalMatching(
+      /^[A-Z0-9]{10,20}$/,
+      'SEO_WEB_DISTRIBUTION_ID must be a CloudFront distribution id',
+    ),
+    SEO_SITE_URL: optionalMatching(
+      /^https:\/\/[^\s/]+$/,
+      'SEO_SITE_URL must be an https origin without a path',
+    ),
     CLOUDFRONT_PRIVATE_KEY_PEM: optionalMatching(
       /-----BEGIN (RSA )?PRIVATE KEY-----/,
       'CLOUDFRONT_PRIVATE_KEY_PEM must be a PEM private key',

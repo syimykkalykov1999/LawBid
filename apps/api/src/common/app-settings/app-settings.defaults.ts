@@ -977,6 +977,26 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   'chat.search.backfill_batch': 500,
 };
 
+/** Programmatic SEO (plan docs/architecture/PSEO_ASO_PACKAGE_PLAN_2026-10-27.md,
+ * §2.2): the BullMQ job `seo.generate` builds the public pages
+ * (/lawyers, /practice-areas, /attorneys) from the database and publishes only
+ * the changed ones to the web bucket. `off` (default) = the job does nothing
+ * and nothing is queued; the nightly GitHub run stays the only builder. */
+export const OWNER_SEO_SETTINGS = {
+  /** off | nightly | nightly+events (also after an attorney is published or removed). */
+  'seo.generator_mode': 'off',
+  /** Events within this many seconds become one run (debounce). */
+  'seo.generator_debounce_seconds': 60,
+  /** At least this many minutes between two event runs. */
+  'seo.generator_min_interval_minutes': 10,
+  /** Attorneys one run renders (all pages stay in memory); more = the run refuses. */
+  'seo.generator_max_attorneys': 5000,
+  /** Files one run uploads; the rest waits for the next run. */
+  'seo.generator_max_uploads_per_run': 2000,
+  /** CloudFront paths reset a day (the first 1000 a month are free). */
+  'seo.max_invalidation_paths_per_day': 30,
+};
+
 export const OWNER_STORAGE_SETTINGS = {
   // Owner 2026-10-24: where NEW public media (avatars, post / review
   // photos, stickers) is stored: 'aws' (S3, default) or 'r2' (Cloudflare
@@ -1581,6 +1601,7 @@ export const APP_SETTINGS = {
   ...OWNER_COUNTRY_SETTINGS,
   ...OWNER_RATE_LIMIT_SETTINGS,
   ...OWNER_STORAGE_SETTINGS,
+  ...OWNER_SEO_SETTINGS,
   ...OWNER_CHAT_ACTION_SETTINGS,
   ...OWNER_FRAUD_SETTINGS,
   ...OWNER_STRIPE_OPS_SETTINGS,

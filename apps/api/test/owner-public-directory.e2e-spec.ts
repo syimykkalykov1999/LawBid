@@ -94,6 +94,7 @@ describe('Public directory (e2e)', () => {
         username: string;
         licensedStates: string[];
         photoUrl: string | null;
+        updatedAt: string;
       }[];
     };
     const names = body.data.map((a) => a.username);
@@ -105,6 +106,11 @@ describe('Public directory (e2e)', () => {
     expect(one.licensedStates).toEqual(['CA']);
     // No media CDN in e2e: a signed link would expire inside a static page.
     expect(one.photoUrl).toBeNull();
+    // Owner 2026-10-27 (programmatic SEO): a real `lastmod` for the sitemap.
+    expect(new Date(one.updatedAt).toISOString()).toBe(one.updatedAt);
+    expect(Date.now() - new Date(one.updatedAt).getTime()).toBeLessThan(
+      10 * 60_000,
+    );
     // Nothing that identifies a client or lets someone reach the attorney.
     expect(Object.keys(one).sort()).toEqual(
       [
@@ -119,6 +125,8 @@ describe('Public directory (e2e)', () => {
         'ratingAvg',
         'ratingCount',
         'trustBadge',
+        // Owner 2026-10-27: when the profile last changed (sitemap lastmod).
+        'updatedAt',
         'username',
       ].sort(),
     );

@@ -47,6 +47,7 @@ import {
 import { VendorDeletionService } from './vendor-deletion.service';
 import { PersonalDataErasureService } from './personal-data-erasure.service';
 import { shardContext } from '../../sharding/shard-context';
+import { notifySeoPagesChanged } from '../../common/seo/seo-generator.trigger';
 import { userDirectory } from '../../sharding/user-directory';
 
 export interface AnonymizationResult {
@@ -759,6 +760,9 @@ export class AccountAnonymizationService implements AccountEraser {
       });
       return active.map((s) => s.session_chain_id);
     });
+    // Programmatic SEO: the attorney's public page goes (no-op unless the
+    // generator is on with events).
+    if (user.role === 'attorney') notifySeoPagesChanged('attorney-removed');
 
     // Shard-ready step 6: the other side's role from the user directory.
     const followRoles = await userDirectory(this.prisma).select(

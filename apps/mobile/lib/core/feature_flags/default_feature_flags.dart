@@ -27,6 +27,11 @@ const Map<String, bool> defaultFeatureFlags = {
   // after a positive moment (core/platform/review_prompter.dart) — off
   // until the store listings exist.
   'in_app_review': false,
+  // Owner 2026-10-27 (app indexing): iPhone Spotlight finds the attorney
+  // profiles and saved posts the user opened
+  // (core/platform/spotlight_index.dart). On-device only; off for a user who
+  // chose «Do not sell or share». Android and web: nothing to do.
+  'spotlight_indexing': true,
   // Owner 2026-10-22 (decision A1, checklist §7 / §21): browsing without
   // an account — the feed, search and public profiles open for a guest;
   // every action asks to sign in (core/session/guest_mode.dart).

@@ -166,6 +166,7 @@ export class PublicDirectoryService {
         rating_avg: true,
         rating_count: true,
         trust_badge: true,
+        updated_at: true,
         user: {
           select: {
             first_name: true,
@@ -240,6 +241,7 @@ export class PublicDirectoryService {
         ratingAvg: Number(r.rating_avg),
         ratingCount: r.rating_count,
         trustBadge: r.trust_badge,
+        updatedAt: r.updated_at.toISOString(),
         photoUrl: r.user.avatar_file_id
           ? (photos.get(r.user.avatar_file_id) ?? null)
           : null,

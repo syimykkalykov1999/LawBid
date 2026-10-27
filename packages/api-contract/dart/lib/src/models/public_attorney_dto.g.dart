@@ -26,6 +26,7 @@ PublicAttorneyDto _$PublicAttorneyDtoFromJson(Map<String, dynamic> json) =>
       licensedStates: (json['licensedStates'] as List<dynamic>)
           .map((e) => e as String)
           .toList(),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
       bio: json['bio'] as String?,
     );
 
@@ -42,4 +43,5 @@ Map<String, dynamic> _$PublicAttorneyDtoToJson(PublicAttorneyDto instance) =>
       'photoUrl': ?instance.photoUrl,
       'practiceAreas': instance.practiceAreas.map((e) => e.toJson()).toList(),
       'licensedStates': instance.licensedStates,
+      'updatedAt': instance.updatedAt.toIso8601String(),
     };

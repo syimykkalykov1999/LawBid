@@ -106,7 +106,8 @@
                 <data android:scheme="lawbid" />
             </intent-filter>
             <!-- Android App Links (docs/01_FOUNDATION_AUTH.md §12):
-                 https://lawbid.dev/case/:id, /lawyer/:username, /post/:id, /u/:username (profile QR), /q/:id
+                 https://lawbid.dev/case/:id, /lawyer/:username, /attorneys/:username
+                 (the public SEO page of an attorney), /post/:id, /u/:username (profile QR), /q/:id
                  (website sign-in QR), /g/:token (group invite) and
                  the magic sign-in link /auth/email-code. Verified against
                  https://<deepLinkHost>/.well-known/assetlinks.json (template:
@@ -120,6 +121,7 @@
                 <data android:host="${deepLinkHost}" />
                 <data android:pathPrefix="/case/" />
                 <data android:pathPrefix="/lawyer/" />
+                <data android:pathPrefix="/attorneys/" />
                 <data android:pathPrefix="/post/" />
                 <data android:pathPrefix="/g/" />
                 <data android:pathPrefix="/c/" />
