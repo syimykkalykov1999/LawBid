@@ -410,6 +410,7 @@ describe('Staff desk routing (e2e)', () => {
 
   it('OFF: resolving and a client reply behave as before; no lease row, no event, nothing recorded as a lease', async () => {
     stored = {};
+    const eventsBefore = await prisma.workLeaseEvent.count();
     const t = await ticket(30);
     await api()
       .patch(`/api/v1/admin/support/tickets/${t.id}`)
@@ -422,7 +423,7 @@ describe('Staff desk routing (e2e)', () => {
     });
     expect(after?.status).toBe('open');
     expect(await prisma.workLease.count()).toBe(0);
-    expect(await prisma.workLeaseEvent.count()).toBe(0);
+    expect(await prisma.workLeaseEvent.count()).toBe(eventsBefore);
     // the decision itself is still reported to the rating recorder (it has its own switch)
     expect(recorded.map((e) => e.outcome)).toEqual(['close']);
     const a = await modAppeal(mod1.userId, 10);
