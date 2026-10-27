@@ -58,7 +58,7 @@ function build(
   const appConfig = {
     getConfig: jest
       .fn()
-      .mockResolvedValue(opts.config ?? { min_app_version_ios: '0.1.0' }),
+      .mockResolvedValue({ min_app_version_ios: '0.1.0', ...opts.config }),
   } as unknown as AppConfigService;
   const prisma = {
     i18nLanguage: { findMany: jest.fn().mockResolvedValue([EN]) },
@@ -81,6 +81,41 @@ function build(
   );
   return { service, prisma, redis };
 }
+
+describe('BootstrapService.build: S20-9 reel warm-up switch', () => {
+  const prefetch = async (config: Record<string, unknown>, usage?: unknown) => {
+    const redis = new MemoryRedis();
+    if (usage) redis.store.set('ops:usage:v1', JSON.stringify(usage));
+    const { service } = build({ config, redis });
+    const { app_config } = await service.build();
+    return [
+      app_config['client.video_prefetch_ahead'],
+      app_config['client.video_prefetch_cellular'],
+    ];
+  };
+
+  it('auto: Wi-Fi 3, mobile data 1; 0 while Bunny traffic is over its warning level', async () => {
+    expect(await prefetch({})).toEqual([3, 1]);
+    expect(await prefetch({}, { bunny: { bandwidthLevel: 'warn' } })).toEqual([
+      0, 0,
+    ]);
+    expect(await prefetch({}, { bunny: { bandwidthLevel: 'ok' } })).toEqual([
+      3, 1,
+    ]);
+  });
+
+  it('off sends zeros, on sends the same number everywhere', async () => {
+    expect(await prefetch({ 'client.video_prefetch_mode': 'off' })).toEqual([
+      0, 0,
+    ]);
+    expect(
+      await prefetch(
+        { 'client.video_prefetch_mode': 'on' },
+        { bunny: { bandwidthLevel: 'crit' } },
+      ),
+    ).toEqual([3, 3]);
+  });
+});
 
 describe('BootstrapService.build guest browsing (dedup D-12)', () => {
   const guest = async (config: Record<string, unknown>) => {
@@ -139,6 +174,9 @@ describe('BootstrapService.build', () => {
       // always sent.
       'client.guest_browse_app_enabled': false,
       'client.guest_browse_web_enabled': true,
+      // S20-9: the reel warm-up the app obeys (Wi-Fi / mobile data).
+      'client.video_prefetch_ahead': 3,
+      'client.video_prefetch_cellular': 1,
     });
     expect(result.languages).toEqual([EN]);
     expect(result.translations_version).toEqual({ en: 3, ru: 1 });

@@ -135,10 +135,14 @@ variable "api_spot" {
   default     = false
   description = "Run extra API tasks on Fargate Spot (up to 70 % cheaper): the first task stays on regular Fargate (base 1), tasks added by autoscaling are split half regular, half Spot (weight 1:1; ECS does not fall back to regular Fargate when Spot has no capacity, so half of the new tasks always start). A Spot interruption gives 2 minutes: the ALB drains the task and the app reconnects through the other tasks."
 }
-variable "night_scale_down" {
-  type        = bool
-  default     = false
-  description = "Quiet hours: lower the minimum task count of api and worker on a schedule and restore it in the morning."
+variable "night_scale_mode" {
+  type        = string
+  default     = "auto"
+  description = "Quiet hours (S20-7, 3-state like the admin switches): off = never; on = the minimum task count of api and worker drops to night_min_tasks on a schedule; auto (default) = the minimum is halved (never below night_min_tasks) and the CPU / request-count policies still add tasks the moment night traffic needs them. Restored in the morning."
+  validation {
+    condition     = contains(["off", "on", "auto"], var.night_scale_mode)
+    error_message = "night_scale_mode must be off, on or auto."
+  }
 }
 variable "night_min_tasks" {
   type    = number
@@ -843,8 +847,16 @@ resource "aws_appautoscaling_target" "svc" {
 # above still add tasks if night traffic needs them. While the night minimum
 # is active `terraform plan` shows the target's min_capacity as drift; it is
 # restored by the morning action.
+locals {
+  # auto: half the normal minimum, never below night_min_tasks; on: night_min_tasks.
+  night_min = {
+    for k, t in aws_appautoscaling_target.svc : k =>
+    var.night_scale_mode == "on" ? var.night_min_tasks : max(var.night_min_tasks, ceil(t.min_capacity / 2))
+  }
+}
+
 resource "aws_appautoscaling_scheduled_action" "night_down" {
-  for_each           = var.night_scale_down ? { for k, t in aws_appautoscaling_target.svc : k => t if t.min_capacity > var.night_min_tasks } : {}
+  for_each           = var.night_scale_mode != "off" ? { for k, t in aws_appautoscaling_target.svc : k => t if t.min_capacity > local.night_min[k] } : {}
   name               = "${var.name}-${each.key}-night-down"
   service_namespace  = each.value.service_namespace
   scalable_dimension = each.value.scalable_dimension
@@ -852,12 +864,12 @@ resource "aws_appautoscaling_scheduled_action" "night_down" {
   schedule           = var.night_start_cron
   timezone           = "UTC"
   scalable_target_action {
-    min_capacity = var.night_min_tasks
+    min_capacity = local.night_min[each.key]
   }
 }
 
 resource "aws_appautoscaling_scheduled_action" "morning_up" {
-  for_each           = var.night_scale_down ? { for k, t in aws_appautoscaling_target.svc : k => t if t.min_capacity > var.night_min_tasks } : {}
+  for_each           = var.night_scale_mode != "off" ? { for k, t in aws_appautoscaling_target.svc : k => t if t.min_capacity > local.night_min[k] } : {}
   name               = "${var.name}-${each.key}-morning-up"
   service_namespace  = each.value.service_namespace
   scalable_dimension = each.value.scalable_dimension

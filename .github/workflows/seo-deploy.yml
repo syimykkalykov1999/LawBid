@@ -26,6 +26,7 @@
 #   SEO_QUALITY_GATE=true    thin pages: noindex and out of the sitemaps
 #   SEO_RAMP_PER_DAY=200     at most N new pages a day enter the index
 #   SEO_INCREMENTAL=true     upload only changed files, reset the CDN only for them (<= 30 paths a day)
+#   SEO_MAX_PAGES=2000       directory pages of 100 attorneys the build may read; more data FAILS the build instead of truncating
 name: SEO pages
 
 on:
@@ -106,6 +107,7 @@ jobs:
           --api "${{ secrets.WEB_SEO_API_URL }}"
           --site "${{ secrets.WEB_SITE_URL }}"
           --out dist-seo
+          --max-pages "${{ vars.SEO_MAX_PAGES || '2000' }}"
           ${{ inputs.index_empty && '--index-empty' || '' }}
 
       - name: Check out the company site

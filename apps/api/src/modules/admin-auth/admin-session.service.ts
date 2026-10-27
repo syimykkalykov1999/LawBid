@@ -2,6 +2,10 @@ import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { ck } from '../../redis/redis-cluster-safe';
+import {
+  ADMIN_ACTIVE_KEY,
+  ADMIN_ACTIVE_TTL_SEC,
+} from '../../common/ops/admin-activity';
 
 /** docs/06 §2.1: "Сессия 8 часов, простой 30 минут". */
 export const ADMIN_SESSION_TTL_SECONDS = 8 * 3600;
@@ -140,7 +144,20 @@ export class AdminSessionService {
       'EX',
       ADMIN_IDLE_SECONDS,
     );
+    if (userId) this.markAdminActive();
     return userId ?? null;
+  }
+
+  /** S20-1: "an admin is looking now" for 10 minutes; the heavy admin
+   * aggregates follow it in Авто. Never throws, never awaited. */
+  private markAdminActive(): void {
+    try {
+      void Promise.resolve(
+        this.redis.set(ADMIN_ACTIVE_KEY, '1', 'EX', ADMIN_ACTIVE_TTL_SEC),
+      ).catch(() => undefined);
+    } catch {
+      // a signal only
+    }
   }
 
   async revoke(jti: string, userId: string): Promise<void> {

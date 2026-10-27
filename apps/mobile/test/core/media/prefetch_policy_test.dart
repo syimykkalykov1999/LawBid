@@ -2,36 +2,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/media/prefetch_policy.dart';
 import 'package:lawbid/core/media/video_prefetch.dart';
 
-/// S16-4: the reel warm-up has three states and never spends mobile data
-/// in «Авто» or anything while the data saver is on.
+/// S16-4 / S20-9: the reel warm-up has one gate: data saver off and the
+/// server-controlled number of reels ahead above 0.
 void main() {
-  test('mode words map to the three states, unknown means auto', () {
-    expect(prefetchModeOf('off'), PrefetchMode.off);
-    expect(prefetchModeOf('on'), PrefetchMode.on);
-    expect(prefetchModeOf('auto'), PrefetchMode.auto);
-    expect(prefetchModeOf('0'), PrefetchMode.auto);
-    expect(prefetchModeOf('whatever'), PrefetchMode.auto);
-  });
-
-  test('auto warms on an unmetered link only', () {
-    bool allow({required bool? unmetered, bool saver = false}) =>
-        prefetchAllowed(
-          mode: PrefetchMode.auto,
-          dataSaver: saver,
-          unmetered: unmetered,
-        );
-    expect(allow(unmetered: true), isTrue);
-    expect(allow(unmetered: false), isFalse, reason: 'mobile data');
-    expect(allow(unmetered: null), isFalse, reason: 'unknown link');
-    expect(allow(unmetered: true, saver: true), isFalse);
-  });
-
-  test('on ignores the link but not the data saver; off is off', () {
-    bool ok(PrefetchMode m, {required bool saver, required bool wifi}) =>
-        prefetchAllowed(mode: m, dataSaver: saver, unmetered: wifi);
-    expect(ok(PrefetchMode.on, saver: false, wifi: false), isTrue);
-    expect(ok(PrefetchMode.on, saver: true, wifi: true), isFalse);
-    expect(ok(PrefetchMode.off, saver: false, wifi: true), isFalse);
+  test('warms only with the data saver off and a server number above 0', () {
+    expect(prefetchAllowed(dataSaver: false, ahead: 3), isTrue);
+    expect(prefetchAllowed(dataSaver: true, ahead: 3), isFalse);
+    expect(prefetchAllowed(dataSaver: false, ahead: 0), isFalse);
+    expect(prefetchAllowed(dataSaver: true, ahead: 0), isFalse);
   });
 
   test('the prefetcher asks the gate before queueing', () {

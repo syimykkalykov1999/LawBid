@@ -11,6 +11,7 @@ import { AwsOpsService } from './aws-ops.service';
 import { HttpStatsService } from './http-stats.service';
 import { RouteMetricsService } from './route-metrics.service';
 import { RealtimeStatsService } from './realtime-stats.service';
+import { CronIdleBackoffService } from './cron-idle-backoff.service';
 import { OpsStateService } from './ops-state.service';
 import { AlarmEventsController } from './status/alarm-events.controller';
 import { SecretRotationService } from './secret-rotation.service';
@@ -29,6 +30,7 @@ import { UsageHardStopService } from './usage/usage-hard-stop.service';
     AwsOpsService,
     AwsCapacityService,
     OpsStateService,
+    CronIdleBackoffService,
     SecretRotationService,
     HttpStatsService,
     RouteMetricsService,
@@ -48,6 +50,7 @@ import { UsageHardStopService } from './usage/usage-hard-stop.service';
     AwsOpsService,
     AwsCapacityService,
     OpsStateService,
+    CronIdleBackoffService,
     SecretRotationService,
     HttpStatsService,
     RouteMetricsService,

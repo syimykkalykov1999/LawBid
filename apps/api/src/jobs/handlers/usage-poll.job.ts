@@ -17,7 +17,8 @@ import { SecretsService } from '../../common/secrets/secrets.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 
 /** The last answers, read by the system-health board. */
-export const USAGE_SNAPSHOT_KEY = 'ops:usage:v1';
+import { USAGE_SNAPSHOT_KEY } from '../../common/ops/usage-snapshot-key';
+export { USAGE_SNAPSHOT_KEY };
 const SNAPSHOT_TTL_SEC = 3 * 24 * 3600;
 
 export interface UsageSnapshot {

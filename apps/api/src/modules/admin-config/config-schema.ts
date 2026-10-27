@@ -690,6 +690,54 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 2,
     max: 24 * 14,
   };
+  // Round 20 (2026-10-25): hidden-cost switches, off | on | auto.
+  const triState = (key: string, description: string) => {
+    out[key] = {
+      ...out[key],
+      description,
+      pattern: /^(off|on|auto)$/,
+    };
+  };
+  triState(
+    'ops.admin_summaries_mode',
+    'Heavy admin counts (dashboard, billing, trust scan): auto = every 2 minutes only while an admin was active in the last 10 minutes, otherwise hourly; on = always every 2 minutes; off = every 6 hours.',
+  );
+  triState(
+    'ops.cron_idle_backoff',
+    'Every-minute background sweeps (government exports, search outbox, video and consultation sweeps) with nothing to do: auto = after N empty runs run every few minutes until work appears; on = always the slow pace; off = every minute, as before.',
+  );
+  out['ops.cron_idle_after_runs'] = {
+    ...out['ops.cron_idle_after_runs'],
+    description:
+      'Empty runs in a row before an every-minute sweep slows down (auto mode).',
+    min: 3,
+    max: 1000,
+  };
+  out['ops.cron_idle_every_min'] = {
+    ...out['ops.cron_idle_every_min'],
+    description:
+      'Minutes between runs of an idle sweep. Ceiling 30: nothing waits longer than that.',
+    min: 2,
+    max: 30,
+  };
+  out['ops.reencrypt_rows_per_min'] = {
+    ...out['ops.reencrypt_rows_per_min'],
+    description:
+      'Ceiling of the message re-encryption pass, rows per minute (0 = paused, the pass keeps its place). Lower it if the database is busy.',
+    min: 0,
+    max: 20_000,
+  };
+  triState(
+    'log.ws_events',
+    'WebSocket connect / disconnect log lines: auto = a weighted sample, every line for 30 minutes while reconnects spike; on = every line; off = the sample only (the counters on the status board are always complete).',
+  );
+  out['log.ws_sample_percent'] = {
+    ...out['log.ws_sample_percent'],
+    description:
+      'Percent of WebSocket connect / disconnect events written as log lines (each line counts for 100/percent events).',
+    min: 1,
+    max: 100,
+  };
   out['search.ranked_cache_ttl_sec'] = {
     ...out['search.ranked_cache_ttl_sec'],
     description:
