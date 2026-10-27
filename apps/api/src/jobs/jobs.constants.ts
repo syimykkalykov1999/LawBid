@@ -412,7 +412,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.staffWeeklyDigest, pattern: '0 13 * * 1' },
 ];
 
-const FAST_JOBS: readonly CronJobName[] = [
+export const FAST_JOBS: readonly CronJobName[] = [
   CRON_JOBS.opsQueueMetrics,
   CRON_JOBS.opsGuard,
   CRON_JOBS.statusWatchdog,
@@ -427,7 +427,7 @@ const FAST_JOBS: readonly CronJobName[] = [
   CRON_JOBS.staffToday,
 ];
 
-const HEAVY_JOBS: readonly CronJobName[] = [
+export const HEAVY_JOBS: readonly CronJobName[] = [
   CRON_JOBS.feedReco,
   CRON_JOBS.messagesReencrypt,
   CRON_JOBS.countersReconcile,
