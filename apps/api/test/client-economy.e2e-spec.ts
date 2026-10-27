@@ -547,6 +547,19 @@ describe('Client economy (e2e, owner 2026-10-22)', () => {
     expect(ids(after.body.data)).not.toContain(kase.id);
     expect(after.body.meta.deletedIds).toContain(kase.id);
 
+    // Delta audit D-P4: the case's own bid list answers a delta too.
+    const caseBids = await api()
+      .get(`/api/v1/cases/${kase.id}/bids`)
+      .set(cl.auth)
+      .query({ updatedSince: since })
+      .expect(200);
+    expect(caseBids.body.data).toEqual([]);
+    expect(caseBids.body.meta).toMatchObject({
+      deletedIds: [],
+      nextCursor: null,
+    });
+    expect(typeof caseBids.body.meta.syncedAt).toBe('string');
+
     const bids = await api()
       .get('/api/v1/users/me/bids')
       .set(att.auth)

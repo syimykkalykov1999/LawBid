@@ -2,13 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Owner 2026-10-22: the phone-book names the app saves for chat pushes.
-	     APP_GROUP_ID = group.<app bundle id> (one per flavor), set on both
-	     targets — docs/runbooks/IOS_CHAT_NOTIFICATIONS.md. -->
-	<key>com.apple.security.application-groups</key>
-	<array>
-		<string>$(APP_GROUP_ID)</string>
-	</array>
+	<!-- Owner 2026-10-26: the sender's photo on a chat banner
+	     (Communication Notifications). The App Group for phone-book names
+	     (group.<app bundle id>) is added together with its registration in
+	     Apple Developer — docs/runbooks/IOS_CHAT_NOTIFICATIONS.md. -->
 	<key>com.apple.developer.usernotifications.communication</key>
 	<true/>
 </dict>

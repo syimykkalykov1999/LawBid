@@ -10,6 +10,7 @@ import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/media/video_frames.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
@@ -1376,7 +1377,10 @@ class _VideoSummary extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 if (pick.coverBytes != null)
-                  Image.memory(pick.coverBytes!, fit: BoxFit.cover)
+                  Image(
+                    image: thumbImage(context, pick.coverBytes!, maxSide: 128),
+                    fit: BoxFit.cover,
+                  )
                 else if (pick.frame == null)
                   ColoredBox(
                     color: colors.surface,
@@ -1388,7 +1392,10 @@ class _VideoSummary extends StatelessWidget {
                     ),
                   )
                 else
-                  Image.memory(pick.frame!, fit: BoxFit.cover),
+                  Image(
+                    image: thumbImage(context, pick.frame!, maxSide: 128),
+                    fit: BoxFit.cover,
+                  ),
                 PositionedDirectional(
                   end: 6,
                   bottom: 6,

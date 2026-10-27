@@ -55,6 +55,21 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     pattern: /^(aws|r2)$/,
   };
   // Owner 2026-10-24 (search-ready): checked again on save (engine keys).
+  out['ledger.reconcile_mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'Nightly check of the money ledger. off: not run. on: the whole ledger every night (grows with the table). auto (default): the last N days every night and the whole ledger once a week.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['ledger.reconcile_window_days'] = {
+    type: 'integer',
+    defaultValue: 7,
+    description:
+      'Days the nightly ledger check covers in auto mode (the whole ledger is still checked weekly).',
+    min: 1,
+    max: 90,
+  };
   out['search.engine'] = {
     type: 'string',
     defaultValue: 'postgres',
@@ -84,6 +99,36 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'After a search reindex, the old index is kept this many days so you can roll back, then deleted.',
     min: 1,
     max: 60,
+  };
+  out['events.sink'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'Internal event stream (user signed up, case created, bid placed, payment, post...): off (not recorded), db (own table), stream (table + Kinesis; needs the stream turned on in infrastructure) or auto (default: not recorded until a consumer such as experiments / analytics needs the events; then db, moving to stream when events per day pass the ceiling below).',
+    pattern: /^(off|db|stream|auto)$/,
+  };
+  out['events.max_per_day'] = {
+    type: 'integer',
+    defaultValue: 1000000,
+    description:
+      'Hard ceiling: events recorded per day at most, in every mode; past it the rest of the day records nothing.',
+    min: 1000,
+    max: 2000000000,
+  };
+  out['events.retention_days'] = {
+    type: 'integer',
+    defaultValue: 30,
+    description: 'Recorded events are deleted after this many days.',
+    min: 1,
+    max: 365,
+  };
+  out['events.auto_ceiling_per_day'] = {
+    type: 'integer',
+    defaultValue: 2000000,
+    description:
+      'In auto mode: when events per day pass this number the stream is used instead of only the database.',
+    min: 1000,
+    max: 2000000000,
   };
   out['search.reindex_throttle_ms'] = {
     type: 'integer',
@@ -298,6 +343,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'rate_limit.case_create_per_day',
     'rate_limit.chat_save_per_minute',
     'rate_limit.forward_per_minute',
+    'rate_limit.search_suggest_per_minute',
   ] as const) {
     out[key] = { ...out[key], min: 1, max: 100000 };
   }
@@ -513,6 +559,29 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Hard cap of SMS sign-up codes (to new numbers) per UTC day. When reached, SMS sign-up is closed until 00:00 UTC and an alert is logged; password reset and e-mail codes keep working. Not touched by the auto spend limits. 0 = off.',
     min: 0,
     max: 1_000_000,
+  };
+  out['sms.cap_mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'How the SMS caps above behave. auto (default): each cap is a floor and grows to the highest day of the last 7 days times «sms.burst_multiplier» (up to «sms.burst_ceiling_multiplier» times the cap), with an alert when the extra room is used, so a launch or marketing spike is not silently dropped. fixed: exactly the numbers typed.',
+    pattern: /^(auto|fixed)$/,
+  };
+  out['sms.burst_multiplier'] = {
+    type: 'number',
+    defaultValue: 3,
+    description:
+      'Auto mode: the allowed number is the 7-day baseline times this (never below the typed cap).',
+    min: 1,
+    max: 20,
+  };
+  out['sms.burst_ceiling_multiplier'] = {
+    type: 'number',
+    defaultValue: 10,
+    description:
+      'Auto mode: the allowed number never exceeds the typed cap times this.',
+    min: 1,
+    max: 100,
   };
   out['storage.daily_upload_mb_per_user'] = {
     ...out['storage.daily_upload_mb_per_user'],

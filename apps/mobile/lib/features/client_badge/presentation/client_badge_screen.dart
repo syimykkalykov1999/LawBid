@@ -5,6 +5,7 @@ import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/payments/pay_page_look.dart';
 import 'package:lawbid/core/time/resume_refresh_gate.dart';
 import 'package:lawbid/features/client_badge/application/client_badge_providers.dart';
@@ -429,8 +430,8 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
               contentPadding: EdgeInsets.zero,
               leading: ClipRRect(
                 borderRadius: BorderRadius.circular(AppRadii.card),
-                child: Image.memory(
-                  _docs[i].bytes,
+                child: Image(
+                  image: thumbImage(context, _docs[i].bytes, maxSide: 48),
                   width: 48,
                   height: 48,
                   fit: BoxFit.cover,

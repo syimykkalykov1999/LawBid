@@ -52,6 +52,16 @@ variable "ses_send_alarm_per_day" {
   default     = 4000
   description = "S9-13: alarm when SES sends more than this many e-mails in 24 h (the app's own cap is 2 000 a day, BUDGET_EMAIL_DAILY_MAX, so 2x = something bypasses it or the cap was raised); 0 = off."
 }
+variable "media_bucket_name" {
+  type        = string
+  default     = ""
+  description = "Media bucket whose daily growth is watched (it equals the volume replicated to the other Region, replicate_media). Empty = no alarm."
+}
+variable "media_replication_max_gb_per_day" {
+  type        = number
+  default     = 50
+  description = "Review R-54: alarm when the media bucket grows by more than this many GB in a day, i.e. when the replica Region copy (storage + $0.02/GB transfer) would too. 0 = no alarm. S3 itself has no byte cap on replication: on the alarm, set replicate_media = false (docs/runbooks/cost.md)."
+}
 variable "alb_arn_suffix" { type = string }
 
 # --- spend alarms on pay-per-use edge services (cost registry, V2 / V6) ------
@@ -1459,6 +1469,50 @@ resource "aws_cloudwatch_metric_alarm" "redis_replication_lag" {
   alarm_actions       = local.ops
   ok_actions          = local.ops
   tags                = var.tags
+}
+
+# Review R-54: the media bucket growing faster than the owner's ceiling. The
+# replication copies every new object (no filter), so the day's growth is the
+# day's replicated bytes. BucketSizeBytes is a daily metric per storage class:
+# new files land in Standard / Intelligent-Tiering frequent access; RATE() is
+# the change per second between two daily points. Mail only (not a failure).
+resource "aws_cloudwatch_metric_alarm" "media_growth" {
+  count               = var.media_bucket_name != "" && var.media_replication_max_gb_per_day > 0 ? 1 : 0
+  alarm_name          = "${var.name}-media-replication-gb-per-day"
+  alarm_description   = "LawBid: Фото и видео за сутки выросли больше чем на ${var.media_replication_max_gb_per_day} ГБ, и столько же уходит в копию в другой регион (платное хранение и пересылка $0,02 за ГБ). Что делать: админка → Система → Хранилище → «Кто занимает больше всего» (нет ли массовой загрузки или бота); если это ожидаемо, поднимите media_replication_max_gb_per_day; чтобы остановить копирование, поставьте replicate_media = false в terraform.tfvars. Инструкция: ${var.runbook_base_url}/cost.md (EN: media bucket grew over ${var.media_replication_max_gb_per_day} GB in a day.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  threshold           = var.media_replication_max_gb_per_day
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+
+  metric_query {
+    id          = "gb_per_day"
+    expression  = "RATE(std + ia) * 86400 / 1073741824"
+    label       = "GB added per day"
+    return_data = true
+  }
+  metric_query {
+    id = "std"
+    metric {
+      metric_name = "BucketSizeBytes"
+      namespace   = "AWS/S3"
+      period      = 86400
+      stat        = "Average"
+      dimensions  = { BucketName = var.media_bucket_name, StorageType = "StandardStorage" }
+    }
+  }
+  metric_query {
+    id = "ia"
+    metric {
+      metric_name = "BucketSizeBytes"
+      namespace   = "AWS/S3"
+      period      = 86400
+      stat        = "Average"
+      dimensions  = { BucketName = var.media_bucket_name, StorageType = "IntelligentTieringFAStorage" }
+    }
+  }
 }
 
 # Batch A item 15: NAT gateway data processed (in + out, the billed number).
