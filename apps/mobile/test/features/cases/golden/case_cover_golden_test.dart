@@ -13,7 +13,6 @@ import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_cover_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 
@@ -350,19 +349,12 @@ void main() {
   });
 
   for (final entry in themes.entries) {
-    testGoldens('cover picker + urgency step - ${entry.key}', (tester) async {
+    testGoldens('urgency step - ${entry.key}', (tester) async {
       await tester.pumpWidgetBuilder(
         Scaffold(
           body: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              CaseCoverPicker(
-                t: const _Ru(),
-                practiceCode: 'family_law.divorce',
-                selected: 'art:2',
-                onChanged: (_) {},
-              ),
-              const SizedBox(height: 16),
               SizedBox(
                 height: 420,
                 child: BudgetStep(
@@ -386,7 +378,7 @@ void main() {
         ),
         surfaceSize: const Size(390, 1000),
       );
-      await screenMatchesGolden(tester, 'case_cover_picker_${entry.key}');
+      await screenMatchesGolden(tester, 'case_budget_step_${entry.key}');
     });
   }
 

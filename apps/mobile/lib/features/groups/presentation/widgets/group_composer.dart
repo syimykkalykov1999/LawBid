@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
@@ -158,7 +158,7 @@ class _GroupComposerState extends ConsumerState<GroupComposer> {
   void _submit() {
     final text = _text.text.trim();
     if (text.isEmpty) return;
-    HapticFeedback.lightImpact();
+    AppHaptics.light();
     if (widget.editing != null) {
       // The field is cleared when the edit succeeds (the parent leaves edit
       // mode); a failed edit keeps what was typed.

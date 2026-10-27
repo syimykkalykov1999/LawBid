@@ -207,12 +207,6 @@ void main() {
                 onTap: () {},
               ),
               const SizedBox(height: AppSpacing.md),
-              AppConnectivityBanner(
-                message: 'No internet connection',
-                actionLabel: 'Retry',
-                onAction: () {},
-              ),
-              const SizedBox(height: AppSpacing.md),
               AppPaginationFooter(
                 status: AppPaginationStatus.error,
                 labels: const AppPaginationLabels(

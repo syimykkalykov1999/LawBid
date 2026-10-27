@@ -355,6 +355,10 @@ resource "aws_cloudfront_function" "seo_index" {
     // brotli twin (<file>.br, uploaded by scripts/deploy/web-gzip-big.sh)
     // about 27% smaller than the gzip the bucket object carries.
     var BR = /^\/v\/[^\/]+\/(main\.dart\.(js|wasm)|canvaskit\/([a-z_]+\/)?[a-z_]+\.(js|wasm))$/;
+    // 2026-10-26 (smoothness P6a): the release's fonts and main.dart.mjs
+    // have twins too, but only releases marked `br2_<sha>` carry them
+    // (older releases' tabs must not be sent to a .br that does not exist).
+    var BR2 = /^\/v\/[^\/]+\/(main\.dart\.mjs|assets\/[A-Za-z0-9_\/.-]+\.(ttf|otf))$/;
     var SHA = /^[0-9A-Za-z]{7,64}$/;
     async function get(key) {
       try { return await kvs.get(key); } catch (e) { return ''; }
@@ -396,8 +400,12 @@ resource "aws_cloudfront_function" "seo_index" {
         if (SHA.test(vp[2] || '')) {
           request.uri = '/releases/' + vp[2] + uri;
           var vae = request.headers['accept-encoding'];
-          if (BR.test(uri) && vae && vae.value.indexOf('br') !== -1 && (await get('br_' + vp[2])) === '1') {
-            request.uri += '.br';
+          if (vae && vae.value.indexOf('br') !== -1) {
+            if (BR.test(uri) && (await get('br_' + vp[2])) === '1') {
+              request.uri += '.br';
+            } else if (BR2.test(uri) && (await get('br2_' + vp[2])) === '1') {
+              request.uri += '.br';
+            }
           }
           return request;
         }
@@ -425,8 +433,12 @@ resource "aws_cloudfront_function" "seo_index" {
         var rel = (first === 'v' && SHA.test(parts[2] || '')) ? parts[2] : release;
         request.uri = (first === 'v' ? '/releases/' + rel : base) + uri;
         var ae = request.headers['accept-encoding'];
-        if (BR.test(uri) && ae && ae.value.indexOf('br') !== -1 && (await get('br_' + rel)) === '1') {
-          request.uri += '.br';
+        if (ae && ae.value.indexOf('br') !== -1) {
+          if (BR.test(uri) && (await get('br_' + rel)) === '1') {
+            request.uri += '.br';
+          } else if (BR2.test(uri) && (await get('br2_' + rel)) === '1') {
+            request.uri += '.br';
+          }
         }
       } else if (!hasExt) {
         // An app screen: the same page, under a name noindex can tell apart.

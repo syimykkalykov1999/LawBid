@@ -1,9 +1,14 @@
-# Owner 2026-10-14 (architecture audit, step 9): the k6 scenarios of
-# apps/api/k6 run every night against STAGING and fail on the p95 / error
-# thresholds of docs/06 §9.4, so a slow feed or search shows up before users
-# feel it. It does nothing until the owner adds the staging secrets
-# (docs/perf/README.md → "Accounts"): STAGING_API_URL, STAGING_WS_URL and
-# the JSON token / id lists below.
+# Owner 2026-10-14 (architecture audit, step 9): a small k6 run against STAGING
+# every night, so a slow feed or search shows up before users feel it.
+# 2026-10-26 (audit X-14): it now runs the same suite as the big load tests,
+# loadtest/k6/main.js with the `nightly` profile (loadtest/profiles.json),
+# instead of the older apps/api/k6 scripts. That suite uses minted tokens and
+# never requests an SMS code (lib/http.js refuses /auth/otp unless
+# K6_SMS_ALLOWED=true), so the nightly run costs nothing in SMS.
+# It does nothing until the owner adds three secrets (docs/perf/README.md ->
+# "Accounts"): STAGING_API_URL, STAGING_WS_URL and the two JSON files made by
+# loadtest/scripts/mint.mjs and discover.mjs: STAGING_TOKENS_JSON,
+# STAGING_FIXTURES_JSON.
 name: Load test (nightly)
 
 on:
@@ -30,13 +35,23 @@ jobs:
         if: env.STAGING_API_URL != ''
       - uses: grafana/setup-k6-action@43b9fc21641a76002687994433dd586f56e791b1 # v1.2.2
         if: env.STAGING_API_URL != ''
-      - name: k6 — feed, search, cases, bids, chat (5 minutes, read/write thresholds)
+      - name: Write the token and fixture files
         if: env.STAGING_API_URL != ''
         env:
-          BASE_URL: ${{ secrets.STAGING_API_URL }}
+          TOKENS_JSON: ${{ secrets.STAGING_TOKENS_JSON }}
+          FIXTURES_JSON: ${{ secrets.STAGING_FIXTURES_JSON }}
+        run: |
+          printf '%s' "$TOKENS_JSON" > "$RUNNER_TEMP/tokens.json"
+          printf '%s' "$FIXTURES_JSON" > "$RUNNER_TEMP/fixtures.json"
+      - name: k6 - profile nightly (feed, search, chat, cases; 5 minutes; no SMS)
+        if: env.STAGING_API_URL != ''
+        env:
+          API_URL: ${{ secrets.STAGING_API_URL }}
           WS_URL: ${{ secrets.STAGING_WS_URL }}
-          CLIENT_TOKENS: ${{ secrets.STAGING_CLIENT_TOKENS }}
-          ATTORNEY_TOKENS: ${{ secrets.STAGING_ATTORNEY_TOKENS }}
-          CASE_IDS: ${{ secrets.STAGING_CASE_IDS }}
-          CONVERSATION_IDS: ${{ secrets.STAGING_CONVERSATION_IDS }}
-        run: k6 run apps/api/k6/all.js
+        run: |
+          host="$(printf '%s' "$API_URL" | sed -E 's#^[a-z]+://([^/:?]+).*#\1#' | tr '[:upper:]' '[:lower:]')"
+          k6 run --no-color \
+            -e PROFILE=nightly -e API_URL="$API_URL" -e WS_URL="$WS_URL" \
+            -e ALLOW_HOSTS="$host" \
+            -e TOKENS_FILE="$RUNNER_TEMP/tokens.json" -e FIXTURES_FILE="$RUNNER_TEMP/fixtures.json" \
+            loadtest/k6/main.js

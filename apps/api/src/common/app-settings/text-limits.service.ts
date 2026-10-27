@@ -51,19 +51,3 @@ export async function textLimit(
 ): Promise<number> {
   return svc ? svc.max(key) : TEXT_LIMIT_DEFS[key].def;
 }
-
-export async function assertTextLimit(
-  svc: TextLimitsService | undefined,
-  key: TextLimitKey,
-  text: string | null | undefined,
-  field: string,
-): Promise<void> {
-  if (svc) await svc.assert(key, text, field);
-  else if (text && [...text].length > TEXT_LIMIT_DEFS[key].def) {
-    throw new BadRequestException({
-      code: ErrorCode.TEXT_TOO_LONG,
-      message: `This text is at most ${TEXT_LIMIT_DEFS[key].def} characters.`,
-      details: { field, max: TEXT_LIMIT_DEFS[key].def },
-    });
-  }
-}

@@ -56,10 +56,13 @@ redis_node_type = "cache.t4g.micro" # cache.r7g.large → t4g.micro (≈ $12)
 redis_replicas  = 1                 # owner 2026-10-23: failover replica in the other AZ (+ ≈ $12)
 
 nat_per_az = false # one NAT gateway instead of one per AZ (≈ $33 saved)
-# Owner 2026-10-22: image pulls, logs and secrets go through VPC endpoints,
-# not the NAT (S3 gateway endpoint is always on and free). In the first AZ
-# only, the same AZ as the single NAT: 4 × $7.3 ≈ $29/month.
-interface_endpoints    = ["ecr.api", "ecr.dkr", "logs", "secretsmanager"]
+# Owner rule 2026-10-25 (S9-6): the four interface endpoints (≈ $29/month in one
+# AZ) pay off only above ≈ 830 GB/month through the NAT, so the launch size
+# starts WITHOUT them (the S3 gateway endpoint is always on and free). A Lambda
+# (modules/endpoints-autoscale) creates them by itself when NAT traffic is
+# high and removes them after a quiet week; switch / ceiling in SSM.
+interface_endpoints = []
+endpoints_autoscale_enabled = true
 interface_endpoint_azs = 1
 
 # --- Multi-AZ egress + api redundancy (audit S4-2 / S4-11, 2026-10-25) -----

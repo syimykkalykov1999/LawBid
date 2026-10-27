@@ -473,45 +473,6 @@ final attorneyCaseProvider =
 
 // --- Attorney: "Моё" (docs/04 §11.2) ----------------------------------------
 
-class MyBidsNotifier extends SyncedListNotifier<MyBid>
-    with CaseListSync<MyBid> {
-  MyBidsNotifier(this.filter);
-
-  final MyBidsFilter filter;
-
-  @override
-  String get listKey => 'my_bids:${filter.name}';
-
-  @override
-  bool get catchesUp => ref.read(casesSyncProvider) != null;
-
-  @override
-  Future<PaginatedList<MyBid>> build() {
-    listenForChanges();
-    return super.build();
-  }
-
-  @override
-  Future<CursorPage<MyBid>> fetchPage(String? cursor) =>
-      ref.read(casesRepositoryProvider).myBids(filter, cursor: cursor);
-
-  @override
-  Future<SyncedPage<MyBid>> fetchChanged(DateTime since) =>
-      ref.read(casesSyncProvider)!.myBidsChangedSince(filter, since);
-
-  @override
-  String keyOf(MyBid item) => item.bid.id;
-
-  @override
-  Object idOf(MyBid item) => item.bid.id;
-}
-
-final myBidsProvider = AsyncNotifierProvider.autoDispose
-    .family<MyBidsNotifier, PaginatedList<MyBid>, MyBidsFilter>(
-  MyBidsNotifier.new,
-  retry: _noRetry,
-);
-
 class MyWorkNotifier extends SyncedListNotifier<WorkItem>
     with CaseListSync<WorkItem> {
   MyWorkNotifier(this.filter);

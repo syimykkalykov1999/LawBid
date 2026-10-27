@@ -3,11 +3,11 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -180,7 +180,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     final composeN =
         ref.read(chatComposeProvider(widget.conversationId).notifier);
     // ignore: unawaited_futures
-    HapticFeedback.lightImpact();
+    AppHaptics.light();
     final editing = compose.editing;
     if (editing != null) {
       // Owner 2026-10-20: an edit keeps the typed text until the server
@@ -221,7 +221,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       );
       return;
     }
-    HapticFeedback.mediumImpact();
+    AppHaptics.medium();
     ref.read(callControllerProvider.notifier).call(
           c.id,
           peer: c.counterpart.id == null
@@ -2407,7 +2407,7 @@ class _ComposerState extends ConsumerState<_Composer> {
     // One note at a time: stop whatever is playing.
     unawaited(_player.stop());
     // ignore: unawaited_futures
-    HapticFeedback.mediumImpact();
+    AppHaptics.medium();
     // The buzz is over before the microphone opens, so it is not recorded.
     await Future<void>.delayed(const Duration(milliseconds: 130));
     if (!mounted) return;
@@ -2468,7 +2468,7 @@ class _ComposerState extends ConsumerState<_Composer> {
     setState(_reset);
     if (!send) {
       // ignore: unawaited_futures
-      HapticFeedback.lightImpact();
+      AppHaptics.light();
       if (held != null) {
         await deleteVoiceFile(held.path);
       } else {
@@ -2486,7 +2486,7 @@ class _ComposerState extends ConsumerState<_Composer> {
       return;
     }
     // ignore: unawaited_futures
-    HapticFeedback.lightImpact();
+    AppHaptics.light();
     await widget.onVoice(r);
   }
 
@@ -2548,7 +2548,7 @@ class _ComposerState extends ConsumerState<_Composer> {
     await _player.stop();
     setState(_reset);
     // ignore: unawaited_futures
-    HapticFeedback.lightImpact();
+    AppHaptics.light();
     await widget.onVoice(h);
   }
 
