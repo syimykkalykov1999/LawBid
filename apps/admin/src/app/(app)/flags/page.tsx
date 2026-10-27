@@ -122,6 +122,10 @@ const FLAG_INFO: Record<string, FlagInfo> = {
     href: KEYS,
     hrefLabel: 'Настройки Apple',
   },
+  spotlight_indexing: {
+    title: 'Поиск по iPhone (Spotlight)',
+    what: 'Адвокаты и сохранённые посты, которые человек открывал, находятся через поиск самого iPhone. Список хранится только на телефоне. Выключено — телефоны перестают добавлять новое в поиск iPhone.',
+  },
   google_login: {
     title: 'Вход через Google',
     what: 'Кнопка «Войти через Google»: вход одним нажатием через аккаунт Google.',

@@ -140,7 +140,12 @@ class L10nCacheController extends _$L10nCacheController {
       String lang,
       Map<String, String>? seed,
     ) async {
-      if (seed != null) await repo.seedIfEmpty(lang, seed);
+      if (seed != null) {
+        await repo.seedIfEmpty(lang, seed);
+        // The container may be gone (and the database closed with it)
+        // while the seed was writing: do not read from a closed cache.
+        if (!ref.mounted) return const <String, String>{};
+      }
       return repo.loadCached(lang);
     }
 

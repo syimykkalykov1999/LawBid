@@ -198,6 +198,15 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'The «I have a demo code» link on the Welcome screen',
   },
   {
+    // Owner 2026-10-27 (app indexing, #455): kill switch for the iPhone
+    // Spotlight index. Default on; the phone's first-paint value is a
+    // hand-written line in default_feature_flags.dart, so no `app: true`.
+    key: 'spotlight_indexing',
+    enabled: true,
+    description:
+      'iPhone Spotlight search finds the attorney profiles and saved posts the user opened (on-device index only); off = stop adding',
+  },
+  {
     // Owner 2026-10-13: sign in with a password, no SMS each time.
     key: 'password_login',
     enabled: true,

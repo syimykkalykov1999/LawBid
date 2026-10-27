@@ -75,9 +75,10 @@ export function isSafeInvalidationPath(p) {
  * Paths for create-invalidation. Pages new in this run need none (nothing
  * cached yet). Over the day's remaining budget: pages of the same first
  * folder collapse into one `/<folder>/*` wildcard (one path), then the rest
- * waits for the cache lifetime (max-age 3600). Returns { paths, skipped, used }.
+ * waits for the cache lifetime (max-age 3600). With `exactOnly` no wildcard is
+ * ever made: the paths over the budget simply wait. Returns { paths, skipped, used }.
  */
-export function pickInvalidations({ changed, removed, max = DEFAULT_MAX_INVALIDATIONS, usedToday = 0 }) {
+export function pickInvalidations({ changed, removed, max = DEFAULT_MAX_INVALIDATIONS, usedToday = 0, exactOnly = false }) {
   const budget = Math.max(0, max - usedToday);
   const items = [];
   const seen = new Set();
@@ -93,7 +94,8 @@ export function pickInvalidations({ changed, removed, max = DEFAULT_MAX_INVALIDA
   items.sort((a, b) => a.tier - b.tier || (a.url < b.url ? -1 : 1));
 
   let picked = items.map((i) => ({ url: i.url, tier: i.tier, n: 1 }));
-  if (items.length > budget) {
+  // exactOnly (the workflow): never a wildcard; the rest waits for the cache lifetime.
+  if (items.length > budget && !exactOnly) {
     const groups = new Map();
     const loose = [];
     for (const it of items) {
@@ -125,12 +127,12 @@ export const deleteBatches = (keys, size = 1000) => {
  * workflow) and the API's `seo.generate` job both call it.
  * `built` is extra manifest content to keep (page states, ramp counters).
  */
-export function planPublish({ files, prev, today, maxInvalidations = DEFAULT_MAX_INVALIDATIONS, built = {} }) {
+export function planPublish({ files, prev, today, maxInvalidations = DEFAULT_MAX_INVALIDATIONS, built = {}, exactOnly = false }) {
   const plan = planFiles({ files, prevFiles: prev?.files });
   const usedToday = prev?.invalidations?.date === today ? prev.invalidations.used : 0;
   // Without a previous manifest nothing is known to be cached: no resets, a clean first upload.
   const inv = prev
-    ? pickInvalidations({ changed: plan.changed, removed: plan.remove, max: maxInvalidations, usedToday })
+    ? pickInvalidations({ changed: plan.changed, removed: plan.remove, max: maxInvalidations, usedToday, exactOnly })
     : { paths: [], skipped: 0, used: usedToday };
   const manifest = { ...built, version: 1, builtAt: today, files, invalidations: { date: today, used: inv.used } };
   const prevCount = Object.keys(prev?.files ?? {}).length;
