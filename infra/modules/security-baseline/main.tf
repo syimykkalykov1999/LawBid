@@ -366,11 +366,31 @@ resource "aws_guardduty_detector_feature" "s3" {
   status      = var.guardduty_enabled && var.guardduty_s3_events ? "ENABLED" : "DISABLED"
 }
 
+locals {
+  guardduty_rds_login_status = var.guardduty_enabled && var.guardduty_rds_login ? "ENABLED" : "DISABLED"
+  guardduty_runtime_status   = var.guardduty_enabled && var.guardduty_runtime_monitoring ? "ENABLED" : "DISABLED"
+}
+
+# `additional_configuration` is a replace-on-change attribute of this resource,
+# and GuardDuty reports every sub-feature it knows for a feature (prod,
+# 2026-10-27: RDS_DATA_RISK under RDS_LOGIN_EVENTS; EKS_ADDON_MANAGEMENT,
+# ECS_FARGATE_AGENT_MANAGEMENT, EC2_AGENT_MANAGEMENT under RUNTIME_MONITORING,
+# in that order). A config that lists fewer of them than AWS returns planned a
+# delete+create of the feature on every run. RUNTIME_MONITORING below mirrors
+# the full list. RDS_DATA_RISK is newer than provider 5.100 (its name is
+# rejected at plan time: "expected name to be one of [EKS_ADDON_MANAGEMENT
+# ECS_FARGATE_AGENT_MANAGEMENT EC2_AGENT_MANAGEMENT]"), so for RDS_LOGIN_EVENTS
+# the sub-feature list is left to AWS and ignored here (it is ENABLED in prod,
+# turned on by AWS when the feature was enabled). After a provider upgrade that
+# knows RDS_DATA_RISK, replace the ignore with an explicit block.
 resource "aws_guardduty_detector_feature" "rds_login" {
   detector_id = aws_guardduty_detector.this.id
   name        = "RDS_LOGIN_EVENTS"
-  status      = var.guardduty_enabled && var.guardduty_rds_login ? "ENABLED" : "DISABLED"
-  depends_on  = [aws_guardduty_detector_feature.s3]
+  status      = local.guardduty_rds_login_status
+  lifecycle {
+    ignore_changes = [additional_configuration]
+  }
+  depends_on = [aws_guardduty_detector_feature.s3]
 }
 
 resource "aws_guardduty_detector_feature" "malware" {
@@ -383,12 +403,14 @@ resource "aws_guardduty_detector_feature" "malware" {
 resource "aws_guardduty_detector_feature" "runtime" {
   detector_id = aws_guardduty_detector.this.id
   name        = "RUNTIME_MONITORING"
-  status      = var.guardduty_enabled && var.guardduty_runtime_monitoring ? "ENABLED" : "DISABLED"
+  status      = local.guardduty_runtime_status
+  # We run Fargate only: when the feature is on, only the Fargate agent is
+  # managed; EKS and EC2 agents stay off. Order = the order AWS returns.
   dynamic "additional_configuration" {
-    for_each = var.guardduty_enabled && var.guardduty_runtime_monitoring ? ["ECS_FARGATE_AGENT_MANAGEMENT"] : []
+    for_each = ["EKS_ADDON_MANAGEMENT", "ECS_FARGATE_AGENT_MANAGEMENT", "EC2_AGENT_MANAGEMENT"]
     content {
       name   = additional_configuration.value
-      status = "ENABLED"
+      status = additional_configuration.value == "ECS_FARGATE_AGENT_MANAGEMENT" ? local.guardduty_runtime_status : "DISABLED"
     }
   }
   depends_on = [aws_guardduty_detector_feature.malware]
