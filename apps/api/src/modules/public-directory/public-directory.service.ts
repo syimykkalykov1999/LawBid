@@ -7,6 +7,59 @@ import { PrismaReadService } from '../../prisma/prisma-read.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { S3StorageService } from '../files/files.public';
 import type { PublicAttorneyDto } from './public-directory.dto';
+import type { SeoPostRow, SeoQuestionRow } from './seo-lib';
+
+/** Keyset position (newest first) of the posts and questions read for the static pages. */
+interface TimeCursor {
+  t: string;
+  i: string;
+}
+
+function encodeTimeCursor(c: TimeCursor): string {
+  return Buffer.from(JSON.stringify(c)).toString('base64url');
+}
+
+function decodeTimeCursor(raw: string): TimeCursor | null {
+  try {
+    const o = JSON.parse(
+      Buffer.from(raw, 'base64url').toString('utf8'),
+    ) as Partial<TimeCursor> | null;
+    if (
+      o &&
+      typeof o.t === 'string' &&
+      !Number.isNaN(new Date(o.t).getTime()) &&
+      typeof o.i === 'string' &&
+      /^[0-9a-f-]{36}$/i.test(o.i)
+    ) {
+      return { t: o.t, i: o.i };
+    }
+  } catch {
+    // an invalid cursor starts from the beginning
+  }
+  return null;
+}
+
+/** A verified attorney with an active account: the same rule as the directory. */
+const LISTED_ATTORNEY = {
+  status: 'active',
+  deleted_at: null,
+  attorney_profile: { is: { verification_status: 'verified' } },
+} satisfies Prisma.UserWhereInput;
+
+/**
+ * The answer rules of a public Q&A page (plan §2.1, "reviewed answers
+ * only"). The schema has no editor-review state, so "reviewed" means: the
+ * asker marked it as the best answer, it is published and not deleted, the
+ * private-info / individualized-advice / state-not-licensed screening left it
+ * unflagged, and a listed attorney wrote it.
+ */
+const REVIEWED_ANSWER = {
+  is_best: true,
+  status: 'published',
+  deleted_at: null,
+  safety_flags: { isEmpty: true },
+  attorney: LISTED_ATTORNEY,
+} satisfies Prisma.LegalAnswerWhereInput;
 
 /**
  * Keyset position of the directory sort (trust_level DESC, rating_avg DESC,
@@ -255,5 +308,234 @@ export class PublicDirectoryService {
       })),
       nextCursor: next,
     };
+  }
+
+  /**
+   * Text posts for the static pages (/attorneys/<username>/posts/<slug>/),
+   * newest first, `limit` (<= 100) per read. Visibility rules, all from the
+   * existing state: published, not deleted or archived, no video, no image
+   * or file attached, a law-topic post (content_class 'legal'), and a listed
+   * attorney as the author. The schema has no per-post "show in search
+   * engines" consent yet (plan §6 asks for one); until it exists the author's
+   * public profile is the consent.
+   */
+  async seoPosts(q: {
+    limit?: number;
+    cursor?: string;
+  }): Promise<{ items: SeoPostRow[]; nextCursor: string | null }> {
+    const limit = Math.min(Math.max(q.limit ?? 100, 1), 100);
+    const pos = q.cursor ? decodeTimeCursor(q.cursor) : null;
+    const rows = await this.db.post.findMany({
+      where: {
+        status: 'published',
+        deleted_at: null,
+        archived_at: null,
+        video_asset_id: null,
+        content_class: 'legal',
+        media: { none: {} },
+        attachments: { none: {} },
+        author: LISTED_ATTORNEY,
+        ...(pos
+          ? {
+              OR: [
+                { created_at: { lt: new Date(pos.t) } },
+                { created_at: new Date(pos.t), id: { lt: pos.i } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+      select: {
+        id: true,
+        title: true,
+        body: true,
+        kind: true,
+        language: true,
+        created_at: true,
+        updated_at: true,
+        edited_at: true,
+        author_id: true,
+        practice_area_id: true,
+      },
+    });
+    const page = rows.slice(0, limit);
+    const last = page[page.length - 1];
+    // The author's username and the practice code come from their own
+    // reads (one statement each per page), not from a join into other
+    // table families (sharding guard: cross-family-include.allowlist.json).
+    const [usernames, codes] = await Promise.all([
+      this.usernamesOf(page.map((r) => r.author_id)),
+      this.practiceCodes(page.map((r) => r.practice_area_id)),
+    ]);
+    const items: SeoPostRow[] = [];
+    for (const r of page) {
+      const username = usernames.get(r.author_id);
+      if (!username) continue;
+      items.push({
+        id: r.id,
+        authorUsername: username,
+        title: r.title,
+        body: r.body,
+        kind: r.kind,
+        practiceCode: r.practice_area_id
+          ? (codes.get(r.practice_area_id) ?? null)
+          : null,
+        language: r.language,
+        createdAt: r.created_at.toISOString(),
+        updatedAt: r.updated_at.toISOString(),
+        editedAt: r.edited_at ? r.edited_at.toISOString() : null,
+      });
+    }
+    return {
+      items,
+      nextCursor:
+        rows.length > limit && last
+          ? encodeTimeCursor({ t: last.created_at.toISOString(), i: last.id })
+          : null,
+    };
+  }
+
+  /**
+   * Public legal questions with reviewed answers for /legal-questions/<slug>/,
+   * newest first, `limit` (<= 100) per read. A question qualifies when it is
+   * published and not deleted, its private-info screening left no flag, and at
+   * least one answer passes the rules in REVIEWED_ANSWER; when the question
+   * names a state the answering attorney must also hold a verified license
+   * there. The asker's identity is never selected.
+   */
+  async seoQuestions(q: {
+    limit?: number;
+    cursor?: string;
+  }): Promise<{ items: SeoQuestionRow[]; nextCursor: string | null }> {
+    const limit = Math.min(Math.max(q.limit ?? 100, 1), 100);
+    const pos = q.cursor ? decodeTimeCursor(q.cursor) : null;
+    const rows = await this.db.legalQuestion.findMany({
+      where: {
+        status: 'published',
+        deleted_at: null,
+        safety_flags: { isEmpty: true },
+        answers: { some: REVIEWED_ANSWER },
+        ...(pos
+          ? {
+              OR: [
+                { created_at: { lt: new Date(pos.t) } },
+                { created_at: new Date(pos.t), id: { lt: pos.i } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+      select: {
+        id: true,
+        title: true,
+        body: true,
+        state_code: true,
+        practice_area_id: true,
+        created_at: true,
+        updated_at: true,
+        answers: {
+          where: REVIEWED_ANSWER,
+          select: {
+            id: true,
+            body: true,
+            attorney_id: true,
+            created_at: true,
+            updated_at: true,
+          },
+        },
+      },
+    });
+    const page = rows.slice(0, limit);
+    const last = page[page.length - 1];
+    const [usernames, codes, licenses] = await Promise.all([
+      this.usernamesOf(
+        page.flatMap((r) => r.answers.map((a) => a.attorney_id)),
+      ),
+      this.practiceCodes(page.map((r) => r.practice_area_id)),
+      this.licensedStatesOf(
+        page.flatMap((r) => r.answers.map((a) => a.attorney_id)),
+      ),
+    ]);
+    const items: SeoQuestionRow[] = [];
+    for (const r of page) {
+      const answers: SeoQuestionRow['answers'] = [];
+      for (const a of r.answers) {
+        const username = usernames.get(a.attorney_id);
+        if (!username) continue;
+        if (r.state_code && !licenses.get(a.attorney_id)?.has(r.state_code)) {
+          continue;
+        }
+        answers.push({
+          id: a.id,
+          attorneyUsername: username,
+          body: a.body,
+          reviewed: true,
+          createdAt: a.created_at.toISOString(),
+          updatedAt: a.updated_at.toISOString(),
+        });
+      }
+      if (answers.length === 0) continue;
+      items.push({
+        id: r.id,
+        title: r.title,
+        body: r.body,
+        practiceCode: r.practice_area_id
+          ? (codes.get(r.practice_area_id) ?? null)
+          : null,
+        stateCode: r.state_code,
+        createdAt: r.created_at.toISOString(),
+        updatedAt: r.updated_at.toISOString(),
+        answers,
+      });
+    }
+    return {
+      items,
+      nextCursor:
+        rows.length > limit && last
+          ? encodeTimeCursor({ t: last.created_at.toISOString(), i: last.id })
+          : null,
+    };
+  }
+
+  private async usernamesOf(ids: string[]): Promise<Map<string, string>> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return new Map();
+    const rows = await this.db.attorneyProfile.findMany({
+      where: { user_id: { in: unique } },
+      select: { user_id: true, username: true },
+    });
+    return new Map(rows.map((r) => [r.user_id, r.username]));
+  }
+
+  private async licensedStatesOf(
+    ids: string[],
+  ): Promise<Map<string, Set<string>>> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) return new Map();
+    const rows = await this.db.attorneyLicense.findMany({
+      where: { attorney_id: { in: unique }, license_status: 'verified' },
+      select: { attorney_id: true, state_code: true },
+    });
+    const out = new Map<string, Set<string>>();
+    for (const r of rows) {
+      const set = out.get(r.attorney_id) ?? new Set<string>();
+      set.add(r.state_code);
+      out.set(r.attorney_id, set);
+    }
+    return out;
+  }
+
+  private async practiceCodes(
+    ids: Array<string | null>,
+  ): Promise<Map<string, string>> {
+    const unique = [...new Set(ids.filter((x): x is string => !!x))];
+    if (unique.length === 0) return new Map();
+    const rows = await this.db.practiceArea.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, code: true },
+    });
+    return new Map(rows.map((r) => [r.id, r.code]));
   }
 }

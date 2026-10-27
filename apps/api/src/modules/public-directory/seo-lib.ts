@@ -20,6 +20,49 @@ export interface SeoAttorneyRow {
   practiceAreas: Array<{ code: string; name: string }>;
   licensedStates: string[];
   updatedAt: string;
+  /**
+   * Office city (display name) and its state code. There is NO such field in
+   * the database yet, so the directory leaves both out and no city hub can be
+   * built from production data; see docs/runbooks/SEO_STATIC_PAGES.md.
+   */
+  city?: string | null;
+  cityState?: string | null;
+  /** The future consent field: `false` keeps the attorney out of the 2026-10-27 page types. */
+  seoOptIn?: boolean;
+}
+
+/** A text post of a listed attorney (page type /attorneys/<username>/posts/<slug>/). */
+export interface SeoPostRow {
+  id: string;
+  authorUsername: string;
+  title: string | null;
+  body: string;
+  kind: 'post' | 'news';
+  practiceCode: string | null;
+  language: string | null;
+  createdAt: string;
+  updatedAt: string;
+  editedAt: string | null;
+}
+
+/** A public legal question with its reviewed answers (page type /legal-questions/<slug>/). */
+export interface SeoQuestionRow {
+  id: string;
+  title: string;
+  body: string;
+  practiceCode: string | null;
+  stateCode: string | null;
+  createdAt: string;
+  updatedAt: string;
+  answers: Array<{
+    id: string;
+    attorneyUsername: string;
+    body: string;
+    /** Always true here: only answers that pass the review rules are read. */
+    reviewed: true;
+    createdAt: string;
+    updatedAt: string;
+  }>;
 }
 
 export interface SeoRenderOptions {
@@ -38,9 +81,19 @@ export interface SeoRenderOptions {
     minWords: number;
     minAttorneys: number;
     minBioChars: number;
+    minPostChars?: number;
+    minQaChars?: number;
+    minCityAttorneys?: number;
   };
   sitemapMax: number;
   prev: unknown;
+  /** Page types of 2026-10-27, all off unless the SEO_PAGES_* switch is set. */
+  pagesPosts?: boolean;
+  pagesCities?: boolean;
+  pagesQa?: boolean;
+  adLabel?: 'ny' | 'off';
+  posts?: SeoPostRow[];
+  questions?: SeoQuestionRow[];
 }
 
 export interface SeoPlan {

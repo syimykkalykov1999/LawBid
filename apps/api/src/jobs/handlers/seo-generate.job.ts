@@ -19,6 +19,8 @@ import {
   loadSeoLib,
   type SeoAttorneyRow,
   type SeoLib,
+  type SeoPostRow,
+  type SeoQuestionRow,
   type SeoRenderOptions,
 } from '../../modules/public-directory/seo-lib';
 import {
@@ -52,6 +54,13 @@ export type SeoGenerateResult =
       ms: number;
     };
 
+/**
+ * Safety valve of the post / question reads: all rows of a run live in memory
+ * (about 3 KB each). More rows than the limit refuses the run, like
+ * `seo.generator_max_attorneys`, because a partial set would delete pages.
+ */
+const DEFAULT_MAX_ROWS = 20_000;
+
 const truthy = (v: string | undefined): boolean =>
   /^(1|true|yes|on)$/i.test(v ?? '');
 const int = (v: string | undefined, fallback: number): number => {
@@ -76,10 +85,15 @@ export const pageKey = (path: string): string =>
  *
  * Does nothing unless `seo.generator_mode` is nightly or nightly+events AND
  * SEO_WEB_BUCKET + SEO_SITE_URL are set. It publishes the pages only
- * (/lawyers, /practice-areas, /attorneys); sitemap.xml, robots.txt and
- * llms.txt stay with the nightly workflow, which merges them with the company
- * site. SEO_* switches are read from the environment exactly as build.mjs
- * reads them (all off by default).
+ * (/lawyers, /practice-areas, /attorneys, /legal-questions); sitemap.xml,
+ * robots.txt and llms.txt stay with the nightly workflow, which merges them
+ * with the company site. SEO_* switches are read from the environment exactly
+ * as build.mjs reads them (all off by default).
+ *
+ * Page types of 2026-10-27: attorney posts (SEO_PAGES_POSTS), city hubs
+ * (SEO_PAGES_CITIES) and legal Q&A (SEO_PAGES_QA). Each is OFF unless its
+ * switch is set; while it is off its rows are not even read from the
+ * database, and renderSite() builds none of its pages.
  */
 @Injectable()
 export class SeoGenerateJob {
@@ -148,6 +162,28 @@ export class SeoGenerateJob {
       return { skipped: 'more attorneys than the limit' };
     }
 
+    // The page types of 2026-10-27 read their rows only when switched on.
+    const posts = truthy(this.config.get<string>('SEO_PAGES_POSTS'))
+      ? await this.readPosts(
+          int(this.config.get<string>('SEO_MAX_POSTS'), DEFAULT_MAX_ROWS),
+        )
+      : [];
+    const questions = truthy(this.config.get<string>('SEO_PAGES_QA'))
+      ? await this.readQuestions(
+          int(this.config.get<string>('SEO_MAX_QUESTIONS'), DEFAULT_MAX_ROWS),
+        )
+      : [];
+    if (!posts || !questions) {
+      this.logger.error(
+        {
+          alert: 'seo_generator_too_many',
+          type: posts ? 'questions' : 'posts',
+        },
+        'seo.generate refused: more posts or questions than SEO_MAX_POSTS / SEO_MAX_QUESTIONS (a partial set would delete pages)',
+      );
+      return { skipped: 'more posts or questions than the limit' };
+    }
+
     const lib = (this.lib ??= await loadSeoLib());
     const store = (this.store ??= createSeoWebStore({
       bucket: args.bucket,
@@ -164,7 +200,10 @@ export class SeoGenerateJob {
 
     const { files } = lib.renderSite(
       attorneys,
-      this.renderOptions(lib, args.site, today, workflowManifest),
+      this.renderOptions(lib, args.site, today, workflowManifest, {
+        posts,
+        questions,
+      }),
     );
     const html = new Map<string, string>();
     const hashes: Record<string, string> = {};
@@ -276,6 +315,35 @@ export class SeoGenerateJob {
     }
   }
 
+  /** All listed attorneys' text posts, 100 per read; null when there are more than `max`. */
+  private async readPosts(max: number): Promise<SeoPostRow[] | null> {
+    const all: SeoPostRow[] = [];
+    let cursor: string | undefined;
+    for (;;) {
+      const page = await this.directory.seoPosts({ limit: PAGE_ROWS, cursor });
+      all.push(...page.items);
+      if (all.length > max) return null;
+      if (!page.nextCursor) return all;
+      cursor = page.nextCursor;
+    }
+  }
+
+  /** All public questions with reviewed answers, 100 per read; null when there are more than `max`. */
+  private async readQuestions(max: number): Promise<SeoQuestionRow[] | null> {
+    const all: SeoQuestionRow[] = [];
+    let cursor: string | undefined;
+    for (;;) {
+      const page = await this.directory.seoQuestions({
+        limit: PAGE_ROWS,
+        cursor,
+      });
+      all.push(...page.items);
+      if (all.length > max) return null;
+      if (!page.nextCursor) return all;
+      cursor = page.nextCursor;
+    }
+  }
+
   private async readJson(
     store: SeoWebStore,
     key: string,
@@ -294,8 +362,15 @@ export class SeoGenerateJob {
     site: string,
     today: string,
     prev: unknown,
+    rows: { posts: SeoPostRow[]; questions: SeoQuestionRow[] },
   ): SeoRenderOptions {
     const env = (k: string) => this.config.get<string>(k);
+    // Thresholds of the 2026-10-27 page types: only set when the variable is,
+    // so the library's own defaults (plan §2.1) stay in one place.
+    const optional = (k: string, name: string): Record<string, number> => {
+      const v = Number.parseInt(env(k) ?? '', 10);
+      return Number.isFinite(v) && v >= 0 ? { [name]: v } : {};
+    };
     return {
       site,
       buildDate: today,
@@ -316,9 +391,20 @@ export class SeoGenerateJob {
           lib.defaultGate.minAttorneys,
         ),
         minBioChars: int(env('SEO_MIN_BIO_CHARS'), lib.defaultGate.minBioChars),
+        ...optional('SEO_MIN_POST_CHARS', 'minPostChars'),
+        ...optional('SEO_MIN_QA_CHARS', 'minQaChars'),
+        ...optional('SEO_MIN_CITY_ATTORNEYS', 'minCityAttorneys'),
       },
       sitemapMax: lib.clampMax(env('SEO_SITEMAP_MAX')),
       prev,
+      // Page types of 2026-10-27: all OFF unless their switch is set.
+      pagesPosts: truthy(env('SEO_PAGES_POSTS')),
+      pagesCities: truthy(env('SEO_PAGES_CITIES')),
+      pagesQa: truthy(env('SEO_PAGES_QA')),
+      adLabel:
+        (env('SEO_AD_LABEL') ?? '').toLowerCase() === 'off' ? 'off' : 'ny',
+      posts: rows.posts,
+      questions: rows.questions,
     };
   }
 

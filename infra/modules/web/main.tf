@@ -349,7 +349,7 @@ resource "aws_cloudfront_function" "seo_index" {
   code                         = <<-EOT
     import cf from 'cloudfront';
     var kvs = cf.kvs('${element(split("/", aws_cloudfront_key_value_store.web.arn), 1)}'); // the store ID (ARN tail); .id is the NAME and fails with KVSNamespaceNotFound
-    var PUBLIC = /^\/(lawyers|attorneys|practice-areas|about|clients|for-attorneys|features|pricing|faq|contact|download|terms|privacy|delete-account|client-agreement|attorney-agreement|eula|refunds|third-party-services|cookies|sms-consent|dmca|accessibility)(\/|$)/;
+    var PUBLIC = /^\/(lawyers|attorneys|practice-areas|legal-questions|about|clients|for-attorneys|features|pricing|faq|contact|download|terms|privacy|delete-account|client-agreement|attorney-agreement|eula|refunds|third-party-services|cookies|sms-consent|dmca|accessibility)(\/|$)/;
     var ROOT_FILES = ['/sitemap.xml', '/robots.txt', '/public-paths.txt'];
     // Owner 2026-10-23 (web speed pass): the app and the engine have a
     // brotli twin (<file>.br, uploaded by scripts/deploy/web-gzip-big.sh)
@@ -465,7 +465,7 @@ resource "aws_cloudfront_function" "app_noindex" {
       var indexable =
         uri === '/' || uri === '/index.html' ||
         /^\/releases\/[^/]+\/index\.html$/.test(uri) ||
-        /^\/(lawyers|attorneys|practice-areas|about|clients|for-attorneys|features|pricing|faq|contact|download|terms|privacy|delete-account|client-agreement|attorney-agreement|eula|refunds|third-party-services|cookies|sms-consent|dmca|accessibility)(\/|$)/.test(uri) ||
+        /^\/(lawyers|attorneys|practice-areas|legal-questions|about|clients|for-attorneys|features|pricing|faq|contact|download|terms|privacy|delete-account|client-agreement|attorney-agreement|eula|refunds|third-party-services|cookies|sms-consent|dmca|accessibility)(\/|$)/.test(uri) ||
         uri === '/sitemap.xml' || uri === '/robots.txt';
       var isFile = /\.[a-z0-9]{2,5}$/i.test(uri) && !/\/(index|spa)\.html$/.test(uri);
       if (!indexable && !isFile) {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { applyRamp, defaultGate, gateDecision, hasBannedClaim, mainText, wordCount } from '../lib/gate.mjs';
+import { applyRamp, defaultGate, gateDecision, hasBannedClaim, hasContactInfo, mainText, wordCount } from '../lib/gate.mjs';
 
 const gate = { ...defaultGate, enabled: true };
 
@@ -11,8 +11,8 @@ test('words are counted in the body only, entities decoded', () => {
 });
 
 test('banned advertising claims are caught, ordinary words are not', () => {
-  for (const t of ['The best lawyer in town', '#1 attorney', 'number one in NY', 'We guarantee results', 'Top-rated counsel', 'guaranteed win']) assert.ok(hasBannedClaim(t), t);
-  for (const t of ['Bestow a gift', 'Family law for 12 years', 'Issue #12 handled', 'The topic of ratings']) assert.ok(!hasBannedClaim(t), t);
+  for (const t of ['The best lawyer in town', '#1 attorney', 'number one in NY', 'We guarantee results', 'Top-rated counsel', 'guaranteed win', 'The best lawyer, with the best interests of your child in mind']) assert.ok(hasBannedClaim(t), t);
+  for (const t of ['Bestow a gift', 'Family law for 12 years', 'Issue #12 handled', 'The topic of ratings', 'Always in the best interests of the child', 'best interest standard']) assert.ok(!hasBannedClaim(t), t);
 });
 
 test('gate off: only the generator rule decides', () => {
@@ -58,4 +58,20 @@ test('ramp: kept pages stay, the day budget is shared by two runs, the next day 
   assert.equal(day2.admitted.get('/p/000/'), '2026-10-27');
   const dropped = applyRamp({ candidates: cands(10), prev, today: '2026-10-28', perDay: 200 });
   assert.equal(dropped.admitted.size, 10); // a page that is no longer a candidate leaves
+});
+
+test('posts, legal questions and city hubs are gated even with the quality-gate switch off', () => {
+  const off = { ...defaultGate, enabled: false };
+  assert.deepEqual(gateDecision({ kind: 'post', baseIndex: true, chars: 299, gate: off }), { index: false, reason: 'thin-post' });
+  assert.deepEqual(gateDecision({ kind: 'post', baseIndex: true, chars: 300, claimsText: 'plain text', gate: off }), { index: true, reason: null });
+  assert.deepEqual(gateDecision({ kind: 'post', baseIndex: true, chars: 900, claimsText: 'We guarantee a win', gate: off }), { index: false, reason: 'unverified-claim' });
+  assert.deepEqual(gateDecision({ kind: 'qa', baseIndex: true, chars: 120, gate: off }), { index: false, reason: 'thin-answer' });
+  assert.deepEqual(gateDecision({ kind: 'qa', baseIndex: true, chars: 400, claimsText: 'x', gate: { ...off, minQaChars: 100 } }), { index: true, reason: null });
+  assert.deepEqual(gateDecision({ kind: 'city', baseIndex: true, attorneyCount: 2, gate: off }), { index: false, reason: 'few-attorneys' });
+  assert.deepEqual(gateDecision({ kind: 'city', baseIndex: true, attorneyCount: 3, gate: off }), { index: true, reason: null });
+});
+
+test('contact data is recognised: e-mail, phone with separators, SSN; years and counts are not', () => {
+  for (const t of ['write to a.b+c@firm.example', 'call (212) 555-0199', 'call 212.555.0199', 'ssn 123-45-6789']) assert.ok(hasContactInfo(t), t);
+  for (const t of ['In 2026 we handled 120 cases', 'Section 3-4-5', 'room 212']) assert.ok(!hasContactInfo(t), t);
 });
