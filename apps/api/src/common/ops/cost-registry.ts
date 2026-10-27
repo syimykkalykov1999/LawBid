@@ -326,22 +326,30 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     purpose:
       'ecr.api, ecr.dkr, logs, secretsmanager: серверы берут образы и секреты не через интернет, трафик дешевле.',
     kind: 'aws',
-    control: tf(['interface_endpoints', 'interface_endpoint_azs'], {
-      off: 'interface_endpoints = false',
-      on: 'interface_endpoints = true',
-    }),
-    states: ['off', 'on'],
-    defaultState: 'on',
-    ceiling: null,
+    // #370: the admin switch `scale.endpoints.mode` (Выкл / Вкл / Авто):
+    // Авто creates them when NAT traffic makes them cheaper and removes them
+    // after a quiet week; the ceiling caps how many may exist.
+    control: {
+      type: 'app-setting',
+      key: 'scale.endpoints.mode',
+      map: { off: 'off', on: 'on', auto: 'auto' },
+    },
+    states: ['off', 'on', 'auto'],
+    defaultState: 'auto',
+    ceiling: setCeil(
+      'scale.endpoints.ceiling',
+      'Сколько таких «входов» автоматика может держать (0–4)',
+    ),
     price: price(
       'fixed',
       '$0,01 в час за штуку в каждой зоне ≈ $7,3; четыре штуки ≈ $29',
       U.vpc,
     ),
-    usd: { launch: R(29), k100: R(35), m1: R(60) },
-    needed: 'later',
+    usd: { launch: R(0), k100: R(15, 29), m1: R(29, 60) },
+    ifOnUsd: R(29),
+    needed: 'auto',
     neededNote:
-      'На пустом приложении почти не нужны (экономят трафик NAT). Можно выключить и вернуть позже.',
+      'На пустом приложении не нужны (Авто их не создаёт); появляются сами, когда трафик через NAT стоит дороже.',
     alarm: null,
     ceService: 'Amazon Virtual Private Cloud',
     awsTypes: ['aws_vpc_endpoint'],

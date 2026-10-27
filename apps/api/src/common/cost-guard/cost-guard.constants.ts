@@ -78,3 +78,16 @@ export const COST_WINDOWS: readonly CostWindow[] = [
   'daily',
   'monthly',
 ];
+
+/**
+ * S9-4 (2026-10-25): the global daily money brake follows the allowance.
+ * EconomyService.tick() (every 5 min) writes `allowed / 30 × brakeDays`
+ * (cents) here with a 1-day TTL; CostGuardService reads it when neither
+ * the admin (`budget.money.global_daily_cents`) nor the env
+ * (`BUDGET_GLOBAL_DAILY_CENTS` > 0) fixes the cap. No key yet (first
+ * minutes after a deploy, Redis flushed) = the launch floor below
+ * ($150 allowance / 30 × 3 days).
+ */
+export const ECONOMY_DAILY_BRAKE_KEY = 'economy:daily_brake_cents';
+export const ECONOMY_DAILY_BRAKE_TTL_SEC = 86_400;
+export const DEFAULT_DAILY_BRAKE_CENTS = 1_500;

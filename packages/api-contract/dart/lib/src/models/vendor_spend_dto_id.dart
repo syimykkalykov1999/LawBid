@@ -16,6 +16,10 @@ enum VendorSpendDtoId {
   cloudflare('cloudflare'),
   @JsonValue('stripe')
   stripe('stripe'),
+  @JsonValue('google')
+  google('google'),
+  @JsonValue('sentry')
+  sentry('sentry'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

@@ -52,7 +52,7 @@ class _GavelStrikeIconButtonState extends State<GavelStrikeIconButton>
   void _onTick() {
     if (!_hapticFired && _controller.value >= AppMotion.gavelHitProgress) {
       _hapticFired = true;
-      HapticFeedback.mediumImpact();
+      AppHaptics.medium();
     }
   }
 

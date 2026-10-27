@@ -12,9 +12,11 @@ import {
 import {
   fetchBunnySpend,
   fetchR2Usage,
+  fetchSentryUsage,
   fetchStripeFees,
   fetchTwilioSpend,
   type BunnySpend,
+  type SentryUsage,
   type R2Usage,
   type StripeFees,
   type TwilioSpend,
@@ -28,6 +30,12 @@ export const AWS_MIN_INTERVAL_MS = 6 * 3600_000;
 /** The other vendors' APIs are free; still not more than every 15 min. */
 export const OTHER_MIN_INTERVAL_MS = 15 * 60_000;
 export const SAFETY_MARGIN = 0.2;
+
+/** Characters sent to Google Translate this month (CostGuardService adds
+ * them on every guarded translation): Google bills per character, so our
+ * own counter is the usage reader (S9-11). */
+export const translateCharsKey = (now: Date) =>
+  `budget:{translate}:chars:${now.toISOString().slice(0, 7).replace('-', '')}`;
 
 export const PRICES_KEY = 'spend.prices';
 export const FIXED_KEY = 'spend.fixed_costs';
@@ -59,6 +67,22 @@ export const DEFAULT_PRICES: PriceDef[] = [
     value: 1000,
     sourceUrl: 'https://developers.cloudflare.com/realtime/turn/faq/',
     checkedAt: '2026-10-24',
+  },
+  {
+    key: 'google_translate_per_million_chars',
+    label: 'Google Translate: цена за миллион символов',
+    unit: '$ за миллион',
+    value: 20,
+    sourceUrl: 'https://cloud.google.com/translate/pricing',
+    checkedAt: '2026-10-25',
+  },
+  {
+    key: 'google_translate_free_chars',
+    label: 'Google Translate: бесплатные символы в месяц',
+    unit: 'символов',
+    value: 500000,
+    sourceUrl: 'https://cloud.google.com/translate/pricing',
+    checkedAt: '2026-10-25',
   },
   {
     key: 'r2_storage_per_gb',
@@ -133,7 +157,8 @@ export interface DayUsd {
 }
 
 export interface VendorSpend {
-  id: 'aws' | 'twilio' | 'bunny' | 'cloudflare' | 'stripe';
+  id:
+    'aws' | 'twilio' | 'bunny' | 'cloudflare' | 'stripe' | 'google' | 'sentry';
   label: string;
   /** ok: fresh; stale: the last answer failed, old numbers shown; nodata. */
   status: 'ok' | 'stale' | 'nodata';
@@ -157,6 +182,8 @@ export interface RawSpend {
   twilio?: Entry<TwilioSpend>;
   bunny?: Entry<BunnySpend>;
   stripe?: Entry<StripeFees>;
+  google?: Entry<{ chars: number }>;
+  sentry?: Entry<SentryUsage>;
   cloudflare?: Entry<{
     egressGb: number | null;
     r2: R2Usage | null;
@@ -334,6 +361,28 @@ export class SpendService {
           }
           return { egressGb: egress.egressBytes / GB, r2, r2Error };
         },
+      );
+    }
+    // S9-11: Google Translate (our character counter) and Sentry usage.
+    if (await this.secrets.has('google_translate')) {
+      next.google = await this.attempt(
+        prev.google,
+        now,
+        'google',
+        async () => ({
+          chars:
+            Number((await this.redis.get(translateCharsKey(now))) ?? 0) || 0,
+        }),
+      );
+    }
+    const sn = (await this.secrets.get('sentry'))?.fields;
+    if (
+      sn?.orgSlug &&
+      sn.statsToken &&
+      due(prev.sentry, OTHER_MIN_INTERVAL_MS)
+    ) {
+      next.sentry = await this.attempt(prev.sentry, now, 'sentry', () =>
+        fetchSentryUsage(sn.orgSlug, sn.statsToken, fetchFn),
       );
     }
     await this.redis
@@ -619,6 +668,56 @@ export function buildVendors(
       v.notes.push(
         'Цены лежат в настройках внизу страницы: у каждой указаны источник и дата проверки.',
       );
+    }
+    out.push(v);
+  }
+
+  // Google Translate: characters × price, minus the free monthly part
+  {
+    const e = raw?.google;
+    const v = base('google', 'Google Translate (переводы)', e);
+    const d = e?.data;
+    if (d) {
+      const free = p.google_translate_free_chars ?? 500000;
+      const usd =
+        (Math.max(0, d.chars - free) / 1e6) *
+        (p.google_translate_per_million_chars ?? 20);
+      v.monthToDateUsd = round2(usd);
+      v.forecastUsd = linearForecast(usd, now);
+      v.freeTier = {
+        label: 'Бесплатные символы перевода',
+        used: d.chars,
+        free,
+        unit: 'символов',
+      };
+      v.notes.push(
+        'Считается по нашему счётчику символов, отправленных в Google: Google берёт плату за символы.',
+      );
+    }
+    out.push(v);
+  }
+
+  // Sentry: counts only (the plan decides the overage price)
+  {
+    const e = raw?.sentry;
+    const v = base('sentry', 'Sentry (отчёты об ошибках)', e);
+    const d = e?.data;
+    if (d) {
+      const cats = new Set([
+        ...Object.keys(d.accepted),
+        ...Object.keys(d.dropped),
+      ]);
+      v.lines = [...cats].map((c) => ({
+        label: `Sentry: ${c}`,
+        usd: 0,
+        note: `принято ${Math.round(d.accepted[c] ?? 0)}, отброшено из-за лимита ${Math.round(d.dropped[c] ?? 0)} за 30 дней`,
+      }));
+      const lost = Object.values(d.dropped).reduce((a, b) => a + b, 0);
+      if (lost > 0) {
+        v.notes.push(
+          `Sentry отбросил ${Math.round(lost)} событий из-за лимита тарифа: часть ошибок не видна. Увеличьте лимит или включите оплату сверх тарифа.`,
+        );
+      }
     }
     out.push(v);
   }

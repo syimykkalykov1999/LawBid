@@ -499,6 +499,14 @@ export const GUIDES: Record<string, ProviderGuide> = {
         how: 'DSN проекта lawbid-admin: Client Keys (DSN). Необязательно.',
         example: 'https://abc@o123.ingest.sentry.io/458',
       },
+      orgSlug: {
+        how: 'Короткое имя организации из адреса sentry.io/organizations/<имя>/. Необязательно: нужно только странице «Расходы» (сколько событий принято и отброшено).',
+        example: 'lawbid',
+      },
+      statsToken: {
+        how: 'Settings → Auth Tokens → Create New Token с правом org:read. Необязательно, только для статистики на странице «Расходы».',
+        example: 'sntrys_…',
+      },
     },
   },
 

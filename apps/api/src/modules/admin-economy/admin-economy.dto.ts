@@ -21,27 +21,51 @@ export class EconomySettingsDto {
   @ApiProperty()
   manualWorker!: number;
   @ApiProperty()
-  smsUnitUsd!: number;
-  @ApiProperty()
-  videoUnitUsd!: number;
-  @ApiProperty()
-  translateUnitUsd!: number;
-  @ApiProperty()
   awsFallbackUsd!: number;
+  @ApiProperty({
+    description: 'The daily money brake = allowed spend / 30 × this many days.',
+  })
+  dailyBrakeDays!: number;
 }
 
 export class SpendLineDto {
-  @ApiProperty({ enum: ['aws', 'sms', 'video', 'translate'] })
-  key!: 'aws' | 'sms' | 'video' | 'translate';
+  @ApiProperty({
+    enum: [
+      'aws',
+      'sms',
+      'video',
+      'translate',
+      'id_check',
+      'email',
+      'image_moderation',
+      'cloudflare',
+    ],
+  })
+  key!:
+    | 'aws'
+    | 'sms'
+    | 'video'
+    | 'translate'
+    | 'id_check'
+    | 'email'
+    | 'image_moderation'
+    | 'cloudflare';
   @ApiProperty()
   monthToDateUsd!: number;
   @ApiProperty()
   projectedUsd!: number;
   @ApiProperty({
     enum: ['actual', 'estimate'],
-    description: 'actual = read from AWS; estimate = units × unit price.',
+    description:
+      'actual = read from the vendor; estimate = calls × price book.',
   })
   source!: 'actual' | 'estimate';
+  @ApiPropertyOptional({
+    enum: ['aws'],
+    nullable: true,
+    description: 'The AWS bill already contains this line (not added twice).',
+  })
+  coveredBy?: 'aws' | null;
 }
 
 export class EconomyFiguresDto {
@@ -109,6 +133,18 @@ export class CapacityDto {
   dbConnections!: number | null;
   @ApiPropertyOptional({ nullable: true, type: Number })
   dbMaxConnections!: number | null;
+  @ApiPropertyOptional({
+    nullable: true,
+    type: Number,
+    description: 'Allocated database disk, GB.',
+  })
+  dbStorageGb!: number | null;
+  @ApiPropertyOptional({
+    nullable: true,
+    type: Number,
+    description: 'Monthly price of that disk (gp3), USD.',
+  })
+  dbStorageUsd!: number | null;
   @ApiPropertyOptional({ nullable: true, type: String })
   redisClass!: string | null;
   @ApiPropertyOptional({ nullable: true, type: String })
@@ -194,26 +230,12 @@ export class UpdateEconomyDto {
   @Max(1000)
   manualWorker?: number;
 
-  @ApiPropertyOptional({ minimum: 0, maximum: 100 })
+  @ApiPropertyOptional({ minimum: 0.5, maximum: 31 })
   @IsOptional()
   @IsNumber()
-  @Min(0)
-  @Max(100)
-  smsUnitUsd?: number;
-
-  @ApiPropertyOptional({ minimum: 0, maximum: 100 })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(100)
-  videoUnitUsd?: number;
-
-  @ApiPropertyOptional({ minimum: 0, maximum: 100 })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(100)
-  translateUnitUsd?: number;
+  @Min(0.5)
+  @Max(31)
+  dailyBrakeDays?: number;
 
   @ApiPropertyOptional({ minimum: 0, maximum: 100_000 })
   @IsOptional()

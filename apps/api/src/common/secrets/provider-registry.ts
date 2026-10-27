@@ -1118,6 +1118,22 @@ export const PROVIDERS: ProviderDefinition[] = [
         required: false,
         pattern: /^https:\/\/[^@\s]+@[^\s]+\/\d+$/,
       },
+      // S9-11: optional, lets the «Расходы» page read how many events
+      // Sentry kept or dropped (token scope org:read).
+      {
+        name: 'orgSlug',
+        label: 'Organization slug (for usage stats)',
+        secret: false,
+        required: false,
+        pattern: /^[a-z0-9][a-z0-9-]{0,63}$/,
+      },
+      {
+        name: 'statsToken',
+        label: 'Auth token with org:read (for usage stats)',
+        secret: true,
+        required: false,
+        pattern: /^[\w.-]{20,}$/,
+      },
     ],
   },
   // Owner 2026-10-05: zero maintenance — the worker checks every hour that

@@ -34,6 +34,8 @@ export interface CapacityMetrics {
 }
 
 export interface CapacityInfo {
+  dbStorageGb: number | null;
+  dbMultiAz: boolean | null;
   dbClass: string | null;
   redisClass: string | null;
 }
@@ -96,12 +98,27 @@ export class AwsCapacityService {
     }));
   }
 
-  async dbClass(): Promise<string | null> {
-    if (!this.dbInstance) return null;
+  private async dbDescribe(): Promise<{
+    dbClass: string | null;
+    dbStorageGb: number | null;
+    dbMultiAz: boolean | null;
+  }> {
+    if (!this.dbInstance) {
+      return { dbClass: null, dbStorageGb: null, dbMultiAz: null };
+    }
     const res = await this.rdsClient().send(
       new DescribeDBInstancesCommand({ DBInstanceIdentifier: this.dbInstance }),
     );
-    return res.DBInstances?.[0]?.DBInstanceClass ?? null;
+    const d = res.DBInstances?.[0];
+    return {
+      dbClass: d?.DBInstanceClass ?? null,
+      dbStorageGb: d?.AllocatedStorage ?? null,
+      dbMultiAz: d?.MultiAZ ?? null,
+    };
+  }
+
+  async dbClass(): Promise<string | null> {
+    return (await this.dbDescribe()).dbClass;
   }
 
   private async redisGroupInfo(): Promise<{
@@ -129,11 +146,15 @@ export class AwsCapacityService {
   }
 
   async info(): Promise<CapacityInfo> {
-    const [dbClass, redisClass] = await Promise.all([
-      this.dbClass().catch(() => null),
+    const [db, redisClass] = await Promise.all([
+      this.dbDescribe().catch(() => ({
+        dbClass: null,
+        dbStorageGb: null,
+        dbMultiAz: null,
+      })),
       this.redisClass().catch(() => null),
     ]);
-    return { dbClass, redisClass };
+    return { ...db, redisClass };
   }
 
   /** Average of the last datapoints (5-minute periods over 15 minutes). */

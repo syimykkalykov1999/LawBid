@@ -65,29 +65,40 @@ class _TemplatesScreenState extends ConsumerState<TemplatesScreen> {
     final picked = await showAppBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      builder: (sheet) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(sheet).height * 0.7,
+      builder: (sheet) {
+        final maxHeight = MediaQuery.sizeOf(sheet).height * 0.7;
+        final regions = kRegions;
+        Widget row(int i) => i == 0
+            ? const AppSheetHandle()
+            : i == 1
+                ? AppListRow(
+                    label: t.t('templates.allStates'),
+                    onTap: () => Navigator.of(sheet).pop(''),
+                  )
+                : AppListRow(
+                    label: regions[i - 2].name,
+                    trailingText: regions[i - 2].code,
+                    onTap: () => Navigator.of(sheet).pop(regions[i - 2].code),
+                  );
+        final count = regions.length + 2;
+        // 2026-10-26 (smoothness P4): a list of every state (50+ rows) is
+        // always taller than the sheet's cap, so a shrink-wrapped list
+        // would only build all of its rows to end up at the cap anyway: it
+        // is a lazy list at the cap (same height). A short list (a country
+        // with few regions: rows of at least a touch target cannot fill the
+        // cap) keeps shrinking to its content.
+        final fills = (count - 1) * AppSizes.touchTarget > maxHeight;
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            child: ListView.builder(
+              shrinkWrap: !fills,
+              itemCount: count,
+              itemBuilder: (_, i) => row(i),
+            ),
           ),
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              const AppSheetHandle(),
-              AppListRow(
-                label: t.t('templates.allStates'),
-                onTap: () => Navigator.of(sheet).pop(''),
-              ),
-              for (final s in kRegions)
-                AppListRow(
-                  label: s.name,
-                  trailingText: s.code,
-                  onTap: () => Navigator.of(sheet).pop(s.code),
-                ),
-            ],
-          ),
-        ),
-      ),
+        );
+      },
     );
     if (picked == null || !mounted) return;
     setState(
