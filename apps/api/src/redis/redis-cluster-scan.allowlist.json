@@ -6,13 +6,23 @@
   },
   {
     "file": "common/cost-guard/cost-guard.service.ts",
+    "kind": "eval-spread-keys",
+    "reason": "CONSUME_LUA keys are the windows of one provider ({provider} tag) plus their :warn/:x suffixes; MONEY_LUA keys all carry {m}: one slot per script."
+  },
+  {
+    "file": "common/cost-guard/cost-guard.service.ts",
     "kind": "mget",
     "reason": "Money counters all carry the {m} hash tag (moneyCounterKey): one slot."
   },
   {
-    "file": "common/cost-guard/cost-guard.service.ts",
+    "file": "common/heavy-hitters/heavy-hitters.service.ts",
     "kind": "eval-spread-keys",
-    "reason": "CONSUME_LUA keys are the windows of one provider ({provider} tag) plus their :warn/:x suffixes; MONEY_LUA keys all carry {m}: one slot per script."
+    "reason": "the tmp and bucket keys all carry the {hh} hash tag: one slot in cluster mode."
+  },
+  {
+    "file": "common/heavy-hitters/heavy-hitters.service.ts",
+    "kind": "pipeline-raw",
+    "reason": "every key carries the {hh} hash tag, so the whole pipeline stays in one cluster slot."
   },
   {
     "file": "common/ops/status/incidents.service.ts",
@@ -21,8 +31,8 @@
   },
   {
     "file": "jobs/handlers/otp-cleanup.job.ts",
-    "kind": "scan",
-    "reason": "Cluster mode scans every master node (nodes('master')); standalone scans the one node."
+    "kind": "eval-spread-keys",
+    "reason": "Batch size is 1 in cluster mode (see the lua-multi-key note)."
   },
   {
     "file": "jobs/handlers/otp-cleanup.job.ts",
@@ -31,8 +41,8 @@
   },
   {
     "file": "jobs/handlers/otp-cleanup.job.ts",
-    "kind": "eval-spread-keys",
-    "reason": "Batch size is 1 in cluster mode (see the lua-multi-key note)."
+    "kind": "scan",
+    "reason": "Cluster mode scans every master node (nodes('master')); standalone scans the one node."
   },
   {
     "file": "modules/admin-auth/admin-session.service.ts",
@@ -56,23 +66,23 @@
   },
   {
     "file": "modules/cases/services/case-view-tracking.service.ts",
-    "kind": "multi",
-    "reason": "Restores HINCRBY on the single cv:pending key."
-  },
-  {
-    "file": "modules/cases/services/case-view-tracking.service.ts",
     "kind": "lua-multi-key",
     "reason": "RECORD_VIEW keys cv:seen:<case> and cv:pending are both ck('cv', ...): one slot."
   },
   {
-    "file": "modules/counters/counter-aggregator.service.ts",
+    "file": "modules/cases/services/case-view-tracking.service.ts",
     "kind": "multi",
-    "reason": "Restores HINCRBY on the single pending hash."
+    "reason": "Restores HINCRBY on the single cv:pending key."
   },
   {
     "file": "modules/counters/counter-aggregator.service.ts",
     "kind": "lua-multi-key",
     "reason": "BUMP keys (pending hash, touched set) of an entity are both ck(entity, ...): one slot."
+  },
+  {
+    "file": "modules/counters/counter-aggregator.service.ts",
+    "kind": "multi",
+    "reason": "Restores HINCRBY on the single pending hash."
   },
   {
     "file": "modules/feed/feed-reco.job.ts",
@@ -90,6 +100,11 @@
     "reason": "INCR+EXPIRE on one key."
   },
   {
+    "file": "modules/moderation/text-detector.service.ts",
+    "kind": "multi",
+    "reason": "INCR+EXPIRE on the single daily detect counter key."
+  },
+  {
     "file": "modules/notifications/badges.service.ts",
     "kind": "multi",
     "reason": "HSET+EXPIRE on one key."
@@ -100,24 +115,9 @@
     "reason": "All commands of each MULTI use the one presence key of the user."
   },
   {
-    "file": "modules/realtime/realtime.gateway.ts",
-    "kind": "multi",
-    "reason": "SADD+EXPIRE on one viewing key."
-  },
-  {
-    "file": "throttler/redis-throttler-storage.service.ts",
-    "kind": "multi",
-    "reason": "INCR/PEXPIRE/PTTL on the single hits key."
-  },
-  {
-    "file": "throttler/redis-throttler-storage.service.ts",
-    "kind": "lua-multi-key",
-    "reason": "hits and block keys share the tag of the throttled subject (ck(tag, ...))."
-  },
-  {
-    "file": "modules/moderation/text-detector.service.ts",
-    "kind": "multi",
-    "reason": "INCR+EXPIRE on the single daily detect counter key."
+    "file": "modules/privacy/personal-data-erasure.service.ts",
+    "kind": "scan",
+    "reason": "Cluster mode scans every master node (nodes('master')); standalone scans the one node. Matched keys are deleted with delSafe (one DEL per key in cluster mode)."
   },
   {
     "file": "modules/realtime/realtime-event-log.ts",
@@ -125,24 +125,14 @@
     "reason": "NEXT_SEQ_LUA keys rt:seq and rt:epoch both go through ck('rtseq', ...): one slot in cluster mode."
   },
   {
-    "file": "common/heavy-hitters/heavy-hitters.service.ts",
-    "kind": "pipeline-raw",
-    "reason": "every key carries the {hh} hash tag, so the whole pipeline stays in one cluster slot."
-  },
-  {
-    "file": "common/heavy-hitters/heavy-hitters.service.ts",
-    "kind": "eval-spread-keys",
-    "reason": "the tmp and bucket keys all carry the {hh} hash tag: one slot in cluster mode."
+    "file": "modules/realtime/realtime.gateway.ts",
+    "kind": "multi",
+    "reason": "SADD+EXPIRE on one viewing key."
   },
   {
     "file": "modules/staff-security/staff-card-watch.ts",
     "kind": "multi",
     "reason": "Every key of the MULTI is built with ck('adm', ...): the per-minute counter and the day hash share the {adm} hash tag, one slot in cluster mode."
-  },
-  {
-    "file": "modules/privacy/personal-data-erasure.service.ts",
-    "kind": "scan",
-    "reason": "Cluster mode scans every master node (nodes('master')); standalone scans the one node. Matched keys are deleted with delSafe (one DEL per key in cluster mode)."
   },
   {
     "file": "modules/work-lease/staff-presence.service.ts",
@@ -153,5 +143,15 @@
     "file": "modules/work-lease/staff-presence.service.ts",
     "kind": "pipeline-raw",
     "reason": "Every command of one heartbeat pipeline names a key of the same admin ({staff:<adminId>} hash tag): one slot."
+  },
+  {
+    "file": "throttler/redis-throttler-storage.service.ts",
+    "kind": "lua-multi-key",
+    "reason": "hits and block keys share the tag of the throttled subject (ck(tag, ...))."
+  },
+  {
+    "file": "throttler/redis-throttler-storage.service.ts",
+    "kind": "multi",
+    "reason": "INCR/PEXPIRE/PTTL on the single hits key."
   }
 ]

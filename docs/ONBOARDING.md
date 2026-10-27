@@ -149,7 +149,7 @@ Core list is `.cursorrules` (Russian, mandatory). The ones that matter most, gro
 - **Module boundaries** (`src/architecture/module-boundaries.spec.ts`): a module imports another
   module only through root files of that folder (`b.module.ts`, `b.service.ts`, ...), never its
   sub-folders; fan-out may not grow. Existing violations are in `module-boundaries.baseline.json`
-  and can only shrink (`UPDATE_BOUNDARIES=1 npx jest src/architecture` after you fix one).
+  and can only shrink; regenerate it with `npm run arch:baseline --workspace apps/api` (never edit it by hand; `-- --approve` accepts an intended new dependency).
 - **Shard manifest** (`src/sharding/shard-manifest.ts`): every Prisma model belongs to exactly one family
   (`global`, `case`, `user`, `content`) and sharded ones declare how the shard is found
   (`owner(field)` or `parent(field, Model)`). A new model without a family fails
