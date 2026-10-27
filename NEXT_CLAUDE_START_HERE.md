@@ -1240,3 +1240,4 @@ PRINCIPLE (owner 07:55): assume the attacker is an automated AI (tireless, tries
 - NEXT after helpers report: 20:30 coordinator added ALL open dependabot PRs (428 429 431 432 433 435 436 438 439 250 248) to scratchpad/skip.txt — the loop re-reads it each round, so no more auto-merged majors. Train v2 patches automerge.sh to skip dependabot/* by branch too.
 - NEXT after helpers report: 20:27 automerge.sh patched: never merges dependabot/* heads (loop re-reads the script, no restart). #441 revert on CI.
 - NEXT after helpers report: 20:49 train v2 pushed giant #347 (main merged, migration → 20261107130000); #441 revert still on CI; loop dependabot-safe.
+- NEXT after helpers report: 21:00 #441 revert widened to include the Sentry 11 major (sendDefaultPii broke admin CI); #442 closed as superseded. Loop skip list + dependabot/* guard in place.
