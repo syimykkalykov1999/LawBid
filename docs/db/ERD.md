@@ -3347,6 +3347,17 @@ erDiagram
     Json value
     DateTime updated_at
   }
+  attorney_ad_archive {
+    String id PK
+    String attorney_id
+    String kind
+    String source_id
+    Int version
+    String content
+    String content_hash
+    DateTime created_at
+    DateTime retain_until
+  }
   domain_events {
     String id PK
     String type

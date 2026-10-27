@@ -2,6 +2,7 @@ import { RuntimeStatsModule } from '../common/ops/runtime-stats.service';
 import { SloMetricsModule } from '../common/ops/slo-metrics.service';
 import { ServerTextsModule } from '../common/i18n/server-texts.service';
 import { CountriesCoreModule } from '../modules/countries/countries.module';
+import { AttorneyAdsCoreModule } from '../modules/attorney-ads/attorney-ads.module';
 import { Module } from '@nestjs/common';
 import { VersionEtagModule } from '../common/sync/version-etag.module';
 import { LoggerModule } from 'nestjs-pino';
@@ -84,6 +85,7 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     ClientFraudCoreModule,
 
     CountriesCoreModule,
+    AttorneyAdsCoreModule,
     JobsModule.register({ mode: 'worker' }),
     // docs/03 stage 3.2: antivirus scan + image processing (`files` queue).
     FilesWorkerModule,

@@ -258,6 +258,8 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/legal-documents', label: 'Юридические документы', icon: 'file-text', area: 'legal', hint: 'все документы: черновики, публикация, история' },
       // Owner 2026-10-05 (legal): DMCA notices, disclaimers, incident contact.
       { href: '/legal-settings', label: 'Право и жалобы', icon: 'scales', area: 'legal', hint: 'DMCA, дисклеймеры, контакт при инцидентах' },
+      // Owner 2026-10-28: what attorneys write about themselves (NY RPC 7.1), archive, bid-pack flags.
+      { href: '/attorney-ads', label: 'Реклама адвокатов', icon: 'megaphone', area: 'legal', hint: 'проверка текстов, оговорки, архив копий по штатам' },
       { href: '/data-requests', label: 'Запросы госорганов', icon: 'bank', area: 'data_requests' },
     ],
   },

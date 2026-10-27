@@ -6,6 +6,7 @@ import { imageFormatContext } from '../../files/files.public';
 import { REDIS_CACHE_CLIENT } from '../../../redis/redis.constants';
 import { attorneyPublicUrl } from '../../../common/utils/public-urls';
 import { AttorneyAdvertisingService } from '../../countries/attorney-advertising.service';
+import { AttorneyAdsService } from '../../attorney-ads/attorney-ads.service';
 import { UsernamePolicyService } from '../../usernames/username-policy.service';
 import { AttorneyStatsDto } from '../dto/attorney-stats.dto';
 import {
@@ -114,6 +115,8 @@ type PublicCore = Pick<
   | 'languages'
   | 'verifiedBadge'
   | 'advertisingLabel'
+  | 'sponsored'
+  | 'advertisingDisclaimer'
   | 'publicUrl'
   | 'trustLevel'
   | 'licensedStates'
@@ -154,13 +157,31 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     // Caching round 2 (S2-8): the viewer-independent body of the public
     // profile is cached per username on the evictable cache Redis.
     @Optional() @Inject(REDIS_CACHE_CLIENT) private readonly cache?: Redis,
+    // Owner 2026-10-28: ad-text checker + archive for the bio.
+    @Optional() private readonly ads?: AttorneyAdsService,
     // DB-ops S5-6: the public profile row may be a few seconds old.
     @Optional() private readonly read?: PrismaReadService,
   ) {}
 
   /** «Attorney Advertising» for an attorney licensed in [stateCodes]. */
-  private async labelFor(stateCodes: Iterable<string>): Promise<boolean> {
-    return (await this.advertising?.requiresLabel(stateCodes)) ?? false;
+  private async labelFor(
+    attorneyId: string,
+    stateCodes: Iterable<string>,
+  ): Promise<boolean> {
+    return (await this.advertising?.labelFor(attorneyId, stateCodes)) ?? false;
+  }
+
+  /** The per-state results disclaimer under the bio (owner 2026-10-28). */
+  private async disclaimerFor(
+    attorneyId: string,
+    bio: string | null,
+  ): Promise<string | null> {
+    if (!this.advertising || !bio) return null;
+    return this.advertising.disclaimerFor(
+      await this.advertising.resultsDisclaimers([attorneyId]),
+      attorneyId,
+      bio,
+    );
   }
 
   private publicUrl(username: string): string {
@@ -212,10 +233,12 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       // (AttorneyTrustService keeps attorney_profiles.trust_badge).
       verifiedBadge: row.trust_badge,
       advertisingLabel: await this.labelFor(
+        row.user_id,
         row.licenses
           .filter((l) => l.license_status === 'verified')
           .map((l) => l.state_code),
       ),
+      advertisingDisclaimer: await this.disclaimerFor(row.user_id, row.bio),
       publicUrl: this.publicUrl(row.username),
       trustLevel: row.trust_level,
       nameMismatch: row.name_mismatch,
@@ -257,6 +280,9 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     const cooldownDays = await this.settings.number(
       'profile.username_change_cooldown_days',
     );
+    // Owner 2026-10-28: the bio is attorney advertising — checked per the
+    // attorney's states (off by default).
+    if (dto.bio) await this.ads?.enforce(userId, [dto.bio]);
 
     const touched = new Set<string>();
     try {
@@ -357,6 +383,8 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     }
     // S2-8: the cached public body of the old and new @username is stale.
     await this.dropPublicCore(...touched);
+    if (dto.bio)
+      await this.ads?.archive(userId, 'profile_bio', userId, dto.bio);
     return this.getOwn(userId, now);
   }
 
@@ -583,6 +611,10 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       languages: core.languages,
       verifiedBadge: core.verifiedBadge,
       advertisingLabel: core.advertisingLabel,
+      sponsored: core.sponsored,
+      advertisingDisclaimer: aboutOk.has(core.userId)
+        ? core.advertisingDisclaimer
+        : null,
       publicUrl: core.publicUrl,
       trustLevel: core.trustLevel,
       licensedStates: core.licensedStates,
@@ -682,6 +714,11 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       ]);
     const plus = (base: number, m: Map<string, number>) =>
       Math.max(0, base + (m.get(row.user_id) ?? 0));
+    // One cached query for both advertising flags (review R-72).
+    const flags = (await this.advertising?.profileFlags(
+      row.user_id,
+      states.keys(),
+    )) ?? { advertisingLabel: false, sponsored: false };
     return {
       userId: row.user_id,
       stamp: `${row.updated_at.toISOString()}|${row.user.updated_at.toISOString()}`,
@@ -696,7 +733,11 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       avatarUrl256: avatar.url256 ?? null,
       languages: row.languages,
       verifiedBadge: row.trust_badge,
-      advertisingLabel: await this.labelFor(states.keys()),
+      advertisingLabel: flags.advertisingLabel,
+      sponsored: flags.sponsored,
+      // Union (#368 cache + #352): computed for every viewer here; the
+      // viewer layer hides it when the bio itself is hidden («about_from»).
+      advertisingDisclaimer: await this.disclaimerFor(row.user_id, row.bio),
       publicUrl: this.publicUrl(row.username),
       trustLevel: row.trust_level,
       licensedStates: [...states].map(([code, name]) => ({ code, name })),
