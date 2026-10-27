@@ -27,6 +27,9 @@ AdminMeDto _$AdminMeDtoFromJson(Map<String, dynamic> json) => AdminMeDto(
   countries: (json['countries'] as List<dynamic>)
       .map((e) => e as String)
       .toList(),
+  workspace: AdminMeDtoWorkspace.fromJson(json['workspace'] as String),
+  workspaceHead: json['workspaceHead'] as bool,
+  workspacesEnabled: json['workspacesEnabled'] as bool,
   countryTabs: (json['countryTabs'] as List<dynamic>)
       .map((e) => AdminCountryTabDto.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -59,6 +62,9 @@ Map<String, dynamic> _$AdminMeDtoToJson(
   'countryPartnerId': ?instance.countryPartnerId,
   'partnerLead': instance.partnerLead,
   'countries': instance.countries,
+  'workspace': instance.workspace.toJson(),
+  'workspaceHead': instance.workspaceHead,
+  'workspacesEnabled': instance.workspacesEnabled,
   'countryTabs': instance.countryTabs.map((e) => e.toJson()).toList(),
   'securityQuestion': ?instance.securityQuestion,
   'reasonRequiredAreas': instance.reasonRequiredAreas,

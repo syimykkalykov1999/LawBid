@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Me } from '@/lib/hooks';
-import { can, sectionsFor } from '@/lib/rbac';
+import { canOpen, sectionsFor } from '@/lib/rbac';
 import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { ICONS } from './icons';
@@ -59,7 +59,7 @@ export function CommandPalette({ me, open, setOpen }: { me: Me | undefined; open
         return { id: x.href, label: x.label, hint: x.hint, icon: I ? <I size={18} weight="light" /> : null, run: go(x.href) };
       });
     const extra: Item[] = [];
-    if (s && me && can(me, 'users')) {
+    if (s && me && canOpen(me, '/users')) {
       extra.push({
         id: 'find-user',
         label: `Найти пользователя «${q.trim()}»`,

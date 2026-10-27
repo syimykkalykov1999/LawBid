@@ -4,10 +4,11 @@ import { AnimatePresence, m } from 'motion/react';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useMe } from '@/lib/hooks';
-import { canOpen, sectionFor } from '@/lib/rbac';
+import { canOpen, navModeFor, sectionFor } from '@/lib/rbac';
 import { cn } from '@/lib/utils';
 import { BottomNav } from './bottom-nav';
 import { CommandPalette } from './command-palette';
+import { DeskTabs } from './desk-tabs';
 import { SectionTabs } from './section-tabs';
 import { StepUpHost } from './step-up-host';
 import { Sidebar } from './sidebar';
@@ -33,6 +34,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Owner 2026-10-05: a section without the right doesn't exist for this
   // admin — not in the menu, and a typed URL shows "not found".
   const hidden = !!me && !!sectionFor(pathname) && !canOpen(me, pathname);
+  // Staff package T2: while workspaces are on, a worker of mass / finance
+  // has no left menu, no drawer and no bottom bar — one page with tabs.
+  const desk = navModeFor(me) === 'desk';
 
   const toggleCollapsed = () => {
     setCollapsed((c) => {
@@ -54,16 +58,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="absolute -right-40 bottom-0 h-[380px] w-[560px] rounded-full bg-brand-navy/[0.06] blur-[120px] dark:bg-[#1b3170]/25" />
       </div>
 
-      <m.aside
-        animate={{ width: collapsed ? 76 : 264 }}
-        transition={{ type: 'spring', stiffness: 380, damping: 36 }}
-        className="fixed inset-y-0 left-0 z-30 hidden border-r border-line bg-canvas/80 backdrop-blur-xl lg:block"
-      >
-        <Sidebar me={me} collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
-      </m.aside>
+      {desk ? null : (
+        <m.aside
+          animate={{ width: collapsed ? 76 : 264 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 36 }}
+          className="fixed inset-y-0 left-0 z-30 hidden border-r border-line bg-canvas/80 backdrop-blur-xl lg:block"
+        >
+          <Sidebar me={me} collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
+        </m.aside>
+      )}
 
       <AnimatePresence>
-        {drawer ? (
+        {drawer && !desk ? (
           <m.div className="fixed inset-0 z-50 lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="absolute inset-0 bg-[#05060a]/50 backdrop-blur-sm" onClick={() => setDrawer(false)} />
             <m.aside
@@ -79,12 +85,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         ) : null}
       </AnimatePresence>
 
-      <div className={cn('relative min-w-0 overflow-x-clip transition-[padding] duration-300', collapsed ? 'lg:pl-[76px]' : 'lg:pl-[264px]')}>
+      <div className={cn('relative min-w-0 overflow-x-clip transition-[padding] duration-300', desk ? '' : collapsed ? 'lg:pl-[76px]' : 'lg:pl-[264px]')}>
         <Topbar me={me} onMenu={() => setDrawer(true)} onSearch={() => setPalette(true)} />
         <main className="mx-auto w-full max-w-[1480px] px-3 pt-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-7 lg:px-10 lg:py-9">
           {/* Owner 2026-10-07: the tabs stay put while the page below
               changes, so a far-right tab doesn't throw the strip back. */}
-          {hidden ? null : <SectionTabs me={me} />}
+          {hidden ? null : desk ? <DeskTabs me={me} /> : <SectionTabs me={me} />}
           <m.div
             key={pathname}
             initial={{ opacity: 0, y: 8 }}
@@ -102,7 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </m.div>
         </main>
       </div>
-      <BottomNav me={me} onMore={() => setDrawer(true)} />
+      {desk ? null : <BottomNav me={me} onMore={() => setDrawer(true)} />}
       <CommandPalette me={me} open={palette} setOpen={setPalette} />
     </div>
   );

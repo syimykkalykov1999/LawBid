@@ -22,7 +22,7 @@ export function SectionTabs({ me }: { me: Me | undefined }) {
   return (
     <OverflowTabs
       className="mb-6"
-      label={groupFor(pathname)?.label}
+      label={groupFor(pathname, me)?.label}
       active={sectionFor(pathname)?.href}
       items={tabs.map((t) => ({
         href: t.href,

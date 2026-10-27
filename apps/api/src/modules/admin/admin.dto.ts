@@ -27,6 +27,11 @@ export const ADMIN_ROLES = [
 ] as const;
 export type AdminRoleName = (typeof ADMIN_ROLES)[number];
 
+/** Staff package T2: the three workspaces (same keys as the enum
+ * `admin_workspace` in the database). */
+export const ADMIN_WORKSPACES = ['mass', 'finance', 'owner'] as const;
+export type AdminWorkspaceName = (typeof ADMIN_WORKSPACES)[number];
+
 // ---- Администраторы (docs/06 §2.3 item 13) ------------------------------
 
 export class CreateAdminDto {
@@ -127,6 +132,34 @@ export class SetAdminRoleDto {
   role!: AdminRoleName;
 }
 
+/** Staff package T2: `GET /admin/admins?workspace=mass`. */
+export class ListAdminsQueryDto {
+  @ApiPropertyOptional({
+    enum: ADMIN_WORKSPACES,
+    description: 'Only the admins of this workspace.',
+  })
+  @IsOptional()
+  @IsIn(ADMIN_WORKSPACES)
+  workspace?: AdminWorkspaceName;
+}
+
+/** Staff package T2 (owner only). */
+export class SetAdminWorkspaceDto {
+  @ApiProperty({ enum: ADMIN_WORKSPACES })
+  @IsIn(ADMIN_WORKSPACES)
+  workspace!: AdminWorkspaceName;
+}
+
+/** Staff package T2 (owner only). */
+export class SetAdminHeadDto {
+  @ApiProperty({
+    description:
+      'true = make this admin the head of their workspace; false = clear it.',
+  })
+  @IsBoolean()
+  head!: boolean;
+}
+
 export class AdminIdParamDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('all')
@@ -188,6 +221,19 @@ export class AdminAccountDto {
 
   @ApiProperty({ description: 'This admin is the country partner themself.' })
   partnerLead!: boolean;
+
+  @ApiProperty({
+    enum: ADMIN_WORKSPACES,
+    description:
+      'Staff package: the workspace this admin works in (the super admin is always the owner).',
+  })
+  workspace!: AdminWorkspaceName;
+
+  @ApiProperty({
+    description:
+      'Staff package: the head of that workspace (one per workspace, none in finance).',
+  })
+  workspaceHead!: boolean;
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   lastLoginAt!: string | null;
