@@ -27,3 +27,5 @@ Related: [[prod-state-2026-10-24]]
 
 
 Owner clarification (2026-10-26): the rule is "nothing is turned ON before launch" (not "nothing is turned off"): every growth/billable feature stays OFF by default, with a 3-state admin control Выкл/Вкл/Авто and a guide in admin «Инструкции»; it turns on automatically by a growth signal, or by the admin button, or by following the guide — only when actually needed.
+
+- Owner 2026-10-27 (standing rule for every feature, old and new, without being told item by item): always apply the whole performance/cost discipline automatically — caching (device cache, CDN, Redis, ETag), compression, no heavy work in the request path (BullMQ jobs), no heavy DB queries (snapshots, indexes, pagination), small payloads, S3 for files not DB, nothing that loads the server or the DB. He gives the logic once; I apply it everywhere («чтобы я не перечислял каждый момент»). Every PR states load/cost impact.
