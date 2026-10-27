@@ -30,6 +30,7 @@ import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import { PartitionService } from '../../partitioning/partition.service';
 import { ReplicaAdminService } from '../../prisma/replica-admin.service';
 import {
+  BackfillRunDto,
   HeavyHittersDto,
   HeavyJobsDto,
   PartitionCardDto,
@@ -44,6 +45,7 @@ import {
   SystemHealthDto,
   UpdateOpsSettingsDto,
 } from './admin-ops.dto';
+import { BackfillsService } from './backfills.service';
 import { HeavyHittersReportService } from './heavy-hitters-report.service';
 import { QueueAdminService } from './queue-admin.service';
 import { ScaleService } from './scale.service';
@@ -74,6 +76,7 @@ export class AdminOpsController {
     private readonly heavyHitters: HeavyHittersReportService,
     private readonly partitions: PartitionService,
     private readonly replica: ReplicaAdminService,
+    private readonly backfills: BackfillsService,
     private readonly queues: QueueAdminService,
   ) {}
 
@@ -275,6 +278,54 @@ export class AdminOpsController {
   @ApiEnvelopeResponse(HeavyHittersDto)
   getHeavyHitters(): Promise<HeavyHittersDto> {
     return this.heavyHitters.report();
+  }
+
+  @Get('backfills')
+  @ApiOperation({
+    summary: 'Batched data backfills: progress, state, why one is waiting',
+  })
+  @ApiEnvelopeResponse(BackfillRunDto, { isArray: true })
+  listBackfills(): Promise<BackfillRunDto[]> {
+    return this.backfills.list();
+  }
+
+  @Post('backfills/:name/:action')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Pause / resume / abort a backfill (needs step-up)',
+  })
+  @ApiEnvelopeResponse(BackfillRunDto, { isArray: true })
+  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED], 404: [E.NOT_FOUND] })
+  async actOnBackfill(
+    @CurrentAdmin() admin: AdminActor,
+    @Param('name') name: string,
+    @Param('action') action: string,
+  ): Promise<BackfillRunDto[]> {
+    await this.auth.assertStepUp(admin.sessionId);
+    if (
+      !/^[a-z0-9][a-z0-9-]{0,79}$/.test(name) ||
+      !['pause', 'resume', 'abort'].includes(action)
+    ) {
+      throw new HttpException(
+        { code: E.NOT_FOUND, message: 'No such backfill action.' },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    const ok = await this.backfills.act(
+      name,
+      action as 'pause' | 'resume' | 'abort',
+    );
+    if (!ok) {
+      throw new HttpException(
+        {
+          code: E.NOT_FOUND,
+          message: 'Nothing to do: unknown backfill or wrong state.',
+        },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    await this.log(admin, `ops.backfill_${action}`, { name });
+    return this.backfills.list();
   }
 
   @Post('restart-worker')

@@ -38,8 +38,8 @@ Another Claude account may pick this up. Read ALL of this before doing anything.
 - **Load-test IAM state (local):** `.claude/worktrees/tf-plan/infra/bootstrap-loadtest/terraform.tfstate`, backed up to `s3://lawbid-prod-tfstate/bootstrap-loadtest/terraform.tfstate`. Keep the tf-plan worktree; do not delete it.
 - **Prod state:** `s3://lawbid-prod-tfstate/prod/terraform.tfstate`, init with `-backend-config=backend.hcl` in envs/prod.
 - **Docs to read:**
-  - docs/architecture/: SHARDING_READY, DB_POOLER, DB_AUTOSCALE, REDIS_AUTOSCALE, SEARCH_READY, R2_PUBLIC_MEDIA, GROUP_CALLS_CLOUDFLARE_SFU, BENCHMARK_BIG_APPS, P0_AND_COST_PLAN.
-  - docs/runbooks/: DNS_TO_CLOUDFLARE, TURN, db-autoscale, redis-autoscale, DB_POOLER, batch-a-owner, paging, restore-drill, nat-endpoints.
+  - docs/architecture/: SHARDING_READY, DB_POOLER, DB_AUTOSCALE, REDIS_AUTOSCALE, SEARCH_READY, R2_PUBLIC_MEDIA, ONLINE_DDL, GROUP_CALLS_CLOUDFLARE_SFU, BENCHMARK_BIG_APPS, P0_AND_COST_PLAN.
+  - docs/runbooks/: DNS_TO_CLOUDFLARE, TURN, db-autoscale, pg-repack, redis-autoscale, DB_POOLER, batch-a-owner, paging, restore-drill, nat-endpoints.
 - **Pending-owner checklist (memory):** `~/.claude/projects/-Users-sima-Desktop-LawBid/memory/release-checklist-2026-10-24.md`. Read MEMORY.md and all the files it links.
 
 ## 3. State at handoff
