@@ -207,6 +207,24 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
       'iPhone Spotlight search finds the attorney profiles and saved posts the user opened (on-device index only); off = stop adding',
   },
   {
+    // Owner 2026-10-22 (decision A1): browsing without an account. Default
+    // on; the phone's first-paint value is a hand-written line in
+    // default_feature_flags.dart, so no `app: true` (it would duplicate it).
+    key: 'guest_browsing',
+    enabled: true,
+    description:
+      'Browse without an account: the feed, search and public profiles open for a guest; every action asks to sign in',
+  },
+  {
+    // Owner 2026-10-22 (checklist §27): the store's «Rate LawBid» dialog.
+    // Default off until the store listings exist; hand-written Dart line
+    // too, so no `app: true`.
+    key: 'in_app_review',
+    enabled: false,
+    description:
+      "The store's «Rate LawBid» dialog, shown once after a positive moment (iOS and Android)",
+  },
+  {
     // Owner 2026-10-13: sign in with a password, no SMS each time.
     key: 'password_login',
     enabled: true,

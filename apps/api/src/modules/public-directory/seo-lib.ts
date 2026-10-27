@@ -70,6 +70,8 @@ export interface SeoLib {
     today: string;
     maxInvalidations?: number;
     built?: Record<string, unknown>;
+    /** Never a wildcard path: what is over the budget waits for the cache. */
+    exactOnly?: boolean;
   }) => SeoPlan;
   deleteBatches: (
     keys: string[],
