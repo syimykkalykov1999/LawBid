@@ -5,6 +5,7 @@ import {
 import { ApnsVoipSender } from './apns-voip.sender';
 import { VoipTokensService } from './voip-tokens.service';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import { APP_SETTINGS } from '../../../common/app-settings/app-settings.defaults';
 import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
 import { emailFlowsOn } from '../../feature-flags/email-flows';
 import {
@@ -31,7 +32,7 @@ import {
   DEFAULT_PUSH,
   EMAIL_TYPES,
   LOCKED_CATEGORIES,
-  QUIET_EXEMPT,
+  quietHoursApply,
   quietHoursEnd,
 } from '../notification-rules';
 import { topicOf } from '../notification-topics';
@@ -609,7 +610,14 @@ export class PushDispatcher
     ) {
       return 'disabled';
     }
-    if (!data.deferred && !QUIET_EXEMPT.has(n.type)) {
+    if (
+      !data.deferred &&
+      quietHoursApply(
+        n.type,
+        (await this.appSettings?.boolean('case_alerts.urgent_fast_enabled')) ??
+          APP_SETTINGS['case_alerts.urgent_fast_enabled'],
+      )
+    ) {
       const until = await this.quietUntil(n.user_id);
       if (until) {
         await this.queue.defer(data, until, jobId || n.id);

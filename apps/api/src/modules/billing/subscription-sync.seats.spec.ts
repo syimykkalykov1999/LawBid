@@ -46,6 +46,7 @@ describe('SubscriptionSyncService seats', () => {
       payment: {
         count: jest.fn().mockResolvedValue(1),
         upsert: jest.fn().mockResolvedValue({}),
+        findUnique: jest.fn().mockResolvedValue(null),
       },
       assistantSeatChange: {
         findFirst: jest.fn(({ where }: { where: Record<string, unknown> }) =>

@@ -55,6 +55,10 @@ export interface CaseFanoutJob {
   demo?: boolean;
   /** Shard context of the enqueuer, `case:<uuid>` (forCase). */
   shardKey?: string;
+  /** Algo audit 2026-10-27 (C-1/M-2): `cases.alert_generation` when the
+   * job was queued; part of the job id so a re-alert is never swallowed
+   * by a stored job of the first round. */
+  generation?: number;
 }
 
 /**
@@ -128,17 +132,25 @@ export class CaseFanoutService
     await this.queue?.close();
   }
 
-  /** The dedupe key of a case's alert rows. */
-  static key(caseId: string): string {
-    return `case_fanout:${caseId}`;
+  /** The dedupe key of a case's alert rows. Generation 0 (the first
+   * round) keeps the old key, so rows written before the column existed
+   * still count as "already alerted"; a re-alert (C-1: practice / states
+   * changed, back from a pause) gets its own key. */
+  static key(caseId: string, generation = 0): string {
+    return generation > 0
+      ? `case_fanout:${caseId}:g${generation}`
+      : `case_fanout:${caseId}`;
   }
 
-  static jobId(caseId: string, wave: number): string {
-    return `casefanout-${caseId}-w${wave}`;
+  static jobId(caseId: string, wave: number, generation = 0): string {
+    return generation > 0
+      ? `casefanout-${caseId}-g${generation}-w${wave}`
+      : `casefanout-${caseId}-w${wave}`;
   }
 
   /** Queues wave 1 (delayed for a suspicious client). Returns the number
-   * of alerts sent right here (switch off / no Redis), 0 when queued. */
+   * of alerts sent right here (no Redis, or queue_mode off while the waves
+   * are off), 0 when queued. */
   async start(caseId: string): Promise<number> {
     const s = await loadFanoutSettings(this.settings);
     let delayMs = 0;
@@ -147,17 +159,26 @@ export class CaseFanoutService
       if (g === 'none') return 0;
       if (g === 'small') delayMs = s.fraudDelayMinutes * 60_000;
     }
-    const job: CaseFanoutJob = { caseId, wave: 1 };
-    if (!this.queue || !s.enabled) {
-      // Switch off (default) = today's behaviour: everybody right here,
-      // in this call, so the alerts are delivered at once (no ranking, no
-      // stats queries, review R-32). No Redis: the same, there is no queue
-      // for waves.
+    const kase = await this.prisma.case.findUnique({
+      where: { id: caseId },
+      select: { alert_generation: true },
+    });
+    if (!kase) return 0;
+    const job: CaseFanoutJob = {
+      caseId,
+      wave: 1,
+      generation: kase.alert_generation,
+    };
+    // Algo audit 2026-10-27 (H-1): with Redis, the work always goes
+    // through the queue (3 attempts, backoff) — also while the waves switch
+    // is off: then it is one legacy wave to everyone, run by the worker
+    // instead of inside the API request, where a restart or a short DB
+    // outage lost the alerts for good. Inline only without Redis (tests,
+    // dev) or when the owner set `case_fanout.queue_mode` = off.
+    if (!this.queue || (!s.enabled && s.queueMode === 'off')) {
       const out = await this.runWave(job);
       return 'sent' in out ? out.sent : 0;
     }
-    // Switch on: the work (audience query, de-dupe lookups, the sends) runs
-    // in the worker, never in the API request.
     await this.enqueue(job, delayMs);
     return 0;
   }
@@ -173,7 +194,11 @@ export class CaseFanoutService
       },
       {
         ...JOB_OPTS,
-        jobId: CaseFanoutService.jobId(job.caseId, job.wave),
+        jobId: CaseFanoutService.jobId(
+          job.caseId,
+          job.wave,
+          job.generation ?? 0,
+        ),
         delay: delayMs,
       },
     );
@@ -311,9 +336,18 @@ export class CaseFanoutService
         paused_at: true,
         bids_count: true,
         created_at: true,
+        alert_generation: true,
       },
     });
     if (!kase || kase.status !== 'open' || kase.deleted_at || kase.paused_at) {
+      return { done: 'closed' };
+    }
+    // A wave queued for an earlier generation (the client changed the
+    // practice again before it ran) is superseded by the newer round.
+    if (
+      job.generation !== undefined &&
+      job.generation < kase.alert_generation
+    ) {
       return { done: 'closed' };
     }
     // enabled=false: the old behaviour — one wave to everyone.
@@ -332,7 +366,7 @@ export class CaseFanoutService
 
     const aud = await this.audience.forCase(caseId);
     if (!aud.found) return { done: 'closed' };
-    const key = CaseFanoutService.key(caseId);
+    const key = CaseFanoutService.key(caseId, kase.alert_generation);
     const ids = aud.candidates.map((c) => c.id);
     const reached = new Set<string>();
     for (let i = 0; i < ids.length; i += 5000) {
@@ -359,9 +393,12 @@ export class CaseFanoutService
     const cappedIds = new Set(capped.map((c) => c.id));
     const eligible = pool.filter((c) => !cappedIds.has(c.id));
 
+    // Algo audit 2026-10-27 (H-2): an urgent case does not wait for the
+    // 10-minute slices — the whole audience in this wave.
+    const urgentFast = aud.urgent && s.urgentFast && !small;
     const size = Math.min(
       budget,
-      legacy || (!this.queue && !small)
+      legacy || urgentFast || (!this.queue && !small)
         ? // No queue (no Redis) cannot run later waves: everyone now.
           CASE_ALERT_REACH_MAX
         : small
@@ -436,7 +473,12 @@ export class CaseFanoutService
     const more = !legacy && !small && remaining > 0 && wave < s.maxWaves;
     if (more && this.queue) {
       await this.enqueue(
-        { caseId, wave: wave + 1, firstBidLogged: bidsFirst },
+        {
+          caseId,
+          wave: wave + 1,
+          firstBidLogged: bidsFirst,
+          generation: kase.alert_generation,
+        },
         s.waveIntervalMinutes * 60_000,
       );
     }

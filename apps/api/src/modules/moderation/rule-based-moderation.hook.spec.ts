@@ -13,39 +13,21 @@ function hook(overrides: Partial<Record<string, unknown>> = {}) {
     'moderation.hold_terms': ['guaranteed win'],
     'moderation.max_links': 3,
     'moderation.duplicate_window_hours': 24,
+    'moderation.duplicate_min_chars': 5,
     ...overrides,
   };
   const settings = {
     stringList: (k: string) => Promise.resolve(values[k] as string[]),
     number: (k: string) => Promise.resolve(values[k] as number),
   } as unknown as AppSettingsService;
-  const counts = new Map<string, number>();
+  // Algo audit 2026-10-27 (C-3): check() only reads (EXISTS); record()
+  // writes the key (SET EX) once the object was created.
+  const seen = new Set<string>();
   const redis = {
-    incr: (k: string) => {
-      const n = (counts.get(k) ?? 0) + 1;
-      counts.set(k, n);
-      return Promise.resolve(n);
-    },
-    expire: () => Promise.resolve(1),
-    // The hook counts through MULTI (INCR + EXPIRE atomically).
-    multi() {
-      const ops: (() => Promise<unknown>)[] = [];
-      const chain = {
-        incr: (k: string) => {
-          ops.push(() => redis.incr(k));
-          return chain;
-        },
-        expire: () => {
-          ops.push(() => Promise.resolve(1));
-          return chain;
-        },
-        exec: async () => {
-          const out: [null, unknown][] = [];
-          for (const op of ops) out.push([null, await op()]);
-          return out;
-        },
-      };
-      return chain;
+    exists: (k: string) => Promise.resolve(seen.has(k) ? 1 : 0),
+    set: (k: string) => {
+      seen.add(k);
+      return Promise.resolve('OK');
     },
   } as unknown as Redis;
   return new RuleBasedModerationHook(settings, redis);
@@ -78,11 +60,26 @@ describe('RuleBasedModerationHook (docs/06 §3.3)', () => {
       'hold',
     );
     expect(await h.check('Same text again', ctx)).toBe('allow');
+    // Not recorded yet (the post failed to save): still not a repeat.
+    expect(await h.check('Same text again', ctx)).toBe('allow');
+    await h.record('Same text again', ctx);
     expect(await h.check('same TEXT again!', ctx)).toBe('hold');
     // Another author is a different key.
     expect(await h.check('Same text again', { ...ctx, authorId: 'a2' })).toBe(
       'allow',
     );
+  });
+
+  // Algo audit 2026-10-27 (CONTENT C-3).
+  it('short texts never count as a repeat («Спасибо» twice a day)', async () => {
+    const h = hook({ 'moderation.duplicate_min_chars': 20 });
+    const c = { kind: 'comment' as const, authorId: 'a1' };
+    await h.record('Спасибо', c);
+    expect(await h.check('Спасибо', c)).toBe('allow');
+    await h.record('Thank you very much for the detailed answer', c);
+    expect(
+      await h.check('Thank you very much for the detailed answer', c),
+    ).toBe('hold');
   });
 
   it('turns rules off with zero thresholds', async () => {

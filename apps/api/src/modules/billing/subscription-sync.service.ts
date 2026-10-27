@@ -357,7 +357,24 @@ export class SubscriptionSyncService {
         ? await this.byCustomer(this.prisma, invoice.customerId)
         : null;
     if (!sub) return;
-    const paid = type === 'invoice.paid';
+    // Algo audit 2026-10-27 (MONEY H-1): paid is what the invoice SAYS NOW,
+    // not the event's name — a late `invoice.payment_failed` (a retried
+    // card that then went through) must never turn a paid invoice into a
+    // failed payment and a past_due subscription.
+    const paid = invoice.status === 'paid' || type === 'invoice.paid';
+    if (!paid) {
+      const existing = await this.prisma.payment.findUnique({
+        where: { stripe_invoice_id: invoice.id },
+        select: { status: true },
+      });
+      if (existing?.status === 'succeeded' || existing?.status === 'refunded') {
+        this.logger.warn(
+          { invoiceId: invoice.id, type, status: existing.status },
+          'late failed-payment event ignored: the invoice was paid later',
+        );
+        return;
+      }
+    }
     // Owner 2026-10-22: the invoice of a seat purchase (charged at once).
     // An unpaid one never makes the subscription past_due — the seats are
     // simply not added (pending_if_incomplete); a paid one is a payment.
@@ -620,6 +637,13 @@ export class SubscriptionSyncService {
       await this.stars?.refundPayments(refunded.map((p) => p.id));
     } catch (e) {
       this.logger.error(`stars refund failed: ${String(e)}`);
+    }
+    // Algo audit 2026-10-27 (MONEY H-5): a refunded offer pack takes its
+    // unused offers back too (the balance never goes below zero).
+    try {
+      await this.bidPacks?.refundPayments(refunded.map((p) => p.id));
+    } catch (e) {
+      this.logger.error(`bid pack refund failed: ${String(e)}`);
     }
     // Owner 2026-10-05: a refunded subscription payment takes back the
     // partner's commission for that attorney (never breaks billing).

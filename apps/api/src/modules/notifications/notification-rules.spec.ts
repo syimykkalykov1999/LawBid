@@ -1,7 +1,9 @@
 import {
   ALWAYS_PUSH,
+  DEFAULT_PUSH,
   QUIET_EXEMPT,
   dedupeKeyFor,
+  quietHoursApply,
   quietHoursEnd,
 } from './notification-rules';
 
@@ -50,5 +52,14 @@ describe('notification rules (docs/05 §9.4, §9.5)', () => {
     // Ordinary notifications still wait and still obey the switch.
     expect(QUIET_EXEMPT.has('bid_accepted')).toBe(false);
     expect(ALWAYS_PUSH.has('bid_accepted')).toBe(false);
+  });
+
+  // Algo audit 2026-10-27 (CASES C-2, H-2).
+  it('new-case alerts are on by default; urgent cases skip quiet hours', () => {
+    expect(DEFAULT_PUSH.new_cases).toBe(true);
+    expect(quietHoursApply('new_urgent_case', true)).toBe(false);
+    expect(quietHoursApply('new_urgent_case', false)).toBe(true);
+    expect(quietHoursApply('new_case', true)).toBe(true);
+    expect(quietHoursApply('task_reminder', false)).toBe(false);
   });
 });

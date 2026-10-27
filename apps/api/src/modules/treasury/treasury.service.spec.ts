@@ -21,6 +21,7 @@ const SETTINGS: Record<string, number | boolean> = {
   'treasury.refund_buffer_usd': 200,
   'treasury.min_profit_usd': 50,
   'treasury.payroll_auto': true,
+  'treasury.payroll_retry_failed_enabled': true,
   'treasury.payroll_day': 1,
   'treasury.payroll_warn_days': 5,
 };
@@ -132,7 +133,12 @@ function make(
     get: jest.fn((k: string) => Promise.resolve(kv.get(k) ?? null)),
     del: jest.fn((k: string) => Promise.resolve(kv.delete(k) ? 1 : 0)),
   };
-  const logger = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn() };
+  const logger = {
+    setContext: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  };
   const settings = {
     boolean: jest.fn((k: string) =>
       Promise.resolve(overrides[k] ?? SETTINGS[k]),
@@ -187,8 +193,8 @@ const twoBanks = (): StripeTreasuryState => ({
   ],
 });
 
-const alerts = (logger: { warn: jest.Mock }) =>
-  logger.warn.mock.calls
+const alerts = (logger: { warn: jest.Mock; error: jest.Mock }) =>
+  [...logger.warn.mock.calls, ...logger.error.mock.calls]
     .map((c: unknown[]) => (c[0] as { alert?: string }).alert)
     .filter(Boolean);
 
@@ -361,5 +367,56 @@ describe('TreasuryService payroll pay day (owner 2026-10-06)', () => {
     });
     await service.payrollDaily(1_000_000, payDay);
     expect(alerts(logger)).toContain('payroll_auto_failed');
+  });
+
+  // Algo audit 2026-10-27 (MONEY H-6).
+  it('a pay day with a refused transfer is not marked done: the next day pays the rest', async () => {
+    const { service, payroll } = make(twoBanks(), ready);
+    payroll.payBulk.mockResolvedValueOnce({
+      batchId: 'b1',
+      count: 1,
+      totals: { usd: 100_000 },
+      fees: {},
+      net: {},
+      commissions: {},
+      alreadyPaid: [],
+      nothingOwed: [],
+      failed: ['emp-2'],
+    });
+    expect(await service.payrollDaily(1_000_000, payDay)).toEqual({
+      paid: 1,
+      failed: 1,
+    });
+    // Tomorrow: autoDue lists emp-2 again (its payout row is `failed`) and
+    // the run repeats; a clean run marks the month done.
+    const res = await service.payrollDaily(
+      1_000_000,
+      new Date('2026-11-02T15:40:00Z'),
+    );
+    expect(payroll.payBulk).toHaveBeenCalledTimes(2);
+    expect(res).toEqual({ paid: 2, failed: 0 });
+    expect(
+      await service.payrollDaily(1_000_000, new Date('2026-11-03T15:40:00Z')),
+    ).toEqual({ skipped: 'not_due' });
+  });
+
+  it('…unless the retry switch is off (old behaviour: marked done at once)', async () => {
+    const { service, payroll } = make(twoBanks(), ready, {
+      'treasury.payroll_retry_failed_enabled': false,
+    });
+    payroll.payBulk.mockResolvedValueOnce({
+      batchId: 'b1',
+      count: 1,
+      totals: { usd: 100_000 },
+      fees: {},
+      net: {},
+      commissions: {},
+      alreadyPaid: [],
+      nothingOwed: [],
+      failed: ['emp-2'],
+    });
+    await service.payrollDaily(1_000_000, payDay);
+    await service.payrollDaily(1_000_000, new Date('2026-11-02T15:40:00Z'));
+    expect(payroll.payBulk).toHaveBeenCalledTimes(1);
   });
 });
