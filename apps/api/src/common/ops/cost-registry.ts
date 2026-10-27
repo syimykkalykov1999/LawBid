@@ -147,7 +147,9 @@ const U = {
   r2: 'https://developers.cloudflare.com/r2/pricing/',
   gtr: 'https://cloud.google.com/translate/pricing',
   persona: 'https://withpersona.com/pricing',
+  openai: 'https://platform.openai.com/docs/pricing',
   sentry: 'https://sentry.io/pricing/',
+  gcal: 'https://developers.google.com/workspace/calendar/api/guides/quota',
   pd: 'https://www.pagerduty.com/pricing/',
   fb: 'https://firebase.google.com/pricing',
   recaptcha: 'https://cloud.google.com/recaptcha/pricing',
@@ -863,6 +865,36 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ],
   },
   {
+    id: 'aws.backup-restore-test',
+    name: 'Учебное восстановление базы раз в месяц (AWS Backup restore testing)',
+    purpose:
+      'Раз в месяц AWS сам восстанавливает копию базы на маленьком сервере и проверяет, что она живая; результат в «Здоровье системы».',
+    kind: 'aws',
+    control: tf(['backup_restore_test_enabled'], {
+      on: 'backup_restore_test_enabled = true',
+      off: 'backup_restore_test_enabled = false',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      'около $0,05 за запуск (db.t4g.micro примерно на час), 1 раз в месяц',
+      U.backup,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0.05, 1),
+    needed: 'later',
+    neededNote:
+      'Полезно после запуска: доказывает, что копии восстанавливаются.',
+    alarm: 'EventBridge «restore-test-failed» → critical SNS',
+    ceService: 'AWS Backup',
+    awsTypes: [
+      'aws_backup_restore_testing_plan',
+      'aws_backup_restore_testing_selection',
+    ],
+  },
+  {
     id: 'aws.status-page',
     name: 'Публичная страница статуса (S3 + CloudFront)',
     purpose:
@@ -1140,8 +1172,8 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'Детальные метрики по каждой копии сервера. Нужны только на время расследования.',
     kind: 'aws',
     control: tf(['container_insights'], {
-      off: 'container_insights = false',
-      on: 'container_insights = true',
+      off: 'container_insights = "disabled"',
+      on: 'container_insights = "enabled"',
     }),
     states: ['off', 'on'],
     defaultState: 'off',
@@ -1896,6 +1928,37 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     providers: ['aws_rekognition', 'photodna', 'ncmec'],
   },
   {
+    id: 'vendor.openai_moderation',
+    name: 'Проверка текстов на запрещённое (OpenAI moderation)',
+    purpose:
+      'Смотрит новые посты и комментарии на травлю, ненависть, порнографию и запрещённое до жалоб людей.',
+    kind: 'vendor',
+    control: {
+      type: 'app-setting',
+      key: 'moderation.detect.mode',
+      map: { off: 'off', on: 'shadow', auto: 'enforce' },
+    },
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: setCeil(
+      'moderation.detect.daily_cap',
+      'Лимит проверок в день (админка → Модерация → Настройки)',
+    ),
+    price: price(
+      'unit',
+      'omni-moderation бесплатно; около $0,00001 за запрос у других моделей (уточнить в кабинете)',
+      U.openai,
+      false,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0, 10),
+    needed: 'later',
+    neededNote:
+      'Платит только при наличии ключа. Вкл = только смотреть (shadow), Авто = задерживать и блокировать (enforce). Дневной лимит запросов ограничивает расход.',
+    alarm: 'дневной лимит запросов (moderation.detect.daily_cap)',
+    providers: ['openai_moderation'],
+  },
+  {
     id: 'vendor.persona',
     name: 'Проверка личности юриста (Persona)',
     purpose: 'Подтверждает документ и лицо юриста. Платите за каждую проверку.',
@@ -1935,6 +1998,29 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     neededNote: 'Нужны.',
     alarm: 'тревога сбоев пушей (push-failed)',
     providers: ['fcm', 'apns'],
+  },
+  {
+    id: 'vendor.calendar',
+    name: 'Календари юристов (Google Calendar, Microsoft 365)',
+    purpose:
+      'Синхронизация консультаций с календарём, который юрист сам подключил (#395).',
+    kind: 'vendor',
+    control: fixed(
+      'Работает только у юриста, который подключил свой календарь; без подключения запросов нет.',
+    ),
+    states: ['on'],
+    defaultState: 'on',
+    ceiling: null,
+    price: price(
+      'free',
+      'Бесплатно: Google Calendar API и Microsoft Graph не берут денег, есть только лимиты запросов',
+      U.gcal,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'later',
+    neededNote: 'Удобство для юристов; не нужно для запуска.',
+    alarm: null,
+    providers: ['google_calendar', 'microsoft_calendar'],
   },
   {
     id: 'vendor.sentry',
@@ -2059,6 +2145,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'ny_registry',
       'cockroach_cloud',
       'github',
+      'github_infra',
     ],
   },
   {

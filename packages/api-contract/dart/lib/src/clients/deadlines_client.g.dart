@@ -23,7 +23,7 @@ class _DeadlinesClient implements DeadlinesClient {
   @override
   Future<DeadlineRuleListEnvelope> listDeadlineRules({
     String? jurisdiction,
-    Kind3? kind,
+    Kind4? kind,
     String? practiceCode,
     Map<String, dynamic>? extras,
   }) async {

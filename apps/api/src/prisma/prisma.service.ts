@@ -76,6 +76,8 @@ export class DemoDatabaseUnavailableError extends Error {
 
 type ExtendedClient = ReturnType<typeof extend>;
 
+import { addDbTime } from '../common/heavy-hitters/heavy-hitters.context';
+
 const slowLog = new Logger('SlowQuery');
 const shardLog = new Logger('ShardRouting');
 
@@ -91,8 +93,10 @@ export function extend(client: PrismaClient, primary?: () => unknown) {
     .$extends(softDeleteExtension())
     .$extends(shardExtension(parentShardLookup(client)))
     .$extends(
-      slowQueryExtension(slowQueryThresholdMs(), (q) =>
-        slowLog.warn(`${q.operation} took ${q.ms} ms`),
+      slowQueryExtension(
+        slowQueryThresholdMs(),
+        (q) => slowLog.warn(`${q.operation} took ${q.ms} ms`),
+        addDbTime,
       ),
     );
   // Shard-ready step 6: a client of a NON-primary database loads the global

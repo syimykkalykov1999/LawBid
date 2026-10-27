@@ -2,7 +2,7 @@
 
 import { ArrowsClockwise, Bank, CurrencyDollar, HandCoins, Receipt, ShieldWarning } from '@phosphor-icons/react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Kpi, KpiSkeletons } from '@/components/billing/kpi';
@@ -615,7 +615,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const attorneyReceives = Math.max(0, clientTotal - platformFee - stripeFee);
 
   return (
-    <motion.div {...fadeUp(0)}>
+    <m.div {...fadeUp(0)}>
       <Card className="p-5">
         <form
           onSubmit={(e) => {
@@ -765,6 +765,6 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
           )}
         </form>
       </Card>
-    </motion.div>
+    </m.div>
   );
 }

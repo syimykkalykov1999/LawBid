@@ -296,6 +296,11 @@ variable "audit_logs_object_lock" {
   default     = false
   description = "S3 Object Lock (governance) on the log bucket; only at creation; see modules/audit-logs. WARNING (AWS docs, checked 2026-10-24): a bucket with Object Lock cannot receive S3 server access logs, so with this on the documents access log (modules/s3) stops being delivered. Keep false; the bucket already denies deletes by IAM and versioning keeps history."
 }
+variable "admin_audit_export_enabled" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-10-28: the API copies the admin audit log once a day into the audit_logs bucket (prefix admin-audit/). Needs audit_logs_enabled = true. For a copy that nobody can rewrite, also set audit_logs_object_lock (only at bucket creation; see its warning). Guide: docs/runbooks/ADMIN_HARDENING.md."
+}
 variable "vpc_flow_logs_traffic" {
   type    = string
   default = "ALL"
@@ -672,6 +677,12 @@ variable "anomaly_threshold_usd" {
   default     = 20
   description = "Cost anomaly e-mail threshold (USD impact)."
 }
+variable "backup_restore_test_enabled" {
+  type        = bool
+  default     = false
+  description = "Monthly automatic restore test of the newest database backup (AWS Backup restore testing; cents per month). Result: admin «Здоровье системы» → «Учебное восстановление»; a failure rings the critical topic."
+}
+
 variable "backup_age_missing_data" {
   type        = string
   default     = "breaching"
@@ -1199,8 +1210,14 @@ module "backup" {
     "arn:aws:backup:${var.backup_copy_region == "" ? data.aws_region.current.name : var.backup_copy_region}:${var.backup_copy_account_id}:backup-vault:${var.backup_copy_vault_name}"
   )
   alerts_topic_arn        = module.monitoring.alerts_topic_arn
+  critical_topic_arn      = module.monitoring.critical_topic_arn
   backup_age_missing_data = var.backup_age_missing_data
-  tags                    = local.tags
+
+  # Monthly restore test (AWS Backup restore testing), same network as prod.
+  restore_test_enabled            = var.backup_restore_test_enabled
+  restore_test_db_subnet_group    = var.create_database ? "" : one(data.aws_db_instance.existing[*].db_subnet_group)
+  restore_test_security_group_ids = var.create_database ? [module.postgres[0].security_group_id] : flatten(data.aws_db_instance.existing[*].vpc_security_groups)
+  tags                            = local.tags
 
   vault_lock_mode             = var.backup_vault_lock_mode
   vault_lock_cooling_off_days = var.backup_vault_lock_cooling_off_days
@@ -1438,6 +1455,7 @@ check "db_connection_budget" {
 }
 
 locals {
+  admin_audit_export_on = var.admin_audit_export_enabled && var.audit_logs_enabled && !var.ephemeral
   api_env = {
     NODE_ENV            = "production"
     DB_POOL_SIZE        = tostring(local.db_pool_size)
@@ -1448,13 +1466,19 @@ locals {
     S3_REGION           = data.aws_region.current.name
     S3_BUCKET_DOCUMENTS = module.s3.documents_bucket
     S3_BUCKET_MEDIA     = module.s3.media_bucket
-    MEDIA_CDN_BASE_URL  = local.media_cdn_base_url # growth.cdn_images_provider (modules/stack/growth.tf)
-    STATUS_PAGE_BUCKET  = length(module.status_page) > 0 ? module.status_page[0].bucket : ""
+    # Owner 2026-10-28: empty = no daily export of the admin audit log.
+    ADMIN_AUDIT_EXPORT_BUCKET = local.admin_audit_export_on ? module.audit_logs[0].bucket : ""
+    MEDIA_CDN_BASE_URL        = local.media_cdn_base_url # growth.cdn_images_provider (modules/stack/growth.tf)
+    STATUS_PAGE_BUCKET        = length(module.status_page) > 0 ? module.status_page[0].bucket : ""
     # Owner 2026-10-22: private media through CloudFront signed URLs (empty
     # until the owner supplies documents_cdn_public_key_pem; the private key
     # is the CLOUDFRONT_PRIVATE_KEY_PEM secret in extra_secrets).
     CLOUDFRONT_PRIVATE_DOMAIN = module.s3.documents_cdn_domain == null ? "" : module.s3.documents_cdn_domain
     CLOUDFRONT_PRIVATE_KEY_ID = module.s3.documents_cdn_key_pair_id == null ? "" : module.s3.documents_cdn_key_pair_id
+    # Caching round 2 (S2-1): the distributions to invalidate when a file is
+    # removed for good (the bunny image CDN has its own purge, not this).
+    CLOUDFRONT_MEDIA_DISTRIBUTION_ID   = var.growth.cdn_images_provider == "bunny" ? "" : module.s3.media_cdn_distribution_id
+    CLOUDFRONT_PRIVATE_DISTRIBUTION_ID = module.s3.documents_cdn_distribution_id == null ? "" : module.s3.documents_cdn_distribution_id
     # KMS key that wraps the data keys inside MESSAGE_ENC_KEYS /
     # SECRETS_MASTER_KEYS ("<kid>:kms:<base64 ciphertext>", decrypted once
     # at boot — src/common/secrets/kms-env.ts). Owner steps: DEPLOY_PROD.md.
@@ -1698,6 +1722,22 @@ module "pgbouncer" {
 # What the api / worker get when the pooler is on (src/prisma/pooler-url.ts
 # swaps host and port of DATABASE_URL; the secret itself is untouched).
 locals {
+  # Read replica (growth.rds_read_replicas > 0): the tasks get only the HOST;
+  # the app builds DATABASE_REPLICA_URL from DATABASE_URL (same role, password
+  # and database) with this host (src/prisma/replica-url.ts), so no secret has
+  # to be filled by hand. Empty map while the switch is off = env unchanged.
+  db_replica_env = merge(
+    var.growth.rds_read_replicas > 0 ? {
+      DB_REPLICA_HOST = module.growth.replica_host
+    } : {},
+    # Admin button «Копия базы для чтения» (owner 2026-10-24): the API creates
+    # and deletes ONE replica itself through the RDS API. Only these names are
+    # added, and only when db_replica_toggle is true.
+    var.db_replica_toggle ? merge(
+      { OPS_DB_REPLICA_TOGGLE = "on" },
+      var.db_replica_monitoring ? { OPS_DB_REPLICA_MONITORING_ROLE_ARN = aws_iam_role.db_replica_monitoring[0].arn } : {},
+    ) : {},
+  )
   db_pooler_env = var.db_pooler_enabled ? {
     DB_POOLER_HOST = module.pgbouncer[0].endpoint
     DB_POOLER_PORT = tostring(module.pgbouncer[0].port)
@@ -1709,20 +1749,26 @@ locals {
 }
 
 module "ecs" {
-  source                   = "../ecs"
-  name                     = local.name
-  readonly_root_filesystem = var.ecs_readonly_root_filesystem
-  private_subnet_ids       = module.network.private_subnet_ids
-  tasks_security_group_id  = aws_security_group.tasks.id
-  api_target_group_arn     = module.alb.api_target_group_arn
-  api_ws_target_group_arn  = module.alb.api_ws_target_group_arn
-  admin_target_group_arn   = module.alb.admin_target_group_arn
-  api_image                = var.api_image
-  admin_image              = var.admin_image
-  kms_key_arn              = module.kms.key_arn
-  tracing_enabled          = var.tracing_enabled
-  tracing_sample_ratio     = var.tracing_sample_ratio
-  api_env                  = merge(local.api_env_effective, local.db_pooler_env, local.db_pooler_ca_env)
+  source                          = "../ecs"
+  name                            = local.name
+  readonly_root_filesystem        = var.ecs_readonly_root_filesystem
+  vpc_id                          = module.network.vpc_id
+  private_subnet_ids              = module.network.private_subnet_ids
+  tasks_security_group_id         = aws_security_group.tasks.id
+  api_target_group_arn            = module.alb.api_target_group_arn
+  api_ws_target_group_arn         = module.alb.api_ws_target_group_arn
+  admin_target_group_arn          = module.alb.admin_target_group_arn
+  api_image                       = var.api_image
+  admin_image                     = var.admin_image
+  kms_key_arn                     = module.kms.key_arn
+  tracing_enabled                 = var.tracing_enabled
+  tracing_sample_ratio            = var.tracing_sample_ratio
+  api_env                         = merge(local.api_env_effective, local.db_pooler_env, local.db_pooler_ca_env)
+  cloudfront_invalidation_enabled = true
+  cloudfront_invalidation_arns = concat(
+    [module.s3.media_cdn_distribution_arn],
+    module.s3.documents_cdn_distribution_arn == null ? [] : [module.s3.documents_cdn_distribution_arn],
+  )
   admin_env = {
     NODE_ENV      = "production"
     API_BASE_URL  = "https://${var.api_host}/api/v1"
@@ -1799,6 +1845,15 @@ data "aws_iam_policy_document" "task" {
   statement {
     actions   = ["s3:ListBucket"]
     resources = [module.s3.documents_bucket_arn, module.s3.media_bucket_arn]
+  }
+  # Owner 2026-10-28: the daily admin audit export. Write only, one prefix;
+  # the bucket policy denies deletes to everybody.
+  dynamic "statement" {
+    for_each = local.admin_audit_export_on ? [1] : []
+    content {
+      actions   = ["s3:PutObject"]
+      resources = ["${module.audit_logs[0].bucket_arn}/admin-audit/*"]
+    }
   }
   statement {
     actions   = ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"]
@@ -1910,14 +1965,104 @@ data "aws_iam_policy_document" "ops" {
     actions   = ["cloudwatch:GetMetricStatistics"]
     resources = ["*"]
   }
+  # WP-G: the admin health board shows the last restore test.
+  statement {
+    actions   = ["backup:ListRestoreJobs"]
+    resources = ["*"]
+  }
   statement {
     actions   = ["rds:DescribeDBInstances", "rds:ModifyDBInstance"]
     resources = ["arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.name}-postgres"]
+  }
+  # Admin button «Копия базы для чтения»: create / describe / delete exactly one
+  # instance named <database>-readreplica. Nothing else on RDS changes.
+  dynamic "statement" {
+    for_each = var.db_replica_toggle ? [1] : []
+    content {
+      actions = ["rds:DescribeDBInstances"]
+      resources = [
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica",
+      ]
+    }
+  }
+  dynamic "statement" {
+    for_each = var.db_replica_toggle ? [1] : []
+    content {
+      actions = ["rds:CreateDBInstanceReadReplica", "rds:AddTagsToResource"]
+      resources = [
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:pg:*",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:og:*",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:subgrp:*",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secgrp:*",
+      ]
+    }
+  }
+  dynamic "statement" {
+    for_each = var.db_replica_toggle ? [1] : []
+    content {
+      actions   = ["rds:DeleteDBInstance"]
+      resources = ["arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica"]
+    }
+  }
+  dynamic "statement" {
+    for_each = var.db_replica_toggle && var.db_replica_monitoring ? [1] : []
+    content {
+      actions   = ["iam:PassRole"]
+      resources = [aws_iam_role.db_replica_monitoring[0].arn]
+      condition {
+        test     = "StringEquals"
+        variable = "iam:PassedToService"
+        values   = ["monitoring.rds.amazonaws.com"]
+      }
+    }
+  }
+  # The replica uses the primary's KMS key (storage and Performance Insights).
+  dynamic "statement" {
+    for_each = var.db_replica_toggle ? [1] : []
+    content {
+      actions   = ["kms:DescribeKey", "kms:CreateGrant", "kms:Decrypt", "kms:GenerateDataKeyWithoutPlaintext", "kms:ReEncrypt*"]
+      resources = [module.kms.key_arn]
+    }
   }
   statement {
     actions   = ["elasticache:DescribeReplicationGroups", "elasticache:ModifyReplicationGroup"]
     resources = ["arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:replicationgroup:${local.name}-redis"]
   }
+}
+
+# --- admin button: read copy of the database (owner 2026-10-24) -------------------
+variable "db_replica_toggle" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-10-24: lets the API task create and delete ONE read replica of the database from the admin «Масштаб» page (one 2FA step-up). false (default): no IAM, no env, the button says it is unavailable. The replica is created by the API, not by Terraform, so apply never touches it. docs/runbooks/db-replica.md."
+}
+variable "db_replica_monitoring" {
+  type        = bool
+  default     = true
+  description = "Give the admin-made replica Enhanced Monitoring (60 s). Needs the small IAM role created here."
+}
+
+resource "aws_iam_role" "db_replica_monitoring" {
+  count = var.db_replica_toggle && var.db_replica_monitoring ? 1 : 0
+  name  = "${local.name}-rds-replica-monitoring"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRole"
+      Principal = { Service = "monitoring.rds.amazonaws.com" }
+    }]
+  })
+  tags = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "db_replica_monitoring" {
+  count      = length(aws_iam_role.db_replica_monitoring)
+  role       = aws_iam_role.db_replica_monitoring[0].name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 }
 
 variable "ops_role_split" {

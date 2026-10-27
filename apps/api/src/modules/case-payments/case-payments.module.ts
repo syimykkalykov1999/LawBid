@@ -13,6 +13,7 @@ import { CasePaymentsService } from './case-payments.service';
  * the jobs module (`case-payments.expire`) and the HTTP module below.
  * Uses the global PAYMENT_PROVIDER when present. */
 import { LedgerModule } from '../ledger/ledger.public';
+import { StripeOpsCoreModule } from '../stripe-ops/stripe-ops.module';
 @Module({
   imports: [
     FeatureFlagsModule,
@@ -20,6 +21,8 @@ import { LedgerModule } from '../ledger/ledger.public';
     NotificationsModule,
     ChatSystemModule,
     LedgerModule,
+    // Stripe robustness 2026-10-27: review queue + disputes.
+    StripeOpsCoreModule,
   ],
   providers: [CasePaymentsService],
   exports: [CasePaymentsService],

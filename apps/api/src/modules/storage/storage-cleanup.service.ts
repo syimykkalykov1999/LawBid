@@ -1,9 +1,11 @@
+import { heldSql } from '../../common/privacy/legal-hold';
 import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { withJobLock } from '../../jobs/handlers/job-lock';
+import { heldTargets } from '../../common/privacy/legal-hold';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withDeleted } from '../../prisma/soft-delete.extension';
 import { forEachDatabase } from '../../sharding/for-each-database';
@@ -184,10 +186,17 @@ export class StorageCleanupService {
       if (ids.length < BATCH) break;
     }
 
+    // Owner 2026-10-28: files of a person under a legal hold are never
+    // purged from storage.
+    const held = await heldTargets(this.prisma, 'user', now);
     const seen = new Set<string>();
     for (let i = 0; i < MAX_BATCHES; i += 1) {
       const due = await this.prisma.file.findMany({
-        where: { deleted_at: { lt: purgeCutoff }, purged_at: null },
+        where: {
+          deleted_at: { lt: purgeCutoff },
+          purged_at: null,
+          owner_user_id: held.length ? { notIn: held } : undefined,
+        },
         select: { id: true, deleted_reason: true },
         orderBy: { deleted_at: 'asc' },
         take: BATCH,
@@ -323,6 +332,7 @@ export class StorageCleanupService {
       FROM files f
       WHERE ${where}
         AND f.purpose::TEXT <> ALL(${exempt}::TEXT[])
+        AND NOT ${heldSql('file', Prisma.sql`f.id`)}
         AND NOT EXISTS (SELECT 1 FROM users u WHERE u.avatar_file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM verification_documents v WHERE v.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM data_export_jobs e WHERE e.file_id = f.id)
@@ -386,6 +396,7 @@ export class StorageCleanupService {
         FROM files f
         WHERE ${where} ${paging}
           AND f.purpose::TEXT <> ALL(${exempt}::TEXT[])
+          AND NOT ${heldSql('file', Prisma.sql`f.id`)}
           AND NOT EXISTS (SELECT 1 FROM users u WHERE u.avatar_file_id = f.id)
           AND NOT EXISTS (SELECT 1 FROM verification_documents v WHERE v.file_id = f.id)
           AND NOT EXISTS (SELECT 1 FROM data_export_jobs e WHERE e.file_id = f.id)

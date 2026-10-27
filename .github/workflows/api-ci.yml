@@ -78,6 +78,7 @@ env:
   JWT_REFRESH_TTL_DAYS: "60"
   REAUTH_TOKEN_TTL_SECONDS: "300"
   REFRESH_ROTATION_GRACE_SECONDS: "10"
+  AUTH_UNIFORM_MIN_DELAY_MS: "0"
   OTP_CODE_SECRET: "ci_otp_code_secret_at_least_32_chars_bbbb"
   OTP_KEY_PEPPER: "ci_otp_key_pepper_at_least_32_chars_cccc"
   AUTH_EVENT_PEPPER: "ci_auth_event_pepper_at_least_32_chars_dddd"
@@ -199,7 +200,13 @@ jobs:
         run: node --test scripts/online-ddl.test.mjs
 
       - name: Migrations are expand/contract and online-DDL safe (rolling deploy + rollback safe)
+        # Squawk judges only the migration folders THIS change adds: on a PR the
+        # folders new since the merge-base with the target branch, on a push the
+        # ones that push added (github.event.before); never migrations that are
+        # already on main or come from another PR.
         working-directory: apps/api
+        env:
+          ONLINE_DDL_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
         run: |
           node --test scripts/check-migrations.test.mjs
           node scripts/check-migrations.mjs

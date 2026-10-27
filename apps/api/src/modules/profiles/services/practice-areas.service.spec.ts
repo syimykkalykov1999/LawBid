@@ -68,9 +68,16 @@ describe('PracticeAreasService.replace', () => {
         deleteMany: jest.fn(() => Promise.resolve({ count: 1 })),
         createMany: jest.fn(() => Promise.resolve({ count: 1 })),
       },
-      auditLog: { create: jest.fn(() => Promise.resolve({})) },
     };
+    // R-68: the audit insert must run outside the transaction.
+    const state = { inTx: false, auditInTx: false };
     const prisma = {
+      auditLog: {
+        create: jest.fn(() => {
+          state.auditInTx = state.inTx;
+          return Promise.resolve({});
+        }),
+      },
       user: {
         findUnique: jest.fn(() =>
           Promise.resolve({
@@ -87,13 +94,20 @@ describe('PracticeAreasService.replace', () => {
         ),
       },
       attorneyPracticeArea: { findMany: jest.fn(() => Promise.resolve([])) },
-      $transaction: jest.fn((fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
+      $transaction: jest.fn(async (fn: (t: typeof tx) => Promise<unknown>) => {
+        state.inTx = true;
+        try {
+          return await fn(tx);
+        } finally {
+          state.inTx = false;
+        }
+      }),
     };
     const svc = new PracticeAreasService(
       prisma as unknown as PrismaService,
       {} as Redis,
     );
-    return { svc, tx, prisma };
+    return { svc, tx, prisma, state };
   }
 
   it.each(['unverified', 'pending', 'rejected', 'suspended'])(
@@ -129,7 +143,10 @@ describe('PracticeAreasService.replace', () => {
   });
 
   it('replaces the set (delete removed, add new) and audits it', async () => {
-    const { svc, tx } = service({ validIds: ['b', 'c'], current: ['a', 'b'] });
+    const { svc, tx, prisma, state } = service({
+      validIds: ['b', 'c'],
+      current: ['a', 'b'],
+    });
     await svc.replace('u', ['b', 'c'], '1.2.3.4');
     expect(tx.attorneyPracticeArea.deleteMany).toHaveBeenCalledWith({
       where: { attorney_id: 'u', practice_area_id: { in: ['a'] } },
@@ -137,7 +154,8 @@ describe('PracticeAreasService.replace', () => {
     expect(tx.attorneyPracticeArea.createMany).toHaveBeenCalledWith({
       data: [{ attorney_id: 'u', practice_area_id: 'c' }],
     });
-    expect(tx.auditLog.create).toHaveBeenCalledWith({
+    expect(state.auditInTx).toBe(false);
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         admin_id: 'u',
         action: 'attorney.practice_areas.replace',
@@ -149,8 +167,8 @@ describe('PracticeAreasService.replace', () => {
   });
 
   it('an unchanged set writes nothing (no audit row)', async () => {
-    const { svc, tx } = service({ validIds: ['a'], current: ['a'] });
+    const { svc, prisma } = service({ validIds: ['a'], current: ['a'] });
     await svc.replace('u', ['a']);
-    expect(tx.auditLog.create).not.toHaveBeenCalled();
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
   });
 });

@@ -323,6 +323,12 @@ export class CasesFeedService {
 
   /** GET /cases/:id for an attorney (docs/04 §4.3): CASE_NOT_AVAILABLE,
    * never CASE_NOT_FOUND, and never a client field. */
+  /** 404 CASE_NOT_AVAILABLE unless [attorneyId] may see the case (the
+   * cheap check before a 304). */
+  async assertVisible(attorneyId: string, caseId: string): Promise<void> {
+    await this.access.assertVisibleToAttorney(attorneyId, caseId);
+  }
+
   async getDetailForAttorney(
     attorneyId: string,
     caseId: string,

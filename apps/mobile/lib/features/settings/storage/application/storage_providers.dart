@@ -69,5 +69,11 @@ final cacheEnforcerProvider = Provider<void>((ref) {
     const Duration(hours: 24),
     (_) => unawaited(maintenance.enforce()),
   );
-  ref.onDispose(timer.cancel);
+  // Caching round 2 (S2-11): also after every N downloaded pictures, not
+  // only at start and once a day.
+  AppImageCaches.onWriteBurst = () => unawaited(maintenance.enforce());
+  ref.onDispose(() {
+    timer.cancel();
+    AppImageCaches.onWriteBurst = null;
+  });
 });

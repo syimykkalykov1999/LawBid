@@ -25,6 +25,7 @@ class CostRegistryRowDto {
     required this.controlType,
     required this.controlKey,
     required this.editable,
+    required this.infraSwitch,
     required this.lockedReason,
     required this.states,
     required this.defaultState,
@@ -70,6 +71,9 @@ class CostRegistryRowDto {
 
   /// The owner can flip it from this page.
   final bool editable;
+
+  /// A Terraform switch: Выкл / Вкл creates a cloud change request (POST /admin/infra/requests).
+  final bool infraSwitch;
   final String? lockedReason;
   final List<CostRegistryRowDtoStates> states;
   final CostRegistryRowDtoDefaultState defaultState;

@@ -41,6 +41,7 @@ OwnAttorneyProfileDto _$OwnAttorneyProfileDtoFromJson(
   counters: ProfileCountersDto.fromJson(
     json['counters'] as Map<String, dynamic>,
   ),
+  advertisingDisclaimer: json['advertisingDisclaimer'] as String?,
 );
 
 Map<String, dynamic> _$OwnAttorneyProfileDtoToJson(
@@ -58,6 +59,7 @@ Map<String, dynamic> _$OwnAttorneyProfileDtoToJson(
   'verificationStatus': instance.verificationStatus.toJson(),
   'verifiedBadge': instance.verifiedBadge,
   'advertisingLabel': instance.advertisingLabel,
+  'advertisingDisclaimer': ?instance.advertisingDisclaimer,
   'publicUrl': instance.publicUrl,
   'trustLevel': instance.trustLevel,
   'nameMismatch': instance.nameMismatch,

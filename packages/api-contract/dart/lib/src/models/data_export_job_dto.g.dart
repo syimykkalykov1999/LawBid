@@ -15,6 +15,9 @@ DataExportJobDto _$DataExportJobDtoFromJson(Map<String, dynamic> json) =>
           ? null
           : DateTime.parse(json['expiresAt'] as String),
       createdAt: DateTime.parse(json['createdAt'] as String),
+      progress: json['progress'] == null
+          ? null
+          : Progress.fromJson(json['progress'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$DataExportJobDtoToJson(DataExportJobDto instance) =>
@@ -24,4 +27,5 @@ Map<String, dynamic> _$DataExportJobDtoToJson(DataExportJobDto instance) =>
       'url': ?instance.url,
       'expiresAt': ?instance.expiresAt?.toIso8601String(),
       'createdAt': instance.createdAt.toIso8601String(),
+      'progress': ?instance.progress?.toJson(),
     };

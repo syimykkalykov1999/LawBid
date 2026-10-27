@@ -17,6 +17,10 @@ function makeRedis() {
       store.set(k, v);
       return Promise.resolve('OK');
     }),
+    del: jest.fn((k: string) => {
+      store.delete(k);
+      return Promise.resolve(1);
+    }),
   };
 }
 

@@ -1694,7 +1694,9 @@ export class GroupsService {
     user: RequestUser,
     messageId: string,
   ): Promise<ForwardContent> {
-    const row = await this.prisma.chatGroupMessage.findUnique({
+    // Only the id is known here (the forward picker), so this probes the
+    // primary key of every hash partition: one call per forward.
+    const row = await this.prisma.chatGroupMessage.findFirst({
       where: { id: messageId },
     });
     if (!row || row.deleted_at) throw notFound();
@@ -1870,7 +1872,7 @@ export class GroupsService {
       });
     }
     const updated = await this.prisma.chatGroupMessage.update({
-      where: { id: messageId },
+      where: { id_group_id: { id: messageId, group_id: id } },
       data: { body: text, edited_at: new Date() },
     });
     await this.broadcast(id, updated);
@@ -1890,7 +1892,7 @@ export class GroupsService {
     if (!row || row.deleted_at || row.type === 'system') throw notFound();
     if (row.sender_id !== user.sub && !m.can('delete')) throw forbidden();
     const updated = await this.prisma.chatGroupMessage.update({
-      where: { id: messageId },
+      where: { id_group_id: { id: messageId, group_id: id } },
       data: { deleted_at: new Date(), body: '', mention_ids: [] },
     });
     if (m.group.pinned_message_id === messageId) {
@@ -1977,7 +1979,10 @@ export class GroupsService {
       : m.me.last_read_message_id;
     const current = pointer
       ? await this.prisma.chatGroupMessage.findUnique({
-          where: { id: pointer, deleted_at: {} },
+          where: {
+            id_group_id: { id: pointer, group_id: id },
+            deleted_at: {},
+          },
           select: { id: true, created_at: true },
         })
       : null;
@@ -2208,7 +2213,10 @@ export class GroupsService {
     messageId: string,
   ): Promise<string> {
     const row = await this.prisma.chatGroupMessage.findUniqueOrThrow({
-      where: { id: messageId, deleted_at: {} },
+      where: {
+        id_group_id: { id: messageId, group_id: group.id },
+        deleted_at: {},
+      },
       select: { topic_id: true },
     });
     return row.topic_id ?? group.general_topic_id!;

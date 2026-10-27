@@ -4,6 +4,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Optional,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import * as Sentry from '@sentry/nestjs';
@@ -14,7 +15,7 @@ import { cachedBlockSet } from '../blocks/block-set.cache';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { FilesService } from '../files/files.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT, REDIS_CLIENT } from '../../redis/redis.constants';
 import { bookHashOf, xorBookHash } from './contacts-book-hash';
 import { ContactsPepper } from './contacts-pepper';
 import {
@@ -95,7 +96,15 @@ export class ContactsSyncService {
     private readonly files: FilesService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly pepper: ContactsPepper,
-  ) {}
+    // Caching round 2 (S2-2): the block set and the "people you may know"
+    // copy are per-user caches on the evictable cache Redis; the HyperLogLog
+    // quota above stays on the main client.
+    @Optional() @Inject(REDIS_CACHE_CLIENT) cache?: Redis,
+  ) {
+    this.cache = cache ?? redis;
+  }
+
+  private readonly cache: Redis;
 
   async status(userId: string): Promise<ContactSyncStatusDto> {
     const [setting, matches] = await Promise.all([
@@ -199,7 +208,7 @@ export class ContactsSyncService {
   /** Registered, findable people whose number is one of [hashes]. */
   private async lookup(userId: string, hashes: string[]): Promise<PersonRow[]> {
     if (hashes.length === 0) return [];
-    const blocked = await cachedBlockSet(this.prisma, this.redis, userId);
+    const blocked = await cachedBlockSet(this.prisma, this.cache, userId);
     return this.prisma.user.findMany({
       where: {
         phone_sha256: { in: hashes },
@@ -258,7 +267,7 @@ export class ContactsSyncService {
   private async currentPeople(
     userId: string,
   ): Promise<ContactUploadResultDto['people']> {
-    const blocked = await cachedBlockSet(this.prisma, this.redis, userId);
+    const blocked = await cachedBlockSet(this.prisma, this.cache, userId);
     const found = await this.prisma.user.findMany({
       where: {
         contact_matched_by: { some: { owner_id: userId } },
@@ -296,7 +305,7 @@ export class ContactsSyncService {
     await this.keepLegacy(userId, unique);
     this.warnIfGuessing(userId, unique.length, found.length);
     // The recommendations are rebuilt with the new signal.
-    await this.redis.del(`reco:people:${userId}`);
+    await this.cache.del(`reco:people:${userId}`);
     return { matched: found.length, people: await this.toPeople(found) };
   }
 
@@ -499,7 +508,7 @@ export class ContactsSyncService {
     await this.prisma.$transaction(ops);
     this.warnIfGuessing(userId, newAdded.length, found.length);
     if (found.length > 0 || goneIds.length > 0 || dto.full) {
-      await this.redis.del(`reco:people:${userId}`);
+      await this.cache.del(`reco:people:${userId}`);
     }
     const people = await this.currentPeople(userId);
     return {
@@ -528,6 +537,6 @@ export class ContactsSyncService {
         },
       }),
     ]);
-    await this.redis.del(`reco:people:${userId}`);
+    await this.cache.del(`reco:people:${userId}`);
   }
 }

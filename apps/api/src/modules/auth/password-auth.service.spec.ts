@@ -78,7 +78,16 @@ async function make(
     bans as never,
     revocation as never,
   );
-  return { service, prisma, auth, otp, authEvents, revocation, rateLimit };
+  return {
+    service,
+    prisma,
+    auth,
+    otp,
+    authEvents,
+    revocation,
+    rateLimit,
+    bans,
+  };
 }
 
 describe('PasswordAuthService', () => {
@@ -215,6 +224,51 @@ describe('PasswordAuthService', () => {
       );
       expect(res).toEqual({ sent: true, channel: 'phone' });
       expect(otp.requestOtp).not.toHaveBeenCalled();
+    });
+
+    it('S14-2: a failing send (provider down, banned account) is invisible: the same `sent`', async () => {
+      const { service, otp, bans } = await make();
+      otp.requestOtp.mockRejectedValueOnce(new Error('provider down'));
+      await expect(
+        service.requestReset({ identifier: '+14155552680' }, META),
+      ).resolves.toEqual({ sent: true, channel: 'phone' });
+      bans.assertAllowed.mockRejectedValueOnce(
+        new ForbiddenException({ code: ErrorCode.ACCOUNT_SUSPENDED }),
+      );
+      await expect(
+        service.requestReset({ identifier: '+14155552680' }, META),
+      ).resolves.toEqual({ sent: true, channel: 'phone' });
+    });
+
+    it('S14-2: confirm answers an unknown number, a wrong code and an expired code with the SAME error', async () => {
+      const codes: string[] = [];
+      for (const [hasUser, otpResult] of [
+        [false, 'expired'],
+        [true, 'expired'],
+        [true, 'invalid'],
+      ] as const) {
+        const { service, otp } = await make({ hasUser, otpResult });
+        try {
+          await service.confirmReset(
+            {
+              identifier: '+14155552680',
+              code: '111111',
+              newPassword: 'Brand-new-1',
+            },
+            META,
+          );
+        } catch (e) {
+          codes.push(
+            (e as UnauthorizedException).getResponse() as unknown as string,
+          );
+        }
+        // The unknown account runs the same verification as a known one.
+        expect(otp.verifyOtp).toHaveBeenCalledTimes(1);
+      }
+      expect(codes).toHaveLength(3);
+      for (const c of codes) {
+        expect(c).toMatchObject({ code: ErrorCode.AUTH_OTP_INVALID });
+      }
     });
 
     it('sets the new password, ends every session and signs in', async () => {

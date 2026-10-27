@@ -10,6 +10,16 @@ enum CreateDataRequestDtoRequestType {
   subpoena('subpoena'),
   @JsonValue('court_order')
   courtOrder('court_order'),
+  @JsonValue('search_warrant')
+  searchWarrant('search_warrant'),
+  @JsonValue('preservation')
+  preservation('preservation'),
+  @JsonValue('emergency')
+  emergency('emergency'),
+  @JsonValue('civil')
+  civil('civil'),
+  @JsonValue('other')
+  other('other'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

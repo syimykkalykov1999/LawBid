@@ -18,10 +18,12 @@ import {
   OBSERVED_QUEUES,
   SLOW_LANE_QUEUES,
 } from '../../jobs/handlers/ops-metrics.job';
+import { PartitionService } from '../../partitioning/partition.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { S3StorageService } from '../files/storage/s3-storage.service';
+import { DRILL_STALE_DAYS, RestoreDrillService } from './restore-drill.service';
 import type {
   HealthItemDto,
   HealthStatus,
@@ -74,6 +76,10 @@ export class SystemHealthService implements OnModuleDestroy {
     // Owner 2026-10-22: the status board's extra probes and incident list.
     @Optional() private readonly probes?: StatusProbesService,
     @Optional() private readonly incidents?: IncidentsService,
+    // WP-G: monthly AWS Backup restore test.
+    @Optional() private readonly drill?: RestoreDrillService,
+    // Owner 2026-10-24: «a table passed 50 million rows» signal.
+    @Optional() private readonly partitions?: PartitionService,
     // Owner 2026-10-25: last / next rotation per rotated secret.
     @Optional() private readonly rotation?: SecretRotationService,
   ) {}
@@ -90,6 +96,8 @@ export class SystemHealthService implements OnModuleDestroy {
       this.safe('backup', () => this.backup(now)),
       this.safe('cost', () => this.cost()),
       this.safe('message_keys', () => this.messageKeys()),
+      this.safe('restore_drill', () => this.restoreDrill(now)),
+      this.safe('table_growth', () => this.tableGrowth()),
     ]);
     if (this.rotation?.enabled) {
       items.push(
@@ -297,6 +305,25 @@ export class SystemHealthService implements OnModuleDestroy {
     };
   }
 
+  /**
+   * Owner 2026-10-24: yellow when a table that is NOT partitioned holds 50
+   * million rows or more (time to run «Разделить таблицу по месяцам» on the
+   * «Масштаб» page). Estimates from pg_class, free to read. Grey when the
+   * probe is not available (tests, local).
+   */
+  private async tableGrowth(): Promise<Omit<HealthItemDto, 'key'>> {
+    if (!this.partitions) return { status: 'grey', detail: {} };
+    try {
+      const g = await this.partitions.growthSignal();
+      return {
+        status: g.over.length > 0 ? 'yellow' : 'green',
+        detail: { over: g.over, top: g.top, thresholdRows: 50_000_000 },
+      };
+    } catch {
+      return { status: 'grey', detail: {} };
+    }
+  }
+
   private async redisItem(): Promise<Omit<HealthItemDto, 'key'>> {
     const started = Date.now();
     await withTimeout(this.redis.ping());
@@ -447,6 +474,25 @@ export class SystemHealthService implements OnModuleDestroy {
         checkedAt: b.checkedAt,
       },
     };
+  }
+
+  /**
+   * WP-G: the monthly restore test. Green = the last restore completed and
+   * is younger than DRILL_STALE_DAYS; yellow = overdue; red = the last
+   * restore failed; grey = not on AWS / no run yet (nothing to judge).
+   */
+  private async restoreDrill(now: Date): Promise<Omit<HealthItemDto, 'key'>> {
+    if (!this.drill) return { status: 'grey', detail: { state: 'unknown' } };
+    const r = await withTimeout(this.drill.last(now), 5_000);
+    const status: HealthStatus =
+      r.state === 'unknown' || r.state === 'never'
+        ? 'grey'
+        : r.state === 'failed'
+          ? 'red'
+          : r.lastOkDaysAgo !== null && r.lastOkDaysAgo > DRILL_STALE_DAYS
+            ? 'yellow'
+            : 'green';
+    return { status, detail: { ...r, staleAfterDays: DRILL_STALE_DAYS } };
   }
 
   private async cost(): Promise<Omit<HealthItemDto, 'key'>> {

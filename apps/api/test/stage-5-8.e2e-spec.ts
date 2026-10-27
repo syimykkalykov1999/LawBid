@@ -425,7 +425,7 @@ describe('Notifications, push, badges (e2e, docs/05 §9-§10, stage 5.8)', () =>
     });
     await app.get(NotificationsRetentionJob).run();
     expect(
-      await prisma.notification.findUnique({ where: { id: old.id } }),
+      await prisma.notification.findFirst({ where: { id: old.id } }),
     ).toBeNull();
   });
 });

@@ -18,9 +18,9 @@ const DEFAULT_BASELINE = '20261014100000_postgres_baseline';
 // Tests point the check at sample folders: `node check-migrations.mjs <dir> [baseline] [online-ddl-from]`.
 const dir = process.argv[2] ?? join(import.meta.dirname, '..', 'prisma', 'migrations');
 const BASELINE = process.argv[3] ?? DEFAULT_BASELINE;
-// Online DDL (docs/architecture/ONLINE_DDL.md): Squawk lints migrations newer than this.
-// Older ones are already applied in production and are not re-judged.
-const ONLINE_FROM = process.argv[4] ?? '20261102000000';
+// Online DDL (docs/architecture/ONLINE_DDL.md): Squawk judges only the migrations
+// THIS change adds (new folders relative to the merge-base with the target branch),
+// never ones already on main and never another PR's. See newMigrationNames().
 const concurrentDir = join(dir, '..', 'concurrent');
 
 const RULES = [
@@ -66,6 +66,50 @@ for (const name of names) {
 }
 console.log(`checked ${names.length} migration(s) after ${BASELINE}`);
 
+// The migrations this change itself adds: folders whose migration.sql is ADDED in
+// `git diff --diff-filter=A <base>...HEAD` (three dots = since the merge-base, so
+// migrations that landed on the target branch meanwhile are not counted).
+//   PR      ONLINE_DDL_BASE=origin/<target branch>  (api-ci.yml)
+//   push    ONLINE_DDL_BASE=<github.event.before>   -> only what that push added
+//   local   defaults to origin/main
+// Tests / manual runs: argv[4] (or ONLINE_DDL_ONLY) = comma-separated folder names, or `none`.
+function newMigrationNames() {
+  const explicit = process.argv[4] ?? process.env.ONLINE_DDL_ONLY;
+  if (explicit !== undefined) {
+    const wanted = explicit === 'none' ? [] : explicit.split(',').filter(Boolean);
+    return names.filter((n) => wanted.includes(n));
+  }
+  const base = process.env.ONLINE_DDL_BASE || 'origin/main';
+  const isRef = base.startsWith('origin/');
+  if (/^0+$/.test(base)) {
+    console.log('online DDL: no previous commit for this push (new branch): nothing to lint');
+    return [];
+  }
+  const git = (args) => spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8' });
+  if (git(['rev-parse', '--verify', '--quiet', `${base}^{commit}`]).status !== 0) {
+    if (isRef) {
+      console.error(`online DDL: cannot resolve ${base}; fetch it (actions/checkout fetch-depth: 0) or set ONLINE_DDL_BASE`);
+      failed++;
+    } else {
+      console.warn(`online DDL: previous commit ${base} is not available: nothing to lint`);
+    }
+    return [];
+  }
+  const r = git(['diff', '--name-only', '--relative', '--diff-filter=A', `${base}...HEAD`, '--', '.']);
+  if (r.status !== 0) {
+    console.error(`online DDL: git diff failed: ${r.stderr}`);
+    failed++;
+    return [];
+  }
+  const added = new Set(
+    r.stdout
+      .split('\n')
+      .map((f) => /^([^/]+)\/migration\.sql$/.exec(f)?.[1])
+      .filter(Boolean),
+  );
+  return names.filter((n) => added.has(n));
+}
+
 // --- online DDL: Squawk (ready-made linter) + the prisma/concurrent folder ---
 const squawkBin = process.env.SQUAWK_BIN || 'squawk';
 const squawkConfig = join(import.meta.dirname, '..', '.squawk.toml');
@@ -92,8 +136,8 @@ function squawk(files, extra, label) {
     failed++;
   }
 }
-const online = names.filter((n) => n > ONLINE_FROM).map((n) => join(dir, n, 'migration.sql'));
-squawk(online, [], `${online.length} migration(s) after ${ONLINE_FROM}`);
+const online = newMigrationNames().map((n) => join(dir, n, 'migration.sql'));
+squawk(online, [], `${online.length} migration(s) added by this change`);
 
 // prisma/concurrent/*.sql run outside a transaction, one statement at a time
 // (prisma/run-concurrent.mjs): only index builds that can be done that way.

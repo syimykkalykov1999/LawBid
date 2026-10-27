@@ -6,9 +6,15 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/backfill_run_list_envelope.dart';
+import '../models/heavy_hitters_envelope.dart';
 import '../models/heavy_jobs_dto.dart';
+import '../models/partition_card_list_envelope.dart';
+import '../models/partition_mode_dto.dart';
+import '../models/partition_pause_dto.dart';
 import '../models/post_status_incident_dto.dart';
 import '../models/queue_retry_result_envelope.dart';
+import '../models/replica_status_envelope.dart';
+import '../models/replica_toggle_dto.dart';
 import '../models/scale_dto.dart';
 import '../models/scale_extras_envelope.dart';
 import '../models/search_index_status_envelope.dart';
@@ -22,6 +28,76 @@ part 'admin_ops_client.g.dart';
 @RestApi()
 abstract class AdminOpsClient {
   factory AdminOpsClient(Dio dio, {String? baseUrl}) = _AdminOpsClient;
+
+  /// Read copy of the database: state, lag
+  @GET('/admin/system-health/db-replica')
+  Future<ReplicaStatusEnvelope> getReplica({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Create / delete the read copy (step-up)
+  @POST('/admin/system-health/db-replica')
+  Future<ReplicaStatusEnvelope> setReplica({
+    @Body() required ReplicaToggleDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Tables and their monthly partitioning state
+  @GET('/admin/system-health/partitions')
+  Future<PartitionCardListEnvelope> getPartitions({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Start the online conversion of a table to monthly partitions (step-up)
+  @POST('/admin/system-health/partitions/{table}/start')
+  Future<PartitionCardListEnvelope> startPartition({
+    @Path('table') required String table,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Swap the old table back (step-up)
+  @POST('/admin/system-health/partitions/{table}/undo')
+  Future<PartitionCardListEnvelope> undoPartition({
+    @Path('table') required String table,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Delete the old copy for good (step-up)
+  @POST('/admin/system-health/partitions/{table}/finalize')
+  Future<PartitionCardListEnvelope> finalizePartition({
+    @Path('table') required String table,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Pause / resume a running conversion (step-up)
+  @POST('/admin/system-health/partitions/{table}/pause')
+  Future<PartitionCardListEnvelope> pausePartition({
+    @Path('table') required String table,
+    @Body() required PartitionPauseDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Try a failed step again (step-up)
+  @POST('/admin/system-health/partitions/{table}/retry')
+  Future<PartitionCardListEnvelope> retryPartition({
+    @Path('table') required String table,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Hash tables: «Выкл / Вкл / Авто» of the online conversion (step-up)
+  @POST('/admin/system-health/partitions/{table}/mode')
+  Future<PartitionCardListEnvelope> setPartitionMode({
+    @Path('table') required String table,
+    @Body() required PartitionModeDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Stop before the swap: drop the copy, nothing was changed (step-up)
+  @POST('/admin/system-health/partitions/{table}/abort')
+  Future<PartitionCardListEnvelope> abortPartition({
+    @Path('table') required String table,
+    @Extras() Map<String, dynamic>? extras,
+  });
 
   /// Traffic lights of every part of the system
   @GET('/admin/system-health')
@@ -42,17 +118,15 @@ abstract class AdminOpsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Batched data backfills: progress, state, why one is waiting
-  @GET('/admin/system-health/backfills')
-  Future<BackfillRunListEnvelope> listBackfills({
+  /// Top 20 heaviest users and cases (requests, DB time, uploads, messages) over the last hour
+  @GET('/admin/system-health/heavy-hitters')
+  Future<HeavyHittersEnvelope> getHeavyHitters({
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Pause / resume / abort a backfill (needs step-up)
-  @POST('/admin/system-health/backfills/{name}/{action}')
-  Future<BackfillRunListEnvelope> actOnBackfill({
-    @Path('name') required String name,
-    @Path('action') required String action,
+  /// Batched data backfills: progress, state, why one is waiting
+  @GET('/admin/system-health/backfills')
+  Future<BackfillRunListEnvelope> listBackfills({
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -24,4 +24,12 @@ export class OtpRequestDto {
   @IsOptional()
   @Matches(/^[A-Za-z0-9_-]{43}$/)
   linkChallenge?: string;
+
+  /** What the code is for. Omit it for a sign-in / sign-up code. `reauth`
+   * (a step-up before a sensitive change) and `link` (adding a sign-in
+   * method) need the caller's bearer token: the code is then good only for
+   * that flow and that session (POST /auth/reauth, POST /auth/identifiers). */
+  @IsOptional()
+  @IsIn(['login', 'reauth', 'link'])
+  purpose?: 'login' | 'reauth' | 'link';
 }

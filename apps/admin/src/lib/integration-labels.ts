@@ -21,6 +21,11 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     label: 'GitHub (только чтение, для страницы «Запуск»)',
     description: 'Чтобы страница «Запуск» сама видела, что запущена последняя версия main. Токен нужен только на чтение.',
   },
+  github_infra: {
+    label: 'GitHub: изменения облака (GitHub App)',
+    description:
+      'Чтобы кнопки Выкл/Вкл для облака на «Расходах» и «Масштабе» запускали процесс «план → ваш код 2FA → применить». GitHub-приложение с правом Actions: read and write только на этот репозиторий.',
+  },
   stripe: { label: 'Stripe (платежи)', description: 'Подписки, оплата, личный кабинет клиента.' },
   twilio: { label: 'Twilio (SMS-коды)', description: 'Коды для входа и подтверждения по SMS.' },
   ses: {
@@ -61,6 +66,18 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
   persona: { label: 'Persona (проверка личности)', description: 'Проверка личности адвокатов.' },
   google_signin: { label: 'Вход через Google', description: 'OAuth-идентификаторы приложений iOS, Android и веба.' },
   apple_signin: { label: 'Вход через Apple', description: 'Вход через Apple на iPhone (bundle id приложений).' },
+  google_calendar: {
+    label: 'Google Календарь (привязка календаря)',
+    description:
+      'OAuth-приложение Google для привязки календаря адвоката: занятое время закрывает запись, консультации записываются в календарь. По умолчанию выключено (Настройки → calendar.google_enabled).',
+    warning: 'В Google Cloud адрес перенаправления (Redirect URI) должен быть https://api.lawbid.dev/api/v1/calendar/oauth/google/callback',
+  },
+  microsoft_calendar: {
+    label: 'Календарь Outlook (привязка календаря)',
+    description:
+      'Приложение Azure для привязки календаря Outlook / Microsoft 365. По умолчанию выключено (Настройки → calendar.microsoft_enabled).',
+    warning: 'В Azure адрес перенаправления (Redirect URI) должен быть https://api.lawbid.dev/api/v1/calendar/oauth/microsoft/callback',
+  },
   ny_registry: {
     label: 'Реестр адвокатов Нью-Йорка (data.ny.gov)',
     description: 'Автоматическая проверка номеров лицензий Нью-Йорка. Работает без ключа; ключ data.ny.gov только поднимает лимит.',
@@ -92,6 +109,11 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     label: 'Проверка фото (AWS Rekognition)',
     description:
       'Смотрит публичные фото, аватары, фото отзывов и обложки рилсов на откровенный и жестокий контент; выше порога файл скрывается и попадает в Модерация → Медиа. На AWS при пустых ключах используется роль сервера.',
+  },
+  openai_moderation: {
+    label: 'Проверка текста (OpenAI omni-moderation)',
+    description:
+      'Проверяет новые посты и комментарии на оскорбления, ненависть, сексуальный и опасный контент до жалоб. Режимы выкл / тень / действовать и суточный потолок задаются в Модерация → Автомодерация. Стоит около нуля.',
   },
   photodna: {
     label: 'PhotoDNA (известные материалы о насилии над детьми)',
@@ -187,6 +209,7 @@ const FIELD_BY_PROVIDER: Record<string, string> = {
   'apns.teamId': 'ID команды Apple',
   'aws_rekognition.accessKeyId': 'ID ключа доступа (пусто = роль сервера)',
   'aws_rekognition.secretAccessKey': 'Секретный ключ доступа',
+  'openai_moderation.apiKey': 'Ключ OpenAI (начинается с sk-)',
   'fcm.clientEmail': 'Email сервисного аккаунта',
   'sentry.mobileDsn': 'Адрес для отчётов приложения (DSN)',
   'sentry.adminDsn': 'Адрес для отчётов админки (DSN)',
@@ -200,6 +223,11 @@ const FIELD_BY_PROVIDER: Record<string, string> = {
   'cockroach_cloud.clusterId': 'ID кластера',
   'storage.accessKeyId': 'ID ключа доступа (пусто = роль сервера)',
   'storage.secretAccessKey': 'Секретный ключ доступа',
+  'google_calendar.clientId': 'ID клиента OAuth (веб-приложение)',
+  'google_calendar.clientSecret': 'Секрет клиента OAuth',
+  'microsoft_calendar.clientId': 'ID приложения (клиента) Azure',
+  'microsoft_calendar.clientSecret': 'ЗНАЧЕНИЕ секрета клиента (не ID секрета)',
+  'microsoft_calendar.tenant': 'Клиент Azure (tenant; оставьте «common» для рабочих и личных аккаунтов)',
 };
 
 const HINTS: Record<string, string> = {
@@ -268,6 +296,11 @@ const FIELD_EN: Record<string, string> = {
   'google_signin.clientIds': 'Client ID',
   'apple_signin.bundleIds': 'Bundle ID',
   'apple_signin.teamId': 'Team ID',
+  'google_calendar.clientId': 'Client ID',
+  'google_calendar.clientSecret': 'Client secret',
+  'microsoft_calendar.clientId': 'Application (client) ID',
+  'microsoft_calendar.clientSecret': 'Client secret value',
+  'microsoft_calendar.tenant': 'Directory (tenant) ID',
   'ny_registry.appToken': 'App Token',
   'storage.region': 'AWS Region',
   'storage.bucketDocuments': 'Bucket name',
@@ -297,6 +330,7 @@ const FIELD_EN: Record<string, string> = {
   'aws_rekognition.region': 'Region',
   'aws_rekognition.accessKeyId': 'Access key ID',
   'aws_rekognition.secretAccessKey': 'Secret access key',
+  'openai_moderation.apiKey': 'API key',
   'photodna.subscriptionKey': 'Ocp-Apim-Subscription-Key',
   'photodna.endpoint': 'Endpoint',
   'ncmec.username': 'Username',
@@ -374,6 +408,11 @@ export const FIELD_ENV: Record<string, string> = {
   'google_signin.clientIds': 'GOOGLE_CLIENT_IDS',
   'apple_signin.bundleIds': 'APPLE_BUNDLE_IDS',
   'apple_signin.teamId': 'APPLE_TEAM_ID',
+  'google_calendar.clientId': 'GOOGLE_CALENDAR_CLIENT_ID',
+  'google_calendar.clientSecret': 'GOOGLE_CALENDAR_CLIENT_SECRET',
+  'microsoft_calendar.clientId': 'MS_CALENDAR_CLIENT_ID',
+  'microsoft_calendar.clientSecret': 'MS_CALENDAR_CLIENT_SECRET',
+  'microsoft_calendar.tenant': 'MS_CALENDAR_TENANT',
   'ny_registry.appToken': 'NY_OPEN_DATA_APP_TOKEN',
   'storage.region': 'S3_REGION',
   'storage.bucketDocuments': 'S3_BUCKET_DOCUMENTS',
@@ -390,6 +429,7 @@ export const FIELD_ENV: Record<string, string> = {
   'aws_rekognition.region': 'REKOGNITION_REGION',
   'aws_rekognition.accessKeyId': 'REKOGNITION_ACCESS_KEY_ID',
   'aws_rekognition.secretAccessKey': 'REKOGNITION_SECRET_ACCESS_KEY',
+  'openai_moderation.apiKey': 'OPENAI_MODERATION_API_KEY',
   'photodna.subscriptionKey': 'PHOTODNA_SUBSCRIPTION_KEY',
   'photodna.endpoint': 'PHOTODNA_ENDPOINT',
   'ncmec.username': 'NCMEC_USERNAME',

@@ -12,6 +12,8 @@ import {
   type ProviderCoupon,
   type ProviderCouponInput,
   type ProviderEvent,
+  type ProviderDispute,
+  type ProviderEarlyFraudWarning,
   type ProviderRefund,
   type ProviderInvoice,
   type ProviderSeatCharge,
@@ -722,6 +724,102 @@ export class FakePaymentProvider implements PaymentProvider {
       refundApplicationFee: boolean;
     }
   >();
+
+  // ---- Stripe robustness 2026-10-27 (dev / tests) ------------------------
+  readonly disputes = new Map<
+    string,
+    ProviderDispute & {
+      accountId: string | null;
+      evidence: Record<string, string>;
+    }
+  >();
+  readonly evidenceFiles = new Map<
+    string,
+    { filename: string; bytes: number }
+  >();
+  readonly payoutsHeld = new Map<string, boolean>();
+  readonly earlyFraudWarnings = new Map<string, ProviderEarlyFraudWarning>();
+  readonly connectedRefundStatus = new Map<string, ProviderRefund>();
+
+  expireConnectedCheckout(
+    accountId: string,
+    sessionId: string,
+  ): Promise<ProviderConnectedCheckout | null> {
+    const s = this.connectedCheckouts.get(sessionId);
+    if (!s || s.accountId !== accountId) return Promise.resolve(null);
+    // A paid session cannot be expired; an open one can.
+    if (s.status === 'open') {
+      this.connectedCheckouts.set(sessionId, { ...s, status: 'expired' });
+    }
+    return this.retrieveConnectedCheckout(accountId, sessionId);
+  }
+
+  retrieveDispute(
+    accountId: string | null,
+    disputeId: string,
+  ): Promise<ProviderDispute | null> {
+    const d = this.disputes.get(disputeId);
+    if (!d || d.accountId !== accountId) return Promise.resolve(null);
+    const { accountId: _a, evidence: _e, ...rest } = d;
+    void _a;
+    void _e;
+    return Promise.resolve(rest);
+  }
+
+  updateDisputeEvidence(input: {
+    accountId: string | null;
+    disputeId: string;
+    evidence: Record<string, string>;
+    submit: boolean;
+  }): Promise<ProviderDispute> {
+    const d = this.disputes.get(input.disputeId);
+    if (!d) return Promise.reject(new Error('no such dispute'));
+    const next = {
+      ...d,
+      evidence: { ...d.evidence, ...input.evidence },
+      hasEvidence: true,
+      submissionCount: input.submit ? d.submissionCount + 1 : d.submissionCount,
+      status: input.submit ? 'under_review' : d.status,
+    };
+    this.disputes.set(input.disputeId, next);
+    const { accountId: _a, evidence: _e, ...rest } = next;
+    void _a;
+    void _e;
+    return Promise.resolve(rest);
+  }
+
+  uploadEvidenceFile(input: {
+    accountId: string | null;
+    filename: string;
+    mime: string;
+    data: Buffer;
+  }): Promise<string> {
+    const id = `file_fake_${randomUUID().slice(0, 12)}`;
+    this.evidenceFiles.set(id, {
+      filename: input.filename,
+      bytes: input.data.length,
+    });
+    return Promise.resolve(id);
+  }
+
+  setConnectPayoutsHeld(accountId: string, held: boolean): Promise<void> {
+    this.payoutsHeld.set(accountId, held);
+    return Promise.resolve();
+  }
+
+  retrieveEarlyFraudWarning(
+    _accountId: string | null,
+    id: string,
+  ): Promise<ProviderEarlyFraudWarning | null> {
+    return Promise.resolve(this.earlyFraudWarnings.get(id) ?? null);
+  }
+
+  retrieveConnectedRefund(
+    _accountId: string,
+    refundId: string,
+  ): Promise<ProviderRefund | null> {
+    return Promise.resolve(this.connectedRefundStatus.get(refundId) ?? null);
+  }
 
   createConnectAccount(input: {
     userId: string;

@@ -6,6 +6,9 @@ import { FilesModule } from '../files/files.module';
 import { AdminOpsController } from './admin-ops.controller';
 import { AdminStatusPageController } from './admin-status-page.controller';
 import { BackfillsService } from './backfills.service';
+import { HeavyHittersReportService } from './heavy-hitters-report.service';
+import { RestoreDrillService } from './restore-drill.service';
+import { PartitionService } from '../../partitioning/partition.service';
 import { QueueAdminService } from './queue-admin.service';
 import { SearchIndexController } from './search-index.controller';
 import { SearchModule } from '../search/search.module';
@@ -26,6 +29,9 @@ import { SystemHealthService } from './system-health.service';
     MessageReencryptJob,
     ScaleService,
     BackfillsService,
+    HeavyHittersReportService,
+    RestoreDrillService,
+    PartitionService,
     QueueAdminService,
   ],
 })

@@ -87,7 +87,6 @@ export class GroupPollsService {
             client_message_id: dto.clientMessageId,
             poll: {
               create: {
-                group_id: groupId,
                 creator_id: user.sub,
                 question: dto.question.trim(),
                 multiple: dto.multiple,

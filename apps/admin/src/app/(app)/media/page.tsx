@@ -3,9 +3,12 @@
 import { useState } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { ChannelsPanel } from '@/components/media/channels-panel';
-import { StickersPanel } from '@/components/media/stickers-panel';
 import { VideosPanel } from '@/components/media/videos-panel';
 import { Tabs } from '@/components/ui/tabs';
+import dynamic from 'next/dynamic';
+
+// S18-8: loaded only when its tab is opened.
+const StickersPanel = dynamic(() => import('@/components/media/stickers-panel').then((m) => m.StickersPanel));
 
 type Tab = 'videos' | 'stickers' | 'channels';
 

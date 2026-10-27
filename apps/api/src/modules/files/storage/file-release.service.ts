@@ -14,6 +14,19 @@ export type FileDeleteReason =
   // Owner 2026-10-21: the chat message it belonged to disappeared.
   | 'disappeared';
 
+/**
+ * Reasons whose objects may have been served from a CDN edge and must be
+ * pulled from it (S2-1): a moderation takedown or deleted post media
+ * (`released`), an erased account, a purged task or a disappeared chat
+ * message (private files). `orphan` / `expired` objects were never shown.
+ */
+const INVALIDATE_REASONS: ReadonlySet<string> = new Set([
+  'released',
+  'account_deleted',
+  'task_purged',
+  'disappeared',
+]);
+
 /** S3 DeleteObjects takes at most 1000 keys; a file is up to 4 objects. */
 const KEYS_PER_CALL = 1000;
 /** Rows looked up per query (IN lists stay small). */
@@ -80,7 +93,12 @@ export class FileReleaseService {
   private async purgeChunk(ids: string[], now: Date): Promise<number> {
     const rows = await this.prisma.file.findMany({
       where: { id: { in: ids }, deleted_at: { not: null }, purged_at: null },
-      select: { id: true, s3_bucket: true, s3_key: true },
+      select: {
+        id: true,
+        s3_bucket: true,
+        s3_key: true,
+        deleted_reason: true,
+      },
     });
     if (rows.length === 0) return 0;
     const live = await this.prisma.file.findMany({
@@ -92,11 +110,15 @@ export class FileReleaseService {
     });
     const kept = new Set(live.map((r) => `${r.s3_bucket}\n${r.s3_key}`));
     const byBucket = new Map<string, Set<string>>();
+    const toInvalidate = new Set<string>();
     for (const r of rows) {
       if (kept.has(`${r.s3_bucket}\n${r.s3_key}`)) continue;
       const keys = byBucket.get(r.s3_bucket) ?? new Set<string>();
       keys.add(r.s3_key);
       byBucket.set(r.s3_bucket, keys);
+      if (r.deleted_reason && INVALIDATE_REASONS.has(r.deleted_reason)) {
+        toInvalidate.add(`${r.s3_bucket}\n${r.s3_key}`);
+      }
     }
     let removed = 0;
     // A bucket that fails (S3 down, permissions) keeps its rows unpurged
@@ -105,12 +127,16 @@ export class FileReleaseService {
     if (this.storage.configured) {
       for (const [bucket, keys] of byBucket) {
         const objects = [...keys].flatMap((k) => [k, ...derivedKeys(k)]);
+        // Keys of this bucket whose edge copies must go (S2-1).
+        const edge = new Set(
+          [...keys].filter((k) => toInvalidate.has(`${bucket}\n${k}`)),
+        );
         try {
           for (let i = 0; i < objects.length; i += KEYS_PER_CALL) {
-            await this.storage.remove(
-              bucket,
-              objects.slice(i, i + KEYS_PER_CALL),
-            );
+            const chunk = objects.slice(i, i + KEYS_PER_CALL);
+            await this.storage.remove(bucket, chunk, {
+              invalidateKeys: i === 0 ? [...edge] : undefined,
+            });
           }
           removed += keys.size;
         } catch (err) {

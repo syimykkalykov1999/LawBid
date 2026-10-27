@@ -11,6 +11,7 @@ import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { heldTargets } from '../../common/privacy/legal-hold';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { EmailProvider } from '../auth/providers/email/email-provider.interface';
@@ -875,30 +876,49 @@ export class ClientFraudService {
       take: 10_000,
     });
     const keep = suspended.map((u) => u.id);
+    // Round 13 (S13-6): hashes of a person under a legal hold are not purged.
+    const onHold = await heldTargets(this.prisma, 'user', now);
+    const protectedIds = [...new Set([...keep, ...onHold])];
     const a = await this.prisma.identityFingerprint.deleteMany({
       where: {
         banned_at: null,
         last_seen_at: { lt: stale },
-        ...(keep.length ? { user_id: { notIn: keep } } : {}),
+        ...(protectedIds.length ? { user_id: { notIn: protectedIds } } : {}),
       },
     });
     const deleted = await this.prisma.user.findMany({
-      where: { status: 'deleted', anonymized_at: { not: null } },
+      where: {
+        status: 'deleted',
+        anonymized_at: { not: null },
+      },
       select: { id: true },
       take: 5000,
     });
-    const b = deleted.length
+    const deletable = deleted
+      .map((d) => d.id)
+      .filter((id) => !onHold.includes(id));
+    const b = deletable.length
       ? await this.prisma.identityFingerprint.deleteMany({
-          where: { banned_at: null, user_id: { in: deleted.map((d) => d.id) } },
+          where: { banned_at: null, user_id: { in: deletable } },
         })
       : { count: 0 };
     const c = await this.prisma.identityFingerprint.deleteMany({
       where: {
-        OR: [
-          { banned_at: { lt: blockedStale } },
-          ...(keep.length
-            ? [{ user_id: { in: keep }, last_seen_at: { lt: blockedStale } }]
-            : []),
+        AND: [
+          {
+            OR: [
+              { banned_at: { lt: blockedStale } },
+              ...(keep.length
+                ? [
+                    {
+                      user_id: { in: keep },
+                      last_seen_at: { lt: blockedStale },
+                    },
+                  ]
+                : []),
+            ],
+          },
+          ...(onHold.length ? [{ user_id: { notIn: onHold } }] : []),
         ],
       },
     });

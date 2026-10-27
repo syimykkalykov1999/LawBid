@@ -36,6 +36,9 @@ export interface ConfigKeySchema {
 /** An admin area key (admin-permissions ADMIN_AREAS) or `money`. */
 const REASON_AREA_PATTERN = new RegExp(`^(${[...ADMIN_AREAS].join('|')})$`);
 
+/** An IPv4/IPv6 address or an IPv4 CIDR (checked again by parseAllowlistEntry). */
+const IP_OR_CIDR_PATTERN = /^[0-9a-fA-F:.]{2,45}(\/\d{1,2})?$/;
+
 export function configSchema(): Record<string, ConfigKeySchema> {
   const out: Record<string, ConfigKeySchema> = {};
   for (const [key, def] of Object.entries(APP_SETTINGS)) {
@@ -408,6 +411,55 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Cloudflare Turnstile на сайте (не в приложении): off (по умолчанию) | monitor (проверять и писать в лог, не блокировать) | enforce (неверный токен — 403 TURNSTILE_FAILED, верный пропускает без App Check). Нужен секретный ключ в Интеграции → Cloudflare Turnstile.',
     pattern: /^(off|monitor|enforce)$/,
   };
+  out['security.app_check.replay_protection'] = {
+    ...out['security.app_check.replay_protection'],
+    description:
+      'With App Check on enforce: every token is accepted once on the sign-in code (phone), password-reset code and phone-status routes (replay protection, one extra round trip). Turn on only after the app sends limited-use tokens there.',
+  };
+  out['security.auth_challenge_after_failures'] = {
+    ...out['security.auth_challenge_after_failures'],
+    description:
+      'After this many wrong passwords or codes for one account in 15 minutes (5 times as many from one address) the next attempt must carry a valid App Check or Turnstile token. 0 = never (default).',
+    min: 0,
+    max: 50,
+  };
+  out['security.otp_legacy_purpose_fallback'] = {
+    ...out['security.otp_legacy_purpose_fallback'],
+    description:
+      'On (default): a re-authentication or add-a-sign-in-method code asked by an older app build (without its purpose) is still accepted. Off: a code works only for the flow it was asked for.',
+  };
+  out['security.signup_block_disposable_email'] = {
+    ...out['security.signup_block_disposable_email'],
+    description:
+      'On (default): a new account cannot be opened with an e-mail from the disposable-domain list (code by e-mail or Google / Apple sign-in). Existing accounts are not affected.',
+  };
+  out['security.new_country_alert_enabled'] = {
+    ...out['security.new_country_alert_enabled'],
+    description:
+      'On: the owner gets the new-device alert when a session is used from a country it was not used from before. Off by default (costs an e-mail and a push; max one per account per 24 h). Needs the CloudFront-Viewer-Country header.',
+  };
+  // Legal register 2026-10-25: 18+ gate, text messages, e-mail footers.
+  out['compliance.age_gate.mode'] = {
+    ...out['compliance.age_gate.mode'],
+    description:
+      'Возрастной барьер 18+: off (по умолчанию) | record (записывать подтверждение, если приложение его прислало) | enforce (новый аккаунт без подтверждения 18+ получает 403 AGE_ATTESTATION_REQUIRED). enforce включать только после того, как приложение покажет галочку и начнёт слать ageAttestation.',
+    pattern: /^(off|record|enforce)$/,
+  };
+  out['compliance.age_gate.min_age'] = {
+    ...out['compliance.age_gate.min_age'],
+    min: 13,
+    max: 21,
+  };
+  out['compliance.sms.quiet_start_hour'] = {
+    ...out['compliance.sms.quiet_start_hour'],
+    min: 0,
+    max: 23,
+  };
+  out['compliance.sms.quiet_end_hour'] = {
+    ...out['compliance.sms.quiet_end_hour'],
+    min: 0,
+    max: 23,
+  };
   // S12-8: per-route metrics (CloudWatch custom metrics are billed).
   out['ops.route_metrics.mode'] = {
     ...out['ops.route_metrics.mode'],
@@ -611,6 +663,19 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 100000,
   };
+  out['privacy.retention_batch'] = {
+    ...out['privacy.retention_batch'],
+    description: 'Privacy retention: rows per statement (short transactions).',
+    min: 100,
+    max: 50000,
+  };
+  out['privacy.retention_max_rows'] = {
+    ...out['privacy.retention_max_rows'],
+    description:
+      'Privacy retention: rows per table per night; the next night continues.',
+    min: 1000,
+    max: 100000000,
+  };
   out['ops.db_slow_ms'] = {
     ...out['ops.db_slow_ms'],
     description:
@@ -652,6 +717,27 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Warn when Bunny video traffic this month (GB) reaches this; 0 = off.',
     min: 0,
     max: 1000000,
+  };
+  // Owner 2026-10-26: infra switches from the admin.
+  out['infra.dry_run'] = {
+    type: 'boolean',
+    defaultValue: true,
+    description:
+      'Cloud changes from the admin are only planned, never applied (the plan is shown, nothing changes). false = after the plan and your 2FA code the change is applied.',
+  };
+  out['infra.daily_cap'] = {
+    type: 'integer',
+    defaultValue: 3,
+    description: 'At most this many cloud change requests per 24 hours.',
+    min: 1,
+    max: 10,
+  };
+  out['infra.quiet_hours'] = {
+    type: 'string',
+    defaultValue: '',
+    description:
+      'Hours (America/Chicago) when a cloud change may be applied, "HH:MM-HH:MM", e.g. 01:00-06:00; empty = any time.',
+    pattern: /^$|^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/,
   };
   out['scale.capacity_ceiling.mode'] = {
     type: 'string',
@@ -792,6 +878,46 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: TRIAL_DAYS_MAX,
   };
+  out['admin.ip_allowlist_enabled'] = {
+    ...out['admin.ip_allowlist_enabled'],
+    description:
+      'Only the addresses in admin.ip_allowlist may use the admin panel. Needs a fresh 2FA code; refused if your own address is not on the list. Emergency bypass: docs/runbooks/ADMIN_HARDENING.md.',
+  };
+  out['admin.ip_allowlist'] = {
+    ...out['admin.ip_allowlist'],
+    description:
+      'Addresses allowed into the admin panel when the allowlist is on: IPv4/IPv6 or IPv4 CIDR (203.0.113.0/24). Needs a fresh 2FA code.',
+    pattern: IP_OR_CIDR_PATTERN,
+  };
+  out['admin.login_alert_enabled'] = {
+    ...out['admin.login_alert_enabled'],
+    description:
+      'E-mail the owner when an admin signs in from a new device or a new address.',
+  };
+  out['admin.max_concurrent_sessions'] = {
+    ...out['admin.max_concurrent_sessions'],
+    description:
+      'Live sessions per admin; a new sign-in ends the oldest one (0 = no limit). Needs a fresh 2FA code.',
+    min: 0,
+    max: 20,
+  };
+  out['admin.private_stepup_seconds'] = {
+    ...out['admin.private_stepup_seconds'],
+    description:
+      'Revealing a private message needs a 2FA code entered within this many seconds (30–300).',
+    min: 30,
+    max: 300,
+  };
+  out['admin.audit_export_enabled'] = {
+    ...out['admin.audit_export_enabled'],
+    description:
+      'Daily copy of the audit log to the locked audit bucket (works only when the bucket is set up in Terraform).',
+  };
+  out['admin.access_report_enabled'] = {
+    ...out['admin.access_report_enabled'],
+    description:
+      'Monthly e-mail to the owner: who read private content, how many times and why.',
+  };
   out['admin.reason_required_areas'] = {
     ...out['admin.reason_required_areas'],
     description:
@@ -837,6 +963,22 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description: '«Лучший сотрудник» period: month or week.',
     pattern: /^(month|week)$/,
   };
+  // Owner 2026-10-26: hash partitioning of messages / group messages /
+  // notifications is opt-in (off | on | auto at partition.auto_rows).
+  for (const t of ['messages', 'chat_group_messages', 'notifications']) {
+    out[`partition.${t}_mode`] = {
+      ...out[`partition.${t}_mode`],
+      description: `Hash partitioning of ${t}: off = plain table (default, faster while small), on = the online runner converts now, auto = converts at partition.auto_rows.`,
+      pattern: /^(off|on|auto)$/,
+    };
+  }
+  out['partition.auto_rows'] = {
+    ...out['partition.auto_rows'],
+    description:
+      'Rows at which the «auto» partition mode converts a table (default 50 million).',
+    min: 1_000_000,
+    max: 5_000_000_000,
+  };
   out['sms.allowed_country_codes'] = {
     type: 'string[]',
     defaultValue: ['US'],
@@ -854,6 +996,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       description: def.description,
       ...(def.min !== undefined ? { min: def.min } : {}),
       ...(def.max !== undefined ? { max: def.max } : {}),
+      ...(def.pattern ? { pattern: def.pattern } : {}),
     };
   }
   out['media.chat_photo_max_px'] = {
@@ -893,7 +1036,96 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       pattern: /^\d+\.\d+\.\d+$/,
     };
   }
+  // Owner 2026-10-28 (legal safety): enumerated modes and sane ranges.
+  out['qa.pii_mode'] = {
+    ...out['qa.pii_mode'],
+    pattern: /^(off|warn|redact|block)$/,
+  };
+  out['qa.pii_kinds'] = {
+    ...out['qa.pii_kinds'],
+    pattern:
+      /^(?:(?:ssn|card|address|case_number|party_name|immigration_id|dob|id_number|phone|email)(?:\s*,\s*|$))+$/,
+  };
+  out['qa.advice_flag_mode'] = {
+    ...out['qa.advice_flag_mode'],
+    pattern: /^(off|flag|hold)$/,
+  };
+  out['legal.disclaimer.by_state'] = {
+    ...out['legal.disclaimer.by_state'],
+    pattern: /^\{[\s\S]{0,20000}\}$/,
+  };
+  out['qa.new_account_cooldown_hours'] = {
+    ...out['qa.new_account_cooldown_hours'],
+    min: 0,
+    max: 720,
+  };
+  out['qa.max_links'] = { ...out['qa.max_links'], min: 0, max: 50 };
+  out['qa.duplicate_window_days'] = {
+    ...out['qa.duplicate_window_days'],
+    min: 0,
+    max: 365,
+  };
+  out['qa.duplicate_cross_user_max'] = {
+    ...out['qa.duplicate_cross_user_max'],
+    min: 1,
+    max: 100,
+  };
+  out['qa.answer_duplicate_max'] = {
+    ...out['qa.answer_duplicate_max'],
+    min: 1,
+    max: 100,
+  };
+  out['rate_limit.answer_per_day'] = {
+    ...out['rate_limit.answer_per_day'],
+    min: 1,
+    max: 10_000,
+  };
+  moderationTuning(out);
   return out;
+}
+
+/** Owner 2026-10-27: scores take decimals, modes take fixed words,
+ * classifier confidences stay within 0–1. */
+function moderationTuning(out: Record<string, ConfigKeySchema>): void {
+  for (const k of [
+    'moderation.auto_hide_score',
+    'moderation.verified_attorney_score',
+    'moderation.auto.strike_score',
+    'moderation.auto.detect_score',
+    'moderation.auto.limit_at',
+    'moderation.auto.suspend_temp_at',
+    'moderation.auto.suspend_at',
+    'moderation.auto.verified_attorney_multiplier',
+    'moderation.weight.verified_reporter',
+  ]) {
+    if (out[k]) out[k] = { ...out[k], type: 'number', max: 1000 };
+  }
+  for (const k of [
+    'moderation.weight.new_account',
+    'moderation.weight.unverified_contact',
+    'moderation.weight.burst',
+    'moderation.detect.hold_at',
+    'moderation.detect.block_at',
+    'moderation.detect.log_at',
+  ]) {
+    if (out[k]) out[k] = { ...out[k], type: 'number', max: 1 };
+  }
+  const patterns: Record<string, RegExp> = {
+    'moderation.auto_hide_mode': /^(weighted|count)$/,
+    'moderation.verified_attorney_action': /^(review|hide)$/,
+    'moderation.auto.verified_attorney_action': /^(review|higher_bar)$/,
+    'moderation.auto.account_mode': /^(off|shadow|enforce)$/,
+    'moderation.detect.mode': /^(off|shadow|enforce)$/,
+    'moderation.detect.provider': /^openai$/,
+    'moderation.detect.categories':
+      /^(harassment|harassment\/threatening|hate|hate\/threatening|illicit|illicit\/violent|sexual|sexual\/minors|self-harm|violence|violence\/graphic)$/,
+  };
+  for (const [k, pattern] of Object.entries(patterns)) {
+    if (out[k]) out[k] = { ...out[k], pattern };
+  }
+  if (out['moderation.report_abuse.unfounded_percent']) {
+    out['moderation.report_abuse.unfounded_percent'].max = 100;
+  }
 }
 
 function inferred(def: unknown): ConfigKeySchema {

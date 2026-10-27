@@ -58,7 +58,9 @@ import {
 import {
   ADMIN_SESSION_TTL_SECONDS,
   AdminSessionService,
+  describeDevice,
 } from './admin-session.service';
+import { AdminSecurityService } from './admin-security.service';
 import { SecretCipher } from './secret-cipher';
 import {
   base32Encode,
@@ -166,6 +168,8 @@ export class AdminAuthService {
     // Owner 2026-10-22: passkeys as a second factor next to the
     // authenticator code (recovery codes stay valid) and for the step-up.
     @Optional() private readonly passkeys?: PasskeyService,
+    // Owner 2026-10-28: IP allowlist, session cap, new-device alert.
+    @Optional() private readonly security?: AdminSecurityService,
   ) {
     const key = readKey('ADMIN_TOTP_ENC_KEY', () =>
       config.get<string>('ADMIN_TOTP_ENC_KEY'),
@@ -198,6 +202,7 @@ export class AdminAuthService {
     ip: string | null,
   ): Promise<AdminLoginVerifyResultDto> {
     this.assertConfigured();
+    await this.security?.assertIpAllowed(ip);
     const normalized = normalizeLogin(login);
     await this.limit(
       ['admin-pw', 'login', this.rateLimit.hashIdentifier(normalized)],
@@ -1125,7 +1130,14 @@ export class AdminAuthService {
     method: 'totp' | 'totp_setup' | 'recovery_code' | 'passkey',
   ): Promise<AdminSessionDto> {
     const jti = randomUUID();
+    const device = describeDevice(userAgent);
+    const fresh = (await this.security?.checkNewContext(
+      admin.id,
+      ip,
+      device,
+    )) ?? { newIp: false, newDevice: false };
     await this.sessions.create(admin.id, jti, { ip, userAgent });
+    await this.security?.enforceSessionCap(admin.id, jti);
     const accessToken = this.tokens.signAdminToken(
       { sub: admin.id, jti, role: admin.admin_role },
       ADMIN_SESSION_TTL_SECONDS,
@@ -1135,9 +1147,15 @@ export class AdminAuthService {
       action: ADMIN_AUDIT.login,
       targetType: 'admin',
       targetId: admin.id,
-      after: { method },
+      after: {
+        method,
+        device,
+        ...(fresh.newIp ? { newIp: true } : {}),
+        ...(fresh.newDevice ? { newDevice: true } : {}),
+      },
       ip,
     });
+    void this.security?.alertOwners(admin.id, { ip, device }, fresh);
     return {
       accessToken,
       expiresAt: new Date(
@@ -1293,6 +1311,24 @@ export class AdminAuthService {
   /** Throws unless [sessionId] passed a step-up in the last 5 minutes. */
   async assertStepUp(sessionId: string): Promise<void> {
     if (!(await this.redis.exists(stepUpKey(sessionId)))) {
+      throw new ForbiddenException({
+        code: ErrorCode.ADMIN_STEP_UP_REQUIRED,
+        message: 'Confirm with a fresh authenticator code first.',
+      });
+    }
+  }
+
+  /**
+   * Owner 2026-10-28 (attorney-client privilege): like assertStepUp, but
+   * the code must have been entered at most [maxAgeSeconds] ago — a 5 min
+   * old step-up does not reveal a private message.
+   */
+  async assertFreshStepUp(
+    sessionId: string,
+    maxAgeSeconds: number,
+  ): Promise<void> {
+    const ttl = await this.redis.ttl(stepUpKey(sessionId));
+    if (ttl < 0 || STEP_UP_TTL_SECONDS - ttl > maxAgeSeconds) {
       throw new ForbiddenException({
         code: ErrorCode.ADMIN_STEP_UP_REQUIRED,
         message: 'Confirm with a fresh authenticator code first.',

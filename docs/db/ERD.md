@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-255 tables.
+278 tables.
 
 ```mermaid
 erDiagram
@@ -25,6 +25,7 @@ erDiagram
     String password_hash "nullable"
     DateTime password_set_at "nullable"
     String ui_language
+    String home_region
     String timezone "nullable"
     Boolean notif_icon_badge
     Json notif_topics
@@ -171,11 +172,36 @@ erDiagram
     Json value
     DateTime updated_at
   }
+  infra_change_requests {
+    String id PK
+    String item_id
+    String from_state "nullable"
+    String to_state
+    Json changes
+    String status
+    String requested_by
+    String confirmed_by "nullable"
+    Json cost_delta_usd
+    Boolean dry_run
+    String rollback_of "nullable"
+    Json plan_summary "nullable"
+    Json file_before "nullable"
+    String run_id "nullable"
+    String run_url "nullable"
+    String recorded "nullable"
+    String error "nullable"
+    DateTime planned_at "nullable"
+    DateTime confirmed_at "nullable"
+    DateTime finished_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
   shard_map {
     Int logical_shard PK
     String physical_db
     String state
     Int version
+    String region
     DateTime updated_at
   }
   cross_family_outbox {
@@ -189,6 +215,44 @@ erDiagram
     String last_error "nullable"
     DateTime created_at
     DateTime processed_at "nullable"
+  }
+  shard_moves {
+    String id PK
+    Int logical_shard
+    String from_db
+    String to_db
+    String state
+    String status
+    Json progress
+    Json plan "nullable"
+    String error "nullable"
+    String requested_by "nullable"
+    DateTime heartbeat_at "nullable"
+    DateTime flipped_at "nullable"
+    String leftover_db "nullable"
+    DateTime cleanup_after "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  shard_move_track {
+    Int logical_shard PK
+    String move_id
+    DateTime frozen_until "nullable"
+    DateTime created_at
+  }
+  shard_change_log {
+    BigInt id PK
+    String table_name
+    Json pk
+    Int shard_id
+    String op
+    DateTime at
+  }
+  shard_dropped_fk {
+    String constraint_name PK
+    String table_name PK
+    String definition
+    DateTime dropped_at
   }
   cross_family_inbox {
     String idempotency_key PK
@@ -718,6 +782,7 @@ erDiagram
   saved_chat_messages {
     String user_id PK,FK
     String message_id PK,FK
+    String conversation_id FK
     enum_SavedChatKind kind
     DateTime created_at
     Int shard_id
@@ -812,7 +877,7 @@ erDiagram
   }
   messages {
     String id PK
-    String conversation_id FK
+    String conversation_id PK,FK
     String sender_id FK "nullable"
     enum_MessageType type
     String body_original
@@ -846,12 +911,14 @@ erDiagram
   }
   message_hidden {
     String message_id PK,FK
+    String conversation_id FK
     String user_id PK
     DateTime created_at
     Int shard_id
   }
   message_reactions {
     String message_id PK,FK
+    String conversation_id FK
     String user_id PK
     String emoji
     DateTime created_at
@@ -860,13 +927,14 @@ erDiagram
   message_edits {
     String id PK
     String message_id FK
+    String conversation_id FK
     String body_original
     DateTime edited_at
     Int shard_id
   }
   message_pins {
     String message_id PK,FK
-    String conversation_id
+    String conversation_id FK
     String pinned_by
     DateTime pinned_at
     Int shard_id
@@ -924,7 +992,7 @@ erDiagram
   }
   chat_group_messages {
     String id PK
-    String group_id FK
+    String group_id PK,FK
     String sender_id FK "nullable"
     enum_GroupMessageType type
     String body
@@ -1011,7 +1079,7 @@ erDiagram
   }
   notifications {
     String id PK
-    String user_id FK
+    String user_id PK,FK
     enum_NotificationType type
     enum_NotificationCategory category
     Json payload
@@ -1133,6 +1201,24 @@ erDiagram
     Int amount_cents
     DateTime created_at
   }
+  stripe_review_items {
+    String id PK
+    String kind
+    String status
+    String stripe_ref
+    String case_payment_id "nullable"
+    String user_id "nullable"
+    Int amount_cents "nullable"
+    String currency
+    String summary
+    Json details
+    DateTime opened_at
+    DateTime due_at "nullable"
+    DateTime reminded_at "nullable"
+    DateTime resolved_at "nullable"
+    String resolved_by "nullable"
+    String resolution "nullable"
+  }
   stripe_webhook_events {
     String stripe_event_id PK
     String type
@@ -1151,6 +1237,8 @@ erDiagram
     enum_ReportStatus status
     String handled_by FK "nullable"
     DateTime handled_at "nullable"
+    Boolean priority_review
+    String target_author_id "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -1211,6 +1299,72 @@ erDiagram
     String decision_note "nullable"
     DateTime created_at
   }
+  reporter_standings {
+    String user_id PK,FK
+    Int warnings
+    DateTime warned_at "nullable"
+    DateTime suspended_until "nullable"
+    Int suspensions
+    String last_reason "nullable"
+    Json history
+    String appeal_message "nullable"
+    enum_ModerationAppealStatus appeal_status "nullable"
+    DateTime appeal_at "nullable"
+    String appeal_decided_by "nullable"
+    DateTime appeal_decided_at "nullable"
+    String appeal_note "nullable"
+    DateTime updated_at
+  }
+  user_strikes {
+    String id PK
+    String user_id FK
+    String action_id UK "nullable"
+    enum_ReportTargetType target_type "nullable"
+    String target_id "nullable"
+    Int points
+    String reason "nullable"
+    String restriction "nullable"
+    DateTime restriction_until "nullable"
+    DateTime expires_at
+    DateTime revoked_at "nullable"
+    String revoked_by "nullable"
+    String revoked_note "nullable"
+    DateTime created_at
+  }
+  moderation_auto_actions {
+    String id PK
+    String kind
+    String user_id FK
+    enum_ReportTargetType target_type "nullable"
+    String target_id "nullable"
+    Float score
+    Float threshold
+    Boolean borderline
+    Boolean enforced
+    String reason "nullable"
+    DateTime expires_at "nullable"
+    DateTime reversed_at "nullable"
+    String appeal_message "nullable"
+    enum_ModerationAppealStatus appeal_status "nullable"
+    DateTime appeal_at "nullable"
+    String appeal_decided_by "nullable"
+    DateTime appeal_decided_at "nullable"
+    String appeal_note "nullable"
+    Boolean appeal_auto_approved
+    DateTime created_at
+  }
+  moderation_detections {
+    String id PK
+    String user_id
+    String content_kind
+    String provider
+    String mode
+    String category
+    Float score
+    String decision
+    Boolean acted
+    DateTime created_at
+  }
   admin_profiles {
     String user_id PK,FK
     enum_AdminRole admin_role
@@ -1252,6 +1406,15 @@ erDiagram
     String ip "nullable"
     DateTime created_at
     Int created_shard
+    String reason_code "nullable"
+    BigInt seq UK "nullable"
+    String prev_hash "nullable"
+    String row_hash "nullable"
+  }
+  audit_log_chain_head {
+    Int id PK
+    BigInt seq
+    String last_hash "nullable"
   }
   data_access_requests {
     String id PK
@@ -1264,6 +1427,15 @@ erDiagram
     enum_DataRequestStatus status
     DateTime closed_at "nullable"
     String notes "nullable"
+    String legal_basis "nullable"
+    String country "nullable"
+    String subject_user_id "nullable"
+    DateTime due_at "nullable"
+    DateTime last_reminded_at "nullable"
+    Boolean do_not_notify
+    DateTime nondisclosure_until "nullable"
+    DateTime nondisclosure_reminded_at "nullable"
+    DateTime user_notified_at "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -1341,6 +1513,9 @@ erDiagram
     Int like_count
     Int reply_count
     DateTime deleted_at "nullable"
+    DateTime edited_at "nullable"
+    Int edit_count
+    Json edit_history
     DateTime created_at
     DateTime updated_at
     Int shard_id
@@ -1941,6 +2116,51 @@ erDiagram
     String created_by
     DateTime created_at
   }
+  age_attestations {
+    String id PK
+    String user_id UK
+    DateTime attested_at
+    String text_version
+    Int min_age
+    DateTime birth_date "nullable"
+    String source
+    String status
+    DateTime flagged_at "nullable"
+    String flagged_by "nullable"
+    String flag_reason "nullable"
+    DateTime deleted_at "nullable"
+  }
+  sms_consents {
+    String id PK
+    String user_id "nullable"
+    String phone_e164
+    String purpose
+    String disclosure_version
+    String disclosure_hash
+    String source
+    DateTime granted_at
+    DateTime revoked_at "nullable"
+    String revoked_via "nullable"
+  }
+  sms_suppressions {
+    String id PK
+    String phone_e164 UK
+    String reason
+    String last_keyword "nullable"
+    String last_message_sid "nullable"
+    DateTime created_at
+    DateTime updated_at
+    DateTime cleared_at "nullable"
+  }
+  email_suppressions {
+    String id PK
+    String email UK
+    String reason
+    String detail "nullable"
+    String message_id "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
   case_promotions {
     String id PK
     String target_type
@@ -2098,6 +2318,7 @@ erDiagram
     String file_id FK,UK
     String emoji
     Int position
+    String moderation_status
     DateTime created_at
     DateTime deleted_at "nullable"
   }
@@ -2299,6 +2520,12 @@ erDiagram
     String country "nullable"
     String processing_fee_payer "nullable"
     DateTime last_synced_at "nullable"
+    Boolean payouts_held
+    String payouts_hold_reason "nullable"
+    DateTime payouts_held_at "nullable"
+    DateTime last_payout_failure_at "nullable"
+    String last_payout_failure_code "nullable"
+    DateTime deauthorized_at "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -2329,6 +2556,13 @@ erDiagram
     Int refunded_cents
     String dispute_status "nullable"
     DateTime disputed_at "nullable"
+    String dispute_id "nullable"
+    String dispute_reason "nullable"
+    Int dispute_amount_cents "nullable"
+    DateTime dispute_due_by "nullable"
+    String dispute_evidence_status "nullable"
+    DateTime dispute_funds_withdrawn_at "nullable"
+    DateTime dispute_funds_reinstated_at "nullable"
     DateTime paid_at "nullable"
     String canceled_reason "nullable"
     String failure_code "nullable"
@@ -2836,6 +3070,19 @@ erDiagram
     Json lines
     String file_id
     DateTime created_at
+    enum_CaseInvoiceStatus status
+    DateTime due_at "nullable"
+    DateTime sent_at "nullable"
+    DateTime viewed_at "nullable"
+    DateTime paid_at "nullable"
+    DateTime voided_at "nullable"
+    Int paid_cents
+    Int late_fee_cents
+    DateTime late_fee_applied_at "nullable"
+    String pay_url "nullable"
+    Boolean reminders_enabled
+    Int reminders_sent
+    DateTime last_reminded_at "nullable"
     Int shard_id
   }
   case_sign_requests {
@@ -2851,6 +3098,11 @@ erDiagram
     String declined_by "nullable"
     String decline_reason "nullable"
     DateTime completed_at "nullable"
+    DateTime expires_at "nullable"
+    DateTime expired_at "nullable"
+    Int reminders_sent
+    DateTime last_reminded_at "nullable"
+    Json view_log
     DateTime created_at
     DateTime updated_at
     Int shard_id
@@ -2940,9 +3192,69 @@ erDiagram
     DateTime rescheduled_at "nullable"
     DateTime reminded_day_at "nullable"
     DateTime reminded_hour_at "nullable"
+    DateTime attendance_checked_at "nullable"
     DateTime created_at
     DateTime updated_at
     Int shard_id
+  }
+  calendar_feed_tokens {
+    String id PK
+    String user_id UK
+    String token_hash UK
+    DateTime created_at
+    DateTime last_used_at "nullable"
+    Int use_count
+  }
+  calendar_connections {
+    String id PK
+    String user_id
+    String provider
+    String account_email "nullable"
+    String refresh_token_enc
+    String calendar_id
+    Boolean read_busy
+    Boolean write_events
+    String status
+    String last_error "nullable"
+    DateTime sync_cursor
+    DateTime last_sync_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  calendar_event_links {
+    String id PK
+    String connection_id FK
+    String consultation_id
+    String external_id
+    String content_hash
+    DateTime synced_at
+  }
+  consultation_no_shows {
+    String id PK
+    String consultation_id
+    String absent_side
+    String absent_user_id
+    String source
+    String marked_by_id "nullable"
+    String state
+    DateTime marked_at
+    DateTime dispute_until
+    String dispute_reason "nullable"
+    DateTime disputed_at "nullable"
+    DateTime resolved_at "nullable"
+    String resolved_by_admin "nullable"
+    String resolution_note "nullable"
+    DateTime counted_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  consultation_attendance_stats {
+    String user_id PK
+    Int no_show_count
+    Int disputed_count
+    Int overturned_count
+    DateTime last_no_show_at "nullable"
+    DateTime updated_at
   }
   legal_questions {
     String id PK
@@ -2957,6 +3269,7 @@ erDiagram
     String best_answer_id "nullable"
     DateTime deleted_at "nullable"
     DateTime closed_at "nullable"
+    String content_hash "nullable"
     DateTime created_at
     DateTime updated_at
     Int shard_id
@@ -2970,6 +3283,7 @@ erDiagram
     Int like_count
     Boolean is_best
     DateTime deleted_at "nullable"
+    String content_hash "nullable"
     DateTime created_at
     DateTime updated_at
     Int shard_id
@@ -3037,6 +3351,11 @@ erDiagram
     DateTime started_at "nullable"
     DateTime finished_at "nullable"
     DateTime expires_at "nullable"
+    String manifest_sha256 "nullable"
+    String manifest_signature "nullable"
+    String signature_alg "nullable"
+    Int download_count
+    DateTime last_downloaded_at "nullable"
   }
   legal_holds {
     String id PK
@@ -3080,6 +3399,7 @@ erDiagram
     String created_by "nullable"
     DateTime created_at
     DateTime submitted_at "nullable"
+    Json audit
   }
   system_incidents {
     String id PK
@@ -3127,6 +3447,34 @@ erDiagram
     DateTime updated_at
     DateTime heartbeat_at
     DateTime finished_at "nullable"
+  }
+  erasure_ledger {
+    String user_id PK
+    DateTime anonymized_at
+    String reason
+    DateTime s3_synced_at "nullable"
+    DateTime created_at
+  }
+  deletion_steps {
+    String id PK
+    String user_id
+    String step
+    String status
+    String detail "nullable"
+    Int attempts
+    DateTime created_at
+    DateTime updated_at
+  }
+  attorney_ad_archive {
+    String id PK
+    String attorney_id
+    String kind
+    String source_id
+    Int version
+    String content
+    String content_hash
+    DateTime created_at
+    DateTime retain_until
   }
   domain_events {
     String id PK
@@ -3279,7 +3627,7 @@ erDiagram
   user_blocks }o--|| users : "blocked_id"
   saved_items }o--|| users : "user_id"
   saved_chat_messages }o--|| users : "user_id"
-  saved_chat_messages }o--|| messages : "message_id"
+  saved_chat_messages }o--|| messages : "conversation_id, message_id"
   conversations }o--o| cases : "case_id"
   conversations }o--|| users : "attorney_id"
   conversations }o--|| users : "client_id"
@@ -3301,11 +3649,11 @@ erDiagram
   messages }o--o| files : "file_id"
   messages }o--o| stickers : "sticker_id"
   messages }o--o| gift_sends : "gift_send_id"
-  messages }o--o| messages : "reply_to_id"
-  message_hidden }o--|| messages : "message_id"
-  message_reactions }o--|| messages : "message_id"
-  message_edits }o--|| messages : "message_id"
-  message_pins |o--|| messages : "message_id"
+  messages }o--o| messages : "conversation_id, reply_to_id"
+  message_hidden }o--|| messages : "conversation_id, message_id"
+  message_reactions }o--|| messages : "conversation_id, message_id"
+  message_edits }o--|| messages : "conversation_id, message_id"
+  message_pins }o--|| messages : "conversation_id, message_id"
   chat_groups }o--o| files : "avatar_file_id"
   chat_groups }o--|| users : "created_by"
   chat_group_members }o--|| chat_groups : "group_id"
@@ -3313,7 +3661,7 @@ erDiagram
   chat_group_messages }o--|| chat_groups : "group_id"
   chat_group_messages }o--o| users : "sender_id"
   chat_group_messages }o--o| chat_group_topics : "topic_id"
-  chat_group_messages }o--o| chat_group_messages : "reply_to_id"
+  chat_group_messages }o--o| chat_group_messages : "group_id, reply_to_id"
   chat_group_messages }o--o| files : "file_id"
   chat_group_topics }o--|| chat_groups : "group_id"
   chat_group_topic_reads }o--|| chat_group_topics : "topic_id"
@@ -3322,7 +3670,7 @@ erDiagram
   chat_group_join_requests }o--|| users : "user_id"
   chat_group_invites }o--|| chat_groups : "group_id"
   chat_group_polls }o--|| chat_groups : "group_id"
-  chat_group_polls |o--|| chat_group_messages : "message_id"
+  chat_group_polls }o--|| chat_group_messages : "group_id, message_id"
   chat_group_polls }o--|| users : "creator_id"
   chat_group_poll_options }o--|| chat_group_polls : "poll_id"
   chat_group_poll_votes }o--|| chat_group_polls : "poll_id"
@@ -3350,6 +3698,9 @@ erDiagram
   user_privacy_settings |o--|| users : "user_id"
   moderation_appeals }o--|| users : "appellant_id"
   moderation_appeals |o--|| moderation_actions : "action_id"
+  reporter_standings |o--|| users : "user_id"
+  user_strikes }o--|| users : "user_id"
+  moderation_auto_actions }o--|| users : "user_id"
   admin_profiles |o--|| users : "user_id"
   audit_log }o--|| users : "admin_id"
   data_access_requests }o--|| users : "handled_by"
@@ -3476,6 +3827,7 @@ erDiagram
   consultation_time_off }o--|| users : "attorney_id"
   consultations }o--|| users : "attorney_id"
   consultations }o--|| users : "client_id"
+  calendar_event_links }o--|| calendar_connections : "connection_id"
   legal_questions }o--|| users : "author_id"
   legal_questions }o--o| practice_areas : "practice_area_id"
   legal_questions }o--o| states : "state_code"

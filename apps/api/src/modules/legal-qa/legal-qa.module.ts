@@ -9,6 +9,7 @@ import { AdminLegalQaController } from './admin-legal-qa.controller';
 import { AdminLegalQaService } from './admin-legal-qa.service';
 import { LegalQaController } from './legal-qa.controller';
 import { LegalQaService } from './legal-qa.service';
+import { QaSafetyService } from './qa-safety.service';
 
 /** Owner 2026-10-20: «Вопрос юристу». */
 @Module({
@@ -21,7 +22,7 @@ import { LegalQaService } from './legal-qa.service';
     UsageLimitsModule,
   ],
   controllers: [LegalQaController, AdminLegalQaController],
-  providers: [LegalQaService, AdminLegalQaService],
+  providers: [LegalQaService, AdminLegalQaService, QaSafetyService],
   exports: [LegalQaService],
 })
 export class LegalQaModule {}

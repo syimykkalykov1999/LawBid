@@ -55,6 +55,7 @@ function make(
       if (!(k in ENV)) throw new Error(`missing ${k}`);
       return ENV[k];
     }),
+    get: jest.fn(() => undefined),
   };
   const none = {} as never;
   const service = new AuthService(

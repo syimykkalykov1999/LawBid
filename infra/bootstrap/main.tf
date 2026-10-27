@@ -219,6 +219,13 @@ data "aws_iam_policy_document" "deploy_trust" {
           "repo:${var.github_repo}:ref:refs/heads/main",
           "repo:${lower(var.github_repo)}:ref:refs/heads/main",
           "repo:${var.github_repo_immutable}:ref:refs/heads/main",
+        ] : [],
+        # Owner 2026-10-26: the `infra-apply` workflow (infra switches from
+        # the admin) runs in the GitHub environment `infra-apply`.
+        var.infra_apply_enabled ? [
+          "repo:${var.github_repo}:environment:infra-apply",
+          "repo:${lower(var.github_repo)}:environment:infra-apply",
+          "repo:${var.github_repo_immutable}:environment:infra-apply",
         ] : []
       )
     }

@@ -37,6 +37,7 @@ export const LEGAL_EXPORT_STATUS: Record<string, string> = {
 
 export const LEGAL_HOLD_TARGET: Record<string, string> = {
   user: 'человек',
+  case: 'кейс',
   conversation: 'чат',
   group: 'группа',
 };

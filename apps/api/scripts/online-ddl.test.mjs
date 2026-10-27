@@ -26,7 +26,7 @@ function run(sql, concurrent = {}) {
     mkdirSync(join(root, 'concurrent'));
     for (const [f, body] of Object.entries(concurrent)) writeFileSync(join(root, 'concurrent', f), body);
   }
-  return spawnSync('node', [script, migrations, '20260101000000_base', '20260601000000'], {
+  return spawnSync('node', [script, migrations, '20260101000000_base', '20270101000000_sample'], {
     encoding: 'utf8',
     env: { ...process.env, SQUAWK_BIN: squawk },
   });

@@ -19,6 +19,9 @@ DeadlineResultDto _$DeadlineResultDtoFromJson(Map<String, dynamic> json) =>
       warnings: (json['warnings'] as List<dynamic>)
           .map((e) => DeadlineResultDtoWarnings.fromJson(e as String))
           .toList(),
+      calendarLinks: CalendarLinksDto.fromJson(
+        json['calendarLinks'] as Map<String, dynamic>,
+      ),
     );
 
 Map<String, dynamic> _$DeadlineResultDtoToJson(DeadlineResultDto instance) =>
@@ -30,4 +33,5 @@ Map<String, dynamic> _$DeadlineResultDtoToJson(DeadlineResultDto instance) =>
       'rolled': instance.rolled,
       'holidays': instance.holidays.map((e) => e.toJson()).toList(),
       'warnings': instance.warnings.map((e) => e.toJson()).toList(),
+      'calendarLinks': instance.calendarLinks.toJson(),
     };

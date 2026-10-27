@@ -32,20 +32,21 @@ class PostDto {
     required this.kind,
     required this.viewCount,
     required this.contentClass,
+    required this.saveCount,
     required this.author,
     required this.id,
     required this.media,
     required this.attachments,
-    required this.saveCount,
+    required this.commentCount,
     required this.tags,
     required this.shareCount,
     required this.status,
     required this.likeCount,
-    required this.commentCount,
     required this.isMine,
     this.likesHidden = false,
     this.commentsEnabled = true,
     this.viewsHidden = false,
+    this.advertisingDisclaimer,
     this.promotionCta,
     this.practice,
     this.title,
@@ -80,6 +81,9 @@ class PostDto {
 
   /// Owner 2026-10-05: legal or general (personal) post.
   final PostContentClass contentClass;
+
+  /// Show this line under the post (e.g. "Prior results do not guarantee a similar outcome."): the author is licensed in a state that requires it and the text quotes results or testimonials.
+  final String? advertisingDisclaimer;
   final PostAuthorDto author;
   final String body;
   final List<PostMediaDto> media;

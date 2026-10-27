@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
+import { cached } from '../../common/cache/cached';
 import { EntitlementsService } from '../plans/entitlements.service';
 import { subscriptionRowIsActive } from './subscription-rules';
 import {
@@ -38,14 +39,21 @@ export class SubscriptionAccessService {
 
   async isActive(attorneyId: string, db?: Db): Promise<boolean> {
     if (db) return this.compute(attorneyId, db);
-    const cached = await this.redis.get(key(attorneyId)).catch(() => null);
-    if (cached === '1') return true;
-    if (cached === '0') return false;
-    const active = await this.compute(attorneyId, this.prisma);
-    await this.redis
-      .set(key(attorneyId), active ? '1' : '0', 'EX', CACHE_TTL_SECONDS)
-      .catch(() => undefined);
-    return active;
+    // Caching round 2 (S2-6): the shared helper, same '1' / '0' values.
+    return cached<boolean>(
+      this.redis,
+      key(attorneyId),
+      {
+        ttlSec: CACHE_TTL_SECONDS,
+        serialize: (v) => (v ? '1' : '0'),
+        parse: (raw) => {
+          if (raw === '1') return true;
+          if (raw === '0') return false;
+          throw new Error('unexpected value');
+        },
+      },
+      () => this.compute(attorneyId, this.prisma),
+    );
   }
 
   async invalidate(attorneyId: string): Promise<void> {

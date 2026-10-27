@@ -199,6 +199,7 @@ export class MessageReencryptJob {
       where: { id: { gt: state.cursor } },
       select: {
         id: true,
+        conversation_id: true,
         body_original: true,
         body_display: true,
         file_name: true,
@@ -244,7 +245,15 @@ export class MessageReencryptJob {
         }
       }
       if (Object.keys(data).length > 0) {
-        await this.prisma.message.update({ where: { id: row.id }, data });
+        await this.prisma.message.update({
+          where: {
+            id_conversation_id: {
+              id: row.id,
+              conversation_id: row.conversation_id,
+            },
+          },
+          data,
+        });
         state.rewritten += 1;
       }
       if (stuck) state.failed += 1;

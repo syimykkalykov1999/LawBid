@@ -187,10 +187,19 @@ export const SHARDED_MODELS: Readonly<Record<string, ShardedModelSpec>> = {
  */
 export const PER_DATABASE_MODELS: ReadonlySet<string> = new Set([
   'CrossFamilyOutbox',
+  'ShardChangeLog',
+  'ShardMoveTrack',
+  'ShardDroppedFk',
 ]);
 
 export const GLOBAL_MODELS: readonly string[] = [
   'User',
+  // Owner 2026-10-28: calendar links and consultation no-shows.
+  'CalendarFeedToken',
+  'CalendarConnection',
+  'CalendarEventLink',
+  'ConsultationNoShow',
+  'ConsultationAttendanceStat',
   'File',
   'FileAccessLog',
   'UserIdentifier',
@@ -202,11 +211,17 @@ export const GLOBAL_MODELS: readonly string[] = [
   'BlockedEmailDomain',
   'FeatureFlag',
   'AppConfig',
+  'InfraChangeRequest',
   'ShardMap',
   // Step 7: per-physical-database outbox (see PER_DATABASE_MODELS) and the
   // primary-only inbox.
   'CrossFamilyOutbox',
   'CrossFamilyInbox',
+  // Step 10: the move tool (ShardMove on primary; the other three per database).
+  'ShardMove',
+  'ShardChangeLog',
+  'ShardMoveTrack',
+  'ShardDroppedFk',
   'I18nLanguage',
   'I18nKey',
   'I18nTranslation',
@@ -233,10 +248,16 @@ export const GLOBAL_MODELS: readonly string[] = [
   'ModerationAction',
   'UserPrivacySettings',
   'ModerationAppeal',
+  'ReporterStanding',
+  'UserStrike',
+  'ModerationAutoAction',
+  'ModerationDetection',
   'AdminProfile',
   'AdminRoleTemplate',
   'AccountBan',
   'AuditLog',
+  // Merge union 2026-10-27: the audit hash-chain head (one row, #373).
+  'AuditLogChainHead',
   'DataAccessRequest',
   'DataAccessLog',
   'AdminApproval',
@@ -270,6 +291,10 @@ export const GLOBAL_MODELS: readonly string[] = [
   'OutreachActivity',
   'OutreachTemplate',
   'OutreachSuppression',
+  'AgeAttestation',
+  'SmsConsent',
+  'SmsSuppression',
+  'EmailSuppression',
   'CasePromotion',
   'PromotionDaily',
   'PromotionView',
@@ -333,6 +358,8 @@ export const GLOBAL_MODELS: readonly string[] = [
   'UsernameHold',
   'LegalExport',
   'LegalHold',
+  'ErasureLedger',
+  'DeletionStep',
   'MediaModerationCheck',
   'CsamReport',
   'SystemIncident',
@@ -342,12 +369,16 @@ export const GLOBAL_MODELS: readonly string[] = [
   // Online DDL: applied index files and batched-backfill state (per database).
   'ConcurrentMigration',
   'BackfillRun',
+  // Owner 2026-10-28: attorney advertising archive.
+  'AttorneyAdArchive',
   // Events pipeline (N-2): the domain-event stream (primary only).
   'DomainEvent',
   // Day-one foundations: the double-entry money ledger (global: platform
   // accounts and cross-party entries; docs/architecture/MONEY_LEDGER.md).
   'LedgerAccount',
   'LedgerEntry',
+  // Stripe robustness 2026-10-27: the admin review queue (global).
+  'StripeReviewItem',
   'LedgerLine',
   // BUG-1 (package N-12b): the chat search blind index. Global for now (no
   // shard trigger needed); it joins the case family when that is split.

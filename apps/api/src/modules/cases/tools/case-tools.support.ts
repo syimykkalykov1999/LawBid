@@ -10,7 +10,14 @@ import { NotificationsService } from '../../notifications/notifications.service'
 import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 
 export type ToolsKind =
-  'invoice' | 'sign_request' | 'sign_done' | 'sign_declined';
+  | 'invoice'
+  | 'invoice_reminder'
+  | 'invoice_overdue'
+  | 'sign_request'
+  | 'sign_done'
+  | 'sign_declined'
+  | 'sign_reminder'
+  | 'sign_expired';
 
 /** What the three case tools share: the two sides' names, a file placed in
  * the case's Files tab, the line in the case chat, the bell + push. */

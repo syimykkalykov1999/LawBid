@@ -128,6 +128,32 @@ export function word(item: HealthItem): Worded {
         runbook: 'backup-failed.md',
       };
     }
+    case 'restore_drill': {
+      const state = String(d.state ?? 'unknown');
+      const when = typeof d.at === 'string' ? d.at.slice(0, 10) : null;
+      const mins = n(d.durationMinutes);
+      const line =
+        state === 'ok'
+          ? `Последняя проверка ${when}: база поднялась из копии${mins !== null ? ` за ${mins} мин` : ''}.`
+          : state === 'failed'
+            ? `Проверка ${when} не прошла${d.message ? `: ${String(d.message)}` : ''}.`
+            : state === 'running'
+              ? 'Проверка идёт прямо сейчас (около часа).'
+              : state === 'never'
+                ? 'Ещё не запускалась: первая будет 1-го числа месяца.'
+                : 'Подключится после запуска на AWS.';
+      return {
+        title: 'Учебное восстановление базы',
+        line: `${line} Раз в месяц AWS сам поднимает временную базу из свежей копии и удаляет её.`,
+        todo:
+          s === 'red'
+            ? 'Копию нельзя считать рабочей. Напишите Claude «учебное восстановление упало» — разберёт.'
+            : s === 'yellow'
+              ? `Проверка не проходила дольше ${n(d.staleAfterDays) ?? 40} дней. Проверьте в AWS Backup → Restore testing, что план включён.`
+              : undefined,
+        runbook: 'restore-drill.md',
+      };
+    }
     case 'message_keys': {
       const byKid = (d.byKid ?? {}) as Record<string, { rewritten?: number; failed?: number }>;
       const retired = (d.retiredKids as string[] | undefined) ?? [];
@@ -152,6 +178,26 @@ export function word(item: HealthItem): Worded {
               : removable.length
                 ? `Старые ключи ${removable.join(', ')} больше не нужны — их можно убрать из MESSAGE_ENC_KEYS (DEPLOY_PROD.md).`
                 : undefined,
+      };
+    }
+    case 'table_growth': {
+      const over = (d.over as { table: string; rows: number }[] | undefined) ?? [];
+      const top = (d.top as { table: string; rows: number }[] | undefined) ?? [];
+      const mln = (r: number) => `${(r / 1e6).toFixed(r >= 1e7 ? 0 : 1)} млн`;
+      return {
+        title: 'Размер больших таблиц',
+        line:
+          s === 'grey'
+            ? 'Размеры таблиц недоступны.'
+            : over.length
+              ? `Больше 50 млн строк и не разделены по месяцам: ${over.map((o) => `${o.table} (${mln(o.rows)})`).join(', ')}.`
+              : top.length
+                ? `Самая большая: ${top[0].table}, ${mln(top[0].rows)} строк. До порога в 50 млн далеко.`
+                : 'Все таблицы в норме.',
+        todo: over.length
+          ? 'Откройте «Масштаб», карточка таблицы → «Разделить таблицу по месяцам» (если таблица не заблокирована причинами на карточке).'
+          : undefined,
+        runbook: 'table-partitioning.md',
       };
     }
     case 'secret_rotation': {
@@ -373,3 +419,10 @@ export const LIGHT_LABEL: Record<Light, string> = {
 };
 
 export const RUNBOOK_BASE = 'https://github.com/syimykkalykov1999/LawBid/blob/main/docs/runbooks/';
+
+/** S18-9: how often the board refreshes — fast while something is not green. */
+export const HEALTH_POLL_GREEN_MS = 60_000;
+export const HEALTH_POLL_ALERT_MS = 15_000;
+export function healthPollMs(overall: SystemHealth['overall'] | undefined): number {
+  return overall === 'yellow' || overall === 'red' ? HEALTH_POLL_ALERT_MS : HEALTH_POLL_GREEN_MS;
+}

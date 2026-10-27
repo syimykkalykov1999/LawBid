@@ -68,7 +68,12 @@ describe('SubscriptionAccessService (docs/06 §1.2)', () => {
     await service.isActive('a1');
     await service.isActive('a1');
     expect(findUnique).toHaveBeenCalledTimes(1);
-    expect(set).toHaveBeenCalledWith('sub:active:a1', '1', 'EX', 60);
+    expect(set).toHaveBeenCalledWith(
+      'sub:active:a1',
+      '1',
+      'EX',
+      expect.any(Number),
+    );
     await service.invalidate('a1');
     await service.isActive('a1');
     expect(findUnique).toHaveBeenCalledTimes(2);

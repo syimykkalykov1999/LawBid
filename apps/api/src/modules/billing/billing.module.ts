@@ -47,6 +47,7 @@ import { PlansController } from '../plans/plans.controller';
  * is used (dev / e2e), driven through the same webhook endpoint.
  */
 import { LedgerModule } from '../ledger/ledger.public';
+import { StripeOpsCoreModule } from '../stripe-ops/stripe-ops.module';
 @Module({})
 export class BillingModule {
   static register(options: BillingModuleOptions): DynamicModule {
@@ -74,6 +75,8 @@ export class BillingModule {
         CasePaymentsCoreModule,
         ClientBadgeCoreModule,
         LedgerModule,
+        // Stripe robustness 2026-10-27: the review queue.
+        StripeOpsCoreModule,
         // Only the controllers need the auth guards and the admin audit log;
         // the worker must stay bootable without AppModule's global modules.
         ...(options.mode === 'api' ? [AdminAccessModule, AuthModule] : []),

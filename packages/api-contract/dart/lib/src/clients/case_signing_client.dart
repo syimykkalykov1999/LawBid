@@ -58,6 +58,14 @@ abstract class CaseSigningClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// The side that asked reminds the one who has not signed (also revives an expired request)
+  @POST('/cases/{id}/signing/{requestId}/resend')
+  Future<SignRequestListEnvelope> resendSignRequest({
+    @Path('id') required String id,
+    @Path('requestId') required String requestId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Recompute the file hashes and the journal chain of a document
   @GET('/cases/{id}/signing/{requestId}/verify')
   Future<SignVerifyEnvelope> verifySignRequest({

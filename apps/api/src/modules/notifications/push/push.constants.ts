@@ -57,6 +57,9 @@ export const PUSH_PRIORITY = {
 export interface NotificationJobData {
   kind?: 'notification';
   notificationId: string;
+  /** The recipient, when the producer knows it: the read of the row then
+   * touches one hash partition of `notifications` instead of all. */
+  userId?: string;
   push?: boolean;
   /** Re-queued after quiet hours: don't hold it back again. */
   deferred?: boolean;
