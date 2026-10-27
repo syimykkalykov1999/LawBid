@@ -21,6 +21,10 @@ ConsultationDto _$ConsultationDtoFromJson(Map<String, dynamic> json) =>
       attorneyTimezone: json['attorneyTimezone'] as String,
       canCall: json['canCall'] as bool,
       createdAt: json['createdAt'] as String,
+      noShows: (json['noShows'] as List<dynamic>)
+          .map((e) => NoShowDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      canMarkNoShow: json['canMarkNoShow'] as bool,
       note: json['note'] as String?,
       caseId: json['caseId'] as String?,
       conversationId: json['conversationId'] as String?,
@@ -29,6 +33,11 @@ ConsultationDto _$ConsultationDtoFromJson(Map<String, dynamic> json) =>
           ? null
           : ConsultationDtoCancelledBy.fromJson(json['cancelledBy'] as String),
       rescheduledAt: json['rescheduledAt'] as String?,
+      calendarLinks: json['calendarLinks'] == null
+          ? null
+          : CalendarLinksDto.fromJson(
+              json['calendarLinks'] as Map<String, dynamic>,
+            ),
     );
 
 Map<String, dynamic> _$ConsultationDtoToJson(ConsultationDto instance) =>
@@ -48,4 +57,7 @@ Map<String, dynamic> _$ConsultationDtoToJson(ConsultationDto instance) =>
       'rescheduledAt': ?instance.rescheduledAt,
       'canCall': instance.canCall,
       'createdAt': instance.createdAt,
+      'calendarLinks': ?instance.calendarLinks?.toJson(),
+      'noShows': instance.noShows.map((e) => e.toJson()).toList(),
+      'canMarkNoShow': instance.canMarkNoShow,
     };

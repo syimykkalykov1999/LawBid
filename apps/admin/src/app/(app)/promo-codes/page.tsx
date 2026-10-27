@@ -2,7 +2,7 @@
 
 import { ArrowCounterClockwise, ArrowsClockwise, ListBullets, MagnifyingGlass, Plus, Ticket, Trash } from '@phosphor-icons/react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { useState } from 'react';
 import {
   CopyButton,
@@ -211,7 +211,7 @@ function PromoCard({
   const archived = p.status === 'archived';
   const share = p.maxRedemptions ? p.redeemedCount / p.maxRedemptions : 0;
   return (
-    <motion.div {...fadeUp(i)}>
+    <m.div {...fadeUp(i)}>
       <Card
         spotlight
         role="button"
@@ -267,7 +267,7 @@ function PromoCard({
           </div>
         </div>
       </Card>
-    </motion.div>
+    </m.div>
   );
 }
 

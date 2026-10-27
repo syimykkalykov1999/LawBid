@@ -61,13 +61,15 @@ class _AdminCasesClient implements AdminCasesClient {
   @override
   Future<AdminDisputeCardEnvelope> getCaseDispute({
     required String id,
+    required String xJustification,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'X-Justification': xJustification};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<AdminDisputeCardEnvelope>(
       Options(method: 'GET', headers: _headers, extra: _extra)
@@ -131,13 +133,15 @@ class _AdminCasesClient implements AdminCasesClient {
   @override
   Future<AdminContactIssueCardEnvelope> getContactIssue({
     required String id,
+    required String xJustification,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'X-Justification': xJustification};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<AdminContactIssueCardEnvelope>(
       Options(method: 'GET', headers: _headers, extra: _extra)
@@ -213,13 +217,15 @@ class _AdminCasesClient implements AdminCasesClient {
   @override
   Future<AdminCaseCardEnvelope> getAdminCase({
     required String id,
+    required String xJustification,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'X-Justification': xJustification};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<AdminCaseCardEnvelope>(
       Options(method: 'GET', headers: _headers, extra: _extra)

@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
+import { CalendarLinksDto } from '../calendar/calendar.dto';
 import {
   IsBoolean,
   IsIn,
@@ -151,6 +152,12 @@ export class DeadlineResultDto {
       'holidays_missing: court holidays of that year are not loaded; unverified: the rule is not checked by staff yet; rolled: moved past a weekend or holiday.',
   })
   warnings!: string[];
+  @ApiProperty({
+    type: () => CalendarLinksDto,
+    description:
+      'Owner 2026-10-28: «add the last day to my calendar» (Google / Outlook / .ics).',
+  })
+  calendarLinks!: CalendarLinksDto;
 }
 
 // --- admin ----------------------------------------------------------------------

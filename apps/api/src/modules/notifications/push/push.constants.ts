@@ -57,6 +57,9 @@ export const PUSH_PRIORITY = {
 export interface NotificationJobData {
   kind?: 'notification';
   notificationId: string;
+  /** The recipient, when the producer knows it: the read of the row then
+   * touches one hash partition of `notifications` instead of all. */
+  userId?: string;
   push?: boolean;
   /** Re-queued after quiet hours: don't hold it back again. */
   deferred?: boolean;
@@ -188,6 +191,15 @@ export interface PushMessage {
    * per chat, so a chat's messages are grouped like WhatsApp. Defaults to
    * [collapseKey]. */
   threadId?: string;
+  /** Owner 2026-10-26: a notification with a person (actor-push.ts) — an
+   * Android app that draws such notifications itself
+   * (`push_tokens.actor_style`) gets it data-only and shows the person's
+   * round photo; every other device gets the normal alert (the iPhone's
+   * extension attaches the photo). */
+  actor?: boolean;
+  /** Owner 2026-10-26: the iPhone's notification category (its buttons:
+   * «Ответить» / «Прочитано» for chats). */
+  iosCategory?: string;
 }
 
 export type PushSoundKind = 'message' | 'notification';

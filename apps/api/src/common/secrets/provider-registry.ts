@@ -832,6 +832,56 @@ export const PROVIDERS: ProviderDefinition[] = [
       }),
   },
   {
+    // Owner 2026-10-26: infra switches from the admin. A GitHub App (not a
+    // personal token) installed on this repository only, with the
+    // permission "Actions: read and write" and "Contents: read". The API
+    // mints a 1-hour installation token narrowed to actions:write on this
+    // one repository and starts the `infra-apply` workflow. Runbook:
+    // docs/runbooks/infra-from-admin.md.
+    id: 'github_infra',
+    label: 'GitHub: изменения облака (GitHub App)',
+    description:
+      'Чтобы кнопки Выкл/Вкл для облака запускали проверенный процесс «план → ваш код 2FA → применить». Нужно GitHub-приложение с правом Actions: read and write только на этот репозиторий.',
+    fields: [
+      {
+        name: 'repo',
+        label: 'Репозиторий (владелец/имя)',
+        secret: false,
+        required: true,
+        pattern: /^[\w.-]+\/[\w.-]+$/,
+        patternHint: 'syimykkalykov1999/LawBid',
+      },
+      {
+        name: 'appId',
+        label: 'App ID',
+        secret: false,
+        required: true,
+        pattern: /^\d{1,12}$/,
+        patternHint: '1234567',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'installationId',
+        label: 'Installation ID',
+        secret: false,
+        required: true,
+        pattern: /^\d{1,15}$/,
+        patternHint: '55555555',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'privateKey',
+        label: 'Private key (.pem)',
+        secret: true,
+        required: true,
+        pattern:
+          /^-----BEGIN (RSA )?PRIVATE KEY-----[\s\S]+-----END (RSA )?PRIVATE KEY-----\s*$/,
+        patternHint: '-----BEGIN RSA PRIVATE KEY-----…',
+        normalize: normalizePem,
+      },
+    ],
+  },
+  {
     id: 'google_signin',
     label: 'Google sign-in',
     description: 'OAuth client IDs of the iOS / Android / web apps.',
@@ -847,6 +897,76 @@ export const PROVIDERS: ProviderDefinition[] = [
         normalize: commaList,
       },
     ],
+  },
+  {
+    // Owner 2026-10-28: Google Calendar two-way link (OFF by default; switch
+    // `calendar.google_enabled`). Guide: docs/runbooks/CALENDAR_GOOGLE_MICROSOFT.md
+    id: 'google_calendar',
+    label: 'Google Calendar (link a calendar)',
+    description:
+      'OAuth app for linking a Google calendar: busy time blocks booking, consultations are written to it.',
+    fields: [
+      {
+        name: 'clientId',
+        label: 'OAuth client ID (Web application)',
+        secret: false,
+        required: true,
+        pattern: /^\d+-[\w]+\.apps\.googleusercontent\.com$/,
+        env: 'GOOGLE_CALENDAR_CLIENT_ID',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'clientSecret',
+        label: 'OAuth client secret',
+        secret: true,
+        required: true,
+        pattern: /^[\w-]{16,}$/,
+        env: 'GOOGLE_CALENDAR_CLIENT_SECRET',
+        normalize: cleanPasted,
+      },
+    ],
+    warning:
+      'Redirect URI in Google Cloud must be https://api.lawbid.dev/api/v1/calendar/oauth/google/callback',
+  },
+  {
+    // Owner 2026-10-28: Outlook / Microsoft 365 two-way link (OFF by default;
+    // switch `calendar.microsoft_enabled`).
+    id: 'microsoft_calendar',
+    label: 'Outlook calendar (link a calendar)',
+    description:
+      'Azure app registration for linking an Outlook / Microsoft 365 calendar.',
+    fields: [
+      {
+        name: 'clientId',
+        label: 'Application (client) ID',
+        secret: false,
+        required: true,
+        pattern:
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+        env: 'MS_CALENDAR_CLIENT_ID',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'clientSecret',
+        label: 'Client secret VALUE (not the secret ID)',
+        secret: true,
+        required: true,
+        pattern: /^[\w.~-]{20,}$/,
+        env: 'MS_CALENDAR_CLIENT_SECRET',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'tenant',
+        label: 'Tenant (leave "common" for work + personal accounts)',
+        secret: false,
+        required: false,
+        pattern: /^[\w.-]{3,64}$/,
+        env: 'MS_CALENDAR_TENANT',
+        normalize: cleanPasted,
+      },
+    ],
+    warning:
+      'Redirect URI in Azure must be https://api.lawbid.dev/api/v1/calendar/oauth/microsoft/callback',
   },
   {
     id: 'apple_signin',
@@ -1118,6 +1238,22 @@ export const PROVIDERS: ProviderDefinition[] = [
         required: false,
         pattern: /^https:\/\/[^@\s]+@[^\s]+\/\d+$/,
       },
+      // S9-11: optional, lets the «Расходы» page read how many events
+      // Sentry kept or dropped (token scope org:read).
+      {
+        name: 'orgSlug',
+        label: 'Organization slug (for usage stats)',
+        secret: false,
+        required: false,
+        pattern: /^[a-z0-9][a-z0-9-]{0,63}$/,
+      },
+      {
+        name: 'statsToken',
+        label: 'Auth token with org:read (for usage stats)',
+        secret: true,
+        required: false,
+        pattern: /^[\w.-]{20,}$/,
+      },
     ],
   },
   // Owner 2026-10-05: zero maintenance — the worker checks every hour that
@@ -1188,6 +1324,23 @@ export const PROVIDERS: ProviderDefinition[] = [
         required: false,
         pattern: /^[A-Za-z0-9/+=]{40}$/,
         env: 'REKOGNITION_SECRET_ACCESS_KEY',
+      },
+    ],
+  },
+  // Owner 2026-10-27: automatic text detection before any report.
+  {
+    id: 'openai_moderation',
+    label: 'Text moderation (OpenAI omni-moderation)',
+    description:
+      'Checks new posts and comments for harassment, hate, sexual and illicit content before anyone reports them. Modes off / shadow / enforce in Модерация → Настройки. Free or about $0.00001 a call; a daily cap is set there.',
+    fields: [
+      {
+        name: 'apiKey',
+        label: 'API key',
+        secret: true,
+        required: true,
+        pattern: /^sk-[A-Za-z0-9_-]{20,}$/,
+        env: 'OPENAI_MODERATION_API_KEY',
       },
     ],
   },

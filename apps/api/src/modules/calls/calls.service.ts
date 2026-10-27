@@ -145,6 +145,11 @@ const conflict = () =>
  * the bid is accepted (contacts unlocked), so a call cannot be used to
  * trade contacts before acceptance.
  */
+/** Авто (calls_request_sweep_seconds = 0): above this many call requests a
+ * minute on one server the request-path sweep is limited to one per 5 s. */
+const CALL_SWEEP_AUTO_BUSY_PER_MIN = 120;
+const CALL_SWEEP_AUTO_SECONDS = 5;
+
 @Injectable()
 export class CallsService {
   private readonly logger = new Logger(CallsService.name);
@@ -873,8 +878,11 @@ export class CallsService {
    * call request, including the app's every-few-seconds poll. With
    * `realtime.server.calls_request_sweep_seconds` > 0 only one request per
    * that many seconds, cluster-wide (a Redis lock), sweeps; the
-   * `calls.sweep` cron (every minute) does the rest. 0 = every request, as
-   * before.
+   * `calls.sweep` cron (every minute) does the rest. 0 = Авто (default,
+   * review R-66): every request sweeps while this server sees few call
+   * requests, and it switches to 5 s as soon as the rate passes
+   * CALL_SWEEP_AUTO_BUSY_PER_MIN, so a polling burst cannot run six scans per
+   * poll.
    */
   private async sweepIfDue(): Promise<void> {
     let every = 0;
@@ -885,6 +893,9 @@ export class CallsService {
         )) ?? 0;
     } catch {
       // settings unreachable: sweep as before
+    }
+    if (every === 0 && this.noteSweepRequest() > CALL_SWEEP_AUTO_BUSY_PER_MIN) {
+      every = CALL_SWEEP_AUTO_SECONDS;
     }
     if (every > 0 && this.redis?.status === 'ready') {
       try {
@@ -901,6 +912,26 @@ export class CallsService {
       }
     }
     await this.sweep();
+  }
+
+  /** Call requests per minute seen by this process (sliding, two buckets). */
+  private sweepRate?: { start: number; cur: number; prev: number };
+
+  private noteSweepRequest(nowMs = Date.now()): number {
+    const r = (this.sweepRate ??= { start: nowMs, cur: 0, prev: 0 });
+    const elapsed = nowMs - r.start;
+    if (elapsed >= 120_000) {
+      r.start = nowMs;
+      r.prev = 0;
+      r.cur = 0;
+    } else if (elapsed >= 60_000) {
+      r.start += 60_000;
+      r.prev = r.cur;
+      r.cur = 0;
+    }
+    r.cur += 1;
+    const into = Math.min(1, (nowMs - r.start) / 60_000);
+    return r.prev * (1 - into) + r.cur;
   }
 
   async sweep(now = new Date()): Promise<number> {

@@ -24,6 +24,13 @@ class DataRequestDto {
     required this.closedAt,
     required this.createdAt,
     required this.accessCount,
+    required this.legalBasis,
+    required this.country,
+    required this.subjectUserId,
+    required this.dueAt,
+    required this.doNotNotify,
+    required this.nondisclosureUntil,
+    required this.userNotifiedAt,
   });
 
   factory DataRequestDto.fromJson(Map<String, Object?> json) =>
@@ -41,6 +48,13 @@ class DataRequestDto {
   final DateTime? closedAt;
   final DateTime createdAt;
   final int accessCount;
+  final String? legalBasis;
+  final String? country;
+  final String? subjectUserId;
+  final DateTime? dueAt;
+  final bool doNotNotify;
+  final DateTime? nondisclosureUntil;
+  final DateTime? userNotifiedAt;
 
   Map<String, Object?> toJson() => _$DataRequestDtoToJson(this);
 }

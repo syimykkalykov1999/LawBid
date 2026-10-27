@@ -51,6 +51,19 @@ class L10nCacheState {
   final Map<String, String> entries;
   final Map<String, String> english;
 
+  /// S16-2: value equality, so assigning the same bundle again does not
+  /// rebuild the ~100 widgets that watch the translator.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is L10nCacheState &&
+          other.lang == lang &&
+          mapEquals(other.entries, entries) &&
+          mapEquals(other.english, english);
+
+  @override
+  int get hashCode => Object.hash(lang, entries.length, english.length);
+
   L10nCacheState copyWith({
     String? lang,
     Map<String, String>? entries,
@@ -145,7 +158,12 @@ class L10nCacheController extends _$L10nCacheController {
   }
 
   Future<void> _loadAndRefresh(AppLanguage language) async {
-    await _loadOnly(language);
+    // S16-2: the bundle of this language is already in memory (bootstrap or
+    // an earlier pass): re-reading the whole drift table would only swap
+    // in an identical copy and rebuild every widget that reads text.
+    if (state.lang != language.code || state.entries.isEmpty) {
+      await _loadOnly(language);
+    }
     if (!_isStillCurrent(language)) return;
     final repo = ref.read(l10nRepositoryProvider);
     final results = await Future.wait([

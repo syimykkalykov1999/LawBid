@@ -58,6 +58,7 @@ export const HEAVY_CRON_JOBS: readonly string[] = [
   CRON_JOBS.messagesReencrypt,
   CRON_JOBS.chatSearchBackfill,
   CRON_JOBS.adminSummaries,
+  CRON_JOBS.ledgerReconcile,
 ];
 
 /** Queues paused as a whole (users get their file a little later). */
@@ -121,6 +122,9 @@ export interface CapacityReading {
   dbConnections: number | null;
   dbMaxConnections: number | null;
   redisMemoryPercent: number | null;
+  /** S9-14 (optional: older readings in Redis lack them). */
+  dbStorageGb?: number | null;
+  dbMultiAz?: boolean | null;
 }
 
 export interface CeilingSnapshot {

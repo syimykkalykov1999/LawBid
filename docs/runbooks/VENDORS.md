@@ -183,3 +183,24 @@ LawBid itself has **no public status page yet** (see
 Once a quarter (with the restore drill): re-check status links, free-plan limits, whether a
 fallback in this file became real, and rehearse one exit step. Record the result in
 [restore-drill.md](restore-drill.md) or a dated note. Dates in this file: written 2026-10-25.
+
+
+## Deletion and retention per vendor (privacy round 13)
+
+Each account deletion writes one row per step to `deletion_steps` (status
+`ok`, `failed`, `retained`, `skipped`). What the code does and what stays:
+
+| Vendor | On account deletion | Left at the vendor |
+|---|---|---|
+| Stripe | customers deleted (platform + connected accounts), subscription cancelled | invoices and payments (tax law) |
+| Bunny | videos marked deleted and purged (rest by `videos.sweep`) | nothing |
+| Twilio | message log entries sent to the number deleted through the API | nothing; default log retention is 400 days if the call failed |
+| Firebase (FCM) | tokens deleted from our database | the vendor drops a token after about 270 days unused |
+| LiveKit | nothing stored per person | rooms end with the call |
+| Sentry | nothing to delete (opaque user id only) | events expire per plan retention (90 days default) |
+| Amazon SES | nothing | a bounce/complaint suppression entry may stay |
+| Verification vendor | our copy of the payload emptied | the vendor's contractual retention |
+
+A step with status `failed` is listed by the nightly `privacy.reconcile`
+(log `alert: deletion_step_failed`); the next anonymization run or an
+operator retries it.

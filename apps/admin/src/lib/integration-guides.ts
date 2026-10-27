@@ -294,6 +294,33 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
   },
 
+  github_infra: {
+    steps: [
+      'GitHub → Settings → Developer settings → GitHub Apps → New GitHub App. Имя: lawbid-infra. Webhook: выключить.',
+      'Repository permissions: Actions — Read and write, Contents — Read-only. Больше ничего.',
+      'Create → на странице приложения запишите App ID → Generate a private key (скачается файл .pem).',
+      'Install App → только репозиторий LawBid. Число в адресе страницы установки — это Installation ID.',
+      'Остальные шаги (роль AWS, окружение infra-apply) — в инструкции «Как включить что-то в облаке одной кнопкой».',
+    ],
+    links: [
+      { label: 'Создать GitHub App', url: 'https://github.com/settings/apps/new' },
+      {
+        label: 'Токен приложения',
+        url: 'https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app',
+      },
+    ],
+    enable: [
+      'Заполните четыре поля → «Сохранить» (код 2FA) → «Включить».',
+      'Сначала включён пробный режим (Настройки → infra.dry_run): облако только планируется. Выключите его, когда посмотрели первый план.',
+    ],
+    fields: {
+      repo: { how: 'Адрес репозитория на GitHub без https://github.com/', example: 'syimykkalykov1999/LawBid' },
+      appId: { how: 'Число «App ID» со страницы GitHub-приложения (General).', example: '1234567' },
+      installationId: { how: 'Число в конце адреса страницы установки приложения (…/installations/55555555).', example: '55555555' },
+      privateKey: { how: 'Всё содержимое скачанного файла .pem, включая строки BEGIN и END.' },
+    },
+  },
+
   turnstile: {
     steps: [
       'Cloudflare → Turnstile → Add widget. Имя: lawbid-web. Домены: lawbid.dev, www.lawbid.dev. Тип: Managed.',
@@ -388,6 +415,43 @@ export const GUIDES: Record<string, ProviderGuide> = {
         how: 'Через запятую, каждый заканчивается на .apps.googleusercontent.com.',
         example: '123-abc.apps.googleusercontent.com',
       },
+    },
+  },
+
+  google_calendar: {
+    steps: [
+      'console.cloud.google.com → APIs & Services → Library → включите Google Calendar API.',
+      'APIs & Services → Credentials → Create credentials → OAuth client ID → тип «Web application».',
+      'В «Authorized redirect URIs» добавьте https://api.lawbid.dev/api/v1/calendar/oauth/google/callback и скопируйте Client ID и Client secret.',
+    ],
+    links: [{ label: 'Google Cloud Credentials', url: 'https://console.cloud.google.com/apis/credentials' }],
+    enable: [
+      'Вставьте Client ID и Client secret (GOOGLE_CALENDAR_CLIENT_ID, GOOGLE_CALENDAR_CLIENT_SECRET) → «Сохранить» → «Проверить».',
+      'Затем в Настройках включите calendar.google_enabled: у адвокатов появится кнопка «Привязать Google Календарь».',
+      'Пока выключено, запись работает как раньше, без календаря.',
+    ],
+    fields: {
+      clientId: { how: 'Credentials → OAuth 2.0 Client IDs → ваш Web-клиент → Client ID.', example: '123-abc.apps.googleusercontent.com' },
+      clientSecret: { how: 'Там же: Client secret (показывается при создании клиента).', example: 'GOCSPX-…' },
+    },
+  },
+
+  microsoft_calendar: {
+    steps: [
+      'portal.azure.com → Microsoft Entra ID → App registrations → New registration.',
+      'Supported account types: «Accounts in any organizational directory and personal Microsoft accounts»; Redirect URI (Web): https://api.lawbid.dev/api/v1/calendar/oauth/microsoft/callback.',
+      'API permissions → Microsoft Graph → Delegated: Calendars.ReadWrite, offline_access. Certificates & secrets → New client secret → скопируйте Value.',
+    ],
+    links: [{ label: 'Azure App registrations', url: 'https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade' }],
+    enable: [
+      'Вставьте Application (client) ID и значение секрета (MS_CALENDAR_CLIENT_ID, MS_CALENDAR_CLIENT_SECRET) → «Сохранить» → «Проверить».',
+      'Затем в Настройках включите calendar.microsoft_enabled: у адвокатов появится кнопка «Привязать Outlook».',
+      'Пока выключено, запись работает как раньше, без календаря.',
+    ],
+    fields: {
+      clientId: { how: 'App registrations → ваше приложение → Overview → Application (client) ID.', example: '00000000-0000-0000-0000-000000000000' },
+      clientSecret: { how: 'Certificates & secrets → Client secrets → колонка Value (не Secret ID).', example: 'abc8Q~…' },
+      tenant: { how: 'Необязательно. «common» — рабочие и личные аккаунты; ID каталога — только ваша организация.', example: 'common' },
     },
   },
 
@@ -499,6 +563,14 @@ export const GUIDES: Record<string, ProviderGuide> = {
         how: 'DSN проекта lawbid-admin: Client Keys (DSN). Необязательно.',
         example: 'https://abc@o123.ingest.sentry.io/458',
       },
+      orgSlug: {
+        how: 'Короткое имя организации из адреса sentry.io/organizations/<имя>/. Необязательно: нужно только странице «Расходы» (сколько событий принято и отброшено).',
+        example: 'lawbid',
+      },
+      statsToken: {
+        how: 'Settings → Auth Tokens → Create New Token с правом org:read. Необязательно, только для статистики на странице «Расходы».',
+        example: 'sntrys_…',
+      },
     },
   },
 
@@ -558,6 +630,22 @@ export const GUIDES: Record<string, ProviderGuide> = {
       region: { how: 'Регион бакета медиа.', example: 'us-east-1' },
       accessKeyId: { how: 'На AWS оставьте пустым (роль сервера).', example: 'AKIA…' },
       secretAccessKey: { how: 'На AWS оставьте пустым.' },
+    },
+  },
+
+  openai_moderation: {
+    steps: [
+      'Откройте platform.openai.com и войдите (или зарегистрируйтесь).',
+      'API keys → Create new secret key. Название любое, например lawbid-moderation.',
+      'Скопируйте ключ (он начинается с sk-). Показывается один раз. Платить отдельно за проверку не нужно: она бесплатна или стоит около нуля.',
+    ],
+    links: [{ label: 'OpenAI API keys', url: 'https://platform.openai.com/api-keys' }],
+    enable: [
+      'Вставьте ключ в поле (OPENAI_MODERATION_API_KEY) → «Сохранить» (код 2FA) → «Проверить» → «Включить».',
+      'Режим проверки текста (выкл / тень / действовать) и суточный потолок запросов задаются в Модерация → Автомодерация. Начните с «Тень». Ключ секретный: не отправляйте его в чат.',
+    ],
+    fields: {
+      apiKey: { how: 'Секретный ключ из platform.openai.com → API keys.', example: 'sk-…' },
     },
   },
 

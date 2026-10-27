@@ -52,8 +52,12 @@ export class CaseSigningController {
   })
   @ApiEnvelopeResponse(SignRequestDto, { isArray: true })
   @ApiErrors(ERR)
-  listSignRequests(@CurrentUser() u: RequestUser, @Param() p: CaseIdParamDto) {
-    return this.signing.list(u, p.id);
+  listSignRequests(
+    @CurrentUser() u: RequestUser,
+    @Param() p: CaseIdParamDto,
+    @Req() req: Request,
+  ) {
+    return this.signing.list(u, p.id, { ip: req.ip ?? null });
   }
 
   @Post()
@@ -113,6 +117,21 @@ export class CaseSigningController {
     @Param() p: SignRequestIdParamDto,
   ) {
     return this.signing.cancel(u, p.id, p.requestId);
+  }
+
+  @Post(':requestId/resend')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'The side that asked reminds the one who has not signed (also revives an expired request)',
+  })
+  @ApiEnvelopeResponse(SignRequestDto, { isArray: true })
+  @ApiErrors(ERR)
+  resendSignRequest(
+    @CurrentUser() u: RequestUser,
+    @Param() p: SignRequestIdParamDto,
+  ) {
+    return this.signing.resend(u, p.id, p.requestId);
   }
 
   @Get(':requestId/verify')

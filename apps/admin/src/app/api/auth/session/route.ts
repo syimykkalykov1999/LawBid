@@ -6,6 +6,7 @@ import {
   cookieOptions,
   sessionToken,
 } from '@/lib/api/server';
+import { crossSiteReason, lastForwardedFor } from '@/lib/csrf';
 
 /**
  * The second sign-in step runs here, not in the browser (owner 2026-10-22:
@@ -16,6 +17,7 @@ import {
  * also the ten recovery codes, shown once).
  */
 export async function POST(req: Request): Promise<Response> {
+  if (crossSiteReason(req)) return forbiddenOrigin();
   const body = (await req.json()) as {
     ticket: string;
     code?: string;
@@ -38,7 +40,7 @@ export async function POST(req: Request): Promise<Response> {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-forwarded-for': req.headers.get('x-forwarded-for') ?? '',
+      'x-forwarded-for': lastForwardedFor(req.headers.get('x-forwarded-for')),
       'user-agent': req.headers.get('user-agent') ?? '',
     },
     body: JSON.stringify(sent),
@@ -71,7 +73,8 @@ export async function POST(req: Request): Promise<Response> {
 }
 
 /** Sign-out: end the server session, drop the cookie. */
-export async function DELETE(): Promise<Response> {
+export async function DELETE(req: Request): Promise<Response> {
+  if (crossSiteReason(req)) return forbiddenOrigin();
   const token = await sessionToken();
   if (token) {
     await fetch(`${apiBaseUrl()}/admin/auth/logout`, {
@@ -83,4 +86,11 @@ export async function DELETE(): Promise<Response> {
   const res = NextResponse.json({ data: { ok: true } });
   res.cookies.set(SESSION_COOKIE, '', cookieOptions(0));
   return res;
+}
+
+function forbiddenOrigin(): Response {
+  return NextResponse.json(
+    { error: { code: 'FORBIDDEN', message: 'Cross-site request refused.' } },
+    { status: 403 },
+  );
 }

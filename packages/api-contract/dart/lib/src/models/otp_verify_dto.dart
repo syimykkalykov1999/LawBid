@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'age_attestation_dto.dart';
 import 'device_info_dto.dart';
 import 'otp_verify_dto_channel.dart';
 
@@ -16,6 +17,7 @@ class OtpVerifyDto {
     required this.identifier,
     required this.code,
     this.deviceInfo,
+    this.ageAttestation,
   });
 
   factory OtpVerifyDto.fromJson(Map<String, Object?> json) =>
@@ -25,6 +27,9 @@ class OtpVerifyDto {
   final String identifier;
   final String code;
   final DeviceInfoDto? deviceInfo;
+
+  /// 2026-10-25 (COPPA): "I am 18 or older", for a NEW account only.
+  final AgeAttestationDto? ageAttestation;
 
   Map<String, Object?> toJson() => _$OtpVerifyDtoToJson(this);
 }

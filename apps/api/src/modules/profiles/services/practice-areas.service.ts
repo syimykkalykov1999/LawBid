@@ -3,6 +3,8 @@ import type Redis from 'ioredis';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT } from '../../../redis/redis.constants';
+import { cached } from '../../../common/cache/cached';
+import { PRACTICE_TREE_CACHE_KEY } from '../../../common/cache/cache-keys';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import type {
   PracticeAreaCategoryDto,
@@ -17,7 +19,7 @@ import {
 
 /** The tree changes only by a seed/migration (docs/02 §3.2), so a short
  * shared cache keeps every app start from re-reading ~400 rows. */
-export const PRACTICE_TREE_CACHE_KEY = 'practice_areas:tree:v1';
+export { PRACTICE_TREE_CACHE_KEY };
 export const PRACTICE_TREE_CACHE_TTL_SECONDS = 300;
 
 export interface PracticeTree {
@@ -77,34 +79,34 @@ export class PracticeAreasService {
     @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
   ) {}
 
-  async tree(): Promise<PracticeTree> {
-    const cached = await this.redis.get(PRACTICE_TREE_CACHE_KEY);
-    if (cached !== null) return JSON.parse(cached) as PracticeTree;
-
-    const rows = await this.prisma.practiceArea.findMany({
-      where: { is_active: true },
-      select: {
-        id: true,
-        parent_id: true,
-        code: true,
-        name_en: true,
-        i18n_key: true,
-        sort: true,
-      },
-    });
-    const categories = buildPracticeTree(rows);
-    const hash = createHash('sha256')
-      .update(JSON.stringify(categories))
-      .digest('hex')
-      .slice(0, 24);
-    const tree: PracticeTree = { etag: `"pa-${hash}"`, categories };
-    await this.redis.set(
+  /** Caching round 2 (S2-5 / S2-6): the shared helper (single-flight,
+   * lease, jitter); an admin edit deletes the key (AdminContentService), so
+   * a switched-off area leaves the list at once, not after 5 minutes. */
+  tree(): Promise<PracticeTree> {
+    return cached<PracticeTree>(
+      this.redis,
       PRACTICE_TREE_CACHE_KEY,
-      JSON.stringify(tree),
-      'EX',
-      PRACTICE_TREE_CACHE_TTL_SECONDS,
+      { ttlSec: PRACTICE_TREE_CACHE_TTL_SECONDS },
+      async () => {
+        const rows = await this.prisma.practiceArea.findMany({
+          where: { is_active: true },
+          select: {
+            id: true,
+            parent_id: true,
+            code: true,
+            name_en: true,
+            i18n_key: true,
+            sort: true,
+          },
+        });
+        const categories = buildPracticeTree(rows);
+        const hash = createHash('sha256')
+          .update(JSON.stringify(categories))
+          .digest('hex')
+          .slice(0, 24);
+        return { etag: `"pa-${hash}"`, categories };
+      },
     );
-    return tree;
   }
 
   /** The attorney's selected, still-active specializations. */
@@ -197,7 +199,11 @@ export class PracticeAreasService {
       );
     }
 
-    await withTxRetry(this.prisma, async (tx) => {
+    // The audit row is written AFTER the transaction commits: the audit-chain
+    // trigger takes one global advisory lock until the end of its own
+    // transaction, so inside this one every profile edit would queue behind
+    // all admin writes (review R-68).
+    const changed = await withTxRetry(this.prisma, async (tx) => {
       const profile = await tx.attorneyProfile.findUnique({
         where: { user_id: userId },
         select: { verification_status: true },
@@ -215,7 +221,7 @@ export class PracticeAreasService {
       const currentSet = new Set(current);
       const toRemove = current.filter((id) => !validSet.has(id));
       const toAdd = wanted.filter((id) => !currentSet.has(id));
-      if (toRemove.length === 0 && toAdd.length === 0) return;
+      if (toRemove.length === 0 && toAdd.length === 0) return null;
       if (toRemove.length > 0) {
         await tx.attorneyPracticeArea.deleteMany({
           where: { attorney_id: userId, practice_area_id: { in: toRemove } },
@@ -229,18 +235,21 @@ export class PracticeAreasService {
           })),
         });
       }
-      await tx.auditLog.create({
+      return { before: [...current].sort(), after: [...wanted].sort() };
+    });
+    if (changed) {
+      await this.prisma.auditLog.create({
         data: {
           admin_id: userId,
           action: 'attorney.practice_areas.replace',
           target_type: 'attorney_profile',
           target_id: userId,
-          before: { practiceAreaIds: [...current].sort() },
-          after: { practiceAreaIds: [...wanted].sort() },
+          before: { practiceAreaIds: changed.before },
+          after: { practiceAreaIds: changed.after },
           ip: ip ?? null,
         },
       });
-    });
+    }
     return this.selectedOf(userId);
   }
 }

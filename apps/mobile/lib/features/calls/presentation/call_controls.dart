@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 
@@ -139,7 +139,7 @@ class _PillButton extends StatelessWidget {
           child: AppPressable(
             onTap: () {
               if (onTap == null) return;
-              HapticFeedback.lightImpact();
+              AppHaptics.light();
               onTap!();
             },
             child: AnimatedContainer(

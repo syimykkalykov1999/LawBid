@@ -10,6 +10,7 @@ import { Badge, Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/toast';
+import { ShardSplitCard } from '@/components/system/shard-split-card';
 import { UpdatedAgo } from '@/components/updated-ago';
 import { ApiError, api, errorText } from '@/lib/api/client';
 import { livePoll } from '@/lib/live';
@@ -18,6 +19,7 @@ import {
   LIGHT_TONE,
   RUNBOOK_BASE,
   componentTitle,
+  healthPollMs,
   incidentSpan,
   word,
   type SystemHealth,
@@ -42,7 +44,9 @@ export default function SystemHealthPage() {
   const health = useQuery({
     queryKey: ['system-health'],
     queryFn: async () => (await api.GET('/admin/system-health')).data!.data,
-    refetchInterval: livePoll(),
+    // S18-9: every minute while green; every 15 s while something is
+    // yellow or red, so an outage is not a minute late.
+    refetchInterval: livePoll((d) => healthPollMs((d as SystemHealth | undefined)?.overall)),
   });
   const set = (h: SystemHealth) => qc.setQueryData(['system-health'], h);
 
@@ -274,6 +278,8 @@ export default function SystemHealthPage() {
               </Button>
             </Card>
           </div>
+
+          <ShardSplitCard />
 
           <SectionTitle>Что система делает сама</SectionTitle>
           <Card className="divide-y divide-line">

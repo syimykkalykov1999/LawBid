@@ -19,6 +19,7 @@ PostDto _$PostDtoFromJson(Map<String, dynamic> json) => PostDto(
   kind: PostKind.fromJson(json['kind'] as String),
   viewCount: (json['viewCount'] as num).toInt(),
   contentClass: PostContentClass.fromJson(json['contentClass'] as String),
+  saveCount: (json['saveCount'] as num).toInt(),
   author: PostAuthorDto.fromJson(json['author'] as Map<String, dynamic>),
   id: json['id'] as String,
   media: (json['media'] as List<dynamic>)
@@ -27,16 +28,16 @@ PostDto _$PostDtoFromJson(Map<String, dynamic> json) => PostDto(
   attachments: (json['attachments'] as List<dynamic>)
       .map((e) => PostAttachmentDto.fromJson(e as Map<String, dynamic>))
       .toList(),
-  saveCount: (json['saveCount'] as num).toInt(),
+  commentCount: (json['commentCount'] as num).toInt(),
   tags: (json['tags'] as List<dynamic>).map((e) => e as String).toList(),
   shareCount: (json['shareCount'] as num).toInt(),
   status: ContentStatus.fromJson(json['status'] as String),
   likeCount: (json['likeCount'] as num).toInt(),
-  commentCount: (json['commentCount'] as num).toInt(),
   isMine: json['isMine'] as bool,
   likesHidden: json['likesHidden'] as bool? ?? false,
   commentsEnabled: json['commentsEnabled'] as bool? ?? true,
   viewsHidden: json['viewsHidden'] as bool? ?? false,
+  advertisingDisclaimer: json['advertisingDisclaimer'] as String?,
   promotionCta: json['promotionCta'] == null
       ? null
       : PostPromotionCtaDto.fromJson(
@@ -74,6 +75,7 @@ Map<String, dynamic> _$PostDtoToJson(PostDto instance) => <String, dynamic>{
   'kind': instance.kind.toJson(),
   'practice': ?instance.practice?.toJson(),
   'contentClass': instance.contentClass.toJson(),
+  'advertisingDisclaimer': ?instance.advertisingDisclaimer,
   'author': instance.author.toJson(),
   'body': instance.body,
   'media': instance.media.map((e) => e.toJson()).toList(),

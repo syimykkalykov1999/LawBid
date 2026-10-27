@@ -202,7 +202,6 @@ lib/features/social/presentation/widgets/post_card.dart	: Colors.white.withValue
 lib/features/social/presentation/widgets/post_card.dart	: Colors.white.withValues(alpha: 0.7),
 lib/features/social/presentation/widgets/post_card.dart	? Colors.white.withValues(alpha: 0.9)
 lib/features/social/presentation/widgets/post_card.dart	? Colors.white.withValues(alpha: 0.9)
-lib/features/social/presentation/widgets/post_card.dart	ColoredBox(color: Colors.black.withValues(alpha: 0.18)),
 lib/features/social/presentation/widgets/post_card.dart	Colors.black.withValues(alpha: 0),
 lib/features/social/presentation/widgets/post_card.dart	Colors.black.withValues(alpha: 0.5),
 lib/features/social/presentation/widgets/post_card.dart	color: Colors.white,

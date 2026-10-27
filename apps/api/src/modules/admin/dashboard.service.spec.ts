@@ -1,5 +1,7 @@
 import {
   buildTotals,
+  checkAuditChain,
+  countAccessReads,
   DashboardService,
   TOTALS_BUTTON_COOLDOWN_MS,
   USER_TOTALS_KEY,
@@ -99,5 +101,87 @@ describe('DashboardService.refreshTotals (button)', () => {
     await svc.refreshTotals();
     const keys = summary.refresh.mock.calls.map((c) => c[0]);
     expect(keys).toEqual([USER_TOTALS_KEY, 'dashboard']);
+  });
+});
+
+describe('snapshot compute: countAccessReads / checkAuditChain', () => {
+  const tx = (auditLog: Record<string, jest.Mock>, queryRaw?: jest.Mock) => ({
+    $transaction: (fn: (t: unknown) => unknown) =>
+      fn({ $executeRaw: jest.fn(), $queryRaw: queryRaw, auditLog }),
+  });
+
+  it('groups reads by admin, kind and reason, minus refused attempts', async () => {
+    const groupBy = jest
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          admin_id: 'a1',
+          action: 'admin.private_read.chat_messages',
+          reason_code: 'report_review',
+          _count: { _all: 5 },
+        },
+        {
+          admin_id: 'a2',
+          action: 'admin.private_read.message_body',
+          reason_code: null,
+          _count: { _all: 2 },
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          admin_id: 'a2',
+          action: 'admin.private_read.message_body',
+          reason_code: null,
+          _count: { _all: 2 },
+        },
+      ]);
+    const from = new Date('2026-10-01T00:00:00Z');
+    const to = new Date('2026-11-01T00:00:00Z');
+    const groups = await countAccessReads(tx({ groupBy }) as never, from, to);
+    expect(groups).toEqual([
+      {
+        adminId: 'a1',
+        action: 'admin.private_read.chat_messages',
+        reasonCode: 'report_review',
+        count: 5,
+      },
+    ]);
+    expect(groupBy.mock.calls[0][0].where.created_at).toEqual({
+      gte: from,
+      lt: to,
+    });
+    expect(groupBy.mock.calls[1][0].where.after).toEqual({
+      path: ['outcome'],
+      equals: 'failed',
+    });
+  });
+
+  it('reports the first broken seq, the head and the number checked', async () => {
+    const queryRaw = jest.fn().mockResolvedValue([{ seq: 7n }]);
+    const auditLog = {
+      findFirst: jest.fn().mockResolvedValue({ seq: 12n, row_hash: 'h12' }),
+      count: jest.fn().mockResolvedValue(12),
+    };
+    const c = await checkAuditChain(tx(auditLog, queryRaw) as never);
+    expect(c).toEqual({
+      checked: 12,
+      brokenAtSeq: 7,
+      headHash: 'h12',
+      headSeq: 12,
+    });
+  });
+
+  it('an empty, intact chain has no head and nothing broken', async () => {
+    const queryRaw = jest.fn().mockResolvedValue([]);
+    const auditLog = {
+      findFirst: jest.fn().mockResolvedValue(null),
+      count: jest.fn().mockResolvedValue(0),
+    };
+    expect(await checkAuditChain(tx(auditLog, queryRaw) as never)).toEqual({
+      checked: 0,
+      brokenAtSeq: null,
+      headHash: null,
+      headSeq: null,
+    });
   });
 });

@@ -21,6 +21,7 @@ import {
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import {
+  CsamAuditEventDto,
   CsamReportDto,
   MediaCheckDto,
   MediaCheckIdParamDto,
@@ -94,6 +95,7 @@ export class AdminMediaModerationController {
       status: r.status,
       externalReportId: r.external_report_id,
       error: r.error,
+      audit: (r.audit as unknown as CsamAuditEventDto[]) ?? [],
       createdAt: r.created_at.toISOString(),
     };
   }

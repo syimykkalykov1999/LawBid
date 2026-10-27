@@ -30,9 +30,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
     // receives the full top padding (Scaffold only strips it from `body`),
     // and unlike Material's AppBar it did not apply it — the title sat
     // under the status bar / notch on devices. Tests and goldens run with
-    // zero padding, so their output is unchanged. The offline banner
-    // (core/connectivity/offline_banner_host.dart) consumes this inset
-    // while it is shown, so the bar never double-pads.
+    // zero padding, so their output is unchanged.
     final topInset = MediaQuery.paddingOf(context).top;
     final bar = Container(
         decoration: headerDecoration(

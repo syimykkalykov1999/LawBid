@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
+import { heldSql } from '../../common/privacy/legal-hold';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /** Terminally revoked rows (logout, logout_all, reuse_detected, admin
@@ -73,7 +74,7 @@ export class SessionsCleanupJob {
     for (;;) {
       const [row] = await this.prisma.$queryRaw<BatchRow[]>(Prisma.sql`
         WITH batch AS (
-          SELECT id, expires_at, revoked_at, revoked_reason
+          SELECT id, user_id, expires_at, revoked_at, revoked_reason
           FROM sessions
           WHERE id > ${cursor}::UUID
           ORDER BY id
@@ -83,9 +84,10 @@ export class SessionsCleanupJob {
           DELETE FROM sessions
           WHERE id IN (
             SELECT id FROM batch
-            WHERE expires_at < ${now}
+            WHERE (expires_at < ${now}
                OR (revoked_at < ${revokedBefore}
-                   AND revoked_reason IS DISTINCT FROM 'rotated')
+                   AND revoked_reason IS DISTINCT FROM 'rotated'))
+              AND NOT ${heldSql('user', Prisma.sql`batch.user_id`)}
           )
           RETURNING id
         )

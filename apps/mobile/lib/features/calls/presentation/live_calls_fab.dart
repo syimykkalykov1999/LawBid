@@ -8,6 +8,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
+import 'package:lawbid/core/time/shown_tick.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/live_calls.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart'
@@ -228,16 +229,16 @@ class LiveCallSubtitle extends ConsumerStatefulWidget {
   ConsumerState<LiveCallSubtitle> createState() => _LiveCallSubtitleState();
 }
 
-class _LiveCallSubtitleState extends ConsumerState<LiveCallSubtitle> {
+class _LiveCallSubtitleState extends ConsumerState<LiveCallSubtitle>
+    with ShownTick<LiveCallSubtitle> {
   Timer? _tick;
 
   @override
   void initState() {
     super.initState();
     if (widget.call.startedAt != null) {
-      _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() {});
-      });
+      // Not while its tab is hidden (2026-10-26 smoothness P7).
+      _tick = Timer.periodic(const Duration(seconds: 1), (_) => shownTick());
     }
   }
 
@@ -249,6 +250,7 @@ class _LiveCallSubtitleState extends ConsumerState<LiveCallSubtitle> {
 
   @override
   Widget build(BuildContext context) {
+    trackShown(context);
     final c = widget.call;
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);

@@ -20,6 +20,8 @@ enum EmailTemplateSummaryDtoKey {
   dataExport('data_export'),
   @JsonValue('notification')
   notification('notification'),
+  @JsonValue('account_deletion')
+  accountDeletion('account_deletion'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

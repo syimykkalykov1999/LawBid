@@ -4,10 +4,12 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'calendar_links_dto.dart';
 import 'consultation_dto_cancelled_by.dart';
 import 'consultation_dto_status.dart';
 import 'consultation_dto_viewer_role.dart';
 import 'consultation_person_dto.dart';
+import 'no_show_dto.dart';
 
 part 'consultation_dto.g.dart';
 
@@ -23,12 +25,15 @@ class ConsultationDto {
     required this.attorneyTimezone,
     required this.canCall,
     required this.createdAt,
+    required this.noShows,
+    required this.canMarkNoShow,
     this.note,
     this.caseId,
     this.conversationId,
     this.cancelReason,
     this.cancelledBy,
     this.rescheduledAt,
+    this.calendarLinks,
   });
 
   factory ConsultationDto.fromJson(Map<String, Object?> json) =>
@@ -59,6 +64,15 @@ class ConsultationDto {
   /// A call can be placed now: confirmed and within 10 minutes before the start until the end.
   final bool canCall;
   final String createdAt;
+
+  /// Owner 2026-10-28: add to Google / Outlook / .ics (null once it is over or cancelled).
+  final CalendarLinksDto? calendarLinks;
+
+  /// Owner 2026-10-28: «did not come» marks (usually empty).
+  final List<NoShowDto> noShows;
+
+  /// The viewer may mark the other side absent now.
+  final bool canMarkNoShow;
 
   Map<String, Object?> toJson() => _$ConsultationDtoToJson(this);
 }

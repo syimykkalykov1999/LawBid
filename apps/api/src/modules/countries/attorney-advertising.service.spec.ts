@@ -1,8 +1,13 @@
 import { attorneyPublicUrl } from '../../common/utils/public-urls';
 import { AttorneyAdvertisingService } from './attorney-advertising.service';
 
-function make(labelled: string[]) {
+function make(
+  labelled: string[],
+  placement = { sponsored: false, paid: false },
+) {
   const prisma = {
+    $queryRaw: jest.fn(() => Promise.resolve([placement])),
+    appConfig: { findUnique: jest.fn(() => Promise.resolve(null)) },
     state: {
       findMany: jest.fn(() =>
         Promise.resolve(labelled.map((code) => ({ code }))),
@@ -71,6 +76,45 @@ describe('AttorneyAdvertisingService (owner 2026-10-22, audit #4 §5)', () => {
 });
 
 describe('attorneyPublicUrl (audit #4 §9)', () => {
+  it('profileFlags: one query gives both flags, then the cache answers (review R-72)', async () => {
+    const { svc, prisma } = make([], { sponsored: true, paid: true });
+    const first = await svc.profileFlags('a1', ['NJ']);
+    const second = await svc.profileFlags('a1', ['NJ']);
+    expect(first).toEqual(second);
+    expect(first.sponsored).toBe(true);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('profileFlags: the label comes from a labelled state without any paid flag', async () => {
+    const { svc } = make(['NY'], { sponsored: false, paid: false });
+    expect(await svc.profileFlags('a1', ['NY'])).toEqual({
+      advertisingLabel: true,
+      sponsored: false,
+    });
+    expect(await svc.profileFlags('a1', ['NJ'])).toEqual({
+      advertisingLabel: false,
+      sponsored: false,
+    });
+  });
+
+  it('profileFlags: an admin change (invalidate) drops the cached flags', async () => {
+    const { svc, prisma } = make([], { sponsored: true, paid: true });
+    await svc.profileFlags('a1', []);
+    svc.invalidate();
+    await svc.profileFlags('a1', []);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('profileFlags: the cache is bounded (oldest entry leaves)', async () => {
+    const { svc, prisma } = make([], { sponsored: false, paid: false });
+    for (let i = 0; i < 2001; i += 1) await svc.profileFlags(`a${i}`, []);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2001);
+    await svc.profileFlags('a0', []); // evicted: queried again
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2002);
+    await svc.profileFlags('a2000', []); // still cached
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2002);
+  });
+
   it('is the SEO page /attorneys/<username>/ on the public origin', () => {
     expect(attorneyPublicUrl('Saul_G', 'https://lawbid.app')).toBe(
       'https://lawbid.app/attorneys/saul_g/',

@@ -17,7 +17,7 @@ All values are admin settings (app_config) with safe defaults; no app look chang
    Min length is unchanged (8, the MFA minimum; 15 is the single-factor minimum).
 2. **scrypt load.** `UV_THREADPOOL_SIZE=8` in `apps/api/Dockerfile` (libuv default is 4; set
    before start, override in the ECS task if the vCPU count changes). At most
-   `security.password_hash_concurrency` (4) hashes run at once; up to
+   `security.password_hash_concurrency` (2 since the 2026-10-26 review: 0.5 vCPU task; was 4) hashes run at once; up to
    `security.password_hash_max_queue` (200) wait, more get `429 RATE_LIMITED`. Metrics (log lines):
    `password_hash_queue {running, queued}`, `password_hash_rejected`.
 3. **Realtime.** The per-user cap already existed (`realtime.max_sockets_per_user`, 10; oldest gets

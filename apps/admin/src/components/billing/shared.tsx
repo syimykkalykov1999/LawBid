@@ -2,7 +2,7 @@
 
 import { Check, Copy, Minus, Plus } from '@phosphor-icons/react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge, type Tone } from '@/components/ui/card';
 import type { components } from '@/lib/api/schema';
@@ -123,15 +123,6 @@ export function CopyButton({ text, label = 'Скопировать' }: { text: s
       {done ? <Check size={14} className="text-success" /> : <Copy size={14} />}
     </button>
   );
-}
-
-export function useDebounced<T>(value: T, ms = 300): T {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setV(value), ms);
-    return () => clearTimeout(t);
-  }, [value, ms]);
-  return v;
 }
 
 /** Badge with an explicit tone per value (for enums toneFor doesn't know). */

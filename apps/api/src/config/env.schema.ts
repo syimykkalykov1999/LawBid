@@ -121,6 +121,10 @@ export const envSchema = z
       .int()
       .positive()
       .default(500),
+    // Caching round 2 (S2-7): seconds the global keys (feature flags, plan
+    // terms) stay in process memory in front of Redis. 0 = off.
+    // Read by common/cache/l1-cache.ts.
+    CACHE_L1_TTL_SEC: z.coerce.number().int().min(0).max(60).default(5),
     // Owner 2026-10-22 (server load audit, finding 5): the Socket.IO Redis
     // adapter. `sharded` (Redis 7 sharded pub/sub: an event reaches only the
     // instances holding its room); `classic` = the old pub/sub, a rollback
@@ -166,6 +170,17 @@ export const envSchema = z
       .int()
       .nonnegative()
       .default(10),
+    // 2026-10-25 (S14-1 / S14-2): first guess, in ms, of how long a real SMS
+    // send takes. A sign-in code asked for a registered number and a reset
+    // asked for an unknown one wait this long (then, once real sends were
+    // timed, their running average) so a stopwatch cannot tell them from a
+    // real send. 0 = no wait (tests).
+    AUTH_UNIFORM_MIN_DELAY_MS: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(5000)
+      .default(350),
 
     // --- Stage 1.4: OTP ---
     OTP_CODE_SECRET: z.string().min(32),
@@ -246,6 +261,14 @@ export const envSchema = z
         /^https:\/\/[a-z0-9.-]+(:\d+)?(\/[\w./-]*[\w-])?$/i,
         'APP_LINK_BASE_URL must be an https URL without a trailing slash',
       )
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
+    // Owner 2026-10-28: public base of this API (…/api/v1), used for calendar
+    // links and the Google / Outlook OAuth return address. Default
+    // https://api.lawbid.dev/api/v1.
+    CALENDAR_API_BASE_URL: z
+      .string()
+      .regex(/^https:\/\/[a-z0-9.-]+(:\d+)?(\/[\w./-]*[\w-])?$/i)
       .optional()
       .or(z.literal('').transform(() => undefined)),
     // docs/01_FOUNDATION_AUTH.md §15 stage 1.4: "код 000000 только в
@@ -430,9 +453,27 @@ export const envSchema = z
       /^[A-Z0-9]{10,20}$/,
       'CLOUDFRONT_PRIVATE_KEY_ID must be a CloudFront public key id',
     ),
+    // Owner 2026-10-25 (S2-1): the CloudFront distributions to invalidate
+    // when a public photo / private file is removed for good. Unset = the
+    // edge copy simply expires by its TTL.
+    CLOUDFRONT_MEDIA_DISTRIBUTION_ID: optionalMatching(
+      /^[A-Z0-9]{10,20}$/,
+      'CLOUDFRONT_MEDIA_DISTRIBUTION_ID must be a CloudFront distribution id',
+    ),
+    CLOUDFRONT_PRIVATE_DISTRIBUTION_ID: optionalMatching(
+      /^[A-Z0-9]{10,20}$/,
+      'CLOUDFRONT_PRIVATE_DISTRIBUTION_ID must be a CloudFront distribution id',
+    ),
     CLOUDFRONT_PRIVATE_KEY_PEM: optionalMatching(
       /-----BEGIN (RSA )?PRIVATE KEY-----/,
       'CLOUDFRONT_PRIVATE_KEY_PEM must be a PEM private key',
+    ),
+    // Owner 2026-10-28 (legal requests): Ed25519 private key (PEM) that signs
+    // the manifest of every government-request production. Optional; without
+    // it the manifest is sealed with an HMAC instead.
+    LEGAL_MANIFEST_SIGNING_KEY: optionalMatching(
+      /-----BEGIN PRIVATE KEY-----/,
+      'LEGAL_MANIFEST_SIGNING_KEY must be an Ed25519 PKCS#8 PEM private key',
     ),
     // Owner 2026-10-22 (passkeys): the WebAuthn relying party. Defaults:
     // RP ID = host of APP_LINK_BASE_URL (lawbid.dev, which also covers
@@ -511,6 +552,15 @@ export const envSchema = z
     // Owner 2026-10-15: a database call slower than this many ms is written
     // to the log (operation name and time only, never the values). 0 = off.
     DB_SLOW_QUERY_MS: z.coerce.number().int().min(0).default(300),
+    // WP-G: heaviest users / cases (admin «Масштаб»). 1 request in N is
+    // counted (0 = off); the window is how far back the top list looks.
+    HEAVY_HITTERS_SAMPLE: z.coerce.number().int().min(0).max(1000).default(0),
+    HEAVY_HITTERS_WINDOW_MIN: z.coerce
+      .number()
+      .int()
+      .min(5)
+      .max(1440)
+      .default(60),
     // Owner 2026-10-22 (server load audit, finding 1): request log lines.
     // Failures (status >= 400) are always written; of the fast successful
     // requests only this share (%, 0-100) is, and a request slower than
@@ -619,11 +669,18 @@ export const envSchema = z
     // one person's own spend (translations, uploads, video). 0 = no money
     // cap. Per provider: BUDGET_<PROVIDER>_DAILY_CENTS, else the call cap
     // above converted with the price table (cost-prices.ts).
-    BUDGET_GLOBAL_DAILY_CENTS: z.coerce
+    // S9-4 (2026-10-25): 0 (the default) = AUTO — the economy guard keeps the
+    // cap at allowed / 30 × economy.daily_brake_days (≈ $15/day at launch,
+    // grows with revenue). A positive value fixes the cap; the admin value
+    // `budget.money.global_daily_cents` (0 = none) wins over both.
+    BUDGET_GLOBAL_DAILY_CENTS: z.coerce.number().int().nonnegative().default(0),
+    // S9-4: SMS monthly money cap in cents (a tier-c route costs $0.30, so
+    // 9 000 calls alone could be $2 700); 0 = off.
+    BUDGET_SMS_MONTHLY_CENTS: z.coerce
       .number()
       .int()
       .nonnegative()
-      .default(50_000),
+      .default(10_000),
     BUDGET_USER_DAILY_CENTS: z.coerce.number().int().nonnegative().default(500),
     BUDGET_SMS_DAILY_CENTS: z.coerce.number().int().nonnegative().optional(),
     BUDGET_EMAIL_DAILY_CENTS: z.coerce.number().int().nonnegative().optional(),
@@ -729,6 +786,8 @@ export const envSchema = z
       'OTEL_EXPORTER_OTLP_ENDPOINT must be an http(s) URL',
     ),
     SENTRY_DSN: z.string().url().optional(),
+    // S12-14: shared token of POST /internal/alarm-events (alarm-hook Lambda).
+    ALARM_HOOK_TOKEN: z.string().min(24).optional(),
     // Owner 2026-10-01: master keys for the API keys the owner manages in
     // the admin (integration_credentials, AES-256-GCM). "kid:secret[,…]"
     // like JWT_KEYS; the active kid encrypts, every listed kid decrypts
@@ -789,6 +848,10 @@ export const envSchema = z
       z.string().optional(),
     ),
     REKOGNITION_SECRET_ACCESS_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    OPENAI_MODERATION_API_KEY: z.preprocess(
       blankToUndefined,
       z.string().optional(),
     ),
@@ -869,6 +932,19 @@ export const envSchema = z
       .int()
       .positive()
       .default(20),
+    // Owner 2026-10-28: EMERGENCY BYPASS of the admin IP allowlist. Set to
+    // "1" on the API task (and redeploy) when the owner is locked out;
+    // docs/runbooks/ADMIN_HARDENING.md. Remove it again afterwards.
+    ADMIN_IP_ALLOWLIST_BYPASS: z.preprocess(
+      blankToUndefined,
+      z.enum(['0', '1']).optional(),
+    ),
+    // Owner 2026-10-28: bucket (infra/modules/audit-logs) that receives the
+    // daily export of the admin audit log. Empty = no export.
+    ADMIN_AUDIT_EXPORT_BUCKET: optionalMatching(
+      /^[a-z0-9][a-z0-9.-]{2,62}$/,
+      'ADMIN_AUDIT_EXPORT_BUCKET must be a valid S3 bucket name',
+    ),
     // docs/06 §2.3 item 7 (stage 6.6): provider keys a paid flag needs
     // before it can be switched on. Optional; presence is all the panel
     // checks (the integrations themselves come with their stages).

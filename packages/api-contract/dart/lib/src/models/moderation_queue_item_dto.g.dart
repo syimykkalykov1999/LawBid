@@ -23,6 +23,7 @@ ModerationQueueItemDto _$ModerationQueueItemDtoFromJson(
   author: json['author'] == null
       ? null
       : ModerationAuthorDto.fromJson(json['author'] as Map<String, dynamic>),
+  priority: json['priority'] as bool,
 );
 
 Map<String, dynamic> _$ModerationQueueItemDtoToJson(
@@ -38,4 +39,5 @@ Map<String, dynamic> _$ModerationQueueItemDtoToJson(
   'targetStatus': ?instance.targetStatus,
   'excerpt': ?instance.excerpt,
   'author': ?instance.author?.toJson(),
+  'priority': instance.priority,
 };

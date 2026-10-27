@@ -95,6 +95,22 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'How many reels ahead the app warms on mobile data (Wi-Fi uses client.video_prefetch_ahead). Used in auto mode.',
   },
+  // S12-5 (observability round 12). Both need the person's analytics consent
+  // (Settings → Privacy → «Usage statistics») and a Sentry DSN for the first.
+  'client.sentry_traces_percent': {
+    default: 0,
+    min: 0,
+    max: 100,
+    description:
+      'Share of app sessions (percent) whose performance trace (app start, slow frames, HTTP calls) goes to Sentry. Sentry bills its quota: 0 = off. Only for people who allowed usage statistics.',
+  },
+  'client.traceparent_percent': {
+    default: 5,
+    min: 0,
+    max: 100,
+    description:
+      'Share of API calls (percent) the app marks for server tracing with a W3C traceparent header, so one slow request can be followed phone → API → database. 0 = the header is never sent.',
+  },
   'client.video_cache_mb': {
     default: 100,
     min: 0,

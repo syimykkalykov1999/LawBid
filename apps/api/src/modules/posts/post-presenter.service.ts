@@ -279,6 +279,10 @@ export class PostPresenter {
       (await this.advertising?.labelledAttorneys(
         authors.filter((a) => a.role !== 'client').map((a) => a.id),
       )) ?? new Set<string>();
+    const disclaimers =
+      (await this.advertising?.resultsDisclaimers(
+        authors.filter((a) => a.role !== 'client').map((a) => a.id),
+      )) ?? new Map<string, string>();
     const docsByPost = new Map<string, typeof docs>();
     for (const d of visibleDocs) {
       const list = docsByPost.get(d.post_id) ?? [];
@@ -350,6 +354,13 @@ export class PostPresenter {
         title: p.title ?? null,
         kind: p.kind,
         contentClass: p.content_class === 'legal' ? 'legal' : 'general',
+        advertisingDisclaimer: isClient
+          ? null
+          : (this.advertising?.disclaimerFor(
+              disclaimers,
+              p.author_id,
+              `${p.title ?? ''}\n${p.body}`,
+            ) ?? null),
         practice: area
           ? {
               code: area.code,

@@ -27,6 +27,8 @@ import type {
   ModerationQueueQueryDto,
 } from './admin-moderation.dto';
 import { ModerationService, type ModerationTarget } from './moderation.service';
+import { ReporterReputationService } from './reporter-reputation.service';
+import { StrikesService } from './strikes.service';
 
 const QUEUE_DEFAULT = 20;
 const EXCERPT = 200;
@@ -37,6 +39,7 @@ interface QueueRow {
   reports: number;
   reporters: number;
   reasons: string[];
+  priority: boolean;
   first_at: Date;
   last_at: Date;
 }
@@ -58,6 +61,8 @@ export class AdminModerationService {
     private readonly users: AdminUsersService,
     private readonly audit: AuditLogService,
     private readonly notifications: NotificationsService,
+    private readonly strikes: StrikesService,
+    private readonly reporters: ReporterReputationService,
   ) {}
 
   async queue(
@@ -72,6 +77,7 @@ export class AdminModerationService {
              count(*)::INT8 AS reports,
              count(DISTINCT reporter_id)::INT8 AS reporters,
              array_agg(DISTINCT reason::TEXT) AS reasons,
+             bool_or(priority_review) AS priority,
              min(created_at) AS first_at,
              max(created_at) AS last_at
       FROM reports
@@ -85,6 +91,7 @@ export class AdminModerationService {
             : Prisma.sql`AND created_at >= now() - interval '180 days'`
         }
         ${q.targetType ? Prisma.sql`AND target_type = ${q.targetType}::report_target_type` : Prisma.empty}
+        ${q.priority ? Prisma.sql`AND priority_review` : Prisma.empty}
         ${
           // Owner 2026-10-05: moderators of one country see reports
           // made by people of that country.
@@ -118,6 +125,7 @@ export class AdminModerationService {
         reports: Number(r.reports),
         reporters: Number(r.reporters),
         reasons: r.reasons,
+        priority: r.priority === true,
         firstReportedAt: r.first_at.toISOString(),
         lastReportedAt: r.last_at.toISOString(),
         targetStatus: target?.status ?? null,
@@ -201,6 +209,7 @@ export class AdminModerationService {
 
     const after: (() => Promise<void>)[] = [];
     let status: string | null = target.status;
+    let reporterIds: string[] = [];
     const handled = await withTxRetry(this.prisma, async (tx) => {
       after.length = 0;
       let before: string | null = null;
@@ -221,9 +230,10 @@ export class AdminModerationService {
       }
       const open = await tx.report.findMany({
         where: { target_type: type, target_id: id, status: 'open' },
-        select: { id: true },
+        select: { id: true, reporter_id: true },
         orderBy: { created_at: 'asc' },
       });
+      reporterIds = open.map((r) => r.reporter_id);
       const now = new Date();
       if (open.length) {
         await tx.report.updateMany({
@@ -236,7 +246,7 @@ export class AdminModerationService {
         });
       }
       if (action !== 'dismiss') {
-        await tx.moderationAction.create({
+        const created = await tx.moderationAction.create({
           data: {
             report_id: open[0]?.id ?? null,
             admin_id: admin.id,
@@ -246,6 +256,25 @@ export class AdminModerationService {
             reason,
           },
         });
+        // Owner 2026-10-27: a human hide / remove of someone's content is a
+        // strike on its owner (if the ladder is on and points are set).
+        if (
+          (action === 'hide' || action === 'remove') &&
+          target.authorId &&
+          type !== 'user' &&
+          type !== 'case'
+        ) {
+          const done = await this.strikes.issue(tx, {
+            admin,
+            userId: target.authorId,
+            actionId: created.id,
+            action,
+            targetType: type,
+            targetId: id,
+            reason,
+          });
+          if (done) after.push(done);
+        }
       }
       await this.audit.record(
         {
@@ -278,6 +307,9 @@ export class AdminModerationService {
       return open.length;
     });
     for (const f of after) await f();
+    // Owner 2026-10-27: dismissed reports count against their reporters.
+    if (action === 'dismiss')
+      await this.reporters.onReportsDecided(reporterIds);
     return {
       targetType: type,
       targetId: id,

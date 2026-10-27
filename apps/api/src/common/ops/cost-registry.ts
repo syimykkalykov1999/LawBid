@@ -138,6 +138,7 @@ const U = {
   fis: 'https://aws.amazon.com/fis/pricing/',
   budgets: 'https://aws.amazon.com/aws-cost-management/aws-budgets/pricing/',
   ddb: 'https://aws.amazon.com/dynamodb/pricing/on-demand/',
+  kinesis: 'https://aws.amazon.com/kinesis/data-streams/pricing/',
   rek: 'https://aws.amazon.com/rekognition/pricing/',
   twilio: 'https://www.twilio.com/en-us/sms/pricing/us',
   stripe: 'https://stripe.com/pricing',
@@ -146,7 +147,9 @@ const U = {
   r2: 'https://developers.cloudflare.com/r2/pricing/',
   gtr: 'https://cloud.google.com/translate/pricing',
   persona: 'https://withpersona.com/pricing',
+  openai: 'https://platform.openai.com/docs/pricing',
   sentry: 'https://sentry.io/pricing/',
+  gcal: 'https://developers.google.com/workspace/calendar/api/guides/quota',
   pd: 'https://www.pagerduty.com/pricing/',
   fb: 'https://firebase.google.com/pricing',
   recaptcha: 'https://cloud.google.com/recaptcha/pricing',
@@ -324,22 +327,30 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     purpose:
       'ecr.api, ecr.dkr, logs, secretsmanager: серверы берут образы и секреты не через интернет, трафик дешевле.',
     kind: 'aws',
-    control: tf(['interface_endpoints', 'interface_endpoint_azs'], {
-      off: 'interface_endpoints = false',
-      on: 'interface_endpoints = true',
-    }),
-    states: ['off', 'on'],
-    defaultState: 'on',
-    ceiling: null,
+    // #370: the admin switch `scale.endpoints.mode` (Выкл / Вкл / Авто):
+    // Авто creates them when NAT traffic makes them cheaper and removes them
+    // after a quiet week; the ceiling caps how many may exist.
+    control: {
+      type: 'app-setting',
+      key: 'scale.endpoints.mode',
+      map: { off: 'off', on: 'on', auto: 'auto' },
+    },
+    states: ['off', 'on', 'auto'],
+    defaultState: 'auto',
+    ceiling: setCeil(
+      'scale.endpoints.ceiling',
+      'Сколько таких «входов» автоматика может держать (0–4)',
+    ),
     price: price(
       'fixed',
       '$0,01 в час за штуку в каждой зоне ≈ $7,3; четыре штуки ≈ $29',
       U.vpc,
     ),
-    usd: { launch: R(29), k100: R(35), m1: R(60) },
-    needed: 'later',
+    usd: { launch: R(0), k100: R(15, 29), m1: R(29, 60) },
+    ifOnUsd: R(29),
+    needed: 'auto',
     neededNote:
-      'На пустом приложении почти не нужны (экономят трафик NAT). Можно выключить и вернуть позже.',
+      'На пустом приложении не нужны (Авто их не создаёт); появляются сами, когда трафик через NAT стоит дороже.',
     alarm: null,
     ceService: 'Amazon Virtual Private Cloud',
     awsTypes: ['aws_vpc_endpoint'],
@@ -638,7 +649,34 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'aws_cloudwatch_composite_alarm',
       'aws_cloudwatch_log_group',
       'aws_cloudwatch_log_metric_filter',
+      'aws_cloudwatch_dashboard',
     ],
+  },
+  {
+    id: 'aws.anomaly_alarms',
+    name: 'Тревоги «что-то необычное» (CloudWatch, регистрации, сообщения, коды, пуши)',
+    purpose:
+      'Умная полоса нормы: письмо, если регистрации, сообщения, SMS-коды или пуши внезапно упали, или резко выросли неудачные входы.',
+    kind: 'aws',
+    control: tf(['anomaly_alarms_enabled'], {
+      off: 'anomaly_alarms_enabled = false',
+      on: 'anomaly_alarms_enabled = true',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'fixed',
+      '6 метрик × (полоса $0,30 + страж $0,10 + составная $0,50) ≈ $5,40 в месяц',
+      U.cw,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(5.4),
+    needed: 'later',
+    neededNote:
+      'Нужны, когда есть трафик: полосе нужны недели данных, чтобы выучить норму. На старте её и так закрывают тревоги по ошибкам и «упала проверка сайта».',
+    alarm: null,
+    awsTypes: ['aws_cloudwatch_metric_alarm', 'aws_cloudwatch_composite_alarm'],
   },
   {
     id: 'aws.route53_check',
@@ -827,6 +865,36 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ],
   },
   {
+    id: 'aws.backup-restore-test',
+    name: 'Учебное восстановление базы раз в месяц (AWS Backup restore testing)',
+    purpose:
+      'Раз в месяц AWS сам восстанавливает копию базы на маленьком сервере и проверяет, что она живая; результат в «Здоровье системы».',
+    kind: 'aws',
+    control: tf(['backup_restore_test_enabled'], {
+      on: 'backup_restore_test_enabled = true',
+      off: 'backup_restore_test_enabled = false',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      'около $0,05 за запуск (db.t4g.micro примерно на час), 1 раз в месяц',
+      U.backup,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0.05, 1),
+    needed: 'later',
+    neededNote:
+      'Полезно после запуска: доказывает, что копии восстанавливаются.',
+    alarm: 'EventBridge «restore-test-failed» → critical SNS',
+    ceService: 'AWS Backup',
+    awsTypes: [
+      'aws_backup_restore_testing_plan',
+      'aws_backup_restore_testing_selection',
+    ],
+  },
+  {
     id: 'aws.status-page',
     name: 'Публичная страница статуса (S3 + CloudFront)',
     purpose:
@@ -864,7 +932,10 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     }),
     states: ['off', 'on'],
     defaultState: 'on',
-    ceiling: null,
+    ceiling: tfCeil(
+      'media_replication_max_gb_per_day',
+      'ГБ новых фото и видео в сутки, больше которых приходит тревога (по умолчанию 50; 0 = без тревоги)',
+    ),
     price: price(
       'unit',
       '$0,023 за ГБ в месяц + копия в другом регионе ещё столько же и $0,02 за ГБ пересылки',
@@ -873,9 +944,9 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(2), k100: R(40), m1: R(400) },
     needed: 'yes',
     neededNote:
-      'Нужны. Копия фото (replicate_media, по умолчанию Вкл) растёт ровно вместе с оригиналом, поэтому отдельная тревога на размер копии не нужна: следите за тревогой роста хранилища.',
+      'Нужны. Копия фото (replicate_media, по умолчанию Вкл) растёт ровно вместе с оригиналом (копируется всё, включая миниатюры и AVIF-версии). Потолок: media_replication_max_gb_per_day, тревога, если за сутки прибавилось больше; жёсткого предела в S3 нет, при тревоге поставьте replicate_media = false.',
     alarm:
-      'тревога роста хранилища за сутки (storage-growth); копия растёт один к одному с оригиналом (V12)',
+      'тревога роста хранилища за сутки (storage-growth) и тревога «больше N ГБ в сутки уходит в копию» (media-replication-gb-per-day); копия растёт один к одному с оригиналом (V12)',
     ceService: 'Amazon Simple Storage Service',
     awsTypes: [
       'aws_s3_bucket',
@@ -1101,8 +1172,8 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'Детальные метрики по каждой копии сервера. Нужны только на время расследования.',
     kind: 'aws',
     control: tf(['container_insights'], {
-      off: 'container_insights = false',
-      on: 'container_insights = true',
+      off: 'container_insights = "disabled"',
+      on: 'container_insights = "enabled"',
     }),
     states: ['off', 'on'],
     defaultState: 'off',
@@ -1256,6 +1327,33 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     alarm: null,
     awsTypes: ['aws_opensearch_domain'],
     providers: ['opensearch'],
+  },
+  {
+    id: 'aws.events_stream',
+    name: 'Поток событий (Kinesis Data Streams)',
+    purpose:
+      'Внутренняя шина событий приложения для аналитики, когда таблицы domain_events станет мало.',
+    kind: 'aws',
+    control: tf(['growth.events_stream_enabled'], {
+      off: 'growth = { events_stream_enabled = false }',
+      on: 'growth = { events_stream_enabled = true }',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      '≈ $0,04 в час за поток (≈ $29 в месяц) плюс плата за гигабайт',
+      U.kinesis,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(29, 60),
+    needed: 'later',
+    neededNote:
+      'Пока события живут в таблице базы (30 дней). Включается в два шага: поток, затем настройка events.sink.',
+    alarm: null,
+    ceService: 'Amazon Kinesis',
+    awsTypes: ['aws_kinesis_stream'],
   },
   {
     id: 'aws.opensearch_serverless',
@@ -1664,7 +1762,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(0), k100: R(0), m1: R(0) },
     needed: 'yes',
     neededNote:
-      'Нужен. Это процент от выручки, а не счёт: в «держать на счету» не входит.',
+      'Нужен. Это процент от выручки, а не счёт: в «держать на счету» не входит. Выключены флагами и добавят обороты при включении: stars (звёзды, подарки, платные стикеры), payroll_stripe_payouts (выплата зарплат через Connect).',
     alarm: 'тревоги платежей (payments-failed, stripe-webhooks)',
     spendVendor: { id: 'stripe' },
     providers: ['stripe'],
@@ -1693,7 +1791,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(1), k100: R(100, 400), m1: R(3000, 8000) },
     needed: 'yes',
     neededNote:
-      'Авто: новые загрузки видео ставятся на паузу, когда трафик или хранилище Bunny дошли до срочного порога. Вкл = пауза сейчас. Выкл = не останавливать никогда. Просмотр уже загруженного не трогается.',
+      'Авто: новые загрузки видео ставятся на паузу, когда трафик или хранилище Bunny дошли до срочного порога. Вкл = пауза сейчас. Выкл = не останавливать никогда. Просмотр уже загруженного не трогается. Флаг video_posts (видео в постах ленты, сейчас выключен) добавляет минуты Bunny к рилсам, когда его включат.',
     alarm:
       'тревоги трафика и хранилища Bunny (usage-bunny-*) + лимит минут видео в деньгах (BUDGET_VIDEO_*)',
     spendVendor: { id: 'bunny' },
@@ -1725,7 +1823,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(0), k100: R(0, 100), m1: R(2000, 5000) },
     needed: 'yes',
     neededNote:
-      'Авто: когда бесплатный терабайт почти исчерпан, групповые звонки возвращаются на «устройство-устройство» (на видео до 4 человек, остальным только звук), чтобы не платить сверх. Вкл = вернуть сейчас. Звонки не отключаются.',
+      'Авто: когда бесплатный терабайт почти исчерпан, групповые звонки возвращаются на «устройство-устройство» (на видео до 4 человек, остальным только звук), чтобы не платить сверх. Вкл = вернуть сейчас. Звонки не отключаются. Видеозвонки в чатах показывает флаг video_calls (сейчас выключен): пока он выключен, трафика почти нет.',
     alarm: 'тревоги трафика звонков (usage-cf-warn / usage-cf-crit)',
     spendVendor: { id: 'cloudflare', line: 'Звонки' },
     providers: ['cloudflare_turn', 'cloudflare_sfu'],
@@ -1774,10 +1872,35 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(0), k100: R(50, 500), m1: R(5000) },
     needed: 'later',
     neededNote:
-      'Платит только при наличии ключа. Выкл останавливает перевод у всех.',
+      'Платит только при наличии ключа. Выкл останавливает перевод у всех. Кнопку «Перевести» показывает флаг chat_translate (сейчас выключен): пока он выключен, платный перевод не зовут.',
     alarm:
       'лимит перевода в деньгах (BUDGET_TRANSLATE_*, лимит на человека в день $5)',
     providers: ['google_translate'],
+  },
+  {
+    id: 'vendor.bar_registries',
+    name: 'Проверка лицензий адвокатов по реестрам штатов',
+    purpose:
+      'Сверяет номер лицензии и имя с реестром штата после присяги и раз в месяц. Выключено у всех штатов, кроме готовых открытых данных Нью-Йорка.',
+    kind: 'vendor',
+    control: fixed(
+      'Включается по штатам: Админка → Система → Ключи и сервисы → «Реестры адвокатов по штатам». Старый общий флаг auto_bar_check больше не читается.',
+    ),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      'Нью-Йорк: бесплатно (открытые данные data.ny.gov). Платный API другого штата или сервиса: по вашему договору, цену за проверку надо уточнить у продавца',
+      'https://data.ny.gov/',
+      false,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0),
+    needed: 'later',
+    neededNote:
+      'Нужен, когда у штата появится API. Одна проверка на лицензию после присяги плюс одна в месяц; без ключа штата проверка просто не идёт.',
+    alarm: null,
   },
   {
     id: 'vendor.rekognition',
@@ -1803,6 +1926,37 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     alarm: 'лимит проверок картинок в деньгах (BUDGET_IMAGE_MODERATION_*)',
     ceService: 'Amazon Rekognition',
     providers: ['aws_rekognition', 'photodna', 'ncmec'],
+  },
+  {
+    id: 'vendor.openai_moderation',
+    name: 'Проверка текстов на запрещённое (OpenAI moderation)',
+    purpose:
+      'Смотрит новые посты и комментарии на травлю, ненависть, порнографию и запрещённое до жалоб людей.',
+    kind: 'vendor',
+    control: {
+      type: 'app-setting',
+      key: 'moderation.detect.mode',
+      map: { off: 'off', on: 'shadow', auto: 'enforce' },
+    },
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: setCeil(
+      'moderation.detect.daily_cap',
+      'Лимит проверок в день (админка → Модерация → Настройки)',
+    ),
+    price: price(
+      'unit',
+      'omni-moderation бесплатно; около $0,00001 за запрос у других моделей (уточнить в кабинете)',
+      U.openai,
+      false,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0, 10),
+    needed: 'later',
+    neededNote:
+      'Платит только при наличии ключа. Вкл = только смотреть (shadow), Авто = задерживать и блокировать (enforce). Дневной лимит запросов ограничивает расход.',
+    alarm: 'дневной лимит запросов (moderation.detect.daily_cap)',
+    providers: ['openai_moderation'],
   },
   {
     id: 'vendor.persona',
@@ -1846,6 +2000,29 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     providers: ['fcm', 'apns'],
   },
   {
+    id: 'vendor.calendar',
+    name: 'Календари юристов (Google Calendar, Microsoft 365)',
+    purpose:
+      'Синхронизация консультаций с календарём, который юрист сам подключил (#395).',
+    kind: 'vendor',
+    control: fixed(
+      'Работает только у юриста, который подключил свой календарь; без подключения запросов нет.',
+    ),
+    states: ['on'],
+    defaultState: 'on',
+    ceiling: null,
+    price: price(
+      'free',
+      'Бесплатно: Google Calendar API и Microsoft Graph не берут денег, есть только лимиты запросов',
+      U.gcal,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'later',
+    neededNote: 'Удобство для юристов; не нужно для запуска.',
+    alarm: null,
+    providers: ['google_calendar', 'microsoft_calendar'],
+  },
+  {
     id: 'vendor.sentry',
     name: 'Учёт ошибок (Sentry)',
     purpose: 'Сообщает о сбоях в API, воркере, админке и приложении.',
@@ -1865,7 +2042,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(0), k100: R(26, 80), m1: R(89) },
     needed: 'yes',
     neededNote:
-      'Нужен. Зациклившийся сбой может съесть месячную квоту за час: в коде одна и та же ошибка уходит не чаще 5 раз в минуту, всего не больше 120 событий в минуту с процесса; в самом Sentry поставьте «Spike protection» и лимит на проект (шаги в таблице).',
+      'Нужен. Замеры скорости из приложения (`client.sentry_traces_percent`) по умолчанию 0 %: каждый запрос телефона был бы платной транзакцией; поднимайте только ключом в админке и следите за квотой Sentry. Зациклившийся сбой может съесть месячную квоту за час: в коде одна и та же ошибка уходит не чаще 5 раз в минуту, всего не больше 120 событий в минуту с процесса; в самом Sentry поставьте «Spike protection» и лимит на проект (шаги в таблице).',
     alarm: null,
     providers: ['sentry'],
     extraSteps: [
@@ -1968,6 +2145,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'ny_registry',
       'cockroach_cloud',
       'github',
+      'github_infra',
     ],
   },
   {
@@ -2086,6 +2264,32 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     neededNote:
       'Нагрузка: тяжёлые задачи сами встают на паузу на 15 минут, когда база тормозит (положение Вкл = Авто по сигналу). Выкл = не ставить на паузу.',
     alarm: 'тревога «база медленная» (db-slow)',
+  },
+  {
+    id: 'hidden.outbox_sweep',
+    name: 'Передача событий между семействами баз (раз в минуту)',
+    purpose:
+      'Заготовка под разделение базы на части: передаёт события, которые не успели выполниться сразу. Пока база одна, событий нет.',
+    kind: 'aws',
+    control: {
+      type: 'app-setting',
+      key: 'ops.outbox_sweep.mode',
+      map: { off: 'off', on: 'on', auto: 'auto' },
+    },
+    states: ['off', 'on', 'auto'],
+    defaultState: 'auto',
+    ceiling: null,
+    price: price(
+      'free',
+      'Своих денег не берёт: один лёгкий запрос к базе в минуту',
+      U.fargate,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'auto',
+    neededNote:
+      'Нагрузка: 1 440 пустых запусков в день. Авто = запускать только когда в очереди есть событие (один лёгкий запрос вместо захвата строк). Вкл = каждую минуту как раньше. Выкл = совсем не запускать (нельзя, когда базу разделили).',
+    alarm:
+      'запись cross_family_outbox_dead в журнале (событие не прошло 8 раз)',
   },
   {
     id: 'hidden.logs_metrics',

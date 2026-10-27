@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { heldTargets } from '../../common/privacy/legal-hold';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const DAY_MS = 24 * 3_600_000;
@@ -31,8 +32,10 @@ export class LegalQaSweepJob {
       },
       data: { closed_at: now },
     });
+    const held = await heldTargets(this.prisma, 'user', now);
     const purged = await this.prisma.legalQuestion.deleteMany({
       where: {
+        author_id: held.length ? { notIn: held } : undefined,
         deleted_at: { lt: new Date(now.getTime() - QA_PURGE_DAYS * DAY_MS) },
       },
     });

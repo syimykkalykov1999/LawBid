@@ -1,3 +1,4 @@
+import { AttorneyAdsService } from '../attorney-ads/attorney-ads.service';
 import {
   ConflictException,
   ForbiddenException,
@@ -104,6 +105,8 @@ export class ReferralsService {
     @Optional() private readonly notifications?: NotificationsService,
     @Optional() private readonly partners?: PartnersService,
     @Optional() private readonly outreach?: OutreachService,
+    // Owner 2026-10-28: per-state flag «referral rewards allowed» (default on).
+    @Optional() private readonly ads?: AttorneyAdsService,
   ) {}
 
   // ---- settings ---------------------------------------------------------
@@ -484,6 +487,13 @@ export class ReferralsService {
         side === 'referrer' ? r.referrer_reward : r.referee_reward,
       );
       if (!snap || snap.issuedAt) continue;
+      // A state that forbids paying attorneys for referrals: keep the
+      // referral `qualified` (nothing lost; paid if the flag is turned on).
+      const recipient = side === 'referrer' ? r.referrer_id : r.referee_id;
+      if (this.ads && !(await this.ads.referralRewardsAllowed(recipient))) {
+        complete = false;
+        continue;
+      }
       if (snap.type === 'balance_cents' && snap.value > 0) {
         const ok = await this.creditBalance(
           side === 'referrer' ? r.referrer_id : r.referee_id,

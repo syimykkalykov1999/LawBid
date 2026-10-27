@@ -1,27 +1,18 @@
 import {
   ConflictException,
-  ForbiddenException,
   HttpException,
   HttpStatus,
-  Inject,
   Injectable,
   Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type Redis from 'ioredis';
-import { randomBytes } from 'node:crypto';
-import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { GoogleTokenVerifier } from './google-token-verifier.service';
 import { AppleTokenVerifier } from './apple-token-verifier.service';
 import { IdentityService } from '../services/identity.service';
-import {
-  SessionService,
-  type DeviceInfo,
-  type RequestMeta,
-} from '../services/session.service';
-import { TokenService } from '../services/token.service';
+import type { DeviceInfo, RequestMeta } from '../services/session.service';
 import {
   AuthEventService,
   AUTH_EVENT_TYPES,
@@ -30,8 +21,9 @@ import type { SocialLoginDto } from '../dto/social-login.dto';
 import type { AuthTokensResult } from './auth-result.types';
 import { RateLimitService } from '../services/rate-limit.service';
 import { LoginMethodPolicy } from '../services/login-method-policy.service';
-import { NewDeviceNotifier } from '../notifications/new-device-notifier.service';
 import { ClientFraudService } from '../../client-fraud/client-fraud.service';
+import { AccountBansService } from '../../account-bans/account-bans.service';
+import { AuthService } from '../auth.service';
 
 /**
  * Dispatches to the right SocialTokenVerifier, resolves-or-creates the
@@ -49,19 +41,25 @@ export class SocialAuthService {
     private readonly google: GoogleTokenVerifier,
     private readonly apple: AppleTokenVerifier,
     private readonly identity: IdentityService,
-    private readonly sessions: SessionService,
-    private readonly tokens: TokenService,
     private readonly authEvents: AuthEventService,
     private readonly prisma: PrismaService,
     private readonly rateLimit: RateLimitService,
     private readonly loginMethods: LoginMethodPolicy,
-    private readonly newDevice: NewDeviceNotifier,
     private readonly config: ConfigService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly auth: AuthService,
+    private readonly bans: AccountBansService,
     // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a new Apple / Google
     // account of a blocked fraudster (same subject, e-mail or device).
     @Optional() private readonly fraud?: ClientFraudService,
+    // Privacy round 13 (S13-14): `privacy.login_cancels_deletion`.
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
+
+  private async loginCancelsDeletion(): Promise<boolean> {
+    return (
+      (await this.settings?.boolean('privacy.login_cancels_deletion')) ?? false
+    );
+  }
 
   async login(
     dto: SocialLoginDto,
@@ -107,6 +105,33 @@ export class SocialAuthService {
       deviceKey: meta.deviceKey,
     });
 
+    const verifiedEmail = verifyResult.emailVerified
+      ? verifyResult.email
+      : undefined;
+    // Owner 2026-10-02: a banned e-mail or device gets no account at all.
+    await this.bans.assertAllowed({
+      email: verifiedEmail ?? null,
+      deviceId: deviceInfo.deviceId,
+    });
+    // S14-6: a first Apple / Google sign-in with a throw-away e-mail opens
+    // no account (an identity that already exists is never refused).
+    if (verifiedEmail) {
+      const known = await this.prisma.userIdentifier.findUnique({
+        where: {
+          provider_provider_uid: {
+            provider: dto.provider,
+            provider_uid: verifyResult.providerUid,
+          },
+        },
+        select: { user_id: true },
+      });
+      if (!known) {
+        await this.auth.assertEmailAllowedForSignup(
+          verifiedEmail.trim().toLowerCase(),
+        );
+      }
+    }
+
     const firstName = verifyResult.firstName ?? dto.firstName;
     const lastName = verifyResult.lastName ?? dto.lastName;
 
@@ -116,6 +141,7 @@ export class SocialAuthService {
       verifyResult.emailVerified ? verifyResult.email : undefined,
       firstName,
       lastName,
+      dto.ageAttestation,
     );
 
     if ('collision' in resolved) {
@@ -138,141 +164,36 @@ export class SocialAuthService {
       });
     }
 
-    const { user } = resolved;
-
-    if (user.status === 'suspended') {
-      await this.authEvents.record({
-        userId: user.id,
-        eventType: AUTH_EVENT_TYPES.LOGIN_BLOCKED_SUSPENDED,
-        success: false,
-        deviceId: deviceInfo.deviceId,
-        ip: meta.ip,
-        userAgent: meta.userAgent,
-      });
-      throw new ForbiddenException({
-        code: ErrorCode.ACCOUNT_SUSPENDED,
-        message: 'This account has been suspended.',
-      });
-    }
-    if (user.status === 'deleted') {
-      await this.authEvents.record({
-        userId: user.id,
-        eventType: AUTH_EVENT_TYPES.LOGIN_BLOCKED_DELETED,
-        success: false,
-        deviceId: deviceInfo.deviceId,
-        ip: meta.ip,
-        userAgent: meta.userAgent,
-      });
-      throw new ForbiddenException({
-        code: ErrorCode.ACCOUNT_DELETED,
-        message: 'This account has been deleted.',
-      });
-    }
-    if (user.status === 'deletion_pending') {
+    let { user } = resolved;
+    let deletionCancelled = false;
+    if (
+      user.status === 'deletion_pending' &&
+      (await this.loginCancelsDeletion())
+    ) {
       // docs/01_FOUNDATION_AUTH.md §10.7: "можно отменить входом" — any
       // successful authentication during the grace period cancels the
-      // pending deletion, social login included.
-      await this.prisma.user.update({
+      // pending deletion, social login included. (A suspended or deleted
+      // account is refused by finishLogin below, before this matters.)
+      user = await this.prisma.user.update({
         where: { id: user.id },
         data: { status: 'active', deletion_requested_at: null },
       });
-      await this.authEvents.record({
-        userId: user.id,
-        eventType: AUTH_EVENT_TYPES.ACCOUNT_DELETION_CANCELLED,
-        success: true,
-        deviceId: deviceInfo.deviceId,
-        ip: meta.ip,
-        userAgent: meta.userAgent,
-      });
+      deletionCancelled = true;
     }
 
-    // Owner 2026-10-01: one phone + one website per account — ask before
-    // signing the other device out (same flow as the OTP sign-in; the
-    // app continues with POST /auth/login/continue).
-    const other = await this.sessions.otherActiveDevice(user.id, deviceInfo);
-    if (other) {
-      const pendingToken = randomBytes(24).toString('base64url');
-      await this.redis.set(
-        `auth:pending:${pendingToken}`,
-        JSON.stringify({
-          userId: user.id,
-          isNewUser: resolved.isNewUser,
-          identifier: `social:${dto.provider}`,
-          deviceInfo,
-        }),
-        'EX',
-        300,
-      );
-      throw new ConflictException({
-        code: ErrorCode.AUTH_OTHER_DEVICE_ACTIVE,
-        message:
-          'This account is signed in on another device. Continue to sign it out there.',
-        details: {
-          pendingToken,
-          deviceName: other.device_name,
-          platform: other.platform,
-          lastUsedAt: other.last_used_at?.toISOString() ?? null,
-        },
-      });
-    }
-
-    const fraudSignals = {
-      social,
-      email: user.email,
-      phone: user.phone_e164,
-      deviceKey: meta.deviceKey,
-      ip: meta.ip,
-    };
-    await this.fraud?.assertSignInAllowed(fraudSignals, user.id);
-
-    const isNewDevice = await this.sessions.isNewDevice(
-      user.id,
-      deviceInfo.deviceId,
-    );
-    const { session, refreshTokenRaw } = await this.sessions.createSession(
-      user.id,
+    // S14-5: from here on the sign-in is the SAME one OTP and password use
+    // (status checks, bans by phone / e-mail / device, the "other phone"
+    // question, fraud, session, audit, new-device alert) — one choke point
+    // instead of a third copy that had already drifted from it.
+    return this.auth.finishLogin(
+      user,
+      resolved.isNewUser,
+      deletionCancelled,
+      `social:${dto.provider}`,
       deviceInfo,
       meta,
+      { social },
     );
-
-    const accessToken = this.tokens.signAccessToken({
-      sub: user.id,
-      role: user.role,
-      sid: session.session_chain_id,
-      // Placeholder claims — see docs/CHANGELOG.md stage 1.4: real meaning
-      // (attorney bar verification / active subscription) doesn't exist
-      // yet, those tables/flows are files 3 and 5.
-      verified: false,
-      subscriptionStatus: 'none',
-    });
-
-    await this.authEvents.record({
-      userId: user.id,
-      eventType: AUTH_EVENT_TYPES.SOCIAL_LOGIN_SUCCESS,
-      success: true,
-      deviceId: deviceInfo.deviceId,
-      ip: meta.ip,
-      userAgent: meta.userAgent,
-      meta: { provider: dto.provider, isNewDevice },
-    });
-
-    await this.fraud?.recordSignIn(user.id, fraudSignals);
-
-    // docs/01 §10.6 new-device alert: audit row inline, delivery detached.
-    await this.newDevice.onLogin({
-      user,
-      isNewUser: resolved.isNewUser,
-      isNewDevice,
-      device: deviceInfo,
-      meta,
-    });
-
-    return {
-      accessToken,
-      refreshToken: refreshTokenRaw,
-      accessTokenExpiresIn: this.tokens.accessTtlSecondsValue(),
-      isNewUser: resolved.isNewUser,
-    };
   }
 
   private async assertIpLimit(meta: RequestMeta): Promise<void> {

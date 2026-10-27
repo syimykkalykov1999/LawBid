@@ -29,6 +29,7 @@ import {
   type SearchProvider,
 } from '../search/search.provider';
 import { NotificationsService } from '../notifications/notifications.service';
+import { QaSafetyService } from './qa-safety.service';
 import {
   type AnswerDto,
   type AskQuestionDto,
@@ -83,6 +84,7 @@ export class LegalQaService {
     private readonly blocks: BlocksService,
     private readonly files: FilesService,
     @Inject(SEARCH_PROVIDER) private readonly search: SearchProvider,
+    private readonly safety: QaSafetyService,
   ) {}
 
   // --- questions ------------------------------------------------------------
@@ -228,20 +230,32 @@ export class LegalQaService {
         message: 'Anonymous questions are switched off.',
       });
     }
+    // Owner 2026-10-28 (legal safety): spam and private-info checks come
+    // first, so a refused question does not use up the day's allowance.
+    const screened = await this.safety.screenQuestion(
+      user.sub,
+      dto.title,
+      dto.body,
+    );
     await this.limits.consume('question_create', user.sub);
     const row = await this.prisma.legalQuestion.create({
       data: {
         author_id: user.sub,
         practice_area_id: dto.practiceAreaId ?? null,
         state_code: dto.stateCode ?? null,
-        title: maskContactInfo(dto.title).text,
-        body: maskContactInfo(dto.body).text,
+        title: maskContactInfo(screened.texts[0]).text,
+        body: maskContactInfo(screened.texts[1]).text,
         is_anonymous: dto.anonymous ?? false,
+        safety_flags: screened.flags,
+        content_hash: screened.hash,
       },
       include: QUESTION_INCLUDE,
     });
     this.later(() => this.alertAttorneys(row));
-    return (await this.presentQuestions([row], user))[0];
+    const [dtoOut] = await this.presentQuestions([row], user);
+    return screened.warnings.length > 0
+      ? { ...dtoOut, privacyWarnings: screened.warnings }
+      : dtoOut;
   }
 
   async remove(user: RequestUser, id: string): Promise<void> {
@@ -296,8 +310,23 @@ export class LegalQaService {
       !(await this.hasLiveAnswer(id, user.sub))
     )
       throw this.answersEnough();
+    // Owner 2026-10-28 (legal safety): spam, private-info and "advice from
+    // someone not licensed here" checks run before the allowance is used.
+    const screened = await this.safety.screenAnswer(
+      user.sub,
+      id,
+      q.state_code,
+      body,
+      true,
+    );
     await this.limits.consume('answer_create', user.sub);
-    const text = maskContactInfo(body).text;
+    await this.limits.consume('answer_create_daily', user.sub);
+    const text = maskContactInfo(screened.texts[0]).text;
+    const hold = screened.hold;
+    const safety = {
+      safety_flags: screened.flags,
+      content_hash: screened.hash,
+    };
     let announce = false;
     const row = await withTxRetry(this.prisma, async (tx) => {
       announce = false;
@@ -305,11 +334,19 @@ export class LegalQaService {
         where: withDeleted({ question_id: id, attorney_id: user.sub }),
       });
       if (!existing) {
-        await this.takeSlot(tx, id);
+        // A held answer waits hidden and takes no slot until a moderator
+        // restores it (the moderation action counts it then).
+        if (!hold) await this.takeSlot(tx, id);
         const created = await tx.legalAnswer.create({
-          data: { question_id: id, attorney_id: user.sub, body: text },
+          data: {
+            question_id: id,
+            attorney_id: user.sub,
+            body: text,
+            status: hold ? 'hidden' : 'published',
+            ...safety,
+          },
         });
-        announce = true;
+        announce = !hold;
         return created;
       }
       // Hidden or removed by a moderator: the attorney cannot bring it back
@@ -321,11 +358,18 @@ export class LegalQaService {
         throw this.forbidden();
       }
       const wasLive = existing.status === 'published' && !existing.deleted_at;
+      // An edit of a live answer is only flagged; a re-posted one can be held.
+      const holdNow = hold && !wasLive;
       const updated = await tx.legalAnswer.update({
         where: { id: existing.id },
-        data: { body: text, status: 'published', deleted_at: null },
+        data: {
+          body: text,
+          status: holdNow ? 'hidden' : 'published',
+          deleted_at: null,
+          ...safety,
+        },
       });
-      if (!wasLive) {
+      if (!wasLive && !holdNow) {
         await this.takeSlot(tx, id);
         announce = true;
       }
@@ -661,9 +705,11 @@ export class LegalQaService {
         })
       ).map((l) => l.answer_id),
     );
+    const badges = await this.verifiedBadges(rows);
     return rows.map((a) => ({
       id: a.id,
       questionId: a.question_id,
+      verifiedBadge: badges.has(a.id),
       attorney: people.get(a.attorney_id) ?? {
         id: a.attorney_id,
         displayName: '',
@@ -678,6 +724,47 @@ export class LegalQaService {
       createdAt: a.created_at.toISOString(),
       updatedAt: a.updated_at.toISOString(),
     }));
+  }
+
+  /**
+   * Owner 2026-10-28 (legal safety): the «verified attorney answer» badge is
+   * decided here, not by the client: the answerer's profile is verified now
+   * AND (when the question names a state) holds a verified licence in that
+   * state. A lapsed or suspended attorney's old answers lose the badge.
+   */
+  private async verifiedBadges(rows: AnswerRow[]): Promise<Set<string>> {
+    const attorneyIds = [...new Set(rows.map((a) => a.attorney_id))];
+    const [profiles, questions, licences] = await Promise.all([
+      this.prisma.attorneyProfile.findMany({
+        where: {
+          user_id: { in: attorneyIds },
+          verification_status: 'verified',
+        },
+        select: { user_id: true },
+      }),
+      this.prisma.legalQuestion.findMany({
+        where: withDeleted({
+          id: { in: [...new Set(rows.map((a) => a.question_id))] },
+        }),
+        select: { id: true, state_code: true },
+      }),
+      this.prisma.attorneyLicense.findMany({
+        where: { attorney_id: { in: attorneyIds }, license_status: 'verified' },
+        select: { attorney_id: true, state_code: true },
+      }),
+    ]);
+    const verified = new Set(profiles.map((p) => p.user_id));
+    const stateOf = new Map(questions.map((q) => [q.id, q.state_code]));
+    const held = new Set(
+      licences.map((l) => `${l.attorney_id}:${l.state_code}`),
+    );
+    const out = new Set<string>();
+    for (const a of rows) {
+      if (!verified.has(a.attorney_id) || a.status !== 'published') continue;
+      const state = stateOf.get(a.question_id);
+      if (!state || held.has(`${a.attorney_id}:${state}`)) out.add(a.id);
+    }
+    return out;
   }
 
   private async people(ids: string[]): Promise<Map<string, QaPersonDto>> {

@@ -31,6 +31,12 @@ class AppCheckInterceptor extends Interceptor {
     '/auth/password/reset/request',
     '/auth/social',
     '/auth/phone/status',
+    // 2026-10-25 (S14-13): the server asks for the token only after several
+    // wrong passwords / codes for one account (admin setting
+    // security.auth_challenge_after_failures, off by default); the happy
+    // path is never blocked by it.
+    '/auth/password/login',
+    '/auth/otp/verify',
   ];
 
   /// True for a POST to one of [routes].

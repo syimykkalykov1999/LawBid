@@ -21,6 +21,22 @@ InvoiceDto _$InvoiceDtoFromJson(Map<String, dynamic> json) => InvoiceDto(
       .toList(),
   url: json['url'] as String?,
   fileId: json['fileId'] as String,
+  status: InvoiceDtoStatus.fromJson(json['status'] as String),
+  dueAt: json['dueAt'] == null ? null : DateTime.parse(json['dueAt'] as String),
+  sentAt: json['sentAt'] == null
+      ? null
+      : DateTime.parse(json['sentAt'] as String),
+  viewedAt: json['viewedAt'] == null
+      ? null
+      : DateTime.parse(json['viewedAt'] as String),
+  paidAt: json['paidAt'] == null
+      ? null
+      : DateTime.parse(json['paidAt'] as String),
+  paidCents: json['paidCents'] as num,
+  lateFeeCents: json['lateFeeCents'] as num,
+  balanceCents: json['balanceCents'] as num,
+  remindersEnabled: json['remindersEnabled'] as bool,
+  payUrl: json['payUrl'] as String?,
 );
 
 Map<String, dynamic> _$InvoiceDtoToJson(InvoiceDto instance) =>
@@ -37,4 +53,14 @@ Map<String, dynamic> _$InvoiceDtoToJson(InvoiceDto instance) =>
       'lines': instance.lines.map((e) => e.toJson()).toList(),
       'url': ?instance.url,
       'fileId': instance.fileId,
+      'status': instance.status.toJson(),
+      'dueAt': ?instance.dueAt?.toIso8601String(),
+      'sentAt': ?instance.sentAt?.toIso8601String(),
+      'viewedAt': ?instance.viewedAt?.toIso8601String(),
+      'paidAt': ?instance.paidAt?.toIso8601String(),
+      'paidCents': instance.paidCents,
+      'lateFeeCents': instance.lateFeeCents,
+      'balanceCents': instance.balanceCents,
+      'remindersEnabled': instance.remindersEnabled,
+      'payUrl': ?instance.payUrl,
     };

@@ -39,6 +39,10 @@ class ChatListController extends ChangeNotifier {
   /// The key of the entry whose newest message is [id].
   GlobalKey keyFor(String id) => _keys.putIfAbsent(id, GlobalKey.new);
 
+  /// S16-6: forget the keys of entries that are no longer in the list.
+  void pruneKeys(Set<String> keep) =>
+      _keys.removeWhere((id, _) => !keep.contains(id));
+
   /// The built context of the entry keyed by its newest message id.
   BuildContext? contextOf(String entryId) => _keys[entryId]?.currentContext;
 

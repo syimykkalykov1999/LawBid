@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { TextDetectorService } from './text-detector.service';
 import type Redis from 'ioredis';
 import { createHash } from 'node:crypto';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -49,6 +50,7 @@ export class RuleBasedModerationHook implements ContentModerationHook {
   constructor(
     private readonly settings: AppSettingsService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Optional() private readonly detector?: TextDetectorService,
   ) {}
 
   async check(
@@ -86,6 +88,12 @@ export class RuleBasedModerationHook implements ContentModerationHook {
       } catch {
         // Redis unavailable: skip the duplicate rule (best effort).
       }
+    }
+    // Owner 2026-10-27: the classifier (off / shadow / enforce); the stricter
+    // verdict wins.
+    if (this.detector) {
+      const d = await this.detector.scan(content, context);
+      if (d === 'block' || (d === 'hold' && verdict === 'allow')) verdict = d;
     }
     return verdict;
   }

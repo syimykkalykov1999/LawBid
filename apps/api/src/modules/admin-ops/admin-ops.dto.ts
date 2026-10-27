@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsOptional } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
 
 export type HealthStatus = 'green' | 'yellow' | 'red' | 'grey';
 
@@ -16,6 +22,7 @@ export class HealthItemDto {
       'backup',
       'cost',
       'message_keys',
+      'restore_drill',
       'secret_rotation',
       'stripe_webhooks',
       'push',
@@ -28,6 +35,7 @@ export class HealthItemDto {
       'breakers',
       'cloudflare_usage',
       'bunny_usage',
+      'table_growth',
     ],
   })
   key!: string;
@@ -177,6 +185,160 @@ export class ScaleExtrasDto {
     description: 'The `search.engine` setting (postgres until another is set).',
   })
   searchEngine!: string;
+}
+
+/** WP-G: one heavy user or case in the «Тяжёлые пользователи» card. */
+export class HeavyEntryDto {
+  @ApiProperty({ description: 'User id or case id.' })
+  id!: string;
+
+  @ApiProperty({
+    description:
+      'Score over the window: requests, DB milliseconds, upload bytes or messages (sampled metrics are scaled back up).',
+  })
+  score!: number;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'User name (user rows) or case title (case rows).',
+  })
+  label!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'User role (user rows only).',
+  })
+  role!: string | null;
+}
+
+export class HeavyMetricDto {
+  @ApiProperty({ enum: ['requests', 'db_ms', 'upload_bytes', 'messages'] })
+  metric!: 'requests' | 'db_ms' | 'upload_bytes' | 'messages';
+
+  @ApiProperty({ type: [HeavyEntryDto] })
+  users!: HeavyEntryDto[];
+
+  @ApiProperty({ type: [HeavyEntryDto] })
+  cases!: HeavyEntryDto[];
+}
+
+export class HeavyHittersDto {
+  @ApiProperty({ description: 'False when HEAVY_HITTERS_SAMPLE=0.' })
+  enabled!: boolean;
+
+  @ApiProperty({ description: 'How far back the lists look, in minutes.' })
+  windowMinutes!: number;
+
+  @ApiProperty({ description: 'One request in N is counted (1 = all).' })
+  sampleEvery!: number;
+
+  @ApiProperty({ type: [HeavyMetricDto] })
+  metrics!: HeavyMetricDto[];
+}
+
+/** Owner 2026-10-24: one table on the «Масштаб» page (partitioning by month). */
+export class PartitionCardDto {
+  @ApiProperty() table!: string;
+  @ApiProperty({ description: 'Russian name of the table.' }) label!: string;
+  @ApiProperty({ type: 'integer', description: 'Estimated rows.' })
+  rows!: number;
+  @ApiProperty({ type: 'integer', description: 'Bytes with indexes.' })
+  bytes!: number;
+  @ApiProperty() partitioned!: boolean;
+  @ApiProperty({ type: 'integer' }) partitions!: number;
+  @ApiProperty({
+    enum: [
+      'monthly',
+      'idle',
+      'running',
+      'paused',
+      'swapped',
+      'error',
+      'blocked',
+    ],
+  })
+  state!: string;
+  @ApiProperty({
+    type: [String],
+    description: 'Why it cannot be converted yet.',
+  })
+  blockedBy!: string[];
+  @ApiProperty({ type: 'integer', nullable: true }) progress!: number | null;
+  @ApiProperty({ type: String, nullable: true }) phase!: string | null;
+  @ApiProperty({ type: String, nullable: true }) error!: string | null;
+  @ApiProperty() paused!: boolean;
+  @ApiProperty() canStart!: boolean;
+  @ApiProperty() canUndo!: boolean;
+  @ApiProperty() canFinalize!: boolean;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  finalizeAfter!: string | null;
+  @ApiProperty({
+    description: 'More than 50 million rows and not partitioned.',
+  })
+  overThreshold!: boolean;
+  @ApiProperty({
+    description: 'The owner-role connection for the runner exists.',
+  })
+  runnerConfigured!: boolean;
+  @ApiProperty({
+    enum: ['off', 'on', 'auto'],
+    nullable: true,
+    description:
+      'Hash tables: off (default) / on (convert now) / auto (convert at autoRows). Null for the monthly tables.',
+  })
+  mode!: string | null;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Rows at which «auto» converts (admin-editable).',
+  })
+  autoRows!: number;
+}
+
+export class PartitionTableParamDto {
+  @ApiProperty() @IsString() @Matches(/^[a-z][a-z0-9_]{0,40}$/) table!: string;
+}
+
+export class PartitionModeDto {
+  @ApiProperty({ enum: ['off', 'on', 'auto'] })
+  @IsIn(['off', 'on', 'auto'])
+  mode!: 'off' | 'on' | 'auto';
+}
+
+export class PartitionPauseDto {
+  @ApiProperty() @IsBoolean() paused!: boolean;
+}
+
+/** Owner 2026-10-24: «Копия базы для чтения». */
+export class ReplicaStatusDto {
+  @ApiProperty({
+    enum: [
+      'unavailable',
+      'off',
+      'creating',
+      'on',
+      'lagging',
+      'deleting',
+      'error',
+    ],
+  })
+  state!: string;
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Seconds behind the primary.',
+  })
+  lagSeconds!: number | null;
+  @ApiProperty({ type: String, nullable: true }) instanceClass!: string | null;
+  @ApiProperty({ description: 'This process sends reads to the copy now.' })
+  serving!: boolean;
+  @ApiProperty({ description: 'Plain-words explanation for the card.' })
+  note!: string;
+}
+
+export class ReplicaToggleDto {
+  @ApiProperty() @IsBoolean() enabled!: boolean;
 }
 
 /** S10-7: what one press of «Повторить упавшие задачи» did. */

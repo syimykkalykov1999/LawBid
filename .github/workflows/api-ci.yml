@@ -1,26 +1,33 @@
 # Backend CI — docs/01_FOUNDATION_AUTH.md §16 DoD ("CI зелёный: lint, unit,
 # e2e"), scoped to apps/api. See docs/06_PRODUCTION.md §7.2 for the full
-# eventual PR-check list (file 6 scope) — this workflow implements the
-# subset that's file-1 scope and buildable with what exists in the repo
-# today (no Docker image build: no Dockerfile exists yet). The API contract
-# drift check (openapi.json + generated Dart client, docs/01 §6.3) runs as
-# the "API contract is up to date" step below.
+# eventual PR-check list.
 #
-# Service containers mirror docker-compose.yml's dev infra:
-#   - PostgreSQL 16 — a real `services:` entry (owner 2026-10-14).
-#   - Redis 7 — a real `services:` entry (its default command needs no args).
-#   - Mailhog — a real `services:` entry, for the email-OTP path some future
-#     e2e test may exercise (current e2e suite only drives the phone-OTP
-#     path — see test/auth.e2e-spec.ts's doc comment — so this isn't
-#     exercised today, but it's cheap to have ready and matches
-#     docker-compose.yml).
-# MinIO is intentionally NOT started: no file-upload/S3 code exists yet
-# (prisma/schema.prisma's own comments mark the `files` table out of scope
-# for stage 1.3), so there is nothing for it to back in file-1 CI.
+# S11-7 (2026-10-25): one 25-40 minute serial job became five jobs that run in
+# parallel, each with its OWN Postgres + Redis service containers:
+#   static   lint, typecheck, unit tests + coverage floor, migrations, contract, audit
+#   e2e      3-way matrix (jest --shard i/3 through scripts/run-e2e-sharded.mjs
+#            --only=i: one retry per failed suite, flaky.json artifact)
+#   two-db   the two-database e2e subset (shard-ready step 5)
+#   n1       S11-3: the PREVIOUS release's e2e smoke suites against the NEW
+#            schema (the claim of rollback.yml, now tested); only when the PR
+#            changes migrations
+#   api-ci   one stable check name ("API CI") that needs all of the above: use
+#            this as the required status check of the ruleset / merge queue,
+#            whatever the matrix looks like.
+# `cancel-in-progress` applies to pull_request runs only (S11-1): a push to main
+# must finish, its result is what the deploy gate reads. `merge_group` makes the
+# workflow run on the merge queue's temporary branch.
+#
+# Service containers mirror docker-compose.yml's dev infra (PostgreSQL 16, Redis 7,
+# Mailhog), all pinned by image digest. MinIO is built from source at a pinned
+# release (no image is published any more) and started on the runner for the
+# file suites.
 
 name: API CI
 
 on:
+  merge_group:
+    types: [checks_requested]
   pull_request:
     branches: [main, master]
     paths:
@@ -31,7 +38,8 @@ on:
       - "docker-compose.yml"
       - ".github/workflows/api-ci.yml"
       - ".github/npm-audit-allowlist.json"
-      - "scripts/ci/npm-audit-gate.mjs"
+      - "scripts/ci/**"
+      - "infra/modules/signing-guard/lambda/**"
   push:
     branches: [main, master]
     paths:
@@ -42,64 +50,67 @@ on:
       - "docker-compose.yml"
       - ".github/workflows/api-ci.yml"
       - ".github/npm-audit-allowlist.json"
-      - "scripts/ci/npm-audit-gate.mjs"
+      - "scripts/ci/**"
+      - "infra/modules/signing-guard/lambda/**"
 
 concurrency:
   group: api-ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Security research #5 (2026-10-22), A2: least privilege — the job only reads
+# Security research #5 (2026-10-22), A2: least privilege — the jobs only read
 # the repository (no GITHUB_TOKEN writes anywhere in this workflow).
 permissions:
   contents: read
 
+# Every var here matches apps/api/.env.test's known-good test values
+# (docs/CHANGELOG.md stage 1.4) so the app boots exactly as it does
+# locally against `docker compose up`. apps/api/.env* is gitignored, so
+# nothing is loaded from a file in CI — these are the only source.
+env:
+  NODE_ENV: test
+  PORT: "3000"
+  DATABASE_URL: "postgresql://root:lawbid@localhost:5432/lawbid_ci?schema=public"
+  REDIS_URL: "redis://localhost:6379"
+  SUBSCRIPTION_PAST_DUE_GRACE_DAYS: "3"
+  JWT_KEYS: "ci1:ci_secret_at_least_32_characters_long_aaaa"
+  JWT_ACTIVE_KID: "ci1"
+  JWT_ACCESS_TTL_SECONDS: "900"
+  JWT_REFRESH_TTL_DAYS: "60"
+  REAUTH_TOKEN_TTL_SECONDS: "300"
+  REFRESH_ROTATION_GRACE_SECONDS: "10"
+  AUTH_UNIFORM_MIN_DELAY_MS: "0"
+  OTP_CODE_SECRET: "ci_otp_code_secret_at_least_32_chars_bbbb"
+  OTP_KEY_PEPPER: "ci_otp_key_pepper_at_least_32_chars_cccc"
+  AUTH_EVENT_PEPPER: "ci_auth_event_pepper_at_least_32_chars_dddd"
+  OTP_CODE_TTL_SECONDS: "600"
+  OTP_MAX_ATTEMPTS: "5"
+  OTP_LOCKOUT_SECONDS: "900"
+  OTP_RATE_LIMIT_PER_IDENTIFIER_PER_HOUR: "5"
+  OTP_RATE_LIMIT_PER_IP_PER_HOUR: "10"
+  AUTH_OTP_VERIFY_LIMIT_PER_HOUR: "10"
+  AUTH_SOCIAL_LIMIT_PER_IP_PER_HOUR: "20"
+  AUTH_REFRESH_LIMIT_PER_IP_PER_HOUR: "60"
+  OTP_DEV_FIXED_CODE: "true"
+  SMS_PROVIDER: "mock"
+  EMAIL_PROVIDER: "mock"
+  SMTP_HOST: "localhost"
+  SMTP_PORT: "1025"
+  GOOGLE_CLIENT_IDS: ""
+  APPLE_BUNDLE_IDS: ""
+
 jobs:
-  api-ci:
-    name: Lint, typecheck, unit + e2e tests
+  static:
+    name: API static (lint, types, unit, migrations, contract)
     runs-on: ubuntu-latest
     # Two full PostgreSQL migration runs (clean DB + upgrade from the
     # previous release) at ~10 min each, plus the e2e database.
     timeout-minutes: 75
-
-    # Every var here matches apps/api/.env.test's known-good test values
-    # (docs/CHANGELOG.md stage 1.4) so the app boots exactly as it does
-    # locally against `docker compose up`. apps/api/.env* is gitignored, so
-    # nothing is loaded from a file in CI — these are the only source.
-    env:
-      NODE_ENV: test
-      PORT: "3000"
-      DATABASE_URL: "postgresql://root:lawbid@localhost:5432/lawbid_ci?schema=public"
-      REDIS_URL: "redis://localhost:6379"
-      SUBSCRIPTION_PAST_DUE_GRACE_DAYS: "3"
-      JWT_KEYS: "ci1:ci_secret_at_least_32_characters_long_aaaa"
-      JWT_ACTIVE_KID: "ci1"
-      JWT_ACCESS_TTL_SECONDS: "900"
-      JWT_REFRESH_TTL_DAYS: "60"
-      REAUTH_TOKEN_TTL_SECONDS: "300"
-      REFRESH_ROTATION_GRACE_SECONDS: "10"
-      OTP_CODE_SECRET: "ci_otp_code_secret_at_least_32_chars_bbbb"
-      OTP_KEY_PEPPER: "ci_otp_key_pepper_at_least_32_chars_cccc"
-      AUTH_EVENT_PEPPER: "ci_auth_event_pepper_at_least_32_chars_dddd"
-      OTP_CODE_TTL_SECONDS: "600"
-      OTP_MAX_ATTEMPTS: "5"
-      OTP_LOCKOUT_SECONDS: "900"
-      OTP_RATE_LIMIT_PER_IDENTIFIER_PER_HOUR: "5"
-      OTP_RATE_LIMIT_PER_IP_PER_HOUR: "10"
-      AUTH_OTP_VERIFY_LIMIT_PER_HOUR: "10"
-      AUTH_SOCIAL_LIMIT_PER_IP_PER_HOUR: "20"
-      AUTH_REFRESH_LIMIT_PER_IP_PER_HOUR: "60"
-      OTP_DEV_FIXED_CODE: "true"
-      SMS_PROVIDER: "mock"
-      EMAIL_PROVIDER: "mock"
-      SMTP_HOST: "localhost"
-      SMTP_PORT: "1025"
-      GOOGLE_CLIENT_IDS: ""
-      APPLE_BUNDLE_IDS: ""
-
     services:
-      # Owner 2026-10-14: the whole project runs on PostgreSQL 16.
+      # Owner 2026-10-14: the whole project runs on PostgreSQL 16. Images are
+      # pinned by digest (S11-7); dependabot cannot bump a digest inside a
+      # workflow, so the weekly "pins" review is in .github/workflows/README.md.
       postgres:
-        image: postgres:16
+        image: postgres:16@sha256:9e2cf6287f25c3151f4c9421ccce2b17f3e60061c111a29165e0d2cdd9ff0a97
         env:
           POSTGRES_USER: root
           POSTGRES_PASSWORD: lawbid
@@ -113,7 +124,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
       redis:
-        image: redis:7-alpine
+        image: redis:7-alpine@sha256:57e4255cc971b1c8d6f8a6ca283ac01bc3ecdd914273ef6bfaede87aaecd6541
         ports:
           - 6379:6379
         options: >-
@@ -210,8 +221,12 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=6144
         run: npx tsc --noEmit
 
-      - name: Unit tests (with coverage)
+      - name: Unit tests (with coverage; the floor is coverageThreshold in apps/api/package.json)
         run: npm run test:cov --workspace apps/api
+
+      - name: Coverage ratchet (tells when the floor can go up)
+        if: always()
+        run: node scripts/ci/coverage-ratchet.mjs apps/api
 
       - name: Upload coverage report
         if: always()
@@ -221,8 +236,118 @@ jobs:
           path: apps/api/coverage
           retention-days: 14
 
-      - name: Start MailHog (no container log dump, keeps the job log readable)
-        run: docker run -d --name mailhog --log-driver none -p 1025:1025 -p 8025:8025 mailhog/mailhog:latest
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+        with:
+          # Pinned: `dart format` output (part of the generated client)
+          # depends on the SDK's formatter version.
+          sdk: "3.13.4"
+
+      - name: OpenAPI has no breaking changes against the base branch (docs/06 §7.2)
+        if: github.event_name == 'pull_request'
+        run: |
+          git show "origin/${{ github.base_ref }}:packages/api-contract/openapi.json" > /tmp/openapi.base.json
+          docker run --rm -v /tmp/openapi.base.json:/base.json -v "$PWD/packages/api-contract/openapi.json:/head.json" \
+            -v "$PWD/packages/api-contract/oasdiff-err-ignore.txt:/err-ignore.txt" \
+            tufin/oasdiff@sha256:3e5346a0615610adda11ef9cbdab330d00e8b9619103be0f7ef4942ae8d78cef breaking --fail-on ERR --err-ignore /err-ignore.txt /base.json /head.json
+
+      - name: API contract is up to date (openapi.json + Dart client)
+        # docs/01 §6.3: packages/api-contract is generated, never
+        # hand-edited, and regenerated after any endpoint change. Re-export
+        # the OpenAPI document from this commit's API, regenerate the Dart
+        # client, and fail on ANY difference (modified or new files) — a
+        # controller/DTO change without a committed regeneration is
+        # contract drift. Then the client must analyze clean.
+        # `nest build` + the export outgrew Node's ~4 GB default heap on the
+        # runner (exit 134 on #330, 2026-10-26).
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: |
+          sh packages/api-contract/generate.sh
+          git diff --exit-code -- packages/api-contract
+          untracked=$(git status --porcelain --untracked-files=all -- packages/api-contract)
+          if [ -n "$untracked" ]; then
+            echo "Contract drift — regenerate with packages/api-contract/generate.sh and commit:" >&2
+            echo "$untracked" >&2
+            exit 1
+          fi
+          cd packages/api-contract/dart && dart analyze --fatal-warnings
+
+      - name: Flag-first (a new user-facing route needs a feature flag or a waiver)
+        # S11-13: advisory until the repository variable FLAG_FIRST_ENFORCE is 'true'.
+        if: github.event_name == 'pull_request'
+        env:
+          FLAG_FIRST_ENFORCE: ${{ vars.FLAG_FIRST_ENFORCE }}
+        run: node scripts/ci/flag-first-check.mjs "${{ github.event.pull_request.base.sha }}"
+
+      - name: Self-tests of the CI / deploy helper scripts
+        run: |
+          node --test scripts/ci/flag-first-check.test.mjs
+          bash scripts/ci/require-green.test.sh
+          python3 -m unittest discover -s infra/modules/signing-guard/lambda/tests
+
+      - name: Dependency audit (high and critical block)
+        # docs/06 §4.4; audit #15 (2026-10-22): a high or critical advisory
+        # blocks the merge unless it is in .github/npm-audit-allowlist.json
+        # with a reason and an expiry date (how to add one: the header of
+        # scripts/ci/npm-audit-gate.mjs).
+        run: node scripts/ci/npm-audit-gate.mjs --workspace apps/api
+
+  e2e:
+    name: API e2e (${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    services:
+      # Owner 2026-10-14: the whole project runs on PostgreSQL 16. Images are
+      # pinned by digest (S11-7); dependabot cannot bump a digest inside a
+      # workflow, so the weekly "pins" review is in .github/workflows/README.md.
+      postgres:
+        image: postgres:16@sha256:9e2cf6287f25c3151f4c9421ccce2b17f3e60061c111a29165e0d2cdd9ff0a97
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: lawbid
+          POSTGRES_DB: lawbid_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U root -d lawbid_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine@sha256:57e4255cc971b1c8d6f8a6ca283ac01bc3ecdd914273ef6bfaede87aaecd6541
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      # Mailhog: ready for the email-OTP path of future suites (cheap; no log dump).
+      mailhog:
+        image: mailhog/mailhog@sha256:8d76a3d4ffa32a3661311944007a415332c4bb855657f4f6c57996405c009bea
+        ports:
+          - 1025:1025
+          - 8025:8025
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.23.4"
+          cache: "npm"
+
+      - name: Install dependencies (root workspace, hoisted)
+        run: npm ci
+
+      - name: Prisma generate
+        working-directory: apps/api
+        run: npx prisma generate
 
       # MinIO no longer publishes images or binaries, so it is built from
       # its source at a pinned release (RELEASE.2025-10-15T17-29-55Z) and
@@ -251,17 +376,116 @@ jobs:
           # setsid: own session, so the runner's step cleanup cannot take it down.
           MINIO_ROOT_USER=lawbid MINIO_ROOT_PASSWORD=lawbid_dev_only \
             setsid nohup /tmp/minio-bin/minio server /tmp/minio-data --address :9000 > /tmp/minio.log 2>&1 < /dev/null &
-          for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:9000/minio/health/live && exit 0; sleep 1; done
+          for _ in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:9000/minio/health/live && exit 0; sleep 1; done
           echo "MinIO did not start"; cat /tmp/minio.log; exit 1
 
-      - name: e2e tests (real PostgreSQL + Redis + local S3)
+      - name: e2e tests (real PostgreSQL + Redis + local S3), shard ${{ matrix.shard }} of 3
         # Jest keeps every finished suite's module graph in memory (40–60 MB
         # each, no leaked handles: measured after a forced GC), so one process
-        # for ~100 suites ran out of memory (exit 134). Three fresh processes
-        # in turn keep the heap at the size of one shard.
+        # for ~100 suites ran out of memory (exit 134). One fresh process per
+        # shard keeps the heap at the size of one shard. A failed suite is run
+        # once more; a pass on retry is reported as flaky (flaky.json).
         env:
           NODE_OPTIONS: --max-old-space-size=4096
-        run: npm run test:e2e:sharded --workspace apps/api
+          E2E_OUT_DIR: ${{ runner.temp }}/e2e-out
+        run: node scripts/run-e2e-sharded.mjs --shards=3 --only=${{ matrix.shard }}
+        working-directory: apps/api
+
+      - name: Upload the jest results (flaky.json, shard JSON)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: e2e-results-${{ matrix.shard }}
+          path: ${{ runner.temp }}/e2e-out
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: MinIO log (only when e2e failed)
+        if: failure()
+        run: tail -n 60 /tmp/minio.log || true; curl -s -o /dev/null -w "minio http %{http_code}\n" http://127.0.0.1:9000/minio/health/live || echo "MinIO is down"
+
+  two-db:
+    name: API e2e (two databases)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      # Owner 2026-10-14: the whole project runs on PostgreSQL 16. Images are
+      # pinned by digest (S11-7); dependabot cannot bump a digest inside a
+      # workflow, so the weekly "pins" review is in .github/workflows/README.md.
+      postgres:
+        image: postgres:16@sha256:9e2cf6287f25c3151f4c9421ccce2b17f3e60061c111a29165e0d2cdd9ff0a97
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: lawbid
+          POSTGRES_DB: lawbid_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U root -d lawbid_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine@sha256:57e4255cc971b1c8d6f8a6ca283ac01bc3ecdd914273ef6bfaede87aaecd6541
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      # Mailhog: ready for the email-OTP path of future suites (cheap; no log dump).
+      mailhog:
+        image: mailhog/mailhog@sha256:8d76a3d4ffa32a3661311944007a415332c4bb855657f4f6c57996405c009bea
+        ports:
+          - 1025:1025
+          - 8025:8025
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.23.4"
+          cache: "npm"
+
+      - name: Install dependencies (root workspace, hoisted)
+        run: npm ci
+
+      - name: Prisma generate
+        working-directory: apps/api
+        run: npx prisma generate
+
+      # MinIO no longer publishes images or binaries, so it is built from
+      # its source at a pinned release (RELEASE.2025-10-15T17-29-55Z) and
+      # cached. A real MinIO, not moto: the file suites check that S3 itself
+      # enforces the presigned POST policy, private buckets and link expiry.
+      - name: Cache the MinIO build
+        id: minio-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /tmp/minio-bin
+          key: minio-9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        if: steps.minio-cache.outputs.cache-hit != 'true'
+        with:
+          go-version: "1.24"
+          cache: false
+
+      - name: Build MinIO
+        if: steps.minio-cache.outputs.cache-hit != 'true'
+        run: GOBIN=/tmp/minio-bin go install github.com/minio/minio@9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
+
+      - name: Start MinIO for the file / voice e2e suites
+        run: |
+          mkdir -p /tmp/minio-data
+          # setsid: own session, so the runner's step cleanup cannot take it down.
+          MINIO_ROOT_USER=lawbid MINIO_ROOT_PASSWORD=lawbid_dev_only \
+            setsid nohup /tmp/minio-bin/minio server /tmp/minio-data --address :9000 > /tmp/minio.log 2>&1 < /dev/null &
+          for _ in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:9000/minio/health/live && exit 0; sleep 1; done
+          echo "MinIO did not start"; cat /tmp/minio.log; exit 1
 
       - name: e2e tests on TWO databases (shard-ready step 5, subset)
         # docs/architecture/SHARDING_READY.md §10: every logical shard of
@@ -279,45 +503,150 @@ jobs:
         if: failure()
         run: tail -n 60 /tmp/minio.log || true; curl -s -o /dev/null -w "minio http %{http_code}\n" http://127.0.0.1:9000/minio/health/live || echo "MinIO is down"
 
-      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
-        with:
-          # Pinned: `dart format` output (part of the generated client)
-          # depends on the SDK's formatter version.
-          sdk: "3.13.4"
-
-      - name: OpenAPI has no breaking changes against the base branch (docs/06 §7.2)
-        if: github.event_name == 'pull_request'
-        run: |
-          git show "origin/${{ github.base_ref }}:packages/api-contract/openapi.json" > /tmp/openapi.base.json
-          docker run --rm -v /tmp/openapi.base.json:/base.json -v "$PWD/packages/api-contract/openapi.json:/head.json" \
-            -v "$PWD/packages/api-contract/oasdiff-err-ignore.txt:/err-ignore.txt" \
-            tufin/oasdiff:latest breaking --fail-on ERR --err-ignore /err-ignore.txt /base.json /head.json
-
-      - name: API contract is up to date (openapi.json + Dart client)
-        # docs/01 §6.3: packages/api-contract is generated, never
-        # hand-edited, and regenerated after any endpoint change. Re-export
-        # the OpenAPI document from this commit's API, regenerate the Dart
-        # client, and fail on ANY difference (modified or new files) — a
-        # controller/DTO change without a committed regeneration is
-        # contract drift. Then the client must analyze clean.
-        # `nest build` + the export outgrew Node's ~4 GB default heap on the
-        # runner (exit 134 on #330, 2026-10-26).
+  n1:
+    name: API N-1 (previous release's suites on the new schema)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      # Owner 2026-10-14: the whole project runs on PostgreSQL 16. Images are
+      # pinned by digest (S11-7); dependabot cannot bump a digest inside a
+      # workflow, so the weekly "pins" review is in .github/workflows/README.md.
+      postgres:
+        image: postgres:16@sha256:9e2cf6287f25c3151f4c9421ccce2b17f3e60061c111a29165e0d2cdd9ff0a97
         env:
-          NODE_OPTIONS: --max-old-space-size=6144
-        run: |
-          sh packages/api-contract/generate.sh
-          git diff --exit-code -- packages/api-contract
-          untracked=$(git status --porcelain --untracked-files=all -- packages/api-contract)
-          if [ -n "$untracked" ]; then
-            echo "Contract drift — regenerate with packages/api-contract/generate.sh and commit:" >&2
-            echo "$untracked" >&2
-            exit 1
-          fi
-          cd packages/api-contract/dart && dart analyze --fatal-warnings
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: lawbid
+          POSTGRES_DB: lawbid_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U root -d lawbid_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine@sha256:57e4255cc971b1c8d6f8a6ca283ac01bc3ecdd914273ef6bfaede87aaecd6541
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
-      - name: Dependency audit (high and critical block)
-        # docs/06 §4.4; audit #15 (2026-10-22): a high or critical advisory
-        # blocks the merge unless it is in .github/npm-audit-allowlist.json
-        # with a reason and an expiry date (how to add one: the header of
-        # scripts/ci/npm-audit-gate.mjs).
-        run: node scripts/ci/npm-audit-gate.mjs --workspace apps/api
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      # S11-3: a deploy runs migrate THEN rolls (10-40 min of old tasks on the new
+      # schema), and rollback.yml promises "the previous release still runs against
+      # the current schema". This job proves it: it checks out the release that is
+      # live (the PR's base, or the commit before a push), puts THIS commit's
+      # migrations (and the prisma/concurrent index files of the online-DDL runner,
+      # when present) onto it, and runs that old code's own e2e smoke suites
+      # (apps/api/test/n1-suites.json) against the freshly migrated database.
+      # Skipped (green) when nothing under prisma/migrations changed.
+      - name: Does this change touch migrations?
+        id: mig
+        env:
+          PREV: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -eu
+          if [ -z "$PREV" ] || ! git cat-file -e "$PREV^{commit}" 2>/dev/null; then
+            echo "no previous commit to compare with: skipped"; echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          N=$(git diff --name-only "$PREV" HEAD -- apps/api/prisma/migrations apps/api/prisma/concurrent | wc -l)
+          echo "prev=$PREV" >> "$GITHUB_OUTPUT"
+          if [ "$N" -gt 0 ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "no migration changes: N-1 not needed"; fi
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        if: steps.mig.outputs.changed == 'true'
+        with:
+          node-version: "22.23.4"
+          cache: "npm"
+
+      - name: The previous release (checked out beside this one)
+        if: steps.mig.outputs.changed == 'true'
+        run: git worktree add --detach "$RUNNER_TEMP/prev" "${{ steps.mig.outputs.prev }}"
+
+      - name: Install the previous release's dependencies
+        if: steps.mig.outputs.changed == 'true'
+        working-directory: ${{ runner.temp }}/prev
+        run: npm ci
+
+      - name: Prisma generate (previous schema = what the old code was built with)
+        if: steps.mig.outputs.changed == 'true'
+        working-directory: ${{ runner.temp }}/prev/apps/api
+        run: npx prisma generate
+
+      # MinIO no longer publishes images or binaries, so it is built from
+      # its source at a pinned release (RELEASE.2025-10-15T17-29-55Z) and
+      # cached. A real MinIO, not moto: the file suites check that S3 itself
+      # enforces the presigned POST policy, private buckets and link expiry.
+      - name: Cache the MinIO build
+        id: minio-cache
+        if: steps.mig.outputs.changed == 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /tmp/minio-bin
+          key: minio-9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        if: steps.mig.outputs.changed == 'true' && steps.minio-cache.outputs.cache-hit != 'true'
+        with:
+          go-version: "1.24"
+          cache: false
+
+      - name: Build MinIO
+        if: steps.mig.outputs.changed == 'true' && steps.minio-cache.outputs.cache-hit != 'true'
+        run: GOBIN=/tmp/minio-bin go install github.com/minio/minio@9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
+
+      - name: Start MinIO for the file / voice e2e suites
+        if: steps.mig.outputs.changed == 'true'
+        run: |
+          mkdir -p /tmp/minio-data
+          # setsid: own session, so the runner's step cleanup cannot take it down.
+          MINIO_ROOT_USER=lawbid MINIO_ROOT_PASSWORD=lawbid_dev_only \
+            setsid nohup /tmp/minio-bin/minio server /tmp/minio-data --address :9000 > /tmp/minio.log 2>&1 < /dev/null &
+          for _ in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:9000/minio/health/live && exit 0; sleep 1; done
+          echo "MinIO did not start"; cat /tmp/minio.log; exit 1
+
+      - name: New schema under the old code, then the old smoke suites
+        if: steps.mig.outputs.changed == 'true'
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          PREV_DIR: ${{ runner.temp }}/prev
+        run: node scripts/ci/n1-compat.mjs "$PREV_DIR"
+
+  # One stable required check for the ruleset / merge queue.
+  api-ci:
+    name: API CI
+    if: ${{ always() }}
+    needs: [static, e2e, two-db, n1]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: All API jobs passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          case " $RESULTS " in *" failure "*|*" cancelled "*) exit 1 ;; esac
+
+  # S11-6: a failure on main / on a schedule reaches the owner (notify-failure.yml).
+  notify:
+    name: Notify the owner
+    needs: [api-ci]
+    if: ${{ always() && contains(needs.*.result, 'failure') && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: "API CI is red on main (deploy is blocked until it is green)"
+      kind: ci-api
+      remind_after_minutes: 360
+    secrets: inherit

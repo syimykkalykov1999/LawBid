@@ -188,7 +188,10 @@ export default function AuditLogPage() {
                     <div className="font-mono text-faint">{r.targetId}</div>
                   ) : null}
                 </Td>
-                <Td className="max-w-64 text-xs">{r.justification ?? ""}</Td>
+                <Td className="max-w-64 text-xs">
+                  {r.reasonCode ? <b>{r.reasonCode}: </b> : null}
+                  {r.justification ?? ""}
+                </Td>
                 <Td className="max-w-80">
                   <Json label="до" value={r.before} />
                   <Json label="после" value={r.after} />

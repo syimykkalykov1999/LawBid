@@ -17,6 +17,7 @@ import {
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
+import { bumpFeedVersion } from '../../common/cache/feed-version';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import {
   CounterAggregator,
@@ -105,6 +106,8 @@ export class FollowsService {
       skipDuplicates: true,
     });
     if (count === 0) return this.state(attorneyId, target.role, true);
+    // S2-3: the follower's feed now includes the new followee.
+    await bumpFeedVersion(this.redis, user.sub);
     await this.counters.bump(
       profileEntity(target.role),
       attorneyId,
@@ -142,6 +145,7 @@ export class FollowsService {
       where: { follower_id: user.sub, followee_id: attorneyId },
     });
     if (count === 0) return this.state(attorneyId, target?.role, false);
+    await bumpFeedVersion(this.redis, user.sub);
     await this.counters.bump(
       profileEntity(target?.role),
       attorneyId,
@@ -554,6 +558,10 @@ export class FollowsService {
     ids: string[],
     viewerId: string,
   ): Promise<AttorneyListItemDto[]> {
+    if (ids.length === 0) return [];
+    // S7-1: blocked either way = not in any list (search, follows, suggestions).
+    const hidden = await this.blocks.hiddenIds(viewerId);
+    if (hidden.size > 0) ids = ids.filter((id) => !hidden.has(id));
     if (ids.length === 0) return [];
     const [users, mine] = await Promise.all([
       this.prisma.user.findMany({

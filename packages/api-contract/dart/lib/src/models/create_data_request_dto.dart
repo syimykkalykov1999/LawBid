@@ -17,6 +17,12 @@ class CreateDataRequestDto {
     required this.receivedAt,
     required this.scope,
     this.notes,
+    this.legalBasis,
+    this.country,
+    this.subjectUserId,
+    this.dueAt,
+    this.doNotNotify,
+    this.nondisclosureUntil,
   });
 
   factory CreateDataRequestDto.fromJson(Map<String, Object?> json) =>
@@ -32,6 +38,24 @@ class CreateDataRequestDto {
   /// The scope as written in the request.
   final String scope;
   final String? notes;
+
+  /// The law the request rests on, e.g. "18 U.S.C. 2703(d)".
+  final String? legalBasis;
+
+  /// Two-letter country of the authority.
+  final String? country;
+
+  /// The person it concerns.
+  final String? subjectUserId;
+
+  /// Answer due.
+  final DateTime? dueAt;
+
+  /// Gag / non-disclosure order: do not tell the user.
+  final bool? doNotNotify;
+
+  /// The gag order ends (reminder to notify the user).
+  final DateTime? nondisclosureUntil;
 
   Map<String, Object?> toJson() => _$CreateDataRequestDtoToJson(this);
 }

@@ -33,7 +33,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     super.initState();
     if (widget.autoStart) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(ref.read(appStartupProvider.notifier).run());
+        if (mounted) unawaited(ref.read(appStartupProvider.notifier).start());
       });
     }
   }

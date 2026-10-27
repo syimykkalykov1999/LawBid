@@ -37,20 +37,22 @@ void main() {
   });
 
   group('AppCheckInterceptor', () {
-    test('puts the token on the four verified routes only', () async {
+    test('puts the token on the six verified routes only', () async {
       await dio.post<dynamic>('/auth/otp/request', data: {'channel': 'phone'});
       await dio.post<dynamic>('/auth/password/reset/request');
       await dio.post<dynamic>('/auth/social');
       await dio.post<dynamic>('/auth/phone/status');
+      await dio.post<dynamic>('/auth/password/login');
+      await dio.post<dynamic>('/auth/otp/verify');
 
       for (final r in adapter.requests) {
         expect(r.headers[AppCheckInterceptor.header], 'tok-1', reason: r.path);
       }
-      expect(asked, hasLength(4));
+      expect(asked, hasLength(6));
     });
 
     test('leaves every other request alone, including GETs there', () async {
-      await dio.post<dynamic>('/auth/otp/verify');
+      await dio.post<dynamic>('/auth/qr');
       await dio.post<dynamic>('/auth/refresh');
       await dio.get<dynamic>('/auth/phone/status');
       await dio.post<dynamic>('/cases');

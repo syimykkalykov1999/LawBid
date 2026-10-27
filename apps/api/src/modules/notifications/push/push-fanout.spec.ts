@@ -198,7 +198,8 @@ describe('PushDispatcher: a group_messages batch', () => {
           }),
       },
       chatGroupMessage: {
-        findUnique: () => {
+        // partitioned table: looked up by id (+ group) with findFirst
+        findFirst: () => {
           counts.message++;
           return Promise.resolve({
             body: 'hello',

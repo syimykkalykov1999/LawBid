@@ -9,6 +9,7 @@ import type {
   ChatGroupPollOption,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { groupMessagesByPairs } from '../chat/messages-by-pairs';
 import { ongoingCalls } from '../../common/calls/ongoing-call';
 import { UNREAD_CAP } from '../notifications/badges.service';
 import { unreadMessagesSql } from './group-unread.sql';
@@ -240,7 +241,12 @@ export class GroupPresenter {
     );
     const replies = replyIds.length
       ? await this.prisma.chatGroupMessage.findMany({
-          where: { id: { in: replyIds }, deleted_at: {} },
+          where: {
+            id: { in: replyIds },
+            // A reply quotes its own group: only that hash partition is read.
+            group_id: { in: [...new Set(rows.map((m) => m.group_id))] },
+            deleted_at: {},
+          },
           select: {
             id: true,
             sender_id: true,
@@ -366,8 +372,10 @@ export class GroupPresenter {
   ): Promise<GroupDto[]> {
     if (rows.length === 0) return [];
     const groups = rows.map((r) => r.group);
-    const messageIds = groups.flatMap((g) =>
-      [g.last_message_id, g.pinned_message_id].flatMap((x) => (x ? [x] : [])),
+    const messagePairs = groups.flatMap((g) =>
+      [g.last_message_id, g.pinned_message_id].flatMap((x) =>
+        x ? [{ id: x, groupId: g.id }] : [],
+      ),
     );
     const adminGroupIds = rows.flatMap((r) =>
       r.me && r.me.left_at === null && isAdminRole(r.me.role)
@@ -375,9 +383,7 @@ export class GroupPresenter {
         : [],
     );
     const [msgRows, avatars, unread, pending, calls] = await Promise.all([
-      this.prisma.chatGroupMessage.findMany({
-        where: { id: { in: messageIds }, deleted_at: {} },
-      }),
+      groupMessagesByPairs(this.prisma, messagePairs),
       this.files.avatarUrlsMany(groups.map((g) => g.avatar_file_id)),
       this.unread(
         rows.flatMap((r) => (r.me ? [r.group.id] : [])),
@@ -519,7 +525,12 @@ export class GroupPresenter {
     );
     const lastRows = lastIds.length
       ? await this.prisma.chatGroupMessage.findMany({
-          where: { id: { in: lastIds }, deleted_at: {} },
+          where: {
+            id: { in: lastIds },
+            // All topics are of one group: one hash partition is read.
+            group_id: topics[0].group_id,
+            deleted_at: {},
+          },
         })
       : [];
     const lasts = await this.messages(lastRows, viewerId);
@@ -535,7 +546,8 @@ export class GroupPresenter {
                 LEFT JOIN chat_group_members gm
                   ON gm.group_id = t.group_id AND gm.user_id = ${viewerId}::UUID
                 LEFT JOIN chat_group_messages lr
-                  ON lr.id = COALESCE(tr.last_read_message_id, gm.last_read_message_id)
+                  ON lr.group_id = t.group_id
+                 AND lr.id = COALESCE(tr.last_read_message_id, gm.last_read_message_id)
                 WHERE m.group_id = t.group_id
                   AND (m.topic_id = t.id OR (t.is_general AND m.topic_id IS NULL))
                   AND m.deleted_at IS NULL AND m.type <> 'system'
@@ -551,7 +563,8 @@ export class GroupPresenter {
                 LEFT JOIN chat_group_members gm
                   ON gm.group_id = t.group_id AND gm.user_id = ${viewerId}::UUID
                 LEFT JOIN chat_group_messages lr
-                  ON lr.id = COALESCE(tr.last_read_message_id, gm.last_read_message_id)
+                  ON lr.group_id = t.group_id
+                 AND lr.id = COALESCE(tr.last_read_message_id, gm.last_read_message_id)
                 WHERE m.group_id = t.group_id
                   AND (m.topic_id = t.id OR (t.is_general AND m.topic_id IS NULL))
                   AND m.deleted_at IS NULL

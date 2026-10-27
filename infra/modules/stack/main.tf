@@ -296,6 +296,11 @@ variable "audit_logs_object_lock" {
   default     = false
   description = "S3 Object Lock (governance) on the log bucket; only at creation; see modules/audit-logs. WARNING (AWS docs, checked 2026-10-24): a bucket with Object Lock cannot receive S3 server access logs, so with this on the documents access log (modules/s3) stops being delivered. Keep false; the bucket already denies deletes by IAM and versioning keeps history."
 }
+variable "admin_audit_export_enabled" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-10-28: the API copies the admin audit log once a day into the audit_logs bucket (prefix admin-audit/). Needs audit_logs_enabled = true. For a copy that nobody can rewrite, also set audit_logs_object_lock (only at bucket creation; see its warning). Guide: docs/runbooks/ADMIN_HARDENING.md."
+}
 variable "vpc_flow_logs_traffic" {
   type    = string
   default = "ALL"
@@ -571,15 +576,54 @@ variable "min_daily_signups" {
   type    = number
   default = 0
 }
+# Observability round 12 (S12-2, S12-12, S12-14). Every switch is OFF by default
+# (cost gate, docs/runbooks/slo.md): tracing sidecar + X-Ray, the synthetic
+# journey canary (~$3.5/month) and the alarm -> incident Lambda.
+variable "tracing_enabled" {
+  type        = bool
+  default     = false
+  description = "ADOT collector sidecar in the api and worker tasks + OTEL env (spans to AWS X-Ray, 5 % sampled). Off = nothing runs."
+}
+variable "tracing_sample_ratio" {
+  type    = number
+  default = 0.05
+}
+variable "synthetic_journey_enabled" {
+  type        = bool
+  default     = false
+  description = "Synthetic sign-in + feed + message canary (about $3.5/month at rate(15 minutes)). Needs the three values below."
+}
+variable "synthetic_journey_secret_arn" {
+  type    = string
+  default = null
+}
+variable "synthetic_journey_conversation_id" {
+  type    = string
+  default = null
+}
+variable "synthetic_journey_schedule" {
+  type    = string
+  default = "rate(15 minutes)"
+}
+variable "alarm_incident_hook_enabled" {
+  type        = bool
+  default     = false
+  description = "Lambda that posts CloudWatch alarm state changes to the API as incident rows (POST /api/v1/internal/alarm-events, shared token in Secrets Manager)."
+}
 variable "monthly_budget_usd" {
   type        = number
   default     = 350
   description = "Monthly AWS spend (USD): e-mails at 50/80/100 %, autoscaling capped at the minimum at 100 %. 350 = the ≈ $150–170 launch size + Redis replica, second TURN, LiveKit (≈ $65–110) + traffic, with headroom so growth is not throttled by the budget (docs/runbooks/cost.md)."
 }
+variable "anomaly_alarms_enabled" {
+  type        = bool
+  default     = false
+  description = "Anomaly-band alarms on signups/messages/OTP/push (about $5.40 a month). OFF at launch: a band needs a few weeks of traffic to learn. Registry row aws.anomaly_alarms."
+}
 variable "uptime_check" {
   type        = string
   default     = "synthetics"
-  description = "External uptime probe: \"synthetics\" (CloudWatch canary, ≈ $10/month) or \"route53\" (HTTPS health check, ≈ $2/month, us-east-1 only). Off: uptime_canary_enabled = false."
+  description = "External uptime probe: \"off\" ($0), \"synthetics\" (CloudWatch canary, ≈ $10/month) or \"route53\" (HTTPS health check, ≈ $2/month, us-east-1 only). Off: uptime_canary_enabled = false."
 }
 # --- Batch A (docs/architecture/P0_AND_COST_PLAN.md): paging, budgets, NAT, backup alarm ---
 variable "pagerduty_https_endpoint" {
@@ -602,6 +646,11 @@ variable "nat_traffic_alarm_gb_per_day" {
   type        = number
   default     = 20
   description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h (0 = off). docs/runbooks/nat-endpoints.md."
+}
+variable "media_replication_max_gb_per_day" {
+  type        = number
+  default     = 50
+  description = "Alarm when the media bucket (= what is replicated to the other Region) grows by more than this many GB in a day; 0 = off. Registry row aws.s3."
 }
 variable "budget_forecast_thresholds" {
   type        = list(number)
@@ -628,6 +677,12 @@ variable "anomaly_threshold_usd" {
   default     = 20
   description = "Cost anomaly e-mail threshold (USD impact)."
 }
+variable "backup_restore_test_enabled" {
+  type        = bool
+  default     = false
+  description = "Monthly automatic restore test of the newest database backup (AWS Backup restore testing; cents per month). Result: admin «Здоровье системы» → «Учебное восстановление»; a failure rings the critical topic."
+}
+
 variable "backup_age_missing_data" {
   type        = string
   default     = "breaching"
@@ -920,7 +975,6 @@ module "ses" {
   hosted_zone_id = var.hosted_zone_id
   dmarc_rua      = var.dmarc_rua
   dmarc_policy   = var.dmarc_policy
-  tags           = local.tags
 }
 
 module "alb" {
@@ -1156,8 +1210,14 @@ module "backup" {
     "arn:aws:backup:${var.backup_copy_region == "" ? data.aws_region.current.name : var.backup_copy_region}:${var.backup_copy_account_id}:backup-vault:${var.backup_copy_vault_name}"
   )
   alerts_topic_arn        = module.monitoring.alerts_topic_arn
+  critical_topic_arn      = module.monitoring.critical_topic_arn
   backup_age_missing_data = var.backup_age_missing_data
-  tags                    = local.tags
+
+  # Monthly restore test (AWS Backup restore testing), same network as prod.
+  restore_test_enabled            = var.backup_restore_test_enabled
+  restore_test_db_subnet_group    = var.create_database ? "" : one(data.aws_db_instance.existing[*].db_subnet_group)
+  restore_test_security_group_ids = var.create_database ? [module.postgres[0].security_group_id] : flatten(data.aws_db_instance.existing[*].vpc_security_groups)
+  tags                            = local.tags
 
   vault_lock_mode             = var.backup_vault_lock_mode
   vault_lock_cooling_off_days = var.backup_vault_lock_cooling_off_days
@@ -1206,6 +1266,27 @@ variable "db_autoscale_ladder" {
   ]
 }
 variable "db_autoscale_tuning" {
+  type    = map(number)
+  default = {}
+}
+
+# --- VPC endpoints by themselves (owner rule 2026-10-25, S9-6) -----------------
+variable "endpoints_autoscale_enabled" {
+  type        = bool
+  default     = true
+  description = "The interface endpoints (ecr, logs, secrets) are created by a Lambda when NAT traffic is high and removed after a quiet week (modules/endpoints-autoscale). Services already in interface_endpoints are left to Terraform."
+}
+variable "endpoints_autoscale_mode" {
+  type        = string
+  default     = "on"
+  description = "Start value of the switch: on | dry-run | off (later changes in SSM, docs/runbooks/nat-endpoints.md)."
+}
+variable "endpoints_autoscale_ceiling" {
+  type        = number
+  default     = 4
+  description = "Start value of the admin ceiling: most endpoints it may keep (0 = none)."
+}
+variable "endpoints_autoscale_tuning" {
   type    = map(number)
   default = {}
 }
@@ -1374,6 +1455,7 @@ check "db_connection_budget" {
 }
 
 locals {
+  admin_audit_export_on = var.admin_audit_export_enabled && var.audit_logs_enabled && !var.ephemeral
   api_env = {
     NODE_ENV            = "production"
     DB_POOL_SIZE        = tostring(local.db_pool_size)
@@ -1384,13 +1466,19 @@ locals {
     S3_REGION           = data.aws_region.current.name
     S3_BUCKET_DOCUMENTS = module.s3.documents_bucket
     S3_BUCKET_MEDIA     = module.s3.media_bucket
-    MEDIA_CDN_BASE_URL  = local.media_cdn_base_url # growth.cdn_images_provider (modules/stack/growth.tf)
-    STATUS_PAGE_BUCKET  = length(module.status_page) > 0 ? module.status_page[0].bucket : ""
+    # Owner 2026-10-28: empty = no daily export of the admin audit log.
+    ADMIN_AUDIT_EXPORT_BUCKET = local.admin_audit_export_on ? module.audit_logs[0].bucket : ""
+    MEDIA_CDN_BASE_URL        = local.media_cdn_base_url # growth.cdn_images_provider (modules/stack/growth.tf)
+    STATUS_PAGE_BUCKET        = length(module.status_page) > 0 ? module.status_page[0].bucket : ""
     # Owner 2026-10-22: private media through CloudFront signed URLs (empty
     # until the owner supplies documents_cdn_public_key_pem; the private key
     # is the CLOUDFRONT_PRIVATE_KEY_PEM secret in extra_secrets).
     CLOUDFRONT_PRIVATE_DOMAIN = module.s3.documents_cdn_domain == null ? "" : module.s3.documents_cdn_domain
     CLOUDFRONT_PRIVATE_KEY_ID = module.s3.documents_cdn_key_pair_id == null ? "" : module.s3.documents_cdn_key_pair_id
+    # Caching round 2 (S2-1): the distributions to invalidate when a file is
+    # removed for good (the bunny image CDN has its own purge, not this).
+    CLOUDFRONT_MEDIA_DISTRIBUTION_ID   = var.growth.cdn_images_provider == "bunny" ? "" : module.s3.media_cdn_distribution_id
+    CLOUDFRONT_PRIVATE_DISTRIBUTION_ID = module.s3.documents_cdn_distribution_id == null ? "" : module.s3.documents_cdn_distribution_id
     # KMS key that wraps the data keys inside MESSAGE_ENC_KEYS /
     # SECRETS_MASTER_KEYS ("<kid>:kms:<base64 ciphertext>", decrypted once
     # at boot — src/common/secrets/kms-env.ts). Owner steps: DEPLOY_PROD.md.
@@ -1425,7 +1513,7 @@ locals {
     # Economy guard (owner 2026-10-16): monthly cost of one task (Fargate
     # list price, us-east-1; ARM64 ≈ 20 % cheaper) and the names of the
     # database and Redis the admin may raise one tier.
-    OPS_API_TASK_USD    = tostring(local.api_task_usd)
+    OPS_API_TASK_USD    = tostring(local.api_task_usd) # x86 on-demand list price; the API applies ARM / Spot (S9-7)
     OPS_WORKER_TASK_USD = tostring(local.worker_task_usd)
     OPS_DB_INSTANCE     = local.db_identifier # the admin «Экономика» shows the current class (also after the autoscaler moved it)
     OPS_REDIS_GROUP     = local.redis_cluster_on ? module.redis.cluster_replication_group_id : "${local.name}-redis"
@@ -1453,6 +1541,7 @@ locals {
     OPS_OBSOLETE_BUDGET_NAME = "LawBid Monthly"
     OPS_COST_TAG_KEYS        = join(",", sort(keys(local.tags)))
     OPS_API_SPOT             = var.api_spot ? "on" : "off"
+    OPS_CPU_ARCH             = var.cpu_architecture # the API applies the ARM / Spot price factors (S9-7)
     OPS_WORKER_SPOT          = var.worker_spot ? "on" : "off"
     AWS_REGION               = data.aws_region.current.name
     # Admin health: rotation dates per secret (empty list while rotation is off).
@@ -1466,14 +1555,15 @@ locals {
     # «search.engine» to shadow / engine (docs/architecture/SEARCH_READY.md).
     OPENSEARCH_URL      = var.growth.opensearch_enabled ? "https://${module.growth.opensearch_endpoint}" : ""
     OPENSEARCH_REPLICAS = tostring(module.growth.opensearch_replicas)
+    # Events pipeline (growth.events_stream_enabled): empty while off.
+    EVENTS_STREAM_NAME = var.growth.events_stream_enabled ? aws_kinesis_stream.events[0].name : ""
     # N-11: set only with growth.opensearch_serverless_enabled; the app uses
     # it when the admin sets «search.engine_kind» = serverless.
     OPENSEARCH_SERVERLESS_URL = var.growth.opensearch_serverless_enabled ? one(module.opensearch_serverless[*].endpoint) : ""
   }
   critical_topic_arn = "arn:aws:sns:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${local.name}-critical"
-  arm_factor         = var.cpu_architecture == "ARM64" ? 0.8 : 1
-  api_task_usd       = floor(730 * (var.api_cpu / 1024 * 0.04048 + var.api_memory / 1024 * 0.004445) * local.arm_factor * 100) / 100
-  worker_task_usd    = floor(730 * (var.worker_cpu / 1024 * 0.04048 + var.worker_memory / 1024 * 0.004445) * local.arm_factor * 100) / 100
+  api_task_usd       = floor(730 * (var.api_cpu / 1024 * 0.04048 + var.api_memory / 1024 * 0.004445) * 100) / 100
+  worker_task_usd    = floor(730 * (var.worker_cpu / 1024 * 0.04048 + var.worker_memory / 1024 * 0.004445) * 100) / 100
   app_secret_arns = merge(
     { for k in local.secret_names : k => module.secrets.arns[k] },
     { REDIS_URL = local.redis_cluster_on ? module.redis.cluster_url_secret_arn : module.redis.redis_url_secret_arn },
@@ -1483,6 +1573,7 @@ locals {
     # LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET (values generated by modules/livekit).
     var.livekit_enabled ? module.livekit[0].secret_arns : {},
     var.ops_role_split ? { OPS_ROLE_EXTERNAL_ID = aws_secretsmanager_secret.ops_external_id[0].arn } : {},
+    var.alarm_incident_hook_enabled ? { ALARM_HOOK_TOKEN = aws_secretsmanager_secret.alarm_hook[0].arn } : {},
   )
 }
 
@@ -1631,6 +1722,22 @@ module "pgbouncer" {
 # What the api / worker get when the pooler is on (src/prisma/pooler-url.ts
 # swaps host and port of DATABASE_URL; the secret itself is untouched).
 locals {
+  # Read replica (growth.rds_read_replicas > 0): the tasks get only the HOST;
+  # the app builds DATABASE_REPLICA_URL from DATABASE_URL (same role, password
+  # and database) with this host (src/prisma/replica-url.ts), so no secret has
+  # to be filled by hand. Empty map while the switch is off = env unchanged.
+  db_replica_env = merge(
+    var.growth.rds_read_replicas > 0 ? {
+      DB_REPLICA_HOST = module.growth.replica_host
+    } : {},
+    # Admin button «Копия базы для чтения» (owner 2026-10-24): the API creates
+    # and deletes ONE replica itself through the RDS API. Only these names are
+    # added, and only when db_replica_toggle is true.
+    var.db_replica_toggle ? merge(
+      { OPS_DB_REPLICA_TOGGLE = "on" },
+      var.db_replica_monitoring ? { OPS_DB_REPLICA_MONITORING_ROLE_ARN = aws_iam_role.db_replica_monitoring[0].arn } : {},
+    ) : {},
+  )
   db_pooler_env = var.db_pooler_enabled ? {
     DB_POOLER_HOST = module.pgbouncer[0].endpoint
     DB_POOLER_PORT = tostring(module.pgbouncer[0].port)
@@ -1642,19 +1749,26 @@ locals {
 }
 
 module "ecs" {
-  source                   = "../ecs"
-  name                     = local.name
-  readonly_root_filesystem = var.ecs_readonly_root_filesystem
-  vpc_id                   = module.network.vpc_id
-  private_subnet_ids       = module.network.private_subnet_ids
-  tasks_security_group_id  = aws_security_group.tasks.id
-  api_target_group_arn     = module.alb.api_target_group_arn
-  api_ws_target_group_arn  = module.alb.api_ws_target_group_arn
-  admin_target_group_arn   = module.alb.admin_target_group_arn
-  api_image                = var.api_image
-  admin_image              = var.admin_image
-  kms_key_arn              = module.kms.key_arn
-  api_env                  = merge(local.api_env_effective, local.db_pooler_env, local.db_pooler_ca_env)
+  source                          = "../ecs"
+  name                            = local.name
+  readonly_root_filesystem        = var.ecs_readonly_root_filesystem
+  vpc_id                          = module.network.vpc_id
+  private_subnet_ids              = module.network.private_subnet_ids
+  tasks_security_group_id         = aws_security_group.tasks.id
+  api_target_group_arn            = module.alb.api_target_group_arn
+  api_ws_target_group_arn         = module.alb.api_ws_target_group_arn
+  admin_target_group_arn          = module.alb.admin_target_group_arn
+  api_image                       = var.api_image
+  admin_image                     = var.admin_image
+  kms_key_arn                     = module.kms.key_arn
+  tracing_enabled                 = var.tracing_enabled
+  tracing_sample_ratio            = var.tracing_sample_ratio
+  api_env                         = merge(local.api_env_effective, local.db_pooler_env, local.db_pooler_ca_env)
+  cloudfront_invalidation_enabled = true
+  cloudfront_invalidation_arns = concat(
+    [module.s3.media_cdn_distribution_arn],
+    module.s3.documents_cdn_distribution_arn == null ? [] : [module.s3.documents_cdn_distribution_arn],
+  )
   admin_env = {
     NODE_ENV      = "production"
     API_BASE_URL  = "https://${var.api_host}/api/v1"
@@ -1731,6 +1845,15 @@ data "aws_iam_policy_document" "task" {
   statement {
     actions   = ["s3:ListBucket"]
     resources = [module.s3.documents_bucket_arn, module.s3.media_bucket_arn]
+  }
+  # Owner 2026-10-28: the daily admin audit export. Write only, one prefix;
+  # the bucket policy denies deletes to everybody.
+  dynamic "statement" {
+    for_each = local.admin_audit_export_on ? [1] : []
+    content {
+      actions   = ["s3:PutObject"]
+      resources = ["${module.audit_logs[0].bucket_arn}/admin-audit/*"]
+    }
   }
   statement {
     actions   = ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"]
@@ -1842,14 +1965,104 @@ data "aws_iam_policy_document" "ops" {
     actions   = ["cloudwatch:GetMetricStatistics"]
     resources = ["*"]
   }
+  # WP-G: the admin health board shows the last restore test.
+  statement {
+    actions   = ["backup:ListRestoreJobs"]
+    resources = ["*"]
+  }
   statement {
     actions   = ["rds:DescribeDBInstances", "rds:ModifyDBInstance"]
     resources = ["arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.name}-postgres"]
+  }
+  # Admin button «Копия базы для чтения»: create / describe / delete exactly one
+  # instance named <database>-readreplica. Nothing else on RDS changes.
+  dynamic "statement" {
+    for_each = var.db_replica_toggle ? [1] : []
+    content {
+      actions = ["rds:DescribeDBInstances"]
+      resources = [
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica",
+      ]
+    }
+  }
+  dynamic "statement" {
+    for_each = var.db_replica_toggle ? [1] : []
+    content {
+      actions = ["rds:CreateDBInstanceReadReplica", "rds:AddTagsToResource"]
+      resources = [
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:pg:*",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:og:*",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:subgrp:*",
+        "arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secgrp:*",
+      ]
+    }
+  }
+  dynamic "statement" {
+    for_each = var.db_replica_toggle ? [1] : []
+    content {
+      actions   = ["rds:DeleteDBInstance"]
+      resources = ["arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica"]
+    }
+  }
+  dynamic "statement" {
+    for_each = var.db_replica_toggle && var.db_replica_monitoring ? [1] : []
+    content {
+      actions   = ["iam:PassRole"]
+      resources = [aws_iam_role.db_replica_monitoring[0].arn]
+      condition {
+        test     = "StringEquals"
+        variable = "iam:PassedToService"
+        values   = ["monitoring.rds.amazonaws.com"]
+      }
+    }
+  }
+  # The replica uses the primary's KMS key (storage and Performance Insights).
+  dynamic "statement" {
+    for_each = var.db_replica_toggle ? [1] : []
+    content {
+      actions   = ["kms:DescribeKey", "kms:CreateGrant", "kms:Decrypt", "kms:GenerateDataKeyWithoutPlaintext", "kms:ReEncrypt*"]
+      resources = [module.kms.key_arn]
+    }
   }
   statement {
     actions   = ["elasticache:DescribeReplicationGroups", "elasticache:ModifyReplicationGroup"]
     resources = ["arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:replicationgroup:${local.name}-redis"]
   }
+}
+
+# --- admin button: read copy of the database (owner 2026-10-24) -------------------
+variable "db_replica_toggle" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-10-24: lets the API task create and delete ONE read replica of the database from the admin «Масштаб» page (one 2FA step-up). false (default): no IAM, no env, the button says it is unavailable. The replica is created by the API, not by Terraform, so apply never touches it. docs/runbooks/db-replica.md."
+}
+variable "db_replica_monitoring" {
+  type        = bool
+  default     = true
+  description = "Give the admin-made replica Enhanced Monitoring (60 s). Needs the small IAM role created here."
+}
+
+resource "aws_iam_role" "db_replica_monitoring" {
+  count = var.db_replica_toggle && var.db_replica_monitoring ? 1 : 0
+  name  = "${local.name}-rds-replica-monitoring"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRole"
+      Principal = { Service = "monitoring.rds.amazonaws.com" }
+    }]
+  })
+  tags = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "db_replica_monitoring" {
+  count      = length(aws_iam_role.db_replica_monitoring)
+  role       = aws_iam_role.db_replica_monitoring[0].name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 }
 
 variable "ops_role_split" {
@@ -1919,6 +2132,28 @@ resource "aws_secretsmanager_secret_version" "ops_external_id" {
   secret_string = var.ops_role_external_id
 }
 
+# S12-14: shared token of POST /internal/alarm-events. Generated here, read by the
+# API from Secrets Manager (ALARM_HOOK_TOKEN) and by the alarm-hook Lambda.
+resource "random_password" "alarm_hook" {
+  count   = var.alarm_incident_hook_enabled ? 1 : 0
+  length  = 40
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "alarm_hook" {
+  count                   = var.alarm_incident_hook_enabled ? 1 : 0
+  name                    = "${local.name}/ALARM_HOOK_TOKEN"
+  kms_key_id              = module.kms.key_arn
+  recovery_window_in_days = var.ephemeral ? 0 : 30
+  tags                    = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "alarm_hook" {
+  count         = var.alarm_incident_hook_enabled ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.alarm_hook[0].id
+  secret_string = random_password.alarm_hook[0].result
+}
+
 resource "aws_iam_role_policy" "task" {
   role   = module.ecs.task_role_name
   policy = data.aws_iam_policy_document.task.json
@@ -1943,21 +2178,23 @@ module "budget" {
 }
 
 module "monitoring" {
-  source                       = "../monitoring"
-  name                         = local.name
-  alert_emails                 = var.alert_emails
-  slack_webhook_url            = var.slack_webhook_url
-  pagerduty_https_endpoint     = var.pagerduty_https_endpoint
-  critical_email_too           = var.critical_email_too
-  redis_memory_alarm_percent   = var.redis_memory_alarm_percent
-  nat_gateway_ids              = module.network.nat_gateway_ids
-  nat_traffic_alarm_gb_per_day = var.nat_traffic_alarm_gb_per_day
-  alb_arn_suffix               = module.alb.arn_suffix
-  waf_alb_acl_name             = module.alb.waf_acl_name
-  waf_alb_requests_per_day     = var.waf_requests_alarm_per_day
-  waf_cdn_acl_name             = module.cdn_waf.web_acl_name
-  waf_cdn_requests_per_day     = var.cdn_waf_requests_alarm_per_day
-  cloudfront_gb_per_day_alarm  = var.cloudfront_gb_alarm_per_day
+  source                           = "../monitoring"
+  name                             = local.name
+  alert_emails                     = var.alert_emails
+  slack_webhook_url                = var.slack_webhook_url
+  pagerduty_https_endpoint         = var.pagerduty_https_endpoint
+  critical_email_too               = var.critical_email_too
+  redis_memory_alarm_percent       = var.redis_memory_alarm_percent
+  nat_gateway_ids                  = module.network.nat_gateway_ids
+  nat_traffic_alarm_gb_per_day     = var.nat_traffic_alarm_gb_per_day
+  media_bucket_name                = var.replicate_media && !var.ephemeral ? module.s3.media_bucket : ""
+  media_replication_max_gb_per_day = var.media_replication_max_gb_per_day
+  alb_arn_suffix                   = module.alb.arn_suffix
+  waf_alb_acl_name                 = module.alb.waf_acl_name
+  waf_alb_requests_per_day         = var.waf_requests_alarm_per_day
+  waf_cdn_acl_name                 = module.cdn_waf.web_acl_name
+  waf_cdn_requests_per_day         = var.cdn_waf_requests_alarm_per_day
+  cloudfront_gb_per_day_alarm      = var.cloudfront_gb_alarm_per_day
   cloudfront_distribution_ids = merge(
     { web = module.web.web_distribution_id, media = module.s3.media_distribution_id },
     var.documents_cdn_public_key_pem != "" ? { documents = module.s3.documents_distribution_id } : {},
@@ -1981,10 +2218,21 @@ module "monitoring" {
   runbook_base_url                 = var.runbook_base_url
   kms_key_arn                      = module.kms.key_arn
   # Owner 2026-10-22 (audit #4 §7): external uptime canary + SLO alarms.
-  canary_url        = var.uptime_canary_enabled ? "https://${var.api_host}/health/ready" : null
-  uptime_check      = var.uptime_check
-  min_daily_signups = var.min_daily_signups
-  tags              = local.tags
+  canary_url             = var.uptime_canary_enabled ? "https://${var.api_host}/health/ready" : null
+  uptime_check           = var.uptime_check
+  anomaly_alarms_enabled = var.anomaly_alarms_enabled
+  min_daily_signups      = var.min_daily_signups
+
+  # S12-12 / S12-14 (all off by default).
+  synthetic_journey_enabled         = var.synthetic_journey_enabled
+  synthetic_journey_base_url        = "https://${var.api_host}"
+  synthetic_journey_secret_arn      = var.synthetic_journey_secret_arn
+  synthetic_journey_conversation_id = var.synthetic_journey_conversation_id
+  synthetic_journey_schedule        = var.synthetic_journey_schedule
+  alarm_incident_hook_enabled       = var.alarm_incident_hook_enabled
+  alarm_incident_hook_url           = "https://${var.api_host}/api/v1/internal/alarm-events"
+  alarm_incident_hook_token         = var.alarm_incident_hook_enabled ? random_password.alarm_hook[0].result : null
+  tags                              = local.tags
 }
 
 # Owner 2026-10-24: database size follows the load (up fast, down at night).
@@ -2026,6 +2274,26 @@ module "redis_autoscale" {
   tuning               = var.redis_autoscale_tuning
   tags                 = local.tags
   depends_on           = [module.redis]
+}
+
+# Owner rule 2026-10-25: nothing is "off forever". Start without interface
+# endpoints; this Lambda adds them when NAT traffic makes them cheaper.
+module "endpoints_autoscale" {
+  count             = var.endpoints_autoscale_enabled ? 1 : 0
+  source            = "../endpoints-autoscale"
+  name              = local.name
+  vpc_id            = module.network.vpc_id
+  subnet_ids        = slice(module.network.private_subnet_ids, 0, var.interface_endpoint_azs == 0 ? length(var.azs) : min(var.interface_endpoint_azs, length(var.azs)))
+  security_group_id = module.network.endpoints_security_group_id
+  nat_gateway_ids   = module.network.nat_gateway_ids
+  services          = tolist(setsubtract(["ecr.api", "ecr.dkr", "logs", "secretsmanager"], var.interface_endpoints))
+  alerts_topic_arn  = module.monitoring.alerts_topic_arn
+  kms_key_arn       = module.kms.key_arn
+  mode              = var.endpoints_autoscale_mode
+  ceiling           = var.endpoints_autoscale_ceiling
+  tuning            = var.endpoints_autoscale_tuning
+  controls_bucket   = module.s3.documents_bucket
+  tags              = local.tags
 }
 
 check "redis_autoscale_needs_replica" {
@@ -2180,6 +2448,7 @@ output "backup_dr_vault_arn" { value = one(module.backup[*].dr_vault_arn) }
 output "alerts_topic_arn" { value = module.monitoring.alerts_topic_arn }
 output "critical_topic_arn" { value = module.monitoring.critical_topic_arn }
 output "db_autoscale_function" { value = one(module.db_autoscale[*].function_name) }
+output "endpoints_autoscale_function" { value = one(module.endpoints_autoscale[*].function_name) }
 output "redis_autoscale_function" { value = one(module.redis_autoscale[*].function_name) }
 output "budget_name" { value = one(module.budget[*].budget_name) }
 output "rds_endpoint_secret_arn" { value = one(module.postgres[*].master_secret_arn) }

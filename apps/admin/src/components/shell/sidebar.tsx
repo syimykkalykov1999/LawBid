@@ -1,7 +1,7 @@
 'use client';
 
 import { CaretDoubleLeft } from '@phosphor-icons/react';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { Me } from '@/lib/hooks';
@@ -73,13 +73,13 @@ export function Sidebar({
                   )}
                 >
                   {isActive ? (
-                    <motion.span
+                    <m.span
                       layoutId={mobile ? 'nav-active-m' : 'nav-active'}
                       className="absolute inset-0 rounded-xl border border-line bg-surface shadow-card"
                       transition={{ type: 'spring', stiffness: 480, damping: 38 }}
                     >
                       <span className="absolute top-1/2 left-0 h-4 w-[3px] -translate-x-[1px] -translate-y-1/2 rounded-full bg-gold" />
-                    </motion.span>
+                    </m.span>
                   ) : (
                     <span className="absolute inset-0 rounded-xl opacity-0 transition-opacity group-hover:bg-surface-2 group-hover:opacity-100" />
                   )}

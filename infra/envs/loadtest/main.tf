@@ -112,8 +112,8 @@ module "stack" {
 
   # --- calls ---------------------------------------------------------------
   # Owner 2026-10-24: calls use Cloudflare TURN; our own coturn is removed.
-  turn_enabled        = false
-  turn_second_enabled = false
+  turn_enabled        = var.turn_enabled
+  turn_second_enabled = var.turn_enabled && var.turn_second_enabled
   livekit_enabled     = var.livekit_enabled
 
   # --- the test comes from a handful of addresses: the per-IP edge limits

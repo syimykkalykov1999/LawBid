@@ -20,6 +20,8 @@ import {
 import { AdminCacheHeadersMiddleware } from './common/middleware/admin-cache-headers.middleware';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
+import { HeavyHittersModule } from './common/heavy-hitters/heavy-hitters.module';
+import { HeavyHittersInterceptor } from './common/heavy-hitters/heavy-hitters.interceptor';
 import { AdminSummaryModule } from './common/admin-summary/admin-summary.module';
 import { OpsModule } from './common/ops/ops.module';
 import { EconomyModule } from './common/economy/economy.module';
@@ -55,12 +57,15 @@ import { SecretsModule } from './common/secrets/secrets.module';
 import { AdminIntegrationsModule } from './modules/admin-integrations/admin-integrations.module';
 import { AdminLaunchModule } from './modules/admin-launch/admin-launch.module';
 import { AdminOpsModule } from './modules/admin-ops/admin-ops.module';
+import { AdminShardsModule } from './modules/admin-shards/admin-shards.module';
 import {
   AdminExperimentsModule,
   ExperimentsCoreModule,
 } from './modules/experiments/experiments.module';
 import { AdminEconomyModule } from './modules/admin-economy/admin-economy.module';
+import { AdminPnlModule } from './modules/admin-pnl/admin-pnl.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
+import { StripeOpsModule } from './modules/stripe-ops/stripe-ops.module';
 import { CasePaymentsModule } from './modules/case-payments/case-payments.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { BidPacksModule } from './modules/bid-packs/bid-packs.module';
@@ -70,11 +75,13 @@ import { PartnersModule } from './modules/partners/partners.module';
 import { LegalModule } from './modules/legal/legal.module';
 import { LegalDocumentsModule } from './modules/legal-documents/legal-documents.module';
 import { OutreachModule } from './modules/outreach/outreach.module';
+import { ComplianceModule } from './modules/compliance/compliance.module';
 import { ClientBadgeModule } from './modules/client-badge/client-badge.module';
 import { SearchModule } from './modules/search/search.module';
 import { ContactsSyncModule } from './modules/contacts-sync/contacts-sync.module';
 import { DeadlinesModule } from './modules/deadlines/deadlines.module';
 import { LegalQaModule } from './modules/legal-qa/legal-qa.module';
+import { CalendarModule } from './modules/calendar/calendar.module';
 import { ConsultationsModule } from './modules/consultations/consultations.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { GroupsModule } from './modules/groups/groups.module';
@@ -95,6 +102,7 @@ import { JournalModule } from './modules/journal/journal.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 import { PlansCoreModule } from './modules/plans/plans.module';
 import { AppSettingsModule } from './common/app-settings/app-settings.module';
+import { VersionEtagModule } from './common/sync/version-etag.module';
 import { VerificationModule } from './modules/verification/verification.module';
 import {
   AttorneyTrustCoreModule,
@@ -121,6 +129,7 @@ import { BillingModule } from './modules/billing/billing.module';
 import { AssistantsModule } from './modules/assistants/assistants.module';
 import { AdminContentModule } from './modules/admin-content/admin-content.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { EventsModule } from './modules/events/events.module';
 import { CrashReportsModule } from './modules/crash-reports/crash-reports.module';
 import { AdminSearchModule } from './modules/admin-search/admin-search.module';
 import { AdminMediaModule } from './modules/admin-media/admin-media.module';
@@ -139,6 +148,10 @@ import {
   CountriesModule,
 } from './modules/countries/countries.module';
 import { AdminEmailTemplatesModule } from './modules/admin-email-templates/admin-email-templates.module';
+import {
+  AttorneyAdsCoreModule,
+  AttorneyAdsModule,
+} from './modules/attorney-ads/attorney-ads.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { MediaModerationModule } from './modules/media-moderation/media-moderation.module';
 import { CostGuardModule } from './common/cost-guard/cost-guard.module';
@@ -266,6 +279,8 @@ const isDev =
     LoggerModule.forRoot({ pinoHttp: pinoHttpOptions }),
     PrismaModule,
     RedisModule,
+    // WP-G: Redis top-K of the heaviest users / cases (admin «Масштаб»).
+    HeavyHittersModule,
     // Owner 2026-10-23: the admin's precomputed aggregates (Redis).
     AdminSummaryModule,
     // Owner 2026-10-05: zero-maintenance operations (Система → Здоровье системы).
@@ -302,6 +317,7 @@ const isDev =
     AdminSearchModule,
     CrashReportsModule,
     AnalyticsModule,
+    EventsModule,
     DocumentTemplatesModule,
     AdminBillingModule,
     AdminPayrollModule,
@@ -358,11 +374,13 @@ const isDev =
     AdminIntegrationsModule,
     // Owner 2026-10-05: Система → Здоровье системы.
     AdminOpsModule,
+    AdminShardsModule,
     AdminLaunchModule,
     // Owner 2026-10-25: A/B experiments + ranking events log.
     ExperimentsCoreModule,
     AdminExperimentsModule,
     AdminEconomyModule,
+    AdminPnlModule,
     // Owner 2026-10-02: referrals + paid case promotion.
     ReferralsModule,
     PartnersModule,
@@ -372,12 +390,15 @@ const isDev =
     DemoModule,
     LegalDocumentsModule,
     OutreachModule,
+    // 2026-10-25 (legal register): 18+ gate, TCPA, SES bounces.
+    ComplianceModule,
     PromotionsModule,
     BidPacksModule,
     StarsModule,
     FirmsModule,
     // Owner 2026-10-05: client → attorney payments via Stripe Connect.
     CasePaymentsModule,
+    StripeOpsModule,
     ClientBadgeModule,
     // docs/05 §8 chats + §8.5 realtime (publisher global, gateway API-only).
     RealtimeModule,
@@ -396,6 +417,7 @@ const isDev =
     JournalModule,
     SubscriptionsModule,
     AppSettingsModule,
+    VersionEtagModule,
     // Global NotificationsService.emit() seam (delivery: docs/05).
     NotificationsModule,
     VerificationModule,
@@ -410,6 +432,9 @@ const isDev =
     // Owner 2026-10-05: countries (Система → Страны).
     CountriesCoreModule,
     CountriesModule,
+    // Owner 2026-10-28: attorney advertising compliance.
+    AttorneyAdsCoreModule,
+    AttorneyAdsModule,
     FilesModule,
     ProfilesModule,
     PublicDirectoryModule,
@@ -434,6 +459,7 @@ const isDev =
     ...(isDev ? [DevModule] : []),
     // Owner 2026-10-20: booking, «Вопрос юристу», deadline calculator.
     ConsultationsModule,
+    CalendarModule,
     LegalQaModule,
     DeadlinesModule,
   ],
@@ -448,6 +474,8 @@ const isDev =
     // Shard-ready step 4: the shard context of the request (route ids, else
     // the signed-in user). No effect while all shards share one database.
     { provide: APP_INTERCEPTOR, useClass: ShardContextInterceptor },
+    // WP-G: sampled per-user / per-case request and database-time counts.
+    { provide: APP_INTERCEPTOR, useClass: HeavyHittersInterceptor },
     // OQ-048: per signed-in user (assistants share an office IP).
     { provide: APP_GUARD, useClass: UserThrottlerGuard },
   ],
