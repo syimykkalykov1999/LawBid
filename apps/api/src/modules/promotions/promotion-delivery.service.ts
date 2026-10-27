@@ -3,10 +3,16 @@ import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CounterAggregator } from '../counters/counter-aggregator.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PromotionRefundsService } from './promotion-refunds.service';
 import {
+  budgetSpent,
+  deliveredUnits,
   parseAudience,
   parsePromotionSettings,
   PROMOTION_SETTINGS_KEY,
+  targetUnits,
+  unitField,
+  type DeliveryCounts,
   type PromotionAudience,
   type PromotionSettings,
   type PromotionTarget,
@@ -20,8 +26,10 @@ export interface LivePromotion {
   caseId: string | null;
   postId: string | null;
   audience: PromotionAudience;
-  impressions: number;
-  targetImpressions: number | null;
+  /** Owner 2026-10-27: progress in the unit it is paid for (views, people,
+   * taps or actions) and what the budget buys (null = no cap). */
+  delivered: number;
+  target: number | null;
   startsAt: Date;
   endsAt: Date;
   ctaType: string | null;
@@ -66,13 +74,13 @@ export function audienceMatches(
 /** Behind schedule first: delivered share ÷ elapsed share of the period,
  * so a budget is spread over its days instead of burned in an hour. */
 export function pacingScore(p: LivePromotion, now = Date.now()): number {
-  if (!p.targetImpressions) return 0.5;
+  if (!p.target) return 0.5;
   const span = Math.max(1, p.endsAt.getTime() - p.startsAt.getTime());
   const elapsed = Math.min(
     1,
     Math.max(0.01, (now - p.startsAt.getTime()) / span),
   );
-  return p.impressions / p.targetImpressions / elapsed;
+  return p.delivered / p.target / elapsed;
 }
 
 /**
@@ -98,6 +106,9 @@ export class PromotionDeliveryService {
     // Owner 2026-10-25 (DB audit finding 8): the promotion row is hot — its
     // impressions / reach / clicks go through the counter aggregator.
     @Optional() private readonly counters?: CounterAggregator,
+    // Owner 2026-10-27: a boost paid per people / taps / actions that ends
+    // early gives the unspent part back.
+    @Optional() private readonly refunds?: PromotionRefundsService,
   ) {}
 
   async settings(): Promise<PromotionSettings> {
@@ -136,8 +147,7 @@ export class PromotionDeliveryService {
         case_id: true,
         post_id: true,
         audience: true,
-        impressions: true,
-        target_impressions: true,
+        ...COUNTS,
         starts_at: true,
         ends_at: true,
         cta_type: true,
@@ -147,18 +157,15 @@ export class PromotionDeliveryService {
       take: 500,
     });
     const list = rows
-      .filter(
-        (r) =>
-          r.target_impressions === null || r.impressions < r.target_impressions,
-      )
+      .filter((r) => !budgetSpent(r))
       .map((r) => ({
         id: r.id,
         userId: r.user_id,
         caseId: r.case_id,
         postId: r.post_id,
         audience: parseAudience(r.audience),
-        impressions: r.impressions,
-        targetImpressions: r.target_impressions,
+        delivered: deliveredUnits(r),
+        target: targetUnits(r),
         startsAt: r.starts_at ?? now,
         endsAt: r.ends_at ?? now,
         // Owner 2026-10-19: a retired button («Download») is not shown.
@@ -317,51 +324,30 @@ export class PromotionDeliveryService {
         impressions: 1,
         reach: newPerson ? 1 : 0,
       });
-      const p = await this.bumpPromotion(id, {
+      await this.bumpPromotion(id, {
         impressions: 1,
         reach: newPerson ? 1 : 0,
       });
-      if (
-        p.status === 'active' &&
-        p.target_impressions !== null &&
-        p.impressions >= p.target_impressions
-      ) {
-        await this.finish(id, p, 'budget_spent');
-      }
+      await this.settle(id);
     }
   }
 
-  /** Adds impressions / reach to a promotion and returns what the budget
-   * check needs. With the aggregator the row is read (not written) and the
-   * not yet flushed delta is added, so the cap triggers on the same count. */
+  /** Adds impressions / reach to a promotion. With the aggregator the row is
+   * not written: the delta waits in Redis until the next flush. */
   private async bumpPromotion(
     id: string,
     d: { impressions: number; reach: number },
-  ): Promise<{
-    impressions: number;
-    target_impressions: number | null;
-    status: string;
-    user_id: string;
-    case_id: string | null;
-    post_id: string | null;
-  }> {
-    const select = {
-      impressions: true,
-      target_impressions: true,
-      status: true,
-      user_id: true,
-      case_id: true,
-      post_id: true,
-    } as const;
+  ): Promise<void> {
     if (!this.counters) {
-      return this.prisma.casePromotion.update({
+      await this.prisma.casePromotion.update({
         where: { id },
         data: {
           impressions: { increment: d.impressions },
           ...(d.reach ? { reach: { increment: d.reach } } : {}),
         },
-        select,
+        select: { id: true },
       });
+      return;
     }
     await this.counters.bump(
       'case_promotion',
@@ -371,16 +357,30 @@ export class PromotionDeliveryService {
     );
     if (d.reach)
       await this.counters.bump('case_promotion', id, 'reach', d.reach);
+  }
+
+  /**
+   * Owner 2026-10-27: finishes a promotion whose budget is used up, counted
+   * in the unit it is paid for (views, people, taps or actions). The row is
+   * read and the not yet flushed delta of that one counter is added, so the
+   * cap triggers on the same count the buyer sees.
+   */
+  async settle(id: string): Promise<boolean> {
     const row = await this.prisma.casePromotion.findUniqueOrThrow({
       where: { id },
-      select,
+      select: { ...COUNTS, ...OWNER, status: true },
     });
-    const pending = await this.counters.pending(
-      'case_promotion',
-      'impressions',
-      [id],
-    );
-    return { ...row, impressions: row.impressions + (pending.get(id) ?? 0) };
+    if (row.status !== 'active') return false;
+    const field = unitField(row.billing);
+    let p: DeliveryCounts = row;
+    if (this.counters) {
+      const pending = await this.counters.pending('case_promotion', field, [
+        id,
+      ]);
+      p = { ...row, [field]: row[field] + (pending.get(id) ?? 0) };
+    }
+    if (!budgetSpent(p)) return false;
+    return this.finish(id, row, 'budget_spent');
   }
 
   /** active → finished (budget spent / time over), notifying the owner. */
@@ -396,6 +396,9 @@ export class PromotionDeliveryService {
     });
     if (res.count === 0) return false;
     this.live.clear();
+    // Owner 2026-10-27: paid per people / taps / actions and ended before
+    // the budget was used → the unspent part goes back (views: old rule).
+    if (reason !== 'budget_spent') await this.refunds?.refundUnspent(id);
     await this.notifications
       ?.emit({
         type: 'promotion_ended',
@@ -413,7 +416,13 @@ export class PromotionDeliveryService {
   /** A viewer opened a promoted post / case (counted once per person). */
   async click(viewerId: string, promotionId: string): Promise<boolean> {
     const res = await this.prisma.promotionView.updateMany({
-      where: { promotion_id: promotionId, user_id: viewerId, clicked: false },
+      where: {
+        promotion_id: promotionId,
+        user_id: viewerId,
+        clicked: false,
+        // Never the owner's own tap (paid per tap).
+        promotion: { user_id: { not: viewerId } },
+      },
       data: { clicked: true },
     });
     if (res.count === 0) return false;
@@ -428,6 +437,7 @@ export class PromotionDeliveryService {
     await this.bumpDaily(promotionId, dayKey(), { clicks: 1 }).catch(
       () => undefined,
     );
+    await this.settle(promotionId).catch(() => undefined);
     return true;
   }
 
@@ -457,3 +467,16 @@ export class PromotionDeliveryService {
     });
   }
 }
+
+/** The counters a promotion's budget is measured in. */
+const COUNTS = {
+  billing: true,
+  impressions: true,
+  reach: true,
+  clicks: true,
+  actions: true,
+  target_units: true,
+  target_impressions: true,
+} as const;
+
+const OWNER = { user_id: true, case_id: true, post_id: true } as const;

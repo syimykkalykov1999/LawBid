@@ -31,7 +31,10 @@ const row = (u: string): SeoAttorneyRow => ({
 
 /** A small stand-in for scripts/seo/lib (Jest cannot load ES modules). The
  * real library is covered by scripts/seo/test/*.test.mjs. */
-function fakeLib(): SeoLib & { renderSite: jest.Mock } {
+function fakeLib(): SeoLib & {
+  renderSite: jest.Mock;
+  planPublish: jest.Mock;
+} {
   const planFiles: SeoLib['planFiles'] = ({ files, prevFiles }) => {
     const prev = prevFiles ?? {};
     const upload = Object.keys(files)
@@ -69,7 +72,7 @@ function fakeLib(): SeoLib & { renderSite: jest.Mock } {
     })),
     sha256: (d) => `h(${String(d)})`,
     planFiles,
-    planPublish: ({ files, prev, today, maxInvalidations }) => {
+    planPublish: jest.fn(({ files, prev, today, maxInvalidations }) => {
       const prevFiles = (prev as { files?: Record<string, string> } | null)
         ?.files;
       const p = planFiles({ files, prevFiles });
@@ -84,7 +87,7 @@ function fakeLib(): SeoLib & { renderSite: jest.Mock } {
         skippedInvalidations: 0,
         manifest: { files, builtAt: today },
       };
-    },
+    }),
     deleteBatches: (keys) => [
       { Objects: keys.map((Key) => ({ Key })), Quiet: true },
     ],
@@ -125,6 +128,7 @@ interface Opts {
   maxAttorneys?: number;
   maxUploads?: number;
   rowsPerCall?: number;
+  maxInvalidations?: number;
   posts?: number;
   questions?: number;
 }
@@ -203,7 +207,7 @@ function make(o: Opts = {}) {
         {
           'seo.generator_max_attorneys': o.maxAttorneys ?? 5000,
           'seo.generator_max_uploads_per_run': o.maxUploads ?? 2000,
-          'seo.max_invalidation_paths_per_day': 30,
+          'seo.max_invalidation_paths_per_day': o.maxInvalidations ?? 30,
         }[k] ?? 0,
       ),
     ),
@@ -240,8 +244,11 @@ function make(o: Opts = {}) {
     s.store,
     sender,
   );
+  const sleep = jest.fn(() => Promise.resolve());
+  (job as unknown as { sleep: typeof sleep }).sleep = sleep;
   return {
     job,
+    sleep,
     directory,
     settings,
     redis,
@@ -349,6 +356,85 @@ describe('SeoGenerateJob', () => {
       paths: ['/attorneys/bob/index.html'],
       callerReference: expect.stringMatching(/^seo-gen-\d+$/),
     });
+  });
+
+  /** A second run whose home page changed, so one path wants a reset. */
+  async function changedRun(o: Opts = {}) {
+    const first = make();
+    await first.job.run();
+    const second = make({ store: first.store, ...o });
+    second.lib.renderSite.mockImplementation(() => ({
+      files: new Map([['/lawyers/', '<changed>']]),
+      result: {},
+    }));
+    return second;
+  }
+
+  it('asks for exact paths only and never a budget above 30 a day, whatever the setting says', async () => {
+    const t = await changedRun({ maxInvalidations: 500 });
+    await t.job.run();
+    expect(t.lib.planPublish).toHaveBeenCalledWith(
+      expect.objectContaining({ exactOnly: true, maxInvalidations: 30 }),
+    );
+    const t2 = await changedRun({ maxInvalidations: 12 });
+    await t2.job.run();
+    expect(t2.lib.planPublish).toHaveBeenCalledWith(
+      expect.objectContaining({ exactOnly: true, maxInvalidations: 12 }),
+    );
+  });
+
+  it("the next run starts from the previous run's manifest (the day's counter lives there)", async () => {
+    const t = await changedRun();
+    await t.job.run();
+    const prev = t.lib.planPublish.mock.calls[0][0].prev as {
+      files: Record<string, string>;
+    };
+    expect(Object.keys(prev.files)).toContain('lawyers/index.html');
+  });
+
+  it('never sends a wildcard and never more than 30 paths, even if the plan holds more', async () => {
+    const t = await changedRun();
+    const many = Array.from({ length: 45 }, (_, i) => `/attorneys/u${i}/`);
+    const planned = t.lib.planPublish.getMockImplementation() as
+      SeoLib['planPublish'] | undefined;
+    t.lib.planPublish.mockImplementation(
+      (a: Parameters<SeoLib['planPublish']>[0]) => ({
+        ...planned!(a),
+        invalidate: ['/*', '/attorneys/*', ...many],
+      }),
+    );
+    const r = await t.job.run();
+    const sent = (t.sender.mock.calls[0] as unknown as [{ paths: string[] }])[0]
+      .paths;
+    expect(sent).toHaveLength(30);
+    expect(sent.some((p) => p.includes('*'))).toBe(false);
+    expect(sent).toEqual(many.slice(0, 30));
+    expect(r).toMatchObject({ invalidated: 30 });
+  });
+
+  it('waits while CloudFront is busy (30 s, then 90 s) and then resets', async () => {
+    const t = await changedRun();
+    const busy = new Error(
+      'CloudFront invalidation refused: 400 TooManyInvalidationsInProgress',
+    );
+    t.sender
+      .mockRejectedValueOnce(busy)
+      .mockRejectedValueOnce(busy)
+      .mockResolvedValueOnce(undefined);
+    const r = await t.job.run();
+    expect(t.sender).toHaveBeenCalledTimes(3);
+    expect(t.sleep.mock.calls).toEqual([[30_000], [90_000]]);
+    expect(r).toMatchObject({ invalidated: 1 });
+  });
+
+  it('still busy after 3 tries: a warning, no failure, the manifest is stored', async () => {
+    const t = await changedRun();
+    t.sender.mockRejectedValue(new Error('400 TooManyInvalidationsInProgress'));
+    const r = await t.job.run();
+    expect(t.sender).toHaveBeenCalledTimes(3);
+    expect(r).toMatchObject({ invalidated: 0 });
+    expect(t.logger.warn).toHaveBeenCalled();
+    expect(t.store.objects.has(GENERATOR_MANIFEST_KEY)).toBe(true);
   });
 
   it('a failed CloudFront call does not fail the run and the manifest is still stored', async () => {

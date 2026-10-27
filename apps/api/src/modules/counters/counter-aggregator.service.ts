@@ -61,7 +61,7 @@ export const COUNTERS = {
   case_promotion: {
     table: 'case_promotions',
     key: 'id',
-    fields: ['impressions', 'reach', 'clicks'],
+    fields: ['impressions', 'reach', 'clicks', 'actions'],
     recount: false,
   },
   channel: {

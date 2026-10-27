@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { CaseComment } from '@prisma/client';
@@ -15,6 +16,7 @@ import {
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BoostActions } from '../promotions/boost-actions.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { assertNoContactInfo } from '../cases/domain/contact-detector';
@@ -58,6 +60,8 @@ export class CaseCommentsService {
     private readonly appSettings: AppSettingsService,
     @Inject(CONTENT_MODERATION_HOOK)
     private readonly moderation: ContentModerationHook,
+    // Owner 2026-10-27: a question counts for the case's boost paid per action.
+    @Optional() private readonly boostActions?: BoostActions,
   ) {}
 
   /** Access check; returns the case owner's id. */
@@ -143,6 +147,9 @@ export class CaseCommentsService {
           payload: { caseId, commentId: created.id, actorId: userId },
         });
       }
+    }
+    if (created.status === 'published' && !parent) {
+      this.boostActions?.report(userId, { caseId }, 'question');
     }
     return (await this.present([created], userId, ownerId))[0];
   }

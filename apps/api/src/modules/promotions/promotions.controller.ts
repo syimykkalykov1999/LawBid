@@ -34,6 +34,7 @@ import {
   CreatePromotionResultDto,
   MyPromotionDto,
   MyPromotionsQueryDto,
+  PromotionActionDto,
   PromotionCaseIdParamDto,
   PromotionClickResultDto,
   PromotionIdParamDto,
@@ -42,6 +43,7 @@ import {
   PromotionQuoteDto,
   PromotionQuoteQueryDto,
 } from './promotions.dto';
+import { BoostActions } from './boost-actions.service';
 import { PromotionsService } from './promotions.service';
 import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
@@ -61,7 +63,10 @@ function apiBaseOf(req: Request): string {
 @ApiErrors(AUTHENTICATED_ERRORS)
 @Controller()
 export class PromotionsController {
-  constructor(private readonly promotions: PromotionsService) {}
+  constructor(
+    private readonly promotions: PromotionsService,
+    private readonly actions: BoostActions,
+  ) {}
 
   @Get('promotions/quote')
   @ApiOperation({ summary: 'Price of promoting a case for N days' })
@@ -76,6 +81,8 @@ export class PromotionsController {
       q.days,
       q.dailyBudgetCents,
       q.target ?? 'case',
+      q.video ?? false,
+      q.billing,
     );
   }
 
@@ -220,5 +227,19 @@ export class PromotionsController {
     @Param() p: PromotionIdParamDto,
   ): Promise<PromotionClickResultDto> {
     return this.promotions.click(user.sub, p.id);
+  }
+
+  @Post('promotions/:id/action')
+  @ApiOperation({
+    summary:
+      'A real action only the app sees (watched to the end, opened the profile, tapped call)',
+  })
+  @ApiEnvelopeResponse(PromotionClickResultDto)
+  async actionPromotion(
+    @CurrentUser() user: RequestUser,
+    @Param() p: PromotionIdParamDto,
+    @Body() dto: PromotionActionDto,
+  ): Promise<PromotionClickResultDto> {
+    return { ok: await this.actions.reportClient(user.sub, p.id, dto.kind) };
   }
 }

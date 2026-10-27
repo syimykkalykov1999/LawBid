@@ -3,6 +3,7 @@ import { AdminPromotionsService } from './admin-promotions.service';
 import {
   DEFAULT_PROMOTION_SETTINGS,
   PROMOTION_SETTINGS_KEY,
+  type PricingMatrix,
 } from './promotions.settings';
 
 /**
@@ -50,5 +51,71 @@ describe('AdminPromotionsService.updateSettings', () => {
     await expect(
       service.updateSettings(admin, { feedEveryN: 12 }),
     ).resolves.toMatchObject({ feedEveryN: 12 });
+  });
+
+  describe('prices per way to pay (owner 2026-10-27)', () => {
+    const matrix = (edit: (m: PricingMatrix) => void): PricingMatrix => {
+      const m = JSON.parse(
+        JSON.stringify(DEFAULT_PROMOTION_SETTINGS.pricing),
+      ) as PricingMatrix;
+      edit(m);
+      return m;
+    };
+    const turnOnTaps = (m: PricingMatrix) => {
+      m.post.models.clicks = { enabled: true, priceCents: 33 };
+    };
+
+    it('saves a new price and switch, with its own audit label', async () => {
+      const next = await service.updateSettings(admin, {
+        pricing: matrix(turnOnTaps),
+      });
+      expect(next.pricing.post.models.clicks).toEqual({
+        enabled: true,
+        priceCents: 33,
+      });
+      // Nothing else moved.
+      expect(next.pricing.case).toEqual(
+        DEFAULT_PROMOTION_SETTINGS.pricing.case,
+      );
+      expect(next.priceCentsPerDay).toBe(777);
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'promotions.pricing' }),
+        expect.anything(),
+      );
+    });
+
+    it('an ordinary change keeps the ordinary audit label', async () => {
+      audit.record.mockClear();
+      await service.updateSettings(admin, { maxDays: 21 });
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'promotions.settings' }),
+        expect.anything(),
+      );
+    });
+
+    it('asks for step-up only when a price or switch really changes', async () => {
+      expect(await service.pricingWouldChange({ maxDays: 5 })).toBe(false);
+      expect(
+        await service.pricingWouldChange({
+          pricing: DEFAULT_PROMOTION_SETTINGS.pricing,
+        }),
+      ).toBe(false);
+      expect(
+        await service.pricingWouldChange({ pricing: matrix(turnOnTaps) }),
+      ).toBe(true);
+      expect(await service.pricingWouldChange({ cpmCents: 900 })).toBe(true);
+    });
+
+    it('an older admin build that only sends the CPM moves the views price', async () => {
+      const next = await service.updateSettings(admin, { cpmCents: 900 });
+      expect(next.pricing.post.models.impressions.priceCents).toBe(900);
+      expect(next.pricing.video.models.impressions.priceCents).toBe(900);
+      expect(next.pricing.case.models.impressions.priceCents).toBe(900);
+      expect(next.pricing.profile.models.impressions.priceCents).toBe(
+        DEFAULT_PROMOTION_SETTINGS.pricing.profile.models.impressions
+          .priceCents,
+      );
+      expect(next.cpmCents).toBe(900);
+    });
   });
 });
