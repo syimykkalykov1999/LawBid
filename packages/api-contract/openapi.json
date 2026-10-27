@@ -76348,6 +76348,318 @@
         ]
       }
     },
+    "/admin/promotion": {
+      "get": {
+        "operationId": "promotionOverview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromotionOverviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "SEO switches, channel checklist, last-build status from seo-manifest.json",
+        "tags": [
+          "admin-promotion"
+        ]
+      }
+    },
+    "/admin/promotion/settings/{key}": {
+      "put": {
+        "operationId": "updatePromotionSetting",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^seo\\.[a-z0-9_.]{2,60}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromotionSettingEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Set one SEO switch or tick one checklist item (seo.* only)",
+        "tags": [
+          "admin-promotion"
+        ]
+      }
+    },
+    "/admin/promotion/dry-run": {
+      "post": {
+        "operationId": "startSeoDryRun",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromotionDryRunResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Start the SEO workflow as a dry run (publishes nothing), or return the command to run by hand",
+        "tags": [
+          "admin-promotion"
+        ]
+      }
+    },
+    "/public/seo-settings": {
+      "get": {
+        "operationId": "getPublicSeoSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "SEO switches set in the admin; null = not decided (repository variable applies).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicSeoSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "public"
+        ]
+      }
+    },
     "/admin/experiments": {
       "get": {
         "operationId": "listExperiments",
@@ -165347,6 +165659,296 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/InfraRequestDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PromotionSettingDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "app_config key, always `seo.*`."
+          },
+          "type": {
+            "enum": [
+              "boolean",
+              "integer",
+              "string"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "type": "object",
+            "description": "Stored value, or the default while nothing is stored."
+          },
+          "stored": {
+            "type": "boolean",
+            "description": "False = the admin never decided: the repository variable of the same name still applies."
+          },
+          "defaultValue": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "key",
+          "type",
+          "value",
+          "stored",
+          "defaultValue"
+        ]
+      },
+      "PromotionChecklistItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "description": "app_config key `seo.checklist.<id>`."
+          },
+          "done": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "done"
+        ]
+      },
+      "PromotionManifestDto": {
+        "type": "object",
+        "properties": {
+          "builtAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Day of the last build (YYYY-MM-DD)."
+          },
+          "pages": {
+            "type": "number"
+          },
+          "indexed": {
+            "type": "number",
+            "description": "Pages in the sitemap (index,follow)."
+          },
+          "noindex": {
+            "type": "number",
+            "description": "Pages published as noindex."
+          },
+          "rampPerDay": {
+            "type": "number",
+            "nullable": true
+          },
+          "rampDeferred": {
+            "type": "number",
+            "nullable": true,
+            "description": "Pages held back by the daily ramp."
+          }
+        },
+        "required": [
+          "builtAt",
+          "pages",
+          "indexed",
+          "noindex",
+          "rampPerDay",
+          "rampDeferred"
+        ]
+      },
+      "PromotionStatusDto": {
+        "type": "object",
+        "properties": {
+          "manifestUrl": {
+            "type": "string"
+          },
+          "manifest": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PromotionManifestDto"
+              }
+            ]
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "description": "Why there is no manifest (not published yet, unreachable)."
+          },
+          "checkedAt": {
+            "type": "string",
+            "description": "ISO time the answer was read (cached 10 min)."
+          }
+        },
+        "required": [
+          "manifestUrl",
+          "manifest",
+          "error",
+          "checkedAt"
+        ]
+      },
+      "PromotionDryRunInfoDto": {
+        "type": "object",
+        "properties": {
+          "canStart": {
+            "type": "boolean",
+            "description": "The GitHub App is configured: the button can start it."
+          },
+          "command": {
+            "type": "string",
+            "description": "The command to run by hand."
+          }
+        },
+        "required": [
+          "canStart",
+          "command"
+        ]
+      },
+      "PromotionOverviewDto": {
+        "type": "object",
+        "properties": {
+          "switches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromotionSettingDto"
+            }
+          },
+          "checklist": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PromotionChecklistItemDto"
+            }
+          },
+          "status": {
+            "$ref": "#/components/schemas/PromotionStatusDto"
+          },
+          "dryRun": {
+            "$ref": "#/components/schemas/PromotionDryRunInfoDto"
+          }
+        },
+        "required": [
+          "switches",
+          "checklist",
+          "status",
+          "dryRun"
+        ]
+      },
+      "PromotionOverviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PromotionOverviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PromotionSettingEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PromotionSettingDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PromotionDryRunResultDto": {
+        "type": "object",
+        "properties": {
+          "started": {
+            "type": "boolean",
+            "description": "GitHub accepted the run."
+          },
+          "command": {
+            "type": "string"
+          },
+          "runsUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "started",
+          "command",
+          "runsUrl",
+          "message"
+        ]
+      },
+      "PromotionDryRunResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PromotionDryRunResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PublicSeoSettingsDto": {
+        "type": "object",
+        "properties": {
+          "incremental": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "sitemapIndex": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "robotsAi": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "llms": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "qualityGate": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "rampPerDay": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "incremental",
+          "sitemapIndex",
+          "robotsAi",
+          "llms",
+          "qualityGate",
+          "rampPerDay"
+        ]
+      },
+      "PublicSeoSettingsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PublicSeoSettingsDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

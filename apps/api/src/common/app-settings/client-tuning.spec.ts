@@ -4,7 +4,7 @@ import {
 } from '../../modules/admin-config/config-schema';
 import { PUBLIC_CONFIG_PREFIXES } from '../../modules/feature-flags/services/bootstrap.service';
 import { APP_SETTINGS } from './app-settings.defaults';
-import { CLIENT_TUNING_DEFS } from './client-tuning';
+import { CLIENT_TUNING_DEFS, effectivePrefetch } from './client-tuning';
 
 describe('client tuning knobs (scale audit 2026-10-23)', () => {
   const schema = configSchema();
@@ -87,5 +87,44 @@ describe('client tuning knobs (scale audit 2026-10-23)', () => {
       expect(validateConfigValue(schema[k], false)).toBeNull();
       expect(validateConfigValue(schema[k], 'yes')).not.toBeNull();
     }
+  });
+});
+
+describe('S20-9 reel warm-up switch', () => {
+  const base = { ahead: 3, cellular: 1, bunnyOver: false } as const;
+  it('off: nothing is warmed up', () => {
+    expect(effectivePrefetch({ ...base, mode: 'off' })).toEqual({
+      ahead: 0,
+      cellular: 0,
+    });
+  });
+  it('on: the same number on every network', () => {
+    expect(effectivePrefetch({ ...base, mode: 'on' })).toEqual({
+      ahead: 3,
+      cellular: 3,
+    });
+  });
+  it('auto: fewer on mobile data, never more than Wi-Fi', () => {
+    expect(effectivePrefetch({ ...base, mode: 'auto' })).toEqual({
+      ahead: 3,
+      cellular: 1,
+    });
+    expect(effectivePrefetch({ ...base, mode: 'auto', cellular: 6 })).toEqual({
+      ahead: 3,
+      cellular: 3,
+    });
+  });
+  it('auto: 0 while Bunny traffic is over its warning level; on ignores it', () => {
+    expect(
+      effectivePrefetch({ ...base, mode: 'auto', bunnyOver: true }),
+    ).toEqual({ ahead: 0, cellular: 0 });
+    expect(effectivePrefetch({ ...base, mode: 'on', bunnyOver: true })).toEqual(
+      { ahead: 3, cellular: 3 },
+    );
+  });
+  it('the mode only accepts off / on / auto', () => {
+    const s = configSchema()['client.video_prefetch_mode'];
+    expect(validateConfigValue(s, 'auto')).toBeNull();
+    expect(validateConfigValue(s, 'sometimes')).not.toBeNull();
   });
 });

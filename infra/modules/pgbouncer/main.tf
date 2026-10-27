@@ -116,6 +116,15 @@ variable "cpu_target" {
   type    = number
   default = 50
 }
+variable "log_group_class" {
+  type        = string
+  default     = "INFREQUENT_ACCESS"
+  description = "CloudWatch log class of the PgBouncer log (S20-11, cost registry row aws.cloudwatch_ia). INFREQUENT_ACCESS = half the ingest price; it has no metric filters / subscriptions, and nothing here uses them. STANDARD = old behaviour. Immutable in AWS: changing it replaces the group (its old lines are dropped)."
+  validation {
+    condition     = contains(["STANDARD", "INFREQUENT_ACCESS"], var.log_group_class)
+    error_message = "log_group_class must be STANDARD or INFREQUENT_ACCESS."
+  }
+}
 variable "log_retention_days" {
   type    = number
   default = 30
@@ -149,6 +158,7 @@ locals {
 resource "aws_cloudwatch_log_group" "this" {
   name              = "/lawbid/${var.name}/${local.svc}"
   retention_in_days = var.log_retention_days
+  log_group_class   = var.log_group_class
   kms_key_id        = var.kms_key_arn
   tags              = var.tags
 }

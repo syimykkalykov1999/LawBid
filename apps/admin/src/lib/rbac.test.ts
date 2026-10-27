@@ -207,3 +207,24 @@ describe('staff workspaces (staff package T1)', () => {
     expect(WORKSPACE_HEAD_LABEL).toBe('Главный пространства');
   });
 });
+
+describe('«Продвижение: SEO и сторы» (owner 2026-10-27)', () => {
+  it('is its own grantable area, closed to everyone until the owner switches it on', () => {
+    expect(GRANTABLE_AREAS.map((a) => a.key)).toContain('promotion');
+    expect(GRANTABLE_AREAS.find((a) => a.key === 'promotion')?.ownerGrants).toBeUndefined();
+    const none = { role: 'moderator' as const, permissions: { moderation: 'manage' as const } };
+    expect(canOpen(none, '/promotion')).toBe(false);
+    expect(canOpen({ role: 'support' as const, permissions: { settings: 'manage' as const, money: 'manage' as const } }, '/promotion')).toBe(false);
+    expect(canOpen({ role: 'support' as const, permissions: { promotion: 'view' as const } }, '/promotion')).toBe(true);
+    expect(canOpen({ role: 'super_admin' as const, permissions: {} }, '/promotion')).toBe(true);
+  });
+
+  it('sits in «Контент и модерация», apart from the paid post promotion under «Деньги»', () => {
+    const me = { role: 'support' as const, permissions: { promotion: 'manage' as const } };
+    expect(groupsFor(me).flatMap((g) => g.items.map((s) => s.href))).toContain('/promotion');
+    expect(groupFor('/promotion')?.key).toBe('content');
+    expect(groupFor('/promotions')?.key).toBe('money');
+    const label = (h: string) => SECTIONS.find((s) => s.href === h)?.label;
+    expect(label('/promotion')).not.toBe(label('/promotions'));
+  });
+});

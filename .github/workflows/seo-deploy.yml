@@ -17,15 +17,19 @@
 # Repository variable ANDROID_APP_SHA256: SHA-256 of the app-signing
 # certificate (Play Console → App integrity), comma-separated if several.
 #
-# Programmatic-SEO switches (repository variables; every one is OFF when
-# unset, so the public output is unchanged until the owner turns it on;
-# what each does: docs/runbooks/SEO_STATIC_PAGES.md):
+# Programmatic-SEO switches. Owner 2026-10-27: the admin page «Продвижение»
+# is the source of truth (GET <WEB_SEO_API_URL>/public/seo-settings, step
+# "Resolve the switches"); the repository variables below are the fallback
+# where the admin never decided or the API cannot be reached. Every switch
+# is OFF when set nowhere, so the public output is unchanged until the owner
+# turns it on. What each does: docs/runbooks/SEO_STATIC_PAGES.md
 #   SEO_SITEMAP_INDEX=true   /sitemap.xml becomes an index of /sitemaps/*.xml
 #   SEO_ROBOTS_AI=true       search/answer bots in, training bots out
 #   SEO_LLMS=true            /llms.txt and /llms-full.txt
 #   SEO_QUALITY_GATE=true    thin pages: noindex and out of the sitemaps
 #   SEO_RAMP_PER_DAY=200     at most N new pages a day enter the index
 #   SEO_INCREMENTAL=true     upload only changed files, reset the CDN only for them (<= 30 paths a day)
+#   SEO_MAX_PAGES=2000       directory pages of 100 attorneys the build may read; more data FAILS the build instead of truncating
 name: SEO pages
 
 on:
@@ -92,20 +96,29 @@ jobs:
       - name: Read the previous manifest
         run: aws s3 cp "s3://${{ secrets.WEB_BUCKET }}/seo-manifest.json" prev-seo-manifest.json || echo "no previous manifest (first run)"
 
+      # Owner 2026-10-27: the switches set in the admin («Продвижение») win;
+      # the repository variables above are the fallback where the admin never
+      # decided (or the API is unreachable). The result lands in $GITHUB_ENV
+      # as SEO_* (1 = on, empty = off), read by the steps below.
+      - name: Resolve the switches (admin first, repository variables as fallback)
+        env:
+          VAR_SEO_SITEMAP_INDEX: ${{ vars.SEO_SITEMAP_INDEX }}
+          VAR_SEO_ROBOTS_AI: ${{ vars.SEO_ROBOTS_AI }}
+          VAR_SEO_LLMS: ${{ vars.SEO_LLMS }}
+          VAR_SEO_QUALITY_GATE: ${{ vars.SEO_QUALITY_GATE }}
+          VAR_SEO_RAMP_PER_DAY: ${{ vars.SEO_RAMP_PER_DAY }}
+          VAR_SEO_INCREMENTAL: ${{ vars.SEO_INCREMENTAL }}
+        run: node scripts/seo/resolve-switches.mjs --api "${{ secrets.WEB_SEO_API_URL }}" >> "$GITHUB_ENV"
+
       - name: Build the pages from the public directory
         env:
-          SEO_SITEMAP_INDEX: ${{ vars.SEO_SITEMAP_INDEX == 'true' && '1' || '' }}
-          SEO_ROBOTS_AI: ${{ vars.SEO_ROBOTS_AI == 'true' && '1' || '' }}
-          SEO_LLMS: ${{ vars.SEO_LLMS == 'true' && '1' || '' }}
-          SEO_QUALITY_GATE: ${{ vars.SEO_QUALITY_GATE == 'true' && '1' || '' }}
-          SEO_RAMP_PER_DAY: ${{ vars.SEO_RAMP_PER_DAY }}
-          SEO_INCREMENTAL: ${{ vars.SEO_INCREMENTAL == 'true' && '1' || '' }}
           SEO_PREV_MANIFEST: prev-seo-manifest.json
         run: >-
           node scripts/seo/build.mjs
           --api "${{ secrets.WEB_SEO_API_URL }}"
           --site "${{ secrets.WEB_SITE_URL }}"
           --out dist-seo
+          --max-pages "${{ vars.SEO_MAX_PAGES || '2000' }}"
           ${{ inputs.index_empty && '--index-empty' || '' }}
 
       - name: Check out the company site
@@ -148,11 +161,11 @@ jobs:
       # SEO_INCREMENTAL=true. Exit 3 = it would delete over 30% of the files.
       - name: Plan the publish
         shell: bash
-        continue-on-error: ${{ vars.SEO_INCREMENTAL != 'true' }}
+        continue-on-error: ${{ env.SEO_INCREMENTAL != '1' }}
         run: >-
           node scripts/seo/publish-plan.mjs
           --dir dist-seo --prev prev-seo-manifest.json --plan seo-plan
-          ${{ (inputs.dry_run || vars.SEO_INCREMENTAL != 'true') && '--dry-run' || '' }}
+          ${{ (inputs.dry_run || env.SEO_INCREMENTAL != '1') && '--dry-run' || '' }}
           ${{ inputs.allow_mass_delete && '--allow-mass-delete' || '' }}
           | tee -a "$GITHUB_STEP_SUMMARY"
 
@@ -167,7 +180,7 @@ jobs:
       # simply planned again. Pages are cached for an hour (max-age=3600);
       # the CDN is reset only for changed paths, at most 30 a day, never /*.
       - name: Publish the changed files
-        if: ${{ !inputs.dry_run && vars.SEO_INCREMENTAL == 'true' }}
+        if: ${{ !inputs.dry_run && env.SEO_INCREMENTAL == '1' }}
         run: |
           B="s3://${{ secrets.WEB_BUCKET }}"
           mkdir -p seo-stage
@@ -202,7 +215,7 @@ jobs:
       # (index.html, main.dart.*, canvaskit, assets...) are never touched.
       # public-paths.txt tells web-deploy.yml which names to keep.
       - name: Publish (each prefix is replaced as a whole)
-        if: ${{ !inputs.dry_run && vars.SEO_INCREMENTAL != 'true' }}
+        if: ${{ !inputs.dry_run && env.SEO_INCREMENTAL != '1' }}
         working-directory: dist-seo
         run: |
           B="s3://${{ secrets.WEB_BUCKET }}"
@@ -238,7 +251,7 @@ jobs:
       # public pages' folders, the site's pages and the discovery files; at
       # most 30 paths. `_next` is content-hashed and never needs a reset.
       - name: Reset the CDN cache for the pages
-        if: ${{ !inputs.dry_run && vars.SEO_INCREMENTAL != 'true' }}
+        if: ${{ !inputs.dry_run && env.SEO_INCREMENTAL != '1' }}
         working-directory: dist-seo
         run: |
           paths="/lawyers/* /attorneys/* /practice-areas/* /sitemap.xml /robots.txt"

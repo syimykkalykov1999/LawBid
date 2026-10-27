@@ -34,6 +34,10 @@ export const OPS_KEYS = {
   pressureFlag: 'ops:pressure:',
   /** JSON MessageReencryptState (jobs/handlers/message-reencrypt.job.ts). */
   messageReencrypt: 'ops:message-reencrypt',
+  /** ISO time the heavy admin aggregates were last recounted (S20-1). */
+  adminSummariesLast: 'ops:admin-summaries:last',
+  /** Per cron job `{empty, lastRunAt}`: idle back-off state (S20-6). */
+  cronIdle: 'ops:cron-idle:',
   /** JSON BloatSnapshot: the nightly table / index bloat measurement. */
   dbBloat: 'ops:db-bloat',
   /** JSON ChatSearchBackfillState (jobs/handlers/chat-search-backfill.job.ts). */

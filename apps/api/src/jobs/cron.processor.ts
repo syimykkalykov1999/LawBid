@@ -64,6 +64,7 @@ import { LegalRemindersJob } from './handlers/legal-reminders.job';
 import { UsagePollJob } from './handlers/usage-poll.job';
 import { HEAVY_CRON_JOBS } from '../common/ops/ops.constants';
 import { OpsStateService } from '../common/ops/ops-state.service';
+import { CronIdleBackoffService } from '../common/ops/cron-idle-backoff.service';
 import { LegalQaSweepJob } from '../modules/legal-qa/legal-qa-sweep.job';
 import { ContactsJoinedJob } from './handlers/contacts-joined.job';
 import { ContactsPepperBackfillJob } from './handlers/contacts-pepper-backfill.job';
@@ -217,6 +218,8 @@ export class CronProcessor {
     @Optional() private readonly experimentsNightly?: ExperimentsNightlyJob,
     // Day-one foundations: `ledger.reconcile`.
     @Optional() private readonly ledgerReconcile?: LedgerReconcileJob,
+    // S20-6: idle back-off of the every-minute sweeps.
+    @Optional() private readonly idleBackoff?: CronIdleBackoffService,
     // Audit X-22: `ops.outbox_sweep.mode` (off / on / auto).
     @Optional() private readonly appSettings?: AppSettingsService,
     // Privacy round 13: `privacy.retention`, `privacy.reconcile`,
@@ -257,7 +260,7 @@ export class CronProcessor {
    * a heavy one for 60.
    */
   async process(name: string): Promise<unknown> {
-    if (!this.redis) return this.dispatch(name);
+    if (!this.redis) return this.guarded(name);
     const pattern = CRON_SCHEDULES.find((s) => s.name === name)?.pattern ?? '';
     const ttlMs =
       cronLaneOf(name) === CRON_HEAVY_QUEUE
@@ -270,13 +273,14 @@ export class CronProcessor {
       `cron:${name}`,
       ttlMs,
       async () => ({
-        value: await this.dispatch(name),
+        value: await this.guarded(name),
       }),
     );
     return ran ? ran.value : { skipped: 'previous run still active' };
   }
 
-  private async dispatch(name: string): Promise<unknown> {
+  /** Pause of heavy jobs + idle back-off (S20-6) around [dispatch]. */
+  private async guarded(name: string): Promise<unknown> {
     // Owner 2026-10-05: «Пауза тяжёлых задач» (owner button or automatic
     // while the database is slow) — skip this tick, the next one runs.
     if (
@@ -285,6 +289,25 @@ export class CronProcessor {
     ) {
       return { skipped: 'heavy jobs paused' };
     }
+    // S20-6: an every-minute sweep that found nothing for a while runs at
+    // the slow pace until work appears (ops.cron_idle_backoff).
+    if (this.idleBackoff && (await this.idleBackoff.shouldSkip(name))) {
+      return { skipped: 'idle back-off' };
+    }
+    if (!this.idleBackoff || !CronIdleBackoffService.eligible(name)) {
+      return this.dispatch(name);
+    }
+    try {
+      const result = await this.dispatch(name);
+      await this.idleBackoff.record(name, result);
+      return result;
+    } catch (error) {
+      await this.idleBackoff.record(name, null, true);
+      throw error;
+    }
+  }
+
+  private async dispatch(name: string): Promise<unknown> {
     switch (name) {
       case CRON_JOBS.sessionsCleanup:
         return this.sessionsCleanup.run();

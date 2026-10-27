@@ -24,5 +24,7 @@ import { InfraWorkflowController } from './infra/infra-workflow.controller';
     InfraWorkflowController,
   ],
   providers: [CostRegistryService, InfraChangeService, InfraGithubClient],
+  // Owner 2026-10-27: «Продвижение» starts a SEO dry run through the same App.
+  exports: [InfraGithubClient],
 })
 export class AdminLaunchModule {}

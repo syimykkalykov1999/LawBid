@@ -347,7 +347,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // 06:25 UTC daily (the providers' stats lag by hours).
   { name: CRON_JOBS.usagePoll, pattern: '25 6 * * *' },
   { name: CRON_JOBS.opsCostCheck, pattern: '7 * * * *' },
-  { name: CRON_JOBS.opsBackupCheck, pattern: '12 * * * *' },
+  // Daily: the RDS restorable time moves by the minute, a day is plenty.
+  { name: CRON_JOBS.opsBackupCheck, pattern: '12 5 * * *' },
   { name: CRON_JOBS.costAutoscale, pattern: '17 * * * *' },
   { name: CRON_JOBS.economyGuard, pattern: '*/5 * * * *' },
   // 15:40 UTC ≈ 08:40 Pacific: a weekday-morning payout starts that day.

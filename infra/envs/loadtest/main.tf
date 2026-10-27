@@ -102,7 +102,7 @@ module "stack" {
   worker_memory                  = 4096
   api_spot                       = true
   worker_spot                    = true
-  night_scale_down               = false
+  night_scale_mode               = "off"
   worker_jobs_per_task           = 50
   nat_per_az                     = false
   interface_endpoints            = ["ecr.api", "ecr.dkr", "logs", "secretsmanager"]

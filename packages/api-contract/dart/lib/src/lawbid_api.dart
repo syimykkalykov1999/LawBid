@@ -87,6 +87,8 @@ import 'clients/admin_shards_client.dart';
 import 'clients/admin_launch_client.dart';
 import 'clients/admin_spend_client.dart';
 import 'clients/admin_infra_client.dart';
+import 'clients/admin_promotion_client.dart';
+import 'clients/public_client.dart';
 import 'clients/admin_experiments_client.dart';
 import 'clients/admin_economy_client.dart';
 import 'clients/admin_pnl_client.dart';
@@ -124,7 +126,6 @@ import 'clients/admin_trust_client.dart';
 import 'clients/countries_client.dart';
 import 'clients/admin_countries_client.dart';
 import 'clients/admin_attorney_ads_client.dart';
-import 'clients/public_client.dart';
 import 'clients/reviews_client.dart';
 import 'clients/admin_fraud_client.dart';
 import 'clients/admin_country_partners_client.dart';
@@ -235,6 +236,8 @@ class LawbidApi {
   AdminLaunchClient? _adminLaunch;
   AdminSpendClient? _adminSpend;
   AdminInfraClient? _adminInfra;
+  AdminPromotionClient? _adminPromotion;
+  PublicClient? _public;
   AdminExperimentsClient? _adminExperiments;
   AdminEconomyClient? _adminEconomy;
   AdminPnlClient? _adminPnl;
@@ -272,7 +275,6 @@ class LawbidApi {
   CountriesClient? _countries;
   AdminCountriesClient? _adminCountries;
   AdminAttorneyAdsClient? _adminAttorneyAds;
-  PublicClient? _public;
   ReviewsClient? _reviews;
   AdminFraudClient? _adminFraud;
   AdminCountryPartnersClient? _adminCountryPartners;
@@ -529,6 +531,11 @@ class LawbidApi {
   AdminInfraClient get adminInfra =>
       _adminInfra ??= AdminInfraClient(_dio, baseUrl: _baseUrl);
 
+  AdminPromotionClient get adminPromotion =>
+      _adminPromotion ??= AdminPromotionClient(_dio, baseUrl: _baseUrl);
+
+  PublicClient get public => _public ??= PublicClient(_dio, baseUrl: _baseUrl);
+
   AdminExperimentsClient get adminExperiments =>
       _adminExperiments ??= AdminExperimentsClient(_dio, baseUrl: _baseUrl);
 
@@ -632,8 +639,6 @@ class LawbidApi {
 
   AdminAttorneyAdsClient get adminAttorneyAds =>
       _adminAttorneyAds ??= AdminAttorneyAdsClient(_dio, baseUrl: _baseUrl);
-
-  PublicClient get public => _public ??= PublicClient(_dio, baseUrl: _baseUrl);
 
   ReviewsClient get reviews =>
       _reviews ??= ReviewsClient(_dio, baseUrl: _baseUrl);

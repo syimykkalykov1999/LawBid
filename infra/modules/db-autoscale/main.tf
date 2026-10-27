@@ -96,6 +96,15 @@ variable "tuning" {
   default     = {}
   description = "Overrides of decision.Config numbers, e.g. { up_cpu_pct = 75, down_window_h = 96 } (infra/modules/db-autoscale/lambda/decision.py)."
 }
+variable "log_group_class" {
+  type        = string
+  default     = "INFREQUENT_ACCESS"
+  description = "CloudWatch log class of the autoscale Lambda log (S20-11, cost registry row aws.cloudwatch_ia). INFREQUENT_ACCESS = half the ingest price; it has no metric filters / subscriptions, and nothing here uses them. STANDARD = old behaviour. Immutable in AWS: changing it replaces the group (its old lines are dropped)."
+  validation {
+    condition     = contains(["STANDARD", "INFREQUENT_ACCESS"], var.log_group_class)
+    error_message = "log_group_class must be STANDARD or INFREQUENT_ACCESS."
+  }
+}
 variable "log_retention_days" {
   type    = number
   default = 30
@@ -191,7 +200,8 @@ data "archive_file" "lambda" {
 
 resource "aws_cloudwatch_log_group" "lambda" {
   name              = "/aws/lambda/${local.fn_name}"
-  retention_in_days = var.log_retention_days
+  retention_in_days = min(var.log_retention_days, 14)
+  log_group_class   = var.log_group_class
   kms_key_id        = var.kms_key_arn
   tags              = var.tags
 }

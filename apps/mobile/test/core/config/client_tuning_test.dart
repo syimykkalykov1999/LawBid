@@ -41,14 +41,23 @@ void main() {
     expect(ClientTuning.outboxBackoff(9).inSeconds, 120);
   });
 
-  test('the reel warm-up switch is a word: off | on | auto', () {
-    expect(ClientTuning.videoPrefetchMode, 'auto');
-    ClientTuning.apply({'client.video_prefetch_mode': 'off'});
-    expect(ClientTuning.videoPrefetchMode, 'off');
-    ClientTuning.apply({'client.video_prefetch_mode': 'On'});
-    expect(ClientTuning.videoPrefetchMode, 'on');
-    ClientTuning.apply({'client.video_prefetch_mode': '2'});
-    expect(ClientTuning.videoPrefetchMode, 'auto');
+  test('on mobile data the app warms up fewer reels (S20-9)', () {
+    ClientTuning.apply({
+      'client.video_prefetch_ahead': '3',
+      'client.video_prefetch_cellular': '1',
+    });
+    ClientTuning.metered = false;
+    expect(ClientTuning.videoPrefetchAhead, 3);
+    ClientTuning.metered = true;
+    expect(ClientTuning.videoPrefetchAhead, 1);
+    // The server sends 0/0 while Bunny traffic is over its warning level.
+    ClientTuning.apply({
+      'client.video_prefetch_ahead': '0',
+      'client.video_prefetch_cellular': '0',
+    });
+    expect(ClientTuning.videoPrefetchAhead, 0);
+    ClientTuning.metered = false;
+    expect(ClientTuning.videoPrefetchAhead, 0);
   });
 
   test('a wrong value can neither silence nor hammer the app', () {

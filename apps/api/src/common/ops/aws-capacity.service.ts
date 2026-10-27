@@ -121,6 +121,16 @@ export class AwsCapacityService {
     return (await this.dbDescribe()).dbClass;
   }
 
+  /** Newest point the database can be restored to (RDS automated backups
+   * + WAL), or null when unknown / not on AWS. Free API call. */
+  async latestRestorableTime(): Promise<Date | null> {
+    if (!this.dbInstance) return null;
+    const res = await this.rdsClient().send(
+      new DescribeDBInstancesCommand({ DBInstanceIdentifier: this.dbInstance }),
+    );
+    return res.DBInstances?.[0]?.LatestRestorableTime ?? null;
+  }
+
   private async redisGroupInfo(): Promise<{
     nodeType: string | null;
     primaryNode: string | null;

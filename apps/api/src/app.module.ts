@@ -57,6 +57,7 @@ import { PrivacySettingsModule } from './modules/privacy-settings/privacy-settin
 import { SecretsModule } from './common/secrets/secrets.module';
 import { AdminIntegrationsModule } from './modules/admin-integrations/admin-integrations.module';
 import { AdminLaunchModule } from './modules/admin-launch/admin-launch.module';
+import { AdminPromotionModule } from './modules/admin-promotion/admin-promotion.module';
 import { AdminOpsModule } from './modules/admin-ops/admin-ops.module';
 import { AdminShardsModule } from './modules/admin-shards/admin-shards.module';
 import {
@@ -379,6 +380,7 @@ const isDev =
     AdminOpsModule,
     AdminShardsModule,
     AdminLaunchModule,
+    AdminPromotionModule,
     // Owner 2026-10-25: A/B experiments + ranking events log.
     ExperimentsCoreModule,
     AdminExperimentsModule,
