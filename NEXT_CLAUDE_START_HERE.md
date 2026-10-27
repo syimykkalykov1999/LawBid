@@ -1266,3 +1266,4 @@ PRINCIPLE (owner 07:55): assume the attacker is an automated AI (tireless, tries
 - NEXT after helpers report: 01:08 влит #370 (iOS build-check дождались). #384 убран из skip.txt — loop возьмёт, когда снова CLEAN (train v3 пере-мержит main при DIRTY/BEHIND). Открыто 39.
 - NEXT after helpers report: 01:14 #366 (S3 multipart via @aws-sdk/lib-storage): precheck loop не мог запустить jobs spec локально (пакета не было в общем node_modules) → установил @aws-sdk/lib-storage --no-save в основной checkout; если precheck всё ещё падает — слить #366 руками, когда CI зелёный.
 - NEXT after helpers report: 01:17 влит #423 (плавность, раунд 2; web module TF — владелец делает apply в конце). Открыто 38.
+- NEXT after helpers report: 01:27 влит #407 (чистка мёртвого кода X-1…X-30 + пометки спящих функций) — автопоезд. Открыто 37.
