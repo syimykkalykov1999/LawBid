@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
@@ -13,6 +14,24 @@ import { REDIS_CLIENT } from '../../redis/redis.constants';
 /** Rows read per batch; a few batches per 5-minute tick. */
 export const MESSAGE_REENCRYPT_BATCH = 500;
 export const MESSAGE_REENCRYPT_BATCHES_PER_RUN = 8;
+/** The job ticks every 5 minutes: `ops.reencrypt_rows_per_min` × this many
+ * minutes is the row budget of one tick (S20-8). */
+export const MESSAGE_REENCRYPT_TICK_MIN = 5;
+/** Where the progress is kept besides Redis (S20-8): the generic
+ * checkpoint table also used by the search reindex. A Redis eviction or
+ * failover no longer restarts a multi-day pass from zero. */
+export const MESSAGE_REENCRYPT_DB_KEY = 'ops:message-reencrypt';
+
+/** Batches one tick may run for a rows-per-minute ceiling; 0 = paused. */
+export function reencryptBatchesFor(rowsPerMin: number): number {
+  if (!(rowsPerMin > 0)) return 0;
+  return Math.max(
+    1,
+    Math.ceil(
+      (rowsPerMin * MESSAGE_REENCRYPT_TICK_MIN) / MESSAGE_REENCRYPT_BATCH,
+    ),
+  );
+}
 /** Breath between batches, so a busy chat never feels the job. */
 export const MESSAGE_REENCRYPT_PAUSE_MS = 150;
 
@@ -102,14 +121,37 @@ export class MessageReencryptJob {
     );
   }
 
+  /** Redis first (hot copy); when Redis lost it, the database checkpoint
+   * is restored into Redis, so a pass resumes instead of restarting. */
   async state(): Promise<MessageReencryptState | null> {
     const raw = await this.redis.get(MESSAGE_REENCRYPT_STATE_KEY);
-    return parseJson<MessageReencryptState>(raw);
+    const hot = parseJson<MessageReencryptState>(raw);
+    if (hot) return hot;
+    try {
+      const row = await this.prisma.searchIndexState.findUnique({
+        where: { key: MESSAGE_REENCRYPT_DB_KEY },
+      });
+      const cold = (row?.value as unknown as MessageReencryptState) ?? null;
+      if (cold) {
+        await this.redis.set(MESSAGE_REENCRYPT_STATE_KEY, JSON.stringify(cold));
+      }
+      return cold;
+    } catch {
+      return null;
+    }
   }
 
   /** Admin button: forget the progress, so the next tick starts a new pass. */
   async restart(): Promise<void> {
     await this.redis.del(MESSAGE_REENCRYPT_STATE_KEY);
+    try {
+      await this.prisma.searchIndexState.deleteMany({
+        where: { key: MESSAGE_REENCRYPT_DB_KEY },
+      });
+    } catch {
+      // Redis is already cleared; the stale DB copy only matters if Redis
+      // is lost before the next save.
+    }
   }
 
   async run(
@@ -141,7 +183,12 @@ export class MessageReencryptJob {
       return this.result(state);
     }
     const sealOn = await this.settings.boolean('security.seal_case_metadata');
-    for (let i = 0; i < MESSAGE_REENCRYPT_BATCHES_PER_RUN; i += 1) {
+    // S20-8: ceiling in rows per minute (0 = paused); the pass keeps its place.
+    const batches = Math.min(
+      MESSAGE_REENCRYPT_BATCHES_PER_RUN * 5,
+      reencryptBatchesFor(await this.rowsPerMin()),
+    );
+    for (let i = 0; i < batches; i += 1) {
       const more =
         state.phase === 'messages'
           ? await this.messagesBatch(state, sealOn)
@@ -161,7 +208,9 @@ export class MessageReencryptJob {
           state.finishedAt = new Date().toISOString();
         }
       }
-      await this.save(state);
+      // Redis every batch; the database copy at the end of the tick, when a
+      // phase changes and when the pass finishes.
+      await this.save(state, !more || i === batches - 1);
       if (state.phase === 'done') break;
       await sleep(MESSAGE_REENCRYPT_PAUSE_MS);
     }
@@ -186,8 +235,31 @@ export class MessageReencryptJob {
     };
   }
 
-  private async save(state: MessageReencryptState): Promise<void> {
-    await this.redis.set(MESSAGE_REENCRYPT_STATE_KEY, JSON.stringify(state));
+  private async rowsPerMin(): Promise<number> {
+    try {
+      return await this.settings.number('ops.reencrypt_rows_per_min');
+    } catch {
+      return 800;
+    }
+  }
+
+  private async save(
+    state: MessageReencryptState,
+    toDatabase: boolean,
+  ): Promise<void> {
+    const json = JSON.stringify(state);
+    await this.redis.set(MESSAGE_REENCRYPT_STATE_KEY, json);
+    if (!toDatabase) return;
+    try {
+      const value = state as unknown as Prisma.InputJsonValue;
+      await this.prisma.searchIndexState.upsert({
+        where: { key: MESSAGE_REENCRYPT_DB_KEY },
+        create: { key: MESSAGE_REENCRYPT_DB_KEY, value },
+        update: { value },
+      });
+    } catch {
+      // Redis holds the progress; the database copy is the safety net.
+    }
   }
 
   /** One batch of `messages`; false when the table is exhausted. */
@@ -199,6 +271,7 @@ export class MessageReencryptJob {
       where: { id: { gt: state.cursor } },
       select: {
         id: true,
+        conversation_id: true,
         body_original: true,
         body_display: true,
         file_name: true,
@@ -244,7 +317,15 @@ export class MessageReencryptJob {
         }
       }
       if (Object.keys(data).length > 0) {
-        await this.prisma.message.update({ where: { id: row.id }, data });
+        await this.prisma.message.update({
+          where: {
+            id_conversation_id: {
+              id: row.id,
+              conversation_id: row.conversation_id,
+            },
+          },
+          data,
+        });
         state.rewritten += 1;
       }
       if (stuck) state.failed += 1;

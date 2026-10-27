@@ -13,6 +13,7 @@ LegalTextsDto _$LegalTextsDtoFromJson(Map<String, dynamic> json) =>
       supportNote: json['supportNote'] as String,
       partnerDisclosure: json['partnerDisclosure'] as String,
       partnerTerms: json['partnerTerms'] as String,
+      privilegedContentPolicy: json['privilegedContentPolicy'] as String,
       attorneyAdvertisingLabel: json['attorneyAdvertisingLabel'] as String?,
       priorResultsDisclaimer: json['priorResultsDisclaimer'] as String?,
       badgeExplainer: json['badgeExplainer'] as String?,
@@ -36,4 +37,5 @@ Map<String, dynamic> _$LegalTextsDtoToJson(LegalTextsDto instance) =>
       'translationNote': ?instance.translationNote,
       'reviewReplyWarning': ?instance.reviewReplyWarning,
       'sponsoredLabel': ?instance.sponsoredLabel,
+      'privilegedContentPolicy': instance.privilegedContentPolicy,
     };

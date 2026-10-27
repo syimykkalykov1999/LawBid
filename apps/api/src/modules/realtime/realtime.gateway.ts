@@ -43,6 +43,11 @@ import {
   viewingKey,
 } from './realtime-publisher.service';
 import { demoContext } from '../../common/demo/demo-context';
+import {
+  WsStormDetector,
+  wsLogDecision,
+} from '../../common/logging/ws-log-sampling';
+import { triMode, type TriMode } from '../../common/ops/tri-mode';
 import { shardContext } from '../../sharding/shard-context';
 import { RealtimeEventLog } from './realtime-event-log';
 import {
@@ -232,11 +237,48 @@ export class RealtimeGateway
     { timer: NodeJS.Timeout; leftAt: Date }
   >();
   private timingTimer?: NodeJS.Timeout;
+  /** S20-4: `log.ws_events` / `log.ws_sample_percent` (refreshed with the
+   * timings) and the per-instance spike detector. */
+  private wsLog: { mode: TriMode; samplePercent: number } = {
+    mode: 'auto',
+    samplePercent: 1,
+  };
+  private readonly wsStorm = new WsStormDetector();
   /** SIGTERM / `startDraining()`: no new sockets, going-away sent. */
   private draining = false;
 
+  /**
+   * S20-4: one connect / disconnect / reconnect line, sampled like the HTTP
+   * log. Each written line carries `weight` (events it stands for) so the
+   * metric filters and the reconnect-storm alarm still see the true rate.
+   */
+  private logWsEvent(
+    metric: 'ws_disconnect' | 'ws_reconnect',
+    message: string,
+    extra: Record<string, unknown> = {},
+  ): void {
+    const now = Date.now();
+    this.wsStorm.record(now);
+    const decision = wsLogDecision({
+      ...this.wsLog,
+      stormUntil: this.wsStorm.stormUntil,
+      now,
+      rand: Math.random(),
+    });
+    if (!decision.log) return;
+    this.logger.info({ metric, weight: decision.weight, ...extra }, message);
+  }
+
   private async loadTiming(): Promise<void> {
     if (!this.settings) return;
+    try {
+      this.wsLog = {
+        mode: triMode(await this.settings.string('log.ws_events')),
+        samplePercent: await this.settings.number('log.ws_sample_percent'),
+      };
+    } catch {
+      // keep the previous values
+    }
     try {
       const [
         lead,
@@ -584,7 +626,7 @@ export class RealtimeGateway
     this.armExpiry(socket, token);
     socket.on('disconnect', (reason: string) => {
       this.stats?.recordDisconnect(reason);
-      this.logger.info({ metric: 'ws_disconnect', reason }, 'ws disconnect');
+      this.logWsEvent('ws_disconnect', 'ws disconnect', { reason });
     });
     state(socket).heartbeatTimer = setInterval(() => {
       // S1-9: a stalled-but-alive phone must not hold an unbounded queue;
@@ -677,7 +719,7 @@ export class RealtimeGateway
     try {
       if ((await this.redis.del(goneKey(userId))) > 0) {
         this.stats?.record('reconnect');
-        this.logger.info({ metric: 'ws_reconnect' }, 'ws reconnect');
+        this.logWsEvent('ws_reconnect', 'ws reconnect');
       }
     } catch {
       // statistics only

@@ -1,10 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsInt,
   IsOptional,
   IsString,
+  IsUrl,
   IsUUID,
   Max,
   MaxLength,
@@ -116,16 +118,53 @@ export class IssueInvoiceDto {
   @IsString()
   @MaxLength(INVOICE_NOTE_MAX)
   note?: string;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'Due date; without it the admin default (days after sending) applies, or none.',
+  })
+  @IsOptional()
+  @IsDateString()
+  dueAt?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Keep it a draft: the client sees nothing until it is sent. Default false.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  draft?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Automatic reminders for this invoice (default true).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  remindersEnabled?: boolean;
+
+  @ApiPropertyOptional({
+    maxLength: 500,
+    description:
+      "The attorney's own external payment link (https). The app only shows it; the client pays outside the app.",
+  })
+  @IsOptional()
+  @Transform(tidy)
+  @IsUrl({ protocols: ['https'], require_protocol: true })
+  @MaxLength(500)
+  payUrl?: string;
 }
 
-export class EntryIdParamDto {
-  @ApiProperty({ format: 'uuid' })
-  @IsUUID('all')
-  id!: string;
-
-  @ApiProperty({ format: 'uuid' })
-  @IsUUID('all')
-  entryId!: string;
+export class RecordInvoicePaymentDto {
+  @ApiPropertyOptional({
+    description:
+      'Amount received outside the app, cents. Without it: the whole balance.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(EXPENSE_MAX_CENTS)
+  amountCents?: number;
 }
 
 export class InvoiceIdParamDto {
@@ -136,6 +175,16 @@ export class InvoiceIdParamDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('all')
   invoiceId!: string;
+}
+
+export class EntryIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  id!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  entryId!: string;
 }
 
 export class TimeEntryDto {
@@ -193,6 +242,39 @@ export class InvoiceDto {
   })
   url!: string | null;
   @ApiProperty({ type: String, format: 'uuid' }) fileId!: string;
+  @ApiProperty({
+    enum: [
+      'draft',
+      'sent',
+      'viewed',
+      'paid',
+      'partially_paid',
+      'overdue',
+      'void',
+    ],
+  })
+  status!: string;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  dueAt!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  sentAt!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  viewedAt!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  paidAt!: string | null;
+  @ApiProperty({ description: 'Paid so far, cents.' }) paidCents!: number;
+  @ApiProperty({ description: 'Late fee added, cents (0 = none).' })
+  lateFeeCents!: number;
+  @ApiProperty({ description: 'Still owed: total + late fee - paid.' })
+  balanceCents!: number;
+  @ApiProperty() remindersEnabled!: boolean;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      "The attorney's own external payment link (never an in-app payment).",
+  })
+  payUrl!: string | null;
 }
 
 export class RunningTimerDto {

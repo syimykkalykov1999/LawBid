@@ -305,6 +305,8 @@ describe('AttorneyProfilesService', () => {
       posts_count: 1,
       followers_count: 3,
       following_count: 4,
+      // stamps of the cached public body (S2-8)
+      updated_at: new Date('2026-10-01T00:00:00Z'),
       user: {
         role: 'attorney',
         status: 'active',
@@ -312,6 +314,7 @@ describe('AttorneyProfilesService', () => {
         first_name: 'Saul',
         last_name: 'Goodman',
         avatar_file_id: 'f1',
+        updated_at: new Date('2026-10-01T00:00:00Z'),
       },
       licenses: [{ state: { code: 'NJ', name: 'New Jersey' } }],
     };

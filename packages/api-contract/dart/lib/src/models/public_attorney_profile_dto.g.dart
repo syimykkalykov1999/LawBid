@@ -44,6 +44,8 @@ PublicAttorneyProfileDto _$PublicAttorneyProfileDtoFromJson(
   consultationEnabled: json['consultationEnabled'] as bool,
   isBlocked: json['isBlocked'] as bool,
   hasBlockedMe: json['hasBlockedMe'] as bool,
+  sponsored: json['sponsored'] as bool?,
+  advertisingDisclaimer: json['advertisingDisclaimer'] as String?,
 );
 
 Map<String, dynamic> _$PublicAttorneyProfileDtoToJson(
@@ -62,6 +64,8 @@ Map<String, dynamic> _$PublicAttorneyProfileDtoToJson(
   'languages': instance.languages,
   'verifiedBadge': instance.verifiedBadge,
   'advertisingLabel': instance.advertisingLabel,
+  'sponsored': ?instance.sponsored,
+  'advertisingDisclaimer': ?instance.advertisingDisclaimer,
   'publicUrl': instance.publicUrl,
   'trustLevel': instance.trustLevel,
   'licensedStates': instance.licensedStates.map((e) => e.toJson()).toList(),

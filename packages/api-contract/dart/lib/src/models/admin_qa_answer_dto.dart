@@ -17,6 +17,7 @@ class AdminQaAnswerDto {
     required this.isBest,
     required this.likeCount,
     required this.attorney,
+    required this.safetyFlags,
     required this.createdAt,
   });
 
@@ -31,6 +32,9 @@ class AdminQaAnswerDto {
   final bool isBest;
   final num likeCount;
   final AdminQaPersonDto attorney;
+
+  /// Owner 2026-10-28: what the safety check found — private-info kinds, individualized_advice, state_not_licensed.
+  final List<String> safetyFlags;
   final DateTime createdAt;
 
   Map<String, Object?> toJson() => _$AdminQaAnswerDtoToJson(this);

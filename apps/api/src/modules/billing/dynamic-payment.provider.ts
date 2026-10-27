@@ -134,6 +134,14 @@ const ASYNC_METHODS = new Set([
   'retrieveConnectedCheckout',
   'refundConnected',
   'retrieveConnectedCharge',
+  // Stripe robustness 2026-10-27.
+  'expireConnectedCheckout',
+  'retrieveDispute',
+  'updateDisputeEvidence',
+  'uploadEvidenceFile',
+  'setConnectPayoutsHeld',
+  'retrieveEarlyFraudWarning',
+  'retrieveConnectedRefund',
 ]);
 
 /** Refreshes a dynamic provider (no-op for a plain one). */

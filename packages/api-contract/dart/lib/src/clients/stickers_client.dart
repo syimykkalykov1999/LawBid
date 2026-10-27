@@ -8,6 +8,7 @@ import 'package:retrofit/retrofit.dart';
 import '../models/add_sticker_dto.dart';
 import '../models/create_sticker_pack_dto.dart';
 import '../models/reorder_sticker_packs_dto.dart';
+import '../models/report_sticker_pack_dto.dart';
 import '../models/sticker_envelope.dart';
 import '../models/sticker_library_envelope.dart';
 import '../models/sticker_pack_envelope.dart';
@@ -81,6 +82,16 @@ abstract class StickersClient {
   Future<StickerEnvelope> addSticker({
     @Path('ref') required String ref,
     @Body() required AddStickerDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Report a sticker pack (inappropriate, abuse ...).
+  ///
+  /// [ref] - Pack id or short name.
+  @POST('/stickers/packs/{ref}/report')
+  Future<void> reportStickerPack({
+    @Path('ref') required String ref,
+    @Body() required ReportStickerPackDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

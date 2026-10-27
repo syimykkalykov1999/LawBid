@@ -12,6 +12,7 @@ import 'package:lawbid/core/diagnostics/perf_marks.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
+import 'package:lawbid/core/media/video_cache/video_cache.dart';
 import 'package:lawbid/features/reels/application/played_view_gate.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -191,8 +192,10 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     // Owner 2026-10-19 (still a «тк» as each new video starts): five big
     // steps of 0.2 were themselves heard as clicks. Now one step every
     // ~8 ms, eased (gentle at the start of a rise), so the change is a
-    // smooth slope.
-    final steps = (over.inMilliseconds / 8).ceil().clamp(4, 40);
+    // smooth slope. S16-10: one step every ~12 ms (20 channel calls per
+    // fade instead of 40): the eased slope keeps the largest step near 0.1,
+    // half of the 0.2 jumps that were heard.
+    final steps = (over.inMilliseconds / 12).ceil().clamp(4, 20);
     final from = _vol;
     if ((from - to).abs() < 0.01) {
       _vol = to;
@@ -306,7 +309,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     final options = VideoPlayerOptions(mixWithOthers: widget.muted);
     final c = debugReelPlayerFactory?.call(Uri.parse(url), options) ??
         VideoPlayerController.networkUrl(
-          Uri.parse(url),
+          Uri.parse(VideoCache.resolve(url)),
           formatHint: widget.video.usesMp4(web: kIsWeb)
               ? VideoFormat.other
               : VideoFormat.hls,
@@ -564,7 +567,8 @@ class _InlineReelState extends State<InlineReel> {
   int _flash = 0;
 
   /// Owner 2026-10-19 (Instagram): held down = paused, let go = plays on.
-  bool _held = false;
+  /// Owner 2026-10-26 (smoothness): only the player listens to it.
+  final _held = ValueNotifier<bool>(false);
 
   /// Owner 2026-10-19 (smooth scroll): a reel the finger flings past opens
   /// no player — it opens once the card stays on screen a moment.
@@ -591,6 +595,7 @@ class _InlineReelState extends State<InlineReel> {
   @override
   void dispose() {
     _settle?.cancel();
+    _held.dispose();
     super.dispose();
   }
 
@@ -618,23 +623,26 @@ class _InlineReelState extends State<InlineReel> {
         // Owner 2026-10-13: in the feed a tap on the playing video opens the
         // full-screen player; pause / resume live in the player.
         onTap: widget.onOpen,
-        onLongPressStart: (_) => setState(() => _held = true),
-        onLongPressEnd: (_) => setState(() => _held = false),
-        onLongPressCancel: () => setState(() => _held = false),
+        onLongPressStart: (_) => _held.value = true,
+        onLongPressEnd: (_) => _held.value = false,
+        onLongPressCancel: () => _held.value = false,
         child: Stack(
           fit: StackFit.expand,
           children: [
             Consumer(
-              builder: (context, ref, _) => ReelVideo(
-                video: video,
-                active: _visible && video.ready,
-                // Owner 2026-10-18: the stream opens as soon as the card
-                // peeks in, so its first frame is there when it plays.
-                warm: _near && video.ready,
-                muted: ref.watch(reelsMutedProvider),
-                paused: _held,
-                zoomable: true,
-                onViewed: _viewed,
+              builder: (context, ref, _) => ValueListenableBuilder<bool>(
+                valueListenable: _held,
+                builder: (context, held, _) => ReelVideo(
+                  video: video,
+                  active: _visible && video.ready,
+                  // Owner 2026-10-18: the stream opens as soon as the card
+                  // peeks in, so its first frame is there when it plays.
+                  warm: _near && video.ready,
+                  muted: ref.watch(reelsMutedProvider),
+                  paused: held,
+                  zoomable: true,
+                  onViewed: _viewed,
+                ),
               ),
             ),
             if (!video.ready)

@@ -4,6 +4,9 @@ export const DELETION_GRACE_DAYS = 14;
 export const DATA_EXPORT_LINK_TTL_SEC = 24 * 60 * 60;
 /** docs/06 §5.2: user data export queue (BullMQ). */
 export const DATA_EXPORT_QUEUE = 'data-export';
+/** S10-3: a `processing` export untouched for this long is dead (no live
+ * build takes 20 minutes) — a retry or a new request may take it over. */
+export const DATA_EXPORT_STALE_PROCESSING_MS = 20 * 60 * 1000;
 export const DATA_EXPORT_JOB = 'data-export.user-data';
 export const PRIVACY_OPTIONS = Symbol('PRIVACY_OPTIONS');
 

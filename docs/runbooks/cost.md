@@ -81,8 +81,8 @@ tags), проверено 2026-10-24.
   `scripts/ops/restore-drill.sh`; свет красный, если прошло больше 90 дней.
 - **Система → Масштаб → Бюджеты AWS**: все бюджеты аккаунта (потолок,
   потрачено, прогноз). «Изменить потолок» у боевого `lawbid-prod-monthly` и
-  «Удалить» у старого «LawBid Monthly» ($50) работают с кодом 2FA; второй
-  админ нужен, только если включено `admin.dual_control`. Terraform потолок
+  «Удалить» у старого «LawBid Monthly» ($50) работают с кодом 2FA (второй
+  админ не нужен). Terraform потолок
   больше не перезаписывает (`ignore_changes = [limit_amount]`).
 - **Система → Расходы**: деньги по сервисам (AWS по сервисам с учётом
   кредитов, Twilio, Bunny, Cloudflare звонки и R2, комиссия Stripe) и
@@ -96,3 +96,7 @@ tags), проверено 2026-10-24.
 - Права AWS для всего этого (SNS на топик critical, Budgets, Cost Explorer
   только чтение) добавлены в Terraform: владелец применяет один раз, см.
   `docs/runbooks/paging.md`, раздел «Права AWS».
+
+
+## ceiling
+`<env>-cost-budget-ceiling`: an automatic spend limit reached its safety ceiling. Raise the ceiling in admin → Система → Настройки → Лимиты расходов only if users really grew; otherwise the limit is protecting you from abuse.

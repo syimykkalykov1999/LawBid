@@ -18,7 +18,11 @@ import {
   routingOf,
 } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
-import { newFileKey } from '../files/files.public';
+import {
+  AVATAR_VARIANT_PX,
+  newFileKey,
+  variantKey,
+} from '../files/files.public';
 import { S3StorageService } from '../files/storage/s3-storage.service';
 import { REQUIRED_CONSENTS } from '../users/services/onboarding.service';
 import { DEMO_AVATAR_SIZE, renderDemoAvatarPng } from './demo-avatar';
@@ -478,6 +482,11 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
         const fileId = randomUUID();
         const key = `demo/${newFileKey({ purpose: 'avatar', ownerId: u.id, fileId })}`;
         await this.storage.put(bucket, key, png, 'image/png');
+        // Owner 2026-10-26: the previews every list links to (`…_w256`);
+        // without them demo avatars showed only on profiles.
+        for (const px of AVATAR_VARIANT_PX) {
+          await this.storage.put(bucket, variantKey(key, px), png, 'image/png');
+        }
         await demo.file.create({
           data: {
             id: fileId,
@@ -521,6 +530,7 @@ export function splitSqlStatements(sql: string): string[] {
   let cur = '';
   let inQuote = false;
   let inDollar = false;
+  let dollarTag = '';
   let inComment = false;
   for (let i = 0; i < sql.length; i += 1) {
     const ch = sql[i];
@@ -539,11 +549,19 @@ export function splitSqlStatements(sql: string): string[] {
       cur += ch;
       continue;
     }
-    if (!inQuote && ch === '$' && next === '$') {
-      inDollar = !inDollar;
-      cur += '$$';
-      i += 1;
-      continue;
+    // Dollar quotes: `$$ … $$` and tagged ones like `$fn$ … $fn$` (the
+    // closing tag must match the opening one).
+    if (!inQuote && ch === '$') {
+      const tag = /^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/.exec(
+        sql.slice(i, i + 64),
+      );
+      if (tag && (!inDollar || tag[0] === dollarTag)) {
+        inDollar = !inDollar;
+        dollarTag = inDollar ? tag[0] : '';
+        cur += tag[0];
+        i += tag[0].length - 1;
+        continue;
+      }
     }
     if (!inQuote && !inDollar && ch === ';') {
       const s = cur.trim();

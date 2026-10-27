@@ -111,6 +111,59 @@ void main() {
     expect(adapter.requests.length, 2);
   });
 
+  test('stale-if-error: a dead network or 502-504 serves the copy', () async {
+    final dio = build();
+    final ok1 = await dio.get<dynamic>('/plans');
+    expect(ok1.extra[kStaleExtra], isNull);
+
+    // No network at all.
+    adapter.handler = (o) async => throwConnectionError(o);
+    now = now.add(const Duration(minutes: 5));
+    final r1 = await dio.get<dynamic>('/plans');
+    expect(r1.data, body);
+    expect(r1.extra[kFromCacheExtra], true);
+    expect(r1.extra[kStaleExtra], true);
+
+    // Gateway errors too.
+    for (final status in [502, 503, 504]) {
+      adapter.handler = (o) async => ResponseBody.fromString('', status);
+      final r = await dio.get<dynamic>('/plans');
+      expect(r.extra[kStaleExtra], true, reason: '$status');
+    }
+
+    // A real answer of the server (404 / 500) is never hidden.
+    adapter.handler = (o) async => ResponseBody.fromString('', 404);
+    await expectLater(
+      dio.get<dynamic>('/plans'),
+      throwsA(isA<DioException>()),
+    );
+    adapter.handler = (o) async => ResponseBody.fromString('', 500);
+    await expectLater(
+      dio.get<dynamic>('/plans'),
+      throwsA(isA<DioException>()),
+    );
+  });
+
+  test('stale-if-error: a copy older than the limit is not served', () async {
+    final dio = build();
+    await dio.get<dynamic>('/plans');
+    adapter.handler = (o) async => throwConnectionError(o);
+    now = now.add(const Duration(hours: 9));
+    await expectLater(
+      dio.get<dynamic>('/plans'),
+      throwsA(isA<DioException>()),
+    );
+  });
+
+  test('stale-if-error: no copy means the error stays', () async {
+    final dio = build();
+    adapter.handler = (o) async => throwConnectionError(o);
+    await expectLater(
+      dio.get<dynamic>('/never-seen'),
+      throwsA(isA<DioException>()),
+    );
+  });
+
   test('a changed body replaces the copy', () async {
     final dio = build();
     await dio.get<dynamic>('/x');

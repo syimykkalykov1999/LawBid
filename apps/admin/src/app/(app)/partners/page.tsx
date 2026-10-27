@@ -14,13 +14,12 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { motion } from "motion/react";
+import { m } from "motion/react";
 import Link from "next/link";
 import { useState } from "react";
 import { Kpi, KpiSkeletons } from "@/components/billing/kpi";
 import { fadeUp, LoadMore } from "@/components/billing/shared";
 import { CommissionsTable } from "@/components/partners/commissions-table";
-import { DemoTab } from "@/components/partners/demo-tab";
 import {
   centsToText,
   CLIENT_RULES,
@@ -63,6 +62,10 @@ import {
   usd,
 } from "@/lib/labels";
 import { formatDateTime } from "@/lib/utils";
+import dynamic from 'next/dynamic';
+
+// S18-8: loaded only when its tab is opened.
+const DemoTab = dynamic(() => import('@/components/partners/demo-tab').then((m) => m.DemoTab));
 
 type Settings = components["schemas"]["PartnerSettingsDto"];
 type Tab = "partners" | "commissions" | "demo" | "settings";
@@ -96,7 +99,7 @@ export default function PartnersPage() {
         subtitle="Блогеры и агенты приводят адвокатов и клиентов по своей ссылке. Вы платите за результат: адвокат купил подписку, клиент нанял адвоката. Ставки свои у каждого партнёра."
       />
 
-      <motion.div {...fadeUp(0)}>
+      <m.div {...fadeUp(0)}>
         <Card className="mb-6 p-5">
           <h3 className="font-medium text-heading">Как это работает</h3>
           <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm leading-relaxed text-muted">
@@ -125,7 +128,7 @@ export default function PartnersPage() {
             </li>
           </ol>
         </Card>
-      </motion.div>
+      </m.div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.isPending ? (

@@ -1,7 +1,7 @@
 'use client';
 
 import { X } from '@phosphor-icons/react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, m } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
@@ -50,7 +50,7 @@ export function Dialog({
   return createPortal(
     <AnimatePresence>
       {open ? (
-        <motion.div
+        <m.div
           className="fixed inset-0 z-[60] flex items-stretch justify-center p-0 sm:items-center sm:p-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -58,7 +58,7 @@ export function Dialog({
           transition={{ duration: 0.2 }}
         >
           <div className="absolute inset-0 bg-[#05060a]/55 backdrop-blur-[6px]" onClick={onClose} />
-          <motion.div
+          <m.div
             role="dialog"
             aria-modal
             initial={{ opacity: 0, y: 24, scale: 0.97 }}
@@ -85,8 +85,8 @@ export function Dialog({
             {title ? <h2 className="pr-8 font-serif text-xl font-semibold text-heading">{title}</h2> : null}
             {description ? <p className="mt-1.5 text-sm leading-relaxed text-muted">{description}</p> : null}
             <div className={title || description ? 'mt-5' : ''}>{children}</div>
-          </motion.div>
-        </motion.div>
+          </m.div>
+        </m.div>
       ) : null}
     </AnimatePresence>,
     document.body,

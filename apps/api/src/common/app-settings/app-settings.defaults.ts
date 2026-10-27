@@ -98,6 +98,8 @@ export const FILE_05_SETTINGS = {
   'rate_limit.follow_per_day': 200,
   'rate_limit.message_per_minute': 60,
   'rate_limit.search_per_minute': 30,
+  // S7-2: type-ahead (suggest, practices, tags): own budget, per keystroke.
+  'rate_limit.search_suggest_per_minute': 240,
   // Owner 2026-10-22: address-book uploads per hour. The app sends the whole
   // book in one request (old builds: 100-hash parts, ~8 per pass), so this
   // only stops a runaway loop; the real cap is distinct hashes per day
@@ -115,13 +117,96 @@ export const FILE_06_SETTINGS = {
   'moderation.blocked_terms': [] as string[],
   'moderation.hold_terms': [] as string[],
   'moderation.auto_hide_reports': 3,
+  // Owner 2026-10-27: weighted auto-hide. 'count' = the old rule (N distinct
+  // reporters, `auto_hide_reports`); 'weighted' = the sum of reporter
+  // weights must pass `auto_hide_score`.
+  'moderation.auto_hide_mode': 'weighted',
+  'moderation.auto_hide_score': 3,
+  // What happens to a verified attorney's content: 'review' = never hidden
+  // by reports, goes to the priority queue; 'hide' = hidden once the score
+  // passes `verified_attorney_score`.
+  'moderation.verified_attorney_action': 'review',
+  'moderation.verified_attorney_score': 6,
+  // Reporter weight (1 = a normal established account).
+  'moderation.weight.new_account_days': 7,
+  'moderation.weight.new_account': 0.2,
+  'moderation.weight.unverified_contact': 0.5,
+  'moderation.weight.verified_reporter': 1.5,
+  'moderation.weight.accuracy_min_reports': 3,
+  'moderation.weight.cluster_by_source': true,
+  'moderation.weight.source_lookback_days': 30,
+  'moderation.weight.burst_window_hours': 24,
+  'moderation.weight.burst_min_accounts': 3,
+  'moderation.weight.burst': 0.2,
+  // Unfounded reporters (DSA Art. 23 style): warning, then a pause.
+  'moderation.report_abuse.enabled': true,
+  'moderation.report_abuse.window_days': 30,
+  'moderation.report_abuse.min_reports': 5,
+  'moderation.report_abuse.unfounded_percent': 80,
+  'moderation.report_abuse.repeat_after_warning': 3,
+  'moderation.report_abuse.suspend_days': 7,
+  // Strike ladder for content owners.
+  'moderation.strikes.enabled': true,
+  'moderation.strikes.expiry_days': 90,
+  'moderation.strikes.points_remove': 1,
+  'moderation.strikes.points_hide': 0,
+  'moderation.strikes.cooldown_at': 3,
+  'moderation.strikes.limited_at': 5,
+  'moderation.strikes.suspend_at': 8,
+  'moderation.strikes.cooldown_hours': 24,
+  'moderation.strikes.cooldown_minutes': 10,
+  'moderation.strikes.limited_days': 3,
+  'moderation.strikes.suspend_days': 7,
+  // Owner 2026-10-27: accounts moderated automatically (no human unless the
+  // owner appeals). mode: 'off' | 'shadow' (log only) | 'enforce'.
+  'moderation.auto.account_mode': 'shadow',
+  'moderation.auto.window_days': 30,
+  /** Account score = weighted reporters across the person's content
+   * + live strike points * strike_score + strong detections * detect_score. */
+  'moderation.auto.strike_score': 1,
+  'moderation.auto.detect_score': 1,
+  'moderation.auto.limit_at': 6,
+  'moderation.auto.suspend_temp_at': 10,
+  'moderation.auto.suspend_at': 15,
+  'moderation.auto.limit_days': 3,
+  'moderation.auto.suspend_temp_days': 7,
+  /** Within this factor above a threshold the decision counts as borderline. */
+  'moderation.auto.borderline_factor': 1.25,
+  /** Verified attorneys: thresholds are multiplied; 'review' = never
+   * actioned automatically, queued for priority human review instead. */
+  'moderation.auto.verified_attorney_action': 'review',
+  'moderation.auto.verified_attorney_multiplier': 2,
+  'moderation.auto.appeal_sla_hours': 48,
+  /** Appeals older than the SLA are approved by themselves, but only when
+   * the automatic decision was borderline. */
+  'moderation.auto.sla_auto_approve': false,
+  'moderation.auto.alarm_overturn_percent': 30,
+  'moderation.auto.alarm_min_appeals': 10,
+  // Text detection before any report. mode: 'off' | 'shadow' | 'enforce'.
+  'moderation.detect.mode': 'off',
+  'moderation.detect.provider': 'openai',
+  'moderation.detect.hold_at': 0.7,
+  'moderation.detect.block_at': 0.97,
+  'moderation.detect.log_at': 0.4,
+  'moderation.detect.daily_cap': 20000,
+  'moderation.detect.categories': [
+    'harassment',
+    'harassment/threatening',
+    'hate',
+    'hate/threatening',
+    'illicit',
+    'sexual',
+    'sexual/minors',
+  ] as string[],
   // §3.3 "массовые ссылки" / "повторяющийся текст от одного автора" → hold.
   'moderation.max_links': 3,
   'moderation.duplicate_window_hours': 24,
   // Owner 2026-10-22 (audit #4 §5): image moderation (AWS Rekognition).
   // Confidence 0–100: at `hide` the photo / reel is hidden at once and
   // queued; at `review` it stays up and is queued; below that it is clean.
-  'moderation.image.enabled': true,
+  /** off | on | auto (default). auto = on inside the daily cost-guard cap
+   * (`image_moderation`, over the cap checks are skipped as `budget`). */
+  'moderation.image.enabled': 'auto',
   'moderation.image.hide_confidence': 90,
   'moderation.image.review_confidence': 60,
   /** The lowest label confidence the provider reports (Rekognition
@@ -193,7 +278,15 @@ export const OWNER_MEDIA_SETTINGS = {
   // differences; engine = the search engine, Postgres on error / timeout.
   // See docs/architecture/SEARCH_READY.md.
   'search.engine': 'postgres',
+  /** Review R-26: the nightly ledger check. off | on (whole ledger every
+   * night) | auto (last N days nightly, whole ledger weekly). */
+  'ledger.reconcile_mode': 'auto',
+  /** Days the nightly ledger check covers in auto mode. */
+  'ledger.reconcile_window_days': 7,
   // Engine answers slower than this fall back to Postgres, ms.
+  // Which kind of engine 'search.engine' talks to: domain (provisioned
+  // OpenSearch, default) or serverless (Amazon OpenSearch Serverless, SigV4).
+  'search.engine_kind': 'domain',
   'search.engine_timeout_ms': 800,
   // Owner 2026-10-25 (zero-downtime reindex, docs/runbooks/search-reindex.md):
   // the old index generation is kept this many days for a rollback, and the
@@ -235,6 +328,25 @@ export const OWNER_MEDIA_SETTINGS = {
   'reco.post.authorQuality': 0.06,
   'reco.post.state': 0.06,
   'reco.post.affinity': 0.06,
+  // Owner 2026-10-25: ranking of the bids a client sees on a case.
+  // bids.default_sort is what the list uses when the app sends no sort
+  // (newest = today; best_match = the weighted score below).
+  'bids.default_sort': 'newest',
+  'bids.best_match.rating': 0.35,
+  'bids.best_match.trust': 0.2,
+  'bids.best_match.speed': 0.15,
+  'bids.best_match.price': 0.2,
+  'bids.best_match.completed': 0.1,
+  // Bayesian rating: the average every attorney starts from and how many
+  // "virtual reviews" of it are mixed in.
+  'bids.bayes_prior': 4,
+  'bids.bayes_weight': 5,
+  // A price below this share of the median is suspiciously low.
+  'bids.low_ratio': 0.4,
+  // Bids needed in one fee type before a median / "best price" exists.
+  'bids.min_bids_for_price': 3,
+  // Flag suspiciously low bids (field lowOffer) and log them for review.
+  'bids.dumping_guard': false,
   // Owner 2026-10-15: topics a case can name (the first + the rest).
   'case.max_practices': 3,
   'post.max_chars_media': 2200,
@@ -253,6 +365,15 @@ export const OWNER_MEDIA_SETTINGS = {
   'media.avatar_max_px': 1024,
   // Owner 2026-10-19: the profile photo is small and seen up close — its
   // own, higher quality.
+  // Owner 2026-10-26 (events pipeline, N-2): the internal domain-event bus.
+  // off = nothing is recorded; db = table `domain_events` (default, cheap);
+  // stream = table + Kinesis (needs events_stream_enabled in Terraform);
+  // auto = db, switches to stream above the daily ceiling.
+  // Perf review 2026-10-26 (R-41): auto = off until a consumer needs events.
+  'events.sink': 'auto',
+  'events.max_per_day': 1000000,
+  'events.retention_days': 30,
+  'events.auto_ceiling_per_day': 2000000,
   'media.avatar_quality': 95,
   // Owner 2026-10-05: reels are re-encoded on the phone before upload —
   // at most this height (1080 = Full HD, no visible loss on a phone),
@@ -357,6 +478,14 @@ export const OWNER_SMS_SETTINGS = {
    * and e-mail codes keep working. Unlike «Лимиты расходов» it is never
    * changed by the auto mode. 0 = off. */
   'sms.signup_daily_cap': 300,
+  /** Review R-75: how the SMS caps behave. auto (default) = every cap above
+   * is a FLOOR: the allowed number grows to the highest value of the
+   * previous 7 UTC days x `sms.burst_multiplier`, never above
+   * `sms.burst_ceiling_multiplier` x the typed cap; an alert is logged when
+   * the allowance is used. fixed = exactly the typed numbers. */
+  'sms.cap_mode': 'auto',
+  'sms.burst_multiplier': 3,
+  'sms.burst_ceiling_multiplier': 10,
 } as const;
 
 // Owner 2026-10-22 (client economy plan §5, Telegram «Данные и память»):
@@ -431,6 +560,25 @@ export const OWNER_CONTINGENCY_SETTINGS = {
   'fees.contingency_max_percent': 100,
   'fees.contingency_blocked_practices':
     'criminal_defense,dui_and_dwi,traffic_tickets,family_law',
+} as const;
+
+// Owner 2026-10-25 (docs/architecture/EXPERIMENTS.md): the ranking events log
+// and A/B experiments. Impressions and clicks are kept for this share of
+// users (the same users every time), everything else is always kept; weeks
+// older than the retention leave by themselves.
+export const OWNER_EXPERIMENT_SETTINGS = {
+  /** Cost gate, three states: 'off' | 'on' | 'auto'. Auto stores impressions
+   * and clicks only while an experiment is running (bids, accepts, reports
+   * are always kept unless off). The sample percent below is the ceiling. */
+  'ranking.events_mode': 'auto',
+  /** Share of users (0-100) whose impressions and clicks are stored. */
+  'ranking.impression_sample_percent': 10,
+  'ranking.events_retention_days': 90,
+  /** An experiment may start at this share of users at most; more only by a
+   * separate «Увеличить долю» step (fresh 2FA code). */
+  'experiments.max_start_percent': 10,
+  /** CTR@k: positions 1..k count as «seen near the top». */
+  'experiments.ctr_k': 5,
 } as const;
 
 // Owner 2026-10-05: case urgency. A case with a date reads as "very
@@ -549,14 +697,30 @@ export const OWNER_REASON_SETTINGS = {
   ],
 } as const;
 
-// Owner 2026-10-22 (system audit #2, item 11): a bulk payout or a refund
-// of this many cents or more needs a SECOND admin's approval (maker-checker)
-// before it runs. Default $500. 0 = every one needs it.
-export const OWNER_DUAL_APPROVAL_SETTINGS = {
-  'billing.dual_approval_min_cents': 50_000,
-  // Owner 2026-10-24: one owner, no second admin. false = every action
-  // runs at once after the 2FA code; true = the rule above is enforced.
-  'admin.dual_control': false,
+// Owner 2026-10-28 (attorney-client privilege + admin hardening). Everything
+// here is OFF (or today's behaviour) until the owner switches it on in
+// Настройки; the guide is docs/runbooks/ADMIN_HARDENING.md.
+export const OWNER_ADMIN_HARDENING_SETTINGS = {
+  /** Only the addresses in `admin.ip_allowlist` may use the admin panel. */
+  'admin.ip_allowlist_enabled': false,
+  /** Allowed addresses: plain IPv4/IPv6 or IPv4 CIDR (203.0.113.0/24). */
+  'admin.ip_allowlist': [] as string[],
+  /** Staff package T11: two-letter country codes (US, GB…) from which the
+   * mass-work and finance staff may work, once `staff.session_binding_enforce_enabled`
+   * is on. Empty = no country check. */
+  'admin.country_allowlist': [] as string[],
+  /** E-mail the owner when an admin signs in from a new device or address. */
+  'admin.login_alert_enabled': true,
+  /** Live sessions per admin; a newer sign-in ends the oldest. 0 = no cap. */
+  'admin.max_concurrent_sessions': 0,
+  /** Revealing a private message needs a 2FA code entered within this
+   * many seconds (max 300 = the step-up lifetime). */
+  'admin.private_stepup_seconds': 120,
+  /** Daily copy of the audit log into the locked audit bucket (needs the
+   * bucket from Terraform; without it this does nothing). */
+  'admin.audit_export_enabled': true,
+  /** Monthly e-mail of who read private content (to the owner). */
+  'admin.access_report_enabled': true,
 } as const;
 
 /** Every typed app_config tunable with its spec default. */
@@ -634,6 +798,36 @@ export const OWNER_FRAUD_SETTINGS = {
   'fraud.blocked_retention_days': 1095,
 } as const;
 
+/** Stripe robustness 2026-10-27 (docs/runbooks/STRIPE_ROBUSTNESS.md): the
+ * admin review queue, disputes and early fraud warnings. All admin-tunable
+ * (Система → Настройки). */
+export const OWNER_STRIPE_OPS_SETTINGS = {
+  /** Pause the attorney's Stripe payouts (manual schedule) while a dispute
+   * against them is open; restored when the last one closes. */
+  'stripe_ops.hold_payouts_on_dispute': true,
+  /** Build the evidence packet and save it as a DRAFT in Stripe when a
+   * dispute opens (an admin reviews it and submits with a 2FA code). */
+  'stripe_ops.dispute_auto_draft': true,
+  /** Days before Stripe's evidence deadline on which staff are reminded. */
+  'stripe_ops.dispute_reminder_days': [5, 2, 1],
+  /** Early fraud warning on a charge of at most this many cents is refunded
+   * by itself (Stripe's guidance: about the dispute fee). 0 = never. */
+  'stripe_ops.efw_auto_refund_max_cents': 0,
+  /** Hours staff have to look at a review item that has no Stripe deadline. */
+  'stripe_ops.review_sla_hours': 24,
+  /** E-mail the super admins about new review items and deadlines. */
+  'stripe_ops.notify_staff': true,
+  /** Dispute rate (disputes / payments, last 30 days) that raises a warning:
+   * Visa VAMP non-compliant level is 0.5 %. */
+  'stripe_ops.dispute_rate_warn_percent': 0.5,
+  /** …and an alarm: Visa VAMP excessive / Mastercard ECM start at 1.5 %. */
+  'stripe_ops.dispute_rate_alarm_percent': 1,
+  /** No rate alarm below this many disputes in the window (tiny volume). */
+  'stripe_ops.dispute_rate_min_count': 3,
+  /** The nightly sweep looks at payments created in the last N days. */
+  'stripe_ops.sweep_lookback_days': 7,
+} as const;
+
 /** Owner 2026-10-05: countries (Система → Страны). People who asked to
  * be told get an e-mail by themselves when their country is switched on. */
 export const OWNER_COUNTRY_SETTINGS = {
@@ -661,8 +855,10 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
   /** Refuse passwords from the bundled list of the most common ones. */
   'security.password_common_list_enabled': true,
   /** Password hashes (scrypt) running at once on one server; the rest wait,
-   * so a sign-in flood cannot starve the server's file / DNS work. */
-  'security.password_hash_concurrency': 4,
+   * so a sign-in flood cannot starve the server's file / DNS work. 2 (not 4):
+   * each scrypt is 64 MiB and about 100-200 ms of CPU, and the launch task
+   * is 0.5 vCPU / 1 GiB (review R-59); raise it with the task size. */
+  'security.password_hash_concurrency': 2,
   /** Hashes allowed to wait; beyond it the request gets RATE_LIMITED. */
   'security.password_hash_max_queue': 200,
   /** Owner 2026-10-07: sign-in codes (SMS or e-mail) one phone / e-mail
@@ -690,6 +886,35 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * (iOS / Android) never uses it: it relies on App Check above. The secret
    * key is set in Интеграции → Cloudflare Turnstile. docs/runbooks/APP_CHECK.md */
   'security.turnstile.mode': 'off',
+  /** 2026-10-25 (S14-7): with `security.app_check.mode = enforce`, the three
+   * costly anonymous routes (sign-in code to a phone, password-reset code,
+   * "is this number registered") also CONSUME the App Check token, so one
+   * captured token cannot be replayed (Firebase replay protection; one more
+   * round trip to Google per request). Off by default: it only works once
+   * the app sends a limited-use token on those routes; before that, a
+   * second request with the same cached token would be refused. */
+  'security.app_check.replay_protection': false,
+  /** 2026-10-25 (S14-13): after this many wrong passwords / codes for one
+   * account in 15 minutes (or 5 times as many from one address) the next
+   * attempt must carry a valid App Check / Turnstile token. 0 = never (the
+   * default): turn it on once the app and the website send the token on
+   * sign-in. */
+  'security.auth_challenge_after_failures': 0,
+  /** 2026-10-25 (S14-12): on = a re-authentication / "add a sign-in method"
+   * code that was asked the old way (no purpose) is still accepted. Switch
+   * off once every app build asks with its purpose, so a code is only good
+   * for the flow it was asked for. */
+  'security.otp_legacy_purpose_fallback': true,
+  /** 2026-10-25 (S14-6): a NEW account cannot be opened with an e-mail from
+   * the disposable-domain list (admin → blocked e-mail domains). Existing
+   * accounts keep signing in. */
+  'security.signup_block_disposable_email': true,
+  /** 2026-10-25 (S14-4): tell the owner when a session is used from a
+   * country it was not used from before (push + e-mail, the same alert as a
+   * new device). Needs the country header from CloudFront / the load
+   * balancer; without it nothing fires. Costs an e-mail + a push per alert
+   * (cost gate): OFF by default, at most one alert per account per 24 h. */
+  'security.new_country_alert_enabled': false,
 };
 
 /** Owner 2026-10-05: storage like Telegram (Система → Хранилище). Every
@@ -747,8 +972,9 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
    * calls to our own path; Cloudflare is then probed once a minute. */
   'calls.transport_fail_limit': 5,
   'calls.transport_fail_window_sec': 120,
-  'calls.channel_live_enabled': false,
-  'chat.link_preview_enabled': true,
+  /** off | on | auto (default). Ceiling: per person per day below. */
+  'chat.link_preview_enabled': 'auto',
+  'chat.link_preview_per_user_per_day': 1000,
   'chat.link_preview_denylist': [] as string[],
   /** BUG-1 (package N-12b): chat text search through the blind index.
    * prefix_tokens: also index 3..12-letter word beginnings («докум» finds
@@ -760,6 +986,30 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   'chat.search.prefix_tokens': false,
   'chat.search.backfill_mode': 'auto',
   'chat.search.backfill_rows_per_run': 5000,
+  // Perf review 2026-10-26 (R-24): token rows per message (distinct words of
+  // 2+ characters, no stop-words) and the backfill batch (one short transaction).
+  'chat.search.max_tokens_per_message': 64,
+  'chat.search.backfill_batch': 500,
+};
+
+/** Programmatic SEO (plan docs/architecture/PSEO_ASO_PACKAGE_PLAN_2026-10-27.md,
+ * §2.2): the BullMQ job `seo.generate` builds the public pages
+ * (/lawyers, /practice-areas, /attorneys) from the database and publishes only
+ * the changed ones to the web bucket. `off` (default) = the job does nothing
+ * and nothing is queued; the nightly GitHub run stays the only builder. */
+export const OWNER_SEO_SETTINGS = {
+  /** off | nightly | nightly+events (also after an attorney is published or removed). */
+  'seo.generator_mode': 'off',
+  /** Events within this many seconds become one run (debounce). */
+  'seo.generator_debounce_seconds': 60,
+  /** At least this many minutes between two event runs. */
+  'seo.generator_min_interval_minutes': 10,
+  /** Attorneys one run renders (all pages stay in memory); more = the run refuses. */
+  'seo.generator_max_attorneys': 5000,
+  /** Files one run uploads; the rest waits for the next run. */
+  'seo.generator_max_uploads_per_run': 2000,
+  /** CloudFront paths reset a day (the first 1000 a month are free). */
+  'seo.max_invalidation_paths_per_day': 30,
 };
 
 export const OWNER_STORAGE_SETTINGS = {
@@ -774,6 +1024,31 @@ export const OWNER_STORAGE_SETTINGS = {
   'storage.purge_after_days': 7,
   'storage.deleted_posts_media_days': 30,
   'storage.image_format': 'webp',
+  /** Owner 2026-10-25 (caching round 2, S2-1): a removed photo / file is
+   * also pulled from the CloudFront edge (one wildcard path per file,
+   * queued and sent in batches). Needs the distribution id from the infra.
+   * CloudFront bills per path after the first 1000 a month, hence the cap. */
+  'cdn.invalidate_on_delete': 'auto',
+  'cdn.invalidate_batch_paths': 500,
+  'cdn.invalidate_max_paths_day': 500,
+  'cdn.invalidate_max_paths_month': 5000,
+  /** Where per-user caches (feed first page, block set, plan terms) live:
+   * `auto` = the separate cache Redis when REDIS_CACHE_URL is set, `on` =
+   * same, `off` = the main Redis (as before the split). */
+  'cache.redis_mode': 'auto',
+  /** Ceiling in seconds on the lifetime of every shared cache entry made
+   * by the `cached()` helper (block sets, plan terms, practice areas,
+   * recommendations...). 0 = none (each key keeps its own, 60-300 s). */
+  'cache.max_ttl_sec': 0,
+  /** Caching round 2 (S2-8): seconds the viewer-independent body of a public
+   * attorney profile is kept in Redis (an own-profile edit drops it).
+   * 0 = off (every open reads the database, as before). */
+  'cache.attorney_profile_sec': 60,
+  /** S2-12: post, case, chat-list and notification answers carry a cheap
+   * version tag computed before the queries; the same tag within this many
+   * seconds (and no change of the stamps) is a 304 with no database work.
+   * 0 = off (the old body-hash tag, every call runs fully). */
+  'cache.cheap_etag_sec': 60,
   /** Owner 2026-10-25: AVIF twins of public photos (≈40-50% smaller than
    * WebP). OFF by default. `images.avif_enabled` writes the twins at
    * upload; they are served only to clients that send
@@ -784,8 +1059,24 @@ export const OWNER_STORAGE_SETTINGS = {
   'images.avif_since': '',
   'images.avif_quality': 60,
   'images.avif_effort': 2,
+  /** Owner 2026-10-26: hash partitioning of the big chat / notification
+   * tables is OPT-IN (at small sizes the plain tables are faster). Per
+   * table: 'off' (default) | 'on' (the online runner converts now) |
+   * 'auto' (converts when the table reaches `partition.auto_rows`).
+   * docs/architecture/TABLE_PARTITIONING_READY.md */
+  'partition.messages_mode': 'off',
+  'partition.chat_group_messages_mode': 'off',
+  'partition.notifications_mode': 'off',
+  'partition.auto_rows': 50_000_000,
   'images.webp_quality': 88,
   'images.jpeg_quality': 90,
+  /** Owner 2026-10-26: nightly sweep that recounts profile counters
+   * (posts / followers / following) from the source tables and fixes the
+   * ones that drifted. off = never; on = 10x the batch per night; auto
+   * (default) = `counters.drift_sweep_batch` rows per profile table per
+   * night, walking all profiles in turn. */
+  'counters.drift_sweep': 'auto',
+  'counters.drift_sweep_batch': 5000,
   'storage.user_quota_mb': 10240,
   'storage.chat_quota_mb': 5120,
   /** 2026-10-24 (abuse batch B, item 5): most MB one person may upload in
@@ -802,6 +1093,23 @@ export const OWNER_STORAGE_SETTINGS = {
   // Scale audit 2026-10-23: the two fastest-growing statistics tables.
   'storage.retention_post_view_events_days': 730,
   'storage.retention_user_activity_days': 400,
+  // DB-ops hardening 2026-10-25: the cross-family event queue (outbox) and its
+  // dedupe table (inbox) are cleaned like any log. 0 = keep for ever.
+  'storage.retention_outbox_done_days': 7,
+  'storage.retention_inbox_days': 30,
+  // DB-ops hardening: the daily db.health report goes yellow at this table
+  // size (GB) / share of dead rows (%). 0 = no signal.
+  // Three-state controls «Выкл / Вкл / Авто» (owner rule 2026-10-25).
+  // db.health_mode: off = never; on = daily; auto = daily, but skipped while
+  // heavy jobs are paused (the database is already slow).
+  'db.health_mode': 'auto',
+  // db.replica_reads: off = every read on the primary; on = replica always
+  // (lag ignored); auto = replica only while its lag is under the ceiling.
+  'db.replica_reads': 'auto',
+  // The ceiling of «auto»: max replica lag in ms (also per call via readDb).
+  'db.replica_max_lag_ms': 5000,
+  'db.health_table_size_gb': 20,
+  'db.health_dead_ratio_percent': 20,
   'storage.growth_alert_percent': 20,
   // Owner 2026-10-20 (government requests): evidence archives are built one at
   // a time by the worker; the file is removed after `export_ttl_days` (the
@@ -811,6 +1119,18 @@ export const OWNER_STORAGE_SETTINGS = {
   'legal.export_max_rows': 50000,
   'legal.export_link_days': 7,
   'legal.deleted_retention_days': 90,
+  // Owner 2026-10-28 (legal requests): how many times one archive may be
+  // downloaded (0 = no limit), reminders before an answer is due, the length
+  // of a preservation hold (18 U.S.C. 2703(f): 90 days, one 90-day renewal)
+  // and the text of the notice to the user (when no gag order forbids it).
+  'legal.export_max_downloads': 5,
+  'legal.reminders_enabled': true,
+  'legal.reminder_days': 3,
+  'legal.preservation_days': 90,
+  'legal.notice_template_en':
+    'LawBid received a legal request ({{reference}}) from {{agency}} concerning your account. We reviewed it and responded as the law requires. If you want to challenge it, contact a lawyer; we can share a copy of the request where the law allows.',
+  'legal.notice_template_ru':
+    'LawBid получил юридический запрос ({{reference}}) от {{agency}} по вашему аккаунту. Мы проверили его и ответили так, как требует закон. Если хотите оспорить запрос, обратитесь к юристу; копию запроса мы можем показать, если закон это позволяет.',
 };
 
 /** Owner 2026-10-05: zero-maintenance operations (admin Система →
@@ -820,11 +1140,33 @@ export const OWNER_OPS_SETTINGS = {
    * for 15 minutes on their own (renewed while it stays slow). */
   'ops.auto_pause_heavy_jobs': true,
   'ops.db_slow_ms': 800,
+  // Perf review 2026-10-26 (R-25): nightly bloat check «Выкл / Вкл / Авто»
+  // and the biggest table the heap estimate may read (indexes are never read).
+  'db.bloat_mode': 'auto',
+  'db.bloat_scan_max_mb': 256,
   /** AWS spend reached the monthly budget → api/worker autoscaling capped
    * at the minimum until the next month (or until the owner lifts it). */
   'ops.auto_scale_down_on_budget': true,
   /** The newest database backup (provider API) older than this → alert. */
   'ops.backup_max_age_hours': 26,
+  /** Hidden-cost switches (Round 20, 2026-10-25). Each is off | on | auto;
+   * auto (default) follows a real signal and has a ceiling. */
+  // S20-1: heavy admin counts. auto = every 2 min only while an admin
+  // request was seen in the last 10 min, else hourly; off = every 6 h.
+  'ops.admin_summaries_mode': 'auto',
+  // S20-6: every-minute sweeps that found nothing back off to
+  // `ops.cron_idle_every_min` after `ops.cron_idle_after_runs` empty runs.
+  'ops.cron_idle_backoff': 'auto',
+  'ops.cron_idle_after_runs': 10,
+  'ops.cron_idle_every_min': 5,
+  // S20-8: ceiling of the message re-encryption pass, rows per minute
+  // (0 = paused; the pass keeps its place).
+  'ops.reencrypt_rows_per_min': 800,
+  // S20-4: WebSocket connect / disconnect log lines. off and auto write a
+  // weighted sample (log.ws_sample_percent); auto writes every line for 30
+  // minutes while reconnects spike; on writes every line.
+  'log.ws_events': 'auto',
+  'log.ws_sample_percent': 1,
   /** Batch C item 14 (2026-10-24): how long a ranked search result list
    * (people, attorneys, cases, posts) is shared by everyone asking the same
    * query. Short = fresher, 0 would be uncached; keep 30–60. */
@@ -851,15 +1193,32 @@ export const OWNER_OPS_SETTINGS = {
   'economy.ceiling_mode': 'auto',
   'economy.manual_api_max': 4,
   'economy.manual_worker_max': 2,
-  /** Unit prices behind the spend estimate, USD (editable: providers
-   * change prices). SMS: Twilio US ≈ $0.0079; a video upload session on
-   * Bunny (encode + storage + delivery) ≈ $0.05; a translation ≈ $0.002. */
-  'economy.sms_unit_usd': 0.0079,
-  'economy.video_unit_usd': 0.05,
-  'economy.translate_unit_usd': 0.002,
+  /** S9-4: the global daily money brake = allowed spend / 30 × this many
+   * days (3 → about $15 a day at the $150 floor; it grows with revenue). */
+  'economy.daily_brake_days': 3,
+  /** S9-6 (owner 2026-10-25): the VPC interface endpoints (≈ $29 a month)
+   * are created and removed by a Lambda. auto = by the NAT traffic signal
+   * (default); on = keep them always; off = never. The economy job copies
+   * this and the ceiling (most endpoints it may keep, 0 = none) to the
+   * Lambda (S3 object ops/scale-controls.json). */
+  'scale.endpoints.mode': 'auto',
+  'scale.endpoints.ceiling': 4,
   /** This month's AWS bill when AWS Budgets cannot be read (≈ $150 for
    * the launch size). */
   'economy.aws_fallback_usd': 150,
+  /** Queues hardening 2026-10-25 (S10): the number the worker autoscales
+   * on. off = flat count of waiting jobs (the old way); on = jobs weighted
+   * by how heavy they are; auto = weighted + extra pressure while the
+   * oldest waiting job is older than 2 minutes. Costs nothing: it only
+   * changes WHEN the existing autoscaling adds a worker (still capped by
+   * the economy ceiling). */
+  'queues.scale_signal_mode': 'auto',
+  /** Push sending speed limit to FCM/APNs, per second for the whole
+   * system (FCM allows 10 000/s per project). off = no limit; on = always
+   * the number below; auto = the number below, and it also slows down by
+   * itself for a minute when FCM answers «слишком часто» (429). */
+  'queues.push_rate_mode': 'auto',
+  'queues.push_rate_per_sec': 8000,
 };
 
 /** Owner 2026-10-05 «Прибыль и резерв» (Деньги): the monthly split of the
@@ -903,6 +1262,33 @@ export const OWNER_POST_ATTACHMENT_SETTINGS = {
   attachments_keep_after_cancel: true,
 };
 
+/** Owner 2026-10-28: calendar feed, Google / Outlook connectors, no-shows. */
+export const OWNER_CALENDAR_SETTINGS = {
+  /** A person may create a secret link and see their LawBid calendar in
+   * Apple / Google / Outlook Calendar (read-only ICS feed). */
+  'calendar.feed_enabled': true,
+  /** Google Calendar two-way link (OFF until the OAuth app is set up in
+   * Admin → Integrations → google_calendar). */
+  'calendar.google_enabled': false,
+  /** Outlook calendar two-way link (OFF until the Azure app is set up). */
+  'calendar.microsoft_enabled': false,
+  /** Seconds an attorney's busy time from Google / Outlook is reused. */
+  'calendar.busy_cache_seconds': 60,
+  /** Milliseconds to wait for Google / Outlook before booking goes on
+   * without their busy time. */
+  'calendar.busy_timeout_ms': 2500,
+  /** «Не пришёл»: either side may mark a missed consultation. */
+  'consultations.no_show_enabled': true,
+  /** The sweep marks a consultation nobody joined by call (OFF at first). */
+  'consultations.no_show_auto_detect': false,
+  /** Minutes after the start before a no-show may be marked. */
+  'consultations.no_show_grace_minutes': 15,
+  /** Hours after the end during which a no-show may still be marked. */
+  'consultations.no_show_mark_hours': 48,
+  /** Hours the marked person has to dispute. */
+  'consultations.no_show_dispute_hours': 48,
+};
+
 /** Owner 2026-10-20: booking a consultation and «Вопрос юристу». */
 export const OWNER_BOOKING_QA_SETTINGS = {
   /** Bookings one client may make in a day. */
@@ -943,8 +1329,70 @@ export const OWNER_BOOKING_QA_SETTINGS = {
   'qa.allow_anonymous': true,
 };
 
+/**
+ * Owner 2026-10-28 (legal safety pass): «Вопрос юристу», шаблоны и сроки —
+ * это общая информация, а не юридическая консультация (unauthorized practice
+ * of law, ABA Model Rule 5.5 / 7.1); публичный вопрос не должен раскрывать
+ * личные данные и детали дела; спам и «индивидуальные советы» ограничены.
+ * Defaults keep today's behaviour: the disclaimer is added to responses, the
+ * private-info check only records (`warn`), the new limits are generous.
+ */
+export const OWNER_LEGAL_QA_SAFETY_SETTINGS = {
+  /** The server adds a «general information, not legal advice» notice
+   * (`meta.disclaimer`) to Q&A, template and deadline responses. */
+  'legal.disclaimer.enabled': true,
+  'legal.disclaimer.text':
+    'General information only, not legal advice. Using this service does not create an attorney-client relationship. Laws differ by state and change over time; talk to a licensed attorney about your situation.',
+  /** JSON {"CA":"text", "NY":"text"}: a state's own wording replaces the
+   * default text for that state. */
+  'legal.disclaimer.by_state': '{}',
+  /** Added after the main text on document templates. */
+  'legal.disclaimer.template_extra':
+    'Templates are general forms and may not fit your state or facts; have an attorney review a document before you use it.',
+  /** Added after the main text on deadline calculations. */
+  'legal.disclaimer.deadline_extra':
+    'Deadlines are computed from published rules and may not reflect local court rules, tolling or the method of service; confirm with the court or an attorney before relying on a date.',
+
+  /** Private info in a public question or answer (SSN, address, case
+   * number, opposing party name ...): off | warn (keep the text, record and
+   * return the kinds) | redact (replace with a mask) | block (400). */
+  'qa.pii_mode': 'warn',
+  /** Kinds the check looks for, comma list. */
+  'qa.pii_kinds':
+    'ssn,card,address,case_number,party_name,immigration_id,dob,id_number,phone,email',
+
+  /** A new account cannot ask a public question for this many hours (0 = no
+   * cooldown). */
+  'qa.new_account_cooldown_hours': 0,
+  /** More links than this in one question or answer is refused (links are
+   * masked anyway). */
+  'qa.max_links': 5,
+  /** Days in which the same text is a duplicate (0 = check off). */
+  'qa.duplicate_window_days': 7,
+  /** The same question text from this many different people in the window
+   * is treated as spam. */
+  'qa.duplicate_cross_user_max': 3,
+  /** The same answer text may be posted this many times by one attorney in
+   * the window (canned replies are spam, not advice). */
+  'qa.answer_duplicate_max': 3,
+  /** Answers (and edits) one attorney may post in a day. */
+  'rate_limit.answer_per_day': 150,
+  /** Answers that read as individualized advice from someone who is not
+   * licensed in the question's state: off | flag (the admin sees it) | hold
+   * (hidden until a moderator restores it). */
+  'qa.advice_flag_mode': 'flag',
+
+  /** A user's new sticker image waits for the media scan before others see
+   * it (off = published at once, as before). */
+  'stickers.scan_uploads': true,
+  /** The NCMEC CyberTipline API call for a CSAM report. Off = reports are
+   * opened and logged as «file by hand» without calling the API. */
+  'moderation.csam.ncmec_submit_enabled': true,
+};
+
 import { OWNER_TEXT_LIMIT_SETTINGS } from './text-limits';
 import { OWNER_REALTIME_SETTINGS } from './realtime-settings';
+import { OWNER_STAFF_SETTINGS } from './staff-settings';
 import {
   OWNER_CHAT_PHOTO_SETTINGS,
   OWNER_CLIENT_TUNING_SETTINGS,
@@ -964,7 +1412,9 @@ import {
 export const OWNER_LEGAL_SECURITY_SETTINGS = {
   'security.attorney_strong_auth': true,
   'files.confidential_url_ttl_sec': 900,
-  'files.access_log_enabled': true,
+  /** off | on (every view) | auto (default: a sample, below). */
+  'files.access_log_enabled': 'auto',
+  'files.access_log_sample_percent': 100,
   /** Security pass 2026-10-25 (S3-5): file names of chat attachments and
    * the case's «Личные данные» are stored sealed (AES-256-GCM, bound to the
    * row), and the key job seals the old rows too. Reads accept both forms;
@@ -978,6 +1428,83 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
   /** S3-11: push notifications show the message text. Off = «Новое
    * сообщение»; Google and Apple then never see the text. */
   'push.chat_preview': true,
+};
+
+/** Owner 2026-10-25: case tools (invoices, signing, case comments). Every
+ * switch is off or neutral by default, so nothing changes until the owner
+ * turns it on in the admin (Config).
+ * - reminders.mode: off | on | auto (default). The reminder/expiry job runs
+ *   once a day; auto = it only does work when there are open dated
+ *   invoices or pending signing requests; off = it never runs.
+ *   reminders.daily_cap = most reminder notices per run (0 = no cap).
+ * - invoice_default_due_days: a new invoice gets this due date (0 = none).
+ * - invoice_reminder_days: reminders to the client this many days before
+ *   the due date (0 = on the day); overdue ones repeat every N days.
+ * - invoice_late_fee_percent: 0 = no late fee; otherwise this percent of
+ *   the invoice is added once, after the grace days (check that the
+ *   engagement letter allows it).
+ * - sign_expiry_days: a signing request expires after N days (0 = never);
+ *   sign_reminder_every_days: remind the unsigned side every N days (0 = off).
+ * - case_comments.edit_window_minutes: the author may edit a comment this
+ *   long after posting (0 = editing off); earlier texts are kept. */
+export const OWNER_CASE_TOOLS_SETTINGS = {
+  'case_tools.reminders.mode': 'auto',
+  'case_tools.reminders.daily_cap': 2000,
+  'case_tools.invoice_default_due_days': 0,
+  'case_tools.invoice_reminder_days': [3, 0],
+  'case_tools.invoice_overdue_remind_every_days': 7,
+  'case_tools.invoice_max_reminders': 6,
+  'case_tools.invoice_late_fee_percent': 0,
+  'case_tools.invoice_late_fee_grace_days': 5,
+  'case_tools.sign_expiry_days': 0,
+  'case_tools.sign_reminder_every_days': 0,
+  'case_tools.sign_max_reminders': 3,
+  'case_tools.sign_resend_cooldown_minutes': 60,
+  'case_comments.edit_window_minutes': 15,
+  'case_comments.edit_max_edits': 5,
+};
+
+/** 2026-10-25 (legal register): 18+ gate, text messages (TCPA), e-mail
+ * footers. Everything is OFF by default, so today's behaviour is kept.
+ * - `compliance.age_gate.mode`: off | record (store the attestation when the
+ *   app sends it) | enforce (a NEW account without a valid 18+ attestation
+ *   is refused with 403 AGE_ATTESTATION_REQUIRED; turn on only after the app
+ *   shows the checkbox and sends `ageAttestation`).
+ * - `compliance.sms.marketing_enabled`: master switch for any text that is
+ *   not a sign-in code. A code is always allowed.
+ * - quiet hours: no non-code text before `quiet_end_hour` or from
+ *   `quiet_start_hour` in the person's local time (TCPA 8:00-21:00); unknown
+ *   time zone = the strictest US-wide window.
+ * - `compliance.email.footer_address`: the postal address printed in the
+ *   footer of notification mail; empty = the outreach address. */
+export const OWNER_COMPLIANCE_SETTINGS = {
+  'compliance.age_gate.mode': 'off',
+  'compliance.age_gate.min_age': 18,
+  'compliance.age_gate.text_version': 'age-18-v1',
+  'compliance.age_gate.require_birth_date': false,
+  'compliance.sms.marketing_enabled': false,
+  'compliance.sms.quiet_start_hour': 21,
+  'compliance.sms.quiet_end_hour': 8,
+  'compliance.sms.disclosure_version': 'sms-v1',
+  'compliance.sms.disclosure_text':
+    'By tapping Agree you consent to receive recurring text messages from LawBid at this number. Consent is not a condition of any purchase. Message and data rates may apply. Reply STOP to cancel, HELP for help.',
+  'compliance.sms.help_text':
+    'LawBid: for help email support or visit lawbid.com/support. Reply STOP to cancel. Msg&data rates may apply.',
+  'compliance.sms.reply_to_help': false,
+  'compliance.sns.topic_arns': '',
+  'compliance.email.footer_address': '',
+};
+
+/** S12-8 (observability round 12): per-route request / error / latency
+ * metrics for ~15 journey routes, written as CloudWatch EMF lines
+ * (namespace LawBid/Routes, dimension Route). 3 metrics x 15 routes = 45
+ * custom metrics = about $13.5 a month once every route has data.
+ * `off` — nothing written; `on` — every minute for every route; `auto`
+ * (default) — a route writes a minute only while it has 5xx answers or a
+ * slow 95th percentile (> 1 s), so a healthy system costs nothing and a
+ * sick route is visible at once. RED dashboard in infra/modules/monitoring. */
+export const OWNER_OBSERVABILITY_SETTINGS = {
+  'ops.route_metrics.mode': 'auto',
 };
 
 /**
@@ -1007,6 +1534,40 @@ export const OWNER_CASE_FANOUT_SETTINGS = {
 };
 
 /**
+ * Owner 2026-10-25 (privacy round 13, S13-5/S13-14): the retention periods
+ * the privacy policy promises, and the deletion-request behaviour. Defaults
+ * equal the numbers in the policy text (apps/api/assets/legal/privacy.*.md);
+ * change a number here AND in the published policy. 0 = keep for ever.
+ * - `privacy.auto_retention`: master switch of the nightly `privacy.retention`.
+ * - `privacy.retention_audit_log_days`: admin action log (5 years).
+ * - `privacy.retention_data_access_log_days`: what an official request
+ *   looked at (5 years); rows of a request under a hold stay.
+ * - `privacy.retention_session_ip_days`: IP address and browser string of
+ *   a session not used for this long are blanked.
+ * - `privacy.retention_contact_disclosure_ip_days`: IP and device of a
+ *   contact disclosure are blanked after this long (the record stays).
+ * - `privacy.login_cancels_deletion`: false = signing in does NOT cancel a
+ *   pending account deletion (cancel = explicit button / e-mail link);
+ *   true = the old behaviour, any sign-in cancels.
+ */
+export const OWNER_PRIVACY_SETTINGS = {
+  'privacy.auto_retention': true,
+  'privacy.retention_audit_log_days': 1825,
+  'privacy.retention_data_access_log_days': 1825,
+  'privacy.retention_session_ip_days': 90,
+  'privacy.retention_contact_disclosure_ip_days': 730,
+  // Perf review 2026-10-26 (R-39): rows per statement / per table per run.
+  'privacy.retention_batch': 5000,
+  'privacy.retention_max_rows': 1_000_000,
+  'privacy.login_cancels_deletion': false,
+  // Cost gate: ceilings on what deletion can bill (e-mail / push of the
+  // day-13 notice per run, Twilio delete calls per account).
+  'privacy.deletion_notices_per_day': 2000,
+  'privacy.twilio_purge_enabled': true,
+  'privacy.twilio_purge_max_messages': 200,
+};
+
+/**
  * Cost registry (owner 2026-10-25): three-state switches off | on | auto for
  * the things that bill by use (admin «Расходы»). Default = auto.
  * - `scale.capacity_ceiling.mode`: auto = the database / Redis autoscalers
@@ -1016,14 +1577,68 @@ export const OWNER_CASE_FANOUT_SETTINGS = {
  *   new video uploads pause (Bunny) / group calls fall back to
  *   device-to-device (Cloudflare) once the monthly traffic reaches the
  *   urgent threshold (usage.*_crit_gb); on = stopped now; off = never.
+ * - `ops.outbox_sweep.mode` (audit X-22, 2026-10-26): the every-minute relay
+ *   of the cross-family outbox (idle while there is one database). auto =
+ *   sweep only when an event waits; on = every tick; off = never.
  */
 export const OWNER_COST_REGISTRY_SETTINGS = {
   'scale.capacity_ceiling.mode': 'auto',
   'scale.bunny_hardstop.mode': 'auto',
   'scale.cloudflare_hardstop.mode': 'auto',
+  'ops.outbox_sweep.mode': 'auto',
+};
+
+/**
+ * Owner 2026-10-26: infra switches from the admin (docs/runbooks/
+ * infra-from-admin.md). Guards of the «План → код 2FA → применить» flow:
+ * - `infra.dry_run`: true = the cloud is only planned, never changed (the
+ *   admin shows the plan and stops). Start with true, flip after one look.
+ * - `infra.daily_cap`: at most this many change requests per 24 hours.
+ * - `infra.quiet_hours`: "HH:MM-HH:MM" (America/Chicago) when an apply may
+ *   start; empty = any time.
+ */
+export const OWNER_INFRA_SETTINGS = {
+  'infra.dry_run': true,
+  'infra.daily_cap': 3,
+  'infra.quiet_hours': '',
+};
+
+/**
+ * Owner 2026-10-27 (admin «Продвижение»): the static-page switches of the
+ * SEO workflow (docs/runbooks/SEO_STATIC_PAGES.md) and the channel
+ * checklist. Everything is OFF / not done until the owner taps it. A key
+ * with NO stored row means «the admin never decided»: the generator then
+ * falls back to the repository variable of the same name (GET
+ * /public/seo-settings tells it which keys are stored). Keys sorted.
+ */
+export const OWNER_SEO_PROMOTION_SETTINGS = {
+  'seo.checklist.app_store_connect': false,
+  'seo.checklist.apple_business_connect': false,
+  'seo.checklist.bing_webmaster': false,
+  'seo.checklist.google_business_profile': false,
+  'seo.checklist.google_search_console': false,
+  'seo.checklist.lawyer_directories': false,
+  'seo.checklist.play_console': false,
+  'seo.checklist.pr_reviews': false,
+  'seo.checklist.reddit_quora': false,
+  'seo.checklist.video_social': false,
+  'seo.checklist.yelp_bbb': false,
+  /** Upload only changed files (SEO_INCREMENTAL). */
+  'seo.incremental_enabled': false,
+  /** /llms.txt and /llms-full.txt (SEO_LLMS). */
+  'seo.llms_enabled': false,
+  /** Thin pages: noindex and out of the sitemap (SEO_QUALITY_GATE). */
+  'seo.quality_gate_enabled': false,
+  /** At most N new pages a day enter the index; 0 = no limit (SEO_RAMP_PER_DAY). */
+  'seo.ramp_per_day': 0,
+  /** Search/answer bots in, training bots out (SEO_ROBOTS_AI). */
+  'seo.robots_ai_enabled': false,
+  /** /sitemap.xml becomes an index of /sitemaps/*.xml (SEO_SITEMAP_INDEX). */
+  'seo.sitemap_index_enabled': false,
 };
 
 export const APP_SETTINGS = {
+  ...OWNER_COMPLIANCE_SETTINGS,
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
   ...FILE_05_SETTINGS,
@@ -1041,33 +1656,45 @@ export const APP_SETTINGS = {
   ...OWNER_INVITE_SETTINGS,
   ...OWNER_SEAT_SETTINGS,
   ...OWNER_URGENCY_SETTINGS,
+  ...OWNER_EXPERIMENT_SETTINGS,
   ...OWNER_STALE_SETTINGS,
   ...OWNER_CONTINGENCY_SETTINGS,
   ...OWNER_TRUST_SETTINGS,
   ...OWNER_TRIAL_SETTINGS,
   ...OWNER_REASON_SETTINGS,
-  ...OWNER_DUAL_APPROVAL_SETTINGS,
+  ...OWNER_ADMIN_HARDENING_SETTINGS,
   ...OWNER_TRANSLATE_SETTINGS,
   ...OWNER_SUPPORT_DESK_SETTINGS,
   ...OWNER_REWARDS_SETTINGS,
   ...OWNER_COUNTRY_SETTINGS,
   ...OWNER_RATE_LIMIT_SETTINGS,
   ...OWNER_STORAGE_SETTINGS,
+  ...OWNER_SEO_SETTINGS,
   ...OWNER_CHAT_ACTION_SETTINGS,
   ...OWNER_FRAUD_SETTINGS,
+  ...OWNER_STRIPE_OPS_SETTINGS,
   ...OWNER_OPS_SETTINGS,
   ...OWNER_TREASURY_SETTINGS,
   ...OWNER_FEED_SETTINGS,
   ...OWNER_POST_ATTACHMENT_SETTINGS,
   ...OWNER_BOOKING_QA_SETTINGS,
+  ...OWNER_LEGAL_QA_SAFETY_SETTINGS,
+  ...OWNER_CALENDAR_SETTINGS,
   ...OWNER_TEXT_LIMIT_SETTINGS,
   ...OWNER_CACHE_SETTINGS,
   ...OWNER_REALTIME_SETTINGS,
   ...OWNER_CLIENT_TUNING_SETTINGS,
   ...OWNER_CHAT_PHOTO_SETTINGS,
   ...OWNER_LEGAL_SECURITY_SETTINGS,
+  ...OWNER_PRIVACY_SETTINGS,
+  ...OWNER_CASE_TOOLS_SETTINGS,
+  ...OWNER_OBSERVABILITY_SETTINGS,
   ...OWNER_CASE_FANOUT_SETTINGS,
   ...OWNER_COST_REGISTRY_SETTINGS,
+  ...OWNER_INFRA_SETTINGS,
+  ...OWNER_SEO_PROMOTION_SETTINGS,
+  // Staff package T1 (2026-10-27): «Админка и сотрудники», all switches off.
+  ...OWNER_STAFF_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

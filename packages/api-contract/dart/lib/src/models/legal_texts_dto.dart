@@ -14,6 +14,7 @@ class LegalTextsDto {
     required this.supportNote,
     required this.partnerDisclosure,
     required this.partnerTerms,
+    required this.privilegedContentPolicy,
     this.attorneyAdvertisingLabel,
     this.priorResultsDisclaimer,
     this.badgeExplainer,
@@ -54,6 +55,9 @@ class LegalTextsDto {
 
   /// Label on paid placements.
   final String? sponsoredLabel;
+
+  /// Privileged-content policy page: who may read private chats and files, when, and what is recorded.
+  final String privilegedContentPolicy;
 
   Map<String, Object?> toJson() => _$LegalTextsDtoToJson(this);
 }

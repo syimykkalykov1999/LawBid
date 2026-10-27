@@ -1,8 +1,10 @@
 import AVFoundation
 import CallKit
+import CoreSpotlight
 import Flutter
 import PushKit
 import UIKit
+import UniformTypeIdentifiers
 import UserNotifications
 import flutter_callkit_incoming
 
@@ -26,7 +28,125 @@ import flutter_callkit_incoming
     // Planner reminders armed by flutter_local_notifications show while the
     // app is open too.
     UNUserNotificationCenter.current().delegate = self
+    registerChatCategory()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  // MARK: - Chat notification buttons
+
+  /// Owner 2026-10-26 (WhatsApp): «Ответить» (type a reply on the banner /
+  /// lock screen) and «Прочитано» under a chat push (`aps.category =
+  /// chat_message`, api notifications/push/actor-push.ts). They work with
+  /// the app closed: iOS wakes the app in the background for the button,
+  /// which posts the push's signed ticket + this device's push token to
+  /// `POST /push-actions` (the server accepts it only while this device is
+  /// signed in to that account).
+  static let chatCategory = "chat_message"
+  static let replyAction = "chat_reply"
+  static let readAction = "chat_read"
+  private static let apiKey = "lawbid.pushActions.api"
+  private static let deviceKey = "lawbid.pushActions.device"
+
+  private func registerChatCategory() {
+    let ru = (Locale.preferredLanguages.first ?? "").hasPrefix("ru")
+    let reply = UNTextInputNotificationAction(
+      identifier: AppDelegate.replyAction,
+      title: ru ? "Ответить" : "Reply",
+      options: [],
+      textInputButtonTitle: ru ? "Отправить" : "Send",
+      textInputPlaceholder: ru ? "Сообщение" : "Message")
+    let read = UNNotificationAction(
+      identifier: AppDelegate.readAction,
+      title: ru ? "Прочитано" : "Mark as read",
+      options: [])
+    let chat = UNNotificationCategory(
+      identifier: AppDelegate.chatCategory,
+      actions: [reply, read],
+      intentIdentifiers: [],
+      options: [])
+    let center = UNUserNotificationCenter.current()
+    center.getNotificationCategories { existing in
+      // Keep categories registered by plugins (flutter_local_notifications).
+      var all = existing.filter { $0.identifier != AppDelegate.chatCategory }
+      all.insert(chat)
+      center.setNotificationCategories(all)
+    }
+  }
+
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse,
+    withCompletionHandler completionHandler: @escaping () -> Void
+  ) {
+    let action = response.actionIdentifier
+    guard action == AppDelegate.replyAction || action == AppDelegate.readAction else {
+      super.userNotificationCenter(
+        center, didReceive: response, withCompletionHandler: completionHandler)
+      return
+    }
+    let info = response.notification.request.content.userInfo
+    let defaults = UserDefaults.standard
+    guard let token = info["actionToken"] as? String,
+      let api = defaults.string(forKey: AppDelegate.apiKey),
+      let device = defaults.string(forKey: AppDelegate.deviceKey),
+      let url = URL(string: api + "/push-actions")
+    else {
+      completionHandler()
+      return
+    }
+    var body: [String: Any] = ["token": token, "fcmToken": device]
+    if let messageId = info["messageId"] as? String, !messageId.isEmpty {
+      body["messageId"] = messageId
+    }
+    let thread = response.notification.request.content.threadIdentifier
+    if action == AppDelegate.readAction {
+      body["action"] = "read"
+      // WhatsApp: the chat's notifications go at once.
+      center.getDeliveredNotifications { delivered in
+        let ids = delivered
+          .filter { $0.request.content.threadIdentifier == thread }
+          .map { $0.request.identifier }
+        if !ids.isEmpty { center.removeDeliveredNotifications(withIdentifiers: ids) }
+      }
+    } else {
+      let text = (response as? UNTextInputNotificationResponse)?.userText
+        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      if text.isEmpty {
+        completionHandler()
+        return
+      }
+      body["action"] = "reply"
+      body["text"] = text
+      body["clientMessageId"] = UUID().uuidString
+    }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 15
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+    // iOS gives a background button a few seconds; keep the app alive
+    // until the request is done.
+    var task: UIBackgroundTaskIdentifier = .invalid
+    task = UIApplication.shared.beginBackgroundTask {
+      UIApplication.shared.endBackgroundTask(task)
+    }
+    URLSession.shared.dataTask(with: request) { _, _, _ in
+      DispatchQueue.main.async {
+        completionHandler()
+        UIApplication.shared.endBackgroundTask(task)
+      }
+    }.resume()
+  }
+
+  private static func setPushActions(url: String?, token: String?) {
+    let d = UserDefaults.standard
+    if let url = url, !url.isEmpty, let token = token, !token.isEmpty {
+      d.set(url.hasSuffix("/") ? String(url.dropLast()) : url, forKey: apiKey)
+      d.set(token, forKey: deviceKey)
+    } else {
+      d.removeObject(forKey: apiKey)
+      d.removeObject(forKey: deviceKey)
+    }
   }
 
   /// Owner 2026-10-19 (the click when a video starts / stops): the audio
@@ -61,6 +181,9 @@ import flutter_callkit_incoming
     }
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LawbidSecureScreen") {
       registerSecureScreen(registrar.messenger())
+    }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LawbidSpotlight") {
+      SpotlightBridge.shared.register(registrar)
     }
   }
 
@@ -173,6 +296,12 @@ import flutter_callkit_incoming
         }
         let app = Bundle.main.bundleIdentifier ?? "com.lawbid.lawbid"
         UserDefaults(suiteName: "group.\(app)")?.removeObject(forKey: "chatContactNames")
+        // Signed out: the notification buttons stop working on this phone.
+        AppDelegate.setPushActions(url: nil, token: nil)
+        result(nil)
+      case "setPushActions":
+        AppDelegate.setPushActions(
+          url: args?["url"] as? String, token: args?["token"] as? String)
         result(nil)
       case "pendingOpen":
         result(nil)
@@ -357,5 +486,116 @@ import flutter_callkit_incoming
     if shared.responds(to: selector) {
       _ = shared.perform(selector, with: session)
     }
+  }
+}
+
+// MARK: - Spotlight
+
+/// Owner 2026-10-27 (app indexing, docs/architecture/PSEO_ASO_PACKAGE_PLAN
+/// §3): iPhone Spotlight finds the attorney profiles and saved posts the
+/// user opened or saved. Invisible plumbing, no screen.
+///
+/// - CoreSpotlight, on-device index only (`CSSearchableIndex.default()`):
+///   nothing is sent to Apple's public index.
+/// - Title and subtitle only (what the public page shows), expiry 60 days.
+/// - The item's identifier is its https link. A tap on a result reaches the
+///   scene as `CSSearchableItemActionType`; the link goes to Dart over
+///   `lawbid/spotlight`, where it is handled like a Universal Link.
+final class SpotlightBridge: NSObject, FlutterSceneLifeCycleDelegate {
+  static let shared = SpotlightBridge()
+
+  private static let ttl: TimeInterval = 60 * 24 * 60 * 60
+
+  private var channel: FlutterMethodChannel?
+  /// Dart asked for the launch link, so it is listening for `open`.
+  private var dartReady = false
+  /// A result tapped before Dart listened (a cold start).
+  private var pending: String?
+
+  func register(_ registrar: FlutterPluginRegistrar) {
+    let channel = FlutterMethodChannel(
+      name: "lawbid/spotlight", binaryMessenger: registrar.messenger())
+    self.channel = channel
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self = self else {
+        result(nil)
+        return
+      }
+      self.handle(call, result: result)
+    }
+    registrar.addSceneDelegate(self)
+  }
+
+  private func handle(_ call: FlutterMethodCall, result: FlutterResult) {
+    let args = call.arguments as? [String: Any]
+    switch call.method {
+    case "index":
+      guard let id = args?["id"] as? String, let title = args?["title"] as? String else {
+        result(nil)
+        return
+      }
+      let attributes = CSSearchableItemAttributeSet(contentType: UTType.content)
+      attributes.title = title
+      attributes.contentDescription = args?["subtitle"] as? String
+      let item = CSSearchableItem(
+        uniqueIdentifier: id,
+        domainIdentifier: args?["domain"] as? String,
+        attributeSet: attributes)
+      item.expirationDate = Date(timeIntervalSinceNow: SpotlightBridge.ttl)
+      CSSearchableIndex.default().indexSearchableItems([item]) { error in
+        if let error = error { NSLog("spotlight index: \(error)") }
+      }
+      result(nil)
+    case "remove":
+      if let id = args?["id"] as? String {
+        CSSearchableIndex.default().deleteSearchableItems(withIdentifiers: [id]) { _ in }
+      }
+      result(nil)
+    case "clear":
+      CSSearchableIndex.default().deleteAllSearchableItems { _ in }
+      result(nil)
+    case "initialLink":
+      dartReady = true
+      let link = pending
+      pending = nil
+      result(link)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  /// A tapped Spotlight result: only our own https links are passed on.
+  private func open(_ activity: NSUserActivity) -> Bool {
+    guard activity.activityType == CSSearchableItemActionType,
+      let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
+      id.hasPrefix("https://")
+    else { return false }
+    if dartReady, let channel = channel {
+      channel.invokeMethod("open", arguments: id)
+    } else {
+      pending = id
+    }
+    return true
+  }
+
+  // Cold start: the tapped result is in the connection options.
+  func scene(
+    _ scene: UIScene,
+    willConnectTo session: UISceneSession,
+    options connectionOptions: UIScene.ConnectionOptions?
+  ) -> Bool {
+    var handled = false
+    for activity in connectionOptions?.userActivities ?? [] {
+      if open(activity) { handled = true }
+    }
+    return handled
+  }
+
+  // Warm start.
+  func scene(
+    _ scene: UIScene,
+    continue userActivity: NSUserActivity
+  ) -> Bool {
+    return open(userActivity)
   }
 }

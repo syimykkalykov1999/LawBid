@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
@@ -45,7 +45,7 @@ class _FreshPostsOverlayState extends ConsumerState<FreshPostsOverlay> {
   }
 
   Future<void> _open() async {
-    unawaited(HapticFeedback.selectionClick());
+    unawaited(AppHaptics.selection());
     final notifier = ref.read(freshPostsProvider.notifier);
     final listContext = _list.currentContext;
     if (listContext != null) {
@@ -54,8 +54,15 @@ class _FreshPostsOverlayState extends ConsumerState<FreshPostsOverlay> {
         reduceMotion: context.reduceMotion,
       );
     }
-    notifier.clear();
-    await ref.read(feedProvider.notifier).refresh();
+    if (!mounted) return;
+    final feed = ref.read(feedProvider.notifier);
+    try {
+      await feed.refresh();
+      // Audit C10: the pill goes only once the new posts really came in.
+      notifier.clear();
+    } on Object {
+      // Quiet: the pill stays and can be tapped again.
+    }
   }
 
   @override

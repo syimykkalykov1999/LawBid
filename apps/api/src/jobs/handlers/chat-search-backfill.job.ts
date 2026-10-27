@@ -12,7 +12,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 
-/** Messages read per batch (one short transaction each). */
+/** Default messages per batch (setting `chat.search.backfill_batch`). */
 export const CHAT_SEARCH_BACKFILL_BATCH = 500;
 /** Breath between batches, so a busy chat never feels the job. */
 export const CHAT_SEARCH_BACKFILL_PAUSE_MS = 150;
@@ -65,7 +65,8 @@ interface Row {
  * Control (admin, «Система → Настройки»): `chat.search.backfill_mode`
  * off | on | auto (default: only at night UTC 06–12, and once the pass is
  * finished it idles — one Redis read per tick), ceiling
- * `chat.search.backfill_rows_per_run`, and the «Пауза тяжёлых задач»
+ * `chat.search.backfill_rows_per_run`, batch `chat.search.backfill_batch`,
+ * and the «Пауза тяжёлых задач»
  * switch (it is in HEAVY_CRON_JOBS). A changed key restarts the pass.
  */
 @Injectable()
@@ -131,15 +132,16 @@ export class ChatSearchBackfillJob {
     if (mode === 'auto' && !ChatSearchBackfillJob.isNight(now)) {
       return { skipped: 'not_night' };
     }
+    const batchSize = await this.batchSize();
     const ceiling = Math.max(
-      CHAT_SEARCH_BACKFILL_BATCH,
+      batchSize,
       await this.settings.number('chat.search.backfill_rows_per_run'),
     );
     const prefixes = await this.index.prefixMode();
     const before = { ...state };
     let done = false;
-    for (let read = 0; read < ceiling; read += CHAT_SEARCH_BACKFILL_BATCH) {
-      const more = await this.batch(state, prefixes);
+    for (let read = 0; read < ceiling; read += batchSize) {
+      const more = await this.batch(state, prefixes, batchSize);
       state.updatedAt = new Date().toISOString();
       if (!more) {
         done = true;
@@ -159,10 +161,23 @@ export class ChatSearchBackfillJob {
     return result;
   }
 
+  /** `chat.search.backfill_batch`, clamped to 50..5000 (default 500). */
+  private async batchSize(): Promise<number> {
+    let v = CHAT_SEARCH_BACKFILL_BATCH;
+    try {
+      v = await this.settings.number('chat.search.backfill_batch');
+    } catch {
+      v = CHAT_SEARCH_BACKFILL_BATCH;
+    }
+    if (!Number.isFinite(v) || v <= 0) v = CHAT_SEARCH_BACKFILL_BATCH;
+    return Math.min(5000, Math.max(50, Math.floor(v)));
+  }
+
   /** One batch; false when the table is exhausted. */
   private async batch(
     state: ChatSearchBackfillState,
     prefixes: boolean,
+    take: number,
   ): Promise<boolean> {
     const rows: Row[] = await this.prisma.message.findMany({
       where: { id: { gt: state.cursor } },
@@ -176,7 +191,7 @@ export class ChatSearchBackfillJob {
         deleted_at: true,
       },
       orderBy: { id: 'asc' },
-      take: CHAT_SEARCH_BACKFILL_BATCH,
+      take,
     });
     if (rows.length === 0) return false;
     const live = rows.filter(
@@ -238,6 +253,6 @@ export class ChatSearchBackfillJob {
     }
     state.scanned += rows.length;
     state.cursor = rows[rows.length - 1].id;
-    return rows.length === CHAT_SEARCH_BACKFILL_BATCH;
+    return rows.length === take;
   }
 }

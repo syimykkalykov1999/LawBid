@@ -603,17 +603,19 @@ class _CasesClient implements CasesClient {
   @override
   Future<CaseBidItemListEnvelope> listCaseBids({
     required String id,
-    String? cursor,
-    Sort? sort = Sort.newest,
     int? limit = 20,
+    Sort? sort,
+    String? cursor,
+    DateTime? updatedSince,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
-      r'cursor': cursor,
-      r'sort': sort?.toJson(),
       r'limit': limit,
+      r'sort': sort?.toJson(),
+      r'cursor': cursor,
+      r'updatedSince': updatedSince?.toIso8601String(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

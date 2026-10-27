@@ -5,6 +5,7 @@ import {
   OnApplicationBootstrap,
   OnApplicationShutdown,
 } from '@nestjs/common';
+import { access } from 'node:fs/promises';
 import { getHeapStatistics } from 'node:v8';
 import { monitorEventLoopDelay, type IntervalHistogram } from 'node:perf_hooks';
 
@@ -18,8 +19,8 @@ const EMIT_MS = 60_000;
  *
  * Written as ONE CloudWatch Embedded Metric Format line a minute per process:
  * CloudWatch turns it into custom metrics `LawBid/Runtime` (dimension
- * `Service` = api | worker) with no agent and no Terraform. Cost: 6 metrics x
- * 2 services = 12 custom metrics, about $3.60 a month, at any scale.
+ * `Service` = api | worker) with no agent and no Terraform. Cost: 7 metrics x
+ * 2 services = 14 custom metrics (S8-7 added ThreadPoolLagMs), about $4.20 a month, at any scale.
  * `RUNTIME_STATS=off` switches it off.
  */
 export interface RuntimeSample {
@@ -31,6 +32,8 @@ export interface RuntimeSample {
   HeapUsedMb: number;
   HeapLimitMb: number;
   RssMb: number;
+  /** S8-7: time an async fs call waits for a libuv worker (queue lag). */
+  ThreadPoolLagMs: number;
 }
 
 export function emfLine(
@@ -53,6 +56,7 @@ export function emfLine(
             unit('HeapUsedMb', 'Megabytes'),
             unit('HeapLimitMb', 'Megabytes'),
             unit('RssMb', 'Megabytes'),
+            unit('ThreadPoolLagMs', 'Milliseconds'),
           ],
         },
       ],
@@ -68,6 +72,9 @@ export class RuntimeStatsService
 {
   private histogram?: IntervalHistogram;
   private timer?: NodeJS.Timeout;
+  /** Worst thread-pool lag seen since the last emit (S8-7). */
+  private poolLagMs = 0;
+  private probe?: NodeJS.Timeout;
 
   onApplicationBootstrap(): void {
     if (
@@ -80,6 +87,22 @@ export class RuntimeStatsService
     this.histogram.enable();
     this.timer = setInterval(() => this.emit(), EMIT_MS);
     this.timer.unref();
+    // S8-7: one tiny async fs call every 5 s measures how long the libuv
+    // pool (4 threads: gzip, dns.lookup, fs, crypto) keeps work waiting.
+    // 12 calls a minute, no disk I/O (access on '.' hits the dentry cache).
+    this.probe = setInterval(() => void this.probePool(), 5_000);
+    this.probe.unref();
+  }
+
+  private async probePool(): Promise<void> {
+    const t0 = process.hrtime.bigint();
+    try {
+      await access('.');
+    } catch {
+      return;
+    }
+    const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+    if (ms > this.poolLagMs) this.poolLagMs = ms;
   }
 
   sample(): RuntimeSample | null {
@@ -95,7 +118,9 @@ export class RuntimeStatsService
       HeapUsedMb: Math.round(mem.heapUsed / 1048576),
       HeapLimitMb: Math.round(heapLimit / 1048576),
       RssMb: Math.round(mem.rss / 1048576),
+      ThreadPoolLagMs: Math.round(this.poolLagMs * 10) / 10,
     };
+    this.poolLagMs = 0;
     h.reset();
     return s;
   }
@@ -109,6 +134,7 @@ export class RuntimeStatsService
 
   onApplicationShutdown(): void {
     if (this.timer) clearInterval(this.timer);
+    if (this.probe) clearInterval(this.probe);
     this.histogram?.disable();
   }
 }

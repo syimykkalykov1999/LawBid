@@ -1,5 +1,13 @@
 import { ConfigService } from '@nestjs/config';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { SecretsService } from '../../../common/secrets/secrets.service';
+import {
+  awsCredentialsProvider,
+  parseEngineKind,
+  type CredentialsProvider,
+  type EngineKind,
+} from './engine-auth';
+import { signRequest } from './sigv4';
 import {
   SEARCH_ENTITIES,
   generationOf,
@@ -36,6 +44,8 @@ export interface EngineCreds {
   /** Copies of each index (OPENSEARCH_REPLICAS, set by Terraform: 1 once the
    * domain has two or more nodes). */
   replicas: number;
+  /** domain (default) or serverless (SigV4-signed, service `aoss`). */
+  kind: EngineKind;
 }
 
 export class EngineError extends Error {
@@ -74,13 +84,25 @@ export class OpenSearchClient {
     private readonly secrets: Pick<SecretsService, 'get'> | undefined,
     private readonly config: Pick<ConfigService, 'get'> | undefined,
     private readonly fetchImpl: typeof fetch = fetch,
+    /** Admin `search.engine_kind` (default domain). */
+    private readonly kindOf: () => Promise<EngineKind> = () =>
+      Promise.resolve('domain'),
+    private readonly awsCreds: CredentialsProvider = awsCredentialsProvider(),
+    private readonly now: () => Date = () => new Date(),
   ) {}
 
   async creds(): Promise<EngineCreds | null> {
     const f = (await this.secrets?.get('opensearch'))?.fields ?? {};
-    const url = (f.url ?? this.config?.get<string>('OPENSEARCH_URL') ?? '')
-      .trim()
-      .replace(/\/+$/, '');
+    const kind = await this.kindOf();
+    // Serverless has its own address (OPENSEARCH_SERVERLESS_URL, set by
+    // Terraform); the Integrations card `url` stays the domain's.
+    const rawUrl =
+      kind === 'serverless'
+        ? (f.serverless_url ??
+          this.config?.get<string>('OPENSEARCH_SERVERLESS_URL') ??
+          '')
+        : (f.url ?? this.config?.get<string>('OPENSEARCH_URL') ?? '');
+    const url = rawUrl.trim().replace(/\/+$/, '');
     if (!url) return null;
     const username = (
       f.username ??
@@ -103,7 +125,12 @@ export class OpenSearchClient {
       username: username || undefined,
       password: password || undefined,
       prefix: prefix || 'lawbid',
-      replicas: Number.isInteger(replicas) && replicas >= 0 ? replicas : 0,
+      // Serverless manages copies itself (number_of_replicas is rejected).
+      replicas:
+        kind === 'domain' && Number.isInteger(replicas) && replicas >= 0
+          ? replicas
+          : 0,
+      kind,
     };
   }
 
@@ -129,6 +156,23 @@ export class OpenSearchClient {
       headers.authorization = `Basic ${Buffer.from(
         `${c.username}:${c.password}`,
       ).toString('base64')}`;
+    }
+    if (c.kind === 'serverless') {
+      const creds = await this.awsCreds();
+      if (!creds) throw new EngineError('no AWS credentials for Serverless');
+      Object.assign(
+        headers,
+        signRequest({
+          method,
+          url: `${c.url}${path}`,
+          body,
+          region: this.config?.get<string>('AWS_REGION') ?? 'us-east-1',
+          service: 'aoss',
+          credentials: creds,
+          date: this.now(),
+          contentSha256Header: true,
+        }),
+      );
     }
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), timeoutMs);
@@ -162,7 +206,14 @@ export class OpenSearchClient {
 
   /** Cluster answers (used by the integration's "Check"). */
   async ping(): Promise<boolean> {
-    const r = await this.call('GET', '/', undefined, 3000);
+    // Serverless has no `GET /`; listing indexes is allowed on both.
+    const serverless = (await this.creds())?.kind === 'serverless';
+    const r = await this.call(
+      'GET',
+      serverless ? `/_cat/indices/${await this.prefix()}-*?format=json` : '/',
+      undefined,
+      3000,
+    );
     return r.status >= 200 && r.status < 300;
   }
 
@@ -189,9 +240,15 @@ export class OpenSearchClient {
       }),
       timeoutMs,
     );
-    if (r.status === 404) return [];
+    // 404 = the index/alias is missing: that is an engine failure (so the
+    // Postgres fallback answers), never "no results".
     if (r.status >= 300) {
-      throw new EngineError(`search failed (${r.status})`, r.status);
+      throw new EngineError(
+        r.status === 404
+          ? 'search index or alias is missing (404)'
+          : `search failed (${r.status})`,
+        r.status,
+      );
     }
     const hits =
       (
@@ -433,7 +490,10 @@ export class OpenSearchClient {
 
   /** Exact document count of one physical index (or alias). */
   async countIndex(name: string): Promise<number> {
-    await this.call('POST', `/${name}/_refresh`, undefined, 30_000);
+    // Serverless refreshes by itself and rejects _refresh.
+    if ((await this.creds())?.kind !== 'serverless') {
+      await this.call('POST', `/${name}/_refresh`, undefined, 30_000);
+    }
     const r = await this.call('GET', `/${name}/_count`);
     if (r.status === 404) return 0;
     return (r.json as { count?: number } | null)?.count ?? 0;
@@ -706,10 +766,29 @@ export class OpenSearchClient {
   }
 }
 
+/** Builds the client; `search.engine_kind` is read per call, so the admin
+ * can flip domain <-> serverless without a deploy. */
+export function createOpenSearchClient(
+  secrets: Pick<SecretsService, 'get'> | undefined,
+  config: Pick<ConfigService, 'get'> | undefined,
+  settings?: Pick<AppSettingsService, 'string'>,
+): OpenSearchClient {
+  return new OpenSearchClient(secrets, config, fetch, async () =>
+    parseEngineKind(await settings?.string('search.engine_kind')),
+  );
+}
+
 /** Nest provider for the client (a plain class: built from the globals). */
 export const OPENSEARCH_CLIENT_PROVIDER = {
   provide: OpenSearchClient,
-  useFactory: (secrets: SecretsService, config: ConfigService) =>
-    new OpenSearchClient(secrets, config),
-  inject: [SecretsService, ConfigService],
+  useFactory: (
+    secrets: SecretsService,
+    config: ConfigService,
+    settings?: AppSettingsService,
+  ) => createOpenSearchClient(secrets, config, settings),
+  inject: [
+    SecretsService,
+    ConfigService,
+    { token: AppSettingsService, optional: true },
+  ],
 };

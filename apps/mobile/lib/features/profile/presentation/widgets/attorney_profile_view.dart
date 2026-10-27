@@ -274,47 +274,50 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
     );
   }
 
-  /// The page of each tab (its own scroll list, kept alive).
-  Widget _gridPage(Translator t, AttorneyProfileTab tab) =>
-      tab == AttorneyProfileTab.reposts
-          ? ProfileBriefsAndReposts(
-              key: const ValueKey('reposts'),
-              attorneyId: p.id,
-              isSelf: p.isSelf,
-            )
-          : tab == AttorneyProfileTab.reels
-              ? ProfilePostsGrid(
-                  key: const ValueKey('reels'),
-                  attorneyId: p.id,
-                  reelsOnly: true,
-                  emptyTitle: t.t('profile.reels.empty.title'),
-                  emptyMessage: t.t(
-                    p.isSelf
-                        ? 'profile.reels.empty.self'
-                        : 'profile.reels.empty.other',
+  /// The page of each grid tab (its own scroll list, kept alive): a sliver
+  /// page (lazy grid, 2026-10-26 smoothness P4) held to [minExtent].
+  Widget _gridPage(Translator t, AttorneyProfileTab tab, double minExtent) =>
+      ProfileSliverPage(
+        sliver: tab == AttorneyProfileTab.reels
+            ? ProfilePostsGrid(
+                key: const ValueKey('reels'),
+                asSliver: true,
+                minExtent: minExtent,
+                attorneyId: p.id,
+                reelsOnly: true,
+                emptyTitle: t.t('profile.reels.empty.title'),
+                emptyMessage: t.t(
+                  p.isSelf
+                      ? 'profile.reels.empty.self'
+                      : 'profile.reels.empty.other',
+                ),
+              )
+            : tab == AttorneyProfileTab.news
+                ? ProfilePostsGrid(
+                    key: const ValueKey('news'),
+                    asSliver: true,
+                    minExtent: minExtent,
+                    attorneyId: p.id,
+                    newsOnly: true,
+                    emptyTitle: t.t('profile.news.empty.title'),
+                    emptyMessage: t.t(
+                      p.isSelf
+                          ? 'profile.news.empty.self'
+                          : 'profile.news.empty.other',
+                    ),
+                  )
+                : ProfilePostsGrid(
+                    asSliver: true,
+                    minExtent: minExtent,
+                    attorneyId: p.id,
+                    emptyTitle: t.t('profile.posts.empty.title'),
+                    emptyMessage: t.t(
+                      p.isSelf
+                          ? 'profile.posts.empty.self'
+                          : 'profile.posts.empty.other',
+                    ),
                   ),
-                )
-              : tab == AttorneyProfileTab.news
-                  ? ProfilePostsGrid(
-                      key: const ValueKey('news'),
-                      attorneyId: p.id,
-                      newsOnly: true,
-                      emptyTitle: t.t('profile.news.empty.title'),
-                      emptyMessage: t.t(
-                        p.isSelf
-                            ? 'profile.news.empty.self'
-                            : 'profile.news.empty.other',
-                      ),
-                    )
-                  : ProfilePostsGrid(
-                      attorneyId: p.id,
-                      emptyTitle: t.t('profile.posts.empty.title'),
-                      emptyMessage: t.t(
-                        p.isSelf
-                            ? 'profile.posts.empty.self'
-                            : 'profile.posts.empty.other',
-                      ),
-                    );
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -590,10 +593,9 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
 
     // Owner 2026-10-19: every page keeps at least half a screen (loading,
     // empty or short), so nothing pulls the page when its data arrives.
+    final minPage = MediaQuery.sizeOf(context).height * 0.5;
     Widget page(Widget child) => ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: MediaQuery.sizeOf(context).height * 0.5,
-          ),
+          constraints: BoxConstraints(minHeight: minPage),
           child: child,
         );
 
@@ -625,9 +627,17 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
       },
       pages: [
         for (final tab in tabs)
-          page(
-            tab == AttorneyProfileTab.reviews ? reviewsPage : _gridPage(t, tab),
-          ),
+          switch (tab) {
+            AttorneyProfileTab.reviews => page(reviewsPage),
+            AttorneyProfileTab.reposts => page(
+                ProfileBriefsAndReposts(
+                  key: const ValueKey('reposts'),
+                  attorneyId: p.id,
+                  isSelf: p.isSelf,
+                ),
+              ),
+            _ => _gridPage(t, tab, minPage),
+          },
       ],
     );
   }

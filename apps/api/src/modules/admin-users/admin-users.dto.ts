@@ -14,6 +14,9 @@ import {
   Matches,
   MaxLength,
   Min,
+  ValidateIf,
+  ValidateNested,
+  MinLength,
 } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -22,7 +25,7 @@ const trim = ({ value }: { value: unknown }) =>
 export const SANCTION_TEXT_MAX = 500;
 
 /** docs/06 §2.3 item 3: "поиск по имени, email, телефону, @username, id". */
-export class AdminUsersQueryDto {
+export class AdminUsersFilterDto {
   @ApiPropertyOptional({
     description:
       'Name (substring), email, phone (any format), @username or user id. Empty = newest users.',
@@ -82,7 +85,9 @@ export class AdminUsersQueryDto {
   @IsOptional()
   @IsISO8601()
   to?: string;
+}
 
+export class AdminUsersQueryDto extends AdminUsersFilterDto {
   @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
   @IsOptional()
   @IsString()
@@ -140,12 +145,29 @@ export class AdminUsersBulkDto {
   @IsIn(USERS_BULK_ACTIONS)
   action!: (typeof USERS_BULK_ACTIONS)[number];
 
-  @ApiProperty({ type: [String], format: 'uuid', minItems: 1, maxItems: 500 })
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    minItems: 1,
+    maxItems: 500,
+    description: 'Exactly one of `ids` or `filter`.',
+  })
+  @ValidateIf((o: AdminUsersBulkDto) => o.filter === undefined)
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(500)
   @IsUUID('all', { each: true })
-  ids!: string[];
+  ids?: string[];
+
+  @ApiPropertyOptional({
+    type: () => AdminUsersFilterDto,
+    description:
+      'S18-10: «select all matching»: the server resolves the ids with the same filter as the list (at most BULK_PREVIEW_CAP users; q, role or status required) and audits the filter.',
+  })
+  @ValidateIf((o: AdminUsersBulkDto) => o.ids === undefined)
+  @ValidateNested()
+  @Type(() => AdminUsersFilterDto)
+  filter?: AdminUsersFilterDto;
 
   @ApiPropertyOptional({ type: String, maxLength: SANCTION_TEXT_MAX })
   @IsOptional()
@@ -153,6 +175,32 @@ export class AdminUsersBulkDto {
   @IsString()
   @MaxLength(SANCTION_TEXT_MAX)
   reason = '';
+}
+
+/** S18-10: how many users a filter matches, before the action. */
+export class AdminUsersBulkPreviewDto {
+  @ApiProperty({ type: () => AdminUsersFilterDto })
+  @ValidateNested()
+  @Type(() => AdminUsersFilterDto)
+  filter!: AdminUsersFilterDto;
+}
+
+export class AdminUsersBulkPreviewResultDto {
+  @ApiProperty({
+    type: 'integer',
+    description: 'Users matching the filter, at most `cap` (no live count).',
+  })
+  matched!: number;
+  @ApiProperty({
+    description:
+      'More users match than `cap`; the action touches the first `cap`.',
+  })
+  capped!: boolean;
+  @ApiProperty({
+    type: 'integer',
+    description: 'The most one bulk call touches.',
+  })
+  cap!: number;
 }
 
 // ---- responses ----------------------------------------------------------
@@ -315,6 +363,30 @@ export class SanctionResultDto {
   archivedCases!: number;
   @ApiProperty({ type: 'integer', description: 'Attorney bids withdrawn.' })
   withdrawnBids!: number;
+}
+
+/** Privacy round 13 (S13-7): the admin confirmed the person is a minor. */
+export class ConfirmMinorDto {
+  @ApiProperty({
+    maxLength: SANCTION_TEXT_MAX,
+    description: 'How the age was confirmed (audited, mandatory).',
+  })
+  @Transform(trim)
+  @IsString()
+  @MinLength(5)
+  @MaxLength(SANCTION_TEXT_MAX)
+  reason!: string;
+}
+
+export class MinorConfirmedDto {
+  @ApiProperty({ format: 'uuid' }) userId!: string;
+  @ApiProperty({
+    enum: ['erased', 'held', 'already', 'missing'],
+    enumName: 'MinorConfirmedOutcome',
+    description:
+      'erased: anonymized now; held: a legal hold defers it (the daily job retries); already: nothing left to do.',
+  })
+  outcome!: 'erased' | 'held' | 'already' | 'missing';
 }
 
 /** Owner 2026-10-01: support changes the phone on the user's request

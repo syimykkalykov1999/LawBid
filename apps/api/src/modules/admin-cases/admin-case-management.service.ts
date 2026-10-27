@@ -198,6 +198,7 @@ export class AdminCaseManagementService {
   async card(
     id: string,
     countries: CountryScope = null,
+    opts: { includePrivateDetails?: boolean } = {},
   ): Promise<AdminCaseCardDto> {
     if (countries) {
       const visible = await this.prisma.case.count({
@@ -297,7 +298,7 @@ export class AdminCaseManagementService {
       ...toRow(kase, reports.get(id) ?? 0, promoted.has(id), files.get(id)),
       description: kase.description,
       privateDetails:
-        kase.private_details === null
+        opts.includePrivateDetails === false || kase.private_details === null
           ? null
           : (this.cipher?.openField(
               kase.private_details,

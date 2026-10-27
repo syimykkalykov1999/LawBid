@@ -16,6 +16,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { MaxTextChars } from '../../common/app-settings/max-text-chars.decorator';
+import { CalendarLinksDto, NoShowDto } from '../calendar/calendar.dto';
 import { UpdatedSinceQuery } from '../../common/sync/sync.util';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -379,6 +380,26 @@ export class ConsultationDto {
 
   @ApiProperty()
   createdAt!: string;
+
+  @ApiPropertyOptional({
+    type: () => CalendarLinksDto,
+    nullable: true,
+    description:
+      'Owner 2026-10-28: add to Google / Outlook / .ics (null once it is over or cancelled).',
+  })
+  calendarLinks!: CalendarLinksDto | null;
+
+  @ApiProperty({
+    type: () => NoShowDto,
+    isArray: true,
+    description: 'Owner 2026-10-28: «did not come» marks (usually empty).',
+  })
+  noShows!: NoShowDto[];
+
+  @ApiProperty({
+    description: 'The viewer may mark the other side absent now.',
+  })
+  canMarkNoShow!: boolean;
 }
 
 export interface ConsultationPage {

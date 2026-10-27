@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -28,6 +29,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_impression_trac
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 String _link(WidgetRef ref, String postId) => SocialFormat.postLink(
       ref.read(appEnvironmentProvider).deepLinkHost,
@@ -47,7 +49,9 @@ Future<void> sharePost(BuildContext context, WidgetRef ref, Post post) async {
     text: post.title,
   );
   // OQ-037: count it unless the sheet was just closed.
-  if (shared) await ref.read(socialActionsProvider).recordShare(post);
+  if (shared && context.mounted) {
+    await ref.read(socialActionsProvider).recordShare(post);
+  }
 }
 
 /// Owner 2026-10-18: the ↻ button. Not reposted yet → a sheet with
@@ -59,6 +63,8 @@ Future<void> showRepostSheet(
   WidgetRef ref,
   Post post,
 ) async {
+  // Audit C3: a guest gets the sign-in sheet, not a 401.
+  if (!requireSignIn(context, ref)) return;
   final t = ref.read(translatorProvider);
   final current = ref.read(postOverridesProvider)[post.id] ?? post;
   if (current.isMine) {
@@ -98,7 +104,7 @@ Future<void> showRepostSheet(
     ),
   );
   if (go != true) return;
-  unawaited(HapticFeedback.mediumImpact());
+  unawaited(AppHaptics.medium());
   final error = await ref.read(socialActionsProvider).toggleRepost(current);
   if (error != null && context.mounted) {
     showAppSnackBar(context, errorText(t, error));
@@ -453,6 +459,10 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                           destructive: true,
                           showChevron: false,
                           onTap: () async {
+                            // The card may unmount once the post is gone:
+                            // the message goes through the navigator's
+                            // context, which outlives it (audit C13).
+                            final host = Navigator.of(context).context;
                             Navigator.of(sheet).pop();
                             final ok = await showConfirmSheet(
                               context,
@@ -466,9 +476,9 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                             final error = await ref
                                 .read(socialActionsProvider)
                                 .deletePost(post);
-                            if (context.mounted) {
+                            if (host.mounted) {
                               showAppSnackBar(
-                                context,
+                                host,
                                 error == null
                                     ? t.t('post.deleted')
                                     : errorText(t, error),

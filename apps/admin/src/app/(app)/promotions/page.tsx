@@ -2,7 +2,7 @@
 
 import { CalendarPlus, CheckCircle, CursorClick, CurrencyDollar, Eye, Gift, Hourglass, Lightning, RocketLaunch, UsersThree, XCircle } from '@phosphor-icons/react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Kpi, KpiSkeletons } from '@/components/billing/kpi';
@@ -19,6 +19,7 @@ import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { growthError } from '@/components/growth/errors';
+import { PricingModelsCard } from '@/components/promotions/pricing-models';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
@@ -36,6 +37,12 @@ type Tab = 'all' | PromotionStatus;
 type TargetTab = 'all' | Target;
 
 const STATUSES: PromotionStatus[] = ['active', 'pending_review', 'pending_payment', 'finished', 'canceled', 'refunded', 'rejected'];
+const BILLING_UNIT: Record<components['schemas']['BoostBilling'], string> = {
+  impressions: 'показы',
+  reach: 'люди',
+  clicks: 'нажатия',
+  actions: 'действия',
+};
 const num = (n: number) => new Intl.NumberFormat('ru-RU').format(n);
 const reasonText: Record<string, string> = {
   budget_spent: 'бюджет потрачен',
@@ -152,6 +159,7 @@ export default function PromotionsPage() {
         ) : null}
       </div>
       <ErrorNote text={stats.error ? errorText(stats.error) : null} />
+      {stats.data ? <ModelStats rows={stats.data.byModel} at={stats.data.byModelAt ?? null} /> : null}
 
       <SectionTitle>Все продвижения</SectionTitle>
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -193,7 +201,7 @@ export default function PromotionsPage() {
               <Th>Владелец</Th>
               <Th className="text-right">Бюджет</Th>
               <Th>Период</Th>
-              <Th className="min-w-36">Показы</Th>
+              <Th className="min-w-36">Прогресс</Th>
               <Th className="text-right">Охват</Th>
               <Th className="text-right">Клики</Th>
               <Th className="text-right">Оплачено</Th>
@@ -245,12 +253,18 @@ export default function PromotionsPage() {
                     )}
                   </Td>
                   <Td className="tabular-nums text-muted">
+                    <div className="text-xs text-faint">{BILLING_UNIT[p.billing]}</div>
                     <span className="inline-flex items-center gap-1">
-                      <Eye size={13} weight="light" />
-                      {num(p.impressions)}
-                      {p.targetImpressions ? <span className="text-faint"> / {num(p.targetImpressions)}</span> : null}
+                      {num(p.deliveredUnits)}
+                      {p.targetUnits ? <span className="text-faint"> / {num(p.targetUnits)}</span> : null}
                     </span>
-                    {p.targetImpressions ? <ProgressBar className="mt-1.5" value={p.impressions / p.targetImpressions} /> : null}
+                    {p.targetUnits ? <ProgressBar className="mt-1.5" value={p.deliveredUnits / p.targetUnits} /> : null}
+                    {p.billing !== 'impressions' ? (
+                      <div className="mt-1 inline-flex items-center gap-1 text-xs text-faint">
+                        <Eye size={12} weight="light" />
+                        {num(p.impressions)}
+                      </div>
+                    ) : null}
                   </Td>
                   <Td className="text-right tabular-nums text-muted">{num(p.reach)}</Td>
                   <Td className="text-right whitespace-nowrap tabular-nums text-muted">
@@ -316,6 +330,11 @@ export default function PromotionsPage() {
       )}
       <LoadMore q={list} />
 
+      <section id="boost-pricing">
+        <SectionTitle>Цены по способам оплаты</SectionTitle>
+        <PricingSection canEdit={me?.role === 'super_admin'} />
+      </section>
+
       <SectionTitle>Настройки</SectionTitle>
       <SettingsCard canEdit={me?.role === 'super_admin'} />
 
@@ -359,8 +378,8 @@ function CancelDialog({ promotion, onClose, onDone }: { promotion: Promotion | n
   const reasonOk = !needReason || reason.trim().length >= REASON_MIN;
   const paid = !!promotion?.paymentId && (promotion?.totalCents ?? 0) > 0;
   const unspent =
-    promotion && promotion.targetImpressions
-      ? Math.floor((promotion.totalCents * Math.max(0, promotion.targetImpressions - promotion.impressions)) / promotion.targetImpressions)
+    promotion && promotion.targetUnits
+      ? Math.floor((promotion.totalCents * Math.max(0, promotion.targetUnits - promotion.deliveredUnits)) / promotion.targetUnits)
       : (promotion?.totalCents ?? 0);
   const save = useMutation({
     mutationFn: async () =>
@@ -530,6 +549,48 @@ function DaysDialog({
   );
 }
 
+/** The last 30 days by way to pay. Read from the nightly snapshot, so opening
+ * the page never counts anything on the database. */
+function ModelStats({ rows, at }: { rows: components['schemas']['PromotionModelStatDto'][]; at: string | null }) {
+  const used = rows.filter((r) => r.count > 0);
+  return (
+    <div className="mt-4">
+      <h3 className="text-sm font-medium text-heading">По способам оплаты, 30 дней</h3>
+      {used.length === 0 ? (
+        <p className="mt-1 text-xs text-faint">{at ? 'За 30 дней покупок нет.' : 'Цифры появятся после первого ночного пересчёта.'}</p>
+      ) : (
+        <>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {used.map((r) => (
+              <Card key={r.billing} className="p-3 text-sm">
+                <div className="font-medium text-heading">{BILLING_UNIT[r.billing]}</div>
+                <div className="mt-1 text-muted">
+                  {r.count} шт. на {usd(r.soldCents)}
+                </div>
+                <div className="text-xs text-faint">
+                  выполнено {num(r.delivered)}
+                  {r.refundedCents > 0 ? `, вернули ${usd(r.refundedCents)}` : ''}
+                </div>
+              </Card>
+            ))}
+          </div>
+          {at ? <p className="mt-1 text-xs text-faint">Пересчитано {formatDateTime(at)}</p> : null}
+        </>
+      )}
+    </div>
+  );
+}
+
+function PricingSection({ canEdit }: { canEdit: boolean }) {
+  const q = useQuery({
+    queryKey: ['promotions-settings'],
+    queryFn: async () => (await api.GET('/admin/promotions/settings')).data!.data,
+  });
+  if (q.isPending) return <Skeleton className="h-56 rounded-[var(--radius-lg)]" />;
+  if (!q.data?.pricing) return <ErrorNote text={q.error ? errorText(q.error) : 'Не удалось загрузить цены'} />;
+  return <PricingModelsCard key={JSON.stringify(q.data.pricing)} settings={q.data} canEdit={canEdit} />;
+}
+
 function SettingsCard({ canEdit }: { canEdit: boolean }) {
   const q = useQuery({
     queryKey: ['promotions-settings'],
@@ -573,7 +634,6 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const [autoApprove, setAutoApprove] = useState(initial.autoApprove);
   const [requireSub, setRequireSub] = useState(initial.requireSubscription);
   const [price, setPrice] = useState(String(initial.priceCentsPerDay / 100));
-  const [cpm, setCpm] = useState(String(initial.cpmCents / 100));
   const [minDaily, setMinDaily] = useState(String(initial.minDailyBudgetCents / 100));
   const [maxDaily, setMaxDaily] = useState(String(initial.maxDailyBudgetCents / 100));
   const [presets, setPresets] = useState(initial.budgetPresetsCents.map((c) => c / 100).join(', '));
@@ -588,9 +648,8 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   const [cap, setCap] = useState(String(initial.frequencyCapPerDay));
   const [perPerson, setPerPerson] = useState(String(initial.impressionsPerPerson));
 
-  const body: Settings | null = (() => {
+  const body: Omit<Settings, 'pricing'> | null = (() => {
     const p = dollarsToCents(price);
-    const c = dollarsToCents(cpm);
     const mn = dollarsToCents(minDaily);
     const mx = dollarsToCents(maxDaily);
     const ps = centsList(presets);
@@ -601,11 +660,13 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
     const rn = Number(reelN);
     const fc = Number(cap);
     const pp = Number(perPerson);
-    if (p == null || p < 50 || c == null || c < 1 || mn == null || mn < 50 || mx == null || mx < mn) return null;
+    if (p == null || p < 50 || mn == null || mn < 50 || mx == null || mx < mn) return null;
     if (!ps || !ds || !ps.length || !ds.length) return null;
     if (!Number.isInteger(md) || md < 1 || md > 365) return null;
     if (!Number.isInteger(en) || en < 10 || en > 15 || !Number.isInteger(rn) || rn < 10 || rn > 15 || !Number.isInteger(cs) || cs < 0 || cs > 10) return null;
     if (!Number.isInteger(fc) || fc < 1 || fc > 50 || !(pp >= 1 && pp <= 10)) return null;
+    // The prices per way to pay are edited (and sent) only in the pricing
+    // card above; this form never sends them.
     return {
       boostEnabled,
       attorneysEnabled,
@@ -617,7 +678,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
       priceCentsPerDay: p,
       maxDays: md,
       maxActivePerCase: initial.maxActivePerCase,
-      cpmCents: c,
+      cpmCents: initial.cpmCents,
       minDailyBudgetCents: mn,
       maxDailyBudgetCents: mx,
       budgetPresetsCents: ps.filter((x) => x >= mn && x <= mx),
@@ -634,7 +695,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   })();
   const dirty =
     body != null &&
-    (Object.keys(body) as (keyof Settings)[]).some((k) => JSON.stringify(body[k]) !== JSON.stringify(initial[k]));
+    (Object.keys(body) as (keyof typeof body)[]).some((k) => JSON.stringify(body[k]) !== JSON.stringify(initial[k]));
 
   // "For $X a day × 7 days we show it to about N people" — like Instagram.
   const example = body
@@ -656,7 +717,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
   });
 
   return (
-    <motion.div {...fadeUp(0)}>
+    <m.div {...fadeUp(0)}>
       <Card className="p-5">
         <form
           onSubmit={(e) => {
@@ -676,11 +737,8 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
             <Toggle title="Только по подписке" text="Выключено (как в Instagram): продвигать может любой. Включено: только те, у кого в плане есть «Продвижение»." checked={requireSub} onChange={setRequireSub} disabled={!canEdit} />
           </div>
 
-          <h3 className="mt-5 font-medium text-heading">Цены и охват</h3>
+          <h3 className="mt-5 font-medium text-heading">Бюджет и охват</h3>
           <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="Цена 1000 показов, $" htmlFor="ps-cpm" hint="Из неё считается «покажем N людям».">
-              <Input id="ps-cpm" inputMode="decimal" value={cpm} disabled={!canEdit} onChange={(e) => setCpm(e.target.value)} />
-            </Field>
             <Field label="Бюджет по умолчанию, $/день" htmlFor="ps-price" hint="Столько же стоит один бесплатный день за приглашение.">
               <Input id="ps-price" inputMode="decimal" value={price} disabled={!canEdit} onChange={(e) => setPrice(e.target.value)} />
             </Field>
@@ -754,6 +812,6 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
           )}
         </form>
       </Card>
-    </motion.div>
+    </m.div>
   );
 }

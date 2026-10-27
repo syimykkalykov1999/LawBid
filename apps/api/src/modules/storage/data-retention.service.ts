@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
+import { heldSql } from '../../common/privacy/legal-hold';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -22,6 +23,10 @@ export interface RetentionResult {
   postViewEvents: number;
   /** Scale audit 2026-10-23: one row per active person per day. */
   userActivityDays: number;
+  /** DB-ops S5-3: applied cross-family events (`status = 'done'`). */
+  crossFamilyOutboxDone: number;
+  /** DB-ops S5-3: idempotency keys of applied events. */
+  crossFamilyInbox: number;
 }
 
 /**
@@ -42,6 +47,14 @@ export interface RetentionResult {
  * - user_activity_days (`storage.retention_user_activity_days`, 400): one
  *   row per active person per day (1M daily users = 365M rows a year); the
  *   admin charts read at most the last 60 days.
+ * - cross_family_outbox, rows with status `done`
+ *   (`storage.retention_outbox_done_days`, 7) on every database, and
+ *   cross_family_inbox (`storage.retention_inbox_days`, 30): written on every
+ *   sharded write that touches a global counter, they would become the
+ *   largest tables. `pending` and `dead` outbox rows are never touched. The
+ *   outbox's oldest still-pending age is logged by the relay itself
+ *   (`outbox.sweep`, metric `cross_family_outbox_oldest_pending`).
+ * A person under a legal hold keeps their login history (round 13, S13-6).
  * 0 days = keep forever. Already handled elsewhere: notifications
  * (notifications.retention_days), sessions, OTP, processed Stripe webhooks
  * (30 days), the case journal (5 years), archived tasks. Never touched:
@@ -70,6 +83,8 @@ export class DataRetentionService implements OnModuleDestroy {
       eventsDays,
       viewEventsDays,
       activeDaysDays,
+      outboxDoneDays,
+      inboxDays,
     ] = await Promise.all([
       this.settings.number('storage.retention_auth_events_days'),
       this.settings.number('storage.retention_assistant_activity_days'),
@@ -78,8 +93,13 @@ export class DataRetentionService implements OnModuleDestroy {
       this.settings.number('storage.retention_app_events_days'),
       this.settings.number('storage.retention_post_view_events_days'),
       this.settings.number('storage.retention_user_activity_days'),
+      this.settings.number('storage.retention_outbox_done_days'),
+      this.settings.number('storage.retention_inbox_days'),
     ]);
     const before = (days: number) => new Date(now.getTime() - days * DAY_MS);
+    // Owner 2026-10-28: activity rows of a person under a legal hold stay.
+    const ok = (col: string) =>
+      Prisma.sql`NOT ${heldSql('user', Prisma.raw(col))}`;
     const result: RetentionResult = {
       authEvents: authDays > 0 ? await this.authEvents(before(authDays)) : 0,
       assistantActivity:
@@ -90,6 +110,7 @@ export class DataRetentionService implements OnModuleDestroy {
                 WHERE ctid IN (
                   SELECT ctid FROM assistant_activity
                   WHERE created_at < ${before(activityDays)}
+                    AND ${ok('attorney_id')}
                   ORDER BY created_at LIMIT ${limit})`,
             )
           : 0,
@@ -110,6 +131,7 @@ export class DataRetentionService implements OnModuleDestroy {
                 WHERE ctid IN (
                   SELECT ctid FROM post_views
                   WHERE created_at < ${before(viewsDays)}
+                    AND ${ok('user_id')}
                   ORDER BY created_at LIMIT ${limit})`,
               ),
             )
@@ -131,6 +153,7 @@ export class DataRetentionService implements OnModuleDestroy {
                 WHERE ctid IN (
                   SELECT ctid FROM post_view_events
                   WHERE created_at < ${before(viewEventsDays)}
+                    AND ${ok('viewer_id')}
                   LIMIT ${limit})`,
               ),
             )
@@ -143,6 +166,36 @@ export class DataRetentionService implements OnModuleDestroy {
                 WHERE ctid IN (
                   SELECT ctid FROM user_activity_days
                   WHERE day < ${before(activeDaysDays)}::DATE
+                    AND ${ok('user_id')}
+                  LIMIT ${limit})`,
+            )
+          : 0,
+      // DB-ops S5-3. The outbox lives on EVERY physical database; the
+      // (status, next_attempt_at) index serves the range, `processed_at`
+      // is the real condition. The inbox is a global-family table.
+      crossFamilyOutboxDone:
+        outboxDoneDays > 0
+          ? await this.onEveryDatabase(() =>
+              this.batched(
+                (limit) => this.prisma.$executeRaw`
+                DELETE FROM cross_family_outbox
+                WHERE ctid IN (
+                  SELECT ctid FROM cross_family_outbox
+                  WHERE status = 'done'
+                    AND next_attempt_at < ${before(outboxDoneDays)}
+                    AND processed_at < ${before(outboxDoneDays)}
+                  LIMIT ${limit})`,
+              ),
+            )
+          : 0,
+      crossFamilyInbox:
+        inboxDays > 0
+          ? await this.batched(
+              (limit) => this.prisma.$executeRaw`
+                DELETE FROM cross_family_inbox
+                WHERE ctid IN (
+                  SELECT ctid FROM cross_family_inbox
+                  WHERE applied_at < ${before(inboxDays)}
                   LIMIT ${limit})`,
             )
           : 0,
@@ -162,9 +215,10 @@ export class DataRetentionService implements OnModuleDestroy {
       total += await this.batched(
         (limit) => db.$executeRaw`
           DELETE FROM auth_events
-          WHERE ctid IN (
-            SELECT ctid FROM auth_events
+          WHERE (id, created_at) IN (
+            SELECT id, created_at FROM auth_events
             WHERE created_shard = ${shard} AND created_at < ${before}
+              AND (user_id IS NULL OR NOT ${heldSql('user', Prisma.sql`user_id`)})
             ORDER BY created_at LIMIT ${limit})`,
       );
     }

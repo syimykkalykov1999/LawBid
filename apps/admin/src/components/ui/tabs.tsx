@@ -1,6 +1,6 @@
 'use client';
 
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { useId } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -40,7 +40,7 @@ export function Tabs<T extends string>({
             )}
           >
             {active ? (
-              <motion.span
+              <m.span
                 layoutId={`tab-${id}`}
                 className="absolute inset-0 rounded-[10px] border border-line bg-surface shadow-card"
                 transition={{ type: 'spring', stiffness: 500, damping: 38 }}

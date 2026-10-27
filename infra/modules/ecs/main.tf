@@ -12,7 +12,6 @@ terraform {
 }
 
 variable "name" { type = string }
-variable "vpc_id" { type = string }
 variable "private_subnet_ids" { type = list(string) }
 variable "tasks_security_group_id" {
   type        = string
@@ -47,6 +46,15 @@ variable "migrator_database_url_secret_arn" { type = string }
 variable "api_cpu" {
   type    = number
   default = 1024
+}
+variable "api_uv_threadpool_size" {
+  type        = number
+  default     = 4
+  description = "S8-7: libuv thread pool of the API task (Node default 4, max 1024; gzip, dns.lookup, fs, crypto share it). 4 = unset. Raise to 8 only after the ThreadPoolLagMs metric (LawBid/Runtime) shows a queue under load."
+  validation {
+    condition     = var.api_uv_threadpool_size >= 4 && var.api_uv_threadpool_size <= 64
+    error_message = "api_uv_threadpool_size: 4..64."
+  }
 }
 variable "api_memory" {
   type    = number
@@ -127,10 +135,14 @@ variable "api_spot" {
   default     = false
   description = "Run extra API tasks on Fargate Spot (up to 70 % cheaper): the first task stays on regular Fargate (base 1), tasks added by autoscaling are split half regular, half Spot (weight 1:1; ECS does not fall back to regular Fargate when Spot has no capacity, so half of the new tasks always start). A Spot interruption gives 2 minutes: the ALB drains the task and the app reconnects through the other tasks."
 }
-variable "night_scale_down" {
-  type        = bool
-  default     = false
-  description = "Quiet hours: lower the minimum task count of api and worker on a schedule and restore it in the morning."
+variable "night_scale_mode" {
+  type        = string
+  default     = "auto"
+  description = "Quiet hours (S20-7, 3-state like the admin switches): off = never; on = the minimum task count of api and worker drops to night_min_tasks on a schedule; auto (default) = the minimum is halved (never below night_min_tasks) and the CPU / request-count policies still add tasks the moment night traffic needs them. Restored in the morning."
+  validation {
+    condition     = contains(["off", "on", "auto"], var.night_scale_mode)
+    error_message = "night_scale_mode must be off, on or auto."
+  }
 }
 variable "night_min_tasks" {
   type    = number
@@ -206,9 +218,57 @@ variable "admin_deployment_alarm_names" {
   default     = []
   description = "Alarms watched while the admin rolls out. Empty = circuit breaker only."
 }
+# S12-2 (observability round 12): distributed tracing in prod. OFF by default
+# (cost gate): the app starts the OpenTelemetry SDK only when
+# OTEL_EXPORTER_OTLP_ENDPOINT is set (apps/api/src/telemetry/otel.ts), so with
+# `tracing_enabled = false` nothing is added to the tasks and nothing is billed.
+# On: a small AWS Distro for OpenTelemetry (ADOT) collector runs as a NON-essential
+# sidecar in the api and worker tasks (a collector crash never restarts the app),
+# receives OTLP on 127.0.0.1:4318 and sends the spans to AWS X-Ray. The app samples
+# 5 % of the traces (ParentBased + TraceIdRatio; a phone's traceparent decides for
+# its own requests). X-Ray: first 100 000 traces a month free, then $5 per million.
+variable "tracing_enabled" {
+  type        = bool
+  default     = false
+  description = "Run an ADOT (OpenTelemetry) collector sidecar in the api and worker tasks and point the app at it. Off = nothing runs, nothing is billed (X-Ray: first 100k traces/month free, then $5 per million; sidecar uses spare task CPU/memory, no extra Fargate size)."
+}
+variable "tracing_sample_ratio" {
+  type        = number
+  default     = 0.05
+  description = "Share of requests traced when no caller decided (ParentBased TraceIdRatio). 0.05 = 5 %. The admin/tfvars ceiling of the tracing bill: spans per month = requests x ratio."
+  validation {
+    condition     = var.tracing_sample_ratio >= 0 && var.tracing_sample_ratio <= 0.5
+    error_message = "tracing_sample_ratio must be between 0 and 0.5."
+  }
+}
+variable "adot_image" {
+  type        = string
+  default     = "public.ecr.aws/aws-observability/aws-otel-collector:v0.43.3"
+  description = "ADOT collector image (public ECR, pulled through the NAT like any public image). Check the newest tag at https://gallery.ecr.aws/aws-observability/aws-otel-collector before the first apply."
+}
+variable "adot_memory_reservation" {
+  type        = number
+  default     = 96
+  description = "MiB reserved for the collector inside the task (the collector also caps itself with memory_limiter at 80 MiB)."
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
+}
+
+# Caching round 2 (S2-1): the CloudFront distributions whose edge copies the
+# API removes when a public photo / private file is deleted for good.
+variable "cloudfront_invalidation_enabled" {
+  type        = bool
+  default     = false
+  description = "Grant the task role cloudfront:CreateInvalidation on cloudfront_invalidation_arns."
+}
+
+variable "cloudfront_invalidation_arns" {
+  type        = list(string)
+  default     = []
+  description = "ARNs of the CloudFront distributions the task role may invalidate."
 }
 
 data "aws_region" "current" {}
@@ -307,6 +367,24 @@ resource "aws_iam_role" "task" {
   tags               = var.tags
 }
 
+# CreateInvalidation on the media / private-media distributions only (the
+# `cdn.invalidate` cron job; paths are batched, see
+# apps/api/src/modules/files/storage/cdn-invalidation.ts).
+data "aws_iam_policy_document" "task_cloudfront_invalidate" {
+  count = var.cloudfront_invalidation_enabled ? 1 : 0
+  statement {
+    actions   = ["cloudfront:CreateInvalidation"]
+    resources = var.cloudfront_invalidation_arns
+  }
+}
+
+resource "aws_iam_role_policy" "task_cloudfront_invalidate" {
+  count  = var.cloudfront_invalidation_enabled ? 1 : 0
+  name   = "cloudfront-invalidate"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.task_cloudfront_invalidate[0].json
+}
+
 # Admin and migrate tasks carry no application permissions (security
 # review): the admin only talks to the API, the migrate task only to the DB.
 resource "aws_iam_role" "task_minimal" {
@@ -341,6 +419,71 @@ locals {
   } }
 }
 
+locals {
+  tracing_env = var.tracing_enabled ? [
+    { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "http://127.0.0.1:4318" },
+    { name = "OTEL_TRACES_SAMPLER", value = "parentbased_traceidratio" },
+    { name = "OTEL_TRACES_SAMPLER_ARG", value = tostring(var.tracing_sample_ratio) },
+  ] : []
+  adot_config = <<-YAML
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 127.0.0.1:4318
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 80
+      batch:
+        timeout: 5s
+    exporters:
+      awsxray:
+        region: ${data.aws_region.current.name}
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [awsxray]
+  YAML
+  # Not essential: if the collector dies the app keeps serving (spans are dropped).
+  adot_container = var.tracing_enabled ? [{
+    name              = "adot"
+    image             = var.adot_image
+    essential         = false
+    memoryReservation = var.adot_memory_reservation
+    environment       = [{ name = "AOT_CONFIG_CONTENT", value = local.adot_config }]
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        awslogs-group         = aws_cloudwatch_log_group.svc["api"].name
+        awslogs-region        = data.aws_region.current.name
+        awslogs-stream-prefix = "adot"
+      }
+    }
+  }] : []
+}
+
+# The collector writes spans with the task role.
+data "aws_iam_policy_document" "xray" {
+  statement {
+    actions = [
+      "xray:PutTraceSegments",
+      "xray:PutTelemetryRecords",
+      "xray:GetSamplingRules",
+      "xray:GetSamplingTargets",
+    ]
+    resources = ["*"]
+  }
+}
+resource "aws_iam_role_policy" "xray" {
+  count  = var.tracing_enabled ? 1 : 0
+  name   = "xray-write"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.xray.json
+}
+
 resource "aws_ecs_task_definition" "api" {
   family = "${var.name}-api"
   runtime_platform {
@@ -354,13 +497,13 @@ resource "aws_ecs_task_definition" "api" {
   execution_role_arn       = aws_iam_role.execution.arn
   task_role_arn            = aws_iam_role.task.arn
   volume { name = "tmp" }
-  container_definitions = jsonencode([{
+  container_definitions = jsonencode(concat([{
     name         = "api"
     image        = var.api_image
     essential    = true
     command      = ["node", "dist/src/main.js"]
     portMappings = [{ containerPort = 3000, protocol = "tcp" }]
-    environment  = concat(local.api_environment, [{ name = "PORT", value = "3000" }, { name = "JOBS_ENABLED", value = "false" }, local.node_options["api"]])
+    environment  = concat(local.api_environment, local.tracing_env, [{ name = "PORT", value = "3000" }, { name = "JOBS_ENABLED", value = "false" }, local.node_options["api"]], var.api_uv_threadpool_size > 4 ? [{ name = "UV_THREADPOOL_SIZE", value = tostring(var.api_uv_threadpool_size) }] : [])
     secrets      = local.api_secrets
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
@@ -382,7 +525,7 @@ resource "aws_ecs_task_definition" "api" {
     # Keep >= the ALB deregistration_delay of the api target group.
     stopTimeout      = 60
     logConfiguration = local.log_config["api"]
-  }])
+  }], local.adot_container))
   tags = var.tags
 }
 
@@ -399,14 +542,14 @@ resource "aws_ecs_task_definition" "worker" {
   execution_role_arn       = aws_iam_role.execution.arn
   task_role_arn            = aws_iam_role.task.arn
   volume { name = "tmp" }
-  container_definitions = jsonencode([{
+  container_definitions = jsonencode(concat([{
     name      = "worker"
     image     = var.api_image
     essential = true
     command   = ["node", "dist/src/worker.js"]
     # Uploads are scanned by the clamd sidecar below (same task, localhost):
     # without a scanner every photo/document stays scan_status=pending.
-    environment = concat(local.api_environment, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }, local.node_options["worker"]])
+    environment = concat(local.api_environment, local.tracing_env, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }, local.node_options["worker"]])
     secrets     = local.api_secrets
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
@@ -443,7 +586,7 @@ resource "aws_ecs_task_definition" "worker" {
       startPeriod = 300
     }
     logConfiguration = local.log_config["clamav"]
-  }])
+  }], local.adot_container))
   tags = var.tags
 }
 
@@ -506,7 +649,9 @@ resource "aws_ecs_task_definition" "migrate" {
     name      = "migrate"
     image     = var.api_image
     essential = true
-    command   = ["npx", "prisma", "migrate", "deploy"]
+    # After the transactional migrations: prisma/concurrent/*.sql (CREATE INDEX
+    # CONCURRENTLY cannot run inside a migration), docs/architecture/ONLINE_DDL.md.
+    command   = ["sh", "-c", "npx prisma migrate deploy && node prisma/run-concurrent.mjs"]
     # npx / Prisma want a writable cache and home: both under /tmp.
     # No DB_POOLER_*: `prisma migrate` must reach the database directly
     # (docs/architecture/DB_POOLER.md).
@@ -702,8 +847,16 @@ resource "aws_appautoscaling_target" "svc" {
 # above still add tasks if night traffic needs them. While the night minimum
 # is active `terraform plan` shows the target's min_capacity as drift; it is
 # restored by the morning action.
+locals {
+  # auto: half the normal minimum, never below night_min_tasks; on: night_min_tasks.
+  night_min = {
+    for k, t in aws_appautoscaling_target.svc : k =>
+    var.night_scale_mode == "on" ? var.night_min_tasks : max(var.night_min_tasks, ceil(t.min_capacity / 2))
+  }
+}
+
 resource "aws_appautoscaling_scheduled_action" "night_down" {
-  for_each           = var.night_scale_down ? { for k, t in aws_appautoscaling_target.svc : k => t if t.min_capacity > var.night_min_tasks } : {}
+  for_each           = var.night_scale_mode != "off" ? { for k, t in aws_appautoscaling_target.svc : k => t if t.min_capacity > local.night_min[k] } : {}
   name               = "${var.name}-${each.key}-night-down"
   service_namespace  = each.value.service_namespace
   scalable_dimension = each.value.scalable_dimension
@@ -711,12 +864,12 @@ resource "aws_appautoscaling_scheduled_action" "night_down" {
   schedule           = var.night_start_cron
   timezone           = "UTC"
   scalable_target_action {
-    min_capacity = var.night_min_tasks
+    min_capacity = local.night_min[each.key]
   }
 }
 
 resource "aws_appautoscaling_scheduled_action" "morning_up" {
-  for_each           = var.night_scale_down ? { for k, t in aws_appautoscaling_target.svc : k => t if t.min_capacity > var.night_min_tasks } : {}
+  for_each           = var.night_scale_mode != "off" ? { for k, t in aws_appautoscaling_target.svc : k => t if t.min_capacity > local.night_min[k] } : {}
   name               = "${var.name}-${each.key}-morning-up"
   service_namespace  = each.value.service_namespace
   scalable_dimension = each.value.scalable_dimension

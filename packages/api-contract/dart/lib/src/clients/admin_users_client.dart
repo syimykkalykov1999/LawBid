@@ -10,11 +10,15 @@ import '../models/admin_user_card_envelope.dart';
 import '../models/admin_user_contacts_envelope.dart';
 import '../models/admin_user_list_item_list_envelope.dart';
 import '../models/admin_users_bulk_dto.dart';
+import '../models/admin_users_bulk_preview_dto.dart';
+import '../models/admin_users_bulk_preview_result_envelope.dart';
 import '../models/change_user_phone_dto.dart';
+import '../models/confirm_minor_dto.dart';
+import '../models/minor_confirmed_envelope.dart';
 import '../models/phone_changed_envelope.dart';
 import '../models/role.dart';
 import '../models/sanction_result_envelope.dart';
-import '../models/status2.dart';
+import '../models/status.dart';
 import '../models/suspend_user_dto.dart';
 import '../models/warn_user_dto.dart';
 
@@ -42,7 +46,7 @@ abstract class AdminUsersClient {
     @Query('limit') int? limit = 20,
     @Query('q') String? q,
     @Query('role') Role? role,
-    @Query('status') Status2? status,
+    @Query('status') Status? status,
     @Query('stateCode') String? stateCode,
     @Query('countryCode') String? countryCode,
     @Query('from') DateTime? from,
@@ -65,6 +69,13 @@ abstract class AdminUsersClient {
   Future<AdminUserContactsEnvelope> getUserContacts({
     @Path('id') required String id,
     @Header('X-Justification') required String xJustification,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// S18-10: how many users a bulk filter matches (read-only, before the action)
+  @POST('/admin/users/bulk/preview')
+  Future<AdminUsersBulkPreviewResultEnvelope> bulkPreview({
+    @Body() required AdminUsersBulkPreviewDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -94,6 +105,14 @@ abstract class AdminUsersClient {
   Future<PhoneChangedEnvelope> changeUserPhone({
     @Path('id') required String id,
     @Body() required ChangeUserPhoneDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Privacy round 13: the person is a minor — erase the account now (no 14-day grace) and keep the fraud hashes blocking
+  @POST('/admin/users/{id}/minor-confirmed')
+  Future<MinorConfirmedEnvelope> confirmMinor({
+    @Path('id') required String id,
+    @Body() required ConfirmMinorDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -80,6 +80,10 @@ enum ErrorCode {
   deviceAttestationRequired('DEVICE_ATTESTATION_REQUIRED'),
   @JsonValue('TURNSTILE_FAILED')
   turnstileFailed('TURNSTILE_FAILED'),
+  @JsonValue('AGE_ATTESTATION_REQUIRED')
+  ageAttestationRequired('AGE_ATTESTATION_REQUIRED'),
+  @JsonValue('AGE_UNDER_MINIMUM')
+  ageUnderMinimum('AGE_UNDER_MINIMUM'),
   @JsonValue('ACCOUNT_SUSPENDED')
   accountSuspended('ACCOUNT_SUSPENDED'),
   @JsonValue('ACCOUNT_DELETED')
@@ -200,6 +204,10 @@ enum ErrorCode {
   barNumberBlocked('BAR_NUMBER_BLOCKED'),
   @JsonValue('ACCOUNT_RESTRICTED')
   accountRestricted('ACCOUNT_RESTRICTED'),
+  @JsonValue('REPORTING_SUSPENDED')
+  reportingSuspended('REPORTING_SUSPENDED'),
+  @JsonValue('ACCOUNT_STRIKE_LIMITED')
+  accountStrikeLimited('ACCOUNT_STRIKE_LIMITED'),
   @JsonValue('JUSTIFICATION_REQUIRED')
   justificationRequired('JUSTIFICATION_REQUIRED'),
   @JsonValue('REASON_REQUIRED')
@@ -222,12 +230,6 @@ enum ErrorCode {
   adminRecoveryFailed('ADMIN_RECOVERY_FAILED'),
   @JsonValue('ADMIN_TOTP_SETUP_REQUIRED')
   adminTotpSetupRequired('ADMIN_TOTP_SETUP_REQUIRED'),
-  @JsonValue('ADMIN_APPROVAL_PENDING')
-  adminApprovalPending('ADMIN_APPROVAL_PENDING'),
-  @JsonValue('ADMIN_APPROVAL_SELF')
-  adminApprovalSelf('ADMIN_APPROVAL_SELF'),
-  @JsonValue('ADMIN_APPROVAL_NOT_PENDING')
-  adminApprovalNotPending('ADMIN_APPROVAL_NOT_PENDING'),
   @JsonValue('CONTENT_BLOCKED')
   contentBlocked('CONTENT_BLOCKED'),
   @JsonValue('MODERATION_ACTION_NOT_APPLICABLE')
@@ -356,6 +358,24 @@ enum ErrorCode {
   integrationConflict('INTEGRATION_CONFLICT'),
   @JsonValue('ADMIN_STEP_UP_REQUIRED')
   adminStepUpRequired('ADMIN_STEP_UP_REQUIRED'),
+  @JsonValue('ADMIN_WORKSPACE_CONFLICT')
+  adminWorkspaceConflict('ADMIN_WORKSPACE_CONFLICT'),
+  @JsonValue('ADMIN_IP_NOT_ALLOWED')
+  adminIpNotAllowed('ADMIN_IP_NOT_ALLOWED'),
+  @JsonValue('STAFF_REVEAL_LIMIT')
+  staffRevealLimit('STAFF_REVEAL_LIMIT'),
+  @JsonValue('STAFF_EXPORT_BLOCKED')
+  staffExportBlocked('STAFF_EXPORT_BLOCKED'),
+  @JsonValue('ADMIN_COUNTRY_NOT_ALLOWED')
+  adminCountryNotAllowed('ADMIN_COUNTRY_NOT_ALLOWED'),
+  @JsonValue('ADMIN_DEVICE_CHANGED')
+  adminDeviceChanged('ADMIN_DEVICE_CHANGED'),
+  @JsonValue('ADMIN_IP_CHANGED')
+  adminIpChanged('ADMIN_IP_CHANGED'),
+  @JsonValue('REASON_CODE_REQUIRED')
+  reasonCodeRequired('REASON_CODE_REQUIRED'),
+  @JsonValue('AUDIT_UNAVAILABLE')
+  auditUnavailable('AUDIT_UNAVAILABLE'),
   @JsonValue('VIDEO_UNAVAILABLE')
   videoUnavailable('VIDEO_UNAVAILABLE'),
   @JsonValue('VIDEO_TOO_LONG')
@@ -492,6 +512,8 @@ enum ErrorCode {
   unsupportedInTarget('UNSUPPORTED_IN_TARGET'),
   @JsonValue('SYNC_TOO_OLD')
   syncTooOld('SYNC_TOO_OLD'),
+  @JsonValue('EXPERIMENT_STATE_INVALID')
+  experimentStateInvalid('EXPERIMENT_STATE_INVALID'),
   @JsonValue('STALE_VERSION')
   staleVersion('STALE_VERSION'),
 

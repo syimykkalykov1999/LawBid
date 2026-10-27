@@ -13,8 +13,9 @@ import {
   encodeCursor as encodeKeyset,
 } from '../../common/pagination/cursor.util';
 import { GUEST_USER_ID } from '../../common/viewer/guest';
+import { PrismaReadService } from '../../prisma/prisma-read.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT, REDIS_CLIENT } from '../../redis/redis.constants';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { cachedBlockSet } from '../blocks/block-set.cache';
 import type { PostPage } from '../posts/dto/posts.dto';
@@ -37,13 +38,18 @@ import {
 } from './feed-mixer';
 import type { FeedProvider } from './feed.provider';
 import { PromotionDeliveryService } from '../promotions/promotion-delivery.service';
+import { feedVersion } from '../../common/cache/feed-version';
 import { ck } from '../../redis/redis-cluster-safe';
 
 export const recoCurrentKey = () => ck('reco', 'feed:reco:current');
 export const recoKey = (version: string) => ck('reco', `feed:reco:${version}`);
 const seenKey = (uid: string) => `feed:seen:${uid}`;
-const firstPageKey = (uid: string, limit: number, mode: FeedContentMode) =>
-  `feed:first:${uid}:${limit}:${mode}`;
+const firstPageKey = (
+  uid: string,
+  limit: number,
+  mode: FeedContentMode,
+  version: string,
+) => `feed:first:${uid}:${limit}:${mode}:${version}`;
 /** §2.2.4: last 500 shown recommendations, kept 3 days. */
 const SEEN_MAX = 500;
 const SEEN_TTL_SEC = 3 * 24 * 3600;
@@ -80,7 +86,17 @@ export class FeedService implements FeedProvider {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly contentFilter: ContentFilterService,
     @Optional() private readonly promoDelivery?: PromotionDeliveryService,
-  ) {}
+    // Caching round 2 (S2-2): the per-viewer caches (first page, seen,
+    // block set) live on the evictable cache Redis; the recommendation
+    // snapshot stays on the main client (written by FeedRecoJob).
+    @Optional() @Inject(REDIS_CACHE_CLIENT) cache?: Redis,
+    // DB-ops S5-6: the guest feed (no viewer, no writes) reads the replica.
+    @Optional() private readonly read?: PrismaReadService,
+  ) {
+    this.cache = cache ?? redis;
+  }
+
+  private readonly cache: Redis;
 
   /** The organic page plus paid promoted posts (owner 2026-10-05):
    * one after every N-th post, marked with their promotionId. */
@@ -175,7 +191,7 @@ export class FeedService implements FeedProvider {
         throw badCursor();
       }
     }
-    const rows = await this.prisma.post.findMany({
+    const rows = await (this.read?.db ?? this.prisma).post.findMany({
       where: {
         AND: [
           VISIBLE_POST_WHERE,
@@ -219,9 +235,10 @@ export class FeedService implements FeedProvider {
     // Owner 2026-10-05: "Legal only" hides general (personal) posts.
     const mode = await this.contentFilter.modeOf(viewer.sub);
     const only = contentModeWhere(mode);
+    const ver = first ? await feedVersion(this.cache, viewer.sub) : '0';
     if (first) {
-      const cached = await this.redis.get(
-        firstPageKey(viewer.sub, limit, mode),
+      const cached = await this.cache.get(
+        firstPageKey(viewer.sub, limit, mode, ver),
       );
       if (cached) {
         return this.fromIds(
@@ -322,7 +339,7 @@ export class FeedService implements FeedProvider {
       reco.posts.length === 0 &&
       (following.length === 0 || !hasFollows)
     ) {
-      await this.redis.del(seenKey(viewer.sub));
+      await this.cache.del(seenKey(viewer.sub));
       reco = await this.recommendations(
         viewer,
         authorIds,
@@ -414,8 +431,8 @@ export class FeedService implements FeedProvider {
       usedReco.map((p) => p.id),
     );
     if (first) {
-      await this.redis.set(
-        firstPageKey(viewer.sub, limit, mode),
+      await this.cache.set(
+        firstPageKey(viewer.sub, limit, mode, ver),
         JSON.stringify({
           ids: page.map((p) => p.id),
           next: nextCursor,
@@ -533,7 +550,10 @@ export class FeedService implements FeedProvider {
     );
     if (ids.length === 0) return { posts: [], next: () => offset, version };
     // Only the candidates are checked, not the whole seen set.
-    const scores = await this.redis.zmscore(seenKey(viewer.sub), ...ids);
+    // The seen set is a cache: a dead cache node means "nothing seen yet".
+    const scores = await this.cache
+      .zmscore(seenKey(viewer.sub), ...ids)
+      .catch(() => ids.map(() => null));
     const seen = new Set(ids.filter((_, i) => scores[i] !== null));
     const exclude = new Set(excludeAuthors);
     // Audit 2026-10-01: no recommended posts of people blocked either way.
@@ -613,17 +633,21 @@ export class FeedService implements FeedProvider {
   private async blockedAuthors(viewer: RequestUser): Promise<string[]> {
     // Owner 2026-10-18 (speed): one cached block set per viewer (see
     // block-set.cache.ts), not a query up to three times per page.
-    return cachedBlockSet(this.prisma, this.redis, viewer.sub);
+    return cachedBlockSet(this.prisma, this.cache, viewer.sub);
   }
 
   private async markSeen(uid: string, ids: string[]): Promise<void> {
     if (ids.length === 0) return;
     const now = Date.now();
-    const tx = this.redis.multi();
-    ids.forEach((id) => tx.zadd(seenKey(uid), now, id));
-    tx.zremrangebyrank(seenKey(uid), 0, -(SEEN_MAX + 1));
-    tx.expire(seenKey(uid), SEEN_TTL_SEC);
-    await tx.exec();
+    try {
+      const tx = this.cache.multi();
+      ids.forEach((id) => tx.zadd(seenKey(uid), now, id));
+      tx.zremrangebyrank(seenKey(uid), 0, -(SEEN_MAX + 1));
+      tx.expire(seenKey(uid), SEEN_TTL_SEC);
+      await tx.exec();
+    } catch {
+      // Cache node down: the recommendations may repeat, nothing breaks.
+    }
   }
 
   private async fromIds(

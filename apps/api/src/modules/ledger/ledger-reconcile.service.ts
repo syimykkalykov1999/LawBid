@@ -1,6 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
+import { Prisma } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { LedgerPostingService } from './ledger-posting.service';
@@ -10,6 +12,10 @@ import {
 } from './ledger-stripe.service';
 
 const LAST_KEY = 'ledger:reconcile:last';
+const LAST_FULL_KEY = 'ledger:reconcile:last-full';
+const DAY_MS = 24 * 3600 * 1000;
+/** The window mode still does a full check at least this often. */
+const FULL_EVERY_DAYS = 7;
 const LAST_TTL_SEC = 35 * 24 * 3600;
 /** A row paid a moment ago may not have its entry yet only if the commit raced; they commit together, so this is only a safety margin. */
 const COVERAGE_GRACE_MS = 10 * 60 * 1000;
@@ -33,10 +39,40 @@ const APP_SOURCE_TYPES = [
   'payment_refund_sync',
   'case_payment',
   'case_payment_refund',
+  'case_payment_refund_reversal',
 ];
+
+export type LedgerReconcileMode = 'off' | 'on' | 'auto';
+
+/**
+ * Review R-26: what tonight's run covers. `off` = nothing; `on` = the whole
+ * append-only ledger every night (the old behaviour); `auto` (default) = the
+ * last `windowDays` days every night and the whole ledger once every
+ * FULL_EVERY_DAYS days (also when no full check is recorded yet), so the
+ * nightly cost stops growing with the table.
+ */
+export function reconcileScope(
+  mode: LedgerReconcileMode,
+  now: Date,
+  lastFullAt: Date | null,
+  windowDays: number,
+): { run: boolean; since: Date | null } {
+  if (mode === 'off') return { run: false, since: null };
+  if (mode === 'on') return { run: true, since: null };
+  const fullDue =
+    !lastFullAt ||
+    now.getTime() - lastFullAt.getTime() >= FULL_EVERY_DAYS * DAY_MS;
+  if (fullDue) return { run: true, since: null };
+  return {
+    run: true,
+    since: new Date(now.getTime() - Math.max(1, windowDays) * DAY_MS),
+  };
+}
 
 export interface LedgerReconcileResult {
   ranAt: string;
+  /** What was checked: the whole ledger, the recent window, or nothing (switch off). */
+  scope?: 'full' | 'window' | 'skipped';
   ok: boolean;
   entries: number;
   /** Entries whose debits differ from credits or with < 2 lines (the DB should make this 0). */
@@ -83,6 +119,7 @@ export class LedgerReconcileService {
     private readonly posting: LedgerPostingService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly logger: PinoLogger,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {
     this.logger.setContext(LedgerReconcileService.name);
   }
@@ -90,14 +127,48 @@ export class LedgerReconcileService {
   async run(now: Date = new Date()): Promise<LedgerReconcileResult> {
     const problems: string[] = [];
 
+    const mode = await this.mode();
+    const lastFullRaw = await this.redis.get(LAST_FULL_KEY).catch(() => null);
+    const scope = reconcileScope(
+      mode,
+      now,
+      lastFullRaw ? new Date(lastFullRaw) : null,
+      await this.windowDays(),
+    );
+    if (!scope.run) {
+      const skipped: LedgerReconcileResult = {
+        ranAt: now.toISOString(),
+        scope: 'skipped',
+        ok: true,
+        entries: 0,
+        unbalancedEntries: 0,
+        imbalanceByCurrency: {},
+        missingEntries: { payments: 0, casePayments: 0 },
+        caseRefundDriftCents: 0,
+        stripe: { status: 'skipped', reason: 'ledger.reconcile_mode is off' },
+        problems,
+      };
+      await this.redis
+        .set(LAST_KEY, JSON.stringify(skipped), 'EX', LAST_TTL_SEC)
+        .catch(() => undefined);
+      return skipped;
+    }
+    const since = scope.since;
+    // Window: only entries that happened since `since` (indexed on
+    // occurred_at); full: the whole table, as before.
+    const entryWhere = since
+      ? Prisma.sql`WHERE e.occurred_at >= ${since}`
+      : Prisma.empty;
+
     const [{ n: entries }] = await this.prisma.$queryRaw<{ n: bigint }[]>`
-      SELECT COUNT(*) AS n FROM ledger_entries`;
+      SELECT COUNT(*) AS n FROM ledger_entries e ${entryWhere}`;
 
     const [{ n: unbalanced }] = await this.prisma.$queryRaw<{ n: bigint }[]>`
       SELECT COUNT(*) AS n FROM (
         SELECT e.id
           FROM ledger_entries e
           LEFT JOIN ledger_lines l ON l.entry_id = e.id
+          ${entryWhere}
          GROUP BY e.id
         HAVING COUNT(l.id) < 2
             OR COALESCE(SUM(l.amount_cents) FILTER (WHERE l.direction = 'debit'), 0)
@@ -111,14 +182,17 @@ export class LedgerReconcileService {
              COALESCE(SUM(l.amount_cents) FILTER (WHERE l.direction = 'debit'), 0)
            - COALESCE(SUM(l.amount_cents) FILTER (WHERE l.direction = 'credit'), 0) AS diff
         FROM ledger_lines l JOIN ledger_entries e ON e.id = l.entry_id
+        ${entryWhere}
        GROUP BY e.currency`;
     const imbalanceByCurrency: Record<string, number> = {};
     for (const r of perCurrency) {
       if (r.diff !== 0n) imbalanceByCurrency[r.currency] = Number(r.diff);
     }
 
-    const coverage = await this.coverage(now);
-    const drift = await this.caseRefundDrift();
+    const coverage = await this.coverage(now, since);
+    // The refund drift is a cumulative comparison of two whole-table sums:
+    // it only makes sense over everything, so the window skips it.
+    const drift = since ? 0 : await this.caseRefundDrift();
 
     if (Number(unbalanced) > 0) {
       problems.push(`${unbalanced} unbalanced entries`);
@@ -148,6 +222,7 @@ export class LedgerReconcileService {
 
     const result: LedgerReconcileResult = {
       ranAt: now.toISOString(),
+      scope: since ? 'window' : 'full',
       ok: problems.length === 0,
       entries: Number(entries),
       unbalancedEntries: Number(unbalanced),
@@ -171,6 +246,11 @@ export class LedgerReconcileService {
     await this.redis
       .set(LAST_KEY, JSON.stringify(result), 'EX', LAST_TTL_SEC)
       .catch(() => undefined);
+    if (!since) {
+      await this.redis
+        .set(LAST_FULL_KEY, now.toISOString(), 'EX', LAST_TTL_SEC)
+        .catch(() => undefined);
+    }
     return result;
   }
 
@@ -220,14 +300,37 @@ export class LedgerReconcileService {
 
   // ---------------------------------------------------------------------
 
+  private async mode(): Promise<LedgerReconcileMode> {
+    try {
+      const v = await this.settings?.string('ledger.reconcile_mode');
+      return v === 'off' || v === 'on' ? v : 'auto';
+    } catch {
+      return 'auto';
+    }
+  }
+
+  private async windowDays(): Promise<number> {
+    try {
+      return (await this.settings?.number('ledger.reconcile_window_days')) ?? 7;
+    } catch {
+      return 7;
+    }
+  }
+
   private async coverage(
     now: Date,
+    windowSince: Date | null = null,
   ): Promise<{ payments: number; casePayments: number }> {
-    const [first] = await this.prisma.$queryRaw<{ t: Date | null }[]>`
-      SELECT MIN(created_at) AS t FROM ledger_entries`;
-    // Before the first entry there is nothing to compare (rows from before the ledger).
-    if (!first?.t) return { payments: 0, casePayments: 0 };
-    const since = new Date(first.t.getTime() - 24 * 3600 * 1000);
+    let since: Date;
+    if (windowSince) {
+      since = windowSince;
+    } else {
+      const [first] = await this.prisma.$queryRaw<{ t: Date | null }[]>`
+        SELECT MIN(occurred_at) AS t FROM ledger_entries`;
+      // Before the first entry there is nothing to compare (rows from before the ledger).
+      if (!first?.t) return { payments: 0, casePayments: 0 };
+      since = new Date(first.t.getTime() - 24 * 3600 * 1000);
+    }
     const until = new Date(now.getTime() - COVERAGE_GRACE_MS);
     const [p] = await this.prisma.$queryRaw<{ n: bigint }[]>`
       SELECT COUNT(*) AS n FROM payments p
@@ -256,6 +359,13 @@ export class LedgerReconcileService {
         SELECT COALESCE(SUM(l.amount_cents), 0) FROM ledger_lines l
           JOIN ledger_entries e ON e.id = l.entry_id
          WHERE e.source_type = 'case_payment_refund' AND l.direction = 'debit'
+      ) + (
+        -- a refund that failed / a chargeback won late is booked back (reversal entries)
+        SELECT COALESCE(SUM(l.amount_cents), 0) FROM ledger_lines l
+          JOIN ledger_entries e ON e.id = l.entry_id
+          JOIN ledger_accounts a ON a.id = l.account_id
+         WHERE e.source_type = 'case_payment_refund_reversal' AND l.direction = 'credit'
+           AND a.code IN ('connect_attorney', 'revenue_case_fees')
       ) AS diff`;
     return Number(row?.diff ?? 0);
   }

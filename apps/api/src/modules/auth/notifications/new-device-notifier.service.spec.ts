@@ -79,7 +79,6 @@ describe('NewDeviceNotifier', () => {
   it.each([
     ['a brand-new user', { isNewUser: true }],
     ['a known device', { isNewDevice: false }],
-    ['a login without deviceId', { device: {} }],
   ])('does nothing for %s', async (_, patch) => {
     const record = jest.fn();
     const email = channel('email');
@@ -92,6 +91,62 @@ describe('NewDeviceNotifier', () => {
     await notifier.drain();
     expect(record).not.toHaveBeenCalled();
     expect(email.notifyNewDevice).not.toHaveBeenCalled();
+  });
+
+  it('S14-4: a sign-in with no device id (a "new device" by rule) still alerts, without a device id', async () => {
+    const record = jest.fn().mockResolvedValue(undefined);
+    const email = channel('email');
+    const notifier = new NewDeviceNotifier(
+      [email],
+      { record } as unknown as AuthEventService,
+      logger(),
+    );
+    await notifier.onLogin({ ...baseCtx, device: {} });
+    await notifier.drain();
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: 'new_device', success: true }),
+    );
+    expect(email.notifyNewDevice).toHaveBeenCalledTimes(1);
+  });
+
+  it('S14-4: a known device from a NEW country alerts (reason new_country)', async () => {
+    const record = jest.fn().mockResolvedValue(undefined);
+    const email = channel('email');
+    const notifier = new NewDeviceNotifier(
+      [email],
+      { record } as unknown as AuthEventService,
+      logger(),
+    );
+    await notifier.onLogin({
+      ...baseCtx,
+      isNewDevice: false,
+      meta: { ...baseCtx.meta, country: 'RU' },
+      novelty: { newCountry: true, newBrowser: false },
+    });
+    await notifier.drain();
+    const notice = email.notifyNewDevice.mock
+      .calls[0][0] as NewDeviceLoginNotice;
+    expect(notice).toMatchObject({ reason: 'new_country', country: 'RU' });
+  });
+
+  it('S14-4: a refresh from a new country records new_country and alerts', async () => {
+    const record = jest.fn().mockResolvedValue(undefined);
+    const push = channel('push');
+    const notifier = new NewDeviceNotifier(
+      [push],
+      { record } as unknown as AuthEventService,
+      logger(),
+    );
+    await notifier.onRefreshFromNewCountry({
+      user: baseCtx.user,
+      device: baseCtx.device,
+      meta: { ...baseCtx.meta, country: 'DE' },
+    });
+    await notifier.drain();
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: 'new_country' }),
+    );
+    expect(push.notifyNewDevice).toHaveBeenCalledTimes(1);
   });
 
   it('passes no email for an unverified address', async () => {

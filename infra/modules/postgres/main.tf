@@ -74,6 +74,42 @@ variable "tags" {
   default = {}
 }
 
+# --- DB ops hardening (2026-10-25, claude/db-ops-hardening) -----------------
+variable "engine_version" {
+  type        = string
+  default     = "16"
+  description = "PostgreSQL version. \"16\" = latest 16.x minor (auto minor upgrades on). To pin: set e.g. \"16.6\" (test on staging first) and the stack will not move until you change it. See docs/runbooks/db-ops.md."
+}
+variable "auto_minor_version_upgrade" {
+  type        = bool
+  default     = true
+  description = "Let RDS apply minor versions in the Sunday maintenance window. Set false together with a pinned engine_version."
+}
+variable "rds_logical_replication" {
+  type        = bool
+  default     = false
+  description = "rds.logical_replication = 1. Needed for shard moves and Blue/Green major upgrades. STATIC parameter: takes effect only after a REBOOT - do it in the planned Sunday Multi-AZ reboot (docs/runbooks/db-ops.md)."
+}
+variable "monitoring_interval" {
+  type        = number
+  default     = 0
+  description = "RDS Enhanced Monitoring interval in seconds (0 = off, 1, 5, 10, 15, 30, 60). 60 costs a few dollars a month in CloudWatch Logs."
+  validation {
+    condition     = contains([0, 1, 5, 10, 15, 30, 60], var.monitoring_interval)
+    error_message = "monitoring_interval must be 0, 1, 5, 10, 15, 30 or 60."
+  }
+}
+variable "autovacuum_vacuum_scale_factor" {
+  type        = number
+  default     = 0.05
+  description = "Instance-wide default (PostgreSQL: 0.2). A 500M-row table is vacuumed after 25M dead rows instead of 100M. The hot tables get their own, lower value from a migration (20261101300000_autovacuum_hot_tables)."
+}
+variable "autovacuum_analyze_scale_factor" {
+  type        = number
+  default     = 0.02
+  description = "Instance-wide default (PostgreSQL: 0.1)."
+}
+
 resource "aws_db_subnet_group" "this" {
   name       = "${var.name}-postgres"
   subnet_ids = var.subnet_ids
@@ -103,14 +139,94 @@ resource "aws_db_parameter_group" "this" {
   # Slow queries land in the log (the admin's «здоровье системы» reads them).
   parameter {
     name  = "log_min_duration_statement"
-    value = "500"
+    value = tostring(var.slow_query_log_ms)
+  }
+  # S20-3: never write the bind values ($1 = 'phone / e-mail / message id')
+  # next to a slow statement; the CloudWatch export is not a place for PII.
+  # Both are dynamic parameters (no reboot).
+  parameter {
+    name  = "log_parameter_max_length"
+    value = "0"
+  }
+  parameter {
+    name  = "log_parameter_max_length_on_error"
+    value = "0"
   }
   parameter {
     name         = "shared_preload_libraries"
     value        = "pg_stat_statements"
     apply_method = "pending-reboot"
   }
+
+  # --- autovacuum / bloat visibility (docs/runbooks/db-ops.md) -------------
+  # All of these are dynamic (applied at once, no reboot).
+  # Every autovacuum / autoanalyze that runs longer than 1 s is logged.
+  parameter {
+    name  = "log_autovacuum_min_duration"
+    value = "1000"
+  }
+  # A query that waited on a lock longer than deadlock_timeout is logged.
+  parameter {
+    name  = "log_lock_waits"
+    value = "1"
+  }
+  parameter {
+    name  = "deadlock_timeout"
+    value = "1000"
+  }
+  # Time spent in I/O shows in EXPLAIN (BUFFERS) and pg_stat_statements.
+  parameter {
+    name  = "track_io_timing"
+    value = "1"
+  }
+  # Temp files over 10 MB (value in kB) mean a sort / hash spilled to disk.
+  parameter {
+    name  = "log_temp_files"
+    value = "10240"
+  }
+  parameter {
+    name  = "autovacuum_vacuum_scale_factor"
+    value = tostring(var.autovacuum_vacuum_scale_factor)
+  }
+  parameter {
+    name  = "autovacuum_vacuum_insert_scale_factor"
+    value = tostring(var.autovacuum_vacuum_scale_factor)
+  }
+  parameter {
+    name  = "autovacuum_analyze_scale_factor"
+    value = tostring(var.autovacuum_analyze_scale_factor)
+  }
+  # STATIC: only when asked for, applied by the next reboot.
+  dynamic "parameter" {
+    for_each = var.rds_logical_replication ? [1] : []
+    content {
+      name         = "rds.logical_replication"
+      value        = "1"
+      apply_method = "pending-reboot"
+    }
+  }
   tags = var.tags
+}
+
+# Enhanced Monitoring needs a role RDS can assume (only when switched on).
+resource "aws_iam_role" "monitoring" {
+  count = var.monitoring_interval > 0 ? 1 : 0
+  name  = "${var.name}-rds-monitoring"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "monitoring.rds.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "monitoring" {
+  count      = var.monitoring_interval > 0 ? 1 : 0
+  role       = aws_iam_role.monitoring[0].name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 }
 
 resource "random_password" "master" {
@@ -136,6 +252,24 @@ resource "aws_secretsmanager_secret_version" "master" {
   })
 }
 
+variable "slow_query_log_ms" {
+  type        = number
+  default     = 500
+  description = "log_min_duration_statement, milliseconds (S20-3, cost registry row aws.cloudwatch_slowlog). Raise to 2000 during a slow-database storm (ops.db_slow_log_mode auto / on in the admin tells you when) to stop the slow log from flooding CloudWatch."
+  validation {
+    condition     = var.slow_query_log_ms >= 100 && var.slow_query_log_ms <= 60000
+    error_message = "slow_query_log_ms must be 100..60000."
+  }
+}
+variable "log_group_class" {
+  type        = string
+  default     = "INFREQUENT_ACCESS"
+  description = "CloudWatch log class of the RDS postgresql / upgrade logs (S20-11, cost registry row aws.cloudwatch_ia). INFREQUENT_ACCESS = half the ingest price; it has no metric filters / subscriptions, and nothing here uses them. STANDARD = old behaviour. Immutable in AWS: changing it replaces the group (its old lines are dropped)."
+  validation {
+    condition     = contains(["STANDARD", "INFREQUENT_ACCESS"], var.log_group_class)
+    error_message = "log_group_class must be STANDARD or INFREQUENT_ACCESS."
+  }
+}
 variable "log_retention_days" {
   type        = number
   default     = 30
@@ -151,6 +285,7 @@ resource "aws_cloudwatch_log_group" "rds" {
   for_each          = toset(["postgresql", "upgrade"])
   name              = "/aws/rds/instance/${var.name}-postgres/${each.key}"
   retention_in_days = var.log_retention_days
+  log_group_class   = var.log_group_class
   kms_key_id        = var.kms_key_arn
   tags              = var.tags
 }
@@ -158,7 +293,7 @@ resource "aws_cloudwatch_log_group" "rds" {
 resource "aws_db_instance" "this" {
   identifier     = "${var.name}-postgres"
   engine         = "postgres"
-  engine_version = "16"
+  engine_version = var.engine_version
   instance_class = var.instance_class
 
   db_name  = var.db_name
@@ -187,7 +322,9 @@ resource "aws_db_instance" "this" {
   skip_final_snapshot       = var.skip_final_snapshot
   final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.name}-postgres-final"
 
-  auto_minor_version_upgrade            = true
+  auto_minor_version_upgrade            = var.auto_minor_version_upgrade
+  monitoring_interval                   = var.monitoring_interval
+  monitoring_role_arn                   = var.monitoring_interval > 0 ? aws_iam_role.monitoring[0].arn : null
   maintenance_window                    = "sun:04:30-sun:05:30"
   performance_insights_enabled          = true
   performance_insights_retention_period = 7 # free tier; longer history is billed

@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
@@ -37,7 +37,7 @@ class _CallNoticeBannerState extends ConsumerState<CallNoticeBanner> {
   @override
   void initState() {
     super.initState();
-    unawaited(HapticFeedback.mediumImpact());
+    unawaited(AppHaptics.medium());
     _hide = Timer(const Duration(seconds: 4), () {
       if (mounted) ref.read(callControllerProvider.notifier).dismissNotice();
     });

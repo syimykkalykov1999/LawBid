@@ -18,6 +18,7 @@ const row = (o: Partial<CostRegistryRow>): CostRegistryRow => ({
   controlType: "app-setting",
   controlKey: "budget.sms.monthly_max",
   editable: true,
+  infraSwitch: false,
   lockedReason: null,
   states: ["off", "auto"],
   defaultState: "auto",

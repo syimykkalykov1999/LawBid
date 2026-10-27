@@ -3,9 +3,9 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 
 /// The Search tab's field (docs/05 §7.1). While empty and idle its hint
 /// flips through what can be searched ("Attorneys by name", "@username",
@@ -259,7 +259,7 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
                   onPressed: _empty
                       ? null
                       : () {
-                          HapticFeedback.selectionClick();
+                          AppHaptics.selection();
                           widget.controller.clear();
                         },
                 ),

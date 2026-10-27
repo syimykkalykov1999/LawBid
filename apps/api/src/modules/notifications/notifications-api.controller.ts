@@ -7,7 +7,10 @@ import {
   Post,
   Put,
   Query,
+  Req,
+  Res,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -15,6 +18,8 @@ import {
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { conditionalGet } from '../../common/sync/cheap-etag';
+import { VersionEtagService } from '../../common/sync/version-etag.service';
 import {
   CurrentUser,
   type RequestUser,
@@ -55,6 +60,7 @@ export class NotificationsApiController {
     private readonly badges: BadgesService,
     private readonly tokens: PushTokensService,
     private readonly voipTokens: VoipTokensService,
+    private readonly versionEtag: VersionEtagService,
   ) {}
 
   // OQ-048: an assistant has their own notifications and devices.
@@ -63,11 +69,21 @@ export class NotificationsApiController {
   @ApiOperation({ summary: 'Notifications, newest first (§9.1)' })
   @ApiEnvelopeResponse(NotificationDto, { isArray: true })
   @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
-  listNotifications(
+  async listNotifications(
     @CurrentUser() user: RequestUser,
     @Query() q: NotificationsQueryDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    return this.api.list(user.sub, q.cursor, q.group, q.q, q.updatedSince);
+    // Owner 2026-10-25 (S2-12): a version tag from the newest stamp and the
+    // unread count (own rows only), so an unchanged list is a cheap 304.
+    return conditionalGet(
+      req,
+      res,
+      q.q ? null : await this.versionEtag.notifications(user.sub),
+      () => Promise.resolve(),
+      () => this.api.list(user.sub, q.cursor, q.group, q.q, q.updatedSince),
+    );
   }
 
   // OQ-048: an assistant has their own notifications and devices.
@@ -207,6 +223,7 @@ export class NotificationsApiController {
       dto.platform,
       dto.localReminders === true && dto.platform === 'android',
       dto.chatStyle === true && dto.platform === 'android',
+      dto.actorStyle === true && dto.platform === 'android',
     );
   }
 

@@ -190,7 +190,7 @@ describe('Chat message actions (e2e, owner 2026-10-20)', () => {
       .send({ body: 'hijack' })
       .expect(403);
     // After the window: refused.
-    await prisma.message.update({
+    await prisma.message.updateMany({
       where: { id: m.id },
       data: { created_at: new Date(Date.now() - 20 * 60_000) },
     });
@@ -225,7 +225,7 @@ describe('Chat message actions (e2e, owner 2026-10-20)', () => {
     expect(seen?.body).toBe('');
 
     const old = await send(c, 'client', 'too old');
-    await prisma.message.update({
+    await prisma.message.updateMany({
       where: { id: old.id },
       data: { created_at: new Date(Date.now() - 49 * 3_600_000) },
     });
@@ -417,7 +417,7 @@ describe('Chat message actions (e2e, owner 2026-10-20)', () => {
     }).expect(404);
 
     // Owner 2026-10-21: a disappearing message stays where it was sent.
-    await prisma.message.update({
+    await prisma.message.updateMany({
       where: { id: doc.body.data.id },
       data: { expires_at: new Date(Date.now() + 3600_000) },
     });

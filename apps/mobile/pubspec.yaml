@@ -39,6 +39,10 @@ dependencies:
   # for the refresh token only (see core/session/token_secure_store.dart's
   # doc comment for why it's not in LocalKvStore/SharedPreferences).
   dio: ^5.9.0
+  # S8-1 (speed): iOS URLSession / Android Cronet transport (HTTP/2+3, OS
+  # connection reuse) behind a fallback to dart:io (core/network/http_transport*.dart).
+  native_dio_adapter: ^1.8.0
+  http: ^1.5.0
   # Browser file save (core/platform/web_download_web.dart).
   web: ^1.1.0
   flutter_secure_storage: ^9.2.4
@@ -76,7 +80,7 @@ dependencies:
   # §12); opening the store from the update prompts; Android SMS Retriever
   # OTP autofill (file 01 §10.2 D).
   package_info_plus: ^9.0.1
-  app_links: ^7.2.1
+  app_links: ^7.2.2
   url_launcher: ^6.3.2
   smart_auth: ^3.2.0
   # Connectivity (docs/01 §8.3 "Offline (баннер сверху, показ кэша)",

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -42,13 +42,18 @@ class _ConsultationDetailScreenState
   }) async {
     final t = ref.read(translatorProvider);
     setState(() => _busy = true);
+    final container = ProviderScope.containerOf(context);
     try {
-      await action();
-      refreshConsultations(ref, id: widget.id);
-      if (mounted && done != null) showAppSnackBar(context, t.t(done));
-    } on Object catch (e) {
-      if (mounted) showAppSnackBar(context, errorText(t, e));
-      refreshConsultations(ref, id: widget.id);
+      var ok = false;
+      try {
+        await action();
+        ok = true;
+      } on Object catch (e) {
+        if (mounted) showAppSnackBar(context, errorText(t, e));
+      }
+      // Success or failure, the booking is re-read once.
+      refreshConsultationsIn(container, id: widget.id);
+      if (ok && mounted && done != null) showAppSnackBar(context, t.t(done));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -100,7 +105,7 @@ class _ConsultationDetailScreenState
   void _call(Consultation c) {
     final conversationId = c.conversationId;
     if (conversationId == null) return;
-    HapticFeedback.mediumImpact();
+    AppHaptics.medium();
     ref.read(callControllerProvider.notifier).call(
           conversationId,
           peer: CallPeer(

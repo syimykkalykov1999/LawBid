@@ -15,6 +15,11 @@ const kCacheMaxAgeExtra = 'cacheMaxAge';
 /// request (a max-age hit) or after a 304.
 const kFromCacheExtra = 'fromCache';
 
+/// Set on `Response.extra` (next to [kFromCacheExtra]) when the answer is
+/// an old copy served because the server could not be reached or answered
+/// 502 / 503 / 504 (RFC 5861 `stale-if-error`, caching round 2, S2-4).
+const kStaleExtra = 'stale';
+
 /// Request extras for a GET that may be served from the phone for [maxAge].
 Map<String, dynamic> cacheFor(Duration maxAge) => {
       kCacheMaxAgeExtra: maxAge.inSeconds,
@@ -52,9 +57,10 @@ abstract interface class HttpCacheStore {
   Future<void> clear();
 }
 
-/// Owner 2026-10-22 (client economy plan, package D): the successor of the
-/// in-memory `EtagCacheInterceptor` — the same ETag / `If-None-Match` /
-/// 304 scheme, now with a copy on disk, so a cold start gets a 304 on
+/// Owner 2026-10-22 (client economy plan, package D): the ETag /
+/// `If-None-Match` / 304 cache (it replaced the old in-memory-only
+/// interceptor, deleted in the dedup cleanup), with a copy on disk, so a
+/// cold start gets a 304 on
 /// bootstrap, the session, pricing, legal texts, stickers and the own
 /// profile instead of downloading them again. Memory stays the first
 /// level (least-recently-used out first); the disk is the second.
@@ -68,6 +74,7 @@ class HttpCacheInterceptor extends Interceptor {
     this.maxEntries = 120,
     this.maxBytes = 16 * 1024 * 1024,
     this.maxDiskBodyBytes = 1024 * 1024,
+    this.staleOnError = const Duration(hours: 8),
     DateTime Function()? now,
   })  : _disk = disk,
         _usage = usage,
@@ -82,6 +89,10 @@ class HttpCacheInterceptor extends Interceptor {
   /// Bodies longer than this stay in memory only (a list page of 2 MB has
   /// no business on the disk).
   final int maxDiskBodyBytes;
+
+  /// How old a copy may be and still stand in for a failed request
+  /// (no network, timeout, 502-504). `Duration.zero` switches it off.
+  final Duration staleOnError;
 
   static const _keyExtra = 'httpCacheKey';
   static const _leaderExtra = 'httpCacheLeader';
@@ -257,9 +268,53 @@ class HttpCacheInterceptor extends Interceptor {
       handler.resolve(answer);
       return;
     }
+    // Caching round 2 (S2-4): stale-if-error. The phone already holds a
+    // good copy; a dead network or a gateway error must not replace it with
+    // an error screen. 401 / 403 / 404 / 5xx other than 502-504 still
+    // reach the caller (they say something the copy cannot).
+    if (hit is HttpCacheEntry &&
+        _isOutage(err) &&
+        staleOnError > Duration.zero &&
+        _now().difference(hit.fetchedAt) <= staleOnError) {
+      // The leader's outage is not shared: followers ask for themselves
+      // (and get the same stale copy if the outage goes on).
+      _finish(err.requestOptions, null);
+      handler.resolve(
+        Response<dynamic>(
+          requestOptions: err.requestOptions,
+          data: hit.data,
+          statusCode: 200,
+          extra: {kFromCacheExtra: true, kStaleExtra: true},
+        ),
+      );
+      return;
+    }
     if (res != null) _usage?.request(bytes: _roughSize(res.data));
     _finish(err.requestOptions, null);
     handler.next(err);
+  }
+
+  /// True for "could not reach the server" and the gateway statuses.
+  static bool _isOutage(DioException err) {
+    switch (err.type) {
+      case DioExceptionType.connectionError:
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return true;
+      case DioExceptionType.badResponse:
+        final code = err.response?.statusCode;
+        return code == 502 || code == 503 || code == 504;
+      case DioExceptionType.unknown:
+        // A socket / TLS failure surfaces as `unknown` with the cause.
+        final cause = err.error;
+        return cause != null &&
+            cause.runtimeType.toString().contains('SocketException');
+      case DioExceptionType.badCertificate:
+      case DioExceptionType.cancel:
+      case DioExceptionType.transformTimeout:
+        return false;
+    }
   }
 
   /// Forgets everything in memory (and on disk when [disk] is true).

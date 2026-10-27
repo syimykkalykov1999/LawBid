@@ -5,7 +5,12 @@ import type { I18nLanguage, LegalDocument } from '@prisma/client';
 import type Redis from 'ioredis';
 import { weakEtag } from '../../../common/sync/cheap-etag';
 import { OWNER_CACHE_SETTINGS } from '../../../common/app-settings/app-settings.defaults';
-import { CLIENT_TUNING_DEFS } from '../../../common/app-settings/client-tuning';
+import {
+  CLIENT_TUNING_DEFS,
+  effectivePrefetch,
+} from '../../../common/app-settings/client-tuning';
+import { USAGE_SNAPSHOT_KEY } from '../../../common/ops/usage-snapshot-key';
+import { triMode } from '../../../common/ops/tri-mode';
 import {
   clientTimingsFrom,
   type ClientTimings,
@@ -153,6 +158,53 @@ export class BootstrapService {
     @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
+  /**
+   * S20-9: the reel warm-up the app obeys. The 3-state switch
+   * (`client.video_prefetch_mode`) is turned into two numbers here: Wi-Fi
+   * and mobile data; in Авто both drop to 0 while Bunny video traffic is
+   * over its warning level (daily usage poll). Always present.
+   */
+  private async videoPrefetchPlan(
+    appConfig: Record<string, unknown>,
+  ): Promise<Record<string, number>> {
+    const num = (
+      key: 'client.video_prefetch_ahead' | 'client.video_prefetch_cellular',
+    ) => {
+      const v = appConfig[key];
+      return typeof v === 'number' && Number.isFinite(v)
+        ? v
+        : (CLIENT_TUNING_DEFS[key].default as number);
+    };
+    const mode = triMode(
+      appConfig['client.video_prefetch_mode'] ??
+        CLIENT_TUNING_DEFS['client.video_prefetch_mode'].default,
+    );
+    let bunnyOver = false;
+    if (mode === 'auto') {
+      try {
+        const raw = await this.redis.get(USAGE_SNAPSHOT_KEY);
+        const level = (
+          JSON.parse(raw ?? 'null') as {
+            bunny?: { bandwidthLevel?: string };
+          } | null
+        )?.bunny?.bandwidthLevel;
+        bunnyOver = level === 'warn' || level === 'crit';
+      } catch {
+        // no snapshot yet: not over
+      }
+    }
+    const plan = effectivePrefetch({
+      mode,
+      ahead: num('client.video_prefetch_ahead'),
+      cellular: num('client.video_prefetch_cellular'),
+      bunnyOver,
+    });
+    return {
+      'client.video_prefetch_ahead': plan.ahead,
+      'client.video_prefetch_cellular': plan.cellular,
+    };
+  }
+
   /** 2026-10-24 (batch D, item 4): the website asks Cloudflare Turnstile
    * for a token before sign-up / code requests. The site key is public by
    * design; it is published only while `security.turnstile.mode` is not
@@ -235,6 +287,31 @@ export class BootstrapService {
     }
   }
 
+  /** The two client guest switches, forced off while the master is off. */
+  private guestBrowseKeys(
+    appConfig: Record<string, unknown>,
+  ): Record<string, boolean> {
+    const master = appConfig['guest.browsing_enabled'] !== false;
+    const pick = (
+      key:
+        'client.guest_browse_app_enabled' | 'client.guest_browse_web_enabled',
+    ) => {
+      const stored = appConfig[key];
+      return (
+        master &&
+        (typeof stored === 'boolean' ? stored : CLIENT_TUNING_DEFS[key].default)
+      );
+    };
+    return {
+      'client.guest_browse_app_enabled': pick(
+        'client.guest_browse_app_enabled',
+      ),
+      'client.guest_browse_web_enabled': pick(
+        'client.guest_browse_web_enabled',
+      ),
+    };
+  }
+
   async build(): Promise<BootstrapResponse> {
     const [flags, appConfig, content] = await Promise.all([
       this.flags.getFlags(),
@@ -272,11 +349,17 @@ export class BootstrapService {
             PUBLIC_CONFIG_PREFIXES.some((p) => k.startsWith(p)),
           ),
         ),
+        // Dedup D-12: `guest.browsing_enabled` is the one master switch (it is
+        // also the server's gate for token-less reads). The apps are told
+        // "browse as guest" only while it is on, so an app never offers what
+        // the API would answer with 401.
+        ...this.guestBrowseKeys(appConfig),
         // Owner 2026-10-07 (bug 17): the app shows and checks the admin's
         // upload limits (always present, inside the safe ceilings).
         [UPLOAD_LIMITS_KEY]: sanitizeUploadLimits(appConfig[UPLOAD_LIMITS_KEY]),
         ...(await this.sentryDsns()),
         ...(await this.turnstileSiteKey()),
+        ...(await this.videoPrefetchPlan(appConfig)),
       },
       client: { timings: clientTimingsFrom(appConfig) },
       languages: content.languages,

@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'spend_line_dto_covered_by.dart';
 import 'spend_line_dto_key.dart';
 import 'spend_line_dto_source.dart';
 
@@ -16,6 +17,7 @@ class SpendLineDto {
     required this.monthToDateUsd,
     required this.projectedUsd,
     required this.source,
+    this.coveredBy,
   });
 
   factory SpendLineDto.fromJson(Map<String, Object?> json) =>
@@ -25,8 +27,11 @@ class SpendLineDto {
   final num monthToDateUsd;
   final num projectedUsd;
 
-  /// actual = read from AWS; estimate = units × unit price.
+  /// actual = read from the vendor; estimate = calls × price book.
   final SpendLineDtoSource source;
+
+  /// The AWS bill already contains this line (not added twice).
+  final SpendLineDtoCoveredBy? coveredBy;
 
   Map<String, Object?> toJson() => _$SpendLineDtoToJson(this);
 }

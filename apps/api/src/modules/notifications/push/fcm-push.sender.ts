@@ -13,6 +13,10 @@ import {
 } from './push.constants';
 import { apnsCollapseId } from './chat-push';
 import { PushTokensService } from './push-tokens.service';
+import {
+  fcmDispatcher,
+  isStaleSocketError,
+} from '../../../common/http/outbound-agent';
 
 const SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
 /** Devices already served for a logical push, kept for the retry window. */
@@ -33,6 +37,31 @@ function reminderKey(data: Record<string, string> | undefined): string | null {
 /** A temporary FCM failure: BullMQ retries the job (§9.5: 3 attempts,
  * exponential backoff). */
 export class FcmTemporaryError extends Error {}
+
+/** FCM answered 429 (quota / too many requests). Carries how long FCM asked
+ * us to wait; the push worker turns it into ONE queue-wide pause (S10-5)
+ * instead of every job retrying into the same limit. */
+export class FcmRateLimitError extends FcmTemporaryError {
+  constructor(readonly retryAfterMs: number) {
+    super(`FCM rate limited, retry after ${retryAfterMs} ms`);
+  }
+}
+
+/** Retry-After header (seconds or an HTTP date) → ms, bounded 1 s … 5 min;
+ * 60 s when FCM sent none (Google's guidance: back off at least a minute). */
+export function retryAfterMs(header: string | null | undefined): number {
+  const raw = header?.trim();
+  let ms = 60_000;
+  if (raw) {
+    const secs = Number(raw);
+    if (Number.isFinite(secs)) ms = secs * 1000;
+    else {
+      const at = Date.parse(raw);
+      if (!Number.isNaN(at)) ms = at - Date.now();
+    }
+  }
+  return Math.min(300_000, Math.max(1_000, ms));
+}
 
 /** Owner 2026-10-22: FCM's multicast size (sendEachForMulticast takes at
  * most 500 tokens) — the most device requests in flight at once. */
@@ -93,6 +122,7 @@ export class FcmPushSender implements PushSender {
     const sentKey = `push:sent:${dedupeKey}`;
     const { token: access } = await this.jwt.getAccessToken();
     let temporary = 0;
+    let rateLimitMs = 0;
     const skip = new Set(message.skipTokens ?? []);
     if (message.callEnd) {
       for (const t of await this.tokens.webTokens(message.userId)) skip.add(t);
@@ -114,6 +144,11 @@ export class FcmPushSender implements PushSender {
     const chatStyle = new Set(
       message.chat ? await this.tokens.chatStyleTokens(message.userId) : [],
     );
+    // Owner 2026-10-26: Android apps that draw notifications with a person
+    // themselves (their round photo).
+    const actorStyle = new Set(
+      message.actor ? await this.tokens.actorStyleTokens(message.userId) : [],
+    );
     // Owner 2026-10-22 (server load audit, finding 7): the devices go out
     // in parallel, at most FCM_MULTICAST_MAX at a time — what the Admin
     // SDK's sendEachForMulticast does (one HTTP v1 call per token; FCM
@@ -121,7 +156,7 @@ export class FcmPushSender implements PushSender {
     const one = async (device: string): Promise<void> => {
       if (skip.has(device)) return;
       if (key && armed.get(device)?.has(key)) return;
-      const ownChat = chatStyle.has(device);
+      const ownChat = chatStyle.has(device) || actorStyle.has(device);
       const dataOnly = message.call || localReminder.has(device) || ownChat;
       // Claim the device before the call: a crash between FCM's 200 and
       // the mark can at most skip a push, never double it (load review).
@@ -135,159 +170,173 @@ export class FcmPushSender implements PushSender {
       if (claimed === null) return;
       let res: Response;
       try {
-        res = await fetch(this.url, {
-          method: 'POST',
-          signal: AbortSignal.timeout(FCM_TIMEOUT_MS),
-          headers: {
-            Authorization: `Bearer ${access}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            message: message.callEnd
-              ? callEndMessage(device, message)
-              : {
-                  token: device,
-                  // OQ-041: Android rings from a data-only message (the app
-                  // draws the full-screen call UI); iOS gets a time-sensitive
-                  // alert.
-                  ...(dataOnly
-                    ? {}
-                    : {
-                        notification: {
-                          title: message.title,
-                          body: message.body,
-                        },
-                      }),
-                  data: dataOnly
-                    ? {
-                        ...message.data,
+        const body = JSON.stringify({
+          message: message.callEnd
+            ? callEndMessage(device, message)
+            : {
+                token: device,
+                // OQ-041: Android rings from a data-only message (the app
+                // draws the full-screen call UI); iOS gets a time-sensitive
+                // alert.
+                ...(dataOnly
+                  ? {}
+                  : {
+                      notification: {
                         title: message.title,
                         body: message.body,
-                        // Owner 2026-10-22 (inbox 29): the app draws this
-                        // chat alert itself — «Счётчик на иконке» off makes
-                        // it use the channel without a launcher badge.
-                        ...(ownChat && message.iconBadge === false
-                          ? { iconBadge: '0' }
-                          : {}),
-                      }
-                    : message.data,
-                  android: message.call
-                    ? { priority: 'high', ttl: `${CALL_TTL_SEC}s` }
-                    : ownChat
-                      ? { priority: 'high' }
-                      : dataOnly
-                        ? { priority: 'high', ttl: `${REMINDER_TTL_SEC}s` }
-                        : {
-                            priority: 'high',
-                            ...(message.ttlSec
-                              ? { ttl: `${message.ttlSec}s` }
-                              : {}),
-                            ...(message.collapseKey
-                              ? { collapse_key: message.collapseKey }
-                              : {}),
-                            ...(message.sound || message.reminder
-                              ? {
-                                  notification: {
-                                    ...(message.sound
-                                      ? {
-                                          channel_id:
-                                            PUSH_SOUNDS[message.sound]
-                                              .channelId +
-                                            (message.iconBadge === false
-                                              ? NO_BADGE_CHANNEL_SUFFIX
-                                              : ''),
-                                          sound:
-                                            PUSH_SOUNDS[message.sound].android,
-                                        }
+                      },
+                    }),
+                data: dataOnly
+                  ? {
+                      ...message.data,
+                      title: message.title,
+                      body: message.body,
+                      // Owner 2026-10-22 (inbox 29): the app draws this
+                      // chat alert itself — «Счётчик на иконке» off makes
+                      // it use the channel without a launcher badge.
+                      ...(ownChat && message.iconBadge === false
+                        ? { iconBadge: '0' }
+                        : {}),
+                    }
+                  : message.data,
+                android: message.call
+                  ? { priority: 'high', ttl: `${CALL_TTL_SEC}s` }
+                  : ownChat
+                    ? { priority: 'high' }
+                    : dataOnly
+                      ? { priority: 'high', ttl: `${REMINDER_TTL_SEC}s` }
+                      : {
+                          priority: 'high',
+                          ...(message.ttlSec
+                            ? { ttl: `${message.ttlSec}s` }
+                            : {}),
+                          ...(message.collapseKey
+                            ? { collapse_key: message.collapseKey }
+                            : {}),
+                          ...(message.sound || message.reminder
+                            ? {
+                                notification: {
+                                  ...(message.sound
+                                    ? {
+                                        channel_id:
+                                          PUSH_SOUNDS[message.sound].channelId +
+                                          (message.iconBadge === false
+                                            ? NO_BADGE_CHANNEL_SUFFIX
+                                            : ''),
+                                        sound:
+                                          PUSH_SOUNDS[message.sound].android,
+                                      }
+                                    : {}),
+                                  // One notification per task / per message
+                                  // thread: a repeat replaces it.
+                                  ...(message.collapseKey
+                                    ? { tag: message.collapseKey }
+                                    : message.reminder && message.data?.taskId
+                                      ? { tag: `task:${message.data.taskId}` }
                                       : {}),
-                                    // One notification per task / per message
-                                    // thread: a repeat replaces it.
-                                    ...(message.collapseKey
-                                      ? { tag: message.collapseKey }
-                                      : message.reminder && message.data?.taskId
-                                        ? { tag: `task:${message.data.taskId}` }
-                                        : {}),
-                                  },
-                                }
-                              : {}),
-                          },
-                  apns: {
-                    // Push 2026-10-19: delivered at once (screen off / Low Power
-                    // mode too) as a visible alert; a call is useless after it
-                    // stops ringing, so it expires with the ring.
-                    headers: {
-                      'apns-priority': '10',
-                      'apns-push-type': 'alert',
-                      // A visible reminder / a reaction replaces the earlier
-                      // one of the same task or message (a repeat, a retry).
-                      ...(message.collapseKey
+                                },
+                              }
+                            : {}),
+                        },
+                apns: {
+                  // Push 2026-10-19: delivered at once (screen off / Low Power
+                  // mode too) as a visible alert; a call is useless after it
+                  // stops ringing, so it expires with the ring.
+                  headers: {
+                    'apns-priority': '10',
+                    'apns-push-type': 'alert',
+                    // A visible reminder / a reaction replaces the earlier
+                    // one of the same task or message (a repeat, a retry).
+                    ...(message.collapseKey
+                      ? {
+                          'apns-collapse-id': apnsCollapseId(
+                            message.collapseKey,
+                          ),
+                        }
+                      : message.reminder && message.data?.taskId
                         ? {
-                            'apns-collapse-id': apnsCollapseId(
-                              message.collapseKey,
-                            ),
+                            'apns-collapse-id': `task:${message.data.taskId}`,
                           }
-                        : message.reminder && message.data?.taskId
-                          ? {
-                              'apns-collapse-id': `task:${message.data.taskId}`,
+                        : {}),
+                    ...(message.call || message.ttlSec
+                      ? {
+                          'apns-expiration': String(
+                            Math.floor(Date.now() / 1000) +
+                              (message.ttlSec ?? CALL_TTL_SEC),
+                          ),
+                        }
+                      : {}),
+                  },
+                  payload: {
+                    aps: {
+                      // Owner 2026-10-02: a call the user switched off in
+                      // Settings arrives without sound (data.silent = '1').
+                      ...(message.call && message.data?.silent === '1'
+                        ? {}
+                        : {
+                            sound: message.sound
+                              ? PUSH_SOUNDS[message.sound].ios
+                              : 'default',
+                          }),
+                      ...(message.call
+                        ? {
+                            alert: {
+                              title: message.title,
+                              body: message.body,
+                            },
+                            'interruption-level':
+                              message.data?.silent === '1'
+                                ? 'active'
+                                : 'time-sensitive',
+                          }
+                        : message.reminder
+                          ? // Owner 2026-10-20: a planner reminder breaks
+                            // through Focus like a calendar alert.
+                            {
+                              'interruption-level': 'time-sensitive',
+                              'thread-id': 'task-reminders',
                             }
                           : {}),
-                      ...(message.call || message.ttlSec
+                      ...(message.badge !== undefined
+                        ? { badge: message.badge }
+                        : {}),
+                      // Owner 2026-10-26: the buttons of a chat push.
+                      ...(message.iosCategory && !message.call
+                        ? { category: message.iosCategory }
+                        : {}),
+                      // Lets a notification service extension (if one is
+                      // added) enrich the alert; ignored without one.
+                      'mutable-content': 1,
+                      ...(message.threadId || message.collapseKey
                         ? {
-                            'apns-expiration': String(
-                              Math.floor(Date.now() / 1000) +
-                                (message.ttlSec ?? CALL_TTL_SEC),
-                            ),
+                            'thread-id':
+                              message.threadId ?? message.collapseKey,
                           }
                         : {}),
                     },
-                    payload: {
-                      aps: {
-                        // Owner 2026-10-02: a call the user switched off in
-                        // Settings arrives without sound (data.silent = '1').
-                        ...(message.call && message.data?.silent === '1'
-                          ? {}
-                          : {
-                              sound: message.sound
-                                ? PUSH_SOUNDS[message.sound].ios
-                                : 'default',
-                            }),
-                        ...(message.call
-                          ? {
-                              alert: {
-                                title: message.title,
-                                body: message.body,
-                              },
-                              'interruption-level':
-                                message.data?.silent === '1'
-                                  ? 'active'
-                                  : 'time-sensitive',
-                            }
-                          : message.reminder
-                            ? // Owner 2026-10-20: a planner reminder breaks
-                              // through Focus like a calendar alert.
-                              {
-                                'interruption-level': 'time-sensitive',
-                                'thread-id': 'task-reminders',
-                              }
-                            : {}),
-                        ...(message.badge !== undefined
-                          ? { badge: message.badge }
-                          : {}),
-                        // Lets a notification service extension (if one is
-                        // added) enrich the alert; ignored without one.
-                        'mutable-content': 1,
-                        ...(message.threadId || message.collapseKey
-                          ? {
-                              'thread-id':
-                                message.threadId ?? message.collapseKey,
-                            }
-                          : {}),
-                      },
-                    },
                   },
                 },
-          }),
+              },
         });
+        // S8-3: FCM rides one HTTP/2 connection (undici allowH2); a session
+        // the peer closed while idle dies on first use - repeat once.
+        const send = (): Promise<Response> =>
+          fetch(this.url, {
+            method: 'POST',
+            signal: AbortSignal.timeout(FCM_TIMEOUT_MS),
+            headers: {
+              Authorization: `Bearer ${access}`,
+              'Content-Type': 'application/json',
+            },
+            body,
+            ...({ dispatcher: fcmDispatcher() } as object),
+          });
+        try {
+          res = await send();
+        } catch (first) {
+          if (!isStaleSocketError(first)) throw first;
+          res = await send();
+        }
       } catch (error) {
         // Network / timeout: release the claim so the retry sends.
         await this.redis.del(`${sentKey}:${device}`);
@@ -321,6 +370,12 @@ export class FcmPushSender implements PushSender {
       }
       await this.redis.del(`${sentKey}:${device}`);
       temporary++;
+      if (res.status === 429) {
+        rateLimitMs = Math.max(
+          rateLimitMs,
+          retryAfterMs(res.headers?.get?.('retry-after')),
+        );
+      }
       this.slo?.count('pushFailed');
       this.logger.warn(
         { userId: message.userId, status: res.status, code },
@@ -328,6 +383,7 @@ export class FcmPushSender implements PushSender {
       );
     };
     await inChunks(devices, FCM_MULTICAST_MAX, one);
+    if (rateLimitMs > 0) throw new FcmRateLimitError(rateLimitMs);
     if (temporary > 0) {
       throw new FcmTemporaryError(`${temporary} device(s) failed`);
     }
@@ -341,6 +397,7 @@ export class FcmPushSender implements PushSender {
    */
   async sendMany(messages: PushMessage[], dedupeKey: string): Promise<void> {
     let temporary = 0;
+    let limited: FcmRateLimitError | undefined;
     for (let i = 0; i < messages.length; i += FCM_USERS_PER_BATCH) {
       const results = await Promise.allSettled(
         messages
@@ -349,10 +406,12 @@ export class FcmPushSender implements PushSender {
       );
       for (const r of results) {
         if (r.status === 'fulfilled') continue;
+        if (r.reason instanceof FcmRateLimitError) limited = r.reason;
         if (r.reason instanceof FcmTemporaryError) temporary++;
         else throw r.reason;
       }
     }
+    if (limited) throw limited;
     if (temporary > 0) {
       throw new FcmTemporaryError(`${temporary} recipient(s) failed`);
     }

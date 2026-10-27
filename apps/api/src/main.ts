@@ -9,6 +9,7 @@ import { captureKeyEnv, scrubKeyEnv } from './common/secrets/key-holder';
 import { unwrapKmsWrappedKeys } from './common/secrets/kms-env';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import { installOutboundAgents } from './common/http/outbound-agent';
 import { configureApp } from './app.setup';
 
 /** ALB idle_timeout in infra/modules/alb/main.tf — keep the two in sync. */
@@ -18,6 +19,8 @@ async function bootstrap(): Promise<void> {
   // KMS-wrapped MESSAGE_ENC_KEYS / SECRETS_MASTER_KEYS entries → plaintext
   // in memory, before any module reads the config.
   await unwrapKmsWrappedKeys();
+  // S8-3: keep-alive agent for every outbound fetch, HTTP/2 agent for FCM.
+  installOutboundAgents();
   // S3-3: plaintext keys live in a module holder, not in process.env.
   captureKeyEnv();
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {

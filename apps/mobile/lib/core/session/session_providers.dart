@@ -37,6 +37,14 @@ final tokenWriteRetryDelaysProvider = Provider<List<Duration>>(
   ],
 );
 
+/// Whether the CURRENT session is a demo one (access-token claim `demo`).
+/// Lives here, not in features/demo, so any feature's gate can read it
+/// without a cross-feature import (feature_boundaries_test).
+final isDemoSessionProvider = Provider<bool>(
+  (ref) =>
+      ref.watch(sessionControllerProvider.select((s) => s?.isDemo)) ?? false,
+);
+
 /// Holds the signed-in session in memory (docs/01_FOUNDATION_AUTH.md §10.4
 /// access-token claims). `keepAlive: true` — the plain `@riverpod`
 /// annotation defaults to autoDispose, which is wrong here: this must
@@ -341,8 +349,8 @@ class SessionController extends _$SessionController {
       sub: payload['sub'] as String,
       role: payload['role'] as String?,
       sid: payload['sid'] as String,
-      verified: payload['verified'] as bool,
-      subscriptionStatus: payload['subscriptionStatus'] as String,
+      verified: payload['verified'] == true,
+      subscriptionStatus: (payload['subscriptionStatus'] as String?) ?? 'none',
       accessTokenExpiresAt: DateTime.now().add(
         Duration(seconds: tokens.accessTokenExpiresIn),
       ),

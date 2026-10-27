@@ -3,7 +3,9 @@ import { ClientPlansService } from '../plans/client-plans.service';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { Prisma, Subscription, SubscriptionStatus } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { SloMetricsService } from '../../common/ops/slo-metrics.service';
 import { LedgerPostingService } from '../ledger/ledger.public';
+import { StripeReviewService } from '../stripe-ops/stripe-review.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { BidsService } from '../bids/bids.service';
@@ -70,6 +72,10 @@ export class SubscriptionSyncService {
     @Optional() private readonly pricing?: PricingService,
     // Day-one foundations: the double-entry money ledger (same transaction).
     @Optional() private readonly ledger?: LedgerPostingService,
+    // Stripe robustness 2026-10-27: the admin review queue.
+    @Optional() private readonly review?: StripeReviewService,
+    // S12-3: the payment journey SLI (paid / failed).
+    @Optional() private readonly slo?: SloMetricsService,
   ) {}
 
   async handleEvent(event: ProviderEvent): Promise<void> {
@@ -81,7 +87,8 @@ export class SubscriptionSyncService {
       typeof o._account === 'string' ||
       meta?.kind === CASE_PAYMENT_CHECKOUT_KIND ||
       event.type.startsWith('account.') ||
-      event.type.startsWith('charge.dispute.')
+      event.type.startsWith('charge.dispute.') ||
+      event.type.startsWith('radar.')
     ) {
       await this.casePayments?.handleProviderEvent(event);
       return;
@@ -148,6 +155,7 @@ export class SubscriptionSyncService {
           await this.bidPacks?.applyCheckoutById(o.id);
         }
         await this.recordPaymentIntentTax(o.id, meta ?? {});
+        this.slo?.count('payOk');
         return;
       case 'setup_intent.succeeded':
         // The card is bound; POST /subscriptions/confirm reads it. Nothing
@@ -155,6 +163,30 @@ export class SubscriptionSyncService {
         return;
       case 'charge.refunded':
         await this.onRefund(o.id);
+        return;
+      // ---- Stripe robustness 2026-10-27 -----------------------------------
+      // A platform PaymentIntent or checkout that failed / expired has no
+      // pending row of its own (a boost, pack or stars top-up is applied
+      // only on success; their own sweeps clean abandoned rows), so there
+      // is nothing to change. The event is stored for support.
+      case 'payment_intent.payment_failed':
+      case 'checkout.session.expired':
+        this.logger.debug(`${event.type} ${o.id}: nothing pending to change`);
+        return;
+      case 'charge.refund.updated':
+      case 'refund.updated':
+        await this.onPlatformRefundUpdated(o);
+        return;
+      // Stripe warns 3 days before a trial ends: re-read the subscription
+      // (the app's own reminder job notifies the user).
+      case 'customer.subscription.trial_will_end':
+        await this.syncById(o.id);
+        return;
+      // The upcoming renewal invoice: refresh the subscription so a price or
+      // seat change made in Stripe shows before the charge.
+      case 'invoice.upcoming':
+        if (typeof o.subscription === 'string')
+          await this.syncById(o.subscription);
         return;
       default:
         this.logger.debug(`ignored stripe event ${event.type}`);
@@ -383,6 +415,7 @@ export class SubscriptionSyncService {
         );
       }
     });
+    this.slo?.count(paid ? 'payOk' : 'payFail');
     if (!paid) {
       // docs/06 §8 "всплеск неуспешных платежей": metric filter on this line.
       this.logger.warn(
@@ -528,6 +561,36 @@ export class SubscriptionSyncService {
         local.price_cents + (qty - local.assistant_seats) * unit,
       ),
     };
+  }
+
+  /** A refund of a platform charge ended `failed` / `canceled`: the money did
+   * not go back. The row stays as it is; a human decides (review queue). */
+  private async onPlatformRefundUpdated(
+    o: ProviderEvent['object'],
+  ): Promise<void> {
+    const status = typeof o.status === 'string' ? o.status : null;
+    if (status !== 'failed' && status !== 'canceled') return;
+    const pi = typeof o.payment_intent === 'string' ? o.payment_intent : null;
+    const pay = pi
+      ? await this.prisma.payment.findFirst({
+          where: { stripe_payment_intent_id: pi },
+          select: {
+            id: true,
+            user_id: true,
+            amount_cents: true,
+            currency: true,
+          },
+        })
+      : null;
+    await this.review?.open({
+      kind: 'refund_failed',
+      stripeRef: o.id,
+      userId: pay?.user_id ?? null,
+      amountCents: typeof o.amount === 'number' ? o.amount : null,
+      currency: pay?.currency ?? 'usd',
+      summary: `A refund of a LawBid charge ended ${status} (${typeof o.failure_reason === 'string' ? o.failure_reason : 'no reason'}): the customer has NOT been repaid.`,
+      details: { paymentId: pay?.id ?? null, scope: 'platform' },
+    });
   }
 
   private async onRefund(chargeId: string): Promise<void> {

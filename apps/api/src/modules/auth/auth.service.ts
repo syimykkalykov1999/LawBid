@@ -1,4 +1,5 @@
 import { ClientFraudService } from '../client-fraud/client-fraud.service';
+import { DomainEvents } from '../events/domain-events.service';
 import { AccountBansService } from '../account-bans/account-bans.service';
 import {
   OTP_DAILY_WINDOW_SECONDS,
@@ -53,8 +54,16 @@ import type { AuthTokensResult } from './social/auth-result.types';
 import { LoginMethodPolicy } from './services/login-method-policy.service';
 import { NewDeviceNotifier } from './notifications/new-device-notifier.service';
 import { SignInChangeNotifier } from './notifications/sign-in-change-notifier.service';
+import type { AgeAttestationInput } from '../compliance/age-gate.logic';
+import { AgeGateService, type AgeSource } from '../compliance/age-gate.service';
 import { AssistantCodeService } from './assistant/assistant-code.service';
 import type { AssistantCodeLoginDto } from './dto/assistant-code-login.dto';
+import { AuthNoveltyService } from './services/auth-novelty.service';
+import { AuthChallengeService } from './services/auth-challenge.service';
+import { normalizeSignal } from '../client-fraud/fingerprint.util';
+import { simulateSend, timedSend } from './uniform-response.util';
+import { browserLabel, maskIp } from './device-label.util';
+import type { OtpPurpose, OtpScope } from './services/otp.service';
 
 const ENV = {
   otpPerIdentifierPerHour: 'OTP_RATE_LIMIT_PER_IDENTIFIER_PER_HOUR',
@@ -80,6 +89,23 @@ export interface SessionListItem {
   lastUsedAt: string | null;
   createdAt: string;
   isCurrent: boolean;
+  /** S14-10: where the session was last used from — masked address
+   * (203.0.113.x), the country when the CDN reported it, and the browser. */
+  ipHint: string | null;
+  country: string | null;
+  browser: string | null;
+}
+
+/** Who is asking for a code while signed in (a valid access token). */
+export interface OtpCaller {
+  id: string;
+  sid?: string;
+}
+
+/** What a sign-in carries beyond the user: a social identity, for the fraud
+ * signals (S14-5). */
+export interface LoginExtras {
+  social?: { provider: 'apple' | 'google'; uid: string };
 }
 
 /**
@@ -116,6 +142,13 @@ export class AuthService {
     @Optional() private readonly settings?: AppSettingsService,
     // Owner 2026-10-22 (security audit #3): "a sign-in method was added".
     @Optional() private readonly signInChange?: SignInChangeNotifier,
+    // 2026-10-25 (S14-4 / S14-13): server-side novelty and failure counting.
+    @Optional() private readonly novelty?: AuthNoveltyService,
+    @Optional() private readonly challenge?: AuthChallengeService,
+    // 2026-10-25 (COPPA): the 18+ gate for new accounts.
+    @Optional() private readonly ageGate?: AgeGateService,
+    // N-2: the domain-event bus.
+    @Optional() private readonly events?: DomainEvents,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -124,18 +157,28 @@ export class AuthService {
   async requestOtp(
     dto: OtpRequestDto,
     meta: RequestMeta,
-    callerId?: string,
+    caller?: OtpCaller,
   ): Promise<void> {
     // Before any rate-limit budget or provider spend (feature flag
     // phone_login / email_login).
     await this.loginMethods.assertEnabled(dto.channel);
     const identifier = this.normalize(dto.channel, dto.identifier);
+    const { purpose, scope } = await this.requestPurpose(
+      dto,
+      identifier,
+      caller,
+    );
     // Owner 2026-10-02: a blocked phone, e-mail or device gets no code.
     await this.bans.assertAllowed({
       phone: dto.channel === 'phone' ? identifier : null,
       email: dto.channel === 'email' ? identifier : null,
       deviceId: meta.deviceId,
     });
+    // S14-6: a throw-away address opens no NEW account (existing accounts
+    // keep their e-mail sign-in).
+    if (dto.channel === 'email' && purpose !== 'reauth') {
+      await this.assertEmailAllowedForSignup(identifier);
+    }
     // The account that already owns this phone / e-mail is not its own
     // "repeat": a suspended account still gets 200 here and its
     // ACCOUNT_SUSPENDED at verify (no account enumeration).
@@ -159,11 +202,22 @@ export class AuthService {
       owner?.user_id ?? null,
     );
 
-    if (dto.channel === 'phone')
-      await this.assertSmsOnlyForNewNumber(identifier, callerId);
+    // S14-1: a registered number gets the SAME 200 `sent` as a new one (the
+    // cooldown and the registration cap below apply to both, so not even a
+    // 429 pattern tells them apart); nothing is sent to it. The app learns
+    // "use your password" from POST /auth/phone/status only.
+    const registeredPhone =
+      dto.channel === 'phone'
+        ? await this.assertSmsOnlyForNewNumber(identifier, caller?.id)
+        : false;
 
+    // S14-6: Gmail dots and "+tags" are one mailbox — they share one budget.
+    const counterId =
+      dto.channel === 'email'
+        ? normalizeSignal('email', identifier)
+        : identifier;
     const perIdentifier = await this.rateLimit.consumeSlidingWindow(
-      ['otp-req', 'id', this.rateLimit.hashIdentifier(identifier)],
+      ['otp-req', 'id', this.rateLimit.hashIdentifier(counterId)],
       this.limit(ENV.otpPerIdentifierPerHour),
       OTP_LIMIT_WINDOW_SECONDS,
     );
@@ -208,7 +262,7 @@ export class AuthService {
     // (rolling 24 h). Consumed only once the short limits pass, so the
     // day's budget counts codes actually sent, not refused retries.
     const perIdentifierDaily = await this.rateLimit.consumeSlidingWindow(
-      ['otp-req-day', 'id', this.rateLimit.hashIdentifier(identifier)],
+      ['otp-req-day', 'id', this.rateLimit.hashIdentifier(counterId)],
       await this.otpDailyLimit(),
       OTP_DAILY_WINDOW_SECONDS,
     );
@@ -224,21 +278,114 @@ export class AuthService {
     }
 
     // docs/01_FOUNDATION_AUTH.md §10.6: identical response whether or not
-    // an account exists for this identifier — OtpService.requestOtp
-    // already never looks the account up, so this is naturally true.
-    await this.otp.requestOtp(
-      dto.channel,
-      identifier,
-      'login',
-      dto.channel === 'email' ? dto.linkChallenge : undefined,
-    );
+    // an account exists for this identifier. A registered number takes the
+    // same checks a send would (country allow-list), then nothing is sent.
+    if (registeredPhone) {
+      await this.otp.assertSmsDestinationAllowed(identifier);
+      // ...and takes as long as a real send lately did (no stopwatch oracle).
+      await simulateSend(this.uniformDelayMs());
+    } else {
+      const send = () =>
+        this.otp.requestOtp(
+          dto.channel,
+          identifier,
+          purpose,
+          dto.channel === 'email' && purpose === 'login'
+            ? dto.linkChallenge
+            : undefined,
+          scope,
+        );
+      if (dto.channel === 'phone') await timedSend(send);
+      else await send();
+    }
     await this.authEvents.record({
       eventType: AUTH_EVENT_TYPES.OTP_REQUESTED,
       success: true,
       identifier,
       ip: meta.ip,
       userAgent: meta.userAgent,
+      ...(registeredPhone ? { meta: { skipped: 'registered' } } : {}),
     });
+  }
+
+  /** The purpose a code is asked for and its scoping. A plain request is a
+   * sign-in code (as before); `reauth` / `link` need a signed-in caller and
+   * bind the code to that session (S14-12). */
+  private async requestPurpose(
+    dto: OtpRequestDto,
+    identifier: string,
+    caller?: OtpCaller,
+  ): Promise<{ purpose: OtpPurpose; scope: OtpScope }> {
+    const purpose: OtpPurpose = dto.purpose ?? 'login';
+    if (purpose === 'login') return { purpose, scope: {} };
+    if (!caller) {
+      throw new UnauthorizedException({
+        code: ErrorCode.UNAUTHORIZED,
+        message: 'Sign in first.',
+      });
+    }
+    if (purpose === 'reauth') {
+      const account = await this.prisma.user.findUnique({
+        where: withDeleted({ id: caller.id }),
+        select: {
+          phone_e164: true,
+          phone_verified_at: true,
+          email: true,
+          email_verified_at: true,
+        },
+      });
+      const own =
+        dto.channel === 'phone'
+          ? account?.phone_verified_at != null &&
+            account.phone_e164 === identifier
+          : account?.email_verified_at != null &&
+            account.email?.toLowerCase() === identifier;
+      if (!own) {
+        throw new UnauthorizedException({
+          code: ErrorCode.REAUTH_INVALID,
+          message: 'Identifier is not a verified contact on this account.',
+        });
+      }
+    }
+    return {
+      purpose,
+      scope: caller.sid ? { bind: caller.sid } : {},
+    };
+  }
+
+  /** S14-6: a NEW account may not be opened with a disposable e-mail. An
+   * address that already signs someone in is never refused. */
+  async assertEmailAllowedForSignup(email: string): Promise<void> {
+    if (!this.settings) return;
+    if (
+      !(await this.settings.boolean('security.signup_block_disposable_email'))
+    )
+      return;
+    const domain = email.split('@')[1]?.toLowerCase();
+    if (!domain) return;
+    const blocked = await this.prisma.blockedEmailDomain.findUnique({
+      where: { domain },
+    });
+    if (!blocked) return;
+    const existing = await this.prisma.userIdentifier.findUnique({
+      where: {
+        provider_provider_uid: { provider: 'email', provider_uid: email },
+      },
+      select: { user_id: true },
+    });
+    if (existing) return;
+    throw new ForbiddenException({
+      code: ErrorCode.CONTACT_DOMAIN_BLOCKED,
+      message: 'This email domain is not accepted.',
+      details: { reason: blocked.reason },
+    });
+  }
+
+  /** `AUTH_UNIFORM_MIN_DELAY_MS`: the first guess of how long a real SMS
+   * send takes, until one was timed (S14-1 / S14-2). */
+  private uniformDelayMs(): number {
+    const v = this.config.get<number>('AUTH_UNIFORM_MIN_DELAY_MS');
+    return typeof v === 'number' && v > 0 ? v : 0;
   }
 
   // ---------------------------------------------------------------------
@@ -281,14 +428,26 @@ export class AuthService {
       );
     }
 
+    // 2026-10-25 (COPPA): refuse a new account without the 18+ attestation
+    // BEFORE the one-time code is spent, so the person can tick and retry.
+    await this.ageGate?.precheckOtp(
+      dto.channel,
+      identifier,
+      dto.ageAttestation,
+    );
+
+    // S14-8: attempts and the lock ladder count per (identifier + address),
+    // so a stranger's wrong guesses from elsewhere do not lock the owner out.
     const result = await this.otp.verifyOtp(
       dto.channel,
       identifier,
       dto.code,
       'login',
+      { source: meta.ip },
     );
 
     if (result !== 'ok') {
+      await this.challenge?.recordFailure('otp_verify', identifier, meta.ip);
       await this.authEvents.record({
         eventType:
           result === 'locked'
@@ -323,7 +482,15 @@ export class AuthService {
       });
     }
 
-    return this.completeOtpLogin(dto.channel, identifier, deviceInfo, meta);
+    await this.challenge?.clear(identifier);
+    return this.completeOtpLogin(
+      dto.channel,
+      identifier,
+      deviceInfo,
+      meta,
+      dto.ageAttestation,
+      'otp',
+    );
   }
 
   // ---------------------------------------------------------------------
@@ -368,7 +535,14 @@ export class AuthService {
         message: 'This sign-in link is invalid or has expired.',
       });
     }
-    return this.completeOtpLogin('email', redeemed.email, deviceInfo, meta);
+    return this.completeOtpLogin(
+      'email',
+      redeemed.email,
+      deviceInfo,
+      meta,
+      dto.ageAttestation,
+      'link',
+    );
   }
 
   /** Shared tail of a successful OTP (typed code or magic link): identity,
@@ -378,6 +552,8 @@ export class AuthService {
     identifier: string,
     deviceInfo: DeviceInfo,
     meta: RequestMeta,
+    ageAttestation?: AgeAttestationInput | null,
+    ageSource: AgeSource = 'otp',
   ): Promise<AuthTokensResult> {
     await this.bans.assertAllowed({
       phone: channel === 'phone' ? identifier : null,
@@ -390,6 +566,9 @@ export class AuthService {
     // by the Lua verify script above, so a failure here can't be silently
     // retried with the same code either way — a bigger transaction
     // wouldn't change that failure mode, only delay it).
+    // Privacy round 13 (S13-14): a sign-in does not cancel an erasure
+    // request unless the owner switched the old behaviour back on.
+    const cancelsOnLogin = await this.loginCancelsDeletion();
     const { user, isNewUser, deletionCancelled } = await withTxRetry(
       this.prisma,
       async (tx) => {
@@ -397,8 +576,10 @@ export class AuthService {
           channel,
           identifier,
           tx,
+          ageAttestation,
+          ageSource,
         );
-        if (found.user.status === 'deletion_pending') {
+        if (found.user.status === 'deletion_pending' && cancelsOnLogin) {
           const updated = await tx.user.update({
             where: { id: found.user.id },
             data: { status: 'active', deletion_requested_at: null },
@@ -427,6 +608,13 @@ export class AuthService {
     );
   }
 
+  /** Setting `privacy.login_cancels_deletion` (default off). */
+  async loginCancelsDeletion(): Promise<boolean> {
+    return (
+      (await this.settings?.boolean('privacy.login_cancels_deletion')) ?? false
+    );
+  }
+
   /** Account-state checks, the "other device" question and the session of
    * a sign-in whose identity is already proven (OTP, magic link or
    * password — owner 2026-10-13). */
@@ -437,6 +625,7 @@ export class AuthService {
     identifier: string,
     deviceInfo: DeviceInfo,
     meta: RequestMeta,
+    extras?: LoginExtras,
   ): Promise<AuthTokensResult> {
     if (user.status === 'suspended') {
       await this.authEvents.record({
@@ -488,7 +677,13 @@ export class AuthService {
       const pendingToken = randomBytes(24).toString('base64url');
       await this.redis.set(
         `auth:pending:${pendingToken}`,
-        JSON.stringify({ userId: user.id, isNewUser, identifier, deviceInfo }),
+        JSON.stringify({
+          userId: user.id,
+          isNewUser,
+          identifier,
+          deviceInfo,
+          social: extras?.social,
+        }),
         'EX',
         PENDING_LOGIN_TTL_SEC,
       );
@@ -504,7 +699,14 @@ export class AuthService {
         },
       });
     }
-    return this.issueLogin(user, isNewUser, identifier, deviceInfo, meta);
+    return this.issueLogin(
+      user,
+      isNewUser,
+      identifier,
+      deviceInfo,
+      meta,
+      extras,
+    );
   }
 
   /** POST /auth/login/continue — the user chose to sign the other device
@@ -527,6 +729,7 @@ export class AuthService {
       isNewUser: boolean;
       identifier: string;
       deviceInfo: DeviceInfo;
+      social?: { provider: 'apple' | 'google'; uid: string };
     };
     await this.loginMethods.assertPlatformAllowed(p.deviceInfo.platform);
     const user = await this.prisma.user.findUniqueOrThrow({
@@ -541,7 +744,14 @@ export class AuthService {
         message: 'This account is not available.',
       });
     }
-    return this.issueLogin(user, p.isNewUser, p.identifier, p.deviceInfo, meta);
+    return this.issueLogin(
+      user,
+      p.isNewUser,
+      p.identifier,
+      p.deviceInfo,
+      meta,
+      p.social ? { social: p.social } : undefined,
+    );
   }
 
   /**
@@ -712,6 +922,7 @@ export class AuthService {
     identifier: string,
     deviceInfo: DeviceInfo,
     meta: RequestMeta,
+    extras?: LoginExtras,
   ): Promise<AuthTokensResult> {
     await this.bans.assertAllowed({
       userId: user.id,
@@ -724,16 +935,45 @@ export class AuthService {
       email: user.email,
       deviceKey: meta.deviceKey,
       ip: meta.ip,
+      ...(extras?.social ? { social: extras.social } : {}),
     };
     await this.fraud?.assertSignInAllowed(fraudSignals, user.id);
-    const isNewDevice = await this.sessions.isNewDevice(
+    let isNewDevice = await this.sessions.isNewDevice(
       user.id,
       deviceInfo.deviceId,
     );
+    // COST GATE: "no device id" counts as new (S14-4) but alerts at most once
+    // per account per 24 h (each alert is an e-mail and a push).
+    if (
+      isNewDevice &&
+      !deviceInfo.deviceId &&
+      !((await this.novelty?.allowAlert(user.id, 'nodevice')) ?? true)
+    ) {
+      isNewDevice = false;
+    }
+    // S14-4: what the caller cannot hide — country (CDN header) and, on the
+    // website, the browser family. A baseline is needed, so a first sign-in
+    // and one without the header never alert.
+    const found = await this.novelty?.onLogin(
+      user.id,
+      meta,
+      deviceInfo.platform,
+    );
+    const novelty = {
+      newCountry:
+        found?.newCountry === true &&
+        (await this.newCountryAlertsOn()) &&
+        ((await this.novelty?.allowAlert(user.id, 'country')) ?? false),
+      newBrowser: found?.newBrowser === true,
+    };
     const { session, refreshTokenRaw } = await this.sessions.createSession(
       user.id,
       deviceInfo,
       meta,
+    );
+    await this.novelty?.rememberChainCountry(
+      session.session_chain_id,
+      meta.country,
     );
     const accessToken = this.tokens.signAccessToken({
       sub: user.id,
@@ -761,7 +1001,14 @@ export class AuthService {
       deviceId: deviceInfo.deviceId,
       ip: meta.ip,
       userAgent: meta.userAgent,
-      meta: { isNewUser, isNewDevice },
+      meta: {
+        isNewUser,
+        isNewDevice,
+        ...(novelty.newCountry ? { newCountry: true } : {}),
+        ...(identifier.startsWith('social:')
+          ? { provider: identifier.slice('social:'.length) }
+          : {}),
+      },
     });
 
     // docs/01 §10.6 new-device alert: audit row inline, delivery detached.
@@ -771,10 +1018,19 @@ export class AuthService {
       isNewDevice,
       device: deviceInfo,
       meta,
+      novelty,
     });
 
     // Hashes of this sign-in's signals + re-score (never fails the login).
     await this.fraud?.recordSignIn(user.id, fraudSignals);
+
+    if (isNewUser) {
+      await this.events?.record(
+        'user.signed_up',
+        { userId: user.id, role: user.role ?? '' },
+        { actorId: user.id, key: `user.signed_up:${user.id}` },
+      );
+    }
 
     return {
       accessToken,
@@ -854,6 +1110,18 @@ export class AuthService {
             },
       );
     }
+    if (outcome.status === 'busy') {
+      // 503 + Retry-After (all-exceptions filter): the app keeps the token on
+      // a 5xx and retries; a 401 here would sign the person out (review R-64).
+      throw new HttpException(
+        {
+          code: 'SERVER_BUSY',
+          message: 'Sign-in session is busy. Try again in a moment.',
+          details: { retryAfterSeconds: outcome.retryAfterSeconds },
+        },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
     if (outcome.status === 'rate_limited') {
       throw new HttpException(
         {
@@ -886,6 +1154,31 @@ export class AuthService {
       subscriptionStatus: 'none',
     });
 
+    // S14-4: a refresh from a country this session was not last used from —
+    // a stolen refresh token replayed from abroad — raises the same alert as
+    // a new device, once per move.
+    if (
+      await this.novelty?.refreshFromNewCountry(
+        outcome.session.session_chain_id,
+        meta.country,
+      )
+    ) {
+      if (
+        (await this.newCountryAlertsOn()) &&
+        (await this.novelty?.allowAlert(user.id, 'country'))
+      ) {
+        await this.newDevice.onRefreshFromNewCountry({
+          user,
+          device: {
+            deviceId: outcome.session.device_id ?? undefined,
+            deviceName: outcome.session.device_name ?? undefined,
+            platform: outcome.session.platform ?? undefined,
+          },
+          meta,
+        });
+      }
+    }
+
     return {
       accessToken,
       refreshToken: outcome.refreshTokenRaw,
@@ -915,11 +1208,31 @@ export class AuthService {
     });
   }
 
+  /** POST /auth/wasnt-me — "this wasn't me" on a new-device / new-country
+   * alert: every session of the account ends (this one included) and the
+   * press is audited. The person then signs in again and changes the
+   * password (S14-4). */
+  async wasntMe(user: RequestUser, meta: RequestMeta): Promise<void> {
+    await this.revocation.revokeAllChainsForUser(user.sub, 'logout_all');
+    await this.authEvents.record({
+      userId: user.sub,
+      eventType: AUTH_EVENT_TYPES.WASNT_ME,
+      success: true,
+      deviceId: meta.deviceId,
+      ip: meta.ip,
+      userAgent: meta.userAgent,
+      meta: { sessionChainId: user.sid },
+    });
+  }
+
   // ---------------------------------------------------------------------
   // GET /auth/sessions, DELETE /auth/sessions/:id
   // ---------------------------------------------------------------------
   async listSessions(user: RequestUser): Promise<SessionListItem[]> {
     const chains = await this.sessions.listActiveChains(user.sub);
+    const countries = await this.novelty?.chainCountries(
+      chains.map((s) => s.session_chain_id),
+    );
     return chains.map((s) => ({
       sessionId: s.session_chain_id,
       deviceId: s.device_id,
@@ -929,6 +1242,9 @@ export class AuthService {
       lastUsedAt: s.last_used_at?.toISOString() ?? null,
       createdAt: s.created_at.toISOString(),
       isCurrent: s.session_chain_id === user.sid,
+      ipHint: maskIp(s.ip),
+      country: countries?.get(s.session_chain_id) ?? null,
+      browser: browserLabel(s.user_agent ?? undefined),
     }));
   }
 
@@ -957,6 +1273,7 @@ export class AuthService {
   async reauth(
     dto: ReauthDto,
     user: RequestUser,
+    meta?: RequestMeta,
   ): Promise<{ reauthToken: string }> {
     const account = await this.prisma.user.findUniqueOrThrow({
       where: withDeleted({ id: user.sub }),
@@ -985,11 +1302,16 @@ export class AuthService {
       });
     }
 
-    const result = await this.otp.verifyOtp(
+    // S14-12: the code must have been asked for this step-up from THIS
+    // session; an old app build that asked a plain sign-in code is still
+    // accepted while `security.otp_legacy_purpose_fallback` is on.
+    const result = await this.verifyScopedCode(
       channel,
       dto.identifier,
       dto.code,
-      'login',
+      'reauth',
+      user.sid,
+      meta?.ip,
     );
     if (result !== 'ok') {
       await this.authEvents.record({
@@ -1024,6 +1346,7 @@ export class AuthService {
   async linkIdentifier(
     dto: LinkIdentifierDto,
     user: RequestUser,
+    meta?: RequestMeta,
   ): Promise<void> {
     let providerUid: string;
 
@@ -1035,11 +1358,13 @@ export class AuthService {
         });
       }
       const identifier = this.normalize(dto.provider, dto.identifier);
-      const result = await this.otp.verifyOtp(
+      const result = await this.verifyScopedCode(
         dto.provider,
         identifier,
         dto.code,
-        'login',
+        'link',
+        user.sid,
+        meta?.ip,
       );
       if (result !== 'ok') {
         throw new UnauthorizedException({
@@ -1099,6 +1424,51 @@ export class AuthService {
     });
   }
 
+  /** Verifies a code of a signed-in flow under its own purpose, bound to the
+   * session; falls back to the legacy sign-in purpose only for a code that
+   * was never asked under the new one (S14-12). */
+  private async verifyScopedCode(
+    channel: 'phone' | 'email',
+    identifier: string,
+    code: string,
+    purpose: 'reauth' | 'link',
+    sid: string,
+    ip: string | undefined,
+  ): Promise<Awaited<ReturnType<OtpService['verifyOtp']>>> {
+    const first = await this.otp.verifyOtp(channel, identifier, code, purpose, {
+      bind: sid,
+      source: ip,
+    });
+    if (first !== 'expired') return first;
+    if (!(await this.legacyPurposeFallbackOn())) return first;
+    return this.otp.verifyOtp(channel, identifier, code, 'login', {
+      source: ip,
+    });
+  }
+
+  private async legacyPurposeFallbackOn(): Promise<boolean> {
+    try {
+      return (
+        (await this.settings?.boolean(
+          'security.otp_legacy_purpose_fallback',
+        )) ?? true
+      );
+    } catch {
+      return true;
+    }
+  }
+
+  private async newCountryAlertsOn(): Promise<boolean> {
+    try {
+      return (
+        (await this.settings?.boolean('security.new_country_alert_enabled')) ??
+        false
+      );
+    } catch {
+      return false;
+    }
+  }
+
   private normalize(channel: 'phone' | 'email', identifier: string): string {
     return channel === 'email'
       ? identifier.trim().toLowerCase()
@@ -1118,32 +1488,26 @@ export class AuthService {
    * A registered number signs in with its password; one without a password
    * is told to set it through the reset flow. Resend cooldown and a daily
    * cap apply to registration codes. `sms.login_code_enabled` = true brings
-   * the old passwordless sign-in code back (rollback).
+   * the old passwordless sign-in code back (rollback). S14-1 (2026-10-25):
+   * returns true for a registered number — the caller answers 200 `sent` and
+   * sends nothing, instead of the old 409 that told anyone who is registered.
    */
   private async assertSmsOnlyForNewNumber(
     identifier: string,
     callerId?: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const cfg = this.settings;
-    if (!cfg || (await cfg.boolean('sms.login_code_enabled'))) return;
+    if (!cfg || (await cfg.boolean('sms.login_code_enabled'))) return false;
     const owner = await this.prisma.userIdentifier.findUnique({
       where: {
         provider_provider_uid: { provider: 'phone', provider_uid: identifier },
       },
-      select: {
-        user_id: true,
-        user: { select: { password_hash: true } },
-      },
+      select: { user_id: true },
     });
     // Reauthentication: the signed-in owner of this very number.
-    if (owner && callerId && owner.user_id === callerId) return;
-    if (owner) {
-      throw new ConflictException({
-        code: ErrorCode.AUTH_PHONE_REGISTERED,
-        message: 'This number is registered. Sign in with your password.',
-        details: { hasPassword: owner.user.password_hash != null },
-      });
-    }
+    if (owner && callerId && owner.user_id === callerId) return false;
+    // S14-1: the cooldown and the daily cap count for EVERY number, known or
+    // not, so neither the answer nor its 429 pattern says who is registered.
     const idHash = this.rateLimit.hashIdentifier(identifier);
     const cooldown = await cfg.number('sms.resend_cooldown_seconds');
     const wait = await this.rateLimit.consumeFixedWindow(
@@ -1176,6 +1540,8 @@ export class AuthService {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
+    // A registered number is answered like a new one but gets no SMS.
+    return owner !== null;
   }
 
   /** `security.otp_per_identifier_per_day` when an admin saved a valid

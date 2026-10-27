@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/config/web_push_config.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/permissions/permission_primer.dart';
@@ -26,7 +27,7 @@ import 'package:lawbid/features/notifications/application/timezone_sync.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
-import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -84,6 +85,7 @@ class PushService {
     // Owner 2026-10-22: a chat notification the app draws itself (Android)
     // opens its chat, also when it started the app.
     _subs.add(chatNotificationsChannel.opens.listen(_openData));
+
     unawaited(
       chatNotificationsChannel.takeLaunchOpen().then((data) {
         if (data != null) _openData(data);
@@ -266,23 +268,36 @@ class PushService {
       );
 
   Future<void> _register(String token) {
+    // Owner 2026-10-26: «Ответить» / «Прочитано» on a notification answer
+    // through this server with this device's token (app closed too).
+    if (!kIsWeb) {
+      unawaited(
+        chatNotificationsChannel.setPushActions(
+          apiBase: _ref.read(appEnvironmentProvider).apiBaseUrl,
+          deviceToken: token,
+        ),
+      );
+    }
     final registrar = _registrar;
     if (registrar == null) return _post(token).catchError((Object _) {});
     return registrar.register(token);
   }
 
-  Future<void> _post(String token) =>
-      _ref.read(notificationsRepositoryProvider).registerPushToken(
-            token,
-            ios: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
-            web: kIsWeb,
-            // Owner 2026-10-20: this app arms the planner reminders itself.
-            localReminders: TaskReminderScheduler.supported,
-            // Owner 2026-10-22: Android draws chat pushes itself (sender's
-            // photo, one notification per chat).
-            chatStyle:
-                !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
-          );
+  Future<void> _post(String token) => _ref
+      .read(notificationsRepositoryProvider)
+      .registerPushToken(
+        token,
+        ios: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
+        web: kIsWeb,
+        // Owner 2026-10-20: this app arms the planner reminders itself.
+        localReminders: TaskReminderScheduler.supported,
+        // Owner 2026-10-22: Android draws chat pushes itself (sender's
+        // photo, one notification per chat).
+        chatStyle: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
+        // Owner 2026-10-26: … and notifications with a person (their
+        // round photo: bids, comments, likes, missed calls).
+        actorStyle: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
+      );
 
   String? _voipToken;
 
@@ -382,10 +397,12 @@ class PushService {
     final route = notificationRoute(
       type: '${data['type'] ?? ''}',
       payload: Map<String, Object?>.from(data),
-      attorney: _ref.read(currentUserRoleProvider) == UserRole.attorney,
+      attorney: _ref.read(actsAsAttorneyProvider),
       myId: _ref.read(currentUserIdProvider),
     );
-    if (route != null) unawaited(_ref.read(appRouterProvider).push(route));
+    if (route != null) {
+      openNotificationRoute(_ref.read(appRouterProvider), route);
+    }
   }
 
   Future<void> _markRead(String id) async {

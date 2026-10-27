@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'calendar_links_dto.dart';
 import 'deadline_holiday_dto.dart';
 import 'deadline_result_dto_warnings.dart';
 import 'deadline_rule_dto.dart';
@@ -20,6 +21,7 @@ class DeadlineResultDto {
     required this.rolled,
     required this.holidays,
     required this.warnings,
+    required this.calendarLinks,
   });
 
   factory DeadlineResultDto.fromJson(Map<String, Object?> json) =>
@@ -38,6 +40,9 @@ class DeadlineResultDto {
 
   /// holidays_missing: court holidays of that year are not loaded; unverified: the rule is not checked by staff yet; rolled: moved past a weekend or holiday.
   final List<DeadlineResultDtoWarnings> warnings;
+
+  /// Owner 2026-10-28: «add the last day to my calendar» (Google / Outlook / .ics).
+  final CalendarLinksDto calendarLinks;
 
   Map<String, Object?> toJson() => _$DeadlineResultDtoToJson(this);
 }

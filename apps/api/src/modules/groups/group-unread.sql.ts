@@ -16,7 +16,8 @@ export function unreadMessagesSql(viewer: string): Prisma.Sql {
      AND tr.user_id = ${viewer}::UUID
      AND tr.topic_id = COALESCE(m.topic_id, g.general_topic_id)
     LEFT JOIN chat_group_messages lr
-      ON lr.id = CASE WHEN g.topics_enabled
+      ON lr.group_id = g.id
+     AND lr.id = CASE WHEN g.topics_enabled
                       THEN COALESCE(tr.last_read_message_id, gm.last_read_message_id)
                       ELSE gm.last_read_message_id END
     WHERE m.group_id = g.id

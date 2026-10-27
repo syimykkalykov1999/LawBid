@@ -759,9 +759,40 @@ describe('FilesService', () => {
         ),
       ).toEqual(none);
       expect(await make().service.avatarUrls(null)).toEqual(none);
+      // Owner 2026-10-26: a file without a preview gives the full picture
+      // as its preview — lists (`url256 ?? null`) never lose the avatar.
       expect(
         await make({ file: { width: null } }).service.avatarUrls('f1'),
-      ).toEqual({ url: 'http://signed', url256: null });
+      ).toEqual({ url: 'http://signed', url256: 'http://signed' });
+    });
+
+    it('avatarUrlsMany: a file without a preview lists its full picture', async () => {
+      const { service, deps } = make({ file: { width: null } });
+      (deps.prisma.file as unknown as { findMany: jest.Mock }).findMany = jest
+        .fn()
+        .mockResolvedValue([
+          {
+            id: 'f1',
+            purpose: 'avatar',
+            s3_bucket: 'media',
+            s3_key: 'avatar/u1/f1',
+            mime: 'image/jpeg',
+            width: null,
+            scan_status: 'clean',
+            deleted_at: null,
+            created_at: new Date(),
+          },
+        ]);
+      const out = await service.avatarUrlsMany(['f1']);
+      expect(out.get('f1')).toEqual({
+        url: 'http://signed',
+        url256: 'http://signed',
+      });
+      expect(deps.storage.signedGetUrl).not.toHaveBeenCalledWith(
+        'media',
+        'avatar/u1/f1_w256',
+        expect.anything(),
+      );
     });
 
     it('signs verification files with verification.signed_url_ttl_sec, never media', async () => {
@@ -878,7 +909,7 @@ describe('FilesService', () => {
       expect(create).toHaveBeenCalledWith({
         data: expect.objectContaining({ mime: 'audio/webm' }),
       });
-      expect(deps.scans.enqueueScan).toHaveBeenCalledWith('f1');
+      expect(deps.scans.enqueueScan).toHaveBeenCalledWith('f1', 'u1');
     });
   });
 });

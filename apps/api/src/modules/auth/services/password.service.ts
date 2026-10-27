@@ -75,7 +75,7 @@ export class PasswordService {
    * refused with RATE_LIMITED. Metric line: `password_hash_queue`.
    */
   private async withSlot<T>(work: () => Promise<T>): Promise<T> {
-    const max = await this.readInt('security.password_hash_concurrency', 4, 1);
+    const max = await this.readInt('security.password_hash_concurrency', 2, 1);
     // Read both settings first: from the check below to the slot grab
     // nothing may be awaited (a slot freed meanwhile would be missed).
     const maxQueue = await this.readInt(

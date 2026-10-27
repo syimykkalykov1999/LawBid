@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowClockwise, ArrowsClockwise, Pause, Play, TrendDown, TrendUp } from '@phosphor-icons/react';
+import { ArrowClockwise, ArrowsClockwise, ArrowUUpLeft, Pause, Play, TrendDown, TrendUp } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
@@ -10,6 +10,7 @@ import { Badge, Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/toast';
+import { ShardSplitCard } from '@/components/system/shard-split-card';
 import { UpdatedAgo } from '@/components/updated-ago';
 import { ApiError, api, errorText } from '@/lib/api/client';
 import { livePoll } from '@/lib/live';
@@ -18,13 +19,19 @@ import {
   LIGHT_TONE,
   RUNBOOK_BASE,
   componentTitle,
+  healthPollMs,
   incidentSpan,
   word,
   type SystemHealth,
 } from '@/lib/system-health';
 import { formatDateTime } from '@/lib/utils';
 
-type Action = { kind: 'restart' } | { kind: 'scale'; mode: 'min' | 'normal' } | { kind: 'reencrypt' };
+async function retryFailed(): Promise<{ retried: number; stripeReplayed: number }> {
+  const res = await api.POST('/admin/system-health/queues/retry-failed');
+  return res.data!.data as { retried: number; stripeReplayed: number };
+}
+
+type Action = { kind: 'restart' } | { kind: 'scale'; mode: 'min' | 'normal' } | { kind: 'reencrypt' } | { kind: 'retry' };
 
 /**
  * Owner 2026-10-05 «я не понимаю серверы и базы»: one screen that says
@@ -37,21 +44,36 @@ export default function SystemHealthPage() {
   const health = useQuery({
     queryKey: ['system-health'],
     queryFn: async () => (await api.GET('/admin/system-health')).data!.data,
-    refetchInterval: livePoll(),
+    // S18-9: every minute while green; every 15 s while something is
+    // yellow or red, so an outage is not a minute late.
+    refetchInterval: livePoll((d) => healthPollMs((d as SystemHealth | undefined)?.overall)),
   });
   const set = (h: SystemHealth) => qc.setQueryData(['system-health'], h);
 
   const [stepUp, setStepUp] = useState<Action | null>(null);
   const run = useMutation({
     mutationFn: async (a: Action) =>
-      a.kind === 'restart'
+      a.kind === 'retry'
+        ? // S10-7: put failed background jobs back and replay Stripe dead letters.
+          retryFailed()
+        : a.kind === 'restart'
         ? (await api.POST('/admin/system-health/restart-worker')).data!.data
         : a.kind === 'reencrypt'
           ? // Owner 2026-10-22: the message-key re-encryption pass, from the start.
             (await api.POST('/admin/system-health/message-reencrypt/restart')).data!.data
           : (await api.POST('/admin/system-health/scale', { body: { mode: a.mode } })).data!.data,
     onSuccess: (h, a) => {
-      set(h);
+      if (a.kind === 'retry') {
+        const r = h as { retried: number; stripeReplayed: number };
+        toast.success(
+          r.retried + r.stripeReplayed === 0
+            ? 'Упавших задач нет'
+            : `Запущено заново: задач ${r.retried}, платёжных событий ${r.stripeReplayed}`,
+        );
+        void qc.invalidateQueries({ queryKey: ['system-health'] });
+        return;
+      }
+      set(h as SystemHealth);
       toast.success(
         a.kind === 'restart'
           ? 'Фоновые задачи перезапускаются (1–2 минуты)'
@@ -193,6 +215,20 @@ export default function SystemHealthPage() {
           ) : null}
           <div className="mb-6 grid gap-3 md:grid-cols-3">
             <Card className="flex flex-col gap-3 p-4">
+              <div className="text-sm font-medium text-heading">Повторить упавшие задачи</div>
+              <p className="flex-1 text-sm text-muted">
+                Если в «Фоновых задачах» есть упавшие (выгрузки, пуши, проверки файлов) или события оплаты Stripe не
+                дошли. Запускает их заново, до 200 штук с каждой очереди за нажатие.
+              </p>
+              <Button
+                variant="outline"
+                loading={run.isPending && run.variables?.kind === 'retry'}
+                onClick={() => run.mutate({ kind: 'retry' })}
+              >
+                <ArrowUUpLeft size={16} /> Повторить
+              </Button>
+            </Card>
+            <Card className="flex flex-col gap-3 p-4">
               <div className="text-sm font-medium text-heading">Перезапустить фоновые задачи</div>
               <p className="flex-1 text-sm text-muted">
                 Если «Фоновые задачи» красные больше 10 минут. Ничего не теряется: текущая задача доделается.
@@ -243,6 +279,8 @@ export default function SystemHealthPage() {
             </Card>
           </div>
 
+          <ShardSplitCard />
+
           <SectionTitle>Что система делает сама</SectionTitle>
           <Card className="divide-y divide-line">
             <div className="flex items-start gap-4 p-4">
@@ -286,7 +324,9 @@ export default function SystemHealthPage() {
         description={
           stepUp?.kind === 'reencrypt'
             ? 'Перешифровка переписывает все сообщения новым ключом. Подтвердите, что это вы.'
-            : 'Это действие меняет сервер на AWS. Подтвердите, что это вы.'
+            : stepUp?.kind === 'retry'
+              ? 'Повторный запуск упавших задач и платёжных событий. Подтвердите, что это вы.'
+              : 'Это действие меняет сервер на AWS. Подтвердите, что это вы.'
         }
         onCancel={() => setStepUp(null)}
         onDone={() => {

@@ -47,7 +47,10 @@ export class ChatSavedService {
   /** Saves a message (idempotent). */
   async save(user: RequestUser, messageId: string): Promise<void> {
     await this.limits?.consume('chat_save', user.sub);
-    const kind = await this.chat.savableKind(user, messageId);
+    const { kind, conversationId } = await this.chat.savableKind(
+      user,
+      messageId,
+    );
     const have = await this.prisma.savedChatMessage.findUnique({
       where: {
         user_id_message_id: { user_id: user.sub, message_id: messageId },
@@ -66,7 +69,14 @@ export class ChatSavedService {
       });
     }
     await this.prisma.savedChatMessage.createMany({
-      data: [{ user_id: user.sub, message_id: messageId, kind }],
+      data: [
+        {
+          user_id: user.sub,
+          message_id: messageId,
+          conversation_id: conversationId,
+          kind,
+        },
+      ],
       skipDuplicates: true,
     });
   }
@@ -160,11 +170,14 @@ export class ChatSavedService {
 
   private async present(
     user: RequestUser,
-    rows: { message_id: string; created_at: Date }[],
+    rows: { message_id: string; conversation_id: string; created_at: Date }[],
   ): Promise<SavedChatItemDto[]> {
     const seen = await this.chat.messagesWithChats(
       user,
-      rows.map((r) => r.message_id),
+      rows.map((r) => ({
+        id: r.message_id,
+        conversationId: r.conversation_id,
+      })),
     );
     const savedAt = new Map(rows.map((r) => [r.message_id, r.created_at]));
     return seen.map(({ message, chat }) => ({

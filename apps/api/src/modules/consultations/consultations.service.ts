@@ -26,6 +26,7 @@ import { parseUpdatedSince, syncedAt } from '../../common/sync/sync.util';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
+import { CalendarHooks } from '../calendar/calendar-hooks.service';
 import { ChatSystemMessages } from '../chat/chat-system.service';
 import type { ChatChange } from '../chat/chat-system.service';
 import { FeatureFlagsService } from '../feature-flags/feature-flags.public';
@@ -90,6 +91,7 @@ export class ConsultationsService {
     private readonly subscriptions: SubscriptionAccessService,
     private readonly blocks: BlocksService,
     private readonly files: FilesService,
+    private readonly calendar: CalendarHooks,
   ) {}
 
   // --- the attorney's schedule ---------------------------------------------
@@ -302,7 +304,15 @@ export class ConsultationsService {
     const slots =
       from > last
         ? []
-        : await this.slotsBetween(attorney, from, to, now, undefined);
+        : await this.slotsBetween(
+            attorney,
+            from,
+            to,
+            now,
+            undefined,
+            this.prisma,
+            await this.externalBusy(attorney, from, to, undefined),
+          );
     return {
       attorneyId: q.attorneyId,
       timezone: attorney.timezone,
@@ -327,6 +337,7 @@ export class ConsultationsService {
     now: Date,
     ignoreId: string | undefined,
     db: Prisma.TransactionClient | PrismaService = this.prisma,
+    extraBusy: { startsAt: Date; endsAt: Date }[] = [],
   ): Promise<Date[]> {
     const lo = new Date(`${from}T00:00:00Z`);
     const busy = await db.consultation.findMany({
@@ -351,11 +362,43 @@ export class ConsultationsService {
       },
       windows: a.windows,
       timeOff: a.timeOff,
-      busy: busy.map((b) => ({ startsAt: b.starts_at, endsAt: b.ends_at })),
+      busy: [
+        ...busy.map((b) => ({ startsAt: b.starts_at, endsAt: b.ends_at })),
+        ...extraBusy,
+      ],
       now,
       fromDate: from,
       toDate: to,
     });
+  }
+
+  /**
+   * Owner 2026-10-28: the attorney's busy time in Google / Outlook (free/busy
+   * only), read OUTSIDE any database transaction; [] when the links are off,
+   * slow or failing — booking then works as it always did.
+   */
+  private async externalBusy(
+    a: BookableAttorney,
+    from: string,
+    to: string,
+    ignoreId: string | undefined,
+  ): Promise<{ startsAt: Date; endsAt: Date }[]> {
+    const lo = new Date(`${from}T00:00:00Z`);
+    const hi = new Date(new Date(`${to}T00:00:00Z`).getTime() + 3 * DAY_MS);
+    let ignore: { startsAt: Date; endsAt: Date } | undefined;
+    if (ignoreId) {
+      const mine = await this.prisma.consultation.findUnique({
+        where: { id: ignoreId },
+        select: { starts_at: true, ends_at: true },
+      });
+      if (mine) ignore = { startsAt: mine.starts_at, endsAt: mine.ends_at };
+    }
+    return this.calendar.externalBusy(
+      a.id,
+      new Date(lo.getTime() - DAY_MS),
+      hi,
+      ignore,
+    );
   }
 
   private async loadBookable(
@@ -445,9 +488,23 @@ export class ConsultationsService {
     }
 
     const changes: ChatChange[] = [];
+    const slotDay = localDateOf(startsAt, attorney.timezone);
+    const external = await this.externalBusy(
+      attorney,
+      slotDay,
+      slotDay,
+      undefined,
+    );
     const row = await withTxRetry(this.prisma, async (tx) => {
       changes.length = 0;
-      await this.assertSlotFree(tx, attorney, startsAt, now, undefined);
+      await this.assertSlotFree(
+        tx,
+        attorney,
+        startsAt,
+        now,
+        undefined,
+        external,
+      );
       const client = await tx.user.findUniqueOrThrow({
         where: { id: user.sub },
         select: { first_name: true, last_name: true },
@@ -505,9 +562,18 @@ export class ConsultationsService {
     startsAt: Date,
     now: Date,
     ignoreId: string | undefined,
+    extraBusy: { startsAt: Date; endsAt: Date }[] = [],
   ): Promise<void> {
     const day = localDateOf(startsAt, a.timezone);
-    const free = await this.slotsBetween(a, day, day, now, ignoreId, tx);
+    const free = await this.slotsBetween(
+      a,
+      day,
+      day,
+      now,
+      ignoreId,
+      tx,
+      extraBusy,
+    );
     if (!free.some((s) => s.getTime() === startsAt.getTime())) {
       throw new ConflictException({
         code: ErrorCode.CONSULTATION_SLOT_TAKEN,
@@ -747,6 +813,25 @@ export class ConsultationsService {
   ): Promise<ConsultationDto> {
     const startsAt = new Date(startsAtIso);
     const now = new Date();
+    // Owner 2026-10-28: the client's move checks the attorney's outside
+    // calendar too — read before the transaction opens.
+    let external: { startsAt: Date; endsAt: Date }[] = [];
+    const pre = await this.prisma.consultation.findFirst({
+      where: { id, client_id: user.sub },
+      select: { attorney_id: true },
+    });
+    if (pre) {
+      const day = localDateOf(
+        startsAt,
+        (await this.loadBookable(pre.attorney_id).catch(() => null))
+          ?.timezone ?? 'UTC',
+      );
+      external = await this.calendar.externalBusy(
+        pre.attorney_id,
+        new Date(`${day}T00:00:00Z`),
+        new Date(new Date(`${day}T00:00:00Z`).getTime() + 4 * DAY_MS),
+      );
+    }
     const row = await withTxRetry(this.prisma, async (tx) => {
       const c = await this.mineAny(tx, id, user.sub);
       const asAttorney = c.attorney_id === user.sub;
@@ -780,7 +865,7 @@ export class ConsultationsService {
         }
       } else {
         const attorney = await this.loadBookable(c.attorney_id, tx);
-        await this.assertSlotFree(tx, attorney, startsAt, now, c.id);
+        await this.assertSlotFree(tx, attorney, startsAt, now, c.id, external);
         status = attorney.autoConfirm ? 'confirmed' : 'pending';
       }
       const updated = await tx.consultation.update({
@@ -931,6 +1016,7 @@ export class ConsultationsService {
       users.map((u) => u.avatar_file_id),
     );
     const now = Date.now();
+    const noShows = await this.calendar.noShowInfo(rows, viewerId);
     return rows.map((c) => {
       const other = byId.get(otherOf(c));
       const attorney = byId.get(c.attorney_id);
@@ -972,6 +1058,14 @@ export class ConsultationsService {
           now >= c.starts_at.getTime() - CALL_LEAD_MS &&
           now <= c.ends_at.getTime() + CALL_TAIL_MS,
         createdAt: c.created_at.toISOString(),
+        // Owner 2026-10-28: «add to calendar» + the no-show marks.
+        calendarLinks:
+          (c.status === 'confirmed' || c.status === 'pending') &&
+          c.ends_at.getTime() > now
+            ? this.calendar.linksFor(c, other ? fullName(other) : '')
+            : null,
+        noShows: noShows.get(c.id)?.noShows ?? [],
+        canMarkNoShow: noShows.get(c.id)?.canMarkNoShow ?? false,
       };
     });
   }

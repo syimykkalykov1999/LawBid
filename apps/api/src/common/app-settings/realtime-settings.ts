@@ -197,7 +197,7 @@ export const REALTIME_SETTING_DEFS: readonly RealtimeSettingDef[] = [
     min: 0,
     max: 60,
     labelRu:
-      'Сервер: как часто (секунд) запросы звонков сами проверяют просроченные звонки; 0 = при каждом запросе, как раньше. Больше 0 разгружает базу (проверка по расписанию раз в минуту остаётся)',
+      'Сервер: как часто (секунд) запросы звонков сами проверяют просроченные звонки. 0 = Авто (по умолчанию): пока звонков мало, проверка при каждом запросе; когда запросов больше 120 в минуту на одном сервере, не чаще раза в 5 секунд. Число больше 0 = всегда не чаще раза в столько секунд. Проверка по расписанию раз в минуту остаётся',
   },
   {
     key: 'realtime.server.max_sockets_per_user_global',
@@ -266,6 +266,22 @@ export const OWNER_REALTIME_SETTINGS = {
   'realtime.server.typing_big_room_max_typers': 3,
 } as const;
 
+/**
+ * Dedup D-11: `client.realtime_reconnect_min_ms` / `_max_ms` were a second
+ * knob for the same pause (defaults 1 s / 10 s against these 1 s / 30 s) and
+ * the phone let `client.timings` win, so editing them changed nothing. They
+ * are gone from the admin. A value already stored under the old name is still
+ * honoured, read-only, for one release while the new key is not stored.
+ * Remove this table (and the phone's flat-key fallback) after that release.
+ */
+const LEGACY_ALIASES: Readonly<Record<string, string>> = {
+  'realtime.reconnect_min_ms': 'client.realtime_reconnect_min_ms',
+  'realtime.reconnect_max_ms': 'client.realtime_reconnect_max_ms',
+};
+
+const inRange = (v: unknown, d: RealtimeSettingDef): v is number =>
+  typeof v === 'number' && Number.isFinite(v) && v >= d.min && v <= d.max;
+
 /** `client.timings` as the apps read it. */
 export type ClientTimings = Record<string, number>;
 
@@ -278,9 +294,11 @@ export function clientTimingsFrom(
   for (const d of REALTIME_SETTING_DEFS) {
     if (d.field === null) continue;
     const v = appConfig[d.key];
-    out[d.field] =
-      typeof v === 'number' && Number.isFinite(v) && v >= d.min && v <= d.max
-        ? v
+    const legacy = appConfig[LEGACY_ALIASES[d.key] ?? ''];
+    out[d.field] = inRange(v, d)
+      ? v
+      : v === undefined && inRange(legacy, d)
+        ? legacy
         : d.default;
   }
   // The server's own keepalive, so the app can size its watchdog.

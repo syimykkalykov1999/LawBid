@@ -1,3 +1,5 @@
+import { NAV_GROUP_META, NAV_GROUP_PAGES, NAV_PLACE } from './nav-groups';
+
 /**
  * Admin access, navigation side only. Every check that matters happens on
  * the server (AdminAuthGuard, deny by default); the panel just hides what an
@@ -21,6 +23,40 @@ export const ROLE_LABEL: Record<AdminRole, string> = {
   support: 'Поддержка',
   finance: 'Финансы',
 };
+
+/** Staff package T1 (2026-10-27): the three workspaces (same keys as the
+ * API enum `admin_workspace`). Menus and the desk use them from T2/T8 on;
+ * the server already answers 404 outside the workspace once the owner turns
+ * on `staff.workspaces_enabled`. */
+export type AdminWorkspace = 'mass' | 'finance' | 'owner';
+
+export const WORKSPACE_LABEL: Record<AdminWorkspace, string> = {
+  mass: 'Массовая работа',
+  finance: 'Финансы',
+  owner: 'Владелец',
+};
+
+/** The head of a workspace (one per workspace, none in finance). */
+export const WORKSPACE_HEAD_LABEL = 'Главный пространства';
+
+/** Staff package T2: the areas a worker of each workspace can reach (the
+ * server answers 404 for the rest once `staff.workspaces_enabled` is on).
+ * The same lists as WORKSPACE_AREAS in the API (staff-core/workspace-scope.ts);
+ * rbac.test.ts reads that file and fails if the two drift apart. */
+export const WORKSPACE_AREAS: Readonly<Record<'mass' | 'finance', readonly string[]>> = {
+  mass: ['dashboard', 'users', 'verification', 'moderation', 'content', 'media', 'cases', 'support', 'chats', 'outreach', 'sanctions', 'teams', 'on_call'],
+  finance: ['dashboard', 'money', 'economy', 'budget_limits', 'payroll', 'on_call'],
+};
+
+/** Areas of a workspace that stay read only whoever grants them (same as
+ * WORKSPACE_LEVEL_CAP in the API's admin-permissions.ts). */
+export const WORKSPACE_VIEW_ONLY: readonly string[] = ['dashboard', 'users'];
+
+/** The most a worker of [workspace] can be granted (null = no ceiling). */
+export function workspaceCeiling(workspace: AdminWorkspace | undefined): Permissions | null {
+  if (workspace !== 'mass' && workspace !== 'finance') return null;
+  return Object.fromEntries(WORKSPACE_AREAS[workspace].map((a) => [a, WORKSPACE_VIEW_ONLY.includes(a) ? 'view' : 'manage'])) as Permissions;
+}
 
 export type AccessLevel = 'view' | 'manage';
 export type Permissions = Partial<Record<string, AccessLevel>>;
@@ -54,6 +90,8 @@ export const GRANTABLE_AREAS: readonly { key: string; label: string; hint: strin
   { key: 'chats', label: 'Чаты поддержки', hint: 'переписки с пользователями в поддержке' },
   // Owner 2026-10-22: gets the system alerts; each admin can still mute them in Профиль.
   { key: 'on_call', label: 'Дежурный', hint: 'пуш и письмо при сбое системы (база, платежи, пуши, звонки); сам сбой смотрит только владелец' },
+  // Owner 2026-10-27: SEO switches and the store / channel checklist.
+  { key: 'promotion', label: 'Продвижение: SEO и сторы', hint: 'тумблеры страниц для поиска, статус сборки и чек-лист каналов (Google Search Console, магазины приложений); «управлять» включает тумблеры и пробный запуск' },
 ];
 
 /** Never grantable — shown locked so nobody wonders where they are. */
@@ -73,6 +111,14 @@ interface AccessSubject {
   countryPartnerId?: string | null;
   /** …and the partner themself (hires their own team). */
   partnerLead?: boolean;
+  /** Staff package T2: `staff.workspaces_enabled` is on. Off = the panel is
+   * exactly the old one for everybody. */
+  workspacesEnabled?: boolean;
+  /** …the workspace this admin works in (the super admin: owner). */
+  workspace?: AdminWorkspace;
+  /** …the head of that workspace (the server sets it only while the head
+   * role is on). */
+  workspaceHead?: boolean;
 }
 
 /** Owner 2026-10-06: the most a country partner's team can hold (same
@@ -123,7 +169,7 @@ export function covers(outer: Permissions, inner: Permissions): boolean {
 }
 
 /** Sidebar badge sources (see shell/use-nav-counts). */
-export type CountKey = 'verification' | 'reports' | 'support' | 'appeals' | 'trust' | 'approvals';
+export type CountKey = 'verification' | 'reports' | 'support' | 'appeals' | 'trust';
 
 /** An area key, `everyone` for the personal workspace, `partner` for the
  * country partner's page, `formTemplates` for the document forms, `config`
@@ -145,6 +191,9 @@ interface Section {
   /** Owner 2026-10-25: only the super admin sees and opens it. For everyone
    * else it is not in the menu and `canOpen` answers false (the 403 page). */
   ownerOnly?: boolean;
+  /** Owner 2026-10-26: besides the super admin, only these roles open it
+   * (not tied to a granted area); nobody else, whatever they are granted. */
+  onlyRoles?: readonly AdminRole[];
 }
 
 /** Owner 2026-10-25 (ADM-NAV): the menu is eight tabs (the dashboard plus
@@ -189,19 +238,19 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/subscriptions', label: 'Подписки', icon: 'crown-simple', area: 'money', hint: 'тарифы адвокатов' },
       { href: '/payments', label: 'Платежи и возвраты', icon: 'receipt', area: 'money' },
       { href: '/case-payments', label: 'Оплаты адвокатам', icon: 'hand-coins', area: 'moneyOwner', ownerOnly: true, hint: 'клиент платит адвокату через Stripe Connect' },
+      { href: '/stripe-review', label: 'Проверки Stripe', icon: 'shield-check', area: 'moneyOwner', hint: 'споры, сорванные выплаты и возвраты, предупреждения о мошенничестве' },
       { href: '/promo-codes', label: 'Промокоды', icon: 'ticket', area: 'money' },
       { href: '/referrals', label: 'Рефералы', icon: 'share-network', area: 'money', hint: 'скидки за приглашения' },
       { href: '/partners', label: 'Партнёры', icon: 'handshake', area: 'money', hint: 'блогеры и агенты: плата за адвокатов и клиентов' },
       { href: '/country-partners', label: 'Партнёры стран', icon: 'globe', area: 'moneyOwner', ownerOnly: true, hint: 'главный партнёр страны: команда, процент, цели' },
       { href: '/contracts', label: 'По договору', icon: 'handshake', area: 'money', hint: 'бесплатно блогерам 3–12 мес.' },
-      { href: '/promotions', label: 'Продвижение', icon: 'rocket-launch', area: 'money', hint: 'платное продвижение постов и кейсов, как в Instagram' },
+      { href: '/promotions', label: 'Продвижение', icon: 'rocket-launch', area: 'money', hint: 'цены за показы, людей, нажатия и действия' },
       { href: '/stars', label: 'Звёзды', icon: 'star', area: 'moneyOwner', ownerOnly: true, hint: 'пакеты звёзд, подарки, цены наборов стикеров, отчёт' },
       { href: '/prices', label: 'Цены', icon: 'tag', area: 'moneyOwner', ownerOnly: true, hint: 'стоимость тарифов и галочки' },
       { href: '/plans', label: 'Планы', icon: 'stack', area: 'moneyOwner', ownerOnly: true, hint: 'планы подписок и их возможности' },
+      { href: '/pnl', label: 'Прибыль', icon: 'chart-line', area: 'super', onlyRoles: ['finance'], hint: 'доход после возвратов и комиссии Stripe минус счета сервисов: день, неделя, месяц, 12 недель' },
       { href: '/treasury', label: 'Прибыль и резерв', icon: 'bank', area: 'money', hint: 'расходы отдельно, на карту: чистая прибыль' },
       { href: '/payroll', label: 'Зарплаты', icon: 'wallet', area: 'payroll', hint: 'сотрудники, массовая выплата' },
-      // Owner 2026-10-22 (maker-checker): the check is off (one owner), the page stays for the history.
-      { href: '/approvals', label: 'Требуют подтверждения', icon: 'seal-check', area: 'approvals', count: 'approvals', hint: 'запросы на подтверждение (сейчас проверка выключена: всё выполняется сразу)' },
       { href: '/economy', label: 'Экономика', icon: 'chart-line', area: 'super', ownerOnly: true, hint: 'доход и расходы на сторонние сервисы, потолок серверов' },
       { href: '/spend', label: 'Расходы', icon: 'chart-line', area: 'super', ownerOnly: true, hint: 'сколько денег уходит каждому сервису и сколько держать на счету' },
     ],
@@ -234,16 +283,20 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/media-moderation', label: 'Фото и видео', icon: 'flag', area: 'moderation', hint: 'автопроверка картинок: скрытые, подозрительные, CSAM' },
       { href: '/review-appeals', label: 'Обжалования отзывов', icon: 'scales', area: 'moderation', count: 'appeals' },
       { href: '/moderation-appeals', label: 'Обжалования решений', icon: 'scales', area: 'moderation', hint: 'автор просит вернуть скрытый пост, комментарий или сообщение' },
+      { href: '/moderation-auto', label: 'Автомодерация', icon: 'scales', area: 'moderation', hint: 'автоматические решения, апелляции, жалобщики, страйки и настройки' },
       { href: '/moderation-journal', label: 'Журнал решений', icon: 'article', area: 'moderation', hint: 'кто, когда и почему скрыл, удалил, предупредил' },
       { href: '/content', label: 'Посты и отзывы', icon: 'article', area: 'content', hint: 'посты, комментарии, отзывы' },
       { href: '/media', label: 'Рилсы и стикеры', icon: 'film-strip', area: 'media', hint: 'видео, наборы стикеров' },
       { href: '/legal-qa', label: 'Вопросы юристу', icon: 'article', area: 'moderation', hint: 'публичные вопросы и ответы адвокатов' },
+      { href: '/private-content', label: 'Приватные чаты и файлы', icon: 'lock', area: 'moderation', hint: 'чтение только с кодом причины, текстом и кодом 2FA; всё пишется в журнал' },
       { href: '/group-chats', label: 'Группы', icon: 'users-three', area: 'moderation', hint: 'групповые чаты, участники' },
       { href: '/practice-areas', label: 'Квалификации', icon: 'books', area: 'content' },
       { href: '/document-templates', label: 'Шаблоны документов', icon: 'file-text', area: 'content', hint: 'PDF и Word для приложения' },
       { href: '/form-templates', label: 'Формы документов', icon: 'file-text', area: 'formTemplates', hint: 'тексты с полями для документов в кейсе' },
       { href: '/broadcasts', label: 'Рассылки', icon: 'megaphone', area: 'broadcasts', hint: 'пуш всем или сегменту' },
       { href: '/outreach', label: 'Привлечение', icon: 'address-book', area: 'outreach', hint: 'база контактов, звонки, письма, кто сколько сделал' },
+      // Owner 2026-10-27: SEO switches, store / channel checklist (not the paid post promotion under «Деньги»).
+      { href: '/promotion', label: 'Продвижение: SEO и сторы', icon: 'rocket-launch', area: 'promotion', hint: 'тумблеры страниц для поиска, статус сборки, чек-лист каналов' },
     ],
   },
   {
@@ -254,6 +307,8 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/legal-documents', label: 'Юридические документы', icon: 'file-text', area: 'legal', hint: 'все документы: черновики, публикация, история' },
       // Owner 2026-10-05 (legal): DMCA notices, disclaimers, incident contact.
       { href: '/legal-settings', label: 'Право и жалобы', icon: 'scales', area: 'legal', hint: 'DMCA, дисклеймеры, контакт при инцидентах' },
+      // Owner 2026-10-28: what attorneys write about themselves (NY RPC 7.1), archive, bid-pack flags.
+      { href: '/attorney-ads', label: 'Реклама адвокатов', icon: 'megaphone', area: 'legal', hint: 'проверка текстов, оговорки, архив копий по штатам' },
       { href: '/data-requests', label: 'Запросы госорганов', icon: 'bank', area: 'data_requests' },
     ],
   },
@@ -264,12 +319,16 @@ export const GROUPS: readonly SectionGroup[] = [
     items: [
       // Batch D (2026-10-24): every part that grows by itself, its ceiling and buttons, and the open alarms.
       { href: '/scale', label: 'Масштаб', icon: 'gauge', area: 'super', ownerOnly: true, hint: 'серверы, база, Redis, поиск: сколько сейчас, докуда растут, тревоги' },
+      // Owner 2026-10-25: what users see on status.lawbid.dev; post / close an incident.
+      { href: '/status-page', label: 'Страница статуса', icon: 'megaphone', area: 'super', ownerOnly: true, hint: 'сообщить пользователям о сбое или работах' },
       // Owner 2026-10-23: the manual for what to switch on as the platform grows (owner only).
       { href: '/growth-plan', label: 'План роста', icon: 'rocket-launch', area: 'super', ownerOnly: true, hint: 'что включать, когда людей становится больше: по шагам' },
       { href: '/integrations', label: 'Ключи и сервисы', icon: 'key', area: 'super', ownerOnly: true, hint: 'API-ключи, ротация' },
       { href: '/config', label: 'Настройки', icon: 'sliders-horizontal', area: 'config', ownerOnly: true, hint: 'лимиты, версии приложения' },
       { href: '/flags', label: 'Функции', icon: 'toggle-right', area: 'settings', ownerOnly: true, hint: 'флаги, скрытые функции' },
       { href: '/analytics', label: 'Аналитика', icon: 'chart-line', area: 'moneyOwner', ownerOnly: true, hint: 'кто заходит, воронка, отток, покупки' },
+      // Owner 2026-10-25: A/B tests of ranking formulas on 5-10% of people (owner only, 2FA).
+      { href: '/experiments', label: 'Эксперименты', icon: 'sliders-horizontal', area: 'super', ownerOnly: true, hint: 'проверка новых формул на малой части людей' },
       { href: '/search', label: 'Поиск', icon: 'magnifying-glass', area: 'content', hint: 'синонимы, что не нашлось, чему научился' },
       { href: '/storage', label: 'Хранилище', icon: 'hard-drives', area: 'settings', hint: 'место, очистка, лимиты' },
       // Owner 2026-10-07 (bug 17): every upload limit and file format.
@@ -297,22 +356,77 @@ export const SECTIONS: readonly Section[] = GROUPS.flatMap((g) => g.items);
 
 function opens(me: AccessSubject, s: Section): boolean {
   // Owner 2026-10-25: owner-only pages are the super admin's and nobody
-  // else's (the deputy and the accountant do not see them at all). One
-  // exception: a country partner's lead hires their own team on /admins.
+  // else's (the deputy and the accountant do not see them at all). Two
+  // exceptions: a country partner's lead hires their own team on /admins,
+  // and so does the head of a workspace (staff package T2).
+  if (s.onlyRoles) return me.role === 'super_admin' || s.onlyRoles.includes(me.role);
   if (s.ownerOnly) {
     if (me.role === 'super_admin') return true;
-    return s.href === '/admins' && me.partnerLead === true;
+    return s.href === '/admins' && (me.partnerLead === true || (me.workspaceHead === true && navModeFor(me) === 'desk'));
   }
+  // Staff package T2 (plan C2): the workspace is the FIRST check — a worker
+  // of mass or finance does not see a section of the other workspace even
+  // with its toggle (the server answers 404 there).
+  if (navModeFor(me) === 'desk' && !inWorkspace(me, s)) return false;
   // Every admin has their own workspace (it shows only their own queues).
   if (s.area === 'everyone') return true;
   // Owner 2026-10-06: the partner team's own page.
   if (s.area === 'partner') return !!me.countryPartnerId;
-  // Owner 2026-10-22: whoever can pay salaries or refund sees what waits
-  // for a second admin (the API shows each admin only their kinds).
-  if (s.area === 'approvals') return can(me, 'payroll', 'manage') || can(me, 'money', 'manage');
   // Document forms: the API lets only the super admin and moderators in.
   if (s.area === 'formTemplates') return me.role === 'super_admin' || me.role === 'moderator';
   return can(me, s.area);
+}
+
+/** Section areas that the API files under another area key. */
+const WORKSPACE_AREA_ALIAS: Readonly<Record<string, string>> = { formTemplates: 'content' };
+
+/** Is the section inside the worker's workspace (desk mode only)? */
+function inWorkspace(me: AccessSubject, s: Section): boolean {
+  if (s.area === 'everyone') return true;
+  const ws = me.workspace;
+  if (ws !== 'mass' && ws !== 'finance') return true;
+  return WORKSPACE_AREAS[ws].includes(WORKSPACE_AREA_ALIAS[s.area] ?? s.area);
+}
+
+/**
+ * How the menu is drawn (staff package T2):
+ *  - `classic`: the old left menu (everybody while the switch is off; the
+ *    trusted deputy and a country partner's team always — they stand
+ *    outside the workspaces);
+ *  - `grouped`: the owner keeps the left menu, regrouped into eight groups;
+ *  - `desk`: a worker (or head) of mass / finance gets NO left menu — one
+ *    page with the tabs of their own workspace on top.
+ */
+export type NavMode = 'classic' | 'grouped' | 'desk';
+
+export function navModeFor(me: AccessSubject | undefined): NavMode {
+  if (!me?.workspacesEnabled) return 'classic';
+  if (me.role === 'super_admin') return 'grouped';
+  if (me.canManageAdmins || me.countryPartnerId) return 'classic';
+  if (me.workspace === 'mass' || me.workspace === 'finance') return 'desk';
+  return 'classic';
+}
+
+/** The eight groups of the owner's menu, built once from nav-groups.ts. */
+export const GROUPED: readonly SectionGroup[] = (() => {
+  const byHref = new Map(SECTIONS.map((x) => [x.href, x] as const));
+  const placed = new Set(Object.keys(NAV_PLACE));
+  const lost = SECTIONS.filter((x) => !placed.has(x.href));
+  return NAV_GROUP_META.map((g) => ({
+    ...g,
+    items: [
+      ...NAV_GROUP_PAGES[g.key].flatMap((href) => {
+        const found = byHref.get(href);
+        return found ? [found] : [];
+      }),
+      // A page nobody placed yet is never lost: it joins «Система».
+      ...(g.key === 'system' ? lost : []),
+    ],
+  }));
+})();
+
+function groupsOf(me: AccessSubject | undefined): readonly SectionGroup[] {
+  return navModeFor(me) === 'grouped' ? GROUPED : GROUPS;
 }
 
 /** A section tied to a feature flag is hidden while that flag is in [off]. */
@@ -321,19 +435,30 @@ function shown(me: AccessSubject, s: Section, off?: ReadonlySet<string>): boolea
 }
 
 export function groupsFor(me: AccessSubject, off?: ReadonlySet<string>): SectionGroup[] {
-  return GROUPS.map((g) => ({ ...g, items: g.items.filter((s) => shown(me, s, off)) })).filter((g) => g.items.length > 0);
+  return groupsOf(me)
+    .map((g) => ({ ...g, items: g.items.filter((s) => shown(me, s, off)) }))
+    .filter((g) => g.items.length > 0);
 }
 
-/** The menu section a page belongs to. */
-export function groupFor(pathname: string): SectionGroup | undefined {
+/** The menu section a page belongs to (the owner's grouped menu when [me]
+ * is given and it is on). */
+export function groupFor(pathname: string, me?: AccessSubject): SectionGroup | undefined {
   const s = sectionFor(pathname);
-  return s ? GROUPS.find((g) => g.items.includes(s)) : undefined;
+  return s ? groupsOf(me).find((g) => g.items.includes(s)) : undefined;
 }
 
 /** The tabs of [pathname]'s section this admin may open (empty if none). */
 export function tabsFor(me: AccessSubject, pathname: string, off?: ReadonlySet<string>): Section[] {
-  const g = groupFor(pathname);
+  const g = groupFor(pathname, me);
   return g ? g.items.filter((s) => shown(me, s, off)) : [];
+}
+
+/** Staff package T2: the one row of tabs a worker (desk mode) sees instead
+ * of a left menu — every page of their workspace they may open, their own
+ * workspace page first, then in the order of the owner's groups. */
+export function deskTabsFor(me: AccessSubject, off?: ReadonlySet<string>): Section[] {
+  const all = GROUPED.flatMap((g) => g.items).filter((s) => shown(me, s, off));
+  return [...all.filter((s) => s.href === '/workspace'), ...all.filter((s) => s.href !== '/workspace')];
 }
 
 export function sectionsFor(me: AccessSubject): Section[] {
@@ -374,9 +499,10 @@ export function summarizeRights(perms: Permissions, areas: readonly { key: strin
 /** A preset or template cut down to what [me] may hand out (the API caps it too). */
 export function fitToMe(
   perms: Record<string, string>,
-  me: { role: AdminRole; permissions: Permissions } | undefined,
+  me: { role: AdminRole; permissions: Permissions; workspace?: AdminWorkspace; workspaceHead?: boolean } | undefined,
 ): Record<string, AccessLevel> {
-  const own = me?.permissions ?? {};
+  // The head of a workspace hands out up to the ceiling of that workspace.
+  const own = me?.workspaceHead ? (workspaceCeiling(me.workspace) ?? {}) : (me?.permissions ?? {});
   const out: Record<string, AccessLevel> = {};
   for (const [k, v] of Object.entries(perms)) {
     const def = GRANTABLE_AREAS.find((a) => a.key === k);

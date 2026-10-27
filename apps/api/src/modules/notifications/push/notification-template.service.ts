@@ -256,6 +256,22 @@ const WORKSPACE_KIND_FALLBACK: Record<string, { en: string; ru: string }> = {
     en: 'The attorney sent an invoice for the case.',
     ru: 'Адвокат прислал счёт по кейсу.',
   },
+  invoice_reminder: {
+    en: 'Reminder: an invoice for the case is waiting for payment.',
+    ru: 'Напоминание: счёт по кейсу ждёт оплаты.',
+  },
+  invoice_overdue: {
+    en: 'An invoice for the case is overdue.',
+    ru: 'Счёт по кейсу просрочен.',
+  },
+  sign_reminder: {
+    en: 'Reminder: a document in the case is waiting for your signature.',
+    ru: 'Напоминание: документ в кейсе ждёт вашей подписи.',
+  },
+  sign_expired: {
+    en: 'A signing request in the case has expired.',
+    ru: 'Срок запроса на подпись в кейсе истёк.',
+  },
   sign_request: {
     en: 'A document in the case is waiting for your signature.',
     ru: 'Документ в кейсе ждёт вашей подписи.',

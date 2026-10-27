@@ -19,9 +19,12 @@ function build(selection: object) {
         subject_user_id: USER,
         requested_by: 'a1',
         selection,
+        // the signed manifest records when the export was asked for
+        created_at: new Date('2026-10-20T00:00:00Z'),
         request: {
           reference_number: 'SUB-1',
           agency: 'FBI',
+          legal_basis: 'subpoena',
           request_type: 'subpoena',
           scope: 'x',
         },
@@ -79,6 +82,14 @@ function build(selection: object) {
   const storage = {
     bucket: jest.fn().mockReturnValue('docs'),
     put,
+    // WP-G: the archive is streamed; the double drains it into one Buffer.
+    putStream: jest.fn(
+      async (b: string, k: string, body: AsyncIterable<Buffer>, t: string) => {
+        const chunks: Buffer[] = [];
+        for await (const c of body) chunks.push(c);
+        await put(b, k, Buffer.concat(chunks), t);
+      },
+    ),
     remove: jest.fn(),
   } as unknown as S3StorageService;
   const numbers: Record<string, number> = {

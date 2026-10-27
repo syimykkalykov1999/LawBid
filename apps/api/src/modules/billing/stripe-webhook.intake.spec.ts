@@ -14,7 +14,13 @@ import { StripeWebhookIntakeService } from './stripe-webhook.intake';
  * stored once and never queued twice, every handled type is queued with
  * jobId = event id, an unhandled type is stored as processed.
  */
-function make(opts: { type?: string; duplicate?: boolean; badSig?: boolean }) {
+function make(opts: {
+  type?: string;
+  duplicate?: boolean;
+  badSig?: boolean;
+  stored?: { processed_at: Date | null } | null;
+  liveJob?: 'active' | 'completed' | 'failed';
+}) {
   const event = {
     id: 'evt_1',
     type: opts.type ?? 'invoice.paid',
@@ -40,9 +46,25 @@ function make(opts: { type?: string; duplicate?: boolean; badSig?: boolean }) {
           : Promise.resolve({}),
       ),
       update: jest.fn(() => Promise.resolve({})),
+      findUnique: jest.fn(() =>
+        Promise.resolve(
+          opts.stored === undefined
+            ? { processed_at: new Date() }
+            : opts.stored,
+        ),
+      ),
     },
   };
-  const queue = { add: jest.fn(() => Promise.resolve({})) };
+  const job = opts.liveJob
+    ? {
+        getState: jest.fn(() => Promise.resolve(opts.liveJob)),
+        remove: jest.fn(() => Promise.resolve()),
+      }
+    : null;
+  const queue = {
+    add: jest.fn(() => Promise.resolve({})),
+    getJob: jest.fn(() => Promise.resolve(job)),
+  };
   const svc = new StripeWebhookIntakeService(
     prisma as never,
     provider as never,
@@ -77,6 +99,40 @@ describe('StripeWebhookIntakeService.receive', () => {
     expect(await h.svc.receive(Buffer.from('{}'), 'sig')).toBe(false);
     expect(h.queue.add).not.toHaveBeenCalled();
   });
+
+  it('a replay of a stored but unprocessed event with no live job is re-queued (lost job after a Redis outage)', async () => {
+    const h = make({ duplicate: true, stored: { processed_at: null } });
+    expect(await h.svc.receive(Buffer.from('{}'), 'sig')).toBe(true);
+    expect(h.queue.getJob).toHaveBeenCalledWith('evt_1');
+    expect(h.queue.add).toHaveBeenCalledWith(
+      STRIPE_WEBHOOK_JOB,
+      { eventId: 'evt_1' },
+      { ...WEBHOOK_JOB_OPTS, jobId: 'evt_1' },
+    );
+  });
+
+  it('a replay while a live job exists is not queued twice', async () => {
+    const h = make({
+      duplicate: true,
+      stored: { processed_at: null },
+      liveJob: 'active',
+    });
+    expect(await h.svc.receive(Buffer.from('{}'), 'sig')).toBe(false);
+    expect(h.queue.add).not.toHaveBeenCalled();
+  });
+
+  it.each(['completed', 'failed'] as const)(
+    'a replay with a %s job present is not re-added (the DLQ owns it)',
+    async (liveJob) => {
+      const h = make({
+        duplicate: true,
+        stored: { processed_at: null },
+        liveJob,
+      });
+      expect(await h.svc.receive(Buffer.from('{}'), 'sig')).toBe(false);
+      expect(h.queue.add).not.toHaveBeenCalled();
+    },
+  );
 
   it('other database errors are not swallowed (Stripe retries)', async () => {
     const h = make({});

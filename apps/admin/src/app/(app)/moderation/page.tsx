@@ -34,7 +34,8 @@ export default function ModerationQueuePage() {
   const canSeeUsers = canOpen(me, "/users");
   const [status, setStatus] = useState<QStatus>("open");
   const [targetType, setTargetType] = useState<ModerationTargetType | "">("");
-  const filters = { status, targetType };
+  const [priority, setPriority] = useState(false);
+  const filters = { status, targetType, priority };
   const q = useInfiniteQuery({
     queryKey: ["moderation-queue", filters],
     initialPageParam: undefined as string | undefined,
@@ -45,6 +46,7 @@ export default function ModerationQueuePage() {
             query: {
               status: filters.status,
               targetType: filters.targetType || undefined,
+              priority: filters.priority || undefined,
               cursor: pageParam,
               limit: 30,
             },
@@ -87,6 +89,14 @@ export default function ModerationQueuePage() {
             </option>
           ))}
         </Select>
+        <label className="flex items-center gap-2 text-sm text-muted">
+          <input
+            type="checkbox"
+            checked={priority}
+            onChange={(e) => setPriority(e.target.checked)}
+          />
+          Только приоритетные (адвокаты с галочкой)
+        </label>
       </div>
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       {q.error && rows.length === 0 ? null : (
@@ -128,6 +138,11 @@ export default function ModerationQueuePage() {
                       >
                         {TARGET_TYPE[r.targetType] ?? r.targetType}
                       </Link>
+                      {r.priority ? (
+                        <Badge tone="warning" className="ml-2">
+                          приоритет: не скрыто, нужна проверка
+                        </Badge>
+                      ) : null}
                       {r.excerpt ? (
                         <div className="line-clamp-2 text-xs text-muted">
                           {r.excerpt}

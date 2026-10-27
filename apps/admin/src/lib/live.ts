@@ -1,4 +1,5 @@
 import { queryOptions } from '@tanstack/react-query';
+import { idleMs, IDLE_STOP_MS } from '@/lib/activity';
 import { api, ApiError } from '@/lib/api/client';
 
 /**
@@ -10,7 +11,7 @@ import { api, ApiError } from '@/lib/api/client';
  *   poll /admin/counts only; heavy aggregates (dashboard, trust stats…) are
  *   precomputed on the server and revalidated when the tab regains focus
  *   (owner 2026-10-23: no timers except the live work queues — the support
- *   inbox and thread, approvals, the system-health board);
+ *   inbox and thread, the system-health board);
  * - a 429 is never retried (providers.tsx) and backs the timer off to
  *   RATE_LIMITED_BACKOFF_MS until a request succeeds again;
  * - pages show «обновлено N с назад» (UpdatedAgo) instead of refetching.
@@ -28,11 +29,16 @@ export const UNFOCUSED_MS = 120_000;
 
 /** A refetchInterval that slows down after a 429 and when the window has
  * no focus. */
-export function livePoll(ms: number = LIVE_MS) {
-  return <Q extends { state: { error: unknown } }>(query: Q): number => {
-    if (isRateLimited(query.state.error)) return Math.max(ms, RATE_LIMITED_BACKOFF_MS);
-    if (typeof document !== 'undefined' && !document.hasFocus()) return Math.max(ms, UNFOCUSED_MS);
-    return ms;
+export function livePoll(ms: number | ((data: unknown) => number) = LIVE_MS) {
+  return <Q extends { state: { error: unknown; data?: unknown } }>(query: Q): number | false => {
+    // S18-1: nobody has touched the screen for 15 minutes — stop polling so
+    // the session can run into its idle timeout (any input restarts it).
+    if (typeof window !== 'undefined' && idleMs() > IDLE_STOP_MS) return false;
+    // S18-9: a board may poll faster while its data says something is wrong.
+    const base = typeof ms === 'function' ? ms(query.state.data) : ms;
+    if (isRateLimited(query.state.error)) return Math.max(base, RATE_LIMITED_BACKOFF_MS);
+    if (typeof document !== 'undefined' && !document.hasFocus()) return Math.max(base, UNFOCUSED_MS);
+    return base;
   };
 }
 

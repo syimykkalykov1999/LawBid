@@ -64,6 +64,12 @@ export class AdminQaAnswerDto {
   @ApiProperty() isBest!: boolean;
   @ApiProperty() likeCount!: number;
   @ApiProperty({ type: AdminQaPersonDto }) attorney!: AdminQaPersonDto;
+  @ApiProperty({
+    type: [String],
+    description:
+      'Owner 2026-10-28: what the safety check found — private-info kinds, individualized_advice, state_not_licensed.',
+  })
+  safetyFlags!: string[];
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
 
@@ -81,6 +87,12 @@ export class AdminQaQuestionDto {
   @ApiProperty({ nullable: true, type: String }) practiceArea!: string | null;
   /** Shown to the admin even when the author is anonymous to others. */
   @ApiProperty({ type: AdminQaPersonDto }) author!: AdminQaPersonDto;
+  @ApiProperty({
+    type: [String],
+    description:
+      'Owner 2026-10-28: private-info kinds found in the text (ssn, address, case_number, party_name ...).',
+  })
+  safetyFlags!: string[];
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
 

@@ -24,6 +24,19 @@ DataRequestCardDto _$DataRequestCardDtoFromJson(Map<String, dynamic> json) =>
           : DateTime.parse(json['closedAt'] as String),
       createdAt: DateTime.parse(json['createdAt'] as String),
       accessCount: (json['accessCount'] as num).toInt(),
+      legalBasis: json['legalBasis'] as String?,
+      country: json['country'] as String?,
+      subjectUserId: json['subjectUserId'] as String?,
+      dueAt: json['dueAt'] == null
+          ? null
+          : DateTime.parse(json['dueAt'] as String),
+      doNotNotify: json['doNotNotify'] as bool,
+      nondisclosureUntil: json['nondisclosureUntil'] == null
+          ? null
+          : DateTime.parse(json['nondisclosureUntil'] as String),
+      userNotifiedAt: json['userNotifiedAt'] == null
+          ? null
+          : DateTime.parse(json['userNotifiedAt'] as String),
       accessLog: (json['accessLog'] as List<dynamic>)
           .map((e) => DataAccessLogEntryDto.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -43,5 +56,12 @@ Map<String, dynamic> _$DataRequestCardDtoToJson(DataRequestCardDto instance) =>
       'closedAt': ?instance.closedAt?.toIso8601String(),
       'createdAt': instance.createdAt.toIso8601String(),
       'accessCount': instance.accessCount,
+      'legalBasis': ?instance.legalBasis,
+      'country': ?instance.country,
+      'subjectUserId': ?instance.subjectUserId,
+      'dueAt': ?instance.dueAt?.toIso8601String(),
+      'doNotNotify': instance.doNotNotify,
+      'nondisclosureUntil': ?instance.nondisclosureUntil?.toIso8601String(),
+      'userNotifiedAt': ?instance.userNotifiedAt?.toIso8601String(),
       'accessLog': instance.accessLog.map((e) => e.toJson()).toList(),
     };

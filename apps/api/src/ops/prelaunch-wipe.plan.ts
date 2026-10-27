@@ -17,13 +17,23 @@
  * admin (prices, plans, templates, keys, staff).
  */
 export const KEEP_TABLES: Readonly<Record<string, string>> = {
+  // Merge union 2026-10-27: one row, the audit hash-chain head (#373);
+  // reset below together with the wiped audit_log.
+  audit_log_chain_head: 'audit hash-chain head (one row, reset to 0)',
   search_synonym_groups:
     'the search dictionary: words per topic (admin edits it)',
   search_synonym_terms: 'its words and phrases',
   _prisma_migrations: 'migration history',
+  concurrent_migrations: 'online schema changes in progress (operations)',
+  backfill_runs: 'progress of data backfills (operations)',
   app_config: 'settings and cost caps (seed + admin)',
   shard_map:
     'which physical database holds each logical shard (routing config)',
+  shard_moves: 'shard move jobs (infrastructure bookkeeping, not tester data)',
+  shard_move_track: 'which rows a shard move still has to copy (infra)',
+  shard_change_log: 'row changes recorded during a shard move (infra)',
+  shard_dropped_fk:
+    'foreign keys dropped for sharding (infra, needed to restore)',
   feature_flags: 'feature switches (seed + admin)',
   legal_documents: 'terms / privacy texts (seed + admin)',
   blocked_email_domains: 'disposable e-mail domains (seed)',
@@ -60,6 +70,9 @@ export const KEEP_TABLES: Readonly<Record<string, string>> = {
   payroll_payouts: 'staff salary history',
   payroll_accruals: 'staff salary accruals',
   staff_rewards: 'staff prizes',
+  // Staff package T1 (2026-10-27): owner configuration of the staff package.
+  staff_rates: 'piecework rates the owner set (config)',
+  admin_nav_pins: 'pages admins pinned to their menu (preference)',
   treasury_expenses: 'monthly service costs (owner bookkeeping)',
   treasury_payouts: 'monthly profit / reserve transfers (owner money)',
   partners: 'affiliate partners (owner contracts; their users are kept)',
@@ -85,6 +98,12 @@ export const FILTERED_TABLES: Readonly<Record<string, string>> = {
 
 /** Everything the testers created. TRUNCATE … CASCADE in one statement. */
 export const WIPE_TABLES: Readonly<Record<string, string>> = {
+  // #388 compliance: test-period records
+  age_attestations: 'age confirmations given at sign-up (test accounts)',
+  email_suppressions:
+    'e-mail addresses that bounced / unsubscribed (test period)',
+  sms_consents: 'SMS consent records (test accounts)',
+  sms_suppressions: 'numbers that answered STOP (test period)',
   // Owner 2026-10-16: shapes of unusual bar numbers typed so far
   bar_format_misses: 'counted shapes of unusual bar numbers (test entries)',
   // identity and sign-in
@@ -107,6 +126,11 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   consultation_windows: 'attorney weekly booking windows',
   consultation_time_off: 'attorney time off',
   consultations: 'booked consultations',
+  calendar_feed_tokens: 'secret calendar links',
+  calendar_connections: 'linked Google / Outlook calendars',
+  calendar_event_links: 'events written to linked calendars',
+  consultation_no_shows: 'missed-consultation marks',
+  consultation_attendance_stats: 'no-show counters',
   legal_questions: 'questions to lawyers',
   legal_answers: 'answers to questions',
   legal_answer_likes: 'likes of answers',
@@ -120,6 +144,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   verification_documents: 'verification uploads',
   verification_checks: 'verification checks',
   attorney_trust: 'trust scores',
+  attorney_ad_archive: 'attorney ad text archive',
   attorney_trust_events: 'trust history',
   bar_number_blocks: 'bar numbers blocked during the test',
   bar_number_block_events: 'their history',
@@ -143,6 +168,11 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   promotion_views: 'boost impressions',
   promotion_daily: 'boost numbers by day',
   search_query_log: 'what testers searched',
+  experiments: 'A/B tests of the test period',
+  experiment_exposures: 'who saw which variant',
+  experiment_results: 'nightly reports of those tests',
+  ranking_events:
+    'what testers were shown and tapped (weekly partitions go with it)',
   crash_reports: 'crashes of test builds',
   user_activity_days: 'who opened the app on which day (testers)',
   app_event_days: 'app event counts by day (testers)',
@@ -238,6 +268,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   notifications: 'in-app notifications',
   cross_family_outbox: 'pending cross-database events (shard-ready step 7)',
   cross_family_inbox: 'applied-event keys (shard-ready step 7)',
+  domain_events: 'internal domain-event stream of the test period (N-2)',
   notification_settings: 'notification settings',
   notification_quiet_hours: 'quiet hours',
   admin_broadcasts: 'pushes sent to testers',
@@ -272,6 +303,8 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   case_payments: 'client → attorney payments',
   payment_requests: 'payment requests',
   case_payment_refunds: 'their refunds',
+  stripe_review_items:
+    'Stripe review queue (disputes, failed payouts, fraud warnings)',
   // money ledger (test-mode entries; TRUNCATE ignores the append-only row triggers)
   ledger_lines: 'money ledger lines (test mode)',
   ledger_entries: 'money ledger entries (test mode)',
@@ -284,6 +317,10 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   dmca_notices: 'DMCA notices',
   moderation_actions: 'moderation decisions',
   moderation_appeals: 'appeals against moderation decisions',
+  reporter_standings: 'reporters warned or paused for unfounded reports',
+  user_strikes: 'strikes on content owners',
+  moderation_auto_actions: 'automatic moderation decisions and their appeals',
+  moderation_detections: 'text classifier log',
   user_privacy_settings: 'privacy settings',
   support_tickets: 'support tickets',
   support_messages: 'support messages',
@@ -292,12 +329,19 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   legal_exports: 'evidence archives of law-enforcement requests (test)',
   legal_holds: 'legal holds of law-enforcement requests (test)',
   data_access_log: 'their access log',
+  // Privacy round 13: opaque ids and per-step proof of test-period erasures.
+  erasure_ledger: 'erasure ledger of test-period deletions',
+  deletion_steps: 'per-step proof of test-period deletions',
   data_export_jobs: '"download my data" jobs',
   audit_log:
     'admin actions of the test period (mostly on tester accounts); the trail starts clean at launch',
   // Owner 2026-10-22: maker-checker requests of the test period.
   admin_approvals:
     'second-admin approvals of test payouts / refunds (pending ones would run on real money)',
+  // Owner 2026-10-26: cloud change requests from the admin (infra switches).
+  // The applied state lives in growth.auto.tfvars.json on main, not here.
+  infra_change_requests:
+    'cloud change requests of the test period (plans, confirms, applies); the history starts clean at launch',
   // Owner 2026-10-22: automated media moderation of the test period.
   media_moderation_checks:
     'image / reel-thumbnail moderation verdicts of tester uploads',
@@ -306,6 +350,26 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   // demo world registry (the demo database itself is reset from the admin)
   demo_accounts: 'demo accounts registry',
   storage_snapshots: 'daily storage statistics of the test period',
+  // Staff package T1 (2026-10-27): staff work of the test period. Admins
+  // themselves (admin_profiles) and their payroll are kept above.
+  work_leases: 'who held which work item (test period)',
+  work_lease_events: 'lease history (test period)',
+  staff_member_states:
+    'staff queue states (paused / on hold) of the test period',
+  staff_quality_signals: 'quality signals of test-period decisions',
+  staff_review_samples: 'second looks at test-period decisions',
+  staff_daily_stats: 'daily staff numbers of the test period',
+  staff_rating_snapshots: 'staff ratings of the test period',
+  staff_suggestions: 'system suggestions of the test period',
+  staff_actions: 'warnings / removals of the test period (launch starts clean)',
+  staff_case_appeals: 'staff case appeals of the test period',
+  admin_appeals: 'complaints against heads of the test period',
+  staff_retaliation_flags: 'retaliation marks of the test period',
+  staff_head_snapshots: 'head scores of the test period',
+  staff_piecework_days:
+    'piecework days of the test period (the payroll accruals they made stay)',
+  staff_anomalies: 'staff anomaly reports of the test period',
+  staff_digests: 'weekly owner digests of the test period',
 };
 
 /** User-id columns WITHOUT a foreign key in kept tables: those users stay
@@ -322,6 +386,7 @@ export const SOFT_USER_REFS: ReadonlyArray<{ table: string; column: string }> =
 
 /** Counters on kept rows that only counted tester activity. */
 export const RESET_SQL: readonly string[] = [
+  'UPDATE "audit_log_chain_head" SET "seq" = 0, "last_hash" = NULL',
   'UPDATE "promo_codes" SET "redeemed_count" = 0 WHERE "redeemed_count" <> 0',
   'UPDATE "sticker_packs" SET "install_count" = 0 WHERE "install_count" <> 0',
   'UPDATE "gifts" SET "sent_count" = 0 WHERE "sent_count" <> 0',
@@ -349,7 +414,11 @@ export const REDIS_KEEP_PATTERNS: readonly string[] = [
 
 export type TableClass = 'keep' | 'filtered' | 'wipe';
 
+/** Weekly partitions of ranking_events are the same table as far as the wipe goes. */
+const RANKING_PARTITION_RE = /^ranking_events_(p\d{8}|default)$/;
+
 export function classOf(table: string): TableClass | null {
+  if (RANKING_PARTITION_RE.test(table)) table = 'ranking_events';
   if (table in KEEP_TABLES) return 'keep';
   if (table in FILTERED_TABLES) return 'filtered';
   if (table in WIPE_TABLES) return 'wipe';

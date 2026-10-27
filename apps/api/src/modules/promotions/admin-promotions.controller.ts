@@ -22,6 +22,7 @@ import {
   SkipAutoAudit,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import { AdminPromotionsService } from './admin-promotions.service';
 import {
   AdminCancelPromotionDto,
@@ -47,7 +48,10 @@ type Page<T> = { items: T[]; nextCursor: string | null };
 @AdminEndpoint('super_admin', 'finance', 'support', 'moderator')
 @Controller('admin/promotions')
 export class AdminPromotionsController {
-  constructor(private readonly promotions: AdminPromotionsService) {}
+  constructor(
+    private readonly promotions: AdminPromotionsService,
+    private readonly auth: AdminAuthService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Case promotions, newest first' })
@@ -76,13 +80,22 @@ export class AdminPromotionsController {
   @Roles('super_admin')
   @Put('settings')
   @SkipAutoAudit()
-  @ApiOperation({ summary: 'Change price / limits / on-off (super admin)' })
+  @ApiOperation({
+    summary:
+      'Change price / limits / on-off (super admin); a change of the prices or switches per way to pay needs a fresh 2FA step-up',
+  })
   @ApiEnvelopeResponse(PromotionSettingsDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  updatePromotionSettings(
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async updatePromotionSettings(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: UpdatePromotionSettingsDto,
   ): Promise<PromotionSettings> {
+    // Owner 2026-10-27: what buyers pay is money, like the other price
+    // screens (economy, spend): one fresh authenticator code, no second
+    // admin. Only a real change of the per-model prices / switches asks.
+    if (await this.promotions.pricingWouldChange(dto)) {
+      await this.auth.assertStepUp(admin.sessionId);
+    }
     return this.promotions.updateSettings(admin, dto);
   }
 

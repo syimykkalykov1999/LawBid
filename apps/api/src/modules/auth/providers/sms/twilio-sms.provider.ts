@@ -54,6 +54,8 @@ export class TwilioSmsProvider implements SmsProvider {
     creds: TwilioCredentials,
     private readonly logger: PinoLogger,
     private readonly androidAppHash?: string,
+    // S14-11: the domain of the origin-bound code line (see otpSmsText).
+    private readonly originDomain?: string,
   ) {
     this.client = Twilio(creds.accountSid, creds.authToken, {
       timeout: SEND_TIMEOUT_MS + 2_000,
@@ -78,7 +80,11 @@ export class TwilioSmsProvider implements SmsProvider {
               this.client.messages.create({
                 to: toE164,
                 ...this.sender,
-                body: otpSmsText(code, this.androidAppHash || undefined),
+                body: otpSmsText(
+                  code,
+                  this.androidAppHash || undefined,
+                  this.originDomain,
+                ),
               }),
             ),
           {
@@ -90,6 +96,21 @@ export class TwilioSmsProvider implements SmsProvider {
       isTwilioServiceFault,
     );
     this.logger.info({ toE164Suffix: toE164.slice(-4) }, 'Twilio SMS OTP sent');
+  }
+
+  /** 2026-10-25: a non-code text (consent checked by the caller). */
+  async sendText(toE164: string, body: string): Promise<void> {
+    await twilioBreaker.run(
+      () =>
+        withTimeout('twilio', SEND_TIMEOUT_MS, () =>
+          this.client.messages.create({ to: toE164, ...this.sender, body }),
+        ),
+      isTwilioServiceFault,
+    );
+    this.logger.info(
+      { toE164Suffix: toE164.slice(-4) },
+      'Twilio SMS text sent',
+    );
   }
 }
 
@@ -113,9 +134,40 @@ export class DynamicSmsProvider implements SmsProvider {
     this.logger.setContext(DynamicSmsProvider.name);
   }
 
+  /** S14-11: the website's domain (the passkey RP ID, else the host of the
+   * app link base) for the origin-bound line; none for localhost. */
+  private originDomain(): string | undefined {
+    const explicit = this.config.get<string>('WEBAUTHN_RP_ID');
+    let host = explicit?.trim().toLowerCase();
+    if (!host) {
+      const base = this.config.get<string>('APP_LINK_BASE_URL');
+      try {
+        host = base ? new URL(base).hostname.toLowerCase() : undefined;
+      } catch {
+        host = undefined;
+      }
+    }
+    return host && host !== 'localhost' && /^[a-z0-9.-]+$/.test(host)
+      ? host
+      : undefined;
+  }
+
   async send(toE164: string, code: string): Promise<void> {
+    const target = await this.resolve();
+    return target.send(toE164, code);
+  }
+
+  /** 2026-10-25: a non-code text, same keys and mock rules as `send`. */
+  async sendText(toE164: string, body: string): Promise<void> {
+    const target = await this.resolve();
+    if (!target.sendText)
+      throw new Error('This SMS provider cannot send texts');
+    return target.sendText(toE164, body);
+  }
+
+  private async resolve(): Promise<SmsProvider> {
     if (this.config.get<string>('SMS_PROVIDER') === 'mock') {
-      return this.mock.send(toE164, code);
+      return this.mock;
     }
     const c = await this.secrets.get('twilio');
     const f = c?.fields ?? {};
@@ -132,7 +184,7 @@ export class DynamicSmsProvider implements SmsProvider {
         );
         throw new Error('SMS is not configured');
       }
-      return this.mock.send(toE164, code);
+      return this.mock;
     }
     if (this.cached?.fingerprint !== c.fingerprint) {
       // (the Android hash is part of the bundle fingerprint)
@@ -147,9 +199,10 @@ export class DynamicSmsProvider implements SmsProvider {
           },
           this.logger,
           f.androidAppHash ?? this.config.get<string>('SMS_ANDROID_APP_HASH'),
+          this.originDomain(),
         ),
       };
     }
-    return this.cached.provider.send(toE164, code);
+    return this.cached.provider;
   }
 }

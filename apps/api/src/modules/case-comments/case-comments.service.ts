@@ -1,8 +1,11 @@
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { assertNoBlockBetween } from '../blocks/block-check';
 import {
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { CaseComment } from '@prisma/client';
@@ -13,6 +16,7 @@ import {
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BoostActions } from '../promotions/boost-actions.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { assertNoContactInfo } from '../cases/domain/contact-detector';
@@ -53,8 +57,11 @@ export class CaseCommentsService {
     private readonly counters: CounterAggregator,
     private readonly notifications: NotificationsService,
     private readonly files: FilesService,
+    private readonly appSettings: AppSettingsService,
     @Inject(CONTENT_MODERATION_HOOK)
     private readonly moderation: ContentModerationHook,
+    // Owner 2026-10-27: a question counts for the case's boost paid per action.
+    @Optional() private readonly boostActions?: BoostActions,
   ) {}
 
   /** Access check; returns the case owner's id. */
@@ -141,7 +148,91 @@ export class CaseCommentsService {
         });
       }
     }
+    if (created.status === 'published' && !parent) {
+      this.boostActions?.report(userId, { caseId }, 'question');
+    }
     return (await this.present([created], userId, ownerId))[0];
+  }
+
+  /**
+   * PATCH /case-comments/:id — Owner 2026-10-25: the author may edit for
+   * `case_comments.edit_window_minutes` after posting, up to
+   * `case_comments.edit_max_edits` times. The same checks as a new comment
+   * run again (contacts, moderation). The text before every edit is kept in
+   * `edit_history` (server only, for legal audit) and `edited_at` is set.
+   */
+  async edit(
+    user: RequestUser,
+    commentId: string,
+    body: string,
+  ): Promise<CaseCommentDto> {
+    const c = await this.prisma.caseComment.findFirst({
+      where: { id: commentId, ...LIVE, author_id: user.sub },
+    });
+    if (!c) throw commentNotFound();
+    const ownerId = await this.caseOwner(user, c.case_id);
+    const [windowMin, maxEdits] = await Promise.all([
+      this.appSettings.number('case_comments.edit_window_minutes'),
+      this.appSettings.number('case_comments.edit_max_edits'),
+    ]);
+    const now = new Date();
+    if (
+      windowMin <= 0 ||
+      now.getTime() - c.created_at.getTime() > windowMin * 60_000 ||
+      c.edit_count >= maxEdits
+    ) {
+      throw new ConflictException({
+        code: ErrorCode.CASE_INVALID_STATE,
+        message: 'This comment can no longer be edited.',
+      });
+    }
+    const text = body.slice(0, 1000);
+    if (text === c.body) return (await this.present([c], user.sub, ownerId))[0];
+    await assertNoBlockBetween(this.prisma, user.sub, ownerId);
+    assertNoContactInfo({ body: text });
+    const verdict = await this.moderation.check(text, {
+      kind: 'comment',
+      authorId: user.sub,
+    });
+    if (verdict === 'block') {
+      throw new UnprocessableEntityException({
+        code: ErrorCode.CONTENT_BLOCKED,
+        message: 'This content cannot be published.',
+      });
+    }
+    const history = Array.isArray(c.edit_history) ? c.edit_history : [];
+    const entry = {
+      body: c.body,
+      editedAt: now.toISOString(),
+      editedBy: user.sub,
+    };
+    // Conditional on the edit count: two parallel edits cannot both win.
+    const { count } = await this.prisma.caseComment.updateMany({
+      where: { id: c.id, edit_count: c.edit_count, deleted_at: null },
+      data: {
+        body: text,
+        edited_at: now,
+        edit_count: { increment: 1 },
+        edit_history: [...history, entry],
+        ...(verdict === 'hold' && c.status === 'published'
+          ? { status: 'hidden' as const }
+          : {}),
+      },
+    });
+    if (count === 0) {
+      throw new ConflictException({
+        code: ErrorCode.CASE_INVALID_STATE,
+        message: 'The comment changed. Try again.',
+      });
+    }
+    if (verdict === 'hold' && c.status === 'published') {
+      // Held for review after the edit: out of the counts like a new hold.
+      await this.counters.bump('case', c.case_id, 'comment_count', -1);
+    }
+    const fresh = await this.prisma.caseComment.findUniqueOrThrow({
+      where: { id: c.id },
+    });
+    return (await this.present([fresh], user.sub, ownerId))[0];
   }
 
   /** GET /cases/:id/comments — top level, newest first. */
@@ -378,6 +469,7 @@ export class CaseCommentsService {
         canDelete: r.author_id === viewerId || ownerId === viewerId,
         isMine: r.author_id === viewerId,
         createdAt: r.created_at.toISOString(),
+        editedAt: r.edited_at?.toISOString() ?? null,
       };
     });
   }

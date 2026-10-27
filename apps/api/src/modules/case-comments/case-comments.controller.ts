@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -27,7 +28,11 @@ import {
   CommentsQueryDto,
   CreateCommentDto,
 } from '../comments/comments.dto';
-import { CaseCommentDto, type CaseCommentPage } from './case-comments.dto';
+import {
+  CaseCommentDto,
+  EditCaseCommentDto,
+  type CaseCommentPage,
+} from './case-comments.dto';
 import { CaseCommentsService } from './case-comments.service';
 import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
@@ -93,6 +98,28 @@ export class CaseCommentsController {
     @Body() dto: CreateCommentDto,
   ): Promise<CaseCommentDto> {
     return this.comments.create(user, p.id, dto.body, dto.parentCommentId);
+  }
+
+  // Owner 2026-10-25: the author edits within the admin's time window.
+  @AttorneyOnly('publish')
+  @Patch('case-comments/:id')
+  @ApiOperation({
+    summary:
+      'Edit own comment within the time window (earlier texts are kept for audit)',
+  })
+  @ApiEnvelopeResponse(CaseCommentDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR, E.CASE_CONTAINS_CONTACT_INFO],
+    404: [E.COMMENT_NOT_FOUND, E.CASE_NOT_FOUND],
+    409: [E.CASE_INVALID_STATE],
+    422: [E.CONTENT_BLOCKED],
+  })
+  editCaseComment(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CommentIdParamDto,
+    @Body() dto: EditCaseCommentDto,
+  ): Promise<CaseCommentDto> {
+    return this.comments.edit(user, p.id, dto.body);
   }
 
   // OQ-048: publications are the attorney's — an assistant never deletes.

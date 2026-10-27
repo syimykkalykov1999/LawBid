@@ -24,7 +24,12 @@
 // users.avatar_file_id -> files FK and the `files` table itself were
 // added in stage 2.2 (docs/02_DATABASE.md §8).
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // DB-ops S5-13: the engine files for the exact targets we run on, so a
+  // build on one CPU never ships a runtime that downloads (or lacks) its
+  // engine. The image is Alpine (musl) on Fargate X86_64 or ARM64; the
+  // glibc arm64 target covers a Graviton build on a Debian runner.
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
 }
 
 datasource db {
@@ -340,6 +345,10 @@ enum CaseJournalEvent {
   signature_completed
   signature_declined
   invoice_issued
+  invoice_sent
+  invoice_voided
+  signature_viewed
+  signature_expired
 
   @@map("case_journal_event")
 }
@@ -597,6 +606,9 @@ enum NotificationType {
   // Audit 2026-10-19: the other side added something in a case in work
   // (payload.kind: update, task_added, task_done, task_files, details).
   case_workspace_activity
+  // Owner 2026-10-25 (privacy round 13, S13-14): "your account will be
+  // deleted on <date>" at day 0 and day 13 of the grace period.
+  account_deletion_scheduled
 
   @@map("notification_type")
 }
@@ -731,9 +743,24 @@ enum AdminRole {
   @@map("admin_role")
 }
 
+/// Staff package 2026-10-27: the three workspaces (mass work, finance, owner).
+enum AdminWorkspace {
+  mass
+  finance
+  owner
+
+  @@map("admin_workspace")
+}
+
 enum DataRequestType {
   subpoena
   court_order
+  /// Owner 2026-10-28 (legal requests): more kinds of official request.
+  search_warrant
+  preservation
+  emergency
+  civil
+  other
 
   @@map("data_request_type")
 }
@@ -790,6 +817,10 @@ model User {
   password_hash            String?
   password_set_at          DateTime?               @db.Timestamptz
   ui_language              String                  @default("en")
+  /// Owner 2026-10-29 (data residency, groundwork only): where the person's
+  /// data should live. `us` for everyone today; nothing reads it for routing,
+  /// only the deletion certificate and shard_map metadata.
+  home_region              String                  @default("us") @db.VarChar(8)
   /// Owner 2026-10-20: the person's IANA time zone (the app sends it at
   /// sign-in and when it changes). Repeating tasks and the daily
   /// reminders follow this local clock; null = the quiet-hours zone, else UTC.
@@ -950,6 +981,9 @@ model User {
   client_review_appeals       ClientReviewAppeal[]           @relation("ClientReviewAppellant")
   privacy_settings            UserPrivacySettings?
   moderation_appeals          ModerationAppeal[]             @relation("ModerationAppellant")
+  reporter_standing           ReporterStanding?
+  user_strikes                UserStrike[]
+  auto_actions                ModerationAutoAction[]
   review_helpful_votes        ReviewHelpfulVote[]            @relation("ReviewHelpfulVoter")
   client_review_helpful_votes ClientReviewHelpfulVote[]      @relation("ClientReviewHelpfulVoter")
   /// Owner 2026-10-05: the country the person works in (from the phone
@@ -1273,6 +1307,47 @@ model AppConfig {
   @@map("app_config")
 }
 
+// Owner 2026-10-26 (infra switches from the admin): one row per request to
+// change a whitelisted Terraform switch (apps/api/src/common/ops/
+// infra-switches.ts). requested -> planning -> planned -> confirmed (2FA) ->
+// applying -> done | failed | expired | cancelled | dry_run | rolled_back.
+// At most one active row (partial unique index in the migration). Global.
+model InfraChangeRequest {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// cost-registry.ts row id, e.g. aws.rds_replicas.
+  item_id        String
+  from_state     String?
+  to_state       String
+  /// { "<key>": <value> } written into growth.auto.tfvars.json.
+  changes        Json
+  status         String    @default("requested")
+  requested_by   String    @db.Uuid
+  confirmed_by   String?   @db.Uuid
+  /// Monthly $ change from the cost registry: [low, high].
+  cost_delta_usd Json
+  dry_run        Boolean   @default(false)
+  /// The request this one undoes («Откатить»).
+  rollback_of    String?   @db.Uuid
+  /// { add, change, destroy, resources: [{ address, action }] } from the workflow.
+  plan_summary   Json?
+  /// Values the file held before (reported by the workflow).
+  file_before    Json?
+  run_id         String?
+  run_url        String?
+  /// Where the applied file was recorded: main | pr:<url>.
+  recorded       String?
+  error          String?
+  planned_at     DateTime? @db.Timestamptz
+  confirmed_at   DateTime? @db.Timestamptz
+  finished_at    DateTime? @db.Timestamptz
+  created_at     DateTime  @default(now()) @db.Timestamptz
+  updated_at     DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([item_id, created_at(sort: Desc)])
+  @@index([created_at(sort: Desc)])
+  @@map("infra_change_requests")
+}
+
 // Shard-ready step 3 (docs/architecture/SHARDING_READY.md §5): which
 // physical database holds each of the 256 logical shards. Global family
 // (lives on the primary DB). `physical_db` is a key of DATABASE_URL (the
@@ -1284,6 +1359,9 @@ model ShardMap {
   physical_db   String   @default("primary")
   state         String   @default("active")
   version       Int      @default(1)
+  /// Data residency groundwork: the region the physical database sits in
+  /// (matches users.home_region). Informational; routing ignores it.
+  region        String   @default("us") @db.VarChar(8)
   updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
 
   @@map("shard_map")
@@ -1313,6 +1391,74 @@ model CrossFamilyOutbox {
   @@map("cross_family_outbox")
 }
 
+// Shard-ready step 10: the move-shard tool (src/sharding/move). One row per
+// move of one logical shard from one physical database to another; lives on
+// the primary database. `state` is the step reached (preflight, copy,
+// catchup, freeze, verify, flip, cleanup, done), `status` says whether it is
+// running, waiting, failed or rolled back. `progress` holds the per-table
+// copy cursors and the change-log cursor, so a crashed move resumes.
+model ShardMove {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  logical_shard Int       @db.SmallInt
+  from_db       String
+  to_db         String
+  state         String    @default("preflight")
+  /// pending | running | failed | done | rolled_back
+  status        String    @default("pending")
+  progress      Json      @default("{}")
+  plan          Json?
+  error         String?
+  requested_by  String?   @db.Uuid
+  heartbeat_at  DateTime? @db.Timestamptz
+  flipped_at    DateTime? @db.Timestamptz
+  /// Database that still holds the old rows (deleted by `cleanup`).
+  leftover_db   String?
+  cleanup_after DateTime? @db.Timestamptz
+  created_at    DateTime  @default(now()) @db.Timestamptz
+  updated_at    DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([logical_shard, status])
+  @@index([status, cleanup_after])
+  @@map("shard_moves")
+}
+
+// Per physical database: logical shards being moved (change capture on, and
+// the write fence). `frozen_until` set = writes of that shard are refused by
+// the guard trigger until then; `infinity` = permanent fence on the old copy.
+model ShardMoveTrack {
+  logical_shard Int       @id @db.SmallInt
+  move_id       String    @db.Uuid
+  frozen_until  DateTime? @db.Timestamptz
+  created_at    DateTime  @default(now()) @db.Timestamptz
+
+  @@map("shard_move_track")
+}
+
+// Per physical database: rows changed in a tracked shard while it is moved.
+model ShardChangeLog {
+  id         BigInt   @id @default(autoincrement())
+  table_name String
+  pk         Json
+  shard_id   Int      @db.SmallInt
+  op         String   @db.Char(1)
+  at         DateTime @default(now()) @db.Timestamptz
+
+  @@index([shard_id, id])
+  @@map("shard_change_log")
+}
+
+// Per physical database: the cross-family foreign keys that step 9 dropped,
+// with the DDL to put them back.
+model ShardDroppedFk {
+  constraint_name String
+  table_name      String
+  definition      String
+  dropped_at      DateTime @default(now()) @db.Timestamptz
+
+  @@id([table_name, constraint_name])
+  @@map("shard_dropped_fk")
+}
+
 // The consumer side: a key is inserted here in the SAME transaction as the
 // event's effect on the primary database; a second delivery finds the key
 // and does nothing (exactly-once effect).
@@ -1321,6 +1467,8 @@ model CrossFamilyInbox {
   event_type      String
   applied_at      DateTime @default(now()) @db.Timestamptz
 
+  // DB-ops S5-3: the retention sweep removes by age.
+  @@index([applied_at])
   @@map("cross_family_inbox")
 }
 
@@ -1542,7 +1690,7 @@ model ClientProfile {
   updated_at               DateTime       @updatedAt @db.Timestamptz
   /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
   /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
-  version Int @default(0)
+  version                  Int            @default(0)
 
   // GIN/inverted (trigram gin_trgm_ops or full-text), created by the stage 2.6
   // migration; declared so Prisma's diff matches the DB.
@@ -1579,7 +1727,7 @@ model AttorneyProfile {
   updated_at          DateTime           @updatedAt @db.Timestamptz
   /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
   /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
-  version Int @default(0)
+  version             Int                @default(0)
 
   licenses                    AttorneyLicense[]
   practice_areas              AttorneyPracticeArea[]
@@ -1821,7 +1969,7 @@ model Case {
   updated_at            DateTime                 @updatedAt @db.Timestamptz
   /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
   /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
-  version Int @default(0)
+  version               Int                      @default(0)
 
   states              CaseState[]
   // Owner 2026-10-15: topics 2..N of a case (the first is `practice_area_id`).
@@ -1912,7 +2060,7 @@ model Bid {
   updated_at              DateTime          @updatedAt @db.Timestamptz
   /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
   /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
-  version Int @default(0)
+  version                 Int               @default(0)
 
   accepted_for_case  Case?                @relation("CaseAcceptedBid")
   offers             BidOffer[]
@@ -2544,12 +2692,14 @@ model SavedItem {
 /// the text stays sealed in `messages`, and it is read again through the
 /// chat's own membership check.
 model SavedChatMessage {
-  user_id    String        @db.Uuid
-  user       User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  message_id String        @db.Uuid
-  message    Message       @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  kind       SavedChatKind
-  created_at DateTime      @default(now()) @db.Timestamptz
+  user_id         String        @db.Uuid
+  user            User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  message_id      String        @db.Uuid
+  /// Part of the key of the message (messages are partitioned by chat).
+  conversation_id String        @db.Uuid
+  message         Message       @relation(fields: [conversation_id, message_id], references: [conversation_id, id], onDelete: Cascade)
+  kind            SavedChatKind
+  created_at      DateTime      @default(now()) @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -2794,8 +2944,13 @@ model CallVote {
   @@map("call_votes")
 }
 
+/// Owner 2026-10-26: PARTITION BY HASH (conversation_id), 16 partitions (raw
+/// SQL, migration 20261107131300_partition_messages_notifications). The key
+/// is (id, conversation_id); everything that points at a message carries the
+/// conversation_id too (composite foreign keys). See
+/// docs/architecture/TABLE_PARTITIONING_READY.md.
 model Message {
-  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                    String             @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   conversation_id       String             @db.Uuid
   conversation          Conversation       @relation(fields: [conversation_id], references: [id], onDelete: Restrict)
   // NULL for system messages.
@@ -2841,7 +2996,7 @@ model Message {
   edited_at             DateTime?          @db.Timestamptz
   revoked_at            DateTime?          @db.Timestamptz
   reply_to_id           String?            @db.Uuid
-  reply_to              Message?           @relation("MessageReply", fields: [reply_to_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  reply_to              Message?           @relation("MessageReply", fields: [conversation_id, reply_to_id], references: [conversation_id, id], onDelete: SetNull, onUpdate: NoAction)
   replies               Message[]          @relation("MessageReply")
   forwarded             Boolean            @default(false)
   /// "Forwarded from <name>": the first author, kept through re-forwards.
@@ -2856,6 +3011,7 @@ model Message {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
+  @@id([id, conversation_id])
   @@unique([conversation_id, sender_id, client_message_id])
   @@index([file_id])
   @@index([sticker_id])
@@ -2889,10 +3045,12 @@ model MessageSearchToken {
 
 /// "Delete for me": the message stays for the other side.
 model MessageHidden {
-  message_id String   @db.Uuid
-  message    Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  user_id    String   @db.Uuid
-  created_at DateTime @default(now()) @db.Timestamptz
+  message_id      String   @db.Uuid
+  /// Part of the key of the message (messages are partitioned by chat).
+  conversation_id String   @db.Uuid
+  message         Message  @relation(fields: [conversation_id, message_id], references: [conversation_id, id], onDelete: Cascade)
+  user_id         String   @db.Uuid
+  created_at      DateTime @default(now()) @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -2904,11 +3062,13 @@ model MessageHidden {
 
 /// One emoji reaction per person per message (changing it replaces it).
 model MessageReaction {
-  message_id String   @db.Uuid
-  message    Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  user_id    String   @db.Uuid
-  emoji      String   @db.VarChar(16)
-  created_at DateTime @default(now()) @db.Timestamptz
+  message_id      String   @db.Uuid
+  /// Part of the key of the message (messages are partitioned by chat).
+  conversation_id String   @db.Uuid
+  message         Message  @relation(fields: [conversation_id, message_id], references: [conversation_id, id], onDelete: Cascade)
+  user_id         String   @db.Uuid
+  emoji           String   @db.VarChar(16)
+  created_at      DateTime @default(now()) @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -2919,11 +3079,13 @@ model MessageReaction {
 
 /// The text a message had before each edit (moderation / legal).
 model MessageEdit {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  message_id    String   @db.Uuid
-  message       Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  body_original String
-  edited_at     DateTime @default(now()) @db.Timestamptz
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  message_id      String   @db.Uuid
+  /// Part of the key of the message (messages are partitioned by chat).
+  conversation_id String   @db.Uuid
+  message         Message  @relation(fields: [conversation_id, message_id], references: [conversation_id, id], onDelete: Cascade)
+  body_original   String
+  edited_at       DateTime @default(now()) @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -2935,7 +3097,7 @@ model MessageEdit {
 /// A message pinned to the top of a chat (at most 3 per chat).
 model MessagePin {
   message_id      String   @id @db.Uuid
-  message         Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  message         Message  @relation(fields: [conversation_id, message_id], references: [conversation_id, id], onDelete: Cascade)
   conversation_id String   @db.Uuid
   pinned_by       String   @db.Uuid
   pinned_at       DateTime @default(now()) @db.Timestamptz
@@ -2943,6 +3105,7 @@ model MessagePin {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
+  @@unique([conversation_id, message_id])
   @@index([conversation_id, pinned_at(sort: Desc)])
   @@map("message_pins")
 }
@@ -3088,8 +3251,10 @@ model ChatGroupMember {
   @@map("chat_group_members")
 }
 
+/// Owner 2026-10-26: PARTITION BY HASH (group_id), 16 partitions, key
+/// (id, group_id); the poll and the reply point at (group_id, id).
 model ChatGroupMessage {
-  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                  String             @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   group_id            String             @db.Uuid
   group               ChatGroup          @relation(fields: [group_id], references: [id], onDelete: Cascade)
   /// NULL for system messages.
@@ -3106,7 +3271,7 @@ model ChatGroupMessage {
   topic_id            String?            @db.Uuid
   topic               ChatGroupTopic?    @relation(fields: [topic_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   reply_to_id         String?            @db.Uuid
-  reply_to            ChatGroupMessage?  @relation("GroupMessageReply", fields: [reply_to_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  reply_to            ChatGroupMessage?  @relation("GroupMessageReply", fields: [group_id, reply_to_id], references: [group_id, id], onDelete: SetNull, onUpdate: NoAction)
   replies             ChatGroupMessage[] @relation("GroupMessageReply")
   /// @mentioned user ids.
   mention_ids         String[]           @default([]) @db.Uuid
@@ -3127,6 +3292,7 @@ model ChatGroupMessage {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
+  @@id([id, group_id])
   @@unique([group_id, sender_id, client_message_id])
   @@index([group_id, created_at(sort: Desc)])
   @@index([topic_id, created_at(sort: Desc)])
@@ -3225,7 +3391,7 @@ model ChatGroupPoll {
   group_id   String                @db.Uuid
   group      ChatGroup             @relation(fields: [group_id], references: [id], onDelete: Cascade)
   message_id String                @unique @db.Uuid
-  message    ChatGroupMessage      @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  message    ChatGroupMessage      @relation(fields: [group_id, message_id], references: [group_id, id], onDelete: Cascade)
   creator_id String                @db.Uuid
   creator    User                  @relation("ChatGroupPollCreator", fields: [creator_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   question   String                @db.VarChar(300)
@@ -3242,6 +3408,7 @@ model ChatGroupPoll {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
+  @@unique([group_id, message_id])
   @@index([group_id])
   @@map("chat_group_polls")
 }
@@ -3278,8 +3445,10 @@ model ChatGroupPollVote {
   @@map("chat_group_poll_votes")
 }
 
+/// Owner 2026-10-26: PARTITION BY HASH (user_id), 16 partitions, key
+/// (id, user_id) (raw SQL, migration 20261107131300_partition_messages_notifications).
 model Notification {
-  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id              String               @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id         String               @db.Uuid
   user            User                 @relation(fields: [user_id], references: [id], onDelete: Restrict)
   type            NotificationType
@@ -3298,6 +3467,7 @@ model Notification {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
+  @@id([id, user_id])
   @@index([user_id, created_at(sort: Desc)])
   @@index([user_id, updated_at(sort: Desc)])
   // Kept (migration 20260928140000): the retention job scans by age.
@@ -3350,6 +3520,10 @@ model PushToken {
   /// notifications itself (sender's photo, one stack per chat) from a
   /// data-only push. Older app versions keep the normal alert.
   chat_style      Boolean  @default(false)
+  /// Owner 2026-10-26: the app on this Android device also draws
+  /// notifications with a person (bid, comment, like, missed call …) with
+  /// that person's round photo from a data-only push.
+  actor_style     Boolean  @default(false)
   /// Owner 2026-10-20: reminders (`<taskId>@<remindAt ms>`) this iPhone has
   /// armed as local alarms; the reminder push skips them (no double banner).
   armed_reminders String[] @default([])
@@ -3543,6 +3717,38 @@ model LedgerLine {
 }
 
 // Existence of the row = event already handled (webhook idempotency).
+/// Stripe robustness 2026-10-27: the unified review queue of the admin —
+/// failed payouts and refunds, disputes, early fraud warnings, a disconnect
+/// from the platform, a disabled capability. One open row per (kind,
+/// stripe_ref); `due_at` is the SLA clock (or Stripe's evidence deadline).
+model StripeReviewItem {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// payout_failed | refund_failed | dispute | early_fraud_warning |
+  /// account_deauthorized | capability_disabled | reconcile_drift
+  kind            String    @db.VarChar(32)
+  /// open | resolved | dismissed
+  status          String    @default("open") @db.VarChar(12)
+  /// Stripe id (po_, dp_, issfr_, re_, acct_, ...): with `kind` the dedupe key.
+  stripe_ref      String    @db.VarChar(80)
+  case_payment_id String?   @db.Uuid
+  user_id         String?   @db.Uuid
+  amount_cents    Int?
+  currency        String    @default("usd") @db.VarChar(3)
+  summary         String    @db.VarChar(300)
+  details         Json      @default("{}")
+  opened_at       DateTime  @default(now()) @db.Timestamptz
+  due_at          DateTime? @db.Timestamptz
+  reminded_at     DateTime? @db.Timestamptz
+  resolved_at     DateTime? @db.Timestamptz
+  resolved_by     String?   @db.Uuid
+  resolution      String?   @db.VarChar(300)
+
+  @@unique([kind, stripe_ref])
+  @@index([status, due_at])
+  @@index([case_payment_id])
+  @@map("stripe_review_items")
+}
+
 model StripeWebhookEvent {
   stripe_event_id String    @id
   type            String
@@ -3555,19 +3761,25 @@ model StripeWebhookEvent {
 }
 
 model Report {
-  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  reporter_id String           @db.Uuid
-  reporter    User             @relation("Reporter", fields: [reporter_id], references: [id], onDelete: Restrict)
-  target_type ReportTargetType
-  target_id   String           @db.Uuid
-  reason      ReportReason
-  note        String?
-  status      ReportStatus     @default(open)
-  handled_by  String?          @db.Uuid
-  handler     User?            @relation("ReportHandler", fields: [handled_by], references: [id], onDelete: Restrict)
-  handled_at  DateTime?        @db.Timestamptz
-  created_at  DateTime         @default(now()) @db.Timestamptz
-  updated_at  DateTime         @updatedAt @db.Timestamptz
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporter_id      String           @db.Uuid
+  reporter         User             @relation("Reporter", fields: [reporter_id], references: [id], onDelete: Restrict)
+  target_type      ReportTargetType
+  target_id        String           @db.Uuid
+  reason           ReportReason
+  note             String?
+  status           ReportStatus     @default(open)
+  handled_by       String?          @db.Uuid
+  handler          User?            @relation("ReportHandler", fields: [handled_by], references: [id], onDelete: Restrict)
+  handled_at       DateTime?        @db.Timestamptz
+  /// Owner 2026-10-27: set when enough weighted reports hit a verified
+  /// attorney's content: it is not hidden, a human looks at it first.
+  priority_review  Boolean          @default(false)
+  /// Owner 2026-10-27: the owner of the reported object (filled when the
+  /// report is weighed), for account-level scoring.
+  target_author_id String?          @db.Uuid
+  created_at       DateTime         @default(now()) @db.Timestamptz
+  updated_at       DateTime         @updatedAt @db.Timestamptz
 
   actions      ModerationAction[]
   dmca_notices DmcaNotice[]
@@ -3577,6 +3789,7 @@ model Report {
   // migration, file-03 DB review).
   @@index([target_type, target_id, status])
   @@index([reporter_id])
+  @@index([target_author_id, created_at])
   @@map("reports")
 }
 
@@ -3698,19 +3911,137 @@ enum ModerationAppealStatus {
   @@map("moderation_appeal_status")
 }
 
+/// Owner 2026-10-27 (DSA Art. 23 style): a person whose reports keep being
+/// dismissed gets a warning, then report processing from them is paused
+/// for a while. One row per reporter; `history` keeps the last entries.
+model ReporterStanding {
+  user_id           String                  @id @db.Uuid
+  user              User                    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "reporter_standings_user_fkey")
+  warnings          Int                     @default(0)
+  warned_at         DateTime?               @db.Timestamptz
+  suspended_until   DateTime?               @db.Timestamptz
+  suspensions       Int                     @default(0)
+  last_reason       String?
+  history           Json                    @default("[]")
+  /// One appeal at a time (1-1000 chars, CHECK in the migration).
+  appeal_message    String?
+  appeal_status     ModerationAppealStatus?
+  appeal_at         DateTime?               @db.Timestamptz
+  appeal_decided_by String?                 @db.Uuid
+  appeal_decided_at DateTime?               @db.Timestamptz
+  appeal_note       String?
+  updated_at        DateTime                @updatedAt @db.Timestamptz
+
+  @@index([suspended_until])
+  @@index([appeal_status, appeal_at])
+  @@map("reporter_standings")
+}
+
+/// Owner 2026-10-27: a strike on a content owner (a moderator removed or
+/// hid their content). Strikes expire; the sum of points of the live ones
+/// picks the limit (cooldown / limited / suspended), which each strike
+/// that reaches a threshold carries with its own end date. An accepted
+/// appeal of `action_id` revokes the strike.
+model UserStrike {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String            @db.Uuid
+  user              User              @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_strikes_user_fkey")
+  action_id         String?           @unique @db.Uuid
+  target_type       ReportTargetType?
+  target_id         String?           @db.Uuid
+  points            Int               @default(1)
+  reason            String?
+  restriction       String?           @db.VarChar(16)
+  restriction_until DateTime?         @db.Timestamptz
+  expires_at        DateTime          @db.Timestamptz
+  revoked_at        DateTime?         @db.Timestamptz
+  revoked_by        String?           @db.Uuid
+  revoked_note      String?
+  created_at        DateTime          @default(now()) @db.Timestamptz
+
+  @@index([user_id, expires_at])
+  @@map("user_strikes")
+}
+
+/// Owner 2026-10-27: moderation without a human at scale. Every automatic
+/// decision (content hidden by weighted reports, an account limited or
+/// suspended by its score) is one row: the score and threshold at the time,
+/// whether it was borderline, whether it was enforced or only logged
+/// (shadow), and the owner's appeal. Only an appeal brings a human in.
+/// kind: content_hide | account_limit | account_suspend_temp |
+/// account_suspend | review_needed.
+model ModerationAutoAction {
+  id                   String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind                 String                  @db.VarChar(24)
+  user_id              String                  @db.Uuid
+  user                 User                    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "moderation_auto_actions_user_fkey")
+  target_type          ReportTargetType?
+  target_id            String?                 @db.Uuid
+  score                Float
+  threshold            Float
+  borderline           Boolean                 @default(false)
+  /// false = shadow mode: logged, nothing was done.
+  enforced             Boolean                 @default(true)
+  reason               String?
+  expires_at           DateTime?               @db.Timestamptz
+  reversed_at          DateTime?               @db.Timestamptz
+  appeal_message       String?
+  appeal_status        ModerationAppealStatus?
+  appeal_at            DateTime?               @db.Timestamptz
+  appeal_decided_by    String?                 @db.Uuid
+  appeal_decided_at    DateTime?               @db.Timestamptz
+  appeal_note          String?
+  appeal_auto_approved Boolean                 @default(false)
+  created_at           DateTime                @default(now()) @db.Timestamptz
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([appeal_status, appeal_at])
+  @@index([created_at])
+  @@map("moderation_auto_actions")
+}
+
+/// Owner 2026-10-27: what the text classifier saw (shadow and enforce
+/// modes), for tuning and the daily cost cap. Scores below the logging
+/// level are not stored.
+model ModerationDetection {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String   @db.Uuid
+  content_kind String   @db.VarChar(24)
+  provider     String   @db.VarChar(24)
+  mode         String   @db.VarChar(8)
+  category     String   @db.VarChar(48)
+  score        Float
+  decision     String   @db.VarChar(8)
+  acted        Boolean  @default(false)
+  created_at   DateTime @default(now()) @db.Timestamptz
+
+  @@index([created_at])
+  @@index([user_id, created_at(sort: Desc)])
+  @@map("moderation_detections")
+}
+
 model AdminProfile {
-  user_id         String    @id @db.Uuid
-  user            User      @relation(fields: [user_id], references: [id], onDelete: Restrict)
-  admin_role      AdminRole
+  user_id           String         @id @db.Uuid
+  user              User           @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  admin_role        AdminRole
   // Per-area access for non-super admins: {"users":"view","support":"manage"}.
   // Money and API keys are never grantable (hard-denied in the API).
-  permissions     Json      @default("{}")
+  permissions       Json           @default("{}")
   /// Owner 2026-10-22: the admin's own switch for system alerts (push + e-mail)
   /// when they hold the on_call right (the owner always may).
-  on_call_enabled Boolean   @default(true)
-  created_at      DateTime  @default(now()) @db.Timestamptz
-  updated_at      DateTime  @updatedAt @db.Timestamptz
+  on_call_enabled   Boolean        @default(true)
+  /// Staff package 2026-10-27 (docs/architecture/ADMIN_STAFF_PACKAGE_PLAN_2026-10-27.md
+  /// A1): the admin's workspace. Backfilled super_admin -> owner, finance ->
+  /// finance, everyone else -> mass. Read only while `staff.workspaces_enabled`
+  /// is on; the super admin is always treated as owner.
+  workspace         AdminWorkspace @default(mass)
+  /// The workspace head (one per workspace, none in finance): a partial
+  /// unique index + CHECK in the migration, not modelled by Prisma.
+  is_workspace_head Boolean        @default(false)
+  created_at        DateTime       @default(now()) @db.Timestamptz
+  updated_at        DateTime       @updatedAt @db.Timestamptz
 
+  @@index([workspace])
   @@map("admin_profiles")
 }
 
@@ -3765,6 +4096,14 @@ model AuditLog {
   // computed column, indexed as (created_shard, created_at). Replaces a
   // USING HASH index, which crashes Prisma's introspection. Read-only.
   created_shard Int      @default(0) @db.SmallInt
+  // Owner 2026-10-28 (privilege hardening): why a private item was read
+  // (a code from admin-privileged-content.ts) and the tamper-evident chain.
+  // `seq`, `prev_hash` and `row_hash` are set by the audit_log_chain
+  // trigger (raw SQL) — never by the application.
+  reason_code   String?
+  seq           BigInt?  @unique
+  prev_hash     String?
+  row_hash      String?
 
   @@index([admin_id, created_at(sort: Desc)])
   @@index([created_shard, created_at], map: "audit_log_created_at_idx")
@@ -3774,25 +4113,51 @@ model AuditLog {
   @@map("audit_log")
 }
 
+/// Merge union 2026-10-27: the head of the audit hash chain (#373), one row.
+/// The audit_log trigger updates it on every insert, so two rows can never
+/// take the same `seq`, also inside SERIALIZABLE transactions.
+model AuditLogChainHead {
+  id        Int     @id @default(1) @db.SmallInt
+  seq       BigInt  @default(0)
+  last_hash String?
+
+  @@map("audit_log_chain_head")
+}
+
 model DataAccessRequest {
-  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  request_type     DataRequestType
-  reference_number String
-  agency           String
-  received_at      DateTime          @db.Timestamptz
-  scope            String
-  handled_by       String            @db.Uuid
-  handler          User              @relation("DataRequestHandler", fields: [handled_by], references: [id], onDelete: Restrict)
-  status           DataRequestStatus
-  closed_at        DateTime?         @db.Timestamptz
-  notes            String?
-  created_at       DateTime          @default(now()) @db.Timestamptz
-  updated_at       DateTime          @updatedAt @db.Timestamptz
+  id                        String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_type              DataRequestType
+  reference_number          String
+  agency                    String
+  received_at               DateTime          @db.Timestamptz
+  scope                     String
+  handled_by                String            @db.Uuid
+  handler                   User              @relation("DataRequestHandler", fields: [handled_by], references: [id], onDelete: Restrict)
+  status                    DataRequestStatus
+  closed_at                 DateTime?         @db.Timestamptz
+  notes                     String?
+  /// Owner 2026-10-28: the law the request rests on (e.g. "18 U.S.C. 2703(d)").
+  legal_basis               String?
+  /// Two-letter country of the issuing authority (transparency report).
+  country                   String?           @db.VarChar(2)
+  /// The person the request concerns (for the notice to the user).
+  subject_user_id           String?           @db.Uuid
+  /// When the answer is due; reminders go to the on-call admins.
+  due_at                    DateTime?         @db.Timestamptz
+  last_reminded_at          DateTime?         @db.Timestamptz
+  /// Gag / non-disclosure order: the user must NOT be told until it ends.
+  do_not_notify             Boolean           @default(false)
+  nondisclosure_until       DateTime?         @db.Timestamptz
+  nondisclosure_reminded_at DateTime?         @db.Timestamptz
+  user_notified_at          DateTime?         @db.Timestamptz
+  created_at                DateTime          @default(now()) @db.Timestamptz
+  updated_at                DateTime          @updatedAt @db.Timestamptz
+  access_log                DataAccessLog[]
+  legal_exports             LegalExport[]
+  legal_holds               LegalHold[]
 
-  access_log    DataAccessLog[]
-  legal_exports LegalExport[]
-  legal_holds   LegalHold[]
-
+  @@index([due_at])
+  @@index([received_at])
   @@map("data_access_requests")
 }
 
@@ -3952,6 +4317,11 @@ model CaseComment {
   like_count        Int           @default(0)
   reply_count       Int           @default(0)
   deleted_at        DateTime?     @db.Timestamptz
+  // Owner 2026-10-25: edited within the admin's time window; every earlier
+  // text is kept for legal audit (server only): [{body, editedAt, editedBy}].
+  edited_at         DateTime?     @db.Timestamptz
+  edit_count        Int           @default(0)
+  edit_history      Json          @default("[]")
   created_at        DateTime      @default(now()) @db.Timestamptz
   updated_at        DateTime      @updatedAt @db.Timestamptz
 
@@ -4381,7 +4751,7 @@ model AttorneyTask {
   updated_at               DateTime             @default(now()) @updatedAt @db.Timestamptz
   /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
   /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
-  version Int @default(0)
+  version                  Int                  @default(0)
   steps                    AttorneyTaskStep[]
   places                   AttorneyTaskPlace[]
   people                   AttorneyTaskPerson[]
@@ -5231,6 +5601,86 @@ model OutreachSuppression {
   @@map("outreach_suppressions")
 }
 
+/// 2026-10-25 (legal register, COPPA / 18+): one row per account that
+/// attested to be of age at sign-up: when, which wording (text_version),
+/// optionally the birth date. `flagged` = an admin found the account to be
+/// a minor (sessions revoked, account suspended, then deleted).
+model AgeAttestation {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String    @unique @db.Uuid
+  attested_at  DateTime  @default(now()) @db.Timestamptz
+  text_version String    @db.VarChar(40)
+  min_age      Int       @db.SmallInt
+  birth_date   DateTime? @db.Date
+  // otp | link | social | admin
+  source       String    @db.VarChar(16)
+  // attested | flagged | deleted
+  status       String    @default("attested") @db.VarChar(12)
+  flagged_at   DateTime? @db.Timestamptz
+  flagged_by   String?   @db.Uuid
+  flag_reason  String?   @db.VarChar(200)
+  deleted_at   DateTime? @db.Timestamptz
+
+  @@index([status, flagged_at])
+  @@map("age_attestations")
+}
+
+/// 2026-10-25 (TCPA): the separate, recorded consent a person gave to get
+/// non-code text messages (never needed for a sign-in code). Keeps the
+/// exact disclosure wording version and a hash of its text.
+model SmsConsent {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id            String?   @db.Uuid
+  phone_e164         String    @db.VarChar(20)
+  // marketing | notifications
+  purpose            String    @db.VarChar(16)
+  disclosure_version String    @db.VarChar(40)
+  disclosure_hash    String    @db.VarChar(64)
+  // app | web | admin | inbound_start
+  source             String    @db.VarChar(16)
+  granted_at         DateTime  @default(now()) @db.Timestamptz
+  revoked_at         DateTime? @db.Timestamptz
+  // stop_reply | app | admin | twilio_sync
+  revoked_via        String?   @db.VarChar(16)
+
+  @@index([phone_e164, purpose])
+  @@index([user_id])
+  @@map("sms_consents")
+}
+
+/// 2026-10-25 (TCPA): numbers that must get no non-code text (STOP etc.),
+/// fed by Twilio's inbound webhook, send errors 21610 and the admin.
+/// `cleared_at` set = the person opted in again (START).
+model SmsSuppression {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone_e164       String    @unique @db.VarChar(20)
+  // stop | twilio | admin
+  reason           String    @db.VarChar(16)
+  last_keyword     String?   @db.VarChar(24)
+  last_message_sid String?   @db.VarChar(40)
+  created_at       DateTime  @default(now()) @db.Timestamptz
+  updated_at       DateTime  @default(now()) @updatedAt @db.Timestamptz
+  cleared_at       DateTime? @db.Timestamptz
+
+  @@map("sms_suppressions")
+}
+
+/// 2026-10-25 (CAN-SPAM, Gmail/Yahoo): e-mail addresses that must get no
+/// notification / marketing mail, fed by SES bounce + complaint events.
+/// Each event also lands in outreach_suppressions.
+model EmailSuppression {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email      String   @unique @db.VarChar(254)
+  // bounce | complaint | manual
+  reason     String   @db.VarChar(16)
+  detail     String?  @db.VarChar(80)
+  message_id String?  @db.VarChar(80)
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@map("email_suppressions")
+}
+
 // Paid case promotion (~$10/day): the case is boosted in attorneys' feeds.
 // Owner 2026-10-05: also posts (Instagram-style boost, no subscription):
 // target_type = case | post; the owner picks a daily budget and days, the
@@ -5266,6 +5716,17 @@ model CasePromotion {
   target_impressions  Int?
   reach               Int       @default(0)
   clicks              Int       @default(0)
+  // Owner 2026-10-27: what the buyer pays for — impressions (views) |
+  // reach (people) | clicks (taps) | actions (real actions) — at
+  // unit_price_cents (per 1000 for impressions and reach, per one otherwise),
+  // frozen at purchase. target_units = what the budget buys in that unit;
+  // actions = real results counted, only the kinds in billed_actions. Unspent
+  // money of the per-result models goes back when the boost ends early.
+  billing             String    @default("impressions") @db.VarChar(12)
+  unit_price_cents    Int?
+  target_units        Int?
+  actions             Int       @default(0)
+  billed_actions      String[]  @default([])
   audience            Json?
   // Owner 2026-10-15 (Boost): what the advertiser wants (views | clicks |
   // messages | followers) and the button under the ad: more | message |
@@ -5321,6 +5782,8 @@ model PromotionView {
   day_key       String        @db.VarChar(10)
   day_count     Int           @default(0)
   clicked       Boolean       @default(false)
+  // Owner 2026-10-27: a real action was counted for this person (once).
+  acted         Boolean       @default(false)
   first_seen_at DateTime      @default(now()) @db.Timestamptz
   last_seen_at  DateTime      @default(now()) @db.Timestamptz
 
@@ -5511,17 +5974,21 @@ model StickerPack {
 }
 
 model Sticker {
-  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  pack_id    String              @db.Uuid
-  pack       StickerPack         @relation(fields: [pack_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "stickers_pack_fkey")
-  file_id    String              @unique @db.Uuid
-  file       File                @relation(fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "stickers_file_fkey")
-  emoji      String              @default("🙂") @db.VarChar(16)
-  position   Int                 @default(0)
-  created_at DateTime            @default(now()) @db.Timestamptz
-  deleted_at DateTime?           @db.Timestamptz
-  messages   Message[]
-  recent     UserRecentSticker[]
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pack_id           String              @db.Uuid
+  pack              StickerPack         @relation(fields: [pack_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "stickers_pack_fkey")
+  file_id           String              @unique @db.Uuid
+  file              File                @relation(fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "stickers_file_fkey")
+  emoji             String              @default("🙂") @db.VarChar(16)
+  position          Int                 @default(0)
+  /// Owner 2026-10-28: a user's new image waits here until the media scan
+  /// (Rekognition + CSAM hash) passes: pending | active | hidden. Official
+  /// and older stickers are `active`.
+  moderation_status String              @default("active") @db.VarChar(12)
+  created_at        DateTime            @default(now()) @db.Timestamptz
+  deleted_at        DateTime?           @db.Timestamptz
+  messages          Message[]
+  recent            UserRecentSticker[]
 
   @@index([pack_id, position], map: "stickers_pack_position_idx")
   @@map("stickers")
@@ -5873,24 +6340,33 @@ model TreasuryPayout {
 // the attorney's balance (direct charges), the platform keeps only its
 // fee (`application_fee_amount`) and never holds the client's funds.
 model PayoutAccount {
-  user_id              String    @id @db.Uuid
-  provider             String    @default("stripe") @db.VarChar(16)
-  stripe_account_id    String    @unique
+  user_id                  String    @id @db.Uuid
+  provider                 String    @default("stripe") @db.VarChar(16)
+  stripe_account_id        String    @unique
   // pending | onboarding | active | restricted | disabled
-  status               String    @default("pending") @db.VarChar(16)
-  charges_enabled      Boolean   @default(false)
-  payouts_enabled      Boolean   @default(false)
-  details_submitted    Boolean   @default(false)
-  requirements_due     String[]  @default([])
-  disabled_reason      String?   @db.VarChar(200)
-  country              String?   @db.VarChar(2)
+  status                   String    @default("pending") @db.VarChar(16)
+  charges_enabled          Boolean   @default(false)
+  payouts_enabled          Boolean   @default(false)
+  details_submitted        Boolean   @default(false)
+  requirements_due         String[]  @default([])
+  disabled_reason          String?   @db.VarChar(200)
+  country                  String?   @db.VarChar(2)
   // Owner 2026-10-05: the attorney's own default for who covers Stripe's
   // card fee on their invoices (client | attorney | split); null = the
   // admin default for new attorneys applies.
-  processing_fee_payer String?   @db.VarChar(16)
-  last_synced_at       DateTime? @db.Timestamptz
-  created_at           DateTime  @default(now()) @db.Timestamptz
-  updated_at           DateTime  @updatedAt @db.Timestamptz
+  processing_fee_payer     String?   @db.VarChar(16)
+  last_synced_at           DateTime? @db.Timestamptz
+  // Stripe robustness 2026-10-27: payouts to the attorney's bank are
+  // paused (Stripe payout schedule = manual) while a dispute is open, and a
+  // failed payout / a disconnect from the platform is remembered.
+  payouts_held             Boolean   @default(false)
+  payouts_hold_reason      String?   @db.VarChar(200)
+  payouts_held_at          DateTime? @db.Timestamptz
+  last_payout_failure_at   DateTime? @db.Timestamptz
+  last_payout_failure_code String?   @db.VarChar(100)
+  deauthorized_at          DateTime? @db.Timestamptz
+  created_at               DateTime  @default(now()) @db.Timestamptz
+  updated_at               DateTime  @updatedAt @db.Timestamptz
 
   @@index([status])
   @@map("payout_accounts")
@@ -5900,47 +6376,58 @@ model PayoutAccount {
 // amount, a deposit, the balance or any amount). Fee columns are a
 // snapshot of the admin's commission settings at creation.
 model CasePayment {
-  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  case_id                  String    @db.Uuid
-  bid_id                   String?   @db.Uuid
-  client_id                String    @db.Uuid
-  attorney_id              String    @db.Uuid
+  id                          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id                     String    @db.Uuid
+  bid_id                      String?   @db.Uuid
+  client_id                   String    @db.Uuid
+  attorney_id                 String    @db.Uuid
   // bid | deposit | balance | custom | invoice
-  kind                     String    @db.VarChar(16)
+  kind                        String    @db.VarChar(16)
   // The attorney's payment request this pays (kind = invoice).
-  request_id               String?   @db.Uuid
+  request_id                  String?   @db.Uuid
   // pending_payment | succeeded | failed | canceled | refunded |
   // partially_refunded | disputed
-  status                   String    @db.VarChar(24)
+  status                      String    @db.VarChar(24)
   // What the attorney charges for the work.
-  amount_cents             Int
+  amount_cents                Int
   // The platform's fee (application fee) and the card-processing fee
   // passed to the client (an estimate of Stripe's charge).
-  platform_fee_cents       Int       @default(0)
-  processing_fee_cents     Int       @default(0)
-  client_total_cents       Int
-  attorney_net_cents       Int
+  platform_fee_cents          Int       @default(0)
+  processing_fee_cents        Int       @default(0)
+  client_total_cents          Int
+  attorney_net_cents          Int
   // fixed | none; client | attorney
-  fee_type                 String    @db.VarChar(16)
-  fee_payer                String    @db.VarChar(16)
+  fee_type                    String    @db.VarChar(16)
+  fee_payer                   String    @db.VarChar(16)
   // Who covered Stripe's card fee: client | attorney | split.
-  processing_fee_payer     String    @default("client") @db.VarChar(16)
-  currency                 String    @default("usd") @db.VarChar(3)
-  note                     String?   @db.VarChar(200)
-  stripe_account_id        String?
-  stripe_checkout_id       String?   @unique
-  stripe_payment_intent_id String?   @unique
-  stripe_charge_id         String?
-  receipt_url              String?
-  refunded_cents           Int       @default(0)
+  processing_fee_payer        String    @default("client") @db.VarChar(16)
+  currency                    String    @default("usd") @db.VarChar(3)
+  note                        String?   @db.VarChar(200)
+  stripe_account_id           String?
+  stripe_checkout_id          String?   @unique
+  stripe_payment_intent_id    String?   @unique
+  stripe_charge_id            String?
+  receipt_url                 String?
+  refunded_cents              Int       @default(0)
   // Stripe dispute status while / after a chargeback.
-  dispute_status           String?   @db.VarChar(32)
-  disputed_at              DateTime? @db.Timestamptz
-  paid_at                  DateTime? @db.Timestamptz
-  canceled_reason          String?   @db.VarChar(100)
-  failure_code             String?   @db.VarChar(100)
-  created_at               DateTime  @default(now()) @db.Timestamptz
-  updated_at               DateTime  @updatedAt @db.Timestamptz
+  dispute_status              String?   @db.VarChar(32)
+  disputed_at                 DateTime? @db.Timestamptz
+  // Stripe robustness 2026-10-27: the Stripe dispute behind dispute_status,
+  // its evidence deadline and the state of our evidence packet
+  // (none | draft | submitted | failed), plus the funds_withdrawn /
+  // funds_reinstated moments.
+  dispute_id                  String?   @db.VarChar(64)
+  dispute_reason              String?   @db.VarChar(64)
+  dispute_amount_cents        Int?
+  dispute_due_by              DateTime? @db.Timestamptz
+  dispute_evidence_status     String?   @db.VarChar(16)
+  dispute_funds_withdrawn_at  DateTime? @db.Timestamptz
+  dispute_funds_reinstated_at DateTime? @db.Timestamptz
+  paid_at                     DateTime? @db.Timestamptz
+  canceled_reason             String?   @db.VarChar(100)
+  failure_code                String?   @db.VarChar(100)
+  created_at                  DateTime  @default(now()) @db.Timestamptz
+  updated_at                  DateTime  @updatedAt @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -6957,29 +7444,59 @@ model CaseExpense {
 /// An invoice document for the client (no payment — owner 2026-10-20:
 /// client → attorney payments are off): the time and expenses it carries
 /// are frozen in `lines`, the PDF is a case file.
+enum CaseInvoiceStatus {
+  draft
+  sent
+  viewed
+  paid
+  partially_paid
+  overdue
+  void
+
+  @@map("case_invoice_status")
+}
+
 model CaseInvoice {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  case_id        String   @db.Uuid
-  case           Case     @relation(fields: [case_id], references: [id], onDelete: Restrict)
-  attorney_id    String   @db.Uuid
-  client_id      String   @db.Uuid
-  seq            Int
-  number         String   @db.VarChar(40)
-  currency       String   @default("USD") @db.Char(3)
-  minutes        Int
-  time_cents     Int
-  expenses_cents Int
-  total_cents    Int
-  note           String?  @db.VarChar(500)
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id             String            @db.Uuid
+  case                Case              @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  attorney_id         String            @db.Uuid
+  client_id           String            @db.Uuid
+  seq                 Int
+  number              String            @db.VarChar(40)
+  currency            String            @default("USD") @db.Char(3)
+  minutes             Int
+  time_cents          Int
+  expenses_cents      Int
+  total_cents         Int
+  note                String?           @db.VarChar(500)
   /// [{kind: time|expense, date, text, minutes?, rateCents?, cents}]
-  lines          Json
-  file_id        String   @db.Uuid
-  created_at     DateTime @default(now()) @db.Timestamptz
+  lines               Json
+  file_id             String            @db.Uuid
+  created_at          DateTime          @default(now()) @db.Timestamptz
+  // Owner 2026-10-25: life of the invoice (Clio / MyCase / LawPay style).
+  status              CaseInvoiceStatus @default(sent)
+  due_at              DateTime?         @db.Timestamptz
+  sent_at             DateTime?         @db.Timestamptz
+  viewed_at           DateTime?         @db.Timestamptz
+  paid_at             DateTime?         @db.Timestamptz
+  voided_at           DateTime?         @db.Timestamptz
+  /// Paid so far, recorded by the attorney (money moves outside the app).
+  paid_cents          Int               @default(0)
+  late_fee_cents      Int               @default(0)
+  late_fee_applied_at DateTime?         @db.Timestamptz
+  /// The attorney's OWN external payment link (their site / bank / Stripe
+  /// link). Shown to the client as a link; the app never takes the money.
+  pay_url             String?           @db.VarChar(500)
+  reminders_enabled   Boolean           @default(true)
+  reminders_sent      Int               @default(0)
+  last_reminded_at    DateTime?         @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
   @@unique([case_id, seq])
+  @@index([status, due_at])
   @@index([attorney_id, created_at])
   @@map("case_invoices")
 }
@@ -6997,27 +7514,36 @@ enum CaseSignStatus {
 /// SHA-256 of the file is fixed when the request is made; the finished PDF
 /// (original + signature page + protocol page) is a new case file.
 model CaseSignRequest {
-  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  case_id        String          @db.Uuid
-  case           Case            @relation(fields: [case_id], references: [id], onDelete: Restrict)
-  created_by     String          @db.Uuid
-  title          String          @db.VarChar(160)
-  source_file_id String          @db.Uuid
-  source_sha256  String          @db.VarChar(64)
-  status         CaseSignStatus  @default(pending)
-  final_file_id  String?         @db.Uuid
-  final_sha256   String?         @db.VarChar(64)
-  declined_by    String?         @db.Uuid
-  decline_reason String?         @db.VarChar(300)
-  completed_at   DateTime?       @db.Timestamptz
-  created_at     DateTime        @default(now()) @db.Timestamptz
-  updated_at     DateTime        @default(now()) @updatedAt @db.Timestamptz
-  signatures     CaseSignature[]
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id          String          @db.Uuid
+  case             Case            @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  created_by       String          @db.Uuid
+  title            String          @db.VarChar(160)
+  source_file_id   String          @db.Uuid
+  source_sha256    String          @db.VarChar(64)
+  status           CaseSignStatus  @default(pending)
+  final_file_id    String?         @db.Uuid
+  final_sha256     String?         @db.VarChar(64)
+  declined_by      String?         @db.Uuid
+  decline_reason   String?         @db.VarChar(300)
+  completed_at     DateTime?       @db.Timestamptz
+  // Owner 2026-10-25: expiry (an expired request is `canceled` with
+  // expired_at set, so no new status reaches the apps), reminders, and the
+  // audit of who opened it: last 50 views [{userId, role, at, ip}].
+  expires_at       DateTime?       @db.Timestamptz
+  expired_at       DateTime?       @db.Timestamptz
+  reminders_sent   Int             @default(0)
+  last_reminded_at DateTime?       @db.Timestamptz
+  view_log         Json            @default("[]")
+  created_at       DateTime        @default(now()) @db.Timestamptz
+  updated_at       DateTime        @default(now()) @updatedAt @db.Timestamptz
+  signatures       CaseSignature[]
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
   @@index([case_id, created_at])
+  @@index([status, expires_at])
   @@map("case_sign_requests")
 }
 
@@ -7166,29 +7692,31 @@ model ConsultationTimeOff {
 }
 
 model Consultation {
-  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  attorney_id      String             @db.Uuid
-  attorney         User               @relation("ConsultationAttorney", fields: [attorney_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  client_id        String             @db.Uuid
-  client           User               @relation("ConsultationClient", fields: [client_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  starts_at        DateTime           @db.Timestamptz
-  ends_at          DateTime           @db.Timestamptz
-  status           ConsultationStatus @default(pending)
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id           String             @db.Uuid
+  attorney              User               @relation("ConsultationAttorney", fields: [attorney_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  client_id             String             @db.Uuid
+  client                User               @relation("ConsultationClient", fields: [client_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  starts_at             DateTime           @db.Timestamptz
+  ends_at               DateTime           @db.Timestamptz
+  status                ConsultationStatus @default(pending)
   /// What the client wants to discuss (≤500).
-  note             String?            @db.VarChar(500)
+  note                  String?            @db.VarChar(500)
   /// The client's case this is about (bare uuid, checked on booking).
-  case_id          String?            @db.Uuid
+  case_id               String?            @db.Uuid
   /// The chat where the booking line sits (bare uuid: chats are never deleted).
-  conversation_id  String?            @db.Uuid
-  confirmed_at     DateTime?          @db.Timestamptz
-  cancelled_by_id  String?            @db.Uuid
-  cancel_reason    String?            @db.VarChar(300)
+  conversation_id       String?            @db.Uuid
+  confirmed_at          DateTime?          @db.Timestamptz
+  cancelled_by_id       String?            @db.Uuid
+  cancel_reason         String?            @db.VarChar(300)
   /// Who moved it last (attorney or client) and when; the other side is told.
-  rescheduled_at   DateTime?          @db.Timestamptz
-  reminded_day_at  DateTime?          @db.Timestamptz
-  reminded_hour_at DateTime?          @db.Timestamptz
-  created_at       DateTime           @default(now()) @db.Timestamptz
-  updated_at       DateTime           @updatedAt @db.Timestamptz
+  rescheduled_at        DateTime?          @db.Timestamptz
+  reminded_day_at       DateTime?          @db.Timestamptz
+  reminded_hour_at      DateTime?          @db.Timestamptz
+  /// Owner 2026-10-28: when the sweep looked at who joined the call (once).
+  attendance_checked_at DateTime?          @db.Timestamptz
+  created_at            DateTime           @default(now()) @db.Timestamptz
+  updated_at            DateTime           @updatedAt @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -7196,10 +7724,112 @@ model Consultation {
   @@index([attorney_id, starts_at])
   @@index([client_id, starts_at])
   @@index([status, starts_at])
+  @@index([status, ends_at], map: "consultations_status_ends_idx")
   // Owner 2026-10-22 (client economy plan, package E): GET /consultations?updatedSince.
   @@index([attorney_id, updated_at])
   @@index([client_id, updated_at])
   @@map("consultations")
+}
+
+/// Owner 2026-10-28: the secret link of a person's calendar (ICS feed). Only
+/// the SHA-256 of the token is kept; a new link replaces the old one, delete
+/// revokes it. Bare user uuid (the feed checks the account is active).
+model CalendarFeedToken {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String    @unique @db.Uuid
+  token_hash   String    @unique @db.Char(64)
+  created_at   DateTime  @default(now()) @db.Timestamptz
+  last_used_at DateTime? @db.Timestamptz
+  use_count    Int       @default(0)
+
+  @@map("calendar_feed_tokens")
+}
+
+/// Owner 2026-10-28: a person's Google / Outlook calendar linked by OAuth.
+/// The refresh token is sealed (AES-256-GCM, SECRETS_MASTER_KEYS).
+model CalendarConnection {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String              @db.Uuid
+  /// google | microsoft
+  provider          String              @db.VarChar(10)
+  account_email     String?             @db.VarChar(254)
+  refresh_token_enc String
+  calendar_id       String              @default("primary") @db.VarChar(200)
+  /// Their busy time blocks booking (attorneys).
+  read_busy         Boolean             @default(true)
+  /// Our consultations are written into their calendar.
+  write_events      Boolean             @default(true)
+  /// active | needs_reauth
+  status            String              @default("active") @db.VarChar(12)
+  last_error        String?             @db.VarChar(300)
+  /// Consultations changed before this moment are already pushed.
+  sync_cursor       DateTime            @default(now()) @db.Timestamptz
+  last_sync_at      DateTime?           @db.Timestamptz
+  created_at        DateTime            @default(now()) @db.Timestamptz
+  updated_at        DateTime            @updatedAt @db.Timestamptz
+  links             CalendarEventLink[]
+
+  @@unique([user_id, provider])
+  @@index([provider, status, write_events])
+  @@map("calendar_connections")
+}
+
+/// The external event written for one consultation.
+model CalendarEventLink {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  connection_id   String             @db.Uuid
+  connection      CalendarConnection @relation(fields: [connection_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  consultation_id String             @db.Uuid
+  external_id     String             @db.VarChar(1024)
+  content_hash    String             @db.VarChar(64)
+  synced_at       DateTime           @default(now()) @db.Timestamptz
+
+  @@unique([connection_id, consultation_id])
+  @@map("calendar_event_links")
+}
+
+/// Owner 2026-10-28: «the other side did not come». One row per absent side.
+/// state: open (dispute window runs) | disputed | confirmed (counts) |
+/// withdrawn | overturned | unconfirmed (auto-detected, nobody confirmed).
+model ConsultationNoShow {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  consultation_id   String    @db.Uuid
+  /// attorney | client
+  absent_side       String    @db.VarChar(8)
+  absent_user_id    String    @db.Uuid
+  /// attorney | client | auto
+  source            String    @db.VarChar(8)
+  marked_by_id      String?   @db.Uuid
+  state             String    @default("open") @db.VarChar(12)
+  marked_at         DateTime  @default(now()) @db.Timestamptz
+  dispute_until     DateTime  @db.Timestamptz
+  dispute_reason    String?   @db.VarChar(500)
+  disputed_at       DateTime? @db.Timestamptz
+  resolved_at       DateTime? @db.Timestamptz
+  resolved_by_admin String?   @db.Uuid
+  resolution_note   String?   @db.VarChar(500)
+  /// Set once the row was added to the absent person's counters.
+  counted_at        DateTime? @db.Timestamptz
+  created_at        DateTime  @default(now()) @db.Timestamptz
+  updated_at        DateTime  @updatedAt @db.Timestamptz
+
+  @@unique([consultation_id, absent_side])
+  @@index([state, dispute_until])
+  @@index([absent_user_id, state])
+  @@map("consultation_no_shows")
+}
+
+/// Owner 2026-10-28: reliability signals, STORED ONLY (the ranking packages
+/// will read them). Counts a person's confirmed no-shows.
+model ConsultationAttendanceStat {
+  user_id          String    @id @db.Uuid
+  no_show_count    Int       @default(0)
+  disputed_count   Int       @default(0)
+  overturned_count Int       @default(0)
+  last_no_show_at  DateTime? @db.Timestamptz
+  updated_at       DateTime  @updatedAt @db.Timestamptz
+
+  @@map("consultation_attendance_stats")
 }
 
 /// «Вопрос юристу»: a client's public question; answers only from
@@ -7224,6 +7854,11 @@ model LegalQuestion {
   /// Closed by the author, or by the nightly sweep (no answer in 30 days):
   /// gone from the attorneys' feed, no more answers.
   closed_at        DateTime?     @db.Timestamptz
+  /// Owner 2026-10-28 (legal safety): what the private-info check found
+  /// (ssn, address, case_number, party_name ...); empty = nothing.
+  safety_flags     String[]      @default([])
+  /// SHA-256 of the normalised text — duplicate / copy-paste spam check.
+  content_hash     String?       @db.VarChar(64)
   created_at       DateTime      @default(now()) @db.Timestamptz
   updated_at       DateTime      @updatedAt @db.Timestamptz
 
@@ -7239,22 +7874,27 @@ model LegalQuestion {
   // Owner 2026-10-22 (client economy plan, package F): GET /questions?filter=mine&updatedSince.
   @@index([author_id, updated_at])
   @@index([closed_at, deleted_at])
+  @@index([content_hash, created_at(sort: Desc)])
   @@map("legal_questions")
 }
 
 model LegalAnswer {
-  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  question_id String        @db.Uuid
-  question    LegalQuestion @relation(fields: [question_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  attorney_id String        @db.Uuid
-  attorney    User          @relation("LegalAnswerAuthor", fields: [attorney_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  body        String        @db.VarChar(4000)
-  status      ContentStatus @default(published)
-  like_count  Int           @default(0)
-  is_best     Boolean       @default(false)
-  deleted_at  DateTime?     @db.Timestamptz
-  created_at  DateTime      @default(now()) @db.Timestamptz
-  updated_at  DateTime      @updatedAt @db.Timestamptz
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  question_id  String        @db.Uuid
+  question     LegalQuestion @relation(fields: [question_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  attorney_id  String        @db.Uuid
+  attorney     User          @relation("LegalAnswerAuthor", fields: [attorney_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  body         String        @db.VarChar(4000)
+  status       ContentStatus @default(published)
+  like_count   Int           @default(0)
+  is_best      Boolean       @default(false)
+  deleted_at   DateTime?     @db.Timestamptz
+  /// Owner 2026-10-28 (legal safety): private_info kinds, individualized_advice,
+  /// state_not_licensed — shown to the admin only.
+  safety_flags String[]      @default([])
+  content_hash String?       @db.VarChar(64)
+  created_at   DateTime      @default(now()) @db.Timestamptz
+  updated_at   DateTime      @updatedAt @db.Timestamptz
 
   likes LegalAnswerLike[]
 
@@ -7264,6 +7904,7 @@ model LegalAnswer {
   /// One answer per attorney and question (edited, not repeated).
   @@unique([question_id, attorney_id])
   @@index([attorney_id, created_at(sort: Desc)])
+  @@index([attorney_id, content_hash])
   @@map("legal_answers")
 }
 
@@ -7395,23 +8036,30 @@ model UsernameHold {
 /// registered request. A worker builds the ZIP (PDF report + JSON + SHA-256
 /// of every file) one job at a time; the file lives `legal.export_ttl_days`.
 model LegalExport {
-  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  request_id      String            @db.Uuid
-  request         DataAccessRequest @relation(fields: [request_id], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "legal_exports_request_fkey")
-  subject_user_id String            @db.Uuid
-  requested_by    String            @db.Uuid
-  status          String            @default("queued") @db.VarChar(10)
-  selection       Json
-  file_bucket     String?
-  file_key        String?
-  size_bytes      BigInt?
-  sha256          String?
-  row_counts      Json?
-  error           String?
-  created_at      DateTime          @default(now()) @db.Timestamptz
-  started_at      DateTime?         @db.Timestamptz
-  finished_at     DateTime?         @db.Timestamptz
-  expires_at      DateTime?         @db.Timestamptz
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_id         String            @db.Uuid
+  request            DataAccessRequest @relation(fields: [request_id], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "legal_exports_request_fkey")
+  subject_user_id    String            @db.Uuid
+  requested_by       String            @db.Uuid
+  status             String            @default("queued") @db.VarChar(10)
+  selection          Json
+  file_bucket        String?
+  file_key           String?
+  size_bytes         BigInt?
+  sha256             String?
+  row_counts         Json?
+  error              String?
+  created_at         DateTime          @default(now()) @db.Timestamptz
+  started_at         DateTime?         @db.Timestamptz
+  finished_at        DateTime?         @db.Timestamptz
+  expires_at         DateTime?         @db.Timestamptz
+  /// Owner 2026-10-28: SHA-256 of manifest.json and its signature
+  /// (ed25519 with LEGAL_MANIFEST_SIGNING_KEY, else HMAC-SHA256).
+  manifest_sha256    String?
+  manifest_signature String?
+  signature_alg      String?           @db.VarChar(16)
+  download_count     Int               @default(0)
+  last_downloaded_at DateTime?         @db.Timestamptz
 
   @@index([request_id, created_at(sort: Desc)])
   @@index([status, created_at])
@@ -7499,6 +8147,9 @@ model CsamReport {
   created_by         String?              @db.Uuid
   created_at         DateTime             @default(now()) @db.Timestamptz
   submitted_at       DateTime?            @db.Timestamptz
+  /// Owner 2026-10-28: append-only trail [{at, event, actor, detail}] —
+  /// opened, submit_skipped (switch off), submitted, manual_required, failed.
+  audit              Json                 @default("[]")
 
   @@index([status, created_at], map: "csam_reports_status_idx")
   @@index([check_id], map: "csam_reports_check_idx")
@@ -7527,8 +8178,8 @@ model SystemIncident {
 // Search-ready (owner 2026-10-24, docs/architecture/SEARCH_READY.md): the
 // transactional outbox the search-engine indexer drains. Rows are written by
 // database triggers (migration 20261024160000_search_outbox) only while
-// `search.engine` is not postgres. The partial index search_outbox_due_idx
-// is raw SQL.
+// `search.engine` is not postgres. The partial indexes search_outbox_due_idx
+// and search_outbox_pending_uq (one pending event per row) are raw SQL.
 model SearchOutbox {
   id              BigInt    @id @default(autoincrement())
   entity          String
@@ -7549,4 +8200,610 @@ model SearchIndexState {
   updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
 
   @@map("search_index_state")
+}
+
+/// Online DDL: prisma/concurrent/*.sql files already applied by
+/// prisma/run-concurrent.mjs (index builds outside the migration transaction).
+model ConcurrentMigration {
+  name       String   @id
+  checksum   String
+  applied_at DateTime @default(now()) @db.Timestamptz
+
+  @@map("concurrent_migrations")
+}
+
+/// Online DDL: state of a named batched backfill (src/common/backfill).
+/// status: running | paused | aborted | done | failed (CHECK in the migration).
+model BackfillRun {
+  name             String    @id
+  status           String    @default("running")
+  table_name       String
+  cursor           String?
+  processed        BigInt    @default(0)
+  total_estimate   BigInt?
+  batch_size       Int
+  max_rows_per_sec Int
+  pause_reason     String?
+  last_error       String?
+  started_at       DateTime  @default(now()) @db.Timestamptz
+  updated_at       DateTime  @default(now()) @db.Timestamptz
+  heartbeat_at     DateTime  @default(now()) @db.Timestamptz
+  finished_at      DateTime? @db.Timestamptz
+
+  @@map("backfill_runs")
+}
+
+/// Owner 2026-10-25 (privacy round 13, S13-1): who was erased, kept OUTSIDE
+/// the restorable data too (every row is also written as an object
+/// `erasure-ledger/<user_id>.json` in the private bucket). A database
+/// restore rolls `users.anonymized_at` back; the restore runbook re-runs the
+/// anonymization for every id found here / in the bucket. No FK on purpose:
+/// the row must survive whatever happens to `users`. Holds no personal data
+/// beyond the opaque id and the date.
+model ErasureLedger {
+  user_id       String    @id @db.Uuid
+  anonymized_at DateTime  @db.Timestamptz
+  /// deletion_request | minor_confirmed | restore_reapply
+  reason        String    @default("deletion_request") @db.VarChar(24)
+  /// When the object copy in the private bucket was written; null = the
+  /// nightly privacy.reconcile still has to write it.
+  s3_synced_at  DateTime? @db.Timestamptz
+  created_at    DateTime  @default(now()) @db.Timestamptz
+
+  @@index([s3_synced_at])
+  @@map("erasure_ledger")
+}
+
+/// Owner 2026-10-25 (privacy round 13, S13-10/11/14): one row per account and
+/// step of the deletion, so there is proof per vendor and a visible retry
+/// list. `step` is a vendor (stripe, bunny, twilio, fcm, livekit, sentry,
+/// ses, verification), a notice (notice_day0, notice_day13) or `search` /
+/// `completion`. `status`: ok | failed | retained (the vendor keeps it for
+/// its own fixed period, see detail) | skipped | pending. No FK: it is
+/// evidence and outlives any change of `users`.
+model DeletionStep {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  step       String   @db.VarChar(40)
+  status     String   @db.VarChar(12)
+  detail     String?
+  attempts   Int      @default(1)
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@unique([user_id, step])
+  @@index([status, updated_at])
+  @@map("deletion_steps")
+}
+
+/// Owner 2026-10-28: attorney advertising archive. One row per published
+/// VERSION of an attorney's ad text (profile bio, post, promotion), kept
+/// until `retain_until` for the state's record-keeping rule. No FK to
+/// users: a copy must outlive the account. Global family.
+model AttorneyAdArchive {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id  String   @db.Uuid
+  /// profile_bio | post | promotion
+  kind         String   @db.VarChar(16)
+  /// The post / promotion id (the attorney id for a bio).
+  source_id    String   @db.Uuid
+  version      Int
+  content      String
+  content_hash String   @db.VarChar(64)
+  /// «Attorney Advertising» / results disclaimers the server added.
+  disclaimers  String[] @default([])
+  /// Checker findings at save time (rule ids).
+  findings     String[] @default([])
+  state_codes  String[] @default([])
+  created_at   DateTime @default(now()) @db.Timestamptz
+  retain_until DateTime @db.Timestamptz
+
+  @@unique([kind, source_id, version])
+  @@index([attorney_id, created_at(sort: Desc)])
+  @@index([retain_until])
+  @@map("attorney_ad_archive")
+}
+
+/// Internal domain-event stream (events pipeline, N-2). One append-only row
+/// per business event (user.signed_up, case.created, bid.placed ...), written
+/// through the cross-family outbox effect `domain.event.record` in the same
+/// transaction as the business write. `idempotency_key` makes a re-emit a
+/// no-op. `published_at` is NULL only while the `stream` sink has not yet
+/// shipped the row to Kinesis. Pruned after `events.retention_days`.
+model DomainEvent {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type            String
+  idempotency_key String    @unique
+  actor_user_id   String?   @db.Uuid
+  payload         Json
+  occurred_at     DateTime  @default(now()) @db.Timestamptz
+  published_at    DateTime? @db.Timestamptz
+
+  @@index([occurred_at])
+  @@index([type, occurred_at])
+  @@map("domain_events")
+}
+
+// Experiments (owner 2026-10-25, docs/architecture/EXPERIMENTS.md): A/B tests
+// for ranking formulas and other server-side behaviour. The admin creates one,
+// starts it at 5-10% of users, reads the result in plain Russian and stops it.
+// Assignment is a pure hash of unit id + key (no table read per request); only
+// the first exposure of a unit is stored.
+model Experiment {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key               String    @unique @db.VarChar(64)
+  name              String    @db.VarChar(120)
+  hypothesis        String?   @db.VarChar(500)
+  /// Where it applies: case_feed, people, search, ... (free label, used in reports).
+  surface           String    @db.VarChar(40)
+  /// draft | running | stopped
+  status            String    @default("draft") @db.VarChar(12)
+  /// [{ "key": "control", "weight": 50 }, { "key": "new_formula", "weight": 50 }]
+  variants          Json
+  /// Share of units that enter the experiment at all (0-100).
+  traffic_percent   Int       @default(0)
+  /// { reportsRelIncreasePct, errorsRelIncreasePct, minImpressions }
+  guardrails        Json
+  start_at          DateTime? @db.Timestamptz
+  end_at            DateTime? @db.Timestamptz
+  started_at        DateTime? @db.Timestamptz
+  stopped_at        DateTime? @db.Timestamptz
+  stop_reason       String?   @db.VarChar(300)
+  stopped_by_system Boolean   @default(false)
+  created_by        String?   @db.Uuid
+  created_at        DateTime  @default(now()) @db.Timestamptz
+  updated_at        DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  exposures ExperimentExposure[]
+  results   ExperimentResult[]
+
+  @@index([status])
+  @@map("experiments")
+}
+
+/// First time a unit (user or case id) saw a variant. One row per unit.
+model ExperimentExposure {
+  experiment_id String     @db.Uuid
+  experiment    Experiment @relation(fields: [experiment_id], references: [id], onDelete: Cascade)
+  unit_id       String     @db.VarChar(64)
+  variant       String     @db.VarChar(32)
+  first_at      DateTime   @default(now()) @db.Timestamptz
+
+  @@id([experiment_id, unit_id])
+  @@index([experiment_id, variant])
+  @@map("experiment_exposures")
+}
+
+/// One nightly computation: per-variant metrics with intervals, the SRM check
+/// and the guardrail verdict (payload), newest first.
+model ExperimentResult {
+  id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  experiment_id     String     @db.Uuid
+  experiment        Experiment @relation(fields: [experiment_id], references: [id], onDelete: Cascade)
+  computed_at       DateTime   @default(now()) @db.Timestamptz
+  srm_p             Float?
+  srm_flag          Boolean    @default(false)
+  guardrail_tripped Boolean    @default(false)
+  payload           Json
+
+  @@index([experiment_id, computed_at(sort: Desc)])
+  @@map("experiment_results")
+}
+
+/// Append-only log of what people were shown and did (impressions, clicks,
+/// bids, accepts, replies, reports, errors, searches). Partitioned weekly by
+/// created_at (migration 20261027500000_experiments_ranking_events), kept 90
+/// days. Impressions and clicks are sampled by user (setting
+/// `ranking.impression_sample_percent`); everything else is always stored.
+model RankingEvent {
+  id              BigInt   @default(autoincrement())
+  created_at      DateTime @default(now()) @db.Timestamptz
+  /// impression | click | bid | accept | reply | report | error | search | case_posted
+  kind            String   @db.VarChar(16)
+  user_id         String?  @db.Uuid
+  surface         String   @db.VarChar(40)
+  item_id         String?  @db.VarChar(64)
+  /// One rendered list (groups impressions for the offline replay).
+  list_id         String?  @db.VarChar(32)
+  /// 1-based place in the list.
+  position        Int?     @db.SmallInt
+  formula_version String?  @db.VarChar(32)
+  experiment_key  String?  @db.VarChar(64)
+  variant         String?  @db.VarChar(32)
+  /// search: number of results.
+  value           Int?
+  /// Impressions: the 0..1 features the formula saw, for the offline replay.
+  features        Json?
+
+  @@id([id, created_at])
+  @@index([experiment_key, created_at])
+  @@index([kind, created_at])
+  @@index([user_id, created_at])
+  @@map("ranking_events")
+}
+
+// ---------------------------------------------------------------------------
+// Staff package 2026-10-27 (docs/architecture/ADMIN_STAFF_PACKAGE_PLAN_2026-10-27.md
+// part A2). Every table below is admin-side only, empty until its switch
+// (`staff.*_enabled`, all off) is turned on. Kind of table:
+//   [S] snapshot / aggregate, written at night or from counters; admin pages
+//       read only these;  [L] operational;  [E] append-only event journal.
+// Admin ids are plain uuids without foreign keys (like support_agents).
+// ---------------------------------------------------------------------------
+
+/// [L] One work item, one person: the routing lease («Следующий»). The
+/// UNIQUE (kind, item_id) makes the database, not the code, guarantee that
+/// two admins never hold the same item. A free / expired row is taken with
+/// INSERT … ON CONFLICT … WHERE admin_id IS NULL OR leased_until < now().
+/// A partial index (admin_id) WHERE admin_id IS NOT NULL lives in the
+/// migration (Prisma does not model partial indexes).
+model WorkLease {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// support_ticket · verification · report · media_report · mod_appeal ·
+  /// review_appeal · trust_case · refund · payout · review_sample
+  kind               String    @db.VarChar(24)
+  item_id            String    @db.Uuid
+  /// Holder; null = free (released / lost, waiting for the next taker).
+  admin_id           String?   @db.Uuid
+  taken_at           DateTime? @db.Timestamptz
+  leased_until       DateTime? @db.Timestamptz
+  last_renew_at      DateTime? @db.Timestamptz
+  attempt            Int       @default(0)
+  /// Admins who may not take it again («не решено» goes to SOMEONE ELSE).
+  excluded_admin_ids String[]  @default([]) @db.Uuid
+  priority           Int       @default(0)
+  due_at             DateTime? @db.Timestamptz
+  created_at         DateTime  @default(now()) @db.Timestamptz
+  updated_at         DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@unique([kind, item_id])
+  @@index([leased_until])
+  @@index([kind, leased_until])
+  @@map("work_leases")
+}
+
+/// [E] What happened to a lease. Kept 90 days (`staff.retention`).
+model WorkLeaseEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind       String   @db.VarChar(24)
+  item_id    String   @db.Uuid
+  admin_id   String?  @db.Uuid
+  /// taken · renewed_first · lost · handed · released · skipped · done · reopened
+  event      String   @db.VarChar(16)
+  reason     String?  @db.VarChar(40)
+  held_ms    Int?
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@index([admin_id, created_at(sort: Desc)])
+  @@index([kind, item_id, created_at])
+  @@index([created_at])
+  @@map("work_lease_events")
+}
+
+/// [L] Where a staff member stands in the queues (one row per admin).
+model StaffMemberState {
+  admin_id             String    @id @db.Uuid
+  /// active · paused · hold_owner · offboarded
+  state                String    @default("active") @db.VarChar(16)
+  state_reason         String?   @db.VarChar(200)
+  state_until          DateTime? @db.Timestamptz
+  /// Newcomer trust tier 0-3 (`staff.trust_tiers_enabled`).
+  trust_tier           Int       @default(0) @db.SmallInt
+  joined_queue_at      DateTime? @db.Timestamptz
+  /// Per-person sampling percent; null = the setting.
+  review_rate_override Int?
+  created_at           DateTime  @default(now()) @db.Timestamptz
+  updated_at           DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([state])
+  @@map("staff_member_states")
+}
+
+/// [E] Quality signals about one decision of a staff member. Kept 120 days.
+model StaffQualitySignal {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  admin_id   String   @db.Uuid
+  /// reopened · complaint · appeal_won · overturned · csat_up · csat_down ·
+  /// sample_diff · golden_pass · golden_fail · too_fast · late_sla · lease_lost
+  kind       String   @db.VarChar(24)
+  item_kind  String   @db.VarChar(24)
+  item_id    String   @db.Uuid
+  value      Int      @default(1) @db.SmallInt
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@index([admin_id, created_at(sort: Desc)])
+  @@index([kind, created_at])
+  @@index([created_at])
+  @@map("staff_quality_signals")
+}
+
+/// [L] A decision picked for a second look (random sample, golden task,
+/// peer check). AFTER the fact: never an approval step.
+model StaffReviewSample {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  decision_kind String    @db.VarChar(24)
+  item_id       String    @db.Uuid
+  /// The staff member whose decision is checked.
+  decided_by    String    @db.Uuid
+  reviewer_id   String?   @db.Uuid
+  /// pending · done
+  status        String    @default("pending") @db.VarChar(12)
+  /// same · different · worse
+  verdict       String?   @db.VarChar(12)
+  is_golden     Boolean   @default(false)
+  golden_answer Json?
+  /// sample · golden · peer · newcomer
+  stage         String?   @db.VarChar(16)
+  created_at    DateTime  @default(now()) @db.Timestamptz
+  done_at       DateTime? @db.Timestamptz
+
+  @@unique([decision_kind, item_id])
+  @@index([status, created_at])
+  @@index([reviewer_id, status])
+  @@map("staff_review_samples")
+}
+
+/// [S] Yesterday's numbers of one staff member (written incrementally).
+model StaffDailyStat {
+  admin_id       String         @db.Uuid
+  day            DateTime       @db.Date
+  workspace      AdminWorkspace
+  decided        Int            @default(0)
+  avg_handle_sec Int            @default(0)
+  p90_handle_sec Int            @default(0)
+  online_min     Int            @default(0)
+  reopened       Int            @default(0)
+  complaints     Int            @default(0)
+  csat_up        Int            @default(0)
+  csat_down      Int            @default(0)
+  sampled        Int            @default(0)
+  sample_diff    Int            @default(0)
+  golden_total   Int            @default(0)
+  golden_fail    Int            @default(0)
+  too_fast       Int            @default(0)
+  late_sla       Int            @default(0)
+  lease_lost     Int            @default(0)
+  skips          Int            @default(0)
+  updated_at     DateTime       @default(now()) @updatedAt @db.Timestamptz
+
+  @@id([admin_id, day])
+  @@index([day, workspace])
+  @@map("staff_daily_stats")
+}
+
+/// [S] Nightly rating 0-100 over the window (`staff.rating.window_days`).
+/// The newest date is app_config `staff.rating.last_date`.
+model StaffRatingSnapshot {
+  admin_id      String         @db.Uuid
+  snapshot_date DateTime       @db.Date
+  workspace     AdminWorkspace
+  /// Null while there are fewer decisions than the minimum (low_data).
+  rating        Int?
+  n_decisions   Int            @default(0)
+  /// Components, 0-100 each.
+  accuracy      Int?
+  clean         Int?
+  users_verdict Int?
+  speed         Int?
+  /// low_data · ok · yellow · red · green
+  status        String         @default("low_data") @db.VarChar(12)
+  flags         String[]       @default([])
+  rank_pct      Int?           @db.SmallInt
+  /// 3 best / 3 worst decision ids and the 8-week trend.
+  evidence      Json           @default("{}")
+  created_at    DateTime       @default(now()) @db.Timestamptz
+
+  @@id([admin_id, snapshot_date])
+  @@index([snapshot_date, status])
+  @@index([snapshot_date, workspace, rating])
+  @@map("staff_rating_snapshots")
+}
+
+/// [S]+[L] What the system SUGGESTS about a person; a human applies it.
+model StaffSuggestion {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  admin_id      String    @db.Uuid
+  /// warn · more_review · pull · replace · reward · pause · retrain
+  kind          String    @db.VarChar(16)
+  /// open · applied · dismissed · expired
+  status        String    @default("open") @db.VarChar(12)
+  snapshot_date DateTime  @db.Date
+  evidence      Json      @default("{}")
+  decided_by    String?   @db.Uuid
+  decided_at    DateTime? @db.Timestamptz
+  created_at    DateTime  @default(now()) @db.Timestamptz
+
+  @@unique([admin_id, kind, snapshot_date])
+  @@index([status, kind, created_at(sort: Desc)])
+  @@map("staff_suggestions")
+}
+
+/// [E] Every action taken about a staff member (legal record, never deleted:
+/// reason, rating snapshot, date).
+model StaffAction {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// The staff member the action is about.
+  admin_id        String    @db.Uuid
+  /// Who did it; null = the system.
+  actor_id        String?   @db.Uuid
+  /// suggestion · head · owner
+  source          String    @db.VarChar(12)
+  /// warn · more_review · pull · replace · reward · reinstate · offboard
+  kind            String    @db.VarChar(16)
+  reason_code     String    @db.VarChar(40)
+  reason_note     String?   @db.VarChar(1000)
+  rating_snapshot Json?
+  ends_at         DateTime? @db.Timestamptz
+  created_at      DateTime  @default(now()) @db.Timestamptz
+
+  @@index([admin_id, created_at(sort: Desc)])
+  @@index([actor_id, created_at(sort: Desc)])
+  @@map("staff_actions")
+}
+
+/// [L] A staff member disputes one of their cases / actions (once per case,
+/// within the window); re-reviewed by another random person of the role.
+model StaffCaseAppeal {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  admin_id    String    @db.Uuid
+  action_id   String?   @db.Uuid
+  item_kind   String    @db.VarChar(24)
+  item_id     String    @db.Uuid
+  text        String    @db.VarChar(1000)
+  /// new · rereview · done
+  status      String    @default("new") @db.VarChar(12)
+  /// upheld · reversed
+  outcome     String?   @db.VarChar(12)
+  reviewer_id String?   @db.Uuid
+  created_at  DateTime  @default(now()) @db.Timestamptz
+  decided_at  DateTime? @db.Timestamptz
+
+  @@unique([admin_id, item_kind, item_id])
+  @@index([status, created_at])
+  @@map("staff_case_appeals")
+}
+
+/// [L] A complaint against a workspace head. Read ONLY by the super admin
+/// (a separate controller; everyone else gets 404). Anonymous ones show
+/// «автор №<author_alias>»; revealing the name is a logged action.
+model AdminAppeal {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  author_id      String    @db.Uuid
+  /// Per-appeal number shown instead of the name of an anonymous author.
+  author_alias   Int       @default(autoincrement())
+  anonymous      Boolean   @default(false)
+  head_admin_id  String    @db.Uuid
+  /// unfair_pull · pressure · insult · rules · other
+  kind           String    @db.VarChar(16)
+  text           String    @db.VarChar(2000)
+  file_key       String?   @db.VarChar(300)
+  /// new · seen · resolved
+  status         String    @default("new") @db.VarChar(12)
+  owner_note     String?   @db.VarChar(2000)
+  /// none · fire_head · fire_worker · nothing
+  owner_decision String    @default("none") @db.VarChar(16)
+  ack_at         DateTime? @db.Timestamptz
+  decided_at     DateTime? @db.Timestamptz
+  /// [{ at, by }] — every reveal of an anonymous author's name.
+  reveal_log     Json      @default("[]")
+  created_at     DateTime  @default(now()) @db.Timestamptz
+  updated_at     DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([status, created_at])
+  @@index([head_admin_id, created_at])
+  @@index([author_id, created_at])
+  @@map("admin_appeals")
+}
+
+/// [L] Retaliation guard: a head acted against the author of an appeal
+/// within the window. Never blocks; the owner gets a red mark.
+model StaffRetaliationFlag {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  appeal_id        String    @db.Uuid
+  /// The appeal's author the action hit.
+  subject_admin_id String    @db.Uuid
+  action_id        String?   @db.Uuid
+  window_until     DateTime  @db.Timestamptz
+  hold_until       DateTime? @db.Timestamptz
+  /// open · cleared · upheld
+  state            String    @default("open") @db.VarChar(12)
+  created_at       DateTime  @default(now()) @db.Timestamptz
+  decided_at       DateTime? @db.Timestamptz
+
+  @@index([state, created_at])
+  @@index([subject_admin_id])
+  @@map("staff_retaliation_flags")
+}
+
+/// [S] Nightly score of a workspace head.
+model StaffHeadSnapshot {
+  head_admin_id    String   @db.Uuid
+  snapshot_date    DateTime @db.Date
+  team_quality     Int?
+  turnover_score   Int?
+  complaints_score Int?
+  speed_score      Int?
+  score            Int?
+  flags            String[] @default([])
+  created_at       DateTime @default(now()) @db.Timestamptz
+
+  @@id([head_admin_id, snapshot_date])
+  @@map("staff_head_snapshots")
+}
+
+/// [L] Piecework rate per decision kind (owner only).
+model StaffRate {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// verification · report · ticket · appeal · media_report · …
+  kind         String         @db.VarChar(24)
+  workspace    AdminWorkspace @default(mass)
+  amount_cents Int
+  currency     String         @default("usd") @db.VarChar(3)
+  valid_from   DateTime       @default(now()) @db.Timestamptz
+  valid_to     DateTime?      @db.Timestamptz
+  /// Weekly quest multiplier (×1.20), capped by the setting.
+  boost_mult   Decimal?       @db.Decimal(3, 2)
+  created_by   String         @db.Uuid
+  created_at   DateTime       @default(now()) @db.Timestamptz
+
+  @@index([kind, valid_from(sort: Desc)])
+  @@map("staff_rates")
+}
+
+/// [S] Yesterday's piecework of one person and kind; `accrual_ref` is the
+/// payroll_accruals.event_ref it was sent as ('piece:{admin}:{day}:{kind}').
+model StaffPieceworkDay {
+  admin_id     String   @db.Uuid
+  day          DateTime @db.Date
+  kind         String   @db.VarChar(24)
+  units        Int      @default(0)
+  held_units   Int      @default(0)
+  rate_cents   Int      @default(0)
+  quality_mult Decimal  @default(1.00) @db.Decimal(4, 2)
+  amount_cents Int      @default(0)
+  currency     String   @default("usd") @db.VarChar(3)
+  accrual_ref  String?  @db.VarChar(120)
+  /// accrued · reversed
+  status       String   @default("accrued") @db.VarChar(12)
+  created_at   DateTime @default(now()) @db.Timestamptz
+  updated_at   DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@id([admin_id, day, kind])
+  @@index([day])
+  @@map("staff_piecework_days")
+}
+
+/// [S] Daily anomalies against the group median (top-20 for the owner).
+model StaffAnomaly {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  day        DateTime @db.Date
+  admin_id   String   @db.Uuid
+  rule       String   @db.VarChar(40)
+  score      Int      @default(0)
+  detail     Json     @default("{}")
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@unique([day, admin_id, rule])
+  @@index([day, score(sort: Desc)])
+  @@map("staff_anomalies")
+}
+
+/// [L] Pages an admin pinned to the menu (at most `staff.pins_max`).
+model AdminNavPin {
+  admin_id   String   @db.Uuid
+  href       String   @db.VarChar(200)
+  position   Int      @default(0) @db.SmallInt
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([admin_id, href])
+  @@map("admin_nav_pins")
+}
+
+/// [S] The owner's weekly «5 чисел».
+model StaffDigest {
+  week_start DateTime @id @db.Date
+  payload    Json
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@map("staff_digests")
 }

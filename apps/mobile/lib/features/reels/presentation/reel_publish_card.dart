@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/reels/application/reel_publish_job.dart';
 
@@ -97,8 +98,8 @@ class _ReelPublishCardState extends ConsumerState<ReelPublishCard> {
                     fit: StackFit.expand,
                     children: [
                       if (cover != null && cover.isNotEmpty)
-                        Image.memory(
-                          cover,
+                        Image(
+                          image: thumbImage(context, cover, maxSide: 38),
                           fit: BoxFit.cover,
                           gaplessPlayback: true,
                           errorBuilder: (_, __, ___) =>

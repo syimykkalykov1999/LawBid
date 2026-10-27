@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart'
     show casesRepositoryProvider;
 import 'package:lawbid/features/cases/domain/case_models.dart'
@@ -19,8 +21,8 @@ import 'package:lawbid/features/cases/presentation/widgets/case_header.dart'
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
 import 'package:lawbid/features/team/application/team_providers.dart'
     show
-        invalidateAllTasks,
         isAssistantProvider,
+        syncAllTasks,
         taskPeopleProvider,
         teamRepositoryProvider;
 import 'package:lawbid/features/team/domain/team_models.dart'
@@ -965,8 +967,10 @@ class _KeptTile extends StatelessWidget {
             child: SizedBox.square(
               dimension: 44,
               child: file.isImage && url != null
-                  ? Image.network(
-                      url,
+                  ? Image(
+                      // Owner 2026-10-26: kept on disk and decoded at the
+                      // box's size (it was a full-size download each time).
+                      image: appNetworkImage(url, decodeWidthFor(44)),
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => ColoredBox(
                         color: colors.surface,
@@ -1037,7 +1041,10 @@ class _PickedTile extends ConsumerWidget {
             child: SizedBox.square(
               dimension: 44,
               child: file.isImage
-                  ? Image.memory(file.bytes, fit: BoxFit.cover)
+                  ? Image(
+                      image: thumbImage(context, file.bytes, maxSide: 44),
+                      fit: BoxFit.cover,
+                    )
                   : ColoredBox(
                       color: colors.surface,
                       child: AppIcon(
@@ -1203,7 +1210,7 @@ Future<void> createPlannerTaskFrom(
       conversationId: conversationId,
     ),
   );
-  invalidateAllTasks(ref);
+  syncAllTasks(ref);
 }
 
 /// Owner 2026-10-19: saves the sheet's edit of [task]. What the sheet does
@@ -1283,5 +1290,5 @@ Future<void> updatePlannerTaskFrom(
   for (final s in task.steps) {
     if (!kept.contains(s.id)) await repo.removeTaskStep(task.id, s.id);
   }
-  invalidateAllTasks(ref);
+  syncAllTasks(ref);
 }

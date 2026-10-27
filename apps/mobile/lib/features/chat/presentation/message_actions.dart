@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -290,10 +291,10 @@ Future<void> showMessageMenu(
   // Premium emojis cost stars (admin «Звёзды»); the row is hidden when the
   // flag is off or the list could not be read in time.
   final premium = live && ref.read(starsEnabledProvider)
-      ? await _premiumReactions(ref)
+      ? (_premiumCached() ?? await _premiumReactions(ref))
       : null;
   if (!context.mounted) return;
-  unawaited(HapticFeedback.mediumImpact());
+  unawaited(AppHaptics.medium());
 
   Future<void> guarded(Future<void> Function() run, {int? price}) async {
     try {
@@ -541,6 +542,20 @@ List<List<T>> _evenRows<T>(List<T> items, int max) {
 }
 
 /// The premium emojis and their price; `null` when stars are unreachable.
+/// The last good answer, kept for a few minutes: the long-press menu opens
+/// at once instead of waiting for the lookup every time.
+StarsOverview? _premiumMemo;
+DateTime? _premiumMemoAt;
+
+StarsOverview? _premiumCached() {
+  final at = _premiumMemoAt;
+  if (at == null ||
+      DateTime.now().difference(at) > const Duration(minutes: 5)) {
+    return null;
+  }
+  return _premiumMemo;
+}
+
 Future<StarsOverview?> _premiumReactions(WidgetRef ref) async {
   // An auto-dispose provider read without a listener can go away while its
   // request is still in flight, so hold it for the wait.
@@ -549,6 +564,10 @@ Future<StarsOverview?> _premiumReactions(WidgetRef ref) async {
     final d = await ref
         .read(starsOverviewProvider.future)
         .timeout(const Duration(milliseconds: 800));
+    if (d.enabled) {
+      _premiumMemo = d;
+      _premiumMemoAt = DateTime.now();
+    }
     return d.enabled ? d : null;
   } on Object {
     return null;

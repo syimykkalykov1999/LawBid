@@ -34,6 +34,9 @@ QuestionDetailDto _$QuestionDetailDtoFromJson(Map<String, dynamic> json) =>
           : QaPersonDto.fromJson(json['author'] as Map<String, dynamic>),
       bestAnswerId: json['bestAnswerId'] as String?,
       myAnswerId: json['myAnswerId'] as String?,
+      privacyWarnings: (json['privacyWarnings'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
     );
 
 Map<String, dynamic> _$QuestionDetailDtoToJson(QuestionDetailDto instance) =>
@@ -52,6 +55,7 @@ Map<String, dynamic> _$QuestionDetailDtoToJson(QuestionDetailDto instance) =>
       'bestAnswerId': ?instance.bestAnswerId,
       'myAnswerId': ?instance.myAnswerId,
       'canAnswer': instance.canAnswer,
+      'privacyWarnings': ?instance.privacyWarnings,
       'createdAt': instance.createdAt,
       'answers': instance.answers.map((e) => e.toJson()).toList(),
     };

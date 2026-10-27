@@ -4,6 +4,7 @@ import {
   type EmailTemplateKey,
 } from '../auth/providers/email/email-template-render';
 import {
+  buildAccountDeletionEmail,
   buildAdminLoginCodeEmail,
   buildContactOtpEmail,
   buildDataExportEmail,
@@ -214,6 +215,32 @@ export const EMAIL_TEMPLATE_CATALOG: readonly CatalogEntry[] = [
         email: SAMPLE_EMAIL,
         title: 'Verification approved',
         body: 'Your attorney profile is verified.',
+      }),
+  },
+  {
+    key: 'account_deletion',
+    title: 'Удаление аккаунта: напоминание',
+    description:
+      'Письмо в день запроса на удаление и за день до удаления (14-дневный срок). Ссылка cancelUrl обязательна: по ней человек отменяет удаление.',
+    variables: [
+      {
+        name: 'cancelUrl',
+        description: 'Ссылка «Оставить аккаунт» (обязательна)',
+        sample: 'https://lawbid.app/api/v1/privacy/deletion/cancel/sample',
+      },
+      {
+        name: 'deletesOn',
+        description: 'Дата окончательного удаления (UTC)',
+        sample: '2026-10-16 (UTC)',
+      },
+    ],
+    required: REQUIRED_TEMPLATE_VARS.account_deletion,
+    sample: () =>
+      buildAccountDeletionEmail({
+        email: SAMPLE_EMAIL,
+        kind: 'day13',
+        deletesOn: new Date('2026-10-16T00:00:00Z'),
+        cancelUrl: 'https://lawbid.app/api/v1/privacy/deletion/cancel/sample',
       }),
   },
 ];

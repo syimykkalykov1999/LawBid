@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { hashShard, isShardedId, newShardedId, shardOf } from './shard-id';
 import { SHARDED_MODELS, ShardKey } from './shard-manifest';
+import { shardStats } from './shard-stats';
 
 /**
  * Shard-ready steps 1 and 2 (docs/architecture/SHARDING_READY.md §4): a
@@ -43,11 +44,12 @@ export function parentShardLookup(client: PrismaClient): ParentShardLookup {
       client as unknown as Record<
         string,
         {
-          findUnique(a: unknown): Promise<{ shard_id: number } | null>;
+          findFirst(a: unknown): Promise<{ shard_id: number } | null>;
         }
       >
     )[model[0].toLowerCase() + model.slice(1)];
-    const row = await delegate.findUnique({
+    // findFirst: a model with a composite key has no unique `id` filter.
+    const row = await delegate.findFirst({
       where: { id },
       select: { shard_id: true },
     });
@@ -77,7 +79,12 @@ function metaFor(model: string): ModelMeta | undefined {
           relationOf.set(f.relationFromFields[0], f.name);
         }
       }
-      const idField = m.fields.find((f) => f.isId);
+      // `isId` is false for a composite key (@@id([id, conversation_id]) on
+      // the hash partitioned messages / notifications): the column called
+      // `id` is still the row's own uuid.
+      const idField =
+        m.fields.find((f) => f.isId) ??
+        m.fields.find((f) => f.name === 'id' && f.kind === 'scalar');
       const def = idField?.default as
         { name?: string; args?: unknown[] } | undefined;
       const generateId =
@@ -144,6 +151,13 @@ async function stamp(
   if (meta.generateId && out.id === undefined) {
     out.id = newShardedId(shard ?? 0);
   }
+  // DB-ops S5-12: count the insert by the kind of key it gets.
+  if (meta.generateId) {
+    shardStats.idInsert(
+      model,
+      typeof out.id === 'string' ? isShardedId(out.id) : false,
+    );
+  }
   return out;
 }
 
@@ -170,7 +184,14 @@ export function shardOperationHandler(
     query,
   }: OperationParams): Promise<unknown> => {
     const run = (a: unknown) => query(a as never);
-    if (!model || !metaFor(model) || !enabled()) return run(args);
+    if (!model || !metaFor(model)) return run(args);
+    if (!enabled()) {
+      // SHARD_IDS=off: every id of a generating model is the database's v4.
+      if (operation.startsWith('create') || operation === 'upsert') {
+        if (metaFor(model)?.generateId) shardStats.idInsert(model, false);
+      }
+      return run(args);
+    }
     const a = args as Row;
     switch (operation) {
       case 'create':

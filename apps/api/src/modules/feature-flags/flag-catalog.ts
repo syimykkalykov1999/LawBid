@@ -151,71 +151,6 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
       'Clients pay the accepted attorney through the platform (Stripe Connect)',
   },
   {
-    // Owner 2026-10-18: the admin shows or hides each «Справочник» section.
-    key: 'guide_section_1',
-    enabled: true,
-    app: true,
-    retired: true,
-    description: 'Guide («Справочник») section 1: What LawBid is',
-  },
-  {
-    // Owner 2026-10-18: the admin shows or hides each «Справочник» section.
-    key: 'guide_section_2',
-    enabled: true,
-    app: true,
-    retired: true,
-    description: 'Guide («Справочник») section 2: Who sees your case',
-  },
-  {
-    // Owner 2026-10-18: the admin shows or hides each «Справочник» section.
-    key: 'guide_section_3',
-    enabled: true,
-    app: true,
-    retired: true,
-    description: 'Guide («Справочник») section 3: Contacts and chat',
-  },
-  {
-    // Owner 2026-10-18: the admin shows or hides each «Справочник» section.
-    key: 'guide_section_4',
-    enabled: true,
-    app: true,
-    retired: true,
-    description: 'Guide («Справочник») section 4: Attorney assistants',
-  },
-  {
-    // Owner 2026-10-18: the admin shows or hides each «Справочник» section.
-    key: 'guide_section_5',
-    enabled: true,
-    app: true,
-    retired: true,
-    description: 'Guide («Справочник») section 5: Files and messages',
-  },
-  {
-    // Owner 2026-10-18: the admin shows or hides each «Справочник» section.
-    key: 'guide_section_6',
-    enabled: true,
-    app: true,
-    retired: true,
-    description:
-      'Guide («Справочник») section 6: Bids, case stages and payment',
-  },
-  {
-    // Owner 2026-10-18: the admin shows or hides each «Справочник» section.
-    key: 'guide_section_7',
-    enabled: true,
-    app: true,
-    retired: true,
-    description: 'Guide («Справочник») section 7: Reviews, reports and rules',
-  },
-  {
-    // Owner 2026-10-18: the admin shows or hides each «Справочник» section.
-    key: 'guide_section_8',
-    enabled: true,
-    app: true,
-    retired: true,
-    description: 'Guide («Справочник») section 8: Deleting your account',
-  },
-  {
     // Owner 2026-10-20: off by default — no «Перевести» button or menu
     // item and no language-model download. On: the item appears in the
     // long-press menu of a message (and on posts, cases, reviews); the app
@@ -261,6 +196,33 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: true,
     app: true,
     description: 'The «I have a demo code» link on the Welcome screen',
+  },
+  {
+    // Owner 2026-10-27 (app indexing, #455): kill switch for the iPhone
+    // Spotlight index. Default on; the phone's first-paint value is a
+    // hand-written line in default_feature_flags.dart, so no `app: true`.
+    key: 'spotlight_indexing',
+    enabled: true,
+    description:
+      'iPhone Spotlight search finds the attorney profiles and saved posts the user opened (on-device index only); off = stop adding',
+  },
+  {
+    // Owner 2026-10-22 (decision A1): browsing without an account. Default
+    // on; the phone's first-paint value is a hand-written line in
+    // default_feature_flags.dart, so no `app: true` (it would duplicate it).
+    key: 'guest_browsing',
+    enabled: true,
+    description:
+      'Browse without an account: the feed, search and public profiles open for a guest; every action asks to sign in',
+  },
+  {
+    // Owner 2026-10-22 (checklist §27): the store's «Rate LawBid» dialog.
+    // Default off until the store listings exist; hand-written Dart line
+    // too, so no `app: true`.
+    key: 'in_app_review',
+    enabled: false,
+    description:
+      "The store's «Rate LawBid» dialog, shown once after a positive moment (iOS and Android)",
   },
   {
     // Owner 2026-10-13: sign in with a password, no SMS each time.

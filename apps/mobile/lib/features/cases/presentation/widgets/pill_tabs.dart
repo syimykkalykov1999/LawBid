@@ -4,9 +4,9 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
 
 /// Segmented tabs (owner decision 2026-09-29, replaces the scrolling
@@ -76,6 +76,9 @@ class PillTabs<T> extends StatelessWidget {
                     ),
                   Expanded(
                     child: _Segment(
+                      // Stable address for tests / the perf suite:
+                      // `pill-SearchTab.posts` (an enum value's toString).
+                      key: ValueKey('pill-${tabs[i].$1}'),
                       label: tabs[i].$2,
                       selected: tabs[i].$1 == value,
                       motion: motion,
@@ -84,7 +87,7 @@ class PillTabs<T> extends StatelessWidget {
                       onDark: onDark,
                       onTap: () {
                         if (tabs[i].$1 == value) return;
-                        HapticFeedback.selectionClick();
+                        AppHaptics.selection();
                         onChanged(tabs[i].$1);
                       },
                     ),
@@ -107,6 +110,7 @@ class _Segment extends StatelessWidget {
     required this.colors,
     required this.typography,
     required this.onTap,
+    super.key,
     this.onDark = false,
   });
 

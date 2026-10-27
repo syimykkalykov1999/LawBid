@@ -248,7 +248,8 @@ The call caps above count calls; a translation of 5 000 characters and an SMS to
 
 | Counter | Cap (US cents / day) | Default | Over the cap |
 |---|---|---|---|
-| All paid services | `budget.money.global_daily_cents` → `BUDGET_GLOBAL_DAILY_CENTS` | 50 000 ($500) | 503 `PROVIDER_BUDGET_EXCEEDED` |
+| All paid services | `budget.money.global_daily_cents` → `BUDGET_GLOBAL_DAILY_CENTS` (> 0) → automatic: allowed spend / 30 × `economy.daily_brake_days` (3), written by the economy job (≈ $15 a day at the $150 floor, grows with revenue; 1 500 ¢ until the first tick) | automatic (admin 0 = none) | 503 `PROVIDER_BUDGET_EXCEEDED` |
+| SMS, per month | `budget.sms.monthly_cents` → `BUDGET_SMS_MONTHLY_CENTS` | 10 000 ($100; 0 = off) | 503 `PROVIDER_BUDGET_EXCEEDED` |
 | One provider | `budget.<provider>.daily_cents` → `BUDGET_<PROVIDER>_DAILY_CENTS` → the call cap × nominal price | e.g. 300 SMS × $0.0115 | 503 |
 | One person (translate, uploads, video) | `budget.money.user_daily_cents` → `BUDGET_USER_DAILY_CENTS` | 500 ($5) | 429 `PROVIDER_BUDGET_EXCEEDED` (`details.scope = user`) |
 
@@ -256,3 +257,8 @@ The call caps above count calls; a translation of 5 000 characters and an SMS to
 - The old `BUDGET_<P>_*_MAX` call caps keep working unchanged (spike breaker) and, when no money cap is set for a provider, are converted into one.
 - 80 % of any money cap logs `alert: cost_budget, stage: threshold_80, money: true` once a day (the same CloudWatch metric filter as the call caps); exhaustion logs `stage: exhausted`.
 - 0 = no money cap for that counter. Edit live in Админка → Настройки (`budget.money.*`, `budget.<p>.daily_cents`).
+
+
+## One price book (S9-2, 2026-10-25)
+
+The money brakes and the economy guard read the same prices: `cost-prices.ts` (`UNIT_MILLICENTS`, SMS country tiers). The admin overrides a price with the app setting `cost.unit_millicents.<provider>` (integer, millicents; empty = list price). The old `economy.sms_unit_usd`, `economy.video_unit_usd` and `economy.translate_unit_usd` are gone. Revenue for the allowance is NET (price before tax, minus refunds, minus the estimated 2.9 % + 30 ¢ Stripe fee).

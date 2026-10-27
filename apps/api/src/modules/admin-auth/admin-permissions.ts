@@ -1,4 +1,5 @@
-import type { AdminRole } from '@prisma/client';
+import type { AdminRole, AdminWorkspace } from '@prisma/client';
+import { WORKSPACE_AREAS } from '../staff-core/workspace-scope';
 
 /**
  * Per-area access for admins other than the super admin (owner
@@ -48,6 +49,9 @@ export const ADMIN_AREAS = [
   // Owner 2026-10-22: «Дежурный» — gets the system alerts (push + e-mail)
   // from the watchdog; each admin can still switch it off in Профиль.
   'on_call',
+  // Owner 2026-10-27: «Продвижение» — SEO switches, store/channel checklist
+  // (/admin/promotion). Hand out like any other area; nobody has it by default.
+  'promotion',
 ] as const;
 export type AdminArea = (typeof ADMIN_AREAS)[number];
 
@@ -107,6 +111,9 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   // Owner 2026-10-05: repeat accounts of blocked fraudsters (clients).
   fraud: 'verification',
   moderation: 'moderation',
+  // Owner 2026-10-28: the only admin read path for private chats, calls
+  // and case files (reason code + audit + 2FA step-up; see AdminPrivateContent).
+  'private-content': 'moderation',
   'review-appeals': 'moderation',
   // Owner 2026-10-20: group chats (remove members, close groups).
   'group-chats': 'moderation',
@@ -155,6 +162,8 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   // …and the partner team's own page (report, goals, contract).
   'country-partner': 'partner_portal',
   'case-payments': 'money', // client → attorney payments (Stripe Connect)
+  // Stripe robustness 2026-10-27: «Проверки Stripe» (super admin only).
+  'stripe-review': 'money',
   // Owner 2026-10-05: «Прибыль и резерв» (the monthly split of the balance).
   treasury: 'money',
   integrations: 'keys',
@@ -162,16 +171,21 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   'audit-log': 'audit',
   sessions: 'sessions',
   sanctions: 'sanctions',
+  // Staff package T11: reveal of masked contacts and the watermark text; the
+  // route checks the admin's own rights itself (like the workspace page).
+  pii: 'workspace',
   outreach: 'outreach',
   payroll: 'payroll',
   rewards: 'rewards',
+  // Owner 2026-10-27: «Продвижение» (SEO switches, channel checklist).
+  promotion: 'promotion',
   // Owner 2026-10-05: every admin's own workspace (it lists only what the
   // admin's areas allow).
   workspace: 'workspace',
-  // Owner 2026-10-22: «Требуют подтверждения» (maker-checker). Open like
-  // the workspace; AdminApprovalsService shows each admin only what they
-  // asked for or could run themself.
-  approvals: 'workspace',
+  // Staff package T3: the desk (`admin/desk/*`: «Следующий», leases, status)
+  // is every staff member's own page like `workspace`; the right to each
+  // queue is checked per kind in work-lease (canWorkQueue).
+  desk: 'workspace',
 };
 
 /** `/api/v1/admin/users/123?x=1` → `users`; null when not an admin route. */
@@ -276,6 +290,78 @@ export const PARTNER_TEAM_MAX: AdminPermissions = {
   outreach: 'manage',
   partner_report: 'view',
 };
+
+/**
+ * Staff package T2 (plan C3, «Пространства»): the most an admin of each
+ * workspace can ever be granted, whoever hands it out and whatever was
+ * stored. Built from the same area lists the guard answers 404 for
+ * (workspace-scope.ts), so a grant the API accepts is always reachable and
+ * a reachable area is always grantable: the two cannot drift apart (the
+ * parity test fails if they do).
+ *  - mass: queues and people; the people list and the dashboard are read
+ *    only, everything else of the list may be `manage`;
+ *  - finance: money, economy, budget limits and payroll (+ dashboard).
+ * Never inside any workspace: keys, admin management, sessions, rewards,
+ * settings, legal texts, exports, government requests, translations,
+ * broadcasts, e-mail templates, the audit log, the partner report and the
+ * promotion page — those are the owner's. The owner (super admin and the
+ * owner workspace) has no ceiling.
+ */
+export type SeatWorkspace = Exclude<AdminWorkspace, 'owner'>;
+
+const WORKSPACE_LEVEL_CAP: Partial<Record<AdminArea, AccessLevel>> = {
+  dashboard: 'view',
+  users: 'view',
+};
+
+function buildWorkspaceMax(ws: SeatWorkspace): AdminPermissions {
+  const out: AdminPermissions = {};
+  for (const area of WORKSPACE_AREAS[ws]) {
+    if (!(ADMIN_AREAS as readonly string[]).includes(area)) continue;
+    const a = area as AdminArea;
+    out[a] = WORKSPACE_LEVEL_CAP[a] ?? 'manage';
+  }
+  return out;
+}
+
+export const WORKSPACE_MAX: Readonly<
+  Record<SeatWorkspace, Readonly<AdminPermissions>>
+> = {
+  mass: buildWorkspaceMax('mass'),
+  finance: buildWorkspaceMax('finance'),
+};
+
+/** The ceiling of [workspace]; null = none (the owner workspace). */
+export function workspaceCeiling(
+  workspace: AdminWorkspace,
+): AdminPermissions | null {
+  return workspace === 'owner' ? null : { ...WORKSPACE_MAX[workspace] };
+}
+
+/** The areas of [perms] that lie outside [workspace]'s ceiling (empty =
+ * the grant fits). The level counts: `manage` of a read-only area is out. */
+export function outsideWorkspace(
+  workspace: AdminWorkspace,
+  perms: AdminPermissions,
+): AdminArea[] {
+  const ceiling = workspaceCeiling(workspace);
+  if (!ceiling) return [];
+  return ADMIN_AREAS.filter((a) => {
+    const want = perms[a];
+    if (!want) return false;
+    const have = ceiling[a];
+    return !have || LEVEL_RANK[have] < LEVEL_RANK[want];
+  });
+}
+
+/** [perms] cut down to [workspace]'s ceiling (levels capped). */
+export function capToWorkspace(
+  workspace: AdminWorkspace,
+  perms: AdminPermissions,
+): AdminPermissions {
+  const ceiling = workspaceCeiling(workspace);
+  return ceiling ? intersect(ceiling, perms) : perms;
+}
 
 /** The JSON stored in `admin_profiles.permissions`. */
 export function storePermissions(
@@ -388,6 +474,7 @@ export function canAccess(
   manageAdmins = false,
   partner: PartnerMembership | null = null,
   noPii = false,
+  workspaceHead = false,
 ): boolean {
   if (role === 'super_admin') return true;
   const area = routeArea(path);
@@ -412,9 +499,10 @@ export function canAccess(
     return grants(capped, area, levelForMethod(method));
   }
   if (area === 'partner_portal') return false;
-  // Admin management: only an admin the super admin gave that right; the
-  // service narrows it further (what they may grant or touch).
-  if (area === 'admins') return manageAdmins;
+  // Admin management: only an admin the super admin gave that right (or,
+  // staff package T2, the head of a workspace while the head role is on);
+  // the service narrows it further (what they may grant or touch).
+  if (area === 'admins') return manageAdmins || workspaceHead;
   // Owner 2026-10-05: the trusted deputy (the admin who manages admins)
   // reads every section — money, audit, sessions included — but never the
   // keys, runs payroll alongside the super admin, and changes other

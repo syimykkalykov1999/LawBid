@@ -26,11 +26,15 @@
 #   AWS_REGION
 #   WEB_BUCKET             terraform output `web_bucket`
 #   WEB_DISTRIBUTION_ID    terraform output `web_distribution_id`
-#   WEB_API_BASE_URL       e.g. https://api.<domain>/api/v1
+#   WEB_API_BASE_URL       e.g. https://api.<domain>/api/v1, or https://<web host>/api/v1
+#                          once the web distribution forwards /api/* (infra var web_api_proxy)
 #   WEB_DEEP_LINK_HOST     the host links open on (the web host)
 #   FIREBASE_WEB_*         (optional) API_KEY, APP_ID, SENDER_ID, PROJECT_ID,
 #                          AUTH_DOMAIN, VAPID_KEY of the Firebase web app: push
 #                          in the browser; without them the web has no push
+#   SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT_WEB (optional) upload of the
+#                          source maps (release lawbid@<version>, dist <sha>);
+#                          without them the maps are simply dropped
 #   FIREBASE_WEB_RECAPTCHA_KEY (optional) reCAPTCHA Enterprise site key of the
 #                          web app (Firebase → App Check); without it the web
 #                          sends no App Check token (docs/runbooks/APP_CHECK.md)
@@ -44,6 +48,8 @@ on:
       - "packages/api-client/**"
       - ".github/workflows/web-deploy.yml"
       - "scripts/deploy/web-release.sh"
+      - "scripts/deploy/web-sourcemaps.sh"
+      - "scripts/deploy/web-boot-check.mjs"
   workflow_dispatch:
 
 permissions:
@@ -55,16 +61,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # S11-1: this workflow publishes the app straight from main, so it first waits
+  # for every CI check of the commit (mobile analyze/test/builds, scans) to be green.
+  gate:
+    name: Wait for green CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' }}
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Every CI check of this commit is green
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/ci/require-green.sh "$GITHUB_SHA" \
+            '^(Analyze, lint|Build check|gitleaks|CodeQL)' \
+            '^(Wait for green CI|Build and publish|Build & push|Deploy|Notify)'
+
   deploy:
     name: Build and publish the web app
+    needs: [gate]
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' }}
+    if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' && needs.gate.result == 'success' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
+      - name: Flutter version (apps/mobile/.fvmrc, the one pin for every workflow)
+        id: fv
+        run: echo "v=$(jq -r .flutter apps/mobile/.fvmrc)" >> "$GITHUB_OUTPUT"
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
+          flutter-version: ${{ steps.fv.outputs.v }}
           channel: "stable"
 
       - name: flutter pub get
@@ -75,11 +106,19 @@ jobs:
         working-directory: apps/mobile
         run: dart run build_runner build --delete-conflicting-outputs
 
+      # 2026-10-26 (smoothness P6c): `flutter build` cuts the icon fonts
+      # down to the glyphs the code uses (PhosphorBold 495 -> 16 KB,
+      # PhosphorFill 449 -> 40 KB). The log is kept so the next step can
+      # fail the deploy if that ever stops (e.g. --no-tree-shake-icons).
       - name: Build web (WebAssembly)
         working-directory: apps/mobile
+        shell: bash
         run: >-
+          set -o pipefail;
           flutter build web --wasm -t lib/main_prod.dart
           --no-web-resources-cdn
+          --source-maps
+          --dart-define=BUILD_SHA=${{ github.sha }}
           --dart-define=WEB_ENABLED=true
           --dart-define=API_BASE_URL=${{ secrets.WEB_API_BASE_URL }}
           --dart-define=DEEP_LINK_HOST=${{ secrets.WEB_DEEP_LINK_HOST }}
@@ -90,6 +129,14 @@ jobs:
           --dart-define=FIREBASE_WEB_AUTH_DOMAIN=${{ secrets.FIREBASE_WEB_AUTH_DOMAIN }}
           --dart-define=FIREBASE_WEB_VAPID_KEY=${{ secrets.FIREBASE_WEB_VAPID_KEY }}
           --dart-define=FIREBASE_WEB_RECAPTCHA_KEY=${{ secrets.FIREBASE_WEB_RECAPTCHA_KEY }}
+          2>&1 | tee "$RUNNER_TEMP/web-build.log"
+
+      - name: The icon fonts were cut to the used glyphs
+        run: |
+          for f in PhosphorBold.ttf PhosphorFill.ttf; do
+            grep -q "Font asset \"$f\" was tree-shaken" "$RUNNER_TEMP/web-build.log" \
+              || { echo "::error::$f was not tree-shaken (the web app would ship the whole icon font)"; exit 1; }
+          done
 
       # The push worker needs the same keys (it cannot read the build's).
       - name: Fill the push worker's keys
@@ -108,6 +155,24 @@ jobs:
               -e "s|__FIREBASE_WEB_PROJECT_ID__|$K4|" \
               firebase-messaging-sw.js
           fi
+
+      # S17-2: the source maps leave the bundle here (never published) and go
+      # to Sentry (release lawbid@<version>, dist <sha>) when the secrets exist.
+      - name: Source maps out of the bundle, to Sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT_WEB: ${{ secrets.SENTRY_PROJECT_WEB }}
+        run: |
+          # version WITH the build number (1.2.3+45): SentryReporter sends
+          # release lawbid@<version>+<build>.
+          VERSION=$(sed -n 's/^version: *\([^ ]*\).*/\1/p' apps/mobile/pubspec.yaml | head -1)
+          scripts/deploy/web-sourcemaps.sh apps/mobile/build/web "${{ github.sha }}" "$VERSION" "$RUNNER_TEMP/web-maps"
+
+      # S17-3: boot_head.js pre-downloads the build the loader will choose;
+      # fail the deploy if the pinned Flutter's loader decides differently.
+      - name: boot_head.js matches the Flutter loader
+        run: node scripts/deploy/web-boot-check.mjs apps/mobile/build/web/flutter_bootstrap.js apps/mobile/web/boot_head.js "${{ steps.fv.outputs.v }}"
 
       # Owner 2026-10-23: app, engine and assets under v/<sha>/ (see above).
       - name: Move the heavy files under v/<sha>/
@@ -133,6 +198,8 @@ jobs:
           grep -q 'entrypointBaseUrl' build/web/flutter_bootstrap.js
           test -s build/web/sqlite3.wasm
           test -s build/web/drift_worker.js
+          # S17-2: source maps are never published.
+          test -z "$(find build/web -name '*.map' | head -1)"
 
       - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
@@ -192,7 +259,12 @@ jobs:
           $R put "$ARN" web_app_paths "$PATHS"
           # The brotli twins of this release exist (the CloudFront function
           # serves them only to releases marked here; older ones have none).
-          if command -v brotli >/dev/null 2>&1; then $R put "$ARN" "br_$SHA" 1; fi
+          # br2_: this release also has the fonts' and main.dart.mjs twins
+          # (web-gzip-big.sh, 2026-10-26).
+          if command -v brotli >/dev/null 2>&1; then
+            $R put "$ARN" "br_$SHA" 1
+            $R put "$ARN" "br2_$SHA" 1
+          fi
           if [ -n "$PREV" ] && [ "$PREV" != "$SHA" ]; then $R put "$ARN" web_previous "$PREV"; fi
           $R put "$ARN" web_release "$SHA"
           # The error page (a real 404 shows the app) is the root index.html.
@@ -274,3 +346,17 @@ jobs:
           aws cloudfront create-invalidation
           --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}"
           --paths "/index.html" "/icons/*" "/favicon.png" "/flutter_bootstrap.js" "/boot_head.js" "/boot_end.js" "/version.json" "/manifest.json"
+
+  notify:
+    name: Tell the owner
+    needs: [gate, deploy]
+    if: ${{ always() && contains(needs.*.result, 'failure') }}
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: "Web app deploy failed (red CI gate or build/upload)"
+      kind: web-deploy
+    secrets: inherit

@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { familyOf } from './shard-manifest';
+import { ghostRow } from './ghost-row';
 
 /**
  * Shard-ready step 6 (docs/architecture/SHARDING_READY.md §3): the runtime
@@ -50,6 +51,7 @@ type Obj = Record<string, unknown>;
 interface Rel {
   readonly target: string;
   readonly isList: boolean;
+  readonly required: boolean;
   readonly fk: string | null;
 }
 
@@ -68,6 +70,7 @@ for (const m of Prisma.dmmf.datamodel.models) {
     rels.set(f.name, {
       target: f.type,
       isList: f.isList,
+      required: f.isRequired,
       fk: single ? f.relationFromFields[0] : null,
     });
   }
@@ -192,7 +195,16 @@ async function stitch(
     }
     for (const r of rows) {
       const fk = r[link.fk];
-      r[link.key] = typeof fk === 'string' ? (byId.get(fk) ?? null) : null;
+      // Step 9: no foreign key any more. A REQUIRED relation whose row is
+      // gone becomes a ghost (selected fields null) instead of null, which
+      // code written for a guaranteed row would dereference.
+      const missing =
+        relations.get(model)?.get(link.key)?.required === true
+          ? isObj(link.sub) && isObj(link.sub.select)
+            ? ghostRow(link.sub.select)
+            : null
+          : null;
+      r[link.key] = typeof fk === 'string' ? (byId.get(fk) ?? missing) : null;
       if (link.injected) delete r[link.fk];
     }
   }

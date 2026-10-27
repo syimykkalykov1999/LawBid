@@ -10,10 +10,11 @@ import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_banners.dart';
-import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/practice/practice_options.dart'
     as practice_options;
 import 'package:lawbid/features/practice/practice_options.dart' as practices;
+import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart'
+    show SliverMinExtent;
 import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 import 'package:lawbid/features/social/application/merged_paging.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -387,7 +388,9 @@ List<Widget> commentThreadSlivers(
                 );
               }
               if (value.canLoadMore) {
-                notifier.loadMore();
+                // Audit C18: not while the list is being built.
+                WidgetsBinding.instance
+                    .addPostFrameCallback((_) => notifier.loadMore());
                 return const Padding(
                   padding: EdgeInsets.all(AppSpacing.lg),
                   child: Center(
@@ -879,7 +882,7 @@ class ProfileBriefsAndReposts extends ConsumerWidget {
     }
 
     final ownProfile =
-        ref.watch(currentUserControllerProvider).user?.id == attorneyId;
+        ref.watch(currentUserIdProvider) == attorneyId;
     return Column(
       children: [
         // Owner 2026-10-23: the posts being published lead the own profile.
@@ -983,8 +986,20 @@ class ProfilePostsGrid extends ConsumerWidget {
     this.newsOnly = false,
     this.threadsOnly = false,
     this.reelsOnly = false,
+    this.asSliver = false,
+    this.minExtent = 0,
     super.key,
   });
+
+  /// 2026-10-26 (smoothness P4): build a sliver for a page of
+  /// `ProfileSliverPage` — the post / reel grid is then a lazy `SliverGrid`
+  /// in the profile's own scroll view instead of a `shrinkWrap` grid that
+  /// builds every tile at once. Same geometry: the other states are the
+  /// same boxes, held to [minExtent] like the box page's `ConstrainedBox`.
+  final bool asSliver;
+
+  /// The page's minimum height in [asSliver] mode.
+  final double minExtent;
 
   /// Owner 2026-09-30: the profile's News tab.
   final bool newsOnly;
@@ -1026,23 +1041,86 @@ class ProfilePostsGrid extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final deleted = ref.watch(deletedPostsProvider);
     final value = ref.watch(_provider);
+    // In sliver mode every box state is the same box the box page had
+    // (held to the page's minimum height), only inside a sliver.
+    Widget boxed(Widget child) => asSliver
+        ? SliverToBoxAdapter(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: minExtent),
+              child: child,
+            ),
+          )
+        : child;
+    // The grid with its «load more» button: a Column of a shrink-wrapped
+    // grid as a box, a lazy SliverGrid in sliver mode (same layout: the
+    // grid at the top, the button centred under it).
+    Widget gridWithMore(
+      PaginatedList<Post> page, {
+      required SliverGridDelegate delegate,
+      required int count,
+      required IndexedWidgetBuilder tile,
+      Key? gridKey,
+    }) {
+      final more = page.canLoadMore
+          ? TextButton(
+              onPressed: () => ref.read(_provider.notifier).loadMore(),
+              child: Text(t.t('pagination.loadingMore')),
+            )
+          : null;
+      if (asSliver) {
+        return SliverMinExtent(
+          minExtent: minExtent,
+          sliver: SliverMainAxisGroup(
+            slivers: [
+              SliverGrid(
+                key: gridKey,
+                gridDelegate: delegate,
+                delegate: SliverChildBuilderDelegate(tile, childCount: count),
+              ),
+              if (more != null) SliverToBoxAdapter(child: Center(child: more)),
+            ],
+          ),
+        );
+      }
+      return Column(
+        children: [
+          GridView.builder(
+            key: gridKey,
+            padding: EdgeInsets.zero,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: delegate,
+            itemCount: count,
+            itemBuilder: tile,
+          ),
+          if (more != null) more,
+        ],
+      );
+    }
+
     return value.when(
       skipLoadingOnReload: true,
-      loading: () => GridView.count(
-        // No inherited safe-area padding: the grid sits flush under the
-        // tabs (owner 2026-10-01).
-        padding: EdgeInsets.zero,
-        crossAxisCount: 3,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 2,
-        crossAxisSpacing: 2,
-        children: List.generate(6, (_) => const AppSkeleton(borderRadius: 0)),
+      // Six placeholder tiles: short, stays a shrink-wrapped grid.
+      loading: () => boxed(
+        GridView.count(
+          // No inherited safe-area padding: the grid sits flush under the
+          // tabs (owner 2026-10-01).
+          padding: EdgeInsets.zero,
+          crossAxisCount: 3,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 2,
+          crossAxisSpacing: 2,
+          children:
+              List.generate(6, (_) => const AppSkeleton(borderRadius: 0)),
+        ),
       ),
-      error: (_, __) => Center(
-        child: TextButton(
-          onPressed: () => ref.invalidate(_provider),
-          child: Text(t.t('error.retry')),
+      error: (_, __) => boxed(
+        Center(
+          child: TextButton(
+            onPressed: () => ref.invalidate(_provider),
+            child: Text(t.t('error.retry')),
+          ),
         ),
       ),
       data: (page) {
@@ -1053,95 +1131,77 @@ class ProfilePostsGrid extends ConsumerWidget {
             .toList();
         if (posts.isEmpty) {
           // The grid sits in the profile's scroll view: a bounded height.
-          return SizedBox(
-            height: 280,
-            child: AppEmptyState(
-              icon: reelsOnly
-                  ? AppIcons.playCircleOutlined
-                  : AppIcons.articleOutlined,
-              title: emptyTitle,
-              message: emptyMessage,
+          return boxed(
+            SizedBox(
+              height: 280,
+              child: AppEmptyState(
+                icon: reelsOnly
+                    ? AppIcons.playCircleOutlined
+                    : AppIcons.articleOutlined,
+                title: emptyTitle,
+                message: emptyMessage,
+              ),
             ),
           );
         }
         if (threadsOnly) {
-          return Column(
-            children: [
-              for (final p in posts)
-                PostImpressionTracker(
-                  key: ValueKey('imp-${p.id}'),
-                  post: p,
-                  child: PostCard(key: ValueKey(p.id), post: p, showPin: true),
-                ),
-              if (page.canLoadMore)
-                TextButton(
-                  onPressed: () => ref.read(_provider.notifier).loadMore(),
-                  child: Text(t.t('pagination.loadingMore')),
-                ),
-            ],
+          return boxed(
+            Column(
+              children: [
+                for (final p in posts)
+                  PostImpressionTracker(
+                    key: ValueKey('imp-${p.id}'),
+                    post: p,
+                    child:
+                        PostCard(key: ValueKey(p.id), post: p, showPin: true),
+                  ),
+                if (page.canLoadMore)
+                  TextButton(
+                    onPressed: () => ref.read(_provider.notifier).loadMore(),
+                    child: Text(t.t('pagination.loadingMore')),
+                  ),
+              ],
+            ),
           );
         }
         if (reelsOnly) {
-          return Column(
-            children: [
-              GridView.builder(
-                key: const ValueKey('profile-reels-grid'),
-                padding: EdgeInsets.zero,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: reelsGridDelegate(),
-                itemCount: posts.length,
-                itemBuilder: (context, i) => ReelGridTile(
-                  key: ValueKey('reel-tile-${posts[i].id}'),
-                  post: posts[i],
-                  semanticLabel: t.t('post.open'),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) =>
-                          ReelsScreen(initial: posts, initialIndex: i),
-                    ),
-                  ),
+          return gridWithMore(
+            page,
+            gridKey: const ValueKey('profile-reels-grid'),
+            delegate: reelsGridDelegate(),
+            count: posts.length,
+            tile: (context, i) => ReelGridTile(
+              key: ValueKey('reel-tile-${posts[i].id}'),
+              post: posts[i],
+              semanticLabel: t.t('post.open'),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ReelsScreen(initial: posts, initialIndex: i),
                 ),
               ),
-              if (page.canLoadMore)
-                TextButton(
-                  onPressed: () => ref.read(_provider.notifier).loadMore(),
-                  child: Text(t.t('pagination.loadingMore')),
-                ),
-            ],
+            ),
           );
         }
-        return Column(
-          children: [
-            GridView.builder(
-              padding: EdgeInsets.zero,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: profileGridDelegate(),
-              itemCount: posts.length,
-              itemBuilder: (context, i) {
-                final p = posts[i];
-                return PostGridTile(
-                  post: p,
-                  semanticLabel: t.t('post.open'),
-                  // Owner 2026-10-15: in a profile a video is only its cover; a
-                  // tap opens it (search keeps its own autoplay).
-                  // Owner 2026-10-07: their posts as a feed from here.
-                  onTap: () => PostsFeedScreen.open(
-                    context,
-                    posts: posts,
-                    index: i,
-                    subtitle: p.author.username,
-                  ),
-                );
-              },
-            ),
-            if (page.canLoadMore)
-              TextButton(
-                onPressed: () => ref.read(_provider.notifier).loadMore(),
-                child: Text(t.t('pagination.loadingMore')),
+        return gridWithMore(
+          page,
+          delegate: profileGridDelegate(),
+          count: posts.length,
+          tile: (context, i) {
+            final p = posts[i];
+            return PostGridTile(
+              post: p,
+              semanticLabel: t.t('post.open'),
+              // Owner 2026-10-15: in a profile a video is only its cover; a
+              // tap opens it (search keeps its own autoplay).
+              // Owner 2026-10-07: their posts as a feed from here.
+              onTap: () => PostsFeedScreen.open(
+                context,
+                posts: posts,
+                index: i,
+                subtitle: p.author.username,
               ),
-          ],
+            );
+          },
         );
       },
     );

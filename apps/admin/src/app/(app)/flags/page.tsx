@@ -2,7 +2,7 @@
 
 import { Key } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import Link from 'next/link';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Badge, Card } from '@/components/ui/card';
@@ -122,6 +122,19 @@ const FLAG_INFO: Record<string, FlagInfo> = {
     href: KEYS,
     hrefLabel: 'Настройки Apple',
   },
+  spotlight_indexing: {
+    title: 'Поиск по iPhone (Spotlight)',
+    what: 'Адвокаты и сохранённые посты, которые человек открывал, находятся через поиск самого iPhone. Список хранится только на телефоне. Выключено — телефоны перестают добавлять новое в поиск iPhone.',
+  },
+  guest_browsing: {
+    title: 'Просмотр без регистрации',
+    what: 'Ленту, поиск и открытые профили адвокатов можно смотреть без входа; на любое действие приложение просит войти. Выключено — сразу экран входа.',
+  },
+  in_app_review: {
+    title: 'Просьба оценить приложение',
+    what: 'После приятного момента магазин (App Store или Google Play) сам показывает окно «Оцените LawBid». Выключено — окно не появляется.',
+    need: 'Страницы приложения в магазинах должны быть готовы.',
+  },
   google_login: {
     title: 'Вход через Google',
     what: 'Кнопка «Войти через Google»: вход одним нажатием через аккаунт Google.',
@@ -231,7 +244,7 @@ function FlagCard({
   const title = info.title;
   const blocked = !f.enabled && f.paid && f.missingKeys.length > 0;
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, delay: i * 0.04, ease: [0.16, 1, 0.3, 1] }}
@@ -285,6 +298,6 @@ function FlagCard({
         ) : null}
         <div className="mt-2 text-[11px] text-faint">Изменён {formatDateTime(f.updatedAt)}</div>
       </Card>
-    </motion.div>
+    </m.div>
   );
 }

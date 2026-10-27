@@ -11,8 +11,8 @@ import 'package:lawbid/features/auth/domain/reauth_result.dart';
 /// `RealAuthRepository` is now `authRepositoryProvider`'s default,
 /// dio-backed against the live `/auth/*` endpoints (core/network +
 /// core/session hold the interceptors/secure storage/`SessionState`).
-/// `StubAuthRepository` stays in the codebase for widget/golden tests but
-/// is no longer wired by default — swap back via an explicit provider
+/// `StubAuthRepository` lives in test/helpers (widget/golden tests only) and
+/// is not wired by default — swap back via an explicit provider
 /// override in a test, never by editing this interface's default
 /// implementation pointer.
 ///
@@ -92,6 +92,12 @@ abstract interface class AuthRepository {
     required String identifier,
     required String code,
   });
+
+  /// `POST /auth/reauth/demo` (owner 2026-10-08): demo sessions only — the
+  /// same single-use `reauthToken` as [reauthWithOtp] but without the code
+  /// step (the demo world sends no SMS/e-mail). A real session gets
+  /// [ReauthResult.invalid] (server 403) and must use [reauthWithOtp].
+  Future<ReauthResult> reauthDemo();
 
   /// `DELETE /users/me` (file 01 §10.7) — starts the 14-day deletion grace
   /// period. Requires a fresh, unused [reauthToken] from [reauthWithOtp].

@@ -26,6 +26,11 @@ export const APP_PATHS = [
   ['/r/*', 'Referral link (lawbid.dev/r/<CODE>)'],
   ['/case/*', 'Case'],
   ['/lawyer/*', 'Attorney profile by @username'],
+  // Owner 2026-10-27 (app indexing): the public SEO page of an attorney
+  // opens the same profile in the app when it is installed (the website is
+  // the fallback). The /lawyers/ tree (hub, state, practice pages) is NOT
+  // listed on purpose: those are catalog pages the app has no screen for.
+  ['/attorneys/*', 'Attorney public page (lawbid.dev/attorneys/<username>/)'],
   ['/post/*', 'Post'],
   ['/u/*', 'Profile QR code: a user by @username'],
   ['/q/*', 'Website sign-in QR code'],

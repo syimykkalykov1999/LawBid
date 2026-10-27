@@ -47,6 +47,21 @@ variable "nat_traffic_alarm_gb_per_day" {
   default     = 20
   description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h; 0 = off. At $0.045/GB that is about $0.9/day (S4-13: was 100 GB = $4.5/day = $135/month before any alarm). See docs/runbooks/nat-endpoints.md."
 }
+variable "ses_send_alarm_per_day" {
+  type        = number
+  default     = 4000
+  description = "S9-13: alarm when SES sends more than this many e-mails in 24 h (the app's own cap is 2 000 a day, BUDGET_EMAIL_DAILY_MAX, so 2x = something bypasses it or the cap was raised); 0 = off."
+}
+variable "media_bucket_name" {
+  type        = string
+  default     = ""
+  description = "Media bucket whose daily growth is watched (it equals the volume replicated to the other Region, replicate_media). Empty = no alarm."
+}
+variable "media_replication_max_gb_per_day" {
+  type        = number
+  default     = 50
+  description = "Review R-54: alarm when the media bucket grows by more than this many GB in a day, i.e. when the replica Region copy (storage + $0.02/GB transfer) would too. 0 = no alarm. S3 itself has no byte cap on replication: on the alarm, set replicate_media = false (docs/runbooks/cost.md)."
+}
 variable "alb_arn_suffix" { type = string }
 
 # --- spend alarms on pay-per-use edge services (cost registry, V2 / V6) ------
@@ -81,6 +96,11 @@ variable "cloudfront_gb_per_day_alarm" {
   description = "Alarm when one distribution serves more than this many GB in 24 h. The free tier is 1 TB/month (about 33 GB/day); after it CloudFront bills about $0.085/GB. 0 = off. Hard cap option: modules/cdn-waf rate rule or signed URLs (docs/runbooks/COST_LADDER.md)."
 }
 variable "api_target_group_arn_suffix" { type = string }
+variable "media_cdn_distribution_id" {
+  type        = string
+  default     = ""
+  description = "S8-6: media CloudFront distribution id for the cache-hit and origin-latency alarms (\"\" = none; CloudFront metrics exist in us-east-1 only)."
+}
 variable "cluster_name" { type = string }
 variable "api_service_name" { type = string }
 variable "worker_service_name" { type = string }
@@ -250,7 +270,7 @@ resource "aws_sns_topic_subscription" "critical_email" {
 locals {
   ns  = "LawBid/${var.name}"
   ops = [aws_sns_topic.alerts.arn]
-  # Normal mail stream + the page. Only the SLO composites use it.
+  # Normal mail stream + the page. The SLO composites and the 7 P0 alarms (S12-1: db-down, journal-integrity, api-5xx-ratio, unhealthy-hosts, no-running-tasks, uptime canary, backup-stale) use it; everything else stays on ops (mail/Slack). PagerDuty Free = 100 pages a month, so keep this list short.
   page = [aws_sns_topic.alerts.arn, aws_sns_topic.critical.arn]
 }
 
@@ -303,12 +323,58 @@ resource "aws_cloudwatch_log_metric_filter" "queue_waiting_total" {
 resource "aws_cloudwatch_log_metric_filter" "queue_oldest_age_all" {
   name           = "${var.name}-queue-oldest-age-all"
   log_group_name = var.worker_log_group
-  pattern        = "{ $.metric = \"queue_depth\" && $.queue != \"stripe-webhooks-dlq\" }"
+  pattern        = "{ $.metric = \"queue_depth\" && $.queue != \"stripe-webhooks-dlq\" && $.queue != \"cron-heavy\" && $.queue != \"account-deletion\" && $.queue != \"channel-fanout\" && $.queue != \"admin-broadcast\" }"
   metric_transformation {
     name      = "QueueOldestAgeSecondsAll"
     namespace = local.ns
     value     = "$.oldestAgeSeconds"
     unit      = "Seconds"
+  }
+}
+
+# S10-2 / S10-7 (queues hardening 2026-10-25): lanes where a long wait is
+# normal (heavy cron jobs run one at a time, daily deletions, fan-outs) are
+# left out of the 5-minute alarm above and watched by their own, lenient
+# 1-hour alarm below. Pure log metric filter + one alarm: cents per month.
+resource "aws_cloudwatch_log_metric_filter" "queue_oldest_age_slow" {
+  name           = "${var.name}-queue-oldest-age-slow"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.metric = \"queue_depth\" && ($.queue = \"cron-heavy\" || $.queue = \"account-deletion\" || $.queue = \"channel-fanout\" || $.queue = \"admin-broadcast\") }"
+  metric_transformation {
+    name      = "QueueOldestAgeSecondsSlow"
+    namespace = local.ns
+    value     = "$.oldestAgeSeconds"
+    unit      = "Seconds"
+  }
+}
+
+# Jobs that ended in `failed` (retries used up) during the last 5 minutes,
+# from BullMQ's own metrics (apps/api ops-metrics.job.ts `failed5m`). The
+# dead-letter queue has no consumer and is left out.
+resource "aws_cloudwatch_log_metric_filter" "queue_failed_all" {
+  name           = "${var.name}-queue-failed-all"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.metric = \"queue_depth\" && $.queue != \"stripe-webhooks-dlq\" }"
+  metric_transformation {
+    name      = "QueueFailed5mAll"
+    namespace = local.ns
+    value     = "$.failed5m"
+    unit      = "Count"
+  }
+}
+
+# Queues whose single failed job is a person's problem: a data export, an
+# account deletion, a payment event, a subscription reminder, an upload scan,
+# an image check.
+resource "aws_cloudwatch_log_metric_filter" "queue_failed_critical" {
+  name           = "${var.name}-queue-failed-critical"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.metric = \"queue_depth\" && ($.queue = \"data-export\" || $.queue = \"case-history-export\" || $.queue = \"account-deletion\" || $.queue = \"stripe-webhooks\" || $.queue = \"subscriptions\" || $.queue = \"files\" || $.queue = \"media-moderation\") }"
+  metric_transformation {
+    name      = "QueueFailed5mCritical"
+    namespace = local.ns
+    value     = "$.failed5m"
+    unit      = "Count"
   }
 }
 
@@ -392,7 +458,7 @@ resource "aws_cloudwatch_log_metric_filter" "search_latency" {
 resource "aws_cloudwatch_metric_alarm" "search_slow" {
   count               = var.search_p95_alarm_ms > 0 ? 1 : 0
   alarm_name          = "${var.name}-search-slow"
-  alarm_description   = "LawBid: Поиск отвечает медленно — пора включить отдельный поиск (Админка → Настройки → search.engine). Что делать: поставьте search.engine = shadow, потом engine; инструкция: docs/architecture/SEARCH_READY.md (EN: Postgres search p95 above ${var.search_p95_alarm_ms} ms for 15 minutes.)"
+  alarm_description   = "LawBid: Поиск отвечает медленно — пора включить отдельный поиск (Админка → Настройки → search.engine). Что делать: поставьте search.engine = shadow, потом engine; инструкция: ${var.runbook_base_url}/infra-alarms.md#search, подробно: docs/architecture/SEARCH_READY.md (EN: Postgres search p95 above ${var.search_p95_alarm_ms} ms for 15 minutes.)"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
   period              = 300
@@ -439,8 +505,8 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx_ratio" {
       dimensions  = { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.api_target_group_arn_suffix }
     }
   }
-  alarm_actions = local.ops
-  ok_actions    = local.ops
+  alarm_actions = local.page
+  ok_actions    = local.page
   tags          = var.tags
 }
 
@@ -472,8 +538,8 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
   metric_name         = "UnHealthyHostCount"
   namespace           = "AWS/ApplicationELB"
   dimensions          = { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.api_target_group_arn_suffix }
-  alarm_actions       = local.ops
-  ok_actions          = local.ops
+  alarm_actions       = local.page
+  ok_actions          = local.page
   tags                = var.tags
 }
 
@@ -490,6 +556,56 @@ resource "aws_cloudwatch_metric_alarm" "queue_backlog" {
   metric_name         = "QueueOldestAgeSecondsAll"
   namespace           = local.ns
   treat_missing_data  = "breaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "queue_backlog_slow" {
+  alarm_name          = "${var.name}-queue-backlog-slow"
+  alarm_description   = "LawBid: Длинная фоновая очередь (тяжёлые пересчёты, удаление аккаунтов, рассылки) стоит больше часа. Что делать: админка → Здоровье системы → «Перезапустить фоновые задачи»; не помогло — напишите Claude. Инструкция: ${var.runbook_base_url}/queues.md (EN: oldest job of a slow lane waited over 1 hour.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  period              = 1800
+  threshold           = 3600
+  statistic           = "Maximum"
+  metric_name         = "QueueOldestAgeSecondsSlow"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+# One failed job in a queue that touches a person's data or money.
+resource "aws_cloudwatch_metric_alarm" "queue_failed_critical" {
+  alarm_name          = "${var.name}-queue-failed-critical"
+  alarm_description   = "LawBid: Фоновая задача упала окончательно (выгрузка данных, удаление аккаунта, оплата, проверка файла или картинки). Что делать: админка → Здоровье системы → «Повторить упавшие задачи»; упало снова — напишите Claude. Инструкция: ${var.runbook_base_url}/queues.md (EN: a job in a critical queue exhausted its retries in the last 5 minutes.)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  period              = 300
+  threshold           = 1
+  statistic           = "Maximum"
+  metric_name         = "QueueFailed5mCritical"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+# Many failures in any one queue: a handler is broken, not unlucky.
+resource "aws_cloudwatch_metric_alarm" "queue_failed_many" {
+  alarm_name          = "${var.name}-queue-failed-many"
+  alarm_description   = "LawBid: Много фоновых задач падает подряд (10 и больше за 5 минут в одной очереди). Что делать: подождите 15 минут — если не прекратилось, напишите Claude. Инструкция: ${var.runbook_base_url}/queues.md (EN: 10 or more failed jobs in 5 minutes in one queue.)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  period              = 300
+  threshold           = 10
+  statistic           = "Maximum"
+  metric_name         = "QueueFailed5mAll"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
   alarm_actions       = local.ops
   ok_actions          = local.ops
   tags                = var.tags
@@ -551,7 +667,8 @@ resource "aws_cloudwatch_metric_alarm" "journal_integrity" {
   metric_name         = "JournalChainBroken"
   namespace           = local.ns
   treat_missing_data  = "notBreaching"
-  alarm_actions       = local.ops
+  alarm_actions       = local.page
+  ok_actions          = local.page
   tags                = var.tags
 }
 
@@ -832,8 +949,8 @@ resource "aws_cloudwatch_metric_alarm" "service_running_tasks" {
     Service = "worker"
   }
   treat_missing_data = "breaching"
-  alarm_actions      = local.ops
-  ok_actions         = local.ops
+  alarm_actions      = local.page
+  ok_actions         = local.page
   tags               = var.tags
 }
 
@@ -873,6 +990,26 @@ resource "aws_cloudwatch_metric_alarm" "ses_complaint_rate" {
   tags                = var.tags
 }
 
+# S9-13 (2026-10-25): e-mail pumping costs almost nothing ($0.10 per 1 000)
+# but wrecks the sender reputation. The app caps e-mails per day; this alarm
+# is the second net that works even if the app's counter is bypassed.
+resource "aws_cloudwatch_metric_alarm" "ses_send_volume" {
+  count               = var.ses_send_alarm_per_day > 0 ? 1 : 0
+  alarm_name          = "${var.name}-ses-send-volume"
+  alarm_description   = "LawBid: За сутки отправлено больше ${var.ses_send_alarm_per_day} писем (обычно не больше 2 000). Что делать: возможно, боты запрашивают коды на выдуманные адреса. Посмотрите админка → Безопасность и лимиты на письма; AWS остановит почту при плохой репутации. Инструкция: ${var.runbook_base_url}/ses.md (EN: SES Send > ${var.ses_send_alarm_per_day} in 24 h.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  period              = 86400
+  threshold           = var.ses_send_alarm_per_day
+  treat_missing_data  = "notBreaching"
+  statistic           = "Sum"
+  metric_name         = "Send"
+  namespace           = "AWS/SES"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
 output "alerts_topic_arn" { value = aws_sns_topic.alerts.arn }
 output "metrics_namespace" { value = local.ns }
 
@@ -891,7 +1028,8 @@ resource "aws_cloudwatch_log_metric_filter" "ws_connections" {
 
 # Owner 2026-10-23 («связь пропала»): how often live connections drop and
 # come back. The API logs one line per event (realtime.gateway.ts); the
-# board «Состояние системы» shows the same numbers per minute.
+# board «Состояние системы» shows the same numbers per minute. S20-4: the
+# lines are sampled and weighted (see below).
 resource "aws_cloudwatch_log_metric_filter" "ws_events" {
   for_each = {
     ws_disconnect = "WebSocketDisconnects"
@@ -900,10 +1038,12 @@ resource "aws_cloudwatch_log_metric_filter" "ws_events" {
   name           = "${var.name}-${replace(each.key, "_", "-")}"
   log_group_name = var.api_log_group
   pattern        = "{ $.metric = \"${each.key}\" }"
+  # S20-4: the API writes a weighted sample of these lines (log.ws_events);
+  # every line carries `weight` = how many real events it stands for.
   metric_transformation {
     name          = each.value
     namespace     = local.ns
-    value         = "1"
+    value         = "$.weight"
     default_value = "0"
     unit          = "Count"
   }
@@ -1012,6 +1152,39 @@ resource "aws_cloudwatch_metric_alarm" "cost_budget" {
   tags                = var.tags
 }
 
+# 2026-10-25 (S14-13): every wrong password / wrong sign-in code / wrong
+# reset code logs `{metric: "auth_failure", kind}` (auth-challenge.service.ts).
+# A sustained rate means credential stuffing or code guessing: the answer is
+# the per-person challenge (admin Настройки → security.auth_challenge_after_
+# failures) and, at the edge, the WAF rules (docs/runbooks/auth-abuse.md).
+# 300 failures in 5 minutes is far above a busy day of honest typos.
+resource "aws_cloudwatch_log_metric_filter" "auth_failure" {
+  name           = "${var.name}-auth-failure"
+  log_group_name = var.api_log_group
+  pattern        = "{ $.metric = \"auth_failure\" }"
+  metric_transformation {
+    name      = "AuthFailures"
+    namespace = local.ns
+    value     = "1"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "auth_failure_rate" {
+  alarm_name          = "${var.name}-auth-failure-rate"
+  alarm_description   = "LawBid: Много неудачных входов (неверный пароль или код). Что делать: возможен подбор паролей. Админка → Система → Настройки: security.auth_challenge_after_failures (проверка «вы не робот» после нескольких ошибок) и security.app_check.mode = enforce. (EN: Wrong passwords / sign-in codes are arriving at a credential-stuffing rate.)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  period              = 300
+  threshold           = 300
+  statistic           = "Sum"
+  metric_name         = "AuthFailures"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+}
+
 # --- zero maintenance (owner 2026-10-05) ------------------------------------
 # The worker's `ops.guard` job probes the database every minute and logs
 # `metric: db_health`; `ops.cost-check` / `ops.backup-check` log
@@ -1055,6 +1228,10 @@ resource "aws_cloudwatch_log_metric_filter" "ops_alert" {
 
     # Day-one foundations: the nightly money-ledger check (ledger.reconcile).
     ledger_mismatch = "LedgerMismatch"
+
+    # Stripe robustness 2026-10-27: dispute rate near the Visa / Mastercard
+    # program thresholds (stripe-ops.sweep, nightly).
+    dispute_rate = "DisputeRate"
   }
   name           = "${var.name}-ops-${replace(each.key, "_", "-")}"
   log_group_name = var.worker_log_group
@@ -1079,8 +1256,8 @@ resource "aws_cloudwatch_metric_alarm" "db_down" {
   metric_name         = "DbOk"
   namespace           = local.ns
   treat_missing_data  = "notBreaching"
-  alarm_actions       = local.ops
-  ok_actions          = local.ops
+  alarm_actions       = local.page
+  ok_actions          = local.page
   tags                = var.tags
 }
 
@@ -1126,8 +1303,8 @@ resource "aws_cloudwatch_metric_alarm" "backup_stale" {
   metric_name         = "BackupStale"
   namespace           = local.ns
   treat_missing_data  = "notBreaching"
-  alarm_actions       = local.ops
-  ok_actions          = local.ops
+  alarm_actions       = local.page
+  ok_actions          = local.page
   tags                = var.tags
 }
 
@@ -1148,7 +1325,7 @@ resource "aws_cloudwatch_log_metric_filter" "storage_growth" {
 
 resource "aws_cloudwatch_metric_alarm" "storage_growth" {
   alarm_name          = "${var.name}-storage-growth"
-  alarm_description   = "LawBid: Файлы или база выросли за сутки быстрее обычного. Что делать: откройте админку → Система → Хранилище и посмотрите «Кто занимает больше всего» и «Самые большие таблицы»; при необходимости поставьте пользователю лимит. Ненужные файлы система удаляет сама. (EN: files or DB grew more than storage.growth_alert_percent in a day.)"
+  alarm_description   = "LawBid: Файлы или база выросли за сутки быстрее обычного. Что делать: откройте админку → Система → Хранилище и посмотрите «Кто занимает больше всего» и «Самые большие таблицы»; при необходимости поставьте пользователю лимит. Ненужные файлы система удаляет сама. Инструкция: ${var.runbook_base_url}/infra-alarms.md#storage-growth (EN: files or DB grew more than storage.growth_alert_percent in a day.)"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 3600
@@ -1193,7 +1370,7 @@ resource "aws_cloudwatch_log_metric_filter" "r2" {
 resource "aws_cloudwatch_metric_alarm" "r2" {
   for_each            = local.r2_alerts
   alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
-  alarm_description   = each.value.text
+  alarm_description   = "${each.value.text}${strcontains(each.value.text, var.runbook_base_url) ? "" : " Инструкция: ${var.runbook_base_url}/infra-alarms.md#r2"}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 3600
@@ -1253,7 +1430,7 @@ resource "aws_cloudwatch_log_metric_filter" "treasury" {
 resource "aws_cloudwatch_metric_alarm" "treasury" {
   for_each            = local.treasury_alerts
   alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
-  alarm_description   = each.value.text
+  alarm_description   = "${each.value.text}${strcontains(each.value.text, var.runbook_base_url) ? "" : " Инструкция: ${var.runbook_base_url}/infra-alarms.md#treasury"}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 3600
@@ -1270,7 +1447,7 @@ resource "aws_cloudwatch_metric_alarm" "treasury" {
 # cost-autoscale.service.ts) want to grow past their safety ceiling.
 resource "aws_cloudwatch_metric_alarm" "cost_budget_ceiling" {
   alarm_name          = "${var.name}-cost-budget-ceiling"
-  alarm_description   = "LawBid: Автоматический лимит расходов (SMS, письма, проверки, загрузки, перевод или видео) упёрся в потолок безопасности. Что делать: если пользователей действительно стало больше — админка → Система → Настройки → Лимиты расходов → поднимите «Потолок». Если роста не было — возможно, это злоупотребление, и лимит вас защищает: напишите Claude «лимиты». (EN: cost autoscale target clamped by its ceiling.)"
+  alarm_description   = "LawBid: Автоматический лимит расходов (SMS, письма, проверки, загрузки, перевод или видео) упёрся в потолок безопасности. Что делать: если пользователей действительно стало больше — админка → Система → Настройки → Лимиты расходов → поднимите «Потолок». Если роста не было — возможно, это злоупотребление, и лимит вас защищает: напишите Claude «лимиты». Инструкция: ${var.runbook_base_url}/cost.md#ceiling (EN: cost autoscale target clamped by its ceiling.)"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 3600
@@ -1299,13 +1476,17 @@ resource "aws_cloudwatch_metric_alarm" "economy" {
       metric = "LedgerMismatch"
       text   = "Ночная сверка денег нашла расхождение: книга учёта денег не сходится с платежами или со Stripe. Что делать: деньги пользователей не затронуты, но откройте логи воркера (поиск alert ledger_mismatch) и пришлите их Claude «ledger mismatch». Инструкция: docs/architecture/MONEY_LEDGER.md. (EN: nightly ledger reconciliation found a mismatch.)"
     }
+    dispute_rate = {
+      metric = "DisputeRate"
+      text   = "Доля споров с банками (chargeback) за 30 дней подошла к порогу Visa/Mastercard (Visa — 0,5 %, штрафы с 1,5 %; Mastercard — от 1,5 % и 100 споров). Что делать: админка → Деньги → «Проверки Stripe» — ответьте на открытые споры, проверьте ранние предупреждения о мошенничестве. Инструкция: docs/runbooks/STRIPE_ROBUSTNESS.md. (EN: dispute rate near card-network thresholds.)"
+    }
     capacity_pressure = {
       metric = "CapacityPressure"
       text   = "База данных или Redis под нагрузкой (процессор базы выше 70 %, соединения выше 80 % или память Redis выше 75 %). Что делать: админка → Система → Экономика → «Увеличить» (одна кнопка, нужен код 2FA; перезапуск на 1–5 минут). (EN: DB/Redis pressure.)"
     }
   }
   alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
-  alarm_description   = "LawBid: ${each.value.text}"
+  alarm_description   = "LawBid: ${each.value.text}${strcontains(each.value.text, var.runbook_base_url) ? "" : " Инструкция: ${var.runbook_base_url}/infra-alarms.md#economy"}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 300
@@ -1338,6 +1519,50 @@ resource "aws_cloudwatch_metric_alarm" "redis_replication_lag" {
   alarm_actions       = local.ops
   ok_actions          = local.ops
   tags                = var.tags
+}
+
+# Review R-54: the media bucket growing faster than the owner's ceiling. The
+# replication copies every new object (no filter), so the day's growth is the
+# day's replicated bytes. BucketSizeBytes is a daily metric per storage class:
+# new files land in Standard / Intelligent-Tiering frequent access; RATE() is
+# the change per second between two daily points. Mail only (not a failure).
+resource "aws_cloudwatch_metric_alarm" "media_growth" {
+  count               = var.media_bucket_name != "" && var.media_replication_max_gb_per_day > 0 ? 1 : 0
+  alarm_name          = "${var.name}-media-replication-gb-per-day"
+  alarm_description   = "LawBid: Фото и видео за сутки выросли больше чем на ${var.media_replication_max_gb_per_day} ГБ, и столько же уходит в копию в другой регион (платное хранение и пересылка $0,02 за ГБ). Что делать: админка → Система → Хранилище → «Кто занимает больше всего» (нет ли массовой загрузки или бота); если это ожидаемо, поднимите media_replication_max_gb_per_day; чтобы остановить копирование, поставьте replicate_media = false в terraform.tfvars. Инструкция: ${var.runbook_base_url}/cost.md (EN: media bucket grew over ${var.media_replication_max_gb_per_day} GB in a day.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  threshold           = var.media_replication_max_gb_per_day
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+
+  metric_query {
+    id          = "gb_per_day"
+    expression  = "RATE(std + ia) * 86400 / 1073741824"
+    label       = "GB added per day"
+    return_data = true
+  }
+  metric_query {
+    id = "std"
+    metric {
+      metric_name = "BucketSizeBytes"
+      namespace   = "AWS/S3"
+      period      = 86400
+      stat        = "Average"
+      dimensions  = { BucketName = var.media_bucket_name, StorageType = "StandardStorage" }
+    }
+  }
+  metric_query {
+    id = "ia"
+    metric {
+      metric_name = "BucketSizeBytes"
+      namespace   = "AWS/S3"
+      period      = 86400
+      stat        = "Average"
+      dimensions  = { BucketName = var.media_bucket_name, StorageType = "IntelligentTieringFAStorage" }
+    }
+  }
 }
 
 # Batch A item 15: NAT gateway data processed (in + out, the billed number).
@@ -1480,7 +1705,7 @@ resource "aws_cloudwatch_metric_alarm" "usage_alert" {
     }
   }
   alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
-  alarm_description   = "LawBid: ${each.value.text}"
+  alarm_description   = "LawBid: ${each.value.text}${strcontains(each.value.text, var.runbook_base_url) ? "" : " Инструкция: ${var.runbook_base_url}/infra-alarms.md#usage"}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 86400
@@ -1493,6 +1718,42 @@ resource "aws_cloudwatch_metric_alarm" "usage_alert" {
   tags                = var.tags
 
   depends_on = [aws_cloudwatch_log_metric_filter.usage_alert]
+}
+
+# S8-6: CDN health from the CloudFront additional metrics (us-east-1, dimension
+# Region=Global). Cents: $0.10 per alarm. Missing data (no traffic) is fine.
+resource "aws_cloudwatch_metric_alarm" "media_cdn_hit_rate" {
+  count               = var.media_cdn_distribution_id == "" ? 0 : 1
+  alarm_name          = "${var.name}-media-cdn-hit-rate-low"
+  alarm_description   = "LawBid: Кэш картинок и видео (CDN) отдаёт из памяти меньше 60% запросов три часа подряд — вместо этого трафик идёт в хранилище: дороже и медленнее. Что делать: ничего срочного; проверьте, не сменились ли ссылки на файлы или заголовки кэша. (EN: media CloudFront CacheHitRate < 60% for 3 h.)"
+  namespace           = "AWS/CloudFront"
+  metric_name         = "CacheHitRate"
+  dimensions          = { DistributionId = var.media_cdn_distribution_id, Region = "Global" }
+  statistic           = "Average"
+  period              = 3600
+  evaluation_periods  = 3
+  comparison_operator = "LessThanThreshold"
+  threshold           = 60
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "media_cdn_origin_latency" {
+  count               = var.media_cdn_distribution_id == "" ? 0 : 1
+  alarm_name          = "${var.name}-media-cdn-origin-latency-high"
+  alarm_description   = "LawBid: Хранилище отвечает CDN дольше 1,5 секунды (в среднем, 15 минут подряд) — картинки и видео открываются медленно. Что делать: ничего срочного; смотрите статус AWS S3. (EN: media CloudFront OriginLatency avg > 1500 ms for 15 min.)"
+  namespace           = "AWS/CloudFront"
+  metric_name         = "OriginLatency"
+  dimensions          = { DistributionId = var.media_cdn_distribution_id, Region = "Global" }
+  statistic           = "Average"
+  period              = 300
+  evaluation_periods  = 3
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 1500
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
 }
 
 # --- WAF request counts: AWS WAF is billed per inspected request, so a flood

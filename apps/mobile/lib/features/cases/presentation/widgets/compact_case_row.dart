@@ -4,9 +4,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
-import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
+import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart'
@@ -87,6 +88,7 @@ class CompactCaseRow extends StatelessWidget {
     final picture = coverUrl != null
         ? CachedNetworkImage(
             imageUrl: coverUrl!,
+            cacheManager: AppImageCaches.feed,
             fit: BoxFit.cover,
             memCacheWidth: 200,
             placeholder: (_, __) => ColoredBox(color: colors.skeletonBase),
@@ -295,7 +297,7 @@ class _SwipeActionsState extends State<SwipeActions>
   void _onEnd(DragEndDetails d) {
     final v = d.primaryVelocity ?? 0;
     final open = v < -300 || (v <= 300 && _c.value > 0.4);
-    if (open && _c.value < 1) unawaited(HapticFeedback.selectionClick());
+    if (open && _c.value < 1) unawaited(AppHaptics.selection());
     _settle(open: open);
   }
 

@@ -16,6 +16,11 @@ SocialLoginDto _$SocialLoginDtoFromJson(Map<String, dynamic> json) =>
       deviceInfo: json['deviceInfo'] == null
           ? null
           : DeviceInfoDto.fromJson(json['deviceInfo'] as Map<String, dynamic>),
+      ageAttestation: json['ageAttestation'] == null
+          ? null
+          : AgeAttestationDto.fromJson(
+              json['ageAttestation'] as Map<String, dynamic>,
+            ),
     );
 
 Map<String, dynamic> _$SocialLoginDtoToJson(SocialLoginDto instance) =>
@@ -26,4 +31,5 @@ Map<String, dynamic> _$SocialLoginDtoToJson(SocialLoginDto instance) =>
       'firstName': ?instance.firstName,
       'lastName': ?instance.lastName,
       'deviceInfo': ?instance.deviceInfo?.toJson(),
+      'ageAttestation': ?instance.ageAttestation?.toJson(),
     };

@@ -28,7 +28,8 @@
         "CA",
         "NV"
       ],
-      "photoUrl": "https://cdn.example.test/avatars/anna.jpg"
+      "photoUrl": "https://cdn.example.test/avatars/anna.jpg",
+      "updatedAt": "2026-09-01T10:00:00.000Z"
     },
     {
       "username": "bob.stone",

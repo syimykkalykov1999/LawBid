@@ -16,6 +16,9 @@ AdminQaAnswerDto _$AdminQaAnswerDtoFromJson(Map<String, dynamic> json) =>
       attorney: AdminQaPersonDto.fromJson(
         json['attorney'] as Map<String, dynamic>,
       ),
+      safetyFlags: (json['safetyFlags'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
 
@@ -27,5 +30,6 @@ Map<String, dynamic> _$AdminQaAnswerDtoToJson(AdminQaAnswerDto instance) =>
       'isBest': instance.isBest,
       'likeCount': instance.likeCount,
       'attorney': instance.attorney.toJson(),
+      'safetyFlags': instance.safetyFlags,
       'createdAt': instance.createdAt.toIso8601String(),
     };

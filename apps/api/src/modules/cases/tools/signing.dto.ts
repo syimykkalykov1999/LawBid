@@ -121,6 +121,29 @@ export class SignRequestDto {
   @ApiProperty({ type: String, nullable: true, enum: ['client', 'attorney'] })
   declinedByRole!: 'client' | 'attorney' | null;
   @ApiProperty({ type: String, nullable: true }) declineReason!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  expiresAt!: string | null;
+  @ApiProperty({
+    description:
+      'The request ran out of time (its status is then `canceled`); the sender can resend.',
+  })
+  expired!: boolean;
+  @ApiProperty() remindersSent!: number;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  lastRemindedAt!: string | null;
+  @ApiProperty({
+    type: () => SignViewDto,
+    isArray: true,
+    description: 'Audit: when each side opened the waiting document.',
+  })
+  views!: SignViewDto[];
+  @ApiProperty({ description: 'The sender may remind the other side now.' })
+  canResend!: boolean;
+}
+
+export class SignViewDto {
+  @ApiProperty({ enum: ['client', 'attorney'] }) role!: 'client' | 'attorney';
+  @ApiProperty({ format: 'date-time' }) at!: string;
 }
 
 export class SignVerifyDto {

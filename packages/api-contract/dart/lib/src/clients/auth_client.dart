@@ -108,6 +108,11 @@ abstract class AuthClient {
   @POST('/auth/logout-all')
   Future<LoggedOutEnvelope> logoutAll({@Extras() Map<String, dynamic>? extras});
 
+  /// "This wasn't me" on a new-device / new-country alert: every session of.
+  /// the account ends, this one included (S14-4). Audited.
+  @POST('/auth/wasnt-me')
+  Future<LoggedOutEnvelope> wasntMe({@Extras() Map<String, dynamic>? extras});
+
   @GET('/auth/sessions')
   Future<SessionListEnvelope> listSessions({
     @Extras() Map<String, dynamic>? extras,
@@ -122,6 +127,14 @@ abstract class AuthClient {
   @POST('/auth/reauth')
   Future<ReauthTokenEnvelope> reauth({
     @Body() required ReauthDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Owner 2026-10-08: a DEMO session gets its reauth token without the.
+  /// one-time code (the demo world cannot deliver one). Decided on the.
+  /// server from the signed demo claim — see DemoReauthService.
+  @POST('/auth/reauth/demo')
+  Future<ReauthTokenEnvelope> reauthDemo({
     @Extras() Map<String, dynamic>? extras,
   });
 

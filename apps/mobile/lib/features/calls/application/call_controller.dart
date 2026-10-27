@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -1639,7 +1639,7 @@ class CallController extends Notifier<CallSession> {
     )) {
       return;
     }
-    unawaited(HapticFeedback.heavyImpact());
+    unawaited(AppHaptics.heavy());
     // Audit 2026-10-02: with the app open Android's call screen needs the
     // notifications permission to ring (often not granted) — the app plays
     // the phone's own ringtone and shows its own incoming screen. iOS

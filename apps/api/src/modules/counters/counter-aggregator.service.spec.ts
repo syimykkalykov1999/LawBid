@@ -4,6 +4,7 @@ import type { PinoLogger } from 'nestjs-pino';
 import type { PrismaService } from '../../prisma/prisma.service';
 import {
   COUNTER_SHARDS,
+  FULL_SWEEP_EVERY,
   CounterAggregator,
   counterShard,
   legacyKey,
@@ -37,7 +38,10 @@ function fakeRedis() {
       }
       if (script.includes("'HINCRBY', KEYS[1], ARGV[i]")) {
         evalCalls.push({ keys, args });
-        for (let i = 1; i < args.length; i += 2) {
+        (sets.get(keys[2]) ?? sets.set(keys[2], new Set()).get(keys[2])!).add(
+          String(args[1]),
+        );
+        for (let i = 2; i < args.length; i += 2) {
           const m = h(keys[0]);
           m.set(
             String(args[i]),
@@ -67,14 +71,28 @@ function fakeRedis() {
       '0',
       [...(hashes.get(k)?.entries() ?? [])].flatMap(([a, b]) => [a, String(b)]),
     ],
+    exists: async (k: string) => (strings.has(k) ? 1 : 0),
     hdel: async (k: string, ...ids: string[]) => {
       ids.forEach((i) => hashes.get(k)?.delete(i));
       return 1;
     },
-    spop: async () => [],
+    // Only the dirty-marker sets pop for real (reconcile's touched set stays
+    // empty, as before).
+    spop: async (k: string, count = 1) => {
+      if (!k.includes('cnt:dirty')) return [];
+      const s = sets.get(k) ?? new Set<string>();
+      const out = [...s].slice(0, count);
+      out.forEach((m) => s.delete(m));
+      return out;
+    },
+    sadd: async (k: string, ...m: string[]) => {
+      const s = sets.get(k) ?? sets.set(k, new Set()).get(k)!;
+      m.forEach((x) => s.add(x));
+      return m.length;
+    },
     multi: () => ({ hincrby: () => undefined, exec: async () => [] }),
   };
-  return { redis: redis as unknown as Redis, hashes, sets, evalCalls };
+  return { redis: redis as unknown as Redis, hashes, sets, evalCalls, strings };
 }
 
 function aggregator(r: Redis) {
@@ -169,6 +187,22 @@ describe('CounterAggregator (S6-6)', () => {
     );
   });
 
+  it('an explicit flush waits for a flush already running elsewhere, then lands its deltas', async () => {
+    const { redis, strings } = fakeRedis();
+    const { agg, executed } = aggregator(redis);
+    const id = ID('6');
+    await agg.bump('post', id, 'like_count', 3);
+    // Another pod (or the 10-second timer) holds the flush lock.
+    strings.set('lock:job:counters.flush', 'other');
+    setTimeout(() => strings.delete('lock:job:counters.flush'), 250);
+    await agg.flush();
+    expect(executed.flatMap((e) => e.keep)).toContain(id);
+    // The timer does not wait: with the lock held it does nothing.
+    strings.set('lock:job:counters.flush', 'other');
+    await agg.bump('post', id, 'like_count', 1);
+    expect((await agg.flush({ waitForRunning: false })).rows).toBe(0);
+  });
+
   it('ids of different shards go to different hash keys, in one EVAL each', async () => {
     const { redis, hashes, evalCalls } = fakeRedis();
     const { agg } = aggregator(redis);
@@ -215,9 +249,10 @@ describe('CounterAggregator (S6-6)', () => {
     expect(applied.get(ID('c'))).toBe(-1);
     // everything drained
     for (const m of hashes.values()) expect(m.size).toBe(0);
-    // the first flush still found legacy data; the second one finds none,
-    // and reads stop asking for the legacy hash
-    await agg.flush();
+    // the first flush still found legacy data; the next FULL sweep (every
+    // FULL_SWEEP_EVERY-th flush) finds none, and reads stop asking for the
+    // legacy hash
+    for (let i = 0; i < FULL_SWEEP_EVERY; i += 1) await agg.flush();
     const spy = jest.spyOn(redis, 'hmget');
     await agg.pending('post', 'like_count', [ID('7')]);
     expect(spy).toHaveBeenCalledTimes(1);
@@ -244,5 +279,66 @@ describe('CounterAggregator (S6-6)', () => {
     expect(
       (await redis.hmget(pendingKey('post', 'like_count', 1), ID('1')))[0],
     ).toBe('4');
+  });
+
+  describe('dirty markers (review R-57)', () => {
+    it('an idle flush after the first full sweep scans no hash at all', async () => {
+      const { redis } = fakeRedis();
+      const { agg } = aggregator(redis);
+      await agg.flush(); // run 0 = full sweep
+      const scan = jest.spyOn(redis, 'hscan');
+      await agg.flush();
+      await agg.flush();
+      expect(scan).not.toHaveBeenCalled();
+    });
+
+    it('a bump marks its field:shard and the next flush drains exactly that hash', async () => {
+      const { redis, hashes } = fakeRedis();
+      const { agg, executed } = aggregator(redis);
+      await agg.flush(); // full sweep first
+      await agg.bump('post', ID('3'), 'like_count', 4);
+      await agg.flushLocal();
+      const scan = jest.spyOn(redis, 'hscan');
+      const out = await agg.flush();
+      expect(out.rows).toBe(1);
+      expect(scan).toHaveBeenCalledTimes(1);
+      expect(scan.mock.calls[0][0]).toBe(pendingKey('post', 'like_count', 3));
+      expect(executed[0].deltas).toEqual([4]);
+      for (const m of hashes.values()) expect(m.size).toBe(0);
+    });
+
+    it('a hash nobody marked (old pod) waits for the periodic full sweep', async () => {
+      const { redis, hashes } = fakeRedis();
+      const { agg, executed } = aggregator(redis);
+      await agg.flush();
+      hashes.set(pendingKey('post', 'like_count', 7), new Map([[ID('7'), 2]]));
+      for (let i = 1; i < FULL_SWEEP_EVERY; i += 1) await agg.flush();
+      expect(executed).toHaveLength(0); // dirty-only flushes skip it
+      const out = await agg.flush(); // the Nth flush sweeps everything
+      expect(out.rows).toBe(1);
+      expect(executed[0].deltas).toEqual([2]);
+    });
+
+    it('a failed drain puts the markers back', async () => {
+      const { redis } = fakeRedis();
+      const { agg } = aggregator(redis);
+      await agg.flush();
+      await agg.bump('post', ID('3'), 'like_count', 4);
+      await agg.flushLocal();
+      const real = (
+        agg as unknown as { flushHash: (...a: unknown[]) => Promise<number> }
+      ).flushHash;
+      const spy = jest
+        .spyOn(
+          agg as unknown as { flushHash: (...a: unknown[]) => Promise<number> },
+          'flushHash',
+        )
+        .mockRejectedValueOnce(new Error('db down'));
+      await expect(agg.flush()).rejects.toThrow('db down');
+      spy.mockRestore();
+      void real;
+      const out = await agg.flush(); // marker is back: drained now
+      expect(out.rows).toBe(1);
+    });
   });
 });

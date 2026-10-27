@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GRANTABLE_AREAS, GROUPS, SECTIONS, canOpen, fitToMe, groupFor, groupsFor, summarizeRights, tabsFor } from './rbac';
+import { GRANTABLE_AREAS, GROUPS, SECTIONS, WORKSPACE_HEAD_LABEL, WORKSPACE_LABEL, canOpen, fitToMe, groupFor, groupsFor, summarizeRights, tabsFor } from './rbac';
 
 // The 38 pages the menu had before it was grouped (owner 2026-10-05):
 // every one keeps its URL and its own right.
@@ -25,7 +25,7 @@ describe('menu sections with tabs', () => {
     const mod = { role: 'moderator' as const, permissions: { moderation: 'manage' as const, content: 'view' as const } };
     expect(groupsFor(mod).map((g) => g.key)).toEqual(['home', 'content', 'system']);
     expect(tabsFor(mod, '/moderation').map((t) => t.href)).toEqual([
-      '/moderation', '/media-moderation', '/review-appeals', '/moderation-appeals', '/moderation-journal', '/content', '/legal-qa', '/group-chats', '/practice-areas', '/document-templates', '/form-templates',
+      '/moderation', '/media-moderation', '/review-appeals', '/moderation-appeals', '/moderation-auto', '/moderation-journal', '/content', '/legal-qa', '/private-content', '/group-chats', '/practice-areas', '/document-templates', '/form-templates',
     ]);
     // Document forms follow the API: super admin and moderators only.
     expect(canOpen(mod, '/form-templates')).toBe(true);
@@ -152,9 +152,9 @@ describe('role x page visibility table', () => {
 
   it('owner-only pages are exactly the intended set', () => {
     expect(ownerOnly.sort()).toEqual([
-      '/admins', '/analytics', '/audit-log', '/case-payments', '/config', '/country-partners', '/economy', '/flags',
-      '/growth-plan', '/guides', '/integrations', '/launch', '/plans', '/prices', '/rewards', '/scale', '/sessions',
-      '/spend', '/stars', '/system-health',
+      '/admins', '/analytics', '/audit-log', '/case-payments', '/config', '/country-partners', '/economy', '/experiments',
+      '/flags', '/growth-plan', '/guides', '/integrations', '/launch', '/plans', '/prices', '/rewards', '/scale', '/sessions',
+      '/spend', '/stars', '/status-page', '/system-health',
     ]);
   });
 
@@ -183,9 +183,9 @@ describe('role x page visibility table', () => {
   });
 
   const expectVisible: Record<string, string[]> = {
-    moderator: ['/', '/workspace', '/moderation', '/media-moderation', '/review-appeals', '/moderation-appeals', '/moderation-journal', '/content', '/media', '/legal-qa', '/group-chats', '/practice-areas', '/document-templates', '/form-templates', '/search'],
+    moderator: ['/', '/workspace', '/moderation', '/media-moderation', '/review-appeals', '/moderation-appeals', '/moderation-auto', '/moderation-journal', '/content', '/media', '/legal-qa', '/private-content', '/group-chats', '/practice-areas', '/document-templates', '/form-templates', '/search'],
     support: ['/', '/workspace', '/users', '/support'],
-    finance: ['/', '/workspace', '/subscriptions', '/payments', '/promo-codes', '/referrals', '/partners', '/contracts', '/promotions', '/treasury', '/payroll', '/approvals', '/exports'],
+    finance: ['/', '/workspace', '/subscriptions', '/payments', '/promo-codes', '/referrals', '/partners', '/contracts', '/promotions', '/treasury', '/payroll', '/exports', '/pnl'],
   };
   it.each(Object.keys(expectVisible))('%s sees exactly their pages', (name) => {
     const me = roles[name as keyof typeof roles];
@@ -198,10 +198,33 @@ describe('role x page visibility table', () => {
     expect(canOpen(lead, '/admins')).toBe(true);
     expect(canOpen({ ...lead, partnerLead: false }, '/admins')).toBe(false);
   });
+});
 
-  it('nav counts follow visibility: a hidden page has no badge source for that role', () => {
-    const sup = roles.support;
-    expect(canOpen(sup, '/approvals')).toBe(false);
-    expect(canOpen(roles.finance, '/approvals')).toBe(true);
+describe('staff workspaces (staff package T1)', () => {
+  it('labels the three workspaces of the API enum admin_workspace', () => {
+    expect(Object.keys(WORKSPACE_LABEL).sort()).toEqual(['finance', 'mass', 'owner']);
+    expect(Object.values(WORKSPACE_LABEL).every((l) => l.length > 0)).toBe(true);
+    expect(WORKSPACE_HEAD_LABEL).toBe('Главный пространства');
+  });
+});
+
+describe('«Продвижение: SEO и сторы» (owner 2026-10-27)', () => {
+  it('is its own grantable area, closed to everyone until the owner switches it on', () => {
+    expect(GRANTABLE_AREAS.map((a) => a.key)).toContain('promotion');
+    expect(GRANTABLE_AREAS.find((a) => a.key === 'promotion')?.ownerGrants).toBeUndefined();
+    const none = { role: 'moderator' as const, permissions: { moderation: 'manage' as const } };
+    expect(canOpen(none, '/promotion')).toBe(false);
+    expect(canOpen({ role: 'support' as const, permissions: { settings: 'manage' as const, money: 'manage' as const } }, '/promotion')).toBe(false);
+    expect(canOpen({ role: 'support' as const, permissions: { promotion: 'view' as const } }, '/promotion')).toBe(true);
+    expect(canOpen({ role: 'super_admin' as const, permissions: {} }, '/promotion')).toBe(true);
+  });
+
+  it('sits in «Контент и модерация», apart from the paid post promotion under «Деньги»', () => {
+    const me = { role: 'support' as const, permissions: { promotion: 'manage' as const } };
+    expect(groupsFor(me).flatMap((g) => g.items.map((s) => s.href))).toContain('/promotion');
+    expect(groupFor('/promotion')?.key).toBe('content');
+    expect(groupFor('/promotions')?.key).toBe('money');
+    const label = (h: string) => SECTIONS.find((s) => s.href === h)?.label;
+    expect(label('/promotion')).not.toBe(label('/promotions'));
   });
 });

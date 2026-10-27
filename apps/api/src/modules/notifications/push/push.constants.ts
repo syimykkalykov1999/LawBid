@@ -32,12 +32,34 @@ export const PUSH_JOB_OPTS = {
   removeOnFail: { count: 1000 },
 } as const;
 
+/**
+ * S10-5: BullMQ job priorities of the `push` queue (1 = served first, docs.
+ * bullmq.io/guide/jobs/prioritized). WhatsApp/Telegram keep a call ring out
+ * of the message path; with one FIFO queue a 50 000-subscriber channel post
+ * made a call ring (and an on-call alert) wait behind its push batch.
+ */
+export const PUSH_PRIORITY = {
+  /** A ringing call, a call-end and an on-call alert: seconds matter. */
+  urgent: 1,
+  /** A chat message. */
+  message: 3,
+  /** A stored notification (one person). */
+  notification: 5,
+  /** A group message's batches. */
+  group: 7,
+  /** Bulk fan-out of a notification type (a channel post's subscribers). */
+  bulk: 10,
+} as const;
+
 /** A stored notification: realtime + badge always, push when `push`
  * (first row of an aggregate, a push type). Jobs queued before file 05
  * carry only notificationId (push = true). */
 export interface NotificationJobData {
   kind?: 'notification';
   notificationId: string;
+  /** The recipient, when the producer knows it: the read of the row then
+   * touches one hash partition of `notifications` instead of all. */
+  userId?: string;
   push?: boolean;
   /** Re-queued after quiet hours: don't hold it back again. */
   deferred?: boolean;
@@ -169,6 +191,15 @@ export interface PushMessage {
    * per chat, so a chat's messages are grouped like WhatsApp. Defaults to
    * [collapseKey]. */
   threadId?: string;
+  /** Owner 2026-10-26: a notification with a person (actor-push.ts) — an
+   * Android app that draws such notifications itself
+   * (`push_tokens.actor_style`) gets it data-only and shows the person's
+   * round photo; every other device gets the normal alert (the iPhone's
+   * extension attaches the photo). */
+  actor?: boolean;
+  /** Owner 2026-10-26: the iPhone's notification category (its buttons:
+   * «Ответить» / «Прочитано» for chats). */
+  iosCategory?: string;
 }
 
 export type PushSoundKind = 'message' | 'notification';

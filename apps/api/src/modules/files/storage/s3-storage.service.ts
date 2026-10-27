@@ -1,12 +1,15 @@
 import {
+  Inject,
   Injectable,
   OnModuleDestroy,
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { ConfigService } from '@nestjs/config';
 import { SecretsService } from '../../../common/secrets/secrets.service';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import { createHash } from 'node:crypto';
 import {
   CreateBucketCommand,
   DeleteObjectsCommand,
@@ -17,12 +20,19 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getSignedUrl as cloudFrontSignedUrl } from '@aws-sdk/cloudfront-signer';
+import { Readable } from 'node:stream';
 import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { BucketKind } from '../files.policy';
+import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { CdnInvalidationQueue, type CdnTarget } from './cdn-invalidation';
+
+/** S3 multipart parts are 5 MiB at least (except the last). */
+const MULTIPART_PART_BYTES = 8 * 1024 * 1024;
 
 /**
  * Owner 2026-10-22 (client economy plan, package I): every object key is
@@ -32,6 +42,15 @@ import type { BucketKind } from '../files.policy';
  * the object (uploads) and asked for on signed reads.
  */
 export const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
+
+/**
+ * Owner 2026-10-25 (caching round 2, S2-10): PRIVATE files (the documents
+ * bucket: chat media, case files, documents) are never `public`. A deleted
+ * confidential file must not stay downloadable from a shared cache; the
+ * phone keeps the bytes by the unsigned path, so nothing is lost for the
+ * app. Public media keeps the year-long immutable header above.
+ */
+export const PRIVATE_CACHE_CONTROL = 'private, max-age=3600';
 
 export interface PresignedPost {
   url: string;
@@ -96,14 +115,18 @@ export class S3StorageService implements OnModuleDestroy {
   private r2Fingerprint = '';
   /** `media.public_store` = 'r2' (cached; refreshed on every operation). */
   private r2Selected = false;
+  private readonly invalidations?: CdnInvalidationQueue;
 
   constructor(
     private readonly config: ConfigService,
     private readonly logger: PinoLogger,
     @Optional() private readonly secrets?: SecretsService,
     @Optional() private readonly settings?: AppSettingsService,
+    // Queue of CDN invalidation paths (S2-1); absent in tests/dev.
+    @Optional() @Inject(REDIS_CLIENT) redis?: Redis,
   ) {
     this.logger.setContext(S3StorageService.name);
+    this.invalidations = redis ? new CdnInvalidationQueue(redis) : undefined;
     this.build({
       region: config.get<string>('S3_REGION'),
       bucketDocuments: config.get<string>('S3_BUCKET_DOCUMENTS'),
@@ -338,6 +361,14 @@ export class S3StorageService implements OnModuleDestroy {
     return this.require().buckets[kind];
   }
 
+  /** `Cache-Control` of objects in [bucket]: private for the documents
+   * bucket, immutable-public for public media. */
+  cacheControlFor(bucket: string): string {
+    return this.buckets && bucket === this.buckets.documents
+      ? PRIVATE_CACHE_CONTROL
+      : IMMUTABLE_CACHE_CONTROL;
+  }
+
   /** The client that owns [bucket]: R2 for its own bucket, AWS otherwise. */
   private clientFor(bucket: string): S3Client {
     if (this.publicStore && this.isPublicStoreBucket(bucket)) {
@@ -369,7 +400,7 @@ export class S3StorageService implements OnModuleDestroy {
       // the immutable Cache-Control (package I).
       Fields: {
         'Content-Type': input.contentType,
-        'Cache-Control': IMMUTABLE_CACHE_CONTROL,
+        'Cache-Control': this.cacheControlFor(input.bucket),
       },
       Expires: input.expiresSec,
     });
@@ -464,13 +495,101 @@ export class S3StorageService implements OnModuleDestroy {
         Key: key,
         Body: body,
         ContentType: contentType,
-        CacheControl: IMMUTABLE_CACHE_CONTROL,
+        CacheControl: this.cacheControlFor(bucket),
       }),
     );
   }
 
-  /** Deletes objects; a missing key is not an error (idempotent). */
-  async remove(bucket: string, keys: string[]): Promise<void> {
+  /**
+   * Streams [body] to S3 as a multipart upload (WP-G 2026-10-25, #366):
+   * memory is [queueSize] x [partSizeBytes], never the whole object (a body
+   * under one part is a single put). A failed or cancelled stream aborts the
+   * upload (no orphan parts are billed); the bucket lifecycle also aborts
+   * uploads left open for 7 days. Ready piece: @aws-sdk/lib-storage `Upload`.
+   * Privacy round 13 (S13-8, #360): returns the byte count and SHA-256 of
+   * what was stored.
+   */
+  async putStream(
+    bucket: string,
+    key: string,
+    body: Readable | AsyncIterable<Buffer | Uint8Array | string>,
+    contentType: string,
+    opts: { partSizeBytes?: number; queueSize?: number } = {},
+  ): Promise<{ bytes: number; sha256: string }> {
+    await this.refresh();
+    const client = this.clientFor(bucket);
+    const hash = createHash('sha256');
+    let bytes = 0;
+    async function* counted(): AsyncGenerator<Buffer> {
+      for await (const c of body as AsyncIterable<
+        Buffer | Uint8Array | string
+      >) {
+        const b = typeof c === 'string' ? Buffer.from(c) : Buffer.from(c);
+        hash.update(b);
+        bytes += b.length;
+        yield b;
+      }
+    }
+    const upload = new Upload({
+      client,
+      params: {
+        Bucket: bucket,
+        Key: key,
+        Body: Readable.from(counted(), { objectMode: false }),
+        ContentType: contentType,
+        CacheControl: IMMUTABLE_CACHE_CONTROL,
+      },
+      partSize: opts.partSizeBytes ?? MULTIPART_PART_BYTES,
+      queueSize: opts.queueSize ?? 2,
+      leavePartsOnError: false,
+    });
+    try {
+      await upload.done();
+    } catch (e) {
+      await upload.abort().catch(() => undefined);
+      throw e;
+    }
+    return { bytes, sha256: hash.digest('hex') };
+  }
+
+  /** Object keys under [prefix] (up to [maxKeys]); for small, known
+   * prefixes such as the erasure ledger. */
+  async listKeys(
+    bucket: string,
+    prefix: string,
+    maxKeys = 100_000,
+  ): Promise<string[]> {
+    await this.refresh();
+    const client = this.clientFor(bucket);
+    const keys: string[] = [];
+    let token: string | undefined;
+    while (keys.length < maxKeys) {
+      const res = await client.send(
+        new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: prefix,
+          ContinuationToken: token,
+          MaxKeys: 1000,
+        }),
+      );
+      for (const o of res.Contents ?? []) if (o.Key) keys.push(o.Key);
+      if (!res.IsTruncated || !res.NextContinuationToken) break;
+      token = res.NextContinuationToken;
+    }
+    return keys;
+  }
+
+  /**
+   * Deletes objects; a missing key is not an error (idempotent). The keys
+   * in `invalidateKeys` (takedown, erasure, deleted confidential files)
+   * also have their CloudFront edge copies queued for invalidation (S2-1);
+   * a cleanup of never-served files passes none, invalidations cost money.
+   */
+  async remove(
+    bucket: string,
+    keys: string[],
+    opts: { invalidateKeys?: string[] } = {},
+  ): Promise<void> {
     if (keys.length === 0) return;
     await this.refresh();
     const client = this.clientFor(bucket);
@@ -481,6 +600,46 @@ export class S3StorageService implements OnModuleDestroy {
       }),
     );
     if (this.isPublicStoreBucket(bucket)) await this.purgeEdge(keys);
+    else if (opts.invalidateKeys?.length) {
+      await this.queueInvalidation(bucket, opts.invalidateKeys);
+    }
+  }
+
+  /** The CloudFront target that fronts [bucket] (AWS buckets only). */
+  private cdnTargetOf(bucket: string): CdnTarget | null {
+    if (!this.buckets) return null;
+    if (bucket === this.buckets.media) return 'media';
+    if (bucket === this.buckets.documents && this.privateCdn) {
+      return 'documents';
+    }
+    return null;
+  }
+
+  /** Queues the wildcard invalidation paths; a failure is only logged (the
+   * object is already gone, the edge copy then expires by its TTL). */
+  private async queueInvalidation(
+    bucket: string,
+    keys: string[],
+  ): Promise<void> {
+    const target = this.cdnTargetOf(bucket);
+    if (!target || !this.invalidations) return;
+    const id = this.config.get<string>(
+      target === 'media'
+        ? 'CLOUDFRONT_MEDIA_DISTRIBUTION_ID'
+        : 'CLOUDFRONT_PRIVATE_DISTRIBUTION_ID',
+    );
+    if (!id) return;
+    try {
+      if (
+        this.settings &&
+        (await this.settings.string('cdn.invalidate_on_delete')) === 'off'
+      ) {
+        return;
+      }
+      await this.invalidations.enqueue(target, keys);
+    } catch (err) {
+      this.logger.warn({ err, target }, 'CDN invalidation was not queued');
+    }
   }
 
   /**
@@ -562,7 +721,7 @@ export class S3StorageService implements OnModuleDestroy {
         Key: key,
         // Package I: the signed link may expire, the bytes never change —
         // the client keeps them by the unsigned URL.
-        ResponseCacheControl: IMMUTABLE_CACHE_CONTROL,
+        ResponseCacheControl: this.cacheControlFor(bucket),
         ...(downloadName
           ? { ResponseContentDisposition: contentDisposition(downloadName) }
           : {}),
@@ -629,7 +788,7 @@ export function signCloudFrontUrl(
 ): string {
   const path = key.split('/').map(encodeURIComponent).join('/');
   const params = new URLSearchParams({
-    'response-cache-control': IMMUTABLE_CACHE_CONTROL,
+    'response-cache-control': PRIVATE_CACHE_CONTROL,
   });
   if (downloadName) {
     params.set(

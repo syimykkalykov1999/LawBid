@@ -35,6 +35,12 @@ api.SignRequestDto _req(
       declinedByRole:
           reason == null ? null : api.SignRequestDtoDeclinedByRole.client,
       declineReason: reason,
+      expiresAt: null,
+      expired: false,
+      remindersSent: 0,
+      lastRemindedAt: null,
+      views: const [],
+      canResend: false,
     );
 
 Future<void> main() async {

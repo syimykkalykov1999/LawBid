@@ -44,6 +44,17 @@ interface RatingPayload {
   attorneyId: string;
 }
 
+interface DomainEventPayload {
+  id: string;
+  type: string;
+  key: string;
+  actorId: string | null;
+  payload: Prisma.InputJsonObject;
+  occurredAt: string;
+  /** True while the `stream` sink still has to ship the row. */
+  stream: boolean;
+}
+
 interface TotalsRow {
   sum: bigint | number | string | null;
   count: bigint | number;
@@ -60,6 +71,27 @@ export const EFFECTS: Readonly<Record<string, Effect>> = {
         ip: p.ip,
         device_id: p.deviceId,
       },
+    });
+  },
+
+  /**
+   * Events pipeline (N-2): appends one row to `domain_events`. A repeat of
+   * the same key inserts nothing (safe to replay).
+   */
+  'domain.event.record': async (p: DomainEventPayload, ctx) => {
+    await ctx.global.domainEvent.createMany({
+      data: [
+        {
+          id: p.id,
+          type: p.type,
+          idempotency_key: p.key,
+          actor_user_id: p.actorId,
+          payload: p.payload,
+          occurred_at: new Date(p.occurredAt),
+          published_at: p.stream ? null : new Date(p.occurredAt),
+        },
+      ],
+      skipDuplicates: true,
     });
   },
 

@@ -260,3 +260,7 @@ Then one step down, never below `min_class`.
    (`monthly_budget_usd = 350`) will fire there: raise the budget before raising the ceiling.
 10. Prices are approximate and hard-coded in `local.class_specs`; refresh when AWS
     changes them (the message price is informational, billing is AWS's).
+
+## Read replica and this autoscaler (2026-10-24)
+
+A replica made by the admin button «Копия базы для чтения» (or by `growth.rds_read_replicas`) makes the Lambda stop with reason `has_replicas` (it reads `ReadReplicaDBInstanceIdentifiers`), exactly as described in section 1 and `check "db_autoscale_vs_replicas"`: nothing is resized, the weekly e-mail says why. The primary and the replica are then sized by hand together. The button creates the replica in the CURRENT class of the primary. Details: `docs/runbooks/db-replica.md`.

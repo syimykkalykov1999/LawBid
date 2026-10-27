@@ -8,10 +8,12 @@ import 'package:retrofit/retrofit.dart';
 import '../models/create_data_request_dto.dart';
 import '../models/create_legal_export_dto.dart';
 import '../models/create_legal_hold_dto.dart';
+import '../models/custody_entry_list_envelope.dart';
 import '../models/data_package_envelope.dart';
 import '../models/data_request_card_envelope.dart';
 import '../models/data_request_envelope.dart';
 import '../models/data_request_list_envelope.dart';
+import '../models/erasure_record_envelope.dart';
 import '../models/legal_account_card_envelope.dart';
 import '../models/legal_download_envelope.dart';
 import '../models/legal_export_envelope.dart';
@@ -20,7 +22,10 @@ import '../models/legal_hold_envelope.dart';
 import '../models/legal_hold_list_envelope.dart';
 import '../models/legal_lookup_hit_list_envelope.dart';
 import '../models/prepare_package_dto.dart';
+import '../models/transparency_report_envelope.dart';
+import '../models/update_data_request_intake_dto.dart';
 import '../models/update_data_request_status_dto.dart';
+import '../models/user_notice_envelope.dart';
 
 part 'admin_data_requests_client.g.dart';
 
@@ -93,6 +98,16 @@ abstract class AdminDataRequestsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Account erasure record and certificate (per-store results).
+  ///
+  /// [xJustification] - Why the data is being viewed (10–500 characters).
+  @GET('/admin/data-requests/legal/erasure/{userId}')
+  Future<ErasureRecordEnvelope> erasureRecord({
+    @Path('userId') required String userId,
+    @Header('X-Justification') required String xJustification,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Archives of a request, newest first
   @GET('/admin/data-requests/legal/requests/{requestId}/exports')
   Future<LegalExportListEnvelope> listExports({
@@ -140,6 +155,42 @@ abstract class AdminDataRequestsClient {
   @DELETE('/admin/data-requests/legal/holds/{holdId}')
   Future<LegalHoldEnvelope> releaseHold({
     @Path('holdId') required String holdId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Yearly counts for the transparency report
+  @GET('/admin/data-requests/legal/transparency')
+  Future<TransparencyReportEnvelope> transparency({
+    @Query('year') required num year,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Legal basis, due date, subject, gag order (step-up)
+  @PATCH('/admin/data-requests/legal/requests/{requestId}/intake')
+  Future<void> updateIntake({
+    @Path('requestId') required String requestId,
+    @Body() required UpdateDataRequestIntakeDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The notice text and whether it may be sent
+  @GET('/admin/data-requests/legal/requests/{requestId}/user-notice')
+  Future<UserNoticeEnvelope> noticePreview({
+    @Path('requestId') required String requestId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// E-mail the notice to the user (step-up; refused under a gag order)
+  @POST('/admin/data-requests/legal/requests/{requestId}/user-notice')
+  Future<UserNoticeEnvelope> notifyUser({
+    @Path('requestId') required String requestId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Chain of custody: who built / downloaded, when
+  @GET('/admin/data-requests/legal/exports/{exportId}/custody')
+  Future<CustodyEntryListEnvelope> custody({
+    @Path('exportId') required String exportId,
     @Extras() Map<String, dynamic>? extras,
   });
 }

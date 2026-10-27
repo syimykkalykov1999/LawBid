@@ -7,7 +7,6 @@ import 'package:dio/dio.dart';
 import 'clients/config_client.dart';
 import 'clients/auth_client.dart';
 import 'clients/admin_auth_client.dart';
-import 'clients/admin_approvals_client.dart';
 import 'clients/admin_dashboard_client.dart';
 import 'clients/admin_audit_log_client.dart';
 import 'clients/admin_admins_client.dart';
@@ -49,6 +48,7 @@ import 'clients/admin_contact_issues_client.dart';
 import 'clients/admin_case_disputes_client.dart';
 import 'clients/presence_client.dart';
 import 'clients/admin_content_client.dart';
+import 'clients/admin_private_content_client.dart';
 import 'clients/admin_media_client.dart';
 import 'clients/admin_search_client.dart';
 import 'clients/search_client.dart';
@@ -83,9 +83,15 @@ import 'clients/admin_review_appeals_client.dart';
 import 'clients/contacts_sync_client.dart';
 import 'clients/admin_integrations_client.dart';
 import 'clients/admin_ops_client.dart';
+import 'clients/admin_shards_client.dart';
 import 'clients/admin_launch_client.dart';
 import 'clients/admin_spend_client.dart';
+import 'clients/admin_infra_client.dart';
+import 'clients/admin_promotion_client.dart';
+import 'clients/public_client.dart';
+import 'clients/admin_experiments_client.dart';
 import 'clients/admin_economy_client.dart';
+import 'clients/admin_pnl_client.dart';
 import 'clients/referrals_client.dart';
 import 'clients/admin_referrals_client.dart';
 import 'clients/partners_client.dart';
@@ -95,6 +101,8 @@ import 'clients/admin_legal_client.dart';
 import 'clients/demo_client.dart';
 import 'clients/admin_demo_client.dart';
 import 'clients/admin_outreach_client.dart';
+import 'clients/compliance_client.dart';
+import 'clients/admin_compliance_client.dart';
 import 'clients/promotions_client.dart';
 import 'clients/admin_promotions_client.dart';
 import 'clients/bid_packs_client.dart';
@@ -102,6 +110,7 @@ import 'clients/stars_client.dart';
 import 'clients/admin_stars_client.dart';
 import 'clients/case_payments_client.dart';
 import 'clients/admin_case_payments_client.dart';
+import 'clients/admin_stripe_review_client.dart';
 import 'clients/client_badge_client.dart';
 import 'clients/admin_client_badge_client.dart';
 import 'clients/realtime_client.dart';
@@ -116,7 +125,7 @@ import 'clients/trust_client.dart';
 import 'clients/admin_trust_client.dart';
 import 'clients/countries_client.dart';
 import 'clients/admin_countries_client.dart';
-import 'clients/public_client.dart';
+import 'clients/admin_attorney_ads_client.dart';
 import 'clients/reviews_client.dart';
 import 'clients/admin_fraud_client.dart';
 import 'clients/admin_country_partners_client.dart';
@@ -125,10 +134,13 @@ import 'clients/case_signing_client.dart';
 import 'clients/case_documents_client.dart';
 import 'clients/admin_form_templates_client.dart';
 import 'clients/consultations_client.dart';
-import 'clients/questions_client.dart';
-import 'clients/admin_legal_qa_client.dart';
+import 'clients/calendar_client.dart';
+import 'clients/admin_consultations_client.dart';
 import 'clients/deadlines_client.dart';
 import 'clients/admin_deadlines_client.dart';
+import 'clients/questions_client.dart';
+import 'clients/admin_legal_qa_client.dart';
+import 'clients/admin_staff_client.dart';
 
 /// LawBid API `v0.1.0`.
 ///
@@ -144,7 +156,6 @@ class LawbidApi {
   ConfigClient? _config;
   AuthClient? _auth;
   AdminAuthClient? _adminAuth;
-  AdminApprovalsClient? _adminApprovals;
   AdminDashboardClient? _adminDashboard;
   AdminAuditLogClient? _adminAuditLog;
   AdminAdminsClient? _adminAdmins;
@@ -186,6 +197,7 @@ class LawbidApi {
   AdminCaseDisputesClient? _adminCaseDisputes;
   PresenceClient? _presence;
   AdminContentClient? _adminContent;
+  AdminPrivateContentClient? _adminPrivateContent;
   AdminMediaClient? _adminMedia;
   AdminSearchClient? _adminSearch;
   SearchClient? _search;
@@ -220,9 +232,15 @@ class LawbidApi {
   ContactsSyncClient? _contactsSync;
   AdminIntegrationsClient? _adminIntegrations;
   AdminOpsClient? _adminOps;
+  AdminShardsClient? _adminShards;
   AdminLaunchClient? _adminLaunch;
   AdminSpendClient? _adminSpend;
+  AdminInfraClient? _adminInfra;
+  AdminPromotionClient? _adminPromotion;
+  PublicClient? _public;
+  AdminExperimentsClient? _adminExperiments;
   AdminEconomyClient? _adminEconomy;
+  AdminPnlClient? _adminPnl;
   ReferralsClient? _referrals;
   AdminReferralsClient? _adminReferrals;
   PartnersClient? _partners;
@@ -232,6 +250,8 @@ class LawbidApi {
   DemoClient? _demo;
   AdminDemoClient? _adminDemo;
   AdminOutreachClient? _adminOutreach;
+  ComplianceClient? _compliance;
+  AdminComplianceClient? _adminCompliance;
   PromotionsClient? _promotions;
   AdminPromotionsClient? _adminPromotions;
   BidPacksClient? _bidPacks;
@@ -239,6 +259,7 @@ class LawbidApi {
   AdminStarsClient? _adminStars;
   CasePaymentsClient? _casePayments;
   AdminCasePaymentsClient? _adminCasePayments;
+  AdminStripeReviewClient? _adminStripeReview;
   ClientBadgeClient? _clientBadge;
   AdminClientBadgeClient? _adminClientBadge;
   RealtimeClient? _realtime;
@@ -253,7 +274,7 @@ class LawbidApi {
   AdminTrustClient? _adminTrust;
   CountriesClient? _countries;
   AdminCountriesClient? _adminCountries;
-  PublicClient? _public;
+  AdminAttorneyAdsClient? _adminAttorneyAds;
   ReviewsClient? _reviews;
   AdminFraudClient? _adminFraud;
   AdminCountryPartnersClient? _adminCountryPartners;
@@ -262,10 +283,13 @@ class LawbidApi {
   CaseDocumentsClient? _caseDocuments;
   AdminFormTemplatesClient? _adminFormTemplates;
   ConsultationsClient? _consultations;
-  QuestionsClient? _questions;
-  AdminLegalQaClient? _adminLegalQa;
+  CalendarClient? _calendar;
+  AdminConsultationsClient? _adminConsultations;
   DeadlinesClient? _deadlines;
   AdminDeadlinesClient? _adminDeadlines;
+  QuestionsClient? _questions;
+  AdminLegalQaClient? _adminLegalQa;
+  AdminStaffClient? _adminStaff;
 
   ConfigClient get config => _config ??= ConfigClient(_dio, baseUrl: _baseUrl);
 
@@ -273,9 +297,6 @@ class LawbidApi {
 
   AdminAuthClient get adminAuth =>
       _adminAuth ??= AdminAuthClient(_dio, baseUrl: _baseUrl);
-
-  AdminApprovalsClient get adminApprovals =>
-      _adminApprovals ??= AdminApprovalsClient(_dio, baseUrl: _baseUrl);
 
   AdminDashboardClient get adminDashboard =>
       _adminDashboard ??= AdminDashboardClient(_dio, baseUrl: _baseUrl);
@@ -390,6 +411,9 @@ class LawbidApi {
   AdminContentClient get adminContent =>
       _adminContent ??= AdminContentClient(_dio, baseUrl: _baseUrl);
 
+  AdminPrivateContentClient get adminPrivateContent => _adminPrivateContent ??=
+      AdminPrivateContentClient(_dio, baseUrl: _baseUrl);
+
   AdminMediaClient get adminMedia =>
       _adminMedia ??= AdminMediaClient(_dio, baseUrl: _baseUrl);
 
@@ -495,14 +519,31 @@ class LawbidApi {
   AdminOpsClient get adminOps =>
       _adminOps ??= AdminOpsClient(_dio, baseUrl: _baseUrl);
 
+  AdminShardsClient get adminShards =>
+      _adminShards ??= AdminShardsClient(_dio, baseUrl: _baseUrl);
+
   AdminLaunchClient get adminLaunch =>
       _adminLaunch ??= AdminLaunchClient(_dio, baseUrl: _baseUrl);
 
   AdminSpendClient get adminSpend =>
       _adminSpend ??= AdminSpendClient(_dio, baseUrl: _baseUrl);
 
+  AdminInfraClient get adminInfra =>
+      _adminInfra ??= AdminInfraClient(_dio, baseUrl: _baseUrl);
+
+  AdminPromotionClient get adminPromotion =>
+      _adminPromotion ??= AdminPromotionClient(_dio, baseUrl: _baseUrl);
+
+  PublicClient get public => _public ??= PublicClient(_dio, baseUrl: _baseUrl);
+
+  AdminExperimentsClient get adminExperiments =>
+      _adminExperiments ??= AdminExperimentsClient(_dio, baseUrl: _baseUrl);
+
   AdminEconomyClient get adminEconomy =>
       _adminEconomy ??= AdminEconomyClient(_dio, baseUrl: _baseUrl);
+
+  AdminPnlClient get adminPnl =>
+      _adminPnl ??= AdminPnlClient(_dio, baseUrl: _baseUrl);
 
   ReferralsClient get referrals =>
       _referrals ??= ReferralsClient(_dio, baseUrl: _baseUrl);
@@ -529,6 +570,12 @@ class LawbidApi {
   AdminOutreachClient get adminOutreach =>
       _adminOutreach ??= AdminOutreachClient(_dio, baseUrl: _baseUrl);
 
+  ComplianceClient get compliance =>
+      _compliance ??= ComplianceClient(_dio, baseUrl: _baseUrl);
+
+  AdminComplianceClient get adminCompliance =>
+      _adminCompliance ??= AdminComplianceClient(_dio, baseUrl: _baseUrl);
+
   PromotionsClient get promotions =>
       _promotions ??= PromotionsClient(_dio, baseUrl: _baseUrl);
 
@@ -548,6 +595,9 @@ class LawbidApi {
 
   AdminCasePaymentsClient get adminCasePayments =>
       _adminCasePayments ??= AdminCasePaymentsClient(_dio, baseUrl: _baseUrl);
+
+  AdminStripeReviewClient get adminStripeReview =>
+      _adminStripeReview ??= AdminStripeReviewClient(_dio, baseUrl: _baseUrl);
 
   ClientBadgeClient get clientBadge =>
       _clientBadge ??= ClientBadgeClient(_dio, baseUrl: _baseUrl);
@@ -587,7 +637,8 @@ class LawbidApi {
   AdminCountriesClient get adminCountries =>
       _adminCountries ??= AdminCountriesClient(_dio, baseUrl: _baseUrl);
 
-  PublicClient get public => _public ??= PublicClient(_dio, baseUrl: _baseUrl);
+  AdminAttorneyAdsClient get adminAttorneyAds =>
+      _adminAttorneyAds ??= AdminAttorneyAdsClient(_dio, baseUrl: _baseUrl);
 
   ReviewsClient get reviews =>
       _reviews ??= ReviewsClient(_dio, baseUrl: _baseUrl);
@@ -616,15 +667,24 @@ class LawbidApi {
   ConsultationsClient get consultations =>
       _consultations ??= ConsultationsClient(_dio, baseUrl: _baseUrl);
 
-  QuestionsClient get questions =>
-      _questions ??= QuestionsClient(_dio, baseUrl: _baseUrl);
+  CalendarClient get calendar =>
+      _calendar ??= CalendarClient(_dio, baseUrl: _baseUrl);
 
-  AdminLegalQaClient get adminLegalQa =>
-      _adminLegalQa ??= AdminLegalQaClient(_dio, baseUrl: _baseUrl);
+  AdminConsultationsClient get adminConsultations =>
+      _adminConsultations ??= AdminConsultationsClient(_dio, baseUrl: _baseUrl);
 
   DeadlinesClient get deadlines =>
       _deadlines ??= DeadlinesClient(_dio, baseUrl: _baseUrl);
 
   AdminDeadlinesClient get adminDeadlines =>
       _adminDeadlines ??= AdminDeadlinesClient(_dio, baseUrl: _baseUrl);
+
+  QuestionsClient get questions =>
+      _questions ??= QuestionsClient(_dio, baseUrl: _baseUrl);
+
+  AdminLegalQaClient get adminLegalQa =>
+      _adminLegalQa ??= AdminLegalQaClient(_dio, baseUrl: _baseUrl);
+
+  AdminStaffClient get adminStaff =>
+      _adminStaff ??= AdminStaffClient(_dio, baseUrl: _baseUrl);
 }

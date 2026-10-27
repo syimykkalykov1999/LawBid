@@ -21,7 +21,7 @@ import {
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { IdempotencyInterceptor } from '../../idempotency/idempotency.interceptor';
-import { AuthService } from './auth.service';
+import { AuthService, type OtpCaller } from './auth.service';
 import { PasswordAuthService } from './password-auth.service';
 import {
   PasswordLoginDto,
@@ -45,6 +45,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ReauthDto } from './dto/reauth.dto';
 import { LinkIdentifierDto } from './dto/link-identifier.dto';
 import type { RequestMeta } from './services/session.service';
+import { DemoReauthService } from './services/demo-reauth.service';
 import {
   AuthTokensDto,
   IdentifierLinkedDto,
@@ -64,6 +65,7 @@ import { AssistantSelf } from './assistant/assistant-context';
 import { ReauthGuard } from './guards/reauth.guard';
 import { AppCheckGuard, RequireAppCheck } from './app-check/app-check.guard';
 import { ReauthRequired } from './decorators/reauth-required.decorator';
+import { requestCountry } from './request-country.util';
 import { ReauthVerifier } from './services/reauth-verifier.service';
 import {
   ClearsWebSessionCookie,
@@ -137,6 +139,7 @@ export class AuthController {
     private readonly qrLogin: QrLoginService,
     private readonly webCookies: WebSessionCookies,
     private readonly reauthVerifier: ReauthVerifier,
+    private readonly demoReauth: DemoReauthService,
   ) {}
 
   @ApiEnvelopeResponse(OtpSentDto)
@@ -150,8 +153,12 @@ export class AuthController {
   @IdempotencyKeyHeader
   @Public()
   // Security research #5 (2026-10-22), A4: the app's App Check token;
-  // a code by e-mail stays free (no SMS money at stake).
-  @RequireAppCheck({ freeWhen: (b) => b.channel === 'email' })
+  // a code by e-mail stays free (no SMS money at stake). S14-7: with replay
+  // protection on, the SMS route also consumes its token.
+  @RequireAppCheck({
+    freeWhen: (b) => b.channel === 'email',
+    consumeWhen: (b) => b.channel === 'phone',
+  })
   @Post('otp/request')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(IdempotencyInterceptor)
@@ -161,16 +168,17 @@ export class AuthController {
   ): Promise<OtpSentDto> {
     // Owner 2026-10-16: a signed-in person may ask a code for their OWN number
     // (reauthentication for a sensitive action); a stranger may not.
-    let callerId: string | undefined;
+    let caller: OtpCaller | undefined;
     const bearer = /^Bearer (.+)$/i.exec(req.header('authorization') ?? '');
     if (bearer) {
       try {
-        callerId = this.tokens.verifyAccessToken(bearer[1]).sub;
+        const claims = this.tokens.verifyAccessToken(bearer[1]);
+        caller = { id: claims.sub, sid: claims.sid };
       } catch {
-        callerId = undefined;
+        caller = undefined;
       }
     }
-    await this.auth.requestOtp(dto, this.meta(req), callerId);
+    await this.auth.requestOtp(dto, this.meta(req), caller);
     return { sent: true };
   }
 
@@ -191,6 +199,9 @@ export class AuthController {
   @ApiErrors({ 409: [E.AUTH_OTHER_DEVICE_ACTIVE] })
   @IdempotencyKeyHeader
   @Public()
+  // S14-13: asks for an App Check / Turnstile token only after repeated wrong
+  // codes (security.auth_challenge_after_failures), never on the happy path.
+  @RequireAppCheck({ challenge: 'otp' })
   @Post('otp/verify')
   @UseInterceptors(IdempotencyInterceptor)
   async verifyOtp(
@@ -349,6 +360,22 @@ export class AuthController {
     return { loggedOut: true };
   }
 
+  /** "This wasn't me" on a new-device / new-country alert: every session of
+   * the account ends, this one included (S14-4). Audited. */
+  @ApiBearerAuth()
+  @ApiEnvelopeResponse(LoggedOutDto)
+  @ApiErrors({ 401: BEARER_401 })
+  @Post('wasnt-me')
+  @ClearsWebSessionCookie()
+  @HttpCode(HttpStatus.OK)
+  async wasntMe(
+    @CurrentUser() user: RequestUser,
+    @Req() req: Request,
+  ): Promise<LoggedOutDto> {
+    await this.auth.wasntMe(user, this.meta(req));
+    return { loggedOut: true };
+  }
+
   @ApiBearerAuth()
   @ApiEnvelopeResponse(SessionDto, { isArray: true })
   @ApiErrors({ 401: BEARER_401 })
@@ -383,8 +410,20 @@ export class AuthController {
   async reauth(
     @Body() dto: ReauthDto,
     @CurrentUser() user: RequestUser,
+    @Req() req: Request,
   ): Promise<ReauthTokenDto> {
-    return this.auth.reauth(dto, user);
+    return this.auth.reauth(dto, user, this.meta(req));
+  }
+
+  /** Owner 2026-10-08: a DEMO session gets its reauth token without the
+   * one-time code (the demo world cannot deliver one). Decided on the
+   * server from the signed demo claim — see DemoReauthService. */
+  @ApiBearerAuth()
+  @ApiEnvelopeResponse(ReauthTokenDto, { status: HttpStatus.CREATED })
+  @ApiErrors({ 401: BEARER_401, 403: [E.FORBIDDEN] })
+  @Post('reauth/demo')
+  async reauthDemo(@CurrentUser() user: RequestUser): Promise<ReauthTokenDto> {
+    return this.demoReauth.issue(user);
   }
 
   @ApiBearerAuth()
@@ -416,13 +455,14 @@ export class AuthController {
   async linkIdentifier(
     @Body() dto: LinkIdentifierDto,
     @CurrentUser() user: RequestUser,
+    @Req() req: Request,
   ): Promise<IdentifierLinkedDto> {
-    await this.auth.linkIdentifier(dto, user);
+    await this.auth.linkIdentifier(dto, user, this.meta(req));
     return { linked: true };
   }
 
   @Public()
-  @RequireAppCheck()
+  @RequireAppCheck({ consumeWhen: () => true })
   @Post('phone/status')
   @HttpCode(HttpStatus.OK)
   @ApiEnvelopeResponse(PhoneStatusResultDto)
@@ -451,6 +491,8 @@ export class AuthController {
   })
   @ApiErrors({ 409: [E.AUTH_OTHER_DEVICE_ACTIVE] })
   @Public()
+  // S14-13: a token is asked for only after repeated wrong passwords.
+  @RequireAppCheck({ challenge: 'password' })
   @Post('password/login')
   async passwordLogin(
     @Body() dto: PasswordLoginDto,
@@ -500,7 +542,7 @@ export class AuthController {
   })
   @Public()
   // Security research #5 (2026-10-22), A4: a reset code is an SMS.
-  @RequireAppCheck()
+  @RequireAppCheck({ consumeWhen: () => true })
   @Post('password/reset/request')
   @HttpCode(HttpStatus.OK)
   async passwordResetRequest(
@@ -613,6 +655,7 @@ export class AuthController {
     const deviceKey = req.header('x-device-key')?.trim();
     return {
       ip: req.ip,
+      country: requestCountry((n) => req.header(n)),
       userAgent: req.header('user-agent'),
       deviceId: deviceId && deviceId.length <= 255 ? deviceId : undefined,
       deviceKey:

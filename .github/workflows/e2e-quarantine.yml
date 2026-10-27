@@ -1,0 +1,124 @@
+# S11-15: the quarantine. A flaky e2e suite is listed in apps/api/test/quarantine.json
+# with the date and the reason; PR and push runs SKIP it (scripts/run-e2e-sharded.mjs),
+# this nightly job runs ONLY those suites against real services. One that has sat in
+# the list for more than 3 days fails the run and notifies the owner: fix the test or
+# delete it, a quarantine is not a place to live. An empty list = nothing to do.
+name: e2e quarantine (nightly)
+
+on:
+  schedule:
+    - cron: "37 3 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  NODE_ENV: test
+  PORT: "3000"
+  DATABASE_URL: "postgresql://root:lawbid@localhost:5432/lawbid_ci?schema=public"
+  REDIS_URL: "redis://localhost:6379"
+  SUBSCRIPTION_PAST_DUE_GRACE_DAYS: "3"
+  JWT_KEYS: "ci1:ci_secret_at_least_32_characters_long_aaaa"
+  JWT_ACTIVE_KID: "ci1"
+  JWT_ACCESS_TTL_SECONDS: "900"
+  JWT_REFRESH_TTL_DAYS: "60"
+  REAUTH_TOKEN_TTL_SECONDS: "300"
+  REFRESH_ROTATION_GRACE_SECONDS: "10"
+  OTP_CODE_SECRET: "ci_otp_code_secret_at_least_32_chars_bbbb"
+  OTP_KEY_PEPPER: "ci_otp_key_pepper_at_least_32_chars_cccc"
+  AUTH_EVENT_PEPPER: "ci_auth_event_pepper_at_least_32_chars_dddd"
+  OTP_CODE_TTL_SECONDS: "600"
+  OTP_MAX_ATTEMPTS: "5"
+  OTP_LOCKOUT_SECONDS: "900"
+  OTP_RATE_LIMIT_PER_IDENTIFIER_PER_HOUR: "5"
+  OTP_RATE_LIMIT_PER_IP_PER_HOUR: "10"
+  AUTH_OTP_VERIFY_LIMIT_PER_HOUR: "10"
+  AUTH_SOCIAL_LIMIT_PER_IP_PER_HOUR: "20"
+  AUTH_REFRESH_LIMIT_PER_IP_PER_HOUR: "60"
+  OTP_DEV_FIXED_CODE: "true"
+  SMS_PROVIDER: "mock"
+  EMAIL_PROVIDER: "mock"
+  SMTP_HOST: "localhost"
+  SMTP_PORT: "1025"
+  GOOGLE_CLIENT_IDS: ""
+  APPLE_BUNDLE_IDS: ""
+
+jobs:
+  quarantine:
+    name: Quarantined e2e suites
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      # Owner 2026-10-14: the whole project runs on PostgreSQL 16. Images are
+      # pinned by digest (S11-7); dependabot cannot bump a digest inside a
+      # workflow, so the weekly "pins" review is in .github/workflows/README.md.
+      postgres:
+        image: postgres:16@sha256:9e2cf6287f25c3151f4c9421ccce2b17f3e60061c111a29165e0d2cdd9ff0a97
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: lawbid
+          POSTGRES_DB: lawbid_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U root -d lawbid_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine@sha256:57e4255cc971b1c8d6f8a6ca283ac01bc3ecdd914273ef6bfaede87aaecd6541
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Anything quarantined?
+        id: q
+        run: |
+          N=$(node -e 'console.log((require("./apps/api/test/quarantine.json").suites||[]).length)')
+          echo "n=$N" >> "$GITHUB_OUTPUT"
+          echo "quarantined suites: $N"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        if: steps.q.outputs.n != '0'
+        with:
+          node-version: "22.23.4"
+          cache: "npm"
+
+      - name: Install dependencies (root workspace, hoisted)
+        if: steps.q.outputs.n != '0'
+        run: npm ci
+
+      - name: Prisma generate
+        if: steps.q.outputs.n != '0'
+        working-directory: apps/api
+        run: npx prisma generate
+
+      - name: Run the quarantined suites (fails on any failure or on 3+ days in quarantine)
+        if: steps.q.outputs.n != '0'
+        working-directory: apps/api
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          E2E_OUT_DIR: ${{ runner.temp }}/e2e-out
+        run: node scripts/run-e2e-sharded.mjs --quarantine=only
+
+  notify:
+    needs: [quarantine]
+    if: ${{ always() && needs.quarantine.result == 'failure' }}
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: "Quarantined e2e suites fail or have been quarantined for more than 3 days"
+      kind: quarantine
+      remind_after_minutes: 1440
+    secrets: inherit
+

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { OpsStateService } from '../../common/ops/ops-state.service';
 import { pressures } from '../../common/economy/economy.rules';
@@ -34,6 +34,10 @@ import {
 import { SpendService } from '../../common/ops/spend/spend.service';
 import { SsmParamGateway } from '../../common/ops/ssm-param.gateway';
 import { AuditLogService } from '../admin-access/audit-log.service';
+import {
+  INFRA_SWITCH_IDS,
+  InfraChangeService,
+} from './infra/infra-change.service';
 
 interface UsageSnap {
   at?: string;
@@ -59,6 +63,8 @@ export interface RegistryRow {
   /** The setting key / Terraform variables / why it is fixed. */
   controlKey: string;
   editable: boolean;
+  /** Выкл / Вкл creates a cloud change request (plan → 2FA → apply). */
+  infraSwitch: boolean;
   lockedReason: string | null;
   states: CostState[];
   defaultState: CostState;
@@ -116,7 +122,17 @@ export class CostRegistryService {
     private readonly audit: AuditLogService,
     private readonly ops: OpsStateService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Optional() private readonly infra?: InfraChangeService,
   ) {}
+
+  /** search.engine (for the «пора включить OpenSearch» suggestion). */
+  async searchEngine(): Promise<string | null> {
+    try {
+      return await this.settings.string('search.engine');
+    } catch {
+      return null;
+    }
+  }
 
   private controlKey(e: CostEntry): string {
     const c = e.control;
@@ -129,6 +145,9 @@ export class CostRegistryService {
   /** Why the owner cannot flip this one from here, or null when they can. */
   private lockedReason(e: CostEntry): string | null {
     const c = e.control;
+    // Owner 2026-10-26: whitelisted Terraform rows are switched from here
+    // through a change request (plan → 2FA → apply).
+    if (c.type === 'tfvars' && INFRA_SWITCH_IDS.has(e.id)) return null;
     if (c.type === 'tfvars') {
       return 'Меняется строкой в terraform.tfvars; шаги ниже.';
     }
@@ -144,8 +163,12 @@ export class CostRegistryService {
 
   private async liveState(
     e: CostEntry,
+    infraLive?: Map<string, 'off' | 'on'>,
   ): Promise<{ state: CostState | null; known: boolean; note: string | null }> {
     const c = e.control;
+    if (c.type === 'tfvars' && infraLive?.has(e.id)) {
+      return { state: infraLive.get(e.id)!, known: true, note: null };
+    }
     if (c.type === 'app-setting') {
       const stored = await this.settings.raw(c.key);
       const fallback = (APP_SETTINGS as Record<string, unknown>)[c.key];
@@ -254,7 +277,15 @@ export class CostRegistryService {
       })),
       now,
     );
-    const live = await Promise.all(COST_REGISTRY.map((e) => this.liveState(e)));
+    let infraLive: Map<string, 'off' | 'on'> | undefined;
+    try {
+      infraLive = await this.infra?.liveStates();
+    } catch {
+      infraLive = undefined;
+    }
+    const live = await Promise.all(
+      COST_REGISTRY.map((e) => this.liveState(e, infraLive)),
+    );
     const signals = await this.signals(now);
     const rows: RegistryRow[] = COST_REGISTRY.map((e, i) => {
       const a = attr.byId[e.id];
@@ -273,7 +304,10 @@ export class CostRegistryService {
         kind: e.kind,
         controlType: e.control.type,
         controlKey: this.controlKey(e),
-        editable: locked === null && EDITABLE.includes(e.control.type),
+        editable:
+          locked === null &&
+          (EDITABLE.includes(e.control.type) || INFRA_SWITCH_IDS.has(e.id)),
+        infraSwitch: INFRA_SWITCH_IDS.has(e.id),
         lockedReason: locked,
         states: e.states,
         defaultState: e.defaultState,
@@ -349,7 +383,9 @@ export class CostRegistryService {
     if (!EDITABLE.includes(e.control.type)) {
       throw new RegistryModeError(
         'not_editable',
-        'This item is changed with terraform.tfvars, not from the admin.',
+        INFRA_SWITCH_IDS.has(id)
+          ? 'This cloud item is switched with a change request (POST /admin/infra/requests).'
+          : 'This item is changed with terraform.tfvars, not from the admin.',
       );
     }
     if (!e.states.includes(state)) {

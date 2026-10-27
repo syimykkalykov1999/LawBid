@@ -7,10 +7,13 @@ The app handles these links (docs/01_FOUNDATION_AUTH.md §12, §10.2 E/F):
 | `https://lawbid.dev/auth/email-code?email=<address>&code=<6 digits>` | Email code screen with the code filled in, then verifies it (magic sign-in link) |
 | `https://lawbid.dev/case/<id>` | Case (placeholder until file 04) |
 | `https://lawbid.dev/lawyer/<username>` | Attorney profile (placeholder until file 03) |
+| `https://lawbid.dev/attorneys/<username>/` | The same attorney profile, from the public SEO page (a Google result on a phone with the app installed; without the app the website opens as before) |
 | `https://lawbid.dev/post/<id>` | Post (placeholder until file 05) |
 | `lawbid://auth/email-code?…`, `lawbid://case/<id>`, … | Same routes over the custom scheme. Works without any hosting |
 
-The `https://` links open the app only after the domain proves it trusts the app. Both files are generated and published by `seo-deploy.yml` (`scripts/seo/well-known.mjs`, tested in `scripts/seo/test/well-known.test.mjs`); nothing is uploaded by hand. They open in the app: `/u/*` (profile QR), `/q/*` (website sign-in QR), `/g/*` (group invitation), `/lawyer/*`, `/case/*`, `/post/*`, `/r/*` and `/auth/email-code`.
+The `https://` links open the app only after the domain proves it trusts the app. Both files are generated and published by `seo-deploy.yml` (`scripts/seo/well-known.mjs`, tested in `scripts/seo/test/well-known.test.mjs`); nothing is uploaded by hand. They open in the app: `/u/*` (profile QR), `/q/*` (website sign-in QR), `/g/*` (group invitation), `/lawyer/*`, `/attorneys/*`, `/case/*`, `/post/*`, `/r/*` and `/auth/email-code`.
+
+The `/lawyers/` tree (hub, state, practice pages of the SEO site) is **not** opened by the app on purpose: those are catalog pages the app has no screen for, and `/lawyers/<state>/` cannot be told apart from a username by a path pattern. Tests (`well-known.test.mjs`, `deep_link_platform_config_test.dart`) fail if it is added.
 
 ## 1. iOS: `apple-app-site-association`
 
@@ -72,3 +75,12 @@ adb shell pm get-app-links com.lawbid.lawbid
 xcrun simctl openurl booted "lawbid://auth/email-code?email=ann%40example.com&code=123456"
 xcrun simctl openurl booted "https://lawbid.dev/case/3f0c9a8e-1b2d-4c5e-9f00-112233445566"
 ```
+
+## Spotlight (iPhone) and the Android side of app indexing
+
+Owner 2026-10-27 (docs/architecture/PSEO_ASO_PACKAGE_PLAN_2026-10-27.md §3). No new screen or button anywhere.
+
+- **iOS Spotlight** (`apps/mobile/lib/core/platform/spotlight_index.dart`, native `SpotlightBridge` in `ios/Runner/AppDelegate.swift`): CoreSpotlight, on-device index only (never Apple's public index). Indexed: the attorney profiles the user opened and the attorney posts the user saved. Title and subtitle only (name, practices, licensed states / first line of the post, author), expiry 60 days, at most 60 items. Never a client, a client post, the user's own profile or a blocked profile. The item's identifier is its https link; a tap on a result goes through `SpotlightDeepLinkSource` into the same `DeepLinkController` as a Universal Link. Opt-out: Settings → Privacy → «Do not sell or share» (existing switch, `doNotSell`) empties the index and stops indexing; sign-out / account switch empties it too; flag `spotlight_indexing` (default on) is the kill switch.
+- **Siri Shortcuts**: nothing donated. Every existing action needs a screen or an App Intents extension (plan §3 item 3 puts that after the release), so it is not done in this package.
+- **Android**: App Links only (the `/attorneys/` path prefix above plus `assetlinks.json`); Firebase App Indexing is deprecated, no SDK added.
+- **Check**: iOS, Notes: write `https://lawbid.dev/attorneys/<username>/`, long-press → Open in LawBid; open a profile in the app, then search its name in Spotlight (iOS Settings → Siri & Search → LawBid → Show App in Search / Show Content in Search must be on). Android: `adb shell pm verify-app-links --re-verify com.lawbid.lawbid`, then `adb shell am start -a android.intent.action.VIEW -d "https://lawbid.dev/attorneys/<username>/" com.lawbid.lawbid`.

@@ -25,6 +25,7 @@ function build(
     s3Bucket?: string;
     r2Bucket?: string | null;
     head?: (bucket: string) => Promise<unknown>;
+    bloatOver?: string[];
   } = {},
 ) {
   const opts = over;
@@ -62,6 +63,19 @@ function build(
     lastBackup: jest.fn(() => Promise.resolve(null)),
     cost: jest.fn(() => Promise.resolve(null)),
     setCost: jest.fn(),
+    bloat: jest.fn(() =>
+      Promise.resolve(
+        over.bloatOver
+          ? {
+              at: 'x',
+              source: 'pgstattuple',
+              warnPercent: 30,
+              tables: [],
+              over: over.bloatOver,
+            }
+          : null,
+      ),
+    ),
   };
   const aws = { available: false, budgetAvailable: false, cost: jest.fn() };
   const settings = {
@@ -129,11 +143,20 @@ describe('SystemHealthService', () => {
       video: 'grey',
       queues: 'yellow',
       backup: 'grey',
+      restore_drill: 'grey',
       message_keys: 'grey',
+      table_growth: 'grey',
       cost: 'grey',
     });
     expect(r.overall).toBe('yellow');
     expect(r.actions).toEqual({ onAws: false, budget: false });
+  });
+
+  it('database turns yellow when the nightly bloat check names a big table', async () => {
+    const { svc, now } = build({ bloatOver: ['messages'] });
+    const db = (await svc.report(now)).items.find((i) => i.key === 'database');
+    expect(db?.status).toBe('yellow');
+    expect(db?.detail).toMatchObject({ bloatOver: ['messages'] });
   });
 
   it('a dead database and a silent worker are red, the rest still reported', async () => {

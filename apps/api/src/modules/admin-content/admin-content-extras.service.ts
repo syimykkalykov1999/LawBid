@@ -1,8 +1,11 @@
 import {
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import type Redis from 'ioredis';
 import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -10,6 +13,8 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { ck } from '../../redis/redis-cluster-safe';
 import { withDeleted } from '../../prisma/soft-delete.extension';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
@@ -20,6 +25,7 @@ import type { AdminClientReviewRowDto } from './admin-content.dto';
 import { type ContentFilter, createdWindow } from './admin-content.service';
 
 const PAGE = 50;
+const EXPORT_LOCK_SECONDS = 600;
 type Page<T> = { items: T[]; nextCursor: string | null };
 type Named = { first_name: string | null; last_name: string | null } | null;
 const nameOf = (u: Named) =>
@@ -47,6 +53,7 @@ export class AdminContentExtrasService {
     private readonly moderation: ModerationService,
     private readonly notifications: NotificationsService,
     private readonly audit: AuditLogService,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
 
   // --- restore -----------------------------------------------------------------
@@ -237,18 +244,42 @@ export class AdminContentExtrasService {
 
   /** Audit 2026-10-02: every CSV export leaves a row (GETs are not
    * auto-audited); the users export carries its X-Justification. */
+  /**
+   * S18-3: one export at a time per admin (a streamed export holds a DB
+   * connection and a response for a while). The lock expires by itself.
+   * Returns false when this admin already has an export running.
+   */
+  async acquireExportLock(adminId: string): Promise<boolean> {
+    if (!this.redis) return true;
+    const ok = await this.redis.set(
+      ck('adm', `adm:export:${adminId}`),
+      '1',
+      'EX',
+      EXPORT_LOCK_SECONDS,
+      'NX',
+    );
+    return ok === 'OK';
+  }
+
+  async releaseExportLock(adminId: string): Promise<void> {
+    await this.redis?.del(ck('adm', `adm:export:${adminId}`));
+  }
+
   async recordExport(
     admin: AdminActor,
     entity: string,
     justification: string | null,
     bytes: number,
+    rows?: number,
+    truncated?: boolean,
+    phase: 'started' | 'finished' = 'finished',
   ): Promise<void> {
     await this.audit.record({
       adminId: admin.id,
       action: `admin.export.${entity}`,
       targetType: 'export',
       targetId: null,
-      after: { entity, bytes },
+      after: { entity, bytes, rows, truncated, phase },
       ip: admin.ip,
       justification,
     });

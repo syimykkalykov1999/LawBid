@@ -15,6 +15,7 @@ import 'package:lawbid/features/consultations/consultations_routes.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
+import 'package:lawbid/features/notifications/application/task_reminders.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/privacy/privacy_routes.dart';
@@ -129,10 +130,12 @@ String? notificationRoute({
     // Owner 2026-10-22: someone from my phone book joined LawBid (sent by
     // the server) — an attorney's profile, or the Contacts list.
     case 'contact_joined':
-      if (actorUsername != null) return AppRoutes.lawyer(actorUsername);
+      final who = s('actorUsername') ?? actorUsername;
+      if (who != null) return AppRoutes.lawyer(who);
       return AppRoutes.contacts;
     case 'new_follower':
-      if (actorUsername != null) return AppRoutes.lawyer(actorUsername);
+      final who = s('actorUsername') ?? actorUsername;
+      if (who != null) return AppRoutes.lawyer(who);
       return myId == null ? null : SocialRoutes.followers(myId);
     // OQ-034: comments under a case carry caseId instead of postId.
     case 'case_comment':
@@ -660,7 +663,7 @@ class _NotificationRow extends ConsumerWidget {
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
+    final attorney = ref.watch(actsAsAttorneyProvider);
     final text = notificationText(t, n);
     return Semantics(
       button: true,
@@ -686,7 +689,7 @@ class _NotificationRow extends ConsumerWidget {
           if (inboxTab != null) {
             onInboxTab!(inboxTab);
           } else if (route != null) {
-            context.push(route);
+            openNotificationRoute(GoRouter.of(context), route);
           } else {
             showAppBottomSheet<void>(
               context: context,

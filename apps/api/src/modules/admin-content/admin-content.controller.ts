@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   HttpCode,
+  HttpException,
   HttpStatus,
   Param,
   Patch,
@@ -363,7 +364,7 @@ export class AdminContentController {
   @Get('export/:entity')
   @ApiOperation({
     summary:
-      'CSV export (up to 50 000 rows). Every export is audited; `users` (phones, emails) needs X-Justification.',
+      'CSV export (streamed, up to 50 000 rows; a last line says when it was cut). Every export is audited; `users` (phones, emails) needs X-Justification.',
   })
   @ApiHeader({
     name: 'X-Justification',
@@ -398,20 +399,76 @@ export class AdminContentController {
       p.entity === 'users' && admin.adminRole !== 'super_admin'
         ? readJustification(justificationHeader)
         : decodeJustification(justificationHeader) || null;
-    const csv = await this.content.exportCsv(p.entity);
-    await this.extras.recordExport(
-      admin,
-      p.entity,
-      justification,
-      Buffer.byteLength(csv),
-    );
+    // S18-3: one export per admin at a time, streamed in keyset pages.
+    if (!(await this.extras.acquireExportLock(admin.id))) {
+      throw new HttpException(
+        {
+          code: E.RATE_LIMITED,
+          message: 'An export is already running. Wait for it to finish.',
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    // Audit first: the export is on record even if the stream breaks.
+    try {
+      await this.extras.recordExport(
+        admin,
+        p.entity,
+        justification,
+        0,
+        0,
+        false,
+        'started',
+      );
+    } catch (err) {
+      await this.extras.releaseExportLock(admin.id);
+      throw err;
+    }
     const day = new Date().toISOString().slice(0, 10);
     res
+      .status(200)
       .type('text/csv; charset=utf-8')
       .setHeader(
         'Content-Disposition',
         `attachment; filename="lawbid-${p.entity}-${day}.csv"`,
-      )
-      .send(csv);
+      );
+    let bytes = 0;
+    const write = async (chunk: string): Promise<void> => {
+      bytes += Buffer.byteLength(chunk);
+      if (!res.write(chunk)) {
+        await new Promise<void>((resolve, reject) => {
+          const done = () => {
+            res.off('drain', done);
+            res.off('close', gone);
+            resolve();
+          };
+          const gone = () => {
+            res.off('drain', done);
+            reject(new Error('client closed the export'));
+          };
+          res.once('drain', done);
+          res.once('close', gone);
+        });
+      }
+    };
+    try {
+      const out = await this.content.exportCsvStream(p.entity, write);
+      await this.extras.recordExport(
+        admin,
+        p.entity,
+        justification,
+        bytes,
+        out.rows,
+        out.truncated,
+        'finished',
+      );
+      res.end();
+    } catch (err) {
+      // Headers are already out: end the connection so the browser sees a
+      // failed download instead of a short file that looks complete.
+      res.destroy(err instanceof Error ? err : undefined);
+    } finally {
+      await this.extras.releaseExportLock(admin.id);
+    }
   }
 }

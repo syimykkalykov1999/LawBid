@@ -337,6 +337,55 @@ export function buildDataExportEmail(input: {
   };
 }
 
+/**
+ * Owner 2026-10-25 (S13-14): the account deletion was requested (day 0) or
+ * is one day away (day 13). The one-tap link cancels it; nothing else in
+ * the message asks for anything.
+ */
+export function buildAccountDeletionEmail(input: {
+  email: string;
+  deletesOn: Date;
+  cancelUrl: string;
+  /** 'day0' = just requested; 'day13' = the last day to cancel. */
+  kind: 'day0' | 'day13';
+  locale?: string;
+}): EmailMessage {
+  const on = `${input.deletesOn.toISOString().slice(0, 10)} (UTC)`;
+  const subject =
+    input.kind === 'day13'
+      ? 'Your LawBid account will be deleted tomorrow'
+      : 'Your LawBid account is scheduled for deletion';
+  const lead =
+    input.kind === 'day13'
+      ? `Your LawBid account will be permanently deleted on ${on}.`
+      : `We received a request to delete your LawBid account. It will be permanently deleted on ${on}.`;
+  const text = [
+    lead,
+    '',
+    'If you want to keep your account, cancel the deletion with this link:',
+    input.cancelUrl,
+    '',
+    "If you asked for the deletion, you don't need to do anything. If you did not, cancel it now and change your sign-in methods in Settings → Security.",
+  ].join('\n');
+  const html = [
+    `<p><strong>${escapeHtml(subject)}</strong></p>`,
+    `<p>${escapeHtml(lead)}</p>`,
+    `<p><a href="${escapeHtml(input.cancelUrl)}">Keep my account (cancel the deletion)</a></p>`,
+    "<p>If you asked for the deletion, you don't need to do anything. If you did not, cancel it now and change your sign-in methods in Settings → Security.</p>",
+  ].join('');
+  return {
+    to: input.email,
+    subject,
+    text,
+    html,
+    template: tpl(
+      'account_deletion',
+      { cancelUrl: input.cancelUrl, deletesOn: on },
+      input.locale,
+    ),
+  };
+}
+
 /** The push dispatcher's email copy of a `system` notification
  * (docs/05 §9.5): the rendered push title/body. */
 export function buildNotificationEmail(input: {
@@ -349,6 +398,7 @@ export function buildNotificationEmail(input: {
     to: input.email,
     subject: input.title,
     text: input.body,
+    kind: 'notification',
     template: tpl(
       'notification',
       { title: input.title, body: input.body },

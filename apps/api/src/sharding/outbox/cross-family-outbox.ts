@@ -39,6 +39,15 @@ export const MAX_ATTEMPTS = 8;
 const LEASE_SECONDS = 60;
 const SWEEP_BATCH = 50;
 
+/** `ops.outbox_sweep.mode` (audit X-22, 2026-10-26): off = never sweep,
+ * on = every tick as before, auto = only when a database holds a row that
+ * waits (one cheap EXISTS per database instead of the claiming UPDATE). */
+export type OutboxSweepMode = 'off' | 'on' | 'auto';
+
+export function parseOutboxSweepMode(raw: string): OutboxSweepMode {
+  return raw === 'off' || raw === 'on' ? raw : 'auto';
+}
+
 export interface OutboxTicket {
   readonly database: string;
   readonly key: string;
@@ -154,7 +163,13 @@ export class CrossFamilyOutbox {
    * `next_attempt_at` forward, `FOR UPDATE SKIP LOCKED` keeps two workers
    * apart) and applies them. Returns how many were applied.
    */
-  async sweep(): Promise<{ applied: number; failed: number }> {
+  async sweep(
+    mode: OutboxSweepMode = 'on',
+  ): Promise<{ applied: number; failed: number; skipped?: string }> {
+    if (mode === 'off') return { applied: 0, failed: 0, skipped: 'off' };
+    if (mode === 'auto' && !(await this.hasPending())) {
+      return { applied: 0, failed: 0, skipped: 'empty' };
+    }
     let applied = 0;
     let failed = 0;
     for (const { key, client } of this.databases()) {
@@ -174,8 +189,55 @@ export class CrossFamilyOutbox {
         if (await this.apply(key, row)) applied += 1;
         else failed += 1;
       }
+      await this.reportOldestPending(key, client);
     }
     return { applied, failed };
+  }
+
+  /** True when any database holds a pending event (a PK-sized EXISTS). An
+   * unreachable database counts as «yes»: the sweep then decides. */
+  async hasPending(): Promise<boolean> {
+    for (const { client } of this.databases()) {
+      try {
+        const rows = await (client as unknown as PrismaService).$queryRaw<
+          Array<{ found: number }>
+        >`SELECT 1 AS found FROM cross_family_outbox WHERE status = 'pending' LIMIT 1`;
+        if (rows.length > 0) return true;
+      } catch {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * DB-ops S5-3: one log line per minute and database while something is
+   * pending: `{metric: "cross_family_outbox_oldest_pending", ageSeconds}`.
+   * CloudWatch alarms when the relay is stuck (infra/modules/monitoring/
+   * db-health.tf). Nothing is logged for an empty queue (the usual case with
+   * one database). Never throws.
+   */
+  private async reportOldestPending(
+    database: string,
+    client: Prisma.TransactionClient,
+  ): Promise<void> {
+    try {
+      const rows = await (client as unknown as PrismaService).$queryRaw<
+        { age: number | null }[]
+      >`
+        SELECT EXTRACT(EPOCH FROM (now() - min(created_at)))::FLOAT8 AS age
+        FROM cross_family_outbox WHERE status = 'pending'`;
+      const age = rows[0]?.age;
+      if (age === null || age === undefined) return;
+      this.logger.log({
+        metric: 'cross_family_outbox_oldest_pending',
+        database,
+        ageSeconds: Math.max(0, Math.round(Number(age))),
+        msg: 'oldest pending cross-family event',
+      });
+    } catch (e) {
+      this.logger.warn(`oldest pending age ${database}: ${String(e)}`);
+    }
   }
 
   /** Admin: puts dead events back in the queue. */

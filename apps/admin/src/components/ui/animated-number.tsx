@@ -1,6 +1,6 @@
 'use client';
 
-import { animate, useInView, useMotionValue, useTransform, motion } from 'motion/react';
+import { animate, useInView, useMotionValue, useTransform, m } from 'motion/react';
 import { useEffect, useRef } from 'react';
 
 /** Counts up to `value` when it scrolls into view (and on change). */
@@ -20,5 +20,5 @@ export function AnimatedNumber({
     const c = animate(mv, value, { duration: 1.1, ease: [0.16, 1, 0.3, 1] });
     return () => c.stop();
   }, [inView, value, mv]);
-  return <motion.span ref={ref}>{text}</motion.span>;
+  return <m.span ref={ref}>{text}</m.span>;
 }

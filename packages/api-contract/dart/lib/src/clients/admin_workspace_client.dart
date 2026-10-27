@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/my_rewards_envelope.dart';
+import '../models/piecework_overview_envelope.dart';
 import '../models/workspace_envelope.dart';
 
 part 'admin_workspace_client.g.dart';
@@ -24,6 +25,15 @@ abstract class AdminWorkspaceClient {
   /// «Лучший сотрудник»: my place per department (enabled=false when off)
   @GET('/admin/workspace/rewards')
   Future<MyRewardsEnvelope> getMyRewards({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// My piecework days (a head: the workspace totals; the owner: everyone).
+  ///
+  /// [period] - Month, YYYY-MM (default: this month, UTC).
+  @GET('/admin/workspace/piecework')
+  Future<PieceworkOverviewEnvelope> myPiecework({
+    @Query('period') String? period,
     @Extras() Map<String, dynamic>? extras,
   });
 }

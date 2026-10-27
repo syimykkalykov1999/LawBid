@@ -8,6 +8,7 @@ export const MEDIA_MODERATION_QUEUE = 'media-moderation';
 export const MEDIA_CHECK_JOB = 'media.check';
 /** A hidden verdict whose content was not posted yet is applied again. */
 export const MEDIA_REHIDE_JOB = 'media.rehide';
+export const MEDIA_REHIDE_SWEEP_JOB = 'media.rehide-sweep';
 export const MEDIA_MODERATION_OPTIONS = Symbol('MEDIA_MODERATION_OPTIONS');
 
 export interface MediaModerationModuleOptions {
@@ -20,6 +21,9 @@ export const MODERATED_PURPOSES = [
   'post_image',
   'avatar',
   'review_photo',
+  // Owner 2026-10-28 (legal safety): a user's sticker image is public to
+  // everyone who installs the pack — scanned before it is published.
+  'sticker',
 ] as const;
 export type ModeratedPurpose = (typeof MODERATED_PURPOSES)[number];
 

@@ -3,12 +3,13 @@
 name: CodeQL
 
 on:
-  pull_request:
-    branches: [main, master]
+  # Runs once per merge into main and once a day (not on every PR): the PR checks that gate a merge are
+  # API CI, admin-ci, Mobile CI and Secret scan; CodeQL findings appear under Security → Code scanning.
   push:
     branches: [main, master]
   schedule:
-    - cron: "0 3 * * 1"
+    - cron: "0 3 * * *"
+  workflow_dispatch:
 
 permissions:
   actions: read
@@ -41,3 +42,19 @@ jobs:
           name: codeql-sarif
           path: codeql-results
           if-no-files-found: ignore
+
+  # S11-6: a failure on main / on a schedule reaches the owner (notify-failure.yml).
+  notify:
+    name: Notify the owner
+    needs: [analyze]
+    if: ${{ always() && contains(needs.*.result, 'failure') && github.event_name != 'pull_request' && github.event_name != 'merge_group' }}
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: "CodeQL found a problem on main"
+      kind: scan-codeql
+      remind_after_minutes: 720
+    secrets: inherit

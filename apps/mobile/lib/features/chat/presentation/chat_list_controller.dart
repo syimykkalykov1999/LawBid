@@ -39,6 +39,10 @@ class ChatListController extends ChangeNotifier {
   /// The key of the entry whose newest message is [id].
   GlobalKey keyFor(String id) => _keys.putIfAbsent(id, GlobalKey.new);
 
+  /// S16-6: forget the keys of entries that are no longer in the list.
+  void pruneKeys(Set<String> keep) =>
+      _keys.removeWhere((id, _) => !keep.contains(id));
+
   /// The built context of the entry keyed by its newest message id.
   BuildContext? contextOf(String entryId) => _keys[entryId]?.currentContext;
 
@@ -115,20 +119,8 @@ class ChatListController extends ChangeNotifier {
   /// The index of the entry crossing the TOP edge of the viewport, from
   /// the list's render tree (null when nothing is laid out).
   int? topIndex(BuildContext listContext) {
-    final root = listContext.findRenderObject();
-    if (root == null || !scroll.hasClients) return null;
-    RenderSliverMultiBoxAdaptor? sliver;
-    void visit(RenderObject o) {
-      if (sliver != null) return;
-      if (o is RenderSliverMultiBoxAdaptor) {
-        sliver = o;
-        return;
-      }
-      o.visitChildren(visit);
-    }
-
-    visit(root);
-    final s = sliver;
+    if (!scroll.hasClients) return null;
+    final s = _sliverOf(listContext);
     if (s == null) return null;
     final edge = scroll.position.pixels + scroll.position.viewportDimension;
     int? best;
@@ -143,6 +135,31 @@ class ChatListController extends ChangeNotifier {
       child = s.childAfter(child);
     }
     return best;
+  }
+
+  /// Owner 2026-10-26 (smoothness): the list's sliver is found once and
+  /// kept while it stays in the tree, instead of walking the render tree
+  /// on every scroll frame.
+  RenderSliverMultiBoxAdaptor? _sliver;
+
+  RenderSliverMultiBoxAdaptor? _sliverOf(BuildContext listContext) {
+    final cached = _sliver;
+    if (cached != null && cached.attached) return cached;
+    _sliver = null;
+    final root = listContext.findRenderObject();
+    if (root == null) return null;
+    RenderSliverMultiBoxAdaptor? found;
+    void visit(RenderObject o) {
+      if (found != null) return;
+      if (o is RenderSliverMultiBoxAdaptor) {
+        found = o;
+        return;
+      }
+      o.visitChildren(visit);
+    }
+
+    visit(root);
+    return _sliver = found;
   }
 
   @override

@@ -96,6 +96,7 @@ function setup() {
   const notifications = { emit: jest.fn(() => Promise.resolve({ id: 'n' })) };
   const moderation = {
     autoHideIfThreshold: jest.fn(() => Promise.resolve(false)),
+    assertCanReport: jest.fn(() => Promise.resolve()),
   };
   const service = new ReviewsService(
     prisma as unknown as PrismaService,
