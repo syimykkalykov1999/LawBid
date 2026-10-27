@@ -1,6 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { OpenSearchProvider } from './engine/opensearch-search.provider';
+import { EngineError } from './engine/opensearch.client';
 import { PostgresSearchProvider } from './postgres-search.provider';
 import type {
   AttorneySearchFilters,
@@ -191,11 +192,16 @@ export class SwitchingSearchProvider implements SearchProvider {
       return run(this.pg);
     }
     try {
-      const ms = await this.timeoutMs();
-      const result = await withTimeout(run(this.engine), ms);
+      // The time box lives inside the engine calls (client.searchIds, one
+      // budget); the Postgres filters that follow are not part of it.
+      const result = await run(this.engine);
       this.fails = 0;
       return result;
     } catch (e) {
+      // Only an engine failure (unreachable, slow, 404 missing index, 5xx)
+      // falls back and feeds the breaker; a Postgres error would fail the
+      // fallback too, so it is shown as it is. An empty answer is an answer.
+      if (!(e instanceof EngineError)) throw e;
       this.fails++;
       if (this.fails >= BREAKER_FAILS) {
         this.openUntil = this.now() + OPEN_MS;

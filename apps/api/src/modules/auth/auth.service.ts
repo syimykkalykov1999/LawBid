@@ -1,4 +1,5 @@
 import { ClientFraudService } from '../client-fraud/client-fraud.service';
+import { DomainEvents } from '../events/domain-events.service';
 import { AccountBansService } from '../account-bans/account-bans.service';
 import {
   OTP_DAILY_WINDOW_SECONDS,
@@ -142,6 +143,8 @@ export class AuthService {
     // 2026-10-25 (S14-4 / S14-13): server-side novelty and failure counting.
     @Optional() private readonly novelty?: AuthNoveltyService,
     @Optional() private readonly challenge?: AuthChallengeService,
+    // N-2: the domain-event bus.
+    @Optional() private readonly events?: DomainEvents,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -980,6 +983,14 @@ export class AuthService {
 
     // Hashes of this sign-in's signals + re-score (never fails the login).
     await this.fraud?.recordSignIn(user.id, fraudSignals);
+
+    if (isNewUser) {
+      await this.events?.record(
+        'user.signed_up',
+        { userId: user.id, role: user.role ?? '' },
+        { actorId: user.id, key: `user.signed_up:${user.id}` },
+      );
+    }
 
     return {
       accessToken,
