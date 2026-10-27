@@ -334,5 +334,15 @@ export function leaseSourceFor(kind: string): LeaseQueueSource | undefined {
   return BY_KIND.get(kind);
 }
 
+/**
+ * A queue that lives in its own module (T9: the re-check samples) plugs in
+ * here. It is served by the engine like the five above, but it is not one
+ * of the generic `admin/desk/lease/:kind` routes (LEASE_QUEUE_KINDS stays
+ * as it is): the owning module has its own routes. Idempotent.
+ */
+export function registerLeaseSource(src: LeaseQueueSource): void {
+  if (!BY_KIND.has(src.kind)) BY_KIND.set(src.kind, src);
+}
+
 export const LEASE_QUEUE_KINDS: readonly WorkLeaseKind[] =
   LEASE_QUEUE_SOURCES.map((s) => s.kind);
