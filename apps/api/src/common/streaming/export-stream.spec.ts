@@ -1,4 +1,6 @@
 import { randomBytes } from 'node:crypto';
+import { setFlagsFromString } from 'node:v8';
+import { runInNewContext } from 'node:vm';
 import { ConfigService } from '@nestjs/config';
 import { S3StorageService } from '../../modules/files/storage/s3-storage.service';
 import {
@@ -69,11 +71,28 @@ function storageWith(fake: FakeS3): S3StorageService {
   return svc;
 }
 
-/** Heap + off-heap buffers: what a whole-file buffer would show up in. */
+/**
+ * Heap + off-heap buffers: what a whole-file buffer would show up in.
+ * `external` already contains `arrayBuffers`, so it is not added twice.
+ */
 const used = () => {
   const m = process.memoryUsage();
-  return m.heapUsed + m.external + m.arrayBuffers;
+  return m.heapUsed + m.external;
 };
+
+/**
+ * A full, synchronous garbage collection, whether or not jest was started
+ * with --expose-gc (the flag is switched on at run time when it was not).
+ * Without it the test measures the collector's mood instead of the export.
+ */
+function fullGc(): void {
+  let gc = (global as { gc?: () => void }).gc;
+  if (!gc) {
+    setFlagsFromString('--expose-gc');
+    gc = runInNewContext('gc') as () => void;
+  }
+  gc();
+}
 
 describe('export-stream primitives', () => {
   it('pagedById walks every page and stops at maxRows', async () => {
@@ -165,6 +184,27 @@ describe('export-stream primitives', () => {
     const MESSAGES = 50_000;
     const FILES = 500;
     // ~4 KB of incompressible text per message: 200 MB of JSON in total.
+    //
+    // WHAT IS MEASURED (flaky on CI 2026-10-27: 284 MB seen vs 256 MB limit):
+    // the memory the export still HOLDS, not what the garbage collector has
+    // not yet swept. A "peak of heapUsed since the start" counts the 200 MB
+    // of dead strings this generator makes, and how much of it is still
+    // lying around depends on the machine, the Node heap limits and what
+    // else the jest worker has loaded (coverage instrumentation, other
+    // suites), so it changes between runs on identical code. Instead the
+    // generator forces a full GC every SAMPLE_EVERY rows and records
+    // `live = used() - baseline`: only memory that is still reachable
+    // (the part buffer, zip/deflate state, the page being read, the parts
+    // being uploaded). That is the quantity a buffering bug would grow with
+    // the export: a whole-file buffer is >= the zip size (100 MB+), and it
+    // would keep growing at every sample, row after row.
+    let peak = 0;
+    let baseline = 0;
+    const SAMPLE_EVERY = 1000;
+    const sample = () => {
+      fullGc();
+      peak = Math.max(peak, used() - baseline);
+    };
     async function* messages() {
       for (let i = 0; i < MESSAGES; i++) {
         yield {
@@ -174,6 +214,7 @@ describe('export-stream primitives', () => {
           created_at: new Date(1_700_000_000_000 + i * 1000),
         };
         if (i % 2000 === 0) await new Promise((r) => setImmediate(r));
+        if (i % SAMPLE_EVERY === SAMPLE_EVERY - 1) sample();
       }
     }
     async function* files() {
@@ -182,13 +223,35 @@ describe('export-stream primitives', () => {
         yield { fileId: `f${i}`, mime: 'application/pdf', sizeBytes: 1e6 + i };
       }
     }
-    const gc = (global as { gc?: () => void }).gc;
-    gc?.();
-    const base = used();
-    let peak = 0;
-    const sampler = setInterval(() => {
-      peak = Math.max(peak, used() - base);
-    }, 20);
+    // Warm-up (big enough for a multipart upload): load the zip/deflate/S3 code paths and let V8 size its heaps
+    // once, so the baseline below does not contain one-off start-up costs.
+    {
+      const warmFake = new FakeS3();
+      const warm = createZipExport(
+        (a) => {
+          a.append(
+            jsonArrayStream(
+              (async function* () {
+                await Promise.resolve();
+                for (let i = 0; i < 6000; i++)
+                  yield { i, pad: randomBytes(2000).toString('hex') };
+              })(),
+            ),
+            { name: 'w.json' },
+          );
+        },
+        { level: 1 },
+      );
+      await storageWith(warmFake).putStream(
+        'docs',
+        'w.zip',
+        warm.body,
+        'application/zip',
+      );
+    }
+    fullGc();
+    baseline = used();
+
     let rows = 0;
     const zip = createZipExport(
       (a) => {
@@ -203,8 +266,7 @@ describe('export-stream primitives', () => {
       { level: 1 },
     );
     await storage.putStream('docs', 'big.zip', zip.body, 'application/zip');
-    clearInterval(sampler);
-    peak = Math.max(peak, used() - base);
+    sample();
 
     expect(rows).toBe(MESSAGES);
     expect(fake.completed).toBe(true);
@@ -213,12 +275,15 @@ describe('export-stream primitives', () => {
     expect(fake.maxPart).toBeLessThanOrEqual(16 * 1024 * 1024);
     expect(zip.body.bytes).toBe(fake.bytes);
     expect(zip.body.bytes).toBeGreaterThan(100 * 1024 * 1024);
-    // Peak extra memory stays far below the export size (a whole-file
-    // buffer would need >= the zip size, 100 MB+, plus the JSON text).
-    const ceilingMb = 256;
+    // Everything the export holds at once is bounded by its parts: one
+    // part being filled (<= 16 MB), a few uploaded in flight, deflate and
+    // archive state. 64 MB is that bound with generous slack and is still
+    // about half of the smallest possible whole-file buffer (the zip,
+    // 100 MB+, plus the JSON text), so a buffering regression fails here.
+    const ceilingMb = 64;
 
     console.log(
-      `export ${Math.round(zip.body.bytes / 1048576)} MB, peak +${Math.round(peak / 1048576)} MB`,
+      `export ${Math.round(zip.body.bytes / 1048576)} MB, live peak +${Math.round(peak / 1048576)} MB (after full GC)`,
     );
     expect(peak).toBeLessThan(ceilingMb * 1024 * 1024);
   });

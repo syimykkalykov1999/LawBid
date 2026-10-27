@@ -9,6 +9,7 @@ import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import { DashboardService } from '../src/modules/admin/dashboard.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { totpCode } from '../src/modules/admin-auth/totp.util';
 import {
@@ -597,53 +598,103 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
   });
 
   it('dashboard returns every §2.3.1 number and is cached for the team', async () => {
-    await redis.del('adm:sum:dashboard');
+    // Signed in on the real clock first; only the dashboard calls run on the
+    // pinned one.
     const s = await adminSession(baseUrl, prisma, 'support');
-    const r = await api()
-      .get('/api/v1/admin/dashboard')
-      .set(s.auth)
-      .expect(200);
-    const d = (r.body as Body).data;
-    expect(d.newUsers).toEqual({
-      clients24h: expect.any(Number),
-      attorneys24h: expect.any(Number),
-      clients7d: expect.any(Number),
-      attorneys7d: expect.any(Number),
-    });
-    expect(d.verification).toMatchObject({ queueSize: expect.any(Number) });
-    // Money is closed for everyone but the super admin: no revenue figure.
-    expect(d.subscriptions).toMatchObject({
-      trialing: expect.any(Number),
-      active: expect.any(Number),
-      pastDue: expect.any(Number),
-      revenueEstimateUsd: null,
-    });
     const sup = await adminSession(baseUrl, prisma, 'super_admin');
-    const full = await api()
-      .get('/api/v1/admin/dashboard')
-      .set(sup.auth)
-      .expect(200);
-    expect(
-      ((full.body as Body).data.subscriptions as Record<string, unknown>)
-        .revenueEstimateUsd,
-    ).toEqual(expect.any(Number));
-    for (const k of [
-      'openCases',
-      'bids24h',
-      'openReports',
-      'openDisputes',
-      'openContactIssues',
-    ]) {
-      expect(typeof d[k]).toBe('number');
+    await redis.del('adm:sum:dashboard', 'adm:sum:lock:dashboard');
+
+    // The «every 2 minutes» recount of the worker (`admin.summaries`) is not
+    // waited for and not left to chance: `Date` alone is pinned (timers,
+    // sockets, the database run normally) and moved by hand, and the
+    // recount is called the way the cron calls it. The test therefore does
+    // not depend on how long the machine takes, nor on when a tick falls.
+    const t0 = Date.now();
+    jest.useFakeTimers({
+      now: t0,
+      doNotFake: [
+        'hrtime',
+        'nextTick',
+        'performance',
+        'queueMicrotask',
+        'requestAnimationFrame',
+        'cancelAnimationFrame',
+        'requestIdleCallback',
+        'cancelIdleCallback',
+        'setImmediate',
+        'clearImmediate',
+        'setInterval',
+        'clearInterval',
+        'setTimeout',
+        'clearTimeout',
+      ],
+    });
+    try {
+      const r = await api()
+        .get('/api/v1/admin/dashboard')
+        .set(s.auth)
+        .expect(200);
+      const d = (r.body as Body).data;
+      // Stamped by the pinned clock: the first read counted, right now.
+      expect(d.computedAt).toBe(new Date(t0).toISOString());
+      expect(d.newUsers).toEqual({
+        clients24h: expect.any(Number),
+        attorneys24h: expect.any(Number),
+        clients7d: expect.any(Number),
+        attorneys7d: expect.any(Number),
+      });
+      expect(d.verification).toMatchObject({ queueSize: expect.any(Number) });
+      // Money is closed for everyone but the super admin: no revenue figure.
+      expect(d.subscriptions).toMatchObject({
+        trialing: expect.any(Number),
+        active: expect.any(Number),
+        pastDue: expect.any(Number),
+        revenueEstimateUsd: null,
+      });
+      const full = await api()
+        .get('/api/v1/admin/dashboard')
+        .set(sup.auth)
+        .expect(200);
+      expect(
+        ((full.body as Body).data.subscriptions as Record<string, unknown>)
+          .revenueEstimateUsd,
+      ).toEqual(expect.any(Number));
+      for (const k of [
+        'openCases',
+        'bids24h',
+        'openReports',
+        'openDisputes',
+        'openContactIssues',
+      ]) {
+        expect(typeof d[k]).toBe('number');
+      }
+
+      // A minute later (inside the freshness window) the whole team still
+      // reads the same stored count: nothing is recounted per request.
+      jest.setSystemTime(t0 + 60_000);
+      const again = await api()
+        .get('/api/v1/admin/dashboard')
+        .set(s.auth)
+        .expect(200);
+      expect((again.body as Body).data.computedAt).toBe(d.computedAt);
+      // Owner 2026-10-23: kept in the precomputed-summary store (a day, the
+      // worker's `admin.summaries` recounts it every 2 minutes).
+      expect(await redis.ttl('adm:sum:dashboard')).toBeGreaterThan(0);
+
+      // The tick: the cron's own entry point, two minutes after the first
+      // count. The stored value the team reads is now the new count.
+      jest.setSystemTime(t0 + 120_000);
+      await app.get(DashboardService).refresh();
+      const ticked = await api()
+        .get('/api/v1/admin/dashboard')
+        .set(sup.auth)
+        .expect(200);
+      expect((ticked.body as Body).data.computedAt).toBe(
+        new Date(t0 + 120_000).toISOString(),
+      );
+    } finally {
+      jest.useRealTimers();
     }
-    const again = await api()
-      .get('/api/v1/admin/dashboard')
-      .set(s.auth)
-      .expect(200);
-    expect((again.body as Body).data.computedAt).toBe(d.computedAt);
-    // Owner 2026-10-23: kept in the precomputed-summary store (a day, the
-    // worker's `admin.summaries` recounts it every 2 minutes).
-    expect(await redis.ttl('adm:sum:dashboard')).toBeGreaterThan(0);
   });
 
   it('audit log: only the super admin reads it (filters, paging); other admins get 404', async () => {

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { PrismaService, routingOf } from '../src/prisma/prisma.service';
 import { MoveDbPool } from '../src/sharding/move/move-db';
-import { PgMoveOps } from '../src/sharding/move/pg-move-ops';
+import { ID_ROUTED, PgMoveOps } from '../src/sharding/move/pg-move-ops';
 import { ShardMoveService } from '../src/sharding/move/shard-move.service';
 import { ShardMapSync } from '../src/sharding/shard-map-sync';
 import { shardContext } from '../src/sharding/shard-context';
@@ -59,6 +59,73 @@ const twoDb = !!process.env.DATABASE_URL_SHARDS;
 
     const physical = () => routingOf(prisma).router;
 
+    /**
+     * WHY the shards are not hard-coded (flaky on CI 2026-10-27, six runs): in
+     * the two-DB job this suite runs in the same database as dozens of earlier
+     * suites whose users and cases get random ids, and a row lands in shard N
+     * whenever its owner's id ends in byte N. With ~100 random users about a
+     * third of all shards are dirty, so a fixed shard 10 / 12 / 14 ... was
+     * hit by luck, and ANY stray row makes the move's preflight refuse it:
+     * rows of the shard point to a row of another shard (case_states.case_id
+     * -> a case in another shard), legacy v4 ids that the router would look
+     * up in a different shard, rows already on the target. Reproduced by
+     * running the same suites in the CI order before this one.
+     *
+     * So the suite claims shards that PROVABLY hold nothing, on every
+     * database, before it seeds anything: no row with that shard_id in any
+     * sharded table, and no legacy (non-v8) id in the id-routed tables whose
+     * last byte names that shard while it is stored in another (the things
+     * the preflight looks at).
+     */
+    const claimFreeShards = async (count: number): Promise<number[]> => {
+      const stored = new Set<number>(); // shard_id of any row, any database
+      const legacy: Record<string, Set<number>> = {}; // per SOURCE database
+      for (const key of pool.keys()) {
+        const db = pool.get(key);
+        legacy[key] = new Set();
+        for (const t of new PgMoveOps(db, db).tables()) {
+          const shards = await db.query<{ s: number }>(
+            `SELECT DISTINCT shard_id::int AS s FROM "${t.table}"`,
+          );
+          for (const r of shards) stored.add(r.s);
+          if (!ID_ROUTED.includes(t.model)) continue;
+          const bytes = await db.query<{ s: number }>(
+            `SELECT DISTINCT ('x' || right(id::text, 2))::bit(8)::int AS s
+               FROM "${t.table}"
+              WHERE substr(id::text, 15, 1) <> '8'
+                AND ('x' || right(id::text, 2))::bit(8)::int <> shard_id`,
+          );
+          for (const r of bytes) legacy[key].add(r.s);
+        }
+      }
+      // Only shards the map routes normally can be moved; the legacy-id rule
+      // is read on the database the shard would be moved FROM.
+      const free = mapBefore
+        .filter(
+          (m) =>
+            m.state === 'active' &&
+            !stored.has(m.logical_shard) &&
+            !legacy[m.physical_db]?.has(m.logical_shard),
+        )
+        .map((m) => m.logical_shard)
+        .sort((x, y) => x - y);
+      // A fixed pick (the lowest free ones) keeps a run reproducible.
+      expect(free.length).toBeGreaterThanOrEqual(count);
+      return free.slice(0, count);
+    };
+    let shards: number[] = [];
+
+    /** What the runner says about a finished move, for a readable failure. */
+    const outcome = (m: {
+      status: string;
+      state: string;
+      error: string | null;
+    }) => ({
+      status: m.status,
+      state: m.state,
+      error: m.error,
+    });
+
     beforeAll(async () => {
       await prisma.onModuleInit();
       pool = new MoveDbPool();
@@ -77,6 +144,7 @@ const twoDb = !!process.env.DATABASE_URL_SHARDS;
       mapBefore = await raw.primary.shardMap.findMany({
         select: { logical_shard: true, physical_db: true, state: true },
       });
+      shards = await claimFreeShards(6);
       service = new ShardMoveService(
         prisma,
         new ShardMapSync(prisma),
@@ -128,20 +196,24 @@ const twoDb = !!process.env.DATABASE_URL_SHARDS;
     }
 
     it('dry run: preflight and plan, nothing is written', async () => {
-      const shard = 10;
+      const shard = shards[0];
       await seedShard(shard, 3);
       const from = physical().physicalFor(shard);
+      const movesBefore = await raw.primary.shardMove.count();
       const plan = await service.dryRun(shard, otherDb(from));
+      // The reasons first: a refused preflight says WHY, not just `false`.
+      expect(plan.problems).toEqual([]);
       expect(plan.ok).toBe(true);
       expect(plan.fromDb).toBe(from);
       expect(plan.totalRows).toBeGreaterThanOrEqual(3);
       expect(plan.estimatedSeconds).toBeGreaterThan(0);
-      expect(await raw.primary.shardMove.count()).toBe(0);
+      // Nothing written: the table is exactly as it was before the dry run.
+      expect(await raw.primary.shardMove.count()).toBe(movesBefore);
       expect(await remainingCrossFamilyForeignKeys(pool.get('db1'))).toBe(0);
     });
 
     it('moves a shard with concurrent writes: nothing lost, verified, flipped, cleaned up', async () => {
-      const shard = 12;
+      const shard = shards[1];
       const userId = await seedShard(shard, 25);
       const from = physical().physicalFor(shard);
       const to = otherDb(from);
@@ -170,7 +242,7 @@ const twoDb = !!process.env.DATABASE_URL_SHARDS;
       stop = true;
       await writer;
 
-      expect(done.status).toBe('waiting');
+      expect(outcome(done)).toMatchObject({ status: 'waiting', error: null });
       expect(done.progress.verify?.ok).toBe(true);
       expect(physical().physicalFor(shard)).toBe(to);
       const map = await raw.primary.shardMap.findUnique({
@@ -218,7 +290,7 @@ const twoDb = !!process.env.DATABASE_URL_SHARDS;
     });
 
     it('rollback before the flip leaves the shard untouched', async () => {
-      const shard = 14;
+      const shard = shards[2];
       const userId = await seedShard(shard, 9);
       const from = physical().physicalFor(shard);
       const to = otherDb(from);
@@ -239,7 +311,12 @@ const twoDb = !!process.env.DATABASE_URL_SHARDS;
         options: { batchSize: 4, catchupThreshold: 1 },
       });
       const failed = await bad.run(move.id);
-      expect(failed.status).toBe('failed');
+      // It failed for the intended reason (verification), not an earlier step.
+      expect(outcome(failed)).toMatchObject({
+        status: 'failed',
+        state: 'verify',
+        error: expect.stringMatching(/verif/i) as string,
+      });
       expect(await countOn(to, userId)).toBe(9); // the copy exists
 
       const rolled = await service.rollback(move.id);
@@ -253,13 +330,13 @@ const twoDb = !!process.env.DATABASE_URL_SHARDS;
     });
 
     it('rollback after the flip replays the new writes back to the old database', async () => {
-      const shard = 16;
+      const shard = shards[3];
       const userId = await seedShard(shard, 6);
       const from = physical().physicalFor(shard);
       const to = otherDb(from);
       const [move] = await enqueue(to, [shard]);
       const done = await service.runner().run(move.id);
-      expect(done.status).toBe('waiting');
+      expect(outcome(done)).toMatchObject({ status: 'waiting', error: null });
       await notify(userId, shard);
       await notify(userId, shard);
       expect(await countOn(to, userId)).toBe(8);
@@ -277,14 +354,14 @@ const twoDb = !!process.env.DATABASE_URL_SHARDS;
     });
 
     it('refuses a second move of the same shard and a move to its own database', async () => {
-      const shard = 18;
+      const shard = shards[4];
       await seedShard(shard, 1);
       const from = physical().physicalFor(shard);
       await expect(enqueue(from, [shard])).rejects.toThrow(/already on/);
     });
 
     it('the orphan checker sees a notification whose user is gone', async () => {
-      const shard = 20;
+      const shard = shards[5];
       const userId = await seedShard(shard, 1);
       await raw.primary
         .$executeRawUnsafe(`DELETE FROM users WHERE id = '${userId}'::uuid`)

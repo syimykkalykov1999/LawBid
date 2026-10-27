@@ -36,11 +36,24 @@ export class AnalyticsService {
     @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
+  /** Writes started by `touch` that have not finished yet. */
+  private readonly pendingTouches = new Set<Promise<void>>();
+
+  /**
+   * Resolves when every `touch` started so far has finished (written or
+   * given up). `touch` is fire-and-forget for the request, so a test (or a
+   * graceful shutdown) that must see the row waits for exactly this instead
+   * of polling the table with real sleeps.
+   */
+  async idle(): Promise<void> {
+    await Promise.allSettled([...this.pendingTouches]);
+  }
+
   /** The person opened the app today: one write a day, not one per call. */
   touch(userId: string): void {
     if (demoContext.isDemo()) return;
     const today = dayKey(new Date());
-    void this.redis
+    const write: Promise<void> = this.redis
       .set(`act:${today}:${userId}`, '1', 'EX', 36 * 3600, 'NX')
       .then(async (fresh) => {
         if (fresh === null) return;
@@ -49,7 +62,9 @@ export class AnalyticsService {
           VALUES (${userId}::UUID, ${today}::DATE)
           ON CONFLICT DO NOTHING`;
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => this.pendingTouches.delete(write));
+    this.pendingTouches.add(write);
   }
 
   /**
