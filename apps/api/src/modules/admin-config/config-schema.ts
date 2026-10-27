@@ -841,6 +841,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       description: def.description,
       ...(def.min !== undefined ? { min: def.min } : {}),
       ...(def.max !== undefined ? { max: def.max } : {}),
+      ...(def.pattern ? { pattern: def.pattern } : {}),
     };
   }
   out['media.chat_photo_max_px'] = {

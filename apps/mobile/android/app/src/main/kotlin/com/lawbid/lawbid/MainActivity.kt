@@ -52,6 +52,23 @@ class MainActivity : FlutterFragmentActivity() {
         createChannels()
         // Owner 2026-10-20: a video call goes to a floating window when the
         // person leaves the app (Home / another app), like WhatsApp.
+        // S16-12: the first feed content is on the glass — tells Android
+        // vitals (Play) the real time to fully drawn, not just first frame.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "lawbid/startup",
+        ).setMethodCallHandler { call, result ->
+            if (call.method == "fullyDrawn") {
+                try {
+                    reportFullyDrawn()
+                } catch (e: Exception) {
+                    // not available: vitals just keep the first-frame time
+                }
+                result.success(null)
+            } else {
+                result.notImplemented()
+            }
+        }
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "lawbid/call_pip",

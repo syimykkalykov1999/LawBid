@@ -36,6 +36,24 @@ void _setupPragmas(CommonDatabase db) {
 
 const _nativeOptions = DriftNativeOptions(setup: _setupPragmas);
 
+/// S16-5: the databases that only hold copies of server data. SQLite's own
+/// guidance for write-heavy caches on a phone: WAL + `synchronous=NORMAL`
+/// (one fsync per checkpoint, not per commit). A power cut can lose the last
+/// few cached rows — never corrupt the file — and the cache refills from the
+/// server. The upload outbox, cases and social stores keep SQLite's default.
+const _walCaches = {'l10n_cache', 'lawbid_public_cache', 'lawbid_cache'};
+
+/// Runs in the database's own isolate when the file is opened (so it must be
+/// a top-level function without captured state).
+void cacheDatabaseSetup(CommonDatabase db) {
+  _setupPragmas(db);
+  db
+    ..execute('PRAGMA journal_mode=WAL;')
+    ..execute('PRAGMA synchronous=NORMAL;');
+}
+
+const _cacheNativeOptions = DriftNativeOptions(setup: cacheDatabaseSetup);
+
 /// The files of a phone database: the database, then its companions.
 Future<List<File>> _databaseFiles(String name) async {
   final dir = (await getApplicationDocumentsDirectory()).path;
@@ -72,7 +90,8 @@ QueryExecutor _nativeDatabase(String name, DriftRecovery recovery) =>
       open: () => driftDatabase(
         name: name,
         web: appDriftWebOptions,
-        native: _nativeOptions,
+        native:
+            _walCaches.contains(name) ? _cacheNativeOptions : _nativeOptions,
       ),
       files: () => _databaseFiles(name),
       memory: () => openProcessMemoryDatabase(appDriftWebOptions.sqlite3Wasm),

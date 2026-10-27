@@ -192,8 +192,10 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     // Owner 2026-10-19 (still a «тк» as each new video starts): five big
     // steps of 0.2 were themselves heard as clicks. Now one step every
     // ~8 ms, eased (gentle at the start of a rise), so the change is a
-    // smooth slope.
-    final steps = (over.inMilliseconds / 8).ceil().clamp(4, 40);
+    // smooth slope. S16-10: one step every ~12 ms (20 channel calls per
+    // fade instead of 40): the eased slope keeps the largest step near 0.1,
+    // half of the 0.2 jumps that were heard.
+    final steps = (over.inMilliseconds / 12).ceil().clamp(4, 20);
     final from = _vol;
     if ((from - to).abs() < 0.01) {
       _vol = to;
