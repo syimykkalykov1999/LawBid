@@ -24,7 +24,7 @@
 // users.avatar_file_id -> files FK and the `files` table itself were
 // added in stage 2.2 (docs/02_DATABASE.md §8).
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   // DB-ops S5-13: the engine files for the exact targets we run on, so a
   // build on one CPU never ships a runtime that downloads (or lacks) its
   // engine. The image is Alpine (musl) on Fargate X86_64 or ARM64; the
@@ -1304,35 +1304,35 @@ model AppConfig {
 // applying -> done | failed | expired | cancelled | dry_run | rolled_back.
 // At most one active row (partial unique index in the migration). Global.
 model InfraChangeRequest {
-  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// cost-registry.ts row id, e.g. aws.rds_replicas.
-  item_id            String
-  from_state         String?
-  to_state           String
+  item_id        String
+  from_state     String?
+  to_state       String
   /// { "<key>": <value> } written into growth.auto.tfvars.json.
-  changes            Json
-  status             String    @default("requested")
-  requested_by       String    @db.Uuid
-  confirmed_by       String?   @db.Uuid
+  changes        Json
+  status         String    @default("requested")
+  requested_by   String    @db.Uuid
+  confirmed_by   String?   @db.Uuid
   /// Monthly $ change from the cost registry: [low, high].
-  cost_delta_usd     Json
-  dry_run            Boolean   @default(false)
+  cost_delta_usd Json
+  dry_run        Boolean   @default(false)
   /// The request this one undoes («Откатить»).
-  rollback_of        String?   @db.Uuid
+  rollback_of    String?   @db.Uuid
   /// { add, change, destroy, resources: [{ address, action }] } from the workflow.
-  plan_summary       Json?
+  plan_summary   Json?
   /// Values the file held before (reported by the workflow).
-  file_before        Json?
-  run_id             String?
-  run_url            String?
+  file_before    Json?
+  run_id         String?
+  run_url        String?
   /// Where the applied file was recorded: main | pr:<url>.
-  recorded           String?
-  error              String?
-  planned_at         DateTime? @db.Timestamptz
-  confirmed_at       DateTime? @db.Timestamptz
-  finished_at        DateTime? @db.Timestamptz
-  created_at         DateTime  @default(now()) @db.Timestamptz
-  updated_at         DateTime  @default(now()) @updatedAt @db.Timestamptz
+  recorded       String?
+  error          String?
+  planned_at     DateTime? @db.Timestamptz
+  confirmed_at   DateTime? @db.Timestamptz
+  finished_at    DateTime? @db.Timestamptz
+  created_at     DateTime  @default(now()) @db.Timestamptz
+  updated_at     DateTime  @default(now()) @updatedAt @db.Timestamptz
 
   @@index([item_id, created_at(sort: Desc)])
   @@index([created_at(sort: Desc)])
@@ -1613,7 +1613,7 @@ model ClientProfile {
   updated_at               DateTime       @updatedAt @db.Timestamptz
   /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
   /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
-  version Int @default(0)
+  version                  Int            @default(0)
 
   // GIN/inverted (trigram gin_trgm_ops or full-text), created by the stage 2.6
   // migration; declared so Prisma's diff matches the DB.
@@ -1650,7 +1650,7 @@ model AttorneyProfile {
   updated_at          DateTime           @updatedAt @db.Timestamptz
   /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
   /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
-  version Int @default(0)
+  version             Int                @default(0)
 
   licenses                    AttorneyLicense[]
   practice_areas              AttorneyPracticeArea[]
@@ -1892,7 +1892,7 @@ model Case {
   updated_at            DateTime                 @updatedAt @db.Timestamptz
   /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
   /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
-  version Int @default(0)
+  version               Int                      @default(0)
 
   states              CaseState[]
   // Owner 2026-10-15: topics 2..N of a case (the first is `practice_area_id`).
@@ -1983,7 +1983,7 @@ model Bid {
   updated_at              DateTime          @updatedAt @db.Timestamptz
   /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
   /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
-  version Int @default(0)
+  version                 Int               @default(0)
 
   accepted_for_case  Case?                @relation("CaseAcceptedBid")
   offers             BidOffer[]
@@ -3630,25 +3630,25 @@ model StripeWebhookEvent {
 }
 
 model Report {
-  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  reporter_id String           @db.Uuid
-  reporter    User             @relation("Reporter", fields: [reporter_id], references: [id], onDelete: Restrict)
-  target_type ReportTargetType
-  target_id   String           @db.Uuid
-  reason      ReportReason
-  note        String?
-  status      ReportStatus     @default(open)
-  handled_by  String?          @db.Uuid
-  handler     User?            @relation("ReportHandler", fields: [handled_by], references: [id], onDelete: Restrict)
-  handled_at  DateTime?        @db.Timestamptz
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporter_id      String           @db.Uuid
+  reporter         User             @relation("Reporter", fields: [reporter_id], references: [id], onDelete: Restrict)
+  target_type      ReportTargetType
+  target_id        String           @db.Uuid
+  reason           ReportReason
+  note             String?
+  status           ReportStatus     @default(open)
+  handled_by       String?          @db.Uuid
+  handler          User?            @relation("ReportHandler", fields: [handled_by], references: [id], onDelete: Restrict)
+  handled_at       DateTime?        @db.Timestamptz
   /// Owner 2026-10-27: set when enough weighted reports hit a verified
   /// attorney's content: it is not hidden, a human looks at it first.
-  priority_review Boolean      @default(false)
+  priority_review  Boolean          @default(false)
   /// Owner 2026-10-27: the owner of the reported object (filled when the
   /// report is weighed), for account-level scoring.
-  target_author_id String?     @db.Uuid
-  created_at  DateTime         @default(now()) @db.Timestamptz
-  updated_at  DateTime         @updatedAt @db.Timestamptz
+  target_author_id String?          @db.Uuid
+  created_at       DateTime         @default(now()) @db.Timestamptz
+  updated_at       DateTime         @updatedAt @db.Timestamptz
 
   actions      ModerationAction[]
   dmca_notices DmcaNotice[]
@@ -3840,28 +3840,28 @@ model UserStrike {
 /// kind: content_hide | account_limit | account_suspend_temp |
 /// account_suspend | review_needed.
 model ModerationAutoAction {
-  id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  kind                String                  @db.VarChar(24)
-  user_id             String                  @db.Uuid
-  user                User                    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "moderation_auto_actions_user_fkey")
-  target_type         ReportTargetType?
-  target_id           String?                 @db.Uuid
-  score               Float
-  threshold           Float
-  borderline          Boolean                 @default(false)
+  id                   String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind                 String                  @db.VarChar(24)
+  user_id              String                  @db.Uuid
+  user                 User                    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "moderation_auto_actions_user_fkey")
+  target_type          ReportTargetType?
+  target_id            String?                 @db.Uuid
+  score                Float
+  threshold            Float
+  borderline           Boolean                 @default(false)
   /// false = shadow mode: logged, nothing was done.
-  enforced            Boolean                 @default(true)
-  reason              String?
-  expires_at          DateTime?               @db.Timestamptz
-  reversed_at         DateTime?               @db.Timestamptz
-  appeal_message      String?
-  appeal_status       ModerationAppealStatus?
-  appeal_at           DateTime?               @db.Timestamptz
-  appeal_decided_by   String?                 @db.Uuid
-  appeal_decided_at   DateTime?               @db.Timestamptz
-  appeal_note         String?
-  appeal_auto_approved Boolean                @default(false)
-  created_at          DateTime                @default(now()) @db.Timestamptz
+  enforced             Boolean                 @default(true)
+  reason               String?
+  expires_at           DateTime?               @db.Timestamptz
+  reversed_at          DateTime?               @db.Timestamptz
+  appeal_message       String?
+  appeal_status        ModerationAppealStatus?
+  appeal_at            DateTime?               @db.Timestamptz
+  appeal_decided_by    String?                 @db.Uuid
+  appeal_decided_at    DateTime?               @db.Timestamptz
+  appeal_note          String?
+  appeal_auto_approved Boolean                 @default(false)
+  created_at           DateTime                @default(now()) @db.Timestamptz
 
   @@index([user_id, created_at(sort: Desc)])
   @@index([appeal_status, appeal_at])
@@ -3966,40 +3966,39 @@ model AuditLog {
 }
 
 model DataAccessRequest {
-  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  request_type     DataRequestType
-  reference_number String
-  agency           String
-  received_at      DateTime          @db.Timestamptz
-  scope            String
-  handled_by       String            @db.Uuid
-  handler          User              @relation("DataRequestHandler", fields: [handled_by], references: [id], onDelete: Restrict)
-  status           DataRequestStatus
-  closed_at        DateTime?         @db.Timestamptz
-  notes            String?
+  id                        String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_type              DataRequestType
+  reference_number          String
+  agency                    String
+  received_at               DateTime          @db.Timestamptz
+  scope                     String
+  handled_by                String            @db.Uuid
+  handler                   User              @relation("DataRequestHandler", fields: [handled_by], references: [id], onDelete: Restrict)
+  status                    DataRequestStatus
+  closed_at                 DateTime?         @db.Timestamptz
+  notes                     String?
   /// Owner 2026-10-28: the law the request rests on (e.g. "18 U.S.C. 2703(d)").
-  legal_basis      String?
+  legal_basis               String?
   /// Two-letter country of the issuing authority (transparency report).
-  country          String?           @db.VarChar(2)
+  country                   String?           @db.VarChar(2)
   /// The person the request concerns (for the notice to the user).
-  subject_user_id  String?           @db.Uuid
+  subject_user_id           String?           @db.Uuid
   /// When the answer is due; reminders go to the on-call admins.
-  due_at           DateTime?         @db.Timestamptz
-  last_reminded_at DateTime?         @db.Timestamptz
+  due_at                    DateTime?         @db.Timestamptz
+  last_reminded_at          DateTime?         @db.Timestamptz
   /// Gag / non-disclosure order: the user must NOT be told until it ends.
-  do_not_notify    Boolean           @default(false)
-  nondisclosure_until DateTime?      @db.Timestamptz
-  nondisclosure_reminded_at DateTime? @db.Timestamptz
-  user_notified_at DateTime?         @db.Timestamptz
-  created_at       DateTime          @default(now()) @db.Timestamptz
-  updated_at       DateTime          @updatedAt @db.Timestamptz
+  do_not_notify             Boolean           @default(false)
+  nondisclosure_until       DateTime?         @db.Timestamptz
+  nondisclosure_reminded_at DateTime?         @db.Timestamptz
+  user_notified_at          DateTime?         @db.Timestamptz
+  created_at                DateTime          @default(now()) @db.Timestamptz
+  updated_at                DateTime          @updatedAt @db.Timestamptz
+  access_log                DataAccessLog[]
+  legal_exports             LegalExport[]
+  legal_holds               LegalHold[]
 
   @@index([due_at])
   @@index([received_at])
-  access_log    DataAccessLog[]
-  legal_exports LegalExport[]
-  legal_holds   LegalHold[]
-
   @@map("data_access_requests")
 }
 
@@ -4593,7 +4592,7 @@ model AttorneyTask {
   updated_at               DateTime             @default(now()) @updatedAt @db.Timestamptz
   /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
   /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
-  version Int @default(0)
+  version                  Int                  @default(0)
   steps                    AttorneyTaskStep[]
   places                   AttorneyTaskPlace[]
   people                   AttorneyTaskPerson[]
@@ -7266,46 +7265,46 @@ enum CaseInvoiceStatus {
 }
 
 model CaseInvoice {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  case_id        String   @db.Uuid
-  case           Case     @relation(fields: [case_id], references: [id], onDelete: Restrict)
-  attorney_id    String   @db.Uuid
-  client_id      String   @db.Uuid
-  seq            Int
-  number         String   @db.VarChar(40)
-  currency       String   @default("USD") @db.Char(3)
-  minutes        Int
-  time_cents     Int
-  expenses_cents Int
-  total_cents    Int
-  note           String?  @db.VarChar(500)
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id             String            @db.Uuid
+  case                Case              @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  attorney_id         String            @db.Uuid
+  client_id           String            @db.Uuid
+  seq                 Int
+  number              String            @db.VarChar(40)
+  currency            String            @default("USD") @db.Char(3)
+  minutes             Int
+  time_cents          Int
+  expenses_cents      Int
+  total_cents         Int
+  note                String?           @db.VarChar(500)
   /// [{kind: time|expense, date, text, minutes?, rateCents?, cents}]
-  lines          Json
-  file_id        String   @db.Uuid
-  created_at     DateTime @default(now()) @db.Timestamptz
+  lines               Json
+  file_id             String            @db.Uuid
+  created_at          DateTime          @default(now()) @db.Timestamptz
   // Owner 2026-10-25: life of the invoice (Clio / MyCase / LawPay style).
-  status             CaseInvoiceStatus @default(sent)
-  due_at             DateTime?         @db.Timestamptz
-  sent_at            DateTime?         @db.Timestamptz
-  viewed_at          DateTime?         @db.Timestamptz
-  paid_at            DateTime?         @db.Timestamptz
-  voided_at          DateTime?         @db.Timestamptz
+  status              CaseInvoiceStatus @default(sent)
+  due_at              DateTime?         @db.Timestamptz
+  sent_at             DateTime?         @db.Timestamptz
+  viewed_at           DateTime?         @db.Timestamptz
+  paid_at             DateTime?         @db.Timestamptz
+  voided_at           DateTime?         @db.Timestamptz
   /// Paid so far, recorded by the attorney (money moves outside the app).
-  paid_cents         Int               @default(0)
-  late_fee_cents     Int               @default(0)
-  late_fee_applied_at DateTime?        @db.Timestamptz
+  paid_cents          Int               @default(0)
+  late_fee_cents      Int               @default(0)
+  late_fee_applied_at DateTime?         @db.Timestamptz
   /// The attorney's OWN external payment link (their site / bank / Stripe
   /// link). Shown to the client as a link; the app never takes the money.
-  pay_url            String?           @db.VarChar(500)
-  reminders_enabled  Boolean           @default(true)
-  reminders_sent     Int               @default(0)
-  last_reminded_at   DateTime?         @db.Timestamptz
+  pay_url             String?           @db.VarChar(500)
+  reminders_enabled   Boolean           @default(true)
+  reminders_sent      Int               @default(0)
+  last_reminded_at    DateTime?         @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
-  @@index([status, due_at])
   @@unique([case_id, seq])
+  @@index([status, due_at])
   @@index([attorney_id, created_at])
   @@map("case_invoices")
 }
@@ -7323,30 +7322,30 @@ enum CaseSignStatus {
 /// SHA-256 of the file is fixed when the request is made; the finished PDF
 /// (original + signature page + protocol page) is a new case file.
 model CaseSignRequest {
-  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  case_id        String          @db.Uuid
-  case           Case            @relation(fields: [case_id], references: [id], onDelete: Restrict)
-  created_by     String          @db.Uuid
-  title          String          @db.VarChar(160)
-  source_file_id String          @db.Uuid
-  source_sha256  String          @db.VarChar(64)
-  status         CaseSignStatus  @default(pending)
-  final_file_id  String?         @db.Uuid
-  final_sha256   String?         @db.VarChar(64)
-  declined_by    String?         @db.Uuid
-  decline_reason String?         @db.VarChar(300)
-  completed_at   DateTime?       @db.Timestamptz
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id          String          @db.Uuid
+  case             Case            @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  created_by       String          @db.Uuid
+  title            String          @db.VarChar(160)
+  source_file_id   String          @db.Uuid
+  source_sha256    String          @db.VarChar(64)
+  status           CaseSignStatus  @default(pending)
+  final_file_id    String?         @db.Uuid
+  final_sha256     String?         @db.VarChar(64)
+  declined_by      String?         @db.Uuid
+  decline_reason   String?         @db.VarChar(300)
+  completed_at     DateTime?       @db.Timestamptz
   // Owner 2026-10-25: expiry (an expired request is `canceled` with
   // expired_at set, so no new status reaches the apps), reminders, and the
   // audit of who opened it: last 50 views [{userId, role, at, ip}].
-  expires_at       DateTime?     @db.Timestamptz
-  expired_at       DateTime?     @db.Timestamptz
-  reminders_sent   Int           @default(0)
-  last_reminded_at DateTime?     @db.Timestamptz
-  view_log         Json          @default("[]")
-  created_at     DateTime        @default(now()) @db.Timestamptz
-  updated_at     DateTime        @default(now()) @updatedAt @db.Timestamptz
-  signatures     CaseSignature[]
+  expires_at       DateTime?       @db.Timestamptz
+  expired_at       DateTime?       @db.Timestamptz
+  reminders_sent   Int             @default(0)
+  last_reminded_at DateTime?       @db.Timestamptz
+  view_log         Json            @default("[]")
+  created_at       DateTime        @default(now()) @db.Timestamptz
+  updated_at       DateTime        @default(now()) @updatedAt @db.Timestamptz
+  signatures       CaseSignature[]
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -7501,31 +7500,31 @@ model ConsultationTimeOff {
 }
 
 model Consultation {
-  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  attorney_id      String             @db.Uuid
-  attorney         User               @relation("ConsultationAttorney", fields: [attorney_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  client_id        String             @db.Uuid
-  client           User               @relation("ConsultationClient", fields: [client_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  starts_at        DateTime           @db.Timestamptz
-  ends_at          DateTime           @db.Timestamptz
-  status           ConsultationStatus @default(pending)
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id           String             @db.Uuid
+  attorney              User               @relation("ConsultationAttorney", fields: [attorney_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  client_id             String             @db.Uuid
+  client                User               @relation("ConsultationClient", fields: [client_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  starts_at             DateTime           @db.Timestamptz
+  ends_at               DateTime           @db.Timestamptz
+  status                ConsultationStatus @default(pending)
   /// What the client wants to discuss (≤500).
-  note             String?            @db.VarChar(500)
+  note                  String?            @db.VarChar(500)
   /// The client's case this is about (bare uuid, checked on booking).
-  case_id          String?            @db.Uuid
+  case_id               String?            @db.Uuid
   /// The chat where the booking line sits (bare uuid: chats are never deleted).
-  conversation_id  String?            @db.Uuid
-  confirmed_at     DateTime?          @db.Timestamptz
-  cancelled_by_id  String?            @db.Uuid
-  cancel_reason    String?            @db.VarChar(300)
+  conversation_id       String?            @db.Uuid
+  confirmed_at          DateTime?          @db.Timestamptz
+  cancelled_by_id       String?            @db.Uuid
+  cancel_reason         String?            @db.VarChar(300)
   /// Who moved it last (attorney or client) and when; the other side is told.
-  rescheduled_at   DateTime?          @db.Timestamptz
-  reminded_day_at  DateTime?          @db.Timestamptz
-  reminded_hour_at DateTime?          @db.Timestamptz
+  rescheduled_at        DateTime?          @db.Timestamptz
+  reminded_day_at       DateTime?          @db.Timestamptz
+  reminded_hour_at      DateTime?          @db.Timestamptz
   /// Owner 2026-10-28: when the sweep looked at who joined the call (once).
-  attendance_checked_at DateTime?     @db.Timestamptz
-  created_at       DateTime           @default(now()) @db.Timestamptz
-  updated_at       DateTime           @updatedAt @db.Timestamptz
+  attendance_checked_at DateTime?          @db.Timestamptz
+  created_at            DateTime           @default(now()) @db.Timestamptz
+  updated_at            DateTime           @updatedAt @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -7845,30 +7844,30 @@ model UsernameHold {
 /// registered request. A worker builds the ZIP (PDF report + JSON + SHA-256
 /// of every file) one job at a time; the file lives `legal.export_ttl_days`.
 model LegalExport {
-  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  request_id      String            @db.Uuid
-  request         DataAccessRequest @relation(fields: [request_id], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "legal_exports_request_fkey")
-  subject_user_id String            @db.Uuid
-  requested_by    String            @db.Uuid
-  status          String            @default("queued") @db.VarChar(10)
-  selection       Json
-  file_bucket     String?
-  file_key        String?
-  size_bytes      BigInt?
-  sha256          String?
-  row_counts      Json?
-  error           String?
-  created_at      DateTime          @default(now()) @db.Timestamptz
-  started_at      DateTime?         @db.Timestamptz
-  finished_at     DateTime?         @db.Timestamptz
-  expires_at      DateTime?         @db.Timestamptz
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_id         String            @db.Uuid
+  request            DataAccessRequest @relation(fields: [request_id], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "legal_exports_request_fkey")
+  subject_user_id    String            @db.Uuid
+  requested_by       String            @db.Uuid
+  status             String            @default("queued") @db.VarChar(10)
+  selection          Json
+  file_bucket        String?
+  file_key           String?
+  size_bytes         BigInt?
+  sha256             String?
+  row_counts         Json?
+  error              String?
+  created_at         DateTime          @default(now()) @db.Timestamptz
+  started_at         DateTime?         @db.Timestamptz
+  finished_at        DateTime?         @db.Timestamptz
+  expires_at         DateTime?         @db.Timestamptz
   /// Owner 2026-10-28: SHA-256 of manifest.json and its signature
   /// (ed25519 with LEGAL_MANIFEST_SIGNING_KEY, else HMAC-SHA256).
-  manifest_sha256 String?
+  manifest_sha256    String?
   manifest_signature String?
-  signature_alg   String?           @db.VarChar(16)
-  download_count  Int               @default(0)
-  last_downloaded_at DateTime?      @db.Timestamptz
+  signature_alg      String?           @db.VarChar(16)
+  download_count     Int               @default(0)
+  last_downloaded_at DateTime?         @db.Timestamptz
 
   @@index([request_id, created_at(sort: Desc)])
   @@index([status, created_at])
@@ -8052,6 +8051,34 @@ model DeletionStep {
   @@unique([user_id, step])
   @@index([status, updated_at])
   @@map("deletion_steps")
+}
+
+/// Owner 2026-10-28: attorney advertising archive. One row per published
+/// VERSION of an attorney's ad text (profile bio, post, promotion), kept
+/// until `retain_until` for the state's record-keeping rule. No FK to
+/// users: a copy must outlive the account. Global family.
+model AttorneyAdArchive {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id  String   @db.Uuid
+  /// profile_bio | post | promotion
+  kind         String   @db.VarChar(16)
+  /// The post / promotion id (the attorney id for a bio).
+  source_id    String   @db.Uuid
+  version      Int
+  content      String
+  content_hash String   @db.VarChar(64)
+  /// «Attorney Advertising» / results disclaimers the server added.
+  disclaimers  String[] @default([])
+  /// Checker findings at save time (rule ids).
+  findings     String[] @default([])
+  state_codes  String[] @default([])
+  created_at   DateTime @default(now()) @db.Timestamptz
+  retain_until DateTime @db.Timestamptz
+
+  @@unique([kind, source_id, version])
+  @@index([attorney_id, created_at(sort: Desc)])
+  @@index([retain_until])
+  @@map("attorney_ad_archive")
 }
 
 /// Internal domain-event stream (events pipeline, N-2). One append-only row

@@ -109110,6 +109110,566 @@
         ]
       }
     },
+    "/admin/attorney-ads/settings": {
+      "get": {
+        "operationId": "getAttorneyAdsSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttorneyAdsSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Per-state advertising rules",
+        "tags": [
+          "admin-attorney-ads"
+        ]
+      },
+      "put": {
+        "operationId": "updateAttorneyAdsSettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAttorneyAdsSettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttorneyAdsSettingsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Change the per-state advertising rules (super admin, fresh 2FA code)",
+        "tags": [
+          "admin-attorney-ads"
+        ]
+      }
+    },
+    "/admin/attorney-ads/rules": {
+      "get": {
+        "operationId": "listAttorneyAdRules",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdRuleListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "The content checker rule catalogue",
+        "tags": [
+          "admin-attorney-ads"
+        ]
+      }
+    },
+    "/admin/attorney-ads/archive": {
+      "get": {
+        "operationId": "listAttorneyAdArchive",
+        "parameters": [
+          {
+            "name": "attorneyId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "profile_bio",
+                "post",
+                "promotion"
+              ]
+            }
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "description": "2-letter state code.",
+            "schema": {
+              "pattern": "^[A-Z]{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "ISO date, from (inclusive).",
+            "schema": {
+              "maxLength": 40,
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "ISO date, to (exclusive).",
+            "schema": {
+              "maxLength": 40,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdArchiveRowListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Archived versions of attorney ads",
+        "tags": [
+          "admin-attorney-ads"
+        ]
+      }
+    },
+    "/admin/attorney-ads/archive/export": {
+      "get": {
+        "operationId": "exportAttorneyAdArchive",
+        "parameters": [
+          {
+            "name": "attorneyId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "profile_bio",
+                "post",
+                "promotion"
+              ]
+            }
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "description": "2-letter state code.",
+            "schema": {
+              "pattern": "^[A-Z]{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "ISO date, from (inclusive).",
+            "schema": {
+              "maxLength": 40,
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "ISO date, to (exclusive).",
+            "schema": {
+              "maxLength": 40,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "CSV export of the ad archive (up to 5 000 rows; audited)",
+        "tags": [
+          "admin-attorney-ads"
+        ]
+      }
+    },
     "/public/directory/attorneys": {
       "get": {
         "operationId": "listPublicAttorneys",
@@ -135904,6 +136464,11 @@
               }
             ]
           },
+          "advertisingDisclaimer": {
+            "type": "string",
+            "nullable": true,
+            "description": "Show this line under the post (e.g. \"Prior results do not guarantee a similar outcome.\"): the author is licensed in a state that requires it and the text quotes results or testimonials."
+          },
           "author": {
             "$ref": "#/components/schemas/PostAuthorDto"
           },
@@ -137098,6 +137663,11 @@
             "type": "boolean",
             "description": "Owner 2026-10-22 (audit #4 §5): show the «Attorney Advertising» label — the attorney is licensed in a state that requires it (NY Rule 7.1(f); admin: Страны → регионы)."
           },
+          "advertisingDisclaimer": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-28: the results disclaimer to show under the bio — the attorney is licensed in a state that requires it and the bio quotes results or testimonials."
+          },
           "publicUrl": {
             "type": "string",
             "description": "Owner 2026-10-22 (audit #4 §9): the canonical public page of this attorney (https://…/attorneys/<username>/) — the link the app shares."
@@ -137701,6 +138271,15 @@
           "advertisingLabel": {
             "type": "boolean",
             "description": "Owner 2026-10-22 (audit #4 §5): show the «Attorney Advertising» label — the attorney is licensed in a state that requires it (NY Rule 7.1(f); admin: Страны → регионы)."
+          },
+          "sponsored": {
+            "type": "boolean",
+            "description": "Owner 2026-10-28: true when this attorney holds paid priority in search (plan «higher in search»). Show the word \"Sponsored\" next to the result."
+          },
+          "advertisingDisclaimer": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-10-28: the results disclaimer to show under the bio — the attorney is licensed in a state that requires it and the bio quotes results or testimonials."
           },
           "publicUrl": {
             "type": "string",
@@ -180748,6 +181327,244 @@
             "description": "Owner 2026-10-22 (audit #4 §5): the «Attorney Advertising» switch."
           }
         }
+      },
+      "StateAdRulesDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "enum": [
+              "off",
+              "warn",
+              "block"
+            ],
+            "type": "string"
+          },
+          "disabledRules": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "archive": {
+            "type": "boolean"
+          },
+          "retentionYears": {
+            "type": "integer"
+          },
+          "disclaimers": {
+            "type": "boolean"
+          },
+          "resultsDisclaimer": {
+            "type": "string"
+          },
+          "adLabel": {
+            "type": "string"
+          },
+          "bidPacksAllowed": {
+            "type": "boolean"
+          },
+          "referralRewardsAllowed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mode",
+          "disabledRules",
+          "archive",
+          "retentionYears",
+          "disclaimers",
+          "resultsDisclaimer",
+          "adLabel",
+          "bidPacksAllowed",
+          "referralRewardsAllowed"
+        ]
+      },
+      "AttorneyAdsSettingsDto": {
+        "type": "object",
+        "properties": {
+          "defaults": {
+            "$ref": "#/components/schemas/StateAdRulesDto"
+          },
+          "states": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Per-state overrides by 2-letter code (NY, NJ, ...)."
+          },
+          "paidPlacementLabel": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "defaults",
+          "states",
+          "paidPlacementLabel"
+        ]
+      },
+      "AttorneyAdsSettingsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AttorneyAdsSettingsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateAttorneyAdsSettingsDto": {
+        "type": "object",
+        "properties": {
+          "defaults": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "states": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Replaces the per-state overrides: {\"NY\": {\"mode\": \"warn\", ...}}."
+          },
+          "paidPlacementLabel": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AdRuleDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "high",
+              "medium"
+            ],
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "messageEn": {
+            "type": "string"
+          },
+          "messageRu": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "reference",
+          "messageEn",
+          "messageRu"
+        ]
+      },
+      "AdRuleListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdRuleDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AdArchiveRowDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attorneyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "profile_bio",
+              "post",
+              "promotion"
+            ]
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "content": {
+            "type": "string"
+          },
+          "disclaimers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "stateCodes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "retainUntil": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "attorneyId",
+          "kind",
+          "sourceId",
+          "version",
+          "content",
+          "disclaimers",
+          "findings",
+          "stateCodes",
+          "createdAt",
+          "retainUntil"
+        ]
+      },
+      "AdArchiveRowListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdArchiveRowDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
       },
       "PublicPracticeDto": {
         "type": "object",

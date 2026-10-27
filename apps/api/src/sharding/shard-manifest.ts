@@ -356,6 +356,8 @@ export const GLOBAL_MODELS: readonly string[] = [
   // Search-ready: the engine outbox and its reindex checkpoints.
   'SearchOutbox',
   'SearchIndexState',
+  // Owner 2026-10-28: attorney advertising archive.
+  'AttorneyAdArchive',
   // Events pipeline (N-2): the domain-event stream (primary only).
   'DomainEvent',
   // Day-one foundations: the double-entry money ledger (global: platform
