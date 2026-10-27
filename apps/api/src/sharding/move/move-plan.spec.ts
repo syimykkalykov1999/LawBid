@@ -68,7 +68,10 @@ describe('move SQL', () => {
     const cols = ['id', 'reply_to_id', 'body'];
     const sql = upsertSql(msg, cols, true);
     expect(sql).toContain('SELECT "id", NULL, "body"');
-    expect(sql).toContain('ON CONFLICT ("id") DO UPDATE SET');
+    // #358: messages are keyed by (id, conversation_id).
+    expect(sql).toContain(
+      'ON CONFLICT ("id", "conversation_id") DO UPDATE SET',
+    );
     expect(upsertSql(msg, cols, false)).toContain('"reply_to_id", "body" FROM');
   });
 

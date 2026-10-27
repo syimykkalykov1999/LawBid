@@ -5,7 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
-import '../models/status12.dart';
+import '../models/status13.dart';
 import '../models/stripe_dispute_evidence_envelope.dart';
 import '../models/stripe_dispute_submit_result_envelope.dart';
 import '../models/stripe_review_item_envelope.dart';
@@ -26,7 +26,7 @@ abstract class AdminStripeReviewClient {
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/admin/stripe-review')
   Future<StripeReviewItemListEnvelope> listOpen({
-    @Query('status') Status12? status,
+    @Query('status') Status13? status,
     @Query('kind') StripeReviewKind? kind,
     @Query('limit') int? limit,
     @Query('cursor') String? cursor,

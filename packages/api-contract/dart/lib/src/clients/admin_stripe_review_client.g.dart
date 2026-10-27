@@ -22,7 +22,7 @@ class _AdminStripeReviewClient implements AdminStripeReviewClient {
 
   @override
   Future<StripeReviewItemListEnvelope> listOpen({
-    Status12? status,
+    Status13? status,
     StripeReviewKind? kind,
     int? limit,
     String? cursor,

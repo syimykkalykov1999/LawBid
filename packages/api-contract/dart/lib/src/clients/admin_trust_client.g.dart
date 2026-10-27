@@ -349,7 +349,7 @@ class _AdminTrustClient implements AdminTrustClient {
 
   @override
   Future<TrustAttorneyListItemListEnvelope> trustAttorneys({
-    Status14? status,
+    Status15? status,
     String? q,
     int? limit,
     Map<String, dynamic>? extras,
@@ -800,7 +800,7 @@ class _AdminTrustClient implements AdminTrustClient {
 
   @override
   Future<BarNumberBlockListEnvelope> blockedBarNumbers({
-    Status15? status,
+    Status16? status,
     String? q,
     int? limit,
     Map<String, dynamic>? extras,
