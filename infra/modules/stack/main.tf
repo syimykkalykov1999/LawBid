@@ -603,6 +603,11 @@ variable "nat_traffic_alarm_gb_per_day" {
   default     = 20
   description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h (0 = off). docs/runbooks/nat-endpoints.md."
 }
+variable "media_replication_max_gb_per_day" {
+  type        = number
+  default     = 50
+  description = "Alarm when the media bucket (= what is replicated to the other Region) grows by more than this many GB in a day; 0 = off. Registry row aws.s3."
+}
 variable "budget_forecast_thresholds" {
   type        = list(number)
   default     = [80, 100]
@@ -1466,6 +1471,8 @@ locals {
     # «search.engine» to shadow / engine (docs/architecture/SEARCH_READY.md).
     OPENSEARCH_URL      = var.growth.opensearch_enabled ? "https://${module.growth.opensearch_endpoint}" : ""
     OPENSEARCH_REPLICAS = tostring(module.growth.opensearch_replicas)
+    # Events pipeline (growth.events_stream_enabled): empty while off.
+    EVENTS_STREAM_NAME = var.growth.events_stream_enabled ? aws_kinesis_stream.events[0].name : ""
     # N-11: set only with growth.opensearch_serverless_enabled; the app uses
     # it when the admin sets «search.engine_kind» = serverless.
     OPENSEARCH_SERVERLESS_URL = var.growth.opensearch_serverless_enabled ? one(module.opensearch_serverless[*].endpoint) : ""
@@ -1943,21 +1950,23 @@ module "budget" {
 }
 
 module "monitoring" {
-  source                       = "../monitoring"
-  name                         = local.name
-  alert_emails                 = var.alert_emails
-  slack_webhook_url            = var.slack_webhook_url
-  pagerduty_https_endpoint     = var.pagerduty_https_endpoint
-  critical_email_too           = var.critical_email_too
-  redis_memory_alarm_percent   = var.redis_memory_alarm_percent
-  nat_gateway_ids              = module.network.nat_gateway_ids
-  nat_traffic_alarm_gb_per_day = var.nat_traffic_alarm_gb_per_day
-  alb_arn_suffix               = module.alb.arn_suffix
-  waf_alb_acl_name             = module.alb.waf_acl_name
-  waf_alb_requests_per_day     = var.waf_requests_alarm_per_day
-  waf_cdn_acl_name             = module.cdn_waf.web_acl_name
-  waf_cdn_requests_per_day     = var.cdn_waf_requests_alarm_per_day
-  cloudfront_gb_per_day_alarm  = var.cloudfront_gb_alarm_per_day
+  source                           = "../monitoring"
+  name                             = local.name
+  alert_emails                     = var.alert_emails
+  slack_webhook_url                = var.slack_webhook_url
+  pagerduty_https_endpoint         = var.pagerduty_https_endpoint
+  critical_email_too               = var.critical_email_too
+  redis_memory_alarm_percent       = var.redis_memory_alarm_percent
+  nat_gateway_ids                  = module.network.nat_gateway_ids
+  nat_traffic_alarm_gb_per_day     = var.nat_traffic_alarm_gb_per_day
+  media_bucket_name                = var.replicate_media && !var.ephemeral ? module.s3.media_bucket : ""
+  media_replication_max_gb_per_day = var.media_replication_max_gb_per_day
+  alb_arn_suffix                   = module.alb.arn_suffix
+  waf_alb_acl_name                 = module.alb.waf_acl_name
+  waf_alb_requests_per_day         = var.waf_requests_alarm_per_day
+  waf_cdn_acl_name                 = module.cdn_waf.web_acl_name
+  waf_cdn_requests_per_day         = var.cdn_waf_requests_alarm_per_day
+  cloudfront_gb_per_day_alarm      = var.cloudfront_gb_alarm_per_day
   cloudfront_distribution_ids = merge(
     { web = module.web.web_distribution_id, media = module.s3.media_distribution_id },
     var.documents_cdn_public_key_pem != "" ? { documents = module.s3.documents_distribution_id } : {},

@@ -274,6 +274,9 @@ export async function seedDemoContent(
         body: png,
         width: DEMO_AVATAR_SIZE,
         height: DEMO_AVATAR_SIZE,
+        // Owner 2026-10-26: the 256 px preview every list links to
+        // (`…_w256`) — without it seeded avatars showed only on profiles.
+        variants: [{ suffix: '_w256', body: png }],
         createdAt: p.createdAt,
       });
       // The files must exist before the user row points at them.

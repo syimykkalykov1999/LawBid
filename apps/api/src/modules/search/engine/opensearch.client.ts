@@ -240,9 +240,15 @@ export class OpenSearchClient {
       }),
       timeoutMs,
     );
-    if (r.status === 404) return [];
+    // 404 = the index/alias is missing: that is an engine failure (so the
+    // Postgres fallback answers), never "no results".
     if (r.status >= 300) {
-      throw new EngineError(`search failed (${r.status})`, r.status);
+      throw new EngineError(
+        r.status === 404
+          ? 'search index or alias is missing (404)'
+          : `search failed (${r.status})`,
+        r.status,
+      );
     }
     const hits =
       (
