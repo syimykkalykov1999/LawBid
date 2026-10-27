@@ -53,8 +53,10 @@ class FakeStream extends Fake implements MediaStream {
       ];
 
   @override
-  Future<void> addTrack(MediaStreamTrack track,
-          {bool addToNative = true,}) async =>
+  Future<void> addTrack(
+    MediaStreamTrack track, {
+    bool addToNative = true,
+  }) async =>
       _tracks.add(track as FakeTrack);
 
   @override

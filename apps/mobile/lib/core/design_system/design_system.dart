@@ -10,6 +10,7 @@ export 'theme/app_theme_providers.dart';
 export 'theme/app_theme_repository.dart';
 export 'theme/app_typography_tokens.dart';
 export 'theme/chat_colors.dart';
+export 'tokens/app_call_colors.dart';
 export 'tokens/app_colors.dart';
 export 'tokens/app_fonts.dart';
 export 'tokens/app_motion.dart';

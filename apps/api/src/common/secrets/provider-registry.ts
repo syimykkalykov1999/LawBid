@@ -558,7 +558,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     id: 'cloudflare_sfu',
     label: 'Cloudflare SFU (group video calls)',
     description:
-      'Cloudflare Realtime SFU for group calls (pay per outgoing traffic). Used only when «calls.video_provider» is set to cloudflare in Settings; calls fall back to device-to-device (video up to 4 people, then audio only) if Cloudflare is down.',
+      'Cloudflare Realtime SFU for group calls (pay per outgoing traffic). Used as soon as the keys are saved (calls.transport = auto); while Cloudflare keeps failing, new group calls fall back to device-to-device (video up to 4 people, then audio only) and return by themselves.',
     fields: [
       {
         name: 'appId',

@@ -1,6 +1,7 @@
 import { FakeCloudflare } from './cloudflare-sfu.fake';
 import { CloudflareSfuProvider } from './cloudflare-sfu.provider';
 import { SfuBrokerService, type SfuCtx } from './sfu-broker.service';
+import { CloudflareSfuError } from './cloudflare-sfu.client';
 
 const SDP = 'v=0\r\no=- 1 1 IN IP4 0.0.0.0\r\n';
 const APP = 'b'.repeat(32);
@@ -292,25 +293,58 @@ describe('SfuBrokerService: a call of four on a mocked Cloudflare', () => {
   });
 });
 
-describe('SfuBrokerService.decide (fallback at call start)', () => {
+describe('SfuBrokerService.decide (owner 2026-10-26: Cloudflare primary)', () => {
   const S = {
-    'calls.video_provider': 'cloudflare',
     'calls.sfu_fallback_mesh_max': 4,
+    'calls.transport_fail_limit': 3,
+    'calls.transport_fail_window_sec': 120,
   };
 
-  it('healthy Cloudflare: SFU for a group call, p2p for anything else', async () => {
-    const { broker } = setup(S);
+  it('keys present: SFU for a group call with no admin switch and no probe; 1:1 stays p2p', async () => {
+    const { cf, broker } = setup(S);
     expect(
       await broker.decide({ isGroup: true, video: true, headcount: 12 }),
     ).toMatchObject({ mediaProvider: 'cloudflare', video: true });
     expect(
       await broker.decide({ isGroup: false, video: true, headcount: 2 }),
     ).toMatchObject({ mediaProvider: 'p2p' });
+    // Healthy Cloudflare is never asked anything at call start.
+    expect(cf.calls).toHaveLength(0);
   });
 
-  it('Cloudflare 5xx: 3 people keep video on mesh, 6 become audio, never rejected', async () => {
+  it('keys absent: own path (plain mesh), Cloudflare not asked', async () => {
+    const cf = new FakeCloudflare();
+    const broker = new SfuBrokerService(
+      { get: () => Promise.resolve(null) } as never,
+      undefined,
+      undefined,
+      {
+        string: () => Promise.resolve('auto'),
+        number: () => Promise.resolve(4),
+      } as never,
+    );
+    expect(
+      await broker.decide({ isGroup: true, video: true, headcount: 9 }),
+    ).toEqual({ mediaProvider: 'p2p', video: true, degraded: false });
+    expect(cf.calls).toHaveLength(0);
+  });
+
+  it('SFU 5xx N times: breaker opens, NEW group calls take the backup (4 keep video, 6 audio)', async () => {
     const { cf, broker } = setup(S);
     cf.failStatus = 503;
+    const ctxA = {
+      callId: 'c-x',
+      userId: 'u1',
+      canPublish: true,
+      joinedUserIds: ['u1'],
+    };
+    for (let i = 0; i < 3; i++) {
+      await expect(broker.createSession(ctxA)).rejects.toMatchObject({
+        status: 503,
+      });
+    }
+    await new Promise((r) => setImmediate(r));
+    expect(await broker.transport.isOpen('sfu')).toBe(true);
     expect(
       await broker.decide({ isGroup: true, video: true, headcount: 3 }),
     ).toEqual({ mediaProvider: 'p2p', video: true, degraded: true });
@@ -319,27 +353,57 @@ describe('SfuBrokerService.decide (fallback at call start)', () => {
     ).toEqual({ mediaProvider: 'p2p', video: false, degraded: true });
   });
 
-  it('not configured: same fallback, and Cloudflare is not even asked', async () => {
-    const cf = new FakeCloudflare();
-    const broker = new SfuBrokerService(
-      { get: () => Promise.resolve(null) } as never,
-      undefined,
-      undefined,
-      {
-        string: () => Promise.resolve('cloudflare'),
-        number: () => Promise.resolve(4),
-      } as never,
-    );
+  it('probe success closes the breaker: the next new call is back on Cloudflare', async () => {
+    const { cf, broker } = setup(S);
+    for (let i = 0; i < 3; i++) {
+      await broker.transport.recordFailure('sfu', 'test');
+    }
+    cf.failStatus = null; // Cloudflare healthy again
+    const first = await broker.decide({
+      isGroup: true,
+      video: true,
+      headcount: 3,
+    });
+    expect(first.mediaProvider).toBe('p2p'); // this call never waits
+    await new Promise((r) => setTimeout(r, 10)); // background probe
+    expect(await broker.transport.isOpen('sfu')).toBe(false);
     expect(
-      await broker.decide({ isGroup: true, video: true, headcount: 9 }),
-    ).toMatchObject({ mediaProvider: 'p2p', video: false });
-    expect(cf.calls).toHaveLength(0);
+      await broker.decide({ isGroup: true, video: true, headcount: 3 }),
+    ).toMatchObject({ mediaProvider: 'cloudflare' });
   });
 
-  it('the admin did not choose cloudflare: Cloudflare is never probed', async () => {
-    const { cf, broker } = setup({ 'calls.video_provider': 'p2p' });
-    await broker.decide({ isGroup: true, video: true, headcount: 6 });
-    expect(cf.calls).toHaveLength(0);
+  it('calls.transport: own never uses Cloudflare; cloudflare ignores an open breaker', async () => {
+    const own = setup({ ...S, 'calls.transport': 'own' });
+    expect(
+      await own.broker.decide({ isGroup: true, video: true, headcount: 3 }),
+    ).toEqual({ mediaProvider: 'p2p', video: true, degraded: false });
+    expect(await own.broker.cloudflareWanted()).toBe(false);
+
+    const forced = setup({ ...S, 'calls.transport': 'cloudflare' });
+    for (let i = 0; i < 3; i++) {
+      await forced.broker.transport.recordFailure('sfu', 'test');
+    }
+    expect(await forced.broker.transport.isOpen('sfu')).toBe(true);
+    expect(
+      await forced.broker.decide({ isGroup: true, video: true, headcount: 3 }),
+    ).toMatchObject({ mediaProvider: 'cloudflare' });
+  });
+
+  it('a 4xx that is the caller fault (bad SDP refused) does not count', async () => {
+    const { broker } = setup(S);
+    const e = new CloudflareSfuError('bad', 400, 'bad');
+    for (let i = 0; i < 5; i++) {
+      try {
+        (broker as unknown as { fail(e: unknown, w: string): never }).fail(
+          e,
+          'x',
+        );
+      } catch {
+        // expected
+      }
+    }
+    await new Promise((r) => setImmediate(r));
+    expect(await broker.transport.isOpen('sfu')).toBe(false);
   });
 });
 

@@ -57,6 +57,10 @@ class _Group extends CallController {
       );
 }
 
+class _GroupEnding extends _Group {
+  void end() => state = const CallSession();
+}
+
 class _Focus extends CallVideoLayoutNotifier {
   @override
   CallVideoLayout build() => const CallVideoLayout(focusId: 'u1');
@@ -138,5 +142,54 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.byType(CallScreen), findsOneWidget);
     expect(container.read(callVideoLayoutProvider).focusId, isNull);
+  });
+
+  testWidgets(
+      'group video with someone big, a sheet open: the end closes both '
+      '(owner 2026-10-26)', (tester) async {
+    final key = GlobalKey<NavigatorState>();
+    late _GroupEnding c;
+    final container = ProviderContainer(
+      overrides: [
+        ...uxOverrides(),
+        callMyIdProvider.overrideWithValue('u0'),
+        callControllerProvider.overrideWith(() => c = _GroupEnding()),
+        callVideoLayoutProvider.overrideWith(_Focus.new),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          navigatorKey: key,
+          theme: AppTheme.of(AppThemeId.values.first),
+          home: const Scaffold(body: Text('chat')),
+        ),
+      ),
+    );
+    key.currentState!
+        .push(MaterialPageRoute<void>(builder: (_) => const CallScreen()))
+        .ignore();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    // A sheet over the call (the members list, «end for all»…).
+    key.currentState!
+        .push(
+          ModalBottomSheetRoute<void>(
+            builder: (_) => const SizedBox(height: 200, child: Text('sheet')),
+            isScrollControlled: false,
+          ),
+        )
+        .ignore();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('sheet'), findsOneWidget);
+
+    c.end();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(CallScreen), findsNothing);
+    expect(find.text('sheet'), findsNothing);
+    expect(find.text('chat'), findsOneWidget);
   });
 }

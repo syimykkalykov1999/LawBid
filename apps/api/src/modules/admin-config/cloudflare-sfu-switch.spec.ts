@@ -57,3 +57,33 @@ describe('SFU settings schema', () => {
     expect(schema['calls.max_participants'].defaultValue).toBe(9);
   });
 });
+
+describe('calls.transport (owner 2026-10-26: Cloudflare primary, own backup)', () => {
+  type T = {
+    assertCloudflareTransportReady(k: string, v: unknown): Promise<void>;
+  };
+  const schema = configSchema();
+  it('3 states, auto by default; breaker limits have sane bounds', () => {
+    const s = schema['calls.transport'];
+    expect(s.defaultValue).toBe('auto');
+    for (const v of ['auto', 'cloudflare', 'own']) {
+      expect(validateConfigValue(s, v)).toBeNull();
+    }
+    expect(validateConfigValue(s, 'both')).not.toBeNull();
+    expect(schema['calls.transport_fail_limit'].defaultValue).toBe(5);
+    expect(schema['calls.transport_fail_window_sec'].defaultValue).toBe(120);
+  });
+  it('forced cloudflare needs a Cloudflare key; auto and own never do', async () => {
+    const none = svc(null) as unknown as T;
+    await expect(
+      none.assertCloudflareTransportReady('calls.transport', 'cloudflare'),
+    ).rejects.toMatchObject({ status: 400 });
+    await none.assertCloudflareTransportReady('calls.transport', 'auto');
+    await none.assertCloudflareTransportReady('calls.transport', 'own');
+    const turnOnly = svc({ keyId: 'k', apiToken: 't' }) as unknown as T;
+    await turnOnly.assertCloudflareTransportReady(
+      'calls.transport',
+      'cloudflare',
+    );
+  });
+});

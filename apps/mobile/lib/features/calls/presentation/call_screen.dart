@@ -8,7 +8,6 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -21,6 +20,7 @@ import 'package:lawbid/features/calls/presentation/call_add_panel.dart';
 import 'package:lawbid/features/calls/presentation/call_controls.dart';
 import 'package:lawbid/features/calls/presentation/call_group.dart';
 import 'package:lawbid/features/calls/presentation/call_pip_window.dart';
+import 'package:lawbid/features/calls/presentation/call_stage.dart';
 import 'package:lawbid/features/calls/presentation/call_vote.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart'
@@ -29,25 +29,37 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/subscription/presentation/paywall_screen.dart';
 
-/// OQ-041: the full-screen call — navy with gold, the other member's
-/// photo with pulsing rings while it rings, the status or the running
-/// time, and round buttons (Mute · End · Speaker; Decline · Accept when it
-/// rings here). Closes itself when the call is over.
+/// Owner 2026-10-26 — the call screen rebuilt «exactly like WhatsApp»
+/// (docs/dev/calls-rework/REFERENCE.md, whatsapp-style.png):
 ///
-/// Owner 2026-10-05: a video call shows the other side full screen and our
-/// camera in a small window (top corner).
-///
-/// Owner 2026-10-22 (WhatsApp): one control pill for every call under way —
-/// Speaker · Video · Mute · End; the camera flip sits in the top bar while
-/// our camera is on. The video button turns a voice call into a video call
-/// (and back); when the other side does it, their picture comes up with
-/// «Turn on yours?».
+/// - Video: the picture covers the whole screen, from under the status bar
+///   to the bottom edge (the safe area only keeps the controls clear). 1:1:
+///   the other side full screen, our camera a small rounded card that drags
+///   and springs to a corner (two taps swap them). Group: rounded tiles
+///   with 3 px gaps, the last row stretched; a tap on a tile = that person
+///   big with the others in a strip of live cards; a tap on the big one =
+///   back to the grid.
+/// - Over the picture, no bars: the chevron (minimise), the name and the
+///   timer centred with a soft shadow, «+» on the right; at the bottom the
+///   dark WhatsApp sheet with round buttons (Flip / Speaker · Video · Mute
+///   · End) — pulled up it shows the people and «Add participant».
+/// - Video only: one tap anywhere shows / hides the controls; untouched
+///   for 4 s they fade away; the grid then takes the whole screen.
+/// - Voice: the dark green gradient, a big photo, the name, the timer;
+///   group voice: everyone's photo, a green ring on whoever speaks; the
+///   sheet never hides.
+/// - Ringing here: the photo with soft pulsing rings, Decline · Accept
+///   sliding up. Nothing blinks: the name and the timer keep their place,
+///   only the status words cross-fade.
 class CallScreen extends ConsumerStatefulWidget {
   const CallScreen({super.key});
 
   @override
   ConsumerState<CallScreen> createState() => _CallScreenState();
 }
+
+/// Untouched this long, a video call's controls fade away.
+const kCallControlsIdle = Duration(seconds: 4);
 
 class _CallScreenState extends ConsumerState<CallScreen>
     with SingleTickerProviderStateMixin {
@@ -57,6 +69,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
   )..repeat();
   Timer? _tick;
   Timer? _closeTimer;
+  Timer? _idle;
 
   CallPeer? _lastPeer;
   late final CallScreenVisible _visible =
@@ -64,30 +77,32 @@ class _CallScreenState extends ConsumerState<CallScreen>
 
   bool _closing = false;
 
-  /// Closes this screen (the call is over). Once, and only this route:
-  /// «ended» then «idle» both close, and a second pop while the screen
-  /// slides away took the chat under it too (device test 2026-10-21).
+  /// The video call's controls may fade (nothing else needs them now).
+  bool _canHide = false;
+
+  /// Closes this screen (the call is over). Once, and only this route.
   void _close() {
     if (!mounted || _closing) return;
     _closing = true;
     final nav = Navigator.of(context);
     final route = ModalRoute.of(context);
-    if (route == null || route.isCurrent) {
+    callTrace('screen close: current=${route?.isCurrent} '
+        'active=${route?.isActive}');
+    if (route == null) {
       unawaited(nav.maybePop());
-    } else if (route.isActive) {
-      nav.removeRoute(route);
+      return;
     }
-    // A screen that is still here a moment after the call is over (device
-    // test 2026-10-21: frozen, buttons dead) goes regardless.
-    Future<void>.delayed(const Duration(milliseconds: 600), () {
-      if (!mounted) return;
-      final phase = ref.read(callControllerProvider).phase;
-      if ((phase == CallPhase.ended || phase == CallPhase.idle) &&
-          route != null &&
-          route.isActive) {
-        nav.removeRoute(route);
-      }
-    });
+    // Owner 2026-10-26 («I hang up and the screen stays»): `maybePop` asks
+    // the PopScope, which refuses while a group video has someone big or
+    // while it rings. The call is over: the call route goes itself, with
+    // any sheet opened over it.
+    if (route.isCurrent) {
+      nav.pop();
+    } else if (route.isActive) {
+      nav
+        ..popUntil((r) => r == route || r.isFirst)
+        ..removeRoute(route);
+    }
   }
 
   @override
@@ -100,15 +115,38 @@ class _CallScreenState extends ConsumerState<CallScreen>
       // Opened (a stale tap) with no call at all: nothing to show.
       if (ref.read(callControllerProvider).phase == CallPhase.idle) _close();
     });
+    // The timer's text only (the rest rebuilds on the call's own changes).
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
   }
 
+  /// Any touch: the controls stay (or come back) for another 4 s.
+  void _touched() {
+    _idle?.cancel();
+    if (!_canHide) return;
+    _idle = Timer(kCallControlsIdle, () {
+      if (mounted && _canHide) {
+        ref.read(callVideoLayoutProvider.notifier).hideControls();
+      }
+    });
+  }
+
+  /// One tap on the picture: show / hide the controls (video only).
+  void _tapPicture() {
+    if (!_canHide) return;
+    final layout = ref.read(callVideoLayoutProvider.notifier);
+    if (ref.read(callVideoLayoutProvider).controlsHidden) {
+      layout.showControls();
+      _touched();
+    } else {
+      _idle?.cancel();
+      layout.hideControls();
+    }
+  }
+
   /// The video / camera button. Owner 2026-10-24: while a crowded call runs
-  /// audio only (Cloudflare is down) the camera cannot go on — a short
-  /// message in the app's usual snackbar says so; switching it OFF and every
-  /// other press work as before.
+  /// audio only (Cloudflare is down) the camera cannot go on.
   void _videoTap(
     CallController c,
     CallSession s,
@@ -124,25 +162,26 @@ class _CallScreenState extends ConsumerState<CallScreen>
     unawaited(toggle());
   }
 
-  /// The red button. In a group call the host chooses like in Telegram:
-  /// end it for everyone, or just leave (the others go on, and the host's
-  /// rights come back when they return).
+  /// The red button. Owner 2026-10-26: when nobody else would stay (one
+  /// other person, nobody ringing) the call just ends — for both. The host
+  /// of a call that goes on without them chooses like in Telegram: end it
+  /// for everyone, or leave.
   Future<void> _pressEnd(CallController c, CallSession s) async {
     final call = s.call;
     final me = ref.read(callMyIdProvider);
     final othersIn = call == null
         ? 0
         : call.participants.where((m) => m.joined && m.userId != me).length;
-    final host = call != null &&
-        call.group &&
-        call.hostId != null &&
-        call.hostId == me &&
-        othersIn > 0 &&
-        // Also while the links are still being set up (device test
-        // 2026-10-21: with four people the host's red button just left).
+    final ringing = call?.participants.any((m) => m.ringing) ?? false;
+    final iHost =
+        call != null && call.group && call.hostId != null && call.hostId == me;
+    final ask = iHost &&
+        (othersIn > 1 || (othersIn == 1 && ringing)) &&
         (s.phase == CallPhase.active || s.phase == CallPhase.connecting);
-    if (!host) {
-      await c.hangUp();
+    callTrace('end pressed ${call?.id} others=$othersIn ringing=$ringing '
+        'host=$iHost ask=$ask');
+    if (!ask) {
+      await c.hangUp(forAll: iHost && othersIn <= 1 && !ringing);
       return;
     }
     final t = ref.read(translatorProvider);
@@ -158,8 +197,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
               FilledButton(
                 key: const Key('call-end-for-all'),
                 style: FilledButton.styleFrom(
-                  backgroundColor:
-                      Theme.of(ctx).extension<AppColorTokens>()!.danger,
+                  backgroundColor: AppCallColors.end,
                 ),
                 onPressed: () => Navigator.of(ctx).pop(true),
                 child: Text(t.t('call.endAll')),
@@ -219,14 +257,14 @@ class _CallScreenState extends ConsumerState<CallScreen>
   }
 
   /// Call screens alive: a second one closing (a duplicate push) must not
-  /// mark the first as gone — the green «return» bar sat over the header
-  /// after coming back from picture-in-picture (device test 2026-10-21).
+  /// mark the first as gone.
   static int _alive = 0;
 
   @override
   void dispose() {
     _alive--;
     _closeTimer?.cancel();
+    _idle?.cancel();
     final visible = _visible;
     Future.microtask(() => visible.set(visible: _alive > 0));
     _pulse.dispose();
@@ -234,469 +272,346 @@ class _CallScreenState extends ConsumerState<CallScreen>
     super.dispose();
   }
 
+  void _listen(CallController c) {
+    ref
+      ..listen(callControllerProvider.select((x) => x.phase), (_, phase) {
+        _closeTimer?.cancel();
+        if (phase == CallPhase.idle) {
+          _close();
+        } else if (phase == CallPhase.ended) {
+          // The 409 sheet (below) decides when this screen goes.
+          if (ref.read(callControllerProvider).staleCallId != null) return;
+          // «Call ended» stays readable for a moment, then the screen goes.
+          _closeTimer = Timer(const Duration(milliseconds: 1500), _close);
+        }
+      })
+      // Telegram: the server holds a call this device does not have.
+      ..listen(callControllerProvider.select((x) => x.staleCallId), (_, id) {
+        if (id != null && mounted) unawaited(_askEndOther(c));
+      })
+      // Owner 2026-10-05 (plan builder): the plan has no video calls.
+      ..listen(callControllerProvider, (prev, next) {
+        if (prev?.phase == CallPhase.ended ||
+            next.phase != CallPhase.ended ||
+            next.errorCode != ApiErrorCodes.entitlementRequired ||
+            !mounted) {
+          return;
+        }
+        final router = GoRouter.of(context);
+        final path = planOfferPath(
+          ref.read(currentUserRoleProvider),
+          PaywallReason.videoCall,
+        );
+        Navigator.of(context).maybePop();
+        unawaited(router.push(path));
+      });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final s = ref.watch(callControllerProvider);
     final c = ref.read(callControllerProvider.notifier);
-    ref.listen(callControllerProvider.select((x) => x.phase), (_, phase) {
-      _closeTimer?.cancel();
-      if (phase == CallPhase.idle) {
-        _close();
-      } else if (phase == CallPhase.ended) {
-        // The 409 sheet (below) decides when this screen goes.
-        if (ref.read(callControllerProvider).staleCallId != null) return;
-        // "Call ended" stays readable for a moment, then the screen goes.
-        _closeTimer = Timer(const Duration(milliseconds: 1500), _close);
-      }
-    });
-    // Telegram: the server holds a call this device does not have — offer
-    // to end it there instead of a dead end.
-    ref.listen(callControllerProvider.select((x) => x.staleCallId), (_, id) {
-      if (id != null && mounted) unawaited(_askEndOther(c));
-    });
-    // Owner 2026-10-05 (plan builder): the plan has no video calls — the
-    // call screen gives way to the plans.
-    ref.listen(callControllerProvider, (prev, next) {
-      if (prev?.phase == CallPhase.ended ||
-          next.phase != CallPhase.ended ||
-          next.errorCode != ApiErrorCodes.entitlementRequired ||
-          !mounted) {
-        return;
-      }
-      final router = GoRouter.of(context);
-      final path = planOfferPath(
-        ref.read(currentUserRoleProvider),
-        PaywallReason.videoCall,
-      );
-      Navigator.of(context).maybePop();
-      unawaited(router.push(path));
-    });
-    // The other member stays on screen until it closes (never a "?").
-    final peer = s.peer ?? s.call?.peer ?? _lastPeer;
-    _lastPeer = peer;
-    final me = ref.watch(callMyIdProvider);
-    // Owner 2026-10-20: three or more people — everyone as a tile.
+    _listen(c);
+    final media = c.media;
     final group = (s.call?.group ?? false) &&
         (s.phase == CallPhase.connecting || s.phase == CallPhase.active);
-    final name = group ? callLabel(s, me) : peer?.name ?? '';
-    final ringing =
-        s.phase == CallPhase.outgoing || s.phase == CallPhase.incoming;
-    final media = c.media;
-    final layout = ref.watch(callVideoLayoutProvider);
-    final frontCamera = ref.watch(callFrontCameraProvider);
-    final peerCameraOff = ref.watch(callCamerasOffProvider).contains(peer?.id);
-    final promptId = s.videoPrompt;
-    final promptName = promptId == null
-        ? ''
-        : s.call?.participants
-                .where((m) => m.userId == promptId)
-                .firstOrNull
-                ?.name ??
-            peer?.name ??
-            '';
-
-    // 1:1: the screen follows the two pictures as they come and go.
-    Widget screen(MediaStream? remoteStream, MediaStream? localStream) {
-      final peerVideo = remoteStream != null && !peerCameraOff;
-      final myVideo = s.cameraOn && localStream != null;
-      final videoLive = s.video &&
-          !group &&
-          s.phase == CallPhase.active &&
-          (myVideo || remoteStream != null);
-      // Owner 2026-10-22 (WhatsApp): our camera on and theirs not here
-      // yet — our own picture fills the screen until theirs arrives.
-      final selfBig = myVideo && (layout.selfBig || remoteStream == null);
-      // 1:1 video, answered: a tap on the empty screen clears the buttons.
-      final hideChrome = layout.controlsHidden && videoLive;
-      final smallStream = selfBig
-          ? (peerVideo ? remoteStream : null)
-          : (myVideo ? localStream : null);
-      return _screen(
-        context,
-        t: t,
-        colors: colors,
-        type: type,
-        s: s,
-        c: c,
-        peer: peer,
-        name: name,
-        group: group,
-        ringing: ringing,
-        media: media,
-        layout: layout,
-        promptName: promptName,
-        videoLive: videoLive,
-        selfBig: selfBig,
-        frontCamera: frontCamera,
-        hideChrome: hideChrome,
-        bigStream: !videoLive
-            ? null
-            : selfBig
-                ? localStream
-                : (peerVideo ? remoteStream : null),
-        smallStream: videoLive ? smallStream : null,
-      );
+    if (media == null || group) {
+      return _frame(context, s, c, media, group, null, null);
     }
-
-    if (media == null || group) return screen(null, null);
     return ListenableBuilder(
       listenable: Listenable.merge([media.remoteVideo, media.localVideo]),
-      builder: (_, __) =>
-          screen(media.remoteVideo.value, media.localVideo.value),
+      builder: (context, _) => _frame(
+        context,
+        s,
+        c,
+        media,
+        group,
+        media.remoteVideo.value,
+        media.localVideo.value,
+      ),
     );
   }
 
-  Widget _screen(
-    BuildContext context, {
-    required Translator t,
-    required AppColorTokens colors,
-    required AppTypographyTokens type,
-    required CallSession s,
-    required CallController c,
-    required CallPeer? peer,
-    required String name,
-    required bool group,
-    required bool ringing,
-    required CallMedia? media,
-    required CallVideoLayout layout,
-    required String promptName,
-    required bool videoLive,
-    required bool selfBig,
-    required bool frontCamera,
-    required bool hideChrome,
-    required MediaStream? bigStream,
-    required MediaStream? smallStream,
-  }) {
+  Widget _frame(
+    BuildContext context,
+    CallSession s,
+    CallController c,
+    CallMedia? media,
+    bool group,
+    MediaStream? remoteStream,
+    MediaStream? localStream,
+  ) {
+    final t = ref.watch(translatorProvider);
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final me = ref.watch(callMyIdProvider);
+    final layout = ref.watch(callVideoLayoutProvider);
+    final frontCamera = ref.watch(callFrontCameraProvider);
+    // The other member stays on screen until it closes (never a «?»).
+    final peer = s.peer ?? s.call?.peer ?? _lastPeer;
+    _lastPeer = peer;
+    final peerCameraOff = ref.watch(callCamerasOffProvider).contains(peer?.id);
+    final active = s.phase == CallPhase.active;
+    final incoming = s.phase == CallPhase.incoming;
+    final ringing = s.phase == CallPhase.outgoing || incoming;
+
+    // --- 1:1: which picture is big ----------------------------------------
+    final peerVideo = remoteStream != null && !peerCameraOff;
+    final myVideo = s.cameraOn && localStream != null;
+    final oneVideo = s.video && !group && active && (myVideo || peerVideo);
+    // Our camera on and theirs not here yet: ours fills the screen.
+    final selfBig = myVideo && (layout.selfBig || !peerVideo);
+    final bigStream = !oneVideo
+        ? null
+        : selfBig
+            ? localStream
+            : (peerVideo ? remoteStream : null);
+    final smallStream = !oneVideo
+        ? null
+        : selfBig
+            ? (peerVideo ? remoteStream : null)
+            : (myVideo ? localStream : null);
+    final groupVideo = group && s.video;
+    final videoMode = oneVideo || groupVideo;
+
+    // --- the controls ------------------------------------------------------
+    final calm = s.videoPrompt == null &&
+        s.notice == null &&
+        s.call?.vote == null &&
+        !ringing &&
+        s.phase != CallPhase.ended;
+    final couldHide = videoMode && calm;
+    if (couldHide != _canHide) {
+      _canHide = couldHide;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_canHide) {
+          _touched();
+        } else {
+          _idle?.cancel();
+          ref.read(callVideoLayoutProvider.notifier).showControls();
+        }
+      });
+    }
+    final hidden = _canHide && layout.controlsHidden;
+    final safe = MediaQuery.paddingOf(context);
+    final sheetHeight = CallControlSheet.closedHeight + safe.bottom;
+
+    // --- the words at the top ---------------------------------------------
+    final title = group ? callLabel(s, me) : (peer?.name ?? '');
+    final status = _status(t, s);
+    // A voice call of two shows the name big in the middle instead.
+    final bigCentre = !videoMode && !group;
+
+    Widget picture;
+    if (groupVideo) {
+      picture = CallGroupGrid(
+        session: s,
+        media: media,
+        controlsInset: hidden ? 0 : sheetHeight,
+        onTapBackground: _tapPicture,
+      );
+    } else if (group) {
+      picture = Stack(
+        fit: StackFit.expand,
+        children: [
+          const CallAudioBackdrop(),
+          CallGroupAudio(session: s, media: media, bottomInset: sheetHeight),
+        ],
+      );
+    } else if (oneVideo) {
+      picture = GestureDetector(
+        key: const Key('call-video-bg'),
+        behavior: HitTestBehavior.opaque,
+        onTap: _tapPicture,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const ColoredBox(color: AppCallColors.stage),
+            AnimatedSwitcher(
+              duration: context.reduceMotion ? Duration.zero : CallMotion.quick,
+              child: bigStream == null
+                  ? Center(
+                      key: const ValueKey('cam-off'),
+                      child: CallAvatar(peer: peer, size: 120),
+                    )
+                  : CallVideoView(
+                      key: ValueKey('big-$selfBig'),
+                      stream: bigStream,
+                      mirror: callMirrorFor(
+                        isLocal: selfBig,
+                        frontCamera: frontCamera,
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      picture = Stack(
+        fit: StackFit.expand,
+        children: [
+          const CallAudioBackdrop(),
+          _BigPerson(
+            peer: peer,
+            pulse: _pulse,
+            ringing: ringing && !context.reduceMotion,
+            name: peer?.name ?? '',
+            status: status,
+            type: type,
+            bottomInset: sheetHeight,
+          ),
+        ],
+      );
+    }
+
+    final topBar = _TopBar(
+      title: bigCentre ? '' : title,
+      status: bigCentre ? '' : status,
+      type: type,
+      onMinimize:
+          incoming ? null : () => unawaited(Navigator.of(context).maybePop()),
+      onAdd: active ? () => unawaited(showAddToCallPanel(context)) : null,
+      minimizeLabel: t.t('call.minimize'),
+      addLabel: t.t('call.addParticipant'),
+    );
+
+    final banners = <Widget>[
+      if (s.notice != null)
+        CallNoticeBanner(key: ValueKey(s.notice), notice: s.notice!),
+      if (s.videoPrompt != null)
+        CallVideoPrompt(
+          key: ValueKey(s.videoPrompt),
+          name: _promptName(s, peer),
+          onTurnOn: () => unawaited(c.toggleVideo()),
+          onNotNow: c.dismissVideoPrompt,
+        ),
+      if (group && s.call?.vote != null)
+        CallVoteStrip(vote: s.call!.vote!, call: s.call!),
+    ];
+
+    final Widget bottom = incoming
+        ? _IncomingButtons(
+            video: s.video,
+            onDecline: c.decline,
+            onAccept: c.accept,
+            pulse: _pulse,
+          )
+        : CallControlSheet(
+            translucent: videoMode,
+            label: t.t('call.members'),
+            panel: const CallMembersPanel(),
+            buttons: CallControlBar(
+              speaker: s.speaker,
+              videoOn: s.video && s.cameraOn,
+              muted: s.muted,
+              onFlip: s.video && s.cameraOn && s.busy
+                  ? () => unawaited(c.switchCamera())
+                  : null,
+              onSpeaker: s.busy ? () => unawaited(c.toggleSpeaker()) : null,
+              // Owner 2026-10-22: switches video on / off mid-call; a
+              // channel's video call keeps the plain camera pause.
+              onVideo: c.canSwitchVideo
+                  ? () => _videoTap(c, s, c.toggleVideo)
+                  : s.video && s.busy
+                      ? () => _videoTap(c, s, c.toggleCamera)
+                      : null,
+              onMute: s.busy ? c.toggleMute : null,
+              onEnd: s.busy ? () => unawaited(_pressEnd(c, s)) : null,
+            ),
+          );
+
     return SystemNavBandColor(
-      color: colors.navy,
+      color: AppCallColors.sheet,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
         child: PopScope(
-          // Back minimises a live call (it goes on; the app shows the green
-          // "Return to call" bar) — it never drops it. A ringing call stays.
-          // In a group video one person big: back returns to everyone first
-          // (device test 2026-10-21: it minimised the call).
-          canPop: s.phase != CallPhase.incoming &&
-              !(group && s.video && layout.focusId != null),
+          // Back minimises a live call (it goes on) — it never drops it. A
+          // ringing call stays. One person big: back returns to everyone.
+          canPop: !incoming && !(groupVideo && layout.focusId != null),
           onPopInvokedWithResult: (didPop, _) {
             if (!didPop && layout.focusId != null) {
               ref.read(callVideoLayoutProvider.notifier).clearFocus();
             }
           },
-          child: Scaffold(
-            backgroundColor: colors.navy,
-            body: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    colors.navy,
-                    Color.lerp(colors.navy, Colors.black, 0.55)!,
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) => _touched(),
+            child: Scaffold(
+              backgroundColor: AppCallColors.stage,
+              body: TweenAnimationBuilder<double>(
+                // The screen arrives with a short fade, never a jump cut.
+                tween: Tween(begin: 0, end: 1),
+                duration: context.reduceMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 220),
+                curve: CallMotion.curve,
+                builder: (context, v, child) => Opacity(
+                  opacity: v,
+                  child: Transform.scale(scale: 0.98 + 0.02 * v, child: child),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Positioned.fill(child: picture),
+                    // Our small picture (1:1 video).
+                    if (smallStream != null && !layout.pipHidden)
+                      Positioned.fill(
+                        child: CallPipWindow(
+                          stream: smallStream,
+                          mirror: callMirrorFor(
+                            isLocal: !selfBig,
+                            frontCamera: frontCamera,
+                          ),
+                          topInset: safe.top + 64,
+                          bottomInset:
+                              hidden ? safe.bottom + 16 : sheetHeight + 12,
+                          onTap: _tapPicture,
+                          onSwap:
+                              ref.read(callVideoLayoutProvider.notifier).swap,
+                        ),
+                      ),
+                    // The top line: chevron, name + timer, «+».
+                    PositionedDirectional(
+                      top: 0,
+                      start: 0,
+                      end: 0,
+                      child: _Fade(
+                        hidden: hidden,
+                        offset: const Offset(0, -0.15),
+                        child: Padding(
+                          padding: EdgeInsets.only(top: safe.top),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              topBar,
+                              for (final b in banners)
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    AppSpacing.md,
+                                    AppSpacing.sm,
+                                    AppSpacing.md,
+                                    0,
+                                  ),
+                                  child: b,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    // The dark sheet (or Decline · Accept while it rings).
+                    PositionedDirectional(
+                      start: 0,
+                      end: 0,
+                      bottom: 0,
+                      child: _Fade(
+                        hidden: hidden || s.phase == CallPhase.ended,
+                        offset: const Offset(0, 0.3),
+                        child: bottom,
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // The big picture: the other side once theirs arrives (ours
-                  // when the small window was tapped, or while theirs is not
-                  // here yet); their photo while their camera is off. A tap
-                  // on the empty screen hides / shows the controls.
-                  if (videoLive)
-                    Positioned.fill(
-                      child: GestureDetector(
-                        key: const Key('call-video-bg'),
-                        behavior: HitTestBehavior.opaque,
-                        onTap: ref
-                            .read(callVideoLayoutProvider.notifier)
-                            .toggleControls,
-                        child: bigStream == null
-                            ? Center(child: CallAvatar(peer: peer, size: 120))
-                            : CallVideoView(
-                                key: ValueKey(selfBig),
-                                stream: bigStream,
-                                mirror: callMirrorFor(
-                                  isLocal: selfBig,
-                                  frontCamera: frontCamera,
-                                ),
-                              ),
-                      ),
-                    ),
-                  IgnorePointer(
-                    ignoring: hideChrome,
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 160),
-                      opacity: hideChrome ? 0 : 1,
-                      child: SafeArea(
-                        child: Column(
-                          children: [
-                            // Owner 2026-10-20 (like WhatsApp): minimise on the
-                            // left, add a person on the right.
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.md,
-                                vertical: AppSpacing.sm,
-                              ),
-                              child: Row(
-                                children: [
-                                  if (s.phase != CallPhase.incoming)
-                                    _TopButton(
-                                      icon: AppIcons.expandMoreRounded,
-                                      label: t.t('call.minimize'),
-                                      onTap: () => unawaited(
-                                        Navigator.of(context).maybePop(),
-                                      ),
-                                    )
-                                  else
-                                    const SizedBox(width: 44, height: 44),
-                                  const Spacer(),
-                                  // Owner 2026-10-22 (WhatsApp): the camera
-                                  // flip, only while our camera is on.
-                                  if (s.video &&
-                                      s.cameraOn &&
-                                      s.busy &&
-                                      s.phase != CallPhase.incoming) ...[
-                                    _TopButton(
-                                      key: const Key('call-btn-flip'),
-                                      icon: AppIcons.cameraRotateOutlined,
-                                      label: t.t('call.flipCamera'),
-                                      onTap: () => unawaited(c.switchCamera()),
-                                    ),
-                                    const SizedBox(width: AppSpacing.sm),
-                                  ],
-                                  // Owner 2026-10-20: the rightmost button
-                                  // always sits at the right edge (the same
-                                  // inset as the minimise button on the left);
-                                  // "add" appears to its left once up.
-                                  if (s.phase == CallPhase.active) ...[
-                                    _TopButton(
-                                      icon: AppIcons.personAddAlt1Rounded,
-                                      label: t.t('call.addParticipant'),
-                                      onTap: () => unawaited(
-                                        showAddToCallPanel(context),
-                                      ),
-                                    ),
-                                    if (group)
-                                      const SizedBox(width: AppSpacing.sm),
-                                  ],
-                                  if (group)
-                                    _TopButton(
-                                      icon: AppIcons.peopleOutlineRounded,
-                                      label: t.t('call.members'),
-                                      onTap: () => unawaited(
-                                        showCallMembersSheet(context),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.screenSide,
-                              ),
-                              child: Text(
-                                name,
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: type.titleLarge
-                                    .copyWith(color: Colors.white),
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            Semantics(
-                              liveRegion: true,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.screenSide,
-                                ),
-                                child: Text(
-                                  callStatusText(t, s),
-                                  textAlign: TextAlign.center,
-                                  style: type.body.copyWith(
-                                    color: s.phase == CallPhase.active
-                                        ? colors.goldLight
-                                        : Colors.white.withValues(alpha: 0.75),
-                                    fontFeatures: const [
-                                      FontFeature.tabularFigures(),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                AppIcon(
-                                  AppIcons.lockOutlineRounded,
-                                  size: 14,
-                                  color: colors.iconTint,
-                                ),
-                                const SizedBox(width: AppSpacing.xs),
-                                Flexible(
-                                  child: Text(
-                                    t.t(
-                                      s.video
-                                          ? 'call.videoLabel'
-                                          : 'call.audioOnly',
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: type.caption
-                                        .copyWith(color: colors.goldLight),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (s.notice != null) ...[
-                              const SizedBox(height: AppSpacing.sm),
-                              CallNoticeBanner(
-                                key: ValueKey(s.notice),
-                                notice: s.notice!,
-                              ),
-                            ],
-                            if (s.videoPrompt != null) ...[
-                              const SizedBox(height: AppSpacing.sm),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.md,
-                                ),
-                                child: CallVideoPrompt(
-                                  key: ValueKey(s.videoPrompt),
-                                  name: promptName,
-                                  onTurnOn: () => unawaited(c.toggleVideo()),
-                                  onNotNow: c.dismissVideoPrompt,
-                                ),
-                              ),
-                            ],
-                            if (group && s.call?.vote != null) ...[
-                              const SizedBox(height: AppSpacing.sm),
-                              CallVoteStrip(vote: s.call!.vote!, call: s.call!),
-                            ],
-                            if (group)
-                              Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: AppSpacing.md,
-                                  ),
-                                  child:
-                                      CallGroupGrid(session: s, media: media),
-                                ),
-                              )
-                            else
-                              const Spacer(),
-                            // A live video call: the picture is the background.
-                            if (!group && !videoLive)
-                              SizedBox(
-                                width: 220,
-                                height: 220,
-                                child: AnimatedBuilder(
-                                  animation: _pulse,
-                                  builder: (context, child) => CustomPaint(
-                                    painter: _RingsPainter(
-                                      progress: _pulse.value,
-                                      on: ringing && !context.reduceMotion,
-                                      color: colors.gold,
-                                    ),
-                                    child: child,
-                                  ),
-                                  child: Center(
-                                    child: CallAvatar(peer: peer, size: 132),
-                                  ),
-                                ),
-                              ),
-                            if (!group) const Spacer(),
-                            Padding(
-                              padding: EdgeInsets.fromLTRB(
-                                s.phase == CallPhase.incoming
-                                    ? AppSpacing.xl
-                                    : AppSpacing.md,
-                                0,
-                                s.phase == CallPhase.incoming
-                                    ? AppSpacing.xl
-                                    : AppSpacing.md,
-                                AppSpacing.xxl,
-                              ),
-                              child: s.phase == CallPhase.incoming
-                                  ? Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceAround,
-                                      children: [
-                                        _RoundButton(
-                                          icon: AppIcons.callEndRounded,
-                                          label: t.t('call.decline'),
-                                          color: colors.dangerFill,
-                                          onTap: c.decline,
-                                        ),
-                                        _RoundButton(
-                                          icon: s.video
-                                              ? AppIcons.videoCameraOutlined
-                                              : AppIcons.callRounded,
-                                          label: t.t('call.accept'),
-                                          color: colors.success,
-                                          onTap: c.accept,
-                                        ),
-                                      ],
-                                    )
-                                  : FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: CallControlBar(
-                                        speaker: s.speaker,
-                                        videoOn: s.video && s.cameraOn,
-                                        muted: s.muted,
-                                        onSpeaker: s.busy
-                                            ? () => unawaited(c.toggleSpeaker())
-                                            : null,
-                                        // Owner 2026-10-22: switches video
-                                        // on / off mid-call; a channel's
-                                        // video call keeps the plain camera
-                                        // pause.
-                                        onVideo: c.canSwitchVideo
-                                            ? () => _videoTap(
-                                                  c,
-                                                  s,
-                                                  c.toggleVideo,
-                                                )
-                                            : s.video && s.busy
-                                                ? () => _videoTap(
-                                                      c,
-                                                      s,
-                                                      c.toggleCamera,
-                                                    )
-                                                : null,
-                                        onMute: s.busy ? c.toggleMute : null,
-                                        onEnd: s.busy
-                                            ? () => unawaited(_pressEnd(c, s))
-                                            : null,
-                                      ),
-                                    ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  // The other picture, small: drag, swap by a tap, put away.
-                  if (smallStream != null && !hideChrome && !layout.pipHidden)
-                    Positioned.fill(
-                      child: CallPipWindow(
-                        stream: smallStream,
-                        mirror: callMirrorFor(
-                          isLocal: !selfBig,
-                          frontCamera: frontCamera,
-                        ),
-                        topInset:
-                            MediaQuery.paddingOf(context).top + AppSpacing.xxl,
-                        bottomInset: MediaQuery.paddingOf(context).bottom + 190,
-                        onTap: ref.read(callVideoLayoutProvider.notifier).swap,
-                      ),
-                    ),
-                ],
               ),
             ),
           ),
@@ -704,14 +619,162 @@ class _CallScreenState extends ConsumerState<CallScreen>
       ),
     );
   }
+
+  String _promptName(CallSession s, CallPeer? peer) {
+    final id = s.videoPrompt;
+    if (id == null) return '';
+    return s.call?.participants
+            .where((m) => m.userId == id)
+            .firstOrNull
+            ?.name ??
+        peer?.name ??
+        '';
+  }
+
+  /// The line under the name: the running time, or what is happening.
+  /// Owner 2026-10-26: never «0:00» or an empty flash — until the call is
+  /// up it says what is going on.
+  String _status(Translator t, CallSession s) => callStatusText(t, s);
 }
 
-/// A small round button in the call screen's top corners.
-class _TopButton extends StatelessWidget {
-  const _TopButton({
+/// Slides and fades a part of the call away while it is hidden; it can be
+/// touched only while it shows.
+class _Fade extends StatelessWidget {
+  const _Fade({
+    required this.hidden,
+    required this.offset,
+    required this.child,
+  });
+
+  final bool hidden;
+  final Offset offset;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = context.reduceMotion ? Duration.zero : CallMotion.layout;
+    return IgnorePointer(
+      ignoring: hidden,
+      child: AnimatedSlide(
+        offset: hidden ? offset : Offset.zero,
+        duration: d,
+        curve: CallMotion.curve,
+        child: AnimatedOpacity(
+          opacity: hidden ? 0 : 1,
+          duration: d,
+          curve: CallMotion.curve,
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// WhatsApp's top line over the picture: the chevron (minimise) at the
+/// start, the name and the timer in the middle with a soft shadow, «+»
+/// at the end. No bar behind it.
+class _TopBar extends StatelessWidget {
+  const _TopBar({
+    required this.title,
+    required this.status,
+    required this.type,
+    required this.onMinimize,
+    required this.onAdd,
+    required this.minimizeLabel,
+    required this.addLabel,
+  });
+
+  final String title;
+  final String status;
+  final AppTypographyTokens type;
+  final VoidCallback? onMinimize;
+  final VoidCallback? onAdd;
+  final String minimizeLabel;
+  final String addLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      child: SizedBox(
+        height: 52,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 48,
+              child: onMinimize == null
+                  ? null
+                  : _TopIcon(
+                      icon: AppIcons.expandMoreRounded,
+                      label: minimizeLabel,
+                      onTap: onMinimize!,
+                      plain: true,
+                    ),
+            ),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // The name and the status keep their place (both lines
+                  // are always laid out), so nothing jumps.
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: type.body.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: CallTextSizes.title,
+                      shadows: kCallTextShadow,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      status,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: type.caption.copyWith(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontSize: CallTextSizes.status,
+                        shadows: kCallTextShadow,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: 48,
+              child: onAdd == null
+                  ? null
+                  : _TopIcon(
+                      key: const Key('call-btn-add'),
+                      icon: AppIcons.personAddAlt1Rounded,
+                      label: addLabel,
+                      onTap: onAdd!,
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TopIcon extends StatelessWidget {
+  const _TopIcon({
     required this.icon,
     required this.label,
     required this.onTap,
+    this.plain = false,
     super.key,
   });
 
@@ -719,32 +782,211 @@ class _TopButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
+  /// No circle behind it (the chevron).
+  final bool plain;
+
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return Semantics(
-      button: true,
-      label: label,
-      child: Material(
-        color: colors.callInk.withValues(alpha: 0.14),
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: label,
+        excludeSemantics: true,
+        child: CallPressScale(
           onTap: onTap,
           child: SizedBox(
-            width: 44,
-            height: 44,
+            width: 48,
+            height: 48,
             child: Center(
-              child: AppIcon(icon, size: 24, color: colors.callInk),
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: plain
+                      ? Colors.transparent
+                      : Colors.black.withValues(alpha: 0.3),
+                ),
+                child: AppIcon(
+                  icon,
+                  size: plain ? 28 : 22,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ),
+        ),
+      );
+}
+
+/// A voice call of two (and every call while it rings): the big photo with
+/// soft rings while it rings, the name, the status / timer.
+class _BigPerson extends StatelessWidget {
+  const _BigPerson({
+    required this.peer,
+    required this.pulse,
+    required this.ringing,
+    required this.name,
+    required this.status,
+    required this.type,
+    required this.bottomInset,
+  });
+
+  final CallPeer? peer;
+  final Animation<double> pulse;
+  final bool ringing;
+  final String name;
+  final String status;
+  final AppTypographyTokens type;
+  final double bottomInset;
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.paddingOf(context).top + 56;
+    return Padding(
+      padding: EdgeInsets.only(top: top, bottom: bottomInset),
+      child: Column(
+        children: [
+          const Spacer(),
+          SizedBox(
+            width: 220,
+            height: 220,
+            child: RepaintBoundary(
+              child: AnimatedBuilder(
+                animation: pulse,
+                builder: (context, child) => CustomPaint(
+                  painter: _RingsPainter(
+                    progress: pulse.value,
+                    on: ringing,
+                    color: Colors.white,
+                  ),
+                  child: child,
+                ),
+                child: Center(child: CallAvatar(peer: peer, size: 132)),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+            child: Text(
+              name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: type.body.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: CallTextSizes.bigName,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Semantics(
+            liveRegion: true,
+            child: AnimatedSwitcher(
+              duration: context.reduceMotion ? Duration.zero : CallMotion.quick,
+              // Only a change of kind cross-fades (not every second).
+              child: Text(
+                status,
+                key: ValueKey(_kind(status)),
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                style: type.body.copyWith(
+                  color: Colors.white.withValues(alpha: 0.8),
+                  fontSize: CallTextSizes.bigStatus,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+          ),
+          const Spacer(flex: 2),
+        ],
+      ),
+    );
+  }
+
+  /// The timer's digits change every second; its kind does not.
+  static String _kind(String s) =>
+      RegExp(r'^\d+:\d\d(:\d\d)?$').hasMatch(s) ? 'clock' : s;
+}
+
+/// Decline · Accept, sliding up when the call rings in (WhatsApp); Accept
+/// breathes gently.
+class _IncomingButtons extends ConsumerWidget {
+  const _IncomingButtons({
+    required this.video,
+    required this.onDecline,
+    required this.onAccept,
+    required this.pulse,
+  });
+
+  final bool video;
+  final Future<void> Function() onDecline;
+  final Future<void> Function() onAccept;
+  final Animation<double> pulse;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final reduce = context.reduceMotion;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: reduce ? Duration.zero : CallMotion.layout,
+      curve: CallMotion.curve,
+      builder: (context, v, child) => Opacity(
+        opacity: v,
+        child: Transform.translate(
+          offset: Offset(0, 24 * (1 - v)),
+          child: child,
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.xxl,
+          0,
+          AppSpacing.xxl,
+          MediaQuery.paddingOf(context).bottom + AppSpacing.xxl,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            CallRoundButton(
+              key: const Key('call-btn-decline'),
+              icon: AppIcons.callEndRounded,
+              label: t.t('call.decline'),
+              caption: t.t('call.decline'),
+              fill: AppCallColors.end,
+              size: 72,
+              onTap: () => unawaited(onDecline()),
+            ),
+            AnimatedBuilder(
+              animation: pulse,
+              builder: (context, child) => Transform.scale(
+                scale: reduce
+                    ? 1
+                    : 1 + 0.06 * math.sin(pulse.value * math.pi * 2).abs(),
+                child: child,
+              ),
+              child: CallRoundButton(
+                key: const Key('call-btn-accept'),
+                icon:
+                    video ? AppIcons.videoCameraOutlined : AppIcons.callRounded,
+                label: t.t('call.accept'),
+                caption: t.t('call.accept'),
+                fill: AppCallColors.accept,
+                size: 72,
+                onTap: () => unawaited(onAccept()),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// "Calling…", "0:42", "Busy", "Calls open once the client accepts…".
+/// «Calling…», «0:42», «Busy», «Calls open once the client accepts…».
+/// Owner 2026-10-26: never «0:00» or an empty flash — until the call is up
+/// (no start time yet) it says «Connecting…».
 String callStatusText(Translator t, CallSession s) {
   switch (s.phase) {
     case CallPhase.outgoing:
@@ -756,7 +998,9 @@ String callStatusText(Translator t, CallSession s) {
     case CallPhase.active:
       if (s.reconnecting) return t.t('call.status.reconnecting');
       final at = s.connectedAt;
-      return at == null ? '' : voiceClock(DateTime.now().difference(at));
+      return at == null
+          ? t.t('call.status.connecting')
+          : voiceClock(DateTime.now().difference(at));
     case CallPhase.ended:
       switch (s.errorCode) {
         case kMicDenied:
@@ -781,7 +1025,15 @@ String callStatusText(Translator t, CallSession s) {
         case 'CALL_NOT_FOUND':
           return t.t('error.api.${s.errorCode}');
       }
-      return t.t('call.status.${(s.outcome ?? CallStatus.ended).name}');
+      final outcome = s.outcome ?? CallStatus.ended;
+      final text = t.t('call.status.${outcome.name}');
+      // Owner 2026-10-26 (WhatsApp): «Call ended · 2:14».
+      final from = s.connectedAt;
+      final to = s.endedAt;
+      if (outcome == CallStatus.ended && from != null && to != null) {
+        return '$text · ${voiceClock(to.difference(from))}';
+      }
+      return text;
     case CallPhase.idle:
       return '';
   }
@@ -810,8 +1062,8 @@ class _RingsPainter extends CustomPainter {
         maxR * (0.62 + 0.38 * p),
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = color.withValues(alpha: math.max(0, 0.55 * (1 - p))),
+          ..strokeWidth = 1.5
+          ..color = color.withValues(alpha: math.max(0, 0.35 * (1 - p))),
       );
     }
   }
@@ -819,62 +1071,4 @@ class _RingsPainter extends CustomPainter {
   @override
   bool shouldRepaint(_RingsPainter old) =>
       old.progress != progress || old.on != on;
-}
-
-class _RoundButton extends StatelessWidget {
-  const _RoundButton({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    // Expanded (always a child of a button Row): equal slots, so long
-    // translated labels wrap inside their own slot instead of overlapping.
-    return Expanded(
-      child: Semantics(
-        button: true,
-        enabled: onTap != null,
-        label: label,
-        excludeSemantics: true,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppPressable(
-              onTap: () {
-                if (onTap == null) return;
-                AppHaptics.light();
-                onTap!();
-              },
-              child: AnimatedContainer(
-                duration: context.reduceMotion
-                    ? Duration.zero
-                    : AppMotion.stateChange,
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-                child: AppIcon(icon, color: colors.callInk, size: 32),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            FitText(
-              label,
-              textAlign: TextAlign.center,
-              style: type.caption
-                  .copyWith(color: colors.callInk.withValues(alpha: 0.85)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

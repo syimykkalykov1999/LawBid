@@ -10,9 +10,9 @@ import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 
 import '../../helpers/ux_harness.dart';
 
-/// Owner 2026-10-22 (WhatsApp): the in-call buttons — one pill with
-/// Speaker · Video · Mute · End; the camera flip in the top bar only while
-/// our camera is on; the «turn on yours?» prompt; avatars that never show
+/// Owner 2026-10-26 (WhatsApp): the in-call buttons on the dark sheet —
+/// Speaker · Video · Mute · End; while our camera is on the flip takes the
+/// speaker's place; the «turn on yours?» prompt; avatars that never show
 /// a broken picture.
 class _Fixed extends CallController {
   _Fixed(this.session);
@@ -99,7 +99,6 @@ void _barTests() {
           ),
         ),
       );
-      final colors = AppTheme.of(id).extension<AppColorTokens>()!;
       Color fillOf(String key) {
         final box = tester.widget<AnimatedContainer>(
           find.descendant(
@@ -119,12 +118,14 @@ void _barTests() {
           )
           .color!;
 
-      expect(fillOf('call-btn-end'), colors.dangerFill);
-      expect(iconOf('call-btn-end'), colors.onDanger);
-      // The others: white icon on a darker translucent fill.
+      // Owner 2026-10-26 (WhatsApp): the same in every theme — End solid
+      // red with a white icon, the others white icons on a light
+      // translucent fill.
+      expect(fillOf('call-btn-end'), AppCallColors.end);
+      expect(iconOf('call-btn-end'), Colors.white);
       for (final k in ['call-btn-speaker', 'call-btn-video', 'call-btn-mute']) {
-        expect(iconOf(k), colors.onDanger, reason: k);
-        expect(fillOf(k), colors.navy.withValues(alpha: 0.55), reason: k);
+        expect(iconOf(k), Colors.white, reason: k);
+        expect(fillOf(k), Colors.white.withValues(alpha: 0.16), reason: k);
       }
       // A button not available yet (the speaker) is only a little dimmer.
       final dim = tester.widget<Opacity>(
@@ -165,12 +166,14 @@ void main() {
     );
   });
 
-  testWidgets('our camera on: the flip button comes into the top bar',
+  testWidgets("our camera on: the flip button takes the speaker's place",
       (tester) async {
     await _pump(tester, _active(video: true));
-    for (final k in _bar) {
+    // Owner 2026-10-26 (WhatsApp video call): Flip · Video · Mute · End.
+    for (final k in _bar.skip(1)) {
       expect(find.byKey(Key(k)), findsOneWidget, reason: k);
     }
+    expect(find.byKey(const Key('call-btn-speaker')), findsNothing);
     expect(find.byKey(const Key('call-btn-flip')), findsOneWidget);
     expect(
       find.descendant(

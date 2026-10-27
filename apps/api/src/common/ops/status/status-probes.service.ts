@@ -9,6 +9,10 @@ import { AppSettingsService } from '../../app-settings/app-settings.service';
 import { SecretsService } from '../../secrets/secrets.service';
 import { fetchCloudflareTurn } from '../../../modules/calls/cloudflare-turn';
 import { CloudflareSfuProvider } from '../../../modules/calls/cloudflare-sfu.provider';
+import {
+  CloudflareTransport,
+  type CfPart,
+} from '../../../modules/calls/cloudflare-transport';
 import { OpsStateService } from '../ops-state.service';
 import { HttpStatsService } from '../http-stats.service';
 import { RealtimeStatsService } from '../realtime-stats.service';
@@ -125,6 +129,7 @@ export class StatusProbesService implements OnModuleDestroy {
     { at: number; value: Omit<ProbeResult, 'key'> }
   >();
   private sfu?: CloudflareSfuProvider;
+  private cfTransport?: CloudflareTransport;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -375,6 +380,39 @@ export class StatusProbesService implements OnModuleDestroy {
     return value;
   }
 
+  /**
+   * Owner 2026-10-26: which path NEW calls take right now, for the status
+   * dot: `cloudflare` (primary) or `own` (automatic backup / forced). Read
+   * from the breaker shared in Redis, so every API instance agrees. While
+   * the breaker is open the board also gives it its probe (at most one a
+   * minute fleet-wide), so Cloudflare comes back even with no calls.
+   */
+  private async callPath(
+    part: CfPart,
+    probe: () => Promise<unknown>,
+  ): Promise<Record<string, unknown>> {
+    this.cfTransport ??= new CloudflareTransport(this.redis, this.settings);
+    const t = this.cfTransport;
+    const mode = await t.mode();
+    let st = await t.state(part);
+    if (st.open && mode !== 'own') {
+      if (await t.maybeProbe(part, probe)) st = await t.state(part);
+    }
+    const path =
+      mode === 'own'
+        ? 'own'
+        : mode === 'cloudflare' || !st.open
+          ? 'cloudflare'
+          : 'own';
+    return {
+      transport: mode,
+      path,
+      breaker: st.open ? 'open' : 'closed',
+      breakerSince: st.since ? new Date(st.since).toISOString() : null,
+      failures: st.failures,
+    };
+  }
+
   /** Cloudflare Realtime TURN: asks for a short-lived login, exactly what a
    * call does. Grey when its keys are not set. */
   private async cloudflareTurn(): Promise<Omit<ProbeResult, 'key'>> {
@@ -392,7 +430,7 @@ export class StatusProbesService implements OnModuleDestroy {
     if (!keyId || !token) {
       return { status: 'grey', detail: { configured: false } };
     }
-    return this.cached('cloudflare_turn', async () => {
+    const probe = await this.cached('cloudflare_turn', async () => {
       const started = Date.now();
       try {
         await fetchCloudflareTurn(keyId, token, PROBE_TURN_TTL_SEC);
@@ -413,6 +451,10 @@ export class StatusProbesService implements OnModuleDestroy {
         };
       }
     });
+    const path = await this.callPath('turn', () =>
+      fetchCloudflareTurn(keyId, token, PROBE_TURN_TTL_SEC),
+    );
+    return this.withPath(probe, path);
   }
 
   /** Cloudflare Realtime SFU (group calls): opens a session, as a group
@@ -422,18 +464,28 @@ export class StatusProbesService implements OnModuleDestroy {
     if (!(await this.sfu.isConfigured())) {
       return { status: 'grey', detail: { configured: false } };
     }
-    let selected = false;
+    // Owner 2026-10-26: SFU keys set = Cloudflare carries group calls,
+    // unless the admin chose our own path (`calls.transport` = own).
+    let selected = true;
     try {
-      selected =
-        (await this.settings.string('calls.video_provider')) === 'cloudflare';
+      selected = (await this.settings.string('calls.transport')) !== 'own';
     } catch {
-      selected = false;
+      selected = true;
     }
     if (!selected) {
-      return { status: 'grey', detail: { configured: true, inUse: false } };
+      return {
+        status: 'grey',
+        detail: {
+          configured: true,
+          inUse: false,
+          transport: 'own',
+          path: 'own',
+        },
+      };
     }
     const sfu = this.sfu;
-    return this.cached('cloudflare_sfu', async () => {
+    const path = await this.callPath('sfu', () => sfu.probe());
+    const probe = await this.cached('cloudflare_sfu', async () => {
       const started = Date.now();
       const ok = await sfu.healthy();
       return ok
@@ -456,6 +508,20 @@ export class StatusProbesService implements OnModuleDestroy {
             },
           };
     });
+    return this.withPath(probe, path);
+  }
+
+  /** The probe result plus the active call path; the dot is at least yellow
+   * while new calls run on our own backup path. */
+  private withPath(
+    probe: Omit<ProbeResult, 'key'>,
+    path: Record<string, unknown>,
+  ): Omit<ProbeResult, 'key'> {
+    const backup = path.path === 'own' && path.transport !== 'own';
+    return {
+      status: backup && probe.status === 'green' ? 'yellow' : probe.status,
+      detail: { ...probe.detail, ...path },
+    };
   }
 
   /** R2 public media: a HEAD of a known-missing key on the public domain

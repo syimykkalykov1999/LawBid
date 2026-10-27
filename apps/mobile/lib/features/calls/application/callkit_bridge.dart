@@ -249,47 +249,99 @@ Future<void> showLawbidIncoming({
   }
   try {
     await FlutterCallkitIncoming.showCallkitIncoming(
-      CallKitParams(
-        id: callId,
-        nameCaller: callerName,
-        appName: 'LawBid',
-        avatar: avatarUrl,
-        handle: 'LawBid',
-        // 0 = audio call, 1 = video call. Android always rings as audio: the
-        // call service has no camera foreground-service type (video calls off).
-        type: video && defaultTargetPlatform != TargetPlatform.android ? 1 : 0,
-        duration: 60000,
-        extra: {'callId': callId},
-        missedCallNotification: const NotificationParams(
-          showNotification: false,
-        ),
-        android: AndroidParams(
-          isCustomNotification: true,
-          isShowLogo: false,
-          // res/raw/silence.wav when calls are switched off; otherwise
-          // the phone's own ringtone (owner 2026-10-07).
-          ringtonePath: silent ? 'silence' : 'system_ringtone_default',
-          backgroundColor: '#0A1A3F',
-          actionColor: '#C9A24A',
-          textColor: '#ffffff',
-          incomingCallNotificationChannelName: 'Incoming calls',
-          isShowFullLockedScreen: true,
-          textAccept: 'Accept',
-          textDecline: 'Decline',
-        ),
-        ios: IOSParams(
-          handleType: 'generic',
-          supportsVideo: video,
-          maximumCallGroups: 1,
-          maximumCallsPerCallGroup: 1,
-          supportsDTMF: false,
-          supportsHolding: false,
-        ),
+      lawbidIncomingParams(
+        callId: callId,
+        callerName: callerName,
+        avatarUrl: avatarUrl,
+        silent: silent,
+        video: video,
       ),
     );
   } on Object catch (e) {
     debugPrint('callkit unavailable: $e');
   }
+}
+
+/// The system ringing screen of one call (Android full-screen notification
+/// / iOS CallKit). Owner 2026-10-26: the caller's photo goes in as
+/// `avatar` — Android's call notification downloads it (large icon and
+/// the full-screen screen); an empty link means none (no broken picture).
+@visibleForTesting
+CallKitParams lawbidIncomingParams({
+  required String callId,
+  required String callerName,
+  String? avatarUrl,
+  bool silent = false,
+  bool video = false,
+  TargetPlatform? platform,
+}) {
+  final android = (platform ?? defaultTargetPlatform) == TargetPlatform.android;
+  final photo =
+      avatarUrl != null && avatarUrl.startsWith('http') ? avatarUrl : null;
+  return CallKitParams(
+    id: callId,
+    nameCaller: callerName,
+    appName: 'LawBid',
+    avatar: photo,
+    handle: 'LawBid',
+    // 0 = audio call, 1 = video call. Android always rings as audio: the
+    // call service has no camera foreground-service type (video calls off).
+    type: video && !android ? 1 : 0,
+    duration: 60000,
+    extra: {'callId': callId},
+    missedCallNotification: const NotificationParams(
+      showNotification: false,
+    ),
+    android: AndroidParams(
+      isCustomNotification: true,
+      isShowLogo: false,
+      // res/raw/silence.wav when calls are switched off; otherwise
+      // the phone's own ringtone (owner 2026-10-07).
+      ringtonePath: silent ? 'silence' : 'system_ringtone_default',
+      backgroundColor: '#0A1A3F',
+      actionColor: '#C9A24A',
+      textColor: '#ffffff',
+      incomingCallNotificationChannelName: 'Incoming calls',
+      isShowFullLockedScreen: true,
+      textAccept: 'Accept',
+      textDecline: 'Decline',
+    ),
+    ios: IOSParams(
+      handleType: 'generic',
+      supportsVideo: video,
+      maximumCallGroups: 1,
+      maximumCallsPerCallGroup: 1,
+      supportsDTMF: false,
+      supportsHolding: false,
+    ),
+  );
+}
+
+/// Owner 2026-10-26: what a ringing call push (`incoming_call`, FCM data or
+/// the iPhone's VoIP push) says — the same keys the server sends
+/// (push-dispatcher.ts dispatchCall). Null for any other push.
+typedef IncomingCallPush = ({
+  String callId,
+  String callerName,
+  String? avatarUrl,
+  bool silent,
+  bool video,
+});
+
+@visibleForTesting
+IncomingCallPush? incomingCallFromPush(Map<String, dynamic> d) {
+  final callId = d['callId'];
+  if (d['type'] != 'incoming_call' || callId is! String || callId.isEmpty) {
+    return null;
+  }
+  final avatar = d['avatarUrl'];
+  return (
+    callId: callId,
+    callerName: '${d['callerName'] ?? d['title'] ?? 'LawBid'}',
+    avatarUrl: avatar is String && avatar.isNotEmpty ? avatar : null,
+    silent: d['silent'] == '1',
+    video: d['video'] == '1',
+  );
 }
 
 /// Push 2026-10-19 (`call_ended` push): the caller hung up, the call was
@@ -322,6 +374,12 @@ Future<void> clearGroupCallNotice(String callId) async {
   }
 }
 
+/// Owner 2026-10-26: the Dart entry of the iPhone's stand-in engine
+/// (AppDelegate.swift callkitPlugin): a VoIP push that wakes a closed app
+/// only needs the CallKit plugin up to report the call — nothing runs here.
+@pragma('vm:entry-point')
+void callkitPushEntry() {}
+
 /// FCM in the background / killed app (Android data-only push): ring, or
 /// stop ringing when the call is over.
 @pragma('vm:entry-point')
@@ -344,12 +402,15 @@ Future<void> lawbidBackgroundMessage(RemoteMessage message) async {
     await stopLawbidIncoming(callId, over: over);
     return;
   }
-  if (d['type'] != 'incoming_call') return;
+  final ring = incomingCallFromPush(d);
+  if (ring == null) return;
   await showLawbidIncoming(
-    callId: callId,
-    callerName: '${d['callerName'] ?? d['title'] ?? 'LawBid'}',
-    silent: d['silent'] == '1',
-    video: d['video'] == '1',
+    callId: ring.callId,
+    callerName: ring.callerName,
+    // Owner 2026-10-26: the photo was missing on calls rung by a push.
+    avatarUrl: ring.avatarUrl,
+    silent: ring.silent,
+    video: ring.video,
   );
 }
 

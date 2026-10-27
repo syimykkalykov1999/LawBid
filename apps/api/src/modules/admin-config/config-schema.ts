@@ -149,14 +149,14 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     type: 'string',
     defaultValue: 'p2p',
     description:
-      'Who carries video calls: p2p (device to device, up to 9 people), livekit (media server; needs the LiveKit keys in Integrations) or cloudflare (Cloudflare SFU for group calls; needs the Cloudflare SFU keys in Integrations).',
+      'Our OWN (backup) path for group calls: p2p (device to device, up to 9 people) or livekit (media server; needs the LiveKit keys in Integrations). Cloudflare is chosen by calls.transport, not here; the old value cloudflare reads like p2p.',
     pattern: /^(p2p|livekit|cloudflare)$/,
   };
   out['calls.sfu_max_participants'] = {
     type: 'integer',
     defaultValue: 20,
     description:
-      'Most people in one group call while calls run on Cloudflare SFU (calls.video_provider = cloudflare).',
+      'Most people in one group call while Cloudflare carries group calls (Cloudflare SFU keys set and calls.transport not own), also during the automatic backup.',
     min: 2,
     max: 100,
   };
@@ -168,6 +168,29 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 2,
     max: 100,
   };
+  out['calls.transport'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'Who carries calls. auto (default) = Cloudflare (TURN for 1:1, SFU for groups) whenever its keys are set; our own path (own TURN, device to device) only while Cloudflare keeps failing, back to Cloudflare by itself. cloudflare = always Cloudflare. own = never Cloudflare. A running call keeps its path.',
+    pattern: /^(auto|cloudflare|own)$/,
+  };
+  out['calls.transport_fail_limit'] = {
+    type: 'integer',
+    defaultValue: 5,
+    description:
+      'Cloudflare call failures (within calls.transport_fail_window_sec) after which NEW calls switch to our own path until Cloudflare answers again (probed once a minute).',
+    min: 1,
+    max: 1000,
+  };
+  out['calls.transport_fail_window_sec'] = {
+    type: 'integer',
+    defaultValue: 120,
+    description:
+      'The window, in seconds, in which calls.transport_fail_limit Cloudflare failures switch new calls to our own path.',
+    min: 10,
+    max: 3600,
+  };
   out['calls.max_participants'] = {
     type: 'integer',
     defaultValue: 9,
@@ -178,7 +201,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   };
   out['calls.solo_end_seconds'] = {
     type: 'integer',
-    defaultValue: 30,
+    defaultValue: 3,
     description:
       'When only one person is left in a call, the call ends after this many seconds unless somebody joins. 0 = end at once.',
     min: 0,

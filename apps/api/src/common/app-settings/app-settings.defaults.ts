@@ -945,8 +945,9 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
    * LIVEKIT_* keys); big-audience channel calls come next release. */
   'calls.max_participants': 9,
   /** Owner 2026-10-23: one person left in a call → the call ends after this
-   * many seconds unless somebody joins (0 = at once). */
-  'calls.solo_end_seconds': 30,
+   * many seconds unless somebody joins (0 = at once). Owner 2026-10-26: 3 s
+   * («when one person is left it must end by itself», like WhatsApp). */
+  'calls.solo_end_seconds': 3,
   /** Owner 2026-10-22: guest browsing (reading with no account). Kill
    * switch and the per-IP budgets of token-less reads. */
   'guest.browsing_enabled': true,
@@ -961,6 +962,16 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
    * (4) stay device-to-device with their video; with more, everyone is
    * audio-only (a call is never refused, seats stay as in the SFU limit). */
   'calls.sfu_fallback_mesh_max': 4,
+  /** Owner 2026-10-26: who carries calls. auto (default) = Cloudflare
+   * (TURN for 1:1, Realtime SFU for groups) whenever its keys are set, our
+   * own path (own TURN + device to device) only while Cloudflare keeps
+   * failing — back to Cloudflare by itself; cloudflare = always Cloudflare;
+   * own = never Cloudflare. A running call keeps its path. */
+  'calls.transport': 'auto',
+  /** The breaker: this many Cloudflare failures within the window move NEW
+   * calls to our own path; Cloudflare is then probed once a minute. */
+  'calls.transport_fail_limit': 5,
+  'calls.transport_fail_window_sec': 120,
   /** off | on | auto (default). Ceiling: per person per day below. */
   'chat.link_preview_enabled': 'auto',
   'chat.link_preview_per_user_per_day': 1000,

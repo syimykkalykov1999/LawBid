@@ -312,6 +312,32 @@ export class AdminConfigService {
     });
   }
 
+  /** Owner 2026-10-26: `calls.transport` = cloudflare (forced) needs at
+   * least one Cloudflare call key (TURN or SFU); auto and own never do. */
+  private async assertCloudflareTransportReady(
+    key: string,
+    value: unknown,
+  ): Promise<void> {
+    if (key !== 'calls.transport' || value !== 'cloudflare') return;
+    const turn = (await this.secrets?.get('cloudflare_turn'))?.fields ?? {};
+    const sfu = (await this.secrets?.get('cloudflare_sfu'))?.fields ?? {};
+    const has = (f: Record<string, string>, name: string, env: string) =>
+      Boolean((f[name] ?? this.config.get<string>(env) ?? '').trim());
+    const turnSet =
+      has(turn, 'keyId', 'CLOUDFLARE_TURN_KEY_ID') &&
+      has(turn, 'apiToken', 'CLOUDFLARE_TURN_API_TOKEN');
+    const sfuSet =
+      has(sfu, 'appId', 'CLOUDFLARE_SFU_APP_ID') &&
+      has(sfu, 'appToken', 'CLOUDFLARE_SFU_APP_TOKEN');
+    if (turnSet || sfuSet) return;
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_ERROR,
+      message:
+        'Cloudflare is not configured: add Integrations → Cloudflare TURN (and Cloudflare SFU for groups) first, or keep auto.',
+      details: { field: 'value' },
+    });
+  }
+
   /** Owner 2026-10-24: cloudflare cannot be switched on without its keys. */
   private async assertCloudflareSfuReady(
     key: string,
@@ -358,6 +384,7 @@ export class AdminConfigService {
     }
     await this.assertLivekitReady(key, value);
     await this.assertCloudflareSfuReady(key, value);
+    await this.assertCloudflareTransportReady(key, value);
     await this.assertR2Ready(key, value);
     await this.assertSearchEngineReady(key, value);
     const json = value as Prisma.InputJsonValue;

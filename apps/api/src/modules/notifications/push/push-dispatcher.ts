@@ -378,14 +378,20 @@ export class PushDispatcher
         caller_id: true,
         callee: { select: { status: true, ui_language: true } },
         caller: {
-          select: { first_name: true, last_name: true },
+          select: { first_name: true, last_name: true, avatar_file_id: true },
         },
         // Group calls: a person added to a running call.
         participants: {
           where: { user_id: data.recipientId, status: 'invited' },
           select: {
             invited_by_id: true,
-            invited_by: { select: { first_name: true, last_name: true } },
+            invited_by: {
+              select: {
+                first_name: true,
+                last_name: true,
+                avatar_file_id: true,
+              },
+            },
             user: { select: { status: true, ui_language: true } },
           },
         },
@@ -424,6 +430,12 @@ export class PushDispatcher
     const who = invite?.invited_by ?? call.caller;
     const name =
       [who.first_name, who.last_name].filter(Boolean).join(' ') || 'LawBid';
+    // Owner 2026-10-26 (calls arrived without the caller's photo when the
+    // app was closed / the screen locked): the ring carries the photo link
+    // (the 256 px public CDN copy, as the recipient may see it), so the
+    // system call screen shows it without asking the server first.
+    const pics = await this.avatarUrls(data.recipientId, [who.avatar_file_id]);
+    const avatarUrl = pics.get(who.avatar_file_id ?? '') ?? null;
     // Owner 2026-10-17: iPhones with a VoIP token ring through Apple
     // directly (CallKit, even when the app is closed); their FCM call push
     // is skipped so they don't ring twice.
@@ -432,6 +444,7 @@ export class PushDispatcher
         callId: data.callId,
         conversationId: call.conversation_id ?? '',
         callerName: name,
+        avatarUrl,
         video: call.video,
         silent,
       })) ?? [];
@@ -451,6 +464,7 @@ export class PushDispatcher
           callId: data.callId,
           conversationId: call.conversation_id ?? '',
           callerName: name,
+          ...(avatarUrl ? { avatarUrl } : {}),
           ...(silent ? { silent: '1' } : {}),
           ...(call.video ? { video: '1' } : {}),
         },

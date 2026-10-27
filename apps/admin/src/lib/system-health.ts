@@ -20,6 +20,21 @@ function usd(v: number | null): string {
   return v === null ? '—' : `$${v.toFixed(v >= 100 ? 0 : 2)}`;
 }
 
+/** Owner 2026-10-26: which path NEW calls take right now (the status dot of
+ * Cloudflare TURN / SFU): Cloudflare, or our own backup. */
+function withCallPath(d: D, line: string): string {
+  if (d.path !== 'cloudflare' && d.path !== 'own') return line;
+  const now =
+    d.path === 'cloudflare'
+      ? d.transport === 'cloudflare'
+        ? 'Сейчас звонки идут через Cloudflare (включено «всегда Cloudflare»).'
+        : 'Сейчас звонки идут через Cloudflare.'
+      : d.transport === 'own'
+        ? 'Сейчас звонки идут через наш путь (включено «никогда не Cloudflare»).'
+        : `Сейчас НОВЫЕ звонки идут через наш запасной путь: Cloudflare сбоил${typeof d.breakerSince === 'string' ? ` с ${new Date(d.breakerSince).toLocaleTimeString('ru-RU')}` : ''}. Проверяем Cloudflare раз в минуту и вернёмся на него сами.`;
+  return `${now} ${line}`;
+}
+
 interface Worded {
   title: string;
   /** What is there now, one short line. */
@@ -246,12 +261,14 @@ export function word(item: HealthItem): Worded {
     case 'cloudflare_turn':
       return {
         title: 'Звонки: Cloudflare TURN',
-        line:
+        line: withCallPath(
+          d,
           s === 'grey'
             ? 'Cloudflare TURN не настроен: без него звонки за сложными сетями не соединятся.'
             : d.error
               ? `Cloudflare не выдаёт доступ для звонков: ${String(d.error)}.`
               : `Cloudflare TURN отвечает за ${n(d.answerMs) ?? '—'} мс.`,
+        ),
         todo:
           s === 'grey'
             ? 'Добавьте ключи в Безопасность → Ключи и сервисы → cloudflare_turn.'
@@ -263,15 +280,17 @@ export function word(item: HealthItem): Worded {
     case 'cloudflare_sfu':
       return {
         title: 'Групповые звонки: Cloudflare SFU',
-        line:
+        line: withCallPath(
+          d,
           s === 'grey'
             ? 'Групповые звонки идут не через Cloudflare (или ключи не заданы).'
             : d.error
               ? 'Cloudflare SFU не открывает сессию.'
               : `Cloudflare SFU отвечает за ${n(d.answerMs) ?? '—'} мс.`,
+        ),
         todo:
           s === 'red'
-            ? 'Групповые звонки сами переключатся на прямое соединение (аудио). Проверьте ключи cloudflare_sfu и cloudflarestatus.com.'
+            ? 'Новые групповые звонки сами перейдут на запасной путь (напрямую между телефонами: до 4 человек с видео, больше — только аудио) и сами вернутся на Cloudflare, когда он заработает. Проверьте ключи cloudflare_sfu и cloudflarestatus.com.'
             : undefined,
         runbook: 'TURN.md',
       };

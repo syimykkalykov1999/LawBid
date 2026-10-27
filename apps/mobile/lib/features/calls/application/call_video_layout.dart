@@ -87,6 +87,26 @@ class CallVideoLayoutNotifier extends Notifier<CallVideoLayout> {
   void toggleControls() => state = state.controlsHidden
       ? state.copyWith(controlsHidden: false, pipHidden: false)
       : state.copyWith(controlsHidden: true);
+
+  /// Owner 2026-10-26: any touch brings the controls back at once.
+  void showControls() {
+    if (state.controlsHidden) {
+      state = state.copyWith(controlsHidden: false, pipHidden: false);
+    }
+  }
+
+  /// Owner 2026-10-26: video calls hide the controls after 4 s untouched.
+  void hideControls() {
+    if (!state.controlsHidden) state = state.copyWith(controlsHidden: true);
+  }
+
+  /// Owner 2026-10-26 (WhatsApp / Zoom): a tap on a card in the strip makes
+  /// that person the big one (the old big one goes into the strip).
+  void setMain(String userId) {
+    if (state.focusId == userId) return;
+    state = state.copyWith(focusId: userId);
+    _tellCall();
+  }
 }
 
 final callVideoLayoutProvider =

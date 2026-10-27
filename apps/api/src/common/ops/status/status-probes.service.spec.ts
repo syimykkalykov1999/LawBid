@@ -85,13 +85,13 @@ describe('StatusProbesService outside probes', () => {
     expect(JSON.stringify(r)).not.toContain('tok-secret');
   });
 
-  it('cloudflare_sfu is grey unless group calls use Cloudflare', async () => {
+  it('cloudflare_sfu is grey without keys or when calls.transport = own', async () => {
     const f = jest.fn();
     global.fetch = f as never;
     const sfu = { cloudflare_sfu: { appId: 'a', appToken: 't' } };
     expect((await make({}).cloudflareSfu()).status).toBe('grey');
     const r = await make(sfu, {
-      'calls.video_provider': 'p2p',
+      'calls.transport': 'own',
     }).cloudflareSfu();
     expect(r.status).toBe('grey');
     expect(r.detail.inUse).toBe(false);
@@ -100,7 +100,8 @@ describe('StatusProbesService outside probes', () => {
 
   it('cloudflare_sfu is green when a session opens and red when it does not', async () => {
     const sfu = { cloudflare_sfu: { appId: 'a', appToken: 't' } };
-    const settings = { 'calls.video_provider': 'cloudflare' };
+    // Owner 2026-10-26: keys alone put group calls on Cloudflare.
+    const settings = {};
     global.fetch = jest.fn(() =>
       Promise.resolve(
         new Response(JSON.stringify({ sessionId: 's1' }), { status: 201 }),
@@ -111,6 +112,24 @@ describe('StatusProbesService outside probes', () => {
       Promise.resolve(new Response('x', { status: 500 })),
     ) as never;
     expect((await make(sfu, settings).cloudflareSfu()).status).toBe('red');
+  });
+
+  it('the dot says which path NEW calls take: cloudflare, or own while the breaker is open', async () => {
+    global.fetch = jest.fn(() =>
+      Promise.resolve(new Response(JSON.stringify(CF_OK), { status: 201 })),
+    ) as never;
+    const p = make(cfKeys);
+    const ok = await p.cloudflareTurn();
+    expect(ok.detail).toMatchObject({
+      path: 'cloudflare',
+      breaker: 'closed',
+      transport: 'auto',
+    });
+    const own = await make(cfKeys, {
+      'calls.transport': 'own',
+    }).cloudflareTurn();
+    expect(own.detail).toMatchObject({ path: 'own', transport: 'own' });
+    expect(own.status).toBe('green');
   });
 
   const r2 = {

@@ -10,6 +10,10 @@ import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/calls/presentation/call_invite_bar.dart';
+import 'package:lawbid/features/calls/presentation/call_pip_window.dart';
+import 'package:lawbid/features/calls/presentation/call_screen.dart'
+    show callStatusText;
+import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 
 /// OQ-041: opens the call screen over whatever is on screen when a call
@@ -121,6 +125,13 @@ class CallHost extends ConsumerWidget {
             session: s,
             onOpen: () => unawaited(router.push<void>(ChatRoutes.call)),
           );
+        } else if (s.busy && s.phase != CallPhase.incoming && !onScreen) {
+          // Owner 2026-10-26 (exactly like WhatsApp): a call that runs while
+          // the person is elsewhere in the app — the green bar on top.
+          top = _ReturnBar(
+            session: s,
+            onOpen: () => unawaited(router.push<void>(ChatRoutes.call)),
+          );
         } else if (!s.busy &&
             invite != null &&
             !(invite.groupId != null && _inChatOf(invite.groupId!))) {
@@ -134,16 +145,49 @@ class CallHost extends ConsumerWidget {
         // assertion on the first call from a chat, device test 2026-10-20).
         // The bar takes the status-bar strip, so what is below it must not
         // pad for the status bar a second time.
-        return Column(
+        final media = ref.read(callControllerProvider.notifier).media;
+        final floating = s.video &&
+            s.phase == CallPhase.active &&
+            !onScreen &&
+            media != null;
+        return Stack(
           children: [
-            if (top != null) top else const SizedBox.shrink(),
-            Expanded(
-              child: MediaQuery.removePadding(
-                context: context,
-                removeTop: top != null,
-                child: child,
-              ),
+            Column(
+              children: [
+                if (top != null) top else const SizedBox.shrink(),
+                Expanded(
+                  child: MediaQuery.removePadding(
+                    context: context,
+                    removeTop: top != null,
+                    child: child,
+                  ),
+                ),
+              ],
             ),
+            // Owner 2026-10-26 (WhatsApp): a video call minimised inside
+            // the app floats as a small picture; a tap opens the call.
+            if (floating)
+              Positioned.fill(
+                child: ValueListenableBuilder(
+                  valueListenable: media.remoteVideo,
+                  builder: (context, stream, _) => stream == null
+                      ? const SizedBox.shrink()
+                      : CallPipWindow(
+                          key: const Key('call-floating-pip'),
+                          stream: stream,
+                          mirror: false,
+                          topInset: MediaQuery.paddingOf(context).top + 56,
+                          bottomInset:
+                              MediaQuery.paddingOf(context).bottom + 96,
+                          onTap: () =>
+                              unawaited(router.push<void>(ChatRoutes.call)),
+                          onSwap: () =>
+                              unawaited(router.push<void>(ChatRoutes.call)),
+                        ),
+                ),
+              )
+            else
+              const SizedBox.shrink(),
           ],
         );
       },
@@ -240,6 +284,74 @@ class _IncomingBanner extends ConsumerWidget {
                 () => unawaited(call.accept()),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-26 (exactly like WhatsApp): the green bar on top of the
+/// app while a call runs elsewhere — «Return to call · 2:14»; a tap opens
+/// the call.
+class _ReturnBar extends ConsumerWidget {
+  const _ReturnBar({required this.session, required this.onOpen});
+
+  final CallSession session;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Semantics(
+      button: true,
+      child: GestureDetector(
+        key: const Key('call-return-bar'),
+        behavior: HitTestBehavior.opaque,
+        onTap: onOpen,
+        child: ColoredBox(
+          color: AppCallColors.accept,
+          child: SafeArea(
+            bottom: false,
+            child: SizedBox(
+              height: 32,
+              child: Center(
+                child: StreamBuilder<int>(
+                  stream: Stream<int>.periodic(
+                    const Duration(seconds: 1),
+                    (i) => i,
+                  ),
+                  builder: (context, _) => Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const AppIcon(
+                        AppIcons.callRounded,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Flexible(
+                        child: Text(
+                          [
+                            t.t('call.returnToCall'),
+                            callStatusText(t, session),
+                          ].where((x) => x.isNotEmpty).join(' · '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.caption.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: CallTextSizes.status,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),

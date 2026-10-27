@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:lawbid/core/permissions/permission_primer.dart';
+import 'package:lawbid/features/calls/application/call_controller.dart'
+    show callTrace;
 
 import 'package:lawbid/features/calls/application/call_quality.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
@@ -709,6 +711,11 @@ class WebRtcCallMedia implements CallMedia {
       ..value = mic;
   }
 
+  /// Owner 2026-10-26 («I hang up and the call does not end»): every step
+  /// of the teardown runs even when one before it throws — a camera track
+  /// already stopped by a video toggle threw in `stop()`, the rest was
+  /// skipped, the peer connection stayed open and the other phone kept our
+  /// picture and voice.
   @override
   Future<void> close() async {
     _levelTimer?.cancel();
@@ -716,8 +723,14 @@ class WebRtcCallMedia implements CallMedia {
     _qualityTimer?.cancel();
     _qualityTimer = null;
     _quality.value = LinkQuality.good;
+    final links = _links.values.toList();
+    _links.clear();
+    // The links first: the other side hears the hang-up at once.
+    for (final link in links) {
+      await _guard('pc.close', link.pc.close);
+    }
     for (final t in _mic?.getTracks() ?? const <MediaStreamTrack>[]) {
-      await t.stop();
+      await _guard('track.stop', t.stop);
     }
     _local.value = null;
     _remote.value = null;
@@ -725,18 +738,23 @@ class WebRtcCallMedia implements CallMedia {
     _speaking.value = const {};
     for (final r in _webAudio.values) {
       r.srcObject = null;
-      await r.dispose();
+      await _guard('audio.dispose', r.dispose);
     }
     _webAudio.clear();
     _frontCamera = true;
-    await _mic?.dispose();
-    for (final link in _links.values) {
-      await link.pc.close();
-    }
-    _links.clear();
+    final mic = _mic;
     _mic = null;
+    if (mic != null) await _guard('stream.dispose', mic.dispose);
     _video = false;
     _mutedNow = false;
+  }
+
+  static Future<void> _guard(String step, Future<void> Function() run) async {
+    try {
+      await run();
+    } on Object catch (e) {
+      callTrace('media close: $step failed: $e');
+    }
   }
 }
 

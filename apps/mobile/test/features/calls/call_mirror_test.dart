@@ -58,16 +58,18 @@ void main() {
       () => createLocalMediaStream('stream-1'),
     );
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SizedBox(
-            width: 200,
-            height: 300,
-            child: CallVideoView(
-              stream: stream!,
-              mirror: callMirrorFor(
-                isLocal: isLocal,
-                frontCamera: frontCamera,
+      ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 200,
+              height: 300,
+              child: CallVideoView(
+                stream: stream!,
+                mirror: callMirrorFor(
+                  isLocal: isLocal,
+                  frontCamera: frontCamera,
+                ),
               ),
             ),
           ),

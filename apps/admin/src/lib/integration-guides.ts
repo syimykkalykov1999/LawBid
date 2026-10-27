@@ -246,14 +246,14 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Cloudflare → Realtime → SFU → Create Application. Дайте приложению имя (например lawbid-group-calls).',
       'Cloudflare покажет App ID и App Secret (секрет виден один раз) — скопируйте оба значения.',
       'Вставьте их в поля ниже → «Сохранить» (потребуется код 2FA) → «Проверить»: зелёная отметка значит, что Cloudflare принял ключи.',
-      'Включение отдельно: Админка → Настройки → calls.video_provider = cloudflare. Пока ключей нет, система не даст выбрать cloudflare. Сколько человек в звонке — calls.sfu_max_participants (по умолчанию 20).',
+      'Отдельно включать не нужно: как только ключи сохранены, групповые звонки идут через Cloudflare (настройка calls.transport = Авто). Сколько человек в звонке — calls.sfu_max_participants (по умолчанию 20).',
       'Если Cloudflare недоступен: звонки до 4 человек идут напрямую между телефонами с видео, а когда людей больше — у всех только аудио (порог — настройка calls.sfu_fallback_mesh_max). Звонок не отклоняется.',
       'Цена: $0.05 за ГБ исходящего трафика Cloudflare; первые 1000 ГБ в месяц бесплатно (общие с Cloudflare TURN). Звонок сквозным шифрованием не закрыт: Cloudflare технически видит медиа.',
     ],
     links: [{ label: 'Cloudflare Realtime SFU', url: 'https://developers.cloudflare.com/realtime/sfu/' }],
     enable: [
       'Заполните App ID и App Secret → «Сохранить» → «Проверить» → «Включить».',
-      'Сам ключ звонки не переключает: Админка → Настройки → calls.video_provider = cloudflare.',
+      'После сохранения ключей новые групповые звонки сразу идут через Cloudflare. Если Cloudflare сбоит, новые звонки сами уходят на запасной путь и сами возвращаются (calls.transport).',
     ],
     fields: {
       appId: { how: 'Realtime → SFU → ваше приложение → App ID (32 символа 0-9 a-f).', example: '0123456789abcdef0123456789abcdef' },
