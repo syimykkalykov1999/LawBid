@@ -123,6 +123,15 @@ export const OWNER_STAFF_SETTINGS = {
   'staff.pins_max': 7,
   'staff.anomalies.fast_pct': 20,
   'staff.anomalies.top_n': 20,
+  // --- AI mode (T12; the switches above are OFF) ---
+  'staff.ai.monthly_cents': 500,
+  'staff.ai.model_tier': 0,
+  'staff.ai.qa_sample_pct': 0,
+  'staff.ai.qa_max_cases': 500,
+  'staff.ai.disagree_min_conf': 70,
+  'staff.ai.hint_timeout_ms': 3000,
+  'staff.ai.hints_per_minute': 20,
+  'staff.ai.summary_max': 50,
   // --- retention of the journals ---
   'staff.retention.signals_days': 120,
   'staff.retention.lease_events_days': 90,
@@ -547,6 +556,50 @@ export const STAFF_NUMBER_DEFS: Readonly<
     min: 5,
     max: 200,
     labelRu: 'Аномалии: строк в суточном отчёте',
+  },
+  'staff.ai.monthly_cents': {
+    min: 0,
+    max: 1_000_000,
+    labelRu:
+      'ИИ: потолок расходов в месяц, центов (500 = $5; дошли до потолка — вызовы ИИ останавливаются, 0 = ИИ ничего не тратит)',
+  },
+  'staff.ai.model_tier': {
+    min: 0,
+    max: 1,
+    labelRu:
+      'ИИ: модель (0 = Haiku 5.5, дешёвая; 1 = Sonnet 5.5, точнее и примерно в 20 раз дороже)',
+  },
+  'staff.ai.qa_sample_pct': {
+    min: 0,
+    max: 100,
+    labelRu:
+      'ИИ-проверка: сверх перепроверки по правилам брать ещё случайно, % вчерашних решений (0 = только то, что отобрали правила)',
+  },
+  'staff.ai.qa_max_cases': {
+    min: 1,
+    max: 20_000,
+    labelRu: 'ИИ-проверка: не больше дел за ночь',
+  },
+  'staff.ai.disagree_min_conf': {
+    min: 50,
+    max: 100,
+    labelRu:
+      'ИИ-проверка: отправлять решение человеку на второй взгляд, если ИИ не согласен и уверен не меньше, %',
+  },
+  'staff.ai.hint_timeout_ms': {
+    min: 500,
+    max: 10_000,
+    labelRu: 'ИИ-подсказка в столе: ждать ответ не дольше, миллисекунд',
+  },
+  'staff.ai.hints_per_minute': {
+    min: 1,
+    max: 120,
+    labelRu: 'ИИ-подсказка в столе: не больше запросов в минуту на сотрудника',
+  },
+  'staff.ai.summary_max': {
+    min: 1,
+    max: 500,
+    labelRu: 'ИИ-резюме рекомендаций: не больше карточек за ночь',
   },
   'staff.retention.signals_days': {
     min: 30,

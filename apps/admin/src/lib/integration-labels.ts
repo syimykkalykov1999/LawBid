@@ -115,6 +115,11 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     description:
       'Проверяет новые посты и комментарии на оскорбления, ненависть, сексуальный и опасный контент до жалоб. Режимы выкл / тень / действовать и суточный потолок задаются в Модерация → Автомодерация. Стоит около нуля.',
   },
+  anthropic: {
+    label: 'Режим ИИ для сотрудников (Claude API)',
+    description:
+      'Ночная ИИ-проверка решений, подсказка в столе и короткое резюме рекомендаций. Работает только при включённом мастер-тумблере «Режим ИИ для сотрудников»; потолок расходов в месяц задаётся в Настройках (staff.ai.monthly_cents). Выключено — ни одного вызова.',
+  },
   photodna: {
     label: 'PhotoDNA (известные материалы о насилии над детьми)',
     description:
@@ -210,6 +215,7 @@ const FIELD_BY_PROVIDER: Record<string, string> = {
   'aws_rekognition.accessKeyId': 'ID ключа доступа (пусто = роль сервера)',
   'aws_rekognition.secretAccessKey': 'Секретный ключ доступа',
   'openai_moderation.apiKey': 'Ключ OpenAI (начинается с sk-)',
+  'anthropic.apiKey': 'Ключ Claude API (начинается с sk-ant-)',
   'fcm.clientEmail': 'Email сервисного аккаунта',
   'sentry.mobileDsn': 'Адрес для отчётов приложения (DSN)',
   'sentry.adminDsn': 'Адрес для отчётов админки (DSN)',
@@ -331,6 +337,7 @@ const FIELD_EN: Record<string, string> = {
   'aws_rekognition.accessKeyId': 'Access key ID',
   'aws_rekognition.secretAccessKey': 'Secret access key',
   'openai_moderation.apiKey': 'API key',
+  'anthropic.apiKey': 'API key',
   'photodna.subscriptionKey': 'Ocp-Apim-Subscription-Key',
   'photodna.endpoint': 'Endpoint',
   'ncmec.username': 'Username',

@@ -1,5 +1,5 @@
 import type { ErrorEvent } from '@sentry/nestjs';
-import { scrubSentryEvent } from './app.setup';
+import { scrubSentryEvent, shouldExposeApiDocs } from './app.setup';
 
 describe('scrubSentryEvent (docs/06 §4.3)', () => {
   it('drops request bodies, headers, cookies, query and PII-named fields', () => {
@@ -22,5 +22,24 @@ describe('scrubSentryEvent (docs/06 §4.3)', () => {
       body: '[REDACTED]',
       nested: { email: '[REDACTED]', ok: 1 },
     });
+  });
+});
+
+describe('shouldExposeApiDocs (staff package T11: Swagger closed in production)', () => {
+  it('production: closed, whatever else', () => {
+    expect(shouldExposeApiDocs('production')).toBe(false);
+    expect(shouldExposeApiDocs('production', undefined)).toBe(false);
+    expect(shouldExposeApiDocs('production', '0')).toBe(false);
+    expect(shouldExposeApiDocs('production', 'true')).toBe(false);
+  });
+
+  it('production: only the owner switch API_DOCS_IN_PRODUCTION=1 opens it', () => {
+    expect(shouldExposeApiDocs('production', '1')).toBe(true);
+  });
+
+  it('development, test and staging keep the docs', () => {
+    expect(shouldExposeApiDocs('development')).toBe(true);
+    expect(shouldExposeApiDocs('test')).toBe(true);
+    expect(shouldExposeApiDocs('staging')).toBe(true);
   });
 });

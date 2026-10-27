@@ -263,6 +263,11 @@ abstract final class ApiErrorCodes {
   static const adminStepUpRequired = 'ADMIN_STEP_UP_REQUIRED';
   static const adminIpNotAllowed = 'ADMIN_IP_NOT_ALLOWED';
   static const adminWorkspaceConflict = 'ADMIN_WORKSPACE_CONFLICT';
+  static const staffRevealLimit = 'STAFF_REVEAL_LIMIT';
+  static const staffExportBlocked = 'STAFF_EXPORT_BLOCKED';
+  static const adminCountryNotAllowed = 'ADMIN_COUNTRY_NOT_ALLOWED';
+  static const adminDeviceChanged = 'ADMIN_DEVICE_CHANGED';
+  static const adminIpChanged = 'ADMIN_IP_CHANGED';
   static const reasonCodeRequired = 'REASON_CODE_REQUIRED';
   static const auditUnavailable = 'AUDIT_UNAVAILABLE';
   static const videoUnavailable = 'VIDEO_UNAVAILABLE';
@@ -525,6 +530,11 @@ abstract final class ApiErrorCodes {
     adminStepUpRequired,
     adminIpNotAllowed,
     adminWorkspaceConflict,
+    staffRevealLimit,
+    staffExportBlocked,
+    adminCountryNotAllowed,
+    adminDeviceChanged,
+    adminIpChanged,
     reasonCodeRequired,
     auditUnavailable,
     videoUnavailable,

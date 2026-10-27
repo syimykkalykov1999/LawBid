@@ -9,6 +9,7 @@ import { useConfirm } from '@/components/legacy/confirm';
 import { FadeIn, MotionRow } from '@/components/legacy/fade-in';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
+import { RevealValue } from '@/components/security/reveal-value';
 import { SubscriptionCard } from '@/components/subscription-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -349,8 +350,8 @@ export default function UserCardPage() {
             <CardContent className="space-y-2 text-sm">
               {contacts ? (
                 <>
-                  <Row k="Email" v={contacts.email ?? '—'} />
-                  <Row k="Телефон" v={contacts.phone ?? '—'} />
+                  <Row k="Email" v={<RevealValue value={contacts.email} targetType="user" targetId={id} field="email" />} />
+                  <Row k="Телефон" v={<RevealValue value={contacts.phone} targetType="user" targetId={id} field="phone" />} />
                   {contacts.preferredContactNote ? <Row k="Заметка" v={contacts.preferredContactNote} /> : null}
                 </>
               ) : (

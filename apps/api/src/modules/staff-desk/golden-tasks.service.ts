@@ -5,8 +5,15 @@ import type { LeaseGolden } from '../work-lease/lease-golden';
 
 const log = new Logger('GoldenTasks');
 
-/** staff_review_samples.decision_kind of a golden task: `golden_<queue kind>`. */
-export const goldenKindOf = (kind: string): string => `golden_${kind}`;
+/** The kind the rating knows a lease kind by (both appeal queues are «appeal»). */
+const RATING_KIND: Readonly<Record<string, string>> = {
+  mod_appeal: 'appeal',
+  review_appeal: 'appeal',
+};
+
+/** staff_review_samples.decision_kind of a golden task: `golden_<rating kind>`. */
+export const goldenKindOf = (kind: string): string =>
+  `golden_${RATING_KIND[kind] ?? kind}`;
 
 /**
  * Staff package T4: the desk side of golden tasks. T5 (staff-rating) puts a

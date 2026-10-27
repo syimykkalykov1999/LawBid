@@ -2,13 +2,8 @@ import type { AppSettingsService } from '../../common/app-settings/app-settings.
 import type { PrismaService } from '../../prisma/prisma.service';
 import { StaffSettingsService } from '../../modules/staff-core/staff-settings.service';
 import type { StaffSwitchKey } from '../../modules/staff-core/staff-settings.defaults';
-import { StaffAiQaNightlyJob } from './staff-ai-qa-nightly.job';
 import { StaffAnomaliesJob } from './staff-anomalies.job';
 import { StaffCountersFlushJob } from './staff-counters-flush.job';
-import { StaffDailyStatsJob } from './staff-daily-stats.job';
-import { StaffHeadScoreJob } from './staff-head-score.job';
-import { StaffRatingNightlyJob } from './staff-rating-nightly.job';
-import { StaffRetaliationExpireJob } from './staff-retaliation-expire.job';
 import {
   STAFF_RETENTION_BATCH,
   StaffRetentionJob,
@@ -44,30 +39,9 @@ const stubs: Array<
   ],
   ['staff.today', (s) => new StaffTodayJob(s), ['staff.owner_home_enabled']],
   [
-    'staff.daily-stats',
-    (s) => new StaffDailyStatsJob(s),
-    ['staff.rating_enabled'],
-  ],
-  [
-    'staff.rating-nightly',
-    (s) => new StaffRatingNightlyJob(s),
-    ['staff.rating_enabled'],
-  ],
-  ['staff.head-score', (s) => new StaffHeadScoreJob(s), ['staff.head_enabled']],
-  [
     'staff.anomalies',
     (s) => new StaffAnomaliesJob(s),
     ['staff.anomalies_enabled'],
-  ],
-  [
-    'staff.ai-qa-nightly',
-    (s) => new StaffAiQaNightlyJob(s),
-    ['staff.ai_enabled', 'staff.ai_qa_enabled'],
-  ],
-  [
-    'staff.retaliation-expire',
-    (s) => new StaffRetaliationExpireJob(s),
-    ['staff.appeals_enabled'],
   ],
   [
     'staff.weekly-digest',
@@ -76,7 +50,7 @@ const stubs: Array<
   ],
 ];
 
-describe('staff.* cron jobs (staff package T1 stubs)', () => {
+describe('staff.* cron jobs (staff package T1 stubs; daily-stats and rating-nightly are T5, see staff-rating-jobs.spec.ts; head-score and retaliation-expire are T6, see staff-appeals-jobs.spec.ts)', () => {
   describe.each(stubs)('%s', (_name, make, keys) => {
     it('switch off (the default): returns at once, no work', async () => {
       await expect(make(settings()).run()).resolves.toEqual({ skipped: 'off' });
@@ -90,12 +64,7 @@ describe('staff.* cron jobs (staff package T1 stubs)', () => {
     });
   });
 
-  it('staff.ai-qa-nightly: the sub-switch alone (master off) makes no AI call', async () => {
-    const job = new StaffAiQaNightlyJob(
-      settings({ 'staff.ai_qa_enabled': true }),
-    );
-    await expect(job.run()).resolves.toEqual({ skipped: 'off' });
-  });
+  // staff.ai-qa-nightly is built (T12): see staff-ai-qa-nightly.job.spec.ts.
 });
 
 describe('staff.retention', () => {

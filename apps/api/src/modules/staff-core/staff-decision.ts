@@ -10,16 +10,19 @@ export interface ClosedDecision {
   /** work_leases.kind: support_ticket · verification · report · mod_appeal · review_appeal. */
   kind: string;
   itemId: string;
-  /** approve · reject · request_info · resolve · close · accept · keep · … */
+  /** approve · reject · request_info · close · accept · … (as the rating recorder spells them). */
   outcome: string;
+  /** The item kind the rating recorder knows it by, when that differs from the lease kind. */
+  recordKind?: string;
 }
 
 /**
  * Staff package T4: what a queue service does the moment a person closes an
  * item with a decision — end their work lease (while the queue is served by
  * leases) and report the decision to the rating recorder (T5; a no-op until
- * it is bound or while its switch is off). One call from the service, AFTER
- * its own transaction committed. Best effort by design: the decision itself
+ * it is bound or while its switch is off; leave `recorder` out where the
+ * queue already reports to the recorder itself). One call from the service,
+ * AFTER its own transaction committed. Best effort by design: the decision itself
  * is already done and must never fail because of bookkeeping.
  */
 export async function closeStaffDecision(
@@ -43,7 +46,7 @@ export async function closeStaffDecision(
   try {
     await deps.recorder?.record({
       adminId: d.adminId,
-      itemKind: d.kind,
+      itemKind: d.recordKind ?? d.kind,
       itemId: d.itemId,
       outcome: d.outcome,
       ...(handleMs !== undefined ? { handleMs } : {}),

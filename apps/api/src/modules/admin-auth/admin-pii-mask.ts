@@ -52,6 +52,63 @@ export function maskName(v: string): string {
   return parts.map((p) => `${[...p][0].toUpperCase()}.`).join(' ');
 }
 
+// Staff package T11 (plan C4): the mass-work workspace sees a PARTIAL mask —
+// enough to tell two people apart, not enough to copy a contact out. The
+// full value comes only from `POST admin/pii/reveal` (audited, 20 a day).
+const DOC_KEYS = new Set([
+  'barnumber',
+  'licensenumber',
+  'documentnumber',
+  'docnumber',
+  'passportnumber',
+  'idnumber',
+]);
+/** Payment fields are never given to the mass-work workspace. */
+const PAYMENT_KEYS = new Set([
+  'iban',
+  'cardnumber',
+  'pan',
+  'accountnumber',
+  'bankaccountnumber',
+  'routingnumber',
+  'cardlast4',
+]);
+
+/** `+14155552680` → `+1 *** ** 80` (the dial code is 1 digit for 1 and 7, else 2). */
+export function maskPhonePartial(v: string): string {
+  const digits = v.replace(/\D/g, '');
+  if (digits.length < 6) return '*** **';
+  const cc = digits[0] === '1' || digits[0] === '7' ? 1 : 2;
+  return `+${digits.slice(0, cc)} *** ** ${digits.slice(-2)}`;
+}
+
+/** `sofia@example.com` → `s***@example.com` */
+export function maskEmailPartial(v: string): string {
+  const at = v.indexOf('@');
+  if (at < 1) return '***';
+  return `${[...v][0]}***${v.slice(at)}`;
+}
+
+/** `NY1234567` → `*****4567` (the last four characters stay). */
+export function maskDocPartial(v: string): string {
+  const t = v.trim();
+  return t.length <= 4 ? '***' : `*****${t.slice(-4)}`;
+}
+
+/** What a walker does with one field: keep it, replace it, or drop the key. */
+const DROP = Symbol('drop');
+type FieldMasker = (key: string, value: unknown) => unknown;
+
+function partialField(key: string, value: unknown): unknown {
+  const k = norm(key);
+  if (PAYMENT_KEYS.has(k)) return DROP;
+  if (typeof value !== 'string' || value === '') return value;
+  if (PHONE_KEYS.has(k)) return maskPhonePartial(value);
+  if (EMAIL_KEYS.has(k)) return maskEmailPartial(value);
+  if (DOC_KEYS.has(k)) return maskDocPartial(value);
+  return value;
+}
+
 function maskField(key: string, value: unknown): unknown {
   if (typeof value !== 'string' || value === '') return value;
   const k = norm(key);
@@ -68,9 +125,20 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 }
 
 /** A copy of [value] with the personal fields masked (any depth). */
-export function maskPii(value: unknown, depth = 0): unknown {
+export function maskPii(value: unknown): unknown {
+  return walk(value, maskField, 0);
+}
+
+/** Staff package T11: the partial mask of the mass-work workspace —
+ * phone, e-mail and document numbers shortened, payment fields removed.
+ * Names stay (a worker answers a person by name). */
+export function maskPiiPartial(value: unknown): unknown {
+  return walk(value, partialField, 0);
+}
+
+function walk(value: unknown, field: FieldMasker, depth: number): unknown {
   if (depth > 12) return value;
-  if (Array.isArray(value)) return value.map((v) => maskPii(v, depth + 1));
+  if (Array.isArray(value)) return value.map((v) => walk(v, field, depth + 1));
   if (!isPlainObject(value)) {
     // Class instances (DTOs) become plain copies so their fields are seen.
     if (
@@ -80,15 +148,20 @@ export function maskPii(value: unknown, depth = 0): unknown {
     ) {
       const ctor = value.constructor?.name;
       if (ctor && ctor !== 'Object' && !isStreamLike(value)) {
-        return maskPii({ ...(value as Record<string, unknown>) }, depth + 1);
+        return walk(
+          { ...(value as Record<string, unknown>) },
+          field,
+          depth + 1,
+        );
       }
     }
     return value;
   }
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(value)) {
-    const masked = maskField(k, v);
-    out[k] = masked !== v ? masked : maskPii(v, depth + 1);
+    const masked = field(k, v);
+    if (masked === DROP) continue;
+    out[k] = masked !== v ? masked : walk(v, field, depth + 1);
   }
   return out;
 }

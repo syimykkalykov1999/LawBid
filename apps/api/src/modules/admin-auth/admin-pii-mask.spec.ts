@@ -1,4 +1,13 @@
-import { maskEmail, maskName, maskPhone, maskPii } from './admin-pii-mask';
+import {
+  maskDocPartial,
+  maskEmail,
+  maskEmailPartial,
+  maskName,
+  maskPhone,
+  maskPhonePartial,
+  maskPii,
+  maskPiiPartial,
+} from './admin-pii-mask';
 import { AdminPiiMaskInterceptor } from './admin-pii-mask.interceptor';
 import { lastValueFrom, of } from 'rxjs';
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
@@ -75,6 +84,62 @@ describe('PII masking (owner 2026-10-16)', () => {
     expect(await run({ noPii: true })).toEqual({ email: 'a•••@•••' });
     expect(await run({ noPii: false })).toEqual({ email: 'a@b.co' });
     expect(await run(undefined)).toEqual({ email: 'a@b.co' });
+  });
+});
+
+describe('partial mask of the mass-work workspace (staff package T11)', () => {
+  it('shortens phone, e-mail and document numbers, keeps names and the rest', () => {
+    const out = maskPiiPartial({
+      items: [
+        {
+          id: 'u1',
+          firstName: 'Sofia',
+          email: 'sofia@example.com',
+          phone: '+14155552680',
+          phone_e164: '+996555123412',
+          barNumber: 'NY1234567',
+          status: 'active',
+          nested: {
+            contactPhone: '+79161234567',
+            iban: 'DE89370400440532013000',
+          },
+        },
+      ],
+    }) as { items: Record<string, unknown>[] };
+    const row = out.items[0];
+    expect(row.phone).toBe('+1 *** ** 80');
+    expect(row.phone_e164).toBe('+99 *** ** 12');
+    expect(row.email).toBe('s***@example.com');
+    expect(row.barNumber).toBe('*****4567');
+    expect(row.firstName).toBe('Sofia');
+    expect(row.status).toBe('active');
+    expect(row.nested).toEqual({ contactPhone: '+7 *** ** 67' });
+    expect(JSON.stringify(out)).not.toMatch(/4155552680|sofia@|NY123|DE89/);
+  });
+
+  it('removes payment fields (never given to the mass-work workspace)', () => {
+    const out = maskPiiPartial({
+      cardNumber: '4242424242424242',
+      account_number: '000123456789',
+      cardLast4: '4242',
+      amount: 5,
+    });
+    expect(out).toEqual({ amount: 5 });
+  });
+
+  it('helpers are safe on odd input', () => {
+    expect(maskPhonePartial('123')).toBe('*** **');
+    expect(maskEmailPartial('nope')).toBe('***');
+    expect(maskDocPartial('AB1')).toBe('***');
+    expect(maskPiiPartial(null)).toBeNull();
+    expect(maskPiiPartial({ phone: null, email: '' })).toEqual({
+      phone: null,
+      email: '',
+    });
+  });
+
+  it('does not change the full mask', () => {
+    expect(maskPii({ phone: '+14155552680' })).toEqual({ phone: '••••80' });
   });
 });
 

@@ -74,6 +74,7 @@ export class ReviewAppealsAuditService {
         {
           adminId: admin.id,
           kind: 'review_appeal',
+          recordKind: 'appeal',
           itemId: a.id,
           outcome: dto.decision,
         },

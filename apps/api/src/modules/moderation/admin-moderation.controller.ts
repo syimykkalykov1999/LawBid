@@ -33,10 +33,6 @@ import {
 } from './admin-moderation.dto';
 import { LEASE_PORT, type LeasePort } from '../staff-core/lease.port';
 import { closeStaffDecision } from '../staff-core/staff-decision';
-import {
-  STAFF_RECORDER,
-  type StaffRecorder,
-} from '../staff-core/staff-recorder.port';
 import { AdminModerationService } from './admin-moderation.service';
 
 const E = ErrorCode;
@@ -51,9 +47,6 @@ export class AdminModerationController {
     private readonly moderation: AdminModerationService,
     // Staff package T4: a human decision ends the moderator's work lease.
     @Optional() @Inject(LEASE_PORT) private readonly lease?: LeasePort,
-    @Optional()
-    @Inject(STAFF_RECORDER)
-    private readonly recorder?: StaffRecorder,
   ) {}
 
   @Get('queue')
@@ -103,7 +96,7 @@ export class AdminModerationController {
       dto.reason,
     );
     await closeStaffDecision(
-      { lease: this.lease, recorder: this.recorder },
+      { lease: this.lease },
       {
         adminId: admin.id,
         kind: 'report',

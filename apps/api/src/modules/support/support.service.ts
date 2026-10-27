@@ -14,6 +14,10 @@ import { withTxRetry } from '../../prisma/tx-retry.util';
 import { RateLimitService } from '../auth/services/rate-limit.service';
 import { LEASE_PORT, type LeasePort } from '../staff-core/lease.port';
 import { reopenStaffItem } from '../staff-core/staff-decision';
+import {
+  STAFF_SIGNALS,
+  type StaffSignals,
+} from '../staff-core/staff-signals.port';
 import { SupportDeskService } from './support-desk.service';
 import { SupportFilesService } from './support-files.service';
 import type {
@@ -94,6 +98,9 @@ export class SupportService {
     private readonly settings: AppSettingsService,
     private readonly desk: SupportDeskService,
     private readonly attachments: SupportFilesService,
+    @Optional()
+    @Inject(STAFF_SIGNALS)
+    private readonly staffSignals?: StaffSignals,
     // Staff package T4: «не решено» goes back through the work leases.
     @Optional() @Inject(LEASE_PORT) private readonly lease?: LeasePort,
   ) {}
@@ -218,33 +225,40 @@ export class SupportService {
       'rate_limit.support_message_per_hour',
     );
     await this.attachments.assertAttachable(userId, attachments);
-    const { message, wasResolved } = await withTxRetry(
-      this.prisma,
-      async (tx) => {
-        const t = await tx.supportTicket.findFirst({
-          where: { id, user_id: userId },
-        });
-        if (!t) throw ticketNotFound();
-        const now = new Date();
-        const next = afterUserMessage(t.status, t.resolved_at, now);
-        const m = await tx.supportMessage.create({
-          data: { ticket_id: id, author_user_id: userId, body },
-        });
-        await this.attachments.attach(tx, m.id, attachments);
-        await this.desk.onUserMessage(tx, t, now);
-        await tx.supportTicket.update({
-          where: { id },
-          data: {
-            status: next.status,
-            resolved_at: next.resolvedAt,
-            unread_by_admin: true,
-            last_message_at: now,
-          },
-        });
-        return { message: m, wasResolved: t.status === 'resolved' };
-      },
-    );
-    if (wasResolved) await this.reopenForStaff(id);
+    const message = await withTxRetry(this.prisma, async (tx) => {
+      const t = await tx.supportTicket.findFirst({
+        where: { id, user_id: userId },
+      });
+      if (!t) throw ticketNotFound();
+      const now = new Date();
+      const next = afterUserMessage(t.status, t.resolved_at, now);
+      const m = await tx.supportMessage.create({
+        data: { ticket_id: id, author_user_id: userId, body },
+      });
+      await this.attachments.attach(tx, m.id, attachments);
+      await this.desk.onUserMessage(tx, t, now);
+      await tx.supportTicket.update({
+        where: { id },
+        data: {
+          status: next.status,
+          resolved_at: next.resolvedAt,
+          unread_by_admin: true,
+          last_message_at: now,
+        },
+      });
+      return m;
+    });
+    // Staff package T5: the user wrote again into a ticket support had marked
+    // resolved — a repeat, a quality signal against whoever resolved it.
+    if (ticket.status === 'resolved' && ticket.resolved_by) {
+      void this.staffSignals?.signal(
+        ticket.resolved_by,
+        'reopened',
+        'support_ticket',
+        id,
+      );
+    }
+    if (ticket.status === 'resolved') await this.reopenForStaff(id);
     const files = await this.attachments.forMessages([message.id]);
     return presentUserMessage(message, new Map(), files.get(message.id));
   }

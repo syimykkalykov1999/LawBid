@@ -171,6 +171,9 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   'audit-log': 'audit',
   sessions: 'sessions',
   sanctions: 'sanctions',
+  // Staff package T11: reveal of masked contacts and the watermark text; the
+  // route checks the admin's own rights itself (like the workspace page).
+  pii: 'workspace',
   outreach: 'outreach',
   payroll: 'payroll',
   rewards: 'rewards',

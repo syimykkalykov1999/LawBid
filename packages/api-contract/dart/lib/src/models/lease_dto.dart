@@ -16,6 +16,7 @@ class LeaseDto {
     required this.takenAt,
     required this.leasedUntil,
     required this.attempt,
+    this.targetType,
   });
 
   factory LeaseDto.fromJson(Map<String, Object?> json) =>
@@ -30,6 +31,9 @@ class LeaseDto {
 
   /// How many times this item was taken (1 = first time).
   final num attempt;
+
+  /// For a report: the kind of the reported object (post · comment · message · …), so the desk can open its card.
+  final String? targetType;
 
   Map<String, Object?> toJson() => _$LeaseDtoToJson(this);
 }

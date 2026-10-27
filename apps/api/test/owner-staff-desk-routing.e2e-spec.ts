@@ -204,7 +204,7 @@ describe('Staff desk routing (e2e)', () => {
         adminId: sup1.userId,
         itemKind: 'support_ticket',
         itemId: t.id,
-        outcome: 'resolve',
+        outcome: 'close',
       }),
     ]);
     // the desk's own «done» afterwards is harmless and does not record twice
@@ -239,9 +239,9 @@ describe('Staff desk routing (e2e)', () => {
     expect(recorded).toEqual([
       expect.objectContaining({
         adminId: mod2.userId,
-        itemKind: 'mod_appeal',
+        itemKind: 'appeal',
         itemId: a.id,
-        outcome: 'keep',
+        outcome: 'reject',
       }),
     ]);
   });
@@ -294,7 +294,7 @@ describe('Staff desk routing (e2e)', () => {
         decided_by: sup1.userId,
         is_golden: true,
         stage: 'golden',
-        golden_answer: { outcome: 'resolve' },
+        golden_answer: { outcome: 'close' },
       },
     });
     // another agent gets the real ticket, not the golden one
@@ -314,7 +314,7 @@ describe('Staff desk routing (e2e)', () => {
     await api()
       .post(`/api/v1/admin/desk/lease/support_ticket/${decided.id}/done`)
       .set(sup1.auth)
-      .send({ outcome: 'resolve' })
+      .send({ outcome: 'close' })
       .expect(200);
     const sample = await prisma.staffReviewSample.findFirst({
       where: { item_id: decided.id },
@@ -349,7 +349,7 @@ describe('Staff desk routing (e2e)', () => {
         item_id: decided.id,
         decided_by: sup1.userId,
         is_golden: true,
-        golden_answer: { outcome: 'resolve' },
+        golden_answer: { outcome: 'close' },
       },
     });
     stored['staff.golden_enabled'] = false;
@@ -363,7 +363,7 @@ describe('Staff desk routing (e2e)', () => {
     await api()
       .post(`/api/v1/admin/desk/lease/support_ticket/${decided.id}/done`)
       .set(sup1.auth)
-      .send({ outcome: 'close' })
+      .send({ outcome: 'reopen' })
       .expect(200);
     expect(
       await prisma.staffQualitySignal.count({
@@ -424,7 +424,7 @@ describe('Staff desk routing (e2e)', () => {
     expect(await prisma.workLease.count()).toBe(0);
     expect(await prisma.workLeaseEvent.count()).toBe(0);
     // the decision itself is still reported to the rating recorder (it has its own switch)
-    expect(recorded.map((e) => e.outcome)).toEqual(['resolve']);
+    expect(recorded.map((e) => e.outcome)).toEqual(['close']);
     const a = await modAppeal(mod1.userId, 10);
     await api()
       .post(`/api/v1/admin/moderation/appeals/${a.id}/decision`)

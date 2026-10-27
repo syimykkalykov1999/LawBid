@@ -46,6 +46,16 @@ describe('GoldenTasksService', () => {
     );
   });
 
+  it("the appeal queues look for the rating's «appeal» golden tasks", async () => {
+    const { svc, prisma } = make(ON, { item_id: 'item-1' });
+    await svc.pick('a1', 'mod_appeal');
+    expect(prisma.staffReviewSample.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ decision_kind: 'golden_appeal' }),
+      }),
+    );
+  });
+
   it('a matching answer is a pass, a different one a fail (a quality signal, nothing else)', async () => {
     const row = {
       id: 's1',

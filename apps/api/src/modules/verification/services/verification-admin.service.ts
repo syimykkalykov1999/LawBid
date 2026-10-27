@@ -15,6 +15,10 @@ import {
 } from '../../../common/pagination/cursor.util';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
+import {
+  STAFF_RECORDER,
+  type StaffRecorder,
+} from '../../staff-core/staff-recorder.port';
 import { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
 import {
   BLOCK_SOURCE,
@@ -28,10 +32,6 @@ import { RateLimitService } from '../../auth/services/rate-limit.service';
 import { FilesService } from '../../files/files.service';
 import { LEASE_PORT, type LeasePort } from '../../staff-core/lease.port';
 import { closeStaffDecision } from '../../staff-core/staff-decision';
-import {
-  STAFF_RECORDER,
-  type StaffRecorder,
-} from '../../staff-core/staff-recorder.port';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { notFound } from '../../profiles/services/profile-access';
 import {
@@ -118,16 +118,16 @@ export class VerificationAdminService {
     private readonly trust: AttorneyTrustService,
     private readonly blocks: BarNumberBlocksService,
     @Optional() private readonly settings?: AppSettingsService,
-    // Staff package T4: a decision ends the verifier's work lease and is recorded.
-    @Optional() @Inject(LEASE_PORT) private readonly lease?: LeasePort,
     @Optional()
     @Inject(STAFF_RECORDER)
-    private readonly recorder?: StaffRecorder,
+    private readonly staffRecorder?: StaffRecorder,
+    // Staff package T4: a decision ends the verifier's work lease.
+    @Optional() @Inject(LEASE_PORT) private readonly lease?: LeasePort,
   ) {}
 
-  private closed(admin: AdminActor, requestId: string, outcome: string) {
+  private endLease(admin: AdminActor, requestId: string, outcome: string) {
     return closeStaffDecision(
-      { lease: this.lease, recorder: this.recorder },
+      { lease: this.lease },
       { adminId: admin.id, kind: 'verification', itemId: requestId, outcome },
     );
   }
@@ -554,7 +554,14 @@ export class VerificationAdminService {
         { tx, notify: false },
       );
     });
-    await this.closed(admin, requestId, 'approve');
+    // Staff package T5: one cheap call (Redis counters; no-op while the rating is off).
+    void this.staffRecorder?.record({
+      adminId: admin.id,
+      itemKind: 'verification',
+      itemId: requestId,
+      outcome: 'approve',
+    });
+    await this.endLease(admin, requestId, 'approve');
     return this.card(requestId);
   }
 
@@ -594,7 +601,7 @@ export class VerificationAdminService {
         message,
       });
     });
-    await this.closed(admin, requestId, 'request_info');
+    await this.endLease(admin, requestId, 'request_info');
     return this.card(requestId);
   }
 
@@ -675,7 +682,14 @@ export class VerificationAdminService {
         );
       }
     });
-    await this.closed(admin, requestId, 'reject');
+    // Staff package T5: one cheap call (Redis counters; no-op while the rating is off).
+    void this.staffRecorder?.record({
+      adminId: admin.id,
+      itemKind: 'verification',
+      itemId: requestId,
+      outcome: 'reject',
+    });
+    await this.endLease(admin, requestId, 'reject');
     return this.card(requestId);
   }
 
