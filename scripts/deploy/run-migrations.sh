@@ -29,7 +29,12 @@ if [ -n "$TAG" ]; then
       // Online DDL (docs/architecture/ONLINE_DDL.md): after the transactional
       // migrations, run prisma/concurrent/*.sql (CREATE INDEX CONCURRENTLY).
       // Set here so it does not wait for a Terraform apply.
-      c.command = ["sh", "-c", "npx prisma migrate deploy && node prisma/run-concurrent.mjs"];
+      // Deploy safety 2026-10-27: then the CI drift check against the REAL
+      // database (prisma/verify-schema.mjs) — a guarded migration that
+      // skipped its work stops the deploy before the new api starts.
+      c.command = ["sh", "-c", "npx prisma migrate deploy && node prisma/run-concurrent.mjs && node prisma/verify-schema.mjs"];
+      const mode = process.env.SCHEMA_DRIFT_CHECK || "fail";
+      c.environment = (c.environment || []).filter((e) => e.name !== "SCHEMA_DRIFT_CHECK").concat([{ name: "SCHEMA_DRIFT_CHECK", value: mode }]);
     }
     for (const k of ["taskDefinitionArn","revision","status","requiresAttributes","compatibilities","registeredAt","registeredBy","deregisteredAt"]) delete td[k];
     fs.writeFileSync("migrate-td.new.json", JSON.stringify(td));

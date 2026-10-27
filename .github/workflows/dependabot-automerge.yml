@@ -45,9 +45,9 @@ jobs:
           FROM=$(echo "$TITLE" | sed -nE 's/.* from v?([0-9]+)[.0-9a-zA-Z-]* to v?([0-9]+).*/\1/p')
           TO=$(echo "$TITLE" | sed -nE 's/.* from v?([0-9]+)[.0-9a-zA-Z-]* to v?([0-9]+).*/\2/p')
           if [ -n "$FROM" ] && [ "$FROM" = "$TO" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "ok=false" >> "$GITHUB_OUTPUT"; echo "major / unknown bump: left for a human"; fi
-      - name: Turn on auto-merge (squash, after the required checks and the queue)
+      - name: Turn on auto-merge (merge commit like every other PR, after the required checks)
         if: steps.d.outputs.ok == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.html_url }}
-        run: gh pr merge --auto --squash "$PR"
+        run: gh pr merge --auto --merge "$PR"

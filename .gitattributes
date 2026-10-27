@@ -1,0 +1,17 @@
+# Merge rules (deploy safety audit 2026-10-27,
+# docs/dev/DEPLOY_SAFETY_AUDIT_2026-10-27.md, part «Конфликты»).
+#
+# merge=union: git keeps the lines of BOTH sides instead of a conflict.
+# Only for files where every line is independent and order does not matter
+# (an append-only list). Never for JSON/TS/YAML (union can break syntax or
+# keep two versions of one entry). Honoured by `git merge` on a machine
+# (our union branches are merged locally); GitHub's own merge button ignores
+# it, so the PR may still show "conflicts" until the branch is merged locally.
+packages/api-contract/oasdiff-err-ignore.txt merge=union
+
+# Generated files: collapsed in PR diffs. On a conflict take either side and
+# re-run the generator (docs/dev/SHARED_REGISTRIES.md): `npm run contract:fast`
+# for the contract, `npm run db:erd:fast --workspace apps/api` for the ERD.
+packages/api-contract/openapi.json linguist-generated=true
+packages/api-contract/dart/lib/** linguist-generated=true
+docs/db/ERD.md linguist-generated=true

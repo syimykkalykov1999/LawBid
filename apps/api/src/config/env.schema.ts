@@ -1177,7 +1177,7 @@ export const envSchema = z
           ctx.addIssue({
             code: 'custom',
             path: [key],
-            message: ` is required in NODE_ENV= (the fake payment provider is dev/test only)`,
+            message: `${key} is required in NODE_ENV=${env.NODE_ENV} (the fake payment provider is dev/test only; or set SECRETS_MASTER_KEYS and enter Stripe in the admin «Ключи и сервисы»)`,
           });
         }
       }

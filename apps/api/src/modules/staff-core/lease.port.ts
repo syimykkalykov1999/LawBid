@@ -32,8 +32,18 @@ export interface LeasePort {
   servesQueue(kind: string): Promise<boolean>;
   /** «Следующий»: leases the oldest free item of [kind] to this person. */
   nextFor(kind: string, actor: LeaseActorRef): Promise<LeaseNextResult>;
-  /** The holder closed the item (keeps them out of a later «не решено»). */
-  done(kind: string, itemId: string, adminId: string): Promise<void>;
+  /**
+   * The holder closed the item (keeps them out of a later «не решено»).
+   * Resolves with the milliseconds the item was held, or null when the
+   * person did not hold it (nothing to end). [outcome] is what they
+   * decided (only a golden task looks at it).
+   */
+  done(
+    kind: string,
+    itemId: string,
+    adminId: string,
+    outcome?: string,
+  ): Promise<number | null>;
   /** «Не решено»: back to the queue, first in line, never to the previous worker. */
   reopen(kind: string, itemId: string): Promise<void>;
 }
@@ -48,8 +58,8 @@ export class NoopLeasePort implements LeasePort {
   nextFor(): Promise<LeaseNextResult> {
     return Promise.resolve({ status: 'off' });
   }
-  done(): Promise<void> {
-    return Promise.resolve();
+  done(): Promise<number | null> {
+    return Promise.resolve(null);
   }
   reopen(): Promise<void> {
     return Promise.resolve();

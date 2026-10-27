@@ -96,6 +96,9 @@ export const DESK_KINDS: Readonly<Record<DeskRole, readonly LeaseKind[]>> = {
   finance: ['refund', 'payout'],
 };
 
+/** The kinds the server hands out today (refunds and payouts are made by finance themselves: no queue to lease). */
+export const LEASE_SERVED: readonly LeaseKind[] = ['support_ticket', 'verification', 'report', 'mod_appeal', 'review_appeal'];
+
 /** The kind a tab's «Следующий» takes (null = the tab has no queue of its own). */
 export const TAB_KIND: Readonly<Record<DeskRole, Readonly<Record<string, LeaseKind | null>>>> = {
   verifier: { queue: 'verification' },
@@ -145,12 +148,28 @@ export const KIND_SWITCH: Readonly<Record<LeaseKind, string>> = {
   review_sample: 'staff.lease_report_enabled',
 };
 
-/** Where the card of a leased item opens (null = the queue tab itself; T4 fills the rest). */
-export function itemHref(kind: string, id: string): string | null {
+/**
+ * Where the card of a leased item opens. A support ticket and a verification
+ * request have a page of their own; a report opens the card of the reported
+ * object (its kind comes with the lease); the appeals are worked right in the
+ * desk tab (their lists are the card). null = no page for the kind.
+ */
+export function itemHref(kind: string, id: string, targetType?: string | null): string | null {
   if (kind === 'support_ticket') return `/support/${id}?focus=1`;
   if (kind === 'verification') return `/verification/${id}?focus=1`;
+  if (kind === 'report') return targetType ? `/moderation/${targetType}/${id}?focus=1` : deskPath('moderator', 'reports');
+  if (kind === 'mod_appeal' || kind === 'review_appeal') return deskPath('moderator', 'appeals');
   return null;
 }
+
+/** The reasons of «Пропустить» (the server's list, SKIP_REASONS). */
+export const SKIP_REASONS: readonly { value: string; label: string }[] = [
+  { value: 'not_my_language', label: 'Не мой язык' },
+  { value: 'conflict_of_interest', label: 'Конфликт интересов' },
+  { value: 'not_my_topic', label: 'Не моя тема' },
+  { value: 'too_hard', label: 'Слишком сложно' },
+  { value: 'other', label: 'Другое' },
+];
 
 type DeskSubject = {
   role: AdminRole;

@@ -6,9 +6,12 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/desk_decisions_envelope.dart';
+import '../models/desk_heartbeat_dto.dart';
+import '../models/desk_heartbeat_result_envelope.dart';
 import '../models/desk_settings_envelope.dart';
 import '../models/desk_status_envelope.dart';
 import '../models/dispute_piecework_dto.dart';
+import '../models/done_lease_dto.dart';
 import '../models/lease_envelope.dart';
 import '../models/lease_kind_body_dto.dart';
 import '../models/lease_ok_envelope.dart';
@@ -172,6 +175,7 @@ abstract class AdminStaffClient {
   Future<LeaseOkEnvelope> doneDeskLease({
     @Path('kind') required LeaseQueueKind kind,
     @Path('id') required String id,
+    @Body() DoneLeaseDto? body,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -185,6 +189,13 @@ abstract class AdminStaffClient {
   @POST('/admin/desk/status')
   Future<DeskStatusEnvelope> setDeskStatus({
     @Body() required SetDeskStatusDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Presence signal of an open desk (every 15 s): online / away / offline
+  @POST('/admin/desk/heartbeat')
+  Future<DeskHeartbeatResultEnvelope> deskHeartbeat({
+    @Body() required DeskHeartbeatDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

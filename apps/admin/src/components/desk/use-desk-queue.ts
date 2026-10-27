@@ -6,20 +6,19 @@ import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api/client';
 import { useNextVerification } from '@/components/workspace/queue-next';
 import { deskPost, MY_LEASES_KEY, type DeskSettingsView, type NextOutcome } from '@/lib/desk-data';
-import { itemHref, KIND_SWITCH, TAB_KIND, type DeskRole, type LeaseKind } from '@/lib/desk';
+import { itemHref, KIND_SWITCH, LEASE_SERVED, TAB_KIND, type DeskRole, type LeaseKind } from '@/lib/desk';
 
 /**
- * THE SLOT OF T4 (desk routing UX). Everything the desk needs from a queue
- * goes through this one hook, so T4 can swap the inside (lease timers,
- * presence heartbeat, reasons for «Пропустить», pushes) without touching a
- * tab. Today:
+ * Everything the desk needs from a queue goes through this one hook, so a
+ * tab never knows how an item is handed out (T4 filled the slot T8 left; the
+ * timers, the renewal and «Пропустить» live in lease-strip / lease-hooks). Today:
  *  - `lease`: the T3 engine serves the queue (`staff.lease_enabled` + the
  *    queue's own switch) → `POST admin/desk/lease/next { kind }`; the item
  *    is pinned to the worker and opened;
  *  - `legacy`: the engine is off → the queue's old opener (verification:
  *    the oldest waiting request, support: «Следующее обращение»);
- *  - `none`: the queue has no «Следующий» (moderation / finance before T4
- *    with the engine off): the button is not drawn.
+ *  - `none`: the queue has no «Следующий» (moderation / finance with the
+ *    engine off): the button is not drawn.
  */
 export type QueueMode = 'lease' | 'legacy' | 'none';
 
@@ -34,7 +33,7 @@ const LEGACY: Partial<Record<LeaseKind, true>> = { verification: true, support_t
 
 export function queueMode(settings: DeskSettingsView, kind: LeaseKind | null): QueueMode {
   if (!kind) return 'none';
-  if (settings.on('staff.lease_enabled') && settings.on(KIND_SWITCH[kind])) return 'lease';
+  if (LEASE_SERVED.includes(kind) && settings.on('staff.lease_enabled') && settings.on(KIND_SWITCH[kind])) return 'lease';
   return LEGACY[kind] ? 'legacy' : 'none';
 }
 
@@ -82,7 +81,7 @@ export function useDeskQueue(role: DeskRole, tab: string, settings: DeskSettings
     onSuccess: (o) => {
       void qc.invalidateQueries({ queryKey: MY_LEASES_KEY });
       if (o.status === 'leased') {
-        const href = itemHref(o.lease.kind, o.lease.itemId);
+        const href = itemHref(o.lease.kind, o.lease.itemId, o.lease.targetType);
         if (href) router.push(href);
         else toast.success('Элемент закреплён за вами: он на вкладке «Мои».');
         return;

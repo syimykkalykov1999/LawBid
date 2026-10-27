@@ -4,6 +4,8 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
+  Optional,
   Param,
   Post,
   Query,
@@ -29,6 +31,8 @@ import {
   ModerationTargetParamDto,
   type ModerationQueuePage,
 } from './admin-moderation.dto';
+import { LEASE_PORT, type LeasePort } from '../staff-core/lease.port';
+import { closeStaffDecision } from '../staff-core/staff-decision';
 import { AdminModerationService } from './admin-moderation.service';
 
 const E = ErrorCode;
@@ -39,7 +43,11 @@ const E = ErrorCode;
 @AdminEndpoint('super_admin', 'moderator')
 @Controller('admin/moderation')
 export class AdminModerationController {
-  constructor(private readonly moderation: AdminModerationService) {}
+  constructor(
+    private readonly moderation: AdminModerationService,
+    // Staff package T4: a human decision ends the moderator's work lease.
+    @Optional() @Inject(LEASE_PORT) private readonly lease?: LeasePort,
+  ) {}
 
   @Get('queue')
   @ApiOperation({ summary: 'Reports grouped by object, oldest first' })
@@ -75,17 +83,27 @@ export class AdminModerationController {
     404: [E.NOT_FOUND],
     409: [E.MODERATION_ACTION_NOT_APPLICABLE, E.ACCOUNT_SUSPENDED],
   })
-  moderationAct(
+  async moderationAct(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: ModerationTargetParamDto,
     @Body() dto: ModerationActionDto,
   ): Promise<ModerationActionResultDto> {
-    return this.moderation.act(
+    const res = await this.moderation.act(
       admin,
       params.type,
       params.id,
       dto.action,
       dto.reason,
     );
+    await closeStaffDecision(
+      { lease: this.lease },
+      {
+        adminId: admin.id,
+        kind: 'report',
+        itemId: params.id,
+        outcome: dto.action,
+      },
+    );
+    return res;
   }
 }

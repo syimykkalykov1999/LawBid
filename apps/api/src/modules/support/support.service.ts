@@ -12,6 +12,8 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { RateLimitService } from '../auth/services/rate-limit.service';
+import { LEASE_PORT, type LeasePort } from '../staff-core/lease.port';
+import { reopenStaffItem } from '../staff-core/staff-decision';
 import {
   STAFF_SIGNALS,
   type StaffSignals,
@@ -99,6 +101,8 @@ export class SupportService {
     @Optional()
     @Inject(STAFF_SIGNALS)
     private readonly staffSignals?: StaffSignals,
+    // Staff package T4: «не решено» goes back through the work leases.
+    @Optional() @Inject(LEASE_PORT) private readonly lease?: LeasePort,
   ) {}
 
   /** Owner 2026-10-05: hours and the usual answer time, for the app. */
@@ -254,8 +258,26 @@ export class SupportService {
         id,
       );
     }
+    if (ticket.status === 'resolved') await this.reopenForStaff(id);
     const files = await this.attachments.forMessages([message.id]);
     return presentUserMessage(message, new Map(), files.get(message.id));
+  }
+
+  /**
+   * The client wrote again after a worker had resolved the ticket: «не
+   * решено». While the work leases serve support, the ticket goes back to
+   * the queue first in line, never to the person who resolved it (their
+   * assignment is dropped so another agent may take it).
+   */
+  private async reopenForStaff(id: string): Promise<void> {
+    if (!this.lease || !(await this.lease.servesQueue('support_ticket'))) {
+      return;
+    }
+    await reopenStaffItem(this.lease, 'support_ticket', id);
+    await this.prisma.supportTicket.updateMany({
+      where: { id, status: 'open', assignee_id: { not: null } },
+      data: { assignee_id: null, assigned_at: null },
+    });
   }
 
   async close(userId: string, id: string): Promise<SupportTicketDto> {

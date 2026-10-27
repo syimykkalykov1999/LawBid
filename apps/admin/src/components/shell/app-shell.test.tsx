@@ -23,6 +23,8 @@ vi.mock('next/link', () => ({
 vi.mock('@/lib/hooks', () => ({ useMe: () => ({ data: currentMe }) }));
 vi.mock('@/lib/desk-data', () => ({
   useDeskSettings: () => ({ loading: false, on: (k: string) => k === 'staff.desk_enabled' && deskOn, num: () => 0 }),
+  useMyLeases: () => ({ data: undefined }),
+  deskPost: vi.fn(),
 }));
 vi.mock('@/lib/api/client', () => ({
   api: { GET: vi.fn().mockResolvedValue({ data: { data: {} } }) },
