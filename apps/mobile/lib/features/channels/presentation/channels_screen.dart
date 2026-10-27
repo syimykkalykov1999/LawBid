@@ -433,7 +433,8 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
       return CasesErrorView(
         error: channels.error!,
         t: t,
-        onRetry: () => ref.invalidate(channelListProvider(key)),
+        onRetry: () =>
+            ref.invalidate(channelListSyncProvider(channelSyncKey(key))),
       );
     }
     if ((channels.isLoading && !channels.hasValue || groupsLoading) &&
@@ -443,7 +444,9 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
     }
 
     Future<void> refresh() async {
-      ref.invalidate(channelListProvider(key));
+      await ref
+          .read(channelListSyncProvider(channelSyncKey(key)).notifier)
+          .refresh();
       if (recommended) {
         await ref.read(recommendedChannelsProvider.notifier).refresh();
         await ref.read(recommendedGroupsProvider.notifier).refresh();

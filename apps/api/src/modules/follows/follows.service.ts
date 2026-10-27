@@ -559,6 +559,10 @@ export class FollowsService {
     viewerId: string,
   ): Promise<AttorneyListItemDto[]> {
     if (ids.length === 0) return [];
+    // S7-1: blocked either way = not in any list (search, follows, suggestions).
+    const hidden = await this.blocks.hiddenIds(viewerId);
+    if (hidden.size > 0) ids = ids.filter((id) => !hidden.has(id));
+    if (ids.length === 0) return [];
     const [users, mine] = await Promise.all([
       this.prisma.user.findMany({
         where: { id: { in: ids }, ...LISTABLE_ATTORNEY },

@@ -127,6 +127,20 @@ void main() {
     expect(h?.complete, false);
   });
 
+  test(
+      'owner 2026-10-26: a big page is decoded off the UI thread, '
+      'the same messages come back', () async {
+    final long = 'x' * 2000; // 50 x 2 KB: above the off-main threshold
+    await store.put('c1', [
+      for (var i = 0; i < 50; i++)
+        dto('m$i', 'c1', minute: i, body: '$i $long'),
+    ]);
+    final page = await store.page('c1');
+    expect(page.map((m) => m.id), [for (var i = 49; i >= 0; i--) 'm$i']);
+    expect(page.first.body, '49 $long');
+    expect(page.first.createdAt, DateTime.utc(2026, 10, 22, 12, 49));
+  });
+
   test('a chat opens from the phone: 0 page requests, 1 afterId', () async {
     await store
         .put('c1', [dto('a', 'c1', minute: 1), dto('b', 'c1', minute: 2)]);

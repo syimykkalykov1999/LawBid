@@ -206,6 +206,40 @@ variable "admin_deployment_alarm_names" {
   default     = []
   description = "Alarms watched while the admin rolls out. Empty = circuit breaker only."
 }
+# S12-2 (observability round 12): distributed tracing in prod. OFF by default
+# (cost gate): the app starts the OpenTelemetry SDK only when
+# OTEL_EXPORTER_OTLP_ENDPOINT is set (apps/api/src/telemetry/otel.ts), so with
+# `tracing_enabled = false` nothing is added to the tasks and nothing is billed.
+# On: a small AWS Distro for OpenTelemetry (ADOT) collector runs as a NON-essential
+# sidecar in the api and worker tasks (a collector crash never restarts the app),
+# receives OTLP on 127.0.0.1:4318 and sends the spans to AWS X-Ray. The app samples
+# 5 % of the traces (ParentBased + TraceIdRatio; a phone's traceparent decides for
+# its own requests). X-Ray: first 100 000 traces a month free, then $5 per million.
+variable "tracing_enabled" {
+  type        = bool
+  default     = false
+  description = "Run an ADOT (OpenTelemetry) collector sidecar in the api and worker tasks and point the app at it. Off = nothing runs, nothing is billed (X-Ray: first 100k traces/month free, then $5 per million; sidecar uses spare task CPU/memory, no extra Fargate size)."
+}
+variable "tracing_sample_ratio" {
+  type        = number
+  default     = 0.05
+  description = "Share of requests traced when no caller decided (ParentBased TraceIdRatio). 0.05 = 5 %. The admin/tfvars ceiling of the tracing bill: spans per month = requests x ratio."
+  validation {
+    condition     = var.tracing_sample_ratio >= 0 && var.tracing_sample_ratio <= 0.5
+    error_message = "tracing_sample_ratio must be between 0 and 0.5."
+  }
+}
+variable "adot_image" {
+  type        = string
+  default     = "public.ecr.aws/aws-observability/aws-otel-collector:v0.43.3"
+  description = "ADOT collector image (public ECR, pulled through the NAT like any public image). Check the newest tag at https://gallery.ecr.aws/aws-observability/aws-otel-collector before the first apply."
+}
+variable "adot_memory_reservation" {
+  type        = number
+  default     = 96
+  description = "MiB reserved for the collector inside the task (the collector also caps itself with memory_limiter at 80 MiB)."
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
@@ -373,6 +407,71 @@ locals {
   } }
 }
 
+locals {
+  tracing_env = var.tracing_enabled ? [
+    { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "http://127.0.0.1:4318" },
+    { name = "OTEL_TRACES_SAMPLER", value = "parentbased_traceidratio" },
+    { name = "OTEL_TRACES_SAMPLER_ARG", value = tostring(var.tracing_sample_ratio) },
+  ] : []
+  adot_config = <<-YAML
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 127.0.0.1:4318
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 80
+      batch:
+        timeout: 5s
+    exporters:
+      awsxray:
+        region: ${data.aws_region.current.name}
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [awsxray]
+  YAML
+  # Not essential: if the collector dies the app keeps serving (spans are dropped).
+  adot_container = var.tracing_enabled ? [{
+    name              = "adot"
+    image             = var.adot_image
+    essential         = false
+    memoryReservation = var.adot_memory_reservation
+    environment       = [{ name = "AOT_CONFIG_CONTENT", value = local.adot_config }]
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        awslogs-group         = aws_cloudwatch_log_group.svc["api"].name
+        awslogs-region        = data.aws_region.current.name
+        awslogs-stream-prefix = "adot"
+      }
+    }
+  }] : []
+}
+
+# The collector writes spans with the task role.
+data "aws_iam_policy_document" "xray" {
+  statement {
+    actions = [
+      "xray:PutTraceSegments",
+      "xray:PutTelemetryRecords",
+      "xray:GetSamplingRules",
+      "xray:GetSamplingTargets",
+    ]
+    resources = ["*"]
+  }
+}
+resource "aws_iam_role_policy" "xray" {
+  count  = var.tracing_enabled ? 1 : 0
+  name   = "xray-write"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.xray.json
+}
+
 resource "aws_ecs_task_definition" "api" {
   family = "${var.name}-api"
   runtime_platform {
@@ -386,13 +485,13 @@ resource "aws_ecs_task_definition" "api" {
   execution_role_arn       = aws_iam_role.execution.arn
   task_role_arn            = aws_iam_role.task.arn
   volume { name = "tmp" }
-  container_definitions = jsonencode([{
+  container_definitions = jsonencode(concat([{
     name         = "api"
     image        = var.api_image
     essential    = true
     command      = ["node", "dist/src/main.js"]
     portMappings = [{ containerPort = 3000, protocol = "tcp" }]
-    environment  = concat(local.api_environment, [{ name = "PORT", value = "3000" }, { name = "JOBS_ENABLED", value = "false" }, local.node_options["api"]])
+    environment  = concat(local.api_environment, local.tracing_env, [{ name = "PORT", value = "3000" }, { name = "JOBS_ENABLED", value = "false" }, local.node_options["api"]])
     secrets      = local.api_secrets
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
@@ -414,7 +513,7 @@ resource "aws_ecs_task_definition" "api" {
     # Keep >= the ALB deregistration_delay of the api target group.
     stopTimeout      = 60
     logConfiguration = local.log_config["api"]
-  }])
+  }], local.adot_container))
   tags = var.tags
 }
 
@@ -431,14 +530,14 @@ resource "aws_ecs_task_definition" "worker" {
   execution_role_arn       = aws_iam_role.execution.arn
   task_role_arn            = aws_iam_role.task.arn
   volume { name = "tmp" }
-  container_definitions = jsonencode([{
+  container_definitions = jsonencode(concat([{
     name      = "worker"
     image     = var.api_image
     essential = true
     command   = ["node", "dist/src/worker.js"]
     # Uploads are scanned by the clamd sidecar below (same task, localhost):
     # without a scanner every photo/document stays scan_status=pending.
-    environment = concat(local.api_environment, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }, local.node_options["worker"]])
+    environment = concat(local.api_environment, local.tracing_env, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }, local.node_options["worker"]])
     secrets     = local.api_secrets
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
@@ -475,7 +574,7 @@ resource "aws_ecs_task_definition" "worker" {
       startPeriod = 300
     }
     logConfiguration = local.log_config["clamav"]
-  }])
+  }], local.adot_container))
   tags = var.tags
 }
 

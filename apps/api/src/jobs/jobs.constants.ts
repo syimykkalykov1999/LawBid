@@ -195,6 +195,8 @@ export const CRON_JOBS = {
   /** Owner 2026-10-25 (S2-1): queued CloudFront invalidations of removed
    * files, one batched request per distribution. */
   cdnInvalidate: 'cdn.invalidate',
+  /** Events pipeline (N-2): auto signal, stream relay, retention. */
+  eventsMaintain: 'events.maintain',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -304,6 +306,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.outboxSweep, pattern: '* * * * *' },
   // Every other minute: batches the paths of removed files (S2-1).
   { name: CRON_JOBS.cdnInvalidate, pattern: '1-59/2 * * * *' },
+  // Events pipeline: every 5 minutes; a no-op unless auto / stream, prunes hourly.
+  { name: CRON_JOBS.eventsMaintain, pattern: '*/5 * * * *' },
 ];
 
 const FAST_JOBS: readonly CronJobName[] = [

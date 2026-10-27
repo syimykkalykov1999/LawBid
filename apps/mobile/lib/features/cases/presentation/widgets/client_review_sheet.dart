@@ -10,6 +10,7 @@ import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart'
@@ -351,8 +352,12 @@ class _SheetState extends ConsumerState<_Sheet> {
                                       fit: BoxFit.cover,
                                     )
                                   : i < _local.length
-                                      ? Image.memory(
-                                          _local[i],
+                                      ? Image(
+                                          image: thumbImage(
+                                            context,
+                                            _local[i],
+                                            maxSide: 76,
+                                          ),
                                           fit: BoxFit.cover,
                                         )
                                       : ColoredBox(color: colors.goldTint),

@@ -8,3 +8,6 @@ export { FileReleaseService } from './storage/file-release.service';
 export { imageFormatContext } from './processing/image-format-context';
 // Owner-independent object keys for new uploads (day-one foundations).
 export { newFileKey } from './files.policy';
+// Owner 2026-10-26: the avatar previews a stored avatar must have (demo /
+// seed avatars wrote none, so every list's `…_w256` link was a 404).
+export { AVATAR_VARIANT_PX, variantKey } from './files.policy';
