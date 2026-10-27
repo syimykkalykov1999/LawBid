@@ -27,14 +27,18 @@ describe('shard family manifest (shard-ready step 0)', () => {
     expect(GLOBAL_MODELS.filter((n) => n in SHARDED_MODELS)).toEqual([]);
   });
 
-  it('has the expected number of sharded models per family', () => {
+  // No literal counts per family (every new table edited them and parallel
+  // PRs collided). The protective part is derived: the families add up to
+  // all Prisma models (a model is never in the manifest twice or dropped),
+  // and a sharded model's family is one of the known three.
+  it('splits the Prisma models into global + the known sharded families, with nothing left over', () => {
     const counts: Record<string, number> = {};
     for (const s of Object.values(SHARDED_MODELS)) {
       counts[s.family] = (counts[s.family] ?? 0) + 1;
     }
-    counts.global = GLOBAL_MODELS.length;
-    // Staff package T1 (2026-10-27): + 18 admin-side staff tables.
-    expect(counts).toEqual({ case: 46, user: 26, content: 32, global: 192 });
+    expect(Object.keys(counts).sort()).toEqual(['case', 'content', 'user']);
+    const sharded = Object.values(counts).reduce((a, b) => a + b, 0);
+    expect(sharded + GLOBAL_MODELS.length).toBe(models.length);
   });
 
   describe.each(Object.entries(SHARDED_MODELS))('%s', (name, spec) => {

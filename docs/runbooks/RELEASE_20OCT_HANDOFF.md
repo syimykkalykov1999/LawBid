@@ -32,7 +32,7 @@
 
 API (`apps/api`): `npx prisma generate` (иначе ложные ошибки tsc), `npx tsc --noEmit`, `npx prettier --check "src/**/*.ts" "test/**/*.ts"`, `npx jest` (минимум `src/architecture src/ops` и затронутые модули).
 - **prelaunch-wipe:** каждая таблица в `src/ops/prelaunch-wipe.plan.ts` должна быть KEEP/FILTERED/WIPE.
-- **module-boundaries:** `UPDATE_BOUNDARIES=1 npx jest architecture/module-boundaries`.
+- **module-boundaries:** `npm run arch:baseline --workspace apps/api`.
 - **SQL:** `make_interval(mins => $1::INT)`, без голых параметров.
 
 Из корня репозитория:

@@ -127161,6 +127161,847 @@
         ]
       }
     },
+    "/admin/workspace/review/me": {
+      "get": {
+        "operationId": "reviewMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewMeEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "May I re-check? (404 for everyone who may not)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/workspace/review/next": {
+      "post": {
+        "operationId": "reviewNext",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewNextEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "«Следующий» of the re-check: leases one pending sample to me (two reviewers never get the same one)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/workspace/review/current": {
+      "get": {
+        "operationId": "reviewCurrent",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewCurrentEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "The sample I hold now, if any",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/workspace/review/{id}/verdict": {
+      "post": {
+        "operationId": "reviewVerdict",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewVerdictBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewVerdictResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Verdict on the sample I hold: confirmed / overturned (with reasons) / unclear",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/workspace/review/{id}/release": {
+      "post": {
+        "operationId": "reviewRelease",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewVerdictResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Let go of the sample without a verdict",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/workspace/review/golden": {
+      "get": {
+        "operationId": "reviewGolden",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewGoldenListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Golden tasks and how workers did on them (owner, head)",
+        "tags": [
+          "admin-staff"
+        ]
+      },
+      "post": {
+        "operationId": "reviewMarkGolden",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewGoldenBodyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewGoldenIssuedEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Mark a confirmed decision as a golden task for a worker (owner, head)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/workspace/review/team": {
+      "get": {
+        "operationId": "reviewTeam",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewTeamEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Returned rate and re-check results per worker (latest nightly snapshot; owner, head)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/workspace/review/stats": {
+      "get": {
+        "operationId": "reviewStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewStatsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Re-check numbers per workspace and reviewer calibration (owner: all, head: own workspace)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
     "/admin/appeals": {
       "get": {
         "operationId": "listAppeals",
@@ -197869,6 +198710,644 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/StaffMyProgressDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffReviewLevel": {
+        "type": "string",
+        "enum": [
+          "owner",
+          "head",
+          "senior"
+        ]
+      },
+      "ReviewMeDto": {
+        "type": "object",
+        "properties": {
+          "level": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffReviewLevel"
+              }
+            ]
+          },
+          "canManage": {
+            "type": "boolean",
+            "description": "May mark golden tasks and read stats and the team (owner, head)."
+          }
+        },
+        "required": [
+          "level",
+          "canManage"
+        ]
+      },
+      "ReviewMeEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReviewMeDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffReviewNextStatus": {
+        "type": "string",
+        "enum": [
+          "leased",
+          "busy",
+          "empty",
+          "wrap_up",
+          "away",
+          "offline",
+          "off"
+        ]
+      },
+      "ReviewFactDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ]
+      },
+      "ReviewPersonRefDto": {
+        "type": "object",
+        "properties": {
+          "adminId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "adminId",
+          "name"
+        ]
+      },
+      "ReviewSampleDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decisionKind": {
+            "type": "string",
+            "description": "The kind of the checked decision (verification, report, support_ticket…)."
+          },
+          "itemId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The checked item."
+          },
+          "stage": {
+            "type": "string",
+            "nullable": true,
+            "description": "sample · newcomer · ai · peer"
+          },
+          "outcome": {
+            "type": "string",
+            "nullable": true,
+            "description": "What the worker chose (read-only)."
+          },
+          "decidedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "When the worker closed it."
+          },
+          "handleSec": {
+            "type": "number",
+            "nullable": true,
+            "description": "Seconds the worker held it."
+          },
+          "facts": {
+            "description": "Read-only facts of the item, personal data masked by the admin rules.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewFactDto"
+            }
+          },
+          "leasedUntil": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "worker": {
+            "nullable": true,
+            "description": "Owner only. Reviewers never see who decided.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReviewPersonRefDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "decisionKind",
+          "itemId",
+          "stage",
+          "outcome",
+          "decidedAt",
+          "handleSec",
+          "facts",
+          "leasedUntil",
+          "worker"
+        ]
+      },
+      "ReviewNextDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffReviewNextStatus"
+              }
+            ]
+          },
+          "sample": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReviewSampleDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "sample"
+        ]
+      },
+      "ReviewNextEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReviewNextDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ReviewCurrentDto": {
+        "type": "object",
+        "properties": {
+          "sample": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReviewSampleDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "sample"
+        ]
+      },
+      "ReviewCurrentEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReviewCurrentDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffReviewVerdictOutcome": {
+        "type": "string",
+        "enum": [
+          "done",
+          "returned"
+        ]
+      },
+      "ReviewVerdictResultDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "result": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffReviewVerdictOutcome"
+              }
+            ]
+          }
+        },
+        "required": [
+          "ok",
+          "result"
+        ]
+      },
+      "StaffReviewVerdict": {
+        "type": "string",
+        "enum": [
+          "confirmed",
+          "overturned",
+          "unclear"
+        ],
+        "description": "confirmed — the decision stands · overturned — it was wrong · unclear — cannot tell (goes to another reviewer, no mark for the worker)."
+      },
+      "StaffReviewReason": {
+        "type": "string",
+        "enum": [
+          "wrong_outcome",
+          "missed_signal",
+          "policy_misapplied",
+          "wrong_reason_text",
+          "too_hasty",
+          "harmful",
+          "other"
+        ],
+        "description": "Why it was overturned (at least one for «overturned»)."
+      },
+      "ReviewVerdictBodyDto": {
+        "type": "object",
+        "properties": {
+          "verdict": {
+            "description": "confirmed — the decision stands · overturned — it was wrong · unclear — cannot tell (goes to another reviewer, no mark for the worker).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffReviewVerdict"
+              }
+            ]
+          },
+          "reasons": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "$ref": "#/components/schemas/StaffReviewReason"
+            },
+            "description": "Why it was overturned (at least one for «overturned»)."
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "verdict"
+        ]
+      },
+      "ReviewVerdictResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReviewVerdictResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffGoldenState": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "passed",
+          "failed"
+        ]
+      },
+      "ReviewGoldenRowDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decisionKind": {
+            "type": "string"
+          },
+          "state": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffGoldenState"
+              }
+            ]
+          },
+          "worker": {
+            "$ref": "#/components/schemas/ReviewPersonRefDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "doneAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "decisionKind",
+          "state",
+          "worker",
+          "createdAt",
+          "doneAt"
+        ]
+      },
+      "ReviewGoldenListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewGoldenRowDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "ReviewGoldenListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReviewGoldenListDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ReviewGoldenIssuedDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "goldenId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "ok",
+          "goldenId"
+        ]
+      },
+      "ReviewGoldenBodyDto": {
+        "type": "object",
+        "properties": {
+          "sampleId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A re-check sample that a reviewer CONFIRMED."
+          },
+          "workerId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The worker who gets this task (same workspace, a role that works this kind). Omit: one is picked at random."
+          }
+        },
+        "required": [
+          "sampleId"
+        ]
+      },
+      "ReviewGoldenIssuedEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReviewGoldenIssuedDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ReviewTeamRowDto": {
+        "type": "object",
+        "properties": {
+          "adminId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "decisions": {
+            "type": "number"
+          },
+          "returnedRate": {
+            "type": "number",
+            "nullable": true,
+            "description": "Percent of closed items that came back (reopened or complained about)."
+          },
+          "sampled": {
+            "type": "number"
+          },
+          "overturned": {
+            "type": "number"
+          },
+          "goldenTotal": {
+            "type": "number"
+          },
+          "goldenFailed": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "adminId",
+          "name",
+          "decisions",
+          "returnedRate",
+          "sampled",
+          "overturned",
+          "goldenTotal",
+          "goldenFailed"
+        ]
+      },
+      "ReviewTeamDto": {
+        "type": "object",
+        "properties": {
+          "snapshotDate": {
+            "type": "string",
+            "nullable": true,
+            "description": "Date of the nightly snapshot read."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewTeamRowDto"
+            }
+          }
+        },
+        "required": [
+          "snapshotDate",
+          "items"
+        ]
+      },
+      "ReviewTeamEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReviewTeamDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffReviewWorkspace": {
+        "type": "string",
+        "enum": [
+          "mass",
+          "finance",
+          "owner"
+        ]
+      },
+      "ReviewWorkspaceStatsDto": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffReviewWorkspace"
+              }
+            ]
+          },
+          "decisions": {
+            "type": "number"
+          },
+          "sampled": {
+            "type": "number"
+          },
+          "overturned": {
+            "type": "number"
+          },
+          "overturnRate": {
+            "type": "number",
+            "nullable": true,
+            "description": "Percent of re-checked decisions that were overturned."
+          },
+          "returnedRate": {
+            "type": "number",
+            "nullable": true,
+            "description": "Percent of closed items that came back."
+          },
+          "goldenTotal": {
+            "type": "number"
+          },
+          "goldenFailed": {
+            "type": "number"
+          },
+          "pending": {
+            "type": "number",
+            "description": "Samples waiting for a reviewer now."
+          }
+        },
+        "required": [
+          "workspace",
+          "decisions",
+          "sampled",
+          "overturned",
+          "overturnRate",
+          "returnedRate",
+          "goldenTotal",
+          "goldenFailed",
+          "pending"
+        ]
+      },
+      "ReviewCalibrationDto": {
+        "type": "object",
+        "properties": {
+          "decisionKind": {
+            "type": "string"
+          },
+          "pairs": {
+            "type": "number",
+            "description": "Samples checked by two reviewers."
+          },
+          "agreementPct": {
+            "type": "number",
+            "nullable": true,
+            "description": "Percent of pairs where both reviewers said the same."
+          }
+        },
+        "required": [
+          "decisionKind",
+          "pairs",
+          "agreementPct"
+        ]
+      },
+      "ReviewStatsDto": {
+        "type": "object",
+        "properties": {
+          "snapshotDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "workspaces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewWorkspaceStatsDto"
+            }
+          },
+          "calibration": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewCalibrationDto"
+            }
+          }
+        },
+        "required": [
+          "snapshotDate",
+          "workspaces",
+          "calibration"
+        ]
+      },
+      "ReviewStatsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReviewStatsDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
