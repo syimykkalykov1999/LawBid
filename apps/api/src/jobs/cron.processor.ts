@@ -102,6 +102,7 @@ import { TreasuryService } from '../modules/treasury/treasury.service';
 import { AutoAppealsService } from '../modules/moderation/auto-appeals.service';
 import { AuditExportService } from '../modules/admin/audit-export.service';
 import { AdminAccessReportService } from '../modules/admin/admin-access-report.service';
+import { SeoGenerateJob } from './handlers/seo-generate.job';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
  * becomes the BullMQ job's `returnvalue` (visible in queue dashboards). */
@@ -215,6 +216,8 @@ export class CronProcessor {
     @Optional() private readonly stripeOps?: StripeOpsJob,
     // DB-ops hardening: `db.health`.
     @Optional() private readonly dbHealth?: DbHealthJob,
+    // Programmatic SEO 2026-10-27: `seo.generate`.
+    @Optional() private readonly seoGenerate?: SeoGenerateJob,
     // S10-13: one lock per job name for every schedule.
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
@@ -362,6 +365,8 @@ export class CronProcessor {
         return this.orphans?.run() ?? null;
       case CRON_JOBS.eventsMaintain:
         return this.eventsMaintenance?.run() ?? null;
+      case CRON_JOBS.seoGenerate:
+        return this.seoGenerate?.run() ?? null;
       case CRON_JOBS.opsBusinessMetrics:
         return this.opsMetrics.businessCounters();
       case CRON_JOBS.disappearingSweep:

@@ -5,6 +5,7 @@ import type {
   VerificationStatus,
 } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { notifySeoPagesChanged } from '../../common/seo/seo-generator.trigger';
 import { NAME_RECHECK_NOTE_PREFIX } from '../users/services/attorney-name-recheck';
 import {
   LICENSE_RECHECK_NOTE_PREFIX,
@@ -73,6 +74,8 @@ export async function syncProfileStatus(
       where: { user_id: attorneyId, verified_at: null },
       data: { verified_at: now },
     });
+    // Programmatic SEO: a verified attorney gets a public page.
+    notifySeoPagesChanged('attorney-published');
     return;
   }
   await tx.attorneyProfile.updateMany({
