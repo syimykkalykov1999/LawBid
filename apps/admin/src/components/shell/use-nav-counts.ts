@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { countsQuery, livePoll } from '@/lib/live';
-import { can, type CountKey } from '@/lib/rbac';
+import { can, canOpen, navModeFor, type CountKey } from '@/lib/rbac';
 import type { Me } from '@/lib/hooks';
 
 /**
@@ -20,10 +20,14 @@ export function useNavCounts(me: Me | undefined): Partial<Record<CountKey, numbe
     enabled: !!me,
   }).data;
   if (!counts || !me) return {};
+  // Staff package T2: a worker of a workspace sees counters only for the
+  // pages of their own workspace.
+  const desk = navModeFor(me) === 'desk';
+  const ok = (area: string, href: string) => can(me, area) && (!desk || canOpen(me, href));
   return {
-    verification: can(me, 'dashboard') ? counts.verificationQueue : undefined,
-    trust: can(me, 'verification') ? counts.trustQueue : undefined,
-    reports: can(me, 'dashboard') ? counts.openReports : undefined,
-    support: can(me, 'support') ? counts.supportUnread : undefined,
+    verification: ok('dashboard', '/verification') ? counts.verificationQueue : undefined,
+    trust: ok('verification', '/verification/trust') ? counts.trustQueue : undefined,
+    reports: ok('dashboard', '/moderation') ? counts.openReports : undefined,
+    support: ok('support', '/support') ? counts.supportUnread : undefined,
   };
 }

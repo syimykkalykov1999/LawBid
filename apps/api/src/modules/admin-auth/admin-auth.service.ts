@@ -55,6 +55,7 @@ import {
   readNoPii,
   readPartner,
 } from './admin-permissions';
+import { effectiveWorkspace } from '../staff-core/workspace-scope';
 import {
   ADMIN_SESSION_TTL_SECONDS,
   AdminSessionService,
@@ -639,6 +640,8 @@ export class AdminAuthService {
             admin_role: true,
             permissions: true,
             on_call_enabled: true,
+            workspace: true,
+            is_workspace_head: true,
           },
         },
         admin_credential: {
@@ -663,10 +666,30 @@ export class AdminAuthService {
       role === 'super_admin'
         ? null
         : readPartner(user.admin_profile?.permissions);
+    // Staff package T2: the panel switches to workspaces only while the
+    // owner's switch is on; a head only with the head role on as well.
+    const workspacesEnabled =
+      (await this.settings?.boolean('staff.workspaces_enabled')) === true;
+    const deputy =
+      role !== 'super_admin' &&
+      !partner &&
+      readManageAdmins(user.admin_profile?.permissions);
+    const workspace = effectiveWorkspace(role, user.admin_profile?.workspace);
+    const workspaceHead =
+      workspacesEnabled &&
+      role !== 'super_admin' &&
+      !partner &&
+      !deputy &&
+      workspace !== 'owner' &&
+      user.admin_profile?.is_workspace_head === true &&
+      (await this.settings?.boolean('staff.head_enabled')) === true;
     return {
       id: user.id,
       email: user.email ?? '',
       role,
+      workspace,
+      workspaceHead,
+      workspacesEnabled,
       totpEnabled: Boolean(c?.totp_enabled_at),
       passkeyCount: (await this.passkeys?.count(user.id, 'admin')) ?? 0,
       lastLoginAt: c?.last_login_at?.toISOString() ?? null,

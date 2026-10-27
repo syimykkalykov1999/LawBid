@@ -241,7 +241,7 @@
   "modules/videos/videos.service.ts -> feature-flags/services/feature-flags.service"
  ],
  "fanOut": {
-  "admin": 4,
+  "admin": 5,
   "admin-access": 1,
   "admin-auth": 3,
   "admin-billing": 9,

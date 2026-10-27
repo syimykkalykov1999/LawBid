@@ -27,7 +27,7 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const counts = useNavCounts(me);
-  const active = groupFor(pathname)?.key;
+  const active = groupFor(pathname, me)?.key;
   const off = useOffFlags(me);
   const groups = me ? groupsFor(me, off) : [];
   const narrow = collapsed && !mobile;

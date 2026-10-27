@@ -21,7 +21,7 @@ export function BottomNav({ me, onMore }: { me: Me | undefined; onMore: () => vo
   const off = useOffFlags(me);
   if (!me) return null;
   const groups = groupsFor(me, off);
-  const active = groupFor(pathname)?.key;
+  const active = groupFor(pathname, me)?.key;
   let shown = groups.slice(0, SLOTS);
   const current = groups.find((g) => g.key === active);
   if (current && !shown.includes(current)) shown = [...shown.slice(0, SLOTS - 1), current];
