@@ -59,7 +59,7 @@ export class StaffReviewController {
   @ApiOperation({ summary: 'May I re-check? (404 for everyone who may not)' })
   @ApiEnvelopeResponse(ReviewMeDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  async me(@CurrentAdmin() admin: AdminActor): Promise<ReviewMeDto> {
+  async reviewMe(@CurrentAdmin() admin: AdminActor): Promise<ReviewMeDto> {
     const a = await this.access.require(admin);
     return { level: a.level, canManage: a.level !== 'senior' };
   }
@@ -74,7 +74,7 @@ export class StaffReviewController {
   })
   @ApiEnvelopeResponse(ReviewNextDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  async next(@CurrentAdmin() admin: AdminActor): Promise<ReviewNextDto> {
+  async reviewNext(@CurrentAdmin() admin: AdminActor): Promise<ReviewNextDto> {
     return this.review.next(admin, await this.access.require(admin));
   }
 
@@ -82,7 +82,9 @@ export class StaffReviewController {
   @ApiOperation({ summary: 'The sample I hold now, if any' })
   @ApiEnvelopeResponse(ReviewCurrentDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  async current(@CurrentAdmin() admin: AdminActor): Promise<ReviewCurrentDto> {
+  async reviewCurrent(
+    @CurrentAdmin() admin: AdminActor,
+  ): Promise<ReviewCurrentDto> {
     return this.review.current(admin, await this.access.require(admin));
   }
 
@@ -96,7 +98,7 @@ export class StaffReviewController {
   })
   @ApiEnvelopeResponse(ReviewVerdictResultDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  async verdict(
+  async reviewVerdict(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: ReviewSampleParamDto,
     @Body() dto: ReviewVerdictBodyDto,
@@ -111,7 +113,7 @@ export class StaffReviewController {
   @ApiOperation({ summary: 'Let go of the sample without a verdict' })
   @ApiEnvelopeResponse(ReviewVerdictResultDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  async release(
+  async reviewRelease(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: ReviewSampleParamDto,
   ): Promise<ReviewVerdictResultDto> {
@@ -126,7 +128,7 @@ export class StaffReviewController {
   })
   @ApiEnvelopeResponse(ReviewGoldenListDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  async golden(
+  async reviewGolden(
     @CurrentAdmin() admin: AdminActor,
   ): Promise<ReviewGoldenListDto> {
     return this.read.golden(await this.access.requireHead(admin));
@@ -142,7 +144,7 @@ export class StaffReviewController {
   })
   @ApiEnvelopeResponse(ReviewGoldenIssuedDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  async markGolden(
+  async reviewMarkGolden(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: ReviewGoldenBodyDto,
   ): Promise<ReviewGoldenIssuedDto> {
@@ -160,7 +162,7 @@ export class StaffReviewController {
   })
   @ApiEnvelopeResponse(ReviewTeamDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  async team(@CurrentAdmin() admin: AdminActor): Promise<ReviewTeamDto> {
+  async reviewTeam(@CurrentAdmin() admin: AdminActor): Promise<ReviewTeamDto> {
     return this.read.team(await this.access.requireHead(admin));
   }
 
@@ -171,7 +173,9 @@ export class StaffReviewController {
   })
   @ApiEnvelopeResponse(ReviewStatsDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  async stats(@CurrentAdmin() admin: AdminActor): Promise<ReviewStatsDto> {
+  async reviewStats(
+    @CurrentAdmin() admin: AdminActor,
+  ): Promise<ReviewStatsDto> {
     return this.read.stats(await this.access.requireHead(admin));
   }
 }
