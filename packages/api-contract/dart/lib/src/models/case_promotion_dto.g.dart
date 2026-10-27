@@ -18,6 +18,10 @@ CasePromotionDto _$CasePromotionDtoFromJson(Map<String, dynamic> json) =>
       impressions: (json['impressions'] as num).toInt(),
       reach: (json['reach'] as num).toInt(),
       clicks: (json['clicks'] as num).toInt(),
+      billing: BoostBilling.fromJson(json['billing'] as String),
+      deliveredUnits: (json['deliveredUnits'] as num).toInt(),
+      actions: (json['actions'] as num).toInt(),
+      refundedCents: (json['refundedCents'] as num).toInt(),
       createdAt: DateTime.parse(json['createdAt'] as String),
       caseId: json['caseId'] as String?,
       postId: json['postId'] as String?,
@@ -28,6 +32,8 @@ CasePromotionDto _$CasePromotionDtoFromJson(Map<String, dynamic> json) =>
           ? null
           : DateTime.parse(json['endsAt'] as String),
       targetImpressions: (json['targetImpressions'] as num?)?.toInt(),
+      unitPriceCents: (json['unitPriceCents'] as num?)?.toInt(),
+      targetUnits: (json['targetUnits'] as num?)?.toInt(),
       audience: json['audience'] == null
           ? null
           : PromotionAudienceDto.fromJson(
@@ -56,6 +62,12 @@ Map<String, dynamic> _$CasePromotionDtoToJson(CasePromotionDto instance) =>
       'reach': instance.reach,
       'clicks': instance.clicks,
       'targetImpressions': ?instance.targetImpressions,
+      'billing': instance.billing.toJson(),
+      'unitPriceCents': ?instance.unitPriceCents,
+      'targetUnits': ?instance.targetUnits,
+      'deliveredUnits': instance.deliveredUnits,
+      'actions': instance.actions,
+      'refundedCents': instance.refundedCents,
       'audience': ?instance.audience?.toJson(),
       'cancelReason': ?instance.cancelReason,
       'goal': ?instance.goal,

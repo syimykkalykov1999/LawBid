@@ -198,7 +198,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/partners', label: 'Партнёры', icon: 'handshake', area: 'money', hint: 'блогеры и агенты: плата за адвокатов и клиентов' },
       { href: '/country-partners', label: 'Партнёры стран', icon: 'globe', area: 'moneyOwner', ownerOnly: true, hint: 'главный партнёр страны: команда, процент, цели' },
       { href: '/contracts', label: 'По договору', icon: 'handshake', area: 'money', hint: 'бесплатно блогерам 3–12 мес.' },
-      { href: '/promotions', label: 'Продвижение', icon: 'rocket-launch', area: 'money', hint: 'платное продвижение постов и кейсов, как в Instagram' },
+      { href: '/promotions', label: 'Продвижение', icon: 'rocket-launch', area: 'money', hint: 'цены за показы, людей, нажатия и действия' },
       { href: '/stars', label: 'Звёзды', icon: 'star', area: 'moneyOwner', ownerOnly: true, hint: 'пакеты звёзд, подарки, цены наборов стикеров, отчёт' },
       { href: '/prices', label: 'Цены', icon: 'tag', area: 'moneyOwner', ownerOnly: true, hint: 'стоимость тарифов и галочки' },
       { href: '/plans', label: 'Планы', icon: 'stack', area: 'moneyOwner', ownerOnly: true, hint: 'планы подписок и их возможности' },

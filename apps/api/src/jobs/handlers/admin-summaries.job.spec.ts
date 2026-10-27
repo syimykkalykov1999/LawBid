@@ -32,6 +32,7 @@ describe('AdminSummariesJob', () => {
         'billing-overview',
         'access-report',
         'trust-scan',
+        'promotions-by-model',
       ],
       failed: [],
     });
@@ -60,6 +61,7 @@ describe('AdminSummariesJob', () => {
       'billing-overview',
       'access-report',
       'trust-scan',
+      'promotions-by-model',
     ]);
     expect(billing.refreshOverview).toHaveBeenCalled();
     expect(trust.refreshScan).toHaveBeenCalled();

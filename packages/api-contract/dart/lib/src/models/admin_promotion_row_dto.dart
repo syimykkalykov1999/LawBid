@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'boost_billing.dart';
 import 'case_promotion_status.dart';
 import 'promotion_audience_dto.dart';
 import 'promotion_target.dart';
@@ -13,38 +14,43 @@ part 'admin_promotion_row_dto.g.dart';
 @JsonSerializable()
 class AdminPromotionRowDto {
   const AdminPromotionRowDto({
-    required this.id,
+    required this.reach,
     required this.targetType,
+    required this.ownerId,
+    required this.caseTitle,
     required this.status,
     required this.days,
     required this.priceCentsPerDay,
     required this.totalCents,
     required this.paidStars,
-    required this.impressions,
-    required this.reach,
-    required this.clicks,
     required this.createdAt,
-    required this.caseTitle,
     required this.refundedCents,
+    required this.impressions,
+    required this.id,
+    required this.clicks,
+    required this.actions,
+    required this.billing,
     required this.caseStatus,
-    required this.ownerId,
-    this.caseId,
-    this.postId,
-    this.startsAt,
-    this.endsAt,
+    required this.deliveredUnits,
+    this.unitPriceCents,
     this.targetImpressions,
+    this.endsAt,
     this.audience,
     this.cancelReason,
     this.goal,
-    this.ctaType,
+    this.grantedBy,
     this.ctaValue,
+    this.startsAt,
+    this.postId,
     this.reviewedBy,
     this.cpmCents,
+    this.ctaType,
+    this.caseId,
     this.ownerName,
     this.ownerEmail,
     this.paymentId,
     this.promoCodeId,
-    this.grantedBy,
+    this.targetUnits,
   });
 
   factory AdminPromotionRowDto.fromJson(Map<String, Object?> json) =>
@@ -73,6 +79,20 @@ class AdminPromotionRowDto {
 
   /// Impressions the budget buys (null = no cap).
   final int? targetImpressions;
+  final BoostBilling billing;
+  final int? unitPriceCents;
+
+  /// Units the budget buys (views, people, taps, actions).
+  final int? targetUnits;
+
+  /// Units delivered so far.
+  final int deliveredUnits;
+
+  /// Real actions counted.
+  final int actions;
+
+  /// Money given back.
+  final int refundedCents;
   final PromotionAudienceDto? audience;
   final String? cancelReason;
   final String? goal;
@@ -83,7 +103,6 @@ class AdminPromotionRowDto {
   /// Case title, or the post title / text.
   final String caseTitle;
   final String? reviewedBy;
-  final int refundedCents;
   final int? cpmCents;
   final String caseStatus;
   final String ownerId;

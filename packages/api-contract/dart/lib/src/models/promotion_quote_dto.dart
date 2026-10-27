@@ -4,6 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'boost_billing.dart';
+import 'boost_offer_dto.dart';
+
 part 'promotion_quote_dto.g.dart';
 
 @JsonSerializable()
@@ -32,6 +35,11 @@ class PromotionQuoteDto {
     required this.postsEnabled,
     required this.casesEnabled,
     required this.ctaTypes,
+    required this.billing,
+    required this.unitPriceCents,
+    required this.estUnits,
+    required this.offers,
+    required this.actions,
   });
 
   factory PromotionQuoteDto.fromJson(Map<String, Object?> json) =>
@@ -80,6 +88,19 @@ class PromotionQuoteDto {
 
   /// Owner 2026-10-15: the buttons an advertiser may pick (empty = none).
   final List<String> ctaTypes;
+  final BoostBilling billing;
+
+  /// Per 1000 for impressions / reach, per one otherwise.
+  final int unitPriceCents;
+
+  /// Units this budget buys in the chosen way to pay.
+  final int estUnits;
+
+  /// The ways to pay that are switched on.
+  final List<BoostOfferDto> offers;
+
+  /// What counts as a real action (when paid per action).
+  final List<String> actions;
 
   Map<String, Object?> toJson() => _$PromotionQuoteDtoToJson(this);
 }

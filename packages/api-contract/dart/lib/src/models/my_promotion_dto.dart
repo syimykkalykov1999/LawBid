@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'boost_billing.dart';
 import 'case_promotion_status.dart';
 import 'promotion_audience_dto.dart';
 import 'promotion_target.dart';
@@ -23,6 +24,10 @@ class MyPromotionDto {
     required this.impressions,
     required this.reach,
     required this.clicks,
+    required this.billing,
+    required this.deliveredUnits,
+    required this.actions,
+    required this.refundedCents,
     required this.createdAt,
     required this.title,
     this.caseId,
@@ -30,6 +35,8 @@ class MyPromotionDto {
     this.startsAt,
     this.endsAt,
     this.targetImpressions,
+    this.unitPriceCents,
+    this.targetUnits,
     this.audience,
     this.cancelReason,
     this.goal,
@@ -63,6 +70,20 @@ class MyPromotionDto {
 
   /// Impressions the budget buys (null = no cap).
   final int? targetImpressions;
+  final BoostBilling billing;
+  final int? unitPriceCents;
+
+  /// Units the budget buys (views, people, taps, actions).
+  final int? targetUnits;
+
+  /// Units delivered so far.
+  final int deliveredUnits;
+
+  /// Real actions counted.
+  final int actions;
+
+  /// Money given back.
+  final int refundedCents;
   final PromotionAudienceDto? audience;
   final String? cancelReason;
   final String? goal;

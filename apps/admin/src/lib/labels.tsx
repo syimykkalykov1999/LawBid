@@ -646,6 +646,7 @@ const AUDIT_ACTION: Record<string, string> = {
   'promotions.extend': 'Продвижение продлено',
   'promotions.cancel': 'Продвижение отменено',
   'promotions.settings': 'Настройки продвижения',
+  'promotions.pricing': 'Цены продвижения по способам оплаты',
   'promotions.review': 'Продвижение проверено',
   'referrals.qualify': 'Реферал: условие выполнено',
   'referrals.reward': 'Реферал: награда выдана',

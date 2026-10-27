@@ -20,6 +20,7 @@ import { StarsService } from '../stars/stars.service';
 import { RefundsService } from '../admin-billing/refunds.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PromotionDeliveryService } from './promotion-delivery.service';
+import { PromotionsRollupService } from './promotions-rollup.service';
 import type {
   PromotionRefundMode,
   AdminPromotionActionResultDto,
@@ -30,9 +31,14 @@ import type {
 } from './promotions.dto';
 import { PromotionsService, toPromotionDto } from './promotions.service';
 import {
-  impressionsFor,
+  billingOf,
+  mergePricing,
   parsePromotionSettings,
+  pricingTargetOf,
   PROMOTION_SETTINGS_KEY,
+  targetUnits,
+  unitsFor,
+  unspentShare,
   type PromotionSettings,
   type PromotionTarget,
 } from './promotions.settings';
@@ -42,6 +48,7 @@ const DAY_MS = 86_400_000;
 
 export const PROMOTION_AUDIT = {
   settings: 'promotions.settings',
+  pricing: 'promotions.pricing',
   grant: 'promotions.grant',
   cancel: 'promotions.cancel',
   extend: 'promotions.extend',
@@ -69,10 +76,51 @@ export class AdminPromotionsService {
     @Optional() private readonly delivery?: PromotionDeliveryService,
     @Optional() private readonly notifications?: NotificationsService,
     @Optional() private readonly stars?: StarsService,
+    // Owner 2026-10-27: the by-model money numbers come from a nightly snapshot.
+    @Optional() private readonly rollup?: PromotionsRollupService,
   ) {}
 
   getSettings(): Promise<PromotionSettings> {
     return this.promotions.settings();
+  }
+
+  /** True when [dto] changes a price or switch of the per-model matrix (or the
+   * old single CPM, which moves the views price). */
+  async pricingWouldChange(dto: UpdatePromotionSettingsDto): Promise<boolean> {
+    if (dto.pricing === undefined && dto.cpmCents === undefined) return false;
+    const current = await this.promotions.settings();
+    const next = this.nextSettings(current, dto);
+    return JSON.stringify(next.pricing) !== JSON.stringify(current.pricing);
+  }
+
+  private nextSettings(
+    current: PromotionSettings,
+    dto: UpdatePromotionSettingsDto,
+  ): PromotionSettings {
+    const sent = Object.fromEntries(
+      Object.entries(dto).filter(([, v]) => v !== undefined),
+    );
+    // Owner 2026-10-27: the prices per model are merged target by target; an
+    // older admin build that only knows the single CPM still moves the views
+    // price of posts, videos and cases.
+    let pricing = mergePricing(current.pricing, dto.pricing, current.cpmCents);
+    if (
+      !dto.pricing &&
+      dto.cpmCents !== undefined &&
+      dto.cpmCents !== current.cpmCents
+    ) {
+      pricing = mergePricing(
+        pricing,
+        Object.fromEntries(
+          (['post', 'video', 'case'] as const).map((t) => [
+            t,
+            { models: { impressions: { priceCents: dto.cpmCents } } },
+          ]),
+        ),
+        current.cpmCents,
+      );
+    }
+    return parsePromotionSettings({ ...current, ...sent, pricing });
   }
 
   async updateSettings(
@@ -90,13 +138,10 @@ export class AdminPromotionsService {
     }
     // A field that is not sent keeps its stored value; the result is
     // normalised the same way it is read (presets inside min/max, …).
-    const sent = Object.fromEntries(
-      Object.entries(dto).filter(([, v]) => v !== undefined),
-    );
-    const next: PromotionSettings = parsePromotionSettings({
-      ...(await this.promotions.settings()),
-      ...sent,
-    });
+    const current = await this.promotions.settings();
+    const next = this.nextSettings(current, dto);
+    const priced =
+      JSON.stringify(next.pricing) !== JSON.stringify(current.pricing);
     const value = next as unknown as Prisma.InputJsonValue;
     await withTxRetry(this.prisma, async (tx) => {
       const before = await tx.appConfig.findUnique({
@@ -110,7 +155,9 @@ export class AdminPromotionsService {
       await this.audit.record(
         {
           adminId: admin.id,
-          action: PROMOTION_AUDIT.settings,
+          // A change of the prices / switches per way to pay has its own
+          // label in the log (owner 2026-10-27).
+          action: priced ? PROMOTION_AUDIT.pricing : PROMOTION_AUDIT.settings,
           targetType: 'app_config',
           targetId: null,
           before: before?.value ?? null,
@@ -183,6 +230,7 @@ export class AdminPromotionsService {
           _sum: { impressions: true, reach: true, clicks: true },
         }),
       ]);
+    const byModel = await this.rollup?.read();
     const paymentIds = paid
       .map((p) => p.payment_id)
       .filter((id): id is string => !!id);
@@ -209,6 +257,8 @@ export class AdminPromotionsService {
       impressions30d: delivered._sum.impressions ?? 0,
       reach30d: delivered._sum.reach ?? 0,
       clicks30d: delivered._sum.clicks ?? 0,
+      byModel: byModel?.rows ?? [],
+      byModelAt: byModel?.at ?? null,
     };
   }
 
@@ -222,6 +272,8 @@ export class AdminPromotionsService {
   ): Promise<AdminPromotionActionResultDto> {
     const settings = await this.promotions.settings();
     const type = opts.target ?? 'case';
+    const views =
+      settings.pricing[pricingTargetOf(type)].models.impressions.priceCents;
     const daily = Math.max(
       1,
       opts.dailyBudgetCents ?? settings.priceCentsPerDay,
@@ -289,8 +341,13 @@ export class AdminPromotionsService {
           days,
           price_cents_per_day: daily,
           total_cents: 0,
-          cpm_cents: settings.cpmCents,
-          target_impressions: impressionsFor(days * daily, settings.cpmCents),
+          // A free boost is always paid in views, at the views price of the
+          // thing (the owner's other switches do not matter for a grant).
+          billing: 'impressions',
+          unit_price_cents: views,
+          target_units: unitsFor('impressions', days * daily, views),
+          cpm_cents: views,
+          target_impressions: unitsFor('impressions', days * daily, views),
           status: 'active',
           starts_at: now,
           ends_at: new Date(now.getTime() + days * DAY_MS),
@@ -489,18 +546,15 @@ export class AdminPromotionsService {
     const left = Math.max(0, total - already);
     if (mode === 'full') return left;
     if (mode !== 'unspent') return 0;
-    if (!p.target_impressions) {
+    if (!targetUnits(p)) {
       // Older rows: by time left.
       if (!p.starts_at || !p.ends_at) return left;
       const span = p.ends_at.getTime() - p.starts_at.getTime();
       const rest = Math.max(0, p.ends_at.getTime() - Date.now());
       return Math.min(left, Math.floor((total * rest) / Math.max(1, span)));
     }
-    const undelivered = Math.max(0, p.target_impressions - p.impressions);
-    return Math.min(
-      left,
-      Math.floor((total * undelivered) / p.target_impressions),
-    );
+    // The undelivered share, in the unit the boost was paid for.
+    return unspentShare(p, total, already);
   }
 
   async extend(
@@ -523,15 +577,20 @@ export class AdminPromotionsService {
         data: {
           days: before.days + days,
           ends_at: new Date(before.ends_at.getTime() + days * DAY_MS),
-          ...(before.target_impressions !== null
-            ? {
-                target_impressions:
-                  before.target_impressions +
-                  impressionsFor(
-                    days * before.price_cents_per_day,
-                    before.cpm_cents ?? 500,
-                  ),
-              }
+          ...(targetUnits(before) !== null
+            ? (() => {
+                const more = unitsFor(
+                  billingOf(before.billing),
+                  days * before.price_cents_per_day,
+                  before.unit_price_cents ?? before.cpm_cents ?? 500,
+                );
+                return {
+                  target_units: (targetUnits(before) ?? 0) + more,
+                  ...(before.target_impressions !== null
+                    ? { target_impressions: before.target_impressions + more }
+                    : {}),
+                };
+              })()
             : {}),
         },
       });
@@ -583,6 +642,9 @@ export class AdminPromotionsService {
         endsAt: p.ends_at?.toISOString() ?? null,
         totalCents: p.total_cents,
         paymentId: p.payment_id,
+        billing: p.billing,
+        unitPriceCents: p.unit_price_cents,
+        targetUnits: p.target_units,
       }) as Prisma.InputJsonObject;
     await this.audit.record(
       {

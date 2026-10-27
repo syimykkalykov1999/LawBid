@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'pricing_matrix_dto.dart';
 import 'update_promotion_settings_dto_cta_types.dart';
 
 part 'update_promotion_settings_dto.g.dart';
@@ -33,6 +34,7 @@ class UpdatePromotionSettingsDto {
     this.impressionsPerPerson,
     this.autoApprove,
     this.requireSubscription,
+    this.pricing,
     this.feedEveryN,
   });
 
@@ -63,6 +65,9 @@ class UpdatePromotionSettingsDto {
   final num? impressionsPerPerson;
   final bool? autoApprove;
   final bool? requireSubscription;
+
+  /// Owner 2026-10-27: prices and switches per way to pay (views, people, taps, real actions) for posts, videos, cases and attorney profiles.
+  final PricingMatrixDto? pricing;
   final int? feedEveryN;
 
   Map<String, Object?> toJson() => _$UpdatePromotionSettingsDtoToJson(this);
