@@ -251,6 +251,8 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'StaffReward',
       'CountryPartnerSettlement',
       'LedgerAccount',
+      // #356: Stripe review queue (payouts, refunds, disputes) — finance.
+      'StripeReviewItem',
     ),
     retain_audit: list(
       'AuditLog',

@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-257 tables.
+277 tables.
 
 ```mermaid
 erDiagram
@@ -25,6 +25,7 @@ erDiagram
     String password_hash "nullable"
     DateTime password_set_at "nullable"
     String ui_language
+    String home_region
     String timezone "nullable"
     Boolean notif_icon_badge
     Json notif_topics
@@ -200,6 +201,7 @@ erDiagram
     String physical_db
     String state
     Int version
+    String region
     DateTime updated_at
   }
   cross_family_outbox {
@@ -3420,6 +3422,23 @@ erDiagram
     Json value
     DateTime updated_at
   }
+  erasure_ledger {
+    String user_id PK
+    DateTime anonymized_at
+    String reason
+    DateTime s3_synced_at "nullable"
+    DateTime created_at
+  }
+  deletion_steps {
+    String id PK
+    String user_id
+    String step
+    String status
+    String detail "nullable"
+    Int attempts
+    DateTime created_at
+    DateTime updated_at
+  }
   attorney_ad_archive {
     String id PK
     String attorney_id
@@ -3430,6 +3449,27 @@ erDiagram
     String content_hash
     DateTime created_at
     DateTime retain_until
+  }
+  concurrent_migrations {
+    String name PK
+    String checksum
+    DateTime applied_at
+  }
+  backfill_runs {
+    String name PK
+    String status
+    String table_name
+    String cursor "nullable"
+    BigInt processed
+    BigInt total_estimate "nullable"
+    Int batch_size
+    Int max_rows_per_sec
+    String pause_reason "nullable"
+    String last_error "nullable"
+    DateTime started_at
+    DateTime updated_at
+    DateTime heartbeat_at
+    DateTime finished_at "nullable"
   }
   domain_events {
     String id PK
