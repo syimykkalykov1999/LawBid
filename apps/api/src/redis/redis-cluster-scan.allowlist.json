@@ -138,5 +138,15 @@
     "file": "modules/privacy/personal-data-erasure.service.ts",
     "kind": "scan",
     "reason": "Cluster mode scans every master node (nodes('master')); standalone scans the one node. Matched keys are deleted with delSafe (one DEL per key in cluster mode)."
+  },
+  {
+    "file": "modules/work-lease/staff-presence.service.ts",
+    "kind": "mget",
+    "reason": "The four presence keys of ONE admin all carry the {staff:<adminId>} hash tag (key()): one slot."
+  },
+  {
+    "file": "modules/work-lease/staff-presence.service.ts",
+    "kind": "pipeline-raw",
+    "reason": "Every command of one heartbeat pipeline names a key of the same admin ({staff:<adminId>} hash tag): one slot."
   }
 ]
