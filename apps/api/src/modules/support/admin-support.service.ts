@@ -10,6 +10,8 @@ import { AdminSummaryService } from '../../common/admin-summary/admin-summary.se
 import type { Prisma, SupportMessage, SupportTicket } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import { LEASE_PORT, type LeasePort } from '../staff-core/lease.port';
+import { closeStaffDecision } from '../staff-core/staff-decision';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
@@ -82,6 +84,8 @@ export class AdminSupportService {
     @Optional()
     @Inject(STAFF_SIGNALS)
     private readonly staffSignals?: StaffSignals,
+    // Staff package T4: resolving a ticket ends the agent's work lease.
+    @Optional() @Inject(LEASE_PORT) private readonly lease?: LeasePort,
   ) {}
 
   async list(
@@ -337,7 +341,10 @@ export class AdminSupportService {
       return { message: m, ticket: updated };
     });
     // Staff package T5: one cheap call each (no-ops while the rating is off).
-    if (closedNow) this.recordClose(adminId, id);
+    if (closedNow) {
+      this.recordClose(adminId, id);
+      await this.endLease(adminId, id);
+    }
     if (lateAnswer && !internal) {
       void this.staffSignals?.signal(adminId, 'late_sla', 'support_ticket', id);
     }
@@ -379,7 +386,10 @@ export class AdminSupportService {
       if (Object.keys(data).length === 0) return t;
       return tx.supportTicket.update({ where: { id }, data });
     });
-    if (closedNow && adminId) this.recordClose(adminId, id);
+    if (closedNow && adminId) {
+      this.recordClose(adminId, id);
+      await this.endLease(adminId, id);
+    }
     const people = await this.people([updated.user_id, updated.assignee_id]);
     return this.row(updated, people);
   }
@@ -394,6 +404,19 @@ export class AdminSupportService {
       itemId: ticketId,
       outcome: 'close',
     });
+  }
+
+  /** Staff package T4: the agent closed the ticket, so the lease on it ends. */
+  private endLease(adminId: string, ticketId: string): Promise<void> {
+    return closeStaffDecision(
+      { lease: this.lease },
+      {
+        adminId,
+        kind: 'support_ticket',
+        itemId: ticketId,
+        outcome: 'close',
+      },
+    );
   }
 
   private async ticket(id: string): Promise<SupportTicket> {

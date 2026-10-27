@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import {
@@ -20,6 +20,7 @@ import type {
 } from '../staff-core/lease.port';
 import type { StaffSettings } from '../staff-core/staff-settings.service';
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
+import { LEASE_GOLDEN, type LeaseGolden } from './lease-golden';
 import { leaseSourceFor, type LeaseQueueSource } from './lease-queue-sources';
 import {
   StaffPresenceService,
@@ -169,6 +170,8 @@ export class LeaseService implements LeasePort {
     private readonly staff: StaffSettingsService,
     private readonly presence: StaffPresenceService,
     private readonly events: StaffEventsPublisher,
+    // Staff package T4: golden tasks (modules/staff-desk). Absent = none.
+    @Optional() @Inject(LEASE_GOLDEN) private readonly golden?: LeaseGolden,
   ) {}
 
   // --- switches ------------------------------------------------------------
@@ -210,6 +213,9 @@ export class LeaseService implements LeasePort {
 
     const ttlSec = cfg.numbers[src.ttlSetting] * 60;
     const excludeMinutes = cfg.numbers['staff.reopen.return_after_min'];
+    // A golden task waiting for this person comes first and looks like any
+    // other item (same lease, same timer); the worker is never told.
+    const goldenId = await this.pickGolden(actor.adminId, kind);
     const outcome = await withTxRetry(
       this.prisma,
       async (tx): Promise<NextOutcome> => {
@@ -222,6 +228,18 @@ export class LeaseService implements LeasePort {
             status: 'busy',
             held: held.filter((h) => h.counts).map((h) => h.view),
           };
+        }
+        if (goldenId) {
+          const g = await this.tryClaim(
+            tx,
+            src,
+            goldenId,
+            actor.adminId,
+            ttlSec,
+            0,
+            true,
+          );
+          if (g) return { status: 'leased', lease: g };
         }
         const cands = await src.candidates(tx, {
           adminId: actor.adminId,
@@ -296,6 +314,7 @@ export class LeaseService implements LeasePort {
     adminId: string,
     ttlSec: number,
     excludeMinutes: number,
+    golden = false,
   ): Promise<LeaseView | null> {
     // An expired lease nobody swept yet: remember who loses it.
     const prev = await tx.$queryRaw<
@@ -327,7 +346,7 @@ export class LeaseService implements LeasePort {
     if (!row) return null;
     const lost = prev[0];
     if (lost) {
-      await src.onReleased?.(tx, lost.admin_id, itemId);
+      if (!golden) await src.onReleased?.(tx, lost.admin_id, itemId);
       await this.writeEvent(
         tx,
         src.kind,
@@ -343,7 +362,9 @@ export class LeaseService implements LeasePort {
         reason: LEASE_REASON.expired,
       });
     }
-    if (!(await src.onClaimed(tx, adminId, itemId))) {
+    // A golden task is an item already decided by someone else: the queue
+    // has nothing to book on it.
+    if (!golden && !(await src.onClaimed(tx, adminId, itemId))) {
       // Closed under our hands: give the row back untouched.
       await tx.$executeRaw`
         UPDATE work_leases SET admin_id = NULL, leased_until = NULL, updated_at = now()
@@ -525,18 +546,49 @@ export class LeaseService implements LeasePort {
     return { ok, limited: false };
   }
 
-  /** The holder closed it. Support gets a short wrap-up before the next one. */
-  async done(kind: string, itemId: string, adminId: string): Promise<void> {
-    const ended = await this.end(kind, itemId, adminId, {
+  /**
+   * The holder closed it. Support gets a short wrap-up before the next one.
+   * Resolves with how long they held it (ms), or null when it was not theirs.
+   * [outcome] is the decision; a golden task is checked against it.
+   */
+  async done(
+    kind: string,
+    itemId: string,
+    adminId: string,
+    outcome?: string,
+  ): Promise<number | null> {
+    const ended = await this.endLease(kind, itemId, adminId, {
       event: LEASE_EVENT.done,
       reason: null,
       exclude: true,
     });
-    if (!ended) return;
+    if (!ended) return null;
     const cfg = await this.staff.get();
     const wrap = cfg.numbers['staff.lease.wrapup_support_sec'];
     if (kind === 'support_ticket' && wrap > 0) {
       await this.redis.set(wrapUpKey(adminId), '1', 'EX', wrap);
+    }
+    if (this.golden && outcome) {
+      try {
+        await this.golden.resolve(adminId, kind, itemId, outcome);
+      } catch (e) {
+        log.warn(`golden resolve ${kind}:${itemId} failed: ${String(e)}`);
+      }
+    }
+    return ended.heldMs ?? 0;
+  }
+
+  /** The id of a golden task waiting for this person in [kind], if any. */
+  private async pickGolden(
+    adminId: string,
+    kind: string,
+  ): Promise<string | null> {
+    if (!this.golden) return null;
+    try {
+      return await this.golden.pick(adminId, kind);
+    } catch (e) {
+      log.warn(`golden pick failed: ${String(e)}`);
+      return null;
     }
   }
 
@@ -693,11 +745,21 @@ export class LeaseService implements LeasePort {
     adminId: string,
     o: { event: LeaseEventName; reason: string | null; exclude?: boolean },
   ): Promise<boolean> {
+    return (await this.endLease(kind, itemId, adminId, o)) !== null;
+  }
+
+  /** Same as `end`, with how long the person held it (null = not theirs). */
+  private async endLease(
+    kind: string,
+    itemId: string,
+    adminId: string,
+    o: { event: LeaseEventName; reason: string | null; exclude?: boolean },
+  ): Promise<{ heldMs: number | null } | null> {
     const src = leaseSourceFor(kind);
     const exclude = o.exclude === true;
     const held = await withTxRetry(
       this.prisma,
-      async (tx) => {
+      async (tx): Promise<{ heldMs: number | null } | null> => {
         const rows = await tx.$queryRaw<Array<{ taken_at: Date | null }>>`
           UPDATE work_leases SET
             admin_id = NULL, leased_until = NULL,
@@ -709,7 +771,7 @@ export class LeaseService implements LeasePort {
             updated_at = now()
           WHERE kind = ${kind} AND item_id = ${itemId}::uuid AND admin_id = ${adminId}::uuid
           RETURNING taken_at`;
-        if (!rows[0]) return false;
+        if (!rows[0]) return null;
         // `done` closes the item itself: the queue owns that state.
         if (o.event !== LEASE_EVENT.done) {
           await src?.onReleased?.(tx, adminId, itemId);
@@ -726,11 +788,11 @@ export class LeaseService implements LeasePort {
           o.reason,
           heldMs,
         );
-        return true;
+        return { heldMs };
       },
       { isolation: 'readCommitted', op: 'lease.end' },
     );
-    if (!held) return false;
+    if (!held) return null;
     this.clearWarn(kind, itemId);
     if (o.event !== LEASE_EVENT.done) {
       this.events.toAdmin(adminId, STAFF_SERVER_EVENTS.leaseLost, {
@@ -740,7 +802,7 @@ export class LeaseService implements LeasePort {
       });
     }
     void this.publishTile(adminId);
-    return true;
+    return held;
   }
 
   // --- the sweep (`staff.lease-sweep`, every minute) ---------------------------

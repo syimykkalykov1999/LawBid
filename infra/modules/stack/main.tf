@@ -89,6 +89,15 @@ variable "database_monitoring_interval" {
   default     = 0
   description = "RDS Enhanced Monitoring interval in seconds (0 = off, 60 = cheapest on)."
 }
+variable "database_log_group_class" {
+  type        = string
+  default     = "STANDARD"
+  description = "CloudWatch log class of the two RDS log groups (postgresql, upgrade). Pinned to STANDARD because that is what the live prod groups are (imported 2026-10-24; checked 2026-10-27): the class is immutable, so any other value makes Terraform delete and recreate both groups and drop 30 days of database logs. Switch to INFREQUENT_ACCESS only on purpose, in its own plan."
+  validation {
+    condition     = contains(["STANDARD", "INFREQUENT_ACCESS"], var.database_log_group_class)
+    error_message = "database_log_group_class must be STANDARD or INFREQUENT_ACCESS."
+  }
+}
 variable "existing_database_identifier" {
   type        = string
   default     = ""
@@ -1084,6 +1093,7 @@ module "postgres" {
   auto_minor_version_upgrade = var.database_auto_minor_upgrade
   rds_logical_replication    = var.database_logical_replication
   monitoring_interval        = var.database_monitoring_interval
+  log_group_class            = var.database_log_group_class
   tags                       = local.tags
 
   deletion_protection     = !var.ephemeral

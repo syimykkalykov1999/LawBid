@@ -12,6 +12,7 @@ LeaseDto _$LeaseDtoFromJson(Map<String, dynamic> json) => LeaseDto(
   takenAt: DateTime.parse(json['takenAt'] as String),
   leasedUntil: DateTime.parse(json['leasedUntil'] as String),
   attempt: json['attempt'] as num,
+  targetType: json['targetType'] as String?,
 );
 
 Map<String, dynamic> _$LeaseDtoToJson(LeaseDto instance) => <String, dynamic>{
@@ -20,4 +21,5 @@ Map<String, dynamic> _$LeaseDtoToJson(LeaseDto instance) => <String, dynamic>{
   'takenAt': instance.takenAt.toIso8601String(),
   'leasedUntil': instance.leasedUntil.toIso8601String(),
   'attempt': instance.attempt,
+  'targetType': ?instance.targetType,
 };

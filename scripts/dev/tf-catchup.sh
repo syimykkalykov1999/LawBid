@@ -10,13 +10,21 @@
 #     по-русски; `apply` — отдельная команда, которую запускаете вы, и она ещё
 #     раз спрашивает «ДА».
 #   * Без входа в AWS (`aws sts get-caller-identity` не прошёл) — отказ.
-#   * Любое удаление (кроме новых версий описания задач ECS) или замена
-#     (-/+) серверов ECS, базы, Redis — красный СТОП, `apply` такой план не примет.
+#   * Любое удаление или замена (-/+) — красный СТОП, `apply` такой план не
+#     примет. Исключения: новые версии описаний задач ECS и тревоги CloudWatch
+#     (тревога — это правило «когда писать письмо», данных в ней нет; её
+#     удаление ничего не ломает). Серверы ECS, база, Redis, ключи KMS, секреты,
+#     S3 защищены отдельно (scripts/deploy/plan-guard.sh) и всегда.
 #   * Применяется только сохранённый план (tfplan), не «свежий»: Terraform
 #     откажется, если состояние сменилось; плюс скрипт сверяет версию кода на
 #     сервере (иначе apply откатил бы свежую выкладку).
 #   * Секреты (tfvars, план) лежат в папке ~/.lawbid-tf-catchup (права 700) и
-#     удаляются после apply. В экран и в git не попадают.
+#     удаляются после apply. В экран и в git не попадают. Статические ключи AWS
+#     скрипт в окружение не кладёт: Terraform и aws берут их через
+#     credential_process из сессии `aws login` и сами обновляют, когда те истекают.
+#
+# Служебный режим (для тестов, AWS не нужен):
+#   bash scripts/dev/tf-catchup.sh summarize plan.json   # только русская сводка по JSON плана
 set -euo pipefail
 umask 077
 
@@ -28,6 +36,7 @@ WORK="${LAWBID_TF_WORK:-$HOME/.lawbid-tf-catchup}"
 SECRET_ID="${TFVARS_SECRET_ID:-lawbid-prod/terraform-tfvars}"
 CLUSTER="${CLUSTER:-lawbid-prod}"
 MAX_PLAN_AGE_SECONDS=$((2 * 3600))
+LOGIN_HINT="Вход в AWS истёк или его нет. Выполните:  aws login --remote   (откроется ссылка, войдите в аккаунт AWS) и нажмите снова."
 
 RED=$'\033[1;31m'; GREEN=$'\033[1;32m'; YELLOW=$'\033[1;33m'; BOLD=$'\033[1m'; OFF=$'\033[0m'
 say()  { printf '%s\n' "$*"; }
@@ -44,51 +53,19 @@ usage() {
   say "  bash scripts/dev/tf-catchup.sh apply   — применить тот самый план (спросит «ДА»)"
   exit 2
 }
-[ "$MODE" = "plan" ] || [ "$MODE" = "apply" ] || usage
+[ "$MODE" = "plan" ] || [ "$MODE" = "apply" ] || [ "$MODE" = "summarize" ] || usage
 
-# --- 0. инструменты -----------------------------------------------------------
-for tool in aws terraform jq git; do
-  command -v "$tool" >/dev/null 2>&1 || die "Не найдена программа «$tool». Напишите Claude: она нужна для этого шага."
-done
-
-# --- 1. вход в AWS (без него — отказ) -----------------------------------------
-if ! IDENTITY="$(aws sts get-caller-identity --query Account --output text 2>/dev/null)" || [ -z "$IDENTITY" ]; then
-  die "Вы не вошли в AWS. Сначала выполните:  aws login   (откроется браузер, войдите в аккаунт AWS), потом запустите эту команду ещё раз."
-fi
-# Terraform не умеет читать вход `aws login` напрямую: отдаём ему временные ключи
-# этого входа (живут в памяти этого запуска, на экран не печатаются).
-if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
-  if CREDS="$(aws configure export-credentials --format env 2>/dev/null)"; then
-    eval "$CREDS"
-  fi
-fi
-if [ -z "${AWS_REGION:-}" ] && [ -z "${AWS_DEFAULT_REGION:-}" ]; then
-  REGION_FROM_BACKEND=""
-  for f in "$TF_DIR/backend.hcl" "$TF_DIR/backend.hcl.example"; do
-    [ -f "$f" ] && [ -z "$REGION_FROM_BACKEND" ] && REGION_FROM_BACKEND="$(sed -n 's/^region[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' "$f" || true)"
-  done
-  export AWS_REGION="${REGION_FROM_BACKEND:-us-east-1}"
-fi
-export TF_IN_AUTOMATION=1 TF_INPUT=0
-
-mkdir -p "$WORK"
-chmod 700 "$WORK"
-PLAN_FILE="$WORK/tfplan"
-PLAN_JSON="$WORK/plan.json"
-META="$WORK/plan.meta"
-IMAGES="$WORK/current-images.tfvars"
-TFVARS="$WORK/terraform.tfvars"
-
-# --- общие функции ---------------------------------------------------------------
-current_images() {
-  # Какие версии кода на сервере прямо сейчас (Deploy создаёт их мимо Terraform).
-  CLUSTER="$CLUSTER" sh "$ROOT/scripts/deploy/current-tag.sh"
+# Печатает блоки «Error: ...» из журнала Terraform (-no-color): от строки с
+# Error: до конца рамки. Без значений: Terraform сам прячет sensitive.
+show_tf_errors() {
+  local log="$1" n="${2:-12}"
+  awk '/^(│ )?Error:/ { p = 1 } p { print } /^╵/ { p = 0 }' "$log" | cut -c1-200 | head -"$n" || true
 }
 
-# Печатает русскую сводку по $PLAN_JSON. Возврат 0 = можно дальше, 1 = красный СТОП.
+# Печатает русскую сводку по JSON плана ($1). Возврат 0 = можно дальше, 1 = красный СТОП.
 summarize() {
   local json="$1"
-  local add change replace destroy
+  local add change replace destroy newrev
   add=$(jq '[.resource_changes[]? | select(.change.actions == ["create"])] | length' "$json")
   change=$(jq '[.resource_changes[]? | select(.change.actions == ["update"])] | length' "$json")
   replace=$(jq '[.resource_changes[]? | select((.change.actions | index("delete")) and (.change.actions | index("create"))) | select(.type != "aws_ecs_task_definition")] | length' "$json")
@@ -96,7 +73,7 @@ summarize() {
   destroy=$(jq '[.resource_changes[]? | select(.change.actions == ["delete"])] | length' "$json")
 
   say ""
-  say "${BOLD}=== ПЛАН ДЛЯ ПРОДА (аккаунт AWS $IDENTITY) ===${OFF}"
+  say "${BOLD}=== ПЛАН ДЛЯ ПРОДА (аккаунт AWS ${IDENTITY:-?}) ===${OFF}"
   say "  Будет добавлено:       $add"
   say "  Будет изменено:        $change"
   say "  Будет заменено (-/+):  $replace"
@@ -110,6 +87,7 @@ summarize() {
   jq -r '
     def human:
       if . == "aws_cloudwatch_metric_alarm" then "тревоги CloudWatch"
+      elif . == "aws_cloudwatch_composite_alarm" then "сводные тревоги CloudWatch"
       elif . == "aws_cloudwatch_event_rule" or . == "aws_cloudwatch_event_target" then "правила событий (EventBridge)"
       elif . == "aws_cloudwatch_log_metric_filter" then "счётчики из журналов"
       elif . == "aws_iam_role_policy" or . == "aws_iam_policy" or . == "aws_iam_role_policy_attachment" then "права доступа (IAM)"
@@ -128,12 +106,21 @@ summarize() {
     | "  \(.n) × \(.k)  [\(.a)]"' "$json"
 
   local rc=0
+  # Тревоги CloudWatch: удалять и пересоздавать можно (данных в них нет,
+  # пропадает только правило «когда писать письмо»). Показываем отдельно.
+  local alarms
+  alarms=$(jq -r '
+    .resource_changes[]?
+    | select(.change.actions | index("delete"))
+    | select(.type | test("^(aws_cloudwatch_metric_alarm|aws_cloudwatch_composite_alarm)$"))
+    | "  - \(.address)  [\(.change.actions | join("+"))]"' "$json")
+  # Красный СТОП: любое другое удаление/замена, кроме новых версий описаний задач ECS.
   local bad
-  # Красный СТОП: любое удаление/замена, кроме новых версий описаний задач ECS.
   bad=$(jq -r '
     .resource_changes[]?
     | select(.change.actions | index("delete"))
     | select((.type == "aws_ecs_task_definition" and (.change.actions | index("create"))) | not)
+    | select(.type | test("^(aws_cloudwatch_metric_alarm|aws_cloudwatch_composite_alarm)$") | not)
     | select(.type | test("^(aws_ecs_service|aws_db_instance|aws_rds_cluster|aws_elasticache_.*)$") | not)
     | "  - \(.address)  [\(.change.actions | join("+"))]"' "$json")
   # Отдельно по именам — самые опасные.
@@ -156,6 +143,11 @@ summarize() {
     say "$bad"
     rc=1
   fi
+  if [ -n "$alarms" ]; then
+    say ""
+    say "${YELLOW}Старые тревоги CloudWatch, которые удаляются или пересоздаются (безвредно, данных не теряется):${OFF}"
+    say "$alarms"
+  fi
   if [ "$rc" = 0 ]; then
     if [ "$(jq '[.resource_changes[]? | select(.type == "aws_ecs_service" and .change.actions == ["update"])] | length' "$json")" -gt 0 ]; then
       say ""
@@ -166,6 +158,94 @@ summarize() {
     say "${GREEN}Опасных удалений и замен нет.${OFF}"
   fi
   return "$rc"
+}
+
+# --- служебный режим: только сводка по готовому JSON (тесты) ------------------------
+if [ "$MODE" = "summarize" ]; then
+  command -v jq >/dev/null 2>&1 || die "Не найдена программа «jq»."
+  JSON_IN="${2:-}"
+  [ -n "$JSON_IN" ] && [ -f "$JSON_IN" ] || die "Использование: bash scripts/dev/tf-catchup.sh summarize plan.json"
+  IDENTITY="${IDENTITY:-тест}"
+  if summarize "$JSON_IN"; then exit 0; fi
+  exit 1
+fi
+
+# --- 0. инструменты -----------------------------------------------------------
+for tool in aws terraform jq git; do
+  command -v "$tool" >/dev/null 2>&1 || die "Не найдена программа «$tool». Напишите Claude: она нужна для этого шага."
+done
+
+mkdir -p "$WORK"
+chmod 700 "$WORK"
+PLAN_FILE="$WORK/tfplan"
+PLAN_JSON="$WORK/plan.json"
+META="$WORK/plan.meta"
+IMAGES="$WORK/current-images.tfvars"
+TFVARS="$WORK/terraform.tfvars"
+
+# --- 1. вход в AWS (без него — отказ) -----------------------------------------
+if [ -z "${AWS_REGION:-}" ] && [ -z "${AWS_DEFAULT_REGION:-}" ]; then
+  REGION_FROM_BACKEND=""
+  for f in "$TF_DIR/backend.hcl" "$TF_DIR/backend.hcl.example"; do
+    [ -f "$f" ] && [ -z "$REGION_FROM_BACKEND" ] && REGION_FROM_BACKEND="$(sed -n 's/^region[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' "$f" || true)"
+  done
+  export AWS_REGION="${REGION_FROM_BACKEND:-us-east-1}"
+fi
+export AWS_REGION="${AWS_REGION:-${AWS_DEFAULT_REGION}}"
+
+if ! STS_OUT="$(aws sts get-caller-identity --query Account --output text 2>&1)" || [ -z "$STS_OUT" ]; then
+  case "$STS_OUT" in
+    *xpired*|*"aws login"*|*"Unable to locate credentials"*|*InvalidClientTokenId*)
+      die "$LOGIN_HINT" ;;
+    *)
+      die "Не смог проверить вход в AWS: $(printf '%s' "$STS_OUT" | head -1 | cut -c1-200). Выполните  aws login --remote  и попробуйте снова; если не поможет — напишите Claude." ;;
+  esac
+fi
+IDENTITY="$STS_OUT"
+
+# Terraform (AWS SDK) не читает сессию `aws login` напрямую. Раньше скрипт
+# замораживал ключи из `aws configure export-credentials`: они живут ~15 минут
+# и истекали посреди плана (STS ExpiredToken). Теперь Terraform и aws получают
+# ключи через credential_process: при каждом истечении aws сам выдаёт свежие
+# из сессии aws login. Статические ключи в окружение не попадают.
+if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
+  ORIG_AWS_CONFIG="${AWS_CONFIG_FILE:-$HOME/.aws/config}"
+  ORIG_AWS_CREDS="${AWS_SHARED_CREDENTIALS_FILE:-$HOME/.aws/credentials}"
+  ORIG_AWS_PROFILE="${AWS_PROFILE:-${AWS_DEFAULT_PROFILE:-default}}"
+  TF_AWS_CONFIG="$WORK/aws-config"
+  {
+    echo "[default]"
+    echo "region = $AWS_REGION"
+    printf 'credential_process = env AWS_CONFIG_FILE="%s" AWS_SHARED_CREDENTIALS_FILE="%s" AWS_PROFILE="%s" aws configure export-credentials --format process\n' \
+      "$ORIG_AWS_CONFIG" "$ORIG_AWS_CREDS" "$ORIG_AWS_PROFILE"
+  } > "$TF_AWS_CONFIG"
+  chmod 600 "$TF_AWS_CONFIG"
+  export AWS_CONFIG_FILE="$TF_AWS_CONFIG" AWS_SDK_LOAD_CONFIG=1
+  unset AWS_PROFILE AWS_DEFAULT_PROFILE
+  # Проверяем, что цепочка работает (иначе Terraform упал бы позже и непонятно).
+  if ! CHECK="$(aws sts get-caller-identity --query Account --output text 2>&1)" || [ "$CHECK" != "$IDENTITY" ]; then
+    case "$CHECK" in
+      *xpired*|*"aws login"*) die "$LOGIN_HINT" ;;
+      *) die "Не смог передать вход в AWS Terraform'у: $(printf '%s' "$CHECK" | head -1 | cut -c1-200). Напишите Claude." ;;
+    esac
+  fi
+fi
+export TF_IN_AUTOMATION=1 TF_INPUT=0
+
+# Кеш плагинов Terraform: свой, настоящая папка. Общий ~/.terraform.d/plugin-cache
+# на Mac владельца содержит симлинки, и init падает с «cannot install package
+# into target directory because it is a symlink». Пустой CLI-конфиг, чтобы
+# ~/.terraformrc (plugin_cache_dir, зеркала) не вмешивался. Первый запуск
+# скачает провайдеры (несколько минут), дальше берёт из этого кеша.
+export TF_PLUGIN_CACHE_DIR="$WORK/plugin-cache"
+mkdir -p "$TF_PLUGIN_CACHE_DIR"
+: > "$WORK/terraformrc"
+export TF_CLI_CONFIG_FILE="$WORK/terraformrc"
+
+# --- общие функции ---------------------------------------------------------------
+current_images() {
+  # Какие версии кода на сервере прямо сейчас (Deploy создаёт их мимо Terraform).
+  CLUSTER="$CLUSTER" sh "$ROOT/scripts/deploy/current-tag.sh"
 }
 
 # --- 2. plan -------------------------------------------------------------------------
@@ -188,21 +268,30 @@ if [ "$MODE" = "plan" ]; then
 
   rm -f "$PLAN_FILE" "$PLAN_JSON" "$META"
   aws secretsmanager get-secret-value --secret-id "$SECRET_ID" --query SecretString --output text > "$TFVARS" \
-    || die "Не смог прочитать настройки прода из Secrets Manager ($SECRET_ID). Проверьте вход: aws login. Если вошли — напишите Claude."
+    || die "Не смог прочитать настройки прода из Secrets Manager ($SECRET_ID). Проверьте вход: aws login --remote. Если вошли — напишите Claude."
   chmod 600 "$TFVARS"
   [ -s "$TFVARS" ] || die "Файл настроек прода пустой. Напишите Claude."
 
   current_images > "$IMAGES" || die "Не смог узнать текущую версию кода на сервере. Напишите Claude."
-  grep -q '^api_image = "' "$IMAGES" && grep -q '^admin_image = "' "$IMAGES" && ! grep -q '"None"' "$IMAGES" \
-    || die "Текущая версия кода на сервере не определилась. Напишите Claude."
+  if ! grep -q '^api_image = "' "$IMAGES" || ! grep -q '^admin_image = "' "$IMAGES" || grep -q '"None"' "$IMAGES"; then
+    die "Текущая версия кода на сервере не определилась. Напишите Claude."
+  fi
   chmod 600 "$IMAGES"
 
   BACKEND="$TF_DIR/backend.hcl"
   [ -f "$BACKEND" ] || BACKEND="$TF_DIR/backend.hcl.example"
   cd "$TF_DIR"
-  say "Подготовка Terraform (init)..."
-  terraform init -input=false -backend-config="$BACKEND" > "$WORK/init.log" 2>&1 \
-    || { grep -E '^(Error|│ Error)' "$WORK/init.log" | cut -c1-200 | head -5; die "Terraform init не прошёл. Напишите Claude."; }
+  say "Подготовка Terraform (init; первый раз скачивает провайдеры, это несколько минут)..."
+  if ! terraform init -input=false -no-color -backend-config="$BACKEND" > "$WORK/init.log" 2>&1; then
+    show_tf_errors "$WORK/init.log"
+    if grep -q -i 'symlink' "$WORK/init.log"; then
+      say "${YELLOW}Подсказка:${OFF} в кеше плагинов Terraform ($TF_PLUGIN_CACHE_DIR) есть символическая ссылка. Удалите эту папку и запустите снова."
+    fi
+    if grep -q -i -E 'xpired|aws login|no valid credential' "$WORK/init.log"; then
+      say "$LOGIN_HINT"
+    fi
+    die "Terraform init не прошёл. Скопируйте строки выше и напишите Claude."
+  fi
 
   say "Считаю план (это 2-10 минут)..."
   set +e
@@ -211,8 +300,11 @@ if [ "$MODE" = "plan" ]; then
   PRC=$?
   set -e
   if [ "$PRC" != 0 ]; then
-    grep -E '^(Error|│ Error)' "$WORK/plan.log" | cut -c1-200 | head -10 || true
+    show_tf_errors "$WORK/plan.log" 20
     rm -f "$PLAN_FILE" "$TFVARS" "$IMAGES"
+    if grep -q -i -E 'ExpiredToken|Token has expired|aws login' "$WORK/plan.log"; then
+      die "$LOGIN_HINT"
+    fi
     die "План не получился. Ничего не изменено. Скопируйте строки выше и напишите Claude."
   fi
 
@@ -282,7 +374,10 @@ ARC=$?
 set -e
 grep -E '(Creating\.\.\.|Modifying\.\.\.|Destroying\.\.\.|Creation complete|Modifications complete|Apply complete)' "$WORK/apply.log" | cut -c1-160 | tail -60 || true
 if [ "$ARC" != 0 ]; then
-  grep -E '^(Error|│ Error)' "$WORK/apply.log" | cut -c1-200 | head -10 || true
+  show_tf_errors "$WORK/apply.log" 20
+  if grep -q -i -E 'ExpiredToken|Token has expired' "$WORK/apply.log"; then
+    say "$LOGIN_HINT"
+  fi
   rm -f "$WORK/apply.log"
   die "Применение остановилось на ошибке. НЕ запускайте ничего руками: Terraform уже сохранил, что успел. Скопируйте строки выше и напишите Claude."
 fi

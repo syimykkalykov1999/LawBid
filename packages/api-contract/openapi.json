@@ -126576,6 +126576,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DoneLeaseDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success envelope (docs/01 §7).",
@@ -126816,6 +126826,93 @@
           }
         ],
         "summary": "«Отошёл» by hand (true) or back on (false)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/desk/heartbeat": {
+      "post": {
+        "operationId": "deskHeartbeat",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeskHeartbeatDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeskHeartbeatResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Presence signal of an open desk (every 15 s): online / away / offline",
         "tags": [
           "admin-staff"
         ]
@@ -197849,6 +197946,11 @@
           "attempt": {
             "type": "number",
             "description": "How many times this item was taken (1 = first time)."
+          },
+          "targetType": {
+            "type": "string",
+            "nullable": true,
+            "description": "For a report: the kind of the reported object (post · comment · message · …), so the desk can open its card."
           }
         },
         "required": [
@@ -198125,6 +198227,16 @@
           "data"
         ]
       },
+      "DoneLeaseDto": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "maxLength": 24,
+            "description": "What the person decided (approve · reject · resolve · …), when the page sends it. Used to check a known-answer task; ignored otherwise."
+          }
+        }
+      },
       "DeskStatusDto": {
         "type": "object",
         "properties": {
@@ -198164,6 +198276,47 @@
         },
         "required": [
           "away"
+        ]
+      },
+      "DeskHeartbeatResultDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeskPresence"
+              }
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "DeskHeartbeatDto": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "description": "true when the person moved the mouse or pressed a key in the last few minutes."
+          }
+        },
+        "required": [
+          "active"
+        ]
+      },
+      "DeskHeartbeatResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeskHeartbeatResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "StaffWorkspaceName": {

@@ -9,6 +9,7 @@ import { useDeskSettings, useMyLeases } from '@/lib/desk-data';
 import { REVIEW_TAB, useReviewAccess } from '@/lib/desk-review';
 import { useMe, type Me } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
+import { LeaseStrip } from './lease-strip';
 import { heldOnDesk } from './my-items';
 import { DeskHeader } from './desk-header';
 import { DeskNotFound } from './desk-not-found';
@@ -62,6 +63,7 @@ function DeskBody({ me, role, mode }: { me: Me; role: DeskRole; mode: 'own' | 'v
         </nav>
       ) : null}
       <DeskHeader role={role} mode={mode} tab={tab} settings={settings} my={my} canAppeal={canAppeal} />
+      {own ? <LeaseStrip role={role} settings={settings} my={my} hidden={tab === 'mine' || tab === 'tasks'} /> : null}
       <Tabs<string>
         className="mb-5"
         value={tab}
