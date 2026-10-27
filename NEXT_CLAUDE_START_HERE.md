@@ -1241,3 +1241,4 @@ PRINCIPLE (owner 07:55): assume the attacker is an automated AI (tireless, tries
 - NEXT after helpers report: 20:27 automerge.sh patched: never merges dependabot/* heads (loop re-reads the script, no restart). #441 revert on CI.
 - NEXT after helpers report: 20:49 train v2 pushed giant #347 (main merged, migration → 20261107130000); #441 revert still on CI; loop dependabot-safe.
 - NEXT after helpers report: 21:00 #441 revert widened to include the Sentry 11 major (sendDefaultPii broke admin CI); #442 closed as superseded. Loop skip list + dependabot/* guard in place.
+- NEXT after helpers report: 21:5x MERGED #441 — revert of the unreviewed majors (TS 7, Node 26 image, Next 16, Sentry 11). Main back on Node 22.23.4 / TS 5.9 / Next 15; train v2 verifying CI on main. Open 30 (incl. 13 dependabot on skip).
