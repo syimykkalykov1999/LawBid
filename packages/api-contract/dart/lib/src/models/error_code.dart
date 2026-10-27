@@ -362,6 +362,16 @@ enum ErrorCode {
   adminWorkspaceConflict('ADMIN_WORKSPACE_CONFLICT'),
   @JsonValue('ADMIN_IP_NOT_ALLOWED')
   adminIpNotAllowed('ADMIN_IP_NOT_ALLOWED'),
+  @JsonValue('STAFF_REVEAL_LIMIT')
+  staffRevealLimit('STAFF_REVEAL_LIMIT'),
+  @JsonValue('STAFF_EXPORT_BLOCKED')
+  staffExportBlocked('STAFF_EXPORT_BLOCKED'),
+  @JsonValue('ADMIN_COUNTRY_NOT_ALLOWED')
+  adminCountryNotAllowed('ADMIN_COUNTRY_NOT_ALLOWED'),
+  @JsonValue('ADMIN_DEVICE_CHANGED')
+  adminDeviceChanged('ADMIN_DEVICE_CHANGED'),
+  @JsonValue('ADMIN_IP_CHANGED')
+  adminIpChanged('ADMIN_IP_CHANGED'),
   @JsonValue('REASON_CODE_REQUIRED')
   reasonCodeRequired('REASON_CODE_REQUIRED'),
   @JsonValue('AUDIT_UNAVAILABLE')

@@ -705,6 +705,10 @@ export const OWNER_ADMIN_HARDENING_SETTINGS = {
   'admin.ip_allowlist_enabled': false,
   /** Allowed addresses: plain IPv4/IPv6 or IPv4 CIDR (203.0.113.0/24). */
   'admin.ip_allowlist': [] as string[],
+  /** Staff package T11: two-letter country codes (US, GB…) from which the
+   * mass-work and finance staff may work, once `staff.session_binding_enforce_enabled`
+   * is on. Empty = no country check. */
+  'admin.country_allowlist': [] as string[],
   /** E-mail the owner when an admin signs in from a new device or address. */
   'admin.login_alert_enabled': true,
   /** Live sessions per admin; a newer sign-in ends the oldest. 0 = no cap. */

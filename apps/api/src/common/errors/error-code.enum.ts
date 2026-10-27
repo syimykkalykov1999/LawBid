@@ -415,6 +415,17 @@ export enum ErrorCode {
   ADMIN_WORKSPACE_CONFLICT = 'ADMIN_WORKSPACE_CONFLICT',
   // 403: the admin IP allowlist is on and this address is not on it (2026-10-28).
   ADMIN_IP_NOT_ALLOWED = 'ADMIN_IP_NOT_ALLOWED',
+  // Staff package T11 (data security), all behind staff.* switches:
+  // 429: the staff member used all their daily «показать полностью» reveals.
+  STAFF_REVEAL_LIMIT = 'STAFF_REVEAL_LIMIT',
+  // 403: CSV / bulk exports are closed for the mass-work workspace.
+  STAFF_EXPORT_BLOCKED = 'STAFF_EXPORT_BLOCKED',
+  // 403: the owner's country list does not include the country of the request.
+  ADMIN_COUNTRY_NOT_ALLOWED = 'ADMIN_COUNTRY_NOT_ALLOWED',
+  // 401: the session was opened on another device: sign in again.
+  ADMIN_DEVICE_CHANGED = 'ADMIN_DEVICE_CHANGED',
+  // 401: the network address changed in the middle of a session: sign in again.
+  ADMIN_IP_CHANGED = 'ADMIN_IP_CHANGED',
   // 400: reading private content needs a reason code (X-Reason-Code) (2026-10-28).
   REASON_CODE_REQUIRED = 'REASON_CODE_REQUIRED',
   // 503: a sensitive admin action was refused because its audit row could not be written.
