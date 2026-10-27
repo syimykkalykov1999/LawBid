@@ -48,6 +48,7 @@ const _startStepTimeout = Duration(seconds: 3);
 /// ```
 Future<void> runLawBid(AppFlavor flavor) async {
   PerfMarks.start();
+  SentryNative.markProcessStart();
   WidgetsFlutterBinding.ensureInitialized();
   // Owner 2026-10-15 (web): an address is the screen (`/lawyer/anna`), not
   // `/#/lawyer/anna` — links, reload and the back button all work. A no-op
@@ -222,7 +223,10 @@ Future<void> runLawBid(AppFlavor flavor) async {
   PerfMarks.mark('lb.run_app');
   unawaited(
     WidgetsBinding.instance.waitUntilFirstFrameRasterized
-        .then((_) => PerfMarks.mark('lb.first_frame')),
+        .then((_) {
+      PerfMarks.mark('lb.first_frame');
+      SentryNative.markFirstFrame();
+    }),
   );
 }
 

@@ -17,14 +17,34 @@ variable "slo_targets" {
     otp  = number
     call = number
     push = number
+    # S12-3 journey SLIs (user-visible flows, not plumbing).
+    login   = optional(number, 0.80) # includes wrong-password / wrong-code tries, so the target is low: it catches a broken sign-in, not typos
+    message = optional(number, 0.99) # message send acknowledged within 5 s
+    feed    = optional(number, 0.95) # feed page answered within 1 s
+    pay     = optional(number, 0.90) # subscription / pack payments that succeed
   })
   default = { otp = 0.95, call = 0.95, push = 0.98 }
 }
 
 variable "slo_min_events" {
-  description = "Fewer events than this in a window = no alarm (noise guard)."
+  description = "Fewer events than this in a window = no alarm (noise guard). Used for the 6 h and 30 min windows."
   type        = number
   default     = 20
+}
+
+# S12-12: a low-traffic flow (calls, OTP) never reached 20 events in 5 minutes at
+# night, so the fast burn could never fire. The 1 h window now needs only 5
+# events and the 5 min window 2; BOTH windows must still agree, so two failed
+# events alone cannot page.
+variable "slo_min_events_1h" {
+  description = "Fewer events than this in the 1 h window = no fast-burn alarm."
+  type        = number
+  default     = 5
+}
+variable "slo_min_events_5m" {
+  description = "Fewer events than this in the 5 min window = no fast-burn alarm."
+  type        = number
+  default     = 2
 }
 
 variable "min_daily_signups" {
@@ -40,12 +60,12 @@ variable "canary_url" {
 }
 
 variable "uptime_check" {
-  description = "How `canary_url` is watched from outside: \"synthetics\" (CloudWatch Synthetics canary, about $10 a month at one run per 5 minutes) or \"route53\" (Route 53 HTTPS health check, about $2 a month, every 30 seconds; its CloudWatch metric exists in us-east-1 only, so use it only when the stack runs there)."
+  description = "How `canary_url` is watched from outside: \"off\" (no outside probe, $0), \"synthetics\" (CloudWatch Synthetics canary, about $10 a month at one run per 5 minutes) or \"route53\" (Route 53 HTTPS health check, about $2 a month, every 30 seconds; its CloudWatch metric exists in us-east-1 only, so use it only when the stack runs there)."
   type        = string
   default     = "synthetics"
   validation {
-    condition     = contains(["synthetics", "route53"], var.uptime_check)
-    error_message = "uptime_check must be synthetics or route53."
+    condition     = contains(["synthetics", "route53", "off"], var.uptime_check)
+    error_message = "uptime_check must be synthetics, route53 or off."
   }
 }
 
@@ -72,6 +92,19 @@ locals {
     pushFailed    = "SloPushFailed"
     # Cloudflare TURN gave no login after a retry (own alarm below, not an SLO ratio).
     turnProviderFailed = "SloTurnProviderFailed"
+    # S12-3 journey SLIs (apps/api/src/common/ops/route-metrics.service.ts counts them from the
+    # request path; chat send is counted at the send handler).
+    loginOk    = "SloLoginOk"
+    loginFail  = "SloLoginFail"
+    msgSent    = "SloMsgSent"
+    msgAckLate = "SloMsgAckLate"
+    feedOk     = "SloFeedOk"
+    feedSlow   = "SloFeedSlow"
+    payOk      = "SloPayOk"
+    payFail    = "SloPayFail"
+    # S12-13: sign-in abuse signals (not an SLO ratio; anomaly alarms in observability.tf).
+    authFailed   = "SloAuthFailed"
+    otpRequested = "SloOtpRequested"
   }
   slo_log_groups = {
     api    = var.api_log_group
@@ -90,13 +123,15 @@ locals {
       total  = "SloOtpSent"
       bad    = null
       target = var.slo_targets.otp
-      text   = "LawBid: SMS-коды доходят хуже обычного — люди не могут войти. Что делать: проверить Twilio (баланс, ошибки доставки, страну) и лимиты SMS в админке. Инструкция: ${var.runbook_base_url}/slo.md (EN: OTP SMS verified/sent is burning its error budget.)"
+      page   = true
+      text   = "LawBid: SMS-коды доходят хуже обычного — люди не могут войти. Что делать: проверить Twilio (баланс, ошибки доставки, страну) и лимиты SMS в админке. Инструкция: ${var.runbook_base_url}/slo.md#otp (EN: OTP SMS verified/sent is burning its error budget.)"
     }
     call = {
       good   = "SloCallConnected"
       total  = null
       bad    = "SloCallFailed"
       target = var.slo_targets.call
+      page   = true
       text   = "LawBid: Звонки не соединяются (видео/аудио не поднимается). Что делать: открыть админку → Система → Состояние системы и посмотреть строки Cloudflare TURN и Cloudflare SFU (красные — проблема у Cloudflare, https://www.cloudflarestatus.com), затем логи API (поиск: cloudflare_turn_failed). Наши TURN-серверы удалены, звонки идут через Cloudflare. Инструкция: ${var.runbook_base_url}/TURN.md (EN: Call connect rate is burning its error budget; check Cloudflare TURN/SFU in admin system health and the API logs.)"
     }
     push = {
@@ -104,14 +139,47 @@ locals {
       total  = null
       bad    = "SloPushFailed"
       target = var.slo_targets.push
-      text   = "LawBid: Пуш-уведомления не доходят. Что делать: проверить ключ Firebase (FCM) в админке → Интеграции и статус Firebase. Инструкция: ${var.runbook_base_url}/slo.md (EN: Push delivery failures are burning the error budget; check FCM.)"
+      page   = true
+      text   = "LawBid: Пуш-уведомления не доходят. Что делать: проверить ключ Firebase (FCM) в админке → Интеграции и статус Firebase. Инструкция: ${var.runbook_base_url}/slo.md#push (EN: Push delivery failures are burning the error budget; check FCM.)"
+    }
+    login = {
+      good   = "SloLoginOk"
+      total  = null
+      bad    = "SloLoginFail"
+      target = var.slo_targets.login
+      page   = true
+      text   = "LawBid: Вход в приложение ломается (много неудачных входов подряд). Что делать: попробовать войти самому (SMS, пароль, Google/Apple); смотреть логи API по auth и статус Twilio. Если это подбор паролей — см. раздел про атаки на вход. Инструкция: ${var.runbook_base_url}/slo.md#login (EN: Login success ratio is burning its error budget.)"
+    }
+    message = {
+      good   = "SloMsgSent"
+      total  = null
+      bad    = "SloMsgAckLate"
+      target = var.slo_targets.message
+      page   = true
+      text   = "LawBid: Сообщения в чате отправляются медленно или с ошибкой (дольше 5 секунд или 5xx). Что делать: админка → Здоровье системы (база, Redis, очереди); логи API по chat. Инструкция: ${var.runbook_base_url}/slo.md#message (EN: Chat message send success within 5 s is burning its error budget.)"
+    }
+    feed = {
+      good   = "SloFeedOk"
+      total  = null
+      bad    = "SloFeedSlow"
+      target = var.slo_targets.feed
+      page   = false
+      text   = "LawBid: Лента открывается медленно (дольше 1 секунды) или с ошибкой. Что делать: админка → Здоровье системы; смотреть нагрузку на базу и кэш ленты. Инструкция: ${var.runbook_base_url}/slo.md#feed (EN: Feed open latency/success is burning its error budget.)"
+    }
+    pay = {
+      good   = "SloPayOk"
+      total  = null
+      bad    = "SloPayFail"
+      target = var.slo_targets.pay
+      page   = true
+      text   = "LawBid: Платежи не проходят (подписки, пакеты, продвижение). Что делать: Stripe Dashboard → Developers → Events и Logs; админка → Платежи. Инструкция: ${var.runbook_base_url}/slo.md#pay (EN: Payment success ratio is burning its error budget.)"
     }
   }
   slo_windows = {
-    fast_long  = { period = 3600, factor = 14.4, pair = "fast" }
-    fast_short = { period = 300, factor = 14.4, pair = "fast" }
-    slow_long  = { period = 21600, factor = 6, pair = "slow" }
-    slow_short = { period = 1800, factor = 6, pair = "slow" }
+    fast_long  = { period = 3600, factor = 14.4, pair = "fast", min_events = var.slo_min_events_1h }
+    fast_short = { period = 300, factor = 14.4, pair = "fast", min_events = var.slo_min_events_5m }
+    slow_long  = { period = 21600, factor = 6, pair = "slow", min_events = var.slo_min_events }
+    slow_short = { period = 1800, factor = 6, pair = "slow", min_events = var.slo_min_events }
   }
   slo_alarms = {
     for pair in setproduct(keys(local.slos), keys(local.slo_windows)) :
@@ -177,7 +245,7 @@ resource "aws_cloudwatch_metric_alarm" "slo_burn" {
   metric_query {
     id = "err"
     # CloudWatch rejects MAX over a scalar and a series together, so the floor is a series too.
-    expression  = "IF(total >= ${var.slo_min_events}, MAX([total * 0, total - FILL(good, 0)]) / total, 0)"
+    expression  = "IF(total >= ${local.slo_windows[each.value.window].min_events}, MAX([total * 0, total - FILL(good, 0)]) / total, 0)"
     label       = "error rate"
     return_data = true
   }
@@ -222,7 +290,7 @@ output "api_deployment_alarm_names" {
       aws_cloudwatch_metric_alarm.api_p95.alarm_name,
       aws_cloudwatch_metric_alarm.unhealthy_hosts.alarm_name,
     ],
-    var.deploy_rollback_on_slo ? [for k, a in aws_cloudwatch_composite_alarm.slo : a.alarm_name if endswith(k, "-fast")] : [],
+    var.deploy_rollback_on_slo ? [for k, a in aws_cloudwatch_composite_alarm.slo : a.alarm_name if contains(["otp-fast", "call-fast", "push-fast"], k)] : [],
   )
 }
 # Deploy-only alarm: the worker writes one HeapUsedMb line a minute per running
@@ -260,8 +328,8 @@ resource "aws_cloudwatch_composite_alarm" "slo" {
   alarm_description = local.slos[each.value.slo].text
   alarm_rule        = "ALARM(\"${aws_cloudwatch_metric_alarm.slo_burn["${each.value.slo}-${each.value.pair}_long"].alarm_name}\") AND ALARM(\"${aws_cloudwatch_metric_alarm.slo_burn["${each.value.slo}-${each.value.pair}_short"].alarm_name}\")"
   # Batch A item 1: the only alarms that also publish to the critical topic (phone).
-  alarm_actions = local.page
-  ok_actions    = local.page
+  alarm_actions = local.slos[each.value.slo].page ? local.page : local.ops
+  ok_actions    = local.slos[each.value.slo].page ? local.page : local.ops
   tags          = var.tags
 }
 
@@ -343,8 +411,8 @@ resource "aws_cloudwatch_metric_alarm" "uptime_r53" {
     HealthCheckId = aws_route53_health_check.uptime[0].id
   }
   treat_missing_data = "breaching"
-  alarm_actions      = local.ops
-  ok_actions         = local.ops
+  alarm_actions      = local.page
+  ok_actions         = local.page
   tags               = var.tags
 }
 
@@ -534,7 +602,7 @@ resource "aws_cloudwatch_metric_alarm" "canary" {
     CanaryName = aws_synthetics_canary.uptime[0].name
   }
   treat_missing_data = "breaching"
-  alarm_actions      = local.ops
-  ok_actions         = local.ops
+  alarm_actions      = local.page
+  ok_actions         = local.page
   tags               = var.tags
 }
