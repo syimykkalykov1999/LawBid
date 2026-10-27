@@ -81,6 +81,7 @@ import { writeSearchTokens } from './chat-search-tokens';
 import { loadMessageExtras, type MessageExtras } from './chat-message-extras';
 import { expiresAtFor, notExpired } from './disappearing';
 import { touchClientActive } from '../cases/cases.public';
+import { HeavyHittersService } from '../../common/heavy-hitters/heavy-hitters.service';
 import {
   type ForwardContent,
   forwardName,
@@ -191,6 +192,9 @@ export class ChatService {
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
     // BUG-1 (package N-12b): blind word index of the sealed texts.
     @Optional() private readonly searchIndex?: MessageSearchIndex,
+    // WP-G: who sends the most messages (admin «Масштаб»). Last, so the
+    // positional constructor in specs keeps its order.
+    @Optional() private readonly heavy?: HeavyHittersService,
   ) {}
 
   /**
@@ -1349,6 +1353,7 @@ export class ChatService {
     if (conv.case_id && user.sub === conv.client_id) {
       await touchClientActive(this.prisma, conv.case_id, user.sub);
     }
+    this.heavy?.message(user.sub, conv.case_id);
     const urls = await this.deliverEffects(conv, message, user.sub, {
       silent: opts.silent === true,
       requestFirst,

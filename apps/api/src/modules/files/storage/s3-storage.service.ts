@@ -19,9 +19,11 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getSignedUrl as cloudFrontSignedUrl } from '@aws-sdk/cloudfront-signer';
+import type { Readable } from 'node:stream';
 import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { BucketKind } from '../files.policy';
@@ -492,6 +494,43 @@ export class S3StorageService implements OnModuleDestroy {
         CacheControl: this.cacheControlFor(bucket),
       }),
     );
+  }
+
+  /**
+   * Streams [body] to S3 as a multipart upload (WP-G 2026-10-25): memory is
+   * [queueSize] x [partSizeBytes], never the whole object. A failed or
+   * cancelled stream aborts the upload (no orphan parts are billed);
+   * the bucket lifecycle also aborts uploads left open for 7 days. Ready
+   * piece: @aws-sdk/lib-storage `Upload` (AWS's own multipart helper).
+   */
+  async putStream(
+    bucket: string,
+    key: string,
+    body: Readable,
+    contentType: string,
+    opts: { partSizeBytes?: number; queueSize?: number } = {},
+  ): Promise<void> {
+    await this.refresh();
+    const client = this.clientFor(bucket);
+    const upload = new Upload({
+      client,
+      params: {
+        Bucket: bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+        CacheControl: IMMUTABLE_CACHE_CONTROL,
+      },
+      partSize: opts.partSizeBytes ?? 8 * 1024 * 1024,
+      queueSize: opts.queueSize ?? 2,
+      leavePartsOnError: false,
+    });
+    try {
+      await upload.done();
+    } catch (e) {
+      await upload.abort().catch(() => undefined);
+      throw e;
+    }
   }
 
   /**

@@ -20,6 +20,8 @@ import {
 import { AdminCacheHeadersMiddleware } from './common/middleware/admin-cache-headers.middleware';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
+import { HeavyHittersModule } from './common/heavy-hitters/heavy-hitters.module';
+import { HeavyHittersInterceptor } from './common/heavy-hitters/heavy-hitters.interceptor';
 import { AdminSummaryModule } from './common/admin-summary/admin-summary.module';
 import { OpsModule } from './common/ops/ops.module';
 import { EconomyModule } from './common/economy/economy.module';
@@ -269,6 +271,8 @@ const isDev =
     LoggerModule.forRoot({ pinoHttp: pinoHttpOptions }),
     PrismaModule,
     RedisModule,
+    // WP-G: Redis top-K of the heaviest users / cases (admin «Масштаб»).
+    HeavyHittersModule,
     // Owner 2026-10-23: the admin's precomputed aggregates (Redis).
     AdminSummaryModule,
     // Owner 2026-10-05: zero-maintenance operations (Система → Здоровье системы).
@@ -454,6 +458,8 @@ const isDev =
     // Shard-ready step 4: the shard context of the request (route ids, else
     // the signed-in user). No effect while all shards share one database.
     { provide: APP_INTERCEPTOR, useClass: ShardContextInterceptor },
+    // WP-G: sampled per-user / per-case request and database-time counts.
+    { provide: APP_INTERCEPTOR, useClass: HeavyHittersInterceptor },
     // OQ-048: per signed-in user (assistants share an office IP).
     { provide: APP_GUARD, useClass: UserThrottlerGuard },
   ],

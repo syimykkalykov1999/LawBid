@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Injectable, Optional } from '@nestjs/common';
-import archiver from 'archiver';
+import type { Archiver } from 'archiver';
+import type { Readable } from 'node:stream';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { fileNameAad } from '../../common/secrets/field-aad';
@@ -10,8 +11,17 @@ import { withDeleted } from '../../prisma/soft-delete.extension';
 import { S3StorageService } from '../files/storage/s3-storage.service';
 import type { LegalSection } from './legal-export.dto';
 import { renderLegalReportPdf } from './legal-export.pdf';
+import {
+  HashThrough,
+  appendAndWait,
+  createZipExport,
+  jsonArrayStream,
+  jsonValueStream,
+} from '../../common/streaming/export-stream';
 
 const DAY_MS = 24 * 3600 * 1000;
+/** One evidence archive never exceeds this (the rows are capped too). */
+const LEGAL_EXPORT_MAX_BYTES = 1024 * 1024 * 1024;
 /** A `running` row older than this is a dead worker: the next tick retries. */
 const STALE_RUNNING_MIN = 30;
 
@@ -91,60 +101,92 @@ export class LegalExportBuilder {
       );
       const media = await this.mediaLinks(gathered.fileIds, linkDays, now);
 
-      const files = new Map<string, Buffer>();
-      const json = (v: unknown) => Buffer.from(JSON.stringify(v, replacer, 2));
-      for (const [name, rows] of Object.entries(gathered.data)) {
-        files.set(`data/${name}.json`, json(rows));
-      }
-      files.set('media.json', json(media));
       const counts: Record<string, number> = {};
       for (const [k, v] of Object.entries(gathered.data)) {
         counts[k] = Array.isArray(v) ? v.length : 1;
       }
       const subject = gathered.subject;
-      files.set(
-        'report.pdf',
-        await renderLegalReportPdf({
-          referenceNumber: job.request.reference_number,
-          agency: job.request.agency,
-          requestType: job.request.request_type,
-          scope: job.request.scope,
-          exportId: job.id,
-          requestedBy: job.requested_by,
-          generatedAt: now,
-          subject,
-          period: `${selection.dateFrom ?? 'beginning'} — ${selection.dateTo ?? 'now'}`,
-          counts,
-          truncated: gathered.truncated,
-          sections: gathered.readable,
-        }),
-      );
-      const sums = [...files.entries()]
-        .map(([n, b]) => `${sha256(b)}  ${n}`)
-        .sort()
-        .join('\n');
-      files.set('SHA256SUMS.txt', Buffer.from(`${sums}\n`));
-      files.set(
-        'manifest.json',
-        json({
-          exportId: job.id,
-          requestId: job.request_id,
-          referenceNumber: job.request.reference_number,
-          generatedAt: now.toISOString(),
-          selection,
-          counts,
-          truncatedAtRows: gathered.truncated.length ? maxRows : null,
-          truncated: gathered.truncated,
-          hashes: Object.fromEntries(
-            [...files.entries()].map(([n, b]) => [n, sha256(b)]),
-          ),
-        }),
-      );
+      const pdf = await renderLegalReportPdf({
+        referenceNumber: job.request.reference_number,
+        agency: job.request.agency,
+        requestType: job.request.request_type,
+        scope: job.request.scope,
+        exportId: job.id,
+        requestedBy: job.requested_by,
+        generatedAt: now,
+        subject,
+        period: `${selection.dateFrom ?? 'beginning'} — ${selection.dateTo ?? 'now'}`,
+        counts,
+        truncated: gathered.truncated,
+        sections: gathered.readable,
+      });
 
-      const zip = await zipBuffer(files);
+      // WP-G 2026-10-25: the archive is STREAMED. Every data file is
+      // serialized row by row, hashed on the way, written into the ZIP and
+      // uploaded as S3 multipart; SHA256SUMS.txt and manifest.json come
+      // last (they need the hashes of the files before them).
+      const hashes: Record<string, string> = {};
+      const addStream = async (
+        archive: Archiver,
+        name: string,
+        source: Readable,
+      ) => {
+        const h = new HashThrough();
+        source.on('error', (err) => h.destroy(err));
+        await appendAndWait(archive, source.pipe(h), name);
+        hashes[name] = h.digest();
+      };
+      const addBuffer = async (archive: Archiver, name: string, b: Buffer) => {
+        hashes[name] = sha256(b);
+        await appendAndWait(archive, b, name);
+      };
+      const zip = createZipExport(
+        async (archive) => {
+          for (const [name, rows] of Object.entries(gathered.data)) {
+            await addStream(
+              archive,
+              `data/${name}.json`,
+              Array.isArray(rows)
+                ? jsonArrayStream(rows)
+                : jsonValueStream(rows),
+            );
+          }
+          await addStream(archive, 'media.json', jsonArrayStream(media));
+          await addBuffer(archive, 'report.pdf', pdf);
+          const sums = Object.entries(hashes)
+            .map(([n, h]) => `${h}  ${n}`)
+            .sort()
+            .join('\n');
+          await addBuffer(archive, 'SHA256SUMS.txt', Buffer.from(`${sums}\n`));
+          await addBuffer(
+            archive,
+            'manifest.json',
+            Buffer.from(
+              JSON.stringify(
+                {
+                  exportId: job.id,
+                  requestId: job.request_id,
+                  referenceNumber: job.request.reference_number,
+                  generatedAt: now.toISOString(),
+                  selection,
+                  counts,
+                  truncatedAtRows: gathered.truncated.length ? maxRows : null,
+                  truncated: gathered.truncated,
+                  hashes: { ...hashes },
+                },
+                replacer,
+                2,
+              ),
+            ),
+          );
+        },
+        { maxBytes: LEGAL_EXPORT_MAX_BYTES },
+      );
       const bucket = this.storage.bucket('documents');
       const key = `legal-exports/${job.id}.zip`;
-      await this.storage.put(bucket, key, zip, 'application/zip');
+      await this.storage.putStream(bucket, key, zip.body, 'application/zip');
+      const size = zip.body.bytes;
+      const digest = zip.body.digest();
       await this.prisma.$transaction([
         this.prisma.legalExport.update({
           where: { id },
@@ -152,8 +194,8 @@ export class LegalExportBuilder {
             status: 'ready',
             file_bucket: bucket,
             file_key: key,
-            size_bytes: BigInt(zip.length),
-            sha256: sha256(zip),
+            size_bytes: BigInt(size),
+            sha256: digest,
             row_counts: counts,
             error: null,
             finished_at: new Date(),
@@ -175,7 +217,7 @@ export class LegalExportBuilder {
             action: 'legal_export.built',
             target_type: 'legal_export',
             target_id: job.id,
-            after: { sha256: sha256(zip), bytes: zip.length, counts },
+            after: { sha256: digest, bytes: size, counts },
           },
         }),
       ]);
@@ -683,16 +725,4 @@ function sha256(b: Buffer): string {
 /** BigInt-safe JSON. */
 function replacer(_k: string, v: unknown): unknown {
   return typeof v === 'bigint' ? Number(v) : v;
-}
-
-function zipBuffer(files: Map<string, Buffer>): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const zip = archiver('zip', { zlib: { level: 6 } });
-    const chunks: Buffer[] = [];
-    zip.on('data', (c: Buffer) => chunks.push(c));
-    zip.on('end', () => resolve(Buffer.concat(chunks)));
-    zip.on('error', reject);
-    for (const [name, buf] of files) zip.append(buf, { name });
-    void zip.finalize();
-  });
 }

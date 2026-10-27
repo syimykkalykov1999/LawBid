@@ -537,6 +537,15 @@ export const envSchema = z
     // Owner 2026-10-15: a database call slower than this many ms is written
     // to the log (operation name and time only, never the values). 0 = off.
     DB_SLOW_QUERY_MS: z.coerce.number().int().min(0).default(300),
+    // WP-G: heaviest users / cases (admin «Масштаб»). 1 request in N is
+    // counted (0 = off); the window is how far back the top list looks.
+    HEAVY_HITTERS_SAMPLE: z.coerce.number().int().min(0).max(1000).default(0),
+    HEAVY_HITTERS_WINDOW_MIN: z.coerce
+      .number()
+      .int()
+      .min(5)
+      .max(1440)
+      .default(60),
     // Owner 2026-10-22 (server load audit, finding 1): request log lines.
     // Failures (status >= 400) are always written; of the fast successful
     // requests only this share (%, 0-100) is, and a request slower than

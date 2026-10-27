@@ -13,6 +13,14 @@
 > Строку вставить в таблицу (или прислать Claude). Ошибка = бэкап нельзя
 > считать рабочим, написать Claude «учебное восстановление упало».
 
+> **Автоматически (с 2026-10-25, WP-G):** раз в месяц, 1-го числа, AWS Backup
+> сам делает такую проверку (managed «restore testing», Terraform в
+> `infra/modules/backup`): поднимает временную базу из свежей копии, меряет
+> время и удаляет её. Результат: админка → «Здоровье системы» → «Учебное
+> восстановление базы». Не вышло → звонок на критический канал. Скрипт ниже
+> остаётся для проверки строк в таблицах (раз в квартал, руками). Подробности:
+> `docs/architecture/OBSERVABILITY_AND_EXPORTS.md`.
+
 Why: AWS Well-Architected
 [REL09-BP04](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_backing_up_data_periodic_recovery_testing_data.html)
 — a backup is only proven by a restore.

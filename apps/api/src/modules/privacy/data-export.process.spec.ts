@@ -33,7 +33,12 @@ function setup(claimCount: number) {
   };
   const storage = {
     bucket: jest.fn(() => 'docs'),
-    put: jest.fn(() => Promise.resolve()),
+    // WP-G: the archive is streamed; the mock drains it like S3 would.
+    putStream: jest.fn(
+      async (_b: string, _k: string, body: AsyncIterable<unknown>) => {
+        for await (const chunk of body) void chunk;
+      },
+    ),
     signedGetUrl: jest.fn(() => Promise.resolve('https://x')),
   };
   const service = new DataExportService(
@@ -46,8 +51,12 @@ function setup(claimCount: number) {
     {} as EmailProvider,
     { setContext: jest.fn(), warn: jest.fn() } as unknown as PinoLogger,
   );
-  jest.spyOn(service, 'collect').mockResolvedValue({ 'profile.json': {} });
-  jest.spyOn(service, 'zip').mockResolvedValue(Buffer.from('zip'));
+  const svc = service as unknown as {
+    small: () => Promise<Record<string, unknown>>;
+    big: () => Record<string, unknown>;
+  };
+  jest.spyOn(svc, 'small').mockResolvedValue({ 'profile.json': {} });
+  jest.spyOn(svc, 'big').mockReturnValue({});
   return { service, prisma, storage };
 }
 
@@ -55,7 +64,7 @@ describe('DataExportService.process claim (S10-3)', () => {
   it('a redelivered job (retry) may take over a `processing` row and finishes it', async () => {
     const { service, prisma } = setup(1);
     const out = await service.process('e1', { retry: true });
-    expect(out.bytes).toBe(3);
+    expect(out.bytes).toBeGreaterThan(0);
     expect(prisma.dataExportJob.updateMany).toHaveBeenCalledWith({
       where: {
         id: 'e1',

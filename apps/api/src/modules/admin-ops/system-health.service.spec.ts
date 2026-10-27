@@ -129,6 +129,7 @@ describe('SystemHealthService', () => {
       video: 'grey',
       queues: 'yellow',
       backup: 'grey',
+      restore_drill: 'grey',
       message_keys: 'grey',
       cost: 'grey',
     });

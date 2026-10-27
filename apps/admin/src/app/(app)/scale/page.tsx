@@ -33,6 +33,7 @@ import {
 } from '@/lib/scale';
 import { usd } from '@/lib/economy';
 import { budgetPercent, budgetTone, parseLimit, type AwsBudget, type AwsBudgets, type CostRegistryReport } from '@/lib/launch';
+import { HeavyUsersCard } from './heavy-users-card';
 import { LIGHT_TONE } from '@/lib/system-health';
 
 type Target = 'db' | 'redis';
@@ -477,6 +478,7 @@ export default function ScalePage() {
               );
             })}
           </div>
+          <HeavyUsersCard />
 
           <SectionTitle>Индекс поиска</SectionTitle>
           <SearchIndexCard />

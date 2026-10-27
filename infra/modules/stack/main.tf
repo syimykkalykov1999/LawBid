@@ -672,6 +672,12 @@ variable "anomaly_threshold_usd" {
   default     = 20
   description = "Cost anomaly e-mail threshold (USD impact)."
 }
+variable "backup_restore_test_enabled" {
+  type        = bool
+  default     = false
+  description = "Monthly automatic restore test of the newest database backup (AWS Backup restore testing; cents per month). Result: admin «Здоровье системы» → «Учебное восстановление»; a failure rings the critical topic."
+}
+
 variable "backup_age_missing_data" {
   type        = string
   default     = "breaching"
@@ -1199,8 +1205,14 @@ module "backup" {
     "arn:aws:backup:${var.backup_copy_region == "" ? data.aws_region.current.name : var.backup_copy_region}:${var.backup_copy_account_id}:backup-vault:${var.backup_copy_vault_name}"
   )
   alerts_topic_arn        = module.monitoring.alerts_topic_arn
+  critical_topic_arn      = module.monitoring.critical_topic_arn
   backup_age_missing_data = var.backup_age_missing_data
-  tags                    = local.tags
+
+  # Monthly restore test (AWS Backup restore testing), same network as prod.
+  restore_test_enabled            = var.backup_restore_test_enabled
+  restore_test_db_subnet_group    = var.create_database ? "" : one(data.aws_db_instance.existing[*].db_subnet_group)
+  restore_test_security_group_ids = var.create_database ? [module.postgres[0].security_group_id] : flatten(data.aws_db_instance.existing[*].vpc_security_groups)
+  tags                            = local.tags
 
   vault_lock_mode             = var.backup_vault_lock_mode
   vault_lock_cooling_off_days = var.backup_vault_lock_cooling_off_days
@@ -1918,6 +1930,11 @@ data "aws_iam_policy_document" "ops" {
   # them one tier up from the admin. Metrics have no resource-level scope.
   statement {
     actions   = ["cloudwatch:GetMetricStatistics"]
+    resources = ["*"]
+  }
+  # WP-G: the admin health board shows the last restore test.
+  statement {
+    actions   = ["backup:ListRestoreJobs"]
     resources = ["*"]
   }
   statement {

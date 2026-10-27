@@ -442,6 +442,11 @@ variable "backup_retention_days" {
   type    = number
   default = 35
 }
+variable "backup_restore_test_enabled" {
+  type        = bool
+  default     = false
+  description = "Monthly automatic restore test of the newest database backup (cents per month); off by default."
+}
 variable "backup_copy_account_id" {
   type        = string
   default     = ""

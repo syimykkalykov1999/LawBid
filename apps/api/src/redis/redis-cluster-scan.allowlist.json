@@ -118,5 +118,15 @@
     "file": "modules/realtime/realtime-event-log.ts",
     "kind": "lua-multi-key",
     "reason": "NEXT_SEQ_LUA keys rt:seq and rt:epoch both go through ck('rtseq', ...): one slot in cluster mode."
+  },
+  {
+    "file": "common/heavy-hitters/heavy-hitters.service.ts",
+    "kind": "pipeline-raw",
+    "reason": "every key carries the {hh} hash tag, so the whole pipeline stays in one cluster slot."
+  },
+  {
+    "file": "common/heavy-hitters/heavy-hitters.service.ts",
+    "kind": "eval-spread-keys",
+    "reason": "the tmp and bucket keys all carry the {hh} hash tag: one slot in cluster mode."
   }
 ]

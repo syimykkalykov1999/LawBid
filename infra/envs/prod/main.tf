@@ -148,6 +148,7 @@ module "stack" {
   existing_database_identifier           = var.existing_database_identifier
   backup_enabled                         = var.backup_enabled
   backup_retention_days                  = var.backup_retention_days
+  backup_restore_test_enabled            = var.backup_restore_test_enabled
   backup_copy_account_id                 = var.backup_copy_account_id
   backup_copy_vault_name                 = var.backup_copy_vault_name
   backup_copy_region                     = var.backup_copy_region

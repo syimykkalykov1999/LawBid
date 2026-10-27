@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/heavy_hitters_envelope.dart';
 import '../models/heavy_jobs_dto.dart';
 import '../models/post_status_incident_dto.dart';
 import '../models/queue_retry_result_envelope.dart';
@@ -38,6 +39,12 @@ abstract class AdminOpsClient {
   @POST('/admin/system-health/scale')
   Future<SystemHealthEnvelope> setOpsScale({
     @Body() required ScaleDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Top 20 heaviest users and cases (requests, DB time, uploads, messages) over the last hour
+  @GET('/admin/system-health/heavy-hitters')
+  Future<HeavyHittersEnvelope> getHeavyHitters({
     @Extras() Map<String, dynamic>? extras,
   });
 

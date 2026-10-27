@@ -68375,6 +68375,83 @@
         ]
       }
     },
+    "/admin/system-health/heavy-hitters": {
+      "get": {
+        "operationId": "getHeavyHitters",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeavyHittersEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Top 20 heaviest users and cases (requests, DB time, uploads, messages) over the last hour",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
     "/admin/system-health/restart-worker": {
       "post": {
         "operationId": "restartOpsWorker",
@@ -146529,6 +146606,19 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "progress": {
+            "type": "object",
+            "nullable": true,
+            "description": "While the export is being built: rows written and bytes so far.",
+            "properties": {
+              "rows": {
+                "type": "integer"
+              },
+              "bytes": {
+                "type": "integer"
+              }
+            }
           }
         },
         "required": [
@@ -151170,6 +151260,7 @@
               "backup",
               "cost",
               "message_keys",
+              "restore_drill",
               "secret_rotation",
               "stripe_webhooks",
               "push",
@@ -151453,6 +151544,109 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/ScaleExtrasDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "HeavyEntryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "User id or case id."
+          },
+          "score": {
+            "type": "number",
+            "description": "Score over the window: requests, DB milliseconds, upload bytes or messages (sampled metrics are scaled back up)."
+          },
+          "label": {
+            "type": "string",
+            "nullable": true,
+            "description": "User name (user rows) or case title (case rows)."
+          },
+          "role": {
+            "type": "string",
+            "nullable": true,
+            "description": "User role (user rows only)."
+          }
+        },
+        "required": [
+          "id",
+          "score",
+          "label",
+          "role"
+        ]
+      },
+      "HeavyMetricDto": {
+        "type": "object",
+        "properties": {
+          "metric": {
+            "enum": [
+              "requests",
+              "db_ms",
+              "upload_bytes",
+              "messages"
+            ],
+            "type": "string"
+          },
+          "users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HeavyEntryDto"
+            }
+          },
+          "cases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HeavyEntryDto"
+            }
+          }
+        },
+        "required": [
+          "metric",
+          "users",
+          "cases"
+        ]
+      },
+      "HeavyHittersDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "False when HEAVY_HITTERS_SAMPLE=0."
+          },
+          "windowMinutes": {
+            "type": "number",
+            "description": "How far back the lists look, in minutes."
+          },
+          "sampleEvery": {
+            "type": "number",
+            "description": "One request in N is counted (1 = all)."
+          },
+          "metrics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HeavyMetricDto"
+            }
+          }
+        },
+        "required": [
+          "enabled",
+          "windowMinutes",
+          "sampleEvery",
+          "metrics"
+        ]
+      },
+      "HeavyHittersEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HeavyHittersDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

@@ -863,6 +863,36 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ],
   },
   {
+    id: 'aws.backup-restore-test',
+    name: 'Учебное восстановление базы раз в месяц (AWS Backup restore testing)',
+    purpose:
+      'Раз в месяц AWS сам восстанавливает копию базы на маленьком сервере и проверяет, что она живая; результат в «Здоровье системы».',
+    kind: 'aws',
+    control: tf(['backup_restore_test_enabled'], {
+      on: 'backup_restore_test_enabled = true',
+      off: 'backup_restore_test_enabled = false',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      'около $0,05 за запуск (db.t4g.micro примерно на час), 1 раз в месяц',
+      U.backup,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0.05, 1),
+    needed: 'later',
+    neededNote:
+      'Полезно после запуска: доказывает, что копии восстанавливаются.',
+    alarm: 'EventBridge «restore-test-failed» → critical SNS',
+    ceService: 'AWS Backup',
+    awsTypes: [
+      'aws_backup_restore_testing_plan',
+      'aws_backup_restore_testing_selection',
+    ],
+  },
+  {
     id: 'aws.status-page',
     name: 'Публичная страница статуса (S3 + CloudFront)',
     purpose:
