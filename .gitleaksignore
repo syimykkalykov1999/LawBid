@@ -50,3 +50,5 @@ c97c5fb3e4326122b5d395a7c9a7d14c94d86205:apps/api/test/support/blind-index-env.t
 # (no force-push), hence these two fingerprints.
 2a1cf93eb17c68291c3f7237b6b3f123cc529389:apps/api/src/config/config-contract.spec.ts:generic-api-key:51
 2a1cf93eb17c68291c3f7237b6b3f123cc529389:apps/api/src/config/config-contract.spec.ts:private-key:113
+# PR #483: practice-area i18n key in an e2e fixture (commit aa2454bc6, later de-keyed), not a secret
+aa2454bc6d4843a3af822f3add4ce6d2a1315bdb:apps/api/test/owner-subscription-alerts.e2e-spec.ts:generic-api-key:241
