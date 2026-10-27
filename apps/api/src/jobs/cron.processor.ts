@@ -52,6 +52,7 @@ import { PartitionService } from '../partitioning/partition.service';
 import { ShardMoveService } from '../sharding/move/shard-move.service';
 import { OrphanChecker } from '../sharding/orphan-checker';
 import { SearchIndexJob } from './handlers/search-index.job';
+import { DbBloatJob } from './handlers/db-bloat.job';
 import { CdnInvalidateJob } from './handlers/cdn-invalidate.job';
 import { ExperimentsNightlyJob } from '../modules/experiments/experiments-nightly.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
@@ -188,6 +189,8 @@ export class CronProcessor {
     @Optional() private readonly eventsMaintenance?: EventsMaintenance,
     // Owner 2026-10-24: `search.index`.
     @Optional() private readonly searchIndex?: SearchIndexJob,
+    // Owner 2026-10-25: `db.bloat-check`.
+    @Optional() private readonly dbBloat?: DbBloatJob,
     // Owner 2026-10-25: `cdn.invalidate`.
     @Optional() private readonly cdnInvalidate?: CdnInvalidateJob,
     // Owner 2026-10-27: `moderation.appeal-sla`.
@@ -398,6 +401,8 @@ export class CronProcessor {
         return this.promotions.expire();
       case CRON_JOBS.starsSweep:
         return this.stars.sweepPending();
+      case CRON_JOBS.dbBloat:
+        return this.dbBloat?.run() ?? null;
       case CRON_JOBS.legalQaSweep:
         return this.legalQaSweep?.run() ?? null;
       case CRON_JOBS.contactsJoined:

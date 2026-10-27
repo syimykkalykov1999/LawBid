@@ -38,9 +38,28 @@ export const OPS_KEYS = {
   adminSummariesLast: 'ops:admin-summaries:last',
   /** Per cron job `{empty, lastRunAt}`: idle back-off state (S20-6). */
   cronIdle: 'ops:cron-idle:',
+  /** JSON BloatSnapshot: the nightly table / index bloat measurement. */
+  dbBloat: 'ops:db-bloat',
   /** JSON ChatSearchBackfillState (jobs/handlers/chat-search-backfill.job.ts). */
   chatSearchBackfill: 'ops:chat-search-backfill',
 } as const;
+
+/** Result of the nightly bloat job (jobs/handlers/db-bloat.job.ts). */
+export interface BloatSnapshot {
+  at: string;
+  /** pgstattuple = measured wasted space; stats = dead rows only. */
+  source: 'pgstattuple' | 'stats';
+  warnPercent: number;
+  tables: {
+    table: string;
+    sizeBytes: number;
+    bloatPercent: number;
+    worstIndex?: string;
+    worstIndexBloatPercent?: number;
+  }[];
+  /** Big tables above the warn line: the light turns yellow. */
+  over: string[];
+}
 
 /** An automatic pause lasts this long; the guard renews it while the
  * database stays slow, so it lifts itself once things calm down. */
@@ -58,6 +77,8 @@ export const HEAVY_CRON_JOBS: readonly string[] = [
   CRON_JOBS.messagesReencrypt,
   CRON_JOBS.chatSearchBackfill,
   CRON_JOBS.adminSummaries,
+  // Perf review 2026-10-26 (R-25): the nightly bloat check reads tables.
+  CRON_JOBS.dbBloat,
   CRON_JOBS.ledgerReconcile,
 ];
 

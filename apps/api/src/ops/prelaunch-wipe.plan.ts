@@ -24,6 +24,8 @@ export const KEEP_TABLES: Readonly<Record<string, string>> = {
     'the search dictionary: words per topic (admin edits it)',
   search_synonym_terms: 'its words and phrases',
   _prisma_migrations: 'migration history',
+  concurrent_migrations: 'online schema changes in progress (operations)',
+  backfill_runs: 'progress of data backfills (operations)',
   app_config: 'settings and cost caps (seed + admin)',
   shard_map:
     'which physical database holds each logical shard (routing config)',

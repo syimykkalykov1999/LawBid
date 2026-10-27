@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
+import { BackfillsCard } from '@/components/backfills-card';
 import { ScaleSwitches } from '@/components/scale-switches';
 import { SearchIndexCard } from '@/components/search-index-card';
 import { StepUpDialog } from '@/components/step-up-dialog';
@@ -558,6 +559,7 @@ export default function ScalePage() {
               </Button>
             </Card>
           </div>
+          <BackfillsCard />
           <p className="mb-6 text-xs text-muted">
             Общее состояние:{' '}
             <Badge tone={LIGHT_TONE[h.overall]} dot>

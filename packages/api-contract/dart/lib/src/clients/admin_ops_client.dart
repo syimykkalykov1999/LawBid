@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/backfill_run_list_envelope.dart';
 import '../models/heavy_hitters_envelope.dart';
 import '../models/heavy_jobs_dto.dart';
 import '../models/partition_card_list_envelope.dart';
@@ -120,6 +121,20 @@ abstract class AdminOpsClient {
   /// Top 20 heaviest users and cases (requests, DB time, uploads, messages) over the last hour
   @GET('/admin/system-health/heavy-hitters')
   Future<HeavyHittersEnvelope> getHeavyHitters({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Batched data backfills: progress, state, why one is waiting
+  @GET('/admin/system-health/backfills')
+  Future<BackfillRunListEnvelope> listBackfills({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Pause / resume / abort a backfill (needs step-up)
+  @POST('/admin/system-health/backfills/{name}/{action}')
+  Future<BackfillRunListEnvelope> actOnBackfill({
+    @Path('name') required String name,
+    @Path('action') required String action,
     @Extras() Map<String, dynamic>? extras,
   });
 
