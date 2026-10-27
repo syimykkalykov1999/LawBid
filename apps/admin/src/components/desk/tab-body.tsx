@@ -12,10 +12,12 @@ import VerificationQueuePage from '@/app/(app)/verification/page';
 import { Tabs } from '@/components/ui/tabs';
 import type { DeskSettingsView, MyLeases } from '@/lib/desk-data';
 import type { DeskRole } from '@/lib/desk';
+import { REVIEW_TAB, type ReviewMe } from '@/lib/desk-review';
 import { DecisionsTab } from './decisions-tab';
 import { DeskEmbed } from './embed';
 import { MyItems } from './my-items';
 import { MyRating } from './my-rating';
+import { ReviewTab } from './review-tab';
 import { SupportChatsTab } from './support-chats-tab';
 import { TeamPanel } from './team-panel';
 
@@ -32,6 +34,7 @@ export function TabBody({
   myLoading,
   myMissing,
   statsOn,
+  review,
 }: {
   role: DeskRole;
   tab: string;
@@ -41,7 +44,10 @@ export function TabBody({
   myMissing: boolean;
   /** The nightly counters of «Проверено» are readable (worker progress is on). */
   statsOn: boolean;
+  /** T9: set only for who may re-check; the tab «Перепроверка» is theirs. */
+  review?: ReviewMe | null;
 }) {
+  if (tab === REVIEW_TAB && review) return <ReviewTab me={review} />;
   if (tab === 'team') return <TeamPanel role={role} enabled={settings.on('staff.lease_enabled')} />;
   if (tab === 'mine' || tab === 'tasks') {
     return <MyItems role={role} settings={settings} my={my} loading={myLoading} missing={myMissing} />;

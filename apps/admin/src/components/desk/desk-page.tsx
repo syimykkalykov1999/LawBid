@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/empty';
 import { Tabs } from '@/components/ui/tabs';
 import { desksFor, DESK_ROLE_SHORT, deskAccess, deskPath, isDeskRole, tabKeyOrFirst, tabsFor, type DeskRole } from '@/lib/desk';
 import { useDeskSettings, useMyLeases } from '@/lib/desk-data';
+import { REVIEW_TAB, useReviewAccess } from '@/lib/desk-review';
 import { useMe, type Me } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import { LeaseStrip } from './lease-strip';
@@ -33,7 +34,9 @@ function DeskBody({ me, role, mode }: { me: Me; role: DeskRole; mode: 'own' | 'v
   const router = useRouter();
   const params = useSearchParams();
   const settings = useDeskSettings(me);
-  const tab = tabKeyOrFirst(role, params.get('tab'), mode);
+  // T9: «Перепроверка» exists only for who may re-check (owner, head, senior worker).
+  const review = useReviewAccess(settings.on('staff.rating_enabled')).data ?? null;
+  const tab = review && params.get('tab') === REVIEW_TAB ? REVIEW_TAB : tabKeyOrFirst(role, params.get('tab'), mode);
   const own = mode === 'own';
   const leaseOn = settings.on('staff.lease_enabled') || settings.on('staff.presence_enabled');
   const leases = useMyLeases(own && leaseOn);
@@ -65,11 +68,14 @@ function DeskBody({ me, role, mode }: { me: Me; role: DeskRole; mode: 'own' | 'v
         className="mb-5"
         value={tab}
         onChange={(k) => router.replace(deskPath(role, k), { scroll: false })}
-        items={tabsFor(role, mode).map((t) => ({
-          value: t.key,
-          label: t.label,
-          count: t.key === 'mine' || t.key === 'tasks' ? (held > 0 ? held : null) : null,
-        }))}
+        items={[
+          ...tabsFor(role, mode).map((t) => ({
+            value: t.key,
+            label: t.label,
+            count: t.key === 'mine' || t.key === 'tasks' ? (held > 0 ? held : null) : null,
+          })),
+          ...(review ? [{ value: REVIEW_TAB, label: 'Перепроверка', count: null }] : []),
+        ]}
       />
       <TabBody
         role={role}
@@ -79,6 +85,7 @@ function DeskBody({ me, role, mode }: { me: Me; role: DeskRole; mode: 'own' | 'v
         myLoading={own && leaseOn && leases.isPending}
         myMissing={!!leases.data && !leases.data.ok}
         statsOn={settings.on('staff.worker_progress_enabled')}
+        review={review}
       />
     </div>
   );

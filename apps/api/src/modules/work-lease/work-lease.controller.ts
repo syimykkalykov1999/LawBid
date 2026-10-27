@@ -9,7 +9,7 @@ import {
   Param,
   Post,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -303,6 +303,8 @@ export class WorkLeaseController {
     summary:
       'The item is closed: the lease ends (support gets a short wrap-up before the next one)',
   })
+  // the body is optional: older desks post none (additive, not a breaking change)
+  @ApiBody({ type: DoneLeaseDto, required: false })
   @ApiEnvelopeResponse(LeaseOkDto)
   @ApiErrors({ 403: [E.FEATURE_DISABLED], 404: [E.NOT_FOUND] })
   async doneDeskLease(

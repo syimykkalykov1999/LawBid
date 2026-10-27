@@ -23,6 +23,16 @@ import '../models/piecework_overview_envelope.dart';
 import '../models/piecework_rerun_result_envelope.dart';
 import '../models/reveal_pii_dto.dart';
 import '../models/reveal_pii_result_envelope.dart';
+import '../models/review_current_envelope.dart';
+import '../models/review_golden_body_dto.dart';
+import '../models/review_golden_issued_envelope.dart';
+import '../models/review_golden_list_envelope.dart';
+import '../models/review_me_envelope.dart';
+import '../models/review_next_envelope.dart';
+import '../models/review_stats_envelope.dart';
+import '../models/review_team_envelope.dart';
+import '../models/review_verdict_body_dto.dart';
+import '../models/review_verdict_result_envelope.dart';
 import '../models/set_desk_status_dto.dart';
 import '../models/set_staff_rate_dto.dart';
 import '../models/skip_lease_dto.dart';
@@ -159,7 +169,7 @@ abstract class AdminStaffClient {
   Future<LeaseOkEnvelope> doneDeskLease({
     @Path('kind') required LeaseQueueKind kind,
     @Path('id') required String id,
-    @Body() required DoneLeaseDto body,
+    @Body() DoneLeaseDto? body,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -222,6 +232,62 @@ abstract class AdminStaffClient {
     @Query('status') StaffSuggestionStatus? status,
     @Query('kind') StaffSuggestionKind? kind,
     @Query('workspace') StaffWorkspaceName? workspace,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// May I re-check? (404 for everyone who may not)
+  @GET('/admin/workspace/review/me')
+  Future<ReviewMeEnvelope> reviewMe({@Extras() Map<String, dynamic>? extras});
+
+  /// «Следующий» of the re-check: leases one pending sample to me (two reviewers never get the same one)
+  @POST('/admin/workspace/review/next')
+  Future<ReviewNextEnvelope> reviewNext({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The sample I hold now, if any
+  @GET('/admin/workspace/review/current')
+  Future<ReviewCurrentEnvelope> reviewCurrent({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Verdict on the sample I hold: confirmed / overturned (with reasons) / unclear
+  @POST('/admin/workspace/review/{id}/verdict')
+  Future<ReviewVerdictResultEnvelope> reviewVerdict({
+    @Path('id') required String id,
+    @Body() required ReviewVerdictBodyDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Let go of the sample without a verdict
+  @POST('/admin/workspace/review/{id}/release')
+  Future<ReviewVerdictResultEnvelope> reviewRelease({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Golden tasks and how workers did on them (owner, head)
+  @GET('/admin/workspace/review/golden')
+  Future<ReviewGoldenListEnvelope> reviewGolden({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Mark a confirmed decision as a golden task for a worker (owner, head)
+  @POST('/admin/workspace/review/golden')
+  Future<ReviewGoldenIssuedEnvelope> reviewMarkGolden({
+    @Body() required ReviewGoldenBodyDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Returned rate and re-check results per worker (latest nightly snapshot; owner, head)
+  @GET('/admin/workspace/review/team')
+  Future<ReviewTeamEnvelope> reviewTeam({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Re-check numbers per workspace and reviewer calibration (owner: all, head: own workspace)
+  @GET('/admin/workspace/review/stats')
+  Future<ReviewStatsEnvelope> reviewStats({
     @Extras() Map<String, dynamic>? extras,
   });
 

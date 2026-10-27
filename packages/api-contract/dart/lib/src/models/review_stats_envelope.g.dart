@@ -1,0 +1,22 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'review_stats_envelope.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+ReviewStatsEnvelope _$ReviewStatsEnvelopeFromJson(Map<String, dynamic> json) =>
+    ReviewStatsEnvelope(
+      data: ReviewStatsDto.fromJson(json['data'] as Map<String, dynamic>),
+      meta: json['meta'] == null
+          ? null
+          : ResponseMetaDto.fromJson(json['meta'] as Map<String, dynamic>),
+    );
+
+Map<String, dynamic> _$ReviewStatsEnvelopeToJson(
+  ReviewStatsEnvelope instance,
+) => <String, dynamic>{
+  'data': instance.data.toJson(),
+  'meta': ?instance.meta?.toJson(),
+};
