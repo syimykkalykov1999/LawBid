@@ -126,15 +126,16 @@ export class StaffAppealsService {
     if (admin.adminRole === 'super_admin' || admin.workspaceHead) {
       throw notFound();
     }
+    // The guard reports `workspaceHead` only while the workspace and head
+    // switches are on: the database is the truth for «is this a head».
     const head = await this.prisma.adminProfile.findFirst({
       where: {
         workspace: admin.workspace ?? 'mass',
         is_workspace_head: true,
-        user_id: { not: admin.id },
       },
       select: { user_id: true },
     });
-    if (!head) throw notFound();
+    if (!head || head.user_id === admin.id) throw notFound();
     const today = await this.prisma.adminAppeal.count({
       where: { author_id: admin.id, created_at: { gte: since(now, 1) } },
     });
@@ -203,6 +204,11 @@ export class StaffAppealsService {
     if (admin.adminRole === 'super_admin' || admin.workspaceHead) {
       throw notFound();
     }
+    const me = await this.prisma.adminProfile.findUnique({
+      where: { user_id: admin.id },
+      select: { is_workspace_head: true },
+    });
+    if (me?.is_workspace_head) throw notFound();
     const rows = await this.prisma.adminAppeal.findMany({
       where: { author_id: admin.id },
       orderBy: { created_at: 'desc' },

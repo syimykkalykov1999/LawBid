@@ -38,6 +38,7 @@ function mockDb() {
   const db = {
     adminProfile: {
       findFirst: m({ user_id: 'h1' }),
+      findUnique: m({ is_workspace_head: false }),
       findMany: m([]),
       count: m(0),
     },
@@ -199,6 +200,17 @@ describe('StaffAppealsService.file', () => {
       b.svc.file(worker, { text: 'nobody to blame' }, NOW),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(a.db.adminAppeal.create).not.toHaveBeenCalled();
+  });
+
+  it('a head the guard did not flag (switches off) is still a head: 404', async () => {
+    const { db, svc } = make();
+    const unflagged = { ...worker, id: 'h1' };
+    await expect(
+      svc.file(unflagged, { text: 'about myself!!' }, NOW),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    db.adminProfile.findUnique.mockResolvedValue({ is_workspace_head: true });
+    await expect(svc.mine(unflagged)).rejects.toBeInstanceOf(NotFoundException);
+    expect(db.adminAppeal.create).not.toHaveBeenCalled();
   });
 
   it('three complaints a day at most', async () => {
