@@ -72,6 +72,12 @@ describe('Staff appeals + retaliation guard (e2e)', () => {
 
   afterAll(async () => {
     await setting('staff.appeals_enabled', false);
+    // The cap test lowers the daily reveal limit to 1; later suites in the
+    // same run (staff-security) count on the default again.
+    await prisma.appConfig.deleteMany({
+      where: { key: 'staff.reveal_per_day' },
+    });
+    await redis.del('config:app_config');
     await app.close();
   });
 
