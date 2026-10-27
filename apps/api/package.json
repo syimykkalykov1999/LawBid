@@ -30,6 +30,8 @@
     "test:e2e:sharded": "node scripts/run-e2e-sharded.mjs",
     "test:e2e:two-db": "node scripts/run-e2e-two-db.mjs",
     "shard:move": "ts-node --transpile-only scripts/shard-move.ts",
+    "arch:baseline": "ts-node --transpile-only scripts/arch-baseline.ts",
+    "lists:sort": "node scripts/sort-lists.mjs",
     "db:erd": "ts-node --transpile-only scripts/generate-erd.ts",
     "db:erd:fast": "bash ../../scripts/dev/skip-if-unchanged.sh api-erd apps/api/prisma/schema.prisma apps/api/scripts/generate-erd.ts -- docs/db/ERD.md -- npm run db:erd --workspace apps/api",
     "openapi:export": "nest build && node dist/src/openapi/export-openapi.js",
