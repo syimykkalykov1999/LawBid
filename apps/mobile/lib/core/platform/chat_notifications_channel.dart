@@ -11,7 +11,8 @@ import 'package:flutter/services.dart';
 ///   push from them shows that name; the names never leave the phone);
 /// - that a chat was opened (its notification goes away);
 /// - a sign-out (no chat of that account stays in the shade);
-/// and hears back which chat a tapped notification opens.
+/// - the API address the notification buttons answer through;
+/// and hears back which chat (or other screen) a tapped notification opens.
 /// Web, tests and platforms without the channel: everything is a no-op.
 class ChatNotificationsChannel {
   ChatNotificationsChannel({MethodChannel? channel})
@@ -62,6 +63,16 @@ class ChatNotificationsChannel {
       _call('clear', {'conversationId': conversationId});
 
   Future<void> clearAll() => _call('clearAll');
+
+  /// Owner 2026-10-26: what the notification buttons («Ответить» /
+  /// «Прочитано») need while the app is closed: the server (the same API
+  /// the app uses, `…/api/v1`) and this device's push token (the server
+  /// accepts a button only from a device still signed in).
+  Future<void> setPushActions({
+    required String apiBase,
+    required String deviceToken,
+  }) =>
+      _call('setPushActions', {'url': apiBase, 'token': deviceToken});
 
   Future<void> _call(String method, [Object? args]) async {
     if (!_supported) return;

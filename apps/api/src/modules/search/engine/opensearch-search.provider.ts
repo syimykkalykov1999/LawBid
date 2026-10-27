@@ -12,7 +12,7 @@ import type {
   PostSearchFilters,
   SearchProvider,
 } from '../search.provider';
-import { OpenSearchClient } from './opensearch.client';
+import { EngineError, OpenSearchClient } from './opensearch.client';
 import {
   CANDIDATES,
   caseQuery,
@@ -60,16 +60,34 @@ export class OpenSearchProvider implements SearchProvider {
     };
   }
 
-  /** Strict query first; nothing found → the typo (fuzzy) one. */
+  /**
+   * Strict query first; nothing found → the typo (fuzzy) one. Only these
+   * engine calls are time-boxed (one budget for both, S7-4); the Postgres
+   * `*Among` filters run afterwards with no engine timer, so a slow
+   * Postgres filter never trips the engine's circuit breaker. Anything
+   * thrown here is an EngineError (the switch falls back on those only).
+   */
   private async find(
     entity: SearchEntity,
     build: (fuzzy: boolean) => Query,
     size: number,
   ): Promise<string[]> {
     const ms = await this.timeout();
-    const strict = await this.client.searchIds(entity, build(false), size, ms);
+    const t0 = Date.now();
+    let strictQuery: Query;
+    let fuzzyQuery: Query;
+    try {
+      strictQuery = build(false);
+      fuzzyQuery = build(true);
+    } catch (e) {
+      throw new EngineError(
+        `query build failed: ${e instanceof Error ? e.message : 'error'}`,
+      );
+    }
+    const strict = await this.client.searchIds(entity, strictQuery, size, ms);
     if (strict.length > 0) return strict;
-    return this.client.searchIds(entity, build(true), size, ms);
+    const left = Math.max(100, ms - (Date.now() - t0));
+    return this.client.searchIds(entity, fuzzyQuery, size, left);
   }
 
   // --- people ---------------------------------------------------------------

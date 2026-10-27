@@ -13,6 +13,7 @@ import '../models/new_case_alerts_envelope.dart';
 import '../models/notification_group.dart';
 import '../models/notification_list_envelope.dart';
 import '../models/notification_settings_envelope.dart';
+import '../models/push_action_dto.dart';
 import '../models/push_token_dto.dart';
 import '../models/quiet_hours_dto.dart';
 import '../models/read_notifications_dto.dart';
@@ -145,6 +146,13 @@ abstract class NotificationsClient {
   @DELETE('/push-tokens/voip')
   Future<void> deleteVoipToken({
     @Body() required DeletePushTokenDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Reply / mark read from a chat notification
+  @POST('/push-actions')
+  Future<void> pushAction({
+    @Body() required PushActionDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }
