@@ -16,6 +16,16 @@
 #   WEB_SEO_API_URL    https://api.<domain>/api/v1
 # Repository variable ANDROID_APP_SHA256: SHA-256 of the app-signing
 # certificate (Play Console → App integrity), comma-separated if several.
+#
+# Programmatic-SEO switches (repository variables; every one is OFF when
+# unset, so the public output is unchanged until the owner turns it on;
+# what each does: docs/runbooks/SEO_STATIC_PAGES.md):
+#   SEO_SITEMAP_INDEX=true   /sitemap.xml becomes an index of /sitemaps/*.xml
+#   SEO_ROBOTS_AI=true       search/answer bots in, training bots out
+#   SEO_LLMS=true            /llms.txt and /llms-full.txt
+#   SEO_QUALITY_GATE=true    thin pages: noindex and out of the sitemaps
+#   SEO_RAMP_PER_DAY=200     at most N new pages a day enter the index
+#   SEO_INCREMENTAL=true     upload only changed files, reset the CDN only for them (<= 30 paths a day)
 name: SEO pages
 
 on:
@@ -30,6 +40,14 @@ on:
     inputs:
       index_empty:
         description: "Index state x practice pages that have no attorneys yet"
+        type: boolean
+        default: false
+      dry_run:
+        description: "Build and plan only: print what would change, publish nothing"
+        type: boolean
+        default: false
+      allow_mass_delete:
+        description: "Allow a run that removes over 30% of the published files"
         type: boolean
         default: false
 
@@ -64,7 +82,25 @@ jobs:
         with:
           node-version: "22.23.4"
 
+      # AWS is configured first: the previous run's manifest (content hashes,
+      # real lastmod dates, the new-page counter) is read from the bucket.
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Read the previous manifest
+        run: aws s3 cp "s3://${{ secrets.WEB_BUCKET }}/seo-manifest.json" prev-seo-manifest.json || echo "no previous manifest (first run)"
+
       - name: Build the pages from the public directory
+        env:
+          SEO_SITEMAP_INDEX: ${{ vars.SEO_SITEMAP_INDEX == 'true' && '1' || '' }}
+          SEO_ROBOTS_AI: ${{ vars.SEO_ROBOTS_AI == 'true' && '1' || '' }}
+          SEO_LLMS: ${{ vars.SEO_LLMS == 'true' && '1' || '' }}
+          SEO_QUALITY_GATE: ${{ vars.SEO_QUALITY_GATE == 'true' && '1' || '' }}
+          SEO_RAMP_PER_DAY: ${{ vars.SEO_RAMP_PER_DAY }}
+          SEO_INCREMENTAL: ${{ vars.SEO_INCREMENTAL == 'true' && '1' || '' }}
+          SEO_PREV_MANIFEST: prev-seo-manifest.json
         run: >-
           node scripts/seo/build.mjs
           --api "${{ secrets.WEB_SEO_API_URL }}"
@@ -107,15 +143,66 @@ jobs:
           --seo dist-seo --site site/out
           --site-url "${{ secrets.WEB_SITE_URL }}"
 
-      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
-        with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
-          aws-region: ${{ secrets.AWS_REGION }}
+      # What changed since the last published run (content hashes). Always
+      # computed so the log shows it; only used to publish when
+      # SEO_INCREMENTAL=true. Exit 3 = it would delete over 30% of the files.
+      - name: Plan the publish
+        shell: bash
+        continue-on-error: ${{ vars.SEO_INCREMENTAL != 'true' }}
+        run: >-
+          node scripts/seo/publish-plan.mjs
+          --dir dist-seo --prev prev-seo-manifest.json --plan seo-plan
+          ${{ (inputs.dry_run || vars.SEO_INCREMENTAL != 'true') && '--dry-run' || '' }}
+          ${{ inputs.allow_mass_delete && '--allow-mass-delete' || '' }}
+          | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Dry run result
+        if: ${{ inputs.dry_run }}
+        run: |
+          cat seo-plan/plan.json
+          echo "--- sitemap.xml (head) ---"; head -c 1500 dist-seo/sitemap.xml
+          echo "--- robots.txt ---"; cat dist-seo/robots.txt
+
+      # Only changed files go up; the manifest goes LAST, so a failed run is
+      # simply planned again. Pages are cached for an hour (max-age=3600);
+      # the CDN is reset only for changed paths, at most 30 a day, never /*.
+      - name: Publish the changed files
+        if: ${{ !inputs.dry_run && vars.SEO_INCREMENTAL == 'true' }}
+        run: |
+          B="s3://${{ secrets.WEB_BUCKET }}"
+          mkdir -p seo-stage
+          if [ -s seo-plan/upload.txt ]; then
+            rsync -a --files-from=seo-plan/upload.txt dist-seo/ seo-stage/
+            aws s3 cp seo-stage "$B" --recursive --exclude "_next/*" --exclude ".well-known/*" \
+              --exclude "seo-manifest.json" --cache-control "public,max-age=3600"
+            if [ -d seo-stage/_next ]; then
+              aws s3 cp seo-stage/_next "$B/_next" --recursive --cache-control "public,max-age=31536000,immutable"
+            fi
+          fi
+          # App links: always (2 small files); both must be application/json, no redirect.
+          for f in apple-app-site-association assetlinks.json; do
+            if [ -f "dist-seo/.well-known/$f" ]; then
+              aws s3 cp "dist-seo/.well-known/$f" "$B/.well-known/$f" \
+                --content-type application/json --cache-control "public,max-age=3600"
+            fi
+          done
+          for f in seo-plan/delete-*.json; do
+            [ -f "$f" ] || continue
+            aws s3api delete-objects --bucket "${{ secrets.WEB_BUCKET }}" --delete "file://$f" > /dev/null
+          done
+          if [ -s seo-plan/invalidate.txt ]; then
+            # shellcheck disable=SC2046
+            aws cloudfront create-invalidation --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}" \
+              --paths $(tr '\n' ' ' < seo-plan/invalidate.txt)
+          fi
+          aws s3 cp dist-seo/seo-manifest.json "$B/seo-manifest.json" \
+            --content-type application/json --cache-control "no-cache"
 
       # Each first-level folder is replaced as a whole; the app's own files
       # (index.html, main.dart.*, canvaskit, assets...) are never touched.
       # public-paths.txt tells web-deploy.yml which names to keep.
       - name: Publish (each prefix is replaced as a whole)
+        if: ${{ !inputs.dry_run && vars.SEO_INCREMENTAL != 'true' }}
         working-directory: dist-seo
         run: |
           B="s3://${{ secrets.WEB_BUCKET }}"
@@ -141,15 +228,32 @@ jobs:
             [ -f "$f" ] || continue
             case "$f" in
               sitemap.xml) t=application/xml ;;
-              robots.txt|public-paths.txt) t=text/plain ;;
+              robots.txt|public-paths.txt|llms.txt|llms-full.txt) t=text/plain ;;
               *) t="" ;;
             esac
             aws s3 cp "$f" "$B/$f" --cache-control "public,max-age=3600" ${t:+--content-type "$t"}
           done
 
-      # One wildcard is one invalidation path (the free tier counts paths).
+      # Never /* (that would also reset the app). Wildcards by folder: the
+      # public pages' folders, the site's pages and the discovery files; at
+      # most 30 paths. `_next` is content-hashed and never needs a reset.
       - name: Reset the CDN cache for the pages
-        run: >-
-          aws cloudfront create-invalidation
-          --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}"
-          --paths "/*"
+        if: ${{ !inputs.dry_run && vars.SEO_INCREMENTAL != 'true' }}
+        working-directory: dist-seo
+        run: |
+          paths="/lawyers/* /attorneys/* /practice-areas/* /sitemap.xml /robots.txt"
+          [ -d sitemaps ] && paths="$paths /sitemaps/*"
+          for f in llms.txt llms-full.txt; do [ -f "$f" ] && paths="$paths /$f"; done
+          [ -d .well-known ] && paths="$paths /.well-known/*"
+          for n in *; do
+            [ -e "$n" ] || continue
+            case "$n" in
+              _next|lawyers|attorneys|practice-areas|sitemaps|sitemap.xml|robots.txt|llms.txt|llms-full.txt|public-paths.txt|seo-manifest.json|index.html) continue ;;
+            esac
+            if [ -d "$n" ]; then paths="$paths /$n/*"; else paths="$paths /$n"; fi
+          done
+          set -f
+          # shellcheck disable=SC2086
+          set -- $paths
+          set +f
+          aws cloudfront create-invalidation --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}" --paths "${@:1:30}"
