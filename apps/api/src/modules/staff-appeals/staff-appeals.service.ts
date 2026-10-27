@@ -439,6 +439,7 @@ export class StaffAppealsService {
           appealId: id,
           targetAdminId: f.target === 'head' ? r.head_admin_id : r.author_id,
           ownerId: admin.id,
+          actor: admin,
         }));
       } catch (e) {
         // The decision is already recorded; the owner presses the call.

@@ -10,8 +10,6 @@ import {
   STAFF_RETENTION_BATCH,
   StaffRetentionJob,
 } from './staff-retention.job';
-import { StaffTodayJob } from './staff-today.job';
-import { StaffWeeklyDigestJob } from './staff-weekly-digest.job';
 
 /** Real StaffSettingsService over a stored-config object. */
 const settings = (stored: Record<string, unknown> = {}) =>
@@ -44,7 +42,6 @@ const stubs: Array<
     (s) => new StaffCountersFlushJob(s),
     ['staff.rating_enabled'],
   ],
-  ['staff.today', (s) => new StaffTodayJob(s), ['staff.owner_home_enabled']],
   [
     'staff.anomalies',
     (s) => new StaffAnomaliesJob(s),
@@ -54,11 +51,6 @@ const stubs: Array<
     'staff.ai-qa-nightly',
     (s) => new StaffAiQaNightlyJob(s),
     ['staff.ai_enabled', 'staff.ai_qa_enabled'],
-  ],
-  [
-    'staff.weekly-digest',
-    (s) => new StaffWeeklyDigestJob(s),
-    ['staff.weekly_digest_enabled'],
   ],
 ];
 

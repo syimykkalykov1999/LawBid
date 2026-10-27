@@ -188,6 +188,10 @@ export function routeArea(path: string): RouteArea | null {
   // Owner 2026-10-16: the provider budget caps sit under /admin/config but
   // have their own switch.
   if (/\/admin\/config\/budgets(?:[/?#]|$)/.test(path)) return 'budget_limits';
+  // Staff package T10: «my own rating» (`admin/staff/me/*`) is the worker's
+  // personal page, like `admin/workspace/*`; the rest of `admin/staff` stays
+  // closed by default (area `unknown`).
+  if (/\/admin\/staff\/me(?:[/?#]|$)/.test(path)) return 'workspace';
   return SEGMENT_AREA[m[1]] ?? 'unknown';
 }
 

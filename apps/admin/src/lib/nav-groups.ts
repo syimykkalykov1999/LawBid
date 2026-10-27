@@ -25,7 +25,7 @@ export const NAV_GROUP_META: readonly { key: NavGroupKey; label: string; icon: s
 
 /** Page → group, in the order the pages appear inside the group. */
 export const NAV_GROUP_PAGES: Readonly<Record<NavGroupKey, readonly string[]>> = {
-  today: ['/', '/workspace', '/partner'],
+  today: ['/today', '/', '/workspace', '/partner'],
   queues: [
     '/verification',
     '/verification/trust',
@@ -73,7 +73,7 @@ export const NAV_GROUP_PAGES: Readonly<Record<NavGroupKey, readonly string[]>> =
     '/spend',
     '/analytics',
   ],
-  team: ['/admins', '/rewards', '/sessions', '/audit-log', '/moderation-journal'],
+  team: ['/staff', '/staff/appeals', '/staff/rates', '/desk', '/admins', '/rewards', '/sessions', '/audit-log', '/moderation-journal'],
   system: [
     '/system-health',
     '/scale',

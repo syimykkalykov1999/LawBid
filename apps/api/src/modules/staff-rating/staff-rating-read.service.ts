@@ -8,6 +8,7 @@ import type {
   StaffPeopleListDto,
   StaffPeopleQueryDto,
   StaffPersonDetailDto,
+  StaffMyProgressDto,
   StaffPersonDto,
   StaffShortlistDto,
   StaffSuggestionDto,
@@ -168,6 +169,53 @@ export class StaffRatingReadService {
         evidence: r.evidence as Record<string, unknown>,
         createdAt: r.created_at.toISOString(),
       })),
+    };
+  }
+
+  /**
+   * «Мой рейтинг» (the desk's own page): the caller's OWN row of the latest
+   * nightly snapshot and only the soft suggestions about them (reward,
+   * retrain, more review — never a warning or a removal). Worker-scoped by
+   * construction: the id comes from the session, never from the request.
+   * Off (`staff.rating_enabled` or `staff.worker_progress_enabled`) or no
+   * snapshot yet → «not found». Two small queries.
+   */
+  async mine(adminId: string): Promise<StaffMyProgressDto> {
+    if (
+      !(await this.settings.isOn('staff.rating_enabled')) ||
+      !(await this.settings.isOn('staff.worker_progress_enabled'))
+    ) {
+      throw notFound();
+    }
+    const rows = await this.prisma.$queryRaw<SnapshotRow[]>`
+      SELECT ${SNAPSHOT_COLUMNS}
+      FROM staff_rating_snapshots s JOIN users u ON u.id = s.admin_id
+      WHERE ${LATEST} AND s.admin_id = ${adminId}::uuid`;
+    const r = rows[0];
+    if (!r) throw notFound();
+    const soft = await this.prisma.staffSuggestion.findMany({
+      where: {
+        admin_id: adminId,
+        status: 'open',
+        kind: { in: ['reward', 'retrain', 'more_review'] },
+      },
+      select: { kind: true },
+      distinct: ['kind'],
+    });
+    const trend = (r.evidence as { trend?: unknown }).trend;
+    return {
+      snapshotDate: day(r.snapshot_date),
+      rating: r.rating,
+      status: r.status,
+      decisions: r.n_decisions,
+      rankPct: r.rank_pct,
+      flags: r.flags,
+      accuracy: r.accuracy,
+      clean: r.clean,
+      usersVerdict: r.users_verdict,
+      speed: r.speed,
+      openSuggestions: soft.map((s) => ({ kind: s.kind })),
+      evidence: { trend: Array.isArray(trend) ? trend : [] },
     };
   }
 

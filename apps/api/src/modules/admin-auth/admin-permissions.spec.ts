@@ -23,6 +23,11 @@ describe('admin permissions', () => {
       'verification',
     );
     expect(routeArea('/api/v1/admin/contact-issues')).toBe('support');
+    // staff package T10: only «my own rating» is a personal page; the rest of
+    // admin/staff stays closed by default.
+    expect(routeArea('/api/v1/admin/staff/me/progress')).toBe('workspace');
+    expect(routeArea('/api/v1/admin/staff/people')).toBe('unknown');
+    expect(routeArea('/api/v1/admin/staff/menu/progress')).toBe('unknown');
     expect(routeArea('/api/v1/admin/users/abc/warn')).toBe('users');
     expect(routeArea('/api/v1/admin/billing/payments?x=1')).toBe('money');
     expect(routeArea('/api/v1/admin/integrations')).toBe('keys');

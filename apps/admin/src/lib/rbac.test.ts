@@ -152,9 +152,9 @@ describe('role x page visibility table', () => {
 
   it('owner-only pages are exactly the intended set', () => {
     expect(ownerOnly.sort()).toEqual([
-      '/admins', '/analytics', '/audit-log', '/case-payments', '/config', '/country-partners', '/economy', '/experiments',
+      '/admins', '/analytics', '/audit-log', '/case-payments', '/config', '/country-partners', '/desk', '/economy', '/experiments',
       '/flags', '/growth-plan', '/guides', '/integrations', '/launch', '/plans', '/prices', '/rewards', '/scale', '/sessions',
-      '/spend', '/stars', '/status-page', '/system-health',
+      '/spend', '/staff', '/staff/appeals', '/staff/rates', '/stars', '/status-page', '/system-health', '/today',
     ]);
   });
 
