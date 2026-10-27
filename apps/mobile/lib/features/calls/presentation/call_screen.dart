@@ -8,6 +8,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -851,7 +852,7 @@ class _RoundButton extends StatelessWidget {
             AppPressable(
               onTap: () {
                 if (onTap == null) return;
-                HapticFeedback.lightImpact();
+                AppHaptics.light();
                 onTap!();
               },
               child: AnimatedContainer(

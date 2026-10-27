@@ -2,7 +2,7 @@ import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 
 /// Owner 2026-10-19 (Instagram): pinch a photo or a video right in a list —
@@ -63,7 +63,7 @@ class _PinchToZoomState extends State<PinchToZoom>
     _scale.value = 1;
     _entry = OverlayEntry(builder: _buildOverlay);
     Overlay.of(context, rootOverlay: true).insert(_entry!);
-    HapticFeedback.selectionClick();
+    AppHaptics.selection();
     setState(() {});
   }
 
