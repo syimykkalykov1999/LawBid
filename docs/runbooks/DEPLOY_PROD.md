@@ -254,7 +254,7 @@ Multi-AZ ≈ ×2 цены базы, копии ≈ $3–6, VPC endpoints ≈ $29
 
 1. `aws secretsmanager create-secret --name lawbid-prod/CONTACTS_PEPPER --secret-string "$(openssl rand -hex 32)"` (secret должен существовать со значением ДО того, как попадёт в tfvars — иначе ECS не запустит задачи).
 2. В `terraform.tfvars` добавить `"CONTACTS_PEPPER"` в `extra_secrets`, `terraform apply`.
-3. После выкладки старые строки перехэшируются сами (задача `contacts.pepper-backfill`, по 2000 строк каждые 5 минут); менять секрет потом нельзя — старые строки станут бесполезны.
+3. После выкладки старые строки перехэшируются сами (задача `contacts.pepper-backfill`, по 2000 строк каждые 5 минут); менять секрет потом нельзя — старые строки станут бесполезны. Когда строк без перца не осталось, задача сама пишет отметку «готово» (таблица `search_index_state`, ключ `ops:contacts-pepper-backfill`) и дальше ничего не делает. Если потом загрузить старую базу, разбудить её: убрать эту строку отметки из таблицы `search_index_state`.
 
 **Вручную в консоли AWS (не Terraform):** на root-аккаунте — MFA
 (passkey или аппаратный ключ) и ни одного access key; для людей — IAM

@@ -128,16 +128,6 @@ export class EntryIdParamDto {
   entryId!: string;
 }
 
-export class InvoiceIdParamDto {
-  @ApiProperty({ format: 'uuid' })
-  @IsUUID('all')
-  id!: string;
-
-  @ApiProperty({ format: 'uuid' })
-  @IsUUID('all')
-  invoiceId!: string;
-}
-
 export class TimeEntryDto {
   @ApiProperty() id!: string;
   @ApiProperty({ format: 'date' }) workedOn!: string;

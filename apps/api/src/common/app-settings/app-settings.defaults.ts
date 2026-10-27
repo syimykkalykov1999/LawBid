@@ -1124,11 +1124,15 @@ export const OWNER_CASE_FANOUT_SETTINGS = {
  *   new video uploads pause (Bunny) / group calls fall back to
  *   device-to-device (Cloudflare) once the monthly traffic reaches the
  *   urgent threshold (usage.*_crit_gb); on = stopped now; off = never.
+ * - `ops.outbox_sweep.mode` (audit X-22, 2026-10-26): the every-minute relay
+ *   of the cross-family outbox (idle while there is one database). auto =
+ *   sweep only when an event waits; on = every tick; off = never.
  */
 export const OWNER_COST_REGISTRY_SETTINGS = {
   'scale.capacity_ceiling.mode': 'auto',
   'scale.bunny_hardstop.mode': 'auto',
   'scale.cloudflare_hardstop.mode': 'auto',
+  'ops.outbox_sweep.mode': 'auto',
 };
 
 export const APP_SETTINGS = {

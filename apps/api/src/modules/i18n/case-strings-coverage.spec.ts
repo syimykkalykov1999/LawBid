@@ -2,8 +2,7 @@ import { join } from 'node:path';
 import ExcelJS from 'exceljs';
 
 // Owner 2026-10-13: the strings of the case screens live in the seed file
-// (en + ru) and in tmp-import/cases-*.xlsx (all languages); a fresh seed
-// plus those imports must give every language every key.
+// (all languages); a fresh seed must give every language every key.
 async function read(file: string): Promise<Map<string, Map<string, string>>> {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(file);

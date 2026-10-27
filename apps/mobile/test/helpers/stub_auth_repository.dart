@@ -5,7 +5,7 @@ import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
 import 'package:lawbid/features/auth/domain/password_auth_result.dart';
 import 'package:lawbid/features/auth/domain/reauth_result.dart';
 
-/// Local-only stub kept for widget/golden tests (docs/CHANGELOG.md) — no
+/// Local-only stub for widget/golden tests (moved out of lib/, audit X-12) — no
 /// longer `authRepositoryProvider`'s default as of the real-backend wiring
 /// pass (see [AuthRepository]'s doc comment); override the provider
 /// explicitly wherever this is still needed. Simulates network latency,
