@@ -186,6 +186,12 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   // is every staff member's own page like `workspace`; the right to each
   // queue is checked per kind in work-lease (canWorkQueue).
   desk: 'workspace',
+  // Staff package T4: `admin/staff/*` (own progress, the head's people and
+  // suggestions, the owner's settings) is reached through the workspace
+  // area so that heads and workers get past the area gate; WHO may use each
+  // route is the controller's own @AdminEndpoint roles (the owner-only
+  // ones list `super_admin` alone) plus the head / own-team checks inside.
+  staff: 'workspace',
 };
 
 /** `/api/v1/admin/users/123?x=1` → `users`; null when not an admin route. */

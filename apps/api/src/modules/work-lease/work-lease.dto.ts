@@ -43,6 +43,18 @@ export class SkipLeaseDto {
   reason!: string;
 }
 
+export class DoneLeaseDto {
+  @ApiPropertyOptional({
+    description:
+      'What the person decided (approve · reject · resolve · …), when the page sends it. Used to check a known-answer task; ignored otherwise.',
+    maxLength: 24,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(24)
+  outcome?: string;
+}
+
 export class SetDeskStatusDto {
   @ApiProperty({ description: 'true = «отошёл» by hand, false = back on.' })
   @IsBoolean()
@@ -69,6 +81,13 @@ export class LeaseDto {
     description: 'How many times this item was taken (1 = first time).',
   })
   attempt!: number;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'For a report: the kind of the reported object (post · comment · message · …), so the desk can open its card.',
+  })
+  targetType?: string | null;
 }
 
 export class NextLeaseResultDto {

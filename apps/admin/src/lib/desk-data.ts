@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import createClient from 'openapi-fetch';
 import { ApiError, toProxy } from '@/lib/api/client';
+import { livePoll } from '@/lib/live';
 import type { Me } from '@/lib/hooks';
 
 /**
@@ -71,6 +72,7 @@ const DEFAULT_NUMBERS: Record<string, number> = {
   'staff.lease.ttl_ticket_min': 30,
   'staff.lease.ttl_finance_min': 10,
   'staff.lease.warn_before_sec': 30,
+  'staff.presence.heartbeat_sec': 15,
   'staff.lease.capacity': 1,
   'staff.lease.chat_capacity': 3,
   'staff.lease.skips_per_hour': 3,
@@ -114,6 +116,8 @@ export interface LeaseView {
   takenAt: string;
   leasedUntil: string;
   attempt: number;
+  /** For a report: the kind of the reported object. */
+  targetType?: string | null;
 }
 
 export interface MyLeases {
@@ -137,6 +141,9 @@ export function useMyLeases(enabled: boolean) {
     queryKey: MY_LEASES_KEY,
     enabled,
     staleTime: 15_000,
+    // A lease can be lost behind the screen (timer, sweep, a head's hand):
+    // look again once a minute while the tab is open (the panel's polling rule).
+    refetchInterval: livePoll(),
     queryFn: () => deskGet<MyLeases>('/admin/desk/lease/me'),
   });
 }

@@ -30,6 +30,8 @@ import { CaseJournalService } from '../../journal/case-journal.service';
 import type { AdminActor } from '../../admin-auth/admin-auth.decorators';
 import { RateLimitService } from '../../auth/services/rate-limit.service';
 import { FilesService } from '../../files/files.service';
+import { LEASE_PORT, type LeasePort } from '../../staff-core/lease.port';
+import { closeStaffDecision } from '../../staff-core/staff-decision';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { notFound } from '../../profiles/services/profile-access';
 import {
@@ -119,7 +121,16 @@ export class VerificationAdminService {
     @Optional()
     @Inject(STAFF_RECORDER)
     private readonly staffRecorder?: StaffRecorder,
+    // Staff package T4: a decision ends the verifier's work lease.
+    @Optional() @Inject(LEASE_PORT) private readonly lease?: LeasePort,
   ) {}
+
+  private endLease(admin: AdminActor, requestId: string, outcome: string) {
+    return closeStaffDecision(
+      { lease: this.lease },
+      { adminId: admin.id, kind: 'verification', itemId: requestId, outcome },
+    );
+  }
 
   /** Grace period and reminder window for the renewal state of a license. */
   private async renewalOpts(now = new Date()): Promise<RenewalOpts> {
@@ -550,6 +561,7 @@ export class VerificationAdminService {
       itemId: requestId,
       outcome: 'approve',
     });
+    await this.endLease(admin, requestId, 'approve');
     return this.card(requestId);
   }
 
@@ -589,6 +601,7 @@ export class VerificationAdminService {
         message,
       });
     });
+    await this.endLease(admin, requestId, 'request_info');
     return this.card(requestId);
   }
 
@@ -676,6 +689,7 @@ export class VerificationAdminService {
       itemId: requestId,
       outcome: 'reject',
     });
+    await this.endLease(admin, requestId, 'reject');
     return this.card(requestId);
   }
 
