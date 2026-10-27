@@ -12,6 +12,7 @@ import '../models/data_package_envelope.dart';
 import '../models/data_request_card_envelope.dart';
 import '../models/data_request_envelope.dart';
 import '../models/data_request_list_envelope.dart';
+import '../models/erasure_record_envelope.dart';
 import '../models/legal_account_card_envelope.dart';
 import '../models/legal_download_envelope.dart';
 import '../models/legal_export_envelope.dart';
@@ -88,6 +89,16 @@ abstract class AdminDataRequestsClient {
   /// [xJustification] - Why the data is being viewed (10–500 characters).
   @GET('/admin/data-requests/legal/users/{userId}')
   Future<LegalAccountCardEnvelope> account({
+    @Path('userId') required String userId,
+    @Header('X-Justification') required String xJustification,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Account erasure record and certificate (per-store results).
+  ///
+  /// [xJustification] - Why the data is being viewed (10–500 characters).
+  @GET('/admin/data-requests/legal/erasure/{userId}')
+  Future<ErasureRecordEnvelope> erasureRecord({
     @Path('userId') required String userId,
     @Header('X-Justification') required String xJustification,
     @Extras() Map<String, dynamic>? extras,

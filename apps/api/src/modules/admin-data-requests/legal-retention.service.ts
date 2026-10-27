@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+// The one hold check shared by every purge job (privacy round 13, S13-6).
+import { heldSql as held } from '../../common/privacy/legal-hold';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const DAY_MS = 24 * 3600 * 1000;
@@ -20,12 +22,6 @@ export interface LegalRetentionResult {
   questions: number;
   answers: number;
 }
-
-/** True while a hold on `type`/`id` is in force (not released, not expired). */
-const held = (type: string, id: Prisma.Sql) => Prisma.sql`EXISTS (
-  SELECT 1 FROM legal_holds h
-  WHERE h.target_type = ${type} AND h.target_id = ${id}
-    AND h.released_at IS NULL AND (h.expires_at IS NULL OR h.expires_at > now()))`;
 
 /**
  * Owner 2026-10-20: what a person deleted stays in the database for
@@ -62,6 +58,8 @@ export class LegalRetentionService {
             WHERE (m.deleted_at < ${cut} OR m.revoked_at < ${cut})
               AND (m.body_original <> '' OR m.body_display <> '')
               AND NOT ${held('conversation', Prisma.sql`m.conversation_id`)}
+              AND (c.case_id IS NULL OR NOT ${held('case', Prisma.sql`c.case_id`)})
+              AND (m.file_id IS NULL OR NOT ${held('file', Prisma.sql`m.file_id`)})
               AND NOT ${held('user', Prisma.sql`c.client_id`)}
               AND NOT ${held('user', Prisma.sql`c.attorney_id`)}
               AND (m.sender_id IS NULL OR NOT ${held('user', Prisma.sql`m.sender_id`)})
@@ -81,6 +79,7 @@ export class LegalRetentionService {
             JOIN conversations c ON c.id = m.conversation_id
             WHERE (m.deleted_at < ${cut} OR m.revoked_at < ${cut})
               AND e.body_original <> ''
+              AND (c.case_id IS NULL OR NOT ${held('case', Prisma.sql`c.case_id`)})
               AND NOT ${held('conversation', Prisma.sql`m.conversation_id`)}
               AND NOT ${held('user', Prisma.sql`c.client_id`)}
               AND NOT ${held('user', Prisma.sql`c.attorney_id`)}

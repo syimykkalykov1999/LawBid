@@ -756,6 +756,19 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Ссылка на скачивание отправлена на вашу почту и действует 24 часа.',
     },
   },
+  // Owner 2026-10-25 (S13-14): day 0 and day 13 of the deletion grace period
+  // (the e-mail with the cancel link goes out separately).
+  account_deletion_scheduled: {
+    group: 'system',
+    en: {
+      title: 'Your account is scheduled for deletion',
+      body: 'It will be deleted in a few days. Check your email for the link to cancel.',
+    },
+    ru: {
+      title: 'Аккаунт будет удалён',
+      body: 'Удаление через несколько дней. Ссылка для отмены — в письме на вашей почте.',
+    },
+  },
   case_history_export_ready: {
     group: 'system',
     en: {

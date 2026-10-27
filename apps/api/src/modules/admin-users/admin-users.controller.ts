@@ -35,6 +35,8 @@ import {
   SuspendUserDto,
   WarnUserDto,
   ChangeUserPhoneDto,
+  ConfirmMinorDto,
+  MinorConfirmedDto,
   PhoneChangedDto,
   type AdminUsersPage,
 } from './admin-users.dto';
@@ -207,6 +209,27 @@ export class AdminUsersController {
     // System audit #2, item 2: the phone signs in — step-up.
     await this.auth.assertStepUp(admin.sessionId);
     return this.users.changePhone(admin, params.id, dto.phone, dto.reason);
+  }
+
+  @Post(':id/minor-confirmed')
+  @HttpCode(HttpStatus.OK)
+  // Irreversible erasure: super admins only, fresh 2FA step-up, no second
+  // admin (owner works alone).
+  @Roles('super_admin')
+  @SkipAutoAudit()
+  @ApiOperation({
+    summary:
+      'Privacy round 13: the person is a minor — erase the account now (no 14-day grace) and keep the fraud hashes blocking',
+  })
+  @ApiEnvelopeResponse(MinorConfirmedDto)
+  @ApiErrors(STEP_UP_TARGET_ERRORS)
+  async confirmMinor(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() params: AdminUserIdParamDto,
+    @Body() dto: ConfirmMinorDto,
+  ): Promise<MinorConfirmedDto> {
+    await this.auth.assertStepUp(admin.sessionId);
+    return this.users.confirmMinor(admin, params.id, dto.reason);
   }
 
   @Post(':id/warn')

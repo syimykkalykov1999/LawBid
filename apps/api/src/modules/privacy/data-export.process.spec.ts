@@ -33,12 +33,8 @@ function setup(claimCount: number) {
   };
   const storage = {
     bucket: jest.fn(() => 'docs'),
-    // WP-G: the archive is streamed; the mock drains it like S3 would.
-    putStream: jest.fn(
-      async (_b: string, _k: string, body: AsyncIterable<unknown>) => {
-        for await (const chunk of body) void chunk;
-      },
-    ),
+    // Privacy round 13 (S13-8): the archive is streamed to storage.
+    putStream: jest.fn(() => Promise.resolve({ bytes: 3, sha256: 'abc' })),
     signedGetUrl: jest.fn(() => Promise.resolve('https://x')),
   };
   const service = new DataExportService(
@@ -51,12 +47,9 @@ function setup(claimCount: number) {
     {} as EmailProvider,
     { setContext: jest.fn(), warn: jest.fn() } as unknown as PinoLogger,
   );
-  const svc = service as unknown as {
-    small: () => Promise<Record<string, unknown>>;
-    big: () => Record<string, unknown>;
-  };
-  jest.spyOn(svc, 'small').mockResolvedValue({ 'profile.json': {} });
-  jest.spyOn(svc, 'big').mockReturnValue({});
+  jest
+    .spyOn(service, 'archive')
+    .mockReturnValue({} as ReturnType<DataExportService['archive']>);
   return { service, prisma, storage };
 }
 

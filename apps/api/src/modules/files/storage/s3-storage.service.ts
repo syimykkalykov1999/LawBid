@@ -9,6 +9,7 @@ import type Redis from 'ioredis';
 import { ConfigService } from '@nestjs/config';
 import { SecretsService } from '../../../common/secrets/secrets.service';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import { createHash } from 'node:crypto';
 import {
   CreateBucketCommand,
   DeleteObjectsCommand,
@@ -23,12 +24,15 @@ import { Upload } from '@aws-sdk/lib-storage';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getSignedUrl as cloudFrontSignedUrl } from '@aws-sdk/cloudfront-signer';
-import type { Readable } from 'node:stream';
+import { Readable } from 'node:stream';
 import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { BucketKind } from '../files.policy';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { CdnInvalidationQueue, type CdnTarget } from './cdn-invalidation';
+
+/** S3 multipart parts are 5 MiB at least (except the last). */
+const MULTIPART_PART_BYTES = 8 * 1024 * 1024;
 
 /**
  * Owner 2026-10-22 (client economy plan, package I): every object key is
@@ -497,31 +501,45 @@ export class S3StorageService implements OnModuleDestroy {
   }
 
   /**
-   * Streams [body] to S3 as a multipart upload (WP-G 2026-10-25): memory is
-   * [queueSize] x [partSizeBytes], never the whole object. A failed or
-   * cancelled stream aborts the upload (no orphan parts are billed);
-   * the bucket lifecycle also aborts uploads left open for 7 days. Ready
-   * piece: @aws-sdk/lib-storage `Upload` (AWS's own multipart helper).
+   * Streams [body] to S3 as a multipart upload (WP-G 2026-10-25, #366):
+   * memory is [queueSize] x [partSizeBytes], never the whole object (a body
+   * under one part is a single put). A failed or cancelled stream aborts the
+   * upload (no orphan parts are billed); the bucket lifecycle also aborts
+   * uploads left open for 7 days. Ready piece: @aws-sdk/lib-storage `Upload`.
+   * Privacy round 13 (S13-8, #360): returns the byte count and SHA-256 of
+   * what was stored.
    */
   async putStream(
     bucket: string,
     key: string,
-    body: Readable,
+    body: Readable | AsyncIterable<Buffer | Uint8Array | string>,
     contentType: string,
     opts: { partSizeBytes?: number; queueSize?: number } = {},
-  ): Promise<void> {
+  ): Promise<{ bytes: number; sha256: string }> {
     await this.refresh();
     const client = this.clientFor(bucket);
+    const hash = createHash('sha256');
+    let bytes = 0;
+    async function* counted(): AsyncGenerator<Buffer> {
+      for await (const c of body as AsyncIterable<
+        Buffer | Uint8Array | string
+      >) {
+        const b = typeof c === 'string' ? Buffer.from(c) : Buffer.from(c);
+        hash.update(b);
+        bytes += b.length;
+        yield b;
+      }
+    }
     const upload = new Upload({
       client,
       params: {
         Bucket: bucket,
         Key: key,
-        Body: body,
+        Body: Readable.from(counted(), { objectMode: false }),
         ContentType: contentType,
         CacheControl: IMMUTABLE_CACHE_CONTROL,
       },
-      partSize: opts.partSizeBytes ?? 8 * 1024 * 1024,
+      partSize: opts.partSizeBytes ?? MULTIPART_PART_BYTES,
       queueSize: opts.queueSize ?? 2,
       leavePartsOnError: false,
     });
@@ -531,6 +549,34 @@ export class S3StorageService implements OnModuleDestroy {
       await upload.abort().catch(() => undefined);
       throw e;
     }
+    return { bytes, sha256: hash.digest('hex') };
+  }
+
+  /** Object keys under [prefix] (up to [maxKeys]); for small, known
+   * prefixes such as the erasure ledger. */
+  async listKeys(
+    bucket: string,
+    prefix: string,
+    maxKeys = 100_000,
+  ): Promise<string[]> {
+    await this.refresh();
+    const client = this.clientFor(bucket);
+    const keys: string[] = [];
+    let token: string | undefined;
+    while (keys.length < maxKeys) {
+      const res = await client.send(
+        new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: prefix,
+          ContinuationToken: token,
+          MaxKeys: 1000,
+        }),
+      );
+      for (const o of res.Contents ?? []) if (o.Key) keys.push(o.Key);
+      if (!res.IsTruncated || !res.NextContinuationToken) break;
+      token = res.NextContinuationToken;
+    }
+    return keys;
   }
 
   /**

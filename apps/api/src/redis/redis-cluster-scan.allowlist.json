@@ -133,5 +133,10 @@
     "file": "common/heavy-hitters/heavy-hitters.service.ts",
     "kind": "eval-spread-keys",
     "reason": "the tmp and bucket keys all carry the {hh} hash tag: one slot in cluster mode."
+  },
+  {
+    "file": "modules/privacy/personal-data-erasure.service.ts",
+    "kind": "scan",
+    "reason": "Cluster mode scans every master node (nodes('master')); standalone scans the one node. Matched keys are deleted with delSafe (one DEL per key in cluster mode)."
   }
 ]

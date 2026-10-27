@@ -302,6 +302,9 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   legal_exports: 'evidence archives of law-enforcement requests (test)',
   legal_holds: 'legal holds of law-enforcement requests (test)',
   data_access_log: 'their access log',
+  // Privacy round 13: opaque ids and per-step proof of test-period erasures.
+  erasure_ledger: 'erasure ledger of test-period deletions',
+  deletion_steps: 'per-step proof of test-period deletions',
   data_export_jobs: '"download my data" jobs',
   audit_log:
     'admin actions of the test period (mostly on tester accounts); the trail starts clean at launch',

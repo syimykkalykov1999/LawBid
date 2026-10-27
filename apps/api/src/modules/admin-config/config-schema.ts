@@ -625,6 +625,19 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     max: 1_000_000,
   };
   // Owner 2026-10-05: zero-maintenance operations (Система → Здоровье системы).
+  out['privacy.retention_batch'] = {
+    ...out['privacy.retention_batch'],
+    description: 'Privacy retention: rows per statement (short transactions).',
+    min: 100,
+    max: 50000,
+  };
+  out['privacy.retention_max_rows'] = {
+    ...out['privacy.retention_max_rows'],
+    description:
+      'Privacy retention: rows per table per night; the next night continues.',
+    min: 1000,
+    max: 100000000,
+  };
   out['ops.db_slow_ms'] = {
     ...out['ops.db_slow_ms'],
     description:

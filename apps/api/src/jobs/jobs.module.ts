@@ -53,6 +53,7 @@ import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { CdnInvalidateJob } from './handlers/cdn-invalidate.job';
+import { PrivacyReconcileJob } from './handlers/privacy-reconcile.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
 import { DbHealthJob } from './handlers/db-health.job';
 import { LedgerModule } from '../modules/ledger/ledger.public';
@@ -185,6 +186,8 @@ export class JobsModule {
         // Owner 2026-10-25: `cdn.invalidate` (queued CloudFront paths).
         CdnInvalidateJob,
         LedgerReconcileJob,
+        // Privacy round 13: `privacy.reconcile`.
+        PrivacyReconcileJob,
         // DB-ops hardening: `db.health` (daily).
         DbHealthJob,
         SearchIndexerService,

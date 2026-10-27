@@ -79,6 +79,9 @@ import { JournalIntegrityService } from '../modules/privacy/journal-integrity.se
 import { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
 import { ClientFraudService } from '../modules/client-fraud/client-fraud.service';
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
+import { DeletionNoticesService } from '../modules/privacy/deletion-notices.service';
+import { PrivacyRetentionService } from '../modules/privacy/privacy-retention.service';
+import { PrivacyReconcileJob } from './handlers/privacy-reconcile.job';
 import { CostAutoscaleService } from '../common/cost-guard/cost-autoscale.service';
 import { OutreachRetentionService } from '../modules/outreach/outreach-retention.service';
 import { DemoService } from '../modules/demo/demo.service';
@@ -182,6 +185,11 @@ export class CronProcessor {
     @Optional() private readonly ledgerReconcile?: LedgerReconcileJob,
     // Audit X-22: `ops.outbox_sweep.mode` (off / on / auto).
     @Optional() private readonly appSettings?: AppSettingsService,
+    // Privacy round 13: `privacy.retention`, `privacy.reconcile`,
+    // `privacy.deletion-notices`.
+    @Optional() private readonly privacyRetention?: PrivacyRetentionService,
+    @Optional() private readonly privacyReconcile?: PrivacyReconcileJob,
+    @Optional() private readonly deletionNotices?: DeletionNoticesService,
     // DB-ops hardening: `db.health`.
     @Optional() private readonly dbHealth?: DbHealthJob,
     // S10-13: one lock per job name for every schedule.
@@ -292,6 +300,12 @@ export class CronProcessor {
         return this.experimentsNightly?.run() ?? null;
       case CRON_JOBS.ledgerReconcile:
         return this.ledgerReconcile?.run() ?? null;
+      case CRON_JOBS.privacyRetention:
+        return this.privacyRetention?.run() ?? null;
+      case CRON_JOBS.privacyReconcile:
+        return this.privacyReconcile?.run() ?? null;
+      case CRON_JOBS.privacyDeletionNotices:
+        return this.deletionNotices?.sendDay13Due() ?? null;
       case CRON_JOBS.dbHealth:
         return this.dbHealth?.run() ?? null;
       case CRON_JOBS.adminSummaries:

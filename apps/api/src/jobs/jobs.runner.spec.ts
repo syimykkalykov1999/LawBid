@@ -270,6 +270,8 @@ describe('JobsRunner', () => {
     // Owner 2026-10-25: + cdn.invalidate (every other minute).
     // Owner 2026-10-27: + moderation.appeal-sla (hourly).
     // Day-one foundations: + ledger.reconcile (nightly).
+    // Privacy round 13: + privacy.retention, privacy.reconcile and
+    // privacy.deletion-notices (daily).
     // DB-ops hardening: + db.health (daily).
     // S1-3: + chat.redeliver (every minute).
     // BUG-1 (package N-12b): + chat.search-backfill (every 5 minutes).

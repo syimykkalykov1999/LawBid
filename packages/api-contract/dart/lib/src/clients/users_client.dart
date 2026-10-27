@@ -12,6 +12,7 @@ import '../models/contact_request_dto.dart';
 import '../models/contact_verified_envelope.dart';
 import '../models/contact_verify_dto.dart';
 import '../models/data_export_job_envelope.dart';
+import '../models/deletion_cancelled_envelope.dart';
 import '../models/deletion_pending_envelope.dart';
 import '../models/identifier_list_envelope.dart';
 import '../models/me_envelope.dart';
@@ -91,6 +92,12 @@ abstract class UsersClient {
   @POST('/users/me/consents')
   Future<ConsentsSavedEnvelope> saveConsents({
     @Body() required SaveConsentsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Cancel a pending account deletion (privacy round 13): a sign-in does not do it by itself any more
+  @POST('/users/me/deletion/cancel')
+  Future<DeletionCancelledEnvelope> cancelDeletion({
     @Extras() Map<String, dynamic>? extras,
   });
 
