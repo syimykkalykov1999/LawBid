@@ -12,6 +12,8 @@ export const esc = (s) =>
 
 /** Which per-type sitemap a page path belongs to. */
 export function sitemapType(path) {
+  if (/^\/attorneys\/[^/]+\/posts\//.test(path)) return 'posts';
+  if (path.startsWith('/legal-questions')) return 'legal-questions';
   if (path.startsWith('/attorneys/')) return 'attorneys';
   if (path.startsWith('/practice-areas/')) return 'practice-areas';
   if (path.startsWith('/lawyers')) return 'lawyers';
@@ -36,16 +38,18 @@ const maxDate = (entries) => entries.reduce((m, e) => (e.lastmod && e.lastmod > 
 
 /**
  * Sitemap index + per-type files, at most `max` (<= 50 000) URLs per file.
- * entries: [{ path, lastmod, priority? }], indexable pages only.
+ * entries: [{ path, lastmod, priority?, type? }], indexable pages only. `type`
+ * overrides the type derived from the path (city hubs live under /lawyers/ but
+ * get their own `cities-<n>.xml`).
  * Returns { index: xml, files: Map<'sitemaps/<type>-<n>.xml', xml> }.
  */
 export function sitemapIndex({ site, entries, max = SITEMAP_DEFAULT_MAX }) {
   const limit = clampMax(max);
   const byType = new Map();
   for (const e of [...entries].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))) {
-    const t = sitemapType(e.path);
+    const t = e.type ?? sitemapType(e.path);
     if (!byType.has(t)) byType.set(t, []);
-    byType.get(t).push({ ...e, priority: undefined });
+    byType.get(t).push({ path: e.path, lastmod: e.lastmod, priority: undefined });
   }
   const files = new Map();
   const refs = [];
@@ -116,9 +120,11 @@ const LLMS_DISCLAIMER =
 /**
  * /llms.txt: short, factual index of the public hubs. No attorney names or
  * any other personal data; only counts. practices/states: [{ slug, name }]
- * that are indexable in this snapshot.
+ * that are indexable in this snapshot. cities: [{ name, path }] (indexable city
+ * pages); questionCount: indexable /legal-questions/ pages. Both sections are
+ * left out when empty, so the file is unchanged while those page types are off.
  */
-export function llmsTxt({ site, practices, states, attorneyCount }) {
+export function llmsTxt({ site, practices, states, attorneyCount, cities = [], questionCount = 0 }) {
   const lines = [
     '# LawBid',
     '',
@@ -135,6 +141,10 @@ export function llmsTxt({ site, practices, states, attorneyCount }) {
     '## States',
     ...states.map((s) => `- [Lawyers in ${oneLine(s.name)}](${site}/lawyers/${s.slug}/)`),
     '',
+    ...(cities.length ? ['## Cities', ...cities.map((c) => `- [Lawyers in ${oneLine(c.name)}](${site}${c.path})`), ''] : []),
+    ...(questionCount > 0
+      ? ['## Legal questions', `- [Legal questions answered by verified attorneys](${site}/legal-questions/): ${questionCount} question${questionCount === 1 ? '' : 's'}; general information, not legal advice`, '']
+      : []),
     '## Optional',
     `- [Full text of the practice-area guides](${site}/llms-full.txt)`,
     '',
