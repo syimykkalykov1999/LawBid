@@ -23,7 +23,7 @@ import type { MoveOps } from './shard-move.runner';
 import type { PreflightResult, TableCount, VerifyResult } from './move-types';
 
 /** Models routed by their OWN id (route params / sockets); see preflight. */
-const ID_ROUTED = [
+export const ID_ROUTED = [
   'Case',
   'Bid',
   'Conversation',
