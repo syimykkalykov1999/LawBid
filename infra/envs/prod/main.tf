@@ -201,6 +201,7 @@ module "stack" {
   break_glass_principal_arns         = var.break_glass_principal_arns
   cloudtrail_athena_enabled          = var.cloudtrail_athena_enabled
   anomaly_to_alerts_topic            = var.anomaly_to_alerts_topic
+  admin_audit_export_enabled         = var.admin_audit_export_enabled
   vpc_flow_logs_traffic              = var.vpc_flow_logs_traffic
   macie_enabled                      = var.macie_enabled
   macie_sampling_percentage          = var.macie_sampling_percentage

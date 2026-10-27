@@ -241,6 +241,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/content', label: 'Посты и отзывы', icon: 'article', area: 'content', hint: 'посты, комментарии, отзывы' },
       { href: '/media', label: 'Рилсы и стикеры', icon: 'film-strip', area: 'media', hint: 'видео, наборы стикеров' },
       { href: '/legal-qa', label: 'Вопросы юристу', icon: 'article', area: 'moderation', hint: 'публичные вопросы и ответы адвокатов' },
+      { href: '/private-content', label: 'Приватные чаты и файлы', icon: 'lock', area: 'moderation', hint: 'чтение только с кодом причины, текстом и кодом 2FA; всё пишется в журнал' },
       { href: '/group-chats', label: 'Группы', icon: 'users-three', area: 'moderation', hint: 'групповые чаты, участники' },
       { href: '/practice-areas', label: 'Квалификации', icon: 'books', area: 'content' },
       { href: '/document-templates', label: 'Шаблоны документов', icon: 'file-text', area: 'content', hint: 'PDF и Word для приложения' },

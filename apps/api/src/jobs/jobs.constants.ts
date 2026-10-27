@@ -76,6 +76,10 @@ export const CRON_JOBS = {
   searchIndex: 'search.index',
   /** Owner 2026-10-27: appeals of automatic moderation past the SLA. */
   moderationAppealSla: 'moderation.appeal-sla',
+  /** Owner 2026-10-28: daily copy of the admin audit log to the locked S3 bucket. */
+  adminAuditExport: 'admin.audit-export',
+  /** Owner 2026-10-28: monthly e-mail of admin access to private content. */
+  adminAccessReport: 'admin.access-report',
   /** Owner 2026-10-25: experiment reports, guardrails, ranking_events partitions. */
   experimentsMetrics: 'experiments.metrics',
   /** Day-one foundations: nightly money-ledger checks + Stripe comparison. */
@@ -256,6 +260,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.searchTagTopics, pattern: '3-58/5 * * * *' },
   { name: CRON_JOBS.searchIndex, pattern: '* * * * *' },
   { name: CRON_JOBS.moderationAppealSla, pattern: '25 * * * *' },
+  { name: CRON_JOBS.adminAuditExport, pattern: '30 1 * * *' },
+  { name: CRON_JOBS.adminAccessReport, pattern: '15 7 1 * *' },
   // 02:20 UTC: after a full UTC day of events, before the US morning.
   { name: CRON_JOBS.experimentsMetrics, pattern: '20 2 * * *' },
   { name: CRON_JOBS.crashesPurge, pattern: '40 3 * * *' },

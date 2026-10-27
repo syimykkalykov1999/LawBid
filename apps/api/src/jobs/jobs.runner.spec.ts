@@ -275,6 +275,7 @@ describe('JobsRunner', () => {
     // Privacy round 13: + privacy.retention, privacy.reconcile and
     // privacy.deletion-notices (daily).
     // DB-ops hardening: + db.health (daily).
+    // Day-one foundations: + ledger.reconcile (nightly); admin hardening: + admin.audit-export, admin.access-report.
     // S1-3: + chat.redeliver (every minute).
     // BUG-1 (package N-12b): + chat.search-backfill (every 5 minutes).
     // N-2: + events.maintain (every 5 minutes).

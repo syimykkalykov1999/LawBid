@@ -10,6 +10,7 @@ import { deadlineText, URGENCY_LEVEL } from '@/components/cases/urgency';
 import { fadeUp } from '@/components/billing/shared';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
+import { useViewReason } from '@/components/use-view-reason';
 import { Button } from '@/components/ui/button';
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
@@ -67,9 +68,12 @@ export default function CaseDetailPage() {
   const canWrite = can(me, 'cases', 'manage');
   const canOpenUsers = can(me, 'users');
 
+  const view = useViewReason('Причина просмотра кейса');
   const q = useQuery({
     queryKey: ['admin-case', id],
-    queryFn: async () => (await api.GET('/admin/cases/{id}', { params: { path: { id } } })).data!.data,
+    enabled: view.ready,
+    queryFn: async () =>
+      (await api.GET('/admin/cases/{id}', { params: { path: { id }, header: { 'X-Justification': view.header } } })).data!.data,
   });
   const c = q.data;
 
@@ -134,6 +138,7 @@ export default function CaseDetailPage() {
   return (
     <>
       {dialog}
+      {view.dialog}
       {back}
       <PageHeader
         eyebrow="Кейсы · Карточка"

@@ -410,6 +410,12 @@ export enum ErrorCode {
   INTEGRATION_CONFLICT = 'INTEGRATION_CONFLICT',
   // 403: a sensitive admin action needs a fresh 2FA code (owner 2026-10-01).
   ADMIN_STEP_UP_REQUIRED = 'ADMIN_STEP_UP_REQUIRED',
+  // 403: the admin IP allowlist is on and this address is not on it (2026-10-28).
+  ADMIN_IP_NOT_ALLOWED = 'ADMIN_IP_NOT_ALLOWED',
+  // 400: reading private content needs a reason code (X-Reason-Code) (2026-10-28).
+  REASON_CODE_REQUIRED = 'REASON_CODE_REQUIRED',
+  // 503: a sensitive admin action was refused because its audit row could not be written.
+  AUDIT_UNAVAILABLE = 'AUDIT_UNAVAILABLE',
   // 403 / 409: video posts are off, not configured or over a limit.
   VIDEO_UNAVAILABLE = 'VIDEO_UNAVAILABLE',
   VIDEO_TOO_LONG = 'VIDEO_TOO_LONG',

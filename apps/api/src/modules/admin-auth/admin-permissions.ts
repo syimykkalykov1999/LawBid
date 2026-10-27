@@ -107,6 +107,9 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   // Owner 2026-10-05: repeat accounts of blocked fraudsters (clients).
   fraud: 'verification',
   moderation: 'moderation',
+  // Owner 2026-10-28: the only admin read path for private chats, calls
+  // and case files (reason code + audit + 2FA step-up; see AdminPrivateContent).
+  'private-content': 'moderation',
   'review-appeals': 'moderation',
   // Owner 2026-10-20: group chats (remove members, close groups).
   'group-chats': 'moderation',

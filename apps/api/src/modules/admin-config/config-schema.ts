@@ -36,6 +36,9 @@ export interface ConfigKeySchema {
 /** An admin area key (admin-permissions ADMIN_AREAS) or `money`. */
 const REASON_AREA_PATTERN = new RegExp(`^(${[...ADMIN_AREAS].join('|')})$`);
 
+/** An IPv4/IPv6 address or an IPv4 CIDR (checked again by parseAllowlistEntry). */
+const IP_OR_CIDR_PATTERN = /^[0-9a-fA-F:.]{2,45}(\/\d{1,2})?$/;
+
 export function configSchema(): Record<string, ConfigKeySchema> {
   const out: Record<string, ConfigKeySchema> = {};
   for (const [key, def] of Object.entries(APP_SETTINGS)) {
@@ -861,6 +864,46 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Free trial for new attorney subscriptions, days (0 = no trial). Running trials keep their end date.',
     min: 0,
     max: TRIAL_DAYS_MAX,
+  };
+  out['admin.ip_allowlist_enabled'] = {
+    ...out['admin.ip_allowlist_enabled'],
+    description:
+      'Only the addresses in admin.ip_allowlist may use the admin panel. Needs a fresh 2FA code; refused if your own address is not on the list. Emergency bypass: docs/runbooks/ADMIN_HARDENING.md.',
+  };
+  out['admin.ip_allowlist'] = {
+    ...out['admin.ip_allowlist'],
+    description:
+      'Addresses allowed into the admin panel when the allowlist is on: IPv4/IPv6 or IPv4 CIDR (203.0.113.0/24). Needs a fresh 2FA code.',
+    pattern: IP_OR_CIDR_PATTERN,
+  };
+  out['admin.login_alert_enabled'] = {
+    ...out['admin.login_alert_enabled'],
+    description:
+      'E-mail the owner when an admin signs in from a new device or a new address.',
+  };
+  out['admin.max_concurrent_sessions'] = {
+    ...out['admin.max_concurrent_sessions'],
+    description:
+      'Live sessions per admin; a new sign-in ends the oldest one (0 = no limit). Needs a fresh 2FA code.',
+    min: 0,
+    max: 20,
+  };
+  out['admin.private_stepup_seconds'] = {
+    ...out['admin.private_stepup_seconds'],
+    description:
+      'Revealing a private message needs a 2FA code entered within this many seconds (30–300).',
+    min: 30,
+    max: 300,
+  };
+  out['admin.audit_export_enabled'] = {
+    ...out['admin.audit_export_enabled'],
+    description:
+      'Daily copy of the audit log to the locked audit bucket (works only when the bucket is set up in Terraform).',
+  };
+  out['admin.access_report_enabled'] = {
+    ...out['admin.access_report_enabled'],
+    description:
+      'Monthly e-mail to the owner: who read private content, how many times and why.',
   };
   out['admin.reason_required_areas'] = {
     ...out['admin.reason_required_areas'],

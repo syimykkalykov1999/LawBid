@@ -89,7 +89,7 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
   url.search = req.nextUrl.search;
   const headers = new Headers();
   headers.set('authorization', `Bearer ${token}`);
-  for (const h of ['content-type', 'x-justification', 'idempotency-key', 'accept', 'x-admin-country', 'x-background']) {
+  for (const h of ['content-type', 'x-justification', 'x-reason-code', 'idempotency-key', 'accept', 'x-admin-country', 'x-background']) {
     const v = req.headers.get(h);
     if (v) headers.set(h, v);
   }

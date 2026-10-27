@@ -11,6 +11,10 @@ Rows are sorted by key: insert a new row at its alphabetical place (never append
 
 | key | Русский ярлык (админка) | default | state | what it controls | reader | ceiling key | tested | registry row (fill after #372) |
 |---|---|---|---|---|---|---|---|---|
+| `admin.access_report_enabled` | Отчёт «кто читал личное» | on | 2 | monthly e-mail to the owner of who read private content | `modules/admin/admin-access-report.service.ts:161` | none | listed | |
+| `admin.audit_export_enabled` | Ежедневная копия журнала действий | on | 2 | daily audit-log copy into the locked audit bucket (no-op without the bucket) | `modules/admin/audit-export.service.ts:95` | none | listed | |
+| `admin.ip_allowlist_enabled` | Вход в админку только с разрешённых адресов | off | 2 | admin panel limited to `admin.ip_allowlist` addresses | `modules/admin-auth/admin-security.service.ts:57` | `admin.ip_allowlist` | listed | |
+| `admin.login_alert_enabled` | Письмо о входе админа с нового устройства | on | 2 | e-mail the owner on an admin sign-in from a new device or address | `modules/admin-auth/admin-security.service.ts:164` | none | listed | |
 | `billing.stripe_tax_enabled` | Stripe Tax | off | 2 | automatic_tax on subscriptions | `modules/billing/subscriptions.service.ts:1087` | none | yes | |
 | `cache.redis_mode` | Где лежат кэши людей (отдельный Redis) | auto | 3 (off/on/auto) | per-user caches (feed first page, block set, plan terms) on the separate cache Redis or the main Redis; re-read every 30 s | `redis/cache-redis-mode.ts:56` | none | yes | |
 | `calendar.feed_enabled` | Личная ссылка на календарь (ICS) | on | 2 | read-only ICS calendar feed (secret link) | `modules/calendar/calendar-config.service.ts:59` | none | listed | |

@@ -84,6 +84,7 @@ import { ClientReviewsCoreModule } from '../modules/client-reviews/client-review
 import { CaseLifecycleModule } from '../modules/cases/lifecycle/case-lifecycle.module';
 import { BidsModule } from '../modules/bids/bids.module';
 import { SubscriptionsModule } from '../modules/subscriptions/subscriptions.module';
+import { AdminAuditJobsModule } from '../modules/admin/admin-audit-jobs.module';
 import { DisappearingSweepService } from '../modules/chat/disappearing-sweep.service';
 import { DemoCoreModule } from '../modules/demo/demo.module';
 
@@ -148,6 +149,8 @@ export class JobsModule {
         LedgerModule,
         // Owner 2026-10-20: `consultations.sweep`.
         ConsultationsCoreModule,
+        // Owner 2026-10-28: `admin.audit-export`, `admin.access-report`.
+        AdminAuditJobsModule,
       ],
       providers: [
         { provide: JOBS_OPTIONS, useValue: options },

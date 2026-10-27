@@ -157,6 +157,16 @@ export class LegalTextsDto {
   @IsString()
   @MaxLength(LEGAL_TEXT_LIMITS.sponsoredLabel)
   sponsoredLabel?: string;
+
+  @ApiProperty({
+    maxLength: LEGAL_TEXT_LIMITS.privilegedContentPolicy,
+    description:
+      'Privileged-content policy page: who may read private chats and files, when, and what is recorded.',
+  })
+  @Transform(trim)
+  @IsString()
+  @MaxLength(LEGAL_TEXT_LIMITS.privilegedContentPolicy)
+  privilegedContentPolicy!: string;
 }
 
 export class LegalTextsByLangDto {

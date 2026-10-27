@@ -5,6 +5,8 @@ import {
   withSnapshotTimeout,
 } from '../../common/admin-summary/snapshot-gate';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { ChainCheck } from '../admin-access/audit-log.service';
+import { PRIVATE_READ_ACTION_PREFIX } from '../admin-auth/admin-private-content';
 import type {
   DashboardDto,
   DashboardRoleTotalsDto,
@@ -70,6 +72,100 @@ export function buildTotals(
     },
     computedAt,
   };
+}
+
+/** One `admin.private_read.*` group of the monthly access report. */
+export interface AccessReadGroup {
+  adminId: string;
+  /** The audit action, `admin.private_read.<kind>`. */
+  action: string;
+  reasonCode: string | null;
+  count: number;
+}
+
+/**
+ * Owner 2026-10-28 / snapshot rule 2026-10-25: the monthly access report's
+ * aggregates (reads of private content by admin, kind and coded reason in
+ * [from, to)) are part of the snapshot compute — AdminAccessReportService
+ * only reads the stored groups. A refused attempt (outcome: failed) is
+ * logged too, but is not a read.
+ */
+export async function countAccessReads(
+  prisma: PrismaService,
+  from: Date,
+  to: Date,
+): Promise<AccessReadGroup[]> {
+  const where = {
+    action: { startsWith: PRIVATE_READ_ACTION_PREFIX },
+    created_at: { gte: from, lt: to },
+  };
+  const by = ['admin_id', 'action', 'reason_code'] as const;
+  const [all, failed] = await withSnapshotTimeout(
+    prisma,
+    async (p) =>
+      [
+        await p.auditLog.groupBy({
+          by: [...by],
+          where,
+          _count: { _all: true },
+        }),
+        await p.auditLog.groupBy({
+          by: [...by],
+          where: { ...where, after: { path: ['outcome'], equals: 'failed' } },
+          _count: { _all: true },
+        }),
+      ] as const,
+  );
+  const keyOf = (g: {
+    admin_id: string;
+    action: string;
+    reason_code: string | null;
+  }) => `${g.admin_id}|${g.action}|${g.reason_code ?? ''}`;
+  const failedBy = new Map(failed.map((g) => [keyOf(g), g._count._all]));
+  return all
+    .map((g) => ({
+      adminId: g.admin_id,
+      action: g.action,
+      reasonCode: g.reason_code,
+      count: g._count._all - (failedBy.get(keyOf(g)) ?? 0),
+    }))
+    .filter((g) => g.count > 0);
+}
+
+/**
+ * Owner 2026-10-28: re-computes the audit_log hash chain (the
+ * audit_log_chain trigger writes it, see the migration). A row that was
+ * edited, removed or inserted out of order breaks the link at its `seq`.
+ * Cutting rows off the END is caught by comparing the head with the daily
+ * S3 export. Snapshot compute: the nightly export runs it and stores the
+ * result (AuditLogService.verifyChain reads it).
+ */
+export function checkAuditChain(prisma: PrismaService): Promise<ChainCheck> {
+  return withSnapshotTimeout(prisma, async (p) => {
+    const broken = await p.$queryRaw<{ seq: bigint }[]>`
+      SELECT seq FROM (
+        SELECT a.seq, a.prev_hash, a.row_hash,
+               lag(a.row_hash) OVER (ORDER BY a.seq) AS expected_prev,
+               audit_log_row_hash(a.prev_hash, a) AS recomputed,
+               row_number() OVER (ORDER BY a.seq) AS rn
+          FROM audit_log a WHERE a.seq IS NOT NULL
+      ) t
+      WHERE (t.rn > 1 AND t.prev_hash IS DISTINCT FROM t.expected_prev)
+         OR t.row_hash IS DISTINCT FROM t.recomputed
+      ORDER BY seq LIMIT 1`;
+    const head = await p.auditLog.findFirst({
+      where: { seq: { not: null } },
+      orderBy: { seq: 'desc' },
+      select: { seq: true, row_hash: true },
+    });
+    const checked = await p.auditLog.count({ where: { seq: { not: null } } });
+    return {
+      checked,
+      brokenAtSeq: broken[0] ? Number(broken[0].seq) : null,
+      headHash: head?.row_hash ?? null,
+      headSeq: head?.seq != null ? Number(head.seq) : null,
+    };
+  });
 }
 
 /**

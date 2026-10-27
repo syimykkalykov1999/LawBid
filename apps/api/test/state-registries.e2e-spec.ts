@@ -20,6 +20,10 @@ import {
 } from '../src/modules/verification/services/verification-checks.service';
 import { adminSession } from './support/admin-login';
 
+// audit_log.seq (hash chain) is a BigInt, which JSON.stringify refuses.
+const bigintSafe = (_k: string, v: unknown) =>
+  typeof v === 'bigint' ? v.toString() : v;
+
 /**
  * Owner 2026-10-05 ("добавляю API ключи по штатам — приложение начинает
  * проверку"): a state's registry is switched on in the admin with a key;
@@ -272,7 +276,7 @@ describe('State bar registries (e2e, owner 2026-10-05)', () => {
       'verification.registry_save',
       'verification.registry_test',
     ]);
-    expect(JSON.stringify(audit)).not.toContain(API_KEY);
+    expect(JSON.stringify(audit, bigintSafe)).not.toContain(API_KEY);
   });
 
   it('self-attestation: approved at once; a match leaves no flag', async () => {

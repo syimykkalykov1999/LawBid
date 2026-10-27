@@ -1344,6 +1344,10 @@ erDiagram
     String ip "nullable"
     DateTime created_at
     Int created_shard
+    String reason_code "nullable"
+    BigInt seq UK "nullable"
+    String prev_hash "nullable"
+    String row_hash "nullable"
   }
   data_access_requests {
     String id PK

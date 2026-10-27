@@ -96,6 +96,8 @@ import { ChatService } from '../modules/chat/chat.service';
 import { DisappearingSweepService } from '../modules/chat/disappearing-sweep.service';
 import { TreasuryService } from '../modules/treasury/treasury.service';
 import { AutoAppealsService } from '../modules/moderation/auto-appeals.service';
+import { AuditExportService } from '../modules/admin/audit-export.service';
+import { AdminAccessReportService } from '../modules/admin/admin-access-report.service';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
  * becomes the BullMQ job's `returnvalue` (visible in queue dashboards). */
@@ -186,6 +188,9 @@ export class CronProcessor {
     @Optional() private readonly partitioning?: PartitionService,
     // Owner 2026-10-25: `case-tools.sweep`.
     @Optional() private readonly caseToolsSweep?: CaseToolsSweepService,
+    // Owner 2026-10-28: `admin.audit-export`, `admin.access-report`.
+    @Optional() private readonly auditExport?: AuditExportService,
+    @Optional() private readonly accessReport?: AdminAccessReportService,
     // Owner 2026-10-25: `experiments.metrics`.
     @Optional() private readonly experimentsNightly?: ExperimentsNightlyJob,
     // Day-one foundations: `ledger.reconcile`.
@@ -303,6 +308,10 @@ export class CronProcessor {
         return this.cdnInvalidate?.run() ?? null;
       case CRON_JOBS.moderationAppealSla:
         return this.autoAppeals?.sweepOverdue() ?? null;
+      case CRON_JOBS.adminAuditExport:
+        return this.auditExport?.run() ?? null;
+      case CRON_JOBS.adminAccessReport:
+        return this.accessReport?.sendMonthly() ?? null;
       case CRON_JOBS.experimentsMetrics:
         return this.experimentsNightly?.run() ?? null;
       case CRON_JOBS.ledgerReconcile:

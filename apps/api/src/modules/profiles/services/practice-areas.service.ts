@@ -199,7 +199,11 @@ export class PracticeAreasService {
       );
     }
 
-    await withTxRetry(this.prisma, async (tx) => {
+    // The audit row is written AFTER the transaction commits: the audit-chain
+    // trigger takes one global advisory lock until the end of its own
+    // transaction, so inside this one every profile edit would queue behind
+    // all admin writes (review R-68).
+    const changed = await withTxRetry(this.prisma, async (tx) => {
       const profile = await tx.attorneyProfile.findUnique({
         where: { user_id: userId },
         select: { verification_status: true },
@@ -217,7 +221,7 @@ export class PracticeAreasService {
       const currentSet = new Set(current);
       const toRemove = current.filter((id) => !validSet.has(id));
       const toAdd = wanted.filter((id) => !currentSet.has(id));
-      if (toRemove.length === 0 && toAdd.length === 0) return;
+      if (toRemove.length === 0 && toAdd.length === 0) return null;
       if (toRemove.length > 0) {
         await tx.attorneyPracticeArea.deleteMany({
           where: { attorney_id: userId, practice_area_id: { in: toRemove } },
@@ -231,18 +235,21 @@ export class PracticeAreasService {
           })),
         });
       }
-      await tx.auditLog.create({
+      return { before: [...current].sort(), after: [...wanted].sort() };
+    });
+    if (changed) {
+      await this.prisma.auditLog.create({
         data: {
           admin_id: userId,
           action: 'attorney.practice_areas.replace',
           target_type: 'attorney_profile',
           target_id: userId,
-          before: { practiceAreaIds: [...current].sort() },
-          after: { practiceAreaIds: [...wanted].sort() },
+          before: { practiceAreaIds: changed.before },
+          after: { practiceAreaIds: changed.after },
           ip: ip ?? null,
         },
       });
-    });
+    }
     return this.selectedOf(userId);
   }
 }

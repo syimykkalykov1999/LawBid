@@ -932,6 +932,19 @@ export const envSchema = z
       .int()
       .positive()
       .default(20),
+    // Owner 2026-10-28: EMERGENCY BYPASS of the admin IP allowlist. Set to
+    // "1" on the API task (and redeploy) when the owner is locked out;
+    // docs/runbooks/ADMIN_HARDENING.md. Remove it again afterwards.
+    ADMIN_IP_ALLOWLIST_BYPASS: z.preprocess(
+      blankToUndefined,
+      z.enum(['0', '1']).optional(),
+    ),
+    // Owner 2026-10-28: bucket (infra/modules/audit-logs) that receives the
+    // daily export of the admin audit log. Empty = no export.
+    ADMIN_AUDIT_EXPORT_BUCKET: optionalMatching(
+      /^[a-z0-9][a-z0-9.-]{2,62}$/,
+      'ADMIN_AUDIT_EXPORT_BUCKET must be a valid S3 bucket name',
+    ),
     // docs/06 §2.3 item 7 (stage 6.6): provider keys a paid flag needs
     // before it can be switched on. Optional; presence is all the panel
     // checks (the integrations themselves come with their stages).

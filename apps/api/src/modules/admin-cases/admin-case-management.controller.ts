@@ -18,6 +18,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   AdminEndpoint,
   CurrentAdmin,
+  Justification,
   Roles,
   SkipAutoAudit,
   type AdminActor,
@@ -61,7 +62,12 @@ export class AdminCaseManagementController {
     return this.cases.list(q, admin.countries);
   }
 
+  // Owner 2026-10-28 (privilege): the card carries the client's private
+  // details, description, journal and bids, so opening it needs a reason
+  // that is written to the audit log. Moderators additionally never get
+  // `privateDetails` without that reason.
   @Get(':id')
+  @Justification()
   @ApiOperation({
     summary: 'Case card: description, bids, journal, reports, disputes',
   })
@@ -71,7 +77,10 @@ export class AdminCaseManagementController {
     @CurrentAdmin() admin: AdminActor,
     @Param() p: AdminIdParamDto,
   ): Promise<AdminCaseCardDto> {
-    return this.cases.card(p.id, admin.countries);
+    return this.cases.card(p.id, admin.countries, {
+      includePrivateDetails:
+        admin.adminRole !== 'moderator' || !!admin.justification,
+    });
   }
 
   @Post('bulk')

@@ -261,6 +261,9 @@ abstract final class ApiErrorCodes {
   static const integrationsNotConfigured = 'INTEGRATIONS_NOT_CONFIGURED';
   static const integrationConflict = 'INTEGRATION_CONFLICT';
   static const adminStepUpRequired = 'ADMIN_STEP_UP_REQUIRED';
+  static const adminIpNotAllowed = 'ADMIN_IP_NOT_ALLOWED';
+  static const reasonCodeRequired = 'REASON_CODE_REQUIRED';
+  static const auditUnavailable = 'AUDIT_UNAVAILABLE';
   static const videoUnavailable = 'VIDEO_UNAVAILABLE';
   static const translationUnavailable = 'TRANSLATION_UNAVAILABLE';
   static const videoTooLong = 'VIDEO_TOO_LONG';
@@ -519,6 +522,9 @@ abstract final class ApiErrorCodes {
     integrationsNotConfigured,
     integrationConflict,
     adminStepUpRequired,
+    adminIpNotAllowed,
+    reasonCodeRequired,
+    auditUnavailable,
     videoUnavailable,
     translationUnavailable,
     videoTooLong,
