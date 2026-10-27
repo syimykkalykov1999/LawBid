@@ -9,6 +9,7 @@ import { StaffRatingModule } from '../staff-rating/staff-rating.module';
 import { StaffSecurityModule } from '../staff-security/staff-security.module';
 import { WorkLeaseModule } from '../work-lease/work-lease.module';
 import { StaffCoreModule } from './staff-core.module';
+import { StaffDeskReadController } from './staff-desk-read.controller';
 import { StaffSettingsController } from './staff-settings.controller';
 
 /**
@@ -31,6 +32,6 @@ import { StaffSettingsController } from './staff-settings.controller';
     StaffSecurityModule,
     StaffAiModule,
   ],
-  controllers: [StaffSettingsController],
+  controllers: [StaffSettingsController, StaffDeskReadController],
 })
 export class StaffModule {}
