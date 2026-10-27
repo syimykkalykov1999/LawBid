@@ -278,7 +278,6 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/staff', label: 'Люди и рейтинг', icon: 'users', area: 'super', ownerOnly: true, flag: 'staff.rating_enabled', hint: 'рейтинг сотрудников, слабые и лучшие, что предлагает система' },
       { href: '/staff/appeals', label: 'Жалобы на главных', icon: 'scales', area: 'super', ownerOnly: true, flag: 'staff.appeals_enabled', hint: 'сотрудники жалуются на главных; красные пометки о мести' },
       { href: '/staff/rates', label: 'Ставки за решения', icon: 'hand-coins', area: 'super', ownerOnly: true, flag: 'staff.piecework_enabled', hint: 'сколько платим за одно решение и что начислено за месяц' },
-      { href: '/desk', label: 'Столы сотрудников', icon: 'briefcase-metal', area: 'super', ownerOnly: true, flag: 'staff.desk_enabled', hint: 'посмотреть, как выглядит стол проверки, модерации, поддержки, финансов' },
     ],
   },
   {

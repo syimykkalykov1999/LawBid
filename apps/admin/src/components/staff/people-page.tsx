@@ -28,6 +28,11 @@ export function PeoplePage() {
       <PageHeader
         eyebrow="Команда и контроль"
         title="Люди и рейтинг"
+        actions={
+          <Link href="/desk" className="text-sm text-gold-600 hover:underline">
+            Посмотреть столы сотрудников
+          </Link>
+        }
         subtitle={
           q.data?.ok && q.data.data.snapshotDate
             ? `Рейтинг на ${dayLabel(q.data.data.snapshotDate)}. Считается раз в ночь, из решений за последние 30 дней.`

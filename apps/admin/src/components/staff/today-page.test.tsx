@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Today } from '@/lib/staff-data';
@@ -80,28 +80,28 @@ describe('«Сегодня»', () => {
   it('shows the decision of the day and every block from ONE snapshot', async () => {
     todayResult = { ok: true, data: full };
     renderPage();
-    expect(screen.getByTestId('today-decision')).toHaveTextContent('Жалоба на главного ждёт ответа');
-    expect(screen.getByTestId('today-appeals')).toHaveTextContent('№7 · на Олег Главный');
-    expect(screen.getByTestId('today-flags')).toHaveTextContent('Открытых: 1');
+    expect((screen.getByTestId('today-decision')).textContent).toContain('Жалоба на главного ждёт ответа');
+    expect((screen.getByTestId('today-appeals')).textContent).toContain('№7 · на Олег Главный');
+    expect((screen.getByTestId('today-flags')).textContent).toContain('Открытых: 1');
     const sl = screen.getByTestId('today-shortlist');
-    expect(within(sl).getByText('Пётр')).toBeInTheDocument();
-    expect(within(sl).getByText('Анна')).toBeInTheDocument();
-    expect(screen.getByTestId('today-suggestions')).toHaveTextContent('Заменить');
-    expect(screen.getByTestId('today-suggestions')).toHaveTextContent('Рейтинг 52 из 100 за 90 решений.');
-    expect(screen.getByTestId('today-anomalies')).toHaveTextContent('решает слишком быстро');
-    expect(screen.getByTestId('today-piecework')).toHaveTextContent('Дней на удержании: 2');
+    expect(within(sl).getByText('Пётр')).toBeTruthy();
+    expect(within(sl).getByText('Анна')).toBeTruthy();
+    expect((screen.getByTestId('today-suggestions')).textContent).toContain('Заменить');
+    expect((screen.getByTestId('today-suggestions')).textContent).toContain('Рейтинг 52 из 100 за 90 решений.');
+    expect((screen.getByTestId('today-anomalies')).textContent).toContain('решает слишком быстро');
+    expect((screen.getByTestId('today-piecework')).textContent).toContain('Дней на удержании: 2');
     // the page itself reads no other staff route (the snapshot hook is the only one)
     expect(staffGet).not.toHaveBeenCalled();
-    expect(await screen.findByTestId('today-health')).toHaveTextContent('Всё в порядке');
-    expect(await screen.findByTestId('today-money')).toHaveTextContent('Доход');
+    await waitFor(() => expect(screen.getByTestId('today-health').textContent).toContain('Всё в порядке'));
+    await waitFor(() => expect(screen.getByTestId('today-money').textContent).toContain('Доход'));
   });
 
   it('a switched-off block says so instead of failing', () => {
     todayResult = { ok: true, data: { ...full, decision: null, appeals: null, flags: null, shortlist: null, suggestions: null, anomalies: null, piecework: null } };
     renderPage();
-    expect(screen.getByTestId('today-nothing')).toHaveTextContent('ничего решать не нужно');
+    expect((screen.getByTestId('today-nothing')).textContent).toContain('ничего решать не нужно');
     for (const id of ['today-appeals', 'today-flags', 'today-shortlist', 'today-suggestions', 'today-anomalies', 'today-piecework']) {
-      expect(screen.getByTestId(id)).toHaveTextContent('Сейчас выключено');
+      expect((screen.getByTestId(id)).textContent).toContain('Сейчас выключено');
     }
   });
 
@@ -111,24 +111,24 @@ describe('«Сегодня»', () => {
       data: { ...full, decision: null, appeals: { open: 0, newest: [] }, flags: { open: 0 }, shortlist: { snapshotDate: null, worst: [], best: [] }, suggestions: { open: 0, items: [] }, anomalies: { day: null, total: 0, items: [] }, piecework: { disputedDays: 0 } },
     };
     renderPage();
-    expect(screen.getByTestId('today-appeals')).toHaveTextContent('Открытых жалоб нет');
-    expect(screen.getByTestId('today-shortlist')).toHaveTextContent('Рейтинга ещё нет');
-    expect(screen.getByTestId('today-suggestions')).toHaveTextContent('Предложений нет');
-    expect(screen.getByTestId('today-piecework')).toHaveTextContent('Спорных дней нет');
+    expect((screen.getByTestId('today-appeals')).textContent).toContain('Открытых жалоб нет');
+    expect((screen.getByTestId('today-shortlist')).textContent).toContain('Рейтинга ещё нет');
+    expect((screen.getByTestId('today-suggestions')).textContent).toContain('Предложений нет');
+    expect((screen.getByTestId('today-piecework')).textContent).toContain('Спорных дней нет');
   });
 
   it('when the whole route answers 404 (switch off) the page explains how to turn it on', () => {
     todayResult = { ok: false, missing: true };
     renderPage();
-    expect(screen.getByText('Страница «Сегодня» выключена')).toBeInTheDocument();
+    expect(screen.getByText('Страница «Сегодня» выключена')).toBeTruthy();
   });
 
   it('health and money failing (404) do not break the page', async () => {
     todayResult = { ok: true, data: full };
     apiGet.mockRejectedValue(new Error('404'));
     renderPage();
-    expect(await screen.findByTestId('today-health')).toHaveTextContent('Состояние пока не получено');
-    expect(await screen.findByTestId('today-money')).toHaveTextContent('Расчёта за сегодня ещё нет');
+    await waitFor(() => expect(screen.getByTestId('today-health').textContent).toContain('Состояние пока не получено'));
+    await waitFor(() => expect(screen.getByTestId('today-money').textContent).toContain('Расчёта за сегодня ещё нет'));
   });
 
   it('shows the last weekly digest when there is one', () => {
@@ -136,7 +136,7 @@ describe('«Сегодня»', () => {
     digestResult = { ok: true, data: { items: [{ weekStart: '2026-10-19', numbers: { decisions: 1234, returnedPct: 3.5, appeals: 2, worstCount: 3, bestCount: 4, worstName: null, bestName: null, pieceworkCents: 98765, currency: 'usd' } }] } };
     renderPage();
     const d = screen.getByTestId('today-digest');
-    expect(d).toHaveTextContent('1234');
-    expect(d).toHaveTextContent('3,5 %');
+    expect((d).textContent).toContain('1234');
+    expect((d).textContent).toContain('3,5 %');
   });
 });

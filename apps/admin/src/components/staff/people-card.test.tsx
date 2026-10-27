@@ -64,8 +64,8 @@ describe('«Люди и рейтинг»', () => {
   it('lists people and passes the filters to the API', () => {
     people = { ok: true, data: { snapshotDate: '2026-10-27', items: [base] } };
     wrap(<PeoplePage />);
-    expect(screen.getByText('Пётр Иванов').closest('a')).toHaveAttribute('href', '/staff/w1');
-    expect(screen.getByText('Снять с очереди')).toBeInTheDocument();
+    expect(screen.getByText('Пётр Иванов').closest('a')?.getAttribute('href')).toBe('/staff/w1');
+    expect(screen.getByText('Снять с очереди')).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Пространство'), { target: { value: 'finance' } });
     fireEvent.change(screen.getByLabelText('Уровень'), { target: { value: 'red' } });
     expect(lastFilter).toHaveBeenLastCalledWith({ workspace: 'finance', status: 'red', sort: 'worst' });
@@ -73,7 +73,7 @@ describe('«Люди и рейтинг»', () => {
 
   it('rating off: an explanation instead of the table', () => {
     wrap(<PeoplePage />);
-    expect(screen.getByText('Рейтинг выключен')).toBeInTheDocument();
+    expect(screen.getByText('Рейтинг выключен')).toBeTruthy();
   });
 });
 
@@ -95,10 +95,10 @@ describe('person card', () => {
     history = { ok: true, data: hist };
     post.mockResolvedValue({ status: 'applied', done: 'Снят с очереди до 3 ноября.' });
     wrap(<PersonCard adminId="w1" />);
-    expect(screen.getByTestId('person-rating')).toHaveTextContent('52');
-    expect(screen.getByTestId('person-signals')).toHaveTextContent('жалоба');
-    expect(screen.getByTestId('person-actions')).toHaveTextContent('Предупреждение');
-    expect(screen.getByText('На паузе')).toBeInTheDocument();
+    expect((screen.getByTestId('person-rating')).textContent).toContain('52');
+    expect((screen.getByTestId('person-signals')).textContent).toContain('жалоба');
+    expect((screen.getByTestId('person-actions')).textContent).toContain('Предупреждение');
+    expect(screen.getByText('На паузе')).toBeTruthy();
     // two-step: the button asks for confirmation first, nothing is sent yet
     fireEvent.click(screen.getByText('Снять с очереди на 7 дней'));
     expect(post).not.toHaveBeenCalled();
@@ -109,6 +109,6 @@ describe('person card', () => {
 
   it('no card (404): a calm message with a way back', () => {
     wrap(<PersonCard adminId="w1" />);
-    expect(screen.getByText('Карточки нет')).toBeInTheDocument();
+    expect(screen.getByText('Карточки нет')).toBeTruthy();
   });
 });

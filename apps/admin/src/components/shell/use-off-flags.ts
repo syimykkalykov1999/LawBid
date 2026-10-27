@@ -14,7 +14,6 @@ export const STAFF_NAV_SWITCHES = [
   'staff.rating_enabled',
   'staff.appeals_enabled',
   'staff.piecework_enabled',
-  'staff.desk_enabled',
 ] as const;
 
 /**

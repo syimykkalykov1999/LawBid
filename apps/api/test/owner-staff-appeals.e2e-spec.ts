@@ -378,9 +378,14 @@ describe('Staff appeals + retaliation guard (e2e)', () => {
       data: {
         status: 'resolved',
         decision: 'fire_head',
-        followUp: { call: 'POST admin/admins/{id}/disable', applied: false },
+        // T10 bound the follow-up: the head is really disabled now.
+        followUp: { call: 'POST admin/admins/{id}/disable', applied: true },
       },
     });
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: head.userId } }))
+        .status,
+    ).toBe('suspended');
     await api()
       .post(`/api/v1/admin/appeals/${appealId}/decide`)
       .set(owner.auth)

@@ -73,7 +73,7 @@ export const NAV_GROUP_PAGES: Readonly<Record<NavGroupKey, readonly string[]>> =
     '/spend',
     '/analytics',
   ],
-  team: ['/staff', '/staff/appeals', '/staff/rates', '/desk', '/admins', '/rewards', '/sessions', '/audit-log', '/moderation-journal'],
+  team: ['/staff', '/staff/appeals', '/staff/rates', '/admins', '/rewards', '/sessions', '/audit-log', '/moderation-journal'],
   system: [
     '/system-health',
     '/scale',

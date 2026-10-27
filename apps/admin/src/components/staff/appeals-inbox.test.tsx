@@ -61,16 +61,16 @@ afterEach(() => {
 describe('«Жалобы на главных»', () => {
   it('route off (404): an explanation, no crash', () => {
     renderPage();
-    expect(screen.getByText('Жалобы на главных выключены')).toBeInTheDocument();
+    expect(screen.getByText('Жалобы на главных выключены')).toBeTruthy();
   });
 
   it('an anonymous author is shown only as a number — never a name', () => {
     list = { ok: true, data: { items: [item], nextCursor: null } };
     renderPage();
     const row = screen.getByTestId('appeal-row');
-    expect(row).toHaveTextContent('автор обжалования №7');
-    expect(row).toHaveTextContent('на Олег Главный');
-    expect(row).not.toHaveTextContent('adminId');
+    expect((row).textContent).toContain('автор обжалования №7');
+    expect((row).textContent).toContain('на Олег Главный');
+    expect((row).textContent).not.toContain('adminId');
   });
 
   it('reveal asks the server (which caps and journals it) and then shows the name', async () => {
@@ -79,11 +79,11 @@ describe('«Жалобы на главных»', () => {
     post.mockResolvedValue({ name: 'Анна Секрет', revealsLeftToday: 19 });
     renderPage();
     fireEvent.click(screen.getByText('Прочитать и решить'));
-    expect(screen.getByText('Полный текст жалобы.')).toBeInTheDocument();
+    expect(screen.getByText('Полный текст жалобы.')).toBeTruthy();
     expect(screen.queryByText('Анна Секрет')).toBeNull();
     fireEvent.click(screen.getByText('Раскрыть имя'));
     await waitFor(() => expect(post).toHaveBeenCalledWith('/admin/appeals/p1/reveal'));
-    expect(await screen.findByText('Анна Секрет')).toBeInTheDocument();
+    expect(await screen.findByText('Анна Секрет')).toBeTruthy();
   });
 
   it('decide sends the choice and the note', async () => {
@@ -108,7 +108,7 @@ describe('«Жалобы на главных»', () => {
     post.mockResolvedValue({});
     renderPage();
     const row = screen.getByTestId('flag-row');
-    expect(row).toHaveTextContent('автор обжалования №7');
+    expect((row).textContent).toContain('автор обжалования №7');
     fireEvent.click(screen.getByText('Вернуть к работе'));
     await waitFor(() => expect(post).toHaveBeenCalledWith('/admin/appeals/flags/f1/reverse', { note: undefined }));
   });

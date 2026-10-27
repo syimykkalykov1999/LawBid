@@ -76,7 +76,7 @@ describe('centsFromInput', () => {
 describe('«Ставки за решения»', () => {
   it('piecework off (route 404): an explanation, no form', () => {
     renderPage();
-    expect(screen.getByText('Оплата за решения выключена')).toBeInTheDocument();
+    expect(screen.getByText('Оплата за решения выключена')).toBeTruthy();
     expect(screen.queryByText('Сохранить ставку')).toBeNull();
   });
 
@@ -84,9 +84,9 @@ describe('«Ставки за решения»', () => {
     rates = { ok: true, data: [rate()] };
     month = { ok: true, data: overview };
     renderPage();
-    expect(screen.getByText('Проверка документов', { selector: 'td' })).toBeInTheDocument();
+    expect(screen.getByText('Проверка документов', { selector: 'td' })).toBeTruthy();
     const save = screen.getByText('Сохранить ставку');
-    expect(save).toBeDisabled();
+    expect((save as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByLabelText('Цена, доллары'), { target: { value: '0,40' } });
     fireEvent.click(save);
     await waitFor(() => expect(put).toHaveBeenCalledWith('/admin/staff/rates', { kind: 'verification', workspace: 'mass', amountCents: 40, boostMult: undefined }));
@@ -104,7 +104,7 @@ describe('«Ставки за решения»', () => {
     rates = { ok: true, data: [] };
     month = { ok: true, data: overview };
     renderPage();
-    expect(screen.getByText('Ставок нет: без ставки за решения ничего не начисляется.')).toBeInTheDocument();
+    expect(screen.getByText('Ставок нет: без ставки за решения ничего не начисляется.')).toBeTruthy();
     fireEvent.click(screen.getByText('Дни'));
     const days = screen.getAllByTestId('piece-day');
     expect(days).toHaveLength(2);
