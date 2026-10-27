@@ -8,4 +8,9 @@
     <string name="call_hangup">Hang up</string>
     <!-- Owner 2026-10-22: the reader in a chat notification (MessagingStyle). -->
     <string name="chat_me">You</string>
+    <!-- Owner 2026-10-26: the buttons of a chat notification. -->
+    <string name="chat_action_reply">Reply</string>
+    <string name="chat_action_read">Mark as read</string>
+    <string name="chat_reply_hint">Message</string>
+    <string name="chat_reply_failed">Not sent. Open the chat to try again.</string>
 </resources>

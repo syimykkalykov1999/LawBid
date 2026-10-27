@@ -4,12 +4,17 @@ import { SmsAbuseGuardService } from './sms-abuse-guard.service';
 /** 2026-10-24 (abuse batch B, item 10). */
 describe('SmsAbuseGuardService', () => {
   let store: Map<string, number | string>;
-  let settings: Record<string, number>;
+  let settings: Record<string, number | string>;
   let failRedis: boolean;
   const logger = { setContext: jest.fn(), error: jest.fn(), warn: jest.fn() };
 
   // The handful of Redis commands the guard uses, in memory.
   const redis = {
+    get: jest.fn((k: string) => {
+      if (failRedis) return Promise.reject(new Error('down'));
+      const v = store.get(k);
+      return Promise.resolve(v === undefined ? null : String(v));
+    }),
     exists: jest.fn((...keys: string[]) => {
       if (failRedis) return Promise.reject(new Error('down'));
       return Promise.resolve(keys.filter((k) => store.has(k)).length);
@@ -35,7 +40,10 @@ describe('SmsAbuseGuardService', () => {
   const guard = () =>
     new SmsAbuseGuardService(
       redis as never,
-      { number: (k: string) => Promise.resolve(settings[k]) } as never,
+      {
+        number: (k: string) => Promise.resolve(Number(settings[k])),
+        string: (k: string) => Promise.resolve(String(settings[k])),
+      } as never,
       logger as never,
     );
   const US_A = '+12185516788'; // prefix 121855
@@ -50,6 +58,10 @@ describe('SmsAbuseGuardService', () => {
       'sms.prefix_velocity_window_minutes': 10,
       'sms.prefix_block_minutes': 60,
       'sms.signup_daily_cap': 1000,
+      // The older tests are about the typed numbers; auto has its own block.
+      'sms.cap_mode': 'fixed',
+      'sms.burst_multiplier': 3,
+      'sms.burst_ceiling_multiplier': 10,
     };
     Object.values(redis).forEach((f) => f.mockClear());
     logger.error.mockReset();
@@ -210,5 +222,91 @@ describe('SmsAbuseGuardService', () => {
       expect.objectContaining({ alert: 'sms_abuse_guard_unavailable' }),
       expect.any(String),
     );
+  });
+
+  describe('burst allowance (review R-75, sms.cap_mode = auto)', () => {
+    beforeEach(() => {
+      settings['sms.cap_mode'] = 'auto';
+      settings['sms.prefix_velocity_max'] = 0;
+      settings['sms.country_velocity_max'] = 0;
+      settings['sms.signup_daily_cap'] = 5;
+    });
+
+    it('without history the typed cap is the cap (floor)', async () => {
+      const g = guard();
+      for (let i = 0; i < 5; i++) await g.check(US_A, 'login', 'US', at);
+      await expect(g.check(US_A, 'login', 'US', at)).rejects.toBeInstanceOf(
+        HttpException,
+      );
+    });
+
+    it('a busy week raises the cap to baseline x 3, with an alert, instead of silently refusing', async () => {
+      store.set('sms:signup:20261022', 8); // 2 days ago: baseline 8 -> allowed 24
+      const g = guard();
+      for (let i = 0; i < 20; i++) {
+        expect(await g.check(US_A, 'login', 'US', at)).toBe('ok');
+      }
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          alert: 'sms_burst_allowance',
+          scope: 'signup_daily_cap',
+          cap: 5,
+          allowed: 24,
+        }),
+        expect.any(String),
+      );
+      // the allowance is announced once a day, not per code
+      expect(
+        logger.warn.mock.calls.filter(
+          (c: unknown[]) =>
+            (c[0] as { alert?: string }).alert === 'sms_burst_allowance',
+        ),
+      ).toHaveLength(1);
+    });
+
+    it('never above the ceiling (10 x the typed cap) however high the baseline', async () => {
+      store.set('sms:signup:20261023', 100_000);
+      const g = guard();
+      for (let i = 0; i < 50; i++) await g.check(US_A, 'login', 'US', at);
+      await expect(g.check(US_A, 'login', 'US', at)).rejects.toBeInstanceOf(
+        HttpException,
+      ); // 5 x 10 = 50 allowed, the 51st is refused
+    });
+
+    it('fixed mode ignores the history', async () => {
+      settings['sms.cap_mode'] = 'fixed';
+      store.set('sms:signup:20261022', 80);
+      const g = guard();
+      for (let i = 0; i < 5; i++) await g.check(US_A, 'login', 'US', at);
+      await expect(g.check(US_A, 'login', 'US', at)).rejects.toBeInstanceOf(
+        HttpException,
+      );
+    });
+
+    it('prefix velocity: yesterday’s peak lifts today’s limit, today’s count becomes tomorrow’s baseline', async () => {
+      settings['sms.prefix_velocity_max'] = 3;
+      settings['sms.signup_daily_cap'] = 0;
+      store.set('sms:velpk:prefix:121855:20261023', 10); // allowed 30
+      const g = guard();
+      for (let i = 0; i < 12; i++) {
+        expect(await g.check(US_A, 'login', 'US', at)).toBe('ok');
+      }
+      expect(store.get('sms:velpk:prefix:121855:20261024')).toBe('12');
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          alert: 'sms_burst_allowance',
+          kind: 'prefix',
+        }),
+        expect.any(String),
+      );
+    });
+
+    it('prefix velocity still blocks pumping above the allowed number', async () => {
+      settings['sms.prefix_velocity_max'] = 3;
+      settings['sms.signup_daily_cap'] = 0;
+      const g = guard(); // no history: floor 3
+      for (let i = 0; i < 3; i++) await g.check(US_A, 'login', 'US', at);
+      expect(await g.check(US_A, 'login', 'US', at)).toBe('blocked');
+    });
   });
 });

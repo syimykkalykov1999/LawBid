@@ -20,6 +20,8 @@ const LEASE_SECONDS = 120;
 /** Parked (failed) events are kept this long for a look, then pruned. */
 const FAILED_KEEP_DAYS = 7;
 const REINDEX_KEY = 'reindex';
+/** One drain call stops taking new batches after this long. */
+export const DRAIN_BUDGET_MS = 20_000;
 
 /** Seconds to wait before attempt [n]+1: 10 s, 20 s, 40 s ... capped at 1 h. */
 export function backoffSeconds(attempts: number): number {
@@ -91,13 +93,25 @@ export class SearchIndexerService {
    * physical database that holds the row, so every database is drained in
    * its own context (one database: one plain pass, as before).
    */
-  async drain(limit = 500): Promise<{ done: number; failed: number }> {
+  async drain(
+    limit = 500,
+    budgetMs = DRAIN_BUDGET_MS,
+  ): Promise<{ done: number; failed: number }> {
+    // One budget for the whole call (S7-5): batches go on while they come
+    // back full and time is left; the rest waits for the next minute.
+    const deadline = Date.now() + budgetMs;
     let extraMemo: ReturnType<SearchReindexService['extraIndexes']> | undefined;
     const extraOnce = () =>
       (extraMemo ??= this.reindexer?.extraIndexes() ?? Promise.resolve({}));
-    const parts = await forEachDatabase(this.prisma, () =>
-      this.drainHere(limit, extraOnce),
-    );
+    const parts = await forEachDatabase(this.prisma, async () => {
+      const sum = { done: 0, failed: 0 };
+      for (;;) {
+        const r = await this.drainHere(limit, extraOnce);
+        sum.done += r.done;
+        sum.failed += r.failed;
+        if (r.claimed < limit || Date.now() >= deadline) return sum;
+      }
+    });
     return parts.reduce(
       (a, p) => ({ done: a.done + p.done, failed: a.failed + p.failed }),
       { done: 0, failed: 0 },
@@ -107,7 +121,7 @@ export class SearchIndexerService {
   private async drainHere(
     limit: number,
     extraOnce: () => ReturnType<SearchReindexService['extraIndexes']>,
-  ): Promise<{ done: number; failed: number }> {
+  ): Promise<{ done: number; failed: number; claimed: number }> {
     const claimed = await this.prisma.$queryRaw<Claimed[]>`
       WITH due AS (
         SELECT id FROM search_outbox
@@ -118,7 +132,7 @@ export class SearchIndexerService {
           attempts = o.attempts + 1
       FROM due WHERE o.id = due.id
       RETURNING o.id::TEXT AS id, o.entity, o.entity_id::TEXT AS entity_id, o.attempts`;
-    if (claimed.length === 0) return { done: 0, failed: 0 };
+    if (claimed.length === 0) return { done: 0, failed: 0, claimed: 0 };
 
     const failures = new Map<string, string>(); // outbox id → reason
     const byEntity = new Map<SearchEntity, Map<string, Claimed[]>>();
@@ -183,7 +197,11 @@ export class SearchIndexerService {
         `search outbox: ${failures.size} of ${claimed.length} events failed (will retry)`,
       );
     }
-    return { done: okIds.length, failed: failures.size };
+    return {
+      done: okIds.length,
+      failed: failures.size,
+      claimed: claimed.length,
+    };
   }
 
   /** Engine off: nothing may pile up. Parked events are also aged out. */
@@ -330,6 +348,11 @@ export class SearchIndexerService {
 
   // --- the cron job ---------------------------------------------------------
 
+  /** Failed ticks in a row and when the next try is allowed (back-off: a
+   * down engine is not hammered every minute; one good tick resets). */
+  private tickFails = 0;
+  private pausedUntil = 0;
+
   async tick(
     budgetMs = 20_000,
   ): Promise<{ on: boolean; pruned?: number; drained?: number }> {
@@ -339,6 +362,7 @@ export class SearchIndexerService {
       this.log.warn('search.engine is on but the engine address is not set');
       return { on };
     }
+    if (Date.now() < this.pausedUntil) return { on };
     try {
       // Aliases + first generation (or adopt a pre-alias index). A new
       // mapping does NOT refill by itself any more: the admin starts a
@@ -348,11 +372,16 @@ export class SearchIndexerService {
       if (!st || !st.done) {
         await this.reindex({ budgetMs });
       }
-      const { done } = await this.drain();
+      const { done } = await this.drain(500, budgetMs);
       await this.prune(true);
       await this.reindexer?.step(budgetMs);
+      this.tickFails = 0;
       return { on, drained: done };
     } catch (e) {
+      this.tickFails++;
+      // 1, 2, 4, 8 ... capped at 10 minutes between tries.
+      this.pausedUntil =
+        Date.now() + Math.min(600, 2 ** (this.tickFails - 1) * 60) * 1000;
       this.log.warn(
         `search indexer: ${e instanceof Error ? e.message : 'failed'}`,
       );

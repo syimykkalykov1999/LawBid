@@ -25,5 +25,9 @@
 	     Focus; iOS drops the level to "active" without this entitlement. -->
 	<key>com.apple.developer.usernotifications.time-sensitive</key>
 	<true/>
+	<!-- Owner 2026-10-26: chat pushes show the sender's round photo
+	     (Communication Notifications, NotificationService extension). -->
+	<key>com.apple.developer.usernotifications.communication</key>
+	<true/>
 </dict>
 </plist>

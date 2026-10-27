@@ -323,7 +323,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
       await ref
           .read(caseWorkspaceActionsProvider)
           .setTaskDone(task.caseId!, b.taskId, done: done);
-      invalidateAllTasks(ref);
+      syncAllTasks(ref, board: true);
       if (!mounted) return;
       showAppSnackBar(
         context,
@@ -342,7 +342,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
       await ref
           .read(caseWorkspaceActionsProvider)
           .setTaskDone(task.caseId!, task.boardTask!.taskId, done: !wasDone);
-      invalidateAllTasks(ref);
+      syncAllTasks(ref, board: true);
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     }
@@ -362,11 +362,11 @@ class _TasksTabState extends ConsumerState<TasksTab> {
   Future<void> _undo(String id, {required bool wasDone}) async {
     final t = ref.read(translatorProvider);
     try {
-      await ref.read(teamRepositoryProvider).setTaskStatus(
+      final back = await ref.read(teamRepositoryProvider).setTaskStatus(
             id,
             wasDone ? TaskStatus.open : TaskStatus.done,
           );
-      invalidateAllTasks(ref);
+      ref.read(tasksHubProvider).apply(back);
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     }
@@ -405,7 +405,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
               step.id,
               done: !step.checked,
             );
-        invalidateAllTasks(ref);
+        syncAllTasks(ref, board: true);
       } on Object catch (e) {
         if (mounted) showAppSnackBar(context, errorText(t, e));
       }
@@ -448,8 +448,9 @@ class _TasksTabState extends ConsumerState<TasksTab> {
       if (step != null) {
         await ref.read(tasksProvider(_key).notifier).moveStep(task, step, at);
       } else {
-        await ref.read(teamRepositoryProvider).moveTask(task.id, at);
-        ref.invalidate(tasksProvider(_key));
+        final moved =
+            await ref.read(teamRepositoryProvider).moveTask(task.id, at);
+        ref.read(tasksHubProvider).apply(moved);
       }
     }
 
