@@ -6,7 +6,6 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/session/biometric_auth_service.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
-import 'package:lawbid/features/auth/data/stub_auth_repository.dart';
 import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
 import 'package:lawbid/features/auth/domain/reauth_result.dart';
 import 'package:lawbid/features/cases/application/case_history_controller.dart';
@@ -18,6 +17,7 @@ import 'package:lawbid/features/settings/data_export/application/data_export_pro
 import 'package:lawbid/features/settings/data_export/data/data_export_repository.dart';
 import 'package:lawbid/features/settings/data_export/presentation/data_export_screen.dart';
 
+import '../../helpers/stub_auth_repository.dart';
 import '../../helpers/ux_harness.dart';
 
 /// Owner 2026-10-08: a DEMO session skips the reauth code (case history

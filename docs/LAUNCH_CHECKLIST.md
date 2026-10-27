@@ -10,8 +10,8 @@ accounts (AWS, managed PostgreSQL host, Stripe live, stores) are open.
       (`npm run test:e2e --workspace apps/api` — 49 suites incl.
       `authz-matrix`, `security-hardening`, `auth-hardening`, `files`,
       `security-contact-leak`, `stage-6-9`; `flutter test` — 642 tests).
-- [ ] Load test passed (docs/06 §9.4): `k6 run -e STAGE=peak apps/api/k6/all.js`
-      and `-e STAGE=soak` on production-sized staging, results in
+- [ ] Load test passed (docs/06 §9.4): the staged `loadtest/` runs (`loadtest/run-local.sh`, then the Load test workflow: smoke, m1, m10)
+      on production-sized staging, results in
       `docs/perf/README.md`.
 - [ ] Backup restored in a test environment
       (`docs/runbooks/restore-drill.md`, first row filled).

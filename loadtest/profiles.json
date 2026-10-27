@@ -41,6 +41,14 @@
       "ws_hold": 15, "ws_storm_per_s": 3, "ws_duration": "2m",
       "calls_per_s": 1, "tokens": { "clients": 300, "attorneys": 100 }, "assets": false
     },
+    "nightly": {
+      "_comment": "Run by .github/workflows/load-nightly.yml against STAGING from a GitHub runner (no AWS stack, so no stack_hours). Small and free; never sends SMS (lib/http.js refuses /auth/otp).",
+      "budgets": { "api_p95_ms": 1200, "api_error_rate": 0.02 },
+      "kind": "http", "where": "ci", "peak_rps": 40, "generators": 0,
+      "stages": [["30s", 10], ["1m", 40], ["3m", 40], ["10s", 0]],
+      "ws_hold": 20, "ws_storm_per_s": 0, "ws_duration": "3m",
+      "calls_per_s": 0, "tokens": { "clients": 300, "attorneys": 100 }, "assets": false
+    },
     "smoke": {
       "budgets": { "api_p95_ms": 1000 },
       "kind": "http", "where": "ec2", "peak_rps": 60, "generators": 1,

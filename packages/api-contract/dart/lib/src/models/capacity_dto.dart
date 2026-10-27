@@ -20,6 +20,8 @@ class CapacityDto {
     this.dbCpuPercent,
     this.dbConnections,
     this.dbMaxConnections,
+    this.dbStorageGb,
+    this.dbStorageUsd,
     this.redisClass,
     this.redisNext,
     this.redisMemoryPercent,
@@ -36,6 +38,12 @@ class CapacityDto {
   final num? dbCpuPercent;
   final num? dbConnections;
   final num? dbMaxConnections;
+
+  /// Allocated database disk, GB.
+  final num? dbStorageGb;
+
+  /// Monthly price of that disk (gp3), USD.
+  final num? dbStorageUsd;
   final String? redisClass;
   final String? redisNext;
   final num? redisMemoryPercent;

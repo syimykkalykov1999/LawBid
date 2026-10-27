@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
@@ -48,7 +48,7 @@ class ConsultationChatCard extends ConsumerWidget {
     void call() {
       final id = c.conversationId;
       if (id == null) return;
-      HapticFeedback.mediumImpact();
+      AppHaptics.medium();
       ref.read(callControllerProvider.notifier).call(
             id,
             peer: CallPeer(

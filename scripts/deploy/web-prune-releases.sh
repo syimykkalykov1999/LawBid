@@ -66,6 +66,7 @@ while read -r E P; do
   echo "Removing old release $REL (uploaded $(date -u -d "@$E" +%F 2>/dev/null || echo "?"))"
   run aws s3 rm "s3://$BUCKET/$P" --recursive --quiet
   run "$R" delete "$ARN" "br_$REL"
+  run "$R" delete "$ARN" "br2_$REL"
   removed=$((removed + 1))
 done < <(printf '%s' "$LIST" | sort -rn)
 echo "Releases kept: $kept, removed: $removed (live: $LIVE, previous: ${PREV:-none})"

@@ -13,8 +13,14 @@ const logger = { setContext: jest.fn(), info: jest.fn() };
 function setup(
   rows: { owner_id: string; phone_hash: string }[],
   value?: string,
+  done = false,
 ) {
   const prisma = {
+    searchIndexState: {
+      findUnique: jest.fn().mockResolvedValue(done ? { key: 'k' } : null),
+      upsert: jest.fn().mockResolvedValue({}),
+      deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
     contactBookHash: {
       findMany: jest.fn().mockResolvedValue(
         rows.map((r) => ({
@@ -90,9 +96,47 @@ describe('ContactsPepperBackfillJob', () => {
     });
   });
 
-  it('is done when no plain row is left', async () => {
+  it('is done when no plain row is left, and says so in the checkpoint', async () => {
     const { job, prisma } = setup([], PEPPER);
     await expect(job.run()).resolves.toEqual({ rehashed: 0, remaining: false });
     expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.searchIndexState.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('idles once finished: no row query, and not even a checkpoint read the second time', async () => {
+    const { job, prisma } = setup([], PEPPER);
+    await job.run(); // finds nothing -> marks done
+    prisma.contactBookHash.findMany.mockClear();
+    prisma.searchIndexState.findUnique.mockClear();
+    await expect(job.run()).resolves.toEqual({
+      rehashed: 0,
+      remaining: false,
+      done: true,
+    });
+    expect(prisma.contactBookHash.findMany).not.toHaveBeenCalled();
+    expect(prisma.searchIndexState.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('a stored checkpoint stops the run before any row is read', async () => {
+    const { job, prisma } = setup(
+      [{ owner_id: 'u1', phone_hash: 'a'.repeat(64) }],
+      PEPPER,
+      true,
+    );
+    await expect(job.run()).resolves.toMatchObject({ done: true });
+    expect(prisma.contactBookHash.findMany).not.toHaveBeenCalled();
+  });
+
+  it('force ignores the checkpoint and clears it when it finds rows', async () => {
+    const { job, prisma } = setup(
+      [{ owner_id: 'u1', phone_hash: 'a'.repeat(64) }],
+      PEPPER,
+      true,
+    );
+    await expect(job.run({ force: true })).resolves.toEqual({
+      rehashed: 1,
+      remaining: false,
+    });
+    expect(prisma.searchIndexState.deleteMany).toHaveBeenCalledTimes(1);
   });
 });

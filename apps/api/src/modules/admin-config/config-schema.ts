@@ -202,10 +202,43 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     type: 'integer',
     defaultValue: null,
     description:
-      'Daily money cap for all paid services together, in US cents (empty = BUDGET_GLOBAL_DAILY_CENTS, $500; 0 = none). An alert fires at 80 %.',
+      'Daily money cap for all paid services together, in US cents (empty = automatic: allowed spend / 30 x economy.daily_brake_days, about $15 a day at launch; 0 = none). An alert fires at 80 %.',
     min: 0,
     max: 100_000_000,
   };
+  out['scale.endpoints.mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'VPC interface endpoints (about $29 a month): auto = created / removed by NAT traffic, on = always kept, off = never.',
+    pattern: /^(auto|on|off)$/,
+  };
+  out['scale.endpoints.ceiling'] = {
+    type: 'integer',
+    defaultValue: 4,
+    description:
+      'Most VPC interface endpoints the automation may keep (0 = none, 4 = all).',
+    min: 0,
+    max: 4,
+  };
+  out['budget.sms.monthly_cents'] = {
+    type: 'integer',
+    defaultValue: null,
+    description:
+      'Monthly money cap for SMS, in US cents (empty = BUDGET_SMS_MONTHLY_CENTS, $100; 0 = none).',
+    min: 0,
+    max: 100_000_000,
+  };
+  // S9-2: the one price book. Empty = the list price in cost-prices.ts.
+  for (const provider of COST_PROVIDERS) {
+    out[`cost.unit_millicents.${provider}`] = {
+      type: 'integer',
+      defaultValue: null,
+      description: `Price of one unit of ${provider} in millicents (1/1000 of a cent), overrides the list price used by the money brakes and the economy guard (empty = list price).`,
+      min: 0,
+      max: 100_000_000,
+    };
+  }
   out['budget.money.user_daily_cents'] = {
     type: 'integer',
     defaultValue: null,
@@ -628,6 +661,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Group video calls on Cloudflare SFU: auto = fall back to device-to-device when this month’s Cloudflare traffic reaches the urgent threshold, on = fallen back now, off = never. Calls are never refused. Changed on the «Расходы» page.',
     pattern: /^(off|on|auto)$/,
   };
+  out['ops.outbox_sweep.mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'Relay of events that cross database families (idle while there is one database): auto = run only when an event is waiting, on = every minute, off = never. Changed on the «Расходы» page.',
+    pattern: /^(off|on|auto)$/,
+  };
   out['usage.bunny_bandwidth_crit_gb'] = {
     ...out['usage.bunny_bandwidth_crit_gb'],
     description:
@@ -676,6 +716,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['chat.search.backfill_rows_per_run'],
     min: 100,
     max: 100000,
+  };
+  out['chat.search.max_tokens_per_message'] = {
+    ...out['chat.search.max_tokens_per_message'],
+    description:
+      'Chat search: index rows written per message (distinct words of 2+ characters, stop-words skipped; prefixes count too).',
+    min: 8,
+    max: 400,
+  };
+  out['chat.search.backfill_batch'] = {
+    ...out['chat.search.backfill_batch'],
+    description:
+      'Chat search backfill: messages per batch (one short transaction each).',
+    min: 50,
+    max: 5000,
   };
   out['economy.ceiling_mode'] = {
     ...out['economy.ceiling_mode'],

@@ -184,7 +184,7 @@ the same queries are 10–20× slower; the "after" plans do not read the table.
   `referrals/stats`, `promotions/stats`, `outreach/stats`, `/admin/fraud/stats` (the last is 5 ms here).
   They are plain counts over indexed columns; if the production tables show otherwise, register them in
   `AdminSummaryService` the same way (3 lines each).
-- The nightly k6 run (`apps/api/k6`, staging) has no admin scenario; this harness is the admin one and is
+- The nightly k6 run (`loadtest/k6`, profile `nightly`, staging) has no admin scenario; this harness is the admin one and is
   manual (`PERF_ADMIN=1`).
 - Searches in the small admin tables that remain `ILIKE` (partners, referrals, legal lookup, bans) are on
   tables bounded by staff work, not by user count.

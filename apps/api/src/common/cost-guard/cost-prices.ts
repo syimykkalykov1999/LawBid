@@ -6,7 +6,9 @@ import type { CostProvider } from './cost-guard.constants';
  * translated character (0.002 ¢) and an identity check (150 ¢) share one
  * integer counter in Redis. Prices are list-price estimates (sources
  * below); the owner overrides any of them live in the admin
- * (`cost.unit_millicents` JSON, `cost.sms_country_millicents` JSON).
+ * (`cost.unit_millicents.<provider>` and `cost.sms_millicents.<COUNTRY>`,
+ * read by `parsePriceBook`). This is the ONE price book: the economy guard
+ * (EconomyService) and the money brakes (CostGuardService) both read it.
  *
  * Sources (checked 2026-10): Google Cloud Translation $20 / 1 M characters;
  * AWS SES $0.10 / 1 000 e-mails; Stripe Identity $1.50 / verification;
@@ -172,4 +174,61 @@ export function capMillicentsFromCalls(
     NOMINAL_UNITS_PER_CALL[provider] *
     (unit[provider] ?? UNIT_MILLICENTS[provider])
   );
+}
+
+/** 1 US dollar in millicents (1 millicent = 1/1000 of a cent). */
+export const MILLICENTS_PER_USD = 100_000;
+
+export interface PriceBook {
+  unit: Partial<Record<CostProvider, number>>;
+  sms: Record<string, number>;
+}
+
+const isPrice = (v: unknown): v is number =>
+  typeof v === 'number' && Number.isFinite(v) && v >= 0;
+
+/**
+ * The admin's overrides out of the stored app_config rows (pure):
+ * `cost.unit_millicents.<provider>` (one integer per provider),
+ * `cost.sms_millicents.<COUNTRY>` (one integer per country) and, for a
+ * hand-written row, the JSON forms `cost.unit_millicents` /
+ * `cost.sms_country_millicents`. Malformed values are ignored (the list
+ * price stays).
+ */
+export function parsePriceBook(stored: Record<string, unknown>): PriceBook {
+  const book: PriceBook = { unit: {}, sms: {} };
+  const json = (v: unknown): Record<string, unknown> =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? (v as Record<string, unknown>)
+      : {};
+  const unitJson = json(stored['cost.unit_millicents']);
+  for (const p of Object.keys(UNIT_MILLICENTS) as CostProvider[]) {
+    const v = stored[`cost.unit_millicents.${p}`] ?? unitJson[p];
+    if (isPrice(v)) book.unit[p] = v;
+  }
+  for (const [c, v] of Object.entries(
+    json(stored['cost.sms_country_millicents']),
+  )) {
+    if (isPrice(v)) book.sms[c.toUpperCase()] = v;
+  }
+  for (const [k, v] of Object.entries(stored)) {
+    const m = /^cost\.sms_millicents\.([A-Za-z]{2})$/.exec(k);
+    if (m && isPrice(v)) book.sms[m[1].toUpperCase()] = v;
+  }
+  return book;
+}
+
+/**
+ * What ONE guarded call is assumed to cost, in US dollars: the same
+ * numbers `consume()` reserves (unit price × nominal size of a call).
+ * SMS has no country in a call counter, so it uses the unit price (the
+ * US/Canada rate): the real destination mix comes from Twilio's own bill
+ * (spend snapshot), this is only the fallback.
+ */
+export function unitUsdPerCall(
+  provider: CostProvider,
+  book: Partial<PriceBook> = {},
+): number {
+  const unit = book.unit?.[provider] ?? UNIT_MILLICENTS[provider];
+  return (unit * NOMINAL_UNITS_PER_CALL[provider]) / MILLICENTS_PER_USD;
 }
