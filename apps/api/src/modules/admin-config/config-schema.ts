@@ -908,6 +908,50 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       pattern: /^\d+\.\d+\.\d+$/,
     };
   }
+  // Owner 2026-10-28 (legal safety): enumerated modes and sane ranges.
+  out['qa.pii_mode'] = {
+    ...out['qa.pii_mode'],
+    pattern: /^(off|warn|redact|block)$/,
+  };
+  out['qa.pii_kinds'] = {
+    ...out['qa.pii_kinds'],
+    pattern:
+      /^(?:(?:ssn|card|address|case_number|party_name|immigration_id|dob|id_number|phone|email)(?:\s*,\s*|$))+$/,
+  };
+  out['qa.advice_flag_mode'] = {
+    ...out['qa.advice_flag_mode'],
+    pattern: /^(off|flag|hold)$/,
+  };
+  out['legal.disclaimer.by_state'] = {
+    ...out['legal.disclaimer.by_state'],
+    pattern: /^\{[\s\S]{0,20000}\}$/,
+  };
+  out['qa.new_account_cooldown_hours'] = {
+    ...out['qa.new_account_cooldown_hours'],
+    min: 0,
+    max: 720,
+  };
+  out['qa.max_links'] = { ...out['qa.max_links'], min: 0, max: 50 };
+  out['qa.duplicate_window_days'] = {
+    ...out['qa.duplicate_window_days'],
+    min: 0,
+    max: 365,
+  };
+  out['qa.duplicate_cross_user_max'] = {
+    ...out['qa.duplicate_cross_user_max'],
+    min: 1,
+    max: 100,
+  };
+  out['qa.answer_duplicate_max'] = {
+    ...out['qa.answer_duplicate_max'],
+    min: 1,
+    max: 100,
+  };
+  out['rate_limit.answer_per_day'] = {
+    ...out['rate_limit.answer_per_day'],
+    min: 1,
+    max: 10_000,
+  };
   return out;
 }
 

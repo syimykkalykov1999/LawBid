@@ -22,6 +22,27 @@ export interface ApiErrorBody {
   };
 }
 
+export class LegalDisclaimerDto {
+  @ApiProperty({
+    description:
+      'General information, not legal advice; no attorney-client relationship.',
+  })
+  text!: string;
+
+  @ApiProperty({ description: 'Changes when the wording changes.' })
+  version!: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'The state whose own wording is used; null = default text.',
+  })
+  stateCode!: string | null;
+
+  @ApiProperty({ enum: ['qa', 'template', 'deadline'] })
+  kind!: string;
+}
+
 /** `meta` of the success envelope. Present only on paginated lists
  * (a handler returning `{items, nextCursor}`); plain payloads get no
  * `meta` at all. */
@@ -46,6 +67,13 @@ export class ResponseMetaDto {
       'Owner 2026-10-22 (delta sync): with ?updatedSince — the newest updated_at of this answer; pass it back as updatedSince next time.',
   })
   syncedAt?: string;
+
+  @ApiPropertyOptional({
+    type: () => LegalDisclaimerDto,
+    description:
+      'Owner 2026-10-28 (legal safety): on Q&A, template and deadline responses — the "general information, not legal advice" notice, worded in the admin (per state). Show it next to the content.',
+  })
+  disclaimer?: LegalDisclaimerDto;
 }
 
 /** `error` of the error envelope. `code` is the one ErrorCode enum shared

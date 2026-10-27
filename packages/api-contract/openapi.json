@@ -60888,6 +60888,107 @@
         ]
       }
     },
+    "/stickers/packs/{ref}/report": {
+      "post": {
+        "operationId": "reportStickerPack",
+        "parameters": [
+          {
+            "name": "ref",
+            "required": true,
+            "in": "path",
+            "description": "Pack id or short name.",
+            "schema": {
+              "pattern": "^[A-Za-z0-9_-]{1,40}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportStickerPackDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Report a sticker pack (inappropriate, abuse ...)",
+        "tags": [
+          "stickers"
+        ]
+      }
+    },
     "/stickers/packs/{ref}/install": {
       "post": {
         "operationId": "installStickerPack",
@@ -61142,6 +61243,83 @@
         "summary": "Delete a sticker from my pack",
         "tags": [
           "stickers"
+        ]
+      }
+    },
+    "/reports": {
+      "post": {
+        "operationId": "createReport",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Report a post, comment, message or user (docs/05 §12.1)",
+        "tags": [
+          "reports"
         ]
       }
     },
@@ -66393,83 +66571,6 @@
         "summary": "Accept or reject appeals in bulk",
         "tags": [
           "admin-review-appeals"
-        ]
-      }
-    },
-    "/reports": {
-      "post": {
-        "operationId": "createReport",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateReportDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Report a post, comment, message or user (docs/05 §12.1)",
-        "tags": [
-          "reports"
         ]
       }
     },
@@ -115748,6 +115849,37 @@
           "client"
         ]
       },
+      "LegalDisclaimerDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "General information, not legal advice; no attorney-client relationship."
+          },
+          "version": {
+            "type": "string",
+            "description": "Changes when the wording changes."
+          },
+          "stateCode": {
+            "type": "string",
+            "nullable": true,
+            "description": "The state whose own wording is used; null = default text."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "qa",
+              "template",
+              "deadline"
+            ]
+          }
+        },
+        "required": [
+          "text",
+          "version",
+          "kind"
+        ]
+      },
       "ResponseMetaDto": {
         "type": "object",
         "properties": {
@@ -115767,6 +115899,14 @@
             "type": "string",
             "format": "date-time",
             "description": "Owner 2026-10-22 (delta sync): with ?updatedSince — the newest updated_at of this answer; pass it back as updatedSince next time."
+          },
+          "disclaimer": {
+            "description": "Owner 2026-10-28 (legal safety): on Q&A, template and deadline responses — the \"general information, not legal advice\" notice, worded in the admin (per state). Show it next to the content.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalDisclaimerDto"
+              }
+            ]
           }
         }
       },
@@ -146874,6 +147014,34 @@
           "data"
         ]
       },
+      "CsamAuditEventDto": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "event": {
+            "type": "string",
+            "description": "opened | submit_skipped | submitted | manual_required | failed"
+          },
+          "actor": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "detail": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "at",
+          "event",
+          "actor",
+          "detail"
+        ]
+      },
       "CsamReportDto": {
         "type": "object",
         "properties": {
@@ -146902,6 +147070,13 @@
             "type": "string",
             "nullable": true
           },
+          "audit": {
+            "description": "Owner 2026-10-28: append-only trail of this report (who opened it, whether the NCMEC call was made).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CsamAuditEventDto"
+            }
+          },
           "createdAt": {
             "type": "string"
           }
@@ -146912,6 +147087,7 @@
           "status",
           "externalReportId",
           "error",
+          "audit",
           "createdAt"
         ]
       },
@@ -148706,6 +148882,96 @@
           "data"
         ]
       },
+      "ReportReason": {
+        "type": "string",
+        "enum": [
+          "spam",
+          "abuse",
+          "misinformation",
+          "impersonation",
+          "inappropriate",
+          "other",
+          "off_topic",
+          "conflict_of_interest",
+          "profanity",
+          "harassment",
+          "hate_speech",
+          "personal_info",
+          "fraud",
+          "copyright",
+          "nudity",
+          "violence",
+          "self_harm",
+          "illegal"
+        ]
+      },
+      "ReportStickerPackDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportReason"
+              }
+            ]
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "ReportTargetType": {
+        "type": "string",
+        "enum": [
+          "post",
+          "comment",
+          "case_comment",
+          "message",
+          "user",
+          "sticker_pack",
+          "story",
+          "channel",
+          "channel_post",
+          "legal_question",
+          "legal_answer"
+        ]
+      },
+      "CreateReportDto": {
+        "type": "object",
+        "properties": {
+          "targetType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportTargetType"
+              }
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReportReason"
+              }
+            ]
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "targetType",
+          "targetId",
+          "reason"
+        ]
+      },
       "UserBriefDto": {
         "type": "object",
         "properties": {
@@ -150181,29 +150447,6 @@
           "status"
         ]
       },
-      "ReportReason": {
-        "type": "string",
-        "enum": [
-          "spam",
-          "abuse",
-          "misinformation",
-          "impersonation",
-          "inappropriate",
-          "other",
-          "off_topic",
-          "conflict_of_interest",
-          "profanity",
-          "harassment",
-          "hate_speech",
-          "personal_info",
-          "fraud",
-          "copyright",
-          "nudity",
-          "violence",
-          "self_harm",
-          "illegal"
-        ]
-      },
       "ReportReviewDto": {
         "type": "object",
         "properties": {
@@ -150460,54 +150703,6 @@
         },
         "required": [
           "data"
-        ]
-      },
-      "ReportTargetType": {
-        "type": "string",
-        "enum": [
-          "post",
-          "comment",
-          "case_comment",
-          "message",
-          "user",
-          "sticker_pack",
-          "story",
-          "channel",
-          "channel_post",
-          "legal_question",
-          "legal_answer"
-        ]
-      },
-      "CreateReportDto": {
-        "type": "object",
-        "properties": {
-          "targetType": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ReportTargetType"
-              }
-            ]
-          },
-          "targetId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "reason": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ReportReason"
-              }
-            ]
-          },
-          "note": {
-            "type": "string",
-            "maxLength": 1000
-          }
-        },
-        "required": [
-          "targetType",
-          "targetId",
-          "reason"
         ]
       },
       "ContactSyncStatusDto": {
@@ -176205,6 +176400,13 @@
             "type": "boolean",
             "description": "The viewer is a verified attorney who may answer now."
           },
+          "privacyWarnings": {
+            "description": "Owner 2026-10-28: only in the answer to POST /questions — kinds of private information found in the text (ssn, address, case_number, party_name ...). With qa.pii_mode=redact they were replaced with a mask.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "createdAt": {
             "type": "string"
           }
@@ -176366,6 +176568,10 @@
           "body": {
             "type": "string"
           },
+          "verifiedBadge": {
+            "type": "boolean",
+            "description": "Owner 2026-10-28: the server decides the «verified attorney answer» badge — the answerer is verified now and holds a verified licence in the question’s state."
+          },
           "likeCount": {
             "type": "integer"
           },
@@ -176390,6 +176596,7 @@
           "questionId",
           "attorney",
           "body",
+          "verifiedBadge",
           "likeCount",
           "likedByMe",
           "isBest",
@@ -176469,6 +176676,13 @@
           "canAnswer": {
             "type": "boolean",
             "description": "The viewer is a verified attorney who may answer now."
+          },
+          "privacyWarnings": {
+            "description": "Owner 2026-10-28: only in the answer to POST /questions — kinds of private information found in the text (ssn, address, case_number, party_name ...). With qa.pii_mode=redact they were replaced with a mask.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "createdAt": {
             "type": "string"
@@ -176607,6 +176821,13 @@
               }
             ]
           },
+          "safetyFlags": {
+            "description": "Owner 2026-10-28: private-info kinds found in the text (ssn, address, case_number, party_name ...).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -176623,6 +176844,7 @@
           "stateCode",
           "practiceArea",
           "author",
+          "safetyFlags",
           "createdAt"
         ]
       },
@@ -176675,6 +176897,13 @@
           "attorney": {
             "$ref": "#/components/schemas/AdminQaPersonDto"
           },
+          "safetyFlags": {
+            "description": "Owner 2026-10-28: what the safety check found — private-info kinds, individualized_advice, state_not_licensed.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -176687,6 +176916,7 @@
           "isBest",
           "likeCount",
           "attorney",
+          "safetyFlags",
           "createdAt"
         ]
       },
@@ -176734,6 +176964,13 @@
               }
             ]
           },
+          "safetyFlags": {
+            "description": "Owner 2026-10-28: private-info kinds found in the text (ssn, address, case_number, party_name ...).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -176756,6 +176993,7 @@
           "stateCode",
           "practiceArea",
           "author",
+          "safetyFlags",
           "createdAt",
           "answers"
         ]

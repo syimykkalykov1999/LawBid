@@ -5522,17 +5522,21 @@ model StickerPack {
 }
 
 model Sticker {
-  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  pack_id    String              @db.Uuid
-  pack       StickerPack         @relation(fields: [pack_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "stickers_pack_fkey")
-  file_id    String              @unique @db.Uuid
-  file       File                @relation(fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "stickers_file_fkey")
-  emoji      String              @default("🙂") @db.VarChar(16)
-  position   Int                 @default(0)
-  created_at DateTime            @default(now()) @db.Timestamptz
-  deleted_at DateTime?           @db.Timestamptz
-  messages   Message[]
-  recent     UserRecentSticker[]
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pack_id           String              @db.Uuid
+  pack              StickerPack         @relation(fields: [pack_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "stickers_pack_fkey")
+  file_id           String              @unique @db.Uuid
+  file              File                @relation(fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "stickers_file_fkey")
+  emoji             String              @default("🙂") @db.VarChar(16)
+  position          Int                 @default(0)
+  /// Owner 2026-10-28: a user's new image waits here until the media scan
+  /// (Rekognition + CSAM hash) passes: pending | active | hidden. Official
+  /// and older stickers are `active`.
+  moderation_status String              @default("active") @db.VarChar(12)
+  created_at        DateTime            @default(now()) @db.Timestamptz
+  deleted_at        DateTime?           @db.Timestamptz
+  messages          Message[]
+  recent            UserRecentSticker[]
 
   @@index([pack_id, position], map: "stickers_pack_position_idx")
   @@map("stickers")
@@ -7235,6 +7239,11 @@ model LegalQuestion {
   /// Closed by the author, or by the nightly sweep (no answer in 30 days):
   /// gone from the attorneys' feed, no more answers.
   closed_at        DateTime?     @db.Timestamptz
+  /// Owner 2026-10-28 (legal safety): what the private-info check found
+  /// (ssn, address, case_number, party_name ...); empty = nothing.
+  safety_flags     String[]      @default([])
+  /// SHA-256 of the normalised text — duplicate / copy-paste spam check.
+  content_hash     String?       @db.VarChar(64)
   created_at       DateTime      @default(now()) @db.Timestamptz
   updated_at       DateTime      @updatedAt @db.Timestamptz
 
@@ -7250,22 +7259,27 @@ model LegalQuestion {
   // Owner 2026-10-22 (client economy plan, package F): GET /questions?filter=mine&updatedSince.
   @@index([author_id, updated_at])
   @@index([closed_at, deleted_at])
+  @@index([content_hash, created_at(sort: Desc)])
   @@map("legal_questions")
 }
 
 model LegalAnswer {
-  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  question_id String        @db.Uuid
-  question    LegalQuestion @relation(fields: [question_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  attorney_id String        @db.Uuid
-  attorney    User          @relation("LegalAnswerAuthor", fields: [attorney_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  body        String        @db.VarChar(4000)
-  status      ContentStatus @default(published)
-  like_count  Int           @default(0)
-  is_best     Boolean       @default(false)
-  deleted_at  DateTime?     @db.Timestamptz
-  created_at  DateTime      @default(now()) @db.Timestamptz
-  updated_at  DateTime      @updatedAt @db.Timestamptz
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  question_id  String        @db.Uuid
+  question     LegalQuestion @relation(fields: [question_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  attorney_id  String        @db.Uuid
+  attorney     User          @relation("LegalAnswerAuthor", fields: [attorney_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  body         String        @db.VarChar(4000)
+  status       ContentStatus @default(published)
+  like_count   Int           @default(0)
+  is_best      Boolean       @default(false)
+  deleted_at   DateTime?     @db.Timestamptz
+  /// Owner 2026-10-28 (legal safety): private_info kinds, individualized_advice,
+  /// state_not_licensed — shown to the admin only.
+  safety_flags String[]      @default([])
+  content_hash String?       @db.VarChar(64)
+  created_at   DateTime      @default(now()) @db.Timestamptz
+  updated_at   DateTime      @updatedAt @db.Timestamptz
 
   likes LegalAnswerLike[]
 
@@ -7275,6 +7289,7 @@ model LegalAnswer {
   /// One answer per attorney and question (edited, not repeated).
   @@unique([question_id, attorney_id])
   @@index([attorney_id, created_at(sort: Desc)])
+  @@index([attorney_id, content_hash])
   @@map("legal_answers")
 }
 
@@ -7510,6 +7525,9 @@ model CsamReport {
   created_by         String?              @db.Uuid
   created_at         DateTime             @default(now()) @db.Timestamptz
   submitted_at       DateTime?            @db.Timestamptz
+  /// Owner 2026-10-28: append-only trail [{at, event, actor, detail}] —
+  /// opened, submit_skipped (switch off), submitted, manual_required, failed.
+  audit              Json                 @default("[]")
 
   @@index([status, created_at], map: "csam_reports_status_idx")
   @@index([check_id], map: "csam_reports_check_idx")

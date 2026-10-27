@@ -15,6 +15,9 @@ import type { ApiSuccessBody } from '../dto/api-response.dto';
  * list endpoints, which this unwraps into `{ data: items, meta: { nextCursor } }`.
  * Health/Swagger routes are excluded (see main.ts) since Terminus/Swagger
  * have their own response shapes mandated by their tooling.
+ *
+ * Owner 2026-10-28: a route marked `@LegalDisclaimerNotice` leaves the
+ * notice on the request (`req.legalDisclaimer`); it goes to `meta.disclaimer`.
  */
 @Injectable()
 export class ResponseInterceptor<T> implements NestInterceptor<
@@ -22,11 +25,12 @@ export class ResponseInterceptor<T> implements NestInterceptor<
   ApiSuccessBody<T>
 > {
   intercept(
-    _context: ExecutionContext,
+    context: ExecutionContext,
     next: CallHandler<T>,
   ): Observable<ApiSuccessBody<T>> {
     return next.handle().pipe(
       map((payload) => {
+        const disclaimer = this.disclaimerOf(context);
         if (
           payload !== null &&
           typeof payload === 'object' &&
@@ -38,10 +42,30 @@ export class ResponseInterceptor<T> implements NestInterceptor<
             nextCursor: string | null;
             [k: string]: unknown;
           };
-          return { data: items as T, meta: { nextCursor, ...rest } };
+          return {
+            data: items as T,
+            meta: {
+              nextCursor,
+              ...rest,
+              ...(disclaimer ? { disclaimer } : {}),
+            },
+          };
         }
-        return { data: payload };
+        return disclaimer
+          ? { data: payload, meta: { disclaimer } }
+          : { data: payload };
       }),
     );
+  }
+
+  private disclaimerOf(context: ExecutionContext): unknown {
+    try {
+      const req = context.switchToHttp().getRequest<{
+        legalDisclaimer?: unknown;
+      }>();
+      return req?.legalDisclaimer;
+    } catch {
+      return undefined;
+    }
   }
 }

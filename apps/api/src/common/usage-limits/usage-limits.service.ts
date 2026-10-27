@@ -37,6 +37,7 @@ export type LimitedAction =
   | 'consultation_book'
   | 'question_create'
   | 'answer_create'
+  | 'answer_create_daily'
   // Owner 2026-10-25 (abuse hardening): offers, counters, cases, saved, forward.
   | 'bid_create'
   | 'bid_counter'
@@ -108,6 +109,11 @@ export const USAGE_LIMITS: Record<
   },
   question_create: { setting: 'rate_limit.question_per_day', windowSec: DAY },
   answer_create: { setting: 'rate_limit.answer_per_hour', windowSec: HOUR },
+  // Owner 2026-10-28 (legal safety): a daily ceiling on top of the hourly one.
+  answer_create_daily: {
+    setting: 'rate_limit.answer_per_day',
+    windowSec: DAY,
+  },
   bid_create: { setting: 'rate_limit.bid_create_per_day', windowSec: DAY },
   bid_counter: { setting: 'rate_limit.bid_counter_per_hour', windowSec: HOUR },
   case_create: { setting: 'rate_limit.case_create_per_day', windowSec: DAY },

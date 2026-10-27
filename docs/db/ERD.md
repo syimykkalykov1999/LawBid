@@ -2098,6 +2098,7 @@ erDiagram
     String file_id FK,UK
     String emoji
     Int position
+    String moderation_status
     DateTime created_at
     DateTime deleted_at "nullable"
   }
@@ -2957,6 +2958,7 @@ erDiagram
     String best_answer_id "nullable"
     DateTime deleted_at "nullable"
     DateTime closed_at "nullable"
+    String content_hash "nullable"
     DateTime created_at
     DateTime updated_at
     Int shard_id
@@ -2970,6 +2972,7 @@ erDiagram
     Int like_count
     Boolean is_best
     DateTime deleted_at "nullable"
+    String content_hash "nullable"
     DateTime created_at
     DateTime updated_at
     Int shard_id
@@ -3080,6 +3083,7 @@ erDiagram
     String created_by "nullable"
     DateTime created_at
     DateTime submitted_at "nullable"
+    Json audit
   }
   system_incidents {
     String id PK
