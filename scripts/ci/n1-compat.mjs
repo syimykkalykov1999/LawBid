@@ -54,7 +54,10 @@ const u = new URL(base);
 u.pathname = `/${dbName}`;
 const url = u.toString();
 console.log(`N-1: ${dirs.length} migrations, database ${dbName}`);
-const created = run('psql', [base, '-v', 'ON_ERROR_STOP=1', '-c', `CREATE DATABASE "${dbName}"`]);
+// psql rejects Prisma's `?schema=public` query parameter: strip the query for psql.
+const psqlUrl = new URL(base);
+psqlUrl.search = '';
+const created = run('psql', [psqlUrl.toString(), '-v', 'ON_ERROR_STOP=1', '-c', `CREATE DATABASE "${dbName}"`]);
 if (created.status !== 0) process.exit(1);
 const env = { ...process.env, DATABASE_URL: url };
 if (run('npx', ['prisma', 'migrate', 'deploy'], { cwd: here, env }).status !== 0) process.exit(1);
