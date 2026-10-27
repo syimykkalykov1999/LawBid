@@ -32088,6 +32088,131 @@
       }
     },
     "/case-comments/{id}": {
+      "patch": {
+        "operationId": "editCaseComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditCaseCommentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseCommentEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, CASE_CONTAINS_CONTACT_INFO",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: COMMENT_NOT_FOUND, CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CASE_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error: CONTENT_BLOCKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Edit own comment within the time window (earlier texts are kept for audit)",
+        "tags": [
+          "case-comments"
+        ]
+      },
       "delete": {
         "operationId": "deleteCaseComment",
         "parameters": [
@@ -113613,6 +113738,520 @@
         ]
       }
     },
+    "/cases/{id}/billing/invoices/{invoiceId}/send": {
+      "post": {
+        "operationId": "sendCaseInvoice",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseBillingEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ASSISTANT_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CASE_INVALID_STATE, VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Attorney: send a draft invoice (the client sees it now)",
+        "tags": [
+          "case-billing"
+        ]
+      }
+    },
+    "/cases/{id}/billing/invoices/{invoiceId}/void": {
+      "post": {
+        "operationId": "voidCaseInvoice",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseBillingEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ASSISTANT_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CASE_INVALID_STATE, VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Attorney: void an unpaid invoice; its time and expenses become billable again",
+        "tags": [
+          "case-billing"
+        ]
+      }
+    },
+    "/cases/{id}/billing/invoices/{invoiceId}/remind": {
+      "post": {
+        "operationId": "remindCaseInvoice",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseBillingEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ASSISTANT_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CASE_INVALID_STATE, VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Attorney: remind the client about an unpaid invoice now",
+        "tags": [
+          "case-billing"
+        ]
+      }
+    },
+    "/cases/{id}/billing/invoices/{invoiceId}/payment": {
+      "post": {
+        "operationId": "recordCaseInvoicePayment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "invoiceId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordInvoicePaymentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseBillingEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ASSISTANT_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CASE_INVALID_STATE, VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Attorney: record money received outside the app (partially paid / paid)",
+        "tags": [
+          "case-billing"
+        ]
+      }
+    },
     "/cases/{id}/signing": {
       "get": {
         "operationId": "listSignRequests",
@@ -114248,6 +114887,132 @@
           }
         ],
         "summary": "The side that asked withdraws the request",
+        "tags": [
+          "case-signing"
+        ]
+      }
+    },
+    "/cases/{id}/signing/{requestId}/resend": {
+      "post": {
+        "operationId": "resendSignRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignRequestListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ASSISTANT_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CASE_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CASE_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The side that asked reminds the one who has not signed (also revives an expired request)",
         "tags": [
           "case-signing"
         ]
@@ -136812,6 +137577,12 @@
           },
           "createdAt": {
             "type": "string"
+          },
+          "editedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Set when the author edited the text (earlier texts are kept on the server for legal audit)."
           }
         },
         "required": [
@@ -136825,7 +137596,8 @@
           "likedByMe",
           "canDelete",
           "isMine",
-          "createdAt"
+          "createdAt",
+          "editedAt"
         ]
       },
       "CaseCommentListEnvelope": {
@@ -136857,6 +137629,18 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "EditCaseCommentDto": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "body"
         ]
       },
       "PracticeAreaRefDto": {
@@ -180165,6 +180949,58 @@
           "fileId": {
             "type": "string",
             "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "sent",
+              "viewed",
+              "paid",
+              "partially_paid",
+              "overdue",
+              "void"
+            ]
+          },
+          "dueAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "sentAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "viewedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "paidAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "paidCents": {
+            "type": "number",
+            "description": "Paid so far, cents."
+          },
+          "lateFeeCents": {
+            "type": "number",
+            "description": "Late fee added, cents (0 = none)."
+          },
+          "balanceCents": {
+            "type": "number",
+            "description": "Still owed: total + late fee - paid."
+          },
+          "remindersEnabled": {
+            "type": "boolean"
+          },
+          "payUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "The attorney's own external payment link (never an in-app payment)."
           }
         },
         "required": [
@@ -180179,7 +181015,17 @@
           "note",
           "lines",
           "url",
-          "fileId"
+          "fileId",
+          "status",
+          "dueAt",
+          "sentAt",
+          "viewedAt",
+          "paidAt",
+          "paidCents",
+          "lateFeeCents",
+          "balanceCents",
+          "remindersEnabled",
+          "payUrl"
         ]
       },
       "CaseBillingDto": {
@@ -180367,6 +181213,36 @@
           "note": {
             "type": "string",
             "maxLength": 500
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Due date; without it the admin default (days after sending) applies, or none."
+          },
+          "draft": {
+            "type": "boolean",
+            "description": "Keep it a draft: the client sees nothing until it is sent. Default false."
+          },
+          "remindersEnabled": {
+            "type": "boolean",
+            "description": "Automatic reminders for this invoice (default true)."
+          },
+          "payUrl": {
+            "type": "string",
+            "maxLength": 500,
+            "format": "uri",
+            "description": "The attorney's own external payment link (https). The app only shows it; the client pays outside the app."
+          }
+        }
+      },
+      "RecordInvoicePaymentDto": {
+        "type": "object",
+        "properties": {
+          "amountCents": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100000000,
+            "description": "Amount received outside the app, cents. Without it: the whole balance."
           }
         }
       },
@@ -180400,6 +181276,26 @@
           "name",
           "method",
           "signedAt"
+        ]
+      },
+      "SignViewDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "enum": [
+              "client",
+              "attorney"
+            ],
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "role",
+          "at"
         ]
       },
       "SignRequestDto": {
@@ -180479,6 +181375,34 @@
           "declineReason": {
             "type": "string",
             "nullable": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "expired": {
+            "type": "boolean",
+            "description": "The request ran out of time (its status is then `canceled`); the sender can resend."
+          },
+          "remindersSent": {
+            "type": "number"
+          },
+          "lastRemindedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "views": {
+            "description": "Audit: when each side opened the waiting document.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SignViewDto"
+            }
+          },
+          "canResend": {
+            "type": "boolean",
+            "description": "The sender may remind the other side now."
           }
         },
         "required": [
@@ -180497,7 +181421,13 @@
           "canDecline",
           "canCancel",
           "declinedByRole",
-          "declineReason"
+          "declineReason",
+          "expiresAt",
+          "expired",
+          "remindersSent",
+          "lastRemindedAt",
+          "views",
+          "canResend"
         ]
       },
       "SignRequestListEnvelope": {

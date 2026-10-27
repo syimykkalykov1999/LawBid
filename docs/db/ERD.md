@@ -1442,6 +1442,9 @@ erDiagram
     Int like_count
     Int reply_count
     DateTime deleted_at "nullable"
+    DateTime edited_at "nullable"
+    Int edit_count
+    Json edit_history
     DateTime created_at
     DateTime updated_at
     Int shard_id
@@ -2938,6 +2941,19 @@ erDiagram
     Json lines
     String file_id
     DateTime created_at
+    enum_CaseInvoiceStatus status
+    DateTime due_at "nullable"
+    DateTime sent_at "nullable"
+    DateTime viewed_at "nullable"
+    DateTime paid_at "nullable"
+    DateTime voided_at "nullable"
+    Int paid_cents
+    Int late_fee_cents
+    DateTime late_fee_applied_at "nullable"
+    String pay_url "nullable"
+    Boolean reminders_enabled
+    Int reminders_sent
+    DateTime last_reminded_at "nullable"
     Int shard_id
   }
   case_sign_requests {
@@ -2953,6 +2969,11 @@ erDiagram
     String declined_by "nullable"
     String decline_reason "nullable"
     DateTime completed_at "nullable"
+    DateTime expires_at "nullable"
+    DateTime expired_at "nullable"
+    Int reminders_sent
+    DateTime last_reminded_at "nullable"
+    Json view_log
     DateTime created_at
     DateTime updated_at
     Int shard_id

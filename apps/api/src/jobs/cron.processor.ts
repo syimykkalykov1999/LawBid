@@ -1,3 +1,4 @@
+import { CaseToolsSweepService } from '../modules/cases/tools/case-tools.sweep';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import {
@@ -183,6 +184,8 @@ export class CronProcessor {
     // Owner 2026-10-27: `moderation.appeal-sla`.
     @Optional() private readonly autoAppeals?: AutoAppealsService,
     @Optional() private readonly partitioning?: PartitionService,
+    // Owner 2026-10-25: `case-tools.sweep`.
+    @Optional() private readonly caseToolsSweep?: CaseToolsSweepService,
     // Owner 2026-10-25: `experiments.metrics`.
     @Optional() private readonly experimentsNightly?: ExperimentsNightlyJob,
     // Day-one foundations: `ledger.reconcile`.
@@ -365,6 +368,8 @@ export class CronProcessor {
         return this.casePayments.expire();
       case CRON_JOBS.casePaymentsRemind:
         return this.casePayments.remind();
+      case CRON_JOBS.caseToolsSweep:
+        return this.caseToolsSweep?.run() ?? null;
       case CRON_JOBS.partnersSweep:
         return this.partners.sweep();
       case CRON_JOBS.countryPartnersSweep:

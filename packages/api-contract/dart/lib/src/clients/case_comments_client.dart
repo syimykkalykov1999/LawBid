@@ -9,6 +9,7 @@ import '../models/case_comment_envelope.dart';
 import '../models/case_comment_list_envelope.dart';
 import '../models/comment_deleted_envelope.dart';
 import '../models/create_comment_dto.dart';
+import '../models/edit_case_comment_dto.dart';
 
 part 'case_comments_client.g.dart';
 
@@ -48,6 +49,14 @@ abstract class CaseCommentsClient {
   Future<CaseCommentListEnvelope> listCaseCommentReplies({
     @Path('id') required String id,
     @Query('cursor') String? cursor,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Edit own comment within the time window (earlier texts are kept for audit)
+  @PATCH('/case-comments/{id}')
+  Future<CaseCommentEnvelope> editCaseComment({
+    @Path('id') required String id,
+    @Body() required EditCaseCommentDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

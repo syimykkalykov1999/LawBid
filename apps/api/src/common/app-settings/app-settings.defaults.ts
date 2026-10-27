@@ -1284,6 +1284,40 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
   'push.chat_preview': true,
 };
 
+/** Owner 2026-10-25: case tools (invoices, signing, case comments). Every
+ * switch is off or neutral by default, so nothing changes until the owner
+ * turns it on in the admin (Config).
+ * - reminders.mode: off | on | auto (default). The reminder/expiry job runs
+ *   once a day; auto = it only does work when there are open dated
+ *   invoices or pending signing requests; off = it never runs.
+ *   reminders.daily_cap = most reminder notices per run (0 = no cap).
+ * - invoice_default_due_days: a new invoice gets this due date (0 = none).
+ * - invoice_reminder_days: reminders to the client this many days before
+ *   the due date (0 = on the day); overdue ones repeat every N days.
+ * - invoice_late_fee_percent: 0 = no late fee; otherwise this percent of
+ *   the invoice is added once, after the grace days (check that the
+ *   engagement letter allows it).
+ * - sign_expiry_days: a signing request expires after N days (0 = never);
+ *   sign_reminder_every_days: remind the unsigned side every N days (0 = off).
+ * - case_comments.edit_window_minutes: the author may edit a comment this
+ *   long after posting (0 = editing off); earlier texts are kept. */
+export const OWNER_CASE_TOOLS_SETTINGS = {
+  'case_tools.reminders.mode': 'auto',
+  'case_tools.reminders.daily_cap': 2000,
+  'case_tools.invoice_default_due_days': 0,
+  'case_tools.invoice_reminder_days': [3, 0],
+  'case_tools.invoice_overdue_remind_every_days': 7,
+  'case_tools.invoice_max_reminders': 6,
+  'case_tools.invoice_late_fee_percent': 0,
+  'case_tools.invoice_late_fee_grace_days': 5,
+  'case_tools.sign_expiry_days': 0,
+  'case_tools.sign_reminder_every_days': 0,
+  'case_tools.sign_max_reminders': 3,
+  'case_tools.sign_resend_cooldown_minutes': 60,
+  'case_comments.edit_window_minutes': 15,
+  'case_comments.edit_max_edits': 5,
+};
+
 /** S12-8 (observability round 12): per-route request / error / latency
  * metrics for ~15 journey routes, written as CloudWatch EMF lines
  * (namespace LawBid/Routes, dimension Route). 3 metrics x 15 routes = 45
@@ -1437,6 +1471,7 @@ export const APP_SETTINGS = {
   ...OWNER_CHAT_PHOTO_SETTINGS,
   ...OWNER_LEGAL_SECURITY_SETTINGS,
   ...OWNER_PRIVACY_SETTINGS,
+  ...OWNER_CASE_TOOLS_SETTINGS,
   ...OWNER_OBSERVABILITY_SETTINGS,
   ...OWNER_CASE_FANOUT_SETTINGS,
   ...OWNER_COST_REGISTRY_SETTINGS,

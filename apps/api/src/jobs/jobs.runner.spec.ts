@@ -269,6 +269,7 @@ describe('JobsRunner', () => {
     // Owner 2026-10-24: + search.index (every minute).
     // Owner 2026-10-25: + cdn.invalidate (every other minute).
     // Owner 2026-10-27: + moderation.appeal-sla (hourly).
+    // Owner 2026-10-25: + case-tools.sweep (daily).
     // Day-one foundations: + ledger.reconcile (nightly).
     // Owner 2026-10-28: + legal.reminders (hourly).
     // Privacy round 13: + privacy.retention, privacy.reconcile and
