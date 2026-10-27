@@ -18,6 +18,8 @@ import {
   CRON_QUEUE,
   CRON_SCHEDULES,
   cronLaneOf,
+  FAST_JOBS,
+  HEAVY_JOBS,
   isSubHourly,
 } from './jobs.constants';
 import type { SessionsCleanupJob } from './handlers/sessions-cleanup.job';
@@ -231,62 +233,9 @@ describe('JobsRunner', () => {
     });
     const upserts = mocked.__queue.upsertJobScheduler.mock.calls;
     expect(upserts).toHaveLength(CRON_SCHEDULES.length);
-    // OQ-041: + calls.sweep every minute; owner 2026-09-30: + the hourly
-    // review-appeal sweep; owner 2026-10-01: + videos.sweep (every minute);
-    // owner 2026-10-02: + promotions.expire every 5 min; owner 2026-10-04:
-    // + monthly licenses.registry-recheck; owner 2026-10-05: + the
-    // planner's reminders (every minute) and archive cleanup (daily),
-    // + daily partners.sweep, case-payments.expire every 10 min and the
-    // daily case-payments.remind.
-    // Owner 2026-10-05: + nightly trust.recompute (anti-fraud).
-    // Owner 2026-10-05: + daily cases.deadline-reminder,
-    // + support.sweep every 5 min and the daily rewards.award.
-    // Owner 2026-10-05 zero maintenance: + ops.guard every minute,
-    // hourly ops.cost-check and ops.backup-check.
-    // Owner 2026-10-05: + hourly demo.sweep (demo accounts past their TTL).
-    // + nightly fraud.sweep (repeat accounts).
-    // + hourly storage.gc, nightly storage.retention and storage.snapshot
-    // (storage like Telegram), + daily outreach.retention (legal).
-    // Owner 2026-10-05: + hourly cost.autoscale (spend caps follow usage).
-    // + daily treasury.daily (profit and reserve).
-    // Owner 2026-10-06: + daily country-partners.sweep.
-    // Owner 2026-10-15: + nightly search.learn and search.tag-topics (5 min).
-    // Owner 2026-10-16: + economy.guard (every 5 minutes).
-    // Owner 2026-10-16: + billing.verification-loss (every 10 minutes).
-    // Owner 2026-10-20: + stars.sweep (every 3 minutes) and the
-    // consultations sweep (every minute).
-    // Owner 2026-10-20: + legal.exports (every minute) and legal.retention
-    // (nightly) for government-request archives.
-    // Owner 2026-10-21: + chat.disappearing (every 2 minutes).
-    // Owner 2026-10-21: + legal-qa.sweep (nightly).
-    // Owner 2026-10-22: + contacts.joined (every 2 minutes).
-    // Security research #5 (A7): + contacts.pepper-backfill (every 5 min).
-    // Owner 2026-10-22 (SECURITY_TODO): + messages.reencrypt (every 5 min);
-    // + ops.status-watchdog (every minute).
-    // Owner 2026-10-23: + admin.summaries (every 2 minutes).
-    // Batch C: + ops.usage-poll (daily).
-    // Shard-ready step 7: + outbox.sweep (every minute).
-    // Shard-ready steps 9-10: + shard.move-tick (every minute) and
-    // shard.orphan-check (nightly).
-    // Owner 2026-10-24: + search.index (every minute).
-    // Owner 2026-10-25: + cdn.invalidate (every other minute).
-    // Owner 2026-10-27: + moderation.appeal-sla (hourly).
-    // Owner 2026-10-25: + case-tools.sweep (daily).
-    // Day-one foundations: + ledger.reconcile (nightly).
-    // Owner 2026-10-28: + legal.reminders (hourly).
-    // Privacy round 13: + privacy.retention, privacy.reconcile and
-    // privacy.deletion-notices (daily).
-    // DB-ops hardening: + db.health (daily).
-    // Day-one foundations: + ledger.reconcile (nightly); admin hardening: + admin.audit-export, admin.access-report.
-    // S1-3: + chat.redeliver (every minute).
-    // BUG-1 (package N-12b): + chat.search-backfill (every 5 minutes).
-    // N-2: + events.maintain (every 5 minutes).
-    // Experiments: + experiments.metrics (nightly).
-    // Owner 2026-10-24: + partition.maintain (daily) and partition.tick.
-    // Online DDL: + db.bloat-check (nightly).
-    // Programmatic SEO 2026-10-27: + seo.generate (nightly, no-op while off).
-    // Staff package 2026-10-27: + 12 staff.* jobs (no-ops while off).
-    expect(upserts).toHaveLength(102);
+    // One upsert per CRON_SCHEDULES entry (the count is derived, never a
+    // literal: a new job needs no edit here; a missing one fails the
+    // 'one schedule per job name' test below).
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );
@@ -516,6 +465,18 @@ describe('JobsRunner', () => {
     expect(new Set(names).size).toBe(names.length);
     expect(new Set(names)).toEqual(new Set(Object.values(CRON_JOBS)));
   });
+
+  // A new job must be placed on purpose: a lane table lists only scheduled
+  // jobs, no job sits in two tables, and a forgotten registration (a job in
+  // CRON_JOBS without a schedule) is caught by the test above.
+  it('the FAST/HEAVY lane tables list only scheduled jobs, each at most once', () => {
+    const scheduled = new Set<string>(CRON_SCHEDULES.map((s) => s.name));
+    for (const table of [FAST_JOBS, HEAVY_JOBS]) {
+      expect(new Set(table).size).toBe(table.length);
+      expect(table.filter((n) => !scheduled.has(n))).toEqual([]);
+    }
+    expect(FAST_JOBS.filter((n) => HEAVY_JOBS.includes(n))).toEqual([]);
+  });
 });
 
 describe('CronProcessor lock (S10-13)', () => {
@@ -627,20 +588,12 @@ describe('CronProcessor', () => {
 
   it('routes every staff.* job to its handler (staff package T1)', async () => {
     const p = processor();
-    const fields: Record<string, string> = {
-      staffLeaseSweep: CRON_JOBS.staffLeaseSweep,
-      staffCountersFlush: CRON_JOBS.staffCountersFlush,
-      staffToday: CRON_JOBS.staffToday,
-      staffDailyStats: CRON_JOBS.staffDailyStats,
-      staffRatingNightly: CRON_JOBS.staffRatingNightly,
-      staffHeadScore: CRON_JOBS.staffHeadScore,
-      staffPiecework: CRON_JOBS.staffPiecework,
-      staffAnomalies: CRON_JOBS.staffAnomalies,
-      staffAiQaNightly: CRON_JOBS.staffAiQaNightly,
-      staffRetaliationExpire: CRON_JOBS.staffRetaliationExpire,
-      staffRetention: CRON_JOBS.staffRetention,
-      staffWeeklyDigest: CRON_JOBS.staffWeeklyDigest,
-    };
+    // Derived from CRON_JOBS: the processor field of a job has the same name
+    // as its CRON_JOBS key (staffToday -> this.staffToday).
+    const fields: Record<string, string> = Object.fromEntries(
+      Object.entries(CRON_JOBS).filter(([, n]) => n.startsWith('staff.')),
+    );
+    expect(Object.keys(fields).length).toBeGreaterThan(0);
     const handlers: Record<string, { run: jest.Mock }> = {};
     for (const [field, name] of Object.entries(fields)) {
       handlers[field] = {
@@ -655,9 +608,6 @@ describe('CronProcessor', () => {
       });
       expect(handlers[field].run).toHaveBeenCalledTimes(1);
     }
-    expect(
-      Object.values(CRON_JOBS).filter((n) => n.startsWith('staff.')),
-    ).toHaveLength(12);
   });
 
   it('fails unknown job names instead of silently succeeding', async () => {
