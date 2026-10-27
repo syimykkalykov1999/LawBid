@@ -73,7 +73,9 @@ describe('Staff data security (e2e)', () => {
   afterAll(async () => {
     await setSwitches({});
     await prisma.appConfig.deleteMany({
-      where: { key: 'admin.country_allowlist' },
+      where: {
+        key: { in: ['admin.country_allowlist', 'staff.reveal_per_day'] },
+      },
     });
     await redis.del('config:app_config');
     await app.close();
@@ -83,6 +85,9 @@ describe('Staff data security (e2e)', () => {
 
   async function setSwitches(on: Record<string, boolean | number>) {
     for (const key of SWITCHES) await put(key, on[key] ?? false);
+    // The reveal tests count on the default daily cap (20); another suite of
+    // the same run may have changed it (owner-staff-appeals sets 1).
+    await put('staff.reveal_per_day', 20);
     for (const [k, v] of Object.entries(on)) {
       if (typeof v === 'number') await put(k, v);
     }
