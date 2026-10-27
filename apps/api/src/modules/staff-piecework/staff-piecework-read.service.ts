@@ -60,7 +60,28 @@ export class StaffPieceworkReadService {
     const range = { gte: from, lt: to };
 
     const owner = actor.adminRole === 'super_admin';
-    const head = !owner && actor.workspaceHead === true && !!actor.workspace;
+    const select = {
+      user_id: true,
+      workspace: true,
+      user: { select: { first_name: true, last_name: true, email: true } },
+    } as const;
+    // «Head» comes from the database (admin_profiles), NOT from the guard's
+    // `workspaceHead`: the guard sets that only while staff.workspaces_enabled
+    // AND staff.head_enabled are on, and the piecework view is governed by
+    // its own switch alone. Same rule as the guard otherwise: never the
+    // owner, the deputy or a partner team, and the owner workspace has none.
+    const me = owner
+      ? null
+      : await this.prisma.adminProfile.findUnique({
+          where: { user_id: actor.id },
+          select: { ...select, is_workspace_head: true },
+        });
+    const head =
+      !!me &&
+      me.is_workspace_head &&
+      me.workspace !== 'owner' &&
+      !actor.manageAdmins &&
+      !actor.partner;
     const scope = owner ? 'owner' : head ? 'head' : 'self';
 
     let rows: DayRow[];
@@ -73,15 +94,10 @@ export class StaffPieceworkReadService {
         email: string | null;
       };
     }>;
-    const select = {
-      user_id: true,
-      workspace: true,
-      user: { select: { first_name: true, last_name: true, email: true } },
-    } as const;
     if (head) {
-      // Query 1: the workspace's people; query 2: their days.
+      // Query 2: the workspace's people; query 3: their days.
       people = await this.prisma.adminProfile.findMany({
-        where: { workspace: actor.workspace },
+        where: { workspace: me.workspace },
         select,
         take: 2000,
       });
@@ -93,20 +109,23 @@ export class StaffPieceworkReadService {
         take: ROW_CAP,
       });
     } else {
-      // Query 1: the days (all for the owner, own for everyone else);
-      // query 2: the names of the people in them.
+      // Query 1 (not owner: 2): the days, all for the owner, own for
+      // everyone else; the names come from the owner's second query or
+      // from the actor's own profile already read.
       rows = await this.prisma.staffPieceworkDay.findMany({
         where: { day: range, ...(owner ? {} : { admin_id: actor.id }) },
         orderBy: { day: 'asc' },
         take: ROW_CAP,
       });
       const ids = [...new Set(rows.map((r) => r.admin_id))];
-      people = ids.length
-        ? await this.prisma.adminProfile.findMany({
-            where: { user_id: { in: ids } },
-            select,
-          })
-        : [];
+      people = me
+        ? [me]
+        : ids.length
+          ? await this.prisma.adminProfile.findMany({
+              where: { user_id: { in: ids } },
+              select,
+            })
+          : [];
     }
 
     const byAdmin = new Map<string, DayRow[]>();
