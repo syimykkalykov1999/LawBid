@@ -21,3 +21,4 @@
 - [No private narration](no-private-narration.md) — never write "Privately:/Needed next:" status lines; silent ticks output nothing
 - [Full local audit before push](full-local-audit-before-push.md) — 2026-10-27: helpers run CI-equivalent locally before any push; one push, one CI run
 - [Stall watchdog](stall-watchdog.md) — 2026-10-27: same failure twice or no progress 60–90 min → change approach; watch all bottlenecks, not only CI
+- [Union waves](union-waves.md) — 2026-10-27: one union branch per wave, branch from union head, registries only via generators
