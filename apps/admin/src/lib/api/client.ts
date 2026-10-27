@@ -159,6 +159,7 @@ const ERROR_TEXT: Record<string, string> = {
   ADMIN_RECOVERY_FAILED: 'Ответ неверный.',
   ADMIN_STEP_UP_REQUIRED: 'Подтвердите действие кодом из аутентификатора.',
   ADMIN_STEP_UP_CANCELLED: 'Действие отменено: код подтверждения не введён.',
+  ADMIN_WORKSPACE_CONFLICT: 'Так нельзя: в пространстве один главный, у «Финансов» главного нет, а разделы админа должны входить в его пространство.',
   ADMIN_TOTP_SETUP_REQUIRED: 'Подключите приложение-аутентификатор: войдите заново.',
   // Owner 2026-10-22: passkeys (Face ID / Touch ID / Windows Hello / hardware key).
   PASSKEY_INVALID: 'Ключ доступа не подошёл. Попробуйте ещё раз или введите код из приложения.',

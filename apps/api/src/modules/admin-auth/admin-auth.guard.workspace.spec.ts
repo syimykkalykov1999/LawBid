@@ -25,7 +25,13 @@ interface Who {
 
 const ALL = ['super_admin', 'moderator', 'verifier', 'support', 'finance'];
 
-function setup(who: Who, url: string, switchOn: boolean, method = 'GET') {
+function setup(
+  who: Who,
+  url: string,
+  switchOn: boolean,
+  method = 'GET',
+  headOn = switchOn,
+) {
   const reflector = {
     getAllAndOverride: (key: string) =>
       key === ADMIN_ROLES_KEY ? ALL : undefined,
@@ -52,7 +58,13 @@ function setup(who: Who, url: string, switchOn: boolean, method = 'GET') {
   const prisma = { user: { findUnique } } as unknown as PrismaService;
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
   const boolean = jest.fn((key: string) =>
-    Promise.resolve(key === 'staff.workspaces_enabled' ? switchOn : false),
+    Promise.resolve(
+      key === 'staff.workspaces_enabled'
+        ? switchOn
+        : key === 'staff.head_enabled'
+          ? headOn
+          : false,
+    ),
   );
   const settings = {
     boolean,
@@ -66,8 +78,8 @@ function setup(who: Who, url: string, switchOn: boolean, method = 'GET') {
     body: {},
   } as unknown as { admin?: RequestAdmin };
   const ctx = {
-    getHandler: () => undefined,
-    getClass: () => undefined,
+    getHandler: () => function handler() {},
+    getClass: () => class Controller {},
     switchToHttp: () => ({ getRequest: () => req }),
   } as unknown as ExecutionContext;
   const guard = new AdminAuthGuard(
@@ -151,6 +163,54 @@ describe('AdminAuthGuard: workspaces (staff package T1)', () => {
     await expect(other.guard.canActivate(other.ctx)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  it('switch on + head role on: the head reaches the admins page (and only that extra), the flag is set', async () => {
+    const head: Who = { ...MASS_VERIFIER, head: true };
+    for (const method of ['GET', 'POST', 'PATCH']) {
+      const t = setup(
+        head,
+        '/api/v1/admin/admins/u2/permissions',
+        true,
+        method,
+      );
+      await expect(t.guard.canActivate(t.ctx)).resolves.toBe(true);
+      expect(t.req.admin?.workspaceHead).toBe(true);
+    }
+    for (const url of [
+      '/api/v1/admin/integrations',
+      '/api/v1/admin/sessions',
+      '/api/v1/admin/audit-log',
+    ]) {
+      const t = setup(head, url, true);
+      await expect(t.guard.canActivate(t.ctx)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    }
+  });
+
+  it('head role off (or workspaces off): the head is an ordinary worker, the admins page is 404', async () => {
+    const head: Who = { ...MASS_VERIFIER, head: true };
+    const noRole = setup(head, '/api/v1/admin/admins', true, 'GET', false);
+    await expect(noRole.guard.canActivate(noRole.ctx)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    const allOff = setup(head, '/api/v1/admin/admins', false);
+    await expect(allOff.guard.canActivate(allOff.ctx)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    const ok = setup(head, '/api/v1/admin/verification/x', true, 'GET', false);
+    await expect(ok.guard.canActivate(ok.ctx)).resolves.toBe(true);
+    expect(ok.req.admin?.workspaceHead).toBe(false);
+  });
+
+  it('a plain worker, a finance admin and the other workspace never get the admins page', async () => {
+    for (const who of [MASS_VERIFIER, FINANCE]) {
+      const t = setup(who, '/api/v1/admin/admins', true);
+      await expect(t.guard.canActivate(t.ctx)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    }
   });
 
   it('switch on: the owner (super admin) reaches everything, whatever the stored column', async () => {

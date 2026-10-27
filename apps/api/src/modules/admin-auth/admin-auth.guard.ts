@@ -216,6 +216,18 @@ export class AdminAuthGuard implements CanActivate {
       adminRole,
       user.admin_profile.workspace,
     );
+    // Staff package T2: the head of a workspace manages their own team
+    // (the «Администраторы» page, limited by the service to their
+    // workspace and ceiling). Only while workspaces AND the head role are
+    // switched on, never for the deputy, a partner team or the owner.
+    const headOn =
+      adminRole !== 'super_admin' &&
+      workspace !== 'owner' &&
+      !partner &&
+      !manageAdmins &&
+      user.admin_profile.is_workspace_head === true &&
+      (await this.settings?.boolean('staff.workspaces_enabled')) === true &&
+      (await this.settings?.boolean('staff.head_enabled')) === true;
     if (adminRole === 'super_admin') {
       if (!allowed.includes(adminRole)) throw forbidden();
     } else {
@@ -233,6 +245,7 @@ export class AdminAuthGuard implements CanActivate {
           },
           routeArea(path),
         ) &&
+        !(headOn && routeArea(path) === 'admins') &&
         (await this.settings?.boolean('staff.workspaces_enabled'))
       ) {
         void this.note(
@@ -266,6 +279,7 @@ export class AdminAuthGuard implements CanActivate {
           manageAdmins,
           partner,
           noPii,
+          headOn,
         )
       ) {
         // Owner 2026-10-05: a section the admin has no right to answers
@@ -343,7 +357,7 @@ export class AdminAuthGuard implements CanActivate {
       noPii,
       assignedCountries,
       workspace,
-      workspaceHead: user.admin_profile.is_workspace_head === true,
+      workspaceHead: headOn,
       countries: effectiveCountries(
         adminRole === 'super_admin',
         assignedCountries,
