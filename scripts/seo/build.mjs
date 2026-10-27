@@ -39,6 +39,17 @@
 //   --prev-manifest FILE   SEO_PREV_MANIFEST     the previous seo-manifest.json (real lastmod, ramp state)
 //   --manifest             SEO_INCREMENTAL=1     write seo-manifest.json (content hashes)
 //   --dry-run                                    decide everything, print the summary, write nothing
+// Page types of 2026-10-27 (each OFF by default; plan §2.1, runbook SEO_STATIC_PAGES.md):
+//   --pages-posts          SEO_PAGES_POSTS=1     /attorneys/<username>/posts/<slug>/ (text posts of listed attorneys)
+//   --pages-cities         SEO_PAGES_CITIES=1    /lawyers/<state>/<city>/ and .../<city>/<practice>/ (>= SEO_MIN_CITY_ATTORNEYS, 3)
+//   --pages-qa             SEO_PAGES_QA=1        /legal-questions/<slug>/ and /legal-questions/ (reviewed answers only)
+//                          SEO_AD_LABEL=off      drops the "Attorney Advertising" box (default: shown where a listed attorney is licensed in NY)
+//                          SEO_MIN_POST_CHARS 300, SEO_MIN_QA_CHARS 300: shorter pages are `noindex` and leave the sitemaps
+//   The posts and questions come from the data file (`--offline`: keys `posts`, `questions`) or from the
+//   API job `seo.generate`, which reads them from the database; the public directory API has no endpoint
+//   for them, so a build with `--api` renders these types only from attorney data (the city hubs).
+//   TODO(#456): the admin toggles for these three switches and the pass-through in seo-deploy.yml wait for
+//   the «Продвижение» admin page (branch claude/pseo-admin-promotion), which owns both files.
 // The page rendering itself is lib/render.mjs (shared with the API's `seo.generate`
 // job, which does the same from the database instead of from this script).
 // Always on: no aggregateRating in the attorney JSON-LD; lastmod is the
@@ -93,10 +104,13 @@ export async function fetchAllAttorneys({ api, fetchFn = fetch, maxPages = MAX_P
   );
 }
 
-async function loadAttorneys() {
-  if (OFFLINE) return JSON.parse(await readFile(OFFLINE, 'utf8')).attorneys;
+async function loadData() {
+  if (OFFLINE) {
+    const d = JSON.parse(await readFile(OFFLINE, 'utf8'));
+    return { attorneys: d.attorneys, posts: d.posts ?? [], questions: d.questions ?? [] };
+  }
   if (!API) throw new Error('--api or --offline is required');
-  return fetchAllAttorneys({ api: API });
+  return { attorneys: await fetchAllAttorneys({ api: API }), posts: [], questions: [] };
 }
 
 async function loadPrevManifest() {
@@ -109,7 +123,7 @@ async function loadPrevManifest() {
 }
 
 export async function build() {
-  const attorneys = await loadAttorneys();
+  const { attorneys, posts, questions } = await loadData();
   const prev = await loadPrevManifest();
   const ramp = num('ramp-per-day', 'SEO_RAMP_PER_DAY', 0);
   const { files, discovery, result } = renderSite(attorneys, {
@@ -123,11 +137,20 @@ export async function build() {
     rampPerDay: ramp,
     rampBaseline: arg('ramp-baseline', process.env.SEO_RAMP_BASELINE ?? 'all'),
     manifest: on('manifest', 'SEO_INCREMENTAL'),
+    pagesPosts: on('pages-posts', 'SEO_PAGES_POSTS'),
+    pagesCities: on('pages-cities', 'SEO_PAGES_CITIES'),
+    pagesQa: on('pages-qa', 'SEO_PAGES_QA'),
+    adLabel: (process.env.SEO_AD_LABEL ?? '').toLowerCase() === 'off' ? 'off' : 'ny',
+    posts,
+    questions,
     gate: {
       enabled: on('quality-gate', 'SEO_QUALITY_GATE'),
       minWords: num('min-words', 'SEO_MIN_WORDS', defaultGate.minWords),
       minAttorneys: num('min-attorneys', 'SEO_MIN_ATTORNEYS', defaultGate.minAttorneys),
       minBioChars: num('min-bio-chars', 'SEO_MIN_BIO_CHARS', defaultGate.minBioChars),
+      minPostChars: num('min-post-chars', 'SEO_MIN_POST_CHARS', defaultGate.minPostChars),
+      minQaChars: num('min-qa-chars', 'SEO_MIN_QA_CHARS', defaultGate.minQaChars),
+      minCityAttorneys: num('min-city-attorneys', 'SEO_MIN_CITY_ATTORNEYS', defaultGate.minCityAttorneys),
     },
     sitemapMax: clampMax(arg('sitemap-max', process.env.SEO_SITEMAP_MAX)),
     prev,
@@ -151,5 +174,5 @@ export async function build() {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const r = await build();
   console.log(`seo${r.dryRun ? ' (dry run, nothing written)' : ''}: ${r.pages} pages (${r.indexed} indexed in the sitemap), ${r.attorneys} attorneys → ${OUT}`);
-  if (r.dryRun) console.log(JSON.stringify({ noindex: r.noindex, rampDeferred: r.rampDeferred, sitemapFiles: r.sitemapFiles, files: r.discovery }, null, 2));
+  if (r.dryRun) console.log(JSON.stringify({ noindex: r.noindex, rampDeferred: r.rampDeferred, sitemapFiles: r.sitemapFiles, files: r.discovery, postPages: r.postPages, cityPages: r.cityPages, questionPages: r.questionPages, skipped: r.skipped }, null, 2));
 }

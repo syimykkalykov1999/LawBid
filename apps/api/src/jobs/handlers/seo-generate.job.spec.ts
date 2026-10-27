@@ -8,6 +8,9 @@ import { SEO_LAST_RUN_KEY } from '../../common/seo/seo-generator.trigger';
 import type {
   SeoAttorneyRow,
   SeoLib,
+  SeoPostRow,
+  SeoQuestionRow,
+  SeoRenderOptions,
 } from '../../modules/public-directory/seo-lib';
 import type { SeoWebStore } from '../../modules/public-directory/seo-web-store';
 
@@ -43,12 +46,23 @@ function fakeLib(): SeoLib & { renderSite: jest.Mock } {
     };
   };
   return {
-    renderSite: jest.fn((attorneys: SeoAttorneyRow[]) => ({
+    // Like the real library: the pages of the 2026-10-27 types exist only
+    // when their switch is on (scripts/seo/test/pages.test.mjs covers the
+    // real one).
+    renderSite: jest.fn((attorneys: SeoAttorneyRow[], o: SeoRenderOptions) => ({
       files: new Map<string, string>([
         ['/lawyers/', '<home>'],
         ...attorneys.map((a): [string, string] => [
           `/attorneys/${a.username}/`,
           `<p>${a.username}:${a.updatedAt}</p>`,
+        ]),
+        ...(o.pagesPosts ? (o.posts ?? []) : []).map((p): [string, string] => [
+          `/attorneys/${p.authorUsername}/posts/${p.id}/`,
+          `<p>post ${p.id}</p>`,
+        ]),
+        ...(o.pagesQa ? (o.questions ?? []) : []).map((q): [string, string] => [
+          `/legal-questions/${q.id}/`,
+          `<p>question ${q.id}</p>`,
         ]),
       ]),
       result: {},
@@ -111,11 +125,13 @@ interface Opts {
   maxAttorneys?: number;
   maxUploads?: number;
   rowsPerCall?: number;
+  posts?: number;
+  questions?: number;
 }
 
 function make(o: Opts = {}) {
   const names = o.attorneys ?? ['anna', 'bob'];
-  const directory = {
+  const directory: Record<string, jest.Mock> = {
     attorneys: jest.fn(({ cursor }: { cursor?: string }) => {
       const start = cursor ? Number(cursor) : 0;
       const size = o.rowsPerCall ?? 100;
@@ -126,6 +142,60 @@ function make(o: Opts = {}) {
       });
     }),
   };
+  const pageOf = <T>(
+    n: number | undefined,
+    make: (i: number) => T,
+    cursor?: string,
+  ) => {
+    const total = n ?? 0;
+    const start = cursor ? Number(cursor) : 0;
+    const size = o.rowsPerCall ?? 100;
+    const items = Array.from(
+      { length: Math.max(0, Math.min(size, total - start)) },
+      (_, i) => make(start + i),
+    );
+    return Promise.resolve({
+      items,
+      nextCursor: start + size < total ? String(start + size) : null,
+    });
+  };
+  const withNew = {
+    seoPosts: jest.fn(({ cursor }: { cursor?: string }) =>
+      pageOf<SeoPostRow>(
+        o.posts,
+        (i) => ({
+          id: `p${i}`,
+          authorUsername: 'anna',
+          title: null,
+          body: 'text',
+          kind: 'post',
+          practiceCode: null,
+          language: 'en',
+          createdAt: '2026-10-20T09:15:00.000Z',
+          updatedAt: '2026-10-20T09:15:00.000Z',
+          editedAt: null,
+        }),
+        cursor,
+      ),
+    ),
+    seoQuestions: jest.fn(({ cursor }: { cursor?: string }) =>
+      pageOf<SeoQuestionRow>(
+        o.questions,
+        (i) => ({
+          id: `q${i}`,
+          title: 'A question',
+          body: 'text',
+          practiceCode: null,
+          stateCode: null,
+          createdAt: '2026-10-20T09:15:00.000Z',
+          updatedAt: '2026-10-20T09:15:00.000Z',
+          answers: [],
+        }),
+        cursor,
+      ),
+    ),
+  };
+  Object.assign(directory, withNew);
   const settings = {
     string: jest.fn(() => Promise.resolve(o.mode ?? 'nightly')),
     number: jest.fn((k: string) =>
@@ -403,6 +473,110 @@ describe('SeoGenerateJob', () => {
       indexEmpty: true,
       rampPerDay: 200,
       gate: { enabled: true, minWords: 120 },
+    });
+  });
+
+  describe('page types of 2026-10-27 (posts, city hubs, legal Q&A)', () => {
+    it('switches OFF (the default, even in nightly mode): no post or question is read, no such page is rendered or published', async () => {
+      const t = make({ posts: 3, questions: 2 });
+      const r = await t.job.run();
+      expect(r).toMatchObject({ pages: 3 }); // home + 2 attorneys
+      expect(t.directory.seoPosts).not.toHaveBeenCalled();
+      expect(t.directory.seoQuestions).not.toHaveBeenCalled();
+      const opts = t.lib.renderSite.mock.calls[0][1] as SeoRenderOptions;
+      expect(opts).toMatchObject({
+        pagesPosts: false,
+        pagesCities: false,
+        pagesQa: false,
+        adLabel: 'ny',
+        posts: [],
+        questions: [],
+      });
+      const keys = [...t.store.objects.keys()];
+      expect(keys.some((k) => k.includes('/posts/'))).toBe(false);
+      expect(keys.some((k) => k.startsWith('legal-questions/'))).toBe(false);
+    });
+
+    it('generator off: nothing is read for the new types either', async () => {
+      const t = make({
+        mode: 'off',
+        posts: 3,
+        env: { SEO_PAGES_POSTS: '1', SEO_PAGES_QA: '1', SEO_PAGES_CITIES: '1' },
+      });
+      expect(await t.job.run()).toEqual({ skipped: 'off' });
+      expect(t.directory.seoPosts).not.toHaveBeenCalled();
+      expect(t.directory.seoQuestions).not.toHaveBeenCalled();
+      expect(t.lib.renderSite).not.toHaveBeenCalled();
+    });
+
+    it('only the switched-on type is read; its rows reach renderSite and its pages are published', async () => {
+      const t = make({
+        posts: 5,
+        questions: 4,
+        rowsPerCall: 2,
+        env: { SEO_PAGES_POSTS: 'true' },
+      });
+      await t.job.run();
+      expect(t.directory.seoQuestions).not.toHaveBeenCalled();
+      expect(t.directory.seoPosts).toHaveBeenCalledTimes(3); // 2 + 2 + 1
+      const opts = t.lib.renderSite.mock.calls[0][1] as SeoRenderOptions;
+      expect(opts.pagesPosts).toBe(true);
+      expect(opts.pagesQa).toBe(false);
+      expect(opts.posts).toHaveLength(5);
+      expect(opts.questions).toEqual([]);
+      expect(
+        [...t.store.objects.keys()].filter((k) => k.includes('/posts/')),
+      ).toHaveLength(5);
+
+      const q = make({ questions: 3, env: { SEO_PAGES_QA: '1' } });
+      await q.job.run();
+      expect(q.directory.seoPosts).not.toHaveBeenCalled();
+      expect(
+        [...q.store.objects.keys()].filter((k) =>
+          k.startsWith('legal-questions/'),
+        ),
+      ).toHaveLength(3);
+    });
+
+    it('city hubs need no extra read: the switch and the thresholds reach the library', async () => {
+      const t = make({
+        env: {
+          SEO_PAGES_CITIES: '1',
+          SEO_MIN_CITY_ATTORNEYS: '5',
+          SEO_MIN_POST_CHARS: '500',
+          SEO_MIN_QA_CHARS: '200',
+          SEO_AD_LABEL: 'off',
+        },
+      });
+      await t.job.run();
+      const opts = t.lib.renderSite.mock.calls[0][1] as SeoRenderOptions;
+      expect(opts).toMatchObject({
+        pagesCities: true,
+        adLabel: 'off',
+        gate: {
+          minCityAttorneys: 5,
+          minPostChars: 500,
+          minQaChars: 200,
+          minAttorneys: 3,
+        },
+      });
+      expect(t.directory.seoPosts).not.toHaveBeenCalled();
+    });
+
+    it('refuses the run (and writes nothing) when there are more posts than SEO_MAX_POSTS', async () => {
+      const t = make({
+        posts: 5,
+        env: { SEO_PAGES_POSTS: '1', SEO_MAX_POSTS: '3' },
+      });
+      expect(await t.job.run()).toMatchObject({
+        skipped: expect.stringContaining('limit'),
+      });
+      expect(t.logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ alert: 'seo_generator_too_many' }),
+        expect.any(String),
+      );
+      expect(t.lib.renderSite).not.toHaveBeenCalled();
+      expect(t.store.put).not.toHaveBeenCalled();
     });
   });
 
