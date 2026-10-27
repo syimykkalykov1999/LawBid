@@ -9,6 +9,180 @@ import { MessageBodyCipher } from './message-body-cipher';
 export const SEARCH_WORD_MAX_CHARS = 64;
 /** Distinct words indexed per message (a 2 000-char message has ~350). */
 export const SEARCH_WORDS_PER_MESSAGE = 400;
+/** Shorter words are not indexed nor searched («я», «a», «5»). */
+export const SEARCH_WORD_MIN_CHARS = 2;
+/**
+ * Default of `chat.search.max_tokens_per_message`: token rows written per
+ * message (words first, then their prefixes in prefix mode). Perf review
+ * 2026-10-26 R-24: one row per word made the index ~15x the messages.
+ */
+export const SEARCH_TOKENS_PER_MESSAGE = 64;
+/** How long the two index settings are cached in the process. */
+export const SEARCH_SETTINGS_TTL_MS = 30_000;
+
+/**
+ * Stop-words per locale of the app (and Spanish, the second US language),
+ * already folded like `searchWords` (lower case, no accents, ё = е). They are
+ * neither indexed nor required in a query, so «договор с адвокатом» finds
+ * the message «договор адвокатом». The language of a message is unknown, so
+ * the lists are applied together; they hold only function words.
+ */
+export const SEARCH_STOP_WORDS: Readonly<
+  Record<'en' | 'ru' | 'es', readonly string[]>
+> = {
+  en: [
+    'the',
+    'an',
+    'and',
+    'or',
+    'of',
+    'to',
+    'in',
+    'on',
+    'at',
+    'by',
+    'for',
+    'is',
+    'are',
+    'was',
+    'were',
+    'be',
+    'it',
+    'its',
+    'this',
+    'that',
+    'with',
+    'as',
+    'from',
+    'but',
+    'so',
+    'if',
+    'do',
+    'did',
+    'has',
+    'have',
+    'had',
+    'me',
+    'my',
+    'we',
+    'our',
+    'you',
+    'your',
+    'he',
+    'she',
+    'his',
+    'her',
+    'they',
+    'them',
+    'their',
+    'am',
+    'im',
+    'will',
+    'just',
+  ],
+  ru: [
+    'и',
+    'в',
+    'во',
+    'на',
+    'с',
+    'со',
+    'по',
+    'к',
+    'ко',
+    'у',
+    'о',
+    'об',
+    'от',
+    'до',
+    'из',
+    'за',
+    'для',
+    'не',
+    'ни',
+    'но',
+    'а',
+    'же',
+    'ли',
+    'бы',
+    'то',
+    'это',
+    'как',
+    'что',
+    'чтобы',
+    'так',
+    'там',
+    'тут',
+    'он',
+    'она',
+    'оно',
+    'они',
+    'мы',
+    'вы',
+    'ты',
+    'я',
+    'его',
+    'ее',
+    'их',
+    'мне',
+    'меня',
+    'вам',
+    'вас',
+    'нам',
+    'нас',
+    'есть',
+    'был',
+    'была',
+    'были',
+    'уже',
+    'еще',
+    'вот',
+    'да',
+  ],
+  es: [
+    'el',
+    'la',
+    'los',
+    'las',
+    'un',
+    'una',
+    'unos',
+    'unas',
+    'de',
+    'del',
+    'al',
+    'y',
+    'en',
+    'que',
+    'por',
+    'con',
+    'para',
+    'es',
+    'son',
+    'lo',
+    'le',
+    'les',
+    'se',
+    'su',
+    'sus',
+    'mi',
+    'tu',
+    'yo',
+    'me',
+    'te',
+    'nos',
+    'pero',
+    'como',
+    'mas',
+    'muy',
+    'ya',
+    'este',
+    'esta',
+    'eso',
+    'esto',
+  ],
+};
+const STOP = new Set<string>(Object.values(SEARCH_STOP_WORDS).flat());
 /** Prefix tokens: from 3 characters up to this length. */
 export const SEARCH_PREFIX_MIN = 3;
 export const SEARCH_PREFIX_MAX = 12;
@@ -27,7 +201,9 @@ export const SEARCHABLE_MESSAGE_TYPES: readonly string[] = [
  * The words of [text] as the search index sees them: Unicode NFKC,
  * lower case, accents removed and ё = е (the same folding as the old
  * `f_unaccent(lower(…))` LIKE search), punctuation and symbols as spaces,
- * split on whitespace, exact words (no stemming), each once, in order.
+ * split on whitespace, exact words (no stemming), each once, in order;
+ * words under SEARCH_WORD_MIN_CHARS and stop-words (SEARCH_STOP_WORDS) are
+ * dropped, the same for a message and for a query.
  */
 export function searchWords(
   text: string,
@@ -43,7 +219,10 @@ export function searchWords(
   const out: string[] = [];
   const seen = new Set<string>();
   for (const w of folded.split(/\s+/)) {
-    if (!w || seen.has(w) || [...w].length > SEARCH_WORD_MAX_CHARS) continue;
+    if (!w || seen.has(w)) continue;
+    const n = [...w].length;
+    if (n < SEARCH_WORD_MIN_CHARS || n > SEARCH_WORD_MAX_CHARS) continue;
+    if (STOP.has(w)) continue;
     seen.add(w);
     out.push(w);
     if (out.length >= max) break;
@@ -147,14 +326,47 @@ export class MessageSearchIndex {
       .slice(0, 16);
   }
 
-  /** Admin switch `chat.search.prefix_tokens` (default off). */
-  async prefixMode(): Promise<boolean> {
-    if (!this.settings) return false;
+  private cached = {
+    prefixes: false,
+    maxTokens: SEARCH_TOKENS_PER_MESSAGE,
+    at: Number.NEGATIVE_INFINITY,
+  };
+
+  /** Re-reads the two index settings at most every 30 s (one per send was R-24). */
+  private async refresh(): Promise<void> {
+    const now = Date.now();
+    if (!this.settings || now - this.cached.at < SEARCH_SETTINGS_TTL_MS) return;
+    let prefixes = false;
+    let maxTokens = SEARCH_TOKENS_PER_MESSAGE;
     try {
-      return await this.settings.boolean('chat.search.prefix_tokens');
+      prefixes = await this.settings.boolean('chat.search.prefix_tokens');
     } catch {
-      return false;
+      prefixes = false;
     }
+    try {
+      const v = await this.settings.number(
+        'chat.search.max_tokens_per_message',
+      );
+      if (Number.isFinite(v) && v >= 1) maxTokens = Math.floor(v);
+    } catch {
+      maxTokens = SEARCH_TOKENS_PER_MESSAGE;
+    }
+    this.cached = { prefixes, maxTokens, at: now };
+  }
+
+  /**
+   * Admin switch `chat.search.prefix_tokens` (default off). Also refreshes
+   * the per-message cap that `tokensFor` / `rowsFor` apply (every writer
+   * calls this first).
+   */
+  async prefixMode(): Promise<boolean> {
+    await this.refresh();
+    return this.cached.prefixes;
+  }
+
+  /** `chat.search.max_tokens_per_message` (default 64), as last read. */
+  get maxTokens(): number {
+    return this.cached.maxTokens;
   }
 
   private mac(kind: 'w' | 'p', value: string): Buffer<ArrayBuffer> {
@@ -168,8 +380,15 @@ export class MessageSearchIndex {
     );
   }
 
-  /** Every token stored for [text] (deduplicated); [] when disabled. */
-  tokensFor(text: string, prefixes: boolean): Buffer<ArrayBuffer>[] {
+  /**
+   * Every token stored for [text] (deduplicated, at most [max]: whole words
+   * first, then their prefixes); [] when disabled.
+   */
+  tokensFor(
+    text: string,
+    prefixes: boolean,
+    max: number = this.maxTokens,
+  ): Buffer<ArrayBuffer>[] {
     if (!this.enabled) return [];
     const seen = new Set<string>();
     const out: Buffer<ArrayBuffer>[] = [];
@@ -179,9 +398,15 @@ export class MessageSearchIndex {
       seen.add(k);
       out.push(t);
     };
-    for (const w of searchWords(text)) {
-      add(this.mac('w', w));
-      if (prefixes) for (const p of wordPrefixes(w)) add(this.mac('p', p));
+    const words = searchWords(text, max);
+    for (const w of words) add(this.mac('w', w));
+    if (prefixes) {
+      for (const w of words) {
+        for (const p of wordPrefixes(w)) {
+          if (out.length >= max) return out;
+          add(this.mac('p', p));
+        }
+      }
     }
     return out;
   }
@@ -191,9 +416,10 @@ export class MessageSearchIndex {
     m: { id: string; conversation_id: string; type: string },
     text: string,
     prefixes: boolean,
+    max: number = this.maxTokens,
   ): SearchTokenRow[] {
     if (!SEARCHABLE_MESSAGE_TYPES.includes(m.type)) return [];
-    return this.tokensFor(text, prefixes).map((token) => ({
+    return this.tokensFor(text, prefixes, max).map((token) => ({
       conversation_id: m.conversation_id,
       message_id: m.id,
       token,
