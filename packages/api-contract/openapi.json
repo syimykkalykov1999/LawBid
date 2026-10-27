@@ -124958,6 +124958,510 @@
           "admin-staff"
         ]
       }
+    },
+    "/admin/staff/people": {
+      "get": {
+        "operationId": "staffPeople",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/StaffRatingStatus"
+            }
+          },
+          {
+            "name": "workspace",
+            "required": false,
+            "in": "query",
+            "description": "Owner only; a head always sees just their own workspace.",
+            "schema": {
+              "$ref": "#/components/schemas/StaffWorkspaceName"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/StaffRatingSort"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 0,
+              "maximum": 5000,
+              "default": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffPeopleListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Staff rating list (latest nightly snapshot), worst first",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/staff/people/{adminId}": {
+      "get": {
+        "operationId": "staffPerson",
+        "parameters": [
+          {
+            "name": "adminId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffPersonDetailEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "One person: rating, components, evidence and suggestions",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/staff/shortlist": {
+      "get": {
+        "operationId": "staffShortlist",
+        "parameters": [
+          {
+            "name": "workspace",
+            "required": false,
+            "in": "query",
+            "description": "Owner only; a head always sees just their own workspace.",
+            "schema": {
+              "$ref": "#/components/schemas/StaffWorkspaceName"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffShortlistEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "The short list: the worst and the best (≤ 20 each)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/staff/suggestions": {
+      "get": {
+        "operationId": "staffSuggestions",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/StaffSuggestionStatus"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/StaffSuggestionKind"
+            }
+          },
+          {
+            "name": "workspace",
+            "required": false,
+            "in": "query",
+            "description": "Owner only; a head always sees just their own workspace.",
+            "schema": {
+              "$ref": "#/components/schemas/StaffWorkspaceName"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 0,
+              "maximum": 5000,
+              "default": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffSuggestionListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "What the system suggests about people (open by default)",
+        "tags": [
+          "admin-staff"
+        ]
+      }
     }
   },
   "info": {
@@ -191648,6 +192152,431 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/StaffSettingsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffWorkspaceName": {
+        "type": "string",
+        "enum": [
+          "mass",
+          "finance"
+        ]
+      },
+      "StaffRatingStatus": {
+        "type": "string",
+        "enum": [
+          "low_data",
+          "ok",
+          "yellow",
+          "red",
+          "green"
+        ]
+      },
+      "StaffSuggestionKind": {
+        "type": "string",
+        "enum": [
+          "warn",
+          "more_review",
+          "pull",
+          "replace",
+          "reward",
+          "pause",
+          "retrain"
+        ]
+      },
+      "StaffOpenSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffSuggestionKind"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "createdAt"
+        ]
+      },
+      "StaffPersonDto": {
+        "type": "object",
+        "properties": {
+          "adminId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "workspace": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffWorkspaceName"
+              }
+            ]
+          },
+          "rating": {
+            "type": "number",
+            "nullable": true,
+            "description": "0-100; null = not enough data."
+          },
+          "decisions": {
+            "type": "number",
+            "description": "Decisions in the window."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffRatingStatus"
+              }
+            ]
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rankPct": {
+            "type": "number",
+            "nullable": true,
+            "description": "Top-percent place in the workspace (1 = best)."
+          },
+          "accuracy": {
+            "type": "number",
+            "nullable": true
+          },
+          "clean": {
+            "type": "number",
+            "nullable": true
+          },
+          "usersVerdict": {
+            "type": "number",
+            "nullable": true
+          },
+          "speed": {
+            "type": "number",
+            "nullable": true
+          },
+          "openSuggestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffOpenSuggestionDto"
+            }
+          }
+        },
+        "required": [
+          "adminId",
+          "name",
+          "workspace",
+          "rating",
+          "decisions",
+          "status",
+          "flags",
+          "rankPct",
+          "accuracy",
+          "clean",
+          "usersVerdict",
+          "speed",
+          "openSuggestions"
+        ]
+      },
+      "StaffPeopleListDto": {
+        "type": "object",
+        "properties": {
+          "snapshotDate": {
+            "type": "string",
+            "nullable": true,
+            "description": "Date of the nightly snapshot shown (null = none yet)."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffPersonDto"
+            }
+          }
+        },
+        "required": [
+          "snapshotDate",
+          "items"
+        ]
+      },
+      "StaffRatingSort": {
+        "type": "string",
+        "enum": [
+          "worst",
+          "best"
+        ]
+      },
+      "StaffPeopleListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffPeopleListDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffSuggestionStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "applied",
+          "dismissed",
+          "expired"
+        ]
+      },
+      "StaffSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "adminId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "workspace": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffWorkspaceName"
+              }
+            ]
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffSuggestionKind"
+              }
+            ]
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffSuggestionStatus"
+              }
+            ]
+          },
+          "snapshotDate": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "adminId",
+          "name",
+          "workspace",
+          "kind",
+          "status",
+          "snapshotDate",
+          "evidence",
+          "createdAt"
+        ]
+      },
+      "StaffPersonDetailDto": {
+        "type": "object",
+        "properties": {
+          "adminId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "workspace": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffWorkspaceName"
+              }
+            ]
+          },
+          "rating": {
+            "type": "number",
+            "nullable": true,
+            "description": "0-100; null = not enough data."
+          },
+          "decisions": {
+            "type": "number",
+            "description": "Decisions in the window."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffRatingStatus"
+              }
+            ]
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rankPct": {
+            "type": "number",
+            "nullable": true,
+            "description": "Top-percent place in the workspace (1 = best)."
+          },
+          "accuracy": {
+            "type": "number",
+            "nullable": true
+          },
+          "clean": {
+            "type": "number",
+            "nullable": true
+          },
+          "usersVerdict": {
+            "type": "number",
+            "nullable": true
+          },
+          "speed": {
+            "type": "number",
+            "nullable": true
+          },
+          "openSuggestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffOpenSuggestionDto"
+            }
+          },
+          "evidence": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Best / worst decisions, the 8-week trend and the window totals."
+          },
+          "suggestions": {
+            "description": "The latest suggestions about this person (any status).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffSuggestionDto"
+            }
+          }
+        },
+        "required": [
+          "adminId",
+          "name",
+          "workspace",
+          "rating",
+          "decisions",
+          "status",
+          "flags",
+          "rankPct",
+          "accuracy",
+          "clean",
+          "usersVerdict",
+          "speed",
+          "openSuggestions",
+          "evidence",
+          "suggestions"
+        ]
+      },
+      "StaffPersonDetailEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffPersonDetailDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffShortlistDto": {
+        "type": "object",
+        "properties": {
+          "snapshotDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "worst": {
+            "description": "Red and yellow, worst first (at most 20).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffPersonDto"
+            }
+          },
+          "best": {
+            "description": "The best (top of the workspace), at most 20.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffPersonDto"
+            }
+          }
+        },
+        "required": [
+          "snapshotDate",
+          "worst",
+          "best"
+        ]
+      },
+      "StaffShortlistEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffShortlistDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffSuggestionListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffSuggestionDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "StaffSuggestionListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffSuggestionListDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

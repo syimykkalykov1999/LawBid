@@ -5,11 +5,9 @@ import type { StaffSwitchKey } from '../../modules/staff-core/staff-settings.def
 import { StaffAiQaNightlyJob } from './staff-ai-qa-nightly.job';
 import { StaffAnomaliesJob } from './staff-anomalies.job';
 import { StaffCountersFlushJob } from './staff-counters-flush.job';
-import { StaffDailyStatsJob } from './staff-daily-stats.job';
 import { StaffHeadScoreJob } from './staff-head-score.job';
 import { StaffLeaseSweepJob } from './staff-lease-sweep.job';
 import { StaffPieceworkJob } from './staff-piecework.job';
-import { StaffRatingNightlyJob } from './staff-rating-nightly.job';
 import { StaffRetaliationExpireJob } from './staff-retaliation-expire.job';
 import {
   STAFF_RETENTION_BATCH,
@@ -50,16 +48,6 @@ const stubs: Array<
     ['staff.rating_enabled'],
   ],
   ['staff.today', (s) => new StaffTodayJob(s), ['staff.owner_home_enabled']],
-  [
-    'staff.daily-stats',
-    (s) => new StaffDailyStatsJob(s),
-    ['staff.rating_enabled'],
-  ],
-  [
-    'staff.rating-nightly',
-    (s) => new StaffRatingNightlyJob(s),
-    ['staff.rating_enabled'],
-  ],
   ['staff.head-score', (s) => new StaffHeadScoreJob(s), ['staff.head_enabled']],
   [
     'staff.piecework',
@@ -88,7 +76,7 @@ const stubs: Array<
   ],
 ];
 
-describe('staff.* cron jobs (staff package T1 stubs)', () => {
+describe('staff.* cron jobs (staff package T1 stubs; daily-stats and rating-nightly are T5, see staff-rating-jobs.spec.ts)', () => {
   describe.each(stubs)('%s', (_name, make, keys) => {
     it('switch off (the default): returns at once, no work', async () => {
       await expect(make(settings()).run()).resolves.toEqual({ skipped: 'off' });

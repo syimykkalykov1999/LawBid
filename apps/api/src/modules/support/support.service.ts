@@ -1,4 +1,10 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import type { SupportMessage, SupportTicket } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import type { AppSettingKey } from '../../common/app-settings/app-settings.defaults';
@@ -6,6 +12,10 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { RateLimitService } from '../auth/services/rate-limit.service';
+import {
+  STAFF_SIGNALS,
+  type StaffSignals,
+} from '../staff-core/staff-signals.port';
 import { SupportDeskService } from './support-desk.service';
 import { SupportFilesService } from './support-files.service';
 import type {
@@ -86,6 +96,9 @@ export class SupportService {
     private readonly settings: AppSettingsService,
     private readonly desk: SupportDeskService,
     private readonly attachments: SupportFilesService,
+    @Optional()
+    @Inject(STAFF_SIGNALS)
+    private readonly staffSignals?: StaffSignals,
   ) {}
 
   /** Owner 2026-10-05: hours and the usual answer time, for the app. */
@@ -231,6 +244,16 @@ export class SupportService {
       });
       return m;
     });
+    // Staff package T5: the user wrote again into a ticket support had marked
+    // resolved — a repeat, a quality signal against whoever resolved it.
+    if (ticket.status === 'resolved' && ticket.resolved_by) {
+      void this.staffSignals?.signal(
+        ticket.resolved_by,
+        'reopened',
+        'support_ticket',
+        id,
+      );
+    }
     const files = await this.attachments.forMessages([message.id]);
     return presentUserMessage(message, new Map(), files.get(message.id));
   }
