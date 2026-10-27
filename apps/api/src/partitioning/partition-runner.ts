@@ -18,6 +18,15 @@ import type { Sql, SqlDb } from './sql';
  * The Prisma schema is not touched: the model still says `@id id`, the
  * database has the wider key. Nothing here runs unless an admin starts it
  * (or the CLI is called by hand); migrations never convert a table.
+ *
+ * HASH mode (`spec.hash` = number of partitions; messages, group messages,
+ * notifications): same steps, with these differences. The table already has
+ * the composite key (id, <hash key>) from an expand migration, so the new
+ * table keeps it. The copy walks the key (id). Triggers (shard_fill) are
+ * re-created on the new table in the swap. Foreign keys that POINT AT the
+ * table (children, and the self reference of replies) are re-pointed to the
+ * new table inside the swap (added NOT VALID, validated right after), and
+ * back on undo. No monthly job: hash partitions need no upkeep.
  */
 
 export interface PartitionSpec {
@@ -25,15 +34,17 @@ export interface PartitionSpec {
   /** Partition key: a NOT NULL timestamptz column, immutable once written. */
   key: string;
   label: string;
+  /** HASH mode: number of partitions (the key is a uuid column). */
+  hash?: number;
 }
 
 /**
- * Tables the online runner may convert (whitelist: no free SQL names). Only
- * when an admin starts it: no migration converts a table (expand-only,
- * perf review 2026-10-26 R-20). audit_log and auth_events are append-only,
- * nothing points at them, so they pass the prechecks; `messages` and
- * `notifications` are listed so the admin card can say honestly why they
- * cannot be converted by month.
+ * Tables the online runner may convert by MONTH (whitelist: no free SQL
+ * names), only when an admin starts it: no migration converts a table
+ * (expand-only, perf review 2026-10-26 R-20). audit_log and auth_events are
+ * append-only and nothing points at them. messages, chat_group_messages and
+ * notifications are converted by HASH only when the admin turns it on
+ * (HASH_PARTITIONED).
  */
 export const PARTITION_TABLES: readonly PartitionSpec[] = [
   { table: 'audit_log', key: 'created_at', label: 'Журнал действий админов' },
@@ -43,8 +54,36 @@ export const PARTITION_TABLES: readonly PartitionSpec[] = [
     key: 'accessed_at',
     label: 'Журнал доступа к данным',
   },
-  { table: 'notifications', key: 'created_at', label: 'Уведомления' },
-  { table: 'messages', key: 'created_at', label: 'Сообщения чатов' },
+];
+
+/**
+ * Converted by the online runner to native HASH partitioning (16 partitions)
+ * ONLY when the admin switches it on («Вкл» or «Авто» at the growth
+ * threshold, default «Выкл»): at small sizes the plain tables are faster.
+ * No monthly job, nothing to keep up. The label says the key (the admin card
+ * reads «хеш»). `key` is the hash column; their composite key (id, key)
+ * comes from the expand migration 20261107131300 (skipped with a NOTICE
+ * when a table was already big; then the card says so and stays blocked).
+ */
+export const HASH_PARTITIONED: readonly PartitionSpec[] = [
+  {
+    table: 'messages',
+    key: 'conversation_id',
+    hash: 16,
+    label: 'Сообщения чатов (по хешу чата)',
+  },
+  {
+    table: 'chat_group_messages',
+    key: 'group_id',
+    hash: 16,
+    label: 'Сообщения групп (по хешу группы)',
+  },
+  {
+    table: 'notifications',
+    key: 'user_id',
+    hash: 16,
+    label: 'Уведомления (по хешу человека)',
+  },
 ];
 
 /**
@@ -64,9 +103,11 @@ export const MONTH_MAINTAINED: readonly string[] = [
 ];
 
 export function specOf(table: string): PartitionSpec | undefined {
-  return [...PARTITION_TABLES, ...MIGRATED_PARTITIONED].find(
-    (s) => s.table === table,
-  );
+  return [
+    ...PARTITION_TABLES,
+    ...MIGRATED_PARTITIONED,
+    ...HASH_PARTITIONED,
+  ].find((s) => s.table === table);
 }
 
 export const GROWTH_ALARM_ROWS = 50_000_000;
@@ -105,7 +146,7 @@ export interface TableStats {
   bytes: number;
 }
 
-const IDENT = /^[a-z][a-z0-9_]{0,40}$/;
+const IDENT = /^[a-z][a-z0-9_]{0,62}$/;
 function ident(s: string): string {
   if (!IDENT.test(s)) throw new Error(`bad identifier: ${s}`);
   return `"${s}"`;
@@ -223,6 +264,67 @@ export class PartitionRunner {
     return r.map((c) => ({ name: c.name, generated: c.generated !== '' }));
   }
 
+  private async pkCols(table: string): Promise<string[]> {
+    const r = await this.db.rows<{ cols: string | null }>(
+      `SELECT string_agg(a.attname, ',' ORDER BY k.ord) AS cols
+         FROM pg_constraint c
+         CROSS JOIN LATERAL unnest(c.conkey) WITH ORDINALITY AS k(attnum, ord)
+         JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
+        WHERE c.conrelid = to_regclass($1) AND c.contype = 'p'`,
+      q(table),
+    );
+    return r[0]?.cols ? r[0].cols.split(',') : [];
+  }
+
+  /** HASH mode checks (the table already has the composite key). */
+  private async precheckHash(spec: PartitionSpec): Promise<string[]> {
+    const t = spec.table;
+    const reasons: string[] = [];
+    const cols = await this.columns(t);
+    if (!cols.some((c) => c.name === 'id')) reasons.push('нет колонки id');
+    const keyCol = await this.db.rows<{ typ: string; notnull: boolean }>(
+      `SELECT format_type(a.atttypid, a.atttypmod) AS typ, a.attnotnull AS notnull
+         FROM pg_attribute a WHERE a.attrelid = to_regclass($1) AND a.attname = $2`,
+      q(t),
+      spec.key,
+    );
+    if (keyCol.length === 0) reasons.push(`нет колонки ${spec.key}`);
+    else if (keyCol[0].typ !== 'uuid' || !keyCol[0].notnull) {
+      reasons.push(`${spec.key} должна быть uuid NOT NULL`);
+    }
+    const pk = await this.pkCols(t);
+    if (pk.length !== 2 || pk[0] !== 'id' || pk[1] !== spec.key) {
+      reasons.push(
+        `первичный ключ должен быть (id, ${spec.key}): миграция 20261107131300 пропустила перестройку ключа (таблица была больше 2 млн строк): перестроить вручную, docs/runbooks/table-partitioning.md`,
+      );
+    }
+    const uniq = await this.db.rows<{ name: string }>(
+      `SELECT i.indexrelid::regclass::text AS name
+         FROM pg_index i
+        WHERE i.indrelid = to_regclass($1) AND i.indisunique AND NOT i.indisprimary
+          AND NOT EXISTS (
+            SELECT 1 FROM pg_attribute a
+             WHERE a.attrelid = i.indrelid AND a.attname = $2
+               AND a.attnum = ANY (i.indkey::int2[]))`,
+      q(t),
+      spec.key,
+    );
+    if (uniq.length > 0) {
+      reasons.push(
+        `уникальные индексы без ${spec.key} не переносятся: ${uniq.map((u) => u.name).join(', ')}`,
+      );
+    }
+    const seq = await this.db.rows<{ name: string }>(
+      `SELECT a.attname AS name FROM pg_attribute a
+         LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+        WHERE a.attrelid = to_regclass($1) AND a.attnum > 0 AND NOT a.attisdropped
+          AND (a.attidentity <> '' OR pg_get_expr(d.adbin, d.adrelid) LIKE 'nextval(%')`,
+      q(t),
+    );
+    if (seq.length > 0) reasons.push('есть счётчики (serial/identity)');
+    return reasons;
+  }
+
   /** Everything that would make the conversion unsafe or unsupported. */
   async precheck(spec: PartitionSpec): Promise<Precheck> {
     const t = spec.table;
@@ -234,7 +336,11 @@ export class PartitionRunner {
     );
     if (kind.length === 0) return { ok: false, reasons: ['таблицы нет'] };
     if (kind[0].relkind === 'p') {
-      return { ok: false, reasons: ['таблица уже разделена по месяцам'] };
+      return { ok: false, reasons: ['таблица уже разделена'] };
+    }
+    if (spec.hash) {
+      const r = await this.precheckHash(spec);
+      return { ok: r.length === 0, reasons: r };
     }
     const cols = await this.columns(t);
     if (!cols.some((c) => c.name === 'id')) reasons.push('нет колонки id');
@@ -331,6 +437,26 @@ export class PartitionRunner {
     const stats = await this.stats(spec.table);
     let firstMonth: string | null = null;
     let months = 0;
+    if (spec.hash) {
+      const n = names(spec.table);
+      return {
+        precheck,
+        stats,
+        months: 0,
+        firstMonth: null,
+        extraDiskBytes: Math.round(stats.bytes * 1.1),
+        steps: [
+          `1. создать ${n.part}: те же колонки и ключ (id, ${spec.key}), ${spec.hash} кусков по хешу ${spec.key}`,
+          '2. перенести индексы и внешние ключи наружу на новую таблицу',
+          `3. поставить триггер на ${n.base}: новые записи сразу копируются в ${n.part}`,
+          '4. копировать старые строки пачками по id (можно остановить и продолжить)',
+          '5. сверить число строк и поправить расхождения',
+          `6. за доли секунды: поменять имена, перенести триггеры, перевесить внешние ключи других таблиц на новую (lock_timeout 3 с, повтор)`,
+          `7. обратный триггер ${n.base} -> ${n.old}: «Вернуть как было» остаётся быстрым переименованием`,
+          `8. через ${FINALIZE_AFTER_DAYS} дней «Завершить»: убрать триггер и удалить ${n.old}`,
+        ],
+      };
+    }
     if (stats.exists && !stats.partitioned) {
       const m = await this.db.rows<{ m: Date | null }>(
         `SELECT min(${ident(spec.key)}) AS m FROM ${q(spec.table)}`,
@@ -485,12 +611,17 @@ export class PartitionRunner {
       );
     }
     const n = names(spec.table);
+    let kids: { child: string; name: string; def: string }[] = [];
     await this.db.tx(async (t) => {
       await t.run(`SET LOCAL lock_timeout = '3s'`);
       await t.run(
         `LOCK TABLE ${q(n.base)}, ${q(n.old)} IN ACCESS EXCLUSIVE MODE`,
       );
       await t.run(`DROP TRIGGER IF EXISTS ${ident(n.revTrg)} ON ${q(n.base)}`);
+      if (spec.hash) {
+        kids = await this.inboundKids(t, n.base);
+        await this.dropKids(t, kids);
+      }
       // Partitioned side: originals -> __p ; old side: __o -> originals.
       await this.renameObjs(
         t,
@@ -507,7 +638,9 @@ export class PartitionRunner {
       );
       await t.run(`ALTER TABLE ${q(n.base)} RENAME TO ${ident(n.part)}`);
       await t.run(`ALTER TABLE ${q(n.old)} RENAME TO ${ident(n.base)}`);
+      if (spec.hash) await this.addKids(t, kids);
     });
+    if (spec.hash) await this.validateKids(kids);
     await this.db.run(`DROP TABLE IF EXISTS ${q(n.part)}`);
     await this.db.run(`DROP FUNCTION IF EXISTS public.${ident(n.revFn)}()`);
     await this.db.run(`DROP FUNCTION IF EXISTS public.${ident(n.fwdFn)}()`);
@@ -539,7 +672,9 @@ export class PartitionRunner {
 
   /** Months ahead that still have no partition (run daily after the swap). */
   async ensureFuture(table: string, monthsAhead = 3): Promise<number> {
-    if (!this.specFor(table)) throw new Error('unknown table');
+    const sp = this.specFor(table);
+    if (!sp) throw new Error('unknown table');
+    if (sp.hash) return 0; // hash partitions need no upkeep
     const st = await this.stats(table);
     if (!st.partitioned) return 0;
     const ddl = partitionDdl(
@@ -615,24 +750,37 @@ export class PartitionRunner {
     const cols = await this.columns(t);
     const plain = cols.filter((c) => !c.generated).map((c) => c.name);
     const list = plain.map(ident).join(', ');
-    const mn = await this.db.rows<{ m: Date | null }>(
-      `SELECT min(${ident(spec.key)}) AS m FROM ${q(t)}`,
-    );
-    const first = monthStart(mn[0]?.m ? new Date(mn[0].m) : this.now());
+    const mn = spec.hash
+      ? []
+      : await this.db.rows<{ m: Date | null }>(
+          `SELECT min(${ident(spec.key)}) AS m FROM ${q(t)}`,
+        );
+    const first = spec.hash
+      ? this.now()
+      : monthStart(mn[0]?.m ? new Date(mn[0].m) : this.now());
     const last = addMonths(monthStart(this.now()), 3);
 
     await this.db.run(`DROP TABLE IF EXISTS ${q(n.part)}`);
     await this.db.run(
       `CREATE TABLE ${q(n.part)} (LIKE ${q(t)} INCLUDING DEFAULTS INCLUDING CONSTRAINTS ` +
-        `INCLUDING GENERATED INCLUDING STORAGE INCLUDING COMMENTS) PARTITION BY RANGE (${ident(spec.key)})`,
+        `INCLUDING GENERATED INCLUDING STORAGE INCLUDING COMMENTS) PARTITION BY ${spec.hash ? 'HASH' : 'RANGE'} (${ident(spec.key)})`,
     );
     await this.db.run(
       `ALTER TABLE ${q(n.part)} ADD CONSTRAINT ${ident(n.part + '_pk')} PRIMARY KEY (id, ${ident(spec.key)})`,
     );
-    await this.db.run(
-      `CREATE TABLE ${q(t + '_default')} PARTITION OF ${q(n.part)} DEFAULT`,
-    );
-    for (const d of partitionDdl(t, first, last)) await this.db.run(d);
+    if (spec.hash) {
+      for (let i = 0; i < spec.hash; i++) {
+        await this.db.run(
+          `CREATE TABLE ${q(`${t}_h${String(i).padStart(2, '0')}`)} PARTITION OF ${q(n.part)} ` +
+            `FOR VALUES WITH (MODULUS ${spec.hash}, REMAINDER ${i})`,
+        );
+      }
+    } else {
+      await this.db.run(
+        `CREATE TABLE ${q(t + '_default')} PARTITION OF ${q(n.part)} DEFAULT`,
+      );
+      for (const d of partitionDdl(t, first, last)) await this.db.run(d);
+    }
 
     // Secondary indexes: same definition, new name, on the new table.
     const idx = await this.db.rows<{ name: string; def: string }>(
@@ -651,15 +799,51 @@ export class PartitionRunner {
       await this.db.run(def);
     }
     // Outgoing foreign keys (valid while the table is empty: fast).
+    // (The self reference of replies is added to the new table in the swap.)
     const fks = await this.db.rows<{ name: string; def: string }>(
       `SELECT conname AS name, pg_get_constraintdef(oid) AS def
-         FROM pg_constraint WHERE conrelid = to_regclass($1) AND contype = 'f'`,
+         FROM pg_constraint WHERE conrelid = to_regclass($1) AND contype = 'f'
+          AND confrelid <> conrelid`,
       q(t),
     );
     for (const f of fks) {
       await this.db.run(
         `ALTER TABLE ${q(n.part)} ADD CONSTRAINT ${ident(f.name.slice(0, 55) + '__p')} ${f.def}`,
       );
+    }
+    // HASH mode: the self reference (a reply points at a message of the same
+    // chat) goes on the new table NOW, empty and cheap. DEFERRABLE INITIALLY
+    // DEFERRED so the copy (whole key groups) and the forward trigger (it also
+    // copies the chain of replied-to rows) only need it true at commit. After
+    // the swap it stays: no scan of the big table under the swap lock.
+    let replyCol: string | null = null;
+    if (spec.hash) {
+      const selfFks = await this.db.rows<{
+        name: string;
+        def: string;
+        cols: string;
+      }>(
+        `SELECT c.conname AS name, pg_get_constraintdef(c.oid) AS def,
+                (SELECT string_agg(a.attname, ',') FROM pg_attribute a
+                  WHERE a.attrelid = c.conrelid AND a.attnum = ANY (c.conkey)
+                    AND a.attname <> $2) AS cols
+           FROM pg_constraint c
+          WHERE c.conrelid = to_regclass($1) AND c.contype = 'f'
+            AND c.confrelid = c.conrelid AND c.conparentid = 0`,
+        q(t),
+        spec.key,
+      );
+      for (const f of selfFks) {
+        const def = f.def.replace(
+          /REFERENCES [^(]+\(/,
+          `REFERENCES ${q(n.part)}(`,
+        );
+        if (def === f.def) throw new Error(`cannot rewrite ${f.name}`);
+        await this.db.run(
+          `ALTER TABLE ${q(n.part)} ADD CONSTRAINT ${ident(f.name.slice(0, 55) + '__p')} ${def} DEFERRABLE INITIALLY DEFERRED`,
+        );
+        replyCol = f.cols || null;
+      }
     }
     // Same privileges as the old table.
     const acl = await this.db.rows<{ grantee: string; priv: string }>(
@@ -681,6 +865,20 @@ export class PartitionRunner {
       .map((c) => `${ident(c)} = EXCLUDED.${ident(c)}`)
       .join(', ');
     const vals = plain.map((c) => `NEW.${ident(c)}`).join(', ');
+    const oList = plain.map((c) => `o.${ident(c)}`).join(', ');
+    const ancestors = replyCol
+      ? `IF NEW.${ident(replyCol)} IS NOT NULL THEN
+          INSERT INTO ${q(n.part)} (${list})
+            WITH RECURSIVE chain AS (
+              SELECT ${oList} FROM ${q(t)} o
+               WHERE o.id = NEW.${ident(replyCol)} AND o.${ident(spec.key)} = NEW.${ident(spec.key)}
+              UNION
+              SELECT ${oList} FROM ${q(t)} o JOIN chain c
+                ON o.id = c.${ident(replyCol)} AND o.${ident(spec.key)} = c.${ident(spec.key)})
+            SELECT ${plain.map((c) => ident(c)).join(', ')} FROM chain
+            ON CONFLICT (id, ${ident(spec.key)}) DO NOTHING;
+        END IF;`
+      : '';
     await this.db
       .run(`CREATE OR REPLACE FUNCTION public.${ident(n.fwdFn)}() RETURNS trigger
       LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $f$
@@ -692,6 +890,7 @@ export class PartitionRunner {
         IF TG_OP = 'UPDATE' AND OLD.${ident(spec.key)} <> NEW.${ident(spec.key)} THEN
           DELETE FROM ${q(n.part)} WHERE id = OLD.id AND ${ident(spec.key)} = OLD.${ident(spec.key)};
         END IF;
+        ${ancestors}
         INSERT INTO ${q(n.part)} (${list}) VALUES (${vals})
           ON CONFLICT (id, ${ident(spec.key)}) DO ${sets ? `UPDATE SET ${sets}` : 'NOTHING'};
         RETURN NEW;
@@ -730,6 +929,41 @@ export class PartitionRunner {
       q(t),
     );
     const typ = idType[0].typ;
+    if (spec.hash) {
+      // HASH mode: copy WHOLE key groups (all rows of 100 chats / people) in
+      // one statement. A reply and the message it answers share the key, so
+      // the deferred self reference of the new table is satisfied at commit.
+      // The cursor is the last key copied.
+      const hw = j.cursor_id === null ? 'TRUE' : `${k} > $1::uuid`;
+      const hp = j.cursor_id === null ? [] : [j.cursor_id];
+      const h = await this.db.rows<{ cnt: number; last_key: string | null }>(
+        `WITH ks AS (
+           SELECT DISTINCT ${k} FROM ${q(t)} WHERE ${hw} ORDER BY ${k} LIMIT 100
+         ), batch AS (
+           SELECT ${list} FROM ${q(t)} WHERE ${k} IN (SELECT ${k} FROM ks)
+         ), ins AS (
+           INSERT INTO ${q(n.part)} (${list}) SELECT ${list} FROM batch
+           ON CONFLICT (id, ${k}) DO NOTHING RETURNING 1
+         )
+         SELECT (SELECT count(*) FROM batch)::bigint AS cnt,
+                (SELECT ${k}::text FROM ks ORDER BY ${k} DESC LIMIT 1) AS last_key,
+                (SELECT count(*) FROM ins) AS inserted`,
+        ...hp,
+      );
+      const y = h[0];
+      if (!y || y.cnt === 0 || !y.last_key) {
+        await this.setPhase(t, 'verify');
+        return;
+      }
+      await this.db.run(
+        `UPDATE public._partition_job SET cursor_id = $2,
+                rows_copied = rows_copied + $3, updated_at = now() WHERE tbl = $1`,
+        t,
+        y.last_key,
+        y.cnt,
+      );
+      return;
+    }
     const where =
       j.cursor_at === null
         ? 'TRUE'
@@ -772,6 +1006,29 @@ export class PartitionRunner {
     const t = spec.table;
     const n = names(t);
     const k = ident(spec.key);
+    if (spec.hash) {
+      // One statement = one snapshot: the two counts are comparable.
+      const c = await this.db.rows<{ a: number; b: number }>(
+        `SELECT (SELECT count(*) FROM ${q(t)})::bigint AS a, (SELECT count(*) FROM ${q(n.part)})::bigint AS b`,
+      );
+      if (c[0].a === c[0].b) {
+        await this.setPhase(t, 'swap');
+        return;
+      }
+      const cols = (await this.columns(t))
+        .filter((x) => !x.generated)
+        .map((x) => ident(x.name))
+        .join(', ');
+      await this.db.run(
+        `DELETE FROM ${q(n.part)} p WHERE NOT EXISTS (SELECT 1 FROM ${q(t)} o WHERE o.id = p.id AND o.${k} = p.${k})`,
+      );
+      await this.db.run(
+        `INSERT INTO ${q(n.part)} (${cols}) SELECT ${cols} FROM ${q(t)} o
+          WHERE NOT EXISTS (SELECT 1 FROM ${q(n.part)} p WHERE p.id = o.id AND p.${k} = o.${k})
+          ON CONFLICT (id, ${k}) DO NOTHING`,
+      );
+      return; // count again on the next loop
+    }
     const diff = await this.db.rows<{ m: string }>(
       `SELECT COALESCE(a.m, b.m)::text AS m FROM
          (SELECT date_trunc('month', ${k}) m, count(*) c FROM ${q(t)} GROUP BY 1) a
@@ -827,6 +1084,55 @@ export class PartitionRunner {
     }
   }
 
+  /** Foreign keys of OTHER tables that point at `table` (HASH mode re-points them). */
+  private inboundKids(tx: Sql, table: string) {
+    return tx.rows<{ child: string; name: string; def: string }>(
+      `SELECT cl.relname AS child, c.conname AS name, pg_get_constraintdef(c.oid) AS def
+         FROM pg_constraint c JOIN pg_class cl ON cl.oid = c.conrelid
+        WHERE c.contype = 'f' AND c.confrelid = to_regclass($1)
+          AND c.conrelid <> c.confrelid AND c.conparentid = 0`,
+      q(table),
+    );
+  }
+
+  private async dropKids(
+    tx: Sql,
+    kids: { child: string; name: string }[],
+  ): Promise<void> {
+    for (const k of kids) {
+      await tx.run(
+        `ALTER TABLE ${q(k.child)} DROP CONSTRAINT ${ident(k.name)}`,
+      );
+    }
+  }
+
+  /** Re-adds them NOT VALID (instant); the caller validates after commit. */
+  private async addKids(
+    tx: Sql,
+    kids: { child: string; name: string; def: string }[],
+  ): Promise<void> {
+    for (const k of kids) {
+      await tx.run(
+        `ALTER TABLE ${q(k.child)} ADD CONSTRAINT ${ident(k.name)} ${k.def} NOT VALID`,
+      );
+    }
+  }
+
+  /** Scans the children without blocking writes; a failure keeps NOT VALID (still enforced for new rows). */
+  private async validateKids(
+    kids: { child: string; name: string }[],
+  ): Promise<void> {
+    for (const k of kids) {
+      try {
+        await this.db.run(
+          `ALTER TABLE ${q(k.child)} VALIDATE CONSTRAINT ${ident(k.name)}`,
+        );
+      } catch {
+        // stays NOT VALID; the next conversion or a manual VALIDATE fixes it
+      }
+    }
+  }
+
   private async swap(spec: PartitionSpec): Promise<void> {
     const t = spec.table;
     const n = names(t);
@@ -839,15 +1145,28 @@ export class PartitionRunner {
         'колонки старой и новой таблицы разошлись (была миграция?)',
       );
     const plain = old.filter((c) => !c.generated).map((c) => c.name);
+    const oldPk = spec.hash ? await this.pkCols(t) : ['id'];
     const sets = plain
-      .filter((c) => c !== 'id')
+      .filter((c) => !oldPk.includes(c))
       .map((c) => `${ident(c)} = EXCLUDED.${ident(c)}`)
       .join(', ');
+    let kidsAfter: { child: string; name: string; def: string }[] = [];
     try {
       await this.db.tx(async (tx) => {
         await tx.run(`SET LOCAL lock_timeout = '3s'`);
         await tx.run(`LOCK TABLE ${q(t)} IN ACCESS EXCLUSIVE MODE`);
         await tx.run(`DROP TRIGGER IF EXISTS ${ident(n.fwdTrg)} ON ${q(t)}`);
+        let trgs: { def: string }[] = [];
+        let kids: { child: string; name: string; def: string }[] = [];
+        if (spec.hash) {
+          trgs = await tx.rows<{ def: string }>(
+            `SELECT pg_get_triggerdef(oid) AS def FROM pg_trigger
+              WHERE tgrelid = to_regclass($1) AND NOT tgisinternal`,
+            q(t),
+          );
+          kids = await this.inboundKids(tx, t);
+          await this.dropKids(tx, kids);
+        }
         await tx.run(`ALTER TABLE ${q(t)} RENAME TO ${ident(n.old)}`);
         await this.renameObjs(
           tx,
@@ -862,18 +1181,25 @@ export class PartitionRunner {
           (x) => x === `${n.part}_pk` || x.endsWith('__p'),
           (x) => (x === `${n.part}_pk` ? `${t}_pkey` : x.replace(/__p$/, '')),
         );
-        // Reverse sync: new -> old (old keeps its PK on id).
+        if (spec.hash) {
+          // The old table's triggers stay on it; the new one gets copies, and
+          // the other tables' foreign keys point at the new table.
+          for (const g of trgs) await tx.run(g.def);
+          await this.addKids(tx, kids);
+          kidsAfter = kids;
+        }
+        // Reverse sync: new -> old (old keeps its own PK).
         const list = plain.map(ident).join(', ');
         const vals = plain.map((c) => `NEW.${ident(c)}`).join(', ');
         await tx.run(`CREATE OR REPLACE FUNCTION public.${ident(n.revFn)}() RETURNS trigger
           LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $f$
           BEGIN
             IF TG_OP = 'DELETE' THEN
-              DELETE FROM ${q(n.old)} WHERE id = OLD.id;
+              DELETE FROM ${q(n.old)} WHERE ${oldPk.map((c) => `${ident(c)} = OLD.${ident(c)}`).join(' AND ')};
               RETURN OLD;
             END IF;
             INSERT INTO ${q(n.old)} (${list}) VALUES (${vals})
-              ON CONFLICT (id) DO UPDATE SET ${sets || `id = EXCLUDED.id`};
+              ON CONFLICT (${oldPk.map(ident).join(', ')}) DO UPDATE SET ${sets || `id = EXCLUDED.id`};
             RETURN NEW;
           END $f$`);
         await tx.run(
@@ -885,6 +1211,7 @@ export class PartitionRunner {
                   error = NULL, error_count = 0, updated_at = now() WHERE tbl = '${t}'`,
         );
       });
+      await this.validateKids(kidsAfter);
     } catch (e) {
       const m = e instanceof Error ? e.message : String(e);
       if (/lock timeout|lock_timeout|canceling statement/i.test(m)) {

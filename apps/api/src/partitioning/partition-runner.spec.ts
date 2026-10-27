@@ -1,4 +1,5 @@
 import {
+  HASH_PARTITIONED,
   MIGRATED_PARTITIONED,
   MONTH_MAINTAINED,
   PARTITION_TABLES,
@@ -59,5 +60,19 @@ describe('partition helpers', () => {
   it('gives the helper objects stable names', () => {
     expect(names('audit_log').old).toBe('audit_log__old');
     expect(names('audit_log').part).toBe('audit_log__part');
+  });
+
+  it('hash tables are opt-in: convertible by the runner, never in the migrated list', () => {
+    expect(HASH_PARTITIONED.map((s) => [s.table, s.key, s.hash])).toEqual([
+      ['messages', 'conversation_id', 16],
+      ['chat_group_messages', 'group_id', 16],
+      ['notifications', 'user_id', 16],
+    ]);
+    // The admin card reads «хеш» in the label to say «по хешу».
+    for (const s of HASH_PARTITIONED) {
+      expect(s.label).toContain('хеш');
+      expect(specOf(s.table)).toBe(s);
+      expect(MIGRATED_PARTITIONED.map((x) => x.table)).not.toContain(s.table);
+    }
   });
 });

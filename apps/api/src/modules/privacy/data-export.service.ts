@@ -68,6 +68,27 @@ async function* byId<T extends { id: string | bigint }>(
   }
 }
 
+/** Keyset paging for the tables whose primary key became (id, shard key)
+ * with hash partitioning (#358: messages, chat_group_messages,
+ * notifications): the cursor is the compound key of the last row. */
+async function* byCompound<T, C>(
+  run: (page: { take: number; cursor?: C; skip?: number }) => Promise<T[]>,
+  cursorOf: (row: T) => C,
+  map?: (row: T) => unknown,
+): AsyncGenerator<unknown[]> {
+  let cursor: C | undefined;
+  for (;;) {
+    const rows = await run({
+      take: PAGE,
+      ...(cursor ? { cursor, skip: 1 } : {}),
+    });
+    if (rows.length === 0) return;
+    yield map ? rows.map(map) : rows;
+    if (rows.length < PAGE) return;
+    cursor = cursorOf(rows[rows.length - 1]);
+  }
+}
+
 /** Pages of a table with a composite key: offset paging (small tables). */
 async function* byOffset<T>(
   run: (page: OffsetArgs) => Promise<T[]>,
@@ -348,7 +369,7 @@ export class DataExportService {
         }),
       'messages.json': () =>
         rows(
-          byId(
+          byCompound(
             (a) =>
               p.message.findMany({
                 where: { sender_id: userId },
@@ -365,6 +386,12 @@ export class DataExportService {
                 orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
                 ...a,
               }),
+            (m: { id: string; conversation_id: string }) => ({
+              id_conversation_id: {
+                id: m.id,
+                conversation_id: m.conversation_id,
+              },
+            }),
             (m) => ({
               ...m,
               body_original:
@@ -375,13 +402,17 @@ export class DataExportService {
       // ---- round 13 (S13-8): the product areas that were missing ----
       'group-messages.json': () =>
         rows(
-          fetchById((a) =>
-            p.chatGroupMessage.findMany({
-              where: { sender_id: userId },
-              orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
-              ...a,
+          byCompound(
+            (a) =>
+              p.chatGroupMessage.findMany({
+                where: { sender_id: userId },
+                orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+                ...a,
+              }),
+            (m: { id: string; group_id: string }) => ({
+              id_group_id: { id: m.id, group_id: m.group_id },
             }),
-          )(),
+          ),
         ),
       'reviews.json': () =>
         object({
@@ -433,13 +464,17 @@ export class DataExportService {
         }),
       'notifications.json': () =>
         rows(
-          fetchById((a) =>
-            p.notification.findMany({
-              where: { user_id: userId },
-              orderBy: { id: 'asc' },
-              ...a,
+          byCompound(
+            (a) =>
+              p.notification.findMany({
+                where: { user_id: userId },
+                orderBy: { id: 'asc' },
+                ...a,
+              }),
+            (n: { id: string; user_id: string }) => ({
+              id_user_id: { id: n.id, user_id: n.user_id },
             }),
-          )(),
+          ),
         ),
       'follows.json': () =>
         object({

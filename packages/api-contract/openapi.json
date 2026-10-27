@@ -72182,6 +72182,103 @@
         ]
       }
     },
+    "/admin/system-health/partitions/{table}/mode": {
+      "post": {
+        "operationId": "setPartitionMode",
+        "parameters": [
+          {
+            "name": "table",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^[a-z][a-z0-9_]{0,40}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartitionModeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartitionCardListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Hash tables: «Выкл / Вкл / Авто» of the online conversion (step-up)",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
     "/admin/system-health/partitions/{table}/abort": {
       "post": {
         "operationId": "abortPartition",
@@ -161468,6 +161565,20 @@
           "runnerConfigured": {
             "type": "boolean",
             "description": "The owner-role connection for the runner exists."
+          },
+          "mode": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "off",
+              "on",
+              "auto"
+            ],
+            "description": "Hash tables: off (default) / on (convert now) / auto (convert at autoRows). Null for the monthly tables."
+          },
+          "autoRows": {
+            "type": "integer",
+            "description": "Rows at which «auto» converts (admin-editable)."
           }
         },
         "required": [
@@ -161488,7 +161599,9 @@
           "canFinalize",
           "finalizeAfter",
           "overThreshold",
-          "runnerConfigured"
+          "runnerConfigured",
+          "mode",
+          "autoRows"
         ]
       },
       "PartitionCardListEnvelope": {
@@ -161517,6 +161630,22 @@
         },
         "required": [
           "paused"
+        ]
+      },
+      "PartitionModeDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "enum": [
+              "off",
+              "on",
+              "auto"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
         ]
       },
       "HealthItemDto": {

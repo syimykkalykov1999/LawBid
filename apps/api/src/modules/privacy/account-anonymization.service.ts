@@ -305,8 +305,8 @@ export class AccountAnonymizationService implements AccountEraser {
             file_name = NULL,
             sent_by_name = NULL,
             forwarded_from_name = NULL
-        WHERE ctid IN (
-          SELECT ctid FROM messages
+        WHERE (id, conversation_id) IN (
+          SELECT id, conversation_id FROM messages
           WHERE sender_id = ${userId}::UUID
             AND (body_display <> ${DELETED_MESSAGE_BODY}
               OR file_name IS NOT NULL
@@ -357,8 +357,8 @@ export class AccountAnonymizationService implements AccountEraser {
         UPDATE chat_group_messages
         SET body = ${DELETED_MESSAGE_BODY}, mention_ids = '{}',
             file_name = NULL, forwarded_from_name = NULL
-        WHERE ctid IN (
-          SELECT ctid FROM chat_group_messages
+        WHERE (id, group_id) IN (
+          SELECT id, group_id FROM chat_group_messages
           WHERE sender_id = ${userId}::UUID
             AND type::TEXT IN ('text', 'attachment')
             AND (body <> ${DELETED_MESSAGE_BODY}

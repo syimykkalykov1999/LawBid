@@ -92,6 +92,11 @@ export const SWEEPS: Readonly<Record<string, readonly string[]>> = {
   RankingEvent: ['user_id'],
   // Internal domain-event stream (events pipeline): the actor's own events, swept.
   DomainEvent: ['actor_user_id'],
+  // Union of PRs (2026-10-27): calendar feed tokens and connectors (#395)
+  // and the per-person no-show counter are the person's own, swept.
+  CalendarFeedToken: ['user_id'],
+  CalendarConnection: ['user_id'],
+  ConsultationAttendanceStat: ['user_id'],
 };
 
 const list = (...models: string[]): string[] => models;
@@ -215,6 +220,8 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'DmcaNotice',
       'CountryPartner',
       'DocumentTemplate',
+      // #395: a missed consultation stays on the attorney's record.
+      'ConsultationNoShow',
     ),
     retain_ledger: list(
       'Payment',
@@ -284,6 +291,19 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'OutreachSuppression',
       'PromoCode',
       'Experiment',
+      // Union of PRs (2026-10-27): staff attribution on infra changes (#413)
+      // and shard moves (#330).
+      'InfraChangeRequest',
+      'ShardMove',
+      // Trust & safety trail of reports, strikes and automatic moderation
+      // (#364), kept like ModerationAction / AccountBan.
+      'ReporterStanding',
+      'UserStrike',
+      'ModerationAutoAction',
+      'ModerationDetection',
+      // Proof of 18+ attestation and SMS consent (#388), kept like UserConsent.
+      'AgeAttestation',
+      'SmsConsent',
     ),
     retain_legal: list(
       'LegalHold',
@@ -292,6 +312,8 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'ClientFraudEvent',
       'MediaModerationCheck',
       'CsamReport',
+      // #352: attorney advertising must be archived (NY Rule 7.1(k)).
+      'AttorneyAdArchive',
     ),
   };
 

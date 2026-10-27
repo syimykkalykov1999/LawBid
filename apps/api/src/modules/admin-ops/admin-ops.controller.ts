@@ -33,6 +33,7 @@ import {
   HeavyHittersDto,
   HeavyJobsDto,
   PartitionCardDto,
+  PartitionModeDto,
   PartitionPauseDto,
   PartitionTableParamDto,
   ReplicaStatusDto,
@@ -154,6 +155,8 @@ export class AdminOpsController {
   ): Promise<PartitionCardDto[]> {
     await this.auth.assertStepUp(admin.sessionId);
     await this.partitions.undo(p.table);
+    // Undone on purpose: «Авто» / «Вкл» must not convert it again.
+    await this.partitions.resetMode(p.table, admin.id);
     await this.log(admin, 'ops.partition_undo', { table: p.table });
     return this.partitions.report();
   }
@@ -211,6 +214,24 @@ export class AdminOpsController {
     return this.partitions.report();
   }
 
+  @Post('partitions/:table/mode')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Hash tables: «Выкл / Вкл / Авто» of the online conversion (step-up)',
+  })
+  @ApiEnvelopeResponse(PartitionCardDto, { isArray: true })
+  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async setPartitionMode(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: PartitionTableParamDto,
+    @Body() dto: PartitionModeDto,
+  ): Promise<PartitionCardDto[]> {
+    await this.auth.assertStepUp(admin.sessionId);
+    await this.partitions.setMode(p.table, dto.mode, admin.id);
+    return this.partitions.report();
+  }
+
   @Post('partitions/:table/abort')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -225,6 +246,7 @@ export class AdminOpsController {
   ): Promise<PartitionCardDto[]> {
     await this.auth.assertStepUp(admin.sessionId);
     await this.partitions.abort(p.table);
+    await this.partitions.resetMode(p.table, admin.id);
     await this.log(admin, 'ops.partition_abort', { table: p.table });
     return this.partitions.report();
   }

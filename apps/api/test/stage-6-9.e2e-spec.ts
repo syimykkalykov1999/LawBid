@@ -314,7 +314,7 @@ describe('stage 6.9 — privacy and data lifecycle (e2e)', () => {
         SELECT status::TEXT AS status FROM posts WHERE id = ${post.id}::UUID`,
       );
       expect(p.status).toBe('removed');
-      const m = await prisma.message.findUniqueOrThrow({
+      const m = await prisma.message.findFirstOrThrow({
         where: { id: message.id },
       });
       expect(m.body_original).toBe('[deleted]');

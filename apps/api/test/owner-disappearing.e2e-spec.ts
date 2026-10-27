@@ -213,7 +213,7 @@ describe('Disappearing messages (e2e, owner 2026-10-21)', () => {
       .expect(200);
     const keep = await send(id, a.id, 'stays a while').expect(201);
     const gone = await send(id, b.id, 'goes now').expect(201);
-    await prisma.message.update({
+    await prisma.message.updateMany({
       where: { id: gone.body.data.id },
       data: { expires_at: new Date(Date.now() - 1000) },
     });
@@ -243,7 +243,7 @@ describe('Disappearing messages (e2e, owner 2026-10-21)', () => {
       where: { id },
     });
     expect(conv.last_message_id).toBe(keep.body.data.id);
-    const kept = await prisma.message.findUniqueOrThrow({
+    const kept = await prisma.message.findFirstOrThrow({
       where: { id: keep.body.data.id },
     });
     expect(kept.deleted_at).toBeNull();
@@ -297,7 +297,7 @@ describe('Disappearing messages (e2e, owner 2026-10-21)', () => {
     expect(line?.systemText).toBe('604800');
     expect(line?.expiresAt).toBeNull();
 
-    await prisma.chatGroupMessage.update({
+    await prisma.chatGroupMessage.updateMany({
       where: { id: sent.body.data.id },
       data: { expires_at: new Date(Date.now() - 1000) },
     });

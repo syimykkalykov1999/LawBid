@@ -58,13 +58,16 @@ describe('personal data registry', () => {
       }
     });
 
-    it('is a leaf table: nothing else has a foreign key to it', () => {
+    // Union of PRs (2026-10-27): a child declared ON DELETE CASCADE (e.g.
+    // calendar_event_links of #395) goes with the swept row, so it is allowed.
+    it('is a leaf table: nothing else has a blocking foreign key to it', () => {
       const parents = models.filter((m) =>
         m.fields.some(
           (f) =>
             f.kind === 'object' &&
             f.type === name &&
             (f.relationFromFields?.length ?? 0) > 0 &&
+            f.relationOnDelete !== 'Cascade' &&
             m.name !== name,
         ),
       );

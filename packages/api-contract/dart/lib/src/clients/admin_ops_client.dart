@@ -8,6 +8,7 @@ import 'package:retrofit/retrofit.dart';
 import '../models/heavy_hitters_envelope.dart';
 import '../models/heavy_jobs_dto.dart';
 import '../models/partition_card_list_envelope.dart';
+import '../models/partition_mode_dto.dart';
 import '../models/partition_pause_dto.dart';
 import '../models/post_status_incident_dto.dart';
 import '../models/queue_retry_result_envelope.dart';
@@ -79,6 +80,14 @@ abstract class AdminOpsClient {
   @POST('/admin/system-health/partitions/{table}/retry')
   Future<PartitionCardListEnvelope> retryPartition({
     @Path('table') required String table,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Hash tables: «Выкл / Вкл / Авто» of the online conversion (step-up)
+  @POST('/admin/system-health/partitions/{table}/mode')
+  Future<PartitionCardListEnvelope> setPartitionMode({
+    @Path('table') required String table,
+    @Body() required PartitionModeDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

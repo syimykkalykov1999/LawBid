@@ -150,7 +150,9 @@ export class ModerationService {
           : null;
       }
       case 'message': {
-        const m = await db.message.findUnique({
+        // The report names the message by id only: a probe of every hash
+        // partition's primary key (one moderator click).
+        const m = await db.message.findFirst({
           // Soft-deleted rows stay resolvable (the queue shows them as removed).
           where: withDeleted({ id }),
           select: {
@@ -707,15 +709,21 @@ export class ModerationService {
         // OQ-B: hide = remove for a message (deleted_at); restore clears it.
         if (action === 'restore') {
           if (target.status !== 'removed') return null;
-          await tx.message.update({
-            where: { id: target.id },
+          await tx.message.updateMany({
+            where: {
+              id: target.id,
+              conversation_id: target.context.conversationId ?? undefined,
+            },
             data: { deleted_at: null },
           });
           return 'removed';
         }
         if (target.status === 'removed') return null;
-        await tx.message.update({
-          where: { id: target.id },
+        await tx.message.updateMany({
+          where: {
+            id: target.id,
+            conversation_id: target.context.conversationId ?? undefined,
+          },
           data: { deleted_at: new Date() },
         });
         return 'published';

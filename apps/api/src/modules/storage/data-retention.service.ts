@@ -215,8 +215,8 @@ export class DataRetentionService implements OnModuleDestroy {
       total += await this.batched(
         (limit) => db.$executeRaw`
           DELETE FROM auth_events
-          WHERE ctid IN (
-            SELECT ctid FROM auth_events
+          WHERE (id, created_at) IN (
+            SELECT id, created_at FROM auth_events
             WHERE created_shard = ${shard} AND created_at < ${before}
               AND (user_id IS NULL OR NOT ${heldSql('user', Prisma.sql`user_id`)})
             ORDER BY created_at LIMIT ${limit})`,

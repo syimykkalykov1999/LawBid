@@ -90,7 +90,9 @@ export class ChatActionsService {
     messageId: string,
   ): Promise<void> {
     const row = await this.prisma.message.findUnique({
-      where: { id: messageId },
+      where: {
+        id_conversation_id: { id: messageId, conversation_id: conv.id },
+      },
     });
     if (!row) return;
     const urls = await this.chat.mediaLinks([row]);
@@ -107,7 +109,9 @@ export class ChatActionsService {
     messageId: string,
   ): Promise<MessageDto> {
     const row = await this.prisma.message.findUniqueOrThrow({
-      where: { id: messageId },
+      where: {
+        id_conversation_id: { id: messageId, conversation_id: conv.id },
+      },
     });
     return this.chat.toMessage(
       row,
@@ -172,10 +176,16 @@ export class ChatActionsService {
       ) ?? [];
     await this.prisma.$transaction([
       this.prisma.messageEdit.create({
-        data: { message_id: m.id, body_original: m.body_original },
+        data: {
+          message_id: m.id,
+          conversation_id: m.conversation_id,
+          body_original: m.body_original,
+        },
       }),
       this.prisma.message.update({
-        where: { id: m.id },
+        where: {
+          id_conversation_id: { id: m.id, conversation_id: m.conversation_id },
+        },
         data: {
           body_original: this.seal(body, m.id),
           body_display: this.seal(masked.text, m.id),
@@ -232,7 +242,11 @@ export class ChatActionsService {
     if (scope === 'me') {
       await this.prisma.messageHidden.upsert({
         where: { message_id_user_id: { message_id: m.id, user_id: user.sub } },
-        create: { message_id: m.id, user_id: user.sub },
+        create: {
+          message_id: m.id,
+          conversation_id: m.conversation_id,
+          user_id: user.sub,
+        },
         update: {},
       });
       // My other devices drop it too.
@@ -256,7 +270,9 @@ export class ChatActionsService {
     }
     await this.prisma.$transaction([
       this.prisma.message.update({
-        where: { id: m.id },
+        where: {
+          id_conversation_id: { id: m.id, conversation_id: m.conversation_id },
+        },
         // The display texts are scrubbed; body_original stays for
         // moderation / legal (§1.6).
         data: {
@@ -356,7 +372,12 @@ export class ChatActionsService {
           where: {
             message_id_user_id: { message_id: m.id, user_id: user.sub },
           },
-          create: { message_id: m.id, user_id: user.sub, emoji: clean },
+          create: {
+            message_id: m.id,
+            conversation_id: m.conversation_id,
+            user_id: user.sub,
+            emoji: clean,
+          },
           update: { emoji: clean, created_at: new Date() },
         });
       });

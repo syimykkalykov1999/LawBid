@@ -21,11 +21,16 @@ export interface MessageExtras {
 
 export async function loadMessageExtras(
   prisma: PrismaService,
-  rows: { id: string; reply_to_id: string | null }[],
+  rows: { id: string; conversation_id: string; reply_to_id: string | null }[],
 ): Promise<MessageExtras> {
   const ids = rows.map((r) => r.id);
   const replyIds = [
     ...new Set(rows.flatMap((r) => (r.reply_to_id ? [r.reply_to_id] : []))),
+  ];
+  // A reply always quotes a message of its own chat: naming the chats lets
+  // PostgreSQL read only their hash partitions of `messages`.
+  const replyChats = [
+    ...new Set(rows.filter((r) => r.reply_to_id).map((r) => r.conversation_id)),
   ];
   if (ids.length === 0) {
     return { reactions: new Map(), replyTargets: new Map(), pinned: new Set() };
@@ -38,7 +43,10 @@ export async function loadMessageExtras(
     }),
     replyIds.length
       ? prisma.message.findMany({
-          where: { id: { in: replyIds } },
+          where: {
+            id: { in: replyIds },
+            conversation_id: { in: replyChats },
+          },
           select: {
             id: true,
             sender_id: true,

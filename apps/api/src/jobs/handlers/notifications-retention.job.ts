@@ -25,8 +25,8 @@ export class NotificationsRetentionJob {
     while (deleted < MAX_PER_RUN) {
       const n = await this.prisma.$executeRaw`
         DELETE FROM notifications
-        WHERE ctid IN (
-          SELECT ctid FROM notifications
+        WHERE (id, user_id) IN (
+          SELECT id, user_id FROM notifications
           WHERE created_at < ${before}
             AND NOT ${heldSql('user', Prisma.sql`user_id`)}
           ORDER BY created_at

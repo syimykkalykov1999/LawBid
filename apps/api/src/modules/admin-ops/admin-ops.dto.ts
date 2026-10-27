@@ -282,10 +282,28 @@ export class PartitionCardDto {
     description: 'The owner-role connection for the runner exists.',
   })
   runnerConfigured!: boolean;
+  @ApiProperty({
+    enum: ['off', 'on', 'auto'],
+    nullable: true,
+    description:
+      'Hash tables: off (default) / on (convert now) / auto (convert at autoRows). Null for the monthly tables.',
+  })
+  mode!: string | null;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Rows at which «auto» converts (admin-editable).',
+  })
+  autoRows!: number;
 }
 
 export class PartitionTableParamDto {
   @ApiProperty() @IsString() @Matches(/^[a-z][a-z0-9_]{0,40}$/) table!: string;
+}
+
+export class PartitionModeDto {
+  @ApiProperty({ enum: ['off', 'on', 'auto'] })
+  @IsIn(['off', 'on', 'auto'])
+  mode!: 'off' | 'on' | 'auto';
 }
 
 export class PartitionPauseDto {

@@ -149,7 +149,7 @@ describe('Group shared media (e2e)', () => {
     for (let i = 0; i < 5; i++) {
       made.push(await put(id, ann.id, 'attachment', { mime: 'image/png' }));
     }
-    await prisma.chatGroupMessage.update({
+    await prisma.chatGroupMessage.updateMany({
       where: { id: made[4].id },
       data: { deleted_at: new Date() },
     });

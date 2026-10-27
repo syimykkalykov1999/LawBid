@@ -2683,12 +2683,14 @@ model SavedItem {
 /// the text stays sealed in `messages`, and it is read again through the
 /// chat's own membership check.
 model SavedChatMessage {
-  user_id    String        @db.Uuid
-  user       User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  message_id String        @db.Uuid
-  message    Message       @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  kind       SavedChatKind
-  created_at DateTime      @default(now()) @db.Timestamptz
+  user_id         String        @db.Uuid
+  user            User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  message_id      String        @db.Uuid
+  /// Part of the key of the message (messages are partitioned by chat).
+  conversation_id String        @db.Uuid
+  message         Message       @relation(fields: [conversation_id, message_id], references: [conversation_id, id], onDelete: Cascade)
+  kind            SavedChatKind
+  created_at      DateTime      @default(now()) @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -2933,8 +2935,13 @@ model CallVote {
   @@map("call_votes")
 }
 
+/// Owner 2026-10-26: PARTITION BY HASH (conversation_id), 16 partitions (raw
+/// SQL, migration 20261107131300_partition_messages_notifications). The key
+/// is (id, conversation_id); everything that points at a message carries the
+/// conversation_id too (composite foreign keys). See
+/// docs/architecture/TABLE_PARTITIONING_READY.md.
 model Message {
-  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                    String             @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   conversation_id       String             @db.Uuid
   conversation          Conversation       @relation(fields: [conversation_id], references: [id], onDelete: Restrict)
   // NULL for system messages.
@@ -2980,7 +2987,7 @@ model Message {
   edited_at             DateTime?          @db.Timestamptz
   revoked_at            DateTime?          @db.Timestamptz
   reply_to_id           String?            @db.Uuid
-  reply_to              Message?           @relation("MessageReply", fields: [reply_to_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  reply_to              Message?           @relation("MessageReply", fields: [conversation_id, reply_to_id], references: [conversation_id, id], onDelete: SetNull, onUpdate: NoAction)
   replies               Message[]          @relation("MessageReply")
   forwarded             Boolean            @default(false)
   /// "Forwarded from <name>": the first author, kept through re-forwards.
@@ -2995,6 +3002,7 @@ model Message {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
+  @@id([id, conversation_id])
   @@unique([conversation_id, sender_id, client_message_id])
   @@index([file_id])
   @@index([sticker_id])
@@ -3028,10 +3036,12 @@ model MessageSearchToken {
 
 /// "Delete for me": the message stays for the other side.
 model MessageHidden {
-  message_id String   @db.Uuid
-  message    Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  user_id    String   @db.Uuid
-  created_at DateTime @default(now()) @db.Timestamptz
+  message_id      String   @db.Uuid
+  /// Part of the key of the message (messages are partitioned by chat).
+  conversation_id String   @db.Uuid
+  message         Message  @relation(fields: [conversation_id, message_id], references: [conversation_id, id], onDelete: Cascade)
+  user_id         String   @db.Uuid
+  created_at      DateTime @default(now()) @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -3043,11 +3053,13 @@ model MessageHidden {
 
 /// One emoji reaction per person per message (changing it replaces it).
 model MessageReaction {
-  message_id String   @db.Uuid
-  message    Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  user_id    String   @db.Uuid
-  emoji      String   @db.VarChar(16)
-  created_at DateTime @default(now()) @db.Timestamptz
+  message_id      String   @db.Uuid
+  /// Part of the key of the message (messages are partitioned by chat).
+  conversation_id String   @db.Uuid
+  message         Message  @relation(fields: [conversation_id, message_id], references: [conversation_id, id], onDelete: Cascade)
+  user_id         String   @db.Uuid
+  emoji           String   @db.VarChar(16)
+  created_at      DateTime @default(now()) @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -3058,11 +3070,13 @@ model MessageReaction {
 
 /// The text a message had before each edit (moderation / legal).
 model MessageEdit {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  message_id    String   @db.Uuid
-  message       Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  body_original String
-  edited_at     DateTime @default(now()) @db.Timestamptz
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  message_id      String   @db.Uuid
+  /// Part of the key of the message (messages are partitioned by chat).
+  conversation_id String   @db.Uuid
+  message         Message  @relation(fields: [conversation_id, message_id], references: [conversation_id, id], onDelete: Cascade)
+  body_original   String
+  edited_at       DateTime @default(now()) @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -3074,7 +3088,7 @@ model MessageEdit {
 /// A message pinned to the top of a chat (at most 3 per chat).
 model MessagePin {
   message_id      String   @id @db.Uuid
-  message         Message  @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  message         Message  @relation(fields: [conversation_id, message_id], references: [conversation_id, id], onDelete: Cascade)
   conversation_id String   @db.Uuid
   pinned_by       String   @db.Uuid
   pinned_at       DateTime @default(now()) @db.Timestamptz
@@ -3082,6 +3096,7 @@ model MessagePin {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
+  @@unique([conversation_id, message_id])
   @@index([conversation_id, pinned_at(sort: Desc)])
   @@map("message_pins")
 }
@@ -3227,8 +3242,10 @@ model ChatGroupMember {
   @@map("chat_group_members")
 }
 
+/// Owner 2026-10-26: PARTITION BY HASH (group_id), 16 partitions, key
+/// (id, group_id); the poll and the reply point at (group_id, id).
 model ChatGroupMessage {
-  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                  String             @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   group_id            String             @db.Uuid
   group               ChatGroup          @relation(fields: [group_id], references: [id], onDelete: Cascade)
   /// NULL for system messages.
@@ -3245,7 +3262,7 @@ model ChatGroupMessage {
   topic_id            String?            @db.Uuid
   topic               ChatGroupTopic?    @relation(fields: [topic_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   reply_to_id         String?            @db.Uuid
-  reply_to            ChatGroupMessage?  @relation("GroupMessageReply", fields: [reply_to_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  reply_to            ChatGroupMessage?  @relation("GroupMessageReply", fields: [group_id, reply_to_id], references: [group_id, id], onDelete: SetNull, onUpdate: NoAction)
   replies             ChatGroupMessage[] @relation("GroupMessageReply")
   /// @mentioned user ids.
   mention_ids         String[]           @default([]) @db.Uuid
@@ -3266,6 +3283,7 @@ model ChatGroupMessage {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
+  @@id([id, group_id])
   @@unique([group_id, sender_id, client_message_id])
   @@index([group_id, created_at(sort: Desc)])
   @@index([topic_id, created_at(sort: Desc)])
@@ -3364,7 +3382,7 @@ model ChatGroupPoll {
   group_id   String                @db.Uuid
   group      ChatGroup             @relation(fields: [group_id], references: [id], onDelete: Cascade)
   message_id String                @unique @db.Uuid
-  message    ChatGroupMessage      @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  message    ChatGroupMessage      @relation(fields: [group_id, message_id], references: [group_id, id], onDelete: Cascade)
   creator_id String                @db.Uuid
   creator    User                  @relation("ChatGroupPollCreator", fields: [creator_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   question   String                @db.VarChar(300)
@@ -3381,6 +3399,7 @@ model ChatGroupPoll {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
+  @@unique([group_id, message_id])
   @@index([group_id])
   @@map("chat_group_polls")
 }
@@ -3417,8 +3436,10 @@ model ChatGroupPollVote {
   @@map("chat_group_poll_votes")
 }
 
+/// Owner 2026-10-26: PARTITION BY HASH (user_id), 16 partitions, key
+/// (id, user_id) (raw SQL, migration 20261107131300_partition_messages_notifications).
 model Notification {
-  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id              String               @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id         String               @db.Uuid
   user            User                 @relation(fields: [user_id], references: [id], onDelete: Restrict)
   type            NotificationType
@@ -3437,6 +3458,7 @@ model Notification {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
+  @@id([id, user_id])
   @@index([user_id, created_at(sort: Desc)])
   @@index([user_id, updated_at(sort: Desc)])
   // Kept (migration 20260928140000): the retention job scans by age.

@@ -38,7 +38,7 @@ function make(opts: { freshStepUp?: boolean } = {}) {
           duration_ms: null,
         },
       ]),
-      findUnique: jest.fn().mockResolvedValue({
+      findFirst: jest.fn().mockResolvedValue({
         id: 'm1',
         conversation_id: 'c1',
         sender_id: 'att',
@@ -111,7 +111,7 @@ describe('AdminPrivateContentService (owner 2026-10-28)', () => {
       ForbiddenException,
     );
     // The text was not even read from the database.
-    expect(stale.prisma.message.findUnique).not.toHaveBeenCalled();
+    expect(stale.prisma.message.findFirst).not.toHaveBeenCalled();
   });
 
   it('an unknown conversation or message is a 404', async () => {
@@ -123,7 +123,7 @@ describe('AdminPrivateContentService (owner 2026-10-28)', () => {
     await expect(t.svc.listCalls(admin(), 'x')).rejects.toBeInstanceOf(
       NotFoundException,
     );
-    t.prisma.message.findUnique.mockResolvedValue(null);
+    t.prisma.message.findFirst.mockResolvedValue(null);
     await expect(t.svc.revealMessage(admin(), 'x')).rejects.toBeInstanceOf(
       NotFoundException,
     );

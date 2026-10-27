@@ -79,6 +79,7 @@ import { fileNameAad } from '../../common/secrets/field-aad';
 import { MessageSearchIndex } from '../../common/secrets/message-search-index';
 import { writeSearchTokens } from './chat-search-tokens';
 import { loadMessageExtras, type MessageExtras } from './chat-message-extras';
+import { messagesByPairs } from './messages-by-pairs';
 import { expiresAtFor, notExpired } from './disappearing';
 import { touchClientActive } from '../cases/cases.public';
 import { HeavyHittersService } from '../../common/heavy-hitters/heavy-hitters.service';
@@ -1385,7 +1386,9 @@ export class ChatService {
     let row = m;
     if (m.sender_id !== user.sub && !m.listened_at) {
       row = await this.prisma.message.update({
-        where: { id: m.id },
+        where: {
+          id_conversation_id: { id: m.id, conversation_id: m.conversation_id },
+        },
         data: { listened_at: new Date() },
       });
       if (m.sender_id) {
@@ -1606,7 +1609,12 @@ export class ChatService {
       });
       const current = me.last_read_message_id
         ? await tx.message.findUnique({
-            where: { id: me.last_read_message_id },
+            where: {
+              id_conversation_id: {
+                id: me.last_read_message_id,
+                conversation_id: id,
+              },
+            },
             select: { id: true, created_at: true },
           })
         : null;
@@ -1623,6 +1631,7 @@ export class ChatService {
           // Reading it means it got there (the grey ticks never lag the blue).
           ...(await this.deliveredPatch(
             tx,
+            id,
             me.last_delivered_message_id,
             target,
           )),
@@ -1687,7 +1696,7 @@ export class ChatService {
             last_delivered_at = now(),
             updated_at = now()
         FROM unnest(${cids}::UUID[], ${mids}::UUID[]) AS v(cid, mid)
-        JOIN messages tm ON tm.id = v.mid
+        JOIN messages tm ON tm.id = v.mid AND tm.conversation_id = v.cid
         WHERE cp.conversation_id = v.cid
           AND cp.user_id = ${viewerId}::UUID
           AND tm.conversation_id = v.cid
@@ -1695,6 +1704,7 @@ export class ChatService {
                OR NOT EXISTS (
                  SELECT 1 FROM messages cm
                  WHERE cm.id = cp.last_delivered_message_id
+                   AND cm.conversation_id = cp.conversation_id
                    AND (cm.created_at, cm.id) >= (tm.created_at, tm.id)))
         RETURNING cp.conversation_id::TEXT AS conversation_id,
                   cp.last_delivered_message_id::TEXT AS last_delivered_message_id`;
@@ -1721,12 +1731,18 @@ export class ChatService {
    * [target], or nothing when it is already at or past it. */
   private async deliveredPatch(
     tx: Pick<PrismaService, 'message'>,
+    conversationId: string,
     currentId: string | null,
     target: { id: string; created_at: Date },
   ): Promise<{ last_delivered_message_id?: string; last_delivered_at?: Date }> {
     const current = currentId
       ? await tx.message.findUnique({
-          where: { id: currentId },
+          where: {
+            id_conversation_id: {
+              id: currentId,
+              conversation_id: conversationId,
+            },
+          },
           select: { id: true, created_at: true },
         })
       : null;
@@ -1767,6 +1783,7 @@ export class ChatService {
       });
       const patch = await this.deliveredPatch(
         tx,
+        id,
         me.last_delivered_message_id,
         target,
       );
@@ -1911,32 +1928,41 @@ export class ChatService {
    * the message is gone; 400 for a message that is not worth saving (a
    * system line, a call, a sticker).
    */
-  async savableKind(user: RequestUser, id: string): Promise<SavedChatKind> {
+  async savableKind(
+    user: RequestUser,
+    id: string,
+  ): Promise<{ kind: SavedChatKind; conversationId: string }> {
     const m = await this.prisma.message.findFirst({
       where: { id, deleted_at: null },
     });
     if (!m) throw notFound();
     await this.load(user, m.conversation_id);
+    const conversationId = m.conversation_id;
     switch (m.type) {
       case 'voice':
-        return 'voice';
+        return { kind: 'voice', conversationId };
       case 'contact':
-        return 'contact';
+        return { kind: 'contact', conversationId };
       case 'place':
-        return 'place';
+        return { kind: 'place', conversationId };
       case 'attachment': {
         const f = m.file_id
           ? (await this.files.attachmentUrls([m.file_id])).get(m.file_id)
           : undefined;
         const mime = f?.mime ?? '';
-        return isImageMime(mime) || mime.startsWith('video/')
-          ? 'media'
-          : 'file';
+        return {
+          kind:
+            isImageMime(mime) || mime.startsWith('video/') ? 'media' : 'file',
+          conversationId,
+        };
       }
       case 'text':
-        return URL_RE.test(this.openBody(m.body_display, m.id))
-          ? 'link'
-          : 'text';
+        return {
+          kind: URL_RE.test(this.openBody(m.body_display, m.id))
+            ? 'link'
+            : 'text',
+          conversationId,
+        };
       default:
         throw new BadRequestException({
           code: ErrorCode.VALIDATION_ERROR,
@@ -1953,12 +1979,11 @@ export class ChatService {
    */
   async messagesWithChats(
     user: RequestUser,
-    ids: string[],
+    refs: { id: string; conversationId: string }[],
   ): Promise<{ message: MessageDto; chat: ConversationDto }[]> {
-    if (ids.length === 0) return [];
-    const rows = await this.prisma.message.findMany({
-      where: { id: { in: ids }, deleted_at: null },
-    });
+    if (refs.length === 0) return [];
+    const ids = refs.map((r) => r.id);
+    const rows = await messagesByPairs(this.prisma, refs);
     const convs = new Map<string, Conversation>();
     for (const convId of new Set(rows.map((r) => r.conversation_id))) {
       try {
@@ -2457,15 +2482,14 @@ export class ChatService {
             client_profile: { select: { username: true } },
           },
         }),
-        this.prisma.message.findMany({
-          where: {
-            id: {
-              in: convs.flatMap((c) =>
-                c.last_message_id ? [c.last_message_id] : [],
-              ),
-            },
-          },
-        }),
+        messagesByPairs(
+          this.prisma,
+          convs.flatMap((c) =>
+            c.last_message_id
+              ? [{ id: c.last_message_id, conversationId: c.id }]
+              : [],
+          ),
+        ),
         this.prisma.conversationParticipant.findMany({
           where: { conversation_id: { in: ids } },
           select: {
@@ -2496,6 +2520,7 @@ export class ChatService {
                     LIMIT ${UNREAD_CAP}) x) AS n
           FROM conversation_participants cp
           LEFT JOIN messages lr ON lr.id = cp.last_read_message_id
+                               AND lr.conversation_id = cp.conversation_id
           WHERE cp.user_id = ${viewerId}::UUID
             AND cp.conversation_id = ANY(${ids}::UUID[])`,
       ]);

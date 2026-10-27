@@ -994,6 +994,15 @@ export const OWNER_STORAGE_SETTINGS = {
   'images.avif_since': '',
   'images.avif_quality': 60,
   'images.avif_effort': 2,
+  /** Owner 2026-10-26: hash partitioning of the big chat / notification
+   * tables is OPT-IN (at small sizes the plain tables are faster). Per
+   * table: 'off' (default) | 'on' (the online runner converts now) |
+   * 'auto' (converts when the table reaches `partition.auto_rows`).
+   * docs/architecture/TABLE_PARTITIONING_READY.md */
+  'partition.messages_mode': 'off',
+  'partition.chat_group_messages_mode': 'off',
+  'partition.notifications_mode': 'off',
+  'partition.auto_rows': 50_000_000,
   'images.webp_quality': 88,
   'images.jpeg_quality': 90,
   /** Owner 2026-10-26: nightly sweep that recounts profile counters

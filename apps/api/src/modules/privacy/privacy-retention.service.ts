@@ -130,7 +130,9 @@ export class PrivacyRetentionService implements OnModuleDestroy {
   }
 
   /** admin trail: one write shard at a time (index created_shard,
-   * created_at); rows whose target is held stay. */
+   * created_at); rows whose target is held stay. Rows are picked by
+   * (id, created_at), not ctid: once #334 partitions audit_log by month a
+   * ctid is only unique inside one partition. */
   private async auditLog(cut: Date): Promise<number> {
     const db = this.retention();
     let total = 0;
@@ -138,8 +140,8 @@ export class PrivacyRetentionService implements OnModuleDestroy {
       total += await this.batched(
         (limit) => db.$executeRaw`
           DELETE FROM audit_log
-          WHERE ctid IN (
-            SELECT a.ctid FROM audit_log a
+          WHERE (id, created_at) IN (
+            SELECT a.id, a.created_at FROM audit_log a
             WHERE a.created_shard = ${shard} AND a.created_at < ${cut}
               AND NOT EXISTS (
                 SELECT 1 FROM legal_holds h

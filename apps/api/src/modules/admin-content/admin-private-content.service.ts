@@ -128,7 +128,9 @@ export class AdminPrivateContentService {
       ? await this.settings.number('admin.private_stepup_seconds')
       : 120;
     await this.auth.assertFreshStepUp(admin.sessionId, window);
-    const m = await this.prisma.message.findUnique({
+    // #358: messages are keyed by (id, conversation_id); id alone is still
+    // unique (uuid) and leads the primary-key index.
+    const m = await this.prisma.message.findFirst({
       where: { id: messageId },
       select: {
         id: true,

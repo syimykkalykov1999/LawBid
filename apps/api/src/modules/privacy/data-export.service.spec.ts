@@ -18,11 +18,12 @@ const gc = runInNewContext('gc') as () => void;
 /** 50 000 own messages of ~2 KB, served by cursor like Prisma would. */
 function messagePage(args: {
   take: number;
-  cursor?: { id: string };
+  // #358: messages page by their compound key (id, conversation_id).
+  cursor?: { id_conversation_id: { id: string } };
   skip?: number;
 }) {
   const start = args.cursor
-    ? Number(args.cursor.id.slice(1)) + (args.skip ?? 0)
+    ? Number(args.cursor.id_conversation_id.id.slice(1)) + (args.skip ?? 0)
     : 0;
   const out = [];
   for (let i = start; i < Math.min(MESSAGES, start + args.take); i++) {
