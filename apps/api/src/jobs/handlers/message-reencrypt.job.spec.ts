@@ -1,10 +1,13 @@
+/* eslint-disable @typescript-eslint/require-await -- async mocks mirror the real signatures */
 import { ConfigService } from '@nestjs/config';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { SecretEnvelope } from '../../common/secrets/secret-envelope';
 import {
   MESSAGE_REENCRYPT_BATCH,
+  MESSAGE_REENCRYPT_DB_KEY,
   MESSAGE_REENCRYPT_STATE_KEY,
   MessageReencryptJob,
+  reencryptBatchesFor,
   type MessageReencryptState,
 } from './message-reencrypt.job';
 
@@ -361,5 +364,49 @@ describe('MessageReencryptJob', () => {
     expect(
       h.cipher.openField(messages[1].file_name!, `messages.file_name:${id(2)}`),
     ).toBe('old-kid.pdf');
+  });
+});
+
+describe('S20-8: ceiling and database copy of the progress', () => {
+  it('rows per minute → batches per 5-minute tick (0 = paused)', () => {
+    expect(reencryptBatchesFor(0)).toBe(0);
+    expect(reencryptBatchesFor(-5)).toBe(0);
+    expect(reencryptBatchesFor(10)).toBe(1);
+    expect(reencryptBatchesFor(800)).toBe(8);
+    expect(reencryptBatchesFor(20_000)).toBe(200);
+  });
+
+  it('restores the progress from the database when Redis lost it', async () => {
+    const saved = { fingerprint: 'f', phase: 'edits', cursor: 'c' };
+    const redisStore = new Map<string, string>();
+    const prisma = {
+      searchIndexState: {
+        findUnique: jest.fn().mockResolvedValue({ value: saved }),
+        upsert: jest.fn(),
+        deleteMany: jest.fn(),
+      },
+    };
+    const redis = {
+      get: jest.fn(async (k: string) => redisStore.get(k) ?? null),
+      set: jest.fn(async (k: string, v: string) => {
+        redisStore.set(k, v);
+        return 'OK';
+      }),
+      del: jest.fn(async (k: string) => redisStore.delete(k)),
+    };
+    const job = new MessageReencryptJob(
+      prisma as never,
+      redis as never,
+      {} as never,
+      { setContext: jest.fn() } as never,
+      {} as never,
+      {} as never,
+    );
+    expect(await job.state()).toEqual(saved);
+    expect(redis.set).toHaveBeenCalledTimes(1);
+    await job.restart();
+    expect(prisma.searchIndexState.deleteMany).toHaveBeenCalledWith({
+      where: { key: MESSAGE_REENCRYPT_DB_KEY },
+    });
   });
 });

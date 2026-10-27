@@ -88,6 +88,13 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'Reel warm-up switch. off = never warm up; on = always the numbers below, whatever the network; auto (default) = «ahead» on Wi-Fi, «cellular» on mobile data, and 0 while Bunny video traffic this month is over its warning level (Usage alarms).',
   },
+  'client.video_prefetch_cellular': {
+    default: 1,
+    min: 0,
+    max: 6,
+    description:
+      'How many reels ahead the app warms on mobile data (Wi-Fi uses client.video_prefetch_ahead). Used in auto mode.',
+  },
   // S12-5 (observability round 12). Both need the person's analytics consent
   // (Settings → Privacy → «Usage statistics») and a Sentry DSN for the first.
   'client.sentry_traces_percent': {
@@ -154,3 +161,32 @@ export const OWNER_CHAT_PHOTO_SETTINGS = {
   'media.chat_photo_max_px': 1600,
   'media.chat_photo_quality': 82,
 } as const;
+
+/** What the app is told to warm up, for the two kinds of network. */
+export interface PrefetchPlan {
+  ahead: number;
+  cellular: number;
+}
+
+/**
+ * S20-9: the server turns the three-state switch into the two numbers the
+ * app obeys. `bunnyOver` = the daily usage poll saw Bunny video traffic at
+ * or above the warning level. The app only picks `ahead` (Wi-Fi) or
+ * `cellular` (mobile data); it never needs to know the mode.
+ */
+export function effectivePrefetch(input: {
+  mode: 'off' | 'on' | 'auto';
+  ahead: number;
+  cellular: number;
+  bunnyOver: boolean;
+}): PrefetchPlan {
+  if (input.mode === 'off') return { ahead: 0, cellular: 0 };
+  if (input.mode === 'on') {
+    return { ahead: input.ahead, cellular: input.ahead };
+  }
+  if (input.bunnyOver) return { ahead: 0, cellular: 0 };
+  return {
+    ahead: input.ahead,
+    cellular: Math.min(input.cellular, input.ahead),
+  };
+}

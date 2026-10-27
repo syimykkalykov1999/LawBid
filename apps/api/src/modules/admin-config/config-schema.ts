@@ -690,6 +690,54 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 2,
     max: 24 * 14,
   };
+  // Round 20 (2026-10-25): hidden-cost switches, off | on | auto.
+  const triState = (key: string, description: string) => {
+    out[key] = {
+      ...out[key],
+      description,
+      pattern: /^(off|on|auto)$/,
+    };
+  };
+  triState(
+    'ops.admin_summaries_mode',
+    'Heavy admin counts (dashboard, billing, trust scan): auto = every 2 minutes only while an admin was active in the last 10 minutes, otherwise hourly; on = always every 2 minutes; off = every 6 hours.',
+  );
+  triState(
+    'ops.cron_idle_backoff',
+    'Every-minute background sweeps (government exports, search outbox, video and consultation sweeps) with nothing to do: auto = after N empty runs run every few minutes until work appears; on = always the slow pace; off = every minute, as before.',
+  );
+  out['ops.cron_idle_after_runs'] = {
+    ...out['ops.cron_idle_after_runs'],
+    description:
+      'Empty runs in a row before an every-minute sweep slows down (auto mode).',
+    min: 3,
+    max: 1000,
+  };
+  out['ops.cron_idle_every_min'] = {
+    ...out['ops.cron_idle_every_min'],
+    description:
+      'Minutes between runs of an idle sweep. Ceiling 30: nothing waits longer than that.',
+    min: 2,
+    max: 30,
+  };
+  out['ops.reencrypt_rows_per_min'] = {
+    ...out['ops.reencrypt_rows_per_min'],
+    description:
+      'Ceiling of the message re-encryption pass, rows per minute (0 = paused, the pass keeps its place). Lower it if the database is busy.',
+    min: 0,
+    max: 20_000,
+  };
+  triState(
+    'log.ws_events',
+    'WebSocket connect / disconnect log lines: auto = a weighted sample, every line for 30 minutes while reconnects spike; on = every line; off = the sample only (the counters on the status board are always complete).',
+  );
+  out['log.ws_sample_percent'] = {
+    ...out['log.ws_sample_percent'],
+    description:
+      'Percent of WebSocket connect / disconnect events written as log lines (each line counts for 100/percent events).',
+    min: 1,
+    max: 100,
+  };
   out['search.ranked_cache_ttl_sec'] = {
     ...out['search.ranked_cache_ttl_sec'],
     description:
@@ -739,6 +787,40 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Hours (America/Chicago) when a cloud change may be applied, "HH:MM-HH:MM", e.g. 01:00-06:00; empty = any time.',
     pattern: /^$|^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/,
   };
+  // Owner 2026-10-27: admin «Продвижение» (static SEO pages + channel list).
+  // Switched on the «Продвижение» page; the generator reads them from GET
+  // /public/seo-settings (no stored row = the repository variable decides).
+  const seoText: Record<string, string> = {
+    'seo.incremental_enabled':
+      'Public SEO pages: upload only the files that changed and reset the CDN only for them (at most 30 paths a day). Changed on the «Продвижение» page.',
+    'seo.llms_enabled':
+      'Public SEO pages: publish /llms.txt and /llms-full.txt. Changed on the «Продвижение» page.',
+    'seo.quality_gate_enabled':
+      'Public SEO pages: thin pages get noindex and leave the sitemap. Turn on only after the page texts are longer (dry run first). Changed on the «Продвижение» page.',
+    'seo.ramp_per_day':
+      'Public SEO pages: at most this many NEW pages enter the index a day; 0 = no limit. Changed on the «Продвижение» page.',
+    'seo.robots_ai_enabled':
+      'Public SEO pages: robots.txt lets search and answer bots in and keeps training bots out. Changed on the «Продвижение» page.',
+    'seo.sitemap_index_enabled':
+      'Public SEO pages: /sitemap.xml becomes an index of /sitemaps/*.xml. Changed on the «Продвижение» page.',
+  };
+  for (const [k, description] of Object.entries(seoText)) {
+    out[k] = { ...out[k], description };
+  }
+  out['seo.ramp_per_day'] = {
+    ...out['seo.ramp_per_day'],
+    min: 0,
+    max: 5000,
+  };
+  for (const k of Object.keys(out)) {
+    if (k.startsWith('seo.checklist.')) {
+      out[k] = {
+        ...out[k],
+        description:
+          'Promotion checklist: the owner ticked this channel as done. Changed on the «Продвижение» page.',
+      };
+    }
+  }
   out['scale.capacity_ceiling.mode'] = {
     type: 'string',
     defaultValue: 'auto',

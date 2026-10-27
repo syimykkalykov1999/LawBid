@@ -54,6 +54,8 @@ export const GRANTABLE_AREAS: readonly { key: string; label: string; hint: strin
   { key: 'chats', label: 'Чаты поддержки', hint: 'переписки с пользователями в поддержке' },
   // Owner 2026-10-22: gets the system alerts; each admin can still mute them in Профиль.
   { key: 'on_call', label: 'Дежурный', hint: 'пуш и письмо при сбое системы (база, платежи, пуши, звонки); сам сбой смотрит только владелец' },
+  // Owner 2026-10-27: SEO switches and the store / channel checklist.
+  { key: 'promotion', label: 'Продвижение: SEO и сторы', hint: 'тумблеры страниц для поиска, статус сборки и чек-лист каналов (Google Search Console, магазины приложений); «управлять» включает тумблеры и пробный запуск' },
 ];
 
 /** Never grantable — shown locked so nobody wonders where they are. */
@@ -249,6 +251,8 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/form-templates', label: 'Формы документов', icon: 'file-text', area: 'formTemplates', hint: 'тексты с полями для документов в кейсе' },
       { href: '/broadcasts', label: 'Рассылки', icon: 'megaphone', area: 'broadcasts', hint: 'пуш всем или сегменту' },
       { href: '/outreach', label: 'Привлечение', icon: 'address-book', area: 'outreach', hint: 'база контактов, звонки, письма, кто сколько сделал' },
+      // Owner 2026-10-27: SEO switches, store / channel checklist (not the paid post promotion under «Деньги»).
+      { href: '/promotion', label: 'Продвижение: SEO и сторы', icon: 'rocket-launch', area: 'promotion', hint: 'тумблеры страниц для поиска, статус сборки, чек-лист каналов' },
     ],
   },
   {

@@ -1134,6 +1134,24 @@ export const OWNER_OPS_SETTINGS = {
   'ops.auto_scale_down_on_budget': true,
   /** The newest database backup (provider API) older than this → alert. */
   'ops.backup_max_age_hours': 26,
+  /** Hidden-cost switches (Round 20, 2026-10-25). Each is off | on | auto;
+   * auto (default) follows a real signal and has a ceiling. */
+  // S20-1: heavy admin counts. auto = every 2 min only while an admin
+  // request was seen in the last 10 min, else hourly; off = every 6 h.
+  'ops.admin_summaries_mode': 'auto',
+  // S20-6: every-minute sweeps that found nothing back off to
+  // `ops.cron_idle_every_min` after `ops.cron_idle_after_runs` empty runs.
+  'ops.cron_idle_backoff': 'auto',
+  'ops.cron_idle_after_runs': 10,
+  'ops.cron_idle_every_min': 5,
+  // S20-8: ceiling of the message re-encryption pass, rows per minute
+  // (0 = paused; the pass keeps its place).
+  'ops.reencrypt_rows_per_min': 800,
+  // S20-4: WebSocket connect / disconnect log lines. off and auto write a
+  // weighted sample (log.ws_sample_percent); auto writes every line for 30
+  // minutes while reconnects spike; on writes every line.
+  'log.ws_events': 'auto',
+  'log.ws_sample_percent': 1,
   /** Batch C item 14 (2026-10-24): how long a ranked search result list
    * (people, attorneys, cases, posts) is shared by everyone asking the same
    * query. Short = fresher, 0 would be uncached; keep 30–60. */
@@ -1569,6 +1587,40 @@ export const OWNER_INFRA_SETTINGS = {
   'infra.quiet_hours': '',
 };
 
+/**
+ * Owner 2026-10-27 (admin «Продвижение»): the static-page switches of the
+ * SEO workflow (docs/runbooks/SEO_STATIC_PAGES.md) and the channel
+ * checklist. Everything is OFF / not done until the owner taps it. A key
+ * with NO stored row means «the admin never decided»: the generator then
+ * falls back to the repository variable of the same name (GET
+ * /public/seo-settings tells it which keys are stored). Keys sorted.
+ */
+export const OWNER_SEO_PROMOTION_SETTINGS = {
+  'seo.checklist.app_store_connect': false,
+  'seo.checklist.apple_business_connect': false,
+  'seo.checklist.bing_webmaster': false,
+  'seo.checklist.google_business_profile': false,
+  'seo.checklist.google_search_console': false,
+  'seo.checklist.lawyer_directories': false,
+  'seo.checklist.play_console': false,
+  'seo.checklist.pr_reviews': false,
+  'seo.checklist.reddit_quora': false,
+  'seo.checklist.video_social': false,
+  'seo.checklist.yelp_bbb': false,
+  /** Upload only changed files (SEO_INCREMENTAL). */
+  'seo.incremental_enabled': false,
+  /** /llms.txt and /llms-full.txt (SEO_LLMS). */
+  'seo.llms_enabled': false,
+  /** Thin pages: noindex and out of the sitemap (SEO_QUALITY_GATE). */
+  'seo.quality_gate_enabled': false,
+  /** At most N new pages a day enter the index; 0 = no limit (SEO_RAMP_PER_DAY). */
+  'seo.ramp_per_day': 0,
+  /** Search/answer bots in, training bots out (SEO_ROBOTS_AI). */
+  'seo.robots_ai_enabled': false,
+  /** /sitemap.xml becomes an index of /sitemaps/*.xml (SEO_SITEMAP_INDEX). */
+  'seo.sitemap_index_enabled': false,
+};
+
 export const APP_SETTINGS = {
   ...OWNER_COMPLIANCE_SETTINGS,
   ...FILE_03_SETTINGS,
@@ -1624,6 +1676,7 @@ export const APP_SETTINGS = {
   ...OWNER_CASE_FANOUT_SETTINGS,
   ...OWNER_COST_REGISTRY_SETTINGS,
   ...OWNER_INFRA_SETTINGS,
+  ...OWNER_SEO_PROMOTION_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

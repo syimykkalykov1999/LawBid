@@ -3,9 +3,9 @@ import type { PinoLogger } from 'nestjs-pino';
 import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import type { AwsOpsService } from '../../common/ops/aws-ops.service';
 import type { OpsStateService } from '../../common/ops/ops-state.service';
-import type { SecretsService } from '../../common/secrets/secrets.service';
+import type { AwsCapacityService } from '../../common/ops/aws-capacity.service';
 import type { PrismaService } from '../../prisma/prisma.service';
-import { OpsGuardJob, newestOf } from './ops-guard.job';
+import { OpsGuardJob } from './ops-guard.job';
 
 function setup(
   over: {
@@ -19,7 +19,8 @@ function setup(
     } | null;
     scaleMode?: { mode: 'min' | 'normal'; by: 'owner' | 'auto' } | null;
     awsAvailable?: boolean;
-    creds?: Record<string, string> | null;
+    /** undefined = not on AWS; Date = restorable time; Error = AWS fails. */
+    restorable?: Date | Error;
   } = {},
 ) {
   const prisma = {
@@ -60,10 +61,12 @@ function setup(
     boolean: jest.fn(async (k: string) => values[k] as boolean),
     number: jest.fn(async (k: string) => values[k] as number),
   };
-  const secrets = {
-    get: jest.fn(async () =>
-      over.creds === undefined ? null : over.creds && { fields: over.creds },
-    ),
+  const capacity = {
+    dbInstance: over.restorable === undefined ? undefined : 'db-1',
+    latestRestorableTime: jest.fn(async () => {
+      if (over.restorable instanceof Error) throw over.restorable;
+      return over.restorable ?? null;
+    }),
   };
   const logger = {
     setContext: jest.fn(),
@@ -76,7 +79,7 @@ function setup(
     state as unknown as OpsStateService,
     aws as unknown as AwsOpsService,
     settings as unknown as AppSettingsService,
-    secrets as unknown as SecretsService,
+    capacity as unknown as AwsCapacityService,
     logger as unknown as PinoLogger,
   );
   return { job, state, aws, logger };
@@ -190,43 +193,32 @@ describe('OpsGuardJob.costCheck', () => {
 });
 
 describe('OpsGuardJob.backupCheck', () => {
-  const realFetch = global.fetch;
-  afterEach(() => {
-    global.fetch = realFetch;
-  });
-  const creds = {
-    apiKey: 'k'.repeat(30),
-    clusterId: '00000000-0000-0000-0000-000000000000',
-  };
-
-  it('no key: skips', async () => {
-    const { job } = setup();
+  it('not on AWS: skips', async () => {
+    const { job } = setup({ restorable: undefined });
     expect(await job.backupCheck()).toEqual({
-      skipped: 'no database provider key',
+      skipped: 'database not on AWS',
     });
   });
 
-  it('fresh backup: stored, no alert; stale: alert', async () => {
+  it('fresh restorable time: stored, no alert; stale: alert', async () => {
     const now = new Date('2026-10-05T12:00:00Z');
-    global.fetch = jest.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        backups: [
-          { as_of_time: '2026-10-05T10:00:00Z' },
-          { as_of_time: '2026-10-04T10:00:00Z' },
-        ],
-      }),
-    })) as unknown as typeof fetch;
-    const fresh = setup({ creds });
+    const when = new Date('2026-10-05T10:00:00Z');
+    const fresh = setup({ restorable: when });
     expect(await fresh.job.backupCheck(now)).toEqual(
       expect.objectContaining({ ok: true }),
     );
     expect(fresh.state.setLastBackup).toHaveBeenCalledWith(
-      expect.objectContaining({ at: '2026-10-05T10:00:00.000Z' }),
+      expect.objectContaining({
+        at: '2026-10-05T10:00:00.000Z',
+        source: 'rds',
+      }),
     );
     expect(fresh.logger.warn).not.toHaveBeenCalled();
 
-    const stale = setup({ creds, settings: { 'ops.backup_max_age_hours': 1 } });
+    const stale = setup({
+      restorable: when,
+      settings: { 'ops.backup_max_age_hours': 1 },
+    });
     expect(await stale.job.backupCheck(now)).toEqual(
       expect.objectContaining({ ok: false }),
     );
@@ -236,29 +228,12 @@ describe('OpsGuardJob.backupCheck', () => {
     );
   });
 
-  it('cloud API error: alert, no crash', async () => {
-    global.fetch = jest.fn(async () => ({
-      ok: false,
-      status: 401,
-    })) as unknown as typeof fetch;
-    const { job, logger } = setup({ creds });
+  it('AWS error: alert, no crash', async () => {
+    const { job, logger } = setup({ restorable: new Error('denied') });
     expect(await job.backupCheck()).toEqual({ ok: false });
     expect(logger.warn).toHaveBeenCalledWith(
       expect.objectContaining({ alert: 'backup_stale' }),
       'backup check failed',
     );
-  });
-});
-
-describe('newestOf', () => {
-  it('takes the newest time whatever the field name and order', () => {
-    expect(
-      newestOf([
-        { created_at: '2026-10-01T00:00:00Z' },
-        { completed_at: '2026-10-03T00:00:00Z' },
-        { as_of_time: 'garbage' },
-      ])?.toISOString(),
-    ).toBe('2026-10-03T00:00:00.000Z');
-    expect(newestOf([])).toBeNull();
   });
 });

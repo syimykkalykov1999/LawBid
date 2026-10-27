@@ -2,9 +2,11 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { LegalExport, LegalHold, Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { CronIdleBackoffService } from '../../common/ops/cron-idle-backoff.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withDeleted } from '../../prisma/soft-delete.extension';
@@ -44,6 +46,8 @@ export class LegalExportService {
     private readonly auth: AdminAuthService,
     private readonly storage: S3StorageService,
     private readonly settings: AppSettingsService,
+    // S20-6: a queued archive wakes the slowed-down builder at once.
+    @Optional() private readonly idleBackoff?: CronIdleBackoffService,
   ) {}
 
   async queue(
@@ -110,6 +114,7 @@ export class LegalExportService {
       );
       return created;
     });
+    await this.idleBackoff?.wake('legal.exports');
     return presentExport(row);
   }
 

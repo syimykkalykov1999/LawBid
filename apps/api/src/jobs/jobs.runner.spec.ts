@@ -293,12 +293,15 @@ describe('JobsRunner', () => {
       pattern: '* * * * *',
       tz: 'UTC',
     });
-    for (const name of [CRON_JOBS.opsCostCheck, CRON_JOBS.opsBackupCheck]) {
-      expect(byName[name]).toEqual({
-        pattern: expect.stringMatching(/^\d+ \* \* \* \*$/),
-        tz: 'UTC',
-      });
-    }
+    expect(byName[CRON_JOBS.opsCostCheck]).toEqual({
+      pattern: expect.stringMatching(/^\d+ \* \* \* \*$/),
+      tz: 'UTC',
+    });
+    // S20-5: the backup check (RDS restorable time) is daily.
+    expect(byName[CRON_JOBS.opsBackupCheck]).toEqual({
+      pattern: '12 5 * * *',
+      tz: 'UTC',
+    });
     // Daily = fixed minute+hour, any day; monthly = fixed day-of-month.
     expect(byName[CRON_JOBS.sessionsCleanup]).toEqual({
       pattern: expect.stringMatching(/^\d+ \d+ \* \* \*$/),

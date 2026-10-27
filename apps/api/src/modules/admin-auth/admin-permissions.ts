@@ -48,6 +48,9 @@ export const ADMIN_AREAS = [
   // Owner 2026-10-22: «Дежурный» — gets the system alerts (push + e-mail)
   // from the watchdog; each admin can still switch it off in Профиль.
   'on_call',
+  // Owner 2026-10-27: «Продвижение» — SEO switches, store/channel checklist
+  // (/admin/promotion). Hand out like any other area; nobody has it by default.
+  'promotion',
 ] as const;
 export type AdminArea = (typeof ADMIN_AREAS)[number];
 
@@ -170,6 +173,8 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   outreach: 'outreach',
   payroll: 'payroll',
   rewards: 'rewards',
+  // Owner 2026-10-27: «Продвижение» (SEO switches, channel checklist).
+  promotion: 'promotion',
   // Owner 2026-10-05: every admin's own workspace (it lists only what the
   // admin's areas allow).
   workspace: 'workspace',

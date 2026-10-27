@@ -21,9 +21,14 @@ abstract final class ClientTuning {
   static int _qrPollS = 10;
   static int _resumeMinAwayS = 30;
   static int _videoPrefetchAhead = 3;
-  static String _videoPrefetchMode = 'auto';
+  static int _videoPrefetchCellular = 1;
   static int _videoCacheMb = 100;
   static int _videoCacheChunkS = 4;
+
+  /// Set by the connectivity monitor: true while the only way online is
+  /// mobile data (S20-9). Reset by [reset].
+  static bool metered = false;
+
   static double _chatPhotoMaxPx = 1600;
   static int _chatPhotoQuality = 82;
   static int _sentryTracesPercent = 0;
@@ -55,12 +60,13 @@ abstract final class ClientTuning {
   static Duration get qrPoll => Duration(seconds: _qrPollS);
   static Duration get resumeMinAway => Duration(seconds: _resumeMinAwayS);
 
-  /// Reels warmed ahead of the one on screen (`client.video_prefetch_ahead`).
-  static int get videoPrefetchAhead => _videoPrefetchAhead;
-
-  /// Reel warm-up switch (`client.video_prefetch_mode`): `off` | `on` |
-  /// `auto` (unmetered link only; the default). Anything else means auto.
-  static String get videoPrefetchMode => _videoPrefetchMode;
+  /// Reels warmed ahead of the one on screen: `client.video_prefetch_ahead`
+  /// on Wi-Fi, `client.video_prefetch_cellular` on mobile data (S20-9; the
+  /// server already folded its Выкл/Вкл/Авто switch into the two numbers).
+  static int get videoPrefetchAhead =>
+      metered && _videoPrefetchCellular < _videoPrefetchAhead
+          ? _videoPrefetchCellular
+          : _videoPrefetchAhead;
 
   /// Disk ceiling of the video chunk cache, MB; 0 = off
   /// (`client.video_cache_mb`).
@@ -110,12 +116,7 @@ abstract final class ClientTuning {
     _qrPollS = pick('client.qr_poll_s', 10, 5, 60);
     _resumeMinAwayS = pick('client.resume_refresh_min_away_s', 30, 5, 3600);
     _videoPrefetchAhead = pick('client.video_prefetch_ahead', 3, 0, 6);
-    final mode = config['client.video_prefetch_mode']?.trim().toLowerCase();
-    _videoPrefetchMode = switch (mode) {
-      'off' => 'off',
-      'on' => 'on',
-      _ => 'auto',
-    };
+    _videoPrefetchCellular = pick('client.video_prefetch_cellular', 1, 0, 6);
     _videoCacheMb = pick('client.video_cache_mb', 100, 0, 1000);
     _videoCacheChunkS = pick('client.video_cache_chunk_s', 4, 1, 15);
     _chatPhotoMaxPx = pick(
@@ -130,5 +131,8 @@ abstract final class ClientTuning {
   }
 
   /// Back to the starter values (tests).
-  static void reset() => apply(const {});
+  static void reset() {
+    metered = false;
+    apply(const {});
+  }
 }

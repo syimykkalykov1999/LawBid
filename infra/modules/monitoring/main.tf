@@ -1028,7 +1028,8 @@ resource "aws_cloudwatch_log_metric_filter" "ws_connections" {
 
 # Owner 2026-10-23 («связь пропала»): how often live connections drop and
 # come back. The API logs one line per event (realtime.gateway.ts); the
-# board «Состояние системы» shows the same numbers per minute.
+# board «Состояние системы» shows the same numbers per minute. S20-4: the
+# lines are sampled and weighted (see below).
 resource "aws_cloudwatch_log_metric_filter" "ws_events" {
   for_each = {
     ws_disconnect = "WebSocketDisconnects"
@@ -1037,10 +1038,12 @@ resource "aws_cloudwatch_log_metric_filter" "ws_events" {
   name           = "${var.name}-${replace(each.key, "_", "-")}"
   log_group_name = var.api_log_group
   pattern        = "{ $.metric = \"${each.key}\" }"
+  # S20-4: the API writes a weighted sample of these lines (log.ws_events);
+  # every line carries `weight` = how many real events it stands for.
   metric_transformation {
     name          = each.value
     namespace     = local.ns
-    value         = "1"
+    value         = "$.weight"
     default_value = "0"
     unit          = "Count"
   }
