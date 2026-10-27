@@ -1,8 +1,11 @@
 'use client';
 
 import { AnimatePresence, m } from 'motion/react';
-import { usePathname } from 'next/navigation';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { deskHome, outsideDesk } from '@/lib/desk';
+import { useDeskSettings } from '@/lib/desk-data';
 import { useMe } from '@/lib/hooks';
 import { canOpen, navModeFor, sectionFor } from '@/lib/rbac';
 import { cn } from '@/lib/utils';
@@ -33,10 +36,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => setDrawer(false), [pathname]);
   // Owner 2026-10-05: a section without the right doesn't exist for this
   // admin — not in the menu, and a typed URL shows "not found".
-  const hidden = !!me && !!sectionFor(pathname) && !canOpen(me, pathname);
   // Staff package T2: while workspaces are on, a worker of mass / finance
   // has no left menu, no drawer and no bottom bar — one page with tabs.
   const desk = navModeFor(me) === 'desk';
+  // Staff package T8: with `staff.desk_enabled` the tabs are the desk
+  // (/desk/<role>) and the rest of the workspace is not reachable.
+  const router = useRouter();
+  const deskSettings = useDeskSettings(desk ? me : undefined);
+  const deskOn = desk && deskSettings.on('staff.desk_enabled');
+  const home = deskOn ? deskHome(me, true) : null;
+  const toDesk = !!home && (pathname === '/' || pathname === '/workspace');
+  useEffect(() => {
+    if (toDesk && home) router.replace(home);
+  }, [toDesk, home, router]);
+  const hidden = (!!me && !!sectionFor(pathname) && !canOpen(me, pathname)) || (deskOn && outsideDesk(me, pathname, true));
 
   const toggleCollapsed = () => {
     setCollapsed((c) => {
@@ -90,7 +103,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main className="mx-auto w-full max-w-[1480px] px-3 pt-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-7 lg:px-10 lg:py-9">
           {/* Owner 2026-10-07: the tabs stay put while the page below
               changes, so a far-right tab doesn't throw the strip back. */}
-          {hidden ? null : desk ? <DeskTabs me={me} /> : <SectionTabs me={me} />}
+          {hidden ? null : desk ? (
+            deskOn ? (
+              pathname.startsWith('/desk') ? null : <BackToDesk href={home} />
+            ) : (
+              <DeskTabs me={me} />
+            )
+          ) : (
+            <SectionTabs me={me} />
+          )}
           <m.div
             key={pathname}
             initial={{ opacity: 0, y: 8 }}
@@ -102,7 +123,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <div className="text-5xl font-semibold text-faint">404</div>
                 <p className="mt-3 text-sm text-muted">Такой страницы нет.</p>
               </div>
-            ) : (
+            ) : toDesk ? null : (
               children
             )}
           </m.div>
@@ -111,5 +132,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {desk ? null : <BottomNav me={me} onMore={() => setDrawer(true)} />}
       <CommandPalette me={me} open={palette} setOpen={setPalette} />
     </div>
+  );
+}
+
+/** A card of a desk item (a ticket, a request) opens inside the shell: one way back to the desk. */
+function BackToDesk({ href }: { href: string | null }) {
+  if (!href) return null;
+  return (
+    <Link href={href} className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink">
+      ← На стол
+    </Link>
   );
 }
