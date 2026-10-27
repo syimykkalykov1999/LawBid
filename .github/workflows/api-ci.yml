@@ -408,8 +408,11 @@ jobs:
         # for ~100 suites ran out of memory (exit 134). One fresh process per
         # shard keeps the heap at the size of one shard. A failed suite is run
         # once more; a pass on retry is reported as flaky (flaky.json).
+        # 2026-10-27: shard 3 (57 suites, ~50 MB of module graph each) ran into the
+        # old 4096 MB limit (exit 134, twice in a row on #459 with no e2e change);
+        # the 16 GB runner has room, like the lint / typecheck steps (6144).
         env:
-          NODE_OPTIONS: --max-old-space-size=4096
+          NODE_OPTIONS: --max-old-space-size=6144
           E2E_OUT_DIR: ${{ runner.temp }}/e2e-out
         run: node scripts/run-e2e-sharded.mjs --shards=3 --only=${{ matrix.shard }}
         working-directory: apps/api
