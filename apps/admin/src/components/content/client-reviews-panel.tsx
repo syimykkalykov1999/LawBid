@@ -4,7 +4,8 @@ import { ArrowCounterClockwise, ChatCenteredText, EyeSlash, MagnifyingGlass } fr
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
-import { LoadMore, useDebounced } from '@/components/billing/shared';
+import { LoadMore } from '@/components/billing/shared';
+import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
 import { Button } from '@/components/ui/button';

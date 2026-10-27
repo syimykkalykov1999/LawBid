@@ -11,6 +11,9 @@ SpendLineDto _$SpendLineDtoFromJson(Map<String, dynamic> json) => SpendLineDto(
   monthToDateUsd: json['monthToDateUsd'] as num,
   projectedUsd: json['projectedUsd'] as num,
   source: SpendLineDtoSource.fromJson(json['source'] as String),
+  coveredBy: json['coveredBy'] == null
+      ? null
+      : SpendLineDtoCoveredBy.fromJson(json['coveredBy'] as String),
 );
 
 Map<String, dynamic> _$SpendLineDtoToJson(SpendLineDto instance) =>
@@ -19,4 +22,5 @@ Map<String, dynamic> _$SpendLineDtoToJson(SpendLineDto instance) =>
       'monthToDateUsd': instance.monthToDateUsd,
       'projectedUsd': instance.projectedUsd,
       'source': instance.source.toJson(),
+      'coveredBy': ?instance.coveredBy?.toJson(),
     };

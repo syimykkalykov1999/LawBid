@@ -10,7 +10,8 @@ import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { partyName } from '@/lib/labels';
-import { dayStartIso, formatDate, monthsText, Stepper, todayStr, useDebounced } from './shared';
+import { useDebounced } from '@/components/legacy/use-debounced';
+import { dayStartIso, formatDate, monthsText, Stepper, todayStr } from './shared';
 
 export type PickedAttorney = { id: string; name: string | null; email?: string | null };
 

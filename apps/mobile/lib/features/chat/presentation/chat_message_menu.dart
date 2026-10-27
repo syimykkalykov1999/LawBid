@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/chat/application/chat_saved_providers.dart';
@@ -62,7 +63,7 @@ class MessageMenuTarget extends ConsumerWidget {
     return GestureDetector(
       behavior: HitTestBehavior.deferToChild,
       onLongPress: () {
-        unawaited(HapticFeedback.selectionClick());
+        unawaited(AppHaptics.selection());
         unawaited(_open(context, ref));
       },
       child: child,

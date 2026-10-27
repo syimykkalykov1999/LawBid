@@ -18,8 +18,6 @@ import { tidy } from '../../../common/utils/tidy-text';
 import { MaxTextChars } from '../../../common/app-settings/max-text-chars.decorator';
 import { USERNAME_PATTERN } from '../services/username.util';
 
-/** Longest bio (docs/02 §4.C "bio text? (≤300)", CHECK in the migration). */
-export const BIO_MAX_LENGTH = 300;
 /** docs/02 §4.C preferred_contact_note "до 200 символов". */
 export const CONTACT_NOTE_MAX_LENGTH = 200;
 /** Generous caps so a crafted request can't store an unbounded array. */

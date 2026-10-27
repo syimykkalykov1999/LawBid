@@ -32,6 +32,8 @@ ctype() {
   case "$1" in
     *.wasm) echo application/wasm ;;
     *.json) echo application/json ;;
+    *.ttf) echo font/ttf ;;
+    *.otf) echo font/otf ;;
     *) echo text/javascript ;;
   esac
 }
@@ -53,10 +55,29 @@ find . -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.wasm' -o -name '*.js
     --cache-control "$(cc_for "$rel")" --only-show-errors
 done
 
-# The brotli twins. Same set as the function's pattern (main.tf):
-# v/<sha>/main.dart.{js,wasm} and v/<sha>/canvaskit/**/*.{js,wasm}.
+# 2026-10-26 (smoothness P6a): the fonts (icon fonts already tree-shaken by
+# `flutter build`, plus Inter / Source Serif ~0.5-0.9 MB) go out compressed
+# whatever their size. CloudFront would compress them only when `aws s3
+# sync` guessed a font content type; here the type is set explicitly.
+find . -type f \( -name '*.ttf' -o -name '*.otf' \) -size +1000c \
+  -not -path './releases/*' | while read -r f; do
+  rel="${f#./}"
+  mkdir -p "$TMP/gz/$(dirname "$rel")"
+  gzip -9 -n -c "$f" > "$TMP/gz/$rel"
+  echo "gzip $rel: $(wc -c < "$f") -> $(wc -c < "$TMP/gz/$rel") bytes"
+  aws s3 cp "$TMP/gz/$rel" "$DEST/$rel" \
+    --content-encoding gzip --content-type "$(ctype "$rel")" \
+    --cache-control "$(cc_for "$rel")" --only-show-errors
+done
+
+# The brotli twins. A superset of the function's patterns (main.tf):
+# BR  (`br_<sha>`):  v/<sha>/main.dart.{js,wasm}, v/<sha>/canvaskit/**/*.{js,wasm}
+# BR2 (`br2_<sha>`): v/<sha>/main.dart.mjs, v/<sha>/assets/**/*.{ttf,otf}
+# Every file the patterns can match MUST get a twin (the function sends the
+# browser to <file>.br without checking it exists).
 if command -v brotli >/dev/null 2>&1; then
   find ./v -type f \( -path '*/main.dart.js' -o -path '*/main.dart.wasm' \
+      -o -path '*/main.dart.mjs' -o -path '*/assets/*.ttf' -o -path '*/assets/*.otf' \
       -o -path '*/canvaskit/*.js' -o -path '*/canvaskit/*.wasm' \
       -o -path '*/canvaskit/*/*.js' -o -path '*/canvaskit/*/*.wasm' \) 2>/dev/null | while read -r f; do
     rel="${f#./}"

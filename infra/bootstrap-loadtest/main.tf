@@ -29,17 +29,14 @@
 terraform {
   required_version = ">= 1.9"
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws     = { source = "hashicorp/aws", version = "~> 5.60" }
+    archive = { source = "hashicorp/archive", version = "~> 2.4" }
   }
 }
 
 variable "region" {
   type    = string
   default = "us-east-1"
-}
-variable "replica_region" {
-  type    = string
-  default = "us-west-2"
 }
 variable "github_repo" {
   type        = string

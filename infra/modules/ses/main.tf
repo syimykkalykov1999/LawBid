@@ -28,10 +28,6 @@ variable "dmarc_policy" {
     error_message = "dmarc_policy must be none, quarantine or reject."
   }
 }
-variable "tags" {
-  type    = map(string)
-  default = {}
-}
 
 resource "aws_ses_domain_identity" "this" {
   domain = var.domain

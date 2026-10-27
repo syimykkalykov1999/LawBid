@@ -6,12 +6,8 @@
 export type UsernameKind = 'user' | 'channel' | 'group';
 
 /** Channels and groups: 5–32, a–z 0–9 _, a letter first, no «__», no «_» last. */
-export const HANDLE_MIN = 5;
 export const HANDLE_MAX = 32;
 export const HANDLE_RE = /^(?=.{5,32}$)[A-Za-z](?:[A-Za-z0-9]|_(?!_|$))*$/;
-/** The same rule as a JSON-schema pattern (OpenAPI). */
-export const HANDLE_PATTERN =
-  '^@?(?=.{5,32}$)[A-Za-z](?:[A-Za-z0-9]|_(?!_|$))*$';
 
 /** "@Name " → "name". */
 export function normalizeHandle(raw: string): string {
