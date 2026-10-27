@@ -112,7 +112,10 @@ export class PasskeyService {
       })),
       authenticatorSelection: {
         residentKey: scope === 'user' ? 'required' : 'preferred',
-        userVerification: 'preferred',
+        // S14-9 (NIST SP 800-63B-4): a user passkey counts as a factor only
+        // with user verification (biometric / PIN); admin hardware keys keep
+        // 'preferred' (a security key may have none).
+        userVerification: scope === 'user' ? 'required' : 'preferred',
       },
       timeout: PASSKEY_CHALLENGE_TTL_SEC * 1000,
     });
@@ -144,7 +147,7 @@ export class PasskeyService {
           response.response.clientDataJSON,
         ),
         expectedRPID: rp.rpId,
-        requireUserVerification: false,
+        requireUserVerification: scope === 'user',
       });
     } catch (err) {
       throw passkeyInvalid((err as Error).message);
@@ -201,7 +204,9 @@ export class PasskeyService {
       allowCredentials: userId
         ? creds.map((c) => ({ id: c.credential_id, transports: c.transports }))
         : undefined,
-      userVerification: scope === 'user' && !userId ? 'required' : 'preferred',
+      // S14-9: every user passkey assertion (sign-in AND the step-up that
+      // guards phone / e-mail / password changes) must be user-verified.
+      userVerification: scope === 'user' ? 'required' : 'preferred',
       timeout: PASSKEY_CHALLENGE_TTL_SEC * 1000,
     });
     const challengeId = randomBytes(16).toString('base64url');
@@ -272,7 +277,7 @@ export class PasskeyService {
           counter: Number(cred.counter),
           transports: cred.transports,
         },
-        requireUserVerification: scope === 'user' && !expect.userId,
+        requireUserVerification: scope === 'user',
       });
     } catch (err) {
       throw passkeyInvalid((err as Error).message);

@@ -122,6 +122,19 @@ export class MediaCheckPageDto {
   @ApiProperty({ type: String, nullable: true }) nextCursor!: string | null;
 }
 
+export class CsamAuditEventDto {
+  @ApiProperty({ format: 'date-time' }) at!: string;
+  @ApiProperty({
+    description:
+      'opened | submit_skipped | submitted | manual_required | failed',
+  })
+  event!: string;
+  @ApiProperty({ type: String, nullable: true, format: 'uuid' })
+  actor!: string | null;
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  detail!: Record<string, unknown>;
+}
+
 export class CsamReportDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ format: 'uuid' }) checkId!: string;
@@ -132,5 +145,11 @@ export class CsamReportDto {
   @ApiProperty({ type: String, nullable: true })
   externalReportId!: string | null;
   @ApiProperty({ type: String, nullable: true }) error!: string | null;
+  @ApiProperty({
+    type: [CsamAuditEventDto],
+    description:
+      'Owner 2026-10-28: append-only trail of this report (who opened it, whether the NCMEC call was made).',
+  })
+  audit!: CsamAuditEventDto[];
   @ApiProperty() createdAt!: string;
 }

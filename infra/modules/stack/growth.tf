@@ -6,6 +6,7 @@ variable "growth" {
     Growth switches (all off by default):
       rds_read_replicas          0..5 read copies of the database; then set the secret DATABASE_REPLICA_URL (extra_secrets) - search reads move there, no deploy.
       rds_replica_instance_class "" = same class as the primary.
+      rds_replica_lag_alarm_s    alarm when ReplicaLag is above this many seconds for 10 minutes; 0 = no alarm.
       db_proxy_enabled           RDS Proxy in front of the database (needs db_proxy_secret_arn).
       db_proxy_secret_arn        Secrets Manager secret {username,password} of the app role.
       opensearch_enabled         OpenSearch domain for the search engine. The app finds it by itself (OPENSEARCH_URL); admin Settings: search.engine = shadow, then engine, turns it on. docs/architecture/SEARCH_READY.md.
@@ -21,6 +22,7 @@ variable "growth" {
   type = object({
     rds_read_replicas             = optional(number, 0)
     rds_replica_instance_class    = optional(string, "")
+    rds_replica_lag_alarm_s       = optional(number, 60)
     db_proxy_enabled              = optional(bool, false)
     db_proxy_secret_arn           = optional(string, "")
     opensearch_enabled            = optional(bool, false)
@@ -64,7 +66,9 @@ locals {
   growth_source_db    = var.create_database ? module.postgres[0].instance_id : var.existing_database_identifier
   growth_db_class     = var.create_database ? var.database_instance_class : try(data.aws_db_instance.existing[0].db_instance_class, var.database_instance_class)
   growth_subnet_group = var.create_database ? "${local.name}-postgres" : try(data.aws_db_instance.existing[0].db_subnet_group, "")
-  growth_db_sgs       = var.create_database ? [module.postgres[0].security_group_id] : try(tolist(data.aws_db_instance.existing[0].vpc_security_groups), [])
+  # A same-region replica of an encrypted primary must use the primary's key.
+  growth_db_kms = var.create_database ? module.kms.key_arn : try(data.aws_db_instance.existing[0].kms_key_id, "")
+  growth_db_sgs = var.create_database ? [module.postgres[0].security_group_id] : try(tolist(data.aws_db_instance.existing[0].vpc_security_groups), [])
 
   # Public image CDN (the app reads MEDIA_CDN_BASE_URL).
   media_cdn_base_url = var.growth.cdn_images_provider == "bunny" ? var.growth.cdn_images_base_url : "https://${module.s3.media_cdn_domain}"
@@ -83,12 +87,16 @@ module "growth" {
   alarms_enabled          = true
   has_source_db           = var.create_database || var.existing_database_identifier != ""
 
-  rds_read_replicas          = var.growth.rds_read_replicas
-  rds_source_identifier      = local.growth_source_db
-  rds_replica_instance_class = var.growth.rds_replica_instance_class
-  rds_primary_instance_class = local.growth_db_class
-  rds_subnet_group_name      = local.growth_subnet_group
-  rds_security_group_ids     = local.growth_db_sgs
+  rds_read_replicas             = var.growth.rds_read_replicas
+  rds_source_identifier         = local.growth_source_db
+  rds_replica_instance_class    = var.growth.rds_replica_instance_class
+  rds_primary_instance_class    = local.growth_db_class
+  rds_replica_lag_alarm_seconds = var.growth.rds_replica_lag_alarm_s
+  rds_subnet_group_name         = local.growth_subnet_group
+  rds_security_group_ids        = local.growth_db_sgs
+  rds_kms_key_arn               = local.growth_db_kms
+  rds_parameter_group_name      = var.create_database ? "${local.name}-postgres16" : ""
+  rds_deletion_protection       = !var.ephemeral
 
   db_proxy_enabled    = var.growth.db_proxy_enabled
   db_proxy_secret_arn = var.growth.db_proxy_secret_arn

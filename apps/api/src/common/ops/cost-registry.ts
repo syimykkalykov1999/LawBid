@@ -147,7 +147,9 @@ const U = {
   r2: 'https://developers.cloudflare.com/r2/pricing/',
   gtr: 'https://cloud.google.com/translate/pricing',
   persona: 'https://withpersona.com/pricing',
+  openai: 'https://platform.openai.com/docs/pricing',
   sentry: 'https://sentry.io/pricing/',
+  gcal: 'https://developers.google.com/workspace/calendar/api/guides/quota',
   pd: 'https://www.pagerduty.com/pricing/',
   fb: 'https://firebase.google.com/pricing',
   recaptcha: 'https://cloud.google.com/recaptcha/pricing',
@@ -888,6 +890,36 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ],
   },
   {
+    id: 'aws.backup-restore-test',
+    name: 'Учебное восстановление базы раз в месяц (AWS Backup restore testing)',
+    purpose:
+      'Раз в месяц AWS сам восстанавливает копию базы на маленьком сервере и проверяет, что она живая; результат в «Здоровье системы».',
+    kind: 'aws',
+    control: tf(['backup_restore_test_enabled'], {
+      on: 'backup_restore_test_enabled = true',
+      off: 'backup_restore_test_enabled = false',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      'около $0,05 за запуск (db.t4g.micro примерно на час), 1 раз в месяц',
+      U.backup,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0.05, 1),
+    needed: 'later',
+    neededNote:
+      'Полезно после запуска: доказывает, что копии восстанавливаются.',
+    alarm: 'EventBridge «restore-test-failed» → critical SNS',
+    ceService: 'AWS Backup',
+    awsTypes: [
+      'aws_backup_restore_testing_plan',
+      'aws_backup_restore_testing_selection',
+    ],
+  },
+  {
     id: 'aws.status-page',
     name: 'Публичная страница статуса (S3 + CloudFront)',
     purpose:
@@ -1165,8 +1197,8 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'Детальные метрики по каждой копии сервера. Нужны только на время расследования.',
     kind: 'aws',
     control: tf(['container_insights'], {
-      off: 'container_insights = false',
-      on: 'container_insights = true',
+      off: 'container_insights = "disabled"',
+      on: 'container_insights = "enabled"',
     }),
     states: ['off', 'on'],
     defaultState: 'off',
@@ -1755,7 +1787,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(0), k100: R(0), m1: R(0) },
     needed: 'yes',
     neededNote:
-      'Нужен. Это процент от выручки, а не счёт: в «держать на счету» не входит.',
+      'Нужен. Это процент от выручки, а не счёт: в «держать на счету» не входит. Выключены флагами и добавят обороты при включении: stars (звёзды, подарки, платные стикеры), payroll_stripe_payouts (выплата зарплат через Connect).',
     alarm: 'тревоги платежей (payments-failed, stripe-webhooks)',
     spendVendor: { id: 'stripe' },
     providers: ['stripe'],
@@ -1784,7 +1816,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(1), k100: R(100, 400), m1: R(3000, 8000) },
     needed: 'yes',
     neededNote:
-      'Авто: новые загрузки видео ставятся на паузу, когда трафик или хранилище Bunny дошли до срочного порога. Вкл = пауза сейчас. Выкл = не останавливать никогда. Просмотр уже загруженного не трогается.',
+      'Авто: новые загрузки видео ставятся на паузу, когда трафик или хранилище Bunny дошли до срочного порога. Вкл = пауза сейчас. Выкл = не останавливать никогда. Просмотр уже загруженного не трогается. Флаг video_posts (видео в постах ленты, сейчас выключен) добавляет минуты Bunny к рилсам, когда его включат.',
     alarm:
       'тревоги трафика и хранилища Bunny (usage-bunny-*) + лимит минут видео в деньгах (BUDGET_VIDEO_*)',
     spendVendor: { id: 'bunny' },
@@ -1816,7 +1848,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(0), k100: R(0, 100), m1: R(2000, 5000) },
     needed: 'yes',
     neededNote:
-      'Авто: когда бесплатный терабайт почти исчерпан, групповые звонки возвращаются на «устройство-устройство» (на видео до 4 человек, остальным только звук), чтобы не платить сверх. Вкл = вернуть сейчас. Звонки не отключаются.',
+      'Авто: когда бесплатный терабайт почти исчерпан, групповые звонки возвращаются на «устройство-устройство» (на видео до 4 человек, остальным только звук), чтобы не платить сверх. Вкл = вернуть сейчас. Звонки не отключаются. Видеозвонки в чатах показывает флаг video_calls (сейчас выключен): пока он выключен, трафика почти нет.',
     alarm: 'тревоги трафика звонков (usage-cf-warn / usage-cf-crit)',
     spendVendor: { id: 'cloudflare', line: 'Звонки' },
     providers: ['cloudflare_turn', 'cloudflare_sfu'],
@@ -1865,10 +1897,35 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(0), k100: R(50, 500), m1: R(5000) },
     needed: 'later',
     neededNote:
-      'Платит только при наличии ключа. Выкл останавливает перевод у всех.',
+      'Платит только при наличии ключа. Выкл останавливает перевод у всех. Кнопку «Перевести» показывает флаг chat_translate (сейчас выключен): пока он выключен, платный перевод не зовут.',
     alarm:
       'лимит перевода в деньгах (BUDGET_TRANSLATE_*, лимит на человека в день $5)',
     providers: ['google_translate'],
+  },
+  {
+    id: 'vendor.bar_registries',
+    name: 'Проверка лицензий адвокатов по реестрам штатов',
+    purpose:
+      'Сверяет номер лицензии и имя с реестром штата после присяги и раз в месяц. Выключено у всех штатов, кроме готовых открытых данных Нью-Йорка.',
+    kind: 'vendor',
+    control: fixed(
+      'Включается по штатам: Админка → Система → Ключи и сервисы → «Реестры адвокатов по штатам». Старый общий флаг auto_bar_check больше не читается.',
+    ),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      'Нью-Йорк: бесплатно (открытые данные data.ny.gov). Платный API другого штата или сервиса: по вашему договору, цену за проверку надо уточнить у продавца',
+      'https://data.ny.gov/',
+      false,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0),
+    needed: 'later',
+    neededNote:
+      'Нужен, когда у штата появится API. Одна проверка на лицензию после присяги плюс одна в месяц; без ключа штата проверка просто не идёт.',
+    alarm: null,
   },
   {
     id: 'vendor.rekognition',
@@ -1894,6 +1951,37 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     alarm: 'лимит проверок картинок в деньгах (BUDGET_IMAGE_MODERATION_*)',
     ceService: 'Amazon Rekognition',
     providers: ['aws_rekognition', 'photodna', 'ncmec'],
+  },
+  {
+    id: 'vendor.openai_moderation',
+    name: 'Проверка текстов на запрещённое (OpenAI moderation)',
+    purpose:
+      'Смотрит новые посты и комментарии на травлю, ненависть, порнографию и запрещённое до жалоб людей.',
+    kind: 'vendor',
+    control: {
+      type: 'app-setting',
+      key: 'moderation.detect.mode',
+      map: { off: 'off', on: 'shadow', auto: 'enforce' },
+    },
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: setCeil(
+      'moderation.detect.daily_cap',
+      'Лимит проверок в день (админка → Модерация → Настройки)',
+    ),
+    price: price(
+      'unit',
+      'omni-moderation бесплатно; около $0,00001 за запрос у других моделей (уточнить в кабинете)',
+      U.openai,
+      false,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0, 10),
+    needed: 'later',
+    neededNote:
+      'Платит только при наличии ключа. Вкл = только смотреть (shadow), Авто = задерживать и блокировать (enforce). Дневной лимит запросов ограничивает расход.',
+    alarm: 'дневной лимит запросов (moderation.detect.daily_cap)',
+    providers: ['openai_moderation'],
   },
   {
     id: 'vendor.persona',
@@ -1935,6 +2023,29 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     neededNote: 'Нужны.',
     alarm: 'тревога сбоев пушей (push-failed)',
     providers: ['fcm', 'apns'],
+  },
+  {
+    id: 'vendor.calendar',
+    name: 'Календари юристов (Google Calendar, Microsoft 365)',
+    purpose:
+      'Синхронизация консультаций с календарём, который юрист сам подключил (#395).',
+    kind: 'vendor',
+    control: fixed(
+      'Работает только у юриста, который подключил свой календарь; без подключения запросов нет.',
+    ),
+    states: ['on'],
+    defaultState: 'on',
+    ceiling: null,
+    price: price(
+      'free',
+      'Бесплатно: Google Calendar API и Microsoft Graph не берут денег, есть только лимиты запросов',
+      U.gcal,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'later',
+    neededNote: 'Удобство для юристов; не нужно для запуска.',
+    alarm: null,
+    providers: ['google_calendar', 'microsoft_calendar'],
   },
   {
     id: 'vendor.sentry',
@@ -2059,6 +2170,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'ny_registry',
       'cockroach_cloud',
       'github',
+      'github_infra',
     ],
   },
   {
@@ -2177,6 +2289,32 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     neededNote:
       'Нагрузка: тяжёлые задачи сами встают на паузу на 15 минут, когда база тормозит (положение Вкл = Авто по сигналу). Выкл = не ставить на паузу.',
     alarm: 'тревога «база медленная» (db-slow)',
+  },
+  {
+    id: 'hidden.outbox_sweep',
+    name: 'Передача событий между семействами баз (раз в минуту)',
+    purpose:
+      'Заготовка под разделение базы на части: передаёт события, которые не успели выполниться сразу. Пока база одна, событий нет.',
+    kind: 'aws',
+    control: {
+      type: 'app-setting',
+      key: 'ops.outbox_sweep.mode',
+      map: { off: 'off', on: 'on', auto: 'auto' },
+    },
+    states: ['off', 'on', 'auto'],
+    defaultState: 'auto',
+    ceiling: null,
+    price: price(
+      'free',
+      'Своих денег не берёт: один лёгкий запрос к базе в минуту',
+      U.fargate,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'auto',
+    neededNote:
+      'Нагрузка: 1 440 пустых запусков в день. Авто = запускать только когда в очереди есть событие (один лёгкий запрос вместо захвата строк). Вкл = каждую минуту как раньше. Выкл = совсем не запускать (нельзя, когда базу разделили).',
+    alarm:
+      'запись cross_family_outbox_dead в журнале (событие не прошло 8 раз)',
   },
   {
     id: 'hidden.logs_metrics',

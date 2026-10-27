@@ -67,6 +67,11 @@ export enum ErrorCode {
   // 2026-10-24 (abuse batch B): 403 — the web page's Cloudflare Turnstile
   // token was rejected (security.turnstile.mode = enforce).
   TURNSTILE_FAILED = 'TURNSTILE_FAILED',
+  // 2026-10-25 (legal register, 18+ / COPPA): a new account needs the "I am
+  // 18 or older" attestation (compliance.age_gate.mode = enforce); the
+  // second code is a birth date under the minimum age.
+  AGE_ATTESTATION_REQUIRED = 'AGE_ATTESTATION_REQUIRED',
+  AGE_UNDER_MINIMUM = 'AGE_UNDER_MINIMUM',
   ACCOUNT_SUSPENDED = 'ACCOUNT_SUSPENDED',
   ACCOUNT_DELETED = 'ACCOUNT_DELETED',
 
@@ -212,6 +217,13 @@ export enum ErrorCode {
   // account); it cannot publish cases or write to attorneys. Support chat
   // stays open for an appeal.
   ACCOUNT_RESTRICTED = 'ACCOUNT_RESTRICTED',
+  // 403 (owner 2026-10-27, DSA Art. 23 style): the person filed many
+  // reports moderators found unfounded; processing of their reports is
+  // paused until `details.until`. They may appeal.
+  REPORTING_SUSPENDED = 'REPORTING_SUSPENDED',
+  // 403 (owner 2026-10-27): strike ladder: the account may not publish for
+  // now (`details.level`, `details.until`). The notice can be appealed.
+  ACCOUNT_STRIKE_LIMITED = 'ACCOUNT_STRIKE_LIMITED',
   // Admin panel (docs/06 §2.1, stage 6.2)
   // 400: sensitive view without X-Justification (10–500 chars).
   JUSTIFICATION_REQUIRED = 'JUSTIFICATION_REQUIRED',
@@ -398,6 +410,12 @@ export enum ErrorCode {
   INTEGRATION_CONFLICT = 'INTEGRATION_CONFLICT',
   // 403: a sensitive admin action needs a fresh 2FA code (owner 2026-10-01).
   ADMIN_STEP_UP_REQUIRED = 'ADMIN_STEP_UP_REQUIRED',
+  // 403: the admin IP allowlist is on and this address is not on it (2026-10-28).
+  ADMIN_IP_NOT_ALLOWED = 'ADMIN_IP_NOT_ALLOWED',
+  // 400: reading private content needs a reason code (X-Reason-Code) (2026-10-28).
+  REASON_CODE_REQUIRED = 'REASON_CODE_REQUIRED',
+  // 503: a sensitive admin action was refused because its audit row could not be written.
+  AUDIT_UNAVAILABLE = 'AUDIT_UNAVAILABLE',
   // 403 / 409: video posts are off, not configured or over a limit.
   VIDEO_UNAVAILABLE = 'VIDEO_UNAVAILABLE',
   VIDEO_TOO_LONG = 'VIDEO_TOO_LONG',

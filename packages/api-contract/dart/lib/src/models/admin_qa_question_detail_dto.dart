@@ -22,6 +22,7 @@ class AdminQaQuestionDetailDto {
     required this.stateCode,
     required this.practiceArea,
     required this.author,
+    required this.safetyFlags,
     required this.createdAt,
     required this.answers,
   });
@@ -43,6 +44,9 @@ class AdminQaQuestionDetailDto {
 
   /// Shown to the admin even when the author is anonymous to others.
   final AdminQaPersonDto author;
+
+  /// Owner 2026-10-28: private-info kinds found in the text (ssn, address, case_number, party_name ...).
+  final List<String> safetyFlags;
   final DateTime createdAt;
   final List<AdminQaAnswerDto> answers;
 

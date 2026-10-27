@@ -15,7 +15,13 @@ describe('AppCheckGuard', () => {
   let tsMode: string;
   let result: AppCheckResult;
   let options: AppCheckOptions | undefined;
-  const verify = jest.fn<Promise<AppCheckResult>, [string | undefined]>();
+  const verify = jest.fn<
+    Promise<AppCheckResult>,
+    [string | undefined, { consume?: boolean }?]
+  >();
+  let replay = false;
+  let challenged = false;
+  const isChallenged = jest.fn();
   const tsVerify = jest.fn();
   const verifyAccessToken = jest.fn();
   const logger = { setContext: jest.fn(), info: jest.fn(), error: jest.fn() };
@@ -29,11 +35,13 @@ describe('AppCheckGuard', () => {
       {
         string: (key: string) =>
           Promise.resolve(key === 'security.turnstile.mode' ? tsMode : mode),
+        boolean: () => Promise.resolve(replay),
       } as never,
       { verify } as never,
       { verifyAccessToken } as never,
       logger as never,
       { verify: tsVerify } as never,
+      { isChallenged } as never,
     );
   }
 
@@ -56,6 +64,11 @@ describe('AppCheckGuard', () => {
   }
 
   beforeEach(() => {
+    replay = false;
+    challenged = false;
+    isChallenged
+      .mockReset()
+      .mockImplementation(() => Promise.resolve(challenged));
     mode = 'monitor';
     tsMode = 'off';
     tsVerify.mockReset();
@@ -67,6 +80,86 @@ describe('AppCheckGuard', () => {
     });
     logger.info.mockReset();
     logger.error.mockReset();
+  });
+
+  describe('S14-7 replay protection (consume)', () => {
+    const body = { channel: 'phone' };
+    it('enforce + setting on: the SMS route consumes its token; a consumed one is refused', async () => {
+      mode = 'enforce';
+      replay = true;
+      options = { consumeWhen: (b) => b.channel === 'phone' };
+      result = { verdict: 'valid', appId: 'app' };
+      await expect(
+        guard().canActivate(ctx({ 'x-firebase-appcheck': 't' }, body)),
+      ).resolves.toBe(true);
+      expect(verify).toHaveBeenCalledWith('t', { consume: true });
+      result = { verdict: 'invalid', reason: 'already-consumed' };
+      await expect(
+        guard().canActivate(ctx({ 'x-firebase-appcheck': 't' }, body)),
+      ).rejects.toMatchObject({
+        response: { code: ErrorCode.DEVICE_ATTESTATION_REQUIRED },
+      });
+    });
+
+    it('setting off, monitor mode, or a body that does not qualify: a plain verify', async () => {
+      options = { consumeWhen: (b) => b.channel === 'phone' };
+      result = { verdict: 'valid' };
+      replay = true;
+      await guard().canActivate(ctx({ 'x-firebase-appcheck': 't' }, body));
+      expect(verify).toHaveBeenLastCalledWith('t');
+      mode = 'enforce';
+      replay = false;
+      await guard().canActivate(ctx({ 'x-firebase-appcheck': 't' }, body));
+      expect(verify).toHaveBeenLastCalledWith('t');
+      replay = true;
+      await guard().canActivate(
+        ctx({ 'x-firebase-appcheck': 't' }, { channel: 'email' }),
+      );
+      expect(verify).toHaveBeenLastCalledWith('t');
+    });
+  });
+
+  describe('S14-13 challenge after repeated failures', () => {
+    it('not challenged: the route is open, nothing is verified (the happy path)', async () => {
+      mode = 'off';
+      options = { challenge: 'password' };
+      await expect(
+        guard().canActivate(ctx({}, { identifier: '+14155552680' })),
+      ).resolves.toBe(true);
+      expect(verify).not.toHaveBeenCalled();
+    });
+
+    it('challenged: a token is required even when App Check is off / monitor', async () => {
+      challenged = true;
+      options = { challenge: 'password' };
+      for (const m of ['off', 'monitor']) {
+        mode = m;
+        verify.mockClear();
+        result = { verdict: 'missing' };
+        await expect(
+          guard().canActivate(ctx({}, { identifier: '+14155552680' })),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+        expect(isChallenged).toHaveBeenLastCalledWith(
+          '+14155552680',
+          undefined,
+        );
+      }
+      result = { verdict: 'valid' };
+      await expect(
+        guard().canActivate(
+          ctx({ 'x-firebase-appcheck': 'ok' }, { identifier: '+14155552680' }),
+        ),
+      ).resolves.toBe(true);
+    });
+
+    it('challenged but no Firebase project: never locks everyone out', async () => {
+      challenged = true;
+      options = { challenge: 'otp' };
+      result = { verdict: 'unconfigured' };
+      await expect(
+        guard().canActivate(ctx({}, { identifier: '+14155552680' })),
+      ).resolves.toBe(true);
+    });
   });
 
   it('parses the admin setting and treats anything else as monitor', () => {

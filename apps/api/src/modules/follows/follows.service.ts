@@ -17,6 +17,7 @@ import {
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
+import { bumpFeedVersion } from '../../common/cache/feed-version';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import {
   CounterAggregator,
@@ -105,6 +106,8 @@ export class FollowsService {
       skipDuplicates: true,
     });
     if (count === 0) return this.state(attorneyId, target.role, true);
+    // S2-3: the follower's feed now includes the new followee.
+    await bumpFeedVersion(this.redis, user.sub);
     await this.counters.bump(
       profileEntity(target.role),
       attorneyId,
@@ -142,6 +145,7 @@ export class FollowsService {
       where: { follower_id: user.sub, followee_id: attorneyId },
     });
     if (count === 0) return this.state(attorneyId, target?.role, false);
+    await bumpFeedVersion(this.redis, user.sub);
     await this.counters.bump(
       profileEntity(target?.role),
       attorneyId,

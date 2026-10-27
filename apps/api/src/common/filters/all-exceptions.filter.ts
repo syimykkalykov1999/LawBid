@@ -105,11 +105,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
           message?: string;
           details?: Record<string, unknown>;
         };
+        // A 503 that names `details.retryAfterSeconds` also sends the
+        // Retry-After header (the app's retry policy reads it).
+        const retry = b.details?.retryAfterSeconds;
         return {
           status,
           code: b.code,
           message: b.message ?? exception.message,
           details: b.details,
+          retryAfterSec:
+            status === 503 && typeof retry === 'number' ? retry : undefined,
         };
       }
       return {

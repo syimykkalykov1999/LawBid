@@ -266,14 +266,24 @@ describe('JobsRunner', () => {
     // Owner 2026-10-23: + admin.summaries (every 2 minutes).
     // Batch C: + ops.usage-poll (daily).
     // Shard-ready step 7: + outbox.sweep (every minute).
+    // Shard-ready steps 9-10: + shard.move-tick (every minute) and
+    // shard.orphan-check (nightly).
     // Owner 2026-10-24: + search.index (every minute).
+    // Owner 2026-10-25: + cdn.invalidate (every other minute).
+    // Owner 2026-10-27: + moderation.appeal-sla (hourly).
+    // Owner 2026-10-25: + case-tools.sweep (daily).
     // Day-one foundations: + ledger.reconcile (nightly).
+    // Owner 2026-10-28: + legal.reminders (hourly).
+    // Privacy round 13: + privacy.retention, privacy.reconcile and
+    // privacy.deletion-notices (daily).
     // DB-ops hardening: + db.health (daily).
+    // Day-one foundations: + ledger.reconcile (nightly); admin hardening: + admin.audit-export, admin.access-report.
     // S1-3: + chat.redeliver (every minute).
     // BUG-1 (package N-12b): + chat.search-backfill (every 5 minutes).
     // N-2: + events.maintain (every 5 minutes).
     // Experiments: + experiments.metrics (nightly).
-    expect(upserts).toHaveLength(72);
+    // Owner 2026-10-24: + partition.maintain (daily) and partition.tick.
+    expect(upserts).toHaveLength(88);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

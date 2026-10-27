@@ -3,7 +3,7 @@
 import { CaretDown, List, MagnifyingGlass, ShieldCheck, SignOut } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, m } from 'motion/react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import type { Me } from '@/lib/hooks';
@@ -85,7 +85,7 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
       <div ref={ref} className="relative">
         <button
           type="button"
-          onClick={() => setMenu((m) => !m)}
+          onClick={() => setMenu((o) => !o)}
           className="flex h-10 items-center gap-2 rounded-xl border border-line bg-surface pr-2 pl-1 sm:h-9 text-sm transition-colors hover:border-gold/50"
         >
           <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-brand-navy to-[#1b3170] text-[11px] font-semibold text-gold-300">
@@ -95,7 +95,7 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
         </button>
         <AnimatePresence>
           {menu ? (
-            <motion.div
+            <m.div
               initial={{ opacity: 0, y: -6, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -6, scale: 0.98 }}
@@ -124,7 +124,7 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
               >
                 <SignOut size={16} /> Выйти
               </button>
-            </motion.div>
+            </m.div>
           ) : null}
         </AnimatePresence>
       </div>

@@ -41,6 +41,10 @@ class HlsPrefetcher {
 
   final Dio _dio;
 
+  /// S16-4: asked before any warm-up (admin mode, data saver, metered
+  /// link — see prefetch_policy.dart). Default: allowed.
+  bool Function() allow = () => true;
+
   /// At most this many streams are fetched at once.
   final int maxConcurrent;
 
@@ -67,6 +71,7 @@ class HlsPrefetcher {
   /// again for the same stream is free.
   void prefetch(String url) {
     if (!url.contains('.m3u8')) return;
+    if (!allow()) return;
     if (_done.contains(url) ||
         _running.containsKey(url) ||
         _queue.contains(url)) {

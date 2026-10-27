@@ -6,22 +6,12 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum Status13 {
-  @JsonValue('not_verified')
-  notVerified('not_verified'),
-  @JsonValue('self_declared')
-  selfDeclared('self_declared'),
-  @JsonValue('registry_matched')
-  registryMatched('registry_matched'),
-  @JsonValue('pending_review')
-  pendingReview('pending_review'),
-  @JsonValue('documents_requested')
-  documentsRequested('documents_requested'),
-  @JsonValue('cleared')
-  cleared('cleared'),
-  @JsonValue('rejected')
-  rejected('rejected'),
-  @JsonValue('suspended')
-  suspended('suspended'),
+  @JsonValue('open')
+  open('open'),
+  @JsonValue('resolved')
+  resolved('resolved'),
+  @JsonValue('dismissed')
+  dismissed('dismissed'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

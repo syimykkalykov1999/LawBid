@@ -74,6 +74,16 @@ api.CaseBillingDto billingDto({required bool attorney, bool noRate = false}) =>
           lines: const [],
           url: 'https://example.com/i1.pdf',
           fileId: 'f1',
+          status: api.InvoiceDtoStatus.sent,
+          dueAt: null,
+          sentAt: null,
+          viewedAt: null,
+          paidAt: null,
+          paidCents: 0,
+          lateFeeCents: 0,
+          balanceCents: 15000,
+          remindersEnabled: true,
+          payUrl: null,
         ),
       ],
     );
@@ -105,4 +115,10 @@ api.SignRequestDto signReq(
       declinedByRole:
           reason == null ? null : api.SignRequestDtoDeclinedByRole.client,
       declineReason: reason,
+      expiresAt: null,
+      expired: false,
+      remindersSent: 0,
+      lastRemindedAt: null,
+      views: const [],
+      canResend: false,
     );

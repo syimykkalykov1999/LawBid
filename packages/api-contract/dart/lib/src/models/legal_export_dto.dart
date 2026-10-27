@@ -18,6 +18,11 @@ class LegalExportDto {
     required this.rowCounts,
     required this.sizeBytes,
     required this.sha256,
+    required this.manifestSha256,
+    required this.manifestSignature,
+    required this.signatureAlg,
+    required this.downloadCount,
+    required this.lastDownloadedAt,
     required this.error,
     required this.createdAt,
     required this.finishedAt,
@@ -38,6 +43,13 @@ class LegalExportDto {
   final Map<String, num>? rowCounts;
   final num? sizeBytes;
   final String? sha256;
+  final String? manifestSha256;
+  final String? manifestSignature;
+
+  /// ed25519 | hmac-sha256
+  final String? signatureAlg;
+  final int downloadCount;
+  final String? lastDownloadedAt;
   final String? error;
   final String createdAt;
   final String? finishedAt;

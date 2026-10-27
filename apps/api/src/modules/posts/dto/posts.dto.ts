@@ -515,6 +515,16 @@ export class PostDto {
   @ApiProperty({ enum: POST_CONTENT_CLASSES, enumName: 'PostContentClass' })
   contentClass!: PostContentClass;
 
+  /** Owner 2026-10-28: the per-state results disclaimer the server adds
+   * to an attorney's post that quotes results or testimonials. */
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Show this line under the post (e.g. "Prior results do not guarantee a similar outcome."): the author is licensed in a state that requires it and the text quotes results or testimonials.',
+  })
+  advertisingDisclaimer?: string | null;
+
   @ApiProperty({ type: PostAuthorDto })
   author!: PostAuthorDto;
 

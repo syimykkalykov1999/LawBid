@@ -48,11 +48,17 @@ export class ReviewModerationService {
     input: ReviewModerationInput,
   ): Promise<ReviewModerationResult> {
     const tickets: Array<OutboxTicket | null> = [];
+    // Written after the transaction commits (review R-68): the audit-chain
+    // trigger holds one global advisory lock to the end of its transaction.
+    const audit: { value: { reviewId: string; before: string } | null } = {
+      value: null,
+    };
     // A review's id carries its shard (children inherit the case's): pin it,
     // so the transaction runs on the database that holds the review.
     const result = await shardContext.runForCase(input.reviewId, () =>
       withTxRetry(this.prisma, async (tx) => {
         tickets.length = 0;
+        audit.value = null;
         const review = await tx.review.findUnique({
           where: { id: input.reviewId },
           select: { id: true, attorney_id: true, status: true },
@@ -68,20 +74,7 @@ export class ReviewModerationService {
             where: { id: review.id },
             data: { status: input.status },
           });
-          await tx.auditLog.create({
-            data: {
-              admin_id: input.adminId,
-              action: `review.${actionName(input.status)}`,
-              target_type: 'review',
-              target_id: review.id,
-              before: { status: review.status },
-              after: {
-                status: input.status,
-                ...(input.reason ? { reason: input.reason } : {}),
-              },
-              ip: input.ip ?? null,
-            },
-          });
+          audit.value = { reviewId: review.id, before: review.status };
         }
         let rating: RatingTotals | null = null;
         if (this.outbox) {
@@ -105,6 +98,23 @@ export class ReviewModerationService {
         };
       }),
     );
+    if (audit.value) {
+      const { reviewId, before } = audit.value;
+      await this.prisma.auditLog.create({
+        data: {
+          admin_id: input.adminId,
+          action: `review.${actionName(input.status)}`,
+          target_type: 'review',
+          target_id: reviewId,
+          before: { status: before },
+          after: {
+            status: input.status,
+            ...(input.reason ? { reason: input.reason } : {}),
+          },
+          ip: input.ip ?? null,
+        },
+      });
+    }
     if (result.rating) return { ...result, rating: result.rating };
     // The event was stored on the shard's database: apply it now, then read.
     await this.outbox?.flush(tickets);

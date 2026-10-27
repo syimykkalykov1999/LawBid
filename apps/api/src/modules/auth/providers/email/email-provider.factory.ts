@@ -13,6 +13,7 @@ import {
   type EmailTemplateLoader,
 } from './email-template-overrides';
 import { demoNoop } from '../../../../common/demo/demo-guards';
+import { ComplianceEmailProvider } from '../../../compliance/compliance-email.provider';
 
 /**
  * SES when configured, else the mock (docs/KEYS_SETUP.md). Shared by the
@@ -37,12 +38,16 @@ export function createEmailProvider(
     SES_FROM_ADDRESS: config.get<string>('SES_FROM_ADDRESS'),
   });
   logger.info({ provider, missing }, 'Email provider selected at boot');
-  const delivery = new DynamicEmailProvider(
+  const raw = new DynamicEmailProvider(
     config,
     logger,
     new MockEmailProvider(config, logger),
     secrets,
   );
+  // 2026-10-25: stop-list + postal-address footer for notification mail.
+  const delivery = prisma
+    ? new ComplianceEmailProvider(raw, prisma, logger)
+    : raw;
   if (!prisma) return demoNoop(delivery, ['sendEmail']);
   return demoNoop(
     new TemplateOverrideEmailProvider(
@@ -90,6 +95,9 @@ export class TemplateOverrideEmailProvider implements EmailProvider {
       subject: out.subject,
       text: out.text,
       ...(out.html ? { html: out.html } : {}),
+      // 2026-10-25: these used to be dropped here.
+      ...(message.headers ? { headers: message.headers } : {}),
+      ...(message.kind ? { kind: message.kind } : {}),
     });
   }
 }

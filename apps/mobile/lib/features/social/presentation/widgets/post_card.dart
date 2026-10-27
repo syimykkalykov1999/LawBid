@@ -4,14 +4,15 @@ import 'dart:ui' show ImageFilter;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/design_system/widgets/display/pinch_to_zoom.dart';
 import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart';
 import 'package:lawbid/core/diagnostics/perf_marks.dart';
+import 'package:lawbid/core/diagnostics/startup_signals.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -266,6 +267,7 @@ class PostCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     PerfMarks.feedCardBuilt();
+    StartupSignals.feedPainted();
     final p =
         ref.watch(postOverridesProvider.select((m) => m[post.id])) ?? post;
     final t = ref.watch(translatorProvider);
@@ -2509,7 +2511,7 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
   }
 
   void _doubleTap() {
-    HapticFeedback.lightImpact();
+    AppHaptics.light();
     widget.onDoubleTap();
     if (!context.reduceMotion) _heart.forward(from: 0);
   }
@@ -2572,18 +2574,33 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
                       // backdrop only shows around a "contain" photo; a
                       // "cover" front photo hides it completely, so it is not
                       // built (no blur pass, no second decode).
-                      if (_frontFit != BoxFit.cover) ...[
-                        ImageFiltered(
-                          imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                          child: img(
-                            BoxFit.cover,
-                            m.previewUrl,
-                            '${m.fileId}:320',
-                            96,
+                      // S16-11: the blurred layer sits in its own repaint
+                      // boundary, so scrolling moves the cached layer
+                      // instead of re-running the blur each frame.
+                      if (_frontFit != BoxFit.cover)
+                        Positioned.fill(
+                          child: RepaintBoundary(
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                ImageFiltered(
+                                  imageFilter:
+                                      ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                                  child: img(
+                                    BoxFit.cover,
+                                    m.previewUrl,
+                                    '${m.fileId}:320',
+                                    96,
+                                  ),
+                                ),
+                                ColoredBox(
+                                  color: ChatColors.mediaScrim
+                                      .withValues(alpha: 0.18),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        ColoredBox(color: Colors.black.withValues(alpha: 0.18)),
-                      ],
                       // Owner 2026-10-23: the soft 320 px copy shows at once,
                       // the sharp one fades in over it.
                       ProgressivePhoto(
@@ -2662,7 +2679,7 @@ class _DoubleTapLikeState extends State<DoubleTapLike>
   Widget build(BuildContext context) => GestureDetector(
         behavior: HitTestBehavior.translucent,
         onDoubleTap: () {
-          HapticFeedback.lightImpact();
+          AppHaptics.light();
           widget.onLike();
           if (!context.reduceMotion) _heart.forward(from: 0);
         },
@@ -3059,7 +3076,7 @@ class _BounceIconState extends State<BounceIcon>
       child: AppTapTarget(
         child: AppPressable(
           onTap: () {
-            HapticFeedback.selectionClick();
+            AppHaptics.selection();
             widget.onTap();
           },
           child: SizedBox(

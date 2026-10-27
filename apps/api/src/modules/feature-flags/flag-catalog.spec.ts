@@ -35,12 +35,11 @@ describe('FLAG_CATALOG — the one list of feature flags', () => {
     expect(unknown).toEqual([]);
   });
 
-  // Owner 2026-10-22 (audit #4 §8): the «Справочник» switches are retired.
-  it('the guide section flags are retired (never created, not in the admin)', () => {
-    const guide = FLAG_CATALOG.filter((f) =>
-      f.key.startsWith('guide_section_'),
+  // Owner 2026-10-22 (audit #4 §8; dropped X-6, 2026-10-26): the «Справочник»
+  // switches are gone for good.
+  it('no guide section flag is left', () => {
+    expect(FLAG_CATALOG.some((f) => f.key.startsWith('guide_section_'))).toBe(
+      false,
     );
-    expect(guide.length).toBe(8);
-    expect(guide.every((f) => f.retired)).toBe(true);
   });
 });

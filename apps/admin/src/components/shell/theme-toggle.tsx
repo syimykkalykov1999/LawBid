@@ -1,7 +1,7 @@
 'use client';
 
 import { Desktop, MoonStars, Sun } from '@phosphor-icons/react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, m } from 'motion/react';
 import { useTheme, type ThemePref } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
@@ -17,7 +17,7 @@ export function ThemeToggle() {
       className="relative grid h-9 w-9 place-items-center overflow-hidden rounded-xl border border-line bg-surface text-muted transition-colors hover:border-gold/50 hover:text-ink"
     >
       <AnimatePresence mode="wait" initial={false}>
-        <motion.span
+        <m.span
           key={resolved}
           initial={{ y: 14, rotate: -90, opacity: 0 }}
           animate={{ y: 0, rotate: 0, opacity: 1 }}
@@ -25,7 +25,7 @@ export function ThemeToggle() {
           transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
         >
           {resolved === 'dark' ? <MoonStars size={18} weight="light" /> : <Sun size={18} weight="light" />}
-        </motion.span>
+        </m.span>
       </AnimatePresence>
     </button>
   );

@@ -20,4 +20,12 @@ export class MockSmsProvider implements SmsProvider {
     this.logger.info({ toE164Suffix: toE164.slice(-4) }, 'Mock SMS OTP "sent"');
     return Promise.resolve();
   }
+
+  sendText(toE164: string): Promise<void> {
+    this.logger.info(
+      { toE164Suffix: toE164.slice(-4) },
+      'Mock SMS text "sent"',
+    );
+    return Promise.resolve();
+  }
 }

@@ -9,6 +9,8 @@ import type { CourtHoliday, DeadlineRule, Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { parseIsoDate } from '../../common/utils/zoned-wall';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ConfigService } from '@nestjs/config';
+import { buildLinks } from '../calendar/calendar-links';
 import { FeatureFlagsService } from '../feature-flags/feature-flags.public';
 import { computeDeadline } from './deadline-calc';
 import {
@@ -29,6 +31,25 @@ import {
 import { federalHolidays } from './federal-holidays';
 
 type Labels = Record<string, string>;
+
+/** Owner 2026-10-28: a dated item of a person's cases for the calendar feed. */
+export interface CaseCalendarEvent {
+  uid: string;
+  title: string;
+  caseId: string;
+  /** Whole day (YYYY-MM-DD) for a case date, a moment for a case task. */
+  date: string | null;
+  dueAt: Date | null;
+  kind: 'case_deadline' | 'case_task';
+  updatedAt: Date;
+}
+
+const LIVE_CASE = [
+  'open',
+  'in_progress',
+  'pending_completion',
+  'disputed',
+] as const;
 
 const iso = (d: Date): string => d.toISOString().slice(0, 10);
 const asLabels = (v: unknown): Labels =>
@@ -68,6 +89,7 @@ export class DeadlinesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly flags: FeatureFlagsService,
+    private readonly config: ConfigService,
   ) {}
 
   // --- the app ----------------------------------------------------------------
@@ -164,7 +186,95 @@ export class DeadlinesService {
       rolled: result.rolled,
       holidays: rows.filter((h) => used.has(iso(h.date))).map(holidayDto),
       warnings,
+      calendarLinks: buildLinks(
+        {
+          uid: `deadline-${rule.code}-${q.eventDate}`,
+          title: `Deadline: ${asLabels(rule.labels).en ?? rule.code}`.slice(
+            0,
+            200,
+          ),
+          description: rule.citation ?? undefined,
+          date: result.dueDate,
+        },
+        (
+          this.config.get<string>('CALENDAR_API_BASE_URL') ??
+          'https://api.lawbid.dev/api/v1'
+        ).replace(/\/+$/, ''),
+        this.config.get<string>('OTP_CODE_SECRET') || undefined,
+      ),
     };
+  }
+
+  // --- the calendar feed (event source) -----------------------------------------
+
+  /**
+   * Owner 2026-10-28: the dated things of the person's live cases — the
+   * case's own date (court hearing, filing deadline: a whole day) and the
+   * open case tasks with a due time — for the calendar feed. The person is
+   * the client of the case or the attorney of its accepted bid. Not behind
+   * the calculator switch: these dates are the users' own data.
+   */
+  async calendarEvents(
+    userId: string,
+    from: Date,
+    to: Date,
+    limit = 300,
+  ): Promise<CaseCalendarEvent[]> {
+    const cases = await this.prisma.case.findMany({
+      where: {
+        deleted_at: null,
+        status: { in: [...LIVE_CASE] },
+        OR: [{ client_id: userId }, { accepted_bid: { attorney_id: userId } }],
+      },
+      select: {
+        id: true,
+        title: true,
+        deadline_at: true,
+        deadline_kind: true,
+        updated_at: true,
+      },
+      orderBy: { updated_at: 'desc' },
+      take: limit,
+    });
+    const out: CaseCalendarEvent[] = [];
+    for (const c of cases) {
+      if (c.deadline_at && c.deadline_at >= from && c.deadline_at <= to) {
+        const kind = c.deadline_kind ? `${c.deadline_kind}: ` : '';
+        out.push({
+          uid: `case-deadline-${c.id}`,
+          title: `${kind}${c.title}`.slice(0, 200),
+          caseId: c.id,
+          date: iso(c.deadline_at),
+          dueAt: null,
+          kind: 'case_deadline',
+          updatedAt: c.updated_at,
+        });
+      }
+    }
+    if (cases.length > 0) {
+      const titles = new Map(cases.map((c) => [c.id, c.title]));
+      const tasks = await this.prisma.caseTask.findMany({
+        where: {
+          case_id: { in: cases.map((c) => c.id) },
+          status: 'open',
+          due_at: { gte: from, lte: to },
+        },
+        orderBy: { due_at: 'asc' },
+        take: limit,
+      });
+      for (const t of tasks) {
+        out.push({
+          uid: `case-task-${t.id}`,
+          title: `${t.title} (${titles.get(t.case_id) ?? ''})`.slice(0, 200),
+          caseId: t.case_id,
+          date: null,
+          dueAt: t.due_at,
+          kind: 'case_task',
+          updatedAt: t.updated_at,
+        });
+      }
+    }
+    return out;
   }
 
   // --- the admin ----------------------------------------------------------------

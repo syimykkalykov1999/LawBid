@@ -17,6 +17,9 @@ class SessionDto {
     required this.lastUsedAt,
     required this.createdAt,
     required this.isCurrent,
+    required this.ipHint,
+    required this.country,
+    required this.browser,
   });
 
   factory SessionDto.fromJson(Map<String, Object?> json) =>
@@ -33,6 +36,15 @@ class SessionDto {
 
   /// True for the session making this request.
   final bool isCurrent;
+
+  /// Masked address the session was last used from (203.0.113.x); null when unknown.
+  final String? ipHint;
+
+  /// ISO-3166 alpha-2 country the session was last used from, when the CDN reported it.
+  final String? country;
+
+  /// Browser and system label for web sessions ("Chrome · macOS").
+  final String? browser;
 
   Map<String, Object?> toJson() => _$SessionDtoToJson(this);
 }

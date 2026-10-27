@@ -1,3 +1,4 @@
+import { CaseToolsSweepService } from '../modules/cases/tools/case-tools.sweep';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import {
@@ -41,14 +42,24 @@ import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
+import {
+  CrossFamilyOutbox,
+  parseOutboxSweepMode,
+} from '../sharding/outbox/cross-family-outbox';
+import { AppSettingsService } from '../common/app-settings/app-settings.service';
 import { EventsMaintenance } from '../modules/events/events.maintenance';
-import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
+import { PartitionService } from '../partitioning/partition.service';
+import { ShardMoveService } from '../sharding/move/shard-move.service';
+import { OrphanChecker } from '../sharding/orphan-checker';
 import { SearchIndexJob } from './handlers/search-index.job';
+import { CdnInvalidateJob } from './handlers/cdn-invalidate.job';
 import { ExperimentsNightlyJob } from '../modules/experiments/experiments-nightly.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
+import { StripeOpsJob } from './handlers/stripe-ops.job';
 import { DbHealthJob } from './handlers/db-health.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
+import { LegalRemindersJob } from './handlers/legal-reminders.job';
 import { UsagePollJob } from './handlers/usage-poll.job';
 import { HEAVY_CRON_JOBS } from '../common/ops/ops.constants';
 import { OpsStateService } from '../common/ops/ops-state.service';
@@ -74,6 +85,9 @@ import { JournalIntegrityService } from '../modules/privacy/journal-integrity.se
 import { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
 import { ClientFraudService } from '../modules/client-fraud/client-fraud.service';
 import { JournalRetentionService } from '../modules/privacy/journal-retention.service';
+import { DeletionNoticesService } from '../modules/privacy/deletion-notices.service';
+import { PrivacyRetentionService } from '../modules/privacy/privacy-retention.service';
+import { PrivacyReconcileJob } from './handlers/privacy-reconcile.job';
 import { CostAutoscaleService } from '../common/cost-guard/cost-autoscale.service';
 import { OutreachRetentionService } from '../modules/outreach/outreach-retention.service';
 import { DemoService } from '../modules/demo/demo.service';
@@ -84,6 +98,9 @@ import { EconomyService } from '../common/economy/economy.service';
 import { ChatService } from '../modules/chat/chat.service';
 import { DisappearingSweepService } from '../modules/chat/disappearing-sweep.service';
 import { TreasuryService } from '../modules/treasury/treasury.service';
+import { AutoAppealsService } from '../modules/moderation/auto-appeals.service';
+import { AuditExportService } from '../modules/admin/audit-export.service';
+import { AdminAccessReportService } from '../modules/admin/admin-access-report.service';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
  * becomes the BullMQ job's `returnvalue` (visible in queue dashboards). */
@@ -134,6 +151,7 @@ export class CronProcessor {
     @Optional() private readonly storageStats?: StorageStatsService,
     @Optional() private readonly opsGuard?: OpsGuardJob,
     @Optional() private readonly statusWatchdog?: StatusWatchdogJob,
+    @Optional() private readonly legalReminders?: LegalRemindersJob,
     @Optional() private readonly usagePoll?: UsagePollJob,
     @Optional() private readonly opsState?: OpsStateService,
     @Optional() private readonly costAutoscale?: CostAutoscaleService,
@@ -162,14 +180,36 @@ export class CronProcessor {
     @Optional() private readonly adminSummaries?: AdminSummariesJob,
     // Shard-ready step 7: `outbox.sweep`.
     @Optional() private readonly outbox?: CrossFamilyOutbox,
+    // Shard-ready steps 9-10.
+    @Optional() private readonly shardMoves?: ShardMoveService,
+    @Optional() private readonly orphans?: OrphanChecker,
     // Events pipeline (N-2): `events.maintain`.
     @Optional() private readonly eventsMaintenance?: EventsMaintenance,
     // Owner 2026-10-24: `search.index`.
     @Optional() private readonly searchIndex?: SearchIndexJob,
+    // Owner 2026-10-25: `cdn.invalidate`.
+    @Optional() private readonly cdnInvalidate?: CdnInvalidateJob,
+    // Owner 2026-10-27: `moderation.appeal-sla`.
+    @Optional() private readonly autoAppeals?: AutoAppealsService,
+    @Optional() private readonly partitioning?: PartitionService,
+    // Owner 2026-10-25: `case-tools.sweep`.
+    @Optional() private readonly caseToolsSweep?: CaseToolsSweepService,
+    // Owner 2026-10-28: `admin.audit-export`, `admin.access-report`.
+    @Optional() private readonly auditExport?: AuditExportService,
+    @Optional() private readonly accessReport?: AdminAccessReportService,
     // Owner 2026-10-25: `experiments.metrics`.
     @Optional() private readonly experimentsNightly?: ExperimentsNightlyJob,
     // Day-one foundations: `ledger.reconcile`.
     @Optional() private readonly ledgerReconcile?: LedgerReconcileJob,
+    // Audit X-22: `ops.outbox_sweep.mode` (off / on / auto).
+    @Optional() private readonly appSettings?: AppSettingsService,
+    // Privacy round 13: `privacy.retention`, `privacy.reconcile`,
+    // `privacy.deletion-notices`.
+    @Optional() private readonly privacyRetention?: PrivacyRetentionService,
+    @Optional() private readonly privacyReconcile?: PrivacyReconcileJob,
+    @Optional() private readonly deletionNotices?: DeletionNoticesService,
+    // Stripe robustness 2026-10-27.
+    @Optional() private readonly stripeOps?: StripeOpsJob,
     // DB-ops hardening: `db.health`.
     @Optional() private readonly dbHealth?: DbHealthJob,
     // S10-13: one lock per job name for every schedule.
@@ -272,16 +312,51 @@ export class CronProcessor {
         return this.opsMetrics.queueDepths();
       case CRON_JOBS.searchIndex:
         return this.searchIndex?.run() ?? null;
+      case CRON_JOBS.cdnInvalidate:
+        return this.cdnInvalidate?.run() ?? null;
+      case CRON_JOBS.moderationAppealSla:
+        return this.autoAppeals?.sweepOverdue() ?? null;
+      case CRON_JOBS.adminAuditExport:
+        return this.auditExport?.run() ?? null;
+      case CRON_JOBS.adminAccessReport:
+        return this.accessReport?.sendMonthly() ?? null;
       case CRON_JOBS.experimentsMetrics:
         return this.experimentsNightly?.run() ?? null;
       case CRON_JOBS.ledgerReconcile:
         return this.ledgerReconcile?.run() ?? null;
+      case CRON_JOBS.privacyRetention:
+        return this.privacyRetention?.run() ?? null;
+      case CRON_JOBS.privacyReconcile:
+        return this.privacyReconcile?.run() ?? null;
+      case CRON_JOBS.privacyDeletionNotices:
+        return this.deletionNotices?.sendDay13Due() ?? null;
+      case CRON_JOBS.stripeOpsSweep:
+        return this.stripeOps?.sweep() ?? null;
+      case CRON_JOBS.stripeWebhooksRequeue:
+        return this.stripeOps?.requeueWebhooks() ?? null;
+      case CRON_JOBS.stripeOpsDisputeReminders:
+        return this.stripeOps?.remindDisputes() ?? null;
       case CRON_JOBS.dbHealth:
         return this.dbHealth?.run() ?? null;
       case CRON_JOBS.adminSummaries:
         return this.adminSummaries?.run() ?? null;
+      case CRON_JOBS.partitionMaintain:
+        return this.partitioning?.maintain() ?? null;
+      case CRON_JOBS.partitionTick:
+        return this.partitioning?.tick() ?? null;
       case CRON_JOBS.outboxSweep:
-        return this.outbox?.sweep() ?? null;
+        return this.outbox
+          ? this.outbox.sweep(
+              parseOutboxSweepMode(
+                (await this.appSettings?.string('ops.outbox_sweep.mode')) ??
+                  'auto',
+              ),
+            )
+          : null;
+      case CRON_JOBS.shardMoveTick:
+        return this.shardMoves?.tick() ?? null;
+      case CRON_JOBS.shardOrphanCheck:
+        return this.orphans?.run() ?? null;
       case CRON_JOBS.eventsMaintain:
         return this.eventsMaintenance?.run() ?? null;
       case CRON_JOBS.opsBusinessMetrics:
@@ -320,6 +395,8 @@ export class CronProcessor {
         return this.casePayments.expire();
       case CRON_JOBS.casePaymentsRemind:
         return this.casePayments.remind();
+      case CRON_JOBS.caseToolsSweep:
+        return this.caseToolsSweep?.run() ?? null;
       case CRON_JOBS.partnersSweep:
         return this.partners.sweep();
       case CRON_JOBS.countryPartnersSweep:
@@ -346,6 +423,8 @@ export class CronProcessor {
         return this.outreachRetention?.run();
       case CRON_JOBS.opsGuard:
         return this.opsGuard?.guard();
+      case CRON_JOBS.legalReminders:
+        return this.legalReminders?.run() ?? null;
       case CRON_JOBS.statusWatchdog:
         return this.statusWatchdog?.run();
       case CRON_JOBS.usagePoll:

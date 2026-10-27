@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { apiBaseUrl } from '@/lib/api/server';
+import { crossSiteReason, lastForwardedFor } from '@/lib/csrf';
 
 /** The unauthenticated sign-in steps (login + password, the forced
  * authenticator setup's QR step, forgotten-password recovery) — forwarded
@@ -36,7 +37,7 @@ export async function GET(
   const upstream = await fetch(`${apiBaseUrl()}/admin/auth/${path}`, {
     headers: {
       accept: 'application/json',
-      'x-forwarded-for': req.headers.get('x-forwarded-for') ?? '',
+      'x-forwarded-for': lastForwardedFor(req.headers.get('x-forwarded-for')),
     },
     cache: 'no-store',
   });
@@ -52,6 +53,12 @@ export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ path: string[] }> },
 ): Promise<Response> {
+  if (crossSiteReason(req)) {
+    return NextResponse.json(
+      { error: { code: 'FORBIDDEN', message: 'Cross-site request refused.' } },
+      { status: 403 },
+    );
+  }
   const path = (await ctx.params).path.join('/');
   if (!ALLOWED.has(path)) {
     return NextResponse.json(
@@ -63,7 +70,7 @@ export async function POST(
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-forwarded-for': req.headers.get('x-forwarded-for') ?? '',
+      'x-forwarded-for': lastForwardedFor(req.headers.get('x-forwarded-for')),
       'user-agent': req.headers.get('user-agent') ?? '',
     },
     body: await req.text(),

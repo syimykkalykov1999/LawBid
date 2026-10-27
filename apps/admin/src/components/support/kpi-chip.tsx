@@ -1,7 +1,7 @@
 'use client';
 
 import type { Icon } from '@phosphor-icons/react';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { AnimatedNumber } from '@/components/ui/animated-number';
 import { cn } from '@/lib/utils';
 
@@ -25,7 +25,7 @@ export function KpiChip({
 }) {
   const Tag = onClick ? 'button' : 'div';
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, delay: i * 0.04, ease: [0.16, 1, 0.3, 1] }}
@@ -53,6 +53,6 @@ export function KpiChip({
           <span className="block truncate text-xs text-muted">{label}</span>
         </span>
       </Tag>
-    </motion.div>
+    </m.div>
   );
 }

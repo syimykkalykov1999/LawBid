@@ -38,10 +38,6 @@ variable "region" {
   type    = string
   default = "us-east-1"
 }
-variable "replica_region" {
-  type    = string
-  default = "us-west-2"
-}
 variable "github_repo" {
   type        = string
   default     = "syimykkalykov1999/LawBid"

@@ -5,10 +5,53 @@ import {
   cookieOptions,
   sessionToken,
 } from '@/lib/api/server';
+import { bodyTypeAllowed, crossSiteReason, isSafeMethod } from '@/lib/csrf';
 
 /** How long the API may take to start answering. */
 const UPSTREAM_TIMEOUT_MS = 120_000;
 const RETRY_AFTER_SEC = 2;
+/** S18-6: no request body bigger than this goes through the panel. */
+const MAX_BODY_BYTES = 25 * 1024 * 1024;
+
+function refuse(status: number, code: string, message: string): Response {
+  return NextResponse.json({ error: { code, message } }, { status });
+}
+
+/** Passes the body through as a stream and fails it past the cap, so a
+ * chunked upload without Content-Length cannot fill the panel's memory. */
+function cappedStream(
+  body: ReadableStream<Uint8Array>,
+  state: { tooLarge: boolean },
+): ReadableStream<Uint8Array> {
+  let seen = 0;
+  return body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        seen += chunk.byteLength;
+        if (seen > MAX_BODY_BYTES) {
+          state.tooLarge = true;
+          controller.error(new Error('BODY_TOO_LARGE'));
+          return;
+        }
+        controller.enqueue(chunk);
+      },
+    }),
+  );
+}
+
+/** One structured line per failed upstream call (S18-4); no body, no token. */
+function logUpstreamFailure(req: NextRequest, path: string[], status: number, code: string): void {
+  console.error(
+    JSON.stringify({
+      level: 'error',
+      msg: 'admin_proxy_upstream_failure',
+      status,
+      code,
+      method: req.method,
+      path: `/admin/${path.join('/')}`,
+    }),
+  );
+}
 
 /**
  * Forwards `/api/proxy/<path>` to `${API_BASE_URL}/admin/<path>` with the
@@ -17,6 +60,18 @@ const RETRY_AFTER_SEC = 2;
  * the client lands on /login.
  */
 async function forward(req: NextRequest, path: string[]): Promise<Response> {
+  // S18-5: a state-changing call must come from this very origin and carry
+  // JSON or a multipart upload (never a CORS-"simple" text/plain form).
+  if (crossSiteReason(req)) {
+    return refuse(403, 'FORBIDDEN', 'Cross-site request refused.');
+  }
+  if (!bodyTypeAllowed(req)) {
+    return refuse(415, 'UNSUPPORTED_MEDIA_TYPE', 'Send JSON or a multipart upload.');
+  }
+  const declared = Number(req.headers.get('content-length') ?? 0);
+  if (!isSafeMethod(req.method) && declared > MAX_BODY_BYTES) {
+    return refuse(413, 'PAYLOAD_TOO_LARGE', 'The request is too large.');
+  }
   const token = await sessionToken();
   if (!token) {
     return NextResponse.json(
@@ -34,7 +89,7 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
   url.search = req.nextUrl.search;
   const headers = new Headers();
   headers.set('authorization', `Bearer ${token}`);
-  for (const h of ['content-type', 'x-justification', 'idempotency-key', 'accept', 'x-admin-country']) {
+  for (const h of ['content-type', 'x-justification', 'x-reason-code', 'idempotency-key', 'accept', 'x-admin-country', 'x-background']) {
     const v = req.headers.get(h);
     if (v) headers.set(h, v);
   }
@@ -48,15 +103,18 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
     timedOut = true;
     controller.abort();
   }, UPSTREAM_TIMEOUT_MS);
+  const capState = { tooLarge: false };
   let upstream: Response;
   try {
     upstream = await fetch(url, {
       method: req.method,
       headers,
       body:
-        req.method === 'GET' || req.method === 'HEAD'
+        isSafeMethod(req.method) || !req.body
           ? undefined
-          : await req.arrayBuffer(),
+          : cappedStream(req.body, capState),
+      // Streams the upload instead of buffering it (S18-6).
+      ...(isSafeMethod(req.method) || !req.body ? {} : { duplex: 'half' as const }),
       cache: 'no-store',
       redirect: 'manual',
       signal: controller.signal,
@@ -65,6 +123,10 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
     // Our own deadline, or a TimeoutError from the runtime's fetch.
     const timeout =
       timedOut || (e instanceof Error && e.name === 'TimeoutError');
+    if (capState.tooLarge) {
+      return refuse(413, 'PAYLOAD_TOO_LARGE', 'The request is too large.');
+    }
+    logUpstreamFailure(req, path, timeout ? 504 : 502, timeout ? 'UPSTREAM_TIMEOUT' : 'UPSTREAM_UNAVAILABLE');
     return NextResponse.json(
       timeout
         ? {
@@ -96,6 +158,9 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
     status: upstream.status,
     headers: passthrough,
   });
+  if (upstream.status >= 502 && upstream.status <= 504) {
+    logUpstreamFailure(req, path, upstream.status, 'UPSTREAM_BAD_STATUS');
+  }
   if (upstream.status === 401) {
     res.cookies.set(SESSION_COOKIE, '', cookieOptions(0));
   }

@@ -16,6 +16,7 @@ import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/session/proactive_refresh_provider.dart';
+import 'package:lawbid/core/startup/startup_idle_queue.dart';
 import 'package:lawbid/features/auth/presentation/widgets/passkey_nudge_sheet.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
@@ -109,7 +110,11 @@ class _MainShellState extends ConsumerState<MainShell> {
       if (!mounted || ref.read(isGuestProvider)) return;
       unawaited(ref.read(referralOnboardingHookProvider).run(context));
       // Owner 2026-10-20: contacts re-sync at start and daily (if allowed).
-      ref.read(contactsBackgroundSyncProvider).start();
+      // S16-3: after the first content, at idle — the phone-book read and
+      // hashing no longer share the frames of the first feed paint.
+      StartupIdleQueue.enqueue(() {
+        if (mounted) ref.read(contactsBackgroundSyncProvider).start();
+      });
       // Owner 2026-10-24: attorneys / assistants without a passkey are
       // offered Face ID / fingerprint once (snoozable).
       unawaited(maybeShowPasskeyNudge(context, ref));

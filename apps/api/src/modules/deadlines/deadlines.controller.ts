@@ -18,6 +18,7 @@ import {
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { LegalDisclaimerNotice } from '../../common/legal-disclaimer/legal-disclaimer.interceptor';
 import { AdminEndpoint } from '../admin-auth/admin-auth.decorators';
 import {
   AdminDeadlineRuleDto,
@@ -52,6 +53,7 @@ export class DeadlinesController {
   // cacheable in the browser, revalidated in the background.
   @Get('rules')
   @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
+  @LegalDisclaimerNotice('deadline')
   @ApiOperation({ summary: 'Deadline rules: federal plus a state’s' })
   @ApiEnvelopeResponse(DeadlineRuleDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FEATURE_DISABLED] })
@@ -61,6 +63,7 @@ export class DeadlinesController {
 
   @Get('holidays')
   @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
+  @LegalDisclaimerNotice('deadline')
   @ApiOperation({ summary: 'Court holidays of a year' })
   @ApiEnvelopeResponse(DeadlineHolidayDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FEATURE_DISABLED] })
@@ -69,6 +72,7 @@ export class DeadlinesController {
   }
 
   @Get('calculate')
+  @LegalDisclaimerNotice('deadline')
   @ApiOperation({
     summary: 'The last day for a rule counted from an event date',
   })

@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/time/shown_tick.dart';
 import 'package:lawbid/features/case_payments/presentation/case_payment_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/consultations/domain/consultation_ics.dart';
@@ -60,16 +61,19 @@ class ClockTicker extends StatefulWidget {
   State<ClockTicker> createState() => _ClockTickerState();
 }
 
-class _ClockTickerState extends State<ClockTicker> {
+class _ClockTickerState extends State<ClockTicker>
+    with ShownTick<ClockTicker> {
   Timer? _timer;
   DateTime _now = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(widget.every, (_) {
-      if (mounted) setState(() => _now = DateTime.now());
-    });
+    // Not while its tab is hidden (2026-10-26 smoothness P7).
+    _timer = Timer.periodic(
+      widget.every,
+      (_) => shownTick(() => _now = DateTime.now()),
+    );
   }
 
   @override
@@ -79,7 +83,11 @@ class _ClockTickerState extends State<ClockTicker> {
   }
 
   @override
-  Widget build(BuildContext context) => widget.builder(context, _now);
+  Widget build(BuildContext context) {
+    // Shown again after skipped ticks: the current time right away.
+    if (trackShown(context)) _now = DateTime.now();
+    return widget.builder(context, _now);
+  }
 }
 
 /// The calendar file of a booking, shared as `.ics`.

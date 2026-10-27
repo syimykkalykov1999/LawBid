@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
   type ArgumentsHost,
 } from '@nestjs/common';
 import type { PinoLogger } from 'nestjs-pino';
@@ -40,6 +41,43 @@ function run(exception: unknown): { status: number; body: unknown } {
 }
 
 describe('AllExceptionsFilter (docs/01 §7 error envelope)', () => {
+  it('a 503 that names details.retryAfterSeconds sets the Retry-After header', () => {
+    const headers: Record<string, string> = {};
+    const logger = {
+      setContext: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+    } as unknown as PinoLogger;
+    const filter = new AllExceptionsFilter(logger);
+    const response = {
+      setHeader: (k: string, v: string) => {
+        headers[k] = v;
+      },
+      status() {
+        return this;
+      },
+      json: jest.fn(),
+    };
+    const host = {
+      switchToHttp: () => ({
+        getResponse: () => response,
+        getRequest: () => ({ headers: {}, header: () => 'r' }),
+      }),
+    } as unknown as ArgumentsHost;
+    filter.catch(
+      new HttpException(
+        {
+          code: 'SERVER_BUSY',
+          message: 'm',
+          details: { retryAfterSeconds: 2 },
+        },
+        503,
+      ),
+      host,
+    );
+    expect(headers['Retry-After']).toBe('2');
+  });
+
   it('maps a ValidationPipe 400 (no code) to VALIDATION_ERROR with details.validation', () => {
     const { status, body } = run(
       new BadRequestException(['identifier must be a string']),

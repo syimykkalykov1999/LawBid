@@ -8,7 +8,7 @@ import 'package:retrofit/retrofit.dart';
 import '../models/deadline_holiday_list_envelope.dart';
 import '../models/deadline_result_envelope.dart';
 import '../models/deadline_rule_list_envelope.dart';
-import '../models/kind3.dart';
+import '../models/kind4.dart';
 
 part 'deadlines_client.g.dart';
 
@@ -24,7 +24,7 @@ abstract class DeadlinesClient {
   @GET('/deadlines/rules')
   Future<DeadlineRuleListEnvelope> listDeadlineRules({
     @Query('jurisdiction') String? jurisdiction,
-    @Query('kind') Kind3? kind,
+    @Query('kind') Kind4? kind,
     @Query('practiceCode') String? practiceCode,
     @Extras() Map<String, dynamic>? extras,
   });

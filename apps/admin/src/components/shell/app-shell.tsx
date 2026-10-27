@@ -1,6 +1,6 @@
 'use client';
 
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, m } from 'motion/react';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useMe } from '@/lib/hooks';
@@ -54,19 +54,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="absolute -right-40 bottom-0 h-[380px] w-[560px] rounded-full bg-brand-navy/[0.06] blur-[120px] dark:bg-[#1b3170]/25" />
       </div>
 
-      <motion.aside
+      <m.aside
         animate={{ width: collapsed ? 76 : 264 }}
         transition={{ type: 'spring', stiffness: 380, damping: 36 }}
         className="fixed inset-y-0 left-0 z-30 hidden border-r border-line bg-canvas/80 backdrop-blur-xl lg:block"
       >
         <Sidebar me={me} collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
-      </motion.aside>
+      </m.aside>
 
       <AnimatePresence>
         {drawer ? (
-          <motion.div className="fixed inset-0 z-50 lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <m.div className="fixed inset-0 z-50 lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="absolute inset-0 bg-[#05060a]/50 backdrop-blur-sm" onClick={() => setDrawer(false)} />
-            <motion.aside
+            <m.aside
               initial={{ x: -300 }}
               animate={{ x: 0 }}
               exit={{ x: -300 }}
@@ -74,8 +74,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="absolute inset-y-0 left-0 w-[min(284px,85vw)] border-r border-line bg-canvas shadow-pop"
             >
               <Sidebar me={me} collapsed={false} mobile onNavigate={() => setDrawer(false)} />
-            </motion.aside>
-          </motion.div>
+            </m.aside>
+          </m.div>
         ) : null}
       </AnimatePresence>
 
@@ -85,7 +85,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {/* Owner 2026-10-07: the tabs stay put while the page below
               changes, so a far-right tab doesn't throw the strip back. */}
           {hidden ? null : <SectionTabs me={me} />}
-          <motion.div
+          <m.div
             key={pathname}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -99,7 +99,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ) : (
               children
             )}
-          </motion.div>
+          </m.div>
         </main>
       </div>
       <BottomNav me={me} onMore={() => setDrawer(true)} />

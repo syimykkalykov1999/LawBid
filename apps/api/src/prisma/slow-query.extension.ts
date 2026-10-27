@@ -15,18 +15,21 @@ export interface SlowQuery {
 export function slowQueryExtension(
   thresholdMs: number,
   report: (q: SlowQuery) => void,
+  /** Called with every query's duration (WP-G: per-request DB time). */
+  observe?: (ms: number) => void,
 ) {
   return Prisma.defineExtension({
     name: 'slow-query-log',
     query: {
       async $allOperations({ model, operation, args, query }) {
-        if (thresholdMs <= 0) return (await query(args)) as unknown;
+        if (thresholdMs <= 0 && !observe) return (await query(args)) as unknown;
         const started = performance.now();
         try {
           return (await query(args)) as unknown;
         } finally {
           const ms = Math.round(performance.now() - started);
-          if (ms >= thresholdMs) {
+          observe?.(ms);
+          if (thresholdMs > 0 && ms >= thresholdMs) {
             report({
               operation: model ? `${model}.${operation}` : operation,
               ms,

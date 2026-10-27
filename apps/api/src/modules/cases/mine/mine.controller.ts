@@ -6,7 +6,10 @@ import {
   Param,
   Post,
   Query,
+  Req,
+  Res,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -14,6 +17,8 @@ import {
   AUTHENTICATED_ERRORS,
 } from '../../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
+import { conditionalGet } from '../../../common/sync/cheap-etag';
+import { VersionEtagService } from '../../../common/sync/version-etag.service';
 import {
   CurrentUser,
   type RequestUser,
@@ -44,17 +49,33 @@ const E = ErrorCode;
 @ApiErrors(AUTHENTICATED_ERRORS)
 @Controller()
 export class MineController {
-  constructor(private readonly mine: MineService) {}
+  constructor(
+    private readonly mine: MineService,
+    private readonly versionEtag: VersionEtagService,
+  ) {}
 
   @Get('users/me/cases/:id')
   @ApiOperation({ summary: "Owner's case detail (docs/04 §11.1)" })
   @ApiEnvelopeResponse(OwnerCaseDetailDto)
   @ApiErrors({ 404: [E.CASE_NOT_FOUND] })
-  getMyCase(
+  async getMyCase(
     @CurrentUser() user: RequestUser,
     @Param() params: MineCaseIdParamDto,
-  ): Promise<OwnerCaseDetailDto> {
-    return this.mine.ownerCase(user, params.id);
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<OwnerCaseDetailDto | undefined> {
+    // Owner 2026-10-25 (S2-12): a version tag computed before the queries;
+    // a match is a 304 once ownership is checked and the "opened" ping
+    // (OQ-054) is recorded, exactly as the full path does.
+    return conditionalGet(
+      req,
+      res,
+      user.role === 'client'
+        ? await this.versionEtag.caseDetail(user.sub, params.id, 'owner')
+        : null,
+      () => this.mine.touchOwnerCase(user, params.id),
+      () => this.mine.ownerCase(user, params.id),
+    );
   }
 
   @Get('users/me/bids')

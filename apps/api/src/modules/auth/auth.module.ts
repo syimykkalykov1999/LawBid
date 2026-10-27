@@ -25,6 +25,7 @@ import { PasskeyService } from './passkeys/passkey.service';
 import { WebAuthnConfig } from './passkeys/webauthn-config';
 import { WebSessionCookies } from './web-session-cookie';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { ComplianceCoreModule } from '../compliance/compliance-core.module';
 import { ReauthGuard } from './guards/reauth.guard';
 import { AppCheckGuard } from './app-check/app-check.guard';
 import { AppCheckService } from './app-check/app-check.service';
@@ -44,6 +45,8 @@ import { PasswordAuthService } from './password-auth.service';
 import { PasswordService } from './services/password.service';
 import { LoginMethodPolicy } from './services/login-method-policy.service';
 import { NewDeviceNotifier } from './notifications/new-device-notifier.service';
+import { AuthNoveltyService } from './services/auth-novelty.service';
+import { AuthChallengeService } from './services/auth-challenge.service';
 import { SignInChangeNotifier } from './notifications/sign-in-change-notifier.service';
 import { EmailLoginNotificationChannel } from './notifications/email-login-notification.channel';
 import { PushLoginNotificationChannel } from './notifications/push-login-notification.channel';
@@ -95,6 +98,7 @@ import { demoNoop } from '../../common/demo/demo-guards';
     FeatureFlagsModule,
     NotificationsModule,
     SubscriptionsModule,
+    ComplianceCoreModule,
   ],
   controllers: [AuthController, PasskeyController],
   providers: [
@@ -138,6 +142,9 @@ import { demoNoop } from '../../common/demo/demo-guards';
       inject: [EmailLoginNotificationChannel, PushLoginNotificationChannel],
     },
     NewDeviceNotifier,
+    // 2026-10-25 (S14-4 / S14-13): server-side novelty, challenge after failures.
+    AuthNoveltyService,
+    AuthChallengeService,
     // Owner 2026-10-22 (security audit #3): "your sign-in settings changed".
     SignInChangeNotifier,
     AssistantContextService,
@@ -170,7 +177,7 @@ import { demoNoop } from '../../common/demo/demo-guards';
             secrets,
             new MockSmsProvider(logger),
           ),
-          ['send'],
+          ['send', 'sendText'],
         );
       },
       inject: [ConfigService, PinoLogger, SecretsService],

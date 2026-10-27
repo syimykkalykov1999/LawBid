@@ -18,6 +18,7 @@ CostRegistryRowDto _$CostRegistryRowDtoFromJson(
   ),
   controlKey: json['controlKey'] as String,
   editable: json['editable'] as bool,
+  infraSwitch: json['infraSwitch'] as bool,
   lockedReason: json['lockedReason'] as String?,
   states: (json['states'] as List<dynamic>)
       .map((e) => CostRegistryRowDtoStates.fromJson(e as String))
@@ -69,6 +70,7 @@ Map<String, dynamic> _$CostRegistryRowDtoToJson(CostRegistryRowDto instance) =>
       'controlType': instance.controlType.toJson(),
       'controlKey': instance.controlKey,
       'editable': instance.editable,
+      'infraSwitch': instance.infraSwitch,
       'lockedReason': ?instance.lockedReason,
       'states': instance.states.map((e) => e.toJson()).toList(),
       'defaultState': instance.defaultState.toJson(),

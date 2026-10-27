@@ -6,10 +6,12 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum Kind3 {
-  @JsonValue('court_deadline')
-  courtDeadline('court_deadline'),
-  @JsonValue('statute_of_limitations')
-  statuteOfLimitations('statute_of_limitations'),
+  @JsonValue('profile_bio')
+  profileBio('profile_bio'),
+  @JsonValue('post')
+  post('post'),
+  @JsonValue('promotion')
+  promotion('promotion'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

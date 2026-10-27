@@ -13,6 +13,7 @@ import {
 } from './case-documents.controller';
 import { CaseSigningController } from './case-signing.controller';
 import { CaseSigningService } from './case-signing.service';
+import { CaseToolsSweepModule } from './case-tools-sweep.module';
 import { CaseToolsSupport } from './case-tools.support';
 import { FormTemplatesService } from './form-templates.service';
 
@@ -30,6 +31,7 @@ import { FormTemplatesService } from './form-templates.service';
     NotificationsModule,
     ChatSystemModule,
     AdminAccessModule,
+    CaseToolsSweepModule,
   ],
   controllers: [
     CaseBillingController,

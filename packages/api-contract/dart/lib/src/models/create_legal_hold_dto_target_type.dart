@@ -8,6 +8,10 @@ import 'package:json_annotation/json_annotation.dart';
 enum CreateLegalHoldDtoTargetType {
   @JsonValue('user')
   user('user'),
+
+  /// The name has been replaced because it contains a keyword. Original name: `case`.
+  @JsonValue('case')
+  valueCase('case'),
   @JsonValue('conversation')
   conversation('conversation'),
   @JsonValue('group')

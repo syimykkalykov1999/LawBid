@@ -13,6 +13,11 @@ OtpVerifyDto _$OtpVerifyDtoFromJson(Map<String, dynamic> json) => OtpVerifyDto(
   deviceInfo: json['deviceInfo'] == null
       ? null
       : DeviceInfoDto.fromJson(json['deviceInfo'] as Map<String, dynamic>),
+  ageAttestation: json['ageAttestation'] == null
+      ? null
+      : AgeAttestationDto.fromJson(
+          json['ageAttestation'] as Map<String, dynamic>,
+        ),
 );
 
 Map<String, dynamic> _$OtpVerifyDtoToJson(OtpVerifyDto instance) =>
@@ -21,4 +26,5 @@ Map<String, dynamic> _$OtpVerifyDtoToJson(OtpVerifyDto instance) =>
       'identifier': instance.identifier,
       'code': instance.code,
       'deviceInfo': ?instance.deviceInfo?.toJson(),
+      'ageAttestation': ?instance.ageAttestation?.toJson(),
     };

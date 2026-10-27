@@ -15,7 +15,9 @@ import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { FilesService } from '../../files/files.service';
 import { CaseJournalService } from '../../journal/case-journal.service';
 import { CaseWorkspaceService } from '../workspace/case-workspace.service';
+import { CaseToolsSettings } from './case-tools.settings';
 import { CaseToolsSupport } from './case-tools.support';
+import { isExpired, parseViewLog, withView } from './signing.lifecycle';
 import type {
   CreateSignRequestDto,
   SignDto,
@@ -72,9 +74,14 @@ export class CaseSigningService {
     private readonly files: FilesService,
     private readonly journal: CaseJournalService,
     private readonly support: CaseToolsSupport,
+    private readonly toolsSettings: CaseToolsSettings,
   ) {}
 
-  async list(user: RequestUser, caseId: string): Promise<SignRequestDto[]> {
+  async list(
+    user: RequestUser,
+    caseId: string,
+    ctx?: { ip: string | null },
+  ): Promise<SignRequestDto[]> {
     const s = await this.ws.side(user, caseId);
     const rows = await this.prisma.caseSignRequest.findMany({
       where: { case_id: caseId },
@@ -101,7 +108,54 @@ export class CaseSigningService {
           take: 100,
         })
       : rows;
+    if (ctx) await this.recordViews(fresh, s, user, ctx);
     return this.present(fresh, s, user);
+  }
+
+  /** Audit of who opened a waiting request (the list is the viewer). The
+   * first view of each person goes into the case journal; every view (a
+   * reopen within 10 minutes counts once) into the request's own log. */
+  private async recordViews(
+    rows: RequestRow[],
+    s: Side,
+    user: RequestUser,
+    ctx: { ip: string | null },
+  ): Promise<void> {
+    const now = new Date();
+    for (const r of rows) {
+      if (r.status !== 'pending' || isExpired(r.expires_at, now)) continue;
+      const next = withView(parseViewLog(r.view_log), {
+        userId: user.sub,
+        role: s.role,
+        at: now.toISOString(),
+        ip: ctx.ip?.slice(0, 64) ?? null,
+      });
+      if (!next) continue;
+      try {
+        await withTxRetry(this.prisma, async (tx) => {
+          await tx.caseSignRequest.update({
+            where: { id: r.id },
+            data: { view_log: next.log as unknown as Prisma.InputJsonArray },
+          });
+          if (next.first) {
+            await this.journal.append(tx, {
+              caseId: r.case_id,
+              clientId: s.clientId,
+              actor: { userId: user.sub, role: s.role },
+              attorneyId: s.attorneyId,
+              event: 'signature_viewed',
+              payload: { requestId: r.id, role: s.role },
+            });
+          }
+        });
+        r.view_log = next.log as unknown as Prisma.JsonValue;
+      } catch (e) {
+        // The audit must never break reading the list.
+        this.log.warn(
+          `view of signing request ${r.id} not logged: ${String(e)}`,
+        );
+      }
+    }
   }
 
   async create(
@@ -123,6 +177,7 @@ export class CaseSigningService {
         'fileId',
       );
     }
+    const cfg = await this.toolsSettings.get();
     const changes = await withTxRetry(this.prisma, async (tx) => {
       const r = await tx.caseSignRequest.create({
         data: {
@@ -131,6 +186,10 @@ export class CaseSigningService {
           title: dto.title,
           source_file_id: file.id,
           source_sha256: sha256(data),
+          expires_at:
+            cfg.signExpiryDays > 0
+              ? new Date(Date.now() + cfg.signExpiryDays * 86_400_000)
+              : null,
         },
       });
       const linked = await tx.casePhoto.count({
@@ -183,7 +242,7 @@ export class CaseSigningService {
     }
     const s = await this.ws.side(user, caseId);
     const r = await this.request(caseId, requestId);
-    if (r.status !== 'pending') {
+    if (r.status !== 'pending' || isExpired(r.expires_at, new Date())) {
       throw new ConflictException({
         code: ErrorCode.CASE_INVALID_STATE,
         message: 'This document is no longer waiting for signatures.',
@@ -213,7 +272,13 @@ export class CaseSigningService {
       const locked = await tx.$queryRaw<{ status: string }[]>`
         SELECT status::TEXT AS status FROM case_sign_requests
         WHERE id = ${requestId}::UUID FOR UPDATE`;
-      if (locked[0]?.status !== 'pending') {
+      const alive = await tx.caseSignRequest.count({
+        where: {
+          id: requestId,
+          OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
+        },
+      });
+      if (locked[0]?.status !== 'pending' || alive === 0) {
         throw new ConflictException({
           code: ErrorCode.CASE_INVALID_STATE,
           message: 'This document is no longer waiting for signatures.',
@@ -356,6 +421,82 @@ export class CaseSigningService {
       });
     }
     return this.list(user, caseId);
+  }
+
+  /** The side that asked sends the reminder again now (cooldown from the
+   * admin) and gives the request a fresh expiry when the admin sets one. */
+  async resend(
+    user: RequestUser,
+    caseId: string,
+    requestId: string,
+  ): Promise<SignRequestDto[]> {
+    const s = await this.ws.side(user, caseId, 'write');
+    const r = await this.request(caseId, requestId);
+    if (!this.isCreator(r, s)) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'Only the side that asked for the signatures can resend.',
+      });
+    }
+    const now = new Date();
+    const cfg = await this.toolsSettings.get();
+    // A request that ran out of time (expired) can be revived by a resend.
+    const revive = r.status === 'canceled' && r.expired_at !== null;
+    if (r.status !== 'pending' && !revive) {
+      throw new ConflictException({
+        code: ErrorCode.CASE_INVALID_STATE,
+        message: 'This document is no longer waiting for signatures.',
+      });
+    }
+    const cooldownEnds = new Date(
+      now.getTime() - cfg.signResendCooldownMinutes * 60_000,
+    );
+    const claimed = await this.prisma.caseSignRequest.updateMany({
+      where: {
+        id: requestId,
+        status: revive ? 'canceled' : 'pending',
+        OR: [
+          { last_reminded_at: null },
+          { last_reminded_at: { lt: cooldownEnds } },
+        ],
+      },
+      data: {
+        status: 'pending',
+        expired_at: null,
+        last_reminded_at: now,
+        reminders_sent: { increment: 1 },
+        ...(cfg.signExpiryDays > 0 || revive
+          ? {
+              expires_at:
+                cfg.signExpiryDays > 0
+                  ? new Date(now.getTime() + cfg.signExpiryDays * 86_400_000)
+                  : null,
+            }
+          : {}),
+      },
+    });
+    if (claimed.count === 0) {
+      throw new ConflictException({
+        code: ErrorCode.CASE_INVALID_STATE,
+        message: 'The reminder was sent a moment ago. Try again later.',
+      });
+    }
+    await this.remindUnsigned(user, s, r, 'sign_request');
+    return this.list(user, caseId);
+  }
+
+  /** Bell + push to whoever of the two has not signed yet. */
+  private async remindUnsigned(
+    actor: RequestUser,
+    s: { clientId: string; attorneyId: string },
+    r: { case_id: string; signatures: { signer_id: string }[] },
+    kind: 'sign_request' | 'sign_reminder',
+  ): Promise<void> {
+    const signed = new Set(r.signatures.map((x) => x.signer_id));
+    for (const id of [s.clientId, s.attorneyId]) {
+      if (signed.has(id) || id === actor.sub) continue;
+      await this.support.tell(actor, id, r.case_id, kind);
+    }
   }
 
   async verify(
@@ -561,6 +702,18 @@ export class CaseSigningService {
             : 'attorney'
           : null,
         declineReason: r.decline_reason,
+        expiresAt: r.expires_at?.toISOString() ?? null,
+        expired: r.expired_at !== null,
+        remindersSent: r.reminders_sent,
+        lastRemindedAt: r.last_reminded_at?.toISOString() ?? null,
+        views: parseViewLog(r.view_log).map((v) => ({
+          role: v.role,
+          at: v.at,
+        })),
+        canResend:
+          (r.status === 'pending' || r.expired_at !== null) &&
+          s.writable &&
+          this.isCreator(r, s),
       };
     });
   }

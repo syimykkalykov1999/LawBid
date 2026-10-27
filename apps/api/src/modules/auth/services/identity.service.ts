@@ -6,6 +6,11 @@ import type { Prisma, PrismaClient, User } from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withDeleted } from '../../../prisma/soft-delete.extension';
+import type { AgeAttestationInput } from '../../compliance/age-gate.logic';
+import {
+  AgeGateService,
+  type AgeSource,
+} from '../../compliance/age-gate.service';
 
 export type IdentityProvider = 'phone' | 'email' | 'apple' | 'google';
 
@@ -41,6 +46,8 @@ export class IdentityService {
     private readonly prisma: PrismaService,
     // Owner 2026-10-22 (audit #4 §7): the signups SLO counter.
     @Optional() private readonly slo?: SloMetricsService,
+    // 2026-10-25 (COPPA): the 18+ gate for NEW accounts.
+    @Optional() private readonly ageGate?: AgeGateService,
   ) {}
 
   async findByIdentifier(
@@ -61,6 +68,8 @@ export class IdentityService {
     channel: 'phone' | 'email',
     normalizedIdentifier: string,
     tx?: Prisma.TransactionClient | PrismaClient,
+    ageAttestation?: AgeAttestationInput | null,
+    ageSource: AgeSource = 'otp',
   ): Promise<FindOrCreateResult> {
     const client = tx ?? this.prisma;
     const existing = await client.userIdentifier.findUnique({
@@ -99,6 +108,9 @@ export class IdentityService {
       });
     }
 
+    // 2026-10-25 (COPPA): a new account needs the 18+ attestation when the
+    // gate is on (compliance.age_gate.mode = enforce).
+    await this.ageGate?.assertNewAccountAllowed(ageAttestation);
     const now = new Date();
     this.slo?.count('signup');
     const user = await client.user.create({
@@ -118,6 +130,7 @@ export class IdentityService {
         },
       },
     });
+    await this.ageGate?.record(client, user.id, ageAttestation, ageSource);
     return { user, isNewUser: true };
   }
 
@@ -131,6 +144,7 @@ export class IdentityService {
     verifiedEmail: string | undefined,
     firstName: string | undefined,
     lastName: string | undefined,
+    ageAttestation?: AgeAttestationInput | null,
   ): Promise<FindOrCreateResult | CollisionResult> {
     const existingByProvider = await this.findByIdentifier(
       provider,
@@ -160,6 +174,7 @@ export class IdentityService {
       }
     }
 
+    await this.ageGate?.assertNewAccountAllowed(ageAttestation);
     const now = new Date();
     this.slo?.count('signup');
     const user = await this.prisma.user.create({
@@ -174,6 +189,7 @@ export class IdentityService {
         },
       },
     });
+    await this.ageGate?.record(this.prisma, user.id, ageAttestation, 'social');
     return { user, isNewUser: true };
   }
 

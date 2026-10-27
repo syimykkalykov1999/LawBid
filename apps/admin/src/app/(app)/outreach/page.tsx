@@ -11,7 +11,7 @@ import {
   UsersThree,
 } from '@phosphor-icons/react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Kpi, KpiSkeletons } from '@/components/billing/kpi';
@@ -77,7 +77,7 @@ export default function OutreachPage() {
       />
 
       {manager ? (
-        <motion.div {...fadeUp(0)}>
+        <m.div {...fadeUp(0)}>
           <Card className="mb-6 p-5">
             <h3 className="font-medium text-heading">Как это работает</h3>
             <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm leading-relaxed text-muted">
@@ -90,7 +90,7 @@ export default function OutreachPage() {
               <li>Во вкладке «Сотрудники» — звонки, письма, ответы, регистрации и оплаты по каждому за период.</li>
             </ol>
           </Card>
-        </motion.div>
+        </m.div>
       ) : null}
 
       <ErrorNote text={ctx.error ? errorText(ctx.error) : null} />

@@ -1,6 +1,6 @@
 'use client';
 
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { cn } from '@/lib/utils';
 
 export function Switch({
@@ -30,7 +30,7 @@ export function Switch({
         className,
       )}
     >
-      <motion.span
+      <m.span
         layout
         transition={{ type: 'spring', stiffness: 600, damping: 34 }}
         className={cn(

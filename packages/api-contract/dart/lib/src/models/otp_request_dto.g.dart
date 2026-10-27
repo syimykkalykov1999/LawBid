@@ -11,6 +11,9 @@ OtpRequestDto _$OtpRequestDtoFromJson(Map<String, dynamic> json) =>
       channel: OtpRequestDtoChannel.fromJson(json['channel'] as String),
       identifier: json['identifier'] as String,
       linkChallenge: json['linkChallenge'] as String?,
+      purpose: json['purpose'] == null
+          ? null
+          : OtpRequestDtoPurpose.fromJson(json['purpose'] as String),
     );
 
 Map<String, dynamic> _$OtpRequestDtoToJson(OtpRequestDto instance) =>
@@ -18,4 +21,5 @@ Map<String, dynamic> _$OtpRequestDtoToJson(OtpRequestDto instance) =>
       'channel': instance.channel.toJson(),
       'identifier': instance.identifier,
       'linkChallenge': ?instance.linkChallenge,
+      'purpose': ?instance.purpose?.toJson(),
     };

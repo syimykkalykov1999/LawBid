@@ -84,7 +84,13 @@ export function CsvButton({
       a.click();
       a.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      toast.success(`Файл ${name} скачан`);
+      // S18-3: the server ends a cut-off file with a «ОБРЕЗАНА» line.
+      const tail = await blob.slice(-400).text();
+      if (tail.includes('ВЫГРУЗКА ОБРЕЗАНА')) {
+        toast.info(`Файл ${name} скачан, но он неполный: в таблице больше 50 000 строк, в файле первые 50 000.`);
+      } else {
+        toast.success(`Файл ${name} скачан`);
+      }
     } catch {
       toast.error('Не удалось скачать файл. Проверьте соединение.');
     } finally {

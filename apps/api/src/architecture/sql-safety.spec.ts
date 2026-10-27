@@ -11,7 +11,13 @@ import { join, relative, resolve, sep } from 'node:path';
 const ALLOWED = new Set([
   'common/secrets/secrets.service.ts',
   'modules/demo/demo-database.service.ts',
+  // Table names come from the fixed PARTITION_TABLES whitelist, never from input.
+  'partitioning/partition.service.ts',
+  'partitioning/sql.ts',
   'prisma/prisma.service.ts',
+  // Shard-ready step 10: the move tool; SQL text is built from the model
+  // manifest (checked identifiers), every value is a bound parameter.
+  'sharding/move/move-db.ts',
 ]);
 const SRC = resolve(__dirname, '..');
 

@@ -547,18 +547,41 @@ describe('Booking, Q&A, deadlines (e2e)', () => {
       const cl = await client();
       const att = await attorney();
       const area = await leafArea();
-      const ask = (anonymous: boolean) =>
-        api()
+      // #378 rejects a repeat of the same question by the same author, so
+      // every ask in this flow is worded differently.
+      const wordings = [
+        [
+          'Admin browse: who keeps the deposit?',
+          'Moved out last month and the landlord has not answered.',
+        ],
+        [
+          'Admin browse: can the landlord keep my security deposit?',
+          'I left the flat in June, cleaned it, and still have no refund or list of damages.',
+        ],
+        [
+          'Admin browse: deposit kept after a rent dispute?',
+          'The landlord says repairs ate the deposit but never sent receipts or photos.',
+        ],
+        [
+          'Admin browse: how long may a landlord hold a deposit?',
+          'Two months have passed since the keys were returned and nothing came back.',
+        ],
+      ];
+      let asked = 0;
+      const ask = (anonymous: boolean) => {
+        const [title, body] = wordings[asked++ % wordings.length];
+        return api()
           .post('/api/v1/questions')
           .set(cl.auth)
           .set('Idempotency-Key', randomUUID())
           .send({
-            title: 'Admin browse: who keeps the deposit?',
-            body: 'Moved out last month and the landlord has not answered.',
+            title,
+            body,
             practiceAreaId: area.id,
             stateCode: 'NY',
             anonymous,
           });
+      };
       const q = await ask(true).expect(201);
       const id = q.body.data.id as string;
       const ans = await api()

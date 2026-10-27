@@ -80,6 +80,10 @@ enum ErrorCode {
   deviceAttestationRequired('DEVICE_ATTESTATION_REQUIRED'),
   @JsonValue('TURNSTILE_FAILED')
   turnstileFailed('TURNSTILE_FAILED'),
+  @JsonValue('AGE_ATTESTATION_REQUIRED')
+  ageAttestationRequired('AGE_ATTESTATION_REQUIRED'),
+  @JsonValue('AGE_UNDER_MINIMUM')
+  ageUnderMinimum('AGE_UNDER_MINIMUM'),
   @JsonValue('ACCOUNT_SUSPENDED')
   accountSuspended('ACCOUNT_SUSPENDED'),
   @JsonValue('ACCOUNT_DELETED')
@@ -200,6 +204,10 @@ enum ErrorCode {
   barNumberBlocked('BAR_NUMBER_BLOCKED'),
   @JsonValue('ACCOUNT_RESTRICTED')
   accountRestricted('ACCOUNT_RESTRICTED'),
+  @JsonValue('REPORTING_SUSPENDED')
+  reportingSuspended('REPORTING_SUSPENDED'),
+  @JsonValue('ACCOUNT_STRIKE_LIMITED')
+  accountStrikeLimited('ACCOUNT_STRIKE_LIMITED'),
   @JsonValue('JUSTIFICATION_REQUIRED')
   justificationRequired('JUSTIFICATION_REQUIRED'),
   @JsonValue('REASON_REQUIRED')
@@ -350,6 +358,12 @@ enum ErrorCode {
   integrationConflict('INTEGRATION_CONFLICT'),
   @JsonValue('ADMIN_STEP_UP_REQUIRED')
   adminStepUpRequired('ADMIN_STEP_UP_REQUIRED'),
+  @JsonValue('ADMIN_IP_NOT_ALLOWED')
+  adminIpNotAllowed('ADMIN_IP_NOT_ALLOWED'),
+  @JsonValue('REASON_CODE_REQUIRED')
+  reasonCodeRequired('REASON_CODE_REQUIRED'),
+  @JsonValue('AUDIT_UNAVAILABLE')
+  auditUnavailable('AUDIT_UNAVAILABLE'),
   @JsonValue('VIDEO_UNAVAILABLE')
   videoUnavailable('VIDEO_UNAVAILABLE'),
   @JsonValue('VIDEO_TOO_LONG')

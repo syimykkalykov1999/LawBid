@@ -2,7 +2,7 @@
 
 import { ArrowRight, Gift, IdentificationBadge, PencilSimple, Tag, UsersThree, type Icon } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { useState } from 'react';
 import { AppPricePreview, DiscountBadge, previewDiscount } from '@/components/billing/app-price-preview';
 import { dollarsToCents, fadeUp, useBillingRole, UserCell } from '@/components/billing/shared';
@@ -122,7 +122,7 @@ export default function PricesPage() {
 function PriceCard({ it, i, canWrite, onEdit }: { it: Item; i: number; canWrite: boolean; onEdit: () => void }) {
   const k = KIND[it.kind];
   return (
-    <motion.div {...fadeUp(i)}>
+    <m.div {...fadeUp(i)}>
       <Card spotlight className="flex h-full flex-col p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -159,7 +159,7 @@ function PriceCard({ it, i, canWrite, onEdit }: { it: Item; i: number; canWrite:
         </div>
         {it.stripePriceId ? <div className="mt-2 truncate font-mono text-[11px] text-faint">{it.stripePriceId}</div> : null}
       </Card>
-    </motion.div>
+    </m.div>
   );
 }
 

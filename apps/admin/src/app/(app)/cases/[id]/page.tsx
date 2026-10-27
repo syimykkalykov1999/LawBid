@@ -2,7 +2,7 @@
 
 import { Archive, ArrowCounterClockwise, ArrowLeft, EyeSlash, Flag, LockSimple, RocketLaunch, Scales, WarningCircle } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { DossierChecklist } from '@/components/cases/dossier';
@@ -10,6 +10,7 @@ import { deadlineText, URGENCY_LEVEL } from '@/components/cases/urgency';
 import { fadeUp } from '@/components/billing/shared';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
+import { useViewReason } from '@/components/use-view-reason';
 import { Button } from '@/components/ui/button';
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
@@ -67,9 +68,12 @@ export default function CaseDetailPage() {
   const canWrite = can(me, 'cases', 'manage');
   const canOpenUsers = can(me, 'users');
 
+  const view = useViewReason('Причина просмотра кейса');
   const q = useQuery({
     queryKey: ['admin-case', id],
-    queryFn: async () => (await api.GET('/admin/cases/{id}', { params: { path: { id } } })).data!.data,
+    enabled: view.ready,
+    queryFn: async () =>
+      (await api.GET('/admin/cases/{id}', { params: { path: { id }, header: { 'X-Justification': view.header } } })).data!.data,
   });
   const c = q.data;
 
@@ -134,6 +138,7 @@ export default function CaseDetailPage() {
   return (
     <>
       {dialog}
+      {view.dialog}
       {back}
       <PageHeader
         eyebrow="Кейсы · Карточка"
@@ -168,7 +173,7 @@ export default function CaseDetailPage() {
       />
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <motion.div {...fadeUp(0)} className="lg:col-span-2">
+        <m.div {...fadeUp(0)} className="lg:col-span-2">
           <Card className="h-full">
             <CardHeader>
               <CardTitle>Описание</CardTitle>
@@ -178,8 +183,8 @@ export default function CaseDetailPage() {
               <DossierChecklist c={c} />
             </CardContent>
           </Card>
-        </motion.div>
-        <motion.div {...fadeUp(1)}>
+        </m.div>
+        <m.div {...fadeUp(1)}>
           <Card className="h-full">
             <CardHeader>
               <CardTitle>Кратко</CardTitle>
@@ -236,7 +241,7 @@ export default function CaseDetailPage() {
               ) : null}
             </CardContent>
           </Card>
-        </motion.div>
+        </m.div>
       </div>
 
       <h2 className="mt-9 mb-3.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">Ставки</h2>
@@ -246,7 +251,7 @@ export default function CaseDetailPage() {
       <Invites c={c} canOpenUsers={canOpenUsers} />
 
       <h2 className="mt-9 mb-3.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">Журнал кейса</h2>
-      <motion.div {...fadeUp(2)}>
+      <m.div {...fadeUp(2)}>
         <Card>
           <CardContent className="pt-5">
             {c.journal.length === 0 ? (
@@ -274,7 +279,7 @@ export default function CaseDetailPage() {
             )}
           </CardContent>
         </Card>
-      </motion.div>
+      </m.div>
     </>
   );
 }

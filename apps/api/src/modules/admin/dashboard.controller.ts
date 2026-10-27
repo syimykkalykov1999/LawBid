@@ -8,6 +8,7 @@ import {
   Roles,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
+import { AdminAccessReportService } from './admin-access-report.service';
 import { DashboardDto } from './admin.dto';
 import { DashboardService } from './dashboard.service';
 
@@ -16,7 +17,10 @@ import { DashboardService } from './dashboard.service';
 @AdminEndpoint(...ALL_ADMIN_ROLES)
 @Controller('admin/dashboard')
 export class DashboardController {
-  constructor(private readonly dashboard: DashboardService) {}
+  constructor(
+    private readonly dashboard: DashboardService,
+    private readonly accessReport: AdminAccessReportService,
+  ) {}
 
   @Get()
   // Owner 2026-10-22 (client economy plan, package J): the browser keeps
@@ -37,6 +41,9 @@ export class DashboardController {
     @CurrentAdmin() admin: AdminActor,
   ): Promise<DashboardDto> {
     await this.dashboard.refreshTotals();
+    // Snapshot rule 2026-10-25: the same button recounts this month's
+    // access report (private-content page), with the same cooldown.
+    await this.accessReport.refresh();
     return this.forAdmin(await this.dashboard.get(), admin);
   }
 

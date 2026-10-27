@@ -12,6 +12,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { TokenService } from '../services/token.service';
+import { AuthChallengeService } from '../services/auth-challenge.service';
 import {
   TURNSTILE_HEADER,
   TurnstileService,
@@ -31,6 +32,15 @@ export interface AppCheckOptions {
    * old app build keeps that way in while SMS (money) stays behind App
    * Check. */
   freeWhen?: (body: Record<string, unknown>) => boolean;
+  /** S14-7: with `enforce` and `security.app_check.replay_protection`, a
+   * request whose body satisfies this CONSUMES its token (a captured token
+   * cannot be replayed). Meant for the low-volume, costly routes only. */
+  consumeWhen?: (body: Record<string, unknown>) => boolean;
+  /** S14-13: the route is only guarded once the caller (this account or
+   * this address) has failed `security.auth_challenge_after_failures`
+   * times; the happy path never needs a token. The kind picks how the
+   * account is read from the body. */
+  challenge?: 'password' | 'otp';
 }
 
 export const APP_CHECK_KEY = 'app-check:required';
@@ -77,6 +87,8 @@ export class AppCheckGuard implements CanActivate {
     private readonly logger: PinoLogger,
     // 2026-10-24 (abuse batch B, item 4): the website's Turnstile token.
     @Optional() private readonly turnstile?: TurnstileService,
+    // 2026-10-25 (S14-13): challenge after repeated failures.
+    @Optional() private readonly challenge?: AuthChallengeService,
   ) {
     this.logger.setContext(AppCheckGuard.name);
   }
@@ -86,10 +98,16 @@ export class AppCheckGuard implements CanActivate {
       AppCheckOptions | undefined
     >(APP_CHECK_KEY, [context.getHandler(), context.getClass()]);
     if (!options) return true;
-    const mode = await this.mode();
-    const tsMode = await this.turnstileMode();
-    if (mode === 'off' && tsMode === 'off') return true;
     const req = context.switchToHttp().getRequest<Request>();
+    let mode = await this.mode();
+    let tsMode = await this.turnstileMode();
+    if (options.challenge) {
+      // Only a caller who already failed a few times is asked for proof.
+      if (!(await this.challenged(req, options.challenge))) return true;
+      mode = 'enforce';
+      if (tsMode === 'off') tsMode = 'monitor';
+    }
+    if (mode === 'off' && tsMode === 'off') return true;
     if (this.signedIn(req)) return true;
 
     // Web only: the page sends X-Turnstile-Token (the app never does). A
@@ -107,7 +125,13 @@ export class AppCheckGuard implements CanActivate {
       typeof header === 'string' && header.length > 0 && header.length <= 4096
         ? header
         : undefined;
-    const result = await this.appCheck.verify(token);
+    const consume =
+      mode === 'enforce' &&
+      this.consumes(req, options) &&
+      (await this.replayProtectionOn());
+    const result = consume
+      ? await this.appCheck.verify(token, { consume: true })
+      : await this.appCheck.verify(token);
     const routePath = (req.route as { path?: unknown } | undefined)?.path;
     const route = `${req.method} ${typeof routePath === 'string' ? routePath : req.path}`;
     const free = this.free(req, options);
@@ -120,6 +144,7 @@ export class AppCheckGuard implements CanActivate {
         appId: result.appId,
         reason: result.reason,
         free,
+        consume,
       },
       'app check',
     );
@@ -175,6 +200,45 @@ export class AppCheckGuard implements CanActivate {
     return 'continue';
   }
 
+  private async challenged(
+    req: Request,
+    kind: 'password' | 'otp',
+  ): Promise<boolean> {
+    if (!this.challenge) return false;
+    const body = req.body as unknown;
+    if (typeof body !== 'object' || body === null) return false;
+    const raw = (body as { identifier?: unknown }).identifier;
+    const identifier =
+      typeof raw === 'string' && raw.length > 0 && raw.length <= 254
+        ? challengeIdentifier(kind, raw)
+        : undefined;
+    return this.challenge.isChallenged(identifier, req.ip);
+  }
+
+  private consumes(req: Request, options: AppCheckOptions): boolean {
+    if (!options.consumeWhen) return false;
+    const body = req.body as unknown;
+    try {
+      return (
+        typeof body === 'object' &&
+        body !== null &&
+        options.consumeWhen(body as Record<string, unknown>) === true
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  private async replayProtectionOn(): Promise<boolean> {
+    try {
+      return await this.settings.boolean(
+        'security.app_check.replay_protection',
+      );
+    } catch {
+      return false;
+    }
+  }
+
   private async turnstileMode(): Promise<AppCheckMode> {
     try {
       const raw = await this.settings.string('security.turnstile.mode');
@@ -222,6 +286,18 @@ export class AppCheckGuard implements CanActivate {
       return false;
     }
   }
+}
+
+/** The account a sign-in attempt is about, written the way the services
+ * count failures: a phone keeps its text (trimmed), an e-mail is lower
+ * case. `password` accepts either (a leading "+" means phone); `otp`
+ * bodies carry the same shape. */
+export function challengeIdentifier(
+  _kind: 'password' | 'otp',
+  raw: string,
+): string {
+  const value = raw.trim();
+  return value.startsWith('+') ? value : value.toLowerCase();
 }
 
 export type { AppCheckVerdict };

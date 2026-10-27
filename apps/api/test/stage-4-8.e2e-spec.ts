@@ -252,6 +252,8 @@ describe('Case & bid notifications (e2e, docs/04 §13, stage 4.8)', () => {
         kind: 'notification',
         notificationId: bidRow!.id,
         push: true,
+        // partitioned notifications: the job carries the owner (row key)
+        userId: client.id,
       });
       // docs/05 §9.3: every row is delivered (realtime + badge); a
       // list-only type never gets a push.
@@ -259,6 +261,8 @@ describe('Case & bid notifications (e2e, docs/04 §13, stage 4.8)', () => {
         kind: 'notification',
         notificationId: listOnly!.id,
         push: false,
+        // partitioned notifications: the job carries the owner (row key)
+        userId: client.id,
       });
     } finally {
       await queue.close();

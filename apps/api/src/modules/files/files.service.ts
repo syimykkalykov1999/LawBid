@@ -105,6 +105,7 @@ import { viewerContext } from '../../common/viewer/viewer-context';
 import { PrivacySettingsService } from '../privacy-settings/privacy-settings.service';
 import { demoContext } from '../../common/demo/demo-context';
 import { FileAccessService } from './file-access.service';
+import { HeavyHittersService } from '../../common/heavy-hitters/heavy-hitters.service';
 import { DEMO_SETTINGS_KEY, parseDemoSettings } from '../demo/demo.settings';
 export interface SignedAttachment {
   url: string;
@@ -134,6 +135,8 @@ export class FilesService {
     @Optional() private readonly privacy?: PrivacySettingsService,
     // Security & legal pass 2026-10-24: who opened a confidential file.
     @Optional() private readonly access?: FileAccessService,
+    // WP-G: who uploads the most bytes (admin «Масштаб»).
+    @Optional() private readonly heavy?: HeavyHittersService,
   ) {
     this.logger.setContext(FilesService.name);
   }
@@ -335,6 +338,7 @@ export class FilesService {
         throw err;
       }
     }
+    this.heavy?.upload(userId, data.length);
     await this.redis.del(intentKey(fileId));
     await this.redis.zrem(
       PENDING_UPLOADS_KEY,
