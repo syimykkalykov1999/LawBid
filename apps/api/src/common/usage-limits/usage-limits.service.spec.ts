@@ -12,6 +12,7 @@ describe('UsageLimitsService (owner 2026-10-25 actions)', () => {
     ['case_create', 'rate_limit.case_create_per_day', 86400, 30],
     ['chat_save', 'rate_limit.chat_save_per_minute', 60, 120],
     ['forward', 'rate_limit.forward_per_minute', 60, 60],
+    ['search_suggest', 'rate_limit.search_suggest_per_minute', 60, 240],
   ] as const;
 
   it.each(NEW)(

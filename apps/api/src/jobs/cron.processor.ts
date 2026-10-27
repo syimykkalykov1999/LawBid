@@ -46,6 +46,7 @@ import {
   parseOutboxSweepMode,
 } from '../sharding/outbox/cross-family-outbox';
 import { AppSettingsService } from '../common/app-settings/app-settings.service';
+import { EventsMaintenance } from '../modules/events/events.maintenance';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { ExperimentsNightlyJob } from '../modules/experiments/experiments-nightly.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
@@ -165,6 +166,8 @@ export class CronProcessor {
     @Optional() private readonly adminSummaries?: AdminSummariesJob,
     // Shard-ready step 7: `outbox.sweep`.
     @Optional() private readonly outbox?: CrossFamilyOutbox,
+    // Events pipeline (N-2): `events.maintain`.
+    @Optional() private readonly eventsMaintenance?: EventsMaintenance,
     // Owner 2026-10-24: `search.index`.
     @Optional() private readonly searchIndex?: SearchIndexJob,
     // Owner 2026-10-25: `experiments.metrics`.
@@ -292,6 +295,8 @@ export class CronProcessor {
               ),
             )
           : null;
+      case CRON_JOBS.eventsMaintain:
+        return this.eventsMaintenance?.run() ?? null;
       case CRON_JOBS.opsBusinessMetrics:
         return this.opsMetrics.businessCounters();
       case CRON_JOBS.disappearingSweep:

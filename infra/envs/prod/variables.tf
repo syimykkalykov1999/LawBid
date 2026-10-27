@@ -171,6 +171,11 @@ variable "nat_traffic_alarm_gb_per_day" {
   default     = 20
   description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h (0 = off). docs/runbooks/nat-endpoints.md."
 }
+variable "media_replication_max_gb_per_day" {
+  type        = number
+  default     = 50
+  description = "Ceiling for the media copy to the other Region: alarm when media grows more than this many GB in a day (0 = off). The copy has no hard byte cap in S3: on the alarm set replicate_media = false. Registry row aws.s3."
+}
 variable "budget_forecast_thresholds" {
   type        = list(number)
   default     = [80, 100]
@@ -516,8 +521,13 @@ variable "livekit_egress_alarm_gb_per_day" {
 
 variable "uptime_check" {
   type        = string
-  default     = "synthetics"
-  description = "synthetics (≈ $10/month) or route53 (≈ $2/month, us-east-1 only)."
+  default     = "route53"
+  description = "off ($0), route53 (≈ $2/month, us-east-1 only) or synthetics (≈ $10/month)."
+}
+variable "anomaly_alarms_enabled" {
+  type        = bool
+  default     = false
+  description = "Anomaly-band alarms (about $5.40 a month). OFF at launch; registry row aws.anomaly_alarms."
 }
 variable "cpu_architecture" {
   type        = string
@@ -769,4 +779,29 @@ variable "alb_least_outstanding_requests" {
 variable "alb_websocket_target_group" {
   type    = bool
   default = false
+}
+
+# Observability round 12: everything billable starts OFF (docs/runbooks/slo.md).
+variable "tracing_enabled" {
+  type        = bool
+  default     = false
+  description = "ADOT collector sidecar + OTEL env: spans to AWS X-Ray, 5 % sampled. X-Ray first 100k traces/month free, then $5 per million."
+}
+variable "synthetic_journey_enabled" {
+  type        = bool
+  default     = false
+  description = "Synthetic sign-in + feed + message canary, about $3.5/month."
+}
+variable "synthetic_journey_secret_arn" {
+  type    = string
+  default = null
+}
+variable "synthetic_journey_conversation_id" {
+  type    = string
+  default = null
+}
+variable "alarm_incident_hook_enabled" {
+  type        = bool
+  default     = false
+  description = "Lambda: CloudWatch alarm state changes become incident rows in the admin."
 }

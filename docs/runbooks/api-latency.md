@@ -20,3 +20,7 @@ an abusive source, or roll back a deploy that introduced the slow path.
 
 **After.** Reproduce with the k6 scenario for that endpoint
 (`loadtest/k6`), fix, record in `docs/perf/`.
+
+
+## event-loop
+`<env>-api-eventloop-lag` / `-worker-eventloop-lag`: the Node event-loop delay p99 stayed above 300 ms for 10 minutes: the process is busy with synchronous work. It is the earliest sign before p95 climbs. Autoscale adds tasks by CPU; if it stays, look for a heavy job on the worker (admin → Здоровье системы → очереди) and ask Claude «event loop».

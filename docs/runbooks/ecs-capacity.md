@@ -27,3 +27,7 @@ same card. `terraform apply` leaves the running ceiling alone
 Before a big launch check the account's **Fargate On-Demand vCPU quota**
 (Service Quotas): the hard cap 50 API + 20 worker at 0.5 vCPU needs 35 vCPU,
 a new account starts at 6.
+
+
+## heap
+`<env>-api-heap-ratio` / `-worker-heap-ratio`: the V8 heap is above 85 % of its limit for 10 minutes; an out-of-memory restart follows. The task-level memory alarm (`<env>-<svc>-memory`, 85 %) lives in `infra/modules/monitoring/coverage.tf`. Ask Claude «куча api» to raise the task memory or look for a leak.

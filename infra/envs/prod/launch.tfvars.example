@@ -108,6 +108,7 @@ turn_second_enabled = false # owner 2026-10-24: calls use Cloudflare TURN; the s
 # on-demand list price, approximate), ≈ +$18 for the pair. Ladder: docs/runbooks/TURN.md.
 turn_instance_type = "t4g.small"
 # livekit_enabled     = true # own LiveKit SFU for group calls (+ ≈ $35 + traffic)
+anomaly_alarms_enabled = false # review R-48: ≈ $5.40 saved at launch, turn on once there is traffic
 uptime_check        = "route53" # owner 2026-10-23: external probe ≈ $2 instead of ≈ $10
 # cpu_architecture    = "ARM64"   # Fargate Graviton ≈ −20 %: ONLY after a deploy
 #                                 # built by the multi-arch deploy.yml is the tag
@@ -156,3 +157,4 @@ web_create_certificate = true
 # anomaly_extra_emails         = ["REPLACE@gmail.com"]
 # redis_memory_alarm_percent   = 70   # default
 # nat_traffic_alarm_gb_per_day = 20  # default; 0 = off
+# media_replication_max_gb_per_day = 50  # default; alarm when media grows more than this a day (0 = off); stop the copy with replicate_media = false
