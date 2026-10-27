@@ -47,6 +47,11 @@ variable "nat_traffic_alarm_gb_per_day" {
   default     = 20
   description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h; 0 = off. At $0.045/GB that is about $0.9/day (S4-13: was 100 GB = $4.5/day = $135/month before any alarm). See docs/runbooks/nat-endpoints.md."
 }
+variable "ses_send_alarm_per_day" {
+  type        = number
+  default     = 4000
+  description = "S9-13: alarm when SES sends more than this many e-mails in 24 h (the app's own cap is 2 000 a day, BUDGET_EMAIL_DAILY_MAX, so 2x = something bypasses it or the cap was raised); 0 = off."
+}
 variable "media_bucket_name" {
   type        = string
   default     = ""
@@ -974,6 +979,26 @@ resource "aws_cloudwatch_metric_alarm" "ses_complaint_rate" {
   treat_missing_data  = "notBreaching"
   statistic           = "Maximum"
   metric_name         = "Reputation.ComplaintRate"
+  namespace           = "AWS/SES"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+# S9-13 (2026-10-25): e-mail pumping costs almost nothing ($0.10 per 1 000)
+# but wrecks the sender reputation. The app caps e-mails per day; this alarm
+# is the second net that works even if the app's counter is bypassed.
+resource "aws_cloudwatch_metric_alarm" "ses_send_volume" {
+  count               = var.ses_send_alarm_per_day > 0 ? 1 : 0
+  alarm_name          = "${var.name}-ses-send-volume"
+  alarm_description   = "LawBid: За сутки отправлено больше ${var.ses_send_alarm_per_day} писем (обычно не больше 2 000). Что делать: возможно, боты запрашивают коды на выдуманные адреса. Посмотрите админка → Безопасность и лимиты на письма; AWS остановит почту при плохой репутации. Инструкция: ${var.runbook_base_url}/ses.md (EN: SES Send > ${var.ses_send_alarm_per_day} in 24 h.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  period              = 86400
+  threshold           = var.ses_send_alarm_per_day
+  treat_missing_data  = "notBreaching"
+  statistic           = "Sum"
+  metric_name         = "Send"
   namespace           = "AWS/SES"
   alarm_actions       = local.ops
   ok_actions          = local.ops

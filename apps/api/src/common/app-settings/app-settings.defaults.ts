@@ -928,12 +928,16 @@ export const OWNER_OPS_SETTINGS = {
   'economy.ceiling_mode': 'auto',
   'economy.manual_api_max': 4,
   'economy.manual_worker_max': 2,
-  /** Unit prices behind the spend estimate, USD (editable: providers
-   * change prices). SMS: Twilio US ≈ $0.0079; a video upload session on
-   * Bunny (encode + storage + delivery) ≈ $0.05; a translation ≈ $0.002. */
-  'economy.sms_unit_usd': 0.0079,
-  'economy.video_unit_usd': 0.05,
-  'economy.translate_unit_usd': 0.002,
+  /** S9-4: the global daily money brake = allowed spend / 30 × this many
+   * days (3 → about $15 a day at the $150 floor; it grows with revenue). */
+  'economy.daily_brake_days': 3,
+  /** S9-6 (owner 2026-10-25): the VPC interface endpoints (≈ $29 a month)
+   * are created and removed by a Lambda. auto = by the NAT traffic signal
+   * (default); on = keep them always; off = never. The economy job copies
+   * this and the ceiling (most endpoints it may keep, 0 = none) to the
+   * Lambda (S3 object ops/scale-controls.json). */
+  'scale.endpoints.mode': 'auto',
+  'scale.endpoints.ceiling': 4,
   /** This month's AWS bill when AWS Budgets cannot be read (≈ $150 for
    * the launch size). */
   'economy.aws_fallback_usd': 150,
@@ -1120,11 +1124,15 @@ export const OWNER_CASE_FANOUT_SETTINGS = {
  *   new video uploads pause (Bunny) / group calls fall back to
  *   device-to-device (Cloudflare) once the monthly traffic reaches the
  *   urgent threshold (usage.*_crit_gb); on = stopped now; off = never.
+ * - `ops.outbox_sweep.mode` (audit X-22, 2026-10-26): the every-minute relay
+ *   of the cross-family outbox (idle while there is one database). auto =
+ *   sweep only when an event waits; on = every tick; off = never.
  */
 export const OWNER_COST_REGISTRY_SETTINGS = {
   'scale.capacity_ceiling.mode': 'auto',
   'scale.bunny_hardstop.mode': 'auto',
   'scale.cloudflare_hardstop.mode': 'auto',
+  'ops.outbox_sweep.mode': 'auto',
 };
 
 export const APP_SETTINGS = {

@@ -6,7 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/auth/data/auth_dtos.dart';
-import 'package:lawbid/features/auth/data/stub_auth_repository.dart';
 import 'package:lawbid/features/settings/active_devices/active_devices_providers.dart';
 import 'package:lawbid/features/settings/active_devices/application/active_devices_controller.dart';
 import 'package:lawbid/features/settings/active_devices/data/active_devices_repository_impl.dart';
@@ -17,6 +16,7 @@ import 'package:lawbid/features/settings/active_devices/presentation/active_devi
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 import '../../../helpers/fake_http_adapter.dart';
+import '../../../helpers/stub_auth_repository.dart';
 import '../../../helpers/ux_harness.dart';
 
 DeviceSessionInfo _session(String id, {bool current = false}) =>

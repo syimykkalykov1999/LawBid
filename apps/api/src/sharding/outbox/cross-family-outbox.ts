@@ -39,6 +39,15 @@ export const MAX_ATTEMPTS = 8;
 const LEASE_SECONDS = 60;
 const SWEEP_BATCH = 50;
 
+/** `ops.outbox_sweep.mode` (audit X-22, 2026-10-26): off = never sweep,
+ * on = every tick as before, auto = only when a database holds a row that
+ * waits (one cheap EXISTS per database instead of the claiming UPDATE). */
+export type OutboxSweepMode = 'off' | 'on' | 'auto';
+
+export function parseOutboxSweepMode(raw: string): OutboxSweepMode {
+  return raw === 'off' || raw === 'on' ? raw : 'auto';
+}
+
 export interface OutboxTicket {
   readonly database: string;
   readonly key: string;
@@ -154,7 +163,13 @@ export class CrossFamilyOutbox {
    * `next_attempt_at` forward, `FOR UPDATE SKIP LOCKED` keeps two workers
    * apart) and applies them. Returns how many were applied.
    */
-  async sweep(): Promise<{ applied: number; failed: number }> {
+  async sweep(
+    mode: OutboxSweepMode = 'on',
+  ): Promise<{ applied: number; failed: number; skipped?: string }> {
+    if (mode === 'off') return { applied: 0, failed: 0, skipped: 'off' };
+    if (mode === 'auto' && !(await this.hasPending())) {
+      return { applied: 0, failed: 0, skipped: 'empty' };
+    }
     let applied = 0;
     let failed = 0;
     for (const { key, client } of this.databases()) {
@@ -177,6 +192,22 @@ export class CrossFamilyOutbox {
       await this.reportOldestPending(key, client);
     }
     return { applied, failed };
+  }
+
+  /** True when any database holds a pending event (a PK-sized EXISTS). An
+   * unreachable database counts as «yes»: the sweep then decides. */
+  async hasPending(): Promise<boolean> {
+    for (const { client } of this.databases()) {
+      try {
+        const rows = await (client as unknown as PrismaService).$queryRaw<
+          Array<{ found: number }>
+        >`SELECT 1 AS found FROM cross_family_outbox WHERE status = 'pending' LIMIT 1`;
+        if (rows.length > 0) return true;
+      } catch {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
