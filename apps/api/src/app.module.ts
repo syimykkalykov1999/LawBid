@@ -73,6 +73,7 @@ import { PartnersModule } from './modules/partners/partners.module';
 import { LegalModule } from './modules/legal/legal.module';
 import { LegalDocumentsModule } from './modules/legal-documents/legal-documents.module';
 import { OutreachModule } from './modules/outreach/outreach.module';
+import { ComplianceModule } from './modules/compliance/compliance.module';
 import { ClientBadgeModule } from './modules/client-badge/client-badge.module';
 import { SearchModule } from './modules/search/search.module';
 import { ContactsSyncModule } from './modules/contacts-sync/contacts-sync.module';
@@ -381,6 +382,8 @@ const isDev =
     DemoModule,
     LegalDocumentsModule,
     OutreachModule,
+    // 2026-10-25 (legal register): 18+ gate, TCPA, SES bounces.
+    ComplianceModule,
     PromotionsModule,
     BidPacksModule,
     StarsModule,

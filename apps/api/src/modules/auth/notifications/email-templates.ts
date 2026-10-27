@@ -398,6 +398,7 @@ export function buildNotificationEmail(input: {
     to: input.email,
     subject: input.title,
     text: input.body,
+    kind: 'notification',
     template: tpl(
       'notification',
       { title: input.title, body: input.body },

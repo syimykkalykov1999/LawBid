@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'age_attestation_dto.dart';
 import 'device_info_dto.dart';
 import 'social_login_dto_provider.dart';
 
@@ -18,6 +19,7 @@ class SocialLoginDto {
     this.firstName,
     this.lastName,
     this.deviceInfo,
+    this.ageAttestation,
   });
 
   factory SocialLoginDto.fromJson(Map<String, Object?> json) =>
@@ -29,6 +31,9 @@ class SocialLoginDto {
   final String? firstName;
   final String? lastName;
   final DeviceInfoDto? deviceInfo;
+
+  /// 2026-10-25 (COPPA): "I am 18 or older", for a NEW account only.
+  final AgeAttestationDto? ageAttestation;
 
   Map<String, Object?> toJson() => _$SocialLoginDtoToJson(this);
 }

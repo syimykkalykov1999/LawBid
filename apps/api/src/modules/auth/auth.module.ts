@@ -25,6 +25,7 @@ import { PasskeyService } from './passkeys/passkey.service';
 import { WebAuthnConfig } from './passkeys/webauthn-config';
 import { WebSessionCookies } from './web-session-cookie';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { ComplianceCoreModule } from '../compliance/compliance-core.module';
 import { ReauthGuard } from './guards/reauth.guard';
 import { AppCheckGuard } from './app-check/app-check.guard';
 import { AppCheckService } from './app-check/app-check.service';
@@ -97,6 +98,7 @@ import { demoNoop } from '../../common/demo/demo-guards';
     FeatureFlagsModule,
     NotificationsModule,
     SubscriptionsModule,
+    ComplianceCoreModule,
   ],
   controllers: [AuthController, PasskeyController],
   providers: [
@@ -175,7 +177,7 @@ import { demoNoop } from '../../common/demo/demo-guards';
             secrets,
             new MockSmsProvider(logger),
           ),
-          ['send'],
+          ['send', 'sendText'],
         );
       },
       inject: [ConfigService, PinoLogger, SecretsService],

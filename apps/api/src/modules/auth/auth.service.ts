@@ -54,6 +54,8 @@ import type { AuthTokensResult } from './social/auth-result.types';
 import { LoginMethodPolicy } from './services/login-method-policy.service';
 import { NewDeviceNotifier } from './notifications/new-device-notifier.service';
 import { SignInChangeNotifier } from './notifications/sign-in-change-notifier.service';
+import type { AgeAttestationInput } from '../compliance/age-gate.logic';
+import { AgeGateService, type AgeSource } from '../compliance/age-gate.service';
 import { AssistantCodeService } from './assistant/assistant-code.service';
 import type { AssistantCodeLoginDto } from './dto/assistant-code-login.dto';
 import { AuthNoveltyService } from './services/auth-novelty.service';
@@ -143,6 +145,8 @@ export class AuthService {
     // 2026-10-25 (S14-4 / S14-13): server-side novelty and failure counting.
     @Optional() private readonly novelty?: AuthNoveltyService,
     @Optional() private readonly challenge?: AuthChallengeService,
+    // 2026-10-25 (COPPA): the 18+ gate for new accounts.
+    @Optional() private readonly ageGate?: AgeGateService,
     // N-2: the domain-event bus.
     @Optional() private readonly events?: DomainEvents,
   ) {}
@@ -424,6 +428,14 @@ export class AuthService {
       );
     }
 
+    // 2026-10-25 (COPPA): refuse a new account without the 18+ attestation
+    // BEFORE the one-time code is spent, so the person can tick and retry.
+    await this.ageGate?.precheckOtp(
+      dto.channel,
+      identifier,
+      dto.ageAttestation,
+    );
+
     // S14-8: attempts and the lock ladder count per (identifier + address),
     // so a stranger's wrong guesses from elsewhere do not lock the owner out.
     const result = await this.otp.verifyOtp(
@@ -471,7 +483,14 @@ export class AuthService {
     }
 
     await this.challenge?.clear(identifier);
-    return this.completeOtpLogin(dto.channel, identifier, deviceInfo, meta);
+    return this.completeOtpLogin(
+      dto.channel,
+      identifier,
+      deviceInfo,
+      meta,
+      dto.ageAttestation,
+      'otp',
+    );
   }
 
   // ---------------------------------------------------------------------
@@ -516,7 +535,14 @@ export class AuthService {
         message: 'This sign-in link is invalid or has expired.',
       });
     }
-    return this.completeOtpLogin('email', redeemed.email, deviceInfo, meta);
+    return this.completeOtpLogin(
+      'email',
+      redeemed.email,
+      deviceInfo,
+      meta,
+      dto.ageAttestation,
+      'link',
+    );
   }
 
   /** Shared tail of a successful OTP (typed code or magic link): identity,
@@ -526,6 +552,8 @@ export class AuthService {
     identifier: string,
     deviceInfo: DeviceInfo,
     meta: RequestMeta,
+    ageAttestation?: AgeAttestationInput | null,
+    ageSource: AgeSource = 'otp',
   ): Promise<AuthTokensResult> {
     await this.bans.assertAllowed({
       phone: channel === 'phone' ? identifier : null,
@@ -548,6 +576,8 @@ export class AuthService {
           channel,
           identifier,
           tx,
+          ageAttestation,
+          ageSource,
         );
         if (found.user.status === 'deletion_pending' && cancelsOnLogin) {
           const updated = await tx.user.update({

@@ -331,6 +331,10 @@ abstract final class ApiErrorCodes {
   static const demoUnavailable = 'DEMO_UNAVAILABLE';
   static const demoCodeInvalid = 'DEMO_CODE_INVALID';
 
+  // Age gate (PR #388): signup age attestation.
+  static const ageAttestationRequired = 'AGE_ATTESTATION_REQUIRED';
+  static const ageUnderMinimum = 'AGE_UNDER_MINIMUM';
+
   /// Every server code, in enum order.
   static const messagePinLimit = 'MESSAGE_PIN_LIMIT';
   static const all = <String>[
@@ -577,6 +581,8 @@ abstract final class ApiErrorCodes {
     channelUsernameTaken,
     messageWindowExpired,
     messagePinLimit,
+    ageAttestationRequired,
+    ageUnderMinimum,
   ];
 }
 

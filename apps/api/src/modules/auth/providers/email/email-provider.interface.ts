@@ -22,6 +22,13 @@ export interface EmailMessage {
    * Providers that cannot set headers ignore them.
    */
   headers?: Record<string, string>;
+  /**
+   * 2026-10-25 (CAN-SPAM, Gmail/Yahoo): what the mail is. Default
+   * `transactional` (sign-in codes, receipts: no footer, no list check).
+   * `notification` (system notices) and `marketing` (outreach) skip an
+   * address that bounced or complained and get the postal-address footer.
+   */
+  kind?: 'transactional' | 'notification' | 'marketing';
 }
 
 export interface EmailProvider {

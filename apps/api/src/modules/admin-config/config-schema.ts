@@ -435,6 +435,28 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'On: the owner gets the new-device alert when a session is used from a country it was not used from before. Off by default (costs an e-mail and a push; max one per account per 24 h). Needs the CloudFront-Viewer-Country header.',
   };
+  // Legal register 2026-10-25: 18+ gate, text messages, e-mail footers.
+  out['compliance.age_gate.mode'] = {
+    ...out['compliance.age_gate.mode'],
+    description:
+      'Возрастной барьер 18+: off (по умолчанию) | record (записывать подтверждение, если приложение его прислало) | enforce (новый аккаунт без подтверждения 18+ получает 403 AGE_ATTESTATION_REQUIRED). enforce включать только после того, как приложение покажет галочку и начнёт слать ageAttestation.',
+    pattern: /^(off|record|enforce)$/,
+  };
+  out['compliance.age_gate.min_age'] = {
+    ...out['compliance.age_gate.min_age'],
+    min: 13,
+    max: 21,
+  };
+  out['compliance.sms.quiet_start_hour'] = {
+    ...out['compliance.sms.quiet_start_hour'],
+    min: 0,
+    max: 23,
+  };
+  out['compliance.sms.quiet_end_hour'] = {
+    ...out['compliance.sms.quiet_end_hour'],
+    min: 0,
+    max: 23,
+  };
   // S12-8: per-route metrics (CloudWatch custom metrics are billed).
   out['ops.route_metrics.mode'] = {
     ...out['ops.route_metrics.mode'],

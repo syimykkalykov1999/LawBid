@@ -141,6 +141,7 @@ export class SocialAuthService {
       verifyResult.emailVerified ? verifyResult.email : undefined,
       firstName,
       lastName,
+      dto.ageAttestation,
     );
 
     if ('collision' in resolved) {
