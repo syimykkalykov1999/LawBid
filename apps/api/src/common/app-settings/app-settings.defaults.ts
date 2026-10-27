@@ -809,6 +809,10 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   'chat.search.prefix_tokens': false,
   'chat.search.backfill_mode': 'auto',
   'chat.search.backfill_rows_per_run': 5000,
+  // Perf review 2026-10-26 (R-24): token rows per message (distinct words of
+  // 2+ characters, no stop-words) and the backfill batch (one short transaction).
+  'chat.search.max_tokens_per_message': 64,
+  'chat.search.backfill_batch': 500,
 };
 
 export const OWNER_STORAGE_SETTINGS = {
