@@ -23,6 +23,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import { UpdatedSinceQuery } from '../../common/sync/sync.util';
 import { ASSISTANT_DUTIES, type AssistantDuty } from './assistant-duties';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -1000,6 +1001,11 @@ export class TasksQueryDto {
   @IsString()
   @MaxLength(80)
   q?: string;
+
+  @UpdatedSinceQuery(
+    'Owner 2026-10-22 (delta audit D-P3): only the tasks changed since (ISO) that fit `view`; tasks that left the view come back as meta.deletedIds, meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD. A deleted task is not reported (the client applies its own delete).',
+  )
+  updatedSince?: string;
 
   @ApiPropertyOptional({
     enum: ['due', 'priority', 'created', 'updated'],

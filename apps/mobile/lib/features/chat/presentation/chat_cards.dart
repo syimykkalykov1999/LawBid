@@ -189,7 +189,7 @@ class ContactCardBody extends ConsumerWidget {
                 initials: avatarInitials(card.displayName),
                 imageProvider: card.avatarUrl == null
                     ? null
-                    : appNetworkImage(card.avatarUrl!, decodeWidthFor(44)),
+                    : stableNetworkImage(card.avatarUrl!),
                 semanticLabel: card.displayName,
               ),
               const SizedBox(width: AppSpacing.sm),

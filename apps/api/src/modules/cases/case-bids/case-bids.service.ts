@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
+import { parseUpdatedSince, syncedAt } from '../../../common/sync/sync.util';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import type { RequestUser } from '../../auth/decorators/current-user.decorator';
@@ -32,6 +33,9 @@ import {
   type CaseBidsQueryDto,
   type CaseBidsSort,
 } from './dto/case-bids.dto';
+
+/** The most bids one delta answer carries (a case never has this many). */
+export const CASE_BIDS_DELTA_MAX = 200;
 
 /** Sorts the database orders; the others are scored in memory. */
 type DbSort = 'newest' | 'lowest_price';
@@ -206,6 +210,10 @@ export class CaseBidsService {
     // OQ-054: viewing its bids is the client's own action on the case.
     await touchClientActive(this.prisma, caseId, user.sub);
 
+    // Owner 2026-10-22 (delta audit D-P4, Telegram): only the bids changed
+    // since (a counter, accept, withdraw …); a bid never leaves this list,
+    // so deletedIds is empty and meta.syncedAt moves the client forward.
+    const since = parseUpdatedSince(query.updatedSince);
     const sort = await this.sortOf(query.sort);
     const limit = query.limit ?? CASE_BIDS_PAGE_DEFAULT;
     const cursor = query.cursor
@@ -242,6 +250,41 @@ export class CaseBidsService {
       })),
       rs,
     );
+    const byId = new Map(priceRows.map((r) => [r.id, r]));
+    const withFlags = (r: BidListRow) => {
+      const pr = byId.get(r.id);
+      const low =
+        guard &&
+        pr !== undefined &&
+        isSuspiciouslyLow(toRankBid(r, 0), ctx, rs);
+      if (low) {
+        this.logger.warn(
+          `Dumping guard: bid ${r.id} on case ${caseId} is far below the median price; review.`,
+        );
+      }
+      return this.toItem(r, {
+        bestPrice: ctx.bestPriceId === r.id,
+        lowOffer: low,
+      });
+    };
+
+    if (since) {
+      const changed = await this.prisma.bid.findMany({
+        where: { case_id: caseId, updated_at: { gte: since } },
+        orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
+        take: CASE_BIDS_DELTA_MAX,
+        include: BID_LIST_INCLUDE,
+      });
+      return {
+        items: await Promise.all(changed.map(withFlags)),
+        nextCursor: null,
+        deletedIds: [],
+        syncedAt: syncedAt(
+          changed.map((r) => r.updated_at),
+          since,
+        ),
+      };
+    }
 
     let page: BidListRow[];
     let nextCursor: string | null = null;
@@ -312,25 +355,7 @@ export class CaseBidsService {
       }
     }
 
-    const byId = new Map(priceRows.map((r) => [r.id, r]));
-    const items = await Promise.all(
-      page.map((r) => {
-        const pr = byId.get(r.id);
-        const low =
-          guard &&
-          pr !== undefined &&
-          isSuspiciouslyLow(toRankBid(r, 0), ctx, rs);
-        if (low) {
-          this.logger.warn(
-            `Dumping guard: bid ${r.id} on case ${caseId} is far below the median price; review.`,
-          );
-        }
-        return this.toItem(r, {
-          bestPrice: ctx.bestPriceId === r.id,
-          lowOffer: low,
-        });
-      }),
-    );
+    const items = await Promise.all(page.map(withFlags));
     return { items, nextCursor };
   }
 

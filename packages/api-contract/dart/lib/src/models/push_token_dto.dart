@@ -15,6 +15,7 @@ class PushTokenDto {
     required this.platform,
     this.localReminders,
     this.chatStyle,
+    this.actorStyle,
   });
 
   factory PushTokenDto.fromJson(Map<String, Object?> json) =>
@@ -29,6 +30,9 @@ class PushTokenDto {
 
   /// Owner 2026-10-22: this app draws chat notifications itself (sender's photo, one per chat) from a data-only push (Android).
   final bool? chatStyle;
+
+  /// Owner 2026-10-26: this app draws notifications with a person (bid, comment, like, missed call …) itself, with the person's round photo, from a data-only push (Android).
+  final bool? actorStyle;
 
   Map<String, Object?> toJson() => _$PushTokenDtoToJson(this);
 }

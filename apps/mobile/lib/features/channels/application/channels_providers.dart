@@ -4,9 +4,11 @@ import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/channels/data/channels_repository.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
+import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 final channelsRepositoryProvider = Provider<ChannelsRepository>(
@@ -31,18 +33,164 @@ final channelsEnabledProvider = Provider<bool>(
 /// discover / search result for the query.
 typedef ChannelListKey = ({ChannelScope scope, String query});
 
+/// A list as the notifier holds it: the key plus whether it is the
+/// channels' own Archive.
+typedef ChannelSyncKey = ({ChannelScope scope, String query, bool archived});
+
+Duration? _noRetry(int retryCount, Object error) => null;
+
+/// Owner 2026-10-22 (delta audit D-P2, Telegram): the channel lists are
+/// never reloaded whole once they are on the phone. My own writes (follow,
+/// pin, archive, edit, delete) are applied to the rows ([ChannelListHub]);
+/// a reconnect or any change the phone cannot place is one
+/// `?updatedSince` request (subscribed / managed only: discover and a
+/// search are server-ranked and read as before).
+class ChannelListNotifier extends SyncedListNotifier<Channel> {
+  ChannelListNotifier(this.key);
+
+  final ChannelSyncKey key;
+
+  @override
+  bool get catchesUp => key.scope != ChannelScope.discover;
+
+  @override
+  String get listKey =>
+      'channels:${key.scope.name}${key.archived ? ':archived' : ''}';
+
+  // Memory only: these lists keep no saved copy, so a stored «caught up to»
+  // would have nothing to catch up from.
+  @override
+  String? get syncOwner => null;
+
+  @override
+  String keyOf(Channel item) => item.id;
+
+  @override
+  Object idOf(Channel item) => item.id;
+
+  // A channel row carries no `updated_at`: a first page counts as caught up
+  // to «now» less the clock margin.
+  @override
+  DateTime? updatedAtOf(Channel item) => null;
+
+  @override
+  int Function(Channel, Channel)? get order =>
+      key.scope == ChannelScope.discover
+          ? null
+          : (a, b) {
+              if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+              final byTime = key.scope == ChannelScope.subscribed
+                  ? (b.lastPostAt ?? b.createdAt)
+                      .compareTo(a.lastPostAt ?? a.createdAt)
+                  : b.createdAt.compareTo(a.createdAt);
+              return byTime != 0 ? byTime : b.id.compareTo(a.id);
+            };
+
+  @override
+  Future<PaginatedList<Channel>> build() {
+    final hub = ref.read(channelListHubProvider).._add(this);
+    ref.onDispose(() => hub._remove(this));
+    final sub = ref.watch(realtimeEventsProvider).listen((e) {
+      if (e.name == RealtimeEvent.reconnected) catchUp();
+    });
+    ref.onDispose(sub.cancel);
+    return super.build();
+  }
+
+  @override
+  Future<CursorPage<Channel>> fetchPage(String? cursor) async => CursorPage(
+        items: await ref.read(channelsRepositoryProvider).list(
+              key.scope,
+              q: key.query,
+              archived: key.archived,
+            ),
+      );
+
+  @override
+  Future<SyncedPage<Channel>> fetchChanged(DateTime since) => ref
+      .read(channelsRepositoryProvider)
+      .listChangedSince(key.scope, since, archived: key.archived);
+
+  /// My own write answered [c]: the row enters, changes or leaves this list.
+  void applyMine(Channel c) {
+    final belongs = switch (key.scope) {
+      ChannelScope.subscribed => c.isSubscribed && c.isArchived == key.archived,
+      ChannelScope.managed => c.myRole != null && c.isArchived == key.archived,
+      ChannelScope.discover => false,
+    };
+    if (key.scope == ChannelScope.discover) {
+      applyRow(c.id, (_) => c);
+    } else if (belongs) {
+      upsertRow(c);
+    } else {
+      removeRow(c.id);
+    }
+  }
+
+  void drop(String id) => removeRow(id);
+}
+
+/// Every live [ChannelListNotifier], so one write of mine reaches all the
+/// lists that show the channel (no list is read again for it).
+class ChannelListHub {
+  final _lists = <ChannelListNotifier>{};
+
+  void _add(ChannelListNotifier n) => _lists.add(n);
+  void _remove(ChannelListNotifier n) => _lists.remove(n);
+
+  /// A write of mine answered the channel: place the row in every list.
+  void apply(Channel c) {
+    for (final n in [..._lists]) {
+      n.applyMine(c);
+    }
+  }
+
+  /// The channel is gone (deleted).
+  void drop(String id) {
+    for (final n in [..._lists]) {
+      n.drop(id);
+    }
+  }
+
+  /// Something changed that the phone cannot place: one small
+  /// `updatedSince` request per list.
+  void catchUp() {
+    for (final n in [..._lists]) {
+      n.catchUp();
+    }
+  }
+}
+
+final channelListHubProvider = Provider<ChannelListHub>(
+  (ref) => ChannelListHub(),
+);
+
+final channelListSyncProvider = AsyncNotifierProvider.autoDispose
+    .family<ChannelListNotifier, PaginatedList<Channel>, ChannelSyncKey>(
+  ChannelListNotifier.new,
+  retry: _noRetry,
+);
+
+ChannelSyncKey channelSyncKey(ChannelListKey key) =>
+    (scope: key.scope, query: key.query, archived: false);
+
+/// The key of the channels' own Archive list.
+const ChannelSyncKey archivedChannelsKey =
+    (scope: ChannelScope.subscribed, query: '', archived: true);
+
 final channelListProvider =
     FutureProvider.autoDispose.family<List<Channel>, ChannelListKey>(
-  (ref, key) =>
-      ref.watch(channelsRepositoryProvider).list(key.scope, q: key.query),
+  (ref, key) async =>
+      (await ref.watch(channelListSyncProvider(channelSyncKey(key)).future))
+          .items,
 );
 
 /// Owner 2026-10-21 (inbox 22c): the channels I moved to the channels' own
 /// Archive.
 final archivedChannelsProvider = FutureProvider.autoDispose<List<Channel>>(
-  (ref) => ref
-      .watch(channelsRepositoryProvider)
-      .list(ChannelScope.subscribed, archived: true),
+  (ref) async =>
+      (await ref.watch(channelListSyncProvider(archivedChannelsKey).future))
+          .items,
 );
 
 /// «Discover» with nothing typed: an endless list, ranked for me first.
@@ -141,9 +289,11 @@ class ChannelController extends AsyncNotifier<Channel> {
     _refreshLists();
   }
 
-  void _refreshLists() => ref
-    ..invalidate(channelListProvider)
-    ..invalidate(archivedChannelsProvider);
+  // The answered channel is placed in every list that shows it.
+  void _refreshLists() {
+    final c = state.value;
+    if (c != null) ref.read(channelListHubProvider).apply(c);
+  }
 }
 
 /// The posts of a channel, newest first, loaded page by page.

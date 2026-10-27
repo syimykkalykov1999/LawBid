@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:lawbid/core/cache/cache_database.dart';
+import 'package:lawbid/core/cache/json_off_main.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// What the phone knows about one chat's history.
@@ -52,12 +53,12 @@ class MessageStore {
         limit: limit,
         before: before,
       );
-      return [
-        for (final r in rows)
-          api.MessageDto.fromJson(
-            Map<String, dynamic>.from(jsonDecode(r.json) as Map),
-          ),
-      ];
+      // Owner 2026-10-26 (smoothness): a big page is decoded off the UI
+      // thread (web: in slices), so opening a chat does not stutter.
+      return await decodeJsonRows(
+        [for (final r in rows) r.json],
+        _messageOf,
+      );
     } on Object catch (e) {
       debugPrint('messages read: $e');
       return const [];
@@ -150,6 +151,9 @@ class MessageStore {
       });
     });
   }
+
+  static api.MessageDto _messageOf(Object? json) =>
+      api.MessageDto.fromJson(Map<String, dynamic>.from(json! as Map));
 
   /// «Leave the cursor as it is» marker for [put].
   static const Object keep = Object();

@@ -9,6 +9,10 @@ import {
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import {
+  DomainEvents,
+  type DomainEventTicket,
+} from '../events/domain-events.service';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import type {
@@ -224,6 +228,8 @@ export class CasePaymentsService {
     @Optional() private readonly trust?: AttorneyTrustService,
     // Day-one foundations: the double-entry money ledger (same transaction).
     @Optional() private readonly ledger?: LedgerPostingService,
+    // N-2: the domain-event bus.
+    @Optional() private readonly events?: DomainEvents,
   ) {}
 
   // ---- settings -------------------------------------------------------------
@@ -969,7 +975,9 @@ export class CasePaymentsService {
     if (session.paymentStatus && session.paymentStatus !== 'paid') return false;
     const id = session.metadata.paymentId;
     if (!id) return false;
+    const eventTickets: Array<DomainEventTicket | null | undefined> = [];
     const paid = await withTxRetry(this.prisma, async (tx) => {
+      eventTickets.length = 0;
       const p = await tx.casePayment.findUnique({ where: { id } });
       if (!p || p.stripe_checkout_id !== session.id) return null;
       // Pending, or a system cancel (expired / superseded) a late payment
@@ -1005,9 +1013,22 @@ export class CasePaymentsService {
           },
         });
       }
+      eventTickets.push(
+        await this.events?.emit(
+          tx,
+          'payment.succeeded',
+          {
+            paymentId: id,
+            caseId: p.case_id,
+            amountCents: paidRow.client_total_cents,
+          },
+          { actorId: p.client_id, key: `payment.succeeded:${id}` },
+        ),
+      );
       return p;
     });
     if (!paid) return false;
+    await this.events?.flush(eventTickets);
     await this.chatLine(paid.case_id, 'payment_received', paid.amount_cents);
     await this.notify(paid.attorney_id, 'case_payment_received', {
       caseId: paid.case_id,

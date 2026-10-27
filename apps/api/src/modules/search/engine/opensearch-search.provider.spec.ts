@@ -1,5 +1,5 @@
 import { OpenSearchProvider } from './opensearch-search.provider';
-import type { OpenSearchClient } from './opensearch.client';
+import { EngineError, type OpenSearchClient } from './opensearch.client';
 import type { PostgresSearchProvider } from '../postgres-search.provider';
 
 function make() {
@@ -39,6 +39,20 @@ describe('OpenSearchProvider (the engine finds, Postgres decides)', () => {
       { tag: 'visa' },
       ['x', 'y'],
     );
+  });
+
+  it('S7-4: a Postgres filter failure is not an engine failure; the engine budget is shared by strict and fuzzy', async () => {
+    const { p, pg, client } = make();
+    client.searchIds.mockResolvedValue(['x']);
+    pg.searchPostsAmong.mockRejectedValueOnce(new Error('pg down'));
+    const err = await p.searchPosts('visa', 5).catch((e: unknown) => e);
+    expect((err as Error).message).toBe('pg down');
+    expect(err).not.toBeInstanceOf(EngineError);
+    client.searchIds.mockReset().mockResolvedValue([]);
+    await p.searchPosts('gren card', 5);
+    const [, , , strictMs] = client.searchIds.mock.calls[0];
+    const [, , , fuzzyMs] = client.searchIds.mock.calls[1];
+    expect(fuzzyMs).toBeLessThanOrEqual(strictMs);
   });
 
   it('typo fallback: nothing found strictly, the fuzzy query runs', async () => {

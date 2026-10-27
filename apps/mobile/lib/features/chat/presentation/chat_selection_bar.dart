@@ -99,9 +99,8 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
     try {
       refreshChatFolders(ref);
       if (channels.isNotEmpty) {
-        ref
-          ..invalidate(channelListProvider)
-          ..invalidate(archivedChannelsProvider);
+        // Pin / archive / mute / leave: one small `updatedSince` per list.
+        ref.read(channelListHubProvider).catchUp();
       }
       if (failure == null) ref.read(chatSelectionProvider.notifier).stop();
     } on Object {
