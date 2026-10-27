@@ -6,6 +6,7 @@ import { StaffHomeModule } from '../staff-home/staff-home.module';
 import { StaffNavModule } from '../staff-nav/staff-nav.module';
 import { StaffPieceworkModule } from '../staff-piecework/staff-piecework.module';
 import { StaffRatingModule } from '../staff-rating/staff-rating.module';
+import { StaffReviewModule } from '../staff-review/staff-review.module';
 import { StaffSecurityModule } from '../staff-security/staff-security.module';
 import { WorkLeaseModule } from '../work-lease/work-lease.module';
 import { StaffCoreModule } from './staff-core.module';
@@ -25,6 +26,7 @@ import { StaffSettingsController } from './staff-settings.controller';
     WorkLeaseModule,
     StaffDeskModule,
     StaffRatingModule,
+    StaffReviewModule,
     StaffAppealsModule,
     StaffPieceworkModule,
     StaffNavModule,

@@ -145,7 +145,7 @@ App Store (Team `78T56RPM74`, App ID `com.lawbid.lawbid`):
 - Docker Desktop нужен. Mac не должен засыпать. Не трогать `LawBid-stable` без слова владельца.
 - Голдены только на macOS (Linux падают); push PNG без Podfile.lock/pbxproj.
 - Команды: `npx prisma generate`; `npm run seed:i18n --workspace apps/api`; `pod install` с `LANG=en_US.UTF-8`.
-- CI-ловушки: ERD `npm run db:erd --workspace apps/api`; `node scripts/i18n-audit.mjs --ci`; контракт `sh packages/api-contract/generate.sh` + oasdiff (новые строки в `oasdiff-err-ignore.txt` только со словом владельца); `UPDATE_BOUNDARIES=1 npx jest architecture/module-boundaries`; prelaunch-wipe план для каждой новой таблицы.
+- CI-ловушки: ERD `npm run db:erd --workspace apps/api`; `node scripts/i18n-audit.mjs --ci`; контракт `sh packages/api-contract/generate.sh` + oasdiff (новые строки в `oasdiff-err-ignore.txt` только со словом владельца); `npm run arch:baseline --workspace apps/api`; prelaunch-wipe план для каждой новой таблицы.
 - Тестовые Public Group N в локальной БД не чистить.
 
 ## 8. Правила владельца и продукта

@@ -415,6 +415,15 @@ variable "worker_max_tasks" {
   type    = number
   default = 10
 }
+variable "worker_db_pool_size" {
+  type        = number
+  default     = 6
+  description = "Prisma connections per worker task when the database is reached directly (db_pooler_enabled = false). The worker runs up to 5 maintenance jobs at once and starves on a pool of 3; the api keeps the computed pool. Never lower than the computed pool, ignored with db_pooler_enabled (the pool is 10 there). 0 = same as the api. Counted in check.db_connection_budget (docs/dev/DEPLOY_SAFETY_AUDIT_2026-10-27.md, 2.6)."
+  validation {
+    condition     = var.worker_db_pool_size >= 0 && var.worker_db_pool_size <= 20
+    error_message = "worker_db_pool_size must be 0..20."
+  }
+}
 variable "min_tasks" {
   type        = number
   default     = 2
@@ -1456,6 +1465,10 @@ locals {
   pgb_server_connections   = var.pgbouncer_max_tasks * (local.pgb_pool_size + local.pgb_reserve)
   db_pool_size             = var.db_pooler_enabled ? 10 : local.direct_pool_size
   pgb_max_clients_possible = local.db_peak_tasks * 10 # every app task fully busy, a deploy at the same time
+  # The worker's own pool (direct connections only; 0 = same as the api).
+  worker_db_pool_size = var.db_pooler_enabled || var.worker_db_pool_size == 0 ? 0 : max(var.worker_db_pool_size, local.direct_pool_size)
+  # Peak direct connections of all tasks, a rolling deploy doubling the count.
+  db_direct_peak_connections = 2 * (var.api_max_tasks * local.direct_pool_size + var.worker_max_tasks * (local.worker_db_pool_size > 0 ? local.worker_db_pool_size : local.direct_pool_size))
 }
 
 check "db_connection_budget" {
@@ -1466,7 +1479,7 @@ check "db_connection_budget" {
       local.pgb_server_connections <= local.db_pooler_budget &&
       local.pgb_max_clients_possible <= var.db_pooler_max_client_conn
       ) : (
-      local.direct_pool_size * local.db_peak_tasks <= local.db_ceiling_connections
+      local.db_direct_peak_connections <= local.db_ceiling_connections
     )
     error_message = var.db_pooler_enabled ? "db_pooler_enabled = true needs: pgbouncer_image set (ECR lawbid-pgbouncer, .github/workflows/build-pgbouncer.yml); at least 5 database connections per pooler task after the reserve (pgbouncer_max_tasks too high or the database too small); and db_pooler_max_client_conn >= 10 x (api_max_tasks + worker_max_tasks) x 2." : "Even the smallest pool (3 per task) at the peak task count (api_max_tasks + worker_max_tasks, twice during a deploy) needs more connections than the database accepts (with db_autoscale_enabled: even at db_autoscale_max_class): lower api_max_tasks / worker_max_tasks, choose a bigger database_instance_class, or turn on our own pooler (db_pooler_enabled = true, docs/architecture/DB_POOLER.md)."
   }
@@ -1497,6 +1510,13 @@ locals {
     # removed for good (the bunny image CDN has its own purge, not this).
     CLOUDFRONT_MEDIA_DISTRIBUTION_ID   = var.growth.cdn_images_provider == "bunny" ? "" : module.s3.media_cdn_distribution_id
     CLOUDFRONT_PRIVATE_DISTRIBUTION_ID = module.s3.documents_cdn_distribution_id == null ? "" : module.s3.documents_cdn_distribution_id
+
+    # Static SEO pages written by the worker job seo.generate (switch
+    # seo.generator_mode in the admin, off by default). Empty SEO_SITE_URL =
+    # the job does nothing. Rights: data.aws_iam_policy_document.task.
+    SEO_WEB_BUCKET          = module.web.web_bucket
+    SEO_WEB_DISTRIBUTION_ID = module.web.web_distribution_id
+    SEO_SITE_URL            = var.web_host != "" ? "https://${var.web_host}" : ""
     # KMS key that wraps the data keys inside MESSAGE_ENC_KEYS /
     # SECRETS_MASTER_KEYS ("<kid>:kms:<base64 ciphertext>", decrypted once
     # at boot — src/common/secrets/kms-env.ts). Owner steps: DEPLOY_PROD.md.
@@ -1770,7 +1790,6 @@ module "ecs" {
   source                          = "../ecs"
   name                            = local.name
   readonly_root_filesystem        = var.ecs_readonly_root_filesystem
-  vpc_id                          = module.network.vpc_id
   private_subnet_ids              = module.network.private_subnet_ids
   tasks_security_group_id         = aws_security_group.tasks.id
   api_target_group_arn            = module.alb.api_target_group_arn
@@ -1782,6 +1801,7 @@ module "ecs" {
   tracing_enabled                 = var.tracing_enabled
   tracing_sample_ratio            = var.tracing_sample_ratio
   api_env                         = merge(local.api_env_effective, local.db_pooler_env, local.db_pooler_ca_env)
+  worker_db_pool_size             = local.worker_db_pool_size
   cloudfront_invalidation_enabled = true
   cloudfront_invalidation_arns = concat(
     [module.s3.media_cdn_distribution_arn],
@@ -1864,6 +1884,34 @@ data "aws_iam_policy_document" "task" {
   statement {
     actions   = ["s3:ListBucket"]
     resources = [module.s3.documents_bucket_arn, module.s3.media_bucket_arn]
+  }
+  # SEO pages (job seo.generate, docs/runbooks/SEO_STATIC_PAGES.md): the
+  # worker writes ONLY the generated page folders and its own manifest in the
+  # web bucket, reads the workflow manifest, and may reset the web CDN cache.
+  # The app bundle (releases/), sitemaps, robots.txt and the rest of the
+  # bucket stay out of reach. ListBucket only turns a missing file into a 404
+  # instead of a 403 (first run, no manifest yet).
+  statement {
+    actions = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = [
+      "arn:aws:s3:::${module.web.web_bucket}/lawyers/*",
+      "arn:aws:s3:::${module.web.web_bucket}/practice-areas/*",
+      "arn:aws:s3:::${module.web.web_bucket}/attorneys/*",
+      "arn:aws:s3:::${module.web.web_bucket}/legal-questions/*",
+      "arn:aws:s3:::${module.web.web_bucket}/seo-gen-manifest.json",
+    ]
+  }
+  statement {
+    actions   = ["s3:GetObject"]
+    resources = ["arn:aws:s3:::${module.web.web_bucket}/seo-manifest.json"]
+  }
+  statement {
+    actions   = ["s3:ListBucket"]
+    resources = ["arn:aws:s3:::${module.web.web_bucket}"]
+  }
+  statement {
+    actions   = ["cloudfront:CreateInvalidation", "cloudfront:ListInvalidations"]
+    resources = ["arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${module.web.web_distribution_id}"]
   }
   # Owner 2026-10-28: the daily admin audit export. Write only, one prefix;
   # the bucket policy denies deletes to everybody.

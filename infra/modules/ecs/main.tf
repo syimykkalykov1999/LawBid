@@ -170,6 +170,12 @@ variable "metrics_namespace" {
   default     = ""
   description = "CloudWatch namespace of the app metrics (LawBid/<name>, modules/monitoring); holds QueueWaitingTotal. Empty = worker scales on CPU only."
 }
+variable "worker_db_pool_size" {
+  type        = number
+  default     = 0
+  description = "Prisma connections per WORKER task (DB_POOL_SIZE of the worker only). 0 = same as the api (api_env). The worker runs up to 5 maintenance jobs at once (CRON_LANE_CONCURRENCY) and times out on «fetching a new connection» with a pool of 3 (docs/dev/DEPLOY_SAFETY_AUDIT_2026-10-27.md, 2.6)."
+}
+
 variable "worker_jobs_per_task" {
   type        = number
   default     = 50
@@ -396,6 +402,12 @@ resource "aws_iam_role" "task_minimal" {
 # --- task definitions ----------------------------------------------------
 locals {
   api_environment = [for k, v in var.api_env : { name = k, value = v }]
+  # The worker has its own DB_POOL_SIZE when worker_db_pool_size > 0 (the
+  # api_env value is dropped so the name is never listed twice).
+  worker_environment = var.worker_db_pool_size > 0 ? concat(
+    [for e in local.api_environment : e if e.name != "DB_POOL_SIZE"],
+    [{ name = "DB_POOL_SIZE", value = tostring(var.worker_db_pool_size) }],
+  ) : local.api_environment
   # Scale audit 2026-10-23: Node sizes its heap at about a quarter of the
   # container memory (1 GiB API task = a 256 MB heap) and the image sets no
   # limit at run time, so a busy task hit "heap out of memory" with most of
@@ -549,7 +561,7 @@ resource "aws_ecs_task_definition" "worker" {
     command   = ["node", "dist/src/worker.js"]
     # Uploads are scanned by the clamd sidecar below (same task, localhost):
     # without a scanner every photo/document stays scan_status=pending.
-    environment = concat(local.api_environment, local.tracing_env, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }, local.node_options["worker"]])
+    environment = concat(local.worker_environment, local.tracing_env, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }, local.node_options["worker"]])
     secrets     = local.api_secrets
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
@@ -651,7 +663,7 @@ resource "aws_ecs_task_definition" "migrate" {
     essential = true
     # After the transactional migrations: prisma/concurrent/*.sql (CREATE INDEX
     # CONCURRENTLY cannot run inside a migration), docs/architecture/ONLINE_DDL.md.
-    command   = ["sh", "-c", "npx prisma migrate deploy && node prisma/run-concurrent.mjs"]
+    command = ["sh", "-c", "npx prisma migrate deploy && node prisma/run-concurrent.mjs"]
     # npx / Prisma want a writable cache and home: both under /tmp.
     # No DB_POOLER_*: `prisma migrate` must reach the database directly
     # (docs/architecture/DB_POOLER.md).
