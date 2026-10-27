@@ -16,9 +16,7 @@ class UpdateEconomyDto {
     this.ceilingMode,
     this.manualApi,
     this.manualWorker,
-    this.smsUnitUsd,
-    this.videoUnitUsd,
-    this.translateUnitUsd,
+    this.dailyBrakeDays,
     this.awsFallbackUsd,
     this.guardEnabled,
   });
@@ -31,9 +29,7 @@ class UpdateEconomyDto {
   final UpdateEconomyDtoCeilingMode? ceilingMode;
   final num? manualApi;
   final num? manualWorker;
-  final num? smsUnitUsd;
-  final num? videoUnitUsd;
-  final num? translateUnitUsd;
+  final num? dailyBrakeDays;
   final num? awsFallbackUsd;
 
   /// The economy_guard flag (rollback).

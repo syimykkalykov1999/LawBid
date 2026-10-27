@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 
 /// Owner 2026-10-20 (WhatsApp / Telegram): the first screen of a new story is
 /// the camera itself — a tap on the shutter takes a photo, holding it records
@@ -163,7 +163,7 @@ class _StoryCameraViewState extends State<StoryCameraView>
       if (mounted) widget.onSystemVideo();
       return;
     }
-    unawaited(HapticFeedback.mediumImpact());
+    unawaited(AppHaptics.medium());
     _recordStart = DateTime.now();
     setState(() {
       _recording = true;

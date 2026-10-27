@@ -345,3 +345,54 @@ export async function fetchR2Usage(
   }
   return { storageGb: bytes / 1e9, classAOps: a, classBOps: b };
 }
+
+// --- Sentry usage (S9-11) -------------------------------------------------
+
+export interface SentryUsage {
+  /** Events Sentry kept this period, by category (errors, transactions…). */
+  accepted: Record<string, number>;
+  /** Events refused for quota / rate limit (what the plan did not cover). */
+  dropped: Record<string, number>;
+}
+
+/**
+ * Sentry `GET /organizations/{org}/stats_v2/` (docs.sentry.io, read
+ * 2026-10-25): `field=sum(quantity)` grouped by category and outcome over
+ * the last 30 days; `groups[].by.{category,outcome}`, `totals`. Needs an
+ * auth token with `org:read`. Counts only — Sentry's overage price depends
+ * on the plan, so no dollars are invented here.
+ */
+export async function fetchSentryUsage(
+  org: string,
+  token: string,
+  fetchFn: FetchFn = fetch,
+): Promise<SentryUsage> {
+  const url =
+    `https://sentry.io/api/0/organizations/${encodeURIComponent(org)}/stats_v2/` +
+    '?field=sum(quantity)&groupBy=category&groupBy=outcome&statsPeriod=30d&interval=1d';
+  const body = (await getJson(
+    'sentry_stats',
+    url,
+    {
+      headers: { authorization: `Bearer ${token}`, accept: 'application/json' },
+    },
+    fetchFn,
+  )) as {
+    groups?: {
+      by?: { category?: string; outcome?: string };
+      totals?: Record<string, number>;
+    }[];
+  };
+  const out: SentryUsage = { accepted: {}, dropped: {} };
+  for (const g of body.groups ?? []) {
+    const cat = g.by?.category ?? 'other';
+    const qty = n(g.totals?.['sum(quantity)']);
+    if (qty <= 0) continue;
+    const outcome = g.by?.outcome;
+    if (outcome === 'accepted')
+      out.accepted[cat] = (out.accepted[cat] ?? 0) + qty;
+    else if (outcome === 'rate_limited')
+      out.dropped[cat] = (out.dropped[cat] ?? 0) + qty;
+  }
+  return out;
+}

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -476,7 +477,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     );
     if (picked == null || picked.isEmpty) return;
     // ignore: unawaited_futures
-    HapticFeedback.selectionClick();
+    AppHaptics.selection();
     // «Не знаю тему» comes back as '': a post without a qualification,
     // and the field says so.
     setState(() {
@@ -563,7 +564,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
               ),
             );
         // ignore: unawaited_futures
-        HapticFeedback.mediumImpact();
+        AppHaptics.medium();
         if (mounted) Navigator.of(context).pop();
         return;
       }
@@ -588,7 +589,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         );
         if (!mounted) return;
         // ignore: unawaited_futures
-        HapticFeedback.mediumImpact();
+        AppHaptics.medium();
         showAppSnackBar(context, t.t('request.sent'));
         Navigator.of(context).pop();
         return;
@@ -619,11 +620,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             ..invalidate(publicAttorneyProfileProvider)
             ..invalidate(publicClientProfileProvider);
           // ignore: unawaited_futures
-          HapticFeedback.mediumImpact();
+          AppHaptics.medium();
         },
       );
       // ignore: unawaited_futures
-      HapticFeedback.lightImpact();
+      AppHaptics.light();
       if (!mounted) return;
       Navigator.of(context).pop();
     } on Object catch (e) {

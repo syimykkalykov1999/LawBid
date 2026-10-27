@@ -231,3 +231,30 @@ describe('SpendService.refresh', () => {
     expect(out.aws).toMatchObject({ error: 'AccessDenied', data: good });
   });
 });
+
+describe('S9-11 Google Translate and Sentry readers', () => {
+  it('Google: characters over the free part × price', () => {
+    const raw: RawSpend = {
+      at,
+      google: { data: { chars: 10_500_000 }, at, triedAt: at },
+    };
+    const g = buildVendors(raw, prices, NOW).find((v) => v.id === 'google')!;
+    // (10.5 M − 0.5 M free) × $20 / M = $200
+    expect(g.monthToDateUsd).toBe(200);
+    expect(g.freeTier?.free).toBe(500000);
+  });
+
+  it('Sentry: counts and a note when events were dropped', () => {
+    const raw: RawSpend = {
+      at,
+      sentry: {
+        data: { accepted: { error: 900 }, dropped: { error: 40 } },
+        at,
+        triedAt: at,
+      },
+    };
+    const s = buildVendors(raw, prices, NOW).find((v) => v.id === 'sentry')!;
+    expect(s.lines[0].note).toContain('900');
+    expect(s.notes.join(' ')).toContain('40');
+  });
+});
