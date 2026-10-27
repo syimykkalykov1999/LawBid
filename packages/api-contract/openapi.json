@@ -6445,7 +6445,22 @@
     "/admin/admins": {
       "get": {
         "operationId": "listAdmins",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "workspace",
+            "required": false,
+            "in": "query",
+            "description": "Only the admins of this workspace.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "mass",
+                "finance",
+                "owner"
+              ]
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success envelope (docs/01 §7).",
@@ -6513,7 +6528,7 @@
             "admin": []
           }
         ],
-        "summary": "All administrator accounts",
+        "summary": "All administrator accounts (optionally one workspace); a workspace head sees only their own workspace",
         "tags": [
           "admin-admins"
         ]
@@ -7027,6 +7042,260 @@
           }
         ],
         "summary": "Assign a role (ends the admin’s sessions)",
+        "tags": [
+          "admin-admins"
+        ]
+      }
+    },
+    "/admin/admins/{id}/workspace": {
+      "patch": {
+        "operationId": "setAdminWorkspace",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAdminWorkspaceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAccountEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: ADMIN_WORKSPACE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Super admin: set the workspace an admin works in (needs a fresh step-up). 409 when their sections do not fit the new workspace",
+        "tags": [
+          "admin-admins"
+        ]
+      }
+    },
+    "/admin/admins/{id}/head": {
+      "patch": {
+        "operationId": "setAdminHead",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAdminHeadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAccountEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: ADMIN_WORKSPACE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Super admin: make an admin the head of their workspace, or clear it (needs a fresh step-up). 409 when the workspace already has a head or has none (finance)",
         "tags": [
           "admin-admins"
         ]
@@ -125475,6 +125744,7 @@
           "INTEGRATIONS_NOT_CONFIGURED",
           "INTEGRATION_CONFLICT",
           "ADMIN_STEP_UP_REQUIRED",
+          "ADMIN_WORKSPACE_CONFLICT",
           "ADMIN_IP_NOT_ALLOWED",
           "REASON_CODE_REQUIRED",
           "AUDIT_UNAVAILABLE",
@@ -127172,6 +127442,23 @@
               "type": "string"
             }
           },
+          "workspace": {
+            "enum": [
+              "mass",
+              "finance",
+              "owner"
+            ],
+            "type": "string",
+            "description": "Staff package: the workspace this admin works in (the super admin is always the owner)."
+          },
+          "workspaceHead": {
+            "type": "boolean",
+            "description": "Staff package: the head of the workspace, with the head role switched on (staff.head_enabled). Always false while workspaces are off."
+          },
+          "workspacesEnabled": {
+            "type": "boolean",
+            "description": "Staff package: staff.workspaces_enabled. Off = the panel looks exactly as before (left menu for everyone)."
+          },
           "countryTabs": {
             "description": "Country tabs for the panel: the assigned countries, or every switched-on country for staff working everywhere.",
             "type": "array",
@@ -127206,6 +127493,9 @@
           "countryPartnerId",
           "partnerLead",
           "countries",
+          "workspace",
+          "workspaceHead",
+          "workspacesEnabled",
           "countryTabs",
           "securityQuestion",
           "reasonRequiredAreas"
@@ -128405,6 +128695,19 @@
             "type": "boolean",
             "description": "This admin is the country partner themself."
           },
+          "workspace": {
+            "enum": [
+              "mass",
+              "finance",
+              "owner"
+            ],
+            "type": "string",
+            "description": "Staff package: the workspace this admin works in (the super admin is always the owner)."
+          },
+          "workspaceHead": {
+            "type": "boolean",
+            "description": "Staff package: the head of that workspace (one per workspace, none in finance)."
+          },
           "lastLoginAt": {
             "type": "string",
             "nullable": true,
@@ -128429,6 +128732,8 @@
           "countries",
           "countryPartnerId",
           "partnerLead",
+          "workspace",
+          "workspaceHead",
           "lastLoginAt",
           "createdAt"
         ]
@@ -128687,6 +128992,34 @@
         },
         "required": [
           "role"
+        ]
+      },
+      "SetAdminWorkspaceDto": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "enum": [
+              "mass",
+              "finance",
+              "owner"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace"
+        ]
+      },
+      "SetAdminHeadDto": {
+        "type": "object",
+        "properties": {
+          "head": {
+            "type": "boolean",
+            "description": "true = make this admin the head of their workspace; false = clear it."
+          }
+        },
+        "required": [
+          "head"
         ]
       },
       "SetAdminPermissionsDto": {

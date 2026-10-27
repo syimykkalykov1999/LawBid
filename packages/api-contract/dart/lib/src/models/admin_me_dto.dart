@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'admin_country_tab_dto.dart';
 import 'admin_me_dto_role.dart';
+import 'admin_me_dto_workspace.dart';
 import 'permissions_permissions.dart';
 
 part 'admin_me_dto.g.dart';
@@ -27,6 +28,9 @@ class AdminMeDto {
     required this.countryPartnerId,
     required this.partnerLead,
     required this.countries,
+    required this.workspace,
+    required this.workspaceHead,
+    required this.workspacesEnabled,
     required this.countryTabs,
     required this.securityQuestion,
     required this.reasonRequiredAreas,
@@ -79,6 +83,15 @@ class AdminMeDto {
 
   /// Owner 2026-10-05: countries this admin works with (ISO 3166-1 alpha-2); empty = every country.
   final List<String> countries;
+
+  /// Staff package: the workspace this admin works in (the super admin is always the owner).
+  final AdminMeDtoWorkspace workspace;
+
+  /// Staff package: the head of the workspace, with the head role switched on (staff.head_enabled). Always false while workspaces are off.
+  final bool workspaceHead;
+
+  /// Staff package: staff.workspaces_enabled. Off = the panel looks exactly as before (left menu for everyone).
+  final bool workspacesEnabled;
 
   /// Country tabs for the panel: the assigned countries, or every switched-on country for staff working everywhere.
   final List<AdminCountryTabDto> countryTabs;

@@ -7,14 +7,17 @@ import { AnimatePresence, m } from 'motion/react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import type { Me } from '@/lib/hooks';
-import { ROLE_LABEL, groupFor, sectionFor } from '@/lib/rbac';
+import { ROLE_LABEL, WORKSPACE_HEAD_LABEL, WORKSPACE_LABEL, groupFor, navModeFor, sectionFor } from '@/lib/rbac';
 import { CountrySwitcher } from './country-switcher';
 import { ThemeChoice, ThemeToggle } from './theme-toggle';
 
 export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: () => void; onSearch: () => void }) {
   const pathname = usePathname();
   const section = sectionFor(pathname);
-  const group = groupFor(pathname);
+  // Staff package T2: a worker of a workspace has no left menu to open and
+  // no menu section: the crumb names their workspace instead.
+  const desk = navModeFor(me) === 'desk';
+  const group = desk ? (me?.workspace ? { label: WORKSPACE_LABEL[me.workspace] } : undefined) : groupFor(pathname, me);
   const [menu, setMenu] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -43,7 +46,7 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
         type="button"
         onClick={onMenu}
         aria-label="Меню"
-        className="hidden rounded-lg p-2 text-muted hover:bg-surface-2 hover:text-ink sm:block lg:hidden"
+        className={`${desk ? 'hidden' : 'hidden sm:block lg:hidden'} rounded-lg p-2 text-muted hover:bg-surface-2 hover:text-ink`}
       >
         <List size={20} />
       </button>
@@ -104,7 +107,9 @@ export function Topbar({ me, onMenu, onSearch }: { me: Me | undefined; onMenu: (
             >
               <div className="px-3 py-2">
                 <div className="truncate text-sm font-medium text-ink">{me?.email}</div>
-                <div className="text-xs text-gold-600">{me ? ROLE_LABEL[me.role] : ''}</div>
+                <div className="text-xs text-gold-600">
+                  {me ? (desk && me.workspace ? `${WORKSPACE_LABEL[me.workspace]}${me.workspaceHead ? ` · ${WORKSPACE_HEAD_LABEL}` : ''}` : ROLE_LABEL[me.role]) : ''}
+                </div>
               </div>
               <div className="px-1 py-2">
                 <div className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-faint">Тема</div>
