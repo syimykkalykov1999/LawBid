@@ -10,6 +10,7 @@ part 'legal_download_dto.g.dart';
 class LegalDownloadDto {
   const LegalDownloadDto({
     required this.url,
+    required this.downloadsLeft,
     required this.expiresAt,
     required this.sha256,
   });
@@ -18,6 +19,7 @@ class LegalDownloadDto {
       _$LegalDownloadDtoFromJson(json);
 
   final String url;
+  final int? downloadsLeft;
   final String expiresAt;
   final String? sha256;
 

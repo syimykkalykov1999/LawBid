@@ -887,7 +887,10 @@ export class ClientFraudService {
       },
     });
     const deleted = await this.prisma.user.findMany({
-      where: { status: 'deleted', anonymized_at: { not: null } },
+      where: {
+        status: 'deleted',
+        anonymized_at: { not: null },
+      },
       select: { id: true },
       take: 5000,
     });

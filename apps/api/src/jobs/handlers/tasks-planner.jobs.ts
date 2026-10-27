@@ -2,6 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { heldTargets } from '../../common/privacy/legal-hold';
+
 import { FileReleaseService } from '../../modules/files/storage/file-release.service';
 import { NotificationsService } from '../../modules/notifications/notifications.service';
 import {
@@ -204,11 +206,13 @@ export class TaskArchivePurgeJob {
     const cutoff = new Date(now.getTime() - days * DAY_MS);
     const notices = await this.notify(now, days);
 
+    const held = await heldTargets(this.prisma, 'user', now);
     let removed = 0;
     let files = 0;
     for (;;) {
       const rows = await this.prisma.attorneyTask.findMany({
         where: {
+          attorney_id: held.length ? { notIn: held } : undefined,
           archived_at: { lt: cutoff },
           keep_forever: false,
           status: { in: ['done', 'not_done', 'cancelled'] },

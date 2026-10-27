@@ -17974,6 +17974,513 @@
         ]
       }
     },
+    "/admin/data-requests/legal/transparency": {
+      "get": {
+        "operationId": "transparency",
+        "parameters": [
+          {
+            "name": "year",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "minimum": 2020,
+              "maximum": 2100,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransparencyReportEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Yearly counts for the transparency report",
+        "tags": [
+          "admin-data-requests"
+        ]
+      }
+    },
+    "/admin/data-requests/legal/requests/{requestId}/intake": {
+      "patch": {
+        "operationId": "updateIntake",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDataRequestIntakeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Legal basis, due date, subject, gag order (step-up)",
+        "tags": [
+          "admin-data-requests"
+        ]
+      }
+    },
+    "/admin/data-requests/legal/requests/{requestId}/user-notice": {
+      "get": {
+        "operationId": "noticePreview",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNoticeEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "The notice text and whether it may be sent",
+        "tags": [
+          "admin-data-requests"
+        ]
+      },
+      "post": {
+        "operationId": "notifyUser",
+        "parameters": [
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNoticeEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "E-mail the notice to the user (step-up; refused under a gag order)",
+        "tags": [
+          "admin-data-requests"
+        ]
+      }
+    },
+    "/admin/data-requests/legal/exports/{exportId}/custody": {
+      "get": {
+        "operationId": "custody",
+        "parameters": [
+          {
+            "name": "exportId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustodyEntryListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Chain of custody: who built / downloaded, when",
+        "tags": [
+          "admin-data-requests"
+        ]
+      }
+    },
     "/admin/feature-flags": {
       "get": {
         "operationId": "listFeatureFlags",
@@ -125626,7 +126133,12 @@
             "type": "string",
             "enum": [
               "subpoena",
-              "court_order"
+              "court_order",
+              "search_warrant",
+              "preservation",
+              "emergency",
+              "civil",
+              "other"
             ]
           },
           "referenceNumber": {
@@ -125670,6 +126182,36 @@
           },
           "accessCount": {
             "type": "integer"
+          },
+          "legalBasis": {
+            "type": "string",
+            "nullable": true
+          },
+          "country": {
+            "type": "string",
+            "nullable": true
+          },
+          "subjectUserId": {
+            "type": "string",
+            "nullable": true
+          },
+          "dueAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "doNotNotify": {
+            "type": "boolean"
+          },
+          "nondisclosureUntil": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "userNotifiedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
           }
         },
         "required": [
@@ -125684,7 +126226,14 @@
           "notes",
           "closedAt",
           "createdAt",
-          "accessCount"
+          "accessCount",
+          "legalBasis",
+          "country",
+          "subjectUserId",
+          "dueAt",
+          "doNotNotify",
+          "nondisclosureUntil",
+          "userNotifiedAt"
         ]
       },
       "DataRequestListEnvelope": {
@@ -125710,7 +126259,12 @@
           "requestType": {
             "enum": [
               "subpoena",
-              "court_order"
+              "court_order",
+              "search_warrant",
+              "preservation",
+              "emergency",
+              "civil",
+              "other"
             ],
             "type": "string"
           },
@@ -125735,6 +126289,36 @@
           "notes": {
             "type": "string",
             "maxLength": 2000
+          },
+          "legalBasis": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "The law the request rests on, e.g. \"18 U.S.C. 2703(d)\"."
+          },
+          "country": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 2,
+            "description": "Two-letter country of the authority."
+          },
+          "subjectUserId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The person it concerns."
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Answer due."
+          },
+          "doNotNotify": {
+            "type": "boolean",
+            "description": "Gag / non-disclosure order: do not tell the user."
+          },
+          "nondisclosureUntil": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The gag order ends (reminder to notify the user)."
           }
         },
         "required": [
@@ -125801,7 +126385,12 @@
             "type": "string",
             "enum": [
               "subpoena",
-              "court_order"
+              "court_order",
+              "search_warrant",
+              "preservation",
+              "emergency",
+              "civil",
+              "other"
             ]
           },
           "referenceNumber": {
@@ -125846,6 +126435,36 @@
           "accessCount": {
             "type": "integer"
           },
+          "legalBasis": {
+            "type": "string",
+            "nullable": true
+          },
+          "country": {
+            "type": "string",
+            "nullable": true
+          },
+          "subjectUserId": {
+            "type": "string",
+            "nullable": true
+          },
+          "dueAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "doNotNotify": {
+            "type": "boolean"
+          },
+          "nondisclosureUntil": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "userNotifiedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
           "accessLog": {
             "type": "array",
             "items": {
@@ -125866,6 +126485,13 @@
           "closedAt",
           "createdAt",
           "accessCount",
+          "legalBasis",
+          "country",
+          "subjectUserId",
+          "dueAt",
+          "doNotNotify",
+          "nondisclosureUntil",
+          "userNotifiedAt",
           "accessLog"
         ]
       },
@@ -126214,6 +126840,26 @@
             "type": "string",
             "nullable": true
           },
+          "manifestSha256": {
+            "type": "string",
+            "nullable": true
+          },
+          "manifestSignature": {
+            "type": "string",
+            "nullable": true
+          },
+          "signatureAlg": {
+            "type": "string",
+            "nullable": true,
+            "description": "ed25519 | hmac-sha256"
+          },
+          "downloadCount": {
+            "type": "integer"
+          },
+          "lastDownloadedAt": {
+            "type": "string",
+            "nullable": true
+          },
           "error": {
             "type": "string",
             "nullable": true
@@ -126240,6 +126886,11 @@
           "rowCounts",
           "sizeBytes",
           "sha256",
+          "manifestSha256",
+          "manifestSignature",
+          "signatureAlg",
+          "downloadCount",
+          "lastDownloadedAt",
           "error",
           "createdAt",
           "finishedAt",
@@ -126341,6 +126992,10 @@
           "url": {
             "type": "string"
           },
+          "downloadsLeft": {
+            "type": "integer",
+            "nullable": true
+          },
           "expiresAt": {
             "type": "string"
           },
@@ -126351,6 +127006,7 @@
         },
         "required": [
           "url",
+          "downloadsLeft",
           "expiresAt",
           "sha256"
         ]
@@ -126382,6 +127038,7 @@
             "type": "string",
             "enum": [
               "user",
+              "case",
               "conversation",
               "group"
             ]
@@ -126434,6 +127091,7 @@
           "targetType": {
             "enum": [
               "user",
+              "case",
               "conversation",
               "group"
             ],
@@ -126459,6 +127117,194 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/LegalHoldDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "TransparencyReportDto": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "byType": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "byStatus": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "byCountry": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "accountsAffected": {
+            "type": "number"
+          },
+          "withGagOrder": {
+            "type": "number"
+          },
+          "usersNotified": {
+            "type": "number"
+          },
+          "holdsPlaced": {
+            "type": "number"
+          },
+          "productionsMade": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "year",
+          "total",
+          "byType",
+          "byStatus",
+          "byCountry",
+          "accountsAffected",
+          "withGagOrder",
+          "usersNotified",
+          "holdsPlaced",
+          "productionsMade"
+        ]
+      },
+      "TransparencyReportEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TransparencyReportDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateDataRequestIntakeDto": {
+        "type": "object",
+        "properties": {
+          "legalBasis": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "subjectUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "doNotNotify": {
+            "type": "boolean"
+          },
+          "nondisclosureUntil": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UserNoticeDto": {
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": "boolean",
+            "description": "May the notice be sent right now?"
+          },
+          "blockedReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "text": {
+            "type": "string",
+            "description": "The text the user would get."
+          },
+          "language": {
+            "type": "string",
+            "description": "ru | en"
+          },
+          "userNotifiedAt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "allowed",
+          "blockedReason",
+          "text",
+          "language",
+          "userNotifiedAt"
+        ]
+      },
+      "UserNoticeEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/UserNoticeDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CustodyEntryDto": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "adminId": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "description": "legal_export.built | .queue | .download"
+          },
+          "ip": {
+            "type": "string",
+            "nullable": true
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          }
+        },
+        "required": [
+          "at",
+          "adminId",
+          "action",
+          "ip",
+          "details"
+        ]
+      },
+      "CustodyEntryListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustodyEntryDto"
+            }
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

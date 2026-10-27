@@ -742,6 +742,12 @@ enum AdminRole {
 enum DataRequestType {
   subpoena
   court_order
+  /// Owner 2026-10-28 (legal requests): more kinds of official request.
+  search_warrant
+  preservation
+  emergency
+  civil
+  other
 
   @@map("data_request_type")
 }
@@ -3926,9 +3932,25 @@ model DataAccessRequest {
   status           DataRequestStatus
   closed_at        DateTime?         @db.Timestamptz
   notes            String?
+  /// Owner 2026-10-28: the law the request rests on (e.g. "18 U.S.C. 2703(d)").
+  legal_basis      String?
+  /// Two-letter country of the issuing authority (transparency report).
+  country          String?           @db.VarChar(2)
+  /// The person the request concerns (for the notice to the user).
+  subject_user_id  String?           @db.Uuid
+  /// When the answer is due; reminders go to the on-call admins.
+  due_at           DateTime?         @db.Timestamptz
+  last_reminded_at DateTime?         @db.Timestamptz
+  /// Gag / non-disclosure order: the user must NOT be told until it ends.
+  do_not_notify    Boolean           @default(false)
+  nondisclosure_until DateTime?      @db.Timestamptz
+  nondisclosure_reminded_at DateTime? @db.Timestamptz
+  user_notified_at DateTime?         @db.Timestamptz
   created_at       DateTime          @default(now()) @db.Timestamptz
   updated_at       DateTime          @updatedAt @db.Timestamptz
 
+  @@index([due_at])
+  @@index([received_at])
   access_log    DataAccessLog[]
   legal_exports LegalExport[]
   legal_holds   LegalHold[]
@@ -7567,6 +7589,13 @@ model LegalExport {
   started_at      DateTime?         @db.Timestamptz
   finished_at     DateTime?         @db.Timestamptz
   expires_at      DateTime?         @db.Timestamptz
+  /// Owner 2026-10-28: SHA-256 of manifest.json and its signature
+  /// (ed25519 with LEGAL_MANIFEST_SIGNING_KEY, else HMAC-SHA256).
+  manifest_sha256 String?
+  manifest_signature String?
+  signature_alg   String?           @db.VarChar(16)
+  download_count  Int               @default(0)
+  last_downloaded_at DateTime?      @db.Timestamptz
 
   @@index([request_id, created_at(sort: Desc)])
   @@index([status, created_at])

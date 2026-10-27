@@ -97,6 +97,9 @@ export class DataRetentionService implements OnModuleDestroy {
       this.settings.number('storage.retention_inbox_days'),
     ]);
     const before = (days: number) => new Date(now.getTime() - days * DAY_MS);
+    // Owner 2026-10-28: activity rows of a person under a legal hold stay.
+    const ok = (col: string) =>
+      Prisma.sql`NOT ${heldSql('user', Prisma.raw(col))}`;
     const result: RetentionResult = {
       authEvents: authDays > 0 ? await this.authEvents(before(authDays)) : 0,
       assistantActivity:
@@ -107,6 +110,7 @@ export class DataRetentionService implements OnModuleDestroy {
                 WHERE ctid IN (
                   SELECT ctid FROM assistant_activity
                   WHERE created_at < ${before(activityDays)}
+                    AND ${ok('attorney_id')}
                   ORDER BY created_at LIMIT ${limit})`,
             )
           : 0,
@@ -127,6 +131,7 @@ export class DataRetentionService implements OnModuleDestroy {
                 WHERE ctid IN (
                   SELECT ctid FROM post_views
                   WHERE created_at < ${before(viewsDays)}
+                    AND ${ok('user_id')}
                   ORDER BY created_at LIMIT ${limit})`,
               ),
             )
@@ -148,6 +153,7 @@ export class DataRetentionService implements OnModuleDestroy {
                 WHERE ctid IN (
                   SELECT ctid FROM post_view_events
                   WHERE created_at < ${before(viewEventsDays)}
+                    AND ${ok('viewer_id')}
                   LIMIT ${limit})`,
               ),
             )
@@ -160,6 +166,7 @@ export class DataRetentionService implements OnModuleDestroy {
                 WHERE ctid IN (
                   SELECT ctid FROM user_activity_days
                   WHERE day < ${before(activeDaysDays)}::DATE
+                    AND ${ok('user_id')}
                   LIMIT ${limit})`,
             )
           : 0,

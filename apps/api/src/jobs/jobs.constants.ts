@@ -104,6 +104,8 @@ export const CRON_JOBS = {
   legalExports: 'legal.exports',
   /** Owner 2026-10-20: deleted content past 90 days is scrubbed (holds skip). */
   legalRetention: 'legal.retention',
+  /** Owner 2026-10-28: due dates of legal requests and gag-order ends. */
+  legalReminders: 'legal.reminders',
   /** docs/06 §5.3: expired export files. */
   exportsCleanup: 'exports.cleanup',
   /** docs/06 §8: queue depth / oldest job age → CloudWatch (log metric). */
@@ -257,6 +259,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.exportsCleanup, pattern: '10 3 * * *' },
   { name: CRON_JOBS.legalExports, pattern: '* * * * *' },
   { name: CRON_JOBS.legalRetention, pattern: '20 3 * * *' },
+  { name: CRON_JOBS.legalReminders, pattern: '7 * * * *' },
   { name: CRON_JOBS.opsQueueMetrics, pattern: '* * * * *' },
   { name: CRON_JOBS.opsBusinessMetrics, pattern: '*/10 * * * *' },
   { name: CRON_JOBS.callsSweep, pattern: '* * * * *' },

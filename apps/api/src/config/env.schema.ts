@@ -460,6 +460,13 @@ export const envSchema = z
       /-----BEGIN (RSA )?PRIVATE KEY-----/,
       'CLOUDFRONT_PRIVATE_KEY_PEM must be a PEM private key',
     ),
+    // Owner 2026-10-28 (legal requests): Ed25519 private key (PEM) that signs
+    // the manifest of every government-request production. Optional; without
+    // it the manifest is sealed with an HMAC instead.
+    LEGAL_MANIFEST_SIGNING_KEY: optionalMatching(
+      /-----BEGIN PRIVATE KEY-----/,
+      'LEGAL_MANIFEST_SIGNING_KEY must be an Ed25519 PKCS#8 PEM private key',
+    ),
     // Owner 2026-10-22 (passkeys): the WebAuthn relying party. Defaults:
     // RP ID = host of APP_LINK_BASE_URL (lawbid.dev, which also covers
     // admin.lawbid.dev and both native apps), origins = web.allowed_origins

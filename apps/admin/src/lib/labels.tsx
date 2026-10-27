@@ -319,6 +319,11 @@ export const LEGAL_DOC_TYPE: Record<string, string> = {
 export const DATA_REQUEST_TYPE: Record<string, string> = {
   subpoena: 'повестка (subpoena)',
   court_order: 'решение суда',
+  search_warrant: 'ордер на обыск (search warrant)',
+  preservation: 'сохранение данных (preservation)',
+  emergency: 'срочный запрос (emergency)',
+  civil: 'гражданский запрос',
+  other: 'другое',
 };
 
 export const DOC_TYPE: Record<string, string> = {

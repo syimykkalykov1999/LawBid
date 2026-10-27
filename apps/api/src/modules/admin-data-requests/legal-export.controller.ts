@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Inject,
   Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -33,6 +34,7 @@ import {
   CreateLegalExportDto,
   ErasureRecordDto,
   CreateLegalHoldDto,
+  CustodyEntryDto,
   LegalAccountCardDto,
   LegalDownloadDto,
   LegalExportDto,
@@ -43,7 +45,12 @@ import {
   LegalLookupQueryDto,
   LegalRequestParamDto,
   LegalUserParamDto,
+  TransparencyQueryDto,
+  TransparencyReportDto,
+  UserNoticeDto,
 } from './legal-export.dto';
+import { UpdateDataRequestIntakeDto } from './admin-data-requests.dto';
+import { LegalRequestService } from './legal-request.service';
 import { LegalExportService, LEGAL_AUDIT } from './legal-export.service';
 import { LegalLookupService } from './legal-lookup.service';
 
@@ -63,6 +70,7 @@ export class AdminLegalExportController {
   constructor(
     private readonly lookup: LegalLookupService,
     private readonly exports: LegalExportService,
+    private readonly requests: LegalRequestService,
     private readonly audit: AuditLogService,
     // Via a port, not an import of the privacy module (module-boundaries).
     @Inject(ERASURE_RECORDS) private readonly erasure: ErasureRecords,
@@ -229,5 +237,67 @@ export class AdminLegalExportController {
     @Param() params: LegalHoldParamDto,
   ): Promise<LegalHoldDto> {
     return this.exports.releaseHold(admin, params.holdId);
+  }
+
+  @Get('transparency')
+  @ApiOperation({ summary: 'Yearly counts for the transparency report' })
+  @ApiEnvelopeResponse(TransparencyReportDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  transparency(
+    @CurrentAdmin() admin: AdminActor,
+    @Query() query: TransparencyQueryDto,
+  ): Promise<TransparencyReportDto> {
+    return this.requests.transparency(admin, query.year);
+  }
+
+  @Patch('requests/:requestId/intake')
+  @ApiOperation({
+    summary: 'Legal basis, due date, subject, gag order (step-up)',
+  })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR, E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.NOT_FOUND],
+  })
+  async updateIntake(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() params: LegalRequestParamDto,
+    @Body() dto: UpdateDataRequestIntakeDto,
+  ): Promise<{ ok: true }> {
+    await this.requests.updateIntake(admin, params.requestId, dto);
+    return { ok: true };
+  }
+
+  @Get('requests/:requestId/user-notice')
+  @ApiOperation({ summary: 'The notice text and whether it may be sent' })
+  @ApiEnvelopeResponse(UserNoticeDto)
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  noticePreview(@Param() params: LegalRequestParamDto): Promise<UserNoticeDto> {
+    return this.requests.noticePreview(params.requestId);
+  }
+
+  @Post('requests/:requestId/user-notice')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'E-mail the notice to the user (step-up; refused under a gag order)',
+  })
+  @ApiEnvelopeResponse(UserNoticeDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR, E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.NOT_FOUND],
+  })
+  notifyUser(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() params: LegalRequestParamDto,
+  ): Promise<UserNoticeDto> {
+    return this.requests.notifyUser(admin, params.requestId);
+  }
+
+  @Get('exports/:exportId/custody')
+  @ApiOperation({ summary: 'Chain of custody: who built / downloaded, when' })
+  @ApiEnvelopeResponse(CustodyEntryDto, { isArray: true })
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  custody(@Param() params: LegalExportParamDto): Promise<CustodyEntryDto[]> {
+    return this.requests.custody(params.exportId);
   }
 }

@@ -1023,6 +1023,18 @@ export const OWNER_STORAGE_SETTINGS = {
   'legal.export_max_rows': 50000,
   'legal.export_link_days': 7,
   'legal.deleted_retention_days': 90,
+  // Owner 2026-10-28 (legal requests): how many times one archive may be
+  // downloaded (0 = no limit), reminders before an answer is due, the length
+  // of a preservation hold (18 U.S.C. 2703(f): 90 days, one 90-day renewal)
+  // and the text of the notice to the user (when no gag order forbids it).
+  'legal.export_max_downloads': 5,
+  'legal.reminders_enabled': true,
+  'legal.reminder_days': 3,
+  'legal.preservation_days': 90,
+  'legal.notice_template_en':
+    'LawBid received a legal request ({{reference}}) from {{agency}} concerning your account. We reviewed it and responded as the law requires. If you want to challenge it, contact a lawyer; we can share a copy of the request where the law allows.',
+  'legal.notice_template_ru':
+    'LawBid получил юридический запрос ({{reference}}) от {{agency}} по вашему аккаунту. Мы проверили его и ответили так, как требует закон. Если хотите оспорить запрос, обратитесь к юристу; копию запроса мы можем показать, если закон это позволяет.',
 };
 
 /** Owner 2026-10-05: zero-maintenance operations (admin Система →

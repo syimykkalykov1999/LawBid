@@ -60,6 +60,7 @@ export class JournalRetentionService implements OnModuleDestroy {
     db: PrismaClient | PrismaService,
     now: Date,
   ): Promise<number> {
+    // Owner 2026-10-28: a hold on a case or on either side keeps its journal.
     let deleted = 0;
     while (deleted < MAX_PER_RUN) {
       const n = await db.$executeRaw`
@@ -70,6 +71,7 @@ export class JournalRetentionService implements OnModuleDestroy {
             AND NOT ${heldSql('case', Prisma.sql`case_id`)}
             AND NOT ${heldSql('user', Prisma.sql`client_id`)}
             AND (attorney_id IS NULL OR NOT ${heldSql('user', Prisma.sql`attorney_id`)})
+            AND NOT ${heldSql('user', Prisma.sql`actor_user_id`)}
           ORDER BY retain_until
           LIMIT ${BATCH})`;
       deleted += n;

@@ -1332,6 +1332,15 @@ erDiagram
     enum_DataRequestStatus status
     DateTime closed_at "nullable"
     String notes "nullable"
+    String legal_basis "nullable"
+    String country "nullable"
+    String subject_user_id "nullable"
+    DateTime due_at "nullable"
+    DateTime last_reminded_at "nullable"
+    Boolean do_not_notify
+    DateTime nondisclosure_until "nullable"
+    DateTime nondisclosure_reminded_at "nullable"
+    DateTime user_notified_at "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -3108,6 +3117,11 @@ erDiagram
     DateTime started_at "nullable"
     DateTime finished_at "nullable"
     DateTime expires_at "nullable"
+    String manifest_sha256 "nullable"
+    String manifest_signature "nullable"
+    String signature_alg "nullable"
+    Int download_count
+    DateTime last_downloaded_at "nullable"
   }
   legal_holds {
     String id PK

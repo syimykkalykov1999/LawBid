@@ -1,15 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsIn,
+  IsInt,
   IsISO8601,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
   MinLength,
 } from 'class-validator';
 
@@ -31,7 +34,12 @@ export const LEGAL_SECTIONS = [
 ] as const;
 export type LegalSection = (typeof LEGAL_SECTIONS)[number];
 
-export const LEGAL_HOLD_TARGETS = ['user', 'conversation', 'group'] as const;
+export const LEGAL_HOLD_TARGETS = [
+  'user',
+  'case',
+  'conversation',
+  'group',
+] as const;
 export type LegalHoldTarget = (typeof LEGAL_HOLD_TARGETS)[number];
 
 export class LegalLookupQueryDto {
@@ -152,6 +160,12 @@ export class LegalExportDto {
   rowCounts!: Record<string, number> | null;
   @ApiProperty({ nullable: true }) sizeBytes!: number | null;
   @ApiProperty({ nullable: true }) sha256!: string | null;
+  @ApiProperty({ nullable: true }) manifestSha256!: string | null;
+  @ApiProperty({ nullable: true }) manifestSignature!: string | null;
+  @ApiProperty({ nullable: true, description: 'ed25519 | hmac-sha256' })
+  signatureAlg!: string | null;
+  @ApiProperty({ type: 'integer' }) downloadCount!: number;
+  @ApiProperty({ nullable: true }) lastDownloadedAt!: string | null;
   @ApiProperty({ nullable: true }) error!: string | null;
   @ApiProperty() createdAt!: string;
   @ApiProperty({ nullable: true }) finishedAt!: string | null;
@@ -160,6 +174,7 @@ export class LegalExportDto {
 
 export class LegalDownloadDto {
   @ApiProperty() url!: string;
+  @ApiProperty({ type: 'integer' }) downloadsLeft!: number | null;
   @ApiProperty() expiresAt!: string;
   @ApiProperty({ nullable: true }) sha256!: string | null;
 }
@@ -189,6 +204,48 @@ export class LegalAccountCardDto {
   sessions!: Record<string, unknown>[];
   @ApiProperty({ type: Object, isArray: true })
   holds!: Record<string, unknown>[];
+}
+
+export class UserNoticeDto {
+  @ApiProperty({ description: 'May the notice be sent right now?' })
+  allowed!: boolean;
+  @ApiProperty({ type: String, nullable: true })
+  blockedReason!: string | null;
+  @ApiProperty({ description: 'The text the user would get.' }) text!: string;
+  @ApiProperty({ description: 'ru | en' }) language!: string;
+  @ApiProperty({ type: String, nullable: true }) userNotifiedAt!: string | null;
+}
+
+export class CustodyEntryDto {
+  @ApiProperty() at!: string;
+  @ApiProperty() adminId!: string;
+  @ApiProperty({ description: 'legal_export.built | .queue | .download' })
+  action!: string;
+  @ApiProperty({ type: String, nullable: true }) ip!: string | null;
+  @ApiProperty({ type: Object, nullable: true })
+  details!: Record<string, unknown> | null;
+}
+
+export class TransparencyQueryDto {
+  @ApiProperty({ minimum: 2020, maximum: 2100 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(2020)
+  @Max(2100)
+  year!: number;
+}
+
+export class TransparencyReportDto {
+  @ApiProperty() year!: number;
+  @ApiProperty() total!: number;
+  @ApiProperty({ type: Object }) byType!: Record<string, number>;
+  @ApiProperty({ type: Object }) byStatus!: Record<string, number>;
+  @ApiProperty({ type: Object }) byCountry!: Record<string, number>;
+  @ApiProperty() accountsAffected!: number;
+  @ApiProperty() withGagOrder!: number;
+  @ApiProperty() usersNotified!: number;
+  @ApiProperty() holdsPlaced!: number;
+  @ApiProperty() productionsMade!: number;
 }
 
 /** Owner 2026-10-29: the personal-data erasure record of an account and,

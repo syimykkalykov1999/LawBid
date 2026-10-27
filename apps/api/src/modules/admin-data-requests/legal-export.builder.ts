@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { Injectable, Optional } from '@nestjs/common';
 import type { Archiver } from 'archiver';
 import type { Readable } from 'node:stream';
+import { ConfigService } from '@nestjs/config';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { fileNameAad } from '../../common/secrets/field-aad';
@@ -18,6 +19,7 @@ import {
   jsonArrayStream,
   jsonValueStream,
 } from '../../common/streaming/export-stream';
+import { signManifest } from './legal-manifest.signer';
 
 const DAY_MS = 24 * 3600 * 1000;
 /** One evidence archive never exceeds this (the rows are capped too). */
@@ -50,6 +52,7 @@ export class LegalExportBuilder {
     private readonly settings: AppSettingsService,
     private readonly logger: PinoLogger,
     @Optional() private readonly cipher?: MessageBodyCipher,
+    @Optional() private readonly config?: ConfigService,
   ) {
     this.logger.setContext(LegalExportBuilder.name);
   }
@@ -126,6 +129,7 @@ export class LegalExportBuilder {
       // uploaded as S3 multipart; SHA256SUMS.txt and manifest.json come
       // last (they need the hashes of the files before them).
       const hashes: Record<string, string> = {};
+      let seal: ReturnType<typeof signManifest> | undefined;
       const addStream = async (
         archive: Archiver,
         name: string,
@@ -158,26 +162,41 @@ export class LegalExportBuilder {
             .sort()
             .join('\n');
           await addBuffer(archive, 'SHA256SUMS.txt', Buffer.from(`${sums}\n`));
+          const manifestBytes = Buffer.from(
+            JSON.stringify(
+              {
+                exportId: job.id,
+                requestId: job.request_id,
+                referenceNumber: job.request.reference_number,
+                issuingAuthority: job.request.agency,
+                legalBasis: job.request.legal_basis,
+                requestedBy: job.requested_by,
+                requestedAt: job.created_at.toISOString(),
+                generatedAt: now.toISOString(),
+                selection,
+                counts,
+                truncatedAtRows: gathered.truncated.length ? maxRows : null,
+                truncated: gathered.truncated,
+                hashes: { ...hashes },
+              },
+              replacer,
+              2,
+            ),
+          );
+          await addBuffer(archive, 'manifest.json', manifestBytes);
+          // Chain of custody (#379): the manifest is sealed; `manifest.sig`
+          // travels in the ZIP and the same seal is stored on the row.
+          seal = signManifest(manifestBytes, {
+            privateKeyPem: this.config
+              ?.get<string>('LEGAL_MANIFEST_SIGNING_KEY')
+              ?.replace(/\\n/g, '\n'),
+            fallbackSecret:
+              this.config?.get<string>('OTP_KEY_PEPPER') ?? 'lawbid',
+          });
           await addBuffer(
             archive,
-            'manifest.json',
-            Buffer.from(
-              JSON.stringify(
-                {
-                  exportId: job.id,
-                  requestId: job.request_id,
-                  referenceNumber: job.request.reference_number,
-                  generatedAt: now.toISOString(),
-                  selection,
-                  counts,
-                  truncatedAtRows: gathered.truncated.length ? maxRows : null,
-                  truncated: gathered.truncated,
-                  hashes: { ...hashes },
-                },
-                replacer,
-                2,
-              ),
-            ),
+            'manifest.sig',
+            Buffer.from(JSON.stringify(seal, replacer, 2)),
           );
         },
         { maxBytes: LEGAL_EXPORT_MAX_BYTES },
@@ -186,6 +205,7 @@ export class LegalExportBuilder {
       const key = `legal-exports/${job.id}.zip`;
       await this.storage.putStream(bucket, key, zip.body, 'application/zip');
       const size = zip.body.bytes;
+      if (!seal) throw new Error('legal export manifest was not sealed');
       const digest = zip.body.digest();
       await this.prisma.$transaction([
         this.prisma.legalExport.update({
@@ -196,6 +216,9 @@ export class LegalExportBuilder {
             file_key: key,
             size_bytes: BigInt(size),
             sha256: digest,
+            manifest_sha256: seal.manifestSha256,
+            manifest_signature: seal.signature,
+            signature_alg: seal.alg,
             row_counts: counts,
             error: null,
             finished_at: new Date(),
