@@ -16,10 +16,8 @@ class EconomySettingsDto {
     required this.ceilingMode,
     required this.manualApi,
     required this.manualWorker,
-    required this.smsUnitUsd,
-    required this.videoUnitUsd,
-    required this.translateUnitUsd,
     required this.awsFallbackUsd,
+    required this.dailyBrakeDays,
   });
 
   factory EconomySettingsDto.fromJson(Map<String, Object?> json) =>
@@ -33,10 +31,10 @@ class EconomySettingsDto {
   final EconomySettingsDtoCeilingMode ceilingMode;
   final num manualApi;
   final num manualWorker;
-  final num smsUnitUsd;
-  final num videoUnitUsd;
-  final num translateUnitUsd;
   final num awsFallbackUsd;
+
+  /// The daily money brake = allowed spend / 30 × this many days.
+  final num dailyBrakeDays;
 
   Map<String, Object?> toJson() => _$EconomySettingsDtoToJson(this);
 }

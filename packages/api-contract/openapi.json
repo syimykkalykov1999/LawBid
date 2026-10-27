@@ -152737,7 +152737,9 @@
               "twilio",
               "bunny",
               "cloudflare",
-              "stripe"
+              "stripe",
+              "google",
+              "sentry"
             ]
           },
           "label": {
@@ -153344,7 +153346,11 @@
               "aws",
               "sms",
               "video",
-              "translate"
+              "translate",
+              "id_check",
+              "email",
+              "image_moderation",
+              "cloudflare"
             ],
             "type": "string"
           },
@@ -153360,7 +153366,15 @@
               "estimate"
             ],
             "type": "string",
-            "description": "actual = read from AWS; estimate = units × unit price."
+            "description": "actual = read from the vendor; estimate = calls × price book."
+          },
+          "coveredBy": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "aws"
+            ],
+            "description": "The AWS bill already contains this line (not added twice)."
           }
         },
         "required": [
@@ -153430,17 +153444,12 @@
           "manualWorker": {
             "type": "number"
           },
-          "smsUnitUsd": {
-            "type": "number"
-          },
-          "videoUnitUsd": {
-            "type": "number"
-          },
-          "translateUnitUsd": {
-            "type": "number"
-          },
           "awsFallbackUsd": {
             "type": "number"
+          },
+          "dailyBrakeDays": {
+            "type": "number",
+            "description": "The daily money brake = allowed spend / 30 × this many days."
           }
         },
         "required": [
@@ -153449,10 +153458,8 @@
           "ceilingMode",
           "manualApi",
           "manualWorker",
-          "smsUnitUsd",
-          "videoUnitUsd",
-          "translateUnitUsd",
-          "awsFallbackUsd"
+          "awsFallbackUsd",
+          "dailyBrakeDays"
         ]
       },
       "ContainerReportDto": {
@@ -153565,6 +153572,16 @@
           "dbMaxConnections": {
             "type": "number",
             "nullable": true
+          },
+          "dbStorageGb": {
+            "type": "number",
+            "nullable": true,
+            "description": "Allocated database disk, GB."
+          },
+          "dbStorageUsd": {
+            "type": "number",
+            "nullable": true,
+            "description": "Monthly price of that disk (gp3), USD."
           },
           "redisClass": {
             "type": "string",
@@ -153717,20 +153734,10 @@
             "minimum": 1,
             "maximum": 1000
           },
-          "smsUnitUsd": {
+          "dailyBrakeDays": {
             "type": "number",
-            "minimum": 0,
-            "maximum": 100
-          },
-          "videoUnitUsd": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 100
-          },
-          "translateUnitUsd": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 100
+            "minimum": 0.5,
+            "maximum": 31
           },
           "awsFallbackUsd": {
             "type": "number",

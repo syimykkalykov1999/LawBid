@@ -4,10 +4,10 @@ import 'dart:ui' show ImageFilter;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/design_system/widgets/display/pinch_to_zoom.dart';
 import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart';
@@ -2509,7 +2509,7 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
   }
 
   void _doubleTap() {
-    HapticFeedback.lightImpact();
+    AppHaptics.light();
     widget.onDoubleTap();
     if (!context.reduceMotion) _heart.forward(from: 0);
   }
@@ -2662,7 +2662,7 @@ class _DoubleTapLikeState extends State<DoubleTapLike>
   Widget build(BuildContext context) => GestureDetector(
         behavior: HitTestBehavior.translucent,
         onDoubleTap: () {
-          HapticFeedback.lightImpact();
+          AppHaptics.light();
           widget.onLike();
           if (!context.reduceMotion) _heart.forward(from: 0);
         },
@@ -3059,7 +3059,7 @@ class _BounceIconState extends State<BounceIcon>
       child: AppTapTarget(
         child: AppPressable(
           onTap: () {
-            HapticFeedback.selectionClick();
+            AppHaptics.selection();
             widget.onTap();
           },
           child: SizedBox(

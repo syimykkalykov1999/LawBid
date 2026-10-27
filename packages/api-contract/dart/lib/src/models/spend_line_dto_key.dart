@@ -14,6 +14,14 @@ enum SpendLineDtoKey {
   video('video'),
   @JsonValue('translate')
   translate('translate'),
+  @JsonValue('id_check')
+  idCheck('id_check'),
+  @JsonValue('email')
+  email('email'),
+  @JsonValue('image_moderation')
+  imageModeration('image_moderation'),
+  @JsonValue('cloudflare')
+  cloudflare('cloudflare'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

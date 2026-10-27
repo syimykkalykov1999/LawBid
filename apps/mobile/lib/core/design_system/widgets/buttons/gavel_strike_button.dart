@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/app_button.dart';
@@ -85,7 +85,7 @@ class _GavelStrikeButtonState extends State<GavelStrikeButton>
   void _onTick() {
     if (!_hapticFired && _controller.value >= AppMotion.gavelHitProgress) {
       _hapticFired = true;
-      HapticFeedback.mediumImpact();
+      AppHaptics.medium();
     }
   }
 
