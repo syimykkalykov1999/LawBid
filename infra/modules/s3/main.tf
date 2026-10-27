@@ -824,4 +824,3 @@ resource "aws_cloudfront_monitoring_subscription" "documents" {
     }
   }
 }
-output "media_distribution_id" { value = aws_cloudfront_distribution.media.id }
