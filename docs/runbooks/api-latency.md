@@ -19,7 +19,7 @@ Targets (docs/06 §9.4): reads p95 < 300 ms, writes < 600 ms (alarm at 600 ms).
 an abusive source, or roll back a deploy that introduced the slow path.
 
 **After.** Reproduce with the k6 scenario for that endpoint
-(`apps/api/k6`), fix, record in `docs/perf/`.
+(`loadtest/k6`), fix, record in `docs/perf/`.
 
 
 ## event-loop

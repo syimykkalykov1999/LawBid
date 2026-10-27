@@ -1,6 +1,6 @@
 # Load testing results (docs/06 §9.4)
 
-Scenarios: `apps/api/k6/` (README there). Environment: **staging sized like
+Scenarios: `loadtest/k6/` (profiles in `loadtest/profiles.json`; the nightly staging run uses the `nightly` profile). Environment: **staging sized like
 production** (`infra/envs/staging` with prod task counts and Redis node for
 the run), test-mode Stripe, mock SMS with the fixed OTP code.
 
@@ -10,10 +10,11 @@ the run), test-mode Stripe, mock SMS with the fixed OTP code.
    subscriptions, 20 000 open cases across states/practice areas, 5 000
    pre-acceptance conversations (a seeding script is run on staging only;
    prod data is never copied — docs/06 §6.2).
-2. Mint access tokens for a sample of them (`TokenService.signAccessToken`
-   from a maintenance shell or the seeding script) into `CLIENT_TOKENS` /
-   `ATTORNEY_TOKENS`; export `CASE_IDS`, `CONVERSATION_IDS`.
-3. `k6 run -e STAGE=peak apps/api/k6/all.js`, then `-e STAGE=soak`.
+2. Mint the token file and the fixtures file (`loadtest/scripts/mint.mjs`,
+   `loadtest/scripts/discover.mjs`) — for the nightly run keep their content in
+   the secrets `STAGING_TOKENS_JSON` and `STAGING_FIXTURES_JSON`.
+3. `loadtest/run-local.sh` on the Mac first, then the «Load test» workflow
+   (smoke, m1, m10). The suite never requests an SMS code.
 
 ## Targets
 
