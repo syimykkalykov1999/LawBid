@@ -146,6 +146,14 @@ kotlin {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+    // S8-1 (speed): cronet_http (via native_dio_adapter) uses
+    // play-services-cronet 18.1.1, which pulls cronet-api 141.7340.3; that
+    // version and its cronet-shared both claim the "org.chromium.net"
+    // namespace, which AGP 9 (android.uniquePackageNames) rejects in the
+    // manifest merger. cronet-api 143.7445.0 has its own namespace — the same
+    // pin cronet_http 1.10.1 ships (dart-lang/http#1932). Drop this line when
+    // cronet_http >= 1.10.1 can be used (needs sentry_flutter >= 10.2.0).
+    implementation("org.chromium.net:cronet-api:143.7445.0")
 }
 
 flutter {

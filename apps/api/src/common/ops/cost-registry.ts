@@ -622,6 +622,31 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     note: 'V6',
   },
   {
+    id: 'aws.cdn_metrics',
+    name: 'Доп. метрики CDN (попадание в кеш, задержка источника)',
+    purpose:
+      'Показывает, какая доля фото и документов отдаётся из кеша CloudFront и как долго отвечает источник; на них висят две тревоги.',
+    kind: 'aws',
+    control: fixed(
+      'Включены в Terraform по умолчанию (переменная модуля cdn_additional_metrics); отдельного выключателя в prod нет.',
+    ),
+    states: ['on'],
+    defaultState: 'on',
+    ceiling: null,
+    price: price(
+      'fixed',
+      '8 метрик на раздачу по цене метрик CloudWatch ≈ $2,4 в месяц; две раздачи ≈ $5',
+      U.cf,
+    ),
+    usd: { launch: R(5), k100: R(5), m1: R(5) },
+    needed: 'yes',
+    neededNote:
+      'Дёшево и помогает заметить медленные фото: на этих метриках висят две тревоги CDN.',
+    alarm: 'тревоги media-cdn-hit-rate и media-cdn-origin-latency',
+    ceService: 'AmazonCloudWatch',
+    awsTypes: ['aws_cloudfront_monitoring_subscription'],
+  },
+  {
     id: 'aws.cloudwatch',
     name: 'Тревоги, графики и журналы (CloudWatch)',
     purpose:

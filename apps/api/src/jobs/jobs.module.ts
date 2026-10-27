@@ -54,6 +54,7 @@ import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { PartitionService } from '../partitioning/partition.service';
 import { SearchIndexJob } from './handlers/search-index.job';
+import { DbBloatJob } from './handlers/db-bloat.job';
 import { CdnInvalidateJob } from './handlers/cdn-invalidate.job';
 import { PublicDirectoryService } from '../modules/public-directory/public-directory.service';
 import { SeoGenerateJob } from './handlers/seo-generate.job';
@@ -197,6 +198,8 @@ export class JobsModule {
         AdminSummariesJob,
         // Owner 2026-10-24: `search.index` (search-engine outbox).
         SearchIndexJob,
+        // Owner 2026-10-25: `db.bloat-check`.
+        DbBloatJob,
         // Owner 2026-10-25: `cdn.invalidate` (queued CloudFront paths).
         CdnInvalidateJob,
         // Programmatic SEO 2026-10-27: `seo.generate` (pages from the DB read path).

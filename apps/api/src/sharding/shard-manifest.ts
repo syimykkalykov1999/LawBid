@@ -366,6 +366,9 @@ export const GLOBAL_MODELS: readonly string[] = [
   // Search-ready: the engine outbox and its reindex checkpoints.
   'SearchOutbox',
   'SearchIndexState',
+  // Online DDL: applied index files and batched-backfill state (per database).
+  'ConcurrentMigration',
+  'BackfillRun',
   // Owner 2026-10-28: attorney advertising archive.
   'AttorneyAdArchive',
   // Events pipeline (N-2): the domain-event stream (primary only).

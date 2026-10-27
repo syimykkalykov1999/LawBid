@@ -283,8 +283,9 @@ describe('JobsRunner', () => {
     // N-2: + events.maintain (every 5 minutes).
     // Experiments: + experiments.metrics (nightly).
     // Owner 2026-10-24: + partition.maintain (daily) and partition.tick.
+    // Online DDL: + db.bloat-check (nightly).
     // Programmatic SEO 2026-10-27: + seo.generate (nightly, no-op while off).
-    expect(upserts).toHaveLength(89);
+    expect(upserts).toHaveLength(90);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

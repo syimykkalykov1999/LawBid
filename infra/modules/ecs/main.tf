@@ -47,6 +47,15 @@ variable "api_cpu" {
   type    = number
   default = 1024
 }
+variable "api_uv_threadpool_size" {
+  type        = number
+  default     = 4
+  description = "S8-7: libuv thread pool of the API task (Node default 4, max 1024; gzip, dns.lookup, fs, crypto share it). 4 = unset. Raise to 8 only after the ThreadPoolLagMs metric (LawBid/Runtime) shows a queue under load."
+  validation {
+    condition     = var.api_uv_threadpool_size >= 4 && var.api_uv_threadpool_size <= 64
+    error_message = "api_uv_threadpool_size: 4..64."
+  }
+}
 variable "api_memory" {
   type    = number
   default = 2048
@@ -490,7 +499,7 @@ resource "aws_ecs_task_definition" "api" {
     essential    = true
     command      = ["node", "dist/src/main.js"]
     portMappings = [{ containerPort = 3000, protocol = "tcp" }]
-    environment  = concat(local.api_environment, local.tracing_env, [{ name = "PORT", value = "3000" }, { name = "JOBS_ENABLED", value = "false" }, local.node_options["api"]])
+    environment  = concat(local.api_environment, local.tracing_env, [{ name = "PORT", value = "3000" }, { name = "JOBS_ENABLED", value = "false" }, local.node_options["api"]], var.api_uv_threadpool_size > 4 ? [{ name = "UV_THREADPOOL_SIZE", value = tostring(var.api_uv_threadpool_size) }] : [])
     secrets      = local.api_secrets
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
@@ -636,7 +645,9 @@ resource "aws_ecs_task_definition" "migrate" {
     name      = "migrate"
     image     = var.api_image
     essential = true
-    command   = ["npx", "prisma", "migrate", "deploy"]
+    # After the transactional migrations: prisma/concurrent/*.sql (CREATE INDEX
+    # CONCURRENTLY cannot run inside a migration), docs/architecture/ONLINE_DDL.md.
+    command   = ["sh", "-c", "npx prisma migrate deploy && node prisma/run-concurrent.mjs"]
     # npx / Prisma want a writable cache and home: both under /tmp.
     # No DB_POOLER_*: `prisma migrate` must reach the database directly
     # (docs/architecture/DB_POOLER.md).
