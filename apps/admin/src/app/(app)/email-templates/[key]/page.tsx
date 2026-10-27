@@ -13,7 +13,7 @@ import {
   EMPTY_FORM, fieldErrors, HTML_MAX, LOCALE_LABEL, LOCALES, SUBJECT_MAX, TEXT_MAX, unsample,
   type EmailForm, type EmailKey, type EmailLocale, type EmailTemplateDetail, type FieldName,
 } from '@/components/email/email-utils';
-import { useDebounced } from '@/components/email/use-debounced';
+import { useDebounced } from '@/components/legacy/use-debounced';
 import { VariableChips } from '@/components/email/variable-chips';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';

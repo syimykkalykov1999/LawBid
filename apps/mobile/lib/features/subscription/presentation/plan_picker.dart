@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/plans/domain/plan_models.dart';
@@ -135,7 +135,7 @@ class _PlanPickerState extends State<PlanPicker> {
 
   void _setOffer(PlanOffer plan) {
     if (plan.code == _offer?.code && _planCode != null) return;
-    HapticFeedback.selectionClick();
+    AppHaptics.selection();
     setState(() {
       _planCode = plan.code;
       _plan = legacyPlanOf(plan);
@@ -144,7 +144,7 @@ class _PlanPickerState extends State<PlanPicker> {
   }
 
   void _setExtraSeats(int seats) {
-    HapticFeedback.selectionClick();
+    AppHaptics.selection();
     setState(() {
       _seats = seats.clamp(0, _offer?.extraSeatsAllowed ?? 0);
     });
@@ -154,12 +154,12 @@ class _PlanPickerState extends State<PlanPicker> {
 
   void _setPlan(SubscriptionPlan plan) {
     if (plan == _plan) return;
-    HapticFeedback.selectionClick();
+    AppHaptics.selection();
     setState(() => _plan = plan);
   }
 
   void _setSeats(int seats) {
-    HapticFeedback.selectionClick();
+    AppHaptics.selection();
     setState(() => _seats = seats.clamp(0, _p.maxSeats));
   }
 

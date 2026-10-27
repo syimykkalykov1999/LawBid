@@ -49,7 +49,7 @@ export default function EconomyPage() {
   const [threshold, setThreshold] = useState('');
   const [manualApi, setManualApi] = useState('');
   const [manualWorker, setManualWorker] = useState('');
-  const [prices, setPrices] = useState({ sms: '', video: '', translate: '', aws: '' });
+  const [prices, setPrices] = useState({ brake: '', aws: '' });
   const s = e?.settings;
   useEffect(() => {
     if (!s) return;
@@ -58,9 +58,7 @@ export default function EconomyPage() {
     setManualApi(String(s.manualApi));
     setManualWorker(String(s.manualWorker));
     setPrices({
-      sms: String(s.smsUnitUsd),
-      video: String(s.videoUnitUsd),
-      translate: String(s.translateUnitUsd),
+      brake: String(s.dailyBrakeDays),
       aws: String(s.awsFallbackUsd),
     });
   }, [s]);
@@ -150,7 +148,7 @@ export default function EconomyPage() {
                       <td className="p-3">{usd(l.projectedUsd)}</td>
                       <td className="p-3">
                         <Badge tone={l.source === 'actual' ? 'success' : 'neutral'}>
-                          {l.source === 'actual' ? 'факт из AWS' : 'оценка'}
+                          {l.coveredBy === 'aws' ? 'внутри счёта AWS' : l.source === 'actual' ? 'факт от поставщика' : 'оценка'}
                         </Badge>
                       </td>
                     </tr>
@@ -293,6 +291,14 @@ export default function EconomyPage() {
                 Размер: <span className="text-ink">{e.capacity.dbClass ?? '—'}</span>
               </div>
               <div className="text-sm text-muted">
+                Диск:{' '}
+                <span className="text-ink">
+                  {e.capacity.dbStorageGb != null
+                    ? `${e.capacity.dbStorageGb} ГБ ≈ ${usd(e.capacity.dbStorageUsd ?? 0)} в месяц (к цене размера выше)`
+                    : '—'}
+                </span>
+              </div>
+              <div className="text-sm text-muted">
                 Процессор: <span className="text-ink">{pct(e.capacity.dbCpuPercent)}</span> (тревога выше 70%)
               </div>
               <div className="text-sm text-muted">
@@ -355,21 +361,19 @@ export default function EconomyPage() {
             )}
           </Card>
 
-          <SectionTitle>Цены для оценки расходов</SectionTitle>
+          <SectionTitle>Запасная сумма AWS и дневной тормоз</SectionTitle>
           <Card className="mb-6 space-y-3 p-4">
             <p className="text-sm text-muted">
-              Сколько стоит одна единица у поставщика. Поставщики меняют цены, поэтому поля можно править. AWS читается
-              из бюджета; запасная сумма нужна, если прочитать его нельзя.
+              Цены единиц (SMS, письма, проверки личности и т. д.) теперь одни на всю систему и лежат в разделе «Настройки»
+              (ключи cost.unit_millicents.*). AWS читается из бюджета; запасная сумма нужна, если прочитать его нельзя.
             </p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Field label="SMS, $ за штуку" htmlFor="eco-sms">
-                <Input id="eco-sms" inputMode="decimal" value={prices.sms} onChange={(ev) => setPrices({ ...prices, sms: ev.target.value })} />
-              </Field>
-              <Field label="Загрузка видео, $" htmlFor="eco-video">
-                <Input id="eco-video" inputMode="decimal" value={prices.video} onChange={(ev) => setPrices({ ...prices, video: ev.target.value })} />
-              </Field>
-              <Field label="Перевод, $ за штуку" htmlFor="eco-translate">
-                <Input id="eco-translate" inputMode="decimal" value={prices.translate} onChange={(ev) => setPrices({ ...prices, translate: ev.target.value })} />
+              <Field
+                label="Дневной тормоз, дней"
+                htmlFor="eco-brake"
+                hint="Больше за сутки платным сервисам тратить нельзя: допустимый расход ÷ 30 × это число. Обычно 3."
+              >
+                <Input id="eco-brake" inputMode="decimal" value={prices.brake} onChange={(ev) => setPrices({ ...prices, brake: ev.target.value })} />
               </Field>
               <Field label="AWS запасная сумма, $/мес" htmlFor="eco-aws">
                 <Input id="eco-aws" inputMode="decimal" value={prices.aws} onChange={(ev) => setPrices({ ...prices, aws: ev.target.value })} />
@@ -380,14 +384,12 @@ export default function EconomyPage() {
               loading={save.isPending}
               onClick={() =>
                 save.mutate({
-                  smsUnitUsd: Number(prices.sms),
-                  videoUnitUsd: Number(prices.video),
-                  translateUnitUsd: Number(prices.translate),
+                  dailyBrakeDays: Number(prices.brake),
                   awsFallbackUsd: Number(prices.aws),
                 })
               }
             >
-              Сохранить цены
+              Сохранить
             </Button>
           </Card>
         </>

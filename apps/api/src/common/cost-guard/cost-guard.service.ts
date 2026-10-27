@@ -8,6 +8,8 @@ import { ErrorCode } from '../errors/error-code.enum';
 import {
   COST_ALERT_RATIO,
   COST_PROVIDERS,
+  DEFAULT_DAILY_BRAKE_CENTS,
+  ECONOMY_DAILY_BRAKE_KEY,
   COST_WINDOW_CONFIG,
   COST_WINDOWS,
   type CostProvider,
@@ -17,7 +19,9 @@ import { assertNotDemo } from '../demo/demo-guards';
 import {
   capMillicentsFromCalls,
   estimateMillicents,
+  parsePriceBook,
   type CostEstimateInput,
+  type PriceBook,
 } from './cost-prices';
 
 /** Owner 2026-10-22 (audit #4 §6): what a guarded call weighs and who
@@ -35,8 +39,9 @@ export interface CostOptions {
   millicents?: number;
 }
 
-export type MoneyScope = 'global' | 'provider' | 'user';
-const MONEY_SCOPES: MoneyScope[] = ['global', 'provider', 'user'];
+/** `month` = one provider's MONTHLY money cap (S9-4: SMS only). */
+export type MoneyScope = 'global' | 'provider' | 'user' | 'month';
+const MONEY_SCOPES: MoneyScope[] = ['global', 'provider', 'user', 'month'];
 
 // Money windows (daily, millicents) of one call, atomically: KEYS are n
 // counters, n warn flags, n exhausted flags; ARGV: amount, n, then per
@@ -76,6 +81,7 @@ return out
 `;
 
 const MONEY_TTL_SEC = 2 * 86_400;
+const MONEY_MONTH_TTL_SEC = 35 * 86_400;
 
 /** `money:{m}:20261022:p:sms` — one hash tag, so the script stays
  * Redis-Cluster safe (all counters of one call in one slot). */
@@ -86,6 +92,7 @@ export function moneyCounterKey(
 ): string {
   const iso = at.toISOString();
   const day = iso.slice(0, 4) + iso.slice(5, 7) + iso.slice(8, 10);
+  if (scope === 'month') return `money:{m}:${day.slice(0, 6)}:pm:${id}`;
   const tag = scope === 'global' ? 'all' : scope === 'provider' ? 'p' : 'u';
   return `money:{m}:${day}:${tag}:${id}`;
 }
@@ -281,6 +288,7 @@ export class CostGuardService {
       );
     }
 
+    if (provider === 'translate') await this.countTranslateChars(opts, now);
     COST_WINDOWS.forEach((window, i) => {
       if (result.warned[i]) {
         this.logger.warn(
@@ -298,17 +306,37 @@ export class CostGuardService {
     });
   }
 
+  /** S9-11: characters sent to Google this month — the usage reader of the
+   * «Расходы» page (Google bills per character). Best effort. */
+  private async countTranslateChars(
+    opts: CostOptions,
+    now: Date,
+  ): Promise<void> {
+    const chars = Math.floor(opts.chars ?? 0);
+    if (chars <= 0) return;
+    try {
+      const key = `budget:{translate}:chars:${now.toISOString().slice(0, 7).replace('-', '')}`;
+      await this.redis.incrby(key, chars);
+      await this.redis.expire(key, 35 * 86_400);
+    } catch {
+      // a missed count only makes the spend page slightly low
+    }
+  }
+
   /** Daily money caps in millicents (0 = no cap): app_config cents, env
    * cents, else (provider) the per-call daily cap converted to money. */
   async moneyCaps(
     provider: CostProvider,
     callCaps?: CostCaps,
+    storedConfig?: Record<string, unknown>,
   ): Promise<Record<MoneyScope, number>> {
-    let stored: Record<string, unknown> = {};
-    try {
-      stored = await this.appConfig.getConfig();
-    } catch {
-      // env fallbacks below
+    let stored: Record<string, unknown> = storedConfig ?? {};
+    if (!storedConfig) {
+      try {
+        stored = await this.appConfig.getConfig();
+      } catch {
+        // env fallbacks below
+      }
     }
     const cents = (key: string, env: string): number | undefined =>
       this.parseCap(stored[key]) ??
@@ -317,21 +345,50 @@ export class CostGuardService {
       `budget.${provider}.daily_cents`,
       `BUDGET_${provider.toUpperCase()}_DAILY_CENTS`,
     );
+    const monthCents = cents(
+      `budget.${provider}.monthly_cents`,
+      `BUDGET_${provider.toUpperCase()}_MONTHLY_CENTS`,
+    );
     const daily = (callCaps ?? (await this.resolveCaps(provider))).daily;
+    // S9-4: the admin (even 0 = none) wins, then a positive env value, then
+    // the brake EconomyService derives from the allowance.
+    const explicitGlobal =
+      this.parseCap(stored['budget.money.global_daily_cents']) ??
+      (() => {
+        const e = this.parseCap(
+          this.config.get<number | string>('BUDGET_GLOBAL_DAILY_CENTS'),
+        );
+        return e !== undefined && e > 0 ? e : undefined;
+      })();
+    const globalCents = explicitGlobal ?? (await this.autoDailyBrakeCents());
     return {
-      global:
-        (cents(
-          'budget.money.global_daily_cents',
-          'BUDGET_GLOBAL_DAILY_CENTS',
-        ) ?? 0) * 1000,
+      global: globalCents * 1000,
       provider:
         providerCents !== undefined
           ? providerCents * 1000
-          : capMillicentsFromCalls(provider, daily),
+          : capMillicentsFromCalls(
+              provider,
+              daily,
+              parsePriceBook(stored).unit,
+            ),
       user:
         (cents('budget.money.user_daily_cents', 'BUDGET_USER_DAILY_CENTS') ??
           0) * 1000,
+      month: (monthCents ?? 0) * 1000,
     };
+  }
+
+  /** The daily brake EconomyService keeps in Redis (cents), else the
+   * launch floor. Never throws. */
+  private async autoDailyBrakeCents(): Promise<number> {
+    try {
+      const raw = await this.redis.get(ECONOMY_DAILY_BRAKE_KEY);
+      const n = Number(raw);
+      if (raw !== null && Number.isFinite(n) && n > 0) return Math.round(n);
+    } catch {
+      // floor below
+    }
+    return DEFAULT_DAILY_BRAKE_CENTS;
   }
 
   /** Today's spend in cents (global, per provider) for the admin. */
@@ -366,18 +423,32 @@ export class CostGuardService {
       country: opts.country,
       seconds: opts.seconds,
     };
+    let stored: Record<string, unknown> = {};
+    try {
+      stored = await this.appConfig.getConfig();
+    } catch {
+      // list prices + env fallbacks
+    }
+    const book: PriceBook = parsePriceBook(stored);
     const amount = Math.max(
       0,
-      Math.round(opts.millicents ?? estimateMillicents(provider, input)),
+      Math.round(opts.millicents ?? estimateMillicents(provider, input, book)),
     );
     if (amount === 0) return null;
-    const caps = await this.moneyCaps(provider, callCaps);
-    const scopes = MONEY_SCOPES.filter((s) => s !== 'user' || !!opts.userId);
+    const caps = await this.moneyCaps(provider, callCaps, stored);
+    const scopes = MONEY_SCOPES.filter(
+      (s) =>
+        (s !== 'user' || !!opts.userId) && (s !== 'month' || caps.month > 0),
+    );
     const keys = scopes.map((s) =>
       moneyCounterKey(
         s,
         now,
-        s === 'global' ? 'all' : s === 'provider' ? provider : opts.userId!,
+        s === 'global'
+          ? 'all'
+          : s === 'provider' || s === 'month'
+            ? provider
+            : opts.userId!,
       ),
     );
     const argv: number[] = [amount, scopes.length];
@@ -385,7 +456,7 @@ export class CostGuardService {
       const cap = caps[s];
       argv.push(
         cap,
-        MONEY_TTL_SEC,
+        s === 'month' ? MONEY_MONTH_TTL_SEC : MONEY_TTL_SEC,
         cap > 0 ? Math.max(1, Math.ceil(cap * COST_ALERT_RATIO)) : 0,
       );
     }
@@ -420,7 +491,7 @@ export class CostGuardService {
             stage: 'exhausted',
             money: true,
           },
-          'Daily money budget used up — paid calls are being refused',
+          'Money budget used up — paid calls are being refused',
         );
       }
       throw new HttpException(
@@ -432,7 +503,10 @@ export class CostGuardService {
               : 'This service is temporarily unavailable. Try again later.',
           details: {
             scope,
-            retryAfterSeconds: this.secondsUntilWindowEnd('daily', now),
+            retryAfterSeconds: this.secondsUntilWindowEnd(
+              scope === 'month' ? 'monthly' : 'daily',
+              now,
+            ),
           },
         },
         scope === 'user'
@@ -458,7 +532,7 @@ export class CostGuardService {
             stage: 'threshold_80',
             money: true,
           },
-          'Daily money budget reached 80%',
+          'Money budget reached 80%',
         );
       }
     });

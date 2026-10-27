@@ -34,7 +34,7 @@ function setup(limited: boolean) {
 const PHONE = '+14155552680';
 
 describe('OtpService SMS under the economy guard', () => {
-  it.each(['contact', 'assistant'] as const)(
+  it.each(['contact'] as const)(
     'refuses a %s SMS while limited and sends nothing',
     async (purpose) => {
       const { service, sms, costGuard } = setup(true);

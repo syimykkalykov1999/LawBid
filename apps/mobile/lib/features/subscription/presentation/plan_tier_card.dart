@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/plans/domain/plan_models.dart';
@@ -208,7 +208,7 @@ class PlanTierCard extends StatelessWidget {
       label: '$title, $price $period',
       child: AppPressable(
         onTap: () {
-          HapticFeedback.selectionClick();
+          AppHaptics.selection();
           onTap!();
         },
         child: card,
@@ -272,7 +272,7 @@ class AssistantSeatsControl extends StatelessWidget {
           key: ValueKey(key),
           onTap: enabled
               ? () {
-                  HapticFeedback.selectionClick();
+                  AppHaptics.selection();
                   onChanged(to);
                 }
               : null,

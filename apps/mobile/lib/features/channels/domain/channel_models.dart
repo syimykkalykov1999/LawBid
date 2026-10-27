@@ -342,12 +342,3 @@ class ChannelPage<T> {
   final List<T> items;
   final String? nextCursor;
 }
-
-/// A channel's `ref` is its id (a UUID) or its @username.
-bool looksLikeChannelId(String ref) => _uuidRe.hasMatch(ref);
-
-final RegExp _uuidRe = RegExp(
-  '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
-  // ignore: use_raw_strings
-  '[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\$',
-);

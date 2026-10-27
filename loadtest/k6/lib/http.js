@@ -48,6 +48,12 @@ export function get(path, token, name, extra, expected) {
 // `expected`: extra status codes that are NOT failures for this call (e.g.
 // 409 "call already in progress" is a normal answer for a busy chat).
 export function post(path, body, token, name, extra, expected) {
+  // A code request sends a real SMS / e-mail. This suite never logs in (it uses
+  // minted tokens); the line stays so no later scenario can start spending by
+  // accident (audit X-14, 2026-10-26).
+  if (path.indexOf('/auth/otp') === 0 && __ENV.K6_SMS_ALLOWED !== 'true') {
+    throw new Error(`REFUSING: ${path} sends a real SMS or e-mail; set K6_SMS_ALLOWED=true only against a stack with SMS_PROVIDER=mock`);
+  }
   const params = { headers: baseHeaders(token, extra), tags: { name, kind: 'api' } };
   if (expected) params.responseCallback = http.expectedStatuses({ min: 200, max: 399 }, ...expected);
   const res = http.post(API_URL + path, body === undefined ? null : JSON.stringify(body), params);

@@ -2,7 +2,7 @@
 // Owner 2026-10-06: News switched off (the "Legal posts" chip in its
 // place), one "Photos and videos" section in the post composer, the
 // bell's "Important" / "Other" tabs and the texts the bell was missing.
-// Other languages: tmp-import/news-off-keys-update.xlsx.
+// Other languages: apps/api/prisma/seed/translations_seed.xlsx.
 
 const newsOffRu = <String, String>{
   'feed.legalPosts': 'Юр. посты',
