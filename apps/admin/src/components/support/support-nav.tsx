@@ -5,6 +5,7 @@ import { useMutation } from '@tanstack/react-query';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { OverflowTabs } from '@/components/ui/overflow-tabs';
+import { useDeskEmbed } from '@/components/desk/embed';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
@@ -20,6 +21,9 @@ const LINKS = [
 /** Pages inside «Поддержка»; one even row, «Ещё ▾» on narrow screens. */
 export function SupportNav() {
   const pathname = usePathname();
+  // Staff package T8: on the worker's desk the desk tabs replace this row.
+  const embedded = useDeskEmbed();
+  if (embedded) return null;
   return <OverflowTabs className="mb-5" label="Поддержка" items={LINKS} active={LINKS.find((l) => l.href === pathname)?.href} />;
 }
 
@@ -31,6 +35,8 @@ export function NextTicketButton({ label = 'Следующее обращени�
   const { data: me } = useMe();
   const router = useRouter();
   const toast = useToast();
+  // Staff package T8: the desk has its own «Следующий» (leases).
+  const embedded = useDeskEmbed();
   const next = useMutation({
     mutationFn: async () => (await api.POST('/admin/support/tickets/next')).data!.data,
     onSuccess: (r) => {
@@ -39,7 +45,7 @@ export function NextTicketButton({ label = 'Следующее обращени�
     },
     onError: (e) => toast.error(e),
   });
-  if (!canWriteSupport(me)) return null;
+  if (embedded || !canWriteSupport(me)) return null;
   return (
     <Button variant="gold" size={size} loading={next.isPending} onClick={() => next.mutate()}>
       {next.isPending ? null : <ArrowRight size={15} weight="bold" />}

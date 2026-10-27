@@ -2,6 +2,7 @@
 
 import { WarningCircle } from '@phosphor-icons/react';
 import { m } from 'motion/react';
+import { useDeskEmbed } from '@/components/desk/embed';
 import { errorDetail } from '@/lib/api/client';
 
 export function PageHeader({
@@ -15,6 +16,12 @@ export function PageHeader({
   actions?: React.ReactNode;
   eyebrow?: string;
 }) {
+  // Staff package T8: on the worker's desk the tab is the title; only the
+  // page's own buttons stay.
+  const embedded = useDeskEmbed();
+  if (embedded) {
+    return actions ? <div className="mb-4 flex flex-wrap items-center justify-end gap-2">{actions}</div> : null;
+  }
   return (
     <m.div
       initial={{ opacity: 0, y: 10 }}
