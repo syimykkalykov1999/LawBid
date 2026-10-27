@@ -10,6 +10,8 @@ import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
 import { ShardMapSync } from '../sharding/shard-map-sync';
 import { ShardStatsService } from '../sharding/shard-stats';
 import { ReplicaAdminService } from './replica-admin.service';
+import { ShardMoveService } from '../sharding/move/shard-move.service';
+import { OrphanChecker } from '../sharding/orphan-checker';
 import { PrismaReadService } from './prisma-read.service';
 import { PrismaService, routingOf } from './prisma.service';
 
@@ -26,6 +28,9 @@ import { PrismaService, routingOf } from './prisma.service';
     ShardStatsService,
     // Shard-ready step 7: transactional outbox for cross-family writes.
     CrossFamilyOutbox,
+    // Shard-ready steps 9-10: move-shard tool, nightly orphan checker.
+    ShardMoveService,
+    OrphanChecker,
     // Shard-ready step 6: batched user loader (+ short Redis cache of the
     // public card when several physical databases exist).
     {
@@ -45,6 +50,8 @@ import { PrismaService, routingOf } from './prisma.service';
     ReplicaAdminService,
     UserDirectory,
     CrossFamilyOutbox,
+    ShardMoveService,
+    OrphanChecker,
   ],
 })
 export class PrismaModule {}

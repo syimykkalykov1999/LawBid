@@ -19,8 +19,9 @@ describe('shard_id column (shard-ready step 2)', () => {
   );
 
   it('keeps shard_id off global models', () => {
-    const wrong = GLOBAL_MODELS.filter((n) =>
-      byName.get(n)?.fields.some((f) => f.name === 'shard_id'),
+    // The move tool's own per-database change log names the shard it records.
+    const wrong = GLOBAL_MODELS.filter((n) => n !== 'ShardChangeLog').filter(
+      (n) => byName.get(n)?.fields.some((f) => f.name === 'shard_id'),
     );
     expect(wrong).toEqual([]);
   });

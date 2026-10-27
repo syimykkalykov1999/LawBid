@@ -24,6 +24,11 @@ export const KEEP_TABLES: Readonly<Record<string, string>> = {
   app_config: 'settings and cost caps (seed + admin)',
   shard_map:
     'which physical database holds each logical shard (routing config)',
+  shard_moves: 'shard move jobs (infrastructure bookkeeping, not tester data)',
+  shard_move_track: 'which rows a shard move still has to copy (infra)',
+  shard_change_log: 'row changes recorded during a shard move (infra)',
+  shard_dropped_fk:
+    'foreign keys dropped for sharding (infra, needed to restore)',
   feature_flags: 'feature switches (seed + admin)',
   legal_documents: 'terms / privacy texts (seed + admin)',
   blocked_email_domains: 'disposable e-mail domains (seed)',

@@ -72,6 +72,7 @@
     "realtime-lifecycle",
     "security-contact-leak",
     "security-hardening",
+    "shard-move",
     "shard-routing",
     "shard-triggers",
     "stage-3-1",

@@ -10,6 +10,7 @@ import { Badge, Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/toast';
+import { ShardSplitCard } from '@/components/system/shard-split-card';
 import { UpdatedAgo } from '@/components/updated-ago';
 import { ApiError, api, errorText } from '@/lib/api/client';
 import { livePoll } from '@/lib/live';
@@ -277,6 +278,8 @@ export default function SystemHealthPage() {
               </Button>
             </Card>
           </div>
+
+          <ShardSplitCard />
 
           <SectionTitle>Что система делает сама</SectionTitle>
           <Card className="divide-y divide-line">

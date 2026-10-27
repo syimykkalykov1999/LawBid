@@ -1382,6 +1382,74 @@ model CrossFamilyOutbox {
   @@map("cross_family_outbox")
 }
 
+// Shard-ready step 10: the move-shard tool (src/sharding/move). One row per
+// move of one logical shard from one physical database to another; lives on
+// the primary database. `state` is the step reached (preflight, copy,
+// catchup, freeze, verify, flip, cleanup, done), `status` says whether it is
+// running, waiting, failed or rolled back. `progress` holds the per-table
+// copy cursors and the change-log cursor, so a crashed move resumes.
+model ShardMove {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  logical_shard Int       @db.SmallInt
+  from_db       String
+  to_db         String
+  state         String    @default("preflight")
+  /// pending | running | failed | done | rolled_back
+  status        String    @default("pending")
+  progress      Json      @default("{}")
+  plan          Json?
+  error         String?
+  requested_by  String?   @db.Uuid
+  heartbeat_at  DateTime? @db.Timestamptz
+  flipped_at    DateTime? @db.Timestamptz
+  /// Database that still holds the old rows (deleted by `cleanup`).
+  leftover_db   String?
+  cleanup_after DateTime? @db.Timestamptz
+  created_at    DateTime  @default(now()) @db.Timestamptz
+  updated_at    DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([logical_shard, status])
+  @@index([status, cleanup_after])
+  @@map("shard_moves")
+}
+
+// Per physical database: logical shards being moved (change capture on, and
+// the write fence). `frozen_until` set = writes of that shard are refused by
+// the guard trigger until then; `infinity` = permanent fence on the old copy.
+model ShardMoveTrack {
+  logical_shard Int       @id @db.SmallInt
+  move_id       String    @db.Uuid
+  frozen_until  DateTime? @db.Timestamptz
+  created_at    DateTime  @default(now()) @db.Timestamptz
+
+  @@map("shard_move_track")
+}
+
+// Per physical database: rows changed in a tracked shard while it is moved.
+model ShardChangeLog {
+  id         BigInt   @id @default(autoincrement())
+  table_name String
+  pk         Json
+  shard_id   Int      @db.SmallInt
+  op         String   @db.Char(1)
+  at         DateTime @default(now()) @db.Timestamptz
+
+  @@index([shard_id, id])
+  @@map("shard_change_log")
+}
+
+// Per physical database: the cross-family foreign keys that step 9 dropped,
+// with the DDL to put them back.
+model ShardDroppedFk {
+  constraint_name String
+  table_name      String
+  definition      String
+  dropped_at      DateTime @default(now()) @db.Timestamptz
+
+  @@id([table_name, constraint_name])
+  @@map("shard_dropped_fk")
+}
+
 // The consumer side: a key is inserted here in the SAME transaction as the
 // event's effect on the primary database; a second delivery finds the key
 // and does nothing (exactly-once effect).

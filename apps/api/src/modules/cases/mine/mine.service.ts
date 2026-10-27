@@ -376,7 +376,12 @@ export class MineService {
       items: page.flatMap((b) => {
         const k = b.accepted_for_case;
         if (!k) return [];
-        const client = clients.get(k.client_id)!;
+        // Step 9: no foreign key keeps the client; a missing one shows no name.
+        const client = clients.get(k.client_id) ?? {
+          first_name: null,
+          last_name: null,
+          avatar_file_id: null,
+        };
         return [
           {
             caseId: k.id,

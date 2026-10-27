@@ -218,6 +218,10 @@ export const CRON_JOBS = {
   partitionMaintain: 'partition.maintain',
   /** Owner 2026-10-24: advance an admin-started online partition conversion. */
   partitionTick: 'partition.tick',
+  // Shard-ready steps 9-10: resume/continue shard moves + delete old rows
+  // after 7 days; nightly check for rows whose cross-family parent is gone.
+  shardMoveTick: 'shard.move-tick',
+  shardOrphanCheck: 'shard.orphan-check',
   /** Events pipeline (N-2): auto signal, stream relay, retention. */
   eventsMaintain: 'events.maintain',
 } as const;
@@ -345,6 +349,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // Every minute; a no-op unless PARTITION_DATABASE_URL is set and a
   // conversion was started from the admin.
   { name: CRON_JOBS.partitionTick, pattern: '* * * * *' },
+  { name: CRON_JOBS.shardMoveTick, pattern: '* * * * *' },
+  { name: CRON_JOBS.shardOrphanCheck, pattern: '30 2 * * *' },
   // Events pipeline: every 5 minutes; a no-op unless auto / stream, prunes hourly.
   { name: CRON_JOBS.eventsMaintain, pattern: '*/5 * * * *' },
 ];
