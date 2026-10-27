@@ -41,6 +41,7 @@ import {
   typedWords,
 } from '../../common/search/name-match.sql';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BoostActions } from '../promotions/boost-actions.service';
 import { randomUUID } from 'node:crypto';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -196,6 +197,8 @@ export class ChatService {
     // WP-G: who sends the most messages (admin «Масштаб»). Last, so the
     // positional constructor in specs keeps its order.
     @Optional() private readonly heavy?: HeavyHittersService,
+    // Owner 2026-10-27: a new chat counts for the author's boost paid per action.
+    @Optional() private readonly boostActions?: BoostActions,
   ) {}
 
   /**
@@ -1497,6 +1500,7 @@ export class ChatService {
       }
       throw error;
     }
+    this.boostActions?.report(user.sub, { ownerId: other.id }, 'message');
     const [dto] = await this.present([conv], user.sub);
     return dto;
   }

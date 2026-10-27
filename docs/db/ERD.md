@@ -2186,6 +2186,10 @@ erDiagram
     Int target_impressions "nullable"
     Int reach
     Int clicks
+    String billing
+    Int unit_price_cents "nullable"
+    Int target_units "nullable"
+    Int actions
     Json audience "nullable"
     String goal "nullable"
     String cta_type "nullable"
@@ -2212,6 +2216,7 @@ erDiagram
     String day_key
     Int day_count
     Boolean clicked
+    Boolean acted
     DateTime first_seen_at
     DateTime last_seen_at
   }

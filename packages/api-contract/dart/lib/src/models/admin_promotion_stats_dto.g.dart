@@ -21,6 +21,12 @@ AdminPromotionStatsDto _$AdminPromotionStatsDtoFromJson(
   impressions30d: (json['impressions30d'] as num).toInt(),
   reach30d: (json['reach30d'] as num).toInt(),
   clicks30d: (json['clicks30d'] as num).toInt(),
+  byModel: (json['byModel'] as List<dynamic>)
+      .map((e) => PromotionModelStatDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  byModelAt: json['byModelAt'] == null
+      ? null
+      : DateTime.parse(json['byModelAt'] as String),
 );
 
 Map<String, dynamic> _$AdminPromotionStatsDtoToJson(
@@ -36,4 +42,6 @@ Map<String, dynamic> _$AdminPromotionStatsDtoToJson(
   'impressions30d': instance.impressions30d,
   'reach30d': instance.reach30d,
   'clicks30d': instance.clicks30d,
+  'byModel': instance.byModel.map((e) => e.toJson()).toList(),
+  'byModelAt': ?instance.byModelAt?.toIso8601String(),
 };
