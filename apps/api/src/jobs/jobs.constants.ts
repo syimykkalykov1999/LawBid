@@ -196,6 +196,8 @@ export const CRON_JOBS = {
   partitionMaintain: 'partition.maintain',
   /** Owner 2026-10-24: advance an admin-started online partition conversion. */
   partitionTick: 'partition.tick',
+  /** Events pipeline (N-2): auto signal, stream relay, retention. */
+  eventsMaintain: 'events.maintain',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -309,6 +311,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // Every minute; a no-op unless PARTITION_DATABASE_URL is set and a
   // conversion was started from the admin.
   { name: CRON_JOBS.partitionTick, pattern: '* * * * *' },
+  // Events pipeline: every 5 minutes; a no-op unless auto / stream, prunes hourly.
+  { name: CRON_JOBS.eventsMaintain, pattern: '*/5 * * * *' },
 ];
 
 const FAST_JOBS: readonly CronJobName[] = [
