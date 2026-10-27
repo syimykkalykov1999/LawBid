@@ -138,6 +138,7 @@ const U = {
   fis: 'https://aws.amazon.com/fis/pricing/',
   budgets: 'https://aws.amazon.com/aws-cost-management/aws-budgets/pricing/',
   ddb: 'https://aws.amazon.com/dynamodb/pricing/on-demand/',
+  kinesis: 'https://aws.amazon.com/kinesis/data-streams/pricing/',
   rek: 'https://aws.amazon.com/rekognition/pricing/',
   twilio: 'https://www.twilio.com/en-us/sms/pricing/us',
   stripe: 'https://stripe.com/pricing',
@@ -638,7 +639,34 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'aws_cloudwatch_composite_alarm',
       'aws_cloudwatch_log_group',
       'aws_cloudwatch_log_metric_filter',
+      'aws_cloudwatch_dashboard',
     ],
+  },
+  {
+    id: 'aws.anomaly_alarms',
+    name: 'Тревоги «что-то необычное» (CloudWatch, регистрации, сообщения, коды, пуши)',
+    purpose:
+      'Умная полоса нормы: письмо, если регистрации, сообщения, SMS-коды или пуши внезапно упали, или резко выросли неудачные входы.',
+    kind: 'aws',
+    control: tf(['anomaly_alarms_enabled'], {
+      off: 'anomaly_alarms_enabled = false',
+      on: 'anomaly_alarms_enabled = true',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'fixed',
+      '6 метрик × (полоса $0,30 + страж $0,10 + составная $0,50) ≈ $5,40 в месяц',
+      U.cw,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(5.4),
+    needed: 'later',
+    neededNote:
+      'Нужны, когда есть трафик: полосе нужны недели данных, чтобы выучить норму. На старте её и так закрывают тревоги по ошибкам и «упала проверка сайта».',
+    alarm: null,
+    awsTypes: ['aws_cloudwatch_metric_alarm', 'aws_cloudwatch_composite_alarm'],
   },
   {
     id: 'aws.route53_check',
@@ -1261,6 +1289,33 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     providers: ['opensearch'],
   },
   {
+    id: 'aws.events_stream',
+    name: 'Поток событий (Kinesis Data Streams)',
+    purpose:
+      'Внутренняя шина событий приложения для аналитики, когда таблицы domain_events станет мало.',
+    kind: 'aws',
+    control: tf(['growth.events_stream_enabled'], {
+      off: 'growth = { events_stream_enabled = false }',
+      on: 'growth = { events_stream_enabled = true }',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      '≈ $0,04 в час за поток (≈ $29 в месяц) плюс плата за гигабайт',
+      U.kinesis,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(29, 60),
+    needed: 'later',
+    neededNote:
+      'Пока события живут в таблице базы (30 дней). Включается в два шага: поток, затем настройка events.sink.',
+    alarm: null,
+    ceService: 'Amazon Kinesis',
+    awsTypes: ['aws_kinesis_stream'],
+  },
+  {
     id: 'aws.opensearch_serverless',
     name: 'Поисковый движок без серверов (OpenSearch Serverless)',
     purpose:
@@ -1868,7 +1923,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(0), k100: R(26, 80), m1: R(89) },
     needed: 'yes',
     neededNote:
-      'Нужен. Зациклившийся сбой может съесть месячную квоту за час: в коде одна и та же ошибка уходит не чаще 5 раз в минуту, всего не больше 120 событий в минуту с процесса; в самом Sentry поставьте «Spike protection» и лимит на проект (шаги в таблице).',
+      'Нужен. Замеры скорости из приложения (`client.sentry_traces_percent`) по умолчанию 0 %: каждый запрос телефона был бы платной транзакцией; поднимайте только ключом в админке и следите за квотой Sentry. Зациклившийся сбой может съесть месячную квоту за час: в коде одна и та же ошибка уходит не чаще 5 раз в минуту, всего не больше 120 событий в минуту с процесса; в самом Sentry поставьте «Spike protection» и лимит на проект (шаги в таблице).',
     alarm: null,
     providers: ['sentry'],
     extraSteps: [
