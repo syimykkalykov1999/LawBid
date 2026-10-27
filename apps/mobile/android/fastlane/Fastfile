@@ -44,6 +44,61 @@ platform :android do
     )
   end
 
+  # --- S11-12 staged rollout: internal -> closed -> production 5 % -> promote / halt --------
+  # Only `internal` builds; the next stages move the SAME bundle between Play tracks,
+  # so what was tested is what ships. Exposure ramps (Play `userFraction`), the owner
+  # looks at Crashlytics / Sentry in between. Written against the fastlane `supply`
+  # docs; the production / promote / halt lanes could not be exercised without the
+  # live Play account, so the first real run is the test (Play Console -> Release ->
+  # Production has the same Halt / Update-rollout buttons as a fallback).
+  desc "Promote the internal build to the Play closed testing track (no rebuild)."
+  lane :closed do
+    upload_to_play_store(
+      track: "internal",
+      track_promote_to: "alpha",
+      skip_upload_aab: true, skip_upload_apk: true, skip_upload_metadata: true,
+      skip_upload_changelogs: true, skip_upload_images: true, skip_upload_screenshots: true,
+    )
+  end
+
+  desc "Promote the closed build to production at a small fraction (rollout:0.05)."
+  lane :production do |options|
+    upload_to_play_store(
+      track: "alpha",
+      track_promote_to: "production",
+      rollout: (options[:rollout] || "0.05").to_s,
+      skip_upload_aab: true, skip_upload_apk: true, skip_upload_metadata: true,
+      skip_upload_changelogs: true, skip_upload_images: true, skip_upload_screenshots: true,
+    )
+  end
+
+  desc "Raise the running production rollout (rollout:0.2 / 0.5 / 1.0)."
+  lane :promote do |options|
+    code = google_play_track_version_codes(track: "production").max
+    UI.user_error!("no release on the production track") if code.nil?
+    upload_to_play_store(
+      track: "production",
+      version_code: code,
+      rollout: (options[:rollout] || "0.2").to_s,
+      skip_upload_aab: true, skip_upload_apk: true, skip_upload_metadata: true,
+      skip_upload_changelogs: true, skip_upload_images: true, skip_upload_screenshots: true,
+    )
+  end
+
+  desc "Halt the production rollout: no new users get the release; installed ones keep it."
+  lane :halt do |options|
+    code = google_play_track_version_codes(track: "production").max
+    UI.user_error!("no release on the production track") if code.nil?
+    upload_to_play_store(
+      track: "production",
+      version_code: code,
+      release_status: "halted",
+      rollout: (options[:rollout] || "0.05").to_s,
+      skip_upload_aab: true, skip_upload_apk: true, skip_upload_metadata: true,
+      skip_upload_changelogs: true, skip_upload_images: true, skip_upload_screenshots: true,
+    )
+  end
+
   desc "Upload the store listing in every language (fastlane/metadata/android/<locale>/*.txt). " \
        "No bundle, no images. Needs PLAY_JSON_KEY_FILE and at least one uploaded build."
   lane :metadata do

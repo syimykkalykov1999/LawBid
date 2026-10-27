@@ -144,6 +144,11 @@ export class FcmPushSender implements PushSender {
     const chatStyle = new Set(
       message.chat ? await this.tokens.chatStyleTokens(message.userId) : [],
     );
+    // Owner 2026-10-26: Android apps that draw notifications with a person
+    // themselves (their round photo).
+    const actorStyle = new Set(
+      message.actor ? await this.tokens.actorStyleTokens(message.userId) : [],
+    );
     // Owner 2026-10-22 (server load audit, finding 7): the devices go out
     // in parallel, at most FCM_MULTICAST_MAX at a time — what the Admin
     // SDK's sendEachForMulticast does (one HTTP v1 call per token; FCM
@@ -151,7 +156,7 @@ export class FcmPushSender implements PushSender {
     const one = async (device: string): Promise<void> => {
       if (skip.has(device)) return;
       if (key && armed.get(device)?.has(key)) return;
-      const ownChat = chatStyle.has(device);
+      const ownChat = chatStyle.has(device) || actorStyle.has(device);
       const dataOnly = message.call || localReminder.has(device) || ownChat;
       // Claim the device before the call: a crash between FCM's 200 and
       // the mark can at most skip a push, never double it (load review).
@@ -294,6 +299,10 @@ export class FcmPushSender implements PushSender {
                           : {}),
                       ...(message.badge !== undefined
                         ? { badge: message.badge }
+                        : {}),
+                      // Owner 2026-10-26: the buttons of a chat push.
+                      ...(message.iosCategory && !message.call
+                        ? { category: message.iosCategory }
                         : {}),
                       // Lets a notification service extension (if one is
                       // added) enrich the alert; ignored without one.

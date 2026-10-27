@@ -246,12 +246,15 @@ abstract class CasesClient {
   /// [sort] - Owner 2026-10-25: when omitted the admin setting bids.default_sort applies (newest by default).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [updatedSince] - Owner 2026-10-22 (delta audit D-P4): only the bids changed since (ISO), newest change first, no paging; meta.syncedAt = pass it back next time (meta.deletedIds is always empty: a bid never leaves the list). Older than 7 days → 409 SYNC_TOO_OLD.
   @GET('/cases/{id}/bids')
   Future<CaseBidItemListEnvelope> listCaseBids({
     @Path('id') required String id,
     @Query('limit') int? limit = 20,
     @Query('sort') Sort? sort,
     @Query('cursor') String? cursor,
+    @Query('updatedSince') DateTime? updatedSince,
     @Extras() Map<String, dynamic>? extras,
   });
 

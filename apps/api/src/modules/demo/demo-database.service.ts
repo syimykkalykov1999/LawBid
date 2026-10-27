@@ -18,7 +18,11 @@ import {
   routingOf,
 } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
-import { newFileKey } from '../files/files.public';
+import {
+  AVATAR_VARIANT_PX,
+  newFileKey,
+  variantKey,
+} from '../files/files.public';
 import { S3StorageService } from '../files/storage/s3-storage.service';
 import { REQUIRED_CONSENTS } from '../users/services/onboarding.service';
 import { DEMO_AVATAR_SIZE, renderDemoAvatarPng } from './demo-avatar';
@@ -478,6 +482,11 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
         const fileId = randomUUID();
         const key = `demo/${newFileKey({ purpose: 'avatar', ownerId: u.id, fileId })}`;
         await this.storage.put(bucket, key, png, 'image/png');
+        // Owner 2026-10-26: the previews every list links to (`…_w256`);
+        // without them demo avatars showed only on profiles.
+        for (const px of AVATAR_VARIANT_PX) {
+          await this.storage.put(bucket, variantKey(key, px), png, 'image/png');
+        }
         await demo.file.create({
           data: {
             id: fileId,

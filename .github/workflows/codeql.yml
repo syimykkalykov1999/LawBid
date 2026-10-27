@@ -42,3 +42,19 @@ jobs:
           name: codeql-sarif
           path: codeql-results
           if-no-files-found: ignore
+
+  # S11-6: a failure on main / on a schedule reaches the owner (notify-failure.yml).
+  notify:
+    name: Notify the owner
+    needs: [analyze]
+    if: ${{ always() && contains(needs.*.result, 'failure') && github.event_name != 'pull_request' && github.event_name != 'merge_group' }}
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: "CodeQL found a problem on main"
+      kind: scan-codeql
+      remind_after_minutes: 720
+    secrets: inherit
