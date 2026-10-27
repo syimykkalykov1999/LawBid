@@ -570,3 +570,7 @@ PUT /admin/spend/prices added the new `google` enum value to the `data/vendors/i
 PUT /admin/spend/prices added the new `sentry` enum value to the `data/vendors/items/id` response property for the response status `200`
 POST /admin/spend/refresh added the new `google` enum value to the `data/vendors/items/id` response property for the response status `200`
 POST /admin/spend/refresh added the new `sentry` enum value to the `data/vendors/items/id` response property for the response status `200`
+GET /admin/case-disputes/{id} added the new required `header` request parameter `x-justification`
+GET /admin/cases/{id} added the new required `header` request parameter `x-justification`
+GET /admin/contact-issues/{id} added the new required `header` request parameter `x-justification`
+PUT /admin/legal/settings added the new required request property `texts/en/privilegedContentPolicy` (shared schema: `LegalTextsDto`, also at `texts/ru/privilegedContentPolicy`)
