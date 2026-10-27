@@ -636,7 +636,9 @@ resource "aws_ecs_task_definition" "migrate" {
     name      = "migrate"
     image     = var.api_image
     essential = true
-    command   = ["npx", "prisma", "migrate", "deploy"]
+    # After the transactional migrations: prisma/concurrent/*.sql (CREATE INDEX
+    # CONCURRENTLY cannot run inside a migration), docs/architecture/ONLINE_DDL.md.
+    command   = ["sh", "-c", "npx prisma migrate deploy && node prisma/run-concurrent.mjs"]
     # npx / Prisma want a writable cache and home: both under /tmp.
     # No DB_POOLER_*: `prisma migrate` must reach the database directly
     # (docs/architecture/DB_POOLER.md).

@@ -56,6 +56,7 @@ import { PartitionService } from '../partitioning/partition.service';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { CdnInvalidateJob } from './handlers/cdn-invalidate.job';
 import { PrivacyReconcileJob } from './handlers/privacy-reconcile.job';
+import { DbBloatJob } from './handlers/db-bloat.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
 import { StripeOpsJob } from './handlers/stripe-ops.job';
 import { StripeOpsCoreModule } from '../modules/stripe-ops/stripe-ops.module';
@@ -198,6 +199,8 @@ export class JobsModule {
         // Owner 2026-10-25: `cdn.invalidate` (queued CloudFront paths).
         CdnInvalidateJob,
         PartitionService,
+        // Owner 2026-10-25: `db.bloat-check`.
+        DbBloatJob,
         LedgerReconcileJob,
         // Privacy round 13: `privacy.reconcile`.
         PrivacyReconcileJob,

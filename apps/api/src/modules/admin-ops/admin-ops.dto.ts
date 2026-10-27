@@ -341,6 +341,63 @@ export class ReplicaToggleDto {
   @ApiProperty() @IsBoolean() enabled!: boolean;
 }
 
+/** Owner 2026-10-25 (online DDL): one batched backfill on the «Масштаб» page. */
+export class BackfillRunDto {
+  @ApiProperty({ description: 'Stable backfill name.' })
+  name!: string;
+
+  @ApiProperty({ enum: ['running', 'paused', 'aborted', 'done', 'failed'] })
+  status!: 'running' | 'paused' | 'aborted' | 'done' | 'failed';
+
+  @ApiProperty({ description: 'Table being walked.' })
+  tableName!: string;
+
+  @ApiProperty({ description: 'Rows changed so far.' })
+  processed!: number;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Planner estimate of the rows to walk.',
+  })
+  totalEstimate!: number | null;
+
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: '0-100, null when the total is unknown.',
+  })
+  percent!: number | null;
+
+  @ApiProperty()
+  batchSize!: number;
+
+  @ApiProperty()
+  maxRowsPerSec!: number;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Why it waits now: paused by admin, replica lag, CPU …',
+  })
+  pauseReason!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  lastError!: string | null;
+
+  @ApiProperty({
+    description:
+      'Running but no heartbeat for 2 minutes: the runner process is gone.',
+  })
+  stalled!: boolean;
+
+  @ApiProperty({ format: 'date-time' })
+  startedAt!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  updatedAt!: string;
+}
+
 /** S10-7: what one press of «Повторить упавшие задачи» did. */
 export class QueueRetryResultDto {
   @ApiProperty({ description: 'Failed jobs put back in their queues.' })

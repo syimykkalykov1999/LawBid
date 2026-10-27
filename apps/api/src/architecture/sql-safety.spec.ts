@@ -9,6 +9,8 @@ import { join, relative, resolve, sep } from 'node:path';
  * a constant or a checked identifier (database name, table list).
  */
 const ALLOWED = new Set([
+  // type-only: names the raw-SQL methods a backfill batch may use
+  'common/backfill/backfill.types.ts',
   'common/secrets/secrets.service.ts',
   'modules/demo/demo-database.service.ts',
   // Table names come from the fixed PARTITION_TABLES whitelist, never from input.

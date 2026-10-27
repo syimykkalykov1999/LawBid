@@ -227,6 +227,8 @@ export const CRON_JOBS = {
   // after 7 days; nightly check for rows whose cross-family parent is gone.
   shardMoveTick: 'shard.move-tick',
   shardOrphanCheck: 'shard.orphan-check',
+  /** Owner 2026-10-25 (online DDL): nightly table / index bloat of the hot tables. */
+  dbBloat: 'db.bloat-check',
   /** Events pipeline (N-2): auto signal, stream relay, retention. */
   eventsMaintain: 'events.maintain',
 } as const;
@@ -362,6 +364,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.partitionTick, pattern: '* * * * *' },
   { name: CRON_JOBS.shardMoveTick, pattern: '* * * * *' },
   { name: CRON_JOBS.shardOrphanCheck, pattern: '30 2 * * *' },
+  // Nightly 03:35 UTC (quiet hours): pgstattuple on the hot tables.
+  { name: CRON_JOBS.dbBloat, pattern: '35 3 * * *' },
   // Events pipeline: every 5 minutes; a no-op unless auto / stream, prunes hourly.
   { name: CRON_JOBS.eventsMaintain, pattern: '*/5 * * * *' },
 ];

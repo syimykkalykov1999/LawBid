@@ -663,6 +663,19 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1000,
     max: 100000000,
   };
+  out['db.bloat_mode'] = {
+    ...out['db.bloat_mode'],
+    description:
+      'Nightly table/index bloat check: off | on (heap estimate for every big table) | auto (default: only where statistics show 10 %+ dead rows). Indexes are estimated from statistics, never read.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['db.bloat_scan_max_mb'] = {
+    ...out['db.bloat_scan_max_mb'],
+    description:
+      'Bloat check: biggest table (MB) the heap estimate may read; bigger tables use statistics only.',
+    min: 0,
+    max: 100000,
+  };
   out['ops.db_slow_ms'] = {
     ...out['ops.db_slow_ms'],
     description:

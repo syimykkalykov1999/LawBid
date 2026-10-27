@@ -53,6 +53,7 @@ import { ShardMoveService } from '../sharding/move/shard-move.service';
 import { OrphanChecker } from '../sharding/orphan-checker';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { CdnInvalidateJob } from './handlers/cdn-invalidate.job';
+import { DbBloatJob } from './handlers/db-bloat.job';
 import { ExperimentsNightlyJob } from '../modules/experiments/experiments-nightly.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
 import { StripeOpsJob } from './handlers/stripe-ops.job';
@@ -197,6 +198,8 @@ export class CronProcessor {
     // Owner 2026-10-28: `admin.audit-export`, `admin.access-report`.
     @Optional() private readonly auditExport?: AuditExportService,
     @Optional() private readonly accessReport?: AdminAccessReportService,
+    // Owner 2026-10-25: `db.bloat-check`.
+    @Optional() private readonly dbBloat?: DbBloatJob,
     // Owner 2026-10-25: `experiments.metrics`.
     @Optional() private readonly experimentsNightly?: ExperimentsNightlyJob,
     // Day-one foundations: `ledger.reconcile`.
@@ -375,6 +378,8 @@ export class CronProcessor {
         return this.promotions.expire();
       case CRON_JOBS.starsSweep:
         return this.stars.sweepPending();
+      case CRON_JOBS.dbBloat:
+        return this.dbBloat?.run() ?? null;
       case CRON_JOBS.legalQaSweep:
         return this.legalQaSweep?.run() ?? null;
       case CRON_JOBS.contactsJoined:

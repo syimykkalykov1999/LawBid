@@ -366,6 +366,9 @@ export const GLOBAL_MODELS: readonly string[] = [
   'SearchIndexState',
   // Owner 2026-10-28: attorney advertising archive.
   'AttorneyAdArchive',
+  // Online DDL: applied index files and batched-backfill state (per database).
+  'ConcurrentMigration',
+  'BackfillRun',
   // Events pipeline (N-2): the domain-event stream (primary only).
   'DomainEvent',
   // Day-one foundations: the double-entry money ledger (global: platform

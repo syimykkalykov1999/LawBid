@@ -188,11 +188,28 @@ jobs:
           MIGRATE_PREV_REF: ${{ github.event.pull_request.base.sha }}
         run: node scripts/migrate-from-previous.mjs
 
-      - name: Migrations are expand/contract only (rolling deploy + rollback safe)
+      - name: Install Squawk (Postgres migration linter)
+        # Ready-made linter used by many Postgres teams (https://squawkhq.com);
+        # version pinned. No install scripts: the binary ships in an
+        # optional platform package.
+        run: npm install -g --ignore-scripts squawk-cli@2.70.0
+
+      - name: Online DDL rules and the concurrent-migration folder
+        # docs/architecture/ONLINE_DDL.md: new migrations must not lock big tables.
+        working-directory: apps/api
+        run: node --test scripts/online-ddl.test.mjs
+
+      - name: Migrations are expand/contract and online-DDL safe (rolling deploy + rollback safe)
         working-directory: apps/api
         run: |
           node --test scripts/check-migrations.test.mjs
           node scripts/check-migrations.mjs
+
+      - name: Concurrent index migrations run on the migrated database
+        # prisma/concurrent/*.sql run after `migrate deploy` (outside any
+        # transaction); a broken file must fail the PR, not the deploy.
+        working-directory: apps/api
+        run: node prisma/run-concurrent.mjs && node prisma/run-concurrent.mjs
 
       - name: Translations are complete in every language
         run: node scripts/i18n-audit.mjs --ci
