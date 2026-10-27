@@ -70,6 +70,9 @@ export const KEEP_TABLES: Readonly<Record<string, string>> = {
   payroll_payouts: 'staff salary history',
   payroll_accruals: 'staff salary accruals',
   staff_rewards: 'staff prizes',
+  // Staff package T1 (2026-10-27): owner configuration of the staff package.
+  staff_rates: 'piecework rates the owner set (config)',
+  admin_nav_pins: 'pages admins pinned to their menu (preference)',
   treasury_expenses: 'monthly service costs (owner bookkeeping)',
   treasury_payouts: 'monthly profit / reserve transfers (owner money)',
   partners: 'affiliate partners (owner contracts; their users are kept)',
@@ -347,6 +350,26 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   // demo world registry (the demo database itself is reset from the admin)
   demo_accounts: 'demo accounts registry',
   storage_snapshots: 'daily storage statistics of the test period',
+  // Staff package T1 (2026-10-27): staff work of the test period. Admins
+  // themselves (admin_profiles) and their payroll are kept above.
+  work_leases: 'who held which work item (test period)',
+  work_lease_events: 'lease history (test period)',
+  staff_member_states:
+    'staff queue states (paused / on hold) of the test period',
+  staff_quality_signals: 'quality signals of test-period decisions',
+  staff_review_samples: 'second looks at test-period decisions',
+  staff_daily_stats: 'daily staff numbers of the test period',
+  staff_rating_snapshots: 'staff ratings of the test period',
+  staff_suggestions: 'system suggestions of the test period',
+  staff_actions: 'warnings / removals of the test period (launch starts clean)',
+  staff_case_appeals: 'staff case appeals of the test period',
+  admin_appeals: 'complaints against heads of the test period',
+  staff_retaliation_flags: 'retaliation marks of the test period',
+  staff_head_snapshots: 'head scores of the test period',
+  staff_piecework_days:
+    'piecework days of the test period (the payroll accruals they made stay)',
+  staff_anomalies: 'staff anomaly reports of the test period',
+  staff_digests: 'weekly owner digests of the test period',
 };
 
 /** User-id columns WITHOUT a foreign key in kept tables: those users stay

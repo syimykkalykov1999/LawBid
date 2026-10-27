@@ -55,6 +55,12 @@ export class AppSettingsService {
       : [...(APP_SETTINGS[key] as readonly string[])];
   }
 
+  /** Every stored value at once (one cached read), for typed readers that
+   * need many keys (StaffSettingsService). Missing keys = their default. */
+  async all(): Promise<Readonly<Record<string, unknown>>> {
+    return this.appConfig.getConfig();
+  }
+
   /** An object-valued setting as stored (the caller validates it). */
   async raw(key: string): Promise<unknown> {
     return (await this.appConfig.getConfig())[key];

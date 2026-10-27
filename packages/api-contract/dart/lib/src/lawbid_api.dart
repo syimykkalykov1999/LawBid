@@ -140,6 +140,7 @@ import 'clients/deadlines_client.dart';
 import 'clients/admin_deadlines_client.dart';
 import 'clients/questions_client.dart';
 import 'clients/admin_legal_qa_client.dart';
+import 'clients/admin_staff_client.dart';
 
 /// LawBid API `v0.1.0`.
 ///
@@ -288,6 +289,7 @@ class LawbidApi {
   AdminDeadlinesClient? _adminDeadlines;
   QuestionsClient? _questions;
   AdminLegalQaClient? _adminLegalQa;
+  AdminStaffClient? _adminStaff;
 
   ConfigClient get config => _config ??= ConfigClient(_dio, baseUrl: _baseUrl);
 
@@ -682,4 +684,7 @@ class LawbidApi {
 
   AdminLegalQaClient get adminLegalQa =>
       _adminLegalQa ??= AdminLegalQaClient(_dio, baseUrl: _baseUrl);
+
+  AdminStaffClient get adminStaff =>
+      _adminStaff ??= AdminStaffClient(_dio, baseUrl: _baseUrl);
 }

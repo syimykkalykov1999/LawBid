@@ -104,6 +104,18 @@ import { AutoAppealsService } from '../modules/moderation/auto-appeals.service';
 import { AuditExportService } from '../modules/admin/audit-export.service';
 import { AdminAccessReportService } from '../modules/admin/admin-access-report.service';
 import { SeoGenerateJob } from './handlers/seo-generate.job';
+import { StaffLeaseSweepJob } from './handlers/staff-lease-sweep.job';
+import { StaffCountersFlushJob } from './handlers/staff-counters-flush.job';
+import { StaffTodayJob } from './handlers/staff-today.job';
+import { StaffDailyStatsJob } from './handlers/staff-daily-stats.job';
+import { StaffRatingNightlyJob } from './handlers/staff-rating-nightly.job';
+import { StaffHeadScoreJob } from './handlers/staff-head-score.job';
+import { StaffPieceworkJob } from './handlers/staff-piecework.job';
+import { StaffAnomaliesJob } from './handlers/staff-anomalies.job';
+import { StaffAiQaNightlyJob } from './handlers/staff-ai-qa-nightly.job';
+import { StaffRetaliationExpireJob } from './handlers/staff-retaliation-expire.job';
+import { StaffRetentionJob } from './handlers/staff-retention.job';
+import { StaffWeeklyDigestJob } from './handlers/staff-weekly-digest.job';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
  * becomes the BullMQ job's `returnvalue` (visible in queue dashboards). */
@@ -221,6 +233,20 @@ export class CronProcessor {
     @Optional() private readonly dbHealth?: DbHealthJob,
     // Programmatic SEO 2026-10-27: `seo.generate`.
     @Optional() private readonly seoGenerate?: SeoGenerateJob,
+    // Staff package 2026-10-27: `staff.*` (no-ops while switched off).
+    @Optional() private readonly staffLeaseSweep?: StaffLeaseSweepJob,
+    @Optional() private readonly staffCountersFlush?: StaffCountersFlushJob,
+    @Optional() private readonly staffToday?: StaffTodayJob,
+    @Optional() private readonly staffDailyStats?: StaffDailyStatsJob,
+    @Optional() private readonly staffRatingNightly?: StaffRatingNightlyJob,
+    @Optional() private readonly staffHeadScore?: StaffHeadScoreJob,
+    @Optional() private readonly staffPiecework?: StaffPieceworkJob,
+    @Optional() private readonly staffAnomalies?: StaffAnomaliesJob,
+    @Optional() private readonly staffAiQaNightly?: StaffAiQaNightlyJob,
+    @Optional()
+    private readonly staffRetaliationExpire?: StaffRetaliationExpireJob,
+    @Optional() private readonly staffRetention?: StaffRetentionJob,
+    @Optional() private readonly staffWeeklyDigest?: StaffWeeklyDigestJob,
     // S10-13: one lock per job name for every schedule.
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
@@ -390,6 +416,30 @@ export class CronProcessor {
         return this.eventsMaintenance?.run() ?? null;
       case CRON_JOBS.seoGenerate:
         return this.seoGenerate?.run() ?? null;
+      case CRON_JOBS.staffLeaseSweep:
+        return this.staffLeaseSweep?.run() ?? null;
+      case CRON_JOBS.staffCountersFlush:
+        return this.staffCountersFlush?.run() ?? null;
+      case CRON_JOBS.staffToday:
+        return this.staffToday?.run() ?? null;
+      case CRON_JOBS.staffDailyStats:
+        return this.staffDailyStats?.run() ?? null;
+      case CRON_JOBS.staffRatingNightly:
+        return this.staffRatingNightly?.run() ?? null;
+      case CRON_JOBS.staffHeadScore:
+        return this.staffHeadScore?.run() ?? null;
+      case CRON_JOBS.staffPiecework:
+        return this.staffPiecework?.run() ?? null;
+      case CRON_JOBS.staffAnomalies:
+        return this.staffAnomalies?.run() ?? null;
+      case CRON_JOBS.staffAiQaNightly:
+        return this.staffAiQaNightly?.run() ?? null;
+      case CRON_JOBS.staffRetaliationExpire:
+        return this.staffRetaliationExpire?.run() ?? null;
+      case CRON_JOBS.staffRetention:
+        return this.staffRetention?.run() ?? null;
+      case CRON_JOBS.staffWeeklyDigest:
+        return this.staffWeeklyDigest?.run() ?? null;
       case CRON_JOBS.opsBusinessMetrics:
         return this.opsMetrics.businessCounters();
       case CRON_JOBS.disappearingSweep:

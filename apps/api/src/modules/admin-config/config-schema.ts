@@ -1,5 +1,9 @@
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { REALTIME_SETTING_DEFS } from '../../common/app-settings/realtime-settings';
+import {
+  STAFF_NUMBER_DEFS,
+  STAFF_SWITCH_LABELS,
+} from '../../common/app-settings/staff-settings';
 import { TEXT_LIMIT_DEFS } from '../../common/app-settings/text-limits';
 import {
   CLIENT_TUNING_DEFS,
@@ -257,6 +261,25 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       ...out[key],
       type: 'integer',
       description: `${def.label}: most characters (${def.min}–${def.max}). The app shows a counter and stops at the same number.`,
+      min: def.min,
+      max: def.max,
+    };
+  }
+  // Staff package T1 (2026-10-27): switches (all off) and numbers with
+  // their bounds; Russian label + key, like the realtime timings.
+  for (const [key, labelRu] of Object.entries(STAFF_SWITCH_LABELS)) {
+    out[key] = {
+      type: 'boolean',
+      defaultValue: false,
+      description: `${labelRu} (${key}). По умолчанию выключено.`,
+    };
+  }
+  for (const [key, def] of Object.entries(STAFF_NUMBER_DEFS)) {
+    const defaultValue = APP_SETTINGS[key as keyof typeof APP_SETTINGS];
+    out[key] = {
+      type: 'integer',
+      defaultValue,
+      description: `${def.labelRu} (${key}). По умолчанию ${String(defaultValue)}, от ${def.min} до ${def.max}.`,
       min: def.min,
       max: def.max,
     };

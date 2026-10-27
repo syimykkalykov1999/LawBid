@@ -22,6 +22,21 @@ export const ROLE_LABEL: Record<AdminRole, string> = {
   finance: 'Финансы',
 };
 
+/** Staff package T1 (2026-10-27): the three workspaces (same keys as the
+ * API enum `admin_workspace`). Menus and the desk use them from T2/T8 on;
+ * the server already answers 404 outside the workspace once the owner turns
+ * on `staff.workspaces_enabled`. */
+export type AdminWorkspace = 'mass' | 'finance' | 'owner';
+
+export const WORKSPACE_LABEL: Record<AdminWorkspace, string> = {
+  mass: 'Массовая работа',
+  finance: 'Финансы',
+  owner: 'Владелец',
+};
+
+/** The head of a workspace (one per workspace, none in finance). */
+export const WORKSPACE_HEAD_LABEL = 'Главный пространства';
+
 export type AccessLevel = 'view' | 'manage';
 export type Permissions = Partial<Record<string, AccessLevel>>;
 
