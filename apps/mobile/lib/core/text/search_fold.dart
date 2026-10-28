@@ -210,3 +210,6 @@ List<T> rankByName<T>(
       if (!strong || s.$1 < 5) s.$3,
   ];
 }
+
+/// Levenshtein distance ≤ 1 (one typo), for other local matchers.
+bool withinOneEdit(String a, String b) => _withinOne(a, b);
