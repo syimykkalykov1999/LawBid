@@ -592,9 +592,10 @@ class _TagTopicRow extends ConsumerWidget {
   }
 }
 
-/// Owner 2026-09-30: before typing, every tab shows the recent searches,
-/// "Based on your search «…»" (this tab's results for the latest one) and
-/// its own explore content — people, a grid of cases or posts, topics.
+/// Owner 2026-09-30: before typing, every tab shows the recent searches
+/// and its own explore content — people, a grid of cases or posts, topics.
+/// Owner 2026-10-28: the recent searches are a chip row only; no results
+/// of an old query here.
 class _BeforeTyping extends ConsumerWidget {
   const _BeforeTyping({
     required this.tab,
@@ -618,12 +619,11 @@ class _BeforeTyping extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     // Owner 2026-10-13: the Posts tab is only the grid — no recent searches,
-    // no "based on" rows, no section titles.
+    // no section titles.
     final postsTab = tab == SearchTab.posts;
     final recent = postsTab
         ? const <String>[]
         : ref.watch(recentSearchesProvider(tab.name)).value ?? const [];
-    final last = recent.isEmpty ? null : recent.first;
     final attorney = ref.watch(actsAsAttorneyProvider);
 
     Widget title(String text, {Widget? trailing, bool small = false}) =>
@@ -676,10 +676,6 @@ class _BeforeTyping extends ConsumerWidget {
           ),
         );
 
-    final lastKey = last == null ? null : (q: last, filters: filters);
-
-    // "Based on your search" for this tab.
-    // ignore: omit_local_variable_types
     // Owner 2026-10-14: no "Show more" button — the next page loads by
     // itself when the list is scrolled near its end.
     final loaders = <VoidCallback>[];
@@ -701,50 +697,36 @@ class _BeforeTyping extends ConsumerWidget {
       );
     }
 
-    // ignore: omit_local_variable_types
-    final List<Widget> basedOn = switch (tab) {
-      _ when last == null => const [],
-      SearchTab.attorneys => [
-          for (final r
-              in (ref.watch(peopleSearchProvider(lastKey!)).value?.items ??
-                      const <PersonRow>[])
-                  .take(10))
-            SliverToBoxAdapter(child: PersonTile(row: r)),
-        ],
-      SearchTab.cases when !attorney => [
-          rows<CaseSummary>(
-            _myCases(ref, last, filters).take(4).toList(),
-            (c) => SearchMyCaseTile(item: c),
-          ),
-        ],
-      SearchTab.cases => [
-          rows<FeedCase>(
-            (ref.watch(caseSearchProvider(lastKey!)).value?.items ??
-                    const <FeedCase>[])
-                .take(4)
-                .toList(),
-            (c) => SearchCaseTile(item: c),
-          ),
-        ],
-      SearchTab.posts => [
-          grid<Post>(
-            (ref.watch(postSearchProvider(lastKey!)).value?.items ??
-                    const <Post>[])
-                .take(6)
-                .toList(),
-            (p) => SearchPostTile(
-              post: p,
-              feed: ref.read(postSearchProvider(lastKey)).value?.items,
+    // Owner 2026-10-28: an empty field is the start view (its grids and
+    // recommendations); the last searches are only a small «Недавние» row
+    // of chips — never the old results («По вашему поиску «jah»» showed a
+    // stale list in place of the start view).
+    final recentRow = recent.isEmpty
+        ? const <Widget>[]
+        : <Widget>[
+            SliverToBoxAdapter(
+              child: title(t.t('search.recent'), small: true),
             ),
-          ),
-        ],
-      SearchTab.tags => [
-          for (final tag
-              in (ref.watch(tagSearchProvider(last)).value ?? const <TagInfo>[])
-                  .take(3))
-            SliverToBoxAdapter(child: _TagTopicRow(tag: tag)),
-        ],
-    };
+            SliverToBoxAdapter(
+              child: SizedBox(
+                key: const ValueKey('search-recent-chips'),
+                height: 32,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screenSide,
+                  ),
+                  itemCount: recent.length,
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(width: AppSpacing.xs),
+                  itemBuilder: (context, i) => AppChip(
+                    label: recent[i],
+                    onTap: () => onRecent(recent[i]),
+                  ),
+                ),
+              ),
+            ),
+          ];
 
     // ignore: omit_local_variable_types
     final List<Widget> explore = switch (tab) {
@@ -850,7 +832,7 @@ class _BeforeTyping extends ConsumerWidget {
       color: colors.gold,
       onRefresh: () async {
         // What this screen shows: the explore grids, topics, suggested
-        // lawyers, my cases and the "based on your last search" rows.
+        // lawyers and my cases.
         ref
           ..invalidate(trendingTagsProvider)
           ..invalidate(exploreCasesProvider)
@@ -873,16 +855,8 @@ class _BeforeTyping extends ConsumerWidget {
         },
         child: CustomScrollView(
           slivers: [
+            ...recentRow,
             ...explore,
-            if (basedOn.isNotEmpty) ...[
-              SliverToBoxAdapter(
-                child: title(
-                  t.t('search.section.basedOn', {'q': last!}),
-                  small: true,
-                ),
-              ),
-              ...basedOn,
-            ],
             const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xxl)),
           ],
         ),

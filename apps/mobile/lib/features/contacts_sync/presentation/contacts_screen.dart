@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/calls/application/call_history_providers.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_background_sync.dart';
@@ -179,18 +180,16 @@ class _BodyState extends ConsumerState<_Body> {
       data: (data) {
         if (data.needsConsent) return const ContactsConsentView();
         if (data.denied) return const ContactsDeniedView();
-        bool hit(String name, [String? handle]) =>
-            _query.isEmpty ||
-            name.toLowerCase().contains(_query) ||
-            (handle ?? '').toLowerCase().contains(_query);
-        final onLawBid = [
-          for (final c in data.onLawBid)
-            if (hit(c.title, c.person.username)) c,
-        ];
-        final invite = [
-          for (final c in data.invite)
-            if (hit(c.name)) c,
-        ];
+        // Owner 2026-10-28: the same matcher as People and chat search —
+        // every word by its start, best match first, a typo only when
+        // nothing matched better.
+        final onLawBid = rankByName(
+          data.onLawBid,
+          _query,
+          (c) => c.title,
+          (c) => c.person.username ?? '',
+        );
+        final invite = rankByName(data.invite, _query, (c) => c.name);
         final bottom = AppSpacing.xxl + MediaQuery.paddingOf(context).bottom;
         return RefreshIndicator(
           onRefresh: () async {

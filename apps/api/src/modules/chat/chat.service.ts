@@ -39,6 +39,7 @@ import {
   escapeLike,
   nameKeys,
   nameMatchSql,
+  nameStrictSql,
   typedWords,
 } from '../../common/search/name-match.sql';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -443,10 +444,15 @@ export class ChatService {
         by_meta: boolean;
       }[]
     >`
-      SELECT * FROM (SELECT c.id::TEXT AS id, msg.body AS body, msg.msg_id AS msg_id,
-             ((NOT hidden.v AND (${nameMatchSql(keys, 'o')}
+      SELECT id, body, msg_id,
+             -- Owner 2026-10-28: a typo-only name match («sima» ~ «Syimyk»)
+             -- counts only when no chat's name matched strongly.
+             (by_strong OR (by_loose AND NOT bool_or(by_strong) OVER ())) AS by_meta
+      FROM (SELECT c.id::TEXT AS id, msg.body AS body, msg.msg_id AS msg_id,
+             COALESCE((NOT hidden.v AND (${nameStrictSql(keys, 'o')}
                  OR coalesce(ap.username_lower, cp.username_lower) LIKE ${handle}))
-              OR (cs.title IS NOT NULL AND ${allWordsSql(Prisma.sql`cs.title`, words)})) AS by_meta
+              OR (cs.title IS NOT NULL AND ${allWordsSql(Prisma.sql`cs.title`, words)}), FALSE) AS by_strong,
+             COALESCE(NOT hidden.v AND ${nameMatchSql(keys, 'o')}, FALSE) AS by_loose
       FROM conversations c
       JOIN users o ON o.id = CASE WHEN c.client_id = ${me}::UUID
                                   THEN c.attorney_id ELSE c.client_id END
@@ -465,7 +471,7 @@ export class ChatService {
         ORDER BY m.created_at DESC LIMIT 1) msg ON TRUE
       WHERE (c.client_id = ${me}::UUID OR c.attorney_id = ${me}::UUID)
         AND c.last_message_at IS NOT NULL) t
-      WHERE t.by_meta OR t.body IS NOT NULL
+      WHERE t.by_strong OR t.by_loose OR t.body IS NOT NULL
       LIMIT 2000`;
     const out = new Map<string, string | null>();
     for (const r of rows) {
