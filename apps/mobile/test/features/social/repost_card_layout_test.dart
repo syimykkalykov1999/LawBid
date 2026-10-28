@@ -57,7 +57,8 @@ void main() {
         final name = t.getTopLeft(find.text('Sofia Hernandez'));
         final line = t.getTopLeft(find.textContaining('james.whitfield'));
         expect(line.dy, greaterThan(name.dy));
-        expect(line.dy - name.dy, lessThan(40 * scale));
+        // Owner 2026-10-28: the shared header (name + role line) sits above it.
+        expect(line.dy - name.dy, lessThan(56 * scale));
         // Owner 2026-10-18: the line starts with a small ↻; it sits on the
         // name's edge and the text follows it.
         final icon = t.getTopLeft(find.byIcon(AppIcons.autoModeRounded).first);
