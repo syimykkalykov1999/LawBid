@@ -245,7 +245,10 @@ resource "aws_cloudwatch_composite_alarm" "availability" {
 # --- S12-11: dashboard (replaces the orphaned infra/observability/grafana JSON) --------
 locals {
   dash_slos = { for k, v in local.slos : k => v }
-  dash_slo_metrics = flatten([
+  # concat(...) joins the per-SLO row lists one level only; flatten() would
+  # also flatten every row into loose strings and CloudWatch rejects that
+  # ("metrics has to be an array of array of strings").
+  dash_slo_metrics = concat([
     for i, k in sort(keys(local.dash_slos)) : concat(
       [
         [local.ns, local.dash_slos[k].good, { id = "g${i}", stat = "Sum", period = 3600, visible = false }],
@@ -253,7 +256,7 @@ locals {
       ],
       [[{ expression = local.dash_slos[k].total != null ? "IF(o${i} > 0, 100 * FILL(g${i}, 0) / o${i}, 100)" : "IF(FILL(g${i}, 0) + FILL(o${i}, 0) > 0, 100 * FILL(g${i}, 0) / (FILL(g${i}, 0) + FILL(o${i}, 0)), 100)", label = "${k} (цель ${format("%g", local.dash_slos[k].target * 100)}%)", id = "s${i}" }]],
     )
-  ])
+  ]...)
   dash_widget_defaults = { type = "metric", width = 12, height = 6 }
 }
 
