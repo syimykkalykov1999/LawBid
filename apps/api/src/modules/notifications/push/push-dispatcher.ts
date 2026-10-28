@@ -69,6 +69,10 @@ import {
 } from './chat-push';
 import { bullOptions } from '../../../redis/redis-connection';
 import { pushActionKey, signPushAction } from './push-action-token';
+import {
+  callPollKey,
+  signCallPoll,
+} from '../../../common/calls/call-poll-token';
 import { actorPushData, CHAT_CATEGORY } from './actor-push';
 import {
   closeWorker,
@@ -201,6 +205,29 @@ export class PushDispatcher
   }
 
   private actionKeyCache?: Buffer | null;
+  private pollKeyCache?: Buffer | null;
+
+  /** Owner 2026-10-28: the ticket a ringing phone uses to ask «still
+   * ringing?» with no session (call-poll-token.ts); none without the
+   * pepper (the phone then relies on the stop push and its own timeout). */
+  private pollToken(
+    recipientId: string,
+    callId: string,
+  ): Record<string, string> {
+    if (this.pollKeyCache === undefined) {
+      let pepper: string | undefined;
+      try {
+        pepper = this.config.get<string>('AUTH_EVENT_PEPPER');
+      } catch {
+        pepper = undefined;
+      }
+      this.pollKeyCache = pepper ? callPollKey(pepper) : null;
+    }
+    if (!this.pollKeyCache) return {};
+    return {
+      pollToken: signCallPoll(this.pollKeyCache, { c: callId, u: recipientId }),
+    };
+  }
 
   /** Owner 2026-10-26: the signed ticket behind a chat notification's
    * «Ответить» / «Прочитано» buttons (push-action-token.ts); none without
@@ -479,6 +506,9 @@ export class PushDispatcher
           ...(avatarUrl ? { avatarUrl } : {}),
           ...(silent ? { silent: '1' } : {}),
           ...(call.video ? { video: '1' } : {}),
+          // Owner 2026-10-28: a locked Android phone asks the call's state
+          // with this while it rings (older apps ignore it).
+          ...this.pollToken(data.recipientId, data.callId),
         },
         call: true,
         skipTokens,

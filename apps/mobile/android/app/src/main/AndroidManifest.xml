@@ -152,6 +152,18 @@
                 <action android:name="com.google.android.c2dm.intent.RECEIVE" />
             </intent-filter>
         </receiver>
+        <!-- Owner 2026-10-28 (a locked Samsung rang on after the caller hung
+             up): call pushes are handled natively at once — stop ringing,
+             watch a ring until it ends, and the ring-timeout alarm. Same
+             FCM broadcast and permission as ChatPushReceiver. -->
+        <receiver
+            android:name=".CallPushReceiver"
+            android:exported="true"
+            android:permission="com.google.android.c2dm.permission.SEND">
+            <intent-filter>
+                <action android:name="com.google.android.c2dm.intent.RECEIVE" />
+            </intent-filter>
+        </receiver>
         <!-- Owner 2026-10-26: «Ответить» / «Прочитано» on a chat
              notification (only the app's own notifications send it). -->
         <receiver
