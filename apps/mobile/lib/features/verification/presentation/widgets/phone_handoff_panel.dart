@@ -7,7 +7,6 @@ import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/deeplinks/deep_link.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/verification/application/verification_wizard_controller.dart';
 import 'package:lawbid/shared/presentation/qr_code_view.dart';
 
@@ -21,9 +20,10 @@ final selfieNeedsPhoneProvider = Provider<bool>((ref) => kIsWeb);
 const selfieHandoffPollInterval = Duration(seconds: 5);
 
 /// Owner 2026-10-28 (docs/architecture/ID_SELFIE_CAPTURE_2026-10-28.md §8):
-/// on a computer the selfie step does not dead-end. A QR code (and a «send
-/// the link by SMS» button) opens the app on the phone at the wizard,
-/// which resumes the same server draft at the selfie step — the licences
+/// on a computer the selfie step does not dead-end. A QR code opens the app
+/// on the phone at the wizard (or the attorney simply signs in to the app
+/// with the same number): it resumes the same server draft at the selfie
+/// step — the licences
 /// and ID photos entered here are kept. While this panel is on screen and
 /// the page is visible the draft is re-read every 5 s (one small GET);
 /// once the phone has attached the selfie, the wizard moves on to the
@@ -41,8 +41,6 @@ class _PhoneHandoffPanelState extends ConsumerState<PhoneHandoffPanel>
     with WidgetsBindingObserver {
   Timer? _poll;
   bool _polling = false;
-  bool _sending = false;
-  String? _smsNote;
 
   @override
   void initState() {
@@ -85,34 +83,6 @@ class _PhoneHandoffPanelState extends ConsumerState<PhoneHandoffPanel>
     }
   }
 
-  Future<void> _sendSms() async {
-    final t = widget.t;
-    setState(() {
-      _sending = true;
-      _smsNote = null;
-    });
-    String note;
-    try {
-      final r = await ref
-          .read(verificationWizardProvider.notifier)
-          .sendSelfieHandoffSms();
-      note = r != null && r.sent
-          ? t.t('verification.handoff.smsSent', {'last4': r.phoneLast4})
-          : t.t('verification.handoff.smsFailed');
-    } on ApiException catch (e) {
-      note = e.details?['reason'] == 'no_phone'
-          ? t.t('verification.handoff.noPhone')
-          : t.t('verification.handoff.smsFailed');
-    } on Object {
-      note = t.t('verification.handoff.smsFailed');
-    }
-    if (!mounted) return;
-    setState(() {
-      _sending = false;
-      _smsNote = note;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
@@ -121,7 +91,6 @@ class _PhoneHandoffPanelState extends ConsumerState<PhoneHandoffPanel>
     final host = ref.watch(appEnvironmentProvider).deepLinkHost;
     final link = 'https://$host$verificationWizardLocation';
     const qr = AppSpacing.unit * 44; // 176
-    final note = _smsNote;
     return Container(
       key: const ValueKey('selfie-phone-handoff'),
       padding: const EdgeInsets.all(AppSpacing.xl),
@@ -152,32 +121,13 @@ class _PhoneHandoffPanelState extends ConsumerState<PhoneHandoffPanel>
             plateColor: colors.surface,
             semanticLabel: t.t('verification.handoff.qr'),
           ),
-          const SizedBox(height: AppSpacing.xl),
-          SizedBox(
-            width: double.infinity,
-            child: AppButton(
-              key: const ValueKey('selfie-handoff-sms'),
-              label: t.t('verification.handoff.sms'),
-              variant: AppButtonVariant.secondary,
-              icon: AppIcons.phoneIphoneRounded,
-              height: AppSizes.touchTarget,
-              isLoading: _sending,
-              onPressed: _sending ? null : _sendSms,
-            ),
+          const SizedBox(height: AppSpacing.lg),
+          Text(
+            t.t('verification.handoff.orSignIn'),
+            key: const ValueKey('selfie-handoff-sign-in-hint'),
+            textAlign: TextAlign.center,
+            style: typography.body.copyWith(color: colors.textSecondary),
           ),
-          if (note != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Semantics(
-              liveRegion: true,
-              child: Text(
-                note,
-                textAlign: TextAlign.center,
-                style: typography.bodySmall.copyWith(
-                  color: colors.textSecondary,
-                ),
-              ),
-            ),
-          ],
           const SizedBox(height: AppSpacing.lg),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,

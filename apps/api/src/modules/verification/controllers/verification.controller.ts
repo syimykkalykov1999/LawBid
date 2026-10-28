@@ -39,12 +39,10 @@ import {
 } from '../dto/verification-requests.dto';
 import {
   SelfieCaptureTokenDto,
-  SelfieHandoffDto,
   VerificationOverviewDto,
   VerificationRequestDto,
 } from '../dto/verification-responses.dto';
 import { VerificationRequestsService } from '../services/verification-requests.service';
-import { SelfieHandoffService } from '../services/selfie-handoff.service';
 import { AttorneyOnly } from '../../auth/assistant/assistant-context';
 
 const E = ErrorCode;
@@ -70,10 +68,7 @@ const ATTORNEY_ERRORS = {
 @AttorneyOnly()
 @Controller('verification')
 export class VerificationController {
-  constructor(
-    private readonly requests: VerificationRequestsService,
-    private readonly handoff: SelfieHandoffService,
-  ) {}
+  constructor(private readonly requests: VerificationRequestsService) {}
 
   @Get('me')
   @ApiOperation({
@@ -222,27 +217,6 @@ export class VerificationController {
     @Param() params: RequestIdParamDto,
   ): Promise<SelfieCaptureTokenDto> {
     return this.requests.issueSelfieCapture(user.sub, params.id);
-  }
-
-  // flag: none a text to the caller's own number on their request, rate-limited (3 an hour)
-  @Post('requests/:id/selfie-handoff-sms')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary:
-      "Owner 2026-10-28: text the «continue on the phone» link (the wizard resumes this draft at the selfie step) to the attorney's own verified number",
-  })
-  @ApiEnvelopeResponse(SelfieHandoffDto)
-  @ApiErrors({
-    ...ATTORNEY_ERRORS,
-    400: [E.VALIDATION_ERROR],
-    409: [E.VERIFICATION_INVALID_STATUS],
-    429: [E.RATE_LIMITED],
-  })
-  sendSelfieHandoffSms(
-    @CurrentUser() user: RequestUser,
-    @Param() params: RequestIdParamDto,
-  ): Promise<SelfieHandoffDto> {
-    return this.handoff.sendLink(user.sub, params.id);
   }
 
   @Delete('requests/:id/documents/:documentId')

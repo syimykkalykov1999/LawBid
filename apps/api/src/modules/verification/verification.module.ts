@@ -33,8 +33,6 @@ import { VerificationChecksService } from './services/verification-checks.servic
 import { StateRegistryService } from './services/state-registry.service';
 import { VerificationRequestsService } from './services/verification-requests.service';
 import { SelfieCaptureTokensService } from './services/selfie-capture-tokens.service';
-import { SelfieHandoffService } from './services/selfie-handoff.service';
-import { ComplianceCoreModule } from '../compliance/compliance-core.module';
 
 /**
  * docs/03_VERIFICATION_PROFILES.md §2: attorney verification requests
@@ -52,8 +50,6 @@ import { ComplianceCoreModule } from '../compliance/compliance-core.module';
     // docs/04 §14: bid withdrawals on suspension go through the machine.
     BidsModule,
     JournalModule,
-    // Owner 2026-10-28: the «continue on the phone» text (STOP list).
-    ComplianceCoreModule,
   ],
   controllers: [
     VerificationController,
@@ -97,7 +93,6 @@ import { ComplianceCoreModule } from '../compliance/compliance-core.module';
     VerificationChecksService,
     // Owner 2026-10-28: one-time tokens of the guided selfie camera.
     SelfieCaptureTokensService,
-    SelfieHandoffService,
     VerificationRequestsService,
     VerificationAdminService,
   ],

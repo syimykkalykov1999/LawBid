@@ -119,7 +119,7 @@ void main() {
     // A one-time capture token was asked for before the camera opened and
     // went back with the selfie attach.
     expect(backend.selfieTokens, 1);
-    expect(backend.lastSelfie?.token, 'tok-1-abcdefghijklmnop');
+    expect(backend.lastSelfie?.token, 'test-capture-token-1');
     await tapText(tester, 'Continue');
 
     expect(find.text('Check and submit'), findsOneWidget);

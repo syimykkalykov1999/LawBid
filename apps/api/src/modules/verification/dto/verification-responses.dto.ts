@@ -167,23 +167,3 @@ export class SelfieCaptureTokenDto {
   })
   required!: boolean;
 }
-
-/** Owner 2026-10-28: «continue on the phone» — the link texted to the
- * attorney's own number. */
-export class SelfieHandoffDto {
-  @ApiProperty({
-    description:
-      'false = not sent: the number is on the STOP list or not a valid number (see reason).',
-  })
-  sent!: boolean;
-
-  @ApiProperty({ description: 'Last 4 digits of the number it went to.' })
-  phoneLast4!: string;
-
-  @ApiProperty({
-    type: String,
-    nullable: true,
-    enum: ['bad_number', 'suppressed'],
-  })
-  reason!: string | null;
-}

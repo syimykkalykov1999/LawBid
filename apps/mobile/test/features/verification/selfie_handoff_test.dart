@@ -8,7 +8,7 @@ import 'package:lawbid/features/verification/presentation/widgets/phone_handoff_
 import 'verification_fakes.dart';
 
 /// Owner 2026-10-28: an attorney who started on a computer is never stuck
-/// at the ID selfie — «continue on the phone» (QR + SMS), the phone resumes
+/// at the ID selfie — «continue on the phone» (QR code), the phone resumes
 /// the same server draft at the selfie step, the computer notices the
 /// selfie by itself, and Back never loses the draft.
 void main() {
@@ -51,14 +51,13 @@ void main() {
     expect(find.text('Open camera'), findsNothing);
     expect(find.text('Photo library'), findsNothing);
 
-    final sms = find.byKey(const ValueKey('selfie-handoff-sms'));
-    await tester.ensureVisible(sms);
-    await tester.pumpAndSettle();
-    await tester.tap(sms);
-    await tester.pumpAndSettle();
-    expect(backend.handoffTexts, 1);
+    // No SMS option (owner 2026-10-28): QR + "just sign in on the phone".
+    expect(find.byKey(const ValueKey('selfie-handoff-sms')), findsNothing);
     expect(
-      find.text('Link sent to the number ending in 0142'),
+      find.text(
+        'Or just sign in to the app on your phone with the same number '
+        "— you'll continue from this step.",
+      ),
       findsOneWidget,
     );
   });
@@ -118,7 +117,7 @@ void main() {
     expect(find.text('Take a selfie'), findsOneWidget);
   });
 
-  test('the QR / SMS link opens the wizard in the app (after sign-in)', () {
+  test('the QR link opens the wizard in the app (after sign-in)', () {
     const want = TabDeepLink(verificationWizardLocation);
     expect(
       parseDeepLink(

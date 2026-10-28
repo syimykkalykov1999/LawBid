@@ -305,24 +305,6 @@ describe('SmsComplianceService', () => {
     expect(sendText).toHaveBeenCalledWith(PHONE, 'Hi Reply STOP to opt out.');
   });
 
-  it('sendOnDemand (owner 2026-10-28): the link the person just asked for, no consent needed, never to a STOP number', async () => {
-    const { svc } = build({ 'compliance.sms.marketing_enabled': false });
-    const sendText = jest.fn().mockResolvedValue(undefined);
-    expect(
-      await svc.sendOnDemand({ sendText }, { phone: PHONE, body: 'Link' }),
-    ).toEqual({ allowed: true, phone: PHONE });
-    expect(sendText).toHaveBeenCalledWith(PHONE, 'Link Reply STOP to opt out.');
-    expect(
-      await svc.sendOnDemand({ sendText }, { phone: 'junk', body: 'Link' }),
-    ).toEqual({ allowed: false, reason: 'bad_number' });
-    await svc.importTwilioOptOuts([PHONE]);
-    sendText.mockClear();
-    expect(
-      await svc.sendOnDemand({ sendText }, { phone: PHONE, body: 'Link' }),
-    ).toEqual({ allowed: false, reason: 'suppressed' });
-    expect(sendText).not.toHaveBeenCalled();
-  });
-
   it('imports Twilio opt-outs', async () => {
     const { svc } = build();
     expect(await svc.importTwilioOptOuts([PHONE, 'junk'])).toEqual({

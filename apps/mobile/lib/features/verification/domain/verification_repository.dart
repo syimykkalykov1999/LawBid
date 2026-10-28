@@ -34,10 +34,6 @@ abstract interface class VerificationRepository {
   /// the guided selfie camera opens; the selfie attach sends it back.
   Future<SelfieCaptureTicket> startSelfieCapture(String requestId);
 
-  /// Owner 2026-10-28: texts the «continue on the phone» link to the
-  /// attorney's own number (web / no camera).
-  Future<SelfieHandoffResult> sendSelfieHandoffSms(String requestId);
-
   Future<VerificationRequest> removeDocument(
     String requestId,
     String documentId,
@@ -123,19 +119,4 @@ class SelfieUpload {
 
   final String token;
   final SelfieCaptureReport? report;
-}
-
-/// Result of the «continue on the phone» text.
-class SelfieHandoffResult {
-  const SelfieHandoffResult({
-    required this.sent,
-    required this.phoneLast4,
-    this.reason,
-  });
-
-  final bool sent;
-  final String phoneLast4;
-
-  /// 'bad_number' | 'suppressed' when not sent.
-  final String? reason;
 }

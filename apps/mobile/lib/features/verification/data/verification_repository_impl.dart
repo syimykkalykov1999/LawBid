@@ -114,22 +114,6 @@ class VerificationRepositoryImpl implements VerificationRepository {
       );
 
   @override
-  Future<SelfieHandoffResult> sendSelfieHandoffSms(String requestId) async {
-    final r = (await guardApiCall(
-      () => _client.sendSelfieHandoffSms(
-        id: requestId,
-        extras: const {RequestFlags.noRetry: true},
-      ),
-    ))
-        .data;
-    return SelfieHandoffResult(
-      sent: r.sent,
-      phoneLast4: r.phoneLast4,
-      reason: r.reason?.json,
-    );
-  }
-
-  @override
   Future<SelfieCaptureTicket> startSelfieCapture(String requestId) async {
     final t = (await guardApiCall(
       () => _client.issueSelfieCaptureToken(id: requestId),

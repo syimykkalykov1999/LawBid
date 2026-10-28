@@ -167,8 +167,7 @@ detection speed on a low-end Android, takePicture right after stopping the
 stream, the iOS pod install of the two ML Kit pods (CI `flutter build ios`
 runs it), app size growth from the bundled models; the universal / App
 Link for `/verification/wizard` needs the new AASA published (seo-deploy)
-and an installed app to open in the app; the SMS needs the real SMS
-provider configured (local runs use the mock).
+and an installed app to open in the app.
 
 ## 8. Computer / web: «continue on the phone» (owner addition, same day)
 
@@ -179,7 +178,9 @@ webcam would only give an unchecked shot — not worth a weaker path).
 
 - Selfie step on the web (`selfieNeedsPhoneProvider` = `kIsWeb`): a panel
   «Продолжить на телефоне» with a QR code of
-  `https://<deepLinkHost>/verification/wizard` and «Отправить ссылку по SMS».
+  `https://<deepLinkHost>/verification/wizard` and the plain hint «или просто
+  войдите в приложение на телефоне с тем же номером — вы продолжите с этого
+  шага». No SMS option (owner decision 2026-10-28: removed).
 - The link: Android App Link path `/verification/wizard`
   (AndroidManifest), iOS universal link component in
   `docs/deeplinks/apple-app-site-association` (published by seo-deploy),
@@ -187,16 +188,11 @@ webcam would only give an unchecked shot — not worth a weaker path).
   `parseDeepLink` → `TabDeepLink('/verification/wizard')`, which waits for
   sign-in and onboarding like every link, then opens the wizard. The wizard
   loads the SAME server draft and `resumeStep` lands on the selfie step:
-  licences, bar card and ID photos entered on the computer are kept.
+  licences, bar card and ID photos entered on the computer are kept. Signing
+  in to the app with the same number without the QR does the same (the
+  wizard always resumes the open draft).
   App not installed → the https page opens in the phone's browser (store
   fallback is whatever that page shows; unverified).
-- SMS: `POST /verification/requests/{id}/selfie-handoff-sms` texts the link to
-  the attorney's OWN verified number (no number entry, so it can't be used to
-  text strangers), 3 an hour, through the new
-  `SmsComplianceService.sendOnDemand`: a one-time on-demand reply to the
-  person's own request (FCC declaratory ruling, SoundBite, 2012-11-29) —
-  no marketing consent needed, but a STOP'ed number is never texted. Uses the
-  existing SMS provider (no new paid service). English text.
 - The computer re-reads the draft every 5 s while the panel is on screen
   and the page is visible (stops when hidden / left); once the phone attached
   the selfie it moves to «Проверка и отправка» by itself.

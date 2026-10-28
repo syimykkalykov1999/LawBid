@@ -62,19 +62,11 @@ class FakeVerificationBackend
   int selfieTokens = 0;
   SelfieUpload? lastSelfie;
 
-  int handoffTexts = 0;
-
-  @override
-  Future<SelfieHandoffResult> sendSelfieHandoffSms(String requestId) async {
-    handoffTexts++;
-    return const SelfieHandoffResult(sent: true, phoneLast4: '0142');
-  }
-
   @override
   Future<SelfieCaptureTicket> startSelfieCapture(String requestId) async {
     selfieTokens++;
     return SelfieCaptureTicket(
-      token: 'tok-$selfieTokens-abcdefghijklmnop',
+      token: 'test-capture-token-$selfieTokens',
       expiresAt: DateTime.now().add(const Duration(minutes: 30)),
       required: true,
     );

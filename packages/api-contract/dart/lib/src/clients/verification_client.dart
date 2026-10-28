@@ -8,7 +8,6 @@ import 'package:retrofit/retrofit.dart';
 import '../models/add_license_dto.dart';
 import '../models/attach_document_dto.dart';
 import '../models/selfie_capture_token_envelope.dart';
-import '../models/selfie_handoff_envelope.dart';
 import '../models/submit_verification_request_dto.dart';
 import '../models/update_verification_request_dto.dart';
 import '../models/verification_overview_envelope.dart';
@@ -74,13 +73,6 @@ abstract class VerificationClient {
   /// One-time selfie capture token (owner 2026-10-28): the app asks for it before opening the guided selfie camera; the selfie attach sends it back
   @POST('/verification/requests/{id}/selfie-capture')
   Future<SelfieCaptureTokenEnvelope> issueSelfieCaptureToken({
-    @Path('id') required String id,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// Owner 2026-10-28: text the «continue on the phone» link (the wizard resumes this draft at the selfie step) to the attorney's own verified number
-  @POST('/verification/requests/{id}/selfie-handoff-sms')
-  Future<SelfieHandoffEnvelope> sendSelfieHandoffSms({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });

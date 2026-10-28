@@ -491,12 +491,6 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     return false;
   }
 
-  Future<SelfieHandoffResult?> sendSelfieHandoffSms() async {
-    final s = _s;
-    if (s == null) return null;
-    return _repo.sendSelfieHandoffSms(s.request.id);
-  }
-
   /// Owner 2026-10-28: asks the server for the one-time selfie capture
   /// token before the guided camera opens. Null when no request is loaded.
   Future<SelfieCaptureTicket?> startSelfieCapture() async {

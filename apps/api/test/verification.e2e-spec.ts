@@ -722,38 +722,6 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
       }
     });
 
-    // Owner 2026-10-28: «continue on the phone» from a computer — the link
-    // is texted to the attorney's own number, 3 an hour.
-    it('texts the continue-on-phone link to the own number; limited; own request only', async () => {
-      const a = await attorney();
-      const id = await createDraft(a.auth);
-      const me = await prisma.user.findUniqueOrThrow({
-        where: { id: a.userId },
-        select: { phone_e164: true },
-      });
-      for (let i = 0; i < 3; i++) {
-        const res = await api()
-          .post(`/api/v1/verification/requests/${id}/selfie-handoff-sms`)
-          .set(a.auth)
-          .expect(200);
-        expect((res.body as Body).data).toEqual({
-          sent: true,
-          phoneLast4: me.phone_e164?.slice(-4),
-          reason: null,
-        });
-      }
-      const limited = await api()
-        .post(`/api/v1/verification/requests/${id}/selfie-handoff-sms`)
-        .set(a.auth)
-        .expect(429);
-      expect((limited.body as Body).error?.code).toBe('RATE_LIMITED');
-      const other = await attorney();
-      await api()
-        .post(`/api/v1/verification/requests/${id}/selfie-handoff-sms`)
-        .set(other.auth)
-        .expect(404);
-    });
-
     it('only clean files of the right purpose can be attached', async () => {
       const a = await attorney();
       const id = await createDraft(a.auth);

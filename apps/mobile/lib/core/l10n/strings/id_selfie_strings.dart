@@ -11,15 +11,10 @@ const idSelfieRu = <String, String>{
   'auth.role.change.title': 'Сменить роль?',
   'verification.handoff.body':
       'Селфи с удостоверением снимается камерой приложения LawBid. Отсканируйте этот код телефоном. Всё, что вы ввели здесь, сохранено.',
-  'verification.handoff.noPhone':
-      'Добавьте номер телефона в аккаунт, чтобы получить ссылку по SMS.',
+  'verification.handoff.orSignIn':
+      'Или просто войдите в приложение на телефоне с тем же номером — вы продолжите с этого шага.',
   'verification.handoff.qr':
       'QR-код, который открывает проверку в приложении LawBid на телефоне',
-  'verification.handoff.sms': 'Отправить ссылку по SMS',
-  'verification.handoff.smsFailed':
-      'Не удалось отправить SMS на ваш номер. Используйте QR-код.',
-  'verification.handoff.smsSent':
-      'Ссылка отправлена на номер, который заканчивается на {last4}',
   'verification.handoff.title': 'Продолжить на телефоне',
   'verification.handoff.waiting': 'Ждём селфи с вашего телефона…',
   'verification.idSelfie.anyway': 'Всё равно сделать фото',
@@ -53,14 +48,10 @@ const idSelfieEn = <String, String>{
   'auth.role.change.title': 'Change your role?',
   'verification.handoff.body':
       "The selfie with your ID is taken with the LawBid app's camera. Scan this code with your phone. Everything you entered here is saved.",
-  'verification.handoff.noPhone':
-      'Add a phone number to your account to get the link by SMS.',
+  'verification.handoff.orSignIn':
+      "Or just sign in to the app on your phone with the same number — you'll continue from this step.",
   'verification.handoff.qr':
       'QR code that opens verification in the LawBid app on your phone',
-  'verification.handoff.sms': 'Send the link by SMS',
-  'verification.handoff.smsFailed':
-      "Couldn't send a text to your number. Use the QR code.",
-  'verification.handoff.smsSent': 'Link sent to the number ending in {last4}',
   'verification.handoff.title': 'Continue on your phone',
   'verification.handoff.waiting': 'Waiting for the selfie from your phone…',
   'verification.idSelfie.anyway': 'Take photo anyway',
