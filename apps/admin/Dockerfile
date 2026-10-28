@@ -30,4 +30,8 @@ RUN mkdir -p /app/apps/admin/.next/cache && chown -R app:app /app/apps/admin/.ne
 VOLUME ["/tmp", "/app/apps/admin/.next/cache"]
 USER app
 EXPOSE 3001
-CMD ["node", "apps/admin/server.js"]
+# ECS/Docker overwrite HOSTNAME with the task's own name at runtime, so the
+# ENV above is lost and Next's standalone server binds only to
+# ip-10-…ec2.internal; the health check (wget 127.0.0.1:3001) then fails and
+# the circuit breaker rolls every new admin release back (prod, 2026-10-24…28).
+CMD ["sh", "-c", "HOSTNAME=0.0.0.0 exec node apps/admin/server.js"]
