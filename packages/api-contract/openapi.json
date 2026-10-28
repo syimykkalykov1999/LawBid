@@ -69379,6 +69379,116 @@
         ]
       }
     },
+    "/addresses/suggest": {
+      "get": {
+        "operationId": "suggestAddresses",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "What the person typed so far. Fewer than 3 letters (after trimming) returns no suggestions without a provider call.",
+            "schema": {
+              "minLength": 0,
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "description": "address (default): street addresses; city: cities only.",
+            "schema": {
+              "pattern": "^(address|city)$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "session",
+            "required": false,
+            "in": "query",
+            "description": "A random id the app makes when the field gets focus and keeps until an address is picked (Google bills one session instead of every key stroke).",
+            "schema": {
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_-]{8,64}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddressSuggestionsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Address suggestions for what the person typed (US only). enabled=false: the field stays plain text.",
+        "tags": [
+          "addresses"
+        ]
+      }
+    },
     "/feed": {
       "get": {
         "operationId": "getFeed",
@@ -168994,6 +169104,61 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/LinkPreviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AddressSuggestionDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "The full text for the field, e.g. \"12 Main St, Hays, KS 67601\"."
+          },
+          "city": {
+            "type": "string",
+            "nullable": true
+          },
+          "stateCode": {
+            "type": "string",
+            "nullable": true,
+            "description": "Two-letter US state code."
+          }
+        },
+        "required": [
+          "label",
+          "city",
+          "stateCode"
+        ]
+      },
+      "AddressSuggestionsDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AddressSuggestionDto"
+            }
+          }
+        },
+        "required": [
+          "enabled",
+          "items"
+        ]
+      },
+      "AddressSuggestionsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AddressSuggestionsDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

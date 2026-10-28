@@ -1371,6 +1371,58 @@ export const PROVIDERS: ProviderDefinition[] = [
       },
     ],
   },
+  // Owner 2026-10-28: address suggestions while typing (Настройки →
+  // addresses.*; docs/architecture/ADDRESS_AUTOCOMPLETE_2026-10-28.md).
+  {
+    id: 'aws_location',
+    label: 'Address suggestions (Amazon Location Service)',
+    description:
+      'Suggests US street addresses and cities while a person types an address (cases, chat places, tasks). Only the region is needed on AWS: the server role signs the calls (Terraform adds geo-places:Autocomplete to it). $0.20 per 1 000 calls; the switch and the monthly cap are addresses.* in Settings.',
+    fields: [
+      {
+        name: 'region',
+        label: 'Region',
+        secret: false,
+        required: true,
+        pattern: /^[a-z]{2}(-[a-z]+)+-\d$/,
+        patternHint: 'us-east-1',
+        env: 'ADDRESS_AWS_REGION',
+      },
+      {
+        name: 'accessKeyId',
+        label: 'Access key ID (empty = the server role)',
+        secret: false,
+        required: false,
+        pattern: /^(AKIA|ASIA)[A-Z0-9]{16}$/,
+        env: 'ADDRESS_AWS_ACCESS_KEY_ID',
+      },
+      {
+        name: 'secretAccessKey',
+        label: 'Secret access key',
+        secret: true,
+        required: false,
+        pattern: /^[A-Za-z0-9/+=]{40}$/,
+        env: 'ADDRESS_AWS_SECRET_ACCESS_KEY',
+      },
+    ],
+  },
+  {
+    id: 'google_places',
+    label: 'Address suggestions (Google Places API)',
+    description:
+      'The second provider for address suggestions (addresses.provider = google). $2.83 per 1 000 calls after 10 000 free a month. Restrict the key to «Places API (New)».',
+    fields: [
+      {
+        name: 'apiKey',
+        label: 'API key (Places API (New))',
+        secret: true,
+        required: true,
+        pattern: /^[\w-]{30,}$/,
+        patternHint: 'AIza…',
+        env: 'GOOGLE_PLACES_API_KEY',
+      },
+    ],
+  },
   // Owner 2026-10-27: automatic text detection before any report.
   {
     id: 'openai_moderation',
