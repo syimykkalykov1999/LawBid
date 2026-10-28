@@ -8,6 +8,13 @@ import { NotificationsService } from '../notifications/notifications.service';
 /** The `note` prefix of a system report (never a person's complaint). */
 export const AUTO_HOLD_NOTE = 'auto_hold';
 
+/** CONTENT H-2: the reason the author reads (the app shows it after
+ * «Сообщение от модерации:», like a moderator's own reason). */
+export const HELD_REASON =
+  'Your post or comment is waiting for a moderator review (automatic rules).';
+export const MEDIA_HIDDEN_REASON =
+  'A picture you posted is hidden until a moderator reviews it.';
+
 export interface AutoHoldInput {
   targetType: Extract<ReportTargetType, 'post' | 'comment'>;
   targetId: string;
@@ -62,7 +69,8 @@ export class AutoHoldService {
           action: 'content_held',
           targetType: input.targetType,
           targetId: input.targetId,
-          reason: 'held_for_review',
+          // Shown after «Сообщение от модерации:» in the app's list.
+          reason: HELD_REASON,
         },
       });
     } catch (e) {
@@ -92,7 +100,7 @@ export class AutoHoldService {
           action: 'media_hidden',
           checkId: input.checkId,
           count: input.hidden,
-          reason: 'image_review',
+          reason: MEDIA_HIDDEN_REASON,
         },
       });
     } catch (e) {

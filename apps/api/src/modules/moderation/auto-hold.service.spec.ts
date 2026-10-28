@@ -1,4 +1,8 @@
-import { AutoHoldService } from './auto-hold.service';
+import {
+  AutoHoldService,
+  HELD_REASON,
+  MEDIA_HIDDEN_REASON,
+} from './auto-hold.service';
 
 /** Algo audit 2026-10-27 (CONTENT H-2): the author hears about a hold. */
 describe('AutoHoldService notices (CONTENT H-2)', () => {
@@ -38,7 +42,7 @@ describe('AutoHoldService notices (CONTENT H-2)', () => {
         action: 'content_held',
         targetType: 'post',
         targetId: 'p1',
-        reason: 'held_for_review',
+        reason: HELD_REASON,
       },
     });
   });
@@ -68,7 +72,7 @@ describe('AutoHoldService notices (CONTENT H-2)', () => {
         action: 'media_hidden',
         checkId: 'c1',
         count: 2,
-        reason: 'image_review',
+        reason: MEDIA_HIDDEN_REASON,
       },
     });
   });
