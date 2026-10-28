@@ -17,3 +17,7 @@ For any area that keeps breaking (calls, reels/video player, uploads, push notif
 **Extended 2026-10-28 (owner):** same rule for caching, cost and speed everywhere — use proven open-source patterns/packages (HTTP/image/video disk caches, stale-while-revalidate, ETags/CDN cache headers, Redis caching, query batching) instead of home-made ones.
 
 **Owner final decision 2026-10-28:** no rewrite/new repo. Finish THIS project item by item; only copy+adapt proven open-source (safety-checked); own code only when nothing exists anywhere, then to the limit with 1B-user tests.
+
+**2026-10-28 add:** applies to iOS and Android native code too. GPL/AGPL/"open your code" licences: never copy — study and rebuild the same behaviour exactly, no inventing.
+
+**2026-10-28 add:** only copy from now on. Own code forbidden unless nothing exists anywhere AND owner explicitly approves after being asked.
