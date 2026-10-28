@@ -13,3 +13,5 @@ For any area that keeps breaking (calls, reels/video player, uploads, push notif
 **Why:** owner 2026-10-28: «почему натыкаешься на одни и те же грабли» — calls broke repeatedly from patching symptoms; «так и сделай везде со всеми где так часто ломаются».
 
 **How to apply:** every worker brief for these areas starts with a reference doc (docs/dev/*_REFERENCE_*.md) listing mismatches vs ours, then ports. Related: [[calls-like-whatsapp]], [[device-and-server-light]], [[ui-frozen]].
+
+**Extended 2026-10-28 (owner):** same rule for caching, cost and speed everywhere — use proven open-source patterns/packages (HTTP/image/video disk caches, stale-while-revalidate, ETags/CDN cache headers, Redis caching, query batching) instead of home-made ones.
