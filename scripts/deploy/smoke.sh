@@ -22,7 +22,7 @@ if [ -n "$WANT" ]; then
   STREAK_NEED="${EXPECTED_STREAK:-12}"; LIMIT="${SMOKE_VERSION_SECONDS:-600}"
   start=$(date +%s); streak=0; seen=""
   while [ "$streak" -lt "$STREAK_NEED" ]; do
-    GOT=$(curl -fsS --max-time 10 "$API/health/ready" 2>/dev/null | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{console.log(JSON.parse(d).version||"")}catch{console.log("")}})' || true)
+    GOT=$(curl -fsS --max-time 10 "$API/health/ready" 2>/dev/null | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{const j=JSON.parse(d);console.log((j.data&&j.data.version)||j.version||"")}catch{console.log("")}})' || true)
     if [ "$GOT" = "$WANT" ]; then streak=$((streak + 1)); else streak=0; seen="$GOT"; fi
     if [ $(( $(date +%s) - start )) -ge "$LIMIT" ]; then
       echo "::error::API still answers version '${seen:-none}' instead of $WANT after ${LIMIT}s" >&2

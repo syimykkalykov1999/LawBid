@@ -64,7 +64,7 @@ const unwrap = (j) => (j && typeof j === 'object' && 'data' in j ? j.data : j);
 await step('health/ready', async () => {
   const r = await http('GET', '/health/ready');
   if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
-  const v = r.json?.version;
+  const v = r.json?.data?.version ?? r.json?.version;
   if (expectVersion && v !== expectVersion) throw new Error(`version ${v ?? 'none'} != ${expectVersion}`);
   return v ? `version ${v}` : '';
 });
