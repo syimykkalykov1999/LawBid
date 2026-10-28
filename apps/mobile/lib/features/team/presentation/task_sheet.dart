@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/addresses/address_field.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/design_system/widgets/pickers/app_pickers.dart';
@@ -223,11 +224,16 @@ class _StepEditorSheetState extends ConsumerState<StepEditorSheet> {
               },
             ),
             const SizedBox(height: AppSpacing.sm),
-            field(
-              'step-place',
-              _place,
-              t.t('tasks.steps.placeHint'),
-              icon: AppIcons.placeOutlined,
+            // Owner 2026-10-28: US address suggestions while typing.
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: AddressField(
+                key: const ValueKey('step-place'),
+                controller: _place,
+                hintText: t.t('tasks.steps.placeHint'),
+                semanticLabel: t.t('tasks.steps.placeHint'),
+                leading: const AppIcon(AppIcons.placeOutlined, size: 18),
+              ),
             ),
             field(
               'step-name',
@@ -1028,8 +1034,7 @@ class _PlaceTile extends StatelessWidget {
                 color: colors.iconTint,
               ),
               semanticLabel: t.t('tasks.place.route'),
-              onPressed: () =>
-                  TaskLinks.open(TaskLinks.directions(place.address)),
+              onPressed: () => showPlaceActions(context, t, place),
             ),
           ],
         ),

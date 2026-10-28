@@ -62,13 +62,4 @@ void main() {
       'a_b.vcf',
     );
   });
-
-  test('maps link: Apple on iPhone, Google elsewhere', () {
-    final apple = mapsUri('1 Main St, NY', apple: true);
-    expect(apple.host, 'maps.apple.com');
-    expect(apple.queryParameters['q'], '1 Main St, NY');
-    final google = mapsUri('1 Main St, NY', apple: false);
-    expect(google.host, 'www.google.com');
-    expect(google.queryParameters['query'], '1 Main St, NY');
-  });
 }

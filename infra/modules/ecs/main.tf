@@ -391,6 +391,24 @@ resource "aws_iam_role_policy" "task_cloudfront_invalidate" {
   policy = data.aws_iam_policy_document.task_cloudfront_invalidate[0].json
 }
 
+# Owner 2026-10-28: address suggestions while typing (apps/api
+# modules/addresses, docs/runbooks/ADDRESS_AUTOCOMPLETE.md). Amazon Location
+# Places v2 Autocomplete signed by this role, so no Location key exists
+# anywhere. Read-only; it costs nothing until the admin switch
+# addresses.autocomplete_enabled and the aws_location region are set.
+data "aws_iam_policy_document" "task_geo_places" {
+  statement {
+    actions   = ["geo-places:Autocomplete"]
+    resources = ["arn:aws:geo-places:${data.aws_region.current.name}::provider/default"]
+  }
+}
+
+resource "aws_iam_role_policy" "task_geo_places" {
+  name   = "geo-places-autocomplete"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.task_geo_places.json
+}
+
 # Admin and migrate tasks carry no application permissions (security
 # review): the admin only talks to the API, the migrate task only to the DB.
 resource "aws_iam_role" "task_minimal" {

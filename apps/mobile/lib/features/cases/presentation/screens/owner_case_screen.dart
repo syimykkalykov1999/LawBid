@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/addresses/open_in_maps.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -719,9 +720,16 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
                       ),
                       if (c.city != null && c.city!.trim().isNotEmpty)
                         InfoRow(
+                          key: const ValueKey('case-city'),
                           icon: AppIcons.placeOutlined,
                           label: t.t('cases.field.city'),
                           value: c.city!,
+                          // Owner 2026-10-28: the city opens in maps.
+                          onTap: () => openAddressInMaps(
+                            context,
+                            t,
+                            '${c.city!.trim()}, ${c.primaryStateCode}',
+                          ),
                         ),
                       InfoRow(
                         icon: AppIcons.visibilityOutlined,

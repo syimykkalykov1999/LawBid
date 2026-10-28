@@ -866,6 +866,24 @@ export const envSchema = z
       blankToUndefined,
       z.string().optional(),
     ),
+    // Owner 2026-10-28: env fallbacks of the admin integrations
+    // aws_location / google_places (address suggestions).
+    ADDRESS_AWS_REGION: optionalMatching(
+      awsRegionPattern,
+      'ADDRESS_AWS_REGION must be an AWS region, e.g. us-east-1',
+    ),
+    ADDRESS_AWS_ACCESS_KEY_ID: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    ADDRESS_AWS_SECRET_ACCESS_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    GOOGLE_PLACES_API_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
     OPENAI_MODERATION_API_KEY: z.preprocess(
       blankToUndefined,
       z.string().optional(),

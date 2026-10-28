@@ -565,6 +565,32 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'off | on | auto (default). Link cards in chat; the per-person daily cap is chat.link_preview_per_user_per_day.',
     pattern: /^(off|on|auto)$/,
   };
+  // Owner 2026-10-28: address suggestions while typing.
+  out['addresses.autocomplete_enabled'] = {
+    ...out['addresses.autocomplete_enabled'],
+    description:
+      'off | on | auto (default). Address suggestions while typing; auto = only once the provider (addresses.provider) has its keys / region in Integrations. Ceilings: addresses.monthly_cap, addresses.per_user_per_day.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['addresses.provider'] = {
+    ...out['addresses.provider'],
+    description:
+      'aws (Amazon Location, default, $0.20 per 1 000 calls) | google (Google Places API (New), $2.83 per 1 000 after 10 000 free a month).',
+    pattern: /^(aws|google)$/,
+  };
+  out['addresses.monthly_cap'] = {
+    ...out['addresses.monthly_cap'],
+    description:
+      'Provider calls a calendar month for everybody together (0 = none); above it the address fields stay plain text until the 1st.',
+    min: 0,
+    max: 100_000_000,
+  };
+  out['addresses.per_user_per_day'] = {
+    ...out['addresses.per_user_per_day'],
+    description: "One person's address suggestion calls a day.",
+    min: 1,
+    max: 10_000,
+  };
   out['chat.link_preview_per_user_per_day'] = {
     ...out['chat.link_preview_per_user_per_day'],
     min: 1,

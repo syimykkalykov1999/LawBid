@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/addresses/address_field.dart';
+import 'package:lawbid/core/addresses/address_suggestions.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -1010,12 +1012,15 @@ class _PlaceStepState extends ConsumerState<PlaceStep> {
           },
         ),
         const SizedBox(height: AppSpacing.lg),
-        AppTextField(
+        // Owner 2026-10-28: US city suggestions while typing.
+        AddressField(
+          key: const ValueKey('case-city-field'),
           controller: _city,
+          kind: AddressKind.city,
           label: t.t('cases.field.city'),
           hintText: t.t('cases.field.cityHint'),
           maxLength: CaseLimits.cityMax,
-          textCapitalization: TextCapitalization.words,
+          autofillHints: const [AutofillHints.addressCity],
           onChanged: (v) => widget.onChange((x) => x.copyWith(city: v)),
         ),
         const SizedBox(height: AppSpacing.lg),

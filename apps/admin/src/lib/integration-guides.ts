@@ -628,6 +628,39 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
   },
 
+  aws_location: {
+    steps: [
+      'На AWS ключи не нужны: сервер подписывает запросы своей ролью. Право geo-places:Autocomplete роли даёт Terraform (infra/modules/ecs, политика geo-places-autocomplete) — примените его по инструкции «Подсказки адресов».',
+      'Регион — тот же, где работает сервер (например, us-east-1).',
+      'Ключи IAM нужны только вне AWS (локально): IAM → Users → пользователь с одним правом geo-places:Autocomplete → Security credentials → Create access key.',
+    ],
+    links: [{ label: 'Amazon Location Service', url: 'https://console.aws.amazon.com/location/home' }],
+    enable: [
+      'Заполните регион (ADDRESS_AWS_REGION) → «Сохранить» → «Включить».',
+      'Сами подсказки управляются в Настройках: addresses.autocomplete_enabled (Выкл / Вкл / Авто), addresses.provider = aws, потолки addresses.monthly_cap и addresses.per_user_per_day.',
+    ],
+    fields: {
+      region: { how: 'Регион сервера.', example: 'us-east-1' },
+      accessKeyId: { how: 'На AWS оставьте пустым (роль сервера).', example: 'AKIA…' },
+      secretAccessKey: { how: 'На AWS оставьте пустым.' },
+    },
+  },
+
+  google_places: {
+    steps: [
+      'Откройте console.cloud.google.com → выберите проект (нужен включённый биллинг).',
+      'APIs & Services → Library → найдите «Places API (New)» → Enable.',
+      'APIs & Services → Credentials → Create credentials → API key → скопируйте (начинается с AIza).',
+      'Нажмите на ключ → API restrictions → «Places API (New)» → Save. Ключ хранится только на сервере, в приложение он не попадает.',
+    ],
+    links: [{ label: 'Google Cloud Credentials', url: 'https://console.cloud.google.com/apis/credentials' }],
+    enable: [
+      'Вставьте ключ (GOOGLE_PLACES_API_KEY) → «Сохранить» → «Включить».',
+      'Чтобы подсказки шли через Google, в Настройках поставьте addresses.provider = google.',
+    ],
+    fields: { apiKey: { how: 'Credentials → API key. Начинается с AIza.', example: 'AIza…' } },
+  },
+
   aws_rekognition: {
     steps: [
       'На AWS ключи не нужны: сервер использует свою роль. Оставьте поля ключей пустыми.',

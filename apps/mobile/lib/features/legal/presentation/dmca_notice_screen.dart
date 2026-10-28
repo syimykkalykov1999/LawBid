@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/addresses/address_field.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -224,14 +225,14 @@ class _DmcaNoticeScreenState extends ConsumerState<DmcaNoticeScreen> {
                     onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  AppTextField(
+                  // Owner 2026-10-28: US address suggestions while typing.
+                  AddressField(
                     key: const ValueKey('dmca-address'),
                     controller: _address,
                     label: t.t('dmca.field.address'),
                     maxLines: 3,
                     maxLength: 500,
                     textCapitalization: TextCapitalization.sentences,
-                    autofillHints: const [AutofillHints.fullStreetAddress],
                     errorText: e ? _required(t, _address, min: 5) : null,
                     onChanged: (_) => setState(() {}),
                   ),

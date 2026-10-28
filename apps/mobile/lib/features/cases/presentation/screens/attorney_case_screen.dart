@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/addresses/open_in_maps.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -395,19 +396,28 @@ class _BodyState extends ConsumerState<_Body> {
                     ),
                   ),
                 if (c.city != null && c.city!.trim().isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
+                  // Owner 2026-10-28: the city opens in maps.
+                  AppPressable(
+                    key: const ValueKey('case-city'),
+                    onTap: () => openAddressInMaps(
+                      context,
+                      t,
+                      '${c.city!.trim()}, ${c.primaryStateCode}',
                     ),
-                    decoration: BoxDecoration(
-                      color: colors.chip,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      c.city!,
-                      style:
-                          type.bodySmall.copyWith(fontWeight: FontWeight.w600),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.chip,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        c.city!,
+                        style: type.bodySmall
+                            .copyWith(fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ),
               ],

@@ -1,33 +1,15 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/addresses/open_in_maps.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Owner 2026-10-05: addresses open in Google / Apple Maps and contacts
-/// turn into a call or an email by plain links — no maps API, no keys,
-/// nothing paid.
+/// Owner 2026-10-05: contacts turn into a call or an email by plain links
+/// (addresses: core/addresses/open_in_maps.dart).
 abstract final class TaskLinks {
-  static Uri googleMaps(String address) => Uri.https(
-        'www.google.com',
-        '/maps/search/',
-        {'api': '1', 'query': address},
-      );
-
-  static Uri appleMaps(String address) =>
-      Uri.https('maps.apple.com', '/', {'q': address});
-
-  /// Directions from where the phone is now.
-  static Uri directions(String address) => Uri.https(
-        'www.google.com',
-        '/maps/dir/',
-        {'api': '1', 'destination': address},
-      );
-
   static Uri call(String phone) =>
       Uri(scheme: 'tel', path: phone.replaceAll(RegExp(r'[\s()\-]'), ''));
 
@@ -42,76 +24,15 @@ abstract final class TaskLinks {
       launchUrl(uri, mode: LaunchMode.externalApplication);
 }
 
-/// A place tapped: Google Maps, Apple Maps (iPhone), directions, copy.
+/// A place tapped: the maps chooser (owner 2026-10-28; Android — the
+/// system list of maps apps, iPhone — Apple Maps / Google Maps / Waze and
+/// «Copy the address»), the address filled in for directions.
 Future<void> showPlaceActions(
   BuildContext context,
   Translator t,
   TaskPlace place,
-) async {
-  final choice = await showAppBottomSheet<String>(
-    context: context,
-    builder: (ctx) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.screenSide,
-              0,
-              AppSpacing.screenSide,
-              AppSpacing.sm,
-            ),
-            child: Text(
-              place.label == null
-                  ? place.address
-                  : '${place.label} · ${place.address}',
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          AppListRow(
-            key: const ValueKey('place-google'),
-            icon: AppIcons.mapOutlined,
-            label: t.t('tasks.place.google'),
-            onTap: () => Navigator.of(ctx).pop('google'),
-          ),
-          if (defaultTargetPlatform == TargetPlatform.iOS)
-            AppListRow(
-              key: const ValueKey('place-apple'),
-              icon: AppIcons.mapOutlined,
-              label: t.t('tasks.place.apple'),
-              onTap: () => Navigator.of(ctx).pop('apple'),
-            ),
-          AppListRow(
-            key: const ValueKey('place-route'),
-            icon: AppIcons.directionsCarOutlined,
-            label: t.t('tasks.place.route'),
-            onTap: () => Navigator.of(ctx).pop('route'),
-          ),
-          AppListRow(
-            key: const ValueKey('place-copy'),
-            icon: AppIcons.linkRounded,
-            label: t.t('tasks.place.copy'),
-            onTap: () => Navigator.of(ctx).pop('copy'),
-          ),
-        ],
-      ),
-    ),
-  );
-  if (choice == null || !context.mounted) return;
-  switch (choice) {
-    case 'google':
-      await TaskLinks.open(TaskLinks.googleMaps(place.address));
-    case 'apple':
-      await TaskLinks.open(TaskLinks.appleMaps(place.address));
-    case 'route':
-      await TaskLinks.open(TaskLinks.directions(place.address));
-    case 'copy':
-      await Clipboard.setData(ClipboardData(text: place.address));
-      if (context.mounted) showAppSnackBar(context, t.t('tasks.place.copied'));
-  }
-}
+) =>
+    openAddressInMaps(context, t, place.address);
 
 typedef TaskPersonAction = ({
   IconData icon,

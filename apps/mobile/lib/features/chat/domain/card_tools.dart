@@ -78,16 +78,3 @@ String vCardFileName(ContactCard c) {
       .replaceAll(RegExp(r'[^\p{L}\p{N}_-]', unicode: true), '');
   return '${base.isEmpty ? c.username : base}.vcf';
 }
-
-/// A link that opens [address] in the phone's maps: Apple Maps on iPhone,
-/// Google Maps' universal link elsewhere. No map tiles are loaded by the
-/// app, no key, no cost.
-Uri mapsUri(String address, {required bool apple}) {
-  final q = address.trim();
-  return apple
-      ? Uri.https('maps.apple.com', '/', {'q': q})
-      : Uri.https('www.google.com', '/maps/search/', {
-          'api': '1',
-          'query': q,
-        });
-}
