@@ -105,9 +105,10 @@ export class VerificationRequestsService {
   ) {}
 
   /**
-   * ID + selfie: owner 2026-10-04 ("только номер") — a first verification
-   * needs them only when `verification.require_identity` is on (off by
-   * default; the verifier can still ask for them with an info request).
+   * ID + selfie: owner 2026-10-28 — every new verification request needs
+   * them while `verification.require_identity` is on (on by default; off =
+   * the old «только номер» behaviour of 2026-10-04). Already verified
+   * attorneys are not re-verified.
    * A verified attorney whose name no longer matches the verified one
    * ("Confirm new name", OQ-029) always needs them. The profile stays
    * verified while such a request is open.
@@ -709,12 +710,14 @@ export class VerificationRequestsService {
           if (!has) missing.push(`bar_license:${l.state_code}`);
         }
       }
-      if (identityRequired) {
-        const identity = identityCompleteness(req.documents);
-        if (identity) missing.push(identity);
-        if (!req.documents.some((d) => d.doc_type === 'selfie')) {
-          missing.push('selfie');
-        }
+    }
+    // Checked on every submit (also a re-submit after an info request), so
+    // the ID or selfie cannot be removed in between.
+    if (identityRequired) {
+      const identity = identityCompleteness(req.documents);
+      if (identity) missing.push(identity);
+      if (!req.documents.some((d) => d.doc_type === 'selfie')) {
+        missing.push('selfie');
       }
     }
     if (req.documents.length > 0) {

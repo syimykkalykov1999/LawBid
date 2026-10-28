@@ -91,6 +91,9 @@ describe('State bar registries (e2e, owner 2026-10-05)', () => {
     baseUrl = `http://127.0.0.1:${port}`;
     prisma = app.get(PrismaService);
     registries = app.get(StateRegistryService);
+    // These suites test registries/self-attestation, not ID + selfie (owner
+    // 2026-10-28 made those required by default; covered in verification.e2e).
+    await setConfig('verification.require_identity', false);
     await prisma.state.upsert({
       where: { code: STATE },
       create: { code: STATE, name: 'Wyoming' },

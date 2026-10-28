@@ -29,7 +29,7 @@ class VerificationOverviewDto {
   /// The latest request, or null if none yet.
   final VerificationRequestDto? request;
 
-  /// Identity document and selfie are required: off by default (owner 2026-10-04, setting verification.require_identity); always on for a verified attorney confirming a new name.
+  /// Identity document and selfie are required: on by default (owner 2026-10-28, setting verification.require_identity); always on for a verified attorney confirming a new name.
   final bool identityRequired;
 
   /// A photo of the bar card is required per license (setting verification.require_bar_document, off by default).
