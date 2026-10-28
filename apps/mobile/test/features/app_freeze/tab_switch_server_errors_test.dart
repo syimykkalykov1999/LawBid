@@ -235,68 +235,94 @@ void main() {
       await done(tester);
     });
 
+    AppChip doneChip(WidgetTester tester) => tester.widget<AppChip>(
+          find
+              .descendant(
+                of: find.byKey(const ValueKey('bids-sections')),
+                matching: find.byType(AppChip),
+              )
+              .at(3),
+        );
+
+    // Owner 2026-10-28 (phone test): a swipe moves ONLY between the top
+    // segments; the inner chips / sections change by tap, never by swipe.
     testWidgets(
-        '«Tasks»: a swipe moves through its chips first, and only past the '
-        'last one on to «Questions» (and back)', (tester) async {
+        '«Cases»: with «Done» chosen a swipe goes to «Tasks» and leaves '
+        'the chips alone', (tester) async {
       await pump(tester);
-      await tester.tap(find.byKey(const ValueKey('pill-_AttorneyTab.planner')));
+      final chips = find.descendant(
+        of: find.byKey(const ValueKey('bids-sections')),
+        matching: find.byType(AppChip),
+      );
+      await tester.ensureVisible(chips.at(3));
+      await tester.tap(chips.at(3));
       await tester.pumpAndSettle();
+      expect(doneChip(tester).selected, isTrue);
+
+      await _swipe(tester, -300);
+      expect(tasksOnScreen, findsOneWidget);
       expect(chipOn(tester, 'all'), isTrue);
 
-      await _swipe(tester, -300);
-      expect(tasksOnScreen, findsOneWidget);
-      expect(chipOn(tester, 'overdue'), isTrue);
-      expect(chipOn(tester, 'all'), isFalse);
-
-      // all · overdue · for client · joint · assistant · done.
-      for (var i = 0; i < 4; i++) {
-        await _swipe(tester, -300);
-      }
-      expect(tasksOnScreen, findsOneWidget);
-      expect(chipOn(tester, 'done'), isTrue);
-
-      // Past the last chip: the next section.
-      await _swipe(tester, -300);
-      expect(qaOnScreen, findsOneWidget);
-      expect(qaTab(tester), QaTab.all);
-
-      // Back: from Questions' first section to Tasks' last chip, then on
-      // through the chips backwards.
+      // Back: «Cases» still shows «Done» (the swipe never moved it).
       await _swipe(tester, 300);
-      expect(tasksOnScreen, findsOneWidget);
-      expect(chipOn(tester, 'done'), isTrue);
-      await _swipe(tester, 300);
-      expect(tasksOnScreen, findsOneWidget);
-      expect(chipOn(tester, 'assistant'), isTrue);
+      expect(doneChip(tester).selected, isTrue);
       expect(tester.takeException(), isNull);
       await done(tester);
     });
 
     testWidgets(
-        '«Questions»: a swipe moves through its sections first, and only '
-        'before the first one back to «Tasks»', (tester) async {
+        '«Tasks»: a swipe goes straight to «Questions» / «Cases», the chips '
+        'change by tap only', (tester) async {
+      await pump(tester);
+      await tester.tap(find.byKey(const ValueKey('pill-_AttorneyTab.planner')));
+      await tester.pumpAndSettle();
+      expect(chipOn(tester, 'all'), isTrue);
+
+      // A tap on a chip still works.
+      await tester.ensureVisible(find.byKey(const ValueKey('tasks-view-done')));
+      await tester.tap(find.byKey(const ValueKey('tasks-view-done')));
+      await tester.pumpAndSettle();
+      expect(chipOn(tester, 'done'), isTrue);
+
+      // A swipe does not touch the chips: it leaves «Tasks».
+      await _swipe(tester, -300);
+      expect(qaOnScreen, findsOneWidget);
+      expect(qaTab(tester), QaTab.all);
+
+      await _swipe(tester, 300);
+      expect(tasksOnScreen, findsOneWidget);
+      expect(chipOn(tester, 'done'), isTrue);
+
+      await _swipe(tester, 300);
+      expect(find.byKey(const ValueKey('bids-sections')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await done(tester);
+    });
+
+    testWidgets(
+        '«Questions»: a swipe goes straight to «Tasks», the sections change '
+        'by tap only', (tester) async {
       await pump(tester);
       await tester.tap(find.byKey(const ValueKey('pill-_AttorneyTab.qa')));
       await tester.pumpAndSettle();
       expect(qaTab(tester), QaTab.all);
 
+      // The last tab: a swipe forward stays put, the section too.
       await _swipe(tester, -300);
-      expect(qaOnScreen, findsOneWidget);
-      expect(qaTab(tester), QaTab.mine);
-      await _swipe(tester, -300);
-      await _swipe(tester, -300);
-      expect(qaTab(tester), QaTab.values.last);
-      // The last section of the last tab: it stays.
-      await _swipe(tester, -300);
-      expect(qaOnScreen, findsOneWidget);
-      expect(qaTab(tester), QaTab.values.last);
-
-      // Back through the sections, then past the first one to Tasks.
-      for (var i = 0; i < QaTab.values.length - 1; i++) {
-        await _swipe(tester, 300);
-      }
       expect(qaOnScreen, findsOneWidget);
       expect(qaTab(tester), QaTab.all);
+
+      // A tap changes the section; a swipe back leaves «Questions».
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(QaTabsBar),
+              matching: find.byType(AppPressable),
+            )
+            .at(1),
+      );
+      await tester.pumpAndSettle();
+      expect(qaTab(tester), QaTab.mine);
       await _swipe(tester, 300);
       expect(tasksOnScreen, findsOneWidget);
       expect(tester.takeException(), isNull);

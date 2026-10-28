@@ -6,6 +6,7 @@ import {
   startPdf,
   stamp,
 } from '../cases/cases.public';
+import sharp from 'sharp';
 import { describePaymentTerms } from '../bids/bids.public';
 import type { DealRecordSnapshot, SnapshotOffer } from './deal-record.snapshot';
 
@@ -109,9 +110,35 @@ export const footerStamp = (
  * code, date, initials once both signed, "Page N of M") on every page.
  * Everything printed comes from the snapshot — no translation, no edits.
  */
-export function renderDealRecordPdf(
+export async function renderDealRecordPdf(
   input: RenderDealRecordInput,
 ): Promise<Buffer> {
+  // PDFKit embeds a PNG with alpha asynchronously (zlib split of the alpha
+  // channel), so object numbers raced and the same input could render
+  // different bytes — the record hash was not reproducible (CI red
+  // 2026-10-28). Signatures sit on white paper: flatten them to opaque RGB
+  // first, which PDFKit embeds synchronously and deterministically.
+  const signatures = await Promise.all(
+    input.signatures.map(async (z) => ({
+      ...z,
+      image: z.image ? await flattenPng(z.image) : z.image,
+    })),
+  );
+  return renderFlattened({ ...input, signatures });
+}
+
+async function flattenPng(png: Buffer): Promise<Buffer | null> {
+  try {
+    return await sharp(png)
+      .flatten({ background: '#ffffff' })
+      .png({ compressionLevel: 9, adaptiveFiltering: false })
+      .toBuffer();
+  } catch {
+    return null; // a bad PNG falls back to the typed name
+  }
+}
+
+function renderFlattened(input: RenderDealRecordInput): Promise<Buffer> {
   const { snapshot: s, signatures } = input;
   const title = input.title ?? 'Deal record — LawBid';
   const { doc, done } = startPdf({
