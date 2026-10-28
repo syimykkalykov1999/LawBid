@@ -312,7 +312,9 @@ class _Header extends ConsumerWidget {
         ? null
         : p.media.isNotEmpty
             ? p.media.first.previewUrl
-            : p.video?.thumbnailUrl;
+            // Owner 2026-10-28: the video's own frame, not the custom cover
+            // (that one is for the profile grid only).
+            : p.video?.frameThumbnailUrl;
     final text = p == null
         ? ''
         : ((p.title ?? '').trim().isNotEmpty ? p.title! : p.body).trim();

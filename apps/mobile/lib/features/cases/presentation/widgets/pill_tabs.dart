@@ -563,6 +563,9 @@ class _SwipePagesState<T> extends State<SwipePages<T>> {
   /// A tap's slide is running (the pages it passes are not chosen).
   bool _animating = false;
 
+  /// The latest tap slide (see [didUpdateWidget]).
+  int _slide = 0;
+
   bool _nested = false;
 
   @override
@@ -594,14 +597,20 @@ class _SwipePagesState<T> extends State<SwipePages<T>> {
       _pages.jumpToPage(i);
     } else {
       _animating = true;
+      // Owner 2026-10-28: a second tap during a slide cancels the first
+      // one; only the latest slide may say it is over (an earlier one used
+      // to clear the flag while the latest was still passing pages).
+      final run = ++_slide;
       unawaited(
         _pages
             .animateToPage(
-              i,
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeOutCubic,
-            )
-            .whenComplete(() => _animating = false),
+          i,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+        )
+            .whenComplete(() {
+          if (run == _slide) _animating = false;
+        }),
       );
     }
   }

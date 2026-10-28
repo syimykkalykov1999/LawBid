@@ -16,6 +16,7 @@ import 'package:lawbid/core/network/captive_portal_interceptor.dart';
 import 'package:lawbid/core/network/headers_interceptor.dart';
 import 'package:lawbid/core/network/http_transport.dart';
 import 'package:lawbid/core/network/idempotency_interceptor.dart';
+import 'package:lawbid/core/network/legacy_shape_interceptor.dart';
 import 'package:lawbid/core/network/retry_interceptor.dart';
 import 'package:lawbid/core/network/timeout_budget_interceptor.dart';
 import 'package:lawbid/core/network/trace_interceptor.dart';
@@ -48,6 +49,10 @@ final dioProvider = Provider<Dio>((ref) {
   // S8-1/S8-2: native stack (URLSession / Cronet) with a tuned dart:io fallback.
   HttpTransport.apply(dio);
   dio.interceptors.add(HeadersInterceptor(ref));
+  // Owner 2026-10-28: an app newer than the server still reads its answers
+  // (fields the server does not send yet get neutral values). Early, so the
+  // HTTP cache below stores the readable copy.
+  dio.interceptors.add(LegacyShapeInterceptor());
   // S12-2 / S12-5: `traceparent` on a sampled share of calls + Sentry span.
   dio.interceptors.add(TraceInterceptor());
   dio.interceptors.add(TimeoutBudgetInterceptor());
