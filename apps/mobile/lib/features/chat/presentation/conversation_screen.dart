@@ -94,9 +94,18 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
   /// Owner 2026-10-01: the Emoji · Stickers panel in place of the keyboard.
   bool _stickers = false;
 
+  /// Last seen keyboard height: the panel takes the same, so nothing jumps.
+  double? _keyboardH;
+
+  /// Panel → keyboard: close the panel and ask for the focus again.
+  void _showKeyboard() {
+    setState(() => _stickers = false);
+    _focus.requestFocus();
+  }
+
   void _toggleStickers() {
     if (_stickers) {
-      setState(() => _stickers = false);
+      _showKeyboard();
       return;
     }
     FocusManager.instance.primaryFocus?.unfocus();
@@ -152,6 +161,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     _text.dispose();
     _focus.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    // No rebuild: the height is only read when the panel opens.
+    final v = View.maybeOf(context);
+    if (v == null || _stickers) return;
+    final kb = v.viewInsets.bottom / v.devicePixelRatio;
+    if (kb > 120) _keyboardH = kb - v.padding.bottom / v.devicePixelRatio;
   }
 
   @override
@@ -620,9 +638,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                     stickersOpen: _stickers,
                                     onStickers: _toggleStickers,
                                     onFieldTap: () {
-                                      if (_stickers) {
-                                        setState(() => _stickers = false);
-                                      }
+                                      if (_stickers) _showKeyboard();
                                     },
                                     onTyping: _thread.typing,
                                     // OQ-048: assistants need "files".
@@ -650,6 +666,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                   ),
                                   if (_stickers)
                                     StickerPanel(
+                                      panelHeight: _keyboardH,
                                       onSticker: _thread.sendSticker,
                                       onEmoji: _insertEmoji,
                                       onGift: ref.watch(starsEnabledProvider) &&

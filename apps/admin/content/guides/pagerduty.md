@@ -5,6 +5,7 @@ category: system
 cost: Бесплатно. План Free - 5 пользователей и 100 звонков/SMS в месяц. Платный Professional от $25 за пользователя в месяц ($21 при оплате за год) нужен, только если не хватит бесплатного.
 time: 20 минут
 launch: pagerduty
+runbook: paging.md
 verified: 2026-10-25
 sources:
   - PagerDuty - цены Incident Management | https://www.pagerduty.com/pricing/incident-management/

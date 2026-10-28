@@ -5,6 +5,7 @@ category: system
 cost: Около $0.10 за запуск
 time: 30-60 минут (в основном ожидание)
 launch: restore_drill
+runbook: restore-drill.md
 verified: 2026-10-25
 sources:
   - Репозиторий: docs/runbooks/restore-drill.md | https://github.com/syimykkalykov1999/LawBid/blob/main/docs/runbooks/restore-drill.md

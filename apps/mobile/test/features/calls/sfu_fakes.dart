@@ -82,6 +82,16 @@ class SfuCall {
 class FakeSfuApi implements CallsSfuApi {
   final calls = <SfuCall>[];
   int sessions = 0;
+
+  /// What `POST /sfu/failed` answers (the call moved).
+  bool failedMoves = false;
+
+  @override
+  Future<bool> failed(String callId) async {
+    calls.add(const SfuCall('failed'));
+    return failedMoves;
+  }
+
   int _mid = 0;
 
   /// What the SFU says someone publishes (userId -> trackNames); a subscribe

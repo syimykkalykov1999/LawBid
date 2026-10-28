@@ -14,6 +14,8 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/admin-ci.yml"
+      - "docs/runbooks/**"
+      - "scripts/guides-check.mjs"
   pull_request:
     branches: [main, master]
     paths:
@@ -22,6 +24,8 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/admin-ci.yml"
+      - "docs/runbooks/**"
+      - "scripts/guides-check.mjs"
 
 # S11-1: only a superseded PR run is cancelled; a push to main must always finish
 # (its result is what the deploy gate reads) and a merge-queue run is never cancelled.
@@ -52,6 +56,8 @@ jobs:
         run: npm run lint --workspace apps/admin
       - name: Unit + component tests
         run: npm test --workspace apps/admin
+      - name: Every owner runbook has a guide (docs/runbooks/GUIDES_MAP.json)
+        run: npm run guides:check --workspace apps/admin
       - name: Build
         run: npm run build --workspace apps/admin
         env:

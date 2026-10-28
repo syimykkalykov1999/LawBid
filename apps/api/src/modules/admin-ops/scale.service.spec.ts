@@ -1,10 +1,18 @@
 import { ScaleService } from './scale.service';
 
-function make(env: Record<string, string>, engine?: unknown, fail = false) {
+function make(
+  env: Record<string, string>,
+  engine?: unknown,
+  fail = false,
+  split = false,
+) {
   const config = { get: (k: string) => env[k] };
   const settings = {
     raw: jest.fn(() =>
       fail ? Promise.reject(new Error('down')) : Promise.resolve(engine),
+    ),
+    boolean: jest.fn(() =>
+      fail ? Promise.reject(new Error('down')) : Promise.resolve(split),
     ),
   };
   return new ScaleService(config as never, settings as never);
@@ -26,6 +34,7 @@ describe('ScaleService', () => {
       poolerMinTasks: 1,
       poolerMaxTasks: 4,
       searchEngine: 'postgres',
+      dbSplitEnabled: false,
     });
   });
 
@@ -47,6 +56,15 @@ describe('ScaleService', () => {
     expect((await make({}, 'bogus').report()).searchEngine).toBe('postgres');
     expect((await make({}, 'meilisearch', true).report()).searchEngine).toBe(
       'postgres',
+    );
+  });
+
+  it('reports the db-split switch; a failed read means off', async () => {
+    expect(
+      (await make({}, undefined, false, true).report()).dbSplitEnabled,
+    ).toBe(true);
+    expect((await make({}, undefined, true).report()).dbSplitEnabled).toBe(
+      false,
     );
   });
 });

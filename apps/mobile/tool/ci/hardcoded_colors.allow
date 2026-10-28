@@ -22,6 +22,8 @@ lib/features/calls/presentation/call_pip_window.dart	color: Colors.black45,
 lib/features/calls/presentation/call_pip_window.dart	color: Colors.white.withValues(alpha: 0.15),
 lib/features/calls/presentation/call_screen.dart	: Colors.black.withValues(alpha: 0.3),
 lib/features/calls/presentation/call_screen.dart	? Colors.transparent
+lib/features/calls/presentation/call_screen.dart	Colors.black.withValues(alpha: 0),
+lib/features/calls/presentation/call_screen.dart	Colors.black.withValues(alpha: 0.45),
 lib/features/calls/presentation/call_screen.dart	color: Colors.white,
 lib/features/calls/presentation/call_screen.dart	color: Colors.white,
 lib/features/calls/presentation/call_screen.dart	color: Colors.white,

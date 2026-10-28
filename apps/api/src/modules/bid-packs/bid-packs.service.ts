@@ -163,6 +163,44 @@ export class BidPacksService {
       WHERE user_id = ${userId}::uuid`;
   }
 
+  /**
+   * Algo audit 2026-10-27 (MONEY H-5): the payments of [paymentIds] were
+   * refunded or charged back (webhook) — every paid pack bought with them
+   * is marked `refunded` and its offers leave the balance (never below
+   * zero: offers already spent are not clawed back). Idempotent: a pack
+   * is marked once (conditional update). Returns the packs revoked.
+   */
+  async refundPayments(paymentIds: string[]): Promise<number> {
+    if (paymentIds.length === 0) return 0;
+    if (
+      this.settings &&
+      !(await this.settings.boolean('bid_packs.refund_revokes_enabled'))
+    ) {
+      return 0;
+    }
+    const rows = await this.prisma.bidPackPurchase.findMany({
+      where: { payment_id: { in: paymentIds }, status: 'paid' },
+      select: { id: true, user_id: true, bids: true },
+    });
+    let n = 0;
+    for (const p of rows) {
+      const done = await withTxRetry(this.prisma, async (tx) => {
+        const mark = await tx.bidPackPurchase.updateMany({
+          where: { id: p.id, status: 'paid' },
+          data: { status: 'refunded' },
+        });
+        if (mark.count === 0) return false;
+        await tx.$executeRaw`
+          UPDATE bid_credits
+          SET balance = GREATEST(balance - ${p.bids}::int, 0), updated_at = now()
+          WHERE user_id = ${p.user_id}::uuid`;
+        return true;
+      });
+      if (done) n += 1;
+    }
+    return n;
+  }
+
   /** Owner 2026-10-16: packs are for verified attorneys (rollback:
    * `billing.require_verified_for_purchases` off). Owner 2026-10-22
    * (security audit #3, finding 8): only an attorney buys offer packs at

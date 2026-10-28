@@ -132,7 +132,7 @@ class CallGroupGrid extends ConsumerStatefulWidget {
   });
 
   final CallSession session;
-  final CallMedia? media;
+  final CallMediaView? media;
 
   /// How much of the bottom the controls take (0 while they are hidden).
   final double controlsInset;
@@ -417,28 +417,39 @@ class CallTile extends StatelessWidget {
                 duration:
                     context.reduceMotion ? Duration.zero : CallMotion.quick,
                 child: picture != null
+                    // UI-01: one renderer per person for the whole call —
+                    // a new stream (the SFU → mesh swap) goes into the same
+                    // renderer, never a fresh black box.
                     ? CallVideoView(
-                        key: ValueKey(picture.id),
+                        key: ValueKey('video-${member.userId}'),
                         stream: picture,
                         mirror: mirror,
                       )
-                    : Center(
+                    // AN-1 / UI-09: camera off = their photo blurred behind
+                    // the big avatar (initials only when there is no photo).
+                    : Stack(
                         key: const ValueKey('avatar'),
-                        child: Opacity(
-                          opacity: ringing ? 0.55 : 1,
-                          child: LayoutBuilder(
-                            builder: (_, box) => CallAvatar(
-                              peer: callPeerOf(member),
-                              size: (box.biggest.shortestSide *
-                                      (compact
-                                          ? 0.5
-                                          : big
-                                              ? 0.32
-                                              : 0.42))
-                                  .clamp(28, 140),
+                        fit: StackFit.expand,
+                        children: [
+                          CallPhotoBackdrop(url: member.avatarUrl),
+                          Center(
+                            child: Opacity(
+                              opacity: ringing ? 0.55 : 1,
+                              child: LayoutBuilder(
+                                builder: (_, box) => CallAvatar(
+                                  peer: callPeerOf(member),
+                                  size: (box.biggest.shortestSide *
+                                          (compact
+                                              ? 0.5
+                                              : big
+                                                  ? 0.32
+                                                  : 0.42))
+                                      .clamp(28, 140),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
               ),
               // The speaker's ring (drawn over the picture, animated).
@@ -591,7 +602,7 @@ class CallGroupAudio extends ConsumerWidget {
   });
 
   final CallSession session;
-  final CallMedia? media;
+  final CallMediaView? media;
   final double bottomInset;
 
   @override

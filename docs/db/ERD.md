@@ -470,6 +470,7 @@ erDiagram
     DateTime stale_prompt_sent_at "nullable"
     DateTime client_active_at
     DateTime paused_at "nullable"
+    Int alert_generation
     DateTime archived_at "nullable"
     DateTime client_completed_at "nullable"
     DateTime attorney_confirmed_at "nullable"

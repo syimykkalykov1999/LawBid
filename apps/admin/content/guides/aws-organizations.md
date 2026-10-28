@@ -4,6 +4,7 @@ title: AWS Organizations (делать позже)
 category: launch
 cost: Бесплатно (платите только за ресурсы в аккаунтах)
 time: 30 минут
+runbook: org-accounts.md
 verified: 2026-10-25
 sources:
   - AWS: Creating an organization | https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_org_create.html

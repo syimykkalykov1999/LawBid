@@ -6,6 +6,7 @@ import {
   Optional,
   ConflictException,
   ForbiddenException,
+  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -63,9 +64,15 @@ import {
   CLOUDFLARE_TURN_MIN_TRY_MS,
   CLOUDFLARE_TURN_RETRY_MS,
   cloudflareTurnFor,
-  fetchCloudflareTurn,
+  forgetCloudflareTurn,
 } from './cloudflare-turn';
 import { CloudflareTransport } from './cloudflare-transport';
+import {
+  checkRelayLogin,
+  probeCloudflareRelay,
+  type RelayCheck,
+} from './cloudflare-relay-probe';
+import { checkRelay } from './relay-check';
 import { LiveKitVideoProvider, type LiveKitRole } from './livekit.provider';
 import {
   SfuBrokerService,
@@ -94,6 +101,11 @@ export const CALL_RING_TIMEOUT_MS = 65_000;
 export { CALL_SILENT_MS };
 const LIVE: CallStatus[] = ['ringing', 'active'];
 
+/** Owner 2026-10-26 (failover, LC-5): a phone's «I cannot reach the SFU»
+ * report lives this long; half of the joined members within it move the
+ * call. */
+export const SFU_REPORT_TTL_MS = 60_000;
+
 /** Owner 2026-10-21: a network that blocks UDP (offices, some mobile
  * carriers) still gets a call — every plain `turn:` address is also offered
  * over TCP (coturn listens on 3478 for both). UDP stays first. */
@@ -121,8 +133,19 @@ export const CALL_VOTE_MS = 30_000;
 // coturn checks the login on every refresh of a relay too: it must outlive
 // the longest call, or a relayed call drops when it expires.
 const TURN_TTL_SEC = 24 * 60 * 60;
-/** The breaker probe asks for a login that lives only 5 minutes. */
-const PROBE_TURN_TTL_SEC = 300;
+/** CF-7 (audit 2026-10-26): Cloudflare's own public STUN first (it sits
+ * next to the Cloudflare relay every 1:1 call uses), Google's as the
+ * second opinion. Admin -> Integrations -> TURN (stunUrls) or STUN_URLS
+ * replace the whole list. */
+export const DEFAULT_STUN_URLS = [
+  'stun:stun.cloudflare.com:3478',
+  'stun:stun.l.google.com:19302',
+];
+/** FO-8 (audit 2026-10-26): while the TURN breaker is open and our own
+ * TURN carries the call, Cloudflare is still offered second when its login
+ * comes within this long (ICE gathers from both at once; usually it is the
+ * cached login and costs nothing). */
+export const CLOUDFLARE_TURN_OPEN_TRY_MS = 500;
 
 type Outcome = 'ended' | 'missed' | 'declined' | 'busy' | 'canceled' | 'failed';
 
@@ -131,6 +154,17 @@ const notFound = () =>
     code: ErrorCode.CALL_NOT_FOUND,
     message: 'Call not found.',
   });
+
+/** The broker's «Cloudflare is not there for this call» (503). */
+function isMediaDown(e: unknown): boolean {
+  if (!(e instanceof HttpException) || e.getStatus() !== 503) return false;
+  const body = e.getResponse();
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    (body as { code?: unknown }).code === ErrorCode.CALL_MEDIA_UNAVAILABLE
+  );
+}
 
 const conflict = () =>
   new ConflictException({
@@ -195,6 +229,14 @@ export class CallsService {
     this.groups?.membershipEnded$.subscribe((e) => {
       void this.dropFromGroupCall(e).catch(() => undefined);
     });
+    // Owner 2026-10-26 (failover): the SFU breaker opened on this instance —
+    // every running Cloudflare group call moves to our own path now, with
+    // its call id (the people hear a 1-2 s pause, not a dropped call).
+    const transport: CloudflareTransport | undefined = this.sfu?.transport;
+    transport?.onOpen((part) => {
+      if (part !== 'sfu') return;
+      void this.moveSfuCallsToOwn('breaker_open').catch(() => undefined);
+    });
   }
 
   /**
@@ -246,6 +288,9 @@ export class CallsService {
   }
 
   private cfTransportOwn?: CloudflareTransport;
+  /** The STUN Binding + TURN Allocate check the breaker probe and the
+   * phones' report verification use (a fake in unit tests). */
+  private relayCheck: RelayCheck = checkRelay;
 
   /** The shared Cloudflare breaker (the broker's; a local one without it). */
   private get cfTransport(): CloudflareTransport {
@@ -406,31 +451,109 @@ export class CallsService {
     await this.broadcastParticipants(callId);
   }
 
+  /**
+   * Owner 2026-10-26 (failover): «when Cloudflare goes down, people must not
+   * notice the switch». Every SFU route runs through here: when Cloudflare
+   * fails for this call (5xx, timeout, refused or removed key — the broker
+   * answers 503 CALL_MEDIA_UNAVAILABLE), the call moves to our own path with
+   * the SAME id and the phones re-join in the background. The caller still
+   * gets the 503; the `call:participants` event (mediaProvider p2p) tells
+   * every phone to swap its media.
+   */
+  private async viaSfu<T>(
+    ctx: SfuCtx,
+    run: (sfu: SfuBrokerService) => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await run(this.sfu!);
+    } catch (e) {
+      if (isMediaDown(e)) {
+        await this.moveCallToOwn(ctx.callId, 'sfu_failed').catch(
+          () => undefined,
+        );
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * A running Cloudflare group call moves to our own path (device to device,
+   * the outage fallback), keeping its id, members and status. Idempotent:
+   * only the first caller changes the row and tells the phones. Never moves
+   * back mid-call (per-call stickiness); new calls return to Cloudflare by
+   * themselves once its breaker closes.
+   */
+  async moveCallToOwn(callId: string, why: string): Promise<boolean> {
+    const moved = await this.prisma.call.updateMany({
+      where: { id: callId, media_provider: 'cloudflare', status: { in: LIVE } },
+      data: { media_provider: 'p2p' },
+    });
+    if (moved.count === 0) return false;
+    this.logger.warn(
+      `alert=cloudflare_sfu_call_moved call ${callId} moved from Cloudflare SFU to our own path mid-call (${why})`,
+    );
+    const call = await this.prisma.call.findUnique({ where: { id: callId } });
+    if (call) {
+      const joined = (await this.rowsOf(callId)).filter(
+        (r) => r.status === 'joined',
+      ).length;
+      const max = this.settings
+        ? await this.settings.number('calls.sfu_fallback_mesh_max')
+        : 4;
+      // Too many cameras for device-to-device: everybody audio only (the
+      // same rule as a call that starts during an outage).
+      if (call.video && joined > max) {
+        await this.prisma.call.update({
+          where: { id: callId },
+          data: { video: false },
+        });
+      }
+    }
+    // What Cloudflare still holds is let go (best effort, never waited on).
+    void this.sfu?.closeCall(callId).catch(() => undefined);
+    await this.broadcastParticipants(callId);
+    return true;
+  }
+
+  /** The SFU breaker opened: every running Cloudflare group call moves. */
+  async moveSfuCallsToOwn(why: string): Promise<number> {
+    const live = await this.prisma.call.findMany({
+      where: { media_provider: 'cloudflare', status: { in: LIVE } },
+      select: { id: true },
+      take: 1000,
+    });
+    let n = 0;
+    for (const c of live) {
+      if (await this.moveCallToOwn(c.id, why).catch(() => false)) n += 1;
+    }
+    return n;
+  }
+
   async sfuSession(user: RequestUser, id: string) {
     const ctx = await this.sfuCtx(user, id);
-    return this.sfu!.createSession(ctx);
+    return this.viaSfu(ctx, (sfu) => sfu.createSession(ctx));
   }
 
   async sfuPublish(user: RequestUser, id: string, dto: SfuPublishInput) {
     const ctx = await this.sfuCtx(user, id);
-    const out = await this.sfu!.publish(ctx, dto);
+    const out = await this.viaSfu(ctx, (sfu) => sfu.publish(ctx, dto));
     await this.sfuChanged(ctx.callId);
     return out;
   }
 
   async sfuSubscribe(user: RequestUser, id: string, dto: SfuSubscribeInput) {
     const ctx = await this.sfuCtx(user, id);
-    return this.sfu!.subscribe(ctx, dto);
+    return this.viaSfu(ctx, (sfu) => sfu.subscribe(ctx, dto));
   }
 
   async sfuAnswer(user: RequestUser, id: string, sdp: string) {
     const ctx = await this.sfuCtx(user, id);
-    return this.sfu!.answer(ctx, sdp);
+    return this.viaSfu(ctx, (sfu) => sfu.answer(ctx, sdp));
   }
 
   async sfuClose(user: RequestUser, id: string, dto: SfuCloseInput) {
     const ctx = await this.sfuCtx(user, id);
-    const out = await this.sfu!.close(ctx, dto);
+    const out = await this.viaSfu(ctx, (sfu) => sfu.close(ctx, dto));
     if (dto.trackNames?.length) await this.sfuChanged(ctx.callId);
     return out;
   }
@@ -441,7 +564,85 @@ export class CallsService {
     dto: { userId: string; rid: string },
   ) {
     const ctx = await this.sfuCtx(user, id);
-    return this.sfu!.setLayer(ctx, dto);
+    return this.viaSfu(ctx, (sfu) => sfu.setLayer(ctx, dto));
+  }
+
+  /** Phones that cannot reach the SFU of a call, by call: userId -> until
+   * (ms since epoch). The in-process fallback of [sfuFailed] without Redis
+   * (made on first use: unit tests build the service without its
+   * constructor). */
+  private sfuReports?: Map<string, Map<string, number>>;
+
+  /**
+   * POST /calls/:id/sfu/failed — owner 2026-10-26 (failover, LC-5): a phone
+   * whose Cloudflare SFU link is dead while the API answers. The server
+   * cannot see such an outage (Cloudflare's API is fine, only the media
+   * edge is unreachable from the phones), so the phones say so: one voice
+   * per person per [SFU_REPORT_TTL_MS]; when at least half of the joined
+   * members report within that window the call moves to our own path
+   * (moveCallToOwn, same id). Each report also teaches the shared breaker
+   * (counted only when many phones across the fleet say so). A call that
+   * already moved answers moved=true and counts nothing.
+   */
+  async sfuFailed(
+    user: RequestUser,
+    id: string,
+  ): Promise<{ moved: boolean; reports: number }> {
+    const call = await this.prisma.call.findUnique({ where: { id } });
+    if (!call || !call.is_group) throw notFound();
+    const rows = await this.rowsOf(call.id);
+    const me = rows.find((r) => r.user_id === user.sub);
+    if (me?.status !== 'joined') throw notFound();
+    if (!LIVE.includes(call.status)) throw conflict();
+    if (this.mediaOf(call) !== 'cloudflare') {
+      return { moved: true, reports: 0 };
+    }
+    void this.cfTransport
+      .recordClientFailure('sfu', user.sub, 'phone cannot reach the SFU')
+      .catch(() => undefined);
+    const reports = await this.countSfuReport(call.id, user.sub);
+    const joined = rows.filter((r) => r.status === 'joined').length;
+    const needed = Math.max(1, Math.ceil(joined / 2));
+    if (reports < needed) return { moved: false, reports };
+    this.logger.warn(
+      `alert=cloudflare_sfu_unreachable call ${call.id}: ${reports} of ${joined} phones cannot reach the SFU`,
+    );
+    const moved = await this.moveCallToOwn(call.id, 'phones_report');
+    return { moved, reports };
+  }
+
+  /** Remembers [userId]'s report for [callId]; answers how many distinct
+   * members reported in the window. Redis when it is ready (every API
+   * instance sees the same count), this process otherwise. */
+  private async countSfuReport(
+    callId: string,
+    userId: string,
+  ): Promise<number> {
+    const r = this.redis && this.redis.status === 'ready' ? this.redis : null;
+    if (r) {
+      try {
+        const key = `calls:sfu:failed:${callId}`;
+        await r.sadd(key, userId);
+        await r.pexpire(key, SFU_REPORT_TTL_MS);
+        return await r.scard(key);
+      } catch {
+        // Redis hiccup: this process counts.
+      }
+    }
+    const now = Date.now();
+    const all = (this.sfuReports ??= new Map<string, Map<string, number>>());
+    let m = all.get(callId);
+    if (!m) {
+      m = new Map<string, number>();
+      all.set(callId, m);
+    }
+    m.set(userId, now + SFU_REPORT_TTL_MS);
+    for (const [u, until] of m) if (until <= now) m.delete(u);
+    // Old calls are forgotten (a bounded map).
+    for (const [c, reps] of all) {
+      if ([...reps.values()].every((until) => until <= now)) all.delete(c);
+    }
+    return m.size;
   }
 
   /** POST /conversations/:id/calls */
@@ -630,20 +831,28 @@ export class CallsService {
         await this.withSeq(call.id, { call: await this.toDto(fresh, uid) }),
       );
     }
-    await this.stopRingingPush(call);
+    // LC-1: the answering phone keeps its CallKit call.
+    await this.stopRingingPush(call, user.sid);
     return this.toDto(fresh, user.sub);
   }
 
   /** Push 2026-10-19: phones asleep or closed show the system ringing
    * screen with no socket to hear `call:ended` / `call:accepted` — a
    * silent push takes it down (the answering phone keeps its call). */
-  private async stopRingingPush(call: Call): Promise<void> {
+  private async stopRingingPush(
+    call: Call,
+    answeredOnChain?: string,
+  ): Promise<void> {
     const ringing = [
       call.callee_id,
       ...(await this.callAssistants(call.callee_id)),
     ];
     for (const recipientId of ringing) {
-      await this.push.enqueueCallEnded({ recipientId, callId: call.id });
+      await this.push.enqueueCallEnded({
+        recipientId,
+        callId: call.id,
+        ...(answeredOnChain ? { exceptChainId: answeredOnChain } : {}),
+      });
     }
   }
 
@@ -683,7 +892,14 @@ export class CallsService {
     }
     if (call.callee_id !== user.sub) throw notFound();
     if (call.status !== 'ringing') return this.toDto(call, user.sub);
-    return this.finish(call, 'declined', user.sub);
+    return this.finish(
+      call,
+      'declined',
+      user.sub,
+      undefined,
+      undefined,
+      user.sid,
+    );
   }
 
   /** POST /calls/:id/end — hang up (either side), idempotent. */
@@ -712,7 +928,13 @@ export class CallsService {
     }
     const reason = dto.reason ?? 'hangup';
     let outcome: Outcome;
-    if (reason === 'failed') {
+    // LC-2 (audit 2026-10-26): a call that WAS connected and then lost its
+    // link (30 s «Reconnecting…» ran out, the other phone died) is a call
+    // that took place — «ended» with its real length in the history, the
+    // cause kept in end_reason. Only media that never came up is «failed».
+    const dropped =
+      reason === 'failed' && call.status === 'active' && !!call.answered_at;
+    if (reason === 'failed' && !dropped) {
       outcome = 'failed';
     } else if (call.status === 'active') {
       outcome = 'ended';
@@ -725,7 +947,14 @@ export class CallsService {
     // app saying the media never came up (ICE / TURN).
     if (outcome === 'ended') this.slo?.count('callConnected');
     if (outcome === 'failed') this.slo?.count('callFailed');
-    return this.finish(call, outcome, user.sub);
+    return this.finish(
+      call,
+      outcome,
+      user.sub,
+      undefined,
+      dropped ? 'link_lost' : undefined,
+      user.sid,
+    );
   }
 
   async get(user: RequestUser, id: string): Promise<CallDto> {
@@ -769,14 +998,14 @@ export class CallsService {
   /** GET /calls/ice-servers — STUN + short-lived TURN login (RFC 7635
    * style "TURN REST API": username = expiry:userId, password =
    * base64(HMAC-SHA1(TURN_SECRET, username))). */
-  async iceServers(user: RequestUser): Promise<IceServersDto> {
+  async iceServers(
+    user: RequestUser,
+    opts: { relayFailed?: boolean } = {},
+  ): Promise<IceServersDto> {
     // Owner 2026-10-01: TURN / STUN can be changed in the admin.
     const turnKeys = (await this.secrets?.get('turn'))?.fields ?? {};
-    const stun = (
-      turnKeys.stunUrls ??
-      this.config.get<string>('STUN_URLS') ??
-      'stun:stun.l.google.com:19302'
-    )
+    const stunRaw = turnKeys.stunUrls ?? this.config.get<string>('STUN_URLS');
+    const stun = (stunRaw ?? DEFAULT_STUN_URLS.join(','))
       .split(',')
       .map((u) => u.trim())
       .filter(Boolean);
@@ -810,19 +1039,34 @@ export class CallsService {
     const secret = turnKeys.secret ?? this.config.get<string>('TURN_SECRET');
     const ownTurn = turn.length > 0 && Boolean(secret);
     let cfWorks = false;
+    /** Cloudflare offered as the BACKUP (own TURN first): the breaker is
+     * open, or the phone said its Cloudflare relay died. */
+    let cfSecond = false;
+    // Owner 2026-10-26 (failover): a phone whose call lost its relay asks
+    // again with relayFailed — it gets a NEW login and our own TURN next
+    // to (and before) Cloudflare, so the ICE restart finds a working relay
+    // whichever side is down. Its report teaches the breaker (enough
+    // distinct phones in the window; see recordClientFailure), and the API
+    // checks the relay itself once (CF-6).
+    const relayFailed = opts.relayFailed === true;
     if (cfKeyId && cfToken) {
+      if (relayFailed) {
+        forgetCloudflareTurn(cfKeyId, user.sub);
+        void this.cfTransport
+          .recordClientFailure('turn', user.sub, 'ICE failed mid-call')
+          .catch(() => undefined);
+      }
       const d = await this.cfTransport.decide(
         'turn',
         true,
-        // The probe reads the keys of THIS moment (a restored key counts).
+        // The probe reads the keys of THIS moment (a restored key counts)
+        // and does a real STUN Binding + TURN Allocate on the relay (FO-2):
+        // the breaker closes only when the data plane answers.
         () =>
-          fetchCloudflareTurn(
-            cfKeyId,
-            cfToken,
-            PROBE_TURN_TTL_SEC,
-            undefined,
-            CLOUDFLARE_TURN_BUDGET_MS,
-          ),
+          probeCloudflareRelay(cfKeyId, cfToken, {
+            check: this.relayCheck,
+            loginTimeoutMs: CLOUDFLARE_TURN_BUDGET_MS,
+          }),
         () => this.slo?.count('turnProviderFailed'),
       );
       // Breaker open but no own TURN to fall back on: Cloudflare is still
@@ -832,42 +1076,79 @@ export class CallsService {
         if (relay) {
           out.iceServers.unshift(relay);
           cfWorks = true;
+          cfSecond = relayFailed;
+          if (relayFailed) {
+            // CF-6: one real Allocate on the relay the phone complained
+            // about (fleet-wide at most every 10 s); never waited for.
+            void this.cfTransport
+              .verify('turn', () => checkRelayLogin(relay, this.relayCheck))
+              .catch(() => undefined);
+          } else {
+            // The denominator of the phones' relay reports.
+            void this.cfTransport.noteUse('turn').catch(() => undefined);
+          }
+        }
+      } else if (d.reason === 'breaker_open') {
+        // FO-8: own TURN carries the call; Cloudflare is still offered
+        // second when its login comes quickly (nothing is counted here —
+        // the minute probe owns the breaker while it is open).
+        const relay = await this.cloudflareRelay(
+          user.sub,
+          cfKeyId,
+          cfToken,
+          CLOUDFLARE_TURN_OPEN_TRY_MS,
+          false,
+        );
+        if (relay) {
+          out.iceServers.unshift(relay);
+          cfWorks = true;
+          cfSecond = true;
         }
       }
     }
-    // Own TURN only as the backup: dead or extra addresses next to a working
-    // Cloudflare would make ICE wait for their timeouts.
-    if (ownTurn && secret && !cfWorks) {
+    // FO-1 / TS-2 (audit 2026-10-26): our own TURN is ALWAYS offered next
+    // to Cloudflare — after it while Cloudflare is primary (ICE gathers from
+    // both at once; a dead Cloudflare relay with a live credential API then
+    // costs a timed-out candidate, not the call), FIRST after a relay
+    // failure or while the breaker is open (WebRTC prefers the earlier TURN
+    // server).
+    if (ownTurn && secret) {
       const urls = withTcpFallback(turn);
       const username = `${Math.floor(Date.now() / 1000) + TURN_TTL_SEC}:${user.sub}`;
-      out.iceServers.push({
+      const own: IceServerDto = {
         urls,
         username,
         credential: createHmac('sha1', secret)
           .update(username)
           .digest('base64'),
-      });
+      };
+      if (cfWorks && cfSecond) {
+        out.iceServers.unshift(own);
+      } else {
+        out.iceServers.push(own);
+      }
     }
     return out;
   }
 
-  /** A Cloudflare TURN login within [CLOUDFLARE_TURN_BUDGET_MS] (1.5 s):
-   * a 1 s first try, one quick retry with the rest. Null when Cloudflare
-   * did not give one (counted for the SLO alarm and the breaker). */
+  /** A Cloudflare TURN login within [budgetMs] (1.5 s by default): a 1 s
+   * first try, one quick retry with the rest. Null when Cloudflare did not
+   * give one (counted for the SLO alarm and the breaker unless [count] is
+   * false: the quick try while the breaker is already open). */
   private async cloudflareRelay(
     userId: string,
     keyId: string,
     token: string,
+    budgetMs = CLOUDFLARE_TURN_BUDGET_MS,
+    count = true,
   ): Promise<IceServerDto | null> {
     const started = Date.now();
     let lastError = '';
     for (let attempt = 0; attempt < 2; attempt++) {
-      let timeoutMs = CLOUDFLARE_TURN_FIRST_TRY_MS;
+      let timeoutMs = Math.min(CLOUDFLARE_TURN_FIRST_TRY_MS, budgetMs);
       if (attempt > 0) {
         const left =
-          CLOUDFLARE_TURN_BUDGET_MS -
-          (Date.now() - started) -
-          CLOUDFLARE_TURN_RETRY_MS;
+          budgetMs - (Date.now() - started) - CLOUDFLARE_TURN_RETRY_MS;
         if (left < CLOUDFLARE_TURN_MIN_TRY_MS) break;
         await new Promise((r) => setTimeout(r, CLOUDFLARE_TURN_RETRY_MS));
         timeoutMs = left;
@@ -887,12 +1168,13 @@ export class CallsService {
         lastError = (e as Error).message;
       }
     }
+    if (!count) return null;
     this.slo?.count('turnProviderFailed');
     void this.cfTransport
       .recordFailure('turn', lastError)
       .catch(() => undefined);
     this.logger.warn(
-      `alert=cloudflare_turn_failed Cloudflare TURN unavailable within ${CLOUDFLARE_TURN_BUDGET_MS} ms (call continues on our own TURN if set, else STUN): ${lastError}`,
+      `alert=cloudflare_turn_failed Cloudflare TURN unavailable within ${budgetMs} ms (call continues on our own TURN if set, else STUN): ${lastError}`,
     );
     return null;
   }
@@ -1004,6 +1286,9 @@ export class CallsService {
     outcome: Outcome,
     viewerId: string | null,
     at?: Date,
+    endReason?: string,
+    /** LC-1: the phone that declined keeps quiet (no VoIP stop to it). */
+    byChainId?: string,
   ): Promise<CallDto> {
     const now = at ?? new Date();
     const durationSec =
@@ -1019,7 +1304,7 @@ export class CallsService {
         status: outcome,
         ended_at: now,
         duration_sec: durationSec,
-        end_reason: outcome,
+        end_reason: endReason ?? outcome,
       },
     });
     const fresh = await this.prisma.call.findUniqueOrThrow({
@@ -1035,7 +1320,7 @@ export class CallsService {
         });
       }
       if (call.status === 'ringing') {
-        await this.stopRingingPush(call);
+        await this.stopRingingPush(call, byChainId);
       } else {
         await this.endedActivePush(call);
       }
@@ -1596,6 +1881,7 @@ export class CallsService {
     await this.push.enqueueCallEnded({
       recipientId: user.sub,
       callId: fresh.id,
+      exceptChainId: user.sid,
     });
     // Fallback only: too many people for video device to device = audio.
     const after = await this.downgradeFallbackVideo(fresh, inCall + 1);
@@ -1927,6 +2213,7 @@ export class CallsService {
     await this.push.enqueueCallEnded({
       recipientId: user.sub,
       callId: call.id,
+      exceptChainId: user.sid,
     });
     const joined = (await this.rowsOf(call.id)).filter(
       (r) => r.status === 'joined',
@@ -1949,6 +2236,7 @@ export class CallsService {
     await this.push.enqueueCallEnded({
       recipientId: user.sub,
       callId: call.id,
+      exceptChainId: user.sid,
     });
     await this.broadcastParticipants(call.id, [user.sub]);
     return this.toDto(call, user.sub);

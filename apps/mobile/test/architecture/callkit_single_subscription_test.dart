@@ -39,4 +39,48 @@ void main() {
     expect(src, contains('if (existing != null) return existing.stream;'));
     expect(src, contains('StreamController<CallEvent?>.broadcast()'));
   });
+
+  /// The native side of the same rule (iPhone «Answer» dropped the call,
+  /// e8b0ab1fa): ONE CallKit provider — the plugin's. The app only
+  /// observes (CXCallObserver) and asks iOS (CXCallController); it never
+  /// creates a second CXProvider whose delegate would race the plugin's.
+  test('iOS: no second CallKit provider in the app', () {
+    final hits = <String>[];
+    for (final f in Directory('ios/Runner')
+        .listSync(recursive: true)
+        .whereType<File>()) {
+      if (!f.path.endsWith('.swift')) continue;
+      if (RegExp(r'CXProvider\s*\(').hasMatch(f.readAsStringSync())) {
+        hits.add(f.path);
+      }
+    }
+    expect(hits, isEmpty, reason: hits.join('\n'));
+  });
+
+  test('iOS: «Answer» is confirmed to CallKit at once, never ended', () {
+    final src = File('ios/Runner/AppDelegate.swift').readAsStringSync();
+    final accept = RegExp(r'func onAccept\([^)]*\)\s*\{([^}]*)\}')
+        .firstMatch(src);
+    expect(accept, isNotNull);
+    expect(accept!.group(1)!.trim(), 'action.fulfill()');
+  });
+
+  /// LC-1 (audit 2026-10-26): a cancelled ring stops a locked iPhone at
+  /// once through the VoIP channel; every VoIP push still reports a call.
+  test('iOS: the VoIP «call_ended» push ends the ringing CallKit call', () {
+    final src = File('ios/Runner/AppDelegate.swift').readAsStringSync();
+    expect(src, contains('"call_ended"'));
+    expect(
+      src,
+      contains('handleCallEndedPush(callkit, p, completion: completion)'),
+    );
+    // Ends through iOS (the plugin's provider performs it), only a call
+    // that is still ringing here — never the one answered on this phone.
+    expect(src, contains('CXEndCallAction(call: uuid)'));
+    expect(src, contains('!ringing.hasConnected && !ringing.isOutgoing'));
+    // Nothing shown: report-then-end (iOS kills apps that skip it).
+    expect(src, contains('reportThenEnd(callkit'));
+    // A ring arriving after its stop does not ring for 45 s.
+    expect(src, contains('if wasEndedByPush(callId)'));
+  });
 }

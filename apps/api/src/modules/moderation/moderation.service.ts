@@ -1,4 +1,5 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
+import { AUTO_HOLD_NOTE } from './auto-hold.service';
 import type { Prisma, ReportTargetType } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { FilesService } from '../files/files.service';
@@ -767,6 +768,13 @@ export class ModerationService {
           target_type: type,
           target_id: id,
           status: { in: ['open', 'actioned'] },
+          // Algo audit 2026-10-27 (C-2): a system «auto_hold» row is a
+          // queue ticket, not a complaint (a NULL note is a complaint: SQL
+          // `NOT (NULL LIKE …)` is NULL, hence the explicit OR).
+          OR: [
+            { note: null },
+            { NOT: { note: { startsWith: AUTO_HOLD_NOTE } } },
+          ],
         },
         select: { reporter_id: true },
         distinct: ['reporter_id'],

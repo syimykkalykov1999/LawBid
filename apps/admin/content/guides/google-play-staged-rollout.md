@@ -4,6 +4,7 @@ title: Постепенный выпуск в Google Play (staged rollout)
 category: launch
 cost: бесплатно
 time: 5 минут на запуск; процент вы повышаете сами
+runbook: mobile-staged-rollout.md
 verified: 2026-10-25
 sources:
   - Google: Release app updates with staged roll-outs | https://support.google.com/googleplay/android-developer/answer/6346149

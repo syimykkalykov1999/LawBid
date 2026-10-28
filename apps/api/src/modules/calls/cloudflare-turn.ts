@@ -29,6 +29,13 @@ export function clearCloudflareTurnCache(): void {
   cache.clear();
 }
 
+/** Owner 2026-10-26 (failover): a phone says the relay of its call died —
+ * its next login is a new one (a revoked key must not live on in the
+ * cache). */
+export function forgetCloudflareTurn(keyId: string, userId: string): void {
+  cache.delete(`${keyId}:${userId}`);
+}
+
 /** Port 53 is blocked by browsers and stalls ICE gathering (Cloudflare docs). */
 function usable(url: string): boolean {
   return !/:53(\?|$)/.test(url);

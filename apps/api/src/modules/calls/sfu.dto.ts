@@ -183,6 +183,20 @@ export class SfuOkDto {
   ok!: boolean;
 }
 
+/** POST /calls/:id/sfu/failed — owner 2026-10-26 (failover, LC-5). */
+export class SfuFailedResultDto {
+  @ApiProperty({
+    description:
+      'The call moved to our own path (now, or before this report came)',
+  })
+  moved!: boolean;
+
+  @ApiProperty({
+    description: 'Members of this call that reported in the last minute',
+  })
+  reports!: number;
+}
+
 /** POST /calls/:id/sfu/close */
 export class SfuCloseDto {
   @ApiPropertyOptional({

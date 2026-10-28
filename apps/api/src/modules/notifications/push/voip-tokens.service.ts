@@ -11,6 +11,9 @@ export interface VoipDevice {
   topic: string;
   environment: ApnsEnvironment;
   sessionId: string;
+  /** The device's sign-in chain (stable across token refresh) — the
+   * answering phone is told apart from the others by it. */
+  chainId?: string;
 }
 
 /**
@@ -82,6 +85,7 @@ export class VoipTokensService {
     >`
       SELECT t.token AS token, t.topic AS topic,
              t.environment AS environment, t.session_id AS "sessionId",
+             s.session_chain_id AS "chainId",
              EXISTS (SELECT 1 FROM sessions s2
                      WHERE s2.session_chain_id = s.session_chain_id
                        AND s2.revoked_at IS NULL
@@ -99,11 +103,12 @@ export class VoipTokensService {
     }
     return rows
       .filter((r) => r.alive)
-      .map(({ token, topic, environment, sessionId }) => ({
+      .map(({ token, topic, environment, sessionId, chainId }) => ({
         token,
         topic,
         environment,
         sessionId,
+        chainId,
       }));
   }
 

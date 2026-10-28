@@ -113,6 +113,11 @@ abstract interface class CallsSfuApi {
     required String userId,
     required SfuRid rid,
   });
+
+  /// Owner 2026-10-26 (failover, LC-5): this phone cannot reach the SFU of
+  /// the call although the API answers. Enough members saying so move the
+  /// call to our own path. Returns true when the call moved (or had moved).
+  Future<bool> failed(String callId);
 }
 
 class ApiCallsSfuApi implements CallsSfuApi {
@@ -268,6 +273,10 @@ class ApiCallsSfuApi implements CallsSfuApi {
       ),
     );
   }
+
+  @override
+  Future<bool> failed(String callId) async =>
+      (await guardApiCall(() => _api.sfuFailed(id: callId))).data.moved;
 }
 
 final callsSfuApiProvider = Provider<CallsSfuApi>(

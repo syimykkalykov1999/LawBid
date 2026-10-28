@@ -38,7 +38,11 @@ export const DEFAULT_PUSH: Record<NotificationCategory, boolean> = {
   calls: true,
   // Owner 2026-09-30: opt-in.
   following: false,
-  new_cases: false,
+  // Algo audit 2026-10-27 (CASES C-2): on for attorneys who never touched
+  // the toggle, else a release where nobody hears about a case
+  // (`case_alerts.default_enabled` in the admin panel reverts it for the
+  // audience; see CaseAudienceService).
+  new_cases: true,
   bids: true,
   cases: true,
   social: true,
@@ -67,6 +71,20 @@ export const QUIET_EXEMPT: ReadonlySet<NotificationType> = new Set([
   'security_sign_in_changed',
   'task_reminder',
 ]);
+
+/**
+ * Algo audit 2026-10-27 (CASES H-2): whether quiet hours may hold a push of
+ * [type]. An urgent case («суд завтра в 9:00», published at 22:30) is
+ * not kept until the morning while `case_alerts.urgent_fast_enabled` is on.
+ */
+export function quietHoursApply(
+  type: NotificationType,
+  urgentFast: boolean,
+): boolean {
+  if (QUIET_EXEMPT.has(type)) return false;
+  if (type === 'new_urgent_case' && urgentFast) return false;
+  return true;
+}
 
 /** Owner 2026-10-15: pushes that ignore the per-category switch. The
  * person set the reminder on purpose, so a muted «Cases» category must not

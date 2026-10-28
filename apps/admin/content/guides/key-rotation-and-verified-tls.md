@@ -4,6 +4,7 @@ title: Раз в год менять ключи шифрования и вклю
 category: system
 cost: Бесплатно (секрет с TLS-ключами в AWS Secrets Manager: около 0,40 доллара в месяц)
 time: 40 минут
+runbook: KEY_ROTATION.md
 verified: 2026-10-25
 sources:
   - AWS KMS: Data keys | https://docs.aws.amazon.com/kms/latest/developerguide/data-keys.html

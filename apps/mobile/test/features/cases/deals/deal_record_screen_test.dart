@@ -51,14 +51,12 @@ api.DealRecordDto _record({
         feeType: api.FeeType.fixed,
         amountCents: 60000,
         percentBps: null,
-        paymentTerms: null,
       ),
       history: [
         api.DealOfferDto(
           feeType: api.FeeType.fixed,
           amountCents: 60000,
           percentBps: null,
-          paymentTerms: null,
           roundNo: 0,
           fromRole: api.PartyRole.attorney,
           createdAt: DateTime.utc(2026, 10, 25, 14, 2),
@@ -69,7 +67,6 @@ api.DealRecordDto _record({
           feeType: api.FeeType.fixed,
           amountCents: 60000,
           percentBps: null,
-          paymentTerms: null,
           roundNo: 1,
           fromRole: api.PartyRole.client,
           createdAt: DateTime.utc(2026, 10, 27, 19, 40),
@@ -124,7 +121,8 @@ Future<void> main() async {
     expect(find.text('This is not a contract'), findsOneWidget);
     expect(
       find.text(
-          'By signing I confirm this record of the negotiation is accurate'),
+        'By signing I confirm this record of the negotiation is accurate',
+      ),
       findsOneWidget,
     );
 
@@ -172,7 +170,9 @@ Future<void> main() async {
     await tester.tap(find.text('Messages: 1').first);
     await tester.pumpAndSettle();
     expect(
-        find.text('I handle NJ speeding tickets every week.'), findsOneWidget);
+      find.text('I handle NJ speeding tickets every week.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('a sealed record shows no pad and no Decline', (tester) async {

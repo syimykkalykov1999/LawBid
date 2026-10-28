@@ -5,6 +5,7 @@ import {
 import { ApnsVoipSender } from './apns-voip.sender';
 import { VoipTokensService } from './voip-tokens.service';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import { APP_SETTINGS } from '../../../common/app-settings/app-settings.defaults';
 import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
 import { emailFlowsOn } from '../../feature-flags/email-flows';
 import {
@@ -31,7 +32,7 @@ import {
   DEFAULT_PUSH,
   EMAIL_TYPES,
   LOCKED_CATEGORIES,
-  QUIET_EXEMPT,
+  quietHoursApply,
   quietHoursEnd,
 } from '../notification-rules';
 import { topicOf } from '../notification-topics';
@@ -278,6 +279,17 @@ export class PushDispatcher
     if (data.kind === 'ops_alert') return this.dispatchOpsAlert(data);
     if (data.kind === 'call') return this.dispatchCall(data);
     if (data.kind === 'call_end') {
+      // LC-1 (audit 2026-10-26): iPhones rung by VoIP stop ringing through
+      // Apple's VoIP channel — the silent push below is not delivered in
+      // time to a locked / closed iPhone. Only the ring stop: an answered
+      // call that is over runs in an awake app (socket + the push below).
+      if (!data.ended) {
+        await this.voip?.endCall(
+          data.recipientId,
+          data.callId,
+          data.exceptChainId,
+        );
+      }
       // Never held by settings or quiet hours: it only silences a ring.
       await this.sender.send(
         {
@@ -609,7 +621,14 @@ export class PushDispatcher
     ) {
       return 'disabled';
     }
-    if (!data.deferred && !QUIET_EXEMPT.has(n.type)) {
+    if (
+      !data.deferred &&
+      quietHoursApply(
+        n.type,
+        (await this.appSettings?.boolean('case_alerts.urgent_fast_enabled')) ??
+          APP_SETTINGS['case_alerts.urgent_fast_enabled'],
+      )
+    ) {
       const until = await this.quietUntil(n.user_id);
       if (until) {
         await this.queue.defer(data, until, jobId || n.id);

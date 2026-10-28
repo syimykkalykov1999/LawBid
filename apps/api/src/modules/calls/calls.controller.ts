@@ -7,6 +7,7 @@ import {
   HttpCode,
   Param,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
@@ -29,6 +30,7 @@ import {
   CastCallVoteDto,
   EndCallDto,
   IceServersDto,
+  IceServersQueryDto,
   InviteCallDto,
   LiveKitJoinDto,
   GroupCallParamDto,
@@ -41,6 +43,7 @@ import {
   SfuAnswerDto,
   SfuCloseDto,
   SfuCloseResultDto,
+  SfuFailedResultDto,
   SfuLayerDto,
   SfuOkDto,
   SfuPublishDto,
@@ -325,11 +328,37 @@ export class CallsController {
     return this.calls.sfuLayer(user, p.id, dto);
   }
 
+  // Owner 2026-10-26 (failover, LC-5): this phone cannot reach the
+  // Cloudflare SFU although the API answers (the server cannot see that by
+  // itself). One voice per person a minute; when at least half of the
+  // joined members say so within a minute the call moves to our own path
+  // (same id, `call:participants` with mediaProvider p2p), and the shared
+  // breaker hears it too.
+  @Post('calls/:id/sfu/failed')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 6, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'My phone cannot reach the Cloudflare SFU of this call',
+  })
+  @ApiEnvelopeResponse(SfuFailedResultDto)
+  @ApiErrors({ 404: [ErrorCode.CALL_NOT_FOUND] })
+  sfuFailed(@CurrentUser() user: RequestUser, @Param() p: CallIdParamDto) {
+    return this.calls.sfuFailed(user, p.id);
+  }
+
+  // Owner 2026-10-26 (failover): `relayFailed=true` = the relay of my
+  // running call died: a fresh login, our own TURN first, and the report
+  // teaches the shared Cloudflare breaker (one report per person a minute,
+  // counted only when many phones say so). 30 a minute per person.
   @Get('calls/ice-servers')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiOperation({ summary: 'STUN/TURN servers for WebRTC' })
   @ApiEnvelopeResponse(IceServersDto)
-  callIceServers(@CurrentUser() user: RequestUser): Promise<IceServersDto> {
-    return this.calls.iceServers(user);
+  callIceServers(
+    @CurrentUser() user: RequestUser,
+    @Query() q: IceServersQueryDto,
+  ): Promise<IceServersDto> {
+    return this.calls.iceServers(user, { relayFailed: q?.relayFailed });
   }
 
   @Get('calls/:id')

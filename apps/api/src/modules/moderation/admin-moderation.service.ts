@@ -32,6 +32,8 @@ import type {
   ModerationQueuePage,
   ModerationQueueQueryDto,
 } from './admin-moderation.dto';
+import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ModerationService, type ModerationTarget } from './moderation.service';
 import { ReporterReputationService } from './reporter-reputation.service';
 import { StrikesService } from './strikes.service';
@@ -72,6 +74,7 @@ export class AdminModerationService {
     @Optional()
     @Inject(STAFF_RECORDER)
     private readonly staffRecorder?: StaffRecorder,
+    @Optional() private readonly appSettings?: AppSettingsService,
   ) {}
 
   async queue(
@@ -219,9 +222,30 @@ export class AdminModerationService {
     const after: (() => Promise<void>)[] = [];
     let status: string | null = target.status;
     let reporterIds: string[] = [];
+    // Algo audit 2026-10-27 (CONTENT C-1): «Отклонить жалобы» on content
+    // the rules or the report threshold hid (no moderator ever hid it)
+    // means "nothing wrong with it" — it goes back, else it stays hidden
+    // for ever with no queue and no appeal. A moderator's own hide stays.
+    const dismissRestores =
+      action === 'dismiss' &&
+      target.status === 'hidden' &&
+      type !== 'user' &&
+      type !== 'case' &&
+      (await this.dismissRestoresEnabled()) &&
+      !(await this.hiddenByModerator(type, id));
     const handled = await withTxRetry(this.prisma, async (tx) => {
       after.length = 0;
       let before: string | null = null;
+      if (dismissRestores) {
+        const fresh = (await this.moderation.resolve(type, id, tx))!;
+        before = await this.moderation.setContentStatus(
+          tx,
+          fresh,
+          'restore',
+          after,
+        );
+        status = (await this.moderation.resolve(type, id, tx))?.status ?? null;
+      }
       if (
         action === 'hide' ||
         action === 'remove' ||
@@ -242,7 +266,11 @@ export class AdminModerationService {
         select: { id: true, reporter_id: true },
         orderBy: { created_at: 'asc' },
       });
-      reporterIds = open.map((r) => r.reporter_id);
+      // A system «auto_hold» row (reporter = the author) is a queue
+      // ticket, never a complaint to score (C-2).
+      reporterIds = open
+        .filter((r) => r.reporter_id !== target.authorId)
+        .map((r) => r.reporter_id);
       const now = new Date();
       if (open.length) {
         await tx.report.updateMany({
@@ -251,6 +279,19 @@ export class AdminModerationService {
             status: action === 'dismiss' ? 'dismissed' : 'actioned',
             handled_by: admin.id,
             handled_at: now,
+          },
+        });
+      }
+      if (dismissRestores) {
+        // The restore is a decision like any other: recorded, appealable.
+        await tx.moderationAction.create({
+          data: {
+            report_id: open[0]?.id ?? null,
+            admin_id: admin.id,
+            target_type: type,
+            target_id: id,
+            action: 'restore',
+            reason,
           },
         });
       }
@@ -301,14 +342,22 @@ export class AdminModerationService {
       // (warn/suspend already notified inside AdminUsersService).
       if (
         target.authorId &&
-        (action === 'hide' || action === 'remove' || action === 'restore')
+        (action === 'hide' ||
+          action === 'remove' ||
+          action === 'restore' ||
+          dismissRestores)
       ) {
         await this.notifications.emit(
           {
             type: 'moderation_notice',
             recipientId: target.authorId,
             // Audit 2026-10-02: the author sees the moderator's reason.
-            payload: { action, targetType: type, targetId: id, reason },
+            payload: {
+              action: dismissRestores ? 'restore' : action,
+              targetType: type,
+              targetId: id,
+              reason,
+            },
           },
           tx,
         );
@@ -336,6 +385,31 @@ export class AdminModerationService {
       status,
       reportsHandled: handled,
     };
+  }
+
+  private async dismissRestoresEnabled(): Promise<boolean> {
+    if (!this.appSettings) {
+      return APP_SETTINGS['moderation.dismiss_restores_enabled'];
+    }
+    return this.appSettings.boolean('moderation.dismiss_restores_enabled');
+  }
+
+  /** True when the latest human hide / restore decision on the object is
+   * a hide (the object is hidden on purpose, not by a rule or threshold). */
+  private async hiddenByModerator(
+    type: ReportTargetType,
+    id: string,
+  ): Promise<boolean> {
+    const last = await this.prisma.moderationAction.findFirst({
+      where: {
+        target_type: type,
+        target_id: id,
+        action: { in: ['hide', 'restore'] },
+      },
+      orderBy: { created_at: 'desc' },
+      select: { action: true },
+    });
+    return last?.action === 'hide';
   }
 
   /** {@link author} for many users: two queries in all. */

@@ -4,6 +4,7 @@ title: Продвижение: страницы для поиска, Google Sear
 category: content
 cost: Бесплатно. Страницы собираются ночью в GitHub Actions, лишних платных сервисов нет. Платных решений здесь два, оба необязательные: аккредитация BBB и реклама.
 time: 30-40 минут на первый раз, потом по 5 минут на каждое включение
+runbook: SEO_STATIC_PAGES.md
 verified: 2026-10-27
 sources:
   - Google: Build and submit a sitemap | https://support.google.com/webmasters/answer/7451001

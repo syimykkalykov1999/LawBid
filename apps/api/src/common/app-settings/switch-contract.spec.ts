@@ -53,6 +53,8 @@ describe('switch contract: defaults (a)', () => {
     ['seo.generator_mode', 'off'],
     ['deal_record.enabled', false],
     ['bids.rich_terms_enabled', false],
+    ['today.sentry_enabled', false],
+    ['scale.db_split_enabled', false],
   ];
   it.each(table)('%s defaults to %p with nothing stored', async (key, want) => {
     expect(APP_SETTINGS[key]).toBe(want);

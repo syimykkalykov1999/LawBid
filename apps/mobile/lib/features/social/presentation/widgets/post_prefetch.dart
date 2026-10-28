@@ -51,8 +51,10 @@ void prefetchPost(BuildContext context, Post p) {
   // shown over the player until its first frame moves, so it is warmed
   // too — and the first bytes of its stream (lowest rendition) are
   // fetched ahead.
+  // Owner 2026-10-27: a playable video's cover is never drawn in a player
+  // (the grid warms its own), so it is not fetched here.
   final thumb = p.video?.thumbnailUrl;
-  if (thumb != null) {
+  if (thumb != null && !(p.video?.ready ?? false)) {
     precacheImage(reelPosterProvider(thumb), context, onError: (_, __) {});
   }
   final stream = (p.video?.ready ?? false) ? p.video?.playbackUrl : null;

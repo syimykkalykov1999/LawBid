@@ -155,6 +155,14 @@ describe('Staff owner home (e2e)', () => {
 
   it('everything off (the default): the owner gets 404 on every new route', async () => {
     await api().get('/api/v1/admin/staff/today').set(owner.auth).expect(404);
+    await api()
+      .get('/api/v1/admin/staff/today/system')
+      .set(owner.auth)
+      .expect(404);
+    await api()
+      .post('/api/v1/admin/staff/today/sentry/123/resolve')
+      .set(owner.auth)
+      .expect(404);
     await api().get('/api/v1/admin/staff/digest').set(owner.auth).expect(404);
     await api()
       .get('/api/v1/admin/staff/me/progress')
@@ -199,6 +207,48 @@ describe('Staff owner home (e2e)', () => {
     expect(t.decision.code).toBe('suggestion_removal');
     await api().get('/api/v1/admin/staff/today').set(good.auth).expect(404);
     await api().get('/api/v1/admin/staff/today').expect(401);
+  });
+
+  it('today/system (owner desk 2026-10-27): ordered system actions + the Sentry line (off by default)', async () => {
+    on();
+    await redis.del('adm:sum:staff.today.system');
+    const res = await api()
+      .get('/api/v1/admin/staff/today/system')
+      .set(owner.auth)
+      .expect(200);
+    const s = (
+      res.body as {
+        data: {
+          freshSec: number;
+          items: Array<{
+            code: string;
+            severity: string;
+            action: { kind: string };
+          }>;
+          counts: Record<string, number>;
+          sentry: { state: string };
+        };
+      }
+    ).data;
+    expect(s.freshSec).toBeGreaterThanOrEqual(300);
+    expect(Array.isArray(s.items)).toBe(true);
+    const order = ['critical', 'high', 'medium', 'low'];
+    const idx = s.items.map((i) => order.indexOf(i.severity));
+    expect([...idx].sort((a, b) => a - b)).toEqual(idx);
+    expect(new Set(s.items.map((i) => i.code)).size).toBe(s.items.length);
+    expect(
+      s.counts.critical + s.counts.high + s.counts.medium + s.counts.low,
+    ).toBe(s.items.length);
+    expect(s.sentry.state).toBe('off');
+    // a resolve without a fresh code is refused by the step-up, never reaches Sentry
+    await api()
+      .post('/api/v1/admin/staff/today/sentry/123/resolve')
+      .set(owner.auth)
+      .expect(403);
+    await api()
+      .get('/api/v1/admin/staff/today/system')
+      .set(good.auth)
+      .expect(404);
   });
 
   it('today costs ONE database query when cold and none when warm', async () => {

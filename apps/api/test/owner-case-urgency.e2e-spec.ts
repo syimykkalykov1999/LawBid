@@ -8,6 +8,9 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { CaseDeadlineReminderJob } from '../src/jobs/handlers/case-deadline-reminder.job';
 import { SubscriptionAlertsService } from '../src/modules/notifications/subscription-alerts.service';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import type Redis from 'ioredis';
 
 /**
  * Owner 2026-10-05: case urgency as a level or a concrete date. Against
@@ -51,6 +54,14 @@ describe('Case urgency: levels and dates (e2e, owner 2026-10-05)', () => {
     baseUrl = `http://127.0.0.1:${port}`;
     prisma = app.get(PrismaService);
     tokens = app.get(TokenService);
+    // Algo audit 2026-10-27 (H-1): with Redis the alerts go through the
+    // queue; this suite reads the rows right after the call.
+    await prisma.appConfig.upsert({
+      where: { key: 'case_fanout.queue_mode' },
+      create: { key: 'case_fanout.queue_mode', value: 'off' },
+      update: { value: 'off' },
+    });
+    await dropAppConfigCache(app.get<Redis>(REDIS_CLIENT));
 
     await prisma.state.upsert({
       where: { code: 'NJ' },
@@ -72,6 +83,10 @@ describe('Case urgency: levels and dates (e2e, owner 2026-10-05)', () => {
   });
 
   afterAll(async () => {
+    await prisma.appConfig.deleteMany({
+      where: { key: 'case_fanout.queue_mode' },
+    });
+    await dropAppConfigCache(app.get<Redis>(REDIS_CLIENT));
     await app.close();
   });
 

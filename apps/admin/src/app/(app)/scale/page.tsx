@@ -9,6 +9,7 @@ import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { BackfillsCard } from '@/components/backfills-card';
 import { ScaleSwitches } from '@/components/scale-switches';
 import { SearchIndexCard } from '@/components/search-index-card';
+import { DbSplitCard } from '@/components/scale/db-split-card';
 import { StepUpDialog } from '@/components/step-up-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
@@ -435,17 +436,7 @@ export default function ScalePage() {
               badge={<Badge tone={usageLine(h.items, 'bunny_usage').tone} dot>{LABEL[usageLine(h.items, 'bunny_usage').tone]}</Badge>}
               line={usageLine(h.items, 'bunny_usage').line}
             />
-            <InfoCard
-              title="Разделить базу"
-              badge={<Badge tone="neutral">Пока недоступно</Badge>}
-              line="Разнос данных по двум базам, когда одной станет тесно. Кнопка включится, когда будут готовы проверки и откат."
-              footer={
-                <Button variant="outline" size="sm" disabled className="self-start">
-                  Разделить базу
-                </Button>
-              }
-              note="появится после шагов 9-10"
-            />
+            <DbSplitCard enabled={!!x?.dbSplitEnabled} />
           </div>
 
           <SectionTitle>Облако: включить и выключить по кнопке</SectionTitle>

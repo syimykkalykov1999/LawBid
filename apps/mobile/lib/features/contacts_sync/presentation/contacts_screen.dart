@@ -282,7 +282,12 @@ class _BodyState extends ConsumerState<_Body> {
                   itemCount: invite.length,
                   itemBuilder: (context, i) => InviteContactRow(
                     contact: invite[i],
-                    onInvite: () => inviteContact(context, ref, invite[i].name),
+                    onInvite: () => inviteContact(
+                      context,
+                      ref,
+                      invite[i].name,
+                      invite[i].number,
+                    ),
                   ),
                 ),
               ],

@@ -1,6 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -139,6 +146,89 @@ export class StaffTodayDto {
   anomalies!: StaffTodayAnomaliesDto | null;
   @ApiPropertyOptional({ type: () => StaffTodayPieceworkDto, nullable: true })
   piecework!: StaffTodayPieceworkDto | null;
+}
+
+// ---- GET admin/staff/today/system (owner 2026-10-27) -------------------------
+
+export class StaffSystemActionDto {
+  @ApiProperty({
+    enum: ['route', 'guide', 'launch', 'url'],
+    description:
+      'route = admin page, guide = «Инструкции» id, launch = «Запуск» step id (its guide), url = outside link.',
+  })
+  kind!: string;
+  @ApiProperty() target!: string;
+  @ApiProperty({ description: 'The button text.' }) label!: string;
+}
+
+export class StaffSystemItemDto {
+  @ApiProperty({ description: 'Stable: the row disappears when done.' })
+  code!: string;
+  @ApiProperty({ enum: ['critical', 'high', 'medium', 'low'] })
+  severity!: string;
+  @ApiProperty() title!: string;
+  @ApiProperty({ description: 'One line: why today.' }) why!: string;
+  @ApiProperty({ type: () => StaffSystemActionDto })
+  action!: StaffSystemActionDto;
+}
+
+export class StaffSystemCountsDto {
+  @ApiProperty({ type: 'integer' }) critical!: number;
+  @ApiProperty({ type: 'integer' }) high!: number;
+  @ApiProperty({ type: 'integer' }) medium!: number;
+  @ApiProperty({ type: 'integer' }) low!: number;
+}
+
+export class StaffSentryIssueDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() title!: string;
+  @ApiProperty({ type: 'integer' }) count!: number;
+  @ApiProperty({ type: 'integer' }) users!: number;
+  @ApiProperty() firstSeen!: string;
+  @ApiProperty() lastSeen!: string;
+  @ApiProperty() permalink!: string;
+}
+
+export class StaffSentrySummaryDto {
+  @ApiProperty({
+    enum: ['off', 'unconfigured', 'ok', 'error'],
+    description:
+      'off = switch today.sentry_enabled is off; unconfigured = no sentry keys saved.',
+  })
+  state!: string;
+  @ApiProperty({ type: 'integer' }) unresolved!: number;
+  @ApiProperty({ description: 'True when the page was full (100+).' })
+  unresolvedAtLeast!: boolean;
+  @ApiProperty({ type: 'integer', description: 'First seen in the last 24 h.' })
+  newCount!: number;
+  @ApiProperty({ type: [StaffSentryIssueDto] }) issues!: StaffSentryIssueDto[];
+  @ApiProperty({ type: String, nullable: true }) url!: string | null;
+  @ApiProperty({ type: String, nullable: true }) error!: string | null;
+  @ApiProperty({ format: 'date-time' }) computedAt!: string;
+}
+
+export class StaffTodaySystemDto {
+  @ApiProperty({ format: 'date-time' }) computedAt!: string;
+  @ApiProperty({
+    type: 'integer',
+    description: 'The block is refreshed when older than this many seconds.',
+  })
+  freshSec!: number;
+  @ApiProperty({
+    type: [StaffSystemItemDto],
+    description: 'Ordered by urgency; empty = nothing to do.',
+  })
+  items!: StaffSystemItemDto[];
+  @ApiProperty({ type: () => StaffSystemCountsDto })
+  counts!: StaffSystemCountsDto;
+  @ApiProperty({ type: () => StaffSentrySummaryDto })
+  sentry!: StaffSentrySummaryDto;
+}
+
+export class StaffSentryIssueParamDto {
+  @ApiProperty({ description: 'Sentry issue id (digits).' })
+  @Matches(/^\d{1,20}$/)
+  id!: string;
 }
 
 // ---- GET admin/staff/digest -------------------------------------------------

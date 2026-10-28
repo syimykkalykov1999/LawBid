@@ -1,17 +1,20 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
-import { Bell, ChartLineUp, Fire, Flag, HeartStraight, Scales, Wallet, Warning } from '@phosphor-icons/react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Bell, Bug, ChartLineUp, Fire, Flag, HeartStraight, Scales, Wallet, Warning } from '@phosphor-icons/react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { SuggestionCard } from '@/components/staff/suggestion-card';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
+import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
+import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
 import { dayLabel, APPEAL_KIND, STATUS_LABEL } from '@/lib/staff-labels';
-import { useDigest, useToday, isOwner, type DigestWeek, type Today, type TodayPerson } from '@/lib/staff-data';
+import { useDigest, useToday, useTodaySystem, isOwner, staffPost, TODAY_SYSTEM_KEY, type DigestWeek, type Today, type TodayPerson } from '@/lib/staff-data';
+import { actionHref, mergeSystemItems, sentryLine, SEVERITY_WORD, type SentrySummary, type TodaySystem } from '@/lib/system-items';
 import { formatDateTime } from '@/lib/utils';
 
 const usd = (cents: number) => new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(cents / 100);
@@ -55,26 +58,113 @@ function PersonLine({ p }: { p: TodayPerson }) {
   );
 }
 
-function HealthLine() {
-  const q = useQuery({
+type HealthLite = { overall: 'green' | 'yellow' | 'red'; items: { key: string; status: string; detail: Record<string, unknown> }[] };
+
+/**
+ * Owner 2026-10-27: «Система» — every action the owner must take today, by
+ * urgency: the server's 5-minute snapshot (budget, capacity, «Запуск» lights,
+ * status-board probes, incidents, key rotation) plus the live core lights of
+ * «Здоровье системы» the page already loads. Done → the row disappears.
+ */
+function SystemBlock({ owner }: { owner: boolean }) {
+  const health = useQuery({
     queryKey: ['system-health'],
-    queryFn: async () => (await api.GET('/admin/system-health')).data!.data as { overall: 'green' | 'yellow' | 'red' },
+    queryFn: async () => (await api.GET('/admin/system-health')).data!.data as unknown as HealthLite,
     staleTime: 60_000,
     retry: false,
   });
-  const o = q.data?.overall;
+  const sys = useTodaySystem<TodaySystem>(owner);
+  const server = sys.data?.ok ? sys.data.data : null;
+  const items = mergeSystemItems(server?.items, health.data);
+  const o = health.data?.overall;
   return (
     <Block icon={HeartStraight} title="Система" href="/system-health" testId="today-health">
-      {q.isPending ? (
+      {health.isPending && sys.isPending ? (
         <Skeleton className="h-5 w-48" />
-      ) : !o ? (
-        <p className="text-sm text-muted">Состояние пока не получено.</p>
       ) : (
-        <Badge tone={o === 'green' ? 'success' : o === 'yellow' ? 'warning' : 'danger'} dot>
-          {o === 'green' ? 'Всё в порядке' : o === 'yellow' ? 'Есть на что посмотреть' : 'Есть проблема'}
-        </Badge>
+        <>
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            {!o ? (
+              <span className="text-sm text-muted">Состояние пока не получено.</span>
+            ) : (
+              <Badge tone={o === 'green' ? 'success' : o === 'yellow' ? 'warning' : 'danger'} dot>
+                {o === 'green' ? 'Всё в порядке' : o === 'yellow' ? 'Есть на что посмотреть' : 'Есть проблема'}
+              </Badge>
+            )}
+            {server ? <span className="text-xs text-faint">Список на {formatDateTime(server.computedAt)}</span> : null}
+          </div>
+          {items.length === 0 ? (
+            <p className="text-sm text-muted" data-testid="today-system-empty">
+              Сегодня от вас ничего не требуется.
+            </p>
+          ) : (
+            <ul className="divide-y divide-line" data-testid="today-system-items">
+              {items.map((i) => {
+                const w = SEVERITY_WORD[i.severity] ?? SEVERITY_WORD.low;
+                return (
+                  <li key={i.code} className="flex flex-wrap items-start gap-x-3 gap-y-1 py-2 text-sm" data-testid={`today-system-${i.code}`}>
+                    <Badge tone={w.tone} className="mt-0.5 shrink-0">
+                      {w.label}
+                    </Badge>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-heading">{i.title}</div>
+                      <div className="text-xs text-muted">{i.why}</div>
+                    </div>
+                    <Link href={actionHref(i.action)} className="shrink-0 self-center text-xs font-medium text-gold-600 hover:underline">
+                      {i.action.label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <SentryLine summary={server?.sentry} />
+        </>
       )}
     </Block>
+  );
+}
+
+/** «Ошибки в приложении: N новых / M нерешённых» with «Открыть» and «Решено». */
+function SentryLine({ summary }: { summary: SentrySummary | undefined }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const line = sentryLine(summary);
+  const resolve = useMutation({
+    mutationFn: (id: string) => staffPost<SentrySummary>(`/admin/staff/today/sentry/${id}/resolve`),
+    onSuccess: () => {
+      toast.success('Ошибка отмечена решённой');
+      void qc.invalidateQueries({ queryKey: TODAY_SYSTEM_KEY });
+    },
+    onError: (e) => toast.error(e),
+  });
+  return (
+    <div className="mt-3 border-t border-line pt-3" data-testid="today-sentry">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <Bug size={16} weight="light" className="text-gold-600" />
+        <span className={line.tone === 'danger' ? 'text-danger' : line.tone === 'warning' ? 'text-heading' : 'text-muted'}>{line.text}</span>
+        {line.link && summary?.url ? (
+          <a href={summary.url} target="_blank" rel="noreferrer" className="text-xs font-medium text-gold-600 hover:underline">
+            Открыть
+          </a>
+        ) : null}
+      </div>
+      {summary?.state === 'ok' && summary.issues.length > 0 ? (
+        <ul className="mt-1 divide-y divide-line">
+          {summary.issues.map((i) => (
+            <li key={i.id} className="flex items-center gap-3 py-1 text-xs">
+              <a href={i.permalink} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-ink hover:underline" title={i.title}>
+                {i.title}
+              </a>
+              <span className="shrink-0 tabular-nums text-faint">×{i.count}</span>
+              <Button size="sm" variant="outline" loading={resolve.isPending && resolve.variables === i.id} onClick={() => resolve.mutate(i.id)}>
+                Решено
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
@@ -286,7 +376,7 @@ export function TodayPage() {
       ) : null}
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <HealthLine />
+        <SystemBlock owner={isOwner(me)} />
         <MoneyLine />
       </div>
 

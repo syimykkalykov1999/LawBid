@@ -14,6 +14,8 @@ import {
   STAFF_RECOMMENDATION_TEMPLATE,
 } from './staff-recommendation.template';
 import { StaffTodayService } from './staff-today.service';
+import { StaffTodaySystemService } from './staff-today-system.service';
+import { SentryIssuesClient } from './sentry-issues.client';
 
 /**
  * Staff package (T10): the owner «Сегодня» page, the person card, the weekly
@@ -27,6 +29,8 @@ import { StaffTodayService } from './staff-today.service';
     StaffTodayJob,
     StaffWeeklyDigestJob,
     StaffTodayService,
+    StaffTodaySystemService,
+    SentryIssuesClient,
     StaffDigestService,
     {
       provide: STAFF_RECOMMENDATION_TEMPLATE,
@@ -37,6 +41,8 @@ import { StaffTodayService } from './staff-today.service';
     StaffTodayJob,
     StaffWeeklyDigestJob,
     StaffTodayService,
+    StaffTodaySystemService,
+    SentryIssuesClient,
     StaffDigestService,
     STAFF_RECOMMENDATION_TEMPLATE,
   ],

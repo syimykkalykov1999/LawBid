@@ -1958,6 +1958,11 @@ model Case {
   // OQ-054: set silently when the question went unanswered; the case is
   // then hidden from the attorneys' feed and search (status stays open).
   paused_at             DateTime?                @db.Timestamptz
+  /// Algo audit 2026-10-27 (CASES C-1/M-2): bumped when the client changes
+  /// the practice / states or brings the case back from a pause or the
+  /// archive; the alert dedupe key and job id carry it, so attorneys are
+  /// alerted again under a new key instead of the retry being swallowed.
+  alert_generation      Int                      @default(0)
   archived_at           DateTime?                @db.Timestamptz
   client_completed_at   DateTime?                @db.Timestamptz
   attorney_confirmed_at DateTime?                @db.Timestamptz

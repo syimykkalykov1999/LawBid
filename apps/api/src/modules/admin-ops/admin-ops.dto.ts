@@ -178,6 +178,12 @@ export class ScaleExtrasDto {
   @ApiProperty({ type: Number, nullable: true })
   poolerMinTasks!: number | null;
 
+  @ApiProperty({
+    description:
+      'Owner 2026-10-27: scale.db_split_enabled — the guided «Разделить базу» card on «Масштаб» is shown.',
+  })
+  dbSplitEnabled!: boolean;
+
   @ApiProperty({ type: Number, nullable: true })
   poolerMaxTasks!: number | null;
 
@@ -185,6 +191,96 @@ export class ScaleExtrasDto {
     description: 'The `search.engine` setting (postgres until another is set).',
   })
   searchEngine!: string;
+}
+
+// --- Owner 2026-10-26 (calls failover): «Связь для звонков» ----------------
+
+export class CallsPathStepDto {
+  @ApiProperty()
+  ok!: boolean;
+
+  @ApiProperty({ type: 'integer', description: 'Milliseconds.' })
+  ms!: number;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  error?: string | null;
+}
+
+export class CallsPathCheckDto {
+  @ApiProperty({ format: 'date-time' })
+  at!: string;
+
+  @ApiProperty()
+  ok!: boolean;
+
+  @ApiProperty({ type: 'integer', description: 'Whole check, ms.' })
+  ms!: number;
+
+  @ApiProperty({ type: CallsPathStepDto, nullable: true })
+  stun!: CallsPathStepDto | null;
+
+  @ApiProperty({ type: CallsPathStepDto, nullable: true })
+  turn!: CallsPathStepDto | null;
+
+  @ApiProperty({
+    type: CallsPathStepDto,
+    nullable: true,
+    description: 'Cloudflare SFU session / LiveKit connect.',
+  })
+  media!: CallsPathStepDto | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  error!: string | null;
+}
+
+export class CallsPathSideDto {
+  @ApiProperty()
+  configured!: boolean;
+
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'boolean' },
+    description: 'Which parts have keys (turn / sfu / livekit).',
+  })
+  parts!: Record<string, boolean>;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  lastProbeAt!: string | null;
+
+  @ApiProperty({ type: Boolean, nullable: true })
+  lastProbeOk!: boolean | null;
+
+  @ApiProperty({ type: CallsPathCheckDto, nullable: true })
+  check!: CallsPathCheckDto | null;
+}
+
+export class CallsPathBreakersDto {
+  @ApiProperty({ enum: ['open', 'closed'] })
+  turn!: 'open' | 'closed';
+
+  @ApiProperty({ enum: ['open', 'closed'] })
+  sfu!: 'open' | 'closed';
+}
+
+/** GET /admin/system-health/calls-path — the calls transport card. */
+export class CallsPathDto {
+  @ApiProperty({ enum: ['auto', 'cloudflare', 'own'] })
+  transport!: 'auto' | 'cloudflare' | 'own';
+
+  @ApiProperty({
+    enum: ['cloudflare', 'own'],
+    description: 'Who carries NEW calls right now.',
+  })
+  carrying!: 'cloudflare' | 'own';
+
+  @ApiProperty({ type: CallsPathBreakersDto })
+  breakers!: CallsPathBreakersDto;
+
+  @ApiProperty({ type: CallsPathSideDto })
+  cloudflare!: CallsPathSideDto;
+
+  @ApiProperty({ type: CallsPathSideDto })
+  own!: CallsPathSideDto;
 }
 
 /** Owner 2026-10-25 (online DDL): one batched backfill on the «Масштаб» page. */

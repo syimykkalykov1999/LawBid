@@ -7,7 +7,9 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
+import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contacts_screen.dart';
+import 'package:lawbid/features/contacts_sync/presentation/invite_contact.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/long_locale.dart';
@@ -256,5 +258,49 @@ void main() {
     await tester.pump();
     expect(find.text('Carol'), findsOneWidget);
     expect(find.text('Something went wrong'), findsNothing);
+  });
+
+  testWidgets('Invite opens the SMS composer with the number and our link',
+      (tester) async {
+    useNarrowPhone(tester);
+    final opened = <Uri>[];
+    await tester.pumpWidget(
+      uxApp(
+        const ContactsScreen(initialContacts: true),
+        theme: AppTheme.light(),
+        size: narrowPhone,
+        disableAnimations: true,
+        overrides: uxOverrides(
+          extra: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            inviteUrlLauncherProvider.overrideWithValue((u) async {
+              opened.add(u);
+              return true;
+            }),
+            phoneContactsProvider.overrideWith(
+              (_) async => const PhoneContacts(
+                invite: [
+                  InvitableContact(name: 'Carol', number: '+1 (415) 555-0001'),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(InviteContactRow),
+        matching: find.byType(AppButton),
+      ),
+    );
+    await tester.pump();
+    expect(opened, hasLength(1));
+    expect(opened.single.scheme, 'sms');
+    final url = opened.single.toString();
+    expect(url, contains('+14155550001'));
+    expect(url, contains(Uri.encodeComponent(lawbidInviteLink)));
   });
 }

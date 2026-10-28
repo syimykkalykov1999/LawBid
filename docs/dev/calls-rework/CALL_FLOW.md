@@ -16,6 +16,7 @@ subscriber to the CallKit event channel stealing the first one's events.
 | FCM foreground `onMessage` (`incoming_call`, `call_ended`, `group_call`) | `PushService.start` | 1 | `_startedFor` guard |
 | FCM background (Android, app minimised / killed) | `lawbidBackgroundMessage` (top level) → `showLawbidIncoming` | 1 | `onBackgroundMessage` set once |
 | PushKit VoIP (iOS) | `AppDelegate.pushRegistry(didReceiveIncomingPushWith:)` → `showCallkitIncoming` (= `reportNewIncomingCall`) | 1 | the only report; a call the socket already reported keeps its one CXCall (same id) |
+| PushKit VoIP «call_ended» (iOS, LC-1 2026-10-26) | `AppDelegate.handleCallEndedPush` | 1 | ends the RINGING CallKit call via `CXEndCallAction` (the plugin's one provider performs it); never a call answered on this phone; nothing shown → report-then-end (iOS requires a report for every VoIP push); a ring that arrives after its stop is reported and ended at once. Server: `ApnsVoipSender.endCall` only to iPhones the call rang by VoIP, only within the phone's own 45 s ring, never the phone that answered / declined (`exceptChainId` = its sign-in chain). The silent FCM stop still goes out too |
 | iOS CallKit plugin instance | `SwiftFlutterCallkitIncomingPlugin.sharedInstance` (one CXProvider) | 1 | 2026-10-26: a VoIP push that wakes a CLOSED app (UIScene: no window, no plugins yet) brings up a stand-in headless engine that registers the SAME shared instance (`sharePluginWithRegister`); it has no Dart listener and is destroyed when the app's engine registers |
 
 ## Incoming call
@@ -91,3 +92,75 @@ sends `call:ended` to everyone else (`CallsService.finish`).
    above it) itself.
 4. **`_finish` side effects could throw before the state changed** —
    guarded, so the phase always reaches `ended`.
+
+## Cloudflare failover mid-call (2026-10-26)
+
+Owner: «when Cloudflare goes down, people must not notice the switch».
+
+```
+1:1 / mesh  link failed / disconnected (either phone)
+            → CallController._startReconnect → _freshIceThenRestart
+            → GET /calls/ice-servers?relayFailed=true   (≤ 1.8 s budget, shared, ≤ 1 per 10 s)
+                 server: new Cloudflare login (cache skipped) + own TURN FIRST
+                         (a normal call already carries own TURN SECOND, after Cloudflare:
+                         a dead Cloudflare relay behind a live credential API costs a
+                         timed-out candidate, not the call — FO-1)
+                         report → CloudflareTransport.recordClientFailure: the breaker opens
+                         when ≥ calls.transport_report_min distinct phones (10; shrinks to
+                         2 phones / half of the calls while calls are few) AND
+                         ≥ calls.transport_report_ratio_pct (30 %) of the calls that took
+                         Cloudflare in the window say so; the API also verifies the
+                         relay itself once per 10 s (STUN + Allocate, CF-6)
+            → media.updateIceServers (setConfiguration) → ICE restart (offerer) / ask (answerer)
+            same call id, same tracks, same peer connections
+network change / socket back → _restartAllFresh (fresh list, no report) → ICE restart
+every reconnect retry (6 s) asks the list anew first (FO-4; ≤ 1 request per 10 s)
+a relay list is reused ≤ 60 s and dropped at the call's end (TS-4): the next call asks
+
+SFU group   any /calls/:id/sfu/* answers 503 CALL_MEDIA_UNAVAILABLE (5xx, timeout, 401/403,
+            key removed)  OR  the SFU breaker opens (CloudflareTransport.onOpen)
+            → CallsService.moveCallToOwn(callId): media_provider cloudflare → p2p
+              (updateMany = idempotent), > calls.sfu_fallback_mesh_max people → audio only,
+              Cloudflare state closed, call:participants {mediaProvider: p2p, mediaFallback}
+            → every phone: _applyProvider → _swapToMesh: SFU media closed, a FRESH
+              /calls/ice-servers list (FO-5, ≤ 1.8 s, else the cached one), mesh media
+              opened (mic / camera / speaker kept), early mesh offers replayed, _syncLinks
+              the screen keeps every picture (UI-01): CallController.media is ONE
+              HeldCallMediaView for the whole call — it holds the last frames while the
+              media underneath is swapped, each tile's renderer stays (key = userId) and
+              only its stream changes when the mesh's picture arrives; the hold ends
+              1.5 s after the first mesh link is up (10 s at most)
+            the phone cannot reach the SFU while the API answers (LC-5): the SFU link
+              «failed» / still down at a retry → POST /calls/:id/sfu/failed (once a
+              minute per phone) → CallsService.sfuFailed: recordClientFailure('sfu') for
+              the breaker + per-call reporters (Redis set / in-process, 60 s); half of the
+              joined members → moveCallToOwn(callId, 'phones_report') → the swap above
+            missed event → _resync (GET /calls/:id) swaps too; a mesh offer reaching an SFU
+            phone is kept and makes it ask the server
+            never moves back mid-call (per-call stickiness); new calls return by themselves
+
+SFU errors (audit 2026-10-26, group A2): the API client retries ONE transient failure
+            (5xx / timeout / 429 / Cloudflare's in-body transient codes) after 200–400 ms inside
+            the per-session queue; only what still fails reaches the broker:
+              5xx / timeout / backend_error …  one failure of N in M, 503 → the call moves
+              404 on the App (wrong / fresh App ID), 401/403   breaker opens at once, 503 →
+                     moves; admin status + «Проверить»: «App ID не найден … до 60 с»
+              429 (50 req/s per session)       429 RATE_LIMITED to that phone, never counted
+              session gone (404 / session_error) 409 reason session_gone → open a new session
+              tracks/update (layer)             counts, but 409: never moves the call
+            sessions/new of a NEW call: 2 s attempt, ≤ 2.5 s budget (one retry) — a dead SFU
+            means mesh within 3 s; while the breaker is open sessions/new answers 503 at once.
+            Switch-back: the breaker closes only after 3 good probes in a row (one a minute):
+            a flapping Cloudflare keeps fresh group calls on the mesh.
+
+«Reconnecting…»  CallSession.reconnecting becomes true only after the drop lasted
+                 kCallReconnectingDelay (3 s) — a relay switch or the swap is not seen.
+```
+
+Health: the TURN breaker probe (`cloudflare-relay-probe.ts`: a login AND a real STUN
+Binding + TURN Allocate on the Cloudflare relay) runs at most once a minute fleet-wide —
+while open (driven by new calls and the `ops.status-watchdog` job; only a relay that
+allocates closes it) and while closed too (the watchdog: two misses in a row open it,
+each miss also counts as one of the N failures). Admin → «Ключи и сервисы» →
+«Связь для звонков» → «Проверить» runs the same STUN Binding + TURN Allocate
+(`relay-check.ts`) on both sides. STUN list default: stun.cloudflare.com:3478, then Google.
