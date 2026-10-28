@@ -232,3 +232,32 @@ describe('buildSystemItems (the owner «Система» block)', () => {
     );
   });
 });
+
+describe('«Сегодня»: duplicate subscriptions (algo audit M-4)', () => {
+  it('held cases are a «today» item, auto-fixed ones a low note', () => {
+    const s = quiet();
+    s.billingDuplicates = {
+      fixed: 2,
+      refundedCents: 4_000,
+      needsReview: 1,
+      blocked: 0,
+    };
+    const items = buildSystemItems(s, NOW);
+    expect(items.map((i) => [i.code, i.severity])).toEqual([
+      ['billing_duplicates_review', 'high'],
+      ['billing_duplicates_fixed', 'low'],
+    ]);
+    expect(items[0].action.target).toBe('/stripe-review');
+  });
+
+  it('nothing today, nothing on the list', () => {
+    const s = quiet();
+    s.billingDuplicates = {
+      fixed: 0,
+      refundedCents: 0,
+      needsReview: 0,
+      blocked: 0,
+    };
+    expect(buildSystemItems(s, NOW)).toEqual([]);
+  });
+});

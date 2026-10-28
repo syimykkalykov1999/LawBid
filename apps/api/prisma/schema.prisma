@@ -3737,6 +3737,41 @@ model LedgerLine {
   @@map("ledger_lines")
 }
 
+/// Algo audit M-4 (owner 2026-10-28): one row per Stripe subscription the
+/// system found as a DUPLICATE of an attorney's kept subscription (a second
+/// device, a re-subscription after grace). The unique duplicate id makes every
+/// webhook retry idempotent; the row walks pending → canceled → refunding →
+/// refunded (or no_refund / review / blocked). Global family (billing).
+model BillingDuplicateFix {
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                   String    @db.Uuid
+  /// The Stripe subscription that stays (access follows it).
+  kept_subscription_id      String    @db.VarChar(80)
+  /// The Stripe subscription cancelled (or left alone when blocked).
+  duplicate_subscription_id String    @unique @db.VarChar(80)
+  /// app_order | webhook | grace_resubscribe
+  trigger                   String    @db.VarChar(24)
+  /// pending | canceled | refunding | refunded | no_refund | review | blocked
+  status                    String    @default("pending") @db.VarChar(16)
+  /// Why there is no automatic refund (no_charge, dispute, fraud_review,
+  /// daily_cap, nth_duplicate, switch_off, refund_failed, ...).
+  reason                    String?   @db.VarChar(40)
+  /// What the duplicate's last invoice charged (the refund never exceeds it).
+  charged_cents             Int       @default(0)
+  refund_cents              Int       @default(0)
+  currency                  String    @default("usd") @db.VarChar(3)
+  stripe_invoice_id         String?   @db.VarChar(80)
+  payment_id                String?   @db.Uuid
+  refund_id                 String?   @db.Uuid
+  canceled_at               DateTime? @db.Timestamptz
+  created_at                DateTime  @default(now()) @db.Timestamptz
+  updated_at                DateTime  @updatedAt @db.Timestamptz
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([created_at(sort: Desc), id(sort: Desc)])
+  @@map("billing_duplicate_fixes")
+}
+
 // Existence of the row = event already handled (webhook idempotency).
 /// Stripe robustness 2026-10-27: the unified review queue of the admin —
 /// failed payouts and refunds, disputes, early fraud warnings, a disconnect

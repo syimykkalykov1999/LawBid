@@ -487,6 +487,15 @@ export const OWNER_BILLING_GATE_SETTINGS = {
   /** Algo audit 2026-10-27 (MONEY M-2): a partial refund made in Stripe is
    * booked in the ledger (the payment stays succeeded). */
   'billing.partial_refund_ledger_enabled': true,
+  /** Algo audit M-4 (owner 2026-10-28): a duplicate subscription (second
+   * device, re-subscription after grace) is cancelled automatically and
+   * the unused remainder of its last invoice refunded, under anti-abuse
+   * guards. Off: the old behaviour (the newcomer is cancelled, no refund)
+   * and an alert for a manual decision. */
+  'billing.duplicate_subscription_autofix': true,
+  /** Algo audit M-4: the most the duplicate auto-fix refunds in one UTC day
+   * (cents, all attorneys together); above it a refund waits for a person. */
+  'billing.duplicate_autorefund_daily_cap_cents': 50_000,
   // Owner 2026-10-22 (systems checklist §12): Stripe Tax (automatic_tax)
   // on subscriptions, seat purchases, hosted checkouts and our card page.
   // Off until the owner enables Stripe Tax in the Stripe Dashboard

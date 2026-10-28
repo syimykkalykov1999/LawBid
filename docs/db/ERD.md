@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-297 tables.
+298 tables.
 
 ```mermaid
 erDiagram
@@ -1204,6 +1204,24 @@ erDiagram
     enum_LedgerDirection direction
     Int amount_cents
     DateTime created_at
+  }
+  billing_duplicate_fixes {
+    String id PK
+    String user_id
+    String kept_subscription_id
+    String duplicate_subscription_id UK
+    String trigger
+    String status
+    String reason "nullable"
+    Int charged_cents
+    Int refund_cents
+    String currency
+    String stripe_invoice_id "nullable"
+    String payment_id "nullable"
+    String refund_id "nullable"
+    DateTime canceled_at "nullable"
+    DateTime created_at
+    DateTime updated_at
   }
   stripe_review_items {
     String id PK

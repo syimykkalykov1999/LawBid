@@ -306,6 +306,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   case_payment_refunds: 'their refunds',
   stripe_review_items:
     'Stripe review queue (disputes, failed payouts, fraud warnings)',
+  billing_duplicate_fixes: 'auto-resolved duplicate subscriptions',
   // money ledger (test-mode entries; TRUNCATE ignores the append-only row triggers)
   ledger_lines: 'money ledger lines (test mode)',
   ledger_entries: 'money ledger entries (test mode)',

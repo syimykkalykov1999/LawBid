@@ -118,6 +118,8 @@ describe('SubscriptionSyncService.onInvoice — no local subscription yet', () =
   }) {
     const prisma = {
       subscription: { findUnique: jest.fn().mockResolvedValue(null) },
+      // Algo audit M-4: the customer has no attorney row (not a duplicate).
+      stripeCustomer: { findUnique: jest.fn().mockResolvedValue(null) },
       clientVerification: {
         findUnique: jest
           .fn()

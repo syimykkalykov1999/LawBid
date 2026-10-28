@@ -12,6 +12,9 @@ export const REVIEW_KINDS = [
   'account_deauthorized',
   'capability_disabled',
   'reconcile_drift',
+  // Algo audit M-4 (owner 2026-10-28): a duplicate subscription the system
+  // would not (or could not) fix and refund by itself.
+  'duplicate_subscription',
 ] as const;
 export type ReviewKind = (typeof REVIEW_KINDS)[number];
 
