@@ -73,6 +73,9 @@ class SearchPostTile extends ConsumerWidget {
       semanticLabel: '$kindLabel. $title. ${post.author.displayName}',
       showPin: false,
       autoplay: true,
+      // Owner 2026-10-28: the custom cover is for the profile grid only —
+      // a video here shows its own frame (and the muted preview).
+      customCover: false,
       index: at < 0 ? 0 : at,
       warmAhead: all == null || at < 0
           ? const []
