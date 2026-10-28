@@ -27,7 +27,10 @@ class FakeAddressRepo extends AddressSuggestionsRepository {
       items: kind == AddressKind.city
           ? const [
               AddressSuggestion(
-                  label: 'Hays, KS', city: 'Hays', stateCode: 'KS'),
+                label: 'Hays, KS',
+                city: 'Hays',
+                stateCode: 'KS',
+              ),
             ]
           : [
               AddressSuggestion(
