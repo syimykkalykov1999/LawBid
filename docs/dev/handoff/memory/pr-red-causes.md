@@ -9,4 +9,4 @@ Owner 2026-10-28: «каждый новый PR зависает с ошибка�
 
 **Why:** each miss costs a ~40-min CI round and the owner watches the PR list.
 
-**How to apply:** whenever a NEW cause of a red PR or failed deploy appears, append it to WORKER_BUILD_RULES.md §2026-10-28 (numbered) the same hour, before relaunching the fix — owner asked «записывай последующие ошибки». Every worker brief says "follow WORKER_BUILD_RULES.md §2026-10-28 before the single push"; gitleaks is installed on the Mac (/opt/homebrew/bin/gitleaks). Related: [[full-local-audit-before-push]], [[union-waves]].
+**How to apply:** whenever a NEW cause of a red PR or failed deploy appears, append it to docs/dev/KNOWN_ERRORS.md (committed, linked from README) AND WORKER_BUILD_RULES.md (numbered) the same hour, before relaunching the fix — owner asked «записывай последующие ошибки». Every worker brief says "follow WORKER_BUILD_RULES.md §2026-10-28 before the single push"; gitleaks is installed on the Mac (/opt/homebrew/bin/gitleaks). Related: [[full-local-audit-before-push]], [[union-waves]].

@@ -1,4 +1,5 @@
 # ⛔ STATE NOW — 2026-10-27 14:55 (для нового чата: читать первым)
+> ⚠️ Сначала прочитать docs/dev/KNOWN_ERRORS.md — журнал всех ошибок (PR, деплой, прод). Новые ошибки дописывать туда сразу.
 Влито сегодня с 04:00: 347 352 356 358 360 364 366 367 368 369 373 378 379 384 388 389 390 395 396 398 413 451 453 454 455 456 457 458 459 460 461 462 463 464 465 471
 ОТКРЫТО наших: #466 #467 #468 #469 #470 #472 (6 шагов админки, все зелёные кроме e2e 3/3 из-за main — уже починено #471) → все внутри ОБЩЕЙ ВЕТКИ claude/staff-union-2026-10-27 (worker union, agent a90818f11d8a321cc, идёт ПОЛНЫЙ локальный аудит; потом push → PR → CI → merge --merge; после этого 6 PR станут MERGED). #414 #415 — звонки, hold до тестов владельца. 11 dependabot — на skip.
 В РАБОТЕ (ветки от head union): T4 claude/staff-t4-desk-routing (agent ad8d045cdfd8e227d, аудит), T10 claude/staff-t10-owner-home (a6c8a173664b03338), T9 claude/staff-t9-review (a291d9ff2fdbc0aab), conflict-proof claude/conflict-proof-registries (a4c77c75e44345dc5). Когда готовы → ВТОРАЯ общая ветка (T4+T10+T9+conflict-proof+T12-гайд) → аудит → merge.
