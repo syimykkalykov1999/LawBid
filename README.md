@@ -8,6 +8,10 @@ Production-grade target (not an MVP): Flutter mobile client, NestJS API,
 PostgreSQL, Stripe billing, Redis/BullMQ, AWS infrastructure, built for
 scale (5M+ users / 500k DAU / 5k RPS design target).
 
+> **Before any change:** read [`docs/dev/KNOWN_ERRORS.md`](docs/dev/KNOWN_ERRORS.md) —
+> every mistake that already cost a red PR, a failed deploy or a prod outage,
+> with the check that prevents it. Add each new one there the same hour.
+
 ## Structure
 - `apps/mobile` — Flutter client
 - `apps/api` — NestJS backend
