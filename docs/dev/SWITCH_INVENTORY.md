@@ -11,6 +11,7 @@ Rows are sorted by key (plain code-unit order). Add the row anywhere and run `np
 
 | key | Русский ярлык (админка) | default | state | what it controls | reader | ceiling key | tested | registry row (fill after #372) |
 |---|---|---|---|---|---|---|---|---|
+| `addresses.autocomplete_enabled` | Подсказки адресов при вводе | auto | 3 (off/on/auto, old boolean accepted) | provider call (Amazon Location / Google Places) per debounced key stroke; auto = only when the chosen provider has keys / region | `modules/addresses/addresses.service.ts` (`activeProvider`) | `addresses.monthly_cap`, `addresses.per_user_per_day` (+ per-minute and global constants) | yes | |
 | `admin.access_report_enabled` | Отчёт «кто читал личное» | on | 2 | monthly e-mail to the owner of who read private content | `modules/admin/admin-access-report.service.ts:161` | none | listed | |
 | `admin.audit_export_enabled` | Ежедневная копия журнала действий | on | 2 | daily audit-log copy into the locked audit bucket (no-op without the bucket) | `modules/admin/audit-export.service.ts:95` | none | listed | |
 | `admin.ip_allowlist_enabled` | Вход в админку только с разрешённых адресов | off | 2 | admin panel limited to `admin.ip_allowlist` addresses | `modules/admin-auth/admin-security.service.ts:57` | `admin.ip_allowlist` | listed | |

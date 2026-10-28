@@ -1769,6 +1769,24 @@ export const OWNER_SEO_PROMOTION_SETTINGS = {
   'seo.sitemap_index_enabled': false,
 };
 
+/**
+ * Owner 2026-10-28: address suggestions while typing (every address field
+ * in the app; docs/architecture/ADDRESS_AUTOCOMPLETE_2026-10-28.md).
+ * enabled: off | on | auto (default). auto = works only once the chosen
+ * provider has its keys / region in Ключи и сервисы, so nothing is called
+ * (and nothing is billed) before the owner sets it up. provider: aws
+ * (Amazon Location, default, $0.20 per 1 000) | google (Places API (New)).
+ * monthly_cap: provider calls per calendar month for everybody together;
+ * above it the fields stay plain text until the 1st. per_user_per_day:
+ * one person's calls a day (typing an address is ~3-6 calls).
+ */
+export const OWNER_ADDRESS_SETTINGS = {
+  'addresses.autocomplete_enabled': 'auto',
+  'addresses.provider': 'aws',
+  'addresses.monthly_cap': 300000,
+  'addresses.per_user_per_day': 300,
+};
+
 export const APP_SETTINGS = {
   ...OWNER_COMPLIANCE_SETTINGS,
   ...FILE_03_SETTINGS,
@@ -1828,6 +1846,7 @@ export const APP_SETTINGS = {
   ...OWNER_SEO_PROMOTION_SETTINGS,
   // Staff package T1 (2026-10-27): «Админка и сотрудники», all switches off.
   ...OWNER_STAFF_SETTINGS,
+  ...OWNER_ADDRESS_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

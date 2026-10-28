@@ -184,5 +184,11 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="market" />
         </intent>
+        <!-- Owner 2026-10-28: a tapped address opens the system chooser of
+             the installed maps apps (lib/core/addresses/open_in_maps.dart). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
     </queries>
 </manifest>

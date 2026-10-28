@@ -109,6 +109,16 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     label: 'Apple Push (APNs) — звонки на iPhone',
     description: 'Звонит на iPhone, даже когда приложение закрыто (VoIP-пуши).',
   },
+  aws_location: {
+    label: 'Подсказки адресов (Amazon Location)',
+    description:
+      'Подсказывает адреса США (улица, дом, маленькие города), пока человек печатает адрес в деле, месте в чате или задаче. На AWS нужен только регион: запросы подписывает роль сервера. $0,20 за 1 000 запросов; включатель и потолок — addresses.* в Настройках.',
+  },
+  google_places: {
+    label: 'Подсказки адресов (Google Places)',
+    description:
+      'Второй поставщик подсказок адресов (addresses.provider = google). $2,83 за 1 000 запросов после 10 000 бесплатных в месяц. Ограничьте ключ одним API «Places API (New)».',
+  },
   aws_rekognition: {
     label: 'Проверка фото (AWS Rekognition)',
     description:
@@ -216,6 +226,9 @@ const FIELD_BY_PROVIDER: Record<string, string> = {
   'opensearch.prefix': 'Приставка имён индексов (по умолчанию lawbid)',
   'apns.privateKey': 'Содержимое файла ключа (.p8)',
   'apns.teamId': 'ID команды Apple',
+  'aws_location.accessKeyId': 'ID ключа доступа (пусто = роль сервера)',
+  'aws_location.secretAccessKey': 'Секретный ключ доступа',
+  'google_places.apiKey': 'Ключ Google (Places API (New), начинается с AIza)',
   'aws_rekognition.accessKeyId': 'ID ключа доступа (пусто = роль сервера)',
   'aws_rekognition.secretAccessKey': 'Секретный ключ доступа',
   'openai_moderation.apiKey': 'Ключ OpenAI (начинается с sk-)',
@@ -343,6 +356,10 @@ const FIELD_EN: Record<string, string> = {
   'opensearch.username': 'User name',
   'opensearch.password': 'Password',
   'opensearch.prefix': 'Index prefix',
+  'aws_location.region': 'Region',
+  'aws_location.accessKeyId': 'Access key ID',
+  'aws_location.secretAccessKey': 'Secret access key',
+  'google_places.apiKey': 'API key',
   'aws_rekognition.region': 'Region',
   'aws_rekognition.accessKeyId': 'Access key ID',
   'aws_rekognition.secretAccessKey': 'Secret access key',
@@ -443,6 +460,10 @@ export const FIELD_ENV: Record<string, string> = {
   'sentry.dsn': 'SENTRY_DSN',
   'cockroach_cloud.apiKey': 'COCKROACH_CLOUD_API_KEY',
   'cockroach_cloud.clusterId': 'COCKROACH_CLUSTER_ID',
+  'aws_location.region': 'ADDRESS_AWS_REGION',
+  'aws_location.accessKeyId': 'ADDRESS_AWS_ACCESS_KEY_ID',
+  'aws_location.secretAccessKey': 'ADDRESS_AWS_SECRET_ACCESS_KEY',
+  'google_places.apiKey': 'GOOGLE_PLACES_API_KEY',
   'aws_rekognition.region': 'REKOGNITION_REGION',
   'aws_rekognition.accessKeyId': 'REKOGNITION_ACCESS_KEY_ID',
   'aws_rekognition.secretAccessKey': 'REKOGNITION_SECRET_ACCESS_KEY',

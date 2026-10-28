@@ -66,18 +66,23 @@ class InfoRow extends StatelessWidget {
     required this.label,
     required this.value,
     super.key,
+    this.onTap,
   });
 
   final IconData icon;
   final String label;
   final String value;
 
+  /// Owner 2026-10-28: a row that can be tapped (an address opens maps).
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Semantics(
+    final row = Semantics(
       label: '$label: $value',
+      button: onTap != null,
       excludeSemantics: true,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
@@ -107,6 +112,7 @@ class InfoRow extends StatelessWidget {
         ),
       ),
     );
+    return onTap == null ? row : AppPressable(onTap: onTap, child: row);
   }
 }
 
@@ -147,39 +153,39 @@ class BottomActionBar extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     if (children.isEmpty) return const SizedBox.shrink();
     return DecoratedBox(
-        decoration: BoxDecoration(
-          color: colors.barFill,
-          border: Border(top: BorderSide(color: colors.border)),
-        ),
-        child: SafeArea(
-          top: false,
-          // Wide screens: the buttons stay a comfortable width, centred.
-          child: Center(
-            heightFactor: 1,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenSide,
-                  AppSpacing.md,
-                  AppSpacing.screenSide,
-                  AppSpacing.md,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (var i = 0; i < children.length; i++) ...[
-                      if (i > 0) const SizedBox(height: AppSpacing.sm),
-                      children[i],
-                    ],
+      decoration: BoxDecoration(
+        color: colors.barFill,
+        border: Border(top: BorderSide(color: colors.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        // Wide screens: the buttons stay a comfortable width, centred.
+        child: Center(
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenSide,
+                AppSpacing.md,
+                AppSpacing.screenSide,
+                AppSpacing.md,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < children.length; i++) ...[
+                    if (i > 0) const SizedBox(height: AppSpacing.sm),
+                    children[i],
                   ],
-                ),
+                ],
               ),
             ),
           ),
         ),
-      );
+      ),
+    );
   }
 }
 

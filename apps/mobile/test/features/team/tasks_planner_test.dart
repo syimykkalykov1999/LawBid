@@ -47,16 +47,6 @@ void main() {
   }
 
   group('plain links, nothing paid', () {
-    test('an address opens Google / Apple Maps and directions', () {
-      const a = '50 W Washington St, Chicago, IL';
-      final g = TaskLinks.googleMaps(a);
-      expect(g.host, 'www.google.com');
-      expect(g.path, '/maps/search/');
-      expect(g.queryParameters, {'api': '1', 'query': a});
-      expect(TaskLinks.appleMaps(a).host, 'maps.apple.com');
-      expect(TaskLinks.directions(a).queryParameters['destination'], a);
-    });
-
     test('a phone becomes a call, an email a letter', () {
       expect(
         TaskLinks.call('+1 (312) 555-0199').toString(),

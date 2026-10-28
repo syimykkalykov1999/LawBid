@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/addresses/address_field.dart';
+import 'package:lawbid/core/addresses/open_in_maps.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
@@ -25,25 +27,10 @@ import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
     show nameWithCheck, practiceLabel;
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// Owner 2026-10-20: the longest address a place card carries (the server
 /// refuses more).
 const int kPlaceMaxChars = 200;
-
-/// Opens [address] in the phone's maps (Apple Maps on iPhone, Google Maps
-/// elsewhere and on the web). False = nothing could open it.
-Future<bool> openPlaceInMaps(String address) async {
-  final apple = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
-  try {
-    return await launchUrl(
-      mapsUri(address, apple: apple),
-      mode: LaunchMode.externalApplication,
-    );
-  } on Object {
-    return false;
-  }
-}
 
 /// Saves the card as a `.vcf` and opens the share sheet — the phone's
 /// «Add to contacts» is in it. Name, firm, practice and the LawBid link;
@@ -282,40 +269,40 @@ class PlaceCardBody extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final chat = ChatColors.of(context);
     final fg = mine ? chat.onMine : chat.onTheirs;
-    return _CardFrame(
-      mine: mine,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AppIcon(AppIcons.placeOutlined, size: 22, color: fg),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Text(
-                  address,
-                  style: type.body.copyWith(color: fg, height: 1.3),
+    // Owner 2026-10-28: the whole card opens the maps chooser (before only
+    // the small «Open in maps» line did; a tap on the address did nothing).
+    return AppPressable(
+      key: const ValueKey('place-card'),
+      onTap: () => unawaited(openAddressInMaps(context, t, address)),
+      child: _CardFrame(
+        mine: mine,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AppIcon(AppIcons.placeOutlined, size: 22, color: fg),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    address,
+                    style: type.body.copyWith(color: fg, height: 1.3),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          _CardAction(
-            label: t.t('card.map'),
-            icon: AppIcons.openInNewRounded,
-            fg: fg,
-            onTap: () => unawaited(_open(context, t.t('card.map.failed'))),
-          ),
-        ],
+              ],
+            ),
+            _CardAction(
+              label: t.t('card.map'),
+              icon: AppIcons.openInNewRounded,
+              fg: fg,
+              onTap: () => unawaited(openAddressInMaps(context, t, address)),
+            ),
+          ],
+        ),
       ),
     );
-  }
-
-  Future<void> _open(BuildContext context, String failed) async {
-    if (!await openPlaceInMaps(address) && context.mounted) {
-      showAppSnackBar(context, failed);
-    }
   }
 }
 
@@ -475,7 +462,9 @@ class _PlaceSheetState extends ConsumerState<_PlaceSheet> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const AppSheetHandle(),
-            AppTextField(
+            // Owner 2026-10-28: US address suggestions while typing.
+            AddressField(
+              key: const ValueKey('place-address'),
               controller: _address,
               autofocus: true,
               leading: const AppIcon(AppIcons.placeOutlined),

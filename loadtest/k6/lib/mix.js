@@ -107,7 +107,24 @@ const cum = [];
 actions.reduce((a, x, i) => (cum[i] = a + x[1]), 0);
 export const avgReqs = actions.reduce((a, x) => a + (x[1] / total) * x[2], 0);
 
+// SKIP_ACTIONS=cases,search (comma list of action names): those actions are
+// re-drawn, i.e. left out of the mix. For "what breaks second" runs when the
+// first bottleneck is already known (local runs, docs/perf/LOCAL_LOAD_TEST_2026-10-28.md).
+const SKIP = (__ENV.SKIP_ACTIONS || "").split(",").map((s) => s.trim()).filter(Boolean);
+
 export function runOne() {
+  if (SKIP.length) {
+    for (let k = 0; k < 50; k++) {
+      const r = Math.random() * total;
+      for (let i = 0; i < actions.length; i++) {
+        if (r < cum[i]) {
+          if (SKIP.indexOf(actions[i][0]) === -1) return actions[i][3]();
+          break;
+        }
+      }
+    }
+    return undefined;
+  }
   const r = Math.random() * total;
   for (let i = 0; i < actions.length; i++) {
     if (r < cum[i]) return actions[i][3]();

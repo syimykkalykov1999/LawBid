@@ -244,6 +244,7 @@
   "modules/work-lease/staff.gateway.ts -> auth/services/token.service"
  ],
  "fanOut": {
+  "addresses": 1,
   "admin": 5,
   "admin-access": 1,
   "admin-auth": 3,

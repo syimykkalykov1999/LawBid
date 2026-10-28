@@ -159,6 +159,7 @@ const U = {
   ns: 'https://www.namecheap.com/domains/registration/gtld/dev/',
   gh: 'https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions',
   livekit: 'https://livekit.io/pricing',
+  aloc: 'https://aws.amazon.com/location/pricing/',
 } as const;
 
 const D = '2026-10-25';
@@ -1902,6 +1903,36 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     alarm:
       'лимит перевода в деньгах (BUDGET_TRANSLATE_*, лимит на человека в день $5)',
     providers: ['google_translate'],
+  },
+  {
+    id: 'vendor.address_autocomplete',
+    name: 'Подсказки адресов (Amazon Location / Google Places)',
+    purpose:
+      'Пока человек печатает адрес (дело, место в чате, задача), под полем появляются настоящие адреса США, включая маленькие города.',
+    kind: 'vendor',
+    control: {
+      type: 'app-setting',
+      key: 'addresses.autocomplete_enabled',
+      map: { off: 'off', on: 'on', auto: 'auto' },
+    },
+    states: ['off', 'on', 'auto'],
+    defaultState: 'auto',
+    ceiling: setCeil(
+      'addresses.monthly_cap',
+      'Запросов подсказок в месяц на всех (админка → Настройки)',
+    ),
+    price: price(
+      'unit',
+      '$0,20 за 1 000 запросов (Amazon Location, только текст адреса); Google — $2,83 за 1 000 после 10 000 бесплатных',
+      U.aloc,
+    ),
+    usd: { launch: R(0), k100: R(20, 240), m1: R(200, 2400) },
+    needed: 'auto',
+    neededNote:
+      'Без региона в «Ключи и сервисы» → Amazon Location ничего не зовётся и не стоит. Около 2–12 запросов на человека в месяц (ввод адреса — 3–6 запросов с паузой 300 мс). Потолок addresses.monthly_cap останавливает подсказки до 1-го числа, поле остаётся обычным.',
+    alarm: 'месячный потолок addresses.monthly_cap и лимит на человека в день',
+    ceService: 'Amazon Location Service',
+    providers: ['aws_location', 'google_places'],
   },
   {
     id: 'vendor.bar_registries',
