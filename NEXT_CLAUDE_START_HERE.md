@@ -1528,3 +1528,4 @@ PRINCIPLE (owner 07:55): assume the attacker is an automated AI (tireless, tries
 - 2026-10-28 08:25 MAIN RED since 05:09 CDT: API lint heap OOM (6GB). Fix PR #513 claude/ci-lint-oom (lint split in 2 processes). After merge: rerun/update 507/509/510/511 (base update). KNOWN_ERRORS #23.
 - 2026-10-28 08:45 a098c50 DONE → PR #514 theme-contrast (reels rail fixed overlay colors, WCAG tokens). Merge after main green (#513 + PDF determinism fix).
 - 2026-10-28 08:50 a48b0fd → PR #515 people/chat search tiers (stacked on #507; retarget to main after #507). Resumed same agent for deferred: attorney/case search + filters + wizard practice search.
+- 2026-10-28 08:55 a3621d0 DONE → PR #516 state bar registries: 16 auto (NY+15 presets, all OFF), 35 manual with reasons. Owner later: decide OK on/off (terms 'harvest'). Rate-limit in-memory per process (note).
