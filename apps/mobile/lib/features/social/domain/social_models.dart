@@ -173,6 +173,27 @@ class PostVideo {
 
   bool get ready => status == 'ready' && playbackUrl != null;
 
+  /// Owner 2026-10-28: the video's own frame picture, never the author's
+  /// custom cover (that one is for the profile grid only). The stream's
+  /// signed playlist lies in the video's folder on the CDN (the signature
+  /// covers the whole folder), and the frame `thumbnail.jpg` lies next to
+  /// it — [thumbnailUrl] may be a cover picked from the gallery instead.
+  /// Null when the stream is not ready or is not such a playlist.
+  String? get frameThumbnailUrl {
+    final url = ready ? playbackUrl : null;
+    if (url == null) return null;
+    // Plain text work: the CDN's token sits inside the path itself
+    // (`/bcdn_token=…&token_path=%2F<id>%2F&expires=…/<id>/playlist.m3u8`)
+    // and must stay byte for byte.
+    const playlist = '/playlist.m3u8';
+    final q = url.indexOf('?');
+    final path = q < 0 ? url : url.substring(0, q);
+    final query = q < 0 ? '' : url.substring(q);
+    if (!path.endsWith(playlist)) return null;
+    return '${path.substring(0, path.length - playlist.length)}'
+        '/thumbnail.jpg$query';
+  }
+
   /// What the player opens: in a browser the MP4 when there is one (Chrome
   /// and Firefox cannot play HLS by themselves), else the HLS playlist.
   String? playerUrl({required bool web}) =>

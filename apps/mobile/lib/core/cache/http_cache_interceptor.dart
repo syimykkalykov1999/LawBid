@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:lawbid/core/cache/network_usage.dart';
+import 'package:lawbid/core/network/legacy_shape_interceptor.dart';
 
 /// `Options.extra` key: an answer fetched within this many seconds is
 /// handed back from the phone with **no request** (plan §4 package D,
@@ -75,6 +76,8 @@ class HttpCacheInterceptor extends Interceptor {
     this.maxBytes = 16 * 1024 * 1024,
     this.maxDiskBodyBytes = 1024 * 1024,
     this.staleOnError = const Duration(hours: 8),
+    this.followerWait = const Duration(seconds: 8),
+    this.diskReadWait = const Duration(milliseconds: 1500),
     DateTime Function()? now,
   })  : _disk = disk,
         _usage = usage,
@@ -107,6 +110,13 @@ class HttpCacheInterceptor extends Interceptor {
 
   static const _hitExtra = 'httpCacheHit';
 
+  /// The longest an identical GET waits for the one in flight before it
+  /// asks the server itself.
+  final Duration followerWait;
+
+  /// The longest the saved copy is looked for on disk.
+  final Duration diskReadWait;
+
   final _entries = <String, HttpCacheEntry>{};
   int _bytes = 0;
 
@@ -130,7 +140,12 @@ class HttpCacheInterceptor extends Interceptor {
       _entries[key] = hit; // most recently used goes last
     } else {
       hit = await _readDisk(key);
-      if (hit != null) _put(key, hit);
+      if (hit != null) {
+        // A copy saved by an earlier app version, straight from an older
+        // server: readable for this app's models too.
+        fixLegacyShape(options.path, hit.data);
+        _put(key, hit);
+      }
     }
     if (hit == null) {
       if (await _followOrLead(options, key, handler)) return;
@@ -185,7 +200,18 @@ class HttpCacheInterceptor extends Interceptor {
       _inFlight[key] = Completer<Response<dynamic>?>();
       return false;
     }
-    final shared = await leader.future;
+    // Owner 2026-10-28 (app freeze): never wait on the leader forever. A
+    // leader whose answer is taken off the chain before this interceptor
+    // sees it (an earlier interceptor resolves / rejects it — e.g. the
+    // captive-portal check) never completes its entry; every identical GET
+    // after it then waited for good and never reached the server.
+    final shared = await leader.future.timeout(
+      followerWait,
+      onTimeout: () {
+        if (identical(_inFlight[key], leader)) _inFlight.remove(key);
+        return null;
+      },
+    );
     if (shared == null) {
       // The leader failed: this request becomes a leader of its own when
       // nobody else took over meanwhile.
@@ -339,7 +365,9 @@ class HttpCacheInterceptor extends Interceptor {
     final disk = _disk;
     if (disk == null) return null;
     try {
-      return await disk.read(key);
+      // Owner 2026-10-28 (app freeze): a stuck disk read must never hold a
+      // request back — then it is simply a miss and the server is asked.
+      return await disk.read(key).timeout(diskReadWait, onTimeout: () => null);
     } on Object catch (e) {
       debugPrint('http cache read: $e');
       return null;

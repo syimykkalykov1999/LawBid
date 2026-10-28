@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -131,6 +133,28 @@ final reviewSummaryProvider =
 /// failed live read behind a shown copy keeps the copy.
 final _liveProfileSeen = <String>{};
 
+/// The longest the saved copy of my profile is looked for.
+const savedProfileWait = Duration(seconds: 1);
+
+/// [f]'s value, or null when it fails or takes longer than [wait].
+Future<T?> _orNullAfter<T>(Future<T?> f, Duration wait) {
+  final done = Completer<T?>();
+  final timer = Timer(wait, () {
+    if (!done.isCompleted) done.complete(null);
+  });
+  f.then(
+    (v) {
+      timer.cancel();
+      if (!done.isCompleted) done.complete(v);
+    },
+    onError: (Object _) {
+      timer.cancel();
+      if (!done.isCompleted) done.complete(null);
+    },
+  );
+  return done.future;
+}
+
 @visibleForTesting
 Stream<T> savedThenLive<T>({
   required String? owner,
@@ -139,7 +163,9 @@ Stream<T> savedThenLive<T>({
 }) async* {
   var shown = false;
   if (owner != null && !_liveProfileSeen.contains(owner)) {
-    final copy = await saved();
+    // Owner 2026-10-28 (app freeze): a slow / stuck disk never holds the
+    // live read back (the «Кейсы» tab waits on this profile).
+    final copy = await _orNullAfter(saved(), savedProfileWait);
     if (copy != null) {
       shown = true;
       yield copy;

@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
 import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
 import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
@@ -59,9 +60,9 @@ class QaFeedBody extends ConsumerStatefulWidget {
 
   final bool initialUnanswered;
 
-  /// Inside the Cases tabs: the sections change by tap only, so the swipe
-  /// between the Cases tabs stays free (a PageView in a PageView would eat
-  /// it) and a drag to the right is not «back».
+  /// Inside the Cases tabs: the sections are nested [SwipePages] — a swipe
+  /// moves through them first and, at the first / last one, on to the
+  /// neighbouring Cases tab; a drag to the right is not «back».
   final bool embedded;
 
   @override
@@ -247,7 +248,20 @@ class _QaFeedBodyState extends ConsumerState<QaFeedBody> {
                 // Owner 2026-10-22: the first page's drag to the right is
                 // «back».
                 child: widget.embedded
-                    ? _sections(attorney, const NeverScrollableScrollPhysics())
+                    // Owner 2026-10-28: inside the Cases tabs a swipe moves
+                    // through these sections first and only past the last
+                    // (or first) one to the next Cases tab — like «Дела».
+                    ? SwipePages<QaTab>(
+                        value: _tab,
+                        values: QaTab.values,
+                        onChanged: (v) => setState(() => _tab = v),
+                        pageBuilder: (_, tab) => _QaPage(
+                          key: ValueKey('qa-page-${tab.name}'),
+                          query: _queryFor(tab, attorney),
+                          attorney: attorney,
+                          mineTab: tab == QaTab.mine,
+                        ),
+                      )
                     : BackAwarePages(
                         controller: _pages,
                         child: _sections(

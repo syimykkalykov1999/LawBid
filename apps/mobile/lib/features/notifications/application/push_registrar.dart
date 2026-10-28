@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:lawbid/core/network/api_error.dart';
 
 /// S15-7: registers the FCM token with the server and keeps it registered.
 ///
@@ -65,6 +66,11 @@ class PushRegistrar {
         return;
       } on Object catch (e) {
         debugPrint('push token not registered (try ${attempt + 1}): $e');
+        // Owner 2026-10-28: a refusal the same request can never get past
+        // (400 / 404 / 422 — e.g. an older server) is not retried: the next
+        // app start or resume tries again (16 refused calls in 15 min were
+        // seen in prod against an older server).
+        if (isPermanentRefusal(e)) return;
         final wait =
             delays[attempt < delays.length ? attempt : delays.length - 1];
         await _sleep(wait);
@@ -91,6 +97,18 @@ class PushRegistrar {
     token ??= _token;
     if (token == null) return;
     await register(token);
+  }
+
+  /// A 4xx answer that repeating the same request cannot change (not 401,
+  /// which the token refresh handles, nor 408 / 429, which pass with time).
+  static bool isPermanentRefusal(Object e) {
+    final status = e is ApiException ? e.statusCode : null;
+    return status != null &&
+        status >= 400 &&
+        status < 500 &&
+        status != 401 &&
+        status != 408 &&
+        status != 429;
   }
 
   /// Sign-out / another user: stop any retry loop.

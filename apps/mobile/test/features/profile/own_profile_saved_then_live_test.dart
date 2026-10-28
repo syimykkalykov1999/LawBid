@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 
@@ -50,6 +52,16 @@ void main() {
       saved: () async => fail('must not read'),
       live: () async => 'new',
     ).toList();
+    expect(seen, ['new']);
+  });
+
+  test('a stuck disk never holds the live profile back', () async {
+    // Owner 2026-10-28: the «Кейсы» tab waits on this profile.
+    final seen = await savedThenLive<String>(
+      owner: 't5',
+      saved: () => Completer<String?>().future,
+      live: () async => 'new',
+    ).toList().timeout(savedProfileWait * 3);
     expect(seen, ['new']);
   });
 }

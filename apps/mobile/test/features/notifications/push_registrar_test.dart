@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/notifications/application/push_registrar.dart';
 
 void main() {
@@ -22,6 +23,43 @@ void main() {
     expect(sends, 3);
     expect(waits, [const Duration(seconds: 5), const Duration(seconds: 30)]);
     expect(stamp, t0.millisecondsSinceEpoch);
+  });
+
+  test(
+      'a refusal the request can never pass (400 from an older server) is '
+      'not retried', () async {
+    // Owner 2026-10-28: 16 refused calls in 15 minutes were seen in prod.
+    var sends = 0;
+    final waits = <Duration>[];
+    final r = PushRegistrar(
+      send: (t) async {
+        sends++;
+        throw const ApiException(
+          code: ApiErrorCodes.validationError,
+          message: 'property actorStyle should not exist',
+          statusCode: 400,
+        );
+      },
+      readLastRegisteredMs: () async => null,
+      writeLastRegisteredMs: (_) async {},
+      sleep: (d) async => waits.add(d),
+    );
+    await r.register('tok');
+    expect(sends, 1);
+    expect(waits, isEmpty);
+    // 429 / 5xx / offline still retry.
+    expect(
+      PushRegistrar.isPermanentRefusal(
+        const ApiException(code: 'RATE_LIMITED', message: '', statusCode: 429),
+      ),
+      isFalse,
+    );
+    expect(
+      PushRegistrar.isPermanentRefusal(
+        const ApiException(code: 'X', message: '', statusCode: 503),
+      ),
+      isFalse,
+    );
   });
 
   test('a newer token ends the older retry loop', () async {
