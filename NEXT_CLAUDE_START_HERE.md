@@ -1529,3 +1529,6 @@ PRINCIPLE (owner 07:55): assume the attacker is an automated AI (tireless, tries
 - 2026-10-28 08:45 a098c50 DONE → PR #514 theme-contrast (reels rail fixed overlay colors, WCAG tokens). Merge after main green (#513 + PDF determinism fix).
 - 2026-10-28 08:50 a48b0fd → PR #515 people/chat search tiers (stacked on #507; retarget to main after #507). Resumed same agent for deferred: attorney/case search + filters + wizard practice search.
 - 2026-10-28 08:55 a3621d0 DONE → PR #516 state bar registries: 16 auto (NY+15 presets, all OFF), 35 manual with reasons. Owner later: decide OK on/off (terms 'harvest'). Rate-limit in-memory per process (note).
+- 2026-10-28 09:05 #513 MERGED (main green again: lint split + PDF determinism). Updated branches 507/509/510/511/514/516 to rerun CI.
+- 2026-10-28 09:10 OWNER: calls must follow proven open-source references (MIT/Apache only; no GPL copy). Sent to a7d72fc: reference doc + port state machine/teardown/push + 4-combo tests.
+- 2026-10-28 09:00 OWNER RULE everywhere fragile (calls, reels/video, uploads, push, nav/keyboard, search): port proven MIT/Apache internals, keep our look. Told a74f7a6 (reels) + a88704b (nav/keyboard). Queued uploads + notifications tasks must start with a reference doc.

@@ -28,3 +28,4 @@
 - [Self-hosting readiness](self-hosting-readiness.md) — 2026-10-28: prepare AWS→own servers move now (adapters + switch, hidden), after tests
 - [PR red causes](pr-red-causes.md) — 2026-10-28: recurring CI failures checklist in WORKER_BUILD_RULES.md; cite it in every worker brief
 - [Light on phones and server](device-and-server-light.md) — 2026-10-28: every feature light on phones+server, direct uploads, HW compression, no quality loss
+- [Proven reference rule](proven-reference-rule.md) — 2026-10-28: fragile areas copy MIT/Apache open-source internals, our look stays, no GPL
