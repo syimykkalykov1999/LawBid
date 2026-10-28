@@ -74,7 +74,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         focusRingGlow: AppColorsLight.focusRingGlow,
         danger: AppColorsStatus.danger,
         success: AppColorsStatus.success,
-        warning: AppColorsStatus.warning,
+        warning: AppColorsLight.warning,
         info: AppColorsStatus.info,
         shadow: AppColorsLight.shadow,
         goldTint: AppColorsLight.goldTint,
@@ -90,7 +90,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         sheet: AppColorsLight.surface,
         inverseText: AppColorsLight.bg,
         barFill: AppColorsLight.bg,
-        successText: AppColorsStatus.success,
+        successText: AppColorsLight.successText,
         verifiedGold: Color(0xFF9C7A35),
         verifiedGreen: Color(0xFF1F9D67),
       );

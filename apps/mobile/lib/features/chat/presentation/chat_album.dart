@@ -205,7 +205,6 @@ class ChatMediaAlbum extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
     final w = width ?? chatMediaLimits(context).maxWidth;
     final aspects = [for (final i in items) chatAspectOf(i.attachment)];
     final known = aspects.whereType<double>().toList();
@@ -289,12 +288,12 @@ class ChatMediaAlbum extends ConsumerWidget {
                     label: t.t('error.retry'),
                     child: AppPressable(
                       onTap: item.onRetry,
-                      child: ColoredBox(
+                      child: const ColoredBox(
                         color: Colors.black38,
                         child: Center(
                           child: AppIcon(
                             AppIcons.errorOutlineRounded,
-                            color: colors.danger,
+                            color: AppMediaOverlay.error,
                             size: 28,
                           ),
                         ),
