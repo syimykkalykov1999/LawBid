@@ -32,6 +32,7 @@ import {
   CaseCompletionReminderJob,
   CaseStaleAskJob,
 } from './handlers/case-lifecycle.jobs';
+import { CaseRebroadcastJob } from './handlers/case-rebroadcast.job';
 import { CaseDeadlineReminderJob } from './handlers/case-deadline-reminder.job';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
@@ -249,6 +250,8 @@ export class CronProcessor {
     @Optional() private readonly staffWeeklyDigest?: StaffWeeklyDigestJob,
     // S10-13: one lock per job name for every schedule.
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
+    // Algo audit 2026-10-27 (CASES M-3).
+    @Optional() private readonly caseRebroadcast?: CaseRebroadcastJob,
   ) {}
 
   /**
@@ -331,6 +334,8 @@ export class CronProcessor {
         return this.caseStaleAsk.run();
       case CRON_JOBS.caseStalePause:
         return this.caseStalePause.run();
+      case CRON_JOBS.caseRebroadcast:
+        return this.caseRebroadcast?.run() ?? null;
       case CRON_JOBS.caseAutoClose:
         return this.caseAutoClose.run();
       case CRON_JOBS.caseCompletionReminder:
@@ -522,6 +527,8 @@ export class CronProcessor {
         return this.economy?.tick();
       case CRON_JOBS.treasuryDaily:
         return this.treasury?.daily() ?? null;
+      case CRON_JOBS.payrollStuckSweep:
+        return this.treasury?.payrollStuckSweep() ?? null;
       default:
         // A job left over from an older/newer release: fail it visibly
         // rather than "succeed" doing nothing.

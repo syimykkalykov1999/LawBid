@@ -74,6 +74,18 @@ export class SubscriptionAlertsService {
     return (await this.fanout?.start(caseId)) ?? 0;
   }
 
+  /** Algo audit 2026-10-27 (CASES C-1): the case became urgent — the
+   * «Только срочные» attorneys (left out so far) are told now. */
+  async urgentTopUp(caseId: string): Promise<number> {
+    return (await this.fanout?.startExtra(caseId, 'urgent_top_up')) ?? 0;
+  }
+
+  /** Algo audit 2026-10-27 (CASES M-3): no offers after [tag] — whoever in
+   * the audience was not alerted yet is told (never anyone twice). */
+  async rebroadcast(caseId: string, tag: string): Promise<number> {
+    return (await this.fanout?.startExtra(caseId, 'rebroadcast', tag)) ?? 0;
+  }
+
   /**
    * followersOfPost() for several databases (shard-ready step 8): the
    * follows (user family, scattered), the people's status (global), their

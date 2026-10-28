@@ -150,3 +150,20 @@ export class VerificationOverviewDto {
   @ApiProperty({ type: 'integer' })
   maxSubmissions30Days!: number;
 }
+
+/** Owner 2026-10-28: a one-time selfie capture token (the app asks for it
+ * right before it opens the guided camera). */
+export class SelfieCaptureTokenDto {
+  @ApiProperty({ description: 'Send back as captureToken with the selfie.' })
+  token!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  expiresAt!: string;
+
+  @ApiProperty({
+    description:
+      'verification.selfie_live_capture_required: false = the server also ' +
+      'accepts a selfie without the token.',
+  })
+  required!: boolean;
+}

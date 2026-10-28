@@ -63,6 +63,7 @@ function make(opts: {
             rating_avg: 4,
             rating_count: 1,
             new_case_alerts_custom: false,
+            new_case_alerts_urgent_only: id === 'a2',
             practice_areas: [{ practice_area_id: 'pa-1' }],
             new_case_alert_practices: [],
             licenses: [{ state_code: 'CA' }],
@@ -143,5 +144,34 @@ describe('CaseAudienceService — who hears about a new case', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it('M-5: over the bound the most trusted / reviewed are kept (ORDER BY before LIMIT), in both modes', async () => {
+    const one = make({});
+    await one.svc.forCase(CASE);
+    expect(one.sql[0]).toMatch(
+      /ORDER BY max\(p\.trust_level\) DESC, max\(p\.rating_count\) DESC[\s\S]*LIMIT/,
+    );
+    const split = make({ split: true });
+    await split.svc.forCase(CASE);
+    expect(split.prisma.attorneyProfile.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [
+          { trust_level: 'desc' },
+          { rating_count: 'desc' },
+          { user_id: 'asc' },
+        ],
+      }),
+    );
+  });
+
+  it('C-1: every candidate says whether «Только срочные» is on', async () => {
+    const one = make({});
+    await one.svc.forCase(CASE);
+    expect(one.sql[0]).toContain('bool_or(p.new_case_alerts_urgent_only)');
+    const split = make({ split: true });
+    const c = (await split.svc.forCase(CASE)).candidates;
+    expect(c.find((x) => x.id === 'a2')?.urgentOnly).toBe(true);
+    expect(c.find((x) => x.id === 'a1')?.urgentOnly).toBe(false);
   });
 });

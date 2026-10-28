@@ -62,6 +62,9 @@ export const CRON_JOBS = {
   caseStalePause: 'cases.stale-pause',
   caseAutoClose: 'cases.auto-close',
   caseCompletionReminder: 'cases.completion-reminder',
+  /** Algo audit 2026-10-27 (CASES M-3): no offers after 24 / 72 h — the
+   * not-yet-alerted part of the audience is told. */
+  caseRebroadcast: 'cases.rebroadcast',
   /** docs/05 stage 5.1: nightly counters reconcile. */
   countersReconcile: 'counters.reconcile',
   /** docs/05 §2.2.2: recommendations every 10 minutes. */
@@ -211,6 +214,9 @@ export const CRON_JOBS = {
   /** Owner 2026-10-05 «Прибыль и резерв»: payout statuses, a change of the
    * banks in Stripe, and the monthly split on its payout day. */
   treasuryDaily: 'treasury.daily',
+  /** Algo audit 2026-10-27 (MONEY H-7): salary transfers left
+   * `processing` by a crash are re-sent with their idempotency key. */
+  payrollStuckSweep: 'payroll.stuck-sweep',
   /** Owner 2026-10-23 (admin economy pass): the admin's heavy aggregates
    * (dashboard, billing overview, trust scan) counted once into Redis. */
   adminSummaries: 'admin.summaries',
@@ -282,6 +288,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.caseStalePause, pattern: '25 * * * *' },
   { name: CRON_JOBS.caseAutoClose, pattern: '35 * * * *' },
   { name: CRON_JOBS.caseCompletionReminder, pattern: '45 * * * *' },
+  { name: CRON_JOBS.caseRebroadcast, pattern: '55 * * * *' },
   { name: CRON_JOBS.countersReconcile, pattern: '50 4 * * *' },
   { name: CRON_JOBS.feedReco, pattern: '*/10 * * * *' },
   { name: CRON_JOBS.trendingTags, pattern: '5-55/10 * * * *' },
@@ -353,6 +360,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.economyGuard, pattern: '*/5 * * * *' },
   // 15:40 UTC ≈ 08:40 Pacific: a weekday-morning payout starts that day.
   { name: CRON_JOBS.treasuryDaily, pattern: '40 15 * * *' },
+  { name: CRON_JOBS.payrollStuckSweep, pattern: '*/10 * * * *' },
   // Nightly, after Stripe has settled the previous day (UTC).
   { name: CRON_JOBS.ledgerReconcile, pattern: '15 5 * * *' },
   // Privacy round 13: retention after the storage one, reconcile after the

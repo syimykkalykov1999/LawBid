@@ -1,18 +1,22 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { VerificationDocType } from '@prisma/client';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsDateString,
   IsEnum,
   IsIn,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   Length,
   Matches,
+  Max,
   MaxLength,
+  Min,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 import { APPLICANT_COMMENT_MAX } from '../verification.constants';
 
@@ -123,6 +127,91 @@ export class AddLicenseDto {
 
 /** POST /verification/requests/:id/documents — attach a `clean` uploaded
  * file (§2.1, §2.2). */
+export const SELFIE_LIVENESS_RESULTS = [
+  'passed',
+  'not_checked',
+  'skipped',
+] as const;
+export type SelfieLivenessResult = (typeof SELFIE_LIVENESS_RESULTS)[number];
+export const SELFIE_CHALLENGES = ['blink', 'turn_left', 'turn_right'] as const;
+export const SELFIE_FALLBACK_REASONS = [
+  'timeout',
+  'detector_unavailable',
+] as const;
+export const SELFIE_CAPTURE_PLATFORMS = ['android', 'ios', 'web'] as const;
+
+/**
+ * Owner 2026-10-28 (docs/architecture/ID_SELFIE_CAPTURE_2026-10-28.md): what
+ * the app's guided selfie camera saw. Reported by the app, so the verifier
+ * reads it as a hint next to the picture, never as proof.
+ */
+export class SelfieCaptureMetaDto {
+  @ApiProperty({
+    enum: SELFIE_LIVENESS_RESULTS,
+    description:
+      'passed = the random on-device liveness prompt was done; not_checked = ' +
+      'no face detector on this device (manual shot); skipped = the attorney ' +
+      'used «Take photo anyway» after the timeout (still the live camera).',
+  })
+  @IsIn(SELFIE_LIVENESS_RESULTS)
+  liveness!: SelfieLivenessResult;
+
+  @ApiPropertyOptional({
+    enum: SELFIE_CHALLENGES,
+    nullable: true,
+    description: 'The random prompt shown (blink / turn the head).',
+  })
+  @IsOptional()
+  @IsIn(SELFIE_CHALLENGES)
+  challenge?: (typeof SELFIE_CHALLENGES)[number] | null;
+
+  @ApiPropertyOptional({
+    enum: SELFIE_FALLBACK_REASONS,
+    nullable: true,
+    description: 'Why liveness was not passed, when it was not.',
+  })
+  @IsOptional()
+  @IsIn(SELFIE_FALLBACK_REASONS)
+  fallbackReason?: (typeof SELFIE_FALLBACK_REASONS)[number] | null;
+
+  @ApiProperty({ description: 'Exactly one face was found in the oval.' })
+  @IsBoolean()
+  faceDetected!: boolean;
+
+  @ApiProperty({
+    description:
+      'Text was found where the ID card is held (a soft hint; false = not ' +
+      'auto-detected, the verifier checks the picture).',
+  })
+  @IsBoolean()
+  cardDetected!: boolean;
+
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: 5 })
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  framesCaptured!: number;
+
+  @ApiProperty({ format: 'date-time', description: 'Camera opened.' })
+  @IsDateString()
+  startedAt!: string;
+
+  @ApiProperty({ format: 'date-time', description: 'Picture taken.' })
+  @IsDateString()
+  capturedAt!: string;
+
+  @ApiProperty({ enum: SELFIE_CAPTURE_PLATFORMS })
+  @IsIn(SELFIE_CAPTURE_PLATFORMS)
+  platform!: (typeof SELFIE_CAPTURE_PLATFORMS)[number];
+
+  @ApiPropertyOptional({ maxLength: 80, description: 'e.g. "iPhone15,2".' })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  deviceModel?: string;
+}
+
 export class AttachDocumentDto {
   @ApiProperty({ format: 'uuid', description: 'A confirmed, clean upload.' })
   @IsUUID('all')
@@ -162,4 +251,24 @@ export class AttachDocumentDto {
   @IsString()
   @MaxLength(APPLICANT_COMMENT_MAX)
   note?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 64,
+    description:
+      'Selfie only: the one-time token from POST requests/{id}/selfie-capture ' +
+      '(owner 2026-10-28). Required while verification.selfie_live_capture_required ' +
+      'is on (default); missing / unknown / used / expired → 400 VALIDATION_ERROR ' +
+      'with details.reason capture_token_missing / capture_token_invalid / ' +
+      'capture_token_expired.',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(16, 64)
+  captureToken?: string;
+
+  @ApiPropertyOptional({ type: SelfieCaptureMetaDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SelfieCaptureMetaDto)
+  captureMeta?: SelfieCaptureMetaDto;
 }

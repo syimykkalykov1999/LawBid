@@ -21,7 +21,7 @@ interface World {
   sent: Map<string, string>; // `<dedupe key>|<user>` -> dedupe key (one row per person and key)
   emitted: { ids: string[]; type: string }[];
   digests: string[][];
-  jobs: { job: CaseFanoutJob; delay: number }[];
+  jobs: { job: CaseFanoutJob; delay: number; jobId?: string }[];
   state: {
     status: string;
     bids: number;
@@ -39,7 +39,7 @@ interface World {
 function world(
   n: number,
   overrides: Record<string, unknown> = {},
-  opts: { withQueue?: boolean; newcomers?: number } = {},
+  opts: { withQueue?: boolean; newcomers?: number; urgentOnly?: number } = {},
 ): World {
   const withQueue = opts.withQueue ?? true;
   const sent = new Map<string, string>();
@@ -64,6 +64,10 @@ function world(
     ratingAvg: 4.5,
     ratingCount: 10,
   }));
+  // The first `urgentOnly` people have «Только срочные» on (C-1 top-up).
+  candidates.forEach((c, i) => {
+    c.urgentOnly = i < (opts.urgentOnly ?? 0);
+  });
   // The last `newcomers` people are new: no alerts yet; the rest are old hands.
   candidates.forEach((c, i) => {
     state.alertsTotal[c.id] = i >= n - newcomers ? 0 : 500;
@@ -166,7 +170,7 @@ function world(
         job: CaseFanoutJob,
         o: { delay: number; jobId: string },
       ) => {
-        jobs.push({ job, delay: o.delay });
+        jobs.push({ job, delay: o.delay, jobId: o.jobId });
       },
     };
   }
@@ -387,6 +391,8 @@ describe('case fan-out waves', () => {
       'case_fanout.enabled': false,
       'case_fanout.first_wave_size': 2,
       'case_fanout.daily_cap': 1,
+      // CASES M-4 off = the gate-free legacy wave of before.
+      'case_fanout.legacy_fraud_gate_enabled': false,
     });
     w.state.fraud = 'restricted';
     w.state.alerts24h['a001'] = 9;
@@ -488,6 +494,109 @@ describe('case fan-out waves', () => {
       const out = await w.svc.runWave(w.jobs.shift()!.job);
       expect(out).toMatchObject({ done: false, sent: 5 });
       expect(w.jobs).toHaveLength(1);
+    });
+  });
+
+  // Algo audit 2026-10-27 (CASES M-4).
+  describe('fraud gate with the waves off', () => {
+    it('a restricted client: the one legacy wave reaches nobody', async () => {
+      const w = world(12, { 'case_fanout.enabled': false });
+      w.state.fraud = 'restricted';
+      expect(await w.svc.runWave({ caseId: CASE, wave: 1 })).toEqual({
+        done: 'fraud',
+      });
+      expect(w.sent.size).toBe(0);
+    });
+
+    it('a review client with "small": no waves to slice, so everybody', async () => {
+      const w = world(12, {
+        'case_fanout.enabled': false,
+        'case_fanout.fraud_review_action': 'small',
+      });
+      w.state.fraud = 'review';
+      expect(await w.svc.runWave({ caseId: CASE, wave: 1 })).toMatchObject({
+        sent: 12,
+      });
+    });
+  });
+
+  // Algo audit 2026-10-27 (CASES C-1): the case became urgent later.
+  describe('urgent top-up', () => {
+    it('only «Только срочные» people, once, under the same key; nobody twice', async () => {
+      const w = world(10, { 'case_fanout.enabled': false }, { urgentOnly: 3 });
+      // Round 1 while not urgent: the audience then had no urgent-only people.
+      w.state.urgent = false;
+      await w.svc.runWave({ caseId: CASE, wave: 1 });
+      // (the stub audience returns everyone; mark round 1 as the 7 others)
+      w.sent.clear();
+      for (let i = 3; i < 10; i++)
+        w.sent.set(
+          `case_fanout:${CASE}|a${String(i).padStart(3, '0')}`,
+          `case_fanout:${CASE}`,
+        );
+      w.emitted.length = 0;
+      w.state.urgent = true;
+      expect(await w.svc.startExtra(CASE, 'urgent_top_up')).toBe(0);
+      expect(w.jobs[0].jobId).toBe(`casefanout-${CASE}-w1-urgent`);
+      const out = await w.svc.runWave(w.jobs.shift()!.job);
+      expect(out).toMatchObject({ done: 'last', sent: 3 });
+      expect(w.emitted).toEqual([
+        { ids: ['a000', 'a001', 'a002'], type: 'new_urgent_case' },
+      ]);
+      // A retry sends nothing more.
+      expect(
+        await w.svc.runWave({ caseId: CASE, wave: 1, mode: 'urgent_top_up' }),
+      ).toEqual({ done: 'all_reached' });
+    });
+
+    it('no longer urgent when it runs: nothing is sent', async () => {
+      const w = world(10, {}, { urgentOnly: 3 });
+      w.state.urgent = false;
+      expect(
+        await w.svc.runWave({ caseId: CASE, wave: 1, mode: 'urgent_top_up' }),
+      ).toEqual({ done: 'closed' });
+      expect(w.sent.size).toBe(0);
+    });
+  });
+
+  // Algo audit 2026-10-27 (CASES M-3).
+  describe('re-broadcast of a case without offers', () => {
+    it('reaches only the not-yet-alerted, in one wave, without a digest or follow-up waves', async () => {
+      const w = world(20, {
+        'case_fanout.first_wave_size': 5,
+        'case_fanout.wave_size': 5,
+        'case_fanout.max_waves': 2,
+        'case_fanout.daily_cap': 1,
+      });
+      expect(await drain(w)).toEqual([5, 5]);
+      expect(w.sent.size).toBe(10);
+      // Someone not reached yet is still over today's cap: skipped silently.
+      const left = Array.from(
+        { length: 20 },
+        (_, i) => `a${String(i).padStart(3, '0')}`,
+      ).find((id) => !w.sent.has(`case_fanout:${CASE}|${id}`))!;
+      w.state.alerts24h[left] = 3;
+      w.digests.length = 0;
+      await w.svc.startExtra(CASE, 'rebroadcast', '24h');
+      expect(w.jobs[0].jobId).toBe(`casefanout-${CASE}-w1-rb24h`);
+      const out = await w.svc.runWave(w.jobs.shift()!.job);
+      expect(out).toMatchObject({ done: 'last', sent: 9 });
+      expect(w.sent.size).toBe(19);
+      expect(w.digests).toHaveLength(0);
+      expect(w.jobs).toHaveLength(0);
+    });
+
+    it('everybody already alerted: nothing', async () => {
+      const w = world(5, { 'case_fanout.enabled': false });
+      await drain(w);
+      expect(
+        await w.svc.runWave({
+          caseId: CASE,
+          wave: 1,
+          mode: 'rebroadcast',
+          tag: '72h',
+        }),
+      ).toEqual({ done: 'all_reached' });
     });
   });
 });

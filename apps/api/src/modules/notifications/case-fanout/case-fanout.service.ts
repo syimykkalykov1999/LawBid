@@ -59,6 +59,16 @@ export interface CaseFanoutJob {
    * job was queued; part of the job id so a re-alert is never swallowed
    * by a stored job of the first round. */
   generation?: number;
+  /** Algo audit 2026-10-27: an extra one-off round of the same generation
+   * (same dedupe key, so nobody hears twice):
+   *  - `urgent_top_up` (CASES C-1): the case became urgent — the attorneys
+   *    with «Только срочные» (left out before) are told now;
+   *  - `rebroadcast` (CASES M-3): no offers after N hours — whoever in the
+   *    audience was not alerted yet (newly verified, over the cap, beyond
+   *    the waves) is told. */
+  mode?: 'urgent_top_up' | 'rebroadcast';
+  /** Part of the job id of an extra round (e.g. `24h`). */
+  tag?: string;
 }
 
 /**
@@ -148,6 +158,37 @@ export class CaseFanoutService
       : `casefanout-${caseId}-w${wave}`;
   }
 
+  /**
+   * An extra one-off round (see CaseFanoutJob.mode). Queued with retries
+   * when Redis is there (job id per case, generation, mode and tag), else
+   * run here. Returns the alerts sent right here (0 when queued).
+   */
+  async startExtra(
+    caseId: string,
+    mode: 'urgent_top_up' | 'rebroadcast',
+    tag = '',
+  ): Promise<number> {
+    const s = await loadFanoutSettings(this.settings);
+    const kase = await this.prisma.case.findUnique({
+      where: { id: caseId },
+      select: { alert_generation: true },
+    });
+    if (!kase) return 0;
+    const job: CaseFanoutJob = {
+      caseId,
+      wave: 1,
+      generation: kase.alert_generation,
+      mode,
+      ...(tag ? { tag } : {}),
+    };
+    if (!this.queue || (!s.enabled && s.queueMode === 'off')) {
+      const out = await this.runWave(job);
+      return 'sent' in out ? out.sent : 0;
+    }
+    await this.enqueue(job, 0);
+    return 0;
+  }
+
   /** Queues wave 1 (delayed for a suspicious client). Returns the number
    * of alerts sent right here (no Redis, or queue_mode off while the waves
    * are off), 0 when queued. */
@@ -194,11 +235,13 @@ export class CaseFanoutService
       },
       {
         ...JOB_OPTS,
-        jobId: CaseFanoutService.jobId(
-          job.caseId,
-          job.wave,
-          job.generation ?? 0,
-        ),
+        jobId:
+          CaseFanoutService.jobId(job.caseId, job.wave, job.generation ?? 0) +
+          (job.mode === 'urgent_top_up'
+            ? '-urgent'
+            : job.mode === 'rebroadcast'
+              ? `-rb${job.tag ?? ''}`
+              : ''),
         delay: delayMs,
       },
     );
@@ -352,10 +395,18 @@ export class CaseFanoutService
     }
     // enabled=false: the old behaviour — one wave to everyone.
     const legacy = !s.enabled;
-    const g: FraudAction = legacy ? 'normal' : await this.gate(caseId, s);
+    // Algo audit 2026-10-27 (CASES M-4): the fraud gate holds with the
+    // waves off too (a banned client's case reaches nobody); `small` has no
+    // meaning without waves and counts as normal there.
+    const gated =
+      !legacy || s.legacyFraudGate ? await this.gate(caseId, s) : 'normal';
+    const g: FraudAction = legacy && gated === 'small' ? 'normal' : gated;
     if (g === 'none') return { done: 'fraud' };
     const small = g === 'small';
-    const bidsFirst = await this.firstBidMetric(job, kase.bids_count);
+    // An extra round never re-logs the time-to-first-offer metric.
+    const bidsFirst = job.mode
+      ? true
+      : await this.firstBidMetric(job, kase.bids_count);
     if (!legacy && s.stopAtBids > 0 && kase.bids_count >= s.stopAtBids) {
       this.logger.info(
         { metric: 'case_fanout_stop', caseId, wave, bids: kase.bids_count },
@@ -376,7 +427,13 @@ export class CaseFanoutService
       });
       for (const r of rows) reached.add(r.user_id);
     }
-    const pool = aud.candidates.filter((c) => !reached.has(c.id));
+    // CASES C-1: the urgent top-up is for «Только срочные» people only (the
+    // rest already had this case), and only while the case is urgent.
+    if (job.mode === 'urgent_top_up' && !aud.urgent) return { done: 'closed' };
+    const pool = aud.candidates.filter(
+      (c) =>
+        !reached.has(c.id) && (job.mode !== 'urgent_top_up' || c.urgentOnly),
+    );
     const budget = CASE_ALERT_REACH_MAX - reached.size;
     if (pool.length === 0 || budget <= 0) return { done: 'all_reached' };
 
@@ -396,9 +453,11 @@ export class CaseFanoutService
     // Algo audit 2026-10-27 (H-2): an urgent case does not wait for the
     // 10-minute slices — the whole audience in this wave.
     const urgentFast = aud.urgent && s.urgentFast && !small;
+    // An extra round (urgent top-up, re-broadcast) is one wave to all left.
+    const extra = job.mode !== undefined;
     const size = Math.min(
       budget,
-      legacy || urgentFast || (!this.queue && !small)
+      legacy || urgentFast || extra || (!this.queue && !small)
         ? // No queue (no Redis) cannot run later waves: everyone now.
           CASE_ALERT_REACH_MAX
         : small
@@ -435,7 +494,7 @@ export class CaseFanoutService
     // Over the daily cap: ONE rolled-up row per person and day, on the
     // first wave only (later waves skip them silently).
     let digested = 0;
-    if (wave === 1 && capped.length > 0) {
+    if (wave === 1 && !extra && capped.length > 0) {
       const day = new Date().toISOString().slice(0, 10);
       await this.notifications.emitDigest({
         type,
@@ -459,6 +518,7 @@ export class CaseFanoutService
         metric: 'case_fanout_wave',
         caseId,
         wave,
+        ...(extra ? { mode: job.mode } : {}),
         audience: aud.candidates.length,
         sent,
         digested,
@@ -470,7 +530,8 @@ export class CaseFanoutService
       'case fan-out wave',
     );
 
-    const more = !legacy && !small && remaining > 0 && wave < s.maxWaves;
+    const more =
+      !legacy && !small && !extra && remaining > 0 && wave < s.maxWaves;
     if (more && this.queue) {
       await this.enqueue(
         {

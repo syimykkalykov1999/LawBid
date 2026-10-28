@@ -57,6 +57,21 @@ class FakeVerificationBackend
   String? lastComment;
   bool lastAttestation = false;
   final List<DocSlot> attached = [];
+
+  /// Owner 2026-10-28: selfie capture tokens issued / the last selfie's.
+  int selfieTokens = 0;
+  SelfieUpload? lastSelfie;
+
+  @override
+  Future<SelfieCaptureTicket> startSelfieCapture(String requestId) async {
+    selfieTokens++;
+    return SelfieCaptureTicket(
+      token: 'test-capture-token-$selfieTokens',
+      expiresAt: DateTime.now().add(const Duration(minutes: 30)),
+      required: true,
+    );
+  }
+
   final Map<String, ScanState> _files = {};
   int _seq = 0;
 
@@ -179,8 +194,10 @@ class FakeVerificationBackend
     required String fileId,
     required DocSlot slot,
     String? note,
+    SelfieUpload? selfie,
   }) async {
     lastNote = note;
+    if (slot.kind == DocKind.selfie) lastSelfie = selfie;
     if (_files[fileId] != ScanState.clean) {
       throw const ApiException(
         code: ApiErrorCodes.fileNotAttachable,

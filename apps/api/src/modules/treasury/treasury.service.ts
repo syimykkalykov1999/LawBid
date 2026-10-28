@@ -171,6 +171,47 @@ export class TreasuryService {
   }
 
   /**
+   * Algo audit 2026-10-27 (MONEY H-7): the `payroll.stuck-sweep` cron (every
+   * 10 minutes). Payouts left `processing` longer than
+   * `treasury.payroll_stuck_minutes` are re-sent with their own idempotency
+   * key (AdminPayrollService.sweepStuck). Skipped while a pay day holds the
+   * payroll lock. `treasury.payroll_stuck_sweep_enabled` off = never.
+   */
+  async payrollStuckSweep(
+    now: Date = new Date(),
+  ): Promise<Record<string, unknown>> {
+    const [on, minutes] = await Promise.all([
+      this.settings.boolean('treasury.payroll_stuck_sweep_enabled'),
+      this.settings.number('treasury.payroll_stuck_minutes'),
+    ]);
+    if (!on || minutes <= 0) return { skipped: 'off' };
+    const locked = await this.redis.set(PAYROLL_LOCK_KEY, '1', 'EX', 300, 'NX');
+    if (locked !== 'OK') return { skipped: 'busy' };
+    try {
+      const res = await this.payroll.sweepStuck(minutes, now);
+      if (res.tooOld.length > 0) {
+        this.logger.error(
+          { alert: 'payroll_payout_stuck', payoutIds: res.tooOld },
+          'payroll: payouts stuck in processing past Stripe idempotency — check them in Stripe',
+        );
+      }
+      if (res.resent > 0 || res.failed > 0) {
+        this.logger.warn(
+          { metric: 'payroll_stuck_resent', ...res },
+          'payroll: stuck payouts re-sent',
+        );
+      }
+      return {
+        resent: res.resent,
+        failed: res.failed,
+        tooOld: res.tooOld.length,
+      };
+    } finally {
+      await this.redis.del(PAYROLL_LOCK_KEY);
+    }
+  }
+
+  /**
    * Owner 2026-10-06 «зарплаты платятся сами из резерва, а если денег не
    * хватает — предупреди заранее». With `treasury.payroll_auto` on, on the
    * pay day (`treasury.payroll_day`, a missed day runs the next day) the

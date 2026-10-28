@@ -20,6 +20,8 @@ const SETTINGS: Record<string, number | boolean> = {
   'moderation.image.review_confidence': 60,
   'moderation.image.min_confidence': 50,
   'moderation.csam.ncmec_submit_enabled': true,
+  'moderation.image.reuse_approval_enabled': true,
+  'moderation.image.recheck_enabled': true,
 };
 
 async function png(): Promise<Buffer> {
@@ -72,6 +74,21 @@ function harness(opts: {
       findMany: jest.fn(() => Promise.resolve([...checks.values()])),
       findUnique: jest.fn(() => Promise.resolve(checks.get('c1'))),
       findUniqueOrThrow: jest.fn(() => Promise.resolve(checks.get('c1'))),
+      updateMany: jest.fn(
+        ({
+          where,
+          data,
+        }: {
+          where: { id: string; status: string };
+          data: Record<string, unknown>;
+        }) => {
+          const row = checks.get(where.id);
+          if (!row || row.status !== where.status)
+            return Promise.resolve({ count: 0 });
+          checks.set(where.id, { ...row, ...data });
+          return Promise.resolve({ count: 1 });
+        },
+      ),
       update: jest.fn(
         ({
           data,
@@ -160,6 +177,7 @@ function harness(opts: {
   };
   const queue = { enqueueRehide: jest.fn(() => Promise.resolve()) };
   const storage = { read: jest.fn(() => png()) };
+  const notices = { mediaHidden: jest.fn(() => Promise.resolve()) };
   const svc = new MediaModerationService(
     prisma as never,
     settings as never,
@@ -172,6 +190,8 @@ function harness(opts: {
     reporter as never,
     queue as never,
     logger,
+    undefined,
+    notices as never,
   );
   return {
     svc,
@@ -183,6 +203,7 @@ function harness(opts: {
     moderation,
     queue,
     reporter,
+    notices,
   };
 }
 
@@ -320,5 +341,119 @@ describe('MediaModerationService.checkFile', () => {
       check_id: 'c1',
       status: 'manual_required',
     });
+  });
+});
+
+describe('algo audit 2026-10-27 — image moderation', () => {
+  it('CONTENT H-2: the author is told once when a picture of theirs is hidden', async () => {
+    const h = harness({
+      labels: [{ name: 'Nudity', parent: 'Explicit', confidence: 95 }],
+      postIds: ['p1'],
+    });
+    expect(await h.svc.checkFile('f1')).toBe('hidden');
+    expect(h.notices.mediaHidden).toHaveBeenCalledWith({
+      userId: 'u1',
+      checkId: 'c1',
+      hidden: 1,
+    });
+    // A later re-apply (something already hidden) does not tell them again.
+    await h.svc.rehide('c1');
+    expect(h.notices.mediaHidden).toHaveBeenCalledTimes(1);
+  });
+
+  it('CONTENT H-2: never a notice for a CSAM match', async () => {
+    const h = harness({ csam: 'match', postIds: ['p1'] });
+    expect(await h.svc.checkFile('f1')).toBe('csam_match');
+    expect(h.notices.mediaHidden).not.toHaveBeenCalled();
+  });
+
+  it('CONTENT M-2: a re-upload of an approved picture keeps the approval (not hidden again)', async () => {
+    const h = harness({
+      postIds: ['p1'],
+      twin: {
+        id: 'c0',
+        status: 'hidden',
+        decision: 'approved',
+        labels: [],
+        max_confidence: 95,
+        top_label: 'Nudity',
+        csam_status: 'no_match',
+      },
+    });
+    expect(await h.svc.checkFile('f1')).toBe('hidden');
+    expect(h.checks.get('c1')?.decision).toBe('approved');
+    expect(h.moderation.setContentStatus).not.toHaveBeenCalled();
+  });
+
+  it('CONTENT M-2: an undecided hidden twin still hides the new copy', async () => {
+    const h = harness({
+      postIds: ['p1'],
+      twin: {
+        id: 'c0',
+        status: 'hidden',
+        decision: null,
+        labels: [],
+        max_confidence: 95,
+        top_label: 'Nudity',
+        csam_status: 'no_match',
+      },
+    });
+    expect(await h.svc.checkFile('f1')).toBe('hidden');
+    expect(h.checks.get('c1')?.decision ?? null).toBeNull();
+    expect(h.moderation.setContentStatus).toHaveBeenCalled();
+  });
+
+  it('CONTENT M-1: a check skipped for the budget is run again later', async () => {
+    const h = harness({ labels: [] });
+    h.checks.set('c1', {
+      id: 'c1',
+      file_id: 'f1',
+      video_asset_id: null,
+      owner_user_id: 'u1',
+      purpose: 'post_image',
+      status: 'skipped',
+      skip_reason: 'budget',
+      decision: null,
+      hidden_targets: [],
+      created_at: new Date(),
+      checked_at: new Date(Date.now() - 2 * 3_600_000),
+    });
+    const out = await h.svc.recheckSweep(new Date());
+    expect(out.rechecked).toBe(1);
+    expect(h.provider.detect).toHaveBeenCalled();
+    expect(h.checks.get('c1')?.status).toBe('clean');
+  });
+
+  it('CONTENT M-1: still over the budget — stays skipped, the sweep stops', async () => {
+    const h = harness({ budgetExceeded: true });
+    h.checks.set('c1', {
+      id: 'c1',
+      file_id: 'f1',
+      video_asset_id: null,
+      owner_user_id: 'u1',
+      purpose: 'post_image',
+      status: 'skipped',
+      skip_reason: 'budget',
+      decision: null,
+      hidden_targets: [],
+      created_at: new Date(),
+      checked_at: new Date(Date.now() - 2 * 3_600_000),
+    });
+    await h.svc.recheckSweep(new Date());
+    expect(h.checks.get('c1')).toMatchObject({
+      status: 'skipped',
+      skip_reason: 'budget',
+    });
+    expect(h.provider.detect).not.toHaveBeenCalled();
+  });
+
+  it('CONTENT M-1: switch off — nothing is re-run', async () => {
+    const h = harness({ labels: [] });
+    SETTINGS['moderation.image.recheck_enabled'] = false;
+    try {
+      expect((await h.svc.recheckSweep(new Date())).rechecked).toBe(0);
+    } finally {
+      SETTINGS['moderation.image.recheck_enabled'] = true;
+    }
   });
 });

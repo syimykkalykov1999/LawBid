@@ -519,6 +519,17 @@ export class StripePaymentProvider implements PaymentProvider {
     automaticTax?: boolean,
   ): Promise<ProviderSubscription> {
     const sub = await this.stripe.subscriptions.retrieve(subscriptionId);
+    // Algo audit 2026-10-27 (MONEY M-3): a double tap (or a retry after a
+    // timeout) must not invoice the proration twice. Already on the yearly
+    // price alone → nothing to change; otherwise the update carries an
+    // idempotency key made of the items it replaces, so two concurrent
+    // calls from the same state are one Stripe update.
+    if (
+      sub.items.data.length === 1 &&
+      sub.items.data[0].price.id === yearlyPriceId
+    ) {
+      return mapSubscription(sub);
+    }
     const items: Stripe.SubscriptionUpdateParams.Item[] = [
       ...sub.items.data.map((i) => ({ id: i.id, deleted: true })),
       { price: yearlyPriceId, quantity: 1 },
@@ -528,11 +539,20 @@ export class StripePaymentProvider implements PaymentProvider {
       automaticTax,
     );
     return mapSubscription(
-      await this.stripe.subscriptions.update(subscriptionId, {
-        ...tax,
-        items,
-        proration_behavior: 'always_invoice',
-      }),
+      await this.stripe.subscriptions.update(
+        subscriptionId,
+        {
+          ...tax,
+          items,
+          proration_behavior: 'always_invoice',
+        },
+        {
+          idempotencyKey: `switch-yearly:${subscriptionId}:${sub.items.data
+            .map((i) => i.id)
+            .sort()
+            .join(',')}:${yearlyPriceId}`,
+        },
+      ),
     );
   }
 

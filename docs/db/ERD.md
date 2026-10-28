@@ -431,6 +431,7 @@ erDiagram
     String state_code FK "nullable"
     String notes "nullable"
     String side "nullable"
+    Json capture_meta "nullable"
     DateTime created_at
     DateTime updated_at
   }

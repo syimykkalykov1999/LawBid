@@ -40,6 +40,8 @@ import type { FeedProvider } from './feed.provider';
 import { PromotionDeliveryService } from '../promotions/promotion-delivery.service';
 import { feedVersion } from '../../common/cache/feed-version';
 import { ck } from '../../redis/redis-cluster-safe';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 
 export const recoCurrentKey = () => ck('reco', 'feed:reco:current');
 export const recoKey = (version: string) => ck('reco', `feed:reco:${version}`);
@@ -55,7 +57,8 @@ const SEEN_MAX = 500;
 const SEEN_TTL_SEC = 3 * 24 * 3600;
 /** §2.2.6: first page cached for 60 s. */
 const FIRST_PAGE_TTL_SEC = 60;
-/** How far into the snapshot one page may scan for unseen candidates. */
+/** One chunk of the snapshot read at a time while looking for unseen
+ * candidates; a page walks up to `feed.reco_scan_max` ids (CONTENT H-3). */
 const RECO_SCAN = 200;
 /** Followed authors considered for the stream. */
 const FOLLOWEES_MAX = 2000;
@@ -92,6 +95,9 @@ export class FeedService implements FeedProvider {
     @Optional() @Inject(REDIS_CACHE_CLIENT) cache?: Redis,
     // DB-ops S5-6: the guest feed (no viewer, no writes) reads the replica.
     @Optional() private readonly read?: PrismaReadService,
+    // Algo audit 2026-10-27: scan depth / repost cap (built-in defaults
+    // when absent).
+    @Optional() private readonly settings?: AppSettingsService,
   ) {
     this.cache = cache ?? redis;
   }
@@ -508,7 +514,9 @@ export class FeedService implements FeedProvider {
       },
       include: { post: true },
       orderBy: { created_at: 'desc' },
-      take: 10,
+      // Algo audit 2026-10-27 (CONTENT M-4): was a fixed 10 (extra reposts
+      // in a busy window were lost for good).
+      take: await this.num('feed.reposts_per_page', 1, 100),
     });
     const seen = new Set(onPage);
     const out: { post: Post; userId: string; at: Date }[] = [];
@@ -543,38 +551,48 @@ export class FeedService implements FeedProvider {
     }
     if (!version || need <= 0)
       return { posts: [], next: () => offset, version };
-    const ids = await this.redis.zrevrange(
-      recoKey(version),
-      offset,
-      offset + RECO_SCAN - 1,
-    );
-    if (ids.length === 0) return { posts: [], next: () => offset, version };
-    // Only the candidates are checked, not the whole seen set.
-    // The seen set is a cache: a dead cache node means "nothing seen yet".
-    const scores = await this.cache
-      .zmscore(seenKey(viewer.sub), ...ids)
-      .catch(() => ids.map(() => null));
-    const seen = new Set(ids.filter((_, i) => scores[i] !== null));
     const exclude = new Set(excludeAuthors);
     // Audit 2026-10-01: no recommended posts of people blocked either way.
     for (const id of await this.blockedAuthors(viewer)) exclude.add(id);
-    const rows = await this.prisma.post.findMany({
-      where: {
-        ...VISIBLE_POST_WHERE,
-        ...only,
-        id: { in: ids.filter((id) => !seen.has(id)) },
-      },
-    });
-    const byId = new Map(rows.map((p) => [p.id, p]));
+    // Algo audit 2026-10-27 (CONTENT H-3): walk the snapshot chunk by chunk
+    // (up to `feed.reco_scan_max` ids a page) instead of its first 200 only:
+    // a "Legal only" viewer or a heavy reader used to run out after 200 and
+    // fall to the tail, which excludes the whole snapshot, so ranks 200-999
+    // were never shown to them.
+    const depth = await this.num('feed.reco_scan_max', RECO_SCAN, 5000);
+    const ids: string[] = [];
     const picked: Post[] = [];
     const pickedIdx: number[] = [];
-    ids.forEach((id, i) => {
-      const p = byId.get(id);
-      if (p && !exclude.has(p.author_id) && picked.length < need) {
-        picked.push(p);
-        pickedIdx.push(i);
-      }
-    });
+    while (picked.length < need && ids.length < depth) {
+      const from = offset + ids.length;
+      const chunk = await this.redis.zrevrange(
+        recoKey(version),
+        from,
+        from + Math.min(RECO_SCAN, depth - ids.length) - 1,
+      );
+      if (chunk.length === 0) break;
+      const base = ids.length;
+      ids.push(...chunk);
+      // Only the candidates are checked, not the whole seen set.
+      // The seen set is a cache: a dead cache node means "nothing seen yet".
+      const scores = await this.cache
+        .zmscore(seenKey(viewer.sub), ...chunk)
+        .catch(() => chunk.map(() => null));
+      const fresh = chunk.filter((_, i) => scores?.[i] == null);
+      if (fresh.length === 0) continue;
+      const rows = await this.prisma.post.findMany({
+        where: { ...VISIBLE_POST_WHERE, ...only, id: { in: fresh } },
+      });
+      const byId = new Map(rows.map((p) => [p.id, p]));
+      chunk.forEach((id, i) => {
+        const p = byId.get(id);
+        if (p && !exclude.has(p.author_id) && picked.length < need) {
+          picked.push(p);
+          pickedIdx.push(base + i);
+        }
+      });
+    }
+    if (ids.length === 0) return { posts: [], next: () => offset, version };
     return {
       posts: picked,
       version,
@@ -630,6 +648,21 @@ export class FeedService implements FeedProvider {
     });
   }
 
+  /** An admin number clamped to [min, max] (the default without settings). */
+  private async num(
+    key: 'feed.reco_scan_max' | 'feed.reposts_per_page',
+    min: number,
+    max: number,
+  ): Promise<number> {
+    let v: number = APP_SETTINGS[key];
+    try {
+      if (this.settings) v = await this.settings.number(key);
+    } catch {
+      // settings unreadable: the built-in default
+    }
+    return Math.min(max, Math.max(min, Math.floor(v)));
+  }
+
   private async blockedAuthors(viewer: RequestUser): Promise<string[]> {
     // Owner 2026-10-18 (speed): one cached block set per viewer (see
     // block-set.cache.ts), not a query up to three times per page.
@@ -659,8 +692,18 @@ export class FeedService implements FeedProvider {
     },
     only: Prisma.PostWhereInput,
   ): Promise<PostPage> {
+    // Algo audit 2026-10-27 (CONTENT M-3): the cached page is re-checked
+    // against the (cached) block set too — a block made within the 60 s
+    // never shows the blocked person's posts, even if the version bump that
+    // drops this entry was lost.
+    const blocked = await this.blockedAuthors(viewer);
     const rows = await this.prisma.post.findMany({
-      where: { ...VISIBLE_POST_WHERE, ...only, id: { in: cached.ids } },
+      where: {
+        ...VISIBLE_POST_WHERE,
+        ...only,
+        id: { in: cached.ids },
+        ...(blocked.length > 0 ? { author_id: { notIn: blocked } } : {}),
+      },
     });
     const byId = new Map(rows.map((p) => [p.id, p]));
     const ordered = cached.ids.flatMap((id) =>

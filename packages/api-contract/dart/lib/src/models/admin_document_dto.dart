@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'admin_document_dto_side.dart';
+import 'admin_selfie_capture_dto.dart';
 import 'scan_status.dart';
 import 'verification_doc_type.dart';
 
@@ -21,6 +22,7 @@ class AdminDocumentDto {
     required this.sizeBytes,
     required this.scanStatus,
     required this.notes,
+    required this.capture,
     required this.createdAt,
   });
 
@@ -37,6 +39,9 @@ class AdminDocumentDto {
 
   /// The attorney's note sent with this document.
   final String? notes;
+
+  /// Selfie only (owner 2026-10-28): the guided camera report; null for other documents and selfies attached before it existed.
+  final AdminSelfieCaptureDto? capture;
   final DateTime createdAt;
 
   Map<String, Object?> toJson() => _$AdminDocumentDtoToJson(this);

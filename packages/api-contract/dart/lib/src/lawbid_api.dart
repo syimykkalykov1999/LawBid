@@ -79,6 +79,7 @@ import 'clients/stickers_client.dart';
 import 'clients/stories_client.dart';
 import 'clients/channels_client.dart';
 import 'clients/link_preview_client.dart';
+import 'clients/addresses_client.dart';
 import 'clients/feed_client.dart';
 import 'clients/client_reviews_client.dart';
 import 'clients/admin_review_appeals_client.dart';
@@ -230,6 +231,7 @@ class LawbidApi {
   StoriesClient? _stories;
   ChannelsClient? _channels;
   LinkPreviewClient? _linkPreview;
+  AddressesClient? _addresses;
   FeedClient? _feed;
   ClientReviewsClient? _clientReviews;
   AdminReviewAppealsClient? _adminReviewAppeals;
@@ -511,6 +513,9 @@ class LawbidApi {
 
   LinkPreviewClient get linkPreview =>
       _linkPreview ??= LinkPreviewClient(_dio, baseUrl: _baseUrl);
+
+  AddressesClient get addresses =>
+      _addresses ??= AddressesClient(_dio, baseUrl: _baseUrl);
 
   FeedClient get feed => _feed ??= FeedClient(_dio, baseUrl: _baseUrl);
 

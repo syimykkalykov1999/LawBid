@@ -64,6 +64,34 @@ class RoleScreen extends ConsumerWidget {
         context.go(AppRouterGuard.forwardRoute(user));
         return;
       }
+      // Owner 2026-10-28: the role stays reachable until onboarding ends,
+      // but switching an already chosen one asks first (an attorney's
+      // verification draft must not vanish by a stray tap).
+      if (serverRole != null && selectedRole != serverRole) {
+        final sure = await showDialog<bool>(
+          context: context,
+          builder: (ctx) {
+            final c = Theme.of(ctx).extension<AppColorTokens>()!;
+            return AppAlertDialog(
+              backgroundColor: c.sheet,
+              title: Text(t.t('auth.role.change.title')),
+              content: Text(t.t('auth.role.change.body')),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: Text(t.t('common.cancel')),
+                ),
+                TextButton(
+                  key: const ValueKey('role-change-confirm'),
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: Text(t.t('auth.role.change.confirm')),
+                ),
+              ],
+            );
+          },
+        );
+        if (!(sure ?? false) || !context.mounted) return;
+      }
       final ok = await ref
           .read(onboardingActionsProvider.notifier)
           .chooseRole(selectedRole);

@@ -3,9 +3,17 @@ import type { Prisma, ReportTargetType } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /** The `note` prefix of a system report (never a person's complaint). */
 export const AUTO_HOLD_NOTE = 'auto_hold';
+
+/** CONTENT H-2: the reason the author reads (the app shows it after
+ * «Сообщение от модерации:», like a moderator's own reason). */
+export const HELD_REASON =
+  'Your post or comment is waiting for a moderator review (automatic rules).';
+export const MEDIA_HIDDEN_REASON =
+  'A picture you posted is hidden until a moderator reviews it.';
 
 export interface AutoHoldInput {
   targetType: Extract<ReportTargetType, 'post' | 'comment'>;
@@ -33,12 +41,71 @@ export class AutoHoldService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   async enabled(): Promise<boolean> {
     if (!this.settings)
       return APP_SETTINGS['moderation.auto_hold_queue_enabled'];
     return this.settings.boolean('moderation.auto_hold_queue_enabled');
+  }
+
+  /**
+   * Algo audit 2026-10-27 (CONTENT H-2): the author learns the post or
+   * comment is waiting for a moderator (it was hidden silently). The
+   * moderator's later decision is a `moderation_action`, appealable as usual.
+   */
+  private async tellAuthor(input: AutoHoldInput): Promise<void> {
+    try {
+      if (!this.notifications) return;
+      const on = this.settings
+        ? await this.settings.boolean('moderation.held_notice_enabled')
+        : APP_SETTINGS['moderation.held_notice_enabled'];
+      if (!on) return;
+      await this.notifications.emit({
+        type: 'moderation_notice',
+        recipientId: input.authorId,
+        payload: {
+          action: 'content_held',
+          targetType: input.targetType,
+          targetId: input.targetId,
+          // Shown after «Сообщение от модерации:» in the app's list.
+          reason: HELD_REASON,
+        },
+      });
+    } catch (e) {
+      this.log.error(`held notice failed: ${String(e)}`);
+    }
+  }
+
+  /**
+   * CONTENT H-2: a picture of theirs was hidden by the image check; it is
+   * in Модерация → Медиа, a moderator approves (it comes back) or removes.
+   */
+  async mediaHidden(input: {
+    userId: string;
+    checkId: string;
+    hidden: number;
+  }): Promise<void> {
+    try {
+      if (!this.notifications) return;
+      const on = this.settings
+        ? await this.settings.boolean('moderation.held_notice_enabled')
+        : APP_SETTINGS['moderation.held_notice_enabled'];
+      if (!on) return;
+      await this.notifications.emit({
+        type: 'moderation_notice',
+        recipientId: input.userId,
+        payload: {
+          action: 'media_hidden',
+          checkId: input.checkId,
+          count: input.hidden,
+          reason: MEDIA_HIDDEN_REASON,
+        },
+      });
+    } catch (e) {
+      this.log.error(`media hidden notice failed: ${String(e)}`);
+    }
   }
 
   /** Files the system report (idempotent per object). Never throws:
@@ -71,6 +138,7 @@ export class AutoHoldService {
           target_author_id: input.authorId,
         },
       });
+      await this.tellAuthor(input);
       return true;
     } catch (e) {
       this.log.error(

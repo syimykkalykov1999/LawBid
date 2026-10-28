@@ -15,6 +15,7 @@ import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui
 import { Skeleton } from '@/components/ui/empty';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
+import { SelfieCaptureNote } from '@/components/verification/selfie-capture-note';
 import { FocusBar, useNextVerification } from '@/components/workspace/queue-next';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
@@ -369,6 +370,7 @@ export default function VerificationCardPage() {
                       {d.scanStatus !== 'clean' ? ` · антивирус: ${label(SCAN_STATUS, d.scanStatus)}` : ''}
                     </div>
                     {d.notes ? <div className="mt-1 text-xs text-ink">Комментарий адвоката: {d.notes}</div> : null}
+                    {d.docType === 'selfie' ? <SelfieCaptureNote capture={d.capture} /> : null}
                     </div>
                   </div>
                   <Button size="sm" variant="outline" disabled={openDocument.isPending || d.scanStatus !== 'clean'} onClick={() => openDocument.mutate(d.id)}>
@@ -575,3 +577,4 @@ function autoCheckLabel(r: Record<string, unknown>): string {
       return String(r.result ?? '—');
   }
 }
+

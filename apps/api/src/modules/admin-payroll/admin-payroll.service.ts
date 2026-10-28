@@ -75,6 +75,8 @@ function sumBy(
 
 /** A payment that counts as "this person got paid for the period". */
 const COUNTS_AS_PAID = ['paid', 'processing'];
+/** Stripe keeps an idempotency key 24 h; re-send only well inside it. */
+const STRIPE_IDEMPOTENCY_SAFE_MS = 23 * 3_600_000;
 
 /**
  * Owner 2026-10-05 — "Зарплаты": the people on payroll with a fixed monthly
@@ -489,6 +491,69 @@ export class AdminPayrollService {
   }
 
   /**
+   * Algo audit 2026-10-27 (MONEY H-7): a payout stays `processing` when the
+   * process died between its commit and Stripe's answer (deploy, crash).
+   * It counts as paid (COUNTS_AS_PAID) and cannot be canceled, so the
+   * person was never paid and nothing retried. This re-sends each one older
+   * than [olderThanMinutes] with the SAME idempotency key `payroll-<id>`:
+   * a transfer that did go through comes back from Stripe as it was (no
+   * second payment), one that never left is sent now. Rows older than
+   * Stripe's 24 h idempotency window are not re-sent (that could pay
+   * twice); they are logged for a person to check in Stripe.
+   */
+  async sweepStuck(
+    olderThanMinutes: number,
+    now = new Date(),
+  ): Promise<{ resent: number; failed: number; tooOld: string[] }> {
+    if (olderThanMinutes <= 0) return { resent: 0, failed: 0, tooOld: [] };
+    const minAge = new Date(now.getTime() - olderThanMinutes * 60_000);
+    const maxAge = new Date(now.getTime() - STRIPE_IDEMPOTENCY_SAFE_MS);
+    // payroll_payouts is tiny (people × months); no index needed.
+    const rows = await this.prisma.payrollPayout.findMany({
+      where: {
+        status: 'processing',
+        method: 'stripe',
+        created_at: { lt: minAge },
+      },
+      include: { employee: true },
+      orderBy: { created_at: 'asc' },
+      take: 100,
+    });
+    const tooOld = rows.filter((r) => r.created_at < maxAge).map((r) => r.id);
+    const fresh = rows.filter(
+      (r) => r.created_at >= maxAge && r.employee.stripe_account_id,
+    );
+    if (fresh.length === 0) return { resent: 0, failed: 0, tooOld };
+    const accruals = await this.prisma.payrollAccrual.findMany({
+      where: { payout_id: { in: fresh.map((r) => r.id) } },
+      select: { id: true, payout_id: true, event_ref: true },
+    });
+    const planned: PlannedPayout[] = fresh.map((r) => {
+      const mine = accruals.filter((a) => a.payout_id === r.id);
+      return {
+        id: r.id,
+        employee: r.employee,
+        base: r.base_cents,
+        commission: r.commission_cents,
+        gross: r.amount_cents,
+        fee: r.fee_cents,
+        net: r.net_cents,
+        accrualIds: mine.map((a) => a.id),
+        eventRefs: mine.map((a) => a.event_ref),
+      };
+    });
+    const failedEmployees = await this.sendTransfers(null, planned);
+    const done = planned.filter(
+      (p) => !failedEmployees.includes(p.employee.id),
+    );
+    await this.accruals.settled(
+      done.flatMap((c) => c.eventRefs.map((ref) => ({ ref, payoutId: c.id }))),
+      'paid',
+    );
+    return { resent: done.length, failed: failedEmployees.length, tooOld };
+  }
+
+  /**
    * Owner 2026-10-06 «зарплаты платятся сами»: who the automatic pay day
    * pays through Stripe for `period` and how much it takes from the
    * platform's Stripe balance (salary not yet paid this period + pending
@@ -629,21 +694,32 @@ export class AdminPayrollService {
       where: { payout_id: id, status: 'paid' },
       select: { event_ref: true },
     });
-    const [updated] = await this.prisma.$transaction([
-      this.prisma.payrollPayout.update({
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const row2 = await tx.payrollPayout.update({
         where: { id },
         data: {
           status: 'canceled',
           cancel_reason: reason,
           canceled_at: new Date(),
         },
-      }),
+      });
       // The commissions in it are owed again: paid with the next payout.
-      this.prisma.payrollAccrual.updateMany({
+      await tx.payrollAccrual.updateMany({
         where: { payout_id: id },
         data: { status: 'pending', payout_id: null, paid_at: null },
-      }),
-    ]);
+      });
+      // Algo audit 2026-10-27 (MONEY M-8): the reversed transfer comes back
+      // into the books (the `expense_payroll` entry used to stay).
+      if (row.status === 'paid' && row.transfer_id) {
+        await this.ledger?.expenseReversed(tx, {
+          sourceType: 'payroll_payout',
+          sourceId: id,
+          stripeRef: row.transfer_id,
+          description: 'Payroll transfer reversed (payout canceled)',
+        });
+      }
+      return row2;
+    });
     if (row.status === 'paid') {
       await this.accruals.settled(
         reverted.map((a) => ({ ref: a.event_ref, payoutId: id })),

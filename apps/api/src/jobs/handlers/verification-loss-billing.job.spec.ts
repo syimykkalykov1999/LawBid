@@ -22,7 +22,15 @@ describe('VerificationLossBillingJob', () => {
   afterEach(() => {
     jest.useRealTimers();
   });
-  function make(opts: { enabled?: boolean } = {}) {
+  function make(
+    opts: {
+      enabled?: boolean;
+      payments?: Record<string, unknown>[];
+      seatInvoices?: string[];
+      credit?: { balance: number } | null;
+      purchases?: Record<string, unknown>[];
+    } = {},
+  ) {
     const now = Date.now();
     const prisma = {
       attorneyProfile: {
@@ -37,10 +45,13 @@ describe('VerificationLossBillingJob', () => {
         }),
       },
       payment: {
-        findFirst: jest.fn().mockResolvedValue({
-          id: 'pay1',
-          amount_cents: 30000,
-        }),
+        findMany: jest
+          .fn()
+          .mockResolvedValue(
+            opts.payments ?? [
+              { id: 'pay1', amount_cents: 30000, stripe_invoice_id: 'in_1' },
+            ],
+          ),
         findUnique: jest.fn().mockResolvedValue({
           id: 'pay1',
           user_id: 'u1',
@@ -57,8 +68,20 @@ describe('VerificationLossBillingJob', () => {
         findMany: jest.fn().mockResolvedValue([]),
         update: jest.fn(),
       },
-      bidCredit: { findUnique: jest.fn().mockResolvedValue(null) },
-      bidPackPurchase: { findMany: jest.fn().mockResolvedValue([]) },
+      bidCredit: {
+        findUnique: jest.fn().mockResolvedValue(opts.credit ?? null),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      bidPackPurchase: {
+        findMany: jest.fn().mockResolvedValue(opts.purchases ?? []),
+      },
+      assistantSeatChange: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue(
+            (opts.seatInvoices ?? []).map((i) => ({ stripe_invoice_id: i })),
+          ),
+      },
     };
     const provider = {
       name: 'stripe',
@@ -103,5 +126,37 @@ describe('VerificationLossBillingJob', () => {
     const { job, provider } = make({ enabled: false });
     expect((await job.run()).attorneys).toBe(0);
     expect(provider.cancelNow).not.toHaveBeenCalled();
+  });
+  it('MONEY M-1: the base is the last renewal, not a seat-purchase invoice', async () => {
+    const { job, provider } = make({
+      payments: [
+        { id: 'seat', amount_cents: 3000, stripe_invoice_id: 'in_seat' },
+        { id: 'pay1', amount_cents: 30000, stripe_invoice_id: 'in_1' },
+      ],
+      seatInvoices: ['in_seat'],
+    });
+    await job.run();
+    expect(provider.refund).toHaveBeenCalledWith(
+      expect.objectContaining({ amountCents: 20000 }),
+    );
+  });
+
+  it('MONEY M-1: offers spent meanwhile never push the balance below zero', async () => {
+    const { job, prisma } = make({
+      credit: { balance: 5 },
+      purchases: [
+        { id: 'bp1', bids: 10, price_cents: 1500, payment_id: 'pay1' },
+      ],
+    });
+    await job.run();
+    expect(prisma.bidCredit.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { user_id: 'u1', balance: { gte: 5 } },
+      data: { balance: { decrement: 5 } },
+    });
+    // The guarded decrement found less (count 0): the rest is zeroed.
+    expect(prisma.bidCredit.updateMany).toHaveBeenNthCalledWith(2, {
+      where: { user_id: 'u1', balance: { gt: 0 } },
+      data: { balance: 0 },
+    });
   });
 });

@@ -43,6 +43,7 @@ import {
   CaseStaleAskJob,
 } from './handlers/case-lifecycle.jobs';
 import { CaseDeadlineReminderJob } from './handlers/case-deadline-reminder.job';
+import { CaseRebroadcastJob } from './handlers/case-rebroadcast.job';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { CrashReportsService } from '../modules/crash-reports/crash-reports.service';
@@ -203,6 +204,8 @@ export class JobsModule {
         CaseStalePauseJob,
         CaseAutoCloseJob,
         CaseCompletionReminderJob,
+        // Algo audit 2026-10-27 (CASES M-3): `cases.rebroadcast`.
+        CaseRebroadcastJob,
         CaseDeadlineReminderJob,
         CountersReconcileJob,
         FeedRecoJob,

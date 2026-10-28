@@ -29,6 +29,10 @@ void main() {
       expect(manifest, contains('<data android:pathPrefix="$p" />'));
     }
     expect(manifest, contains('<data android:path="/auth/email-code" />'));
+    expect(
+      manifest,
+      contains('<data android:path="/verification/wizard" />'),
+    );
     // The /lawyers/ catalog tree stays in the browser.
     expect(manifest, isNot(contains('android:pathPrefix="/lawyers/"')));
     // app_links handles links, not Flutter's router deep linking.
@@ -92,6 +96,8 @@ void main() {
         '/g/*',
         '/c/*',
         '/auth/email-code',
+        // Owner 2026-10-28: «continue on the phone» (ID selfie).
+        '/verification/wizard',
       },
     );
     // Owner 2026-10-22 (passkeys): iOS lets the app use lawbid.dev passkeys.

@@ -332,3 +332,119 @@ describe('RecommendationsService.casesFor', () => {
     expect(prisma.case.findMany).not.toHaveBeenCalled();
   });
 });
+
+describe('algo audit 2026-10-27 (CONTENT H-4): new attorneys are candidates', () => {
+  const settingsOf = (stored: Record<string, unknown>) => ({
+    number: jest.fn((k: string) =>
+      Promise.resolve(stored[k] ?? (k === 'reco.people_newest' ? 200 : 0.1)),
+    ),
+    boolean: jest.fn((k: string) => Promise.resolve(stored[k] ?? true)),
+  });
+  /** The SQL text of every nested fragment of the people query. */
+  const peopleSql = (prisma: ReturnType<typeof makePrisma>): string => {
+    const call = prisma.$queryRaw.mock.calls.find((c) =>
+      (c[0] as unknown as string[])
+        .join('?')
+        .includes('FROM attorney_profiles a'),
+    ) as unknown[];
+    const parts = [(call[0] as string[]).join('?')];
+    for (const v of call.slice(1)) {
+      if (v && typeof v === 'object' && 'sql' in v) {
+        parts.push((v as { sql: string }).sql);
+      }
+    }
+    return parts.join('\n');
+  };
+
+  it('by default unions the 600 best rated with the newest verified', async () => {
+    const prisma = makePrisma({ people: [person('new', { rating_avg: 0 })] });
+    const s = new RecommendationsService(
+      prisma as never,
+      makeRedis() as never,
+      settingsOf({}) as never,
+    );
+    expect(await s.peopleFor('viewer')).toEqual(['new']);
+    const sql = peopleSql(prisma);
+    expect(sql).toContain('UNION');
+    expect(sql).toContain('verified_at DESC');
+  });
+
+  it('reco.people_newest = 0 → the old best-rated-only scan', async () => {
+    const prisma = makePrisma({ people: [] });
+    const s = new RecommendationsService(
+      prisma as never,
+      makeRedis() as never,
+      settingsOf({ 'reco.people_newest': 0 }) as never,
+    );
+    await s.peopleFor('viewer');
+    expect(peopleSql(prisma)).not.toContain('verified_at DESC');
+  });
+
+  it('text-search affinity (ids) never adds the newest', async () => {
+    const prisma = makePrisma({ people: [person('a')] });
+    const s = new RecommendationsService(
+      prisma as never,
+      makeRedis() as never,
+      settingsOf({}) as never,
+    );
+    await s.peopleAffinity('viewer', ['a']);
+    expect(peopleSql(prisma)).not.toContain('verified_at DESC');
+  });
+});
+
+describe('algo audit 2026-10-27 (CONTENT M-6): For-You paging is pinned', () => {
+  const settingsOf = (pin: boolean) => ({
+    number: jest.fn(() => Promise.resolve(0.1)),
+    boolean: jest.fn(() => Promise.resolve(pin)),
+  });
+
+  it('later pages read the list the first page pinned, not a rebuilt one', async () => {
+    const redis = makeRedis();
+    const s = new RecommendationsService(
+      {} as never,
+      redis as never,
+      settingsOf(true) as never,
+    );
+    const postsFor = jest
+      .spyOn(s, 'postsFor')
+      .mockResolvedValueOnce(['a', 'b', 'c'])
+      .mockResolvedValueOnce(['z', 'a', 'b']);
+    expect(await s.postsForPage('v', {}, 'k', 0)).toEqual(['a', 'b', 'c']);
+    // The ranked list was rebuilt meanwhile; page 2 still pages the pin.
+    expect(await s.postsForPage('v', {}, 'k', 20)).toEqual(['a', 'b', 'c']);
+    expect(postsFor).toHaveBeenCalledTimes(1);
+    // A new first page re-pins the fresh list.
+    expect(await s.postsForPage('v', {}, 'k', 0)).toEqual(['z', 'a', 'b']);
+  });
+
+  it('a lost pin falls back to the live list (and pins it)', async () => {
+    const redis = makeRedis();
+    const s = new RecommendationsService(
+      {} as never,
+      redis as never,
+      settingsOf(true) as never,
+    );
+    jest.spyOn(s, 'postsFor').mockResolvedValue(['x']);
+    expect(await s.postsForPage('v', {}, 'k', 20)).toEqual(['x']);
+    expect(
+      [...redis.store.keys()].some((k) => k.startsWith('reco:posts:pin:v:')),
+    ).toBe(true);
+  });
+
+  it('switch off → no pin (the old behaviour)', async () => {
+    const redis = makeRedis();
+    const s = new RecommendationsService(
+      {} as never,
+      redis as never,
+      settingsOf(false) as never,
+    );
+    const postsFor = jest
+      .spyOn(s, 'postsFor')
+      .mockResolvedValueOnce(['a'])
+      .mockResolvedValueOnce(['b']);
+    await s.postsForPage('v', {}, 'k', 0);
+    expect(await s.postsForPage('v', {}, 'k', 20)).toEqual(['b']);
+    expect(postsFor).toHaveBeenCalledTimes(2);
+    expect(redis.store.size).toBe(0);
+  });
+});

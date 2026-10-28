@@ -212,6 +212,23 @@ export const FILE_06_SETTINGS = {
    * that the rules or the report threshold hid (no moderator's hide) puts
    * it back; a moderator's own hide stays. */
   'moderation.dismiss_restores_enabled': true,
+  /** Algo audit 2026-10-27 (CONTENT H-6): a restore (queue, accepted
+   * appeal, approved picture) never brings back what its author deleted. */
+  'moderation.restore_keeps_author_delete_enabled': true,
+  /** Algo audit 2026-10-27 (CONTENT H-1): after a moderator restored an
+   * object (or an automatic hide was reversed), only reports made after
+   * that count towards the auto-hide threshold. */
+  'moderation.reports_after_restore_only_enabled': true,
+  /** Algo audit 2026-10-27 (CONTENT H-2): the author is told when the
+   * rules held a post / comment for review or the image check hid a
+   * picture (it used to be silent). */
+  'moderation.held_notice_enabled': true,
+  /** Algo audit 2026-10-27 (CONTENT M-2): the same picture again keeps the
+   * moderator's approval of its twin (no second hide). */
+  'moderation.image.reuse_approval_enabled': true,
+  /** Algo audit 2026-10-27 (CONTENT M-1): checks skipped for the budget or
+   * failed four times are run again hourly (20 a run, last 3 days). */
+  'moderation.image.recheck_enabled': true,
   // Owner 2026-10-22 (audit #4 §5): image moderation (AWS Rekognition).
   // Confidence 0–100: at `hide` the photo / reel is hidden at once and
   // queued; at `review` it stays up and is queued; below that it is clean.
@@ -419,6 +436,11 @@ export const OWNER_BADGE_SETTINGS = {
 export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   'verification.require_bar_document': false,
   'verification.require_identity': true,
+  // Owner 2026-10-28 (ID selfie camera): a selfie is accepted only from the
+  // app's guided live camera — the upload must carry a one-time capture
+  // token the API issued for this request (30 min, single use). Off = the
+  // old behaviour (any selfie file), e.g. while old app versions phase out.
+  'verification.selfie_live_capture_required': true,
   // Owner 2026-10-16: off — a new license stays pending until the state
   // registry matches it or an admin approves it (with the bar card).
   'verification.self_attestation_auto_approve': false,
@@ -451,6 +473,20 @@ export const OWNER_BILLING_GATE_SETTINGS = {
   /** Algo audit 2026-10-27 (MONEY H-5): a refunded / charged-back offer
    * pack takes its unused offers back (balance never below zero). */
   'bid_packs.refund_revokes_enabled': true,
+  /** Algo audit 2026-10-27 (MONEY H-2): a paid invoice of a subscription
+   * with no local row yet (the card path racing the webhook) is retried
+   * by the webhook runner instead of being dropped. */
+  'billing.invoice_retry_unknown_subscription_enabled': true,
+  /** Algo audit 2026-10-27 (MONEY H-4): the admin's «cancel with refund»
+   * refunds the last paid subscription invoice (not a pack / boost / stars
+   * / $0 trial / seat purchase). */
+  'billing.admin_refund_by_invoice_enabled': true,
+  /** Algo audit 2026-10-27 (MONEY M-7): "paid at least once" (canceled vs
+   * expired at the end) counts real subscription invoices only. */
+  'billing.had_payment_invoices_only_enabled': true,
+  /** Algo audit 2026-10-27 (MONEY M-2): a partial refund made in Stripe is
+   * booked in the ledger (the payment stays succeeded). */
+  'billing.partial_refund_ledger_enabled': true,
   // Owner 2026-10-22 (systems checklist §12): Stripe Tax (automatic_tax)
   // on subscriptions, seat purchases, hosted checkouts and our card page.
   // Off until the owner enables Stripe Tax in the Stripe Dashboard
@@ -1271,6 +1307,12 @@ export const OWNER_TREASURY_SETTINGS = {
   /** Algo audit 2026-10-27 (MONEY H-6): a pay day on which Stripe refused a
    * transfer is not marked done; the next daily tick pays the rest. */
   'treasury.payroll_retry_failed_enabled': true,
+  /** Algo audit 2026-10-27 (MONEY H-7): salary transfers left `processing`
+   * (a crash between the commit and Stripe) are re-sent with the same
+   * idempotency key every 10 minutes. */
+  'treasury.payroll_stuck_sweep_enabled': true,
+  /** How old (minutes) a `processing` payout must be to be re-sent. */
+  'treasury.payroll_stuck_minutes': 30,
   /** Pay day of the month (1…28, UTC); a missed day runs the next day. */
   'treasury.payroll_day': 1,
   /** Warn this many days before the pay day when Stripe holds less than
@@ -1282,6 +1324,29 @@ export const OWNER_TREASURY_SETTINGS = {
 // who never chose sees: 'all' or 'legal_only' (general posts hidden).
 export const OWNER_FEED_SETTINGS = {
   'feed.default_content_mode': 'all',
+  /** Algo audit 2026-10-27 (CONTENT H-3): how deep one feed page may walk
+   * the recommendation snapshot (in chunks of 200) for unseen posts. The
+   * snapshot holds 1000; 200 = the old single-chunk scan, whose ranks
+   * 200-999 never reached "Legal only" viewers and heavy readers. */
+  'feed.reco_scan_max': 1000,
+  /** CONTENT H-5: slots of every snapshot rebuild kept for fresh posts no
+   * one reacted to yet (score 0), so new authors get a first showing; they
+   * are spread through the ranking. 0 = off (the old pure score order). */
+  'feed.reco_explore_slots': 100,
+  /** CONTENT H-5: how young (hours) a post must be for an exploration slot. */
+  'feed.reco_explore_hours': 6,
+  /** CONTENT M-4: reposts by followed people inserted per feed page (the
+   * window between two pages' followed posts). Was a fixed 10; extra ones
+   * in a busy window were lost. */
+  'feed.reposts_per_page': 30,
+  /** CONTENT H-4: newest verified attorneys added to the «people»
+   * candidates next to the 600 best rated, so a new attorney can be
+   * suggested at all. 0 = off (only the best rated). */
+  'reco.people_newest': 200,
+  /** CONTENT M-6: the Search «For you» grid pages through the list it
+   * started with (a pinned copy, 15 min), not a list rebuilt mid-scroll
+   * (posts skipped or repeated). Off = the old behaviour. */
+  'reco.pin_paging_enabled': true,
 };
 
 // Owner 2026-10-13: who may ADD files, documents and extra photos to a post
@@ -1590,6 +1655,19 @@ export const OWNER_CASE_FANOUT_SETTINGS = {
   /** Algo audit 2026-10-27 (CASES H-2): an urgent case ignores quiet hours
    * and goes to the whole audience in one wave (no 10-minute slices). */
   'case_alerts.urgent_fast_enabled': true,
+  /** Algo audit 2026-10-27 (CASES C-1): an open case that becomes urgent
+   * later (a near date, «Срочно») — the attorneys with «Только срочные»,
+   * left out so far, are told in one extra round. */
+  'case_alerts.urgent_upgrade_enabled': true,
+  /** Algo audit 2026-10-27 (CASES M-3): no offers after N hours — the
+   * people of the audience not alerted yet are told (never anyone twice).
+   * Hours of the two stages; 0 = that stage off. */
+  'case_alerts.rebroadcast_enabled': true,
+  'case_alerts.rebroadcast_first_hours': 24,
+  'case_alerts.rebroadcast_second_hours': 72,
+  /** Algo audit 2026-10-27 (CASES M-4): the client-fraud gate also with the
+   * waves off (a banned / restricted client's case reaches nobody). */
+  'case_fanout.legacy_fraud_gate_enabled': true,
 };
 
 /**
@@ -1696,6 +1774,24 @@ export const OWNER_SEO_PROMOTION_SETTINGS = {
   'seo.sitemap_index_enabled': false,
 };
 
+/**
+ * Owner 2026-10-28: address suggestions while typing (every address field
+ * in the app; docs/architecture/ADDRESS_AUTOCOMPLETE_2026-10-28.md).
+ * enabled: off | on | auto (default). auto = works only once the chosen
+ * provider has its keys / region in Ключи и сервисы, so nothing is called
+ * (and nothing is billed) before the owner sets it up. provider: aws
+ * (Amazon Location, default, $0.20 per 1 000) | google (Places API (New)).
+ * monthly_cap: provider calls per calendar month for everybody together;
+ * above it the fields stay plain text until the 1st. per_user_per_day:
+ * one person's calls a day (typing an address is ~3-6 calls).
+ */
+export const OWNER_ADDRESS_SETTINGS = {
+  'addresses.autocomplete_enabled': 'auto',
+  'addresses.provider': 'aws',
+  'addresses.monthly_cap': 300000,
+  'addresses.per_user_per_day': 300,
+};
+
 export const APP_SETTINGS = {
   ...OWNER_COMPLIANCE_SETTINGS,
   ...FILE_03_SETTINGS,
@@ -1755,6 +1851,7 @@ export const APP_SETTINGS = {
   ...OWNER_SEO_PROMOTION_SETTINGS,
   // Staff package T1 (2026-10-27): «Админка и сотрудники», all switches off.
   ...OWNER_STAFF_SETTINGS,
+  ...OWNER_ADDRESS_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

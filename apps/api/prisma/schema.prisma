@@ -1866,20 +1866,25 @@ model VerificationRequest {
 }
 
 model VerificationDocument {
-  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  request_id String              @db.Uuid
-  request    VerificationRequest @relation(fields: [request_id], references: [id], onDelete: Restrict)
-  doc_type   VerificationDocType
-  file_id    String              @db.Uuid
-  file       File                @relation(fields: [file_id], references: [id], onDelete: Restrict)
-  state_code String?             @db.Char(2)
-  state      State?              @relation(fields: [state_code], references: [code], onDelete: Restrict)
-  notes      String?
+  id           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  request_id   String              @db.Uuid
+  request      VerificationRequest @relation(fields: [request_id], references: [id], onDelete: Restrict)
+  doc_type     VerificationDocType
+  file_id      String              @db.Uuid
+  file         File                @relation(fields: [file_id], references: [id], onDelete: Restrict)
+  state_code   String?             @db.Char(2)
+  state        State?              @relation(fields: [state_code], references: [code], onDelete: Restrict)
+  notes        String?
   // docs/03_VERIFICATION_PROFILES.md §10 (stage 3.1)
   // front | back, for identity documents
-  side       String?
-  created_at DateTime            @default(now()) @db.Timestamptz
-  updated_at DateTime            @updatedAt @db.Timestamptz
+  side         String?
+  // Owner 2026-10-28 (ID selfie camera): how a selfie was captured — the
+  // in-app guided camera's liveness result, timings, device and whether
+  // the server saw a valid one-time capture token. Null for other
+  // documents and for selfies attached before this existed.
+  capture_meta Json?
+  created_at   DateTime            @default(now()) @db.Timestamptz
+  updated_at   DateTime            @updatedAt @db.Timestamptz
 
   @@index([request_id])
   @@map("verification_documents")

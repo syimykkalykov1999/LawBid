@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -112,6 +113,8 @@ export interface PayConfirmInput {
  */
 @Injectable()
 export class PayPageService {
+  private readonly log = new Logger(PayPageService.name);
+
   constructor(
     private readonly links: PayLinkService,
     private readonly subscriptions: SubscriptionsService,
@@ -223,9 +226,15 @@ export class PayPageService {
         const customerId = await this.subscriptions.customerId(user.sub, null);
         await this.provider.updateCustomerTaxLocation?.(customerId, location);
       }
-    } catch {
+    } catch (e) {
       // Tax is best effort on the page: Stripe adds it on the invoice when
       // the customer could be placed; the page shows the listed price.
+      // Algo audit 2026-10-27 (MONEY M-5): never silent — a one-time
+      // payment (pack, stars, boost) goes through WITHOUT tax here, so the
+      // ops alarm sees every miss (metric filter on `stripe_tax_failed`).
+      this.log.warn(
+        `alert: stripe_tax_failed mode=${s.mode}: ${String(e).slice(0, 300)}`,
+      );
     }
     return s;
   }

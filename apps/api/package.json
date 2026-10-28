@@ -52,6 +52,7 @@
     "@aws-sdk/client-cost-explorer": "^3.1146.0",
     "@aws-sdk/client-ecs": "^3.1146.0",
     "@aws-sdk/client-elasticache": "^3.1152.0",
+    "@aws-sdk/client-geo-places": "^3.1154.0",
     "@aws-sdk/client-kms": "^3.1152.0",
     "@aws-sdk/client-rds": "^3.1152.0",
     "@aws-sdk/client-rekognition": "^3.1152.0",
