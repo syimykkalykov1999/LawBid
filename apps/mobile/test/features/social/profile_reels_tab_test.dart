@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -124,6 +125,16 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('reel-views-reel-old')), findsNothing);
+    // Owner 2026-10-27: the grid is the only place the cover is drawn.
+    for (final id in ['reel-new', 'reel-old']) {
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey('reel-tile-$id')),
+          matching: find.byType(CachedNetworkImage),
+        ),
+        findsOneWidget,
+      );
+    }
     await settle(t);
   });
 

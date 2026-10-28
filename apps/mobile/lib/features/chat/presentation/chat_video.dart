@@ -7,9 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
-import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
 import 'package:lawbid/core/media/video_cache/video_cache.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
@@ -64,9 +62,10 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
     }
   }
 
-  /// Owner 2026-10-20: a tile without a poster opens its player only while
-  /// it is on screen (a long chat no longer holds one decoder per video)
-  /// and lets go of it once it has been scrolled far away.
+  /// Owner 2026-10-27: the tile never draws the server's cover — it shows
+  /// the video's own first frame. Owner 2026-10-20: it opens its player
+  /// only while it is on screen (a long chat no longer holds one decoder
+  /// per video) and lets go of it once it has been scrolled far away.
   bool _seen = false;
 
   void _visibility(VisibilityInfo info) {
@@ -83,15 +82,10 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
     }
   }
 
-  /// Owner 2026-10-18 (speed): a poster image from the server, when it
-  /// sends one — then the tile draws it and no player is opened for the
-  /// tile (the full-screen player opens on tap, as always).
-  String? get _poster => widget.attachment.previewUrl;
-
   /// The first frame and the length (only the start of the file loads).
   void _open() {
     final url = widget.attachment.url;
-    if (url == null || _poster != null) return;
+    if (url == null) return;
     // Only the first frame is wanted, never the sound: mixWithOthers keeps
     // the tile from taking the audio session from a call or music.
     final c = VideoPlayerController.networkUrl(
@@ -158,16 +152,6 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
                   fit: StackFit.expand,
                   children: [
                     const ColoredBox(color: Colors.black),
-                    if (_poster != null && !_ready)
-                      Image(
-                        image: appNetworkImage(
-                          _poster!,
-                          decodeWidthFor(widget.fill ? 150 : 220),
-                          cache: AppImageCaches.chatMedia,
-                        ),
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                      ),
                     if (_ready)
                       FittedBox(
                         fit: BoxFit.cover,
