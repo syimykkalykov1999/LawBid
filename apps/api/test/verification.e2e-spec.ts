@@ -448,6 +448,81 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
       await setConfig('verification.require_bar_document', false);
     });
 
+    // Owner 2026-10-28: ID + selfie are required by default (the row is
+    // removed so the built-in default decides, not a test override).
+    it('by default a new request needs ID + selfie: rejected without selfie, accepted with all; switch off = old behaviour', async () => {
+      await prisma.appConfig.deleteMany({
+        where: { key: 'verification.require_identity' },
+      });
+      await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+      try {
+        const a = await attorney();
+        const id = await createDraft(a.auth);
+        await api()
+          .post(`/api/v1/verification/requests/${id}/licenses`)
+          .set(a.auth)
+          .send({ stateCode: 'NJ', barNumber: barNumber() })
+          .expect(201);
+        const overview = await api()
+          .get('/api/v1/verification/me')
+          .set(a.auth)
+          .expect(200);
+        expect((overview.body as Body).data.identityRequired).toBe(true);
+        await api()
+          .post(`/api/v1/verification/requests/${id}/documents`)
+          .set(a.auth)
+          .send({
+            fileId: await file(a.userId),
+            docType: 'passport',
+            side: 'front',
+          })
+          .expect(201);
+        // ID but no selfie → rejected with the existing error code.
+        const noSelfie = await api()
+          .post(`/api/v1/verification/requests/${id}/submit`)
+          .set(a.auth)
+          .send({ attestation: true })
+          .expect(400);
+        expect((noSelfie.body as Body).error?.code).toBe(
+          'VERIFICATION_INCOMPLETE',
+        );
+        expect((noSelfie.body as Body).error?.details?.missing).toEqual([
+          'selfie',
+        ]);
+        expect(await profileStatus(a.userId)).toBe('unverified');
+        await api()
+          .post(`/api/v1/verification/requests/${id}/documents`)
+          .set(a.auth)
+          .send({
+            fileId: await file(a.userId, 'verification_selfie'),
+            docType: 'selfie',
+          })
+          .expect(201);
+        await api()
+          .post(`/api/v1/verification/requests/${id}/submit`)
+          .set(a.auth)
+          .send({ attestation: true })
+          .expect(200);
+
+        // Switch off → the old behaviour: a license + oath is enough.
+        await setConfig('verification.require_identity', false);
+        const b = await attorney();
+        const bid = await createDraft(b.auth);
+        await api()
+          .post(`/api/v1/verification/requests/${bid}/licenses`)
+          .set(b.auth)
+          .send({ stateCode: 'NJ', barNumber: barNumber() })
+          .expect(201);
+        await api()
+          .post(`/api/v1/verification/requests/${bid}/submit`)
+          .set(b.auth)
+          .send({ attestation: true })
+          .expect(200);
+      } finally {
+        await setConfig('verification.require_identity', false);
+      }
+    });
+
     it('only clean files of the right purpose can be attached', async () => {
       const a = await attorney();
       const id = await createDraft(a.auth);

@@ -1,5 +1,6 @@
 import { HttpException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { APP_SETTINGS } from '../../../common/app-settings/app-settings.defaults';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { syncProfileStatus } from '../verification.helpers';
 import {
@@ -144,5 +145,12 @@ describe('syncProfileStatus (§2.3 mapping)', () => {
       where: { user_id: 'a1', verified_at: null },
       data: { verified_at: now },
     });
+  });
+});
+
+describe('verification.require_identity default (owner 2026-10-28)', () => {
+  it('ID + selfie are required by default; bar card stays optional', () => {
+    expect(APP_SETTINGS['verification.require_identity']).toBe(true);
+    expect(APP_SETTINGS['verification.require_bar_document']).toBe(false);
   });
 });

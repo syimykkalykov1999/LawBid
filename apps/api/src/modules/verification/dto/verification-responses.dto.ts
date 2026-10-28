@@ -125,7 +125,7 @@ export class VerificationOverviewDto {
 
   @ApiProperty({
     description:
-      'Identity document and selfie are required: off by default (owner 2026-10-04, setting verification.require_identity); always on for a verified attorney confirming a new name.',
+      'Identity document and selfie are required: on by default (owner 2026-10-28, setting verification.require_identity); always on for a verified attorney confirming a new name.',
   })
   identityRequired!: boolean;
 
