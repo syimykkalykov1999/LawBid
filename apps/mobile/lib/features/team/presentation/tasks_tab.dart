@@ -637,8 +637,8 @@ class _TasksTabState extends ConsumerState<TasksTab> {
     );
   }
 
-  /// Owner 2026-10-28: the places of the chips row a horizontal swipe moves
-  /// through (like the sections of «Дела»): the scopes, then the archive.
+  /// Owner 2026-10-28: the places of the chips row; they change by tap only
+  /// (a swipe moves between «Дела / Задачи / Вопросы»).
   List<_TaskStop> _stops({required bool assistant}) {
     // The board's own view (all, or «today» when opened on it) for the
     // scope chips.
@@ -812,6 +812,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
             Expanded(
               child: widget.showViews
                   ? SwipePages<_TaskStop>(
+                      swipe: false,
                       value: _stop,
                       values: _stops(assistant: assistant),
                       onChanged: _goStop,
