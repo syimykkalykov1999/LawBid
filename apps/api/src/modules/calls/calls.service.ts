@@ -28,6 +28,7 @@ import { UsageLimitsService } from '../../common/usage-limits/usage-limits.servi
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CALL_SILENT_MS } from '../../common/calls/ongoing-call';
+import { CALL_RING_TIMEOUT_MS } from '../../common/calls/ring';
 import {
   callPollKey,
   verifyCallPoll,
@@ -94,8 +95,9 @@ import {
   type VideoCallProvider,
 } from './video-call-provider';
 
-/** Unanswered after this → missed (the app gives up at 60 s, like WhatsApp). */
-export const CALL_RING_TIMEOUT_MS = 65_000;
+/** Unanswered after this → missed (the phones ring CALL_RING_SECONDS, like
+ * WhatsApp; common/calls/ring.ts). Re-exported for the existing imports. */
+export { CALL_RING_TIMEOUT_MS };
 /** A running call nobody has asked about for this long is over: the apps
  * read it every ~8 s (heartbeat), so silence means both are gone. Owner
  * 2026-10-21: no cap on how long people talk (days are fine) — only

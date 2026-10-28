@@ -24,7 +24,7 @@ class CallPushReceiver : BroadcastReceiver() {
         if (CallRinging.onTimeout(context, intent)) return
         val extras = intent.extras ?: return
         val data = HashMap<String, String?>()
-        for (key in listOf("type", "callId", "ended", "pollToken")) {
+        for (key in listOf("type", "callId", "ended", "pollToken", "ringSeconds")) {
             data[key] = extras.getString(key)
         }
         val callId = data["callId"] ?: return
@@ -37,7 +37,12 @@ class CallPushReceiver : BroadcastReceiver() {
                 when (action) {
                     CallRinging.PushAction.STOP -> CallRinging.stop(app, callId)
                     CallRinging.PushAction.WATCH ->
-                        CallRinging.watch(app, callId, data["pollToken"])
+                        CallRinging.watch(
+                            app,
+                            callId,
+                            data["pollToken"],
+                            CallRinging.ringMsOf(data),
+                        )
                     CallRinging.PushAction.NONE -> Unit
                 }
             } catch (e: Exception) {

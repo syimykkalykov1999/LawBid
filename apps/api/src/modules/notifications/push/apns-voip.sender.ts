@@ -5,6 +5,7 @@ import { connect, type ClientHttp2Session } from 'node:http2';
 import { PinoLogger } from 'nestjs-pino';
 import { SecretsService } from '../../../common/secrets/secrets.service';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { CALL_RING_SECONDS } from '../../../common/calls/ring';
 import {
   type ApnsEnvironment,
   type VoipDevice,
@@ -21,10 +22,11 @@ const APNS_TIMEOUT_MS = 8000;
 /** LC-1: which iPhones a call rang by VoIP, kept a little longer than any
  * ring (CallKit 45 s, server 65 s) so «stop ringing» reaches exactly them. */
 const RANG_TTL_SEC = 180;
-/** The iPhone's own CallKit ring ends itself after 45 s (AppDelegate
- * data.duration): a later stop (missed at the server's 65 s) would only
- * make a phone that is quiet already flash a call to end it. */
-const PHONE_RING_MS = 44_000;
+/** The iPhone's own CallKit ring ends itself after CALL_RING_SECONDS
+ * (AppDelegate reads `ringSeconds` from the push): a later stop (missed at
+ * the server's timeout) would only make a phone that is quiet already
+ * flash a call to end it. */
+const PHONE_RING_MS = CALL_RING_SECONDS * 1000 - 1_000;
 const rangKey = (callId: string, userId: string) =>
   `push:voip:rang:${callId}:${userId}`;
 
@@ -72,6 +74,8 @@ export function voipRequest(
       ...(call.avatarUrl ? { avatarUrl: call.avatarUrl } : {}),
       video: call.video ? '1' : '0',
       silent: call.silent ? '1' : '0',
+      // M2: how long the phone rings (one number for every side).
+      ringSeconds: String(CALL_RING_SECONDS),
     }),
   };
 }

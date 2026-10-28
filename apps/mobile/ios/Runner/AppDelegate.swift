@@ -377,6 +377,14 @@ import flutter_callkit_incoming
   /// iOS requires every VoIP push to report a call to CallKit at once —
   /// the same fields as the Dart side (callkit_bridge.dart), so a call the
   /// open app also shows is one call (same id).
+  // Push → CallKit pattern from flutter_callkit_incoming's example
+  // AppDelegate (every VoIP push → showCallkitIncoming(data, fromPushKit:
+  // true) { completion() }), tag v3.1.6, commit
+  // 27cd33c1665b7fbc4c8032a7866c929103029592,
+  // https://github.com/hiennguyen92/flutter_callkit_incoming
+  // MIT License, Copyright (c) 2021 Hien Nguyen — see THIRD_PARTY_NOTICES.md.
+  // Mapped to our payload keys; the example's event logging to its author's
+  // server is NOT used.
   func pushRegistry(
     _ registry: PKPushRegistry,
     didReceiveIncomingPushWith payload: PKPushPayload,
@@ -403,16 +411,11 @@ import flutter_callkit_incoming
       return
     }
     let callId = (p["callId"] as? String) ?? UUID().uuidString
-    // Owner 2026-10-21: the open app's socket may have reported this very
-    // call a moment ago — a second report of the same id would end the one
-    // being answered. One CallKit call per call id.
-    let shown = callkit.activeCalls().contains { item in
-      (item["id"] as? String)?.caseInsensitiveCompare(callId) == .orderedSame
-    }
-    if shown {
-      completion()
-      return
-    }
+    // M1 (2026-10-28): as in the reference, every VoIP push reports its
+    // call — also one the open app's socket showed a moment ago (same id:
+    // CallKit answers «already exists», nothing changes on screen). The old
+    // early return finished the push WITHOUT a report, which makes iOS
+    // stop delivering VoIP pushes («only a missed call»).
     let name = (p["callerName"] as? String) ?? "LawBid"
     // LC-1: the stop came before the ring (Apple may reorder): iOS still
     // wants a reported call for this push — report it and end it at once.
@@ -428,7 +431,9 @@ import flutter_callkit_incoming
       type: video ? 1 : 0
     )
     data.appName = "LawBid"
-    data.duration = 45000
+    // M2 (2026-10-28): one ring length everywhere — 60 s (the server's
+    // CALL_RING_SECONDS, common/calls/ring.ts; it was 45 s here).
+    data.duration = 60000
     // Owner 2026-10-26: the caller's photo (CallKit itself shows only the
     // name; the app's call screen takes the photo from here).
     let avatar = (p["avatarUrl"] as? String) ?? ""
