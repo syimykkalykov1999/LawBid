@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-296 tables.
+297 tables.
 
 ```mermaid
 erDiagram
@@ -499,6 +499,7 @@ erDiagram
     Int amount_cents
     Int percent_bps "nullable"
     String message
+    Json payment_terms "nullable"
     enum_StartAvailability start_availability
     DateTime start_date "nullable"
     Int estimated_duration_days "nullable"
@@ -521,6 +522,7 @@ erDiagram
     Int amount_cents
     Int percent_bps "nullable"
     String message "nullable"
+    Json payment_terms "nullable"
     enum_OfferStatus status
     DateTime created_at
     Int shard_id
@@ -3115,6 +3117,31 @@ erDiagram
     DateTime updated_at
     Int shard_id
   }
+  deal_records {
+    String id PK
+    String case_id FK
+    String bid_id FK
+    enum_PartyRole accepted_by
+    String initiator_id
+    enum_DealRecordStatus status
+    Json snapshot
+    String snapshot_sha256
+    String record_code
+    Int text_version
+    String sign_request_id FK,UK "nullable"
+    String unsigned_file_id FK "nullable"
+    String sealed_file_id FK "nullable"
+    String sealed_sha256 "nullable"
+    String agreement_file_id FK "nullable"
+    String declined_by "nullable"
+    String decline_reason "nullable"
+    String failed_reason "nullable"
+    DateTime sealed_at "nullable"
+    DateTime declined_at "nullable"
+    DateTime created_at
+    DateTime updated_at
+    Int shard_id
+  }
   case_signatures {
     String id PK
     String request_id FK
@@ -4045,6 +4072,12 @@ erDiagram
   case_expenses }o--o| files : "receipt_file_id"
   case_invoices }o--|| cases : "case_id"
   case_sign_requests }o--|| cases : "case_id"
+  deal_records }o--|| cases : "case_id"
+  deal_records }o--|| bids : "bid_id"
+  deal_records |o--o| case_sign_requests : "sign_request_id"
+  deal_records }o--o| files : "unsigned_file_id"
+  deal_records }o--o| files : "sealed_file_id"
+  deal_records }o--o| files : "agreement_file_id"
   case_signatures }o--|| case_sign_requests : "request_id"
   form_templates }o--o| practice_areas : "practice_area_id"
   consultation_settings |o--|| users : "attorney_id"
