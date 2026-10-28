@@ -38,6 +38,7 @@ import {
   UpdateVerificationRequestDto,
 } from '../dto/verification-requests.dto';
 import {
+  SelfieCaptureTokenDto,
   VerificationOverviewDto,
   VerificationRequestDto,
 } from '../dto/verification-responses.dto';
@@ -197,6 +198,25 @@ export class VerificationController {
     @Body() dto: AttachDocumentDto,
   ): Promise<VerificationRequestDto> {
     return this.requests.attachDocument(user.sub, params.id, dto);
+  }
+
+  // flag: none gated by the admin switch verification.selfie_live_capture_required (issuing a token is harmless when it is off)
+  @Post('requests/:id/selfie-capture')
+  @ApiOperation({
+    summary:
+      'One-time selfie capture token (owner 2026-10-28): the app asks for it before opening the guided selfie camera; the selfie attach sends it back',
+  })
+  @ApiEnvelopeResponse(SelfieCaptureTokenDto, { status: HttpStatus.CREATED })
+  @ApiErrors({
+    ...ATTORNEY_ERRORS,
+    400: [E.VALIDATION_ERROR],
+    409: [E.VERIFICATION_INVALID_STATUS],
+  })
+  issueSelfieCaptureToken(
+    @CurrentUser() user: RequestUser,
+    @Param() params: RequestIdParamDto,
+  ): Promise<SelfieCaptureTokenDto> {
+    return this.requests.issueSelfieCapture(user.sub, params.id);
   }
 
   @Delete('requests/:id/documents/:documentId')

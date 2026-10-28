@@ -129,6 +129,8 @@
                 <data android:pathPrefix="/u/" />
                 <data android:pathPrefix="/q/" />
                 <data android:path="/auth/email-code" />
+                <!-- Owner 2026-10-28: «continue on the phone» (ID selfie). -->
+                <data android:path="/verification/wizard" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

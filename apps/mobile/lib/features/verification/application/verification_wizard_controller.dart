@@ -22,6 +22,7 @@ class UploadTask {
     this.fileId,
     this.error,
     this.note,
+    this.selfie,
   });
 
   final String localId;
@@ -35,6 +36,10 @@ class UploadTask {
   /// Owner 2026-10-18: the attorney's note to the reviewer, sent with the
   /// bar card of a number for manual review.
   final String? note;
+
+  /// Owner 2026-10-28: the selfie's one-time capture token and the guided
+  /// camera's report, sent with the attach.
+  final SelfieUpload? selfie;
 
   bool get isActive =>
       phase == UploadPhase.uploading ||
@@ -56,6 +61,7 @@ class UploadTask {
         fileId: fileId ?? this.fileId,
         error: error,
         note: note,
+        selfie: selfie,
       );
 }
 
@@ -435,6 +441,7 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     PickedDocument document, {
     int? maxBytes,
     String? note,
+    SelfieUpload? selfie,
   }) {
     final s = _s;
     if (s == null) return;
@@ -461,9 +468,35 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
       document: document,
       phase: UploadPhase.uploading,
       note: note,
+      selfie: selfie,
     );
     _emit(s.copyWith(uploads: [...s.uploads, task], missing: const []));
     _run(task);
+  }
+
+  /// Owner 2026-10-28 («continue on the phone»): re-reads the draft; when
+  /// the phone has attached the selfie while this screen waits on the
+  /// selfie step, moves on to the review. Returns true when it moved.
+  Future<bool> refreshForHandoff() async {
+    final s = _s;
+    if (s == null) return false;
+    final r = await _repo.get(s.request.id);
+    final latest = _s;
+    if (latest == null || !ref.mounted) return false;
+    _setRequest(r);
+    if (latest.step == WizardStep.selfie && r.selfieComplete) {
+      goTo(WizardStep.review);
+      return true;
+    }
+    return false;
+  }
+
+  /// Owner 2026-10-28: asks the server for the one-time selfie capture
+  /// token before the guided camera opens. Null when no request is loaded.
+  Future<SelfieCaptureTicket?> startSelfieCapture() async {
+    final s = _s;
+    if (s == null) return null;
+    return _repo.startSelfieCapture(s.request.id);
   }
 
   void retry(String localId) {
@@ -561,6 +594,7 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
         fileId: fileId,
         slot: initial.slot,
         note: initial.note,
+        selfie: initial.selfie,
       );
       if (cancellation.isCancelled) return;
       _setRequest(r, dropTask: id);

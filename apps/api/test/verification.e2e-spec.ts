@@ -1,5 +1,5 @@
 import type { AddressInfo, Server } from 'node:net';
-import { randomInt, randomUUID } from 'node:crypto';
+import { createHash, randomInt, randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { LoggerErrorInterceptor, Logger } from 'nestjs-pino';
@@ -100,12 +100,17 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
     await setFlag('auto_bar_check', false);
     await setConfig('verification.require_identity', false);
     await setConfig('verification.require_bar_document', false);
+    // Owner 2026-10-28: selfies need the guided camera's one-time token by
+    // default; the suites below attach plain selfie files (the token has its
+    // own test, which turns the rule back on).
+    await setConfig('verification.selfie_live_capture_required', false);
     // The verifier-queue tests below need submitted requests to wait for a
     // verifier; self-attestation (owner 2026-10-04) has its own test.
     await setConfig('verification.self_attestation_auto_approve', false);
   });
 
   afterAll(async () => {
+    await setConfig('verification.selfie_live_capture_required', true);
     await setConfig('verification.require_identity', false);
     await setConfig('verification.require_bar_document', false);
     await setConfig('verification.self_attestation_auto_approve', true);
@@ -520,6 +525,200 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
           .expect(200);
       } finally {
         await setConfig('verification.require_identity', false);
+      }
+    });
+
+    // Owner 2026-10-28 (ID selfie camera): a selfie only with the one-time
+    // capture token of the in-app camera; default on (row removed).
+    it('selfie needs a valid unused capture token by default; switch off = old behaviour', async () => {
+      await prisma.appConfig.deleteMany({
+        where: { key: 'verification.selfie_live_capture_required' },
+      });
+      const redis = app.get<Redis>(REDIS_CLIENT);
+      await redis.del('config:app_config');
+      try {
+        const a = await attorney();
+        const id = await createDraft(a.auth);
+        const attach = (body: Record<string, unknown>) =>
+          api()
+            .post(`/api/v1/verification/requests/${id}/documents`)
+            .set(a.auth)
+            .send({ docType: 'selfie', ...body });
+        const reason = (res: { body: unknown }) => {
+          const b = res.body as Body;
+          expect(b.error?.code).toBe('VALIDATION_ERROR');
+          return b.error?.details?.reason;
+        };
+
+        // No token → 400 capture_token_missing.
+        expect(
+          reason(
+            await attach({
+              fileId: await file(a.userId, 'verification_selfie'),
+            }).expect(400),
+          ),
+        ).toBe('capture_token_missing');
+        // A made-up token → invalid.
+        expect(
+          reason(
+            await attach({
+              fileId: await file(a.userId, 'verification_selfie'),
+              captureToken: 'x'.repeat(32),
+            }).expect(400),
+          ),
+        ).toBe('capture_token_invalid');
+        // Token is for this attorney's own request only.
+        const other = await attorney();
+        await api()
+          .post(`/api/v1/verification/requests/${id}/selfie-capture`)
+          .set(other.auth)
+          .expect(404);
+
+        const issued = await api()
+          .post(`/api/v1/verification/requests/${id}/selfie-capture`)
+          .set(a.auth)
+          .expect(201);
+        const tok = (issued.body as Body).data as {
+          token: string;
+          expiresAt: string;
+          required: boolean;
+        };
+        expect(tok.required).toBe(true);
+        expect(Date.parse(tok.expiresAt)).toBeGreaterThan(Date.now());
+        const meta = {
+          liveness: 'passed',
+          challenge: 'blink',
+          faceDetected: true,
+          cardDetected: true,
+          framesCaptured: 2,
+          startedAt: new Date(Date.now() - 6_000).toISOString(),
+          capturedAt: new Date().toISOString(),
+          platform: 'android',
+          deviceModel: 'Pixel 8',
+        };
+        const selfieFile = await file(a.userId, 'verification_selfie');
+        await attach({
+          fileId: selfieFile,
+          captureToken: tok.token,
+          captureMeta: meta,
+        }).expect(201);
+        // A plain retry of the same attach still answers 201.
+        await attach({
+          fileId: selfieFile,
+          captureToken: tok.token,
+          captureMeta: meta,
+        }).expect(201);
+        // Reused for another picture → invalid.
+        expect(
+          reason(
+            await attach({
+              fileId: await file(a.userId, 'verification_selfie'),
+              captureToken: tok.token,
+            }).expect(400),
+          ),
+        ).toBe('capture_token_invalid');
+        // Capture data on a non-selfie document is refused.
+        await api()
+          .post(`/api/v1/verification/requests/${id}/documents`)
+          .set(a.auth)
+          .send({
+            fileId: await file(a.userId),
+            docType: 'passport',
+            side: 'front',
+            captureToken: tok.token,
+          })
+          .expect(400);
+        await api()
+          .post(`/api/v1/verification/requests/${id}/documents`)
+          .set(a.auth)
+          .send({
+            fileId: await file(a.userId),
+            docType: 'passport',
+            side: 'front',
+          })
+          .expect(201);
+
+        // Expired: the stored session's expiry moved into the past.
+        const late = (
+          (
+            await api()
+              .post(`/api/v1/verification/requests/${id}/selfie-capture`)
+              .set(a.auth)
+              .expect(201)
+          ).body as Body
+        ).data.token as string;
+        const key = `verif:selfie_cap:${createHash('sha256').update(late).digest('hex')}`;
+        const stored = JSON.parse((await redis.get(key)) ?? '{}') as {
+          exp: number;
+        };
+        await redis.set(
+          key,
+          JSON.stringify({ ...stored, exp: Date.now() - 1_000 }),
+          'EX',
+          600,
+        );
+        expect(
+          reason(
+            await attach({
+              fileId: await file(a.userId, 'verification_selfie'),
+              captureToken: late,
+            }).expect(400),
+          ),
+        ).toBe('capture_token_expired');
+
+        // The verifier sees the capture report next to the selfie.
+        await api()
+          .post(`/api/v1/verification/requests/${id}/licenses`)
+          .set(a.auth)
+          .send({ stateCode: 'NJ', barNumber: barNumber() })
+          .expect(201);
+        await api()
+          .post(`/api/v1/verification/requests/${id}/submit`)
+          .set(a.auth)
+          .send({ attestation: true })
+          .expect(200);
+        const verifier = await admin('verifier');
+        const card = await api()
+          .get(`/api/v1/admin/verification/requests/${id}`)
+          .set(verifier.auth)
+          .expect(200);
+        const docs = (card.body as Body).data.documents as {
+          docType: string;
+          capture: Record<string, unknown> | null;
+        }[];
+        const selfie = docs.find((d) => d.docType === 'selfie');
+        expect(selfie?.capture).toMatchObject({
+          source: 'app_camera',
+          tokenVerified: true,
+          liveness: 'passed',
+          challenge: 'blink',
+          cardDetected: true,
+          framesCaptured: 2,
+          deviceModel: 'Pixel 8',
+        });
+        expect(docs.find((d) => d.docType === 'passport')?.capture).toBeNull();
+
+        // Switch off → any selfie file is accepted, recorded as unchecked.
+        await setConfig('verification.selfie_live_capture_required', false);
+        const b = await attorney();
+        const bid = await createDraft(b.auth);
+        await api()
+          .post(`/api/v1/verification/requests/${bid}/documents`)
+          .set(b.auth)
+          .send({
+            fileId: await file(b.userId, 'verification_selfie'),
+            docType: 'selfie',
+          })
+          .expect(201);
+        const offToken = await api()
+          .post(`/api/v1/verification/requests/${bid}/selfie-capture`)
+          .set(b.auth)
+          .expect(201);
+        expect(
+          ((offToken.body as Body).data as { required: boolean }).required,
+        ).toBe(false);
+      } finally {
+        await setConfig('verification.selfie_live_capture_required', false);
       }
     });
 

@@ -10504,6 +10504,123 @@
         ]
       }
     },
+    "/verification/requests/{id}/selfie-capture": {
+      "post": {
+        "operationId": "issueSelfieCaptureToken",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfieCaptureTokenEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ATTORNEY_SUSPENDED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: VERIFICATION_INVALID_STATUS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "One-time selfie capture token (owner 2026-10-28): the app asks for it before opening the guided selfie camera; the selfie attach sends it back",
+        "tags": [
+          "verification"
+        ]
+      }
+    },
     "/verification/requests/{id}/documents/{documentId}": {
       "delete": {
         "operationId": "removeVerificationDocument",
@@ -136814,6 +136931,84 @@
           "barNumber"
         ]
       },
+      "SelfieCaptureMetaDto": {
+        "type": "object",
+        "properties": {
+          "liveness": {
+            "enum": [
+              "passed",
+              "not_checked",
+              "skipped"
+            ],
+            "type": "string",
+            "description": "passed = the random on-device liveness prompt was done; not_checked = no face detector on this device (manual shot); skipped = the attorney used «Take photo anyway» after the timeout (still the live camera)."
+          },
+          "challenge": {
+            "nullable": true,
+            "enum": [
+              "blink",
+              "turn_left",
+              "turn_right"
+            ],
+            "type": "string",
+            "description": "The random prompt shown (blink / turn the head)."
+          },
+          "fallbackReason": {
+            "nullable": true,
+            "enum": [
+              "timeout",
+              "detector_unavailable"
+            ],
+            "type": "string",
+            "description": "Why liveness was not passed, when it was not."
+          },
+          "faceDetected": {
+            "type": "boolean",
+            "description": "Exactly one face was found in the oval."
+          },
+          "cardDetected": {
+            "type": "boolean",
+            "description": "Text was found where the ID card is held (a soft hint; false = not auto-detected, the verifier checks the picture)."
+          },
+          "framesCaptured": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Camera opened."
+          },
+          "capturedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Picture taken."
+          },
+          "platform": {
+            "enum": [
+              "android",
+              "ios",
+              "web"
+            ],
+            "type": "string"
+          },
+          "deviceModel": {
+            "type": "string",
+            "maxLength": 80,
+            "description": "e.g. \"iPhone15,2\"."
+          }
+        },
+        "required": [
+          "liveness",
+          "faceDetected",
+          "cardDetected",
+          "framesCaptured",
+          "startedAt",
+          "capturedAt",
+          "platform"
+        ]
+      },
       "AttachDocumentDto": {
         "type": "object",
         "properties": {
@@ -136848,11 +137043,56 @@
             "type": "string",
             "maxLength": 500,
             "description": "Owner 2026-10-18: the attorney's optional note to the reviewer, sent with the bar card of a number for manual review."
+          },
+          "captureToken": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 64,
+            "description": "Selfie only: the one-time token from POST requests/{id}/selfie-capture (owner 2026-10-28). Required while verification.selfie_live_capture_required is on (default); missing / unknown / used / expired → 400 VALIDATION_ERROR with details.reason capture_token_missing / capture_token_invalid / capture_token_expired."
+          },
+          "captureMeta": {
+            "$ref": "#/components/schemas/SelfieCaptureMetaDto"
           }
         },
         "required": [
           "fileId",
           "docType"
+        ]
+      },
+      "SelfieCaptureTokenDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Send back as captureToken with the selfie."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "required": {
+            "type": "boolean",
+            "description": "verification.selfie_live_capture_required: false = the server also accepts a selfie without the token."
+          }
+        },
+        "required": [
+          "token",
+          "expiresAt",
+          "required"
+        ]
+      },
+      "SelfieCaptureTokenEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SelfieCaptureTokenDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "SubmitVerificationRequestDto": {
@@ -137115,6 +137355,90 @@
           "failed"
         ]
       },
+      "AdminSelfieCaptureDto": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "enum": [
+              "app_camera",
+              "unknown"
+            ],
+            "type": "string",
+            "description": "unknown = no capture report (old app / switch off)."
+          },
+          "tokenVerified": {
+            "type": "boolean",
+            "description": "A valid one-time capture token was spent with this selfie."
+          },
+          "liveness": {
+            "enum": [
+              "passed",
+              "not_checked",
+              "skipped"
+            ],
+            "type": "string"
+          },
+          "challenge": {
+            "nullable": true,
+            "enum": [
+              "blink",
+              "turn_left",
+              "turn_right"
+            ],
+            "type": "string"
+          },
+          "fallbackReason": {
+            "nullable": true,
+            "enum": [
+              "timeout",
+              "detector_unavailable"
+            ],
+            "type": "string"
+          },
+          "faceDetected": {
+            "type": "boolean"
+          },
+          "cardDetected": {
+            "type": "boolean"
+          },
+          "framesCaptured": {
+            "type": "integer",
+            "nullable": true
+          },
+          "startedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "capturedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "platform": {
+            "type": "string",
+            "nullable": true
+          },
+          "deviceModel": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "source",
+          "tokenVerified",
+          "liveness",
+          "challenge",
+          "fallbackReason",
+          "faceDetected",
+          "cardDetected",
+          "framesCaptured",
+          "startedAt",
+          "capturedAt",
+          "platform",
+          "deviceModel"
+        ]
+      },
       "AdminDocumentDto": {
         "type": "object",
         "properties": {
@@ -137159,6 +137483,16 @@
             "nullable": true,
             "description": "The attorney's note sent with this document."
           },
+          "capture": {
+            "nullable": true,
+            "description": "Selfie only (owner 2026-10-28): the guided camera report; null for other documents and selfies attached before it existed.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminSelfieCaptureDto"
+              }
+            ]
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -137173,6 +137507,7 @@
           "sizeBytes",
           "scanStatus",
           "notes",
+          "capture",
           "createdAt"
         ]
       },

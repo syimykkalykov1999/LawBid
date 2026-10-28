@@ -107,6 +107,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
+    // Owner 2026-10-28: switching a chosen role asks first; Cancel keeps it.
+    expect(find.text('Change your role?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(repo.calls, isNot(contains('setRole:client')));
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('role-change-confirm')));
+    await tester.pumpAndSettle();
     expect(repo.calls, contains('setRole:client'));
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(Duration.zero);

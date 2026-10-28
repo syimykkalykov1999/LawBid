@@ -37,6 +37,7 @@ import { notFound } from '../../profiles/services/profile-access';
 import {
   QUEUE_PAGE_DEFAULT,
   type AdminLicenseDto,
+  type AdminSelfieCaptureDto,
   type AdminVerificationRequestDto,
   type AttorneyVerificationStatusDto,
   type DocumentUrlDto,
@@ -281,6 +282,7 @@ export class VerificationAdminService {
         sizeBytes: Number(d.file.size_bytes),
         scanStatus: d.file.scan_status,
         notes: d.notes,
+        capture: selfieCaptureDto(d.capture_meta),
         createdAt: d.created_at.toISOString(),
       })),
       checks: row.checks.map((c) => ({
@@ -1292,6 +1294,37 @@ function licenseDto(
     decidedBy: l.verified_by,
     registryFlag: (l.registry_flag as AdminLicenseDto['registryFlag']) ?? null,
     registryFlaggedAt: l.registry_flagged_at?.toISOString() ?? null,
+  };
+}
+
+/** Owner 2026-10-28: the stored selfie capture record, read defensively
+ * (it is JSON written by the attach). */
+export function selfieCaptureDto(
+  value: Prisma.JsonValue | null,
+): AdminSelfieCaptureDto | null {
+  const o = asObject(value);
+  if (!o) return null;
+  const str = (k: string): string | null =>
+    typeof o[k] === 'string' ? o[k] : null;
+  const pick = <T extends string>(k: string, allowed: readonly T[]): T | null =>
+    allowed.find((a) => a === o[k]) ?? null;
+  return {
+    source: o.source === 'app_camera' ? 'app_camera' : 'unknown',
+    tokenVerified: o.tokenVerified === true,
+    liveness: pick('liveness', ['passed', 'skipped'] as const) ?? 'not_checked',
+    challenge: pick('challenge', ['blink', 'turn_left', 'turn_right'] as const),
+    fallbackReason: pick('fallbackReason', [
+      'timeout',
+      'detector_unavailable',
+    ] as const),
+    faceDetected: o.faceDetected === true,
+    cardDetected: o.cardDetected === true,
+    framesCaptured:
+      typeof o.framesCaptured === 'number' ? o.framesCaptured : null,
+    startedAt: str('startedAt'),
+    capturedAt: str('capturedAt'),
+    platform: str('platform'),
+    deviceModel: str('deviceModel'),
   };
 }
 

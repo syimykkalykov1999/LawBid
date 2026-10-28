@@ -91,6 +91,7 @@ class VerificationRepositoryImpl implements VerificationRepository {
     required String fileId,
     required DocSlot slot,
     String? note,
+    SelfieUpload? selfie,
   }) =>
       _req(
         () => _client.attachVerificationDocument(
@@ -105,10 +106,25 @@ class VerificationRepositoryImpl implements VerificationRepository {
             },
             stateCode: slot.stateCode,
             note: note,
+            captureToken: selfie?.token,
+            captureMeta: VerificationMapper.captureMeta(selfie?.report),
           ),
           extras: _creates,
         ),
       );
+
+  @override
+  Future<SelfieCaptureTicket> startSelfieCapture(String requestId) async {
+    final t = (await guardApiCall(
+      () => _client.issueSelfieCaptureToken(id: requestId),
+    ))
+        .data;
+    return SelfieCaptureTicket(
+      token: t.token,
+      expiresAt: t.expiresAt,
+      required: t.requiredValue,
+    );
+  }
 
   @override
   Future<VerificationRequest> removeDocument(

@@ -32,6 +32,7 @@ import { VerificationAdminService } from './services/verification-admin.service'
 import { VerificationChecksService } from './services/verification-checks.service';
 import { StateRegistryService } from './services/state-registry.service';
 import { VerificationRequestsService } from './services/verification-requests.service';
+import { SelfieCaptureTokensService } from './services/selfie-capture-tokens.service';
 
 /**
  * docs/03_VERIFICATION_PROFILES.md §2: attorney verification requests
@@ -90,6 +91,8 @@ import { VerificationRequestsService } from './services/verification-requests.se
       useExisting: ManualIdVerificationProvider,
     },
     VerificationChecksService,
+    // Owner 2026-10-28: one-time tokens of the guided selfie camera.
+    SelfieCaptureTokensService,
     VerificationRequestsService,
     VerificationAdminService,
   ],

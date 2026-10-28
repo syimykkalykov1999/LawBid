@@ -365,6 +365,60 @@ export class RegistryCheckDto {
   details!: Record<string, unknown>;
 }
 
+/** Owner 2026-10-28: how a selfie was captured (guided in-app camera). The
+ * app reports liveness / card hint / device; only `tokenVerified` is
+ * checked by the server. */
+export class AdminSelfieCaptureDto {
+  @ApiProperty({
+    enum: ['app_camera', 'unknown'],
+    description: 'unknown = no capture report (old app / switch off).',
+  })
+  source!: 'app_camera' | 'unknown';
+
+  @ApiProperty({
+    description: 'A valid one-time capture token was spent with this selfie.',
+  })
+  tokenVerified!: boolean;
+
+  @ApiProperty({ enum: ['passed', 'not_checked', 'skipped'] })
+  liveness!: 'passed' | 'not_checked' | 'skipped';
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    enum: ['blink', 'turn_left', 'turn_right'],
+  })
+  challenge!: 'blink' | 'turn_left' | 'turn_right' | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    enum: ['timeout', 'detector_unavailable'],
+  })
+  fallbackReason!: 'timeout' | 'detector_unavailable' | null;
+
+  @ApiProperty()
+  faceDetected!: boolean;
+
+  @ApiProperty()
+  cardDetected!: boolean;
+
+  @ApiProperty({ type: 'integer', nullable: true })
+  framesCaptured!: number | null;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  startedAt!: string | null;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  capturedAt!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  platform!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  deviceModel!: string | null;
+}
+
 export class AdminDocumentDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -393,6 +447,15 @@ export class AdminDocumentDto {
     description: "The attorney's note sent with this document.",
   })
   notes!: string | null;
+
+  @ApiProperty({
+    type: AdminSelfieCaptureDto,
+    nullable: true,
+    description:
+      'Selfie only (owner 2026-10-28): the guided camera report; null for ' +
+      'other documents and selfies attached before it existed.',
+  })
+  capture!: AdminSelfieCaptureDto | null;
 
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;

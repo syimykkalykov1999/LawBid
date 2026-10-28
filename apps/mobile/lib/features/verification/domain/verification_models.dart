@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:lawbid/features/verification/domain/selfie_liveness.dart';
+
 /// Attorney verification (docs/03 §2, §6) — domain types the wizard and
 /// the status screen work with. Presentation never sees the generated wire
 /// DTOs (docs/01 §6.4); `data/verification_mapper.dart` converts.
@@ -254,11 +256,15 @@ class PickedDocument {
     required this.name,
     required this.mime,
     required this.bytes,
+    this.selfieCapture,
   });
 
   final String name;
   final String mime;
   final Uint8List bytes;
+
+  /// Owner 2026-10-28: the guided selfie camera's report (selfie only).
+  final SelfieCaptureReport? selfieCapture;
 
   int get sizeBytes => bytes.length;
   bool get isPdf => mime == 'application/pdf';
