@@ -1,7 +1,7 @@
 'use client';
 
 import { ChatCircleText, FileText, NotePencil, PaperPlaneRight, Paperclip, SpinnerGap, WarningCircle, X } from '@phosphor-icons/react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { formatBytes } from '@/components/media/media-utils';
 import { Button } from '@/components/ui/button';
 import { Select, Textarea } from '@/components/ui/input';
@@ -47,10 +47,19 @@ export function Composer({
   onSubmit,
   busy,
   macros = [],
+  hideReplyButton = false,
+  sendRef,
+  onReadyChange,
 }: {
   onSubmit: (v: ComposerSubmit) => Promise<boolean>;
   busy: boolean;
   macros?: SupportMacro[];
+  /** The reply is sent from outside (the review action bar); a note keeps its button. */
+  hideReplyButton?: boolean;
+  /** Lets a button outside the box send the reply (the review action bar). */
+  sendRef?: React.MutableRefObject<(() => void) | null>;
+  /** Tells the outside whether a public reply can be sent now. */
+  onReadyChange?: (ready: boolean) => void;
 }) {
   const [mode, setMode] = useState<ComposerMode>('reply');
   const [body, setBody] = useState('');
@@ -63,6 +72,9 @@ export function Composer({
   const uploading = files.some((f) => f.state === 'uploading');
   const ready =
     (body.trim().length > 0 || sendable.length > 0) && body.length <= 5000 && !busy && !uploading;
+
+  const canReply = ready && !note;
+  useEffect(() => onReadyChange?.(canReply), [canReply, onReadyChange]);
 
   function patchFile(key: string, p: Partial<Picked>) {
     setFiles((cur) => cur.map((f) => (f.key === key ? { ...f, ...p } : f)));
@@ -97,6 +109,11 @@ export function Composer({
       setFiles([]);
     }
   }
+
+  // The latest send for the outside button (set after render, not during it).
+  useEffect(() => {
+    if (sendRef) sendRef.current = () => void send();
+  });
 
   return (
     <div
@@ -240,10 +257,12 @@ export function Composer({
           </label>
         ) : null}
         <span className="ml-auto hidden text-[11px] text-faint sm:inline">Ctrl/⌘ + Enter — отправить</span>
-        <Button variant={note ? 'soft' : 'gold'} size="sm" loading={busy} disabled={!ready} onClick={() => void send()}>
-          {!busy ? note ? <NotePencil size={15} weight="light" /> : <PaperPlaneRight size={15} weight="light" /> : null}
-          {note ? 'Сохранить заметку' : 'Отправить'}
-        </Button>
+        {note || !hideReplyButton ? (
+          <Button variant={note ? 'soft' : 'gold'} size="sm" loading={busy} disabled={!ready} onClick={() => void send()}>
+            {!busy ? note ? <NotePencil size={15} weight="light" /> : <PaperPlaneRight size={15} weight="light" /> : null}
+            {note ? 'Сохранить заметку' : 'Отправить'}
+          </Button>
+        ) : null}
       </div>
     </div>
   );

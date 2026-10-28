@@ -1,11 +1,13 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/merged_paging.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
-import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
 
 import '../../helpers/ux_harness.dart';
 import 'social_fakes.dart';
@@ -221,7 +223,7 @@ void main() {
     }
 
     List<String> cardIds(WidgetTester t) => [
-          for (final c in t.widgetList<PostCard>(find.byType(PostCard)))
+          for (final c in t.widgetList<PostGridTile>(find.byType(PostGridTile)))
             c.post.id,
         ];
 
@@ -239,8 +241,38 @@ void main() {
         ];
       await pump(t, repo);
       expect(cardIds(t), ['brief-new', 'repost-a', 'repost-b', 'brief-old']);
-      // A repost keeps its "… reposted" header.
-      expect(find.text('saul reposted'), findsNWidgets(2));
+      await settle(t);
+    });
+
+    testWidgets('reposts tab is a 3-column grid of cover tiles, no player',
+        (t) async {
+      final repo = FakeSocialRepository(posts: [])
+        ..reposts = [
+          post('r1', day(1), withPhoto: true, repostedAt: day(9)),
+          post('r2', day(2), withPhoto: true, repostedAt: day(8)),
+          post('r3', day(3), withPhoto: true, repostedAt: day(7)),
+          post('r4', day(4), withPhoto: true, repostedAt: day(6)),
+        ];
+      await pump(t, repo);
+      expect(
+        find.byKey(const ValueKey('profile-reposts-grid')),
+        findsOneWidget,
+      );
+      expect(find.byType(PostGridTile), findsNWidgets(4));
+      expect(find.byType(CachedNetworkImage), findsNWidgets(4));
+      expect(find.byType(ReelVideo), findsNothing);
+      // Edge to edge, three per row: tiles 1-3 share a row, 4 starts the next.
+      final x = [
+        for (final id in ['r1', 'r2', 'r3', 'r4'])
+          t.getTopLeft(find.byKey(ValueKey('repost-tile-$id'))),
+      ];
+      expect(x[0].dx, 0);
+      expect(x[0].dy, x[2].dy);
+      expect(x[3].dy, greaterThan(x[0].dy));
+      expect(
+        t.getTopRight(find.byKey(const ValueKey('repost-tile-r3'))).dx,
+        400,
+      );
       await settle(t);
     });
 
@@ -297,7 +329,7 @@ void main() {
         posts: [post('photo', day(3), withPhoto: true)],
       );
       await pump(t, repo);
-      expect(find.byType(PostCard), findsNothing);
+      expect(find.byType(PostGridTile), findsNothing);
       expect(find.text('No briefs or reposts yet'), findsOneWidget);
       await settle(t);
     });

@@ -9,6 +9,7 @@ import { useDeskEmbed } from '@/components/desk/embed';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
+import { supportReviewHref } from '@/lib/review-flow';
 import { canWriteSupport } from './support-labels';
 
 const LINKS = [
@@ -29,7 +30,7 @@ export function SupportNav() {
 
 /**
  * «Следующее обращение»: my most urgent open ticket, else the most overdue
- * free one (taken by me). Opens it in focus mode, where answering moves on.
+ * free one (taken by me). Opens it on the review screen, where answering moves on.
  */
 export function NextTicketButton({ label = 'Следующее обращение', size = 'sm' }: { label?: string; size?: 'sm' | 'default' }) {
   const { data: me } = useMe();
@@ -40,7 +41,7 @@ export function NextTicketButton({ label = 'Следующее обращени�
   const next = useMutation({
     mutationFn: async () => (await api.POST('/admin/support/tickets/next')).data!.data,
     onSuccess: (r) => {
-      if (r.ticket) router.push(`/support/${r.ticket.id}?focus=1`);
+      if (r.ticket) router.push(supportReviewHref(r.ticket.id));
       else toast.success('Очередь пуста: открытых обращений нет');
     },
     onError: (e) => toast.error(e),

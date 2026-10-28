@@ -19,6 +19,8 @@
 #    reaches the approval prompt. A manual run with `image_tag` (an image that is
 #    already built) skips the gate on purpose: it is how a known-good tag is redeployed.
 #  * Trivy blocks CRITICAL on the pushed digest (both architectures) before signing.
+#  * 2026-10-28: amd64 and arm64 are built natively in parallel (`build-arch`,
+#    no QEMU) and joined into one manifest list by `build` (same tag/digest use).
 #  * prod: real backup age (RDS LatestRestorableTime), a named snapshot before a
 #    contract migration, then roll api -> smoke (asserts the answering tasks run
 #    THIS tag) -> worker -> admin -> synthetic user flow; only then the tag is
@@ -84,11 +86,95 @@ jobs:
             '^(API |Admin CI|Build image \+ Trivy|gitleaks|CodeQL)' \
             '^(Wait for green CI|Build & push|Deploy|Web deploy|Build and publish|Notify|Mobile release)'
 
+  # 2026-10-28: run 40632613817 hit the 60-min limit building admin's arm64
+  # half under QEMU. Each architecture is now built NATIVELY in its own job
+  # (amd64 on ubuntu-latest, arm64 on GitHub's free arm64 runner for public
+  # repos, `ubuntu-24.04-arm`, GA 2025-08-07), pushed by digest only (no tag,
+  # so the immutable ECR tags are untouched), and the `build` job below joins
+  # the two digests into one multi-arch manifest list under the same tag.
+  build-arch:
+    name: Build & push ${{ matrix.arch }}
+    needs: [gate]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    if: ${{ always() && vars.DEPLOY_ENABLED == 'true' && !inputs.image_tag && needs.gate.result == 'success' }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ vars.STAGING_ENABLED == 'true' && secrets.AWS_DEPLOY_ROLE_STAGING || secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+      # ECR tags are IMMUTABLE (infra/bootstrap): a re-run on a commit whose
+      # images are already tagged builds nothing (same check as in `build`).
+      - name: Images already in ECR?
+        id: have
+        run: |
+          if aws ecr describe-images --repository-name lawbid-api --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1 \
+            && aws ecr describe-images --repository-name lawbid-admin --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::images for $IMAGE_TAG already in ECR, build skipped"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        if: steps.have.outputs.exists != 'true'
+      - name: Build & push api (linux/${{ matrix.arch }}, by digest)
+        id: build_api
+        if: steps.have.outputs.exists != 'true'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          build-args: APP_VERSION=${{ env.IMAGE_TAG }}
+          outputs: type=image,name=${{ env.ECR_REGISTRY }}/lawbid-api,push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=api-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=api-${{ matrix.arch }}
+      - name: Build & push admin (linux/${{ matrix.arch }}, by digest)
+        id: build_admin
+        if: steps.have.outputs.exists != 'true'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: apps/admin/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          outputs: type=image,name=${{ env.ECR_REGISTRY }}/lawbid-admin,push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=admin-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=admin-${{ matrix.arch }}
+      - name: Save the per-arch digests
+        if: steps.have.outputs.exists != 'true'
+        env:
+          API_DIGEST: ${{ steps.build_api.outputs.digest }}
+          ADMIN_DIGEST: ${{ steps.build_admin.outputs.digest }}
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/digests"
+          printf '%s\n' "$API_DIGEST" > "$RUNNER_TEMP/digests/api-${{ matrix.arch }}"
+          printf '%s\n' "$ADMIN_DIGEST" > "$RUNNER_TEMP/digests/admin-${{ matrix.arch }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: steps.have.outputs.exists != 'true'
+        with:
+          name: digests-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
   build:
     name: Build & push images
-    needs: [gate]
+    needs: [gate, build-arch]
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
+    # always(): runs even when build-arch failed, so the guard step below turns
+    # that into a FAILED `build` (a skipped `build` would let deploy-* go on).
     if: ${{ always() && vars.DEPLOY_ENABLED == 'true' && !inputs.image_tag && needs.gate.result == 'success' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -112,42 +198,35 @@ jobs:
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
-      # Owner 2026-10-22 (cost): the images are multi-arch (amd64 + arm64) so
-      # the ECS tasks can run on Graviton (cpu_architecture = "ARM64", about
-      # 20 % cheaper) without another build. arm64 is built under QEMU.
-      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - name: Both architectures built?
+        if: steps.have.outputs.exists != 'true'
+        env:
+          ARCH_RESULT: ${{ needs.build-arch.result }}
+        run: |
+          if [ "$ARCH_RESULT" != "success" ]; then
+            echo "::error::per-arch build result: $ARCH_RESULT"; exit 1
+          fi
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         if: steps.have.outputs.exists != 'true'
         with:
-          platforms: arm64
+          pattern: digests-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/digests
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
         if: steps.have.outputs.exists != 'true'
-      - name: Build & push api
+      # Owner 2026-10-22 (cost): the images are multi-arch (amd64 + arm64) so
+      # the ECS tasks can run on Graviton (cpu_architecture = "ARM64", about
+      # 20 % cheaper) without another build (docs/runbooks/ARM64_SPOT.md).
+      # The manifest list gets the same tag as before; its digest is what is
+      # scanned, signed and attested below (same as the old single-job build).
+      - name: Multi-arch manifest api
         id: build_api
         if: steps.have.outputs.exists != 'true'
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
-        with:
-          context: .
-          file: apps/api/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ env.ECR_REGISTRY }}/lawbid-api:${{ env.IMAGE_TAG }}
-          build-args: APP_VERSION=${{ env.IMAGE_TAG }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      - name: Build & push admin
+        run: scripts/deploy/merge-arch-manifests.sh lawbid-api "$RUNNER_TEMP/digests"
+      - name: Multi-arch manifest admin
         id: build_admin
         if: steps.have.outputs.exists != 'true'
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
-        with:
-          context: .
-          file: apps/admin/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ env.ECR_REGISTRY }}/lawbid-admin:${{ env.IMAGE_TAG }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        run: scripts/deploy/merge-arch-manifests.sh lawbid-admin "$RUNNER_TEMP/digests"
 
       # S11-10: scan the digest we really ship (both architectures) and stop on a
       # fixable CRITICAL before it is signed.
@@ -366,7 +445,7 @@ jobs:
 
   notify:
     name: Tell the owner
-    needs: [gate, build, deploy-staging, deploy-prod]
+    needs: [gate, build-arch, build, deploy-staging, deploy-prod]
     if: ${{ always() && contains(needs.*.result, 'failure') }}
     permissions:
       contents: read

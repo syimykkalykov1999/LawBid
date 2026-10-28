@@ -320,3 +320,9 @@ const DETAIL_VALUE_RU: Record<string, string> = {
   email: 'e-mail',
   auto: 'автоматически',
 };
+
+/** Verifier page (owner 2026-10-28): the state registry's own words for a license status. */
+export const REGISTRY_LICENSE_STATUS_RU: Record<string, { text: string; tone: Tone }> = {
+  active: { text: 'действующая', tone: 'success' },
+  inactive: { text: 'недействующая', tone: 'danger' },
+};

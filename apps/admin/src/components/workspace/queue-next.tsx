@@ -6,10 +6,12 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api/client';
+import { verificationReviewHref } from '@/lib/review-flow';
 
 /**
  * Verification focus mode: opens the oldest waiting request (skipping the
- * one on screen). Empty queue → back to «Рабочее место».
+ * one on screen) on the «…и дальше» review screen (owner 2026-10-28).
+ * Empty queue → back to «Рабочее место».
  */
 export function useNextVerification(currentId?: string) {
   const router = useRouter();
@@ -20,7 +22,7 @@ export function useNextVerification(currentId?: string) {
       return (r.data?.data ?? []).find((x) => x.id !== currentId && x.status !== 'needs_more_info')?.id ?? null;
     },
     onSuccess: (id) => {
-      if (id) router.push(`/verification/${id}?focus=1`);
+      if (id) router.push(verificationReviewHref(id));
       else {
         toast.success('Очередь пуста: все заявки проверены');
         router.push('/workspace');
