@@ -59,6 +59,7 @@ import { CaseJournalService } from '../journal/case-journal.service';
 import { ReferralsService } from '../referrals/referrals.service';
 import { EntitlementsService } from '../plans/entitlements.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { privateDetailsAad } from '../../common/secrets/field-aad';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import {
@@ -586,7 +587,9 @@ export class CasesService {
     await this.events?.flush(eventTickets);
     // Owner 2026-09-30: attorneys who turned "New cases" alerts on.
     const alerts = this.alerts;
-    alerts?.later(() => alerts.attorneysForCase(created.id));
+    alerts?.later(() => alerts.attorneysForCase(created.id), {
+      caseId: created.id,
+    });
     try {
       await this.referrals?.onQualifyingEvent(user.sub, 'case_published');
     } catch {
@@ -824,6 +827,19 @@ export class CasesService {
         extra,
         expectedVersion,
       });
+      // Algo audit 2026-10-27 (CASES C-1): a new practice or new states
+      // mean a new audience — the case is alerted again under a new
+      // generation (only while it has no offers: the lock above).
+      const audienceChanged =
+        diff.practiceAreaId !== undefined ||
+        diff.states !== undefined ||
+        extraAreas !== null;
+      const realert =
+        audienceChanged &&
+        afterCase.status === 'open' &&
+        !afterCase.paused_at &&
+        (await this.realertEnabled()) &&
+        (await this.bumpAlertGeneration(tx, caseId));
 
       if (extraAreas) {
         diff.extraPracticeAreaIds = {
@@ -885,7 +901,10 @@ export class CasesService {
         }
       }
 
-      return afterCase;
+      return { afterCase, realert };
+    }).then((r) => {
+      if (r.realert) this.realertLater(caseId);
+      return r.afterCase;
     });
 
     const finalPracticeArea =
@@ -1104,9 +1123,16 @@ export class CasesService {
         event: plan.event,
         payload: {},
       });
-      return afterCase;
+      // Algo audit 2026-10-27 (CASES C-1): back in the feed → alerted again.
+      const realert =
+        afterCase.status === 'open' &&
+        !afterCase.paused_at &&
+        (await this.realertEnabled()) &&
+        (await this.bumpAlertGeneration(tx, caseId));
+      return { afterCase, realert };
     });
-    return this.toFullDto(updated);
+    if (updated.realert) this.realertLater(caseId);
+    return this.toFullDto(updated.afterCase);
   }
 
   /** POST /cases/:id/keep-alive (§10.2 "Да, актуален") — same as the
@@ -1154,7 +1180,7 @@ export class CasesService {
     const updated = await withTxRetry(this.prisma, async (tx) => {
       const current = await tx.case.findUnique({
         where: { id: caseId },
-        select: { client_id: true },
+        select: { client_id: true, paused_at: true },
       });
       if (!current || current.client_id !== user.sub) throw caseNotFound();
       const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
@@ -1168,9 +1194,43 @@ export class CasesService {
         event: plan.event,
         payload: { resumed: true },
       });
-      return afterCase;
+      // Algo audit 2026-10-27 (CASES C-1): a case back from a pause is in
+      // the feed again but nobody was told — alerted again, new generation.
+      const realert =
+        !!current.paused_at &&
+        afterCase.status === 'open' &&
+        !afterCase.paused_at &&
+        (await this.realertEnabled()) &&
+        (await this.bumpAlertGeneration(tx, caseId));
+      return { afterCase, realert };
     });
-    return this.toFullDto(updated);
+    if (updated.realert) this.realertLater(caseId);
+    return this.toFullDto(updated.afterCase);
+  }
+
+  /** `case_alerts.realert_enabled` (algo audit 2026-10-27, CASES C-1). */
+  private async realertEnabled(): Promise<boolean> {
+    if (!this.alerts) return false;
+    if (!this.settings) return APP_SETTINGS['case_alerts.realert_enabled'];
+    return this.settings.boolean('case_alerts.realert_enabled');
+  }
+
+  /** Bumps `cases.alert_generation` inside the change's transaction, so
+   * the new alert round has its own dedupe key and job id (M-2). */
+  private async bumpAlertGeneration(
+    tx: Prisma.TransactionClient,
+    caseId: string,
+  ): Promise<boolean> {
+    await tx.case.update({
+      where: { id: caseId },
+      data: { alert_generation: { increment: 1 } },
+    });
+    return true;
+  }
+
+  private realertLater(caseId: string): void {
+    const alerts = this.alerts;
+    alerts?.later(() => alerts.attorneysForCase(caseId), { caseId });
   }
 
   /** The shared body of «Да, нужен» / «Жду…» / «Сменить на «Не срочно»»:

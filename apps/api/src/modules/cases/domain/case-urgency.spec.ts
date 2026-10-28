@@ -7,6 +7,7 @@ import {
   levelForDays,
   parseIsoDate,
   resolveUrgencyInput,
+  todaySql,
   UrgencyInputError,
   urgencyFields,
 } from './case-urgency';
@@ -21,6 +22,32 @@ describe('case urgency: a level or a date (owner 2026-10-05)', () => {
     expect(daysUntil(d('2026-10-04'), now)).toBe(-1);
     expect(parseIsoDate('2026-02-30')).toBeNull();
     expect(parseIsoDate('05.10.2026')).toBeNull();
+  });
+
+  // Algo audit 2026-10-27 (CASES H-3).
+  it('counts "today" in the client time zone when given', () => {
+    // 00:30Z on Oct 6 = 17:30 PDT on Oct 5 in California.
+    const evening = new Date('2026-10-06T00:30:00Z');
+    expect(daysUntil(d('2026-10-05'), evening)).toBe(-1);
+    expect(daysUntil(d('2026-10-05'), evening, 'America/Los_Angeles')).toBe(0);
+    expect(
+      effectiveUrgency(
+        'by_date',
+        d('2026-10-05'),
+        evening,
+        undefined,
+        'America/Los_Angeles',
+      ),
+    ).toBe('very_urgent');
+    expect(effectiveUrgency('by_date', d('2026-10-05'), evening)).toBe(
+      'overdue',
+    );
+    // An unknown zone falls back to UTC instead of throwing.
+    expect(daysUntil(d('2026-10-05'), evening, 'Mars/Olympus')).toBe(-1);
+    // The SQL "today" accepts IANA names only.
+    expect(todaySql('America/New_York').sql).toContain('AT TIME ZONE');
+    expect(todaySql("x'; DROP TABLE cases; --").sql).toBe('CURRENT_DATE');
+    expect(todaySql(null).sql).toBe('CURRENT_DATE');
   });
 
   it('turns days left into a level (defaults 1 / 3 / 7 / 31)', () => {

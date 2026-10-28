@@ -259,10 +259,21 @@ export class TreasuryService {
           this.logger.info({ err: e.message }, 'payroll: nothing to pay');
           return null;
         });
-      await this.markPayrollRan(period);
-      if (res && res.failed.length > 0) {
-        this.logger.warn(
-          { alert: 'payroll_auto_failed', failed: res.failed.length },
+      // Algo audit 2026-10-27 (MONEY H-6): a pay day with refused transfers
+      // is not "done" — tomorrow's tick pays the people still owed (their
+      // payout rows are `failed`, so autoDue lists them again).
+      const retryFailed = await this.settings.boolean(
+        'treasury.payroll_retry_failed_enabled',
+      );
+      const failed = res?.failed.length ?? 0;
+      if (failed === 0 || !retryFailed) await this.markPayrollRan(period);
+      if (failed > 0) {
+        this.logger.error(
+          {
+            alert: 'payroll_auto_failed',
+            failed,
+            retryTomorrow: retryFailed,
+          },
           'payroll: Stripe refused some salary transfers',
         );
       }

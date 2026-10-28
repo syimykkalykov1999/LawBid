@@ -3,6 +3,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
   Optional,
@@ -194,14 +195,35 @@ export class RefundsService {
       return { row: created, left: remaining };
     });
 
-    let result: Refund;
+    // Algo audit 2026-10-27 (MONEY H-3): two phases. Only a PROVIDER
+    // failure marks the row `failed` (freeing the reserved amount). Once
+    // Stripe has refunded, the row is never marked failed again: a database
+    // error after that leaves it live (pending → still reserved), the
+    // provider id is persisted on its own, and a retry would reuse the same
+    // `refund:<id>` key instead of sending a second real refund.
+    let r: Awaited<ReturnType<NonNullable<PaymentProvider['refund']>>>;
     try {
-      const r = await this.provider.refund({
+      r = await this.provider.refund({
         paymentIntentId: intentId,
         amountCents: dto.amountCents,
         idempotencyKey: `refund:${row.id}`,
         metadata: { refundId: row.id, paymentId: payment.id },
       });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      await this.prisma.refund.update({
+        where: { id: row.id },
+        data: { status: 'failed', failure_reason: message.slice(0, 500) },
+      });
+      if (admin) await this.record(admin, row, payment, 'failed', message);
+      this.logger.error(`refund ${row.id} failed: ${message}`);
+      throw new BadGatewayException({
+        code: ErrorCode.REFUND_PROVIDER_FAILED,
+        message: 'The payment provider refused the refund.',
+      });
+    }
+    let result: Refund;
+    try {
       result = await withTxRetry(this.prisma, async (tx) => {
         const updated = await tx.refund.update({
           where: { id: row.id },
@@ -229,15 +251,24 @@ export class RefundsService {
       });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      await this.prisma.refund.update({
-        where: { id: row.id },
-        data: { status: 'failed', failure_reason: message.slice(0, 500) },
-      });
-      if (admin) await this.record(admin, row, payment, 'failed', message);
-      this.logger.error(`refund ${row.id} failed: ${message}`);
-      throw new BadGatewayException({
-        code: ErrorCode.REFUND_PROVIDER_FAILED,
-        message: 'The payment provider refused the refund.',
+      // The money has left Stripe: keep the row live and remember the
+      // provider's id, so nobody refunds this amount a second time.
+      await this.prisma.refund
+        .update({
+          where: { id: row.id },
+          data: {
+            stripe_refund_id: r.id,
+            failure_reason: `booking failed: ${message}`.slice(0, 500),
+          },
+        })
+        .catch(() => undefined);
+      this.logger.error(
+        `refund ${row.id} sent to the provider (${r.id}) but not booked: ${message}`,
+      );
+      throw new InternalServerErrorException({
+        code: ErrorCode.INTERNAL_ERROR,
+        message:
+          'The refund was sent but could not be recorded; it will not be sent twice.',
       });
     }
     if (admin) await this.record(admin, result, payment, result.status, null);

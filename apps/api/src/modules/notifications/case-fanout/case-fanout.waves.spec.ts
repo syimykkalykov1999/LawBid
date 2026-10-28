@@ -18,7 +18,7 @@ const CASE = '11111111-1111-4111-8111-111111111111';
 
 interface World {
   svc: CaseFanoutService;
-  sent: Map<string, string>; // user -> dedupe key
+  sent: Map<string, string>; // `<dedupe key>|<user>` -> dedupe key (one row per person and key)
   emitted: { ids: string[]; type: string }[];
   digests: string[][];
   jobs: { job: CaseFanoutJob; delay: number }[];
@@ -28,6 +28,9 @@ interface World {
     fraud?: string;
     alerts24h: Record<string, number>;
     alertsTotal: Record<string, number>;
+    /** cases.alert_generation (C-1 / M-2 re-alerts). */
+    generation: number;
+    urgent: boolean;
   };
   overrides: Record<string, unknown>;
   logs: Record<string, unknown>[];
@@ -49,6 +52,8 @@ function world(
     bids: 0,
     alerts24h: {},
     alertsTotal: {},
+    generation: 0,
+    urgent: false,
   };
   const newcomers = opts.newcomers ?? 0;
   const candidates: FanoutCandidate[] = Array.from({ length: n }, (_, i) => ({
@@ -72,6 +77,7 @@ function world(
         bids_count: state.bids,
         created_at: new Date(),
         client_id: 'client-1',
+        alert_generation: state.generation,
       }),
     },
     clientFraudProfile: {
@@ -82,7 +88,7 @@ function world(
         where: { dedupe_key: string; user_id: { in: string[] } };
       }) =>
         args.where.user_id.in
-          .filter((id) => sent.get(id) === args.where.dedupe_key)
+          .filter((id) => sent.has(`${args.where.dedupe_key}|${id}`))
           .map((user_id) => ({ user_id })),
       // The 24 h window and the 30 day window are told apart by the date.
       groupBy: async (args: {
@@ -108,8 +114,8 @@ function world(
       emitted.push({ ids: i.recipientIds, type: i.type });
       let c = 0;
       for (const id of i.recipientIds) {
-        if (!sent.has(id)) {
-          sent.set(id, i.dedupeKey);
+        if (!sent.has(`${i.dedupeKey}|${id}`)) {
+          sent.set(`${i.dedupeKey}|${id}`, i.dedupeKey);
           c++;
         }
       }
@@ -123,7 +129,7 @@ function world(
   const audience = {
     forCase: async () => ({
       found: true,
-      urgent: false,
+      urgent: state.urgent,
       clientId: 'client-1',
       candidates,
     }),
@@ -295,8 +301,8 @@ describe('case fan-out waves', () => {
     w.state.alerts24h['a001'] = 3;
     w.state.alerts24h['a002'] = 9;
     await w.svc.runWave({ caseId: CASE, wave: 1 });
-    expect(w.sent.has('a001')).toBe(false);
-    expect(w.sent.has('a002')).toBe(false);
+    expect([...w.sent.keys()].some((k) => k.endsWith('|a001'))).toBe(false);
+    expect([...w.sent.keys()].some((k) => k.endsWith('|a002'))).toBe(false);
     expect(w.sent.size).toBe(8);
     expect(w.digests).toEqual([['a001', 'a002']]);
   });
@@ -384,12 +390,27 @@ describe('case fan-out waves', () => {
     });
     w.state.fraud = 'restricted';
     w.state.alerts24h['a001'] = 9;
-    // switch off: sent right in this call, nothing queued
+    // Algo audit 2026-10-27 (H-1): with Redis the one legacy wave is a
+    // queue job (retries), not work inside the API request.
     const loadStats = jest.spyOn(w.svc, 'loadStats');
-    expect(await w.svc.start(CASE)).toBe(12);
+    expect(await w.svc.start(CASE)).toBe(0);
+    expect(w.jobs).toHaveLength(1);
+    expect(w.jobs[0].delay).toBe(0);
+    const out = await w.svc.runWave(w.jobs.shift()!.job);
+    expect(out).toMatchObject({ done: 'last', sent: 12 });
     expect(w.sent.size).toBe(12);
     // no ranking, so no per-person stats queries (review R-32)
     expect(loadStats).not.toHaveBeenCalled();
+    expect(w.jobs).toHaveLength(0);
+  });
+
+  it('enabled=false with queue_mode=off keeps the old inline send (no retry)', async () => {
+    const w = world(12, {
+      'case_fanout.enabled': false,
+      'case_fanout.queue_mode': 'off',
+    });
+    expect(await w.svc.start(CASE)).toBe(12);
+    expect(w.sent.size).toBe(12);
     expect(w.jobs).toHaveLength(0);
   });
 
@@ -397,5 +418,76 @@ describe('case fan-out waves', () => {
     const w = world(12, { 'case_fanout.enabled': false }, { withQueue: false });
     expect(await w.svc.start(CASE)).toBe(12);
     expect(w.sent.size).toBe(12);
+  });
+
+  // Algo audit 2026-10-27 (CASES C-1 / M-2).
+  describe('re-alert under a new generation', () => {
+    it('generation 0 keeps the old key and job id; later ones carry it', () => {
+      expect(CaseFanoutService.key(CASE, 0)).toBe(`case_fanout:${CASE}`);
+      expect(CaseFanoutService.key(CASE, 2)).toBe(`case_fanout:${CASE}:g2`);
+      expect(CaseFanoutService.jobId(CASE, 1, 0)).toBe(`casefanout-${CASE}-w1`);
+      expect(CaseFanoutService.jobId(CASE, 1, 2)).toBe(
+        `casefanout-${CASE}-g2-w1`,
+      );
+    });
+
+    it('a second start() after the practice changed alerts everybody again', async () => {
+      const w = world(5, { 'case_fanout.enabled': false });
+      expect(await drain(w)).toEqual([5]);
+      // Same generation: everybody already has a row → nothing more.
+      expect(await w.svc.runWave({ caseId: CASE, wave: 1 })).toEqual({
+        done: 'all_reached',
+      });
+      // The client changed the practice: cases.alert_generation bumped.
+      w.state.generation = 1;
+      await w.svc.start(CASE);
+      expect(w.jobs[0].job).toMatchObject({ caseId: CASE, generation: 1 });
+      const out = await w.svc.runWave(w.jobs.shift()!.job);
+      expect(out).toMatchObject({ sent: 5 });
+      expect(w.emitted).toHaveLength(2);
+      // Round 2 wrote its own rows under the generation key.
+      expect(
+        [...w.sent.values()].filter((k) => k === `case_fanout:${CASE}:g1`),
+      ).toHaveLength(5);
+      expect(w.sent.size).toBe(10);
+    });
+
+    it('a wave queued for an older generation is dropped', async () => {
+      const w = world(5);
+      w.state.generation = 3;
+      expect(
+        await w.svc.runWave({ caseId: CASE, wave: 1, generation: 2 }),
+      ).toEqual({ done: 'closed' });
+      expect(w.sent.size).toBe(0);
+    });
+  });
+
+  // Algo audit 2026-10-27 (CASES H-2).
+  describe('urgent cases', () => {
+    it('reach the whole audience in wave 1, no 10-minute slices', async () => {
+      const w = world(30, {
+        'case_fanout.first_wave_size': 5,
+        'case_fanout.wave_size': 5,
+      });
+      w.state.urgent = true;
+      await w.svc.start(CASE);
+      const out = await w.svc.runWave(w.jobs.shift()!.job);
+      expect(out).toMatchObject({ done: 'last', sent: 30 });
+      expect(w.emitted.every((e) => e.type === 'new_urgent_case')).toBe(true);
+      expect(w.jobs).toHaveLength(0);
+    });
+
+    it('…unless the owner turned the fast path off', async () => {
+      const w = world(30, {
+        'case_fanout.first_wave_size': 5,
+        'case_fanout.wave_size': 5,
+        'case_alerts.urgent_fast_enabled': false,
+      });
+      w.state.urgent = true;
+      await w.svc.start(CASE);
+      const out = await w.svc.runWave(w.jobs.shift()!.job);
+      expect(out).toMatchObject({ done: false, sent: 5 });
+      expect(w.jobs).toHaveLength(1);
+    });
   });
 });

@@ -201,6 +201,17 @@ export const FILE_06_SETTINGS = {
   // §3.3 "массовые ссылки" / "повторяющийся текст от одного автора" → hold.
   'moderation.max_links': 3,
   'moderation.duplicate_window_hours': 24,
+  /** Algo audit 2026-10-27 (CONTENT C-3): texts shorter than this never
+   * count as a repeat («Спасибо» twice a day is not spam). */
+  'moderation.duplicate_min_chars': 20,
+  /** Algo audit 2026-10-27 (CONTENT C-2): a post / comment held by the
+   * rules (hold words, links, repeat) gets a system report, so it is in
+   * the moderators' queue instead of hidden for ever. */
+  'moderation.auto_hold_queue_enabled': true,
+  /** Algo audit 2026-10-27 (CONTENT C-1): «Отклонить жалобы» on content
+   * that the rules or the report threshold hid (no moderator's hide) puts
+   * it back; a moderator's own hide stays. */
+  'moderation.dismiss_restores_enabled': true,
   // Owner 2026-10-22 (audit #4 §5): image moderation (AWS Rekognition).
   // Confidence 0–100: at `hide` the photo / reel is hidden at once and
   // queued; at `review` it stays up and is queued; below that it is clean.
@@ -434,6 +445,9 @@ export const OWNER_BILLING_GATE_SETTINGS = {
   'billing.cancel_on_verification_loss': true,
   // Offer packs and Boost are for verified attorneys only (rollback: off).
   'billing.require_verified_for_purchases': true,
+  /** Algo audit 2026-10-27 (MONEY H-5): a refunded / charged-back offer
+   * pack takes its unused offers back (balance never below zero). */
+  'bid_packs.refund_revokes_enabled': true,
   // Owner 2026-10-22 (systems checklist §12): Stripe Tax (automatic_tax)
   // on subscriptions, seat purchases, hosted checkouts and our card page.
   // Off until the owner enables Stripe Tax in the Stripe Dashboard
@@ -1239,6 +1253,9 @@ export const OWNER_TREASURY_SETTINGS = {
   /** Owner 2026-10-06: salaries linked to Stripe go out by themselves on
    * the pay day, from the reserve on Stripe (off: «Выплатить» by hand). */
   'treasury.payroll_auto': true,
+  /** Algo audit 2026-10-27 (MONEY H-6): a pay day on which Stripe refused a
+   * transfer is not marked done; the next daily tick pays the rest. */
+  'treasury.payroll_retry_failed_enabled': true,
   /** Pay day of the month (1…28, UTC); a missed day runs the next day. */
   'treasury.payroll_day': 1,
   /** Warn this many days before the pay day when Stripe holds less than
@@ -1531,6 +1548,21 @@ export const OWNER_CASE_FANOUT_SETTINGS = {
   'case_fanout.fraud_restricted_action': 'none',
   'case_fanout.fraud_small_wave_size': 10,
   'case_fanout.fraud_delay_minutes': 60,
+  /** Algo audit 2026-10-27 (CASES H-1): with the waves switch off and Redis
+   * present, the one legacy wave still runs as a queue job with retries
+   * (`auto`); `off` = inside the API request, as before (no retry). */
+  'case_fanout.queue_mode': 'auto',
+  /** Algo audit 2026-10-27 (CASES C-2): an attorney who never touched the
+   * «Новые дела» toggle is alerted (push + bell row). Off = only attorneys
+   * with an explicit row, as before the release. */
+  'case_alerts.default_enabled': true,
+  /** Algo audit 2026-10-27 (CASES C-1): a case alerts again, under a new
+   * alert generation, when the client changes its practice or states, or
+   * brings it back from a pause / the archive. */
+  'case_alerts.realert_enabled': true,
+  /** Algo audit 2026-10-27 (CASES H-2): an urgent case ignores quiet hours
+   * and goes to the whole audience in one wave (no 10-minute slices). */
+  'case_alerts.urgent_fast_enabled': true,
 };
 
 /**

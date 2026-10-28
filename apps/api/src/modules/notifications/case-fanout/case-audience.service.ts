@@ -1,5 +1,6 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import { APP_SETTINGS } from '../../../common/app-settings/app-settings.defaults';
 import {
   effectiveUrgency,
   loadUrgencyThresholds,
@@ -54,22 +55,40 @@ export class CaseAudienceService {
     });
     if (!kase)
       return { found: false, urgent: false, clientId: '', candidates: [] };
+    // Algo audit 2026-10-27 (H-3): "today" is the client's day, not UTC's
+    // (a separate read: users are the global family, cases a shard).
+    const client = await this.prisma.user.findUnique({
+      where: { id: kase.client_id },
+      select: { timezone: true },
+    });
     const level = effectiveUrgency(
       kase.urgency,
       kase.deadline_at,
       new Date(),
       await loadUrgencyThresholds(this.settings),
+      client?.timezone,
     );
     const urgent = level !== null && URGENT_LEVELS.includes(level);
+    const defaultOn = await this.defaultOn();
     const candidates = readsAreSplit(this.prisma)
-      ? await this.split(caseId, urgent)
-      : await this.single(caseId, urgent);
+      ? await this.split(caseId, urgent, defaultOn)
+      : await this.single(caseId, urgent, defaultOn);
     return { found: true, urgent, clientId: kase.client_id, candidates };
+  }
+
+  /** Algo audit 2026-10-27 (C-2): an attorney without a `new_cases`
+   * settings row (never opened the toggle) counts as ON while
+   * `case_alerts.default_enabled` is on — else nobody hears about a case
+   * at the release. Off = the old opt-in audience. */
+  private async defaultOn(): Promise<boolean> {
+    if (!this.settings) return APP_SETTINGS['case_alerts.default_enabled'];
+    return this.settings.boolean('case_alerts.default_enabled');
   }
 
   private async single(
     caseId: string,
     urgent: boolean,
+    defaultOn: boolean,
   ): Promise<FanoutCandidate[]> {
     const rows = await this.prisma.$queryRaw<Row[]>`
       WITH c AS (
@@ -114,12 +133,12 @@ export class CaseAudienceService {
       JOIN case_states cs ON cs.case_id = c.id
       JOIN attorney_licenses l ON l.attorney_id = ch.attorney_id
        AND l.state_code = cs.state_code AND l.license_status = 'verified'
-      JOIN notification_settings s
+      LEFT JOIN notification_settings s
         ON s.user_id = ch.attorney_id AND s.category = 'new_cases'
-       AND s.push_enabled
       JOIN users u ON u.id = ch.attorney_id
        AND u.status = 'active' AND u.deleted_at IS NULL
-      WHERE NOT EXISTS (
+      WHERE COALESCE(s.push_enabled, ${defaultOn}::BOOLEAN)
+        AND NOT EXISTS (
           SELECT 1 FROM user_blocks b
           WHERE (b.blocker_id = ch.attorney_id AND b.blocked_id = c.client_id)
              OR (b.blocker_id = c.client_id AND b.blocked_id = ch.attorney_id))
@@ -140,6 +159,7 @@ export class CaseAudienceService {
   private async split(
     caseId: string,
     urgent: boolean,
+    defaultOn: boolean,
   ): Promise<FanoutCandidate[]> {
     const c = await this.prisma.case.findUnique({
       where: { id: caseId },
@@ -210,12 +230,8 @@ export class CaseAudienceService {
     if (ids.length === 0) return [];
     const [settings, users, blocks] = await Promise.all([
       this.prisma.notificationSetting.findMany({
-        where: {
-          user_id: { in: ids },
-          category: 'new_cases',
-          push_enabled: true,
-        },
-        select: { user_id: true },
+        where: { user_id: { in: ids }, category: 'new_cases' },
+        select: { user_id: true, push_enabled: true },
       }),
       this.prisma.user.findMany({
         where: { id: { in: ids }, status: 'active', deleted_at: null },
@@ -231,7 +247,8 @@ export class CaseAudienceService {
         select: { blocker_id: true, blocked_id: true },
       }),
     ]);
-    const pushOn = new Set(settings.map((x) => x.user_id));
+    const explicit = new Map(settings.map((x) => [x.user_id, x.push_enabled]));
+    const pushOn = (id: string) => explicit.get(id) ?? defaultOn;
     const active = new Set(users.map((x) => x.id));
     const blocked = new Set(
       blocks.map((b) =>
@@ -241,9 +258,7 @@ export class CaseAudienceService {
     return profiles
       .filter(
         (p) =>
-          pushOn.has(p.user_id) &&
-          active.has(p.user_id) &&
-          !blocked.has(p.user_id),
+          pushOn(p.user_id) && active.has(p.user_id) && !blocked.has(p.user_id),
       )
       .map((p) => {
         const chosen = (

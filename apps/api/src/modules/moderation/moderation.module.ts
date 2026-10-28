@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { AutoHoldService } from './auto-hold.service';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { AdminUsersModule } from '../admin-users/admin-users.module';
@@ -67,6 +68,7 @@ import {
     AutoAppealsService,
     OpenAiTextClassifier,
     TextDetectorService,
+    AutoHoldService,
   ],
   // Owner 2026-10-05 (legal): the DMCA decision removes / restores content
   // through the same audited, notified moderation action.
@@ -77,6 +79,7 @@ import {
     ReporterReputationService,
     StrikesService,
     AutoAppealsService,
+    AutoHoldService,
   ],
 })
 export class ModerationModule {}

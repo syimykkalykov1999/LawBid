@@ -79,13 +79,42 @@ export function parseIsoDate(s: string): Date | null {
   return Number.isNaN(d.getTime()) || isoDate(d) !== s ? null : d;
 }
 
-/** Whole calendar days from [now]'s UTC date to [deadline]. */
-export function daysUntil(deadline: Date, now: Date = new Date()): number {
-  const today = Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
-  );
+/**
+ * The calendar date of [now] in [timeZone] as a UTC midnight, or [now]'s
+ * UTC date when the zone is missing or unknown. Algo audit 2026-10-27
+ * (CASES H-3): a Californian client's "today" at 17:30 is already
+ * tomorrow in UTC, so a dated case read as `overdue` all evening.
+ */
+export function todayIn(now: Date, timeZone?: string | null): number {
+  if (timeZone) {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).formatToParts(now);
+      const get = (t: string) =>
+        Number(parts.find((p) => p.type === t)?.value ?? NaN);
+      const y = get('year');
+      const m = get('month');
+      const d = get('day');
+      if ([y, m, d].every(Number.isFinite)) return Date.UTC(y, m - 1, d);
+    } catch {
+      // unknown zone: fall through to UTC
+    }
+  }
+  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+}
+
+/** Whole calendar days from [now]'s date (in [timeZone], else UTC) to
+ * [deadline]. */
+export function daysUntil(
+  deadline: Date,
+  now: Date = new Date(),
+  timeZone?: string | null,
+): number {
+  const today = todayIn(now, timeZone);
   const day = Date.UTC(
     deadline.getUTCFullYear(),
     deadline.getUTCMonth(),
@@ -113,8 +142,11 @@ export function effectiveUrgency(
   deadlineAt: Date | null,
   now: Date = new Date(),
   t: UrgencyThresholds = DEFAULT_URGENCY_THRESHOLDS,
+  timeZone?: string | null,
 ): CaseUrgencyLevel | null {
-  if (deadlineAt) return levelForDays(daysUntil(deadlineAt, now), t);
+  if (deadlineAt) {
+    return levelForDays(daysUntil(deadlineAt, now, timeZone), t);
+  }
   if (!urgency || urgency === 'by_date') return null;
   return (CASE_URGENCY_LEVELS as readonly string[]).includes(urgency)
     ? (urgency as CaseUrgencyLevel)
@@ -241,19 +273,33 @@ export function resolveUrgencyInput(
 }
 
 /**
+ * SQL for "today" as a DATE: the viewer's calendar day in [timeZone]
+ * (algo audit 2026-10-27, CASES H-3), or CURRENT_DATE (UTC) without one.
+ * An unknown zone name makes Postgres raise, so only IANA-looking names
+ * are passed through.
+ */
+export function todaySql(timeZone?: string | null): Prisma.Sql {
+  return timeZone && /^[A-Za-z_]+(?:\/[A-Za-z0-9_+-]+)*$/.test(timeZone)
+    ? Prisma.sql`(now() AT TIME ZONE ${timeZone})::date`
+    : Prisma.sql`CURRENT_DATE`;
+}
+
+/**
  * SQL for the level of case alias `c` right now (null when unset), with
- * the same thresholds as [levelForDays]. CURRENT_DATE is UTC.
+ * the same thresholds as [levelForDays]. [today] defaults to CURRENT_DATE
+ * (UTC); the feed passes the viewer's day ([todaySql]).
  */
 export function effectiveUrgencySql(
   t: UrgencyThresholds = DEFAULT_URGENCY_THRESHOLDS,
+  today: Prisma.Sql = Prisma.sql`CURRENT_DATE`,
 ): Prisma.Sql {
   return Prisma.sql`(CASE
     WHEN c.deadline_at IS NOT NULL THEN (CASE
-      WHEN (c.deadline_at - CURRENT_DATE) < 0 THEN 'overdue'
-      WHEN (c.deadline_at - CURRENT_DATE) <= ${t.veryUrgent} THEN 'very_urgent'
-      WHEN (c.deadline_at - CURRENT_DATE) <= ${t.urgent} THEN 'urgent'
-      WHEN (c.deadline_at - CURRENT_DATE) <= ${t.soon} THEN 'soon'
-      WHEN (c.deadline_at - CURRENT_DATE) <= ${t.withinMonth} THEN 'within_month'
+      WHEN (c.deadline_at - ${today}) < 0 THEN 'overdue'
+      WHEN (c.deadline_at - ${today}) <= ${t.veryUrgent} THEN 'very_urgent'
+      WHEN (c.deadline_at - ${today}) <= ${t.urgent} THEN 'urgent'
+      WHEN (c.deadline_at - ${today}) <= ${t.soon} THEN 'soon'
+      WHEN (c.deadline_at - ${today}) <= ${t.withinMonth} THEN 'within_month'
       ELSE 'flexible' END)
     WHEN c.urgency = 'by_date' THEN NULL
     ELSE c.urgency END)`;
@@ -277,14 +323,16 @@ export function urgencyFilterSql(
   minUrgency: CaseMinUrgency | undefined,
   hasDeadline: boolean | undefined,
   t: UrgencyThresholds = DEFAULT_URGENCY_THRESHOLDS,
+  timeZone?: string | null,
 ): Prisma.Sql {
   const minRank = minUrgency ? CASE_URGENCY_LEVELS.indexOf(minUrgency) : -1;
   const atLeast = CASE_URGENCY_LEVELS.filter(
     (l, i) => l !== 'overdue' && i >= minRank,
   );
+  const today = todaySql(timeZone);
   return Prisma.sql`
-    ${minRank >= 0 ? Prisma.sql`AND ${effectiveUrgencySql(t)} = ANY(${atLeast}::TEXT[])` : Prisma.empty}
-    ${hasDeadline ? Prisma.sql`AND c.deadline_at >= CURRENT_DATE` : Prisma.empty}`;
+    ${minRank >= 0 ? Prisma.sql`AND ${effectiveUrgencySql(t, today)} = ANY(${atLeast}::TEXT[])` : Prisma.empty}
+    ${hasDeadline ? Prisma.sql`AND c.deadline_at >= ${today}` : Prisma.empty}`;
 }
 
 /** Levels at or above which a case counts as urgent (alerts, filters). */

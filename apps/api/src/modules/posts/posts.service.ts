@@ -36,6 +36,7 @@ import {
   CONTENT_MODERATION_HOOK,
   type ContentModerationHook,
 } from '../moderation/content-moderation.hook';
+import { AutoHoldService } from '../moderation/auto-hold.service';
 import {
   POSTS_PAGE_DEFAULT,
   type CreatePostDto,
@@ -138,6 +139,8 @@ export class PostsService {
     @Optional() private readonly ads?: AttorneyAdsService,
     // N-2: the domain-event bus.
     @Optional() private readonly events?: DomainEvents,
+    // Algo audit 2026-10-27 (CONTENT C-2): a held post goes to the queue.
+    @Optional() private readonly autoHold?: AutoHoldService,
   ) {}
 
   /** Owner 2026-10-06: News is switched off for now (flag `news_posts`,
@@ -345,7 +348,22 @@ export class PostsService {
         throw e;
       }
     }
+    // Algo audit 2026-10-27 (CONTENT C-3): the text counts as "seen" only
+    // now that the post exists (a retry after an error is not a repeat).
+    await this.moderation.record?.(`${dto.title}\n${dto.body}`, {
+      kind: 'post',
+      authorId: user.sub,
+    });
     if (finalStatus === 'published') await this.afterPublish(post.id);
+    // CONTENT C-2: a held post is a ticket in the moderators' queue.
+    if (finalStatus === 'hidden') {
+      await this.autoHold?.queue({
+        targetType: 'post',
+        targetId: post.id,
+        authorId: user.sub,
+        rule: 'rules',
+      });
+    }
     if (user.role === 'attorney' && finalStatus !== 'hidden') {
       await this.ads?.archive(
         user.sub,
@@ -565,11 +583,17 @@ export class PostsService {
     if (user.role === 'attorney') {
       await this.ads?.enforce(user.sub, [title ? `${title}\n${body}` : body]);
     }
-    const verdict = await this.moderate(
-      title ? `${title}\n${body}` : body,
-      user.sub,
-      'post',
-    );
+    // Algo audit 2026-10-27 (CONTENT C-3): a re-save with the same text is
+    // not checked again (the earlier verdict stands); a changed text is
+    // checked read-only — it never becomes a "repeat" of itself.
+    const textChanged = body !== current.body || title !== current.title;
+    const verdict: ContentStatus = textChanged
+      ? await this.moderate(
+          title ? `${title}\n${body}` : body,
+          user.sub,
+          'post',
+        )
+      : 'published';
     const post = await withTxRetry(this.prisma, async (tx) => {
       const updated = await tx.post.update({
         where: { id },
@@ -607,6 +631,15 @@ export class PostsService {
       ]);
       return updated;
     });
+    // CONTENT C-2: an edit the rules held goes to the moderators' queue.
+    if (verdict === 'hidden' && post.status === 'hidden') {
+      await this.autoHold?.queue({
+        targetType: 'post',
+        targetId: id,
+        authorId: user.sub,
+        rule: 'rules (edit)',
+      });
+    }
     if (post.status === 'published') {
       // OQ-042: only people newly mentioned by the edit.
       await this.mentions.notify({

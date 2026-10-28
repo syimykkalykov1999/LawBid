@@ -128,7 +128,14 @@ export class CasesFeedService {
     if (viewer.role !== 'attorney') {
       throw forbidden('Only attorneys have a case feed.');
     }
-    if (!(await this.isVerifiedAttorney(viewer.userId))) {
+    const profile = await this.prisma.attorneyProfile.findUnique({
+      where: { user_id: viewer.userId },
+      select: {
+        verification_status: true,
+        user: { select: { timezone: true } },
+      },
+    });
+    if (profile?.verification_status !== 'verified') {
       return { items: [], nextCursor: null };
     }
     const limit = query.limit ?? CASES_FEED_PAGE_DEFAULT;
@@ -167,7 +174,16 @@ export class CasesFeedService {
         WHERE (ub.blocker_id = ${viewer.userId}::UUID AND ub.blocked_id = c.client_id)
            OR (ub.blocker_id = c.client_id AND ub.blocked_id = ${viewer.userId}::UUID))`;
     const extra = Prisma.sql`
-      ${urgencyFilterSql(query.minUrgency, query.hasDeadline, thresholds)}
+      ${
+        // Algo audit 2026-10-27 (H-3): "today" is the attorney's day, so a
+        // «суд сегодня» case is not «просрочено» from 20:00 ET on.
+        urgencyFilterSql(
+          query.minUrgency,
+          query.hasDeadline,
+          thresholds,
+          profile.user.timezone,
+        )
+      }
       ${budgetFilterSql({
         minCents:
           query.budgetMin === undefined ? undefined : query.budgetMin * 100,

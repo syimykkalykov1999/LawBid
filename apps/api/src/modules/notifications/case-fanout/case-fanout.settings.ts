@@ -20,6 +20,12 @@ export interface FanoutSettings {
   fraudRestrictedAction: FraudAction;
   fraudSmallWaveSize: number;
   fraudDelayMinutes: number;
+  /** Algo audit 2026-10-27 (H-1): with the waves off, `auto` still runs the
+   * one legacy wave as a queue job (retries) when Redis is there. */
+  queueMode: 'auto' | 'off';
+  /** Algo audit 2026-10-27 (H-2): an urgent case reaches the whole
+   * audience in one wave. */
+  urgentFast: boolean;
 }
 
 /** The built-in defaults (no admin changes): today's reach. */
@@ -38,6 +44,8 @@ export const DEFAULT_FANOUT_SETTINGS: FanoutSettings = {
   fraudRestrictedAction: 'none',
   fraudSmallWaveSize: APP_SETTINGS['case_fanout.fraud_small_wave_size'],
   fraudDelayMinutes: APP_SETTINGS['case_fanout.fraud_delay_minutes'],
+  queueMode: APP_SETTINGS['case_fanout.queue_mode'] as 'auto' | 'off',
+  urgentFast: APP_SETTINGS['case_alerts.urgent_fast_enabled'],
 };
 
 function action(raw: string, fallback: FraudAction): FraudAction {
@@ -79,5 +87,10 @@ export async function loadFanoutSettings(
       await n('case_fanout.fraud_small_wave_size'),
     ),
     fraudDelayMinutes: await n('case_fanout.fraud_delay_minutes'),
+    queueMode:
+      (await settings.string('case_fanout.queue_mode')) === 'off'
+        ? 'off'
+        : 'auto',
+    urgentFast: await settings.boolean('case_alerts.urgent_fast_enabled'),
   };
 }

@@ -23,6 +23,7 @@ import {
   CONTENT_MODERATION_HOOK,
   type ContentModerationHook,
 } from '../moderation/content-moderation.hook';
+import { AutoHoldService } from '../moderation/auto-hold.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   RealtimePublisher,
@@ -77,6 +78,8 @@ export class CommentsService {
     @Optional() private readonly realtime?: RealtimePublisher,
     // DB-ops S5-6: comment lists read the replica (tight 3 s budget).
     @Optional() private readonly read?: PrismaReadService,
+    // Algo audit 2026-10-27 (CONTENT C-2): a held comment goes to the queue.
+    @Optional() private readonly autoHold?: AutoHoldService,
   ) {}
 
   async create(
@@ -142,6 +145,18 @@ export class CommentsService {
         status: verdict === 'hold' ? 'hidden' : 'published',
       },
     });
+    // Algo audit 2026-10-27 (CONTENT C-3): remembered for the repeat rule
+    // only now that the comment exists.
+    await this.moderation.record?.(body, { kind: 'comment', authorId: userId });
+    if (created.status === 'hidden') {
+      // CONTENT C-2: in the moderators' queue, not hidden for ever.
+      await this.autoHold?.queue({
+        targetType: 'comment',
+        targetId: created.id,
+        authorId: userId,
+        rule: 'rules',
+      });
+    }
     if (created.status === 'published') {
       await this.counters.bump('post', postId, 'comment_count', 1);
       if (parent)

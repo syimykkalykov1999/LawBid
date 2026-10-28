@@ -67,15 +67,16 @@ function fakeDeps(opts: {
       deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     attorneyProfile: {
-      findUnique: jest
-        .fn()
-        .mockResolvedValue(
-          opts.verificationStatus === undefined
-            ? { verification_status: 'verified' }
-            : opts.verificationStatus === null
-              ? null
-              : { verification_status: opts.verificationStatus },
-        ),
+      findUnique: jest.fn().mockResolvedValue(
+        opts.verificationStatus === undefined
+          ? { verification_status: 'verified', user: { timezone: null } }
+          : opts.verificationStatus === null
+            ? null
+            : {
+                verification_status: opts.verificationStatus,
+                user: { timezone: null },
+              },
+      ),
     },
     $queryRaw: jest.fn().mockResolvedValue([]),
   };

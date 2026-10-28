@@ -40,10 +40,16 @@ export function countLinks(text: string): number {
  *  - `moderation.hold_terms` → hold (published as `hidden`, moderator queue);
  *  - ≥ `moderation.max_links` links in one text → hold ("массовые ссылки");
  *  - the same text from the same author again within
- *    `moderation.duplicate_window_hours` → hold ("повторяющийся текст").
+ *    `moderation.duplicate_window_hours` → hold ("повторяющийся текст");
+ *    texts shorter than `moderation.duplicate_min_chars` never count.
  * Lists and thresholds are app_config (edited in the admin panel, cached
  * by AppSettingsService). Redis failure never blocks publishing: the
  * duplicate rule is skipped.
+ *
+ * Algo audit 2026-10-27 (CONTENT C-3): `check()` only READS the repeat
+ * key; the caller calls `record()` after the object was created. Before,
+ * every check counted — so an edit, or a retry after FILE_NOT_ATTACHABLE,
+ * made the post a "repeat" of itself and hid it silently.
  */
 @Injectable()
 export class RuleBasedModerationHook implements ContentModerationHook {
@@ -58,33 +64,22 @@ export class RuleBasedModerationHook implements ContentModerationHook {
     context: ModerationContext,
   ): Promise<ModerationVerdict> {
     const normalized = normalizeForRules(content);
-    const [blocked, hold, maxLinks, windowHours] = await Promise.all([
+    const [blocked, hold, maxLinks, windowHours, minChars] = await Promise.all([
       this.settings.stringList('moderation.blocked_terms'),
       this.settings.stringList('moderation.hold_terms'),
       this.settings.number('moderation.max_links'),
       this.settings.number('moderation.duplicate_window_hours'),
+      this.minChars(),
     ]);
     if (blocked.some((t) => containsTerm(normalized, t))) return 'block';
     let verdict: ModerationVerdict = 'allow';
     if (hold.some((t) => containsTerm(normalized, t))) verdict = 'hold';
     if (maxLinks > 0 && countLinks(content) >= maxLinks) verdict = 'hold';
-    if (windowHours > 0 && normalized.length > 0) {
-      const key = `mod:dup:${context.kind}:${context.authorId}:${createHash(
-        'sha256',
-      )
-        .update(normalized)
-        .digest('hex')
-        .slice(0, 32)}`;
+    if (windowHours > 0 && normalized.length >= Math.max(1, minChars)) {
       try {
-        // One round trip and atomic (a crash between INCR and EXPIRE would
-        // leave an immortal key).
-        const [[, seenRaw]] = (await this.redis
-          .multi()
-          .incr(key)
-          .expire(key, windowHours * 3600, 'NX')
-          .exec()) ?? [[null, 0]];
-        const seen = Number(seenRaw);
-        if (seen > 1) verdict = 'hold';
+        if ((await this.redis.exists(dupKey(context, normalized))) > 0) {
+          verdict = 'hold';
+        }
       } catch {
         // Redis unavailable: skip the duplicate rule (best effort).
       }
@@ -97,4 +92,39 @@ export class RuleBasedModerationHook implements ContentModerationHook {
     }
     return verdict;
   }
+
+  /** Remembers [content] for the repeat rule (after a successful create). */
+  async record(content: string, context: ModerationContext): Promise<void> {
+    const normalized = normalizeForRules(content);
+    const [windowHours, minChars] = await Promise.all([
+      this.settings.number('moderation.duplicate_window_hours'),
+      this.minChars(),
+    ]);
+    if (windowHours <= 0 || normalized.length < Math.max(1, minChars)) return;
+    try {
+      await this.redis.set(
+        dupKey(context, normalized),
+        '1',
+        'EX',
+        Math.max(60, Math.round(windowHours * 3600)),
+      );
+    } catch {
+      // Redis unavailable: the next text is simply not compared.
+    }
+  }
+
+  private async minChars(): Promise<number> {
+    try {
+      return await this.settings.number('moderation.duplicate_min_chars');
+    } catch {
+      return 20;
+    }
+  }
+}
+
+function dupKey(context: ModerationContext, normalized: string): string {
+  return `mod:dup:${context.kind}:${context.authorId}:${createHash('sha256')
+    .update(normalized)
+    .digest('hex')
+    .slice(0, 32)}`;
 }

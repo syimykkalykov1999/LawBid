@@ -209,6 +209,83 @@ describe('stage 6.4 — moderation (e2e)', () => {
       .expect(201);
     expect((dup.body as Body).data.status).toBe('hidden');
 
+    // Algo audit 2026-10-27 (CONTENT C-3): re-saving the own post (same
+    // text, or a changed one) is not a "repeat" of itself.
+    const firstId = (first.body as Body).data.id as string;
+    const resaved = await api()
+      .patch(`/api/v1/posts/${firstId}`)
+      .set(a.auth)
+      .send({ title: 'A title', body: 'Plain advice about parking tickets' })
+      .expect(200);
+    expect((resaved.body as Body).data.status).toBe('published');
+    const edited = await api()
+      .patch(`/api/v1/posts/${firstId}`)
+      .set(a.auth)
+      .send({
+        title: 'A title',
+        body: 'Plain advice about parking tickets, updated',
+      })
+      .expect(200);
+    expect((edited.body as Body).data.status).toBe('published');
+
+    // Algo audit 2026-10-27 (CONTENT C-2): every held post is a ticket in
+    // the moderators' queue (a system report, not a person's complaint).
+    const heldId = (held.body as Body).data.id as string;
+    const mod = await adminSession(baseUrl, prisma, 'moderator');
+    const queue = await api()
+      .get('/api/v1/admin/moderation/queue?targetType=post')
+      .set(mod.auth)
+      .expect(200);
+    const queued = (queue.body as { data: Array<Record<string, unknown>> })
+      .data;
+    expect(queued.map((r) => r.targetId)).toEqual(
+      expect.arrayContaining([
+        heldId,
+        (links.body as Body).data.id as string,
+        (dup.body as Body).data.id as string,
+      ]),
+    );
+    expect(queued.find((r) => r.targetId === heldId)).toMatchObject({
+      targetStatus: 'hidden',
+      reports: 1,
+    });
+    expect(
+      await prisma.report.count({
+        where: { target_id: heldId, note: { startsWith: 'auto_hold' } },
+      }),
+    ).toBe(1);
+
+    // CONTENT C-1: «Отклонить жалобы» on a post the rules hid puts it back
+    // (recorded as a restore, the author told); the moderator may still
+    // remove it instead.
+    const notices = await prisma.notification.count({
+      where: { user_id: a.id, type: 'moderation_notice' },
+    });
+    const dismissed = await api()
+      .post(`/api/v1/admin/moderation/targets/post/${heldId}/actions`)
+      .set(mod.auth)
+      .send({ action: 'dismiss', reason: 'Nothing wrong with it' })
+      .expect(200);
+    expect((dismissed.body as Body).data.status).toBe('published');
+    expect(
+      (await prisma.post.findUniqueOrThrow({ where: { id: heldId } })).status,
+    ).toBe('published');
+    expect(
+      await prisma.report.count({
+        where: { target_id: heldId, status: 'dismissed' },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.moderationAction.count({
+        where: { target_id: heldId, action: 'restore' },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.notification.count({
+        where: { user_id: a.id, type: 'moderation_notice' },
+      }),
+    ).toBe(notices + 1);
+
     // A comment with a blocked term is refused too.
     const c = await client();
     const cb = await api()
@@ -294,6 +371,36 @@ describe('stage 6.4 — moderation (e2e)', () => {
       reasons: ['spam'],
     });
     expect((row!.author as { id: string }).id).toBe(a.id);
+
+    // Algo audit 2026-10-27 (CONTENT C-1): the threshold hid it, no
+    // moderator did — «Отклонить жалобы» = the reports were wrong, the
+    // post comes back. Before, it stayed hidden for ever.
+    await api()
+      .post(`/api/v1/admin/moderation/targets/post/${postId}/actions`)
+      .set(mod.auth)
+      .send({ action: 'dismiss', reason: 'Reports unfounded' })
+      .expect(200);
+    expect(
+      (await prisma.post.findUniqueOrThrow({ where: { id: postId } })).status,
+    ).toBe('published');
+    expect(await visible()).toEqual({ profile: true, search: true });
+
+    // A moderator's own hide is a decision: dismissing later reports on it
+    // keeps it hidden.
+    await api()
+      .post(`/api/v1/admin/moderation/targets/post/${postId}/actions`)
+      .set(mod.auth)
+      .send({ action: 'hide', reason: 'Misleading' })
+      .expect(200);
+    await reportBy(1, 'post', postId);
+    await api()
+      .post(`/api/v1/admin/moderation/targets/post/${postId}/actions`)
+      .set(mod.auth)
+      .send({ action: 'dismiss', reason: 'Already handled' })
+      .expect(200);
+    expect(
+      (await prisma.post.findUniqueOrThrow({ where: { id: postId } })).status,
+    ).toBe('hidden');
   });
 
   it('3 reports on a review hide it and recalculate the attorney rating', async () => {

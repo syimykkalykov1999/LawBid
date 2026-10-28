@@ -95,11 +95,6 @@
     "reason": "MULTI over the single seen:<user> key."
   },
   {
-    "file": "modules/moderation/rule-based-moderation.hook.ts",
-    "kind": "multi",
-    "reason": "INCR+EXPIRE on one key."
-  },
-  {
     "file": "modules/moderation/text-detector.service.ts",
     "kind": "multi",
     "reason": "INCR+EXPIRE on the single daily detect counter key."

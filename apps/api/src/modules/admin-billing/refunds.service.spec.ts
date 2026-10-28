@@ -65,6 +65,7 @@ describe('RefundsService.refund', () => {
   function setup(opts: {
     refundedCents?: number;
     providerFails?: boolean;
+    bookingFails?: boolean;
     status?: 'succeeded' | 'pending';
   }) {
     const refundRow = {
@@ -88,7 +89,9 @@ describe('RefundsService.refund', () => {
           Promise.resolve({ ...refundRow, amount_cents: a.data.amount_cents }),
         ),
         update: jest.fn((a: { data: Record<string, unknown> }) =>
-          Promise.resolve({ ...refundRow, ...a.data }),
+          opts.bookingFails
+            ? Promise.reject(new Error('connection reset'))
+            : Promise.resolve({ ...refundRow, ...a.data }),
         ),
       },
       payment: { update: jest.fn().mockResolvedValue({}) },
@@ -155,6 +158,23 @@ describe('RefundsService.refund', () => {
     });
     expect(tx.refund.create).not.toHaveBeenCalled();
     expect(refund).not.toHaveBeenCalled();
+  });
+
+  // Algo audit 2026-10-27 (MONEY H-3).
+  it('a database error AFTER Stripe refunded never marks the row failed (no second refund)', async () => {
+    const { service, prisma, refund } = setup({ bookingFails: true });
+    await expect(service.refund(admin, dto(1_000))).rejects.toMatchObject({
+      response: { code: 'INTERNAL_ERROR' },
+    });
+    expect(refund).toHaveBeenCalledTimes(1);
+    // The row stays live (pending → the amount stays reserved) and carries
+    // the provider's refund id, so nobody sends this amount twice.
+    const writes = prisma.refund.update.mock.calls.map(
+      (c: [{ data: Record<string, unknown> }]) => c[0].data,
+    );
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({ stripe_refund_id: 're_1' });
+    expect(writes[0]).not.toHaveProperty('status');
   });
 
   it('provider failure → the row is failed and 502', async () => {

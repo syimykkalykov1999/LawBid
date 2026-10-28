@@ -122,11 +122,18 @@ export class SubscriptionAlertsService {
       .slice(0, ALERT_FANOUT_MAX)
       .map((id) => ({ id }));
   }
-  /** Runs [job] after the response without failing the request. */
-  later(job: () => Promise<unknown>): void {
+  /**
+   * Runs [job] after the response without failing the request. Algo audit
+   * 2026-10-27 (CASES H-1): with Redis the job only queues the wave (the
+   * worker retries), so a failure here means the case reached nobody —
+   * logged as an error with the case id, so the ops alarm catches it.
+   */
+  later(job: () => Promise<unknown>, context: { caseId?: string } = {}): void {
     setImmediate(() => {
       job().catch((e: unknown) =>
-        this.log.warn(`alert fan-out failed: ${String(e)}`),
+        this.log.error(
+          `alert fan-out failed${context.caseId ? ` for case ${context.caseId}` : ''}: ${String(e)}`,
+        ),
       );
     });
   }
