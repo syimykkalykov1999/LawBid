@@ -1852,9 +1852,20 @@ void main() {
     /// Ended now, gone (idle) after the «Call ended» moment, the media
     /// closed and the system call taken down.
     void expectClosed(_Harness h, FakeAsync async) {
+      final id = h.s.call?.id;
       expect(h.s.phase, CallPhase.ended);
+      // Owner 2026-10-28 (Samsung: the video froze on the last frame and
+      // the phone still showed a call in progress after the end): the
+      // camera / mic and the renderers go first, at the end itself…
       expect(h.media.closed, isTrue);
-      expect(h.systemUi.endAlls + h.systemUi.dismissed.length, greaterThan(0));
+      async.flushMicrotasks();
+      // …then the system call of THIS call (Android: its Telecom call, the
+      // plugin's call service and screen — callkit_bridge dismiss), every
+      // other trace of a call, and the ongoing-call service…
+      if (id != null) expect(h.systemUi.dismissed, contains(id));
+      expect(h.systemUi.endAlls, greaterThan(0));
+      expect(h.foreground.stops, greaterThan(0));
+      // …and the call screen goes after the «Call ended» moment.
       async.elapse(kCallEndedLinger + const Duration(milliseconds: 100));
       expect(h.s.phase, CallPhase.idle);
     }
@@ -1874,6 +1885,33 @@ void main() {
         expect(h.s.outcome, CallStatus.canceled);
         expect(h.repo.ends, [CallEndReason.hangup]);
         expectClosed(h, async);
+        done(h);
+      });
+    });
+
+    test(
+        'end order: media at once, system call next, the late native sweep '
+        'only after the screen has slid away', () {
+      fakeAsync((async) {
+        final h = _Harness();
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        h.c.hangUp();
+        // The camera / mic go with the end itself.
+        expect(h.media.closed, isTrue);
+        async.flushMicrotasks();
+        final first = h.systemUi.endAlls;
+        expect(first, greaterThan(0));
+        expect(h.foreground.stops, 1);
+        // The screen closes at 1.5 s and slides for ~0.4 s: no native
+        // work lands in that window.
+        async.elapse(const Duration(milliseconds: 2900));
+        expect(h.systemUi.endAlls, first);
+        expect(h.foreground.stops, 1);
+        expect(kCallLateSweep, greaterThan(kCallEndedLinger));
+        async.elapse(const Duration(milliseconds: 200));
+        expect(h.systemUi.endAlls, first + 1);
+        expect(h.foreground.stops, 2);
         done(h);
       });
     });
