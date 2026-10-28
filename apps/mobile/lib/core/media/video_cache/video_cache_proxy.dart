@@ -58,11 +58,34 @@ class VideoCacheProxy {
     await s?.close(force: true);
   }
 
+  /// The loopback port (only while [running]).
+  int get port => _server!.port;
+
+  /// The per-launch secret every local URL carries.
+  String get secret => _secret;
+
   /// The local URL that plays [upstream] (an https MP4 or `.m3u8`).
-  String wrap(Uri upstream, {bool cache = true, bool isPlaylist = false}) {
+  String wrap(Uri upstream, {bool cache = true, bool isPlaylist = false}) =>
+      wrapUrl(
+        port: port,
+        secret: _secret,
+        upstream: upstream,
+        cache: cache,
+        isPlaylist: isPlaylist,
+      );
+
+  /// [wrap] for a proxy running in another isolate (only its port and
+  /// secret are known here).
+  static String wrapUrl({
+    required int port,
+    required String secret,
+    required Uri upstream,
+    bool cache = true,
+    bool isPlaylist = false,
+  }) {
     final kind = isPlaylist ? 'p' : (cache ? 'c' : 'x');
     final u = base64Url.encode(utf8.encode(upstream.toString()));
-    return 'http://127.0.0.1:${_server!.port}/$_secret/$kind/$u';
+    return 'http://127.0.0.1:$port/$secret/$kind/$u';
   }
 
   /// Query parameters that only prove access (expire on every API answer);

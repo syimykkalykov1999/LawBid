@@ -9,6 +9,7 @@ import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.da
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/video_prefetch.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/core/perf/build_counter.dart';
@@ -34,6 +35,20 @@ import 'package:lawbid/shared/presentation/guest_gate.dart';
 /// top left and a wide, low button pinned above the bottom ("Смотреть" /
 /// "Читать") that opens the reel's inner page — title, text, photos and
 /// documents.
+/// Owner 2026-10-28 (the freeze on a swipe into Reels): where the Reels
+/// tab's page is among the feed's side-by-side pages.
+enum ReelsPresence {
+  /// At rest on screen: the reel plays.
+  settled,
+
+  /// The pages are sliding (a finger or a tap's slide): no player opens
+  /// (the box stays black), a running one only pauses.
+  moving,
+
+  /// At rest on another page: every player is closed.
+  away,
+}
+
 class ReelsScreen extends ConsumerStatefulWidget {
   const ReelsScreen({
     this.initial = const [],
@@ -41,8 +56,14 @@ class ReelsScreen extends ConsumerStatefulWidget {
     this.embedded = false,
     this.filter,
     this.practice,
+    this.presence,
     super.key,
   });
+
+  /// The Reels tab: where its page is (null = a screen of its own, always
+  /// [ReelsPresence.settled]). A video opens only once the page is at rest
+  /// on screen — never while it slides in.
+  final ValueListenable<ReelsPresence>? presence;
 
   /// Owner 2026-10-12: the Reels tab of the feed — the player without its
   /// own back row, under the feed's filter row.
@@ -279,13 +300,19 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                     itemBuilder: (_, i) => WebReelFrame(
                       child: _ReelSlot(
                         index: _index,
+                        presence: widget.presence,
                         page: i,
-                        builder: ({required active, required warm}) =>
+                        builder: ({
+                          required active,
+                          required warm,
+                          required hold,
+                        }) =>
                             _ReelPage(
                           key: ValueKey(items[i].id),
                           post: items[i],
                           active: active,
                           warm: warm,
+                          hold: hold,
                           muted: muted,
                           embedded: true,
                           soundButton: true,
@@ -351,13 +378,19 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                     itemBuilder: (_, i) => WebReelFrame(
                       child: _ReelSlot(
                         index: _index,
+                        presence: widget.presence,
                         page: i,
-                        builder: ({required active, required warm}) =>
+                        builder: ({
+                          required active,
+                          required warm,
+                          required hold,
+                        }) =>
                             _ReelPage(
                           key: ValueKey(items[i].id),
                           post: items[i],
                           active: active,
                           warm: warm,
+                          hold: hold,
                           muted: muted,
                           embedded: _underNavBar,
                         ),
@@ -414,6 +447,20 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   }
 }
 
+/// The height of two lines of [style] at the system text size.
+double _twoLines(BuildContext context, TextStyle style) {
+  final base = DefaultTextStyle.of(context).style.merge(style);
+  final painter = TextPainter(
+    text: TextSpan(text: 'A\nA', style: base),
+    maxLines: 2,
+    textDirection: TextDirection.ltr,
+    textScaler: MediaQuery.textScalerOf(context),
+  )..layout();
+  final h = painter.height;
+  painter.dispose();
+  return h;
+}
+
 /// Owner 2026-10-26 (smoothness): one page of the reels pager. It
 /// rebuilds only when it becomes, or stops being, the reel on screen or
 /// its neighbour (the players to play and to warm).
@@ -422,52 +469,79 @@ class _ReelSlot extends StatefulWidget {
     required this.index,
     required this.page,
     required this.builder,
+    this.presence,
   });
 
   final ValueListenable<int> index;
+  final ValueListenable<ReelsPresence>? presence;
   final int page;
-  final Widget Function({required bool active, required bool warm}) builder;
+  final Widget Function({
+    required bool active,
+    required bool warm,
+    required bool hold,
+  }) builder;
 
   @override
   State<_ReelSlot> createState() => _ReelSlotState();
 }
 
 class _ReelSlotState extends State<_ReelSlot> {
-  late (bool, bool) _flags = _at(widget.index.value);
+  late (bool, bool, bool) _flags = _now();
 
-  (bool, bool) _at(int index) =>
-      (widget.page == index, (widget.page - index).abs() == 1);
+  /// (playing, neighbour, hold). Away: nothing is open; sliding: the
+  /// players stay as they are but none opens (hold).
+  (bool, bool, bool) _now() {
+    final index = widget.index.value;
+    final presence = widget.presence?.value ?? ReelsPresence.settled;
+    if (presence == ReelsPresence.away) return (false, false, false);
+    return (
+      widget.page == index,
+      (widget.page - index).abs() == 1,
+      presence == ReelsPresence.moving,
+    );
+  }
 
   void _changed() {
-    final f = _at(widget.index.value);
+    final f = _now();
     if (f != _flags) setState(() => _flags = f);
+  }
+
+  void _listen(_ReelSlot w) {
+    w.index.addListener(_changed);
+    w.presence?.addListener(_changed);
+  }
+
+  void _unlisten(_ReelSlot w) {
+    w.index.removeListener(_changed);
+    w.presence?.removeListener(_changed);
   }
 
   @override
   void initState() {
     super.initState();
-    widget.index.addListener(_changed);
+    _listen(widget);
   }
 
   @override
   void didUpdateWidget(_ReelSlot old) {
     super.didUpdateWidget(old);
-    if (!identical(old.index, widget.index)) {
-      old.index.removeListener(_changed);
-      widget.index.addListener(_changed);
+    if (!identical(old.index, widget.index) ||
+        !identical(old.presence, widget.presence)) {
+      _unlisten(old);
+      _listen(widget);
     }
-    _flags = _at(widget.index.value);
+    _flags = _now();
   }
 
   @override
   void dispose() {
-    widget.index.removeListener(_changed);
+    _unlisten(widget);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) =>
-      widget.builder(active: _flags.$1, warm: _flags.$2);
+      widget.builder(active: _flags.$1, warm: _flags.$2, hold: _flags.$3);
 }
 
 class _ReelPage extends ConsumerStatefulWidget {
@@ -476,6 +550,7 @@ class _ReelPage extends ConsumerStatefulWidget {
     required this.active,
     required this.muted,
     this.warm = false,
+    this.hold = false,
     this.embedded = false,
     this.soundButton = false,
     super.key,
@@ -484,6 +559,9 @@ class _ReelPage extends ConsumerStatefulWidget {
   final Post post;
   final bool active;
   final bool muted;
+
+  /// The Reels tab is sliding: no player opens, a running one pauses.
+  final bool hold;
 
   /// Owner 2026-10-19 (Instagram): the small speaker above the middle of
   /// the reel (the Reels tab; the pushed player has it in its top bar).
@@ -530,6 +608,43 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     _held.dispose();
     _progress.dispose();
     super.dispose();
+  }
+
+  /// The reel's caption (at most two lines) under the author row.
+  Widget _captionOf({
+    required bool more,
+    required String caption,
+    required AppTypographyTokens type,
+    required List<Shadow> shadow,
+    required Translator t,
+    required Post p,
+  }) {
+    final style = type.body.copyWith(
+      color: Colors.white,
+      shadows: shadow,
+    );
+    // A short caption; the whole text is inside (the button below) — or,
+    // with no attachments, opens in place over the video (owner
+    // 2026-10-13).
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.sm),
+      child: more
+          ? GestureDetector(
+              onTap: widget.embedded ? () => _openInside(p) : null,
+              child: Text(
+                caption,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: style,
+              ),
+            )
+          : _ReelCaption(
+              text: caption,
+              moreLabel: t.t('post.more'),
+              style: style,
+              onMore: () => showPostTextSheet(context, p),
+            ),
+    );
   }
 
   /// The inner page; the reel waits paused and plays on when back (see
@@ -657,8 +772,12 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       video: video,
                       active: widget.active && video.ready,
                       warm: widget.warm && video.ready,
+                      deferOpen: widget.hold,
                       muted: widget.muted,
-                      paused: _paused.value || _held.value || covered,
+                      paused: _paused.value ||
+                          _held.value ||
+                          covered ||
+                          widget.hold,
                       zoomable: true,
                       onProgress: (v) => _progress.value = v,
                       onViewed: _viewed,
@@ -867,44 +986,36 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                           // Owner 2026-10-19: no @username (only in the
                           // profile and search) and no role word «Клиент»
                           // (only on the welcome screen's role choice).
+                          // Owner 2026-10-28: the second line is always
+                          // there (blank when there is nothing to say), so
+                          // the row stands at one height for every author.
                           subtitle: p.promotionId != null
                               ? t.t('promote.sponsored')
                               : p.locationName ??
                                   (p.author.verified && !p.author.isClient
                                       ? t.t('post.licensedAttorney')
-                                      : ''),
+                                      : '\u00A0'),
                         ),
                       ),
-                      if (caption.isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        // A short caption; the whole text is inside (the
-                        // button below) — or, with no attachments, opens in
-                        // place over the video (owner 2026-10-13).
-                        if (more)
-                          GestureDetector(
-                            onTap:
-                                widget.embedded ? () => _openInside(p) : null,
-                            child: Text(
-                              caption,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: type.body.copyWith(
-                                color: Colors.white,
-                                shadows: shadow,
-                              ),
-                            ),
-                          )
-                        else
-                          _ReelCaption(
-                            text: caption,
-                            moreLabel: t.t('post.more'),
-                            style: type.body.copyWith(
-                              color: Colors.white,
-                              shadows: shadow,
-                            ),
-                            onMore: () => showPostTextSheet(context, p),
-                          ),
-                      ],
+                      // Owner 2026-10-28: the caption's two lines are kept
+                      // free even without a caption, so the author row is
+                      // at the same height on every reel.
+                      SizedBox(
+                        height: AppSpacing.sm + _twoLines(context, type.body),
+                        child: Align(
+                          alignment: AlignmentDirectional.topStart,
+                          child: caption.isEmpty
+                              ? const SizedBox.shrink()
+                              : _captionOf(
+                                  more: more,
+                                  caption: caption,
+                                  type: type,
+                                  shadow: shadow,
+                                  t: t,
+                                  p: p,
+                                ),
+                        ),
+                      ),
                     ],
                   ),
                 ),

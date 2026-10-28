@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
@@ -535,6 +536,7 @@ class SwipePages<T> extends StatefulWidget {
     required this.onChanged,
     required this.pageBuilder,
     this.onPosition,
+    this.onSettled,
     super.key,
   });
 
@@ -546,6 +548,12 @@ class SwipePages<T> extends StatefulWidget {
   /// Where the pages are, every frame (0 = the first page, 1.5 = half way
   /// between the second and the third).
   final ValueChanged<double>? onPosition;
+
+  /// Owner 2026-10-28 (the freeze on a swipe into Reels): the page the
+  /// pages came to rest on, or null the moment they start sliding (a
+  /// finger, a fling, a tap's slide). A page does its heavy start (a video
+  /// player) only once it is at rest.
+  final ValueChanged<T?>? onSettled;
 
   @override
   State<SwipePages<T>> createState() => _SwipePagesState<T>();
@@ -567,6 +575,56 @@ class _SwipePagesState<T> extends State<SwipePages<T>> {
   int _slide = 0;
 
   bool _nested = false;
+
+  /// The latest [SwipePages.onSettled] report (no repeats).
+  T? _settled;
+  bool _reported = false;
+
+  void _settle(T? v) {
+    // A jump made while the tree builds (reduced motion) reports after it.
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _settleNow(v);
+      });
+      return;
+    }
+    _settleNow(v);
+  }
+
+  void _settleNow(T? v) {
+    // Owner 2026-10-28 (Samsung: the Reels page on screen with «Посты» lit
+    // in the header and its video never playing): the page the pages rest
+    // on is the chosen one, even if a page change was passed by on the way.
+    if (v != null && !_animating && v != widget.value) {
+      _target = widget.values.indexOf(v);
+      widget.onChanged(v);
+    }
+    final on = widget.onSettled;
+    if (on == null || (_reported && v == _settled)) return;
+    _reported = true;
+    _settled = v;
+    on(v);
+  }
+
+  /// Only this pager's own horizontal scroll counts, never a list or a
+  /// vertical player inside a page.
+  bool _onScroll(ScrollNotification n) {
+    if (n.depth != 0 || n.metrics.axis != Axis.horizontal) return false;
+    if (n is ScrollStartNotification) {
+      _settle(null);
+    } else if (n is ScrollEndNotification) {
+      final page = _pages.hasClients ? _pages.page : null;
+      // A finger holding the pages mid-way also ends a scroll: still moving.
+      if (page == null || (page - page.round()).abs() > 0.01) {
+        _settle(null);
+      } else {
+        final i = page.round().clamp(0, widget.values.length - 1);
+        _settle(widget.values[i]);
+      }
+    }
+    return false;
+  }
 
   @override
   void initState() {
@@ -659,7 +717,12 @@ class _SwipePagesState<T> extends State<SwipePages<T>> {
         child: widget.pageBuilder(context, widget.values[i]),
       ),
     );
-    final scoped = _SwipePagesScope(child: view);
+    final scoped = _SwipePagesScope(
+      child: NotificationListener<ScrollNotification>(
+        onNotification: _onScroll,
+        child: view,
+      ),
+    );
     if (!nested && !back) return scoped;
     // Nested pages (and pages on a pushed screen) drive their own drag.
     return PageDragHost(

@@ -92,6 +92,7 @@ class ReelVideo extends StatefulWidget {
     this.muted = true,
     this.paused = false,
     this.warm = false,
+    this.deferOpen = false,
     this.backdrop = true,
     this.zoomable = false,
     this.onProgress,
@@ -113,6 +114,11 @@ class ReelVideo extends StatefulWidget {
   /// Owner 2026-10-15: the next/previous reel opens its stream ahead and
   /// waits at the first frame, so swiping to it starts at once.
   final bool warm;
+
+  /// Owner 2026-10-28 (the freeze on a swipe into Reels): the page is still
+  /// sliding — no player opens now (the box stays [backdrop]); it opens as
+  /// soon as this turns false. A player already open is kept.
+  final bool deferOpen;
   final bool muted;
 
   /// The viewer paused it (tap on the reel).
@@ -227,11 +233,11 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
   void initState() {
     super.initState();
     if (widget.active && !kReleaseMode) _sinceActive.start();
-    if (widget.active || widget.warm) _open();
+    if ((widget.active || widget.warm) && !widget.deferOpen) _open();
     // The cover is drawn only for a video that cannot play (see build);
     // then it is on screen at once (it is cached by the list).
     final thumb = widget.video.thumbnailUrl;
-    if (thumb != null && !_playable) {
+    if (thumb != null && (!_playable || widget.backdrop)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           unawaited(
@@ -278,7 +284,9 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     if (old.muted && !widget.muted && widget.active && _c != null) {
       _pauseVoiceNote();
     }
-    if ((widget.active || widget.warm) && _c == null) _open();
+    if ((widget.active || widget.warm) && _c == null && !widget.deferOpen) {
+      _open();
+    }
     _apply();
   }
 
@@ -484,7 +492,11 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     // player never draws it over (or under) its video: it shows real frames
     // from the stream. The cover is drawn only when there is no video to
     // play (still processing, or it failed).
-    final poster = thumb != null && (!_playable || _failed);
+    // Owner 2026-10-28: never a black box while a reel loads (or waits for
+    // its page to come to rest) — the poster shows until the video's own
+    // frames move; a grid tile (no backdrop) keeps its own cover instead.
+    final poster = thumb != null &&
+        (!_playable || _failed || (widget.backdrop && !_rendered));
     final box = ColoredBox(
       color: widget.backdrop ? Colors.black : Colors.transparent,
       child: Stack(
