@@ -11,6 +11,7 @@ import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui
 import { Skeleton } from '@/components/ui/empty';
 import { useToast } from '@/components/ui/toast';
 import { RegistryResult } from '@/components/verification/registry-result';
+import { SelfieCaptureNote } from '@/components/verification/selfie-capture-note';
 import { api, ApiError } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
@@ -274,7 +275,11 @@ function VerificationBody({ card: r, name }: { card: Card; name: string }) {
           <CardContent className="grid gap-3">
             {docs.selfie.length === 0 ? <p className="text-sm text-muted">Селфи нет</p> : null}
             {docs.selfie.map((d) => (
-              <Picture key={d.id} doc={d} url={links.urls[d.id]} loading={links.loading} onOpen={() => openDoc(d)} />
+              <div key={d.id} className="grid gap-1.5">
+                <Picture doc={d} url={links.urls[d.id]} loading={links.loading} onOpen={() => openDoc(d)} />
+                {/* Owner 2026-10-28: how the selfie was taken, right next to it. */}
+                <SelfieCaptureNote capture={d.capture} />
+              </div>
             ))}
           </CardContent>
         </Card>
