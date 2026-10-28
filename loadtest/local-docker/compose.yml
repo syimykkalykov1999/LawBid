@@ -1,0 +1,132 @@
+# Local production-like LawBid stack for load tests (laptop only, never prod).
+# Postgres 16 (sized like db.r7g.large by default: 2 CPU / 16 GB, change with
+# `docker update --cpus`), own PgBouncer (repo infra/pgbouncer, transaction
+# pooling), Redis 7, API (repo apps/api/Dockerfile, ECS task size 1 vCPU/2 GB,
+# scale with --scale api=N), worker (0.5 vCPU/1 GB), nginx in front (= ALB).
+# Images (from the repo root):
+#   docker build -t lawbid-lt-pgbouncer:local infra/pgbouncer
+#   docker build -t lawbid-lt-api:local -f apps/api/Dockerfile .
+#   docker build -t lawbid-lt-api-dev:local -f loadtest/local-docker/Dockerfile.dev loadtest/local-docker
+# api.env: ./make-env.sh (random local secrets, paid integrations off).
+# Change Postgres CPUs with `docker update --cpus N lawbid-lt-postgres-1`, never
+# by `compose up` of postgres while a seed runs (it recreates the container).
+# Start the app without touching postgres: `docker compose up -d --no-deps api worker lb`
+# and `docker compose restart lb` after scaling api (nginx resolves once).
+name: lawbid-lt
+
+x-app: &app
+  image: lawbid-lt-api-dev:local
+  env_file: ${API_ENV:-./api.env}
+  depends_on:
+    pgbouncer: { condition: service_started }
+    redis: { condition: service_healthy }
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: lawbid
+      POSTGRES_DB: postgres
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.max=10000
+      - -c
+      - pg_stat_statements.track=all
+      - -c
+      - track_io_timing=on
+      - -c
+      - max_connections=1000
+      - -c
+      - shared_buffers=4GB
+      - -c
+      - effective_cache_size=12GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=2GB
+      - -c
+      - max_wal_size=16GB
+      - -c
+      - checkpoint_timeout=15min
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=200
+      - -c
+      - log_min_duration_statement=500
+      - -c
+      - max_parallel_workers_per_gather=2
+    shm_size: 4g
+    cpus: ${PG_CPUS:-2}
+    mem_limit: ${PG_MEM:-16g}
+    ports: ["127.0.0.1:55432:5432"]
+    volumes:
+      - lt-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d postgres"]
+      interval: 5s
+      retries: 20
+
+  pgbouncer:
+    image: lawbid-lt-pgbouncer:local
+    environment:
+      DATABASE_URL: postgresql://lawbid_app:lawbid_app_lt@postgres:5432/lawbid_lt
+      POOL_SIZE: ${PGB_POOL:-40}
+      RESERVE_POOL: "5"
+      MAX_CLIENT_CONN: "5000"
+      DB_TLS_MODE: disable
+      STATS_INTERVAL: "0"
+    tmpfs: ["/tmp"]
+    cpus: 1
+    mem_limit: 512m
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports: ["127.0.0.1:56432:5432"]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "3gb", "--maxmemory-policy", "noeviction"]
+    cpus: 1
+    mem_limit: 4g
+    ports: ["127.0.0.1:56379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  api:
+    <<: *app
+    command: ["node", "dist/src/main.js"]
+    environment:
+      JOBS_ENABLED: "false"
+      UV_THREADPOOL_SIZE: "4"
+      NODE_OPTIONS: --max-old-space-size=1536
+    cpus: ${API_CPUS:-1}
+    mem_limit: 2g
+
+  worker:
+    <<: *app
+    command: ["node", "dist/src/worker.js"]
+    environment:
+      JOBS_ENABLED: "true"
+      NODE_OPTIONS: --max-old-space-size=768
+    cpus: 0.5
+    mem_limit: 1g
+
+  lb:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on: [api]
+    cpus: 2
+    mem_limit: 512m
+    ports: ["127.0.0.1:3055:80"]
+
+volumes:
+  lt-pgdata:
+    name: lawbid-lt-pgdata
