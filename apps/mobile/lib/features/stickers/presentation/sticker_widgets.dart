@@ -91,11 +91,15 @@ class StickerPanel extends ConsumerStatefulWidget {
     required this.onSticker,
     required this.onEmoji,
     this.onGift,
+    this.panelHeight,
     super.key,
   });
 
   final ValueChanged<ChatSticker> onSticker;
   final ValueChanged<String> onEmoji;
+
+  /// The keyboard's height when known, so the swap does not jump.
+  final double? panelHeight;
 
   /// Owner 2026-10-20: set when stars are on — shows the «Подарки» tab.
   final ValueChanged<Gift>? onGift;
@@ -149,7 +153,7 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
       child: Padding(
         padding: EdgeInsets.only(bottom: bottomInset),
         child: SizedBox(
-          height: StickerPanel.height,
+          height: widget.panelHeight ?? StickerPanel.height,
           child: Column(
             children: [
               Expanded(
