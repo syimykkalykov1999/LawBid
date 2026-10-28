@@ -15,3 +15,5 @@ For any area that keeps breaking (calls, reels/video player, uploads, push notif
 **How to apply:** every worker brief for these areas starts with a reference doc (docs/dev/*_REFERENCE_*.md) listing mismatches vs ours, then ports. Related: [[calls-like-whatsapp]], [[device-and-server-light]], [[ui-frozen]].
 
 **Extended 2026-10-28 (owner):** same rule for caching, cost and speed everywhere — use proven open-source patterns/packages (HTTP/image/video disk caches, stale-while-revalidate, ETags/CDN cache headers, Redis caching, query batching) instead of home-made ones.
+
+**Owner final decision 2026-10-28:** no rewrite/new repo. Finish THIS project item by item; only copy+adapt proven open-source (safety-checked); own code only when nothing exists anywhere, then to the limit with 1B-user tests.
