@@ -118,6 +118,28 @@ void main() {
       expect(filterMyPeople(people, 'thom').map((p) => p.id), ['3']);
     });
 
+    test(
+        'owner 2026-10-28: «sima kalykov» = Sima only; the typo match '
+        '«Syimyk» only when nothing matched better', () {
+      final chats = [
+        _p('s1', MyPeopleGroup.chats, name: 'Syimyk Kalykov', u: 'syimyk1'),
+        _p('sima', MyPeopleGroup.chats, name: 'Sima Kalykov', u: 'sima'),
+        _p('s2', MyPeopleGroup.chats, name: 'Syimyk Kalykov', u: 'syimyk2'),
+      ];
+      expect(filterMyPeople(chats, 'sima kalykov').map((p) => p.id), ['sima']);
+      expect(filterMyPeople(chats, 'Sima').map((p) => p.id), ['sima']);
+      expect(
+        filterMyPeople(chats, 'kal').map((p) => p.id),
+        ['s1', 'sima', 's2'],
+      );
+      expect(
+        filterMyPeople(chats, 'syimyk kalykov').map((p) => p.id),
+        ['s1', 's2'],
+      );
+      // Nobody starts with «syimyl»: the close spelling is the answer.
+      expect(filterMyPeople(chats, 'syimyl').map((p) => p.id), ['s1', 's2']);
+    });
+
     test('blank = everyone; no match = nobody', () {
       expect(filterMyPeople(people, '  '), people);
       expect(filterMyPeople(people, 'zzz'), isEmpty);

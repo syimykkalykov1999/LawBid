@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/text/bidi.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
@@ -88,15 +89,14 @@ List<MyPerson> mergeMyPeople({
   return out;
 }
 
-/// [people] whose name or @username contains [raw] (any case, a leading
-/// «@» ignored); all of them when it is blank. Local — the list is short.
+/// [people] matching [raw] by name or @username, best match first — the
+/// same rule as People and chat search ([rankByName], owner 2026-10-28:
+/// every word by its start, any alphabet; a typo only when nothing matched
+/// better); all of them when it is blank. Local — the list is short.
 List<MyPerson> filterMyPeople(List<MyPerson> people, String raw) {
   final q = peopleSuggestQuery(raw).toLowerCase();
   if (q.isEmpty) return people;
-  return [
-    for (final p in people)
-      if (p.matches(q)) p,
-  ];
+  return rankByName(people, q, (p) => p.name, (p) => p.username);
 }
 
 /// The real people behind my accepted 1:1 chats.

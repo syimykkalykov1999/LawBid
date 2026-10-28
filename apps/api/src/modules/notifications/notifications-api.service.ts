@@ -8,6 +8,7 @@ import {
   allWordsSql,
   nameKeys,
   nameMatchSql,
+  nameStrictSql,
   typedWords,
 } from '../../common/search/name-match.sql';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -155,8 +156,14 @@ export class NotificationsApiService {
     if (!words.length) return [];
     const keys = await nameKeys(this.prisma, q);
     const text = Prisma.sql`concat_ws(' ', n.payload->>'title', n.payload->>'body', n.payload->>'reason', n.payload->>'note')`;
+    // Owner 2026-10-28: an actor's typo-only name match only when no row
+    // matched strongly (nameStrictSql).
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT n.id::TEXT AS id
+      SELECT id FROM (
+      SELECT id, strong, bool_or(strong) OVER () AS any_strong FROM (
+      SELECT n.id::TEXT AS id,
+             COALESCE(${allWordsSql(text, words)}
+              OR (a.id IS NOT NULL AND ${nameStrictSql(keys, 'a')}), FALSE) AS strong
       FROM notifications n
       LEFT JOIN users a
         ON a.role::TEXT = 'attorney'
@@ -168,6 +175,8 @@ export class NotificationsApiService {
         AND (${allWordsSql(text, words)}
              OR (a.id IS NOT NULL
                  AND ${nameMatchSql(keys, 'a')}))
+      ) m) w
+      WHERE strong OR NOT any_strong
       LIMIT 2000`;
     return rows.map((r) => r.id);
   }

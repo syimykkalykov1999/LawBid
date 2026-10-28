@@ -68,9 +68,11 @@ export interface PostSearchFilters {
  * SearchService (cases always go through CaseAccessPolicy there).
  */
 export type PersonRole = 'attorney' | 'client';
-/** How the name matched: 0 exact @username, 1 username prefix, 2 other.
- * Personal ranking only reorders inside a tier (owner 2026-10-13). */
-export type PersonTier = 0 | 1 | 2;
+/** How the text matched (PERSON_TIER in common/search/name-match.sql.ts):
+ * 0 exact, 1 prefix, 2 word start, 3 contains, 4 other alphabet, 5 typo,
+ * 6 topic/state (owner 2026-10-28). Personal ranking only reorders inside
+ * a tier (owner 2026-10-13). */
+export type PersonTier = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface SearchProvider {
   /** Ranked attorney ids (§7.3), at most [max]. */
