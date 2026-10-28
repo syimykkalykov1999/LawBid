@@ -1,3 +1,4 @@
+import 'package:lawbid/features/verification/domain/selfie_liveness.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -98,4 +99,46 @@ abstract final class VerificationMapper {
         api.ScanStatus.failed => ScanState.failed,
         _ => ScanState.pending,
       };
+
+  /// Owner 2026-10-28: the guided selfie camera's report on the wire.
+  static api.SelfieCaptureMetaDto? captureMeta(SelfieCaptureReport? r) {
+    if (r == null) return null;
+    return api.SelfieCaptureMetaDto(
+      liveness: switch (r.liveness) {
+        LivenessResult.passed => api.SelfieCaptureMetaDtoLiveness.passed,
+        LivenessResult.notChecked =>
+          api.SelfieCaptureMetaDtoLiveness.notChecked,
+        LivenessResult.skipped => api.SelfieCaptureMetaDtoLiveness.skipped,
+      },
+      challenge: switch (r.challenge) {
+        LivenessChallenge.blink => api.SelfieCaptureMetaDtoChallenge.blink,
+        LivenessChallenge.turnLeft =>
+          api.SelfieCaptureMetaDtoChallenge.turnLeft,
+        LivenessChallenge.turnRight =>
+          api.SelfieCaptureMetaDtoChallenge.turnRight,
+        null => null,
+      },
+      fallbackReason: switch (r.fallbackReason) {
+        'timeout' => api.SelfieCaptureMetaDtoFallbackReason.timeout,
+        'detector_unavailable' =>
+          api.SelfieCaptureMetaDtoFallbackReason.detectorUnavailable,
+        _ => null,
+      },
+      faceDetected: r.faceDetected,
+      cardDetected: r.cardDetected,
+      framesCaptured: r.framesCaptured.clamp(1, 5),
+      startedAt: r.startedAt.toUtc(),
+      capturedAt: r.capturedAt.toUtc(),
+      platform: switch (r.platform) {
+        'ios' => api.SelfieCaptureMetaDtoPlatform.ios,
+        'web' => api.SelfieCaptureMetaDtoPlatform.web,
+        _ => api.SelfieCaptureMetaDtoPlatform.android,
+      },
+      deviceModel: r.deviceModel == null
+          ? null
+          : (r.deviceModel!.length > 80
+              ? r.deviceModel!.substring(0, 80)
+              : r.deviceModel),
+    );
+  }
 }

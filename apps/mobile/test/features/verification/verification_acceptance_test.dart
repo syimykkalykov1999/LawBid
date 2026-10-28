@@ -110,8 +110,16 @@ void main() {
     await tapText(tester, 'Continue');
 
     expect(find.text('Take a selfie'), findsOneWidget);
+    // Owner 2026-10-28: the selfie only from the live camera — no gallery
+    // or file option on this step.
+    expect(find.text('Photo library'), findsNothing);
+    expect(find.text('Photo or PDF'), findsNothing);
     await tapText(tester, 'Open camera');
     expect(source.captures, 3);
+    // A one-time capture token was asked for before the camera opened and
+    // went back with the selfie attach.
+    expect(backend.selfieTokens, 1);
+    expect(backend.lastSelfie?.token, 'tok-1-abcdefghijklmnop');
     await tapText(tester, 'Continue');
 
     expect(find.text('Check and submit'), findsOneWidget);

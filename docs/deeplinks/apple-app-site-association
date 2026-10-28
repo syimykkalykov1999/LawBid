@@ -50,6 +50,10 @@
           {
             "/": "/auth/email-code",
             "comment": "Email magic sign-in link"
+          },
+          {
+            "/": "/verification/wizard",
+            "comment": "Continue verification on the phone (ID selfie), owner 2026-10-28"
           }
         ]
       }

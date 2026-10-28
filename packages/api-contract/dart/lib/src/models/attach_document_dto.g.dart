@@ -15,6 +15,12 @@ AttachDocumentDto _$AttachDocumentDtoFromJson(Map<String, dynamic> json) =>
           : AttachDocumentDtoSide.fromJson(json['side'] as String),
       stateCode: json['stateCode'] as String?,
       note: json['note'] as String?,
+      captureToken: json['captureToken'] as String?,
+      captureMeta: json['captureMeta'] == null
+          ? null
+          : SelfieCaptureMetaDto.fromJson(
+              json['captureMeta'] as Map<String, dynamic>,
+            ),
     );
 
 Map<String, dynamic> _$AttachDocumentDtoToJson(AttachDocumentDto instance) =>
@@ -24,4 +30,6 @@ Map<String, dynamic> _$AttachDocumentDtoToJson(AttachDocumentDto instance) =>
       'side': ?instance.side?.toJson(),
       'stateCode': ?instance.stateCode,
       'note': ?instance.note,
+      'captureToken': ?instance.captureToken,
+      'captureMeta': ?instance.captureMeta?.toJson(),
     };

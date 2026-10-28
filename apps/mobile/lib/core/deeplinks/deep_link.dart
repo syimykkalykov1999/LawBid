@@ -5,6 +5,9 @@ import 'package:flutter/foundation.dart';
 /// Info.plist `CFBundleURLTypes`.
 const String deepLinkScheme = 'lawbid';
 
+/// The wizard's in-app location (= AppRoutes.verificationWizard).
+const String verificationWizardLocation = '/verification/wizard';
+
 /// A parsed, validated deep link (docs/01_FOUNDATION_AUTH.md §12:
 /// `lawbid.dev/case/:id`, `/lawyer/:username`, `/post/:id`, magic sign-in
 /// links). Everything else is ignored — a link is untrusted input from
@@ -297,6 +300,13 @@ DeepLink? parseDeepLink(
   if ((webTabs || scheme == deepLinkScheme) && parts.length == 2) {
     final back = _paymentReturn(parts[0], parts[1], uri);
     if (back != null) return TabDeepLink(back);
+  }
+
+  // Owner 2026-10-28 (ID selfie «continue on the phone»): the link from the
+  // computer's QR code / text opens the verification wizard, which resumes
+  // the server draft where it stopped (the selfie step). After sign-in.
+  if (parts.length == 2 && parts[0] == 'verification' && parts[1] == 'wizard') {
+    return const TabDeepLink(verificationWizardLocation);
   }
 
   if (parts.length != 2) return null;

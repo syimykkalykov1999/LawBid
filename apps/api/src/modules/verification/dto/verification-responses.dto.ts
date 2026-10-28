@@ -150,3 +150,40 @@ export class VerificationOverviewDto {
   @ApiProperty({ type: 'integer' })
   maxSubmissions30Days!: number;
 }
+
+/** Owner 2026-10-28: a one-time selfie capture token (the app asks for it
+ * right before it opens the guided camera). */
+export class SelfieCaptureTokenDto {
+  @ApiProperty({ description: 'Send back as captureToken with the selfie.' })
+  token!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  expiresAt!: string;
+
+  @ApiProperty({
+    description:
+      'verification.selfie_live_capture_required: false = the server also ' +
+      'accepts a selfie without the token.',
+  })
+  required!: boolean;
+}
+
+/** Owner 2026-10-28: «continue on the phone» — the link texted to the
+ * attorney's own number. */
+export class SelfieHandoffDto {
+  @ApiProperty({
+    description:
+      'false = not sent: the number is on the STOP list or not a valid number (see reason).',
+  })
+  sent!: boolean;
+
+  @ApiProperty({ description: 'Last 4 digits of the number it went to.' })
+  phoneLast4!: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    enum: ['bad_number', 'suppressed'],
+  })
+  reason!: string | null;
+}

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/presentation/screens/camera_capture_screen.dart';
+import 'package:lawbid/features/verification/presentation/screens/id_selfie_capture_screen.dart';
 
 /// The frame drawn over the camera preview.
 enum CaptureGuide {
@@ -39,7 +40,11 @@ class DeviceDocumentSource implements DocumentSource {
       Navigator.of(context, rootNavigator: true).push<PickedDocument>(
         MaterialPageRoute(
           fullscreenDialog: true,
-          builder: (_) => CameraCaptureScreen(guide: guide),
+          // Owner 2026-10-28: the selfie only from the guided live camera
+          // (face oval + ID frame + on-device liveness); never the gallery.
+          builder: (_) => guide == CaptureGuide.selfie
+              ? const IdSelfieCaptureScreen()
+              : CameraCaptureScreen(guide: guide),
         ),
       );
 

@@ -1,3 +1,4 @@
+import 'package:lawbid/features/verification/domain/selfie_liveness.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 
 /// Attorney verification requests (apps/api `/verification/*`, docs/03
@@ -26,7 +27,16 @@ abstract interface class VerificationRepository {
     required String fileId,
     required DocSlot slot,
     String? note,
+    SelfieUpload? selfie,
   });
+
+  /// Owner 2026-10-28: a one-time capture token, asked for right before
+  /// the guided selfie camera opens; the selfie attach sends it back.
+  Future<SelfieCaptureTicket> startSelfieCapture(String requestId);
+
+  /// Owner 2026-10-28: texts the «continue on the phone» link to the
+  /// attorney's own number (web / no camera).
+  Future<SelfieHandoffResult> sendSelfieHandoffSms(String requestId);
 
   Future<VerificationRequest> removeDocument(
     String requestId,
@@ -90,4 +100,42 @@ abstract interface class FileUploadRepository {
   Future<ScanState> confirm(String fileId);
 
   Future<ScanState> scanStatus(String fileId);
+}
+
+/// A one-time selfie capture token (owner 2026-10-28).
+class SelfieCaptureTicket {
+  const SelfieCaptureTicket({
+    required this.token,
+    required this.expiresAt,
+    required this.required,
+  });
+
+  final String token;
+  final DateTime expiresAt;
+
+  /// false = the server would also take a selfie without it (switch off).
+  final bool required;
+}
+
+/// What goes with a selfie attach: the token and the camera's report.
+class SelfieUpload {
+  const SelfieUpload({required this.token, this.report});
+
+  final String token;
+  final SelfieCaptureReport? report;
+}
+
+/// Result of the «continue on the phone» text.
+class SelfieHandoffResult {
+  const SelfieHandoffResult({
+    required this.sent,
+    required this.phoneLast4,
+    this.reason,
+  });
+
+  final bool sent;
+  final String phoneLast4;
+
+  /// 'bad_number' | 'suppressed' when not sent.
+  final String? reason;
 }

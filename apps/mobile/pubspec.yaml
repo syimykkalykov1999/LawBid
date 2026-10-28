@@ -154,6 +154,13 @@ dependencies:
   # Android + iOS only (iOS 15.5+); the web says «in the app».
   google_mlkit_translation: ^0.15.1
   google_mlkit_language_id: ^0.15.1
+  # Owner 2026-10-28 (ID selfie camera, docs/architecture/
+  # ID_SELFIE_CAPTURE_2026-10-28.md): free on-device face detection (one
+  # face in the oval + blink / head-turn liveness) and text recognition
+  # (a soft "ID card is in the frame" hint). Same ML Kit release train as
+  # translation (google_mlkit_commons ^0.13.0); nothing leaves the phone.
+  google_mlkit_face_detection: ^0.15.1
+  google_mlkit_text_recognition: ^0.17.1
   # Owner 2026-10-22 (audit #4 §3): the persistent media queue hands each
   # S3 POST to the OS (Android WorkManager, iOS background URLSession), so
   # an upload continues while the app is closed (core/uploads/

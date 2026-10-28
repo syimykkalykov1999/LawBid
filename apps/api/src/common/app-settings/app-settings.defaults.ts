@@ -419,6 +419,11 @@ export const OWNER_BADGE_SETTINGS = {
 export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   'verification.require_bar_document': false,
   'verification.require_identity': true,
+  // Owner 2026-10-28 (ID selfie camera): a selfie is accepted only from the
+  // app's guided live camera — the upload must carry a one-time capture
+  // token the API issued for this request (30 min, single use). Off = the
+  // old behaviour (any selfie file), e.g. while old app versions phase out.
+  'verification.selfie_live_capture_required': true,
   // Owner 2026-10-16: off — a new license stays pending until the state
   // registry matches it or an admin approves it (with the bar card).
   'verification.self_attestation_auto_approve': false,

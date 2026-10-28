@@ -31,6 +31,7 @@ import type {
   SubmitVerificationRequestDto,
 } from '../dto/verification-requests.dto';
 import type {
+  SelfieCaptureTokenDto,
   VerificationOverviewDto,
   VerificationRequestDto,
 } from '../dto/verification-responses.dto';
@@ -50,6 +51,10 @@ import {
   syncProfileStatus,
 } from '../verification.helpers';
 import { VerificationChecksService } from './verification-checks.service';
+import {
+  SelfieCaptureTokensService,
+  type SelfieCaptureGrant,
+} from './selfie-capture-tokens.service';
 
 type Tx = Prisma.TransactionClient;
 
@@ -100,6 +105,8 @@ export class VerificationRequestsService {
     private readonly checks: VerificationChecksService,
     private readonly trust: AttorneyTrustService,
     private readonly blocks: BarNumberBlocksService,
+    // Owner 2026-10-28: one-time tokens of the guided selfie camera.
+    private readonly captureTokens: SelfieCaptureTokensService,
     // Owner 2026-10-14: the number's shape and the stepped cooldown.
     @Optional() private readonly attempts?: BarAttemptsService,
   ) {}
@@ -491,6 +498,29 @@ export class VerificationRequestsService {
    * FILE_NOT_ATTACHABLE for pending/infected/failed). Up to 3 files per
    * document. Attaching the same file twice is a no-op.
    */
+  /**
+   * Owner 2026-10-28 (docs/architecture/ID_SELFIE_CAPTURE_2026-10-28.md): a
+   * one-time token for the guided selfie camera, bound to this attorney and
+   * this editable request.
+   */
+  async issueSelfieCapture(
+    userId: string,
+    requestId: string,
+  ): Promise<SelfieCaptureTokenDto> {
+    await this.requireActiveAttorney(userId);
+    await withTxRetry(this.prisma, async (tx) => {
+      const req = await this.load(tx, userId, requestId);
+      assertEditable(req.status);
+    });
+    const required = await this.selfieLiveCaptureRequired();
+    const issued = await this.captureTokens.issue(userId, requestId);
+    return { ...issued, required };
+  }
+
+  private selfieLiveCaptureRequired(): Promise<boolean> {
+    return this.settings.boolean('verification.selfie_live_capture_required');
+  }
+
   async attachDocument(
     userId: string,
     requestId: string,
@@ -498,13 +528,73 @@ export class VerificationRequestsService {
   ): Promise<VerificationRequestDto> {
     await this.requireActiveAttorney(userId);
     const shape = documentShape(dto);
+    const selfie = dto.docType === 'selfie';
+    if (!selfie && (dto.captureToken || dto.captureMeta)) {
+      throw validationError('Capture data belongs to the selfie only.', {
+        field: 'captureToken',
+      });
+    }
     await this.files.assertAttachable(
       userId,
       dto.fileId,
-      dto.docType === 'selfie'
-        ? ['verification_selfie']
-        : ['verification_document'],
+      selfie ? ['verification_selfie'] : ['verification_document'],
     );
+    // Owner 2026-10-28: a selfie only from the in-app live camera — the
+    // one-time token issued for this request is spent here.
+    let grant: SelfieCaptureGrant | null = null;
+    if (selfie && (await this.selfieLiveCaptureRequired())) {
+      try {
+        grant = await this.captureTokens.consume(
+          userId,
+          requestId,
+          dto.captureToken,
+        );
+      } catch (e) {
+        // A plain retry of an attach that already went through (token
+        // spent by the first one) answers like the first one did.
+        if (await this.alreadyAttached(userId, requestId, dto.fileId)) {
+          return this.get(userId, requestId);
+        }
+        throw e;
+      }
+    }
+    const captureMeta = selfie ? selfieCaptureMeta(dto, grant) : Prisma.DbNull;
+    try {
+      await this.attachInTx(userId, requestId, dto, shape, captureMeta);
+    } catch (e) {
+      if (grant && dto.captureToken) {
+        await this.captureTokens
+          .restore(userId, requestId, dto.captureToken, grant)
+          .catch(() => undefined);
+      }
+      throw e;
+    }
+    return this.get(userId, requestId);
+  }
+
+  private async alreadyAttached(
+    userId: string,
+    requestId: string,
+    fileId: string,
+  ): Promise<boolean> {
+    const found = await this.prisma.verificationDocument.findFirst({
+      where: {
+        request_id: requestId,
+        file_id: fileId,
+        request: { attorney_id: userId },
+      },
+      select: { id: true },
+    });
+    return found !== null;
+  }
+
+  private async attachInTx(
+    userId: string,
+    requestId: string,
+    dto: AttachDocumentDto,
+    shape: ReturnType<typeof documentShape>,
+    captureMeta: Prisma.InputJsonValue | typeof Prisma.DbNull,
+  ): Promise<void> {
     await withTxRetry(this.prisma, async (tx) => {
       const req = await this.load(tx, userId, requestId);
       assertEditable(req.status);
@@ -545,10 +635,10 @@ export class VerificationRequestsService {
           side: shape.side,
           // Owner 2026-10-18: the attorney's note to the reviewer.
           notes: dto.note?.trim() ? dto.note.trim() : null,
+          capture_meta: captureMeta,
         },
       });
     });
-    return this.get(userId, requestId);
   }
 
   /** Documents are removed only while drafting; after an info request the
@@ -897,5 +987,35 @@ export function toDto(row: RequestRow): VerificationRequestDto {
       fileId: d.file_id,
       createdAt: d.created_at.toISOString(),
     })),
+  };
+}
+
+/**
+ * Owner 2026-10-28: what is stored with a selfie for the verifier — the
+ * app's report (liveness, card hint, timings, device) plus what the server
+ * itself checked (`tokenVerified`: a valid one-time capture token was
+ * spent). A selfie without the app's report (old app, switch off) still
+ * gets a record saying so.
+ */
+export function selfieCaptureMeta(
+  dto: Pick<AttachDocumentDto, 'captureMeta'>,
+  grant: SelfieCaptureGrant | null,
+): Prisma.InputJsonValue {
+  const m = dto.captureMeta;
+  return {
+    source: m ? 'app_camera' : 'unknown',
+    tokenVerified: grant !== null,
+    tokenIssuedAt: grant?.issuedAt ?? null,
+    tokenUsedAt: grant?.usedAt ?? null,
+    liveness: m?.liveness ?? 'not_checked',
+    challenge: m?.challenge ?? null,
+    fallbackReason: m?.fallbackReason ?? null,
+    faceDetected: m?.faceDetected ?? false,
+    cardDetected: m?.cardDetected ?? false,
+    framesCaptured: m?.framesCaptured ?? null,
+    startedAt: m?.startedAt ?? null,
+    capturedAt: m?.capturedAt ?? null,
+    platform: m?.platform ?? null,
+    deviceModel: m?.deviceModel ?? null,
   };
 }

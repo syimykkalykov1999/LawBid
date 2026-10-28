@@ -7,6 +7,7 @@ import 'package:lawbid/features/verification/presentation/document_source.dart';
 import 'package:lawbid/features/verification/presentation/widgets/capture_guide_overlay.dart';
 import 'package:lawbid/features/verification/presentation/widgets/document_slot_card.dart';
 import 'package:lawbid/features/verification/presentation/widgets/inline_notice.dart';
+import 'package:lawbid/features/verification/presentation/widgets/phone_handoff_panel.dart';
 
 /// Callbacks the step bodies need from the wizard screen.
 class StepActions {
@@ -512,12 +513,17 @@ class SelfieStep extends StatelessWidget {
     required this.t,
     required this.state,
     required this.actions,
+    this.needsPhone = false,
     super.key,
   });
 
   final Translator t;
   final WizardState state;
   final StepActions actions;
+
+  /// Owner 2026-10-28: no guided camera here (web): «continue on the
+  /// phone» instead of «Open camera».
+  final bool needsPhone;
 
   @override
   Widget build(BuildContext context) {
@@ -578,26 +584,29 @@ class SelfieStep extends StatelessWidget {
             ),
           ),
         const SizedBox(height: AppSpacing.md),
-        DocumentSlotCard(
-          t: t,
-          title: t.t('verification.selfie.card'),
-          subtitle: t.t('verification.selfie.cameraOnly'),
-          icon: AppIcons.faceRetouchingNaturalOutlined,
-          documents: state.request.docsFor(slot),
-          tasks: state.tasksFor(slot),
-          canAdd: state.canAddTo(slot),
-          canRemoveAttached: state.request.isDraft,
-          onRemoveAttached: actions.removeDocument,
-          onRetry: actions.retry,
-          onCancel: actions.cancel,
-          actions: [
-            SlotAction(
-              label: t.t('verification.selfie.take'),
-              icon: AppIcons.photoCameraFrontOutlined,
-              onTap: () => actions.addFile(slot, FileOrigin.cameraSelfie),
-            ),
-          ],
-        ),
+        if (needsPhone && !state.request.selfieComplete)
+          PhoneHandoffPanel(t: t)
+        else
+          DocumentSlotCard(
+            t: t,
+            title: t.t('verification.selfie.card'),
+            subtitle: t.t('verification.selfie.cameraOnly'),
+            icon: AppIcons.faceRetouchingNaturalOutlined,
+            documents: state.request.docsFor(slot),
+            tasks: state.tasksFor(slot),
+            canAdd: state.canAddTo(slot),
+            canRemoveAttached: state.request.isDraft,
+            onRemoveAttached: actions.removeDocument,
+            onRetry: actions.retry,
+            onCancel: actions.cancel,
+            actions: [
+              SlotAction(
+                label: t.t('verification.selfie.take'),
+                icon: AppIcons.photoCameraFrontOutlined,
+                onTap: () => actions.addFile(slot, FileOrigin.cameraSelfie),
+              ),
+            ],
+          ),
         const SizedBox(height: AppSpacing.xl),
         PrivacyNote(t: t),
       ],

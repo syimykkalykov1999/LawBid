@@ -213,6 +213,9 @@ import { demoNoop } from '../../common/demo/demo-guards';
     // Owner 2026-10-05: support SLA alerts e-mail the team directly, and
     // the trust module mails the firm e-mail code.
     EMAIL_PROVIDER,
+    // Owner 2026-10-28: verification texts the «continue on the phone» link
+    // (through SmsComplianceService.sendOnDemand).
+    SMS_PROVIDER,
   ],
 })
 export class AuthModule {}

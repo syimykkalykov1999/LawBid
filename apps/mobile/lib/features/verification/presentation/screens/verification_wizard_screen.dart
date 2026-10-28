@@ -13,8 +13,10 @@ import 'package:lawbid/core/platform/secure_screen.dart';
 import 'package:lawbid/features/verification/application/verification_overview_controller.dart';
 import 'package:lawbid/features/verification/application/verification_wizard_controller.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
+import 'package:lawbid/features/verification/domain/verification_repository.dart';
 import 'package:lawbid/features/verification/presentation/document_source.dart';
 import 'package:lawbid/features/verification/presentation/widgets/license_sheet.dart';
+import 'package:lawbid/features/verification/presentation/widgets/phone_handoff_panel.dart';
 import 'package:lawbid/features/verification/presentation/widgets/wizard_stepper.dart';
 import 'package:lawbid/features/verification/presentation/widgets/wizard_steps.dart';
 
@@ -88,7 +90,32 @@ class _VerificationWizardScreenState
       case FileOrigin.cameraDocument:
         doc = await source.capture(context, CaptureGuide.document);
       case FileOrigin.cameraSelfie:
-        doc = await source.capture(context, CaptureGuide.selfie);
+        // Owner 2026-10-28: the one-time capture token first, then the
+        // guided live camera; the attach sends both back.
+        final SelfieCaptureTicket? ticket;
+        try {
+          ticket = await _c.startSelfieCapture();
+        } on Object catch (e) {
+          _toast(e);
+          return;
+        }
+        if (ticket == null || !mounted) return;
+        final shot = await source.capture(context, CaptureGuide.selfie);
+        if (shot == null || !mounted) return;
+        try {
+          setState(() => _blockMessage = null);
+          _c.upload(
+            slot,
+            shot,
+            selfie: SelfieUpload(
+              token: ticket.token,
+              report: shot.selfieCapture,
+            ),
+          );
+        } on Object catch (e) {
+          _toast(e);
+        }
+        return;
       case FileOrigin.library:
         doc = await source.pickFile(allowPdf: false);
       case FileOrigin.file:
@@ -368,7 +395,12 @@ class _VerificationWizardScreenState
         ),
       WizardStep.licenses => LicensesStep(t: t, state: s, actions: actions),
       WizardStep.identity => IdentityStep(t: t, state: s, actions: actions),
-      WizardStep.selfie => SelfieStep(t: t, state: s, actions: actions),
+      WizardStep.selfie => SelfieStep(
+          t: t,
+          state: s,
+          actions: actions,
+          needsPhone: ref.watch(selfieNeedsPhoneProvider),
+        ),
       WizardStep.review => ReviewStep(
           t: t,
           state: s,

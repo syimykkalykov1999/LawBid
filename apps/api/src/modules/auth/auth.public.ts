@@ -33,4 +33,6 @@ export type {
 export type { SmsProvider } from './providers/sms/sms-provider.interface';
 // Legal requests (#379): the notice e-mail to the person concerned.
 export { EMAIL_PROVIDER } from './providers/provider.tokens';
+// Owner 2026-10-28: the «continue on the phone» link text (verification).
+export { SMS_PROVIDER } from './providers/provider.tokens';
 export { buildNotificationEmail } from './notifications/email-templates';

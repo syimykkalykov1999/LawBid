@@ -18,6 +18,11 @@ AdminDocumentDto _$AdminDocumentDtoFromJson(Map<String, dynamic> json) =>
       sizeBytes: (json['sizeBytes'] as num).toInt(),
       scanStatus: ScanStatus.fromJson(json['scanStatus'] as String),
       notes: json['notes'] as String?,
+      capture: json['capture'] == null
+          ? null
+          : AdminSelfieCaptureDto.fromJson(
+              json['capture'] as Map<String, dynamic>,
+            ),
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
 
@@ -31,5 +36,6 @@ Map<String, dynamic> _$AdminDocumentDtoToJson(AdminDocumentDto instance) =>
       'sizeBytes': instance.sizeBytes,
       'scanStatus': instance.scanStatus.toJson(),
       'notes': ?instance.notes,
+      'capture': ?instance.capture?.toJson(),
       'createdAt': instance.createdAt.toIso8601String(),
     };

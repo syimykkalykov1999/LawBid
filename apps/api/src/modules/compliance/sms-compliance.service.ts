@@ -297,6 +297,38 @@ export class SmsComplianceService {
     return { allowed: true, phone };
   }
 
+  /**
+   * Owner 2026-10-28 (ID selfie: «continue on the phone»): ONE text the
+   * person asked for just now, to their OWN verified number, carrying only
+   * the link they requested — an "on-demand" reply (FCC declaratory ruling
+   * of 2012-11-29, SoundBite, CG Docket 02-278: a one-time text sent in
+   * response to the consumer's own request is not a TCPA violation). It
+   * therefore needs no marketing/notification consent and is not held for
+   * quiet hours (the person is at the screen), but a STOP'ed number is
+   * never texted and the caller rate-limits it. Not for anything sent on
+   * the app's own initiative — that goes through [sendNonOtp].
+   */
+  async sendOnDemand(
+    sender: Pick<SmsProvider, 'sendText'>,
+    input: { phone: string; body: string },
+  ): Promise<SmsDecision> {
+    const phone = normalizeE164(input.phone);
+    if (!phone) return { allowed: false, reason: 'bad_number' };
+    if (await this.isSuppressed(phone))
+      return { allowed: false, reason: 'suppressed' };
+    if (!sender.sendText) {
+      throw new Error('This SMS provider cannot send plain texts');
+    }
+    try {
+      await sender.sendText(phone, withStopNotice(input.body));
+    } catch (e) {
+      const code = (e as { code?: number | string } | null)?.code;
+      if (code !== undefined) await this.noteSendError(phone, code);
+      throw e;
+    }
+    return { allowed: true, phone };
+  }
+
   /** The only way to send a text that is not a sign-in code. Returns the
    * decision; sends only when allowed. A Twilio 21610 error is learned. */
   async sendNonOtp(
