@@ -38,6 +38,12 @@ export interface ReviewFlowConfig<T> {
   keyOf: (t: T) => string;
   /** The queue list, oldest first (a light, existing list call). */
   candidates: () => Promise<T[]>;
+  /**
+   * Without the lease engine: the queue's own «take the next one» call, if it
+   * has one (support's `tickets/next` assigns the ticket to me). An item
+   * already decided or skipped here falls back to the list.
+   */
+  take?: () => Promise<T | null>;
   /** Items the person can work right now (others are passed over). */
   usable?: (t: T) => boolean;
   /** The item of a lease the engine handed out (null = not this screen's). */
@@ -135,7 +141,11 @@ export function useReviewFlow<T>(cfg: ReviewFlowConfig<T>): ReviewFlow<T> {
           } else setNote(outcomeText(o));
         }
       }
-      if (!leased) next = await fromList();
+      if (!leased && c.take) {
+        const t = await c.take();
+        if (t && !seen.current.has(c.keyOf(t))) next = t;
+      }
+      if (!leased && !next) next = await fromList();
       setCurrent(next);
       setEmpty(!next);
     } catch (e) {

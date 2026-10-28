@@ -38,6 +38,7 @@ export function ReviewShell<T>({
   emptyText,
   hint,
   loading,
+  panel,
   children,
 }: {
   eyebrow: string;
@@ -53,6 +54,8 @@ export function ReviewShell<T>({
   hint: readonly { key: string; text: string }[];
   /** The item's card is still loading. */
   loading: boolean;
+  /** Extra controls inside the action bar (e.g. «Передать» picker). */
+  panel?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [skipOpen, setSkipOpen] = useState(false);
@@ -160,6 +163,7 @@ export function ReviewShell<T>({
             </span>
           ))}
         </div>
+        {panel}
         {skipOpen ? (
           <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-line pt-2" role="group" aria-label="Причина пропуска">
             <span className="text-sm text-muted">Почему пропускаете?</span>
