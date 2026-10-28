@@ -1,0 +1,10 @@
+# NODE_ENV=production refuses a laptop stack (TLS Redis/DB, live Stripe, real
+# SMS/e-mail providers), and NODE_ENV=development loads the pino-pretty
+# transport, which the prod image does not carry. This adds ONLY pino-pretty
+# (outside the app's node_modules, via NODE_PATH) so the prod image runs in
+# development mode for local load tests.
+FROM lawbid-lt-api:local
+USER root
+RUN mkdir -p /opt/pp && cd /opt/pp && npm init -y >/dev/null && npm i --ignore-scripts pino-pretty@13.0.0 && chmod -R a+rX /opt/pp
+ENV NODE_PATH=/opt/pp/node_modules
+USER app
