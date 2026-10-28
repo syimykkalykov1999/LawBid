@@ -31,6 +31,7 @@ import 'package:lawbid/features/chat/presentation/chat_note_sheet.dart';
 import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
 import 'package:lawbid/features/chat/presentation/chat_swipe.dart';
 import 'package:lawbid/features/chat/presentation/chats_filter_row.dart';
+import 'package:lawbid/features/chat/presentation/desktop_chats.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
@@ -1147,11 +1148,15 @@ class ConversationRow extends ConsumerWidget {
           }),
         ),
     ];
+    // Desktop: the chat open in the right pane stays highlighted.
+    final open = DesktopChatScope.selectedIdOf(context) == c.id;
     final row = AppPressable(
       key: ValueKey('chat-organize-${c.id}'),
       onTap: picking != null
           ? () => ref.read(chatSelectionProvider.notifier).toggle(c.id)
-          : () => context.push(ChatRoutes.conversation(c.id)),
+          // Desktop web plan 2026-10-28: on a desktop window the chat
+          // opens next to the list (pushed as before on a phone).
+          : () => openChat(context, c.id),
       onLongPress: canOrganize ? organize : null,
       child: Semantics(
         customSemanticsActions: canOrganize
@@ -1161,7 +1166,7 @@ class ConversationRow extends ConsumerWidget {
               }
             : const {},
         child: Container(
-          color: picked ? colors.chip : null,
+          color: picked || open ? colors.chip : null,
           padding:
               const EdgeInsetsDirectional.only(start: AppSpacing.screenSide),
           child: Row(
@@ -1444,7 +1449,8 @@ class ConversationRow extends ConsumerWidget {
           c.muted ? 'chat.select.unmuted' : 'chat.select.muted',
         ),
       ),
-      child: row,
+      // Desktop: the hover tint (nothing on a phone).
+      child: HoverSurface(child: row),
     );
   }
 }

@@ -16,6 +16,8 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
 import 'package:lawbid/core/navigation/route_observer.dart';
+import 'package:lawbid/core/navigation/shell/desktop_input.dart';
+import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/system_back.dart';
 import 'package:lawbid/core/permissions/permission_primer_host.dart';
 import 'package:lawbid/core/platform/web_consent_notice.dart';
@@ -76,6 +78,9 @@ class LawBidApp extends ConsumerWidget {
           : AppTheme.of(chosen, reduceMotion: still),
       themeMode: themeMode,
       routerConfig: router,
+      // Desktop web plan 2026-10-28: scroll bars on a desktop window; null
+      // (Flutter's default, as before) in the app on phones and tablets.
+      scrollBehavior: adaptiveShellOn ? const AppScrollBehavior() : null,
       // Owner 2026-10-20: the date / time dialogs and the system texts speak
       // the app's language (core/l10n/material_locale.dart).
       locale: language == null ? null : flutterLocaleFor(language),
@@ -106,43 +111,50 @@ class LawBidApp extends ConsumerWidget {
                   onOpenPrivacy: () =>
                       router.push(AppRoutes.legalDoc('privacy')),
                   child: SystemNavBand(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onTap: dropKeyboard,
-                        // Owner 2026-10-22 (audit #13): the explanation before
-                        // the phone's notification / microphone dialogs.
-                        child: PermissionPrimerHost(
-                          child: AccountSuspendedGate(
-                            child: AppUpdateGate(
-                              child: child == null
-                                  ? null
-                                  // OQ-041: the call screen pops over any
-                                  // route.
-                                  : CallHost(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: dropKeyboard,
+                      // Owner 2026-10-22 (audit #13): the explanation before
+                      // the phone's notification / microphone dialogs.
+                      child: PermissionPrimerHost(
+                        child: AccountSuspendedGate(
+                          child: AppUpdateGate(
+                            child: child == null
+                                ? null
+                                // OQ-041: the call screen pops over any
+                                // route.
+                                : CallHost(
+                                    router: router,
+                                    // Owner 2026-10-21: no «connection lost»
+                                    // banner for users, ever (screens keep
+                                    // their cache and retry quietly).
+                                    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
+                                    child: AccountRestrictedHost(
                                       router: router,
-                                      // Owner 2026-10-21: no «connection lost»
-                                      // banner for users, ever (screens keep
-                                      // their cache and retry quietly).
-                                      // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
-                                      child: AccountRestrictedHost(
+                                      // Owner 2026-10-22: system back never
+                                      // closes the app from a deep screen.
+                                      child: SystemBackGuard(
                                         router: router,
-                                        // Owner 2026-10-22: system back never
-                                        // closes the app from a deep screen.
-                                        child: SystemBackGuard(
-                                          router: router,
-                                          rootNavigatorKey: appRootNavigatorKey,
-                                          exitHint: () => ref
-                                              .read(translatorProvider)
-                                              .t('nav.backAgainToExit'),
+                                        rootNavigatorKey: appRootNavigatorKey,
+                                        exitHint: () => ref
+                                            .read(translatorProvider)
+                                            .t('nav.backAgainToExit'),
+                                        // Desktop web plan 2026-10-28:
+                                        // Ctrl/⌘+K, Esc, Alt+↑/↓ on a
+                                        // desktop window (off elsewhere).
+                                        child: DesktopShortcuts(
+                                          onSearch: () =>
+                                              router.go(AppRoutes.search),
                                           child: BackSwipeTheme(child: child),
                                         ),
                                       ),
                                     ),
-                            ),
+                                  ),
                           ),
                         ),
                       ),
                     ),
+                  ),
                 ),
               ),
             ),

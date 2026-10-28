@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/widgets/bars/app_side_nav.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/shell/bottom_nav_config.dart';
+import 'package:lawbid/core/navigation/shell/desktop_side_nav.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/features/create/presentation/create_sheet.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -88,7 +89,12 @@ class WebPageFrame extends ConsumerWidget {
     if (isAuthLocation(location)) {
       return paint(ContentColumn(maxWidth: kAuthColumnMaxWidth, child: child));
     }
-    final extended = layout == ShellLayout.extendedRail;
+    // Desktop web plan 2026-10-28: a desktop window adds Messages and
+    // Notifications to the menu; the chats pages take the whole width next
+    // to the narrow menu and split it themselves (list | chat).
+    final desktop = windowClassOf(context).isDesktop;
+    final listDetail = desktop && isListDetailLocation(location);
+    final extended = layout == ShellLayout.extendedRail && !listDetail;
     final translator = ref.watch(translatorProvider);
     final tabs = tabsForRole(ref.watch(currentUserRoleProvider), translator);
     const paths = [
@@ -97,30 +103,46 @@ class WebPageFrame extends ConsumerWidget {
       AppRoutes.mine,
       AppRoutes.profile,
     ];
+    void onTab(int i) {
+      if (imperative) {
+        Navigator.of(context).popUntil((r) => r.isFirst);
+      }
+      context.go(paths[i]);
+    }
+
+    void onCreate() => showCreateSheet(context, ref);
+    final createLabel = translator.t('nav.create');
     return paint(
       Row(
         children: [
           Material(
             type: MaterialType.transparency,
-            child: AppSideNav(
-              tabs: tabs,
-              currentIndex: -1,
-              onTabSelected: (i) {
-                if (imperative) {
-                  Navigator.of(context).popUntil((r) => r.isFirst);
-                }
-                context.go(paths[i]);
-              },
-              onCreatePressed: () => showCreateSheet(context, ref),
-              extended: extended,
-              createLabel: translator.t('nav.create'),
-            ),
+            child: desktop
+                ? DesktopSideNav(
+                    tabs: tabs,
+                    currentIndex: -1,
+                    onTabSelected: onTab,
+                    onCreatePressed: onCreate,
+                    extended: extended,
+                    createLabel: createLabel,
+                    current: desktopSectionOf(context, location),
+                  )
+                : AppSideNav(
+                    tabs: tabs,
+                    currentIndex: -1,
+                    onTabSelected: onTab,
+                    onCreatePressed: onCreate,
+                    extended: extended,
+                    createLabel: createLabel,
+                  ),
           ),
           Expanded(
-            child: ContentColumn(
-              maxWidth: extended ? kShellContentMaxWidth : null,
-              child: child,
-            ),
+            child: listDetail
+                ? child
+                : ContentColumn(
+                    maxWidth: extended ? kShellContentMaxWidth : null,
+                    child: child,
+                  ),
           ),
         ],
       ),
@@ -132,3 +154,17 @@ class WebPageFrame extends ConsumerWidget {
 /// side menu and the column like the go_router pages. Phones: [child] as is.
 Widget webPageRoute(Widget child) =>
     WebPageFrame(location: '', imperative: true, child: child);
+
+/// The desktop-only menu item a page at [location] belongs to.
+DesktopNavSection? desktopSectionOf(BuildContext context, String location) {
+  if (!isListDetailLocation(location)) return null;
+  String? tab;
+  try {
+    tab = GoRouterState.of(context).uri.queryParameters['tab'];
+  } on Object {
+    tab = null;
+  }
+  return location == '/inbox' && tab == 'notifications'
+      ? DesktopNavSection.notifications
+      : DesktopNavSection.messages;
+}
