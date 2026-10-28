@@ -228,10 +228,10 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     super.initState();
     if (widget.active && !kReleaseMode) _sinceActive.start();
     if (widget.active || widget.warm) _open();
-    // The poster is drawn only for a video that cannot play (see build);
+    // The cover is drawn only for a video that cannot play (see build);
     // then it is on screen at once (it is cached by the list).
     final thumb = widget.video.thumbnailUrl;
-    if (thumb != null) {
+    if (thumb != null && !_playable) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           unawaited(
@@ -480,12 +480,11 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final thumb = widget.video.thumbnailUrl;
     final c = _c;
-    // Owner 2026-10-23 (Instagram: opens instantly): the poster frame is on
-    // screen from the very first frame of the page and stays over the player
-    // until the video really moves (no black box, no spinner). Without a
-    // backdrop (a grid tile) the tile's own cover is already under it.
-    final poster = thumb != null &&
-        (!_playable || _failed || (widget.backdrop && !_rendered));
+    // Owner 2026-10-27: the cover belongs to the profile grid only — a
+    // player never draws it over (or under) its video: it shows real frames
+    // from the stream. The cover is drawn only when there is no video to
+    // play (still processing, or it failed).
+    final poster = thumb != null && (!_playable || _failed);
     final box = ColoredBox(
       color: widget.backdrop ? Colors.black : Colors.transparent,
       child: Stack(

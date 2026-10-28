@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -235,11 +236,10 @@ void main() {
   });
 
   testWidgets(
-      'a playable reel shows its poster at once and hands over to the '
-      'video when the first frame moves', (tester) async {
-    // Time to first frame, measured in pumped frames: the stream is slow
-    // (initialize never completes), yet the poster is already on screen in
-    // the very first frame — no black box, no spinner before 1.2 s.
+      'a playable reel never draws the cover: real frames from the stream',
+      (tester) async {
+    // Owner 2026-10-27: the cover is for the profile grid only. The stream
+    // is slow (initialize never completes) — still no cover, no spinner.
     final gate = Completer<void>();
     debugReelPlayerFactory = (_, __) {
       final p = _SlowPlayer(gate.future);
@@ -252,24 +252,41 @@ void main() {
         home: const ReelVideo(video: _video, active: true),
       ),
     );
-    expect(find.byKey(const ValueKey('reel-poster')), findsOneWidget);
-    expect(find.byType(VideoPlayer), findsNothing);
+    expect(find.byKey(const ValueKey('reel-poster')), findsNothing);
+    expect(find.byType(CachedNetworkImage), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsNothing);
 
     gate.complete();
     await tester.pump();
     await tester.pump();
-    // Initialized and playing, but not moved yet: the poster still covers.
+    // Initialized: the video is drawn at once, with no cover over it.
     expect(find.byType(VideoPlayer), findsOneWidget);
-    expect(find.byKey(const ValueKey('reel-poster')), findsOneWidget);
+    expect(find.byKey(const ValueKey('reel-poster')), findsNothing);
+    expect(find.byType(CachedNetworkImage), findsNothing);
 
-    // The first frame moves: the poster leaves.
     _player.value = _player.value.copyWith(
       position: const Duration(milliseconds: 80),
     );
     await tester.pump();
     expect(find.byKey(const ValueKey('reel-poster')), findsNothing);
     expect(find.byType(VideoPlayer), findsOneWidget);
+  });
+
+  testWidgets('a video that cannot play (processing) still shows its cover',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(),
+        home: const ReelVideo(
+          video: PostVideo(
+            status: 'processing',
+            thumbnailUrl: 'https://cdn.test/cover.jpg',
+          ),
+          active: true,
+        ),
+      ),
+    );
+    expect(find.byKey(const ValueKey('reel-poster')), findsOneWidget);
   });
 
   testWidgets('a video the viewer paused stays paused after coming back',
