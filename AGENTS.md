@@ -9,6 +9,8 @@
 - **Licenses:**
   - MIT / Apache-2.0 / BSD: copy whole. Keep the copyright and license notice in `THIRD_PARTY_NOTICES`. That is all the license asks.
   - GPL / AGPL / closed code (e.g. Signal, Element): **never copy, not even "slightly changed"**. Small edits do not make it ours, and a court compares substance. Read for the idea only, write our own code, and test it against the same cases.
+- **Both platforms:** the rule applies equally to iPhone (Swift/iOS) and Android (Kotlin) native code, not only to Flutter/Dart.
+- **GPL / AGPL / code that forces us to open our source:** never copy it. Study it and build exactly the same behaviour for us, in our own code. Do not invent: follow the studied reference step by step.
 - **Safety of copied code:**
   - Take it only from the official repository, at a pinned release tag or commit.
   - Record the URL and commit in a `docs/dev/<AREA>_REFERENCE_<date>.md` file, together with a list of every mismatch against our code.
