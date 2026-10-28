@@ -1525,3 +1525,4 @@ PRINCIPLE (owner 07:55): assume the attacker is an automated AI (tireless, tries
 - 2026-10-28 07:52 DEVICE SAFETY rule for uploads (owner): no crashes/heat/OOM on user phones — hardware encoder only, streaming (no full file in RAM), one encode at a time, pause on low battery/thermal, weak/old device or encoder failure → upload original. Test on low-end Android emulator profile.
 - 2026-10-28 07:55 OWNER RULE (all features, not only uploads): light on user phones + light on server + Instagram quality. Audit existing heavy paths (reels playback/preload, calls, feeds images, chat media) against it in the smoothness/perf audit.
 - 2026-10-28 07:55 tick: #512 (Моё swipe) merged 07:48. Open 507/509/510/511 UNSTABLE. Disk 14G.
+- 2026-10-28 08:25 MAIN RED since 05:09 CDT: API lint heap OOM (6GB). Fix PR #513 claude/ci-lint-oom (lint split in 2 processes). After merge: rerun/update 507/509/510/511 (base update). KNOWN_ERRORS #23.
