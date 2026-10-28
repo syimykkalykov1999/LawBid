@@ -65,6 +65,7 @@ import type {
   ProviderSubscription,
 } from './payment-provider';
 import { SubscriptionSyncService } from './subscription-sync.service';
+import { DuplicateSubscriptionsService } from './duplicate-subscriptions.service';
 
 const PAYMENTS_PAGE = 20;
 
@@ -117,6 +118,8 @@ export class SubscriptionsService implements OnModuleDestroy {
     @Optional() private readonly referrals?: ReferralsService,
     // Owner 2026-10-22 (Stripe Tax): the admin switch.
     @Optional() private readonly settings?: AppSettingsService,
+    // Algo audit M-4 (owner 2026-10-28): duplicate subscriptions.
+    @Optional() private readonly duplicates?: DuplicateSubscriptionsService,
   ) {
     this.portalReturnUrl =
       config.get<string>('STRIPE_PORTAL_RETURN_URL') ??
@@ -490,13 +493,32 @@ export class SubscriptionsService implements OnModuleDestroy {
       current.stripe_subscription_id !== remote.id &&
       SubscriptionAccessService.rowIsActive(current)
     ) {
-      if (remote.status !== 'canceled') {
+      if (remote.status === 'canceled') return;
+      // Algo audit M-4 (owner 2026-10-28): the newest PAID subscription
+      // stays, the other one is cancelled and only its unused remainder
+      // refunded, under anti-abuse guards. The newcomer continues below
+      // only when it is the one kept.
+      if (this.duplicates && (await this.duplicates.enabled())) {
+        const r = await this.duplicates.resolve(owner, {
+          trigger: 'app_order',
+          include: [remote.id, current.stripe_subscription_id],
+        });
+        if (r.keeperId !== remote.id) return;
+        const fresh = await this.provider.retrieveSubscription(remote.id);
+        if (!fresh || fresh.status === 'canceled') return;
+        remote = fresh;
+      } else {
         await this.provider.cancelNow(remote.id);
         this.logger.error(
           `duplicate subscription ${remote.id} for ${owner} cancelled (kept ${current.stripe_subscription_id}); refund its first invoice if paid`,
         );
+        await this.duplicates?.recordLegacyCancel(
+          owner,
+          remote.id,
+          current.stripe_subscription_id,
+        );
+        return;
       }
-      return;
     }
     const fingerprint = remote.defaultPaymentMethodId
       ? await this.provider.paymentMethodFingerprint(
@@ -578,6 +600,23 @@ export class SubscriptionsService implements OnModuleDestroy {
     const row = await this.sync.apply(remote);
     if (row?.status === 'trialing' && row.trial_ends_at) {
       await this.scheduleTrialReminder(row);
+    }
+    // Algo audit M-4: a re-subscription after grace — the old subscription
+    // may still be retrying its card at Stripe (and charge later). It is
+    // cancelled (refunded only if it charged for the overlapping period).
+    const previousId = existing?.stripe_subscription_id;
+    if (previousId && previousId !== remote.id && this.duplicates) {
+      try {
+        await this.duplicates.resolve(owner, {
+          trigger: 'grace_resubscribe',
+          include: [previousId, remote.id],
+        });
+      } catch (e) {
+        // The old subscription's next webhook retries the fix.
+        this.logger.error(
+          `stale subscription check failed for ${owner}: ${String(e)}`,
+        );
+      }
     }
     // OQ-048: assistants added at purchase join without the attorney's OTP.
     const phones = (meta.phones ?? '')

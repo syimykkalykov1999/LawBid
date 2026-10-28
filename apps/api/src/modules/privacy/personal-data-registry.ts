@@ -271,6 +271,8 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'LedgerAccount',
       // #356: Stripe review queue (payouts, refunds, disputes) — finance.
       'StripeReviewItem',
+      // Algo audit M-4: auto-resolved duplicate subscriptions (refund record).
+      'BillingDuplicateFix',
       // Staff package T1: piecework days feed payroll_accruals (pay records).
       'StaffPieceworkDay',
     ),
