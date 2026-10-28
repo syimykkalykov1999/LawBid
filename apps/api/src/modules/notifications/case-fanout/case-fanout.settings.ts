@@ -26,6 +26,8 @@ export interface FanoutSettings {
   /** Algo audit 2026-10-27 (H-2): an urgent case reaches the whole
    * audience in one wave. */
   urgentFast: boolean;
+  /** Algo audit 2026-10-27 (CASES M-4): the fraud gate with the waves off. */
+  legacyFraudGate: boolean;
 }
 
 /** The built-in defaults (no admin changes): today's reach. */
@@ -46,6 +48,7 @@ export const DEFAULT_FANOUT_SETTINGS: FanoutSettings = {
   fraudDelayMinutes: APP_SETTINGS['case_fanout.fraud_delay_minutes'],
   queueMode: APP_SETTINGS['case_fanout.queue_mode'] as 'auto' | 'off',
   urgentFast: APP_SETTINGS['case_alerts.urgent_fast_enabled'],
+  legacyFraudGate: APP_SETTINGS['case_fanout.legacy_fraud_gate_enabled'],
 };
 
 function action(raw: string, fallback: FraudAction): FraudAction {
@@ -92,5 +95,8 @@ export async function loadFanoutSettings(
         ? 'off'
         : 'auto',
     urgentFast: await settings.boolean('case_alerts.urgent_fast_enabled'),
+    legacyFraudGate: await settings.boolean(
+      'case_fanout.legacy_fraud_gate_enabled',
+    ),
   };
 }

@@ -91,7 +91,10 @@ describe('SubscriptionSyncService seats', () => {
     Object.assign(svc, {
       prisma,
       provider,
-      settings: { number: jest.fn().mockResolvedValue(7) },
+      settings: {
+        number: jest.fn().mockResolvedValue(7),
+        boolean: jest.fn().mockResolvedValue(true),
+      },
       access: { invalidate: jest.fn() },
       notifications: { emit: jest.fn() },
       bids: { withdrawActiveBidsForAttorney: jest.fn() },
@@ -235,5 +238,17 @@ describe('SubscriptionSyncService seats', () => {
       amount_cents: 5_000,
     });
     expect(updates[0]).toMatchObject({ assistant_seats: 3 });
+  });
+  it('MONEY M-7: "paid at least once" counts real subscription invoices only', async () => {
+    const { svc, prisma } = setup();
+    await svc.apply(remote(null));
+    expect(prisma.payment.count).toHaveBeenCalledWith({
+      where: {
+        user_id: 'att-1',
+        status: 'succeeded',
+        stripe_invoice_id: { not: null },
+        amount_cents: { gt: 0 },
+      },
+    });
   });
 });

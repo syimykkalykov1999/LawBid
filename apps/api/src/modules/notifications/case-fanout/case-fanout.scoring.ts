@@ -43,6 +43,9 @@ export interface FanoutCandidate {
   trustLevel: number;
   ratingAvg: number;
   ratingCount: number;
+  /** «Только срочные» is on (algo audit 2026-10-27, CASES C-1: the extra
+   * wave when a case becomes urgent goes to these people only). */
+  urgentOnly?: boolean;
 }
 
 export interface FanoutStats {

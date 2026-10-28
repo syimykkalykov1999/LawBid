@@ -34,6 +34,9 @@ export interface ModerationTarget {
    * message, attorney for a review). */
   context: Record<string, string | null>;
   createdAt: Date | null;
+  /** Algo audit 2026-10-27 (CONTENT H-6): the author deleted it (not a
+   * moderator's remove). A restore never brings such an object back. */
+  authorDeleted?: boolean;
 }
 
 export type ContentAction = 'hide' | 'remove' | 'restore';
@@ -86,6 +89,7 @@ export class ModerationService {
               id,
               authorId: p.author_id,
               status: p.deleted_at ? 'removed' : p.status,
+              authorDeleted: !!p.deleted_at && p.status !== 'removed',
               text: p.body,
               context: {},
               createdAt: p.created_at,
@@ -112,6 +116,7 @@ export class ModerationService {
               id,
               authorId: c.author_id,
               status: c.deleted_at ? 'removed' : c.status,
+              authorDeleted: !!c.deleted_at && c.status !== 'removed',
               text: c.body,
               context: {
                 postId: c.post_id,
@@ -141,6 +146,7 @@ export class ModerationService {
               id,
               authorId: c.author_id,
               status: c.deleted_at ? 'removed' : c.status,
+              authorDeleted: !!c.deleted_at && c.status !== 'removed',
               text: c.body,
               context: {
                 caseId: c.case_id,
@@ -248,6 +254,8 @@ export class ModerationService {
               id,
               authorId: q.author_id,
               status: q.deleted_at ? 'removed' : q.status,
+              // Moderation never sets deleted_at here: only the author does.
+              authorDeleted: !!q.deleted_at,
               text: `${q.title}\n${q.body}`,
               context: {},
               createdAt: q.created_at,
@@ -272,6 +280,7 @@ export class ModerationService {
               id,
               authorId: a.attorney_id,
               status: a.deleted_at ? 'removed' : a.status,
+              authorDeleted: !!a.deleted_at,
               text: a.body,
               context: { questionId: a.question_id },
               createdAt: a.created_at,
@@ -382,6 +391,7 @@ export class ModerationService {
                 : cp.status === 'active'
                   ? 'published'
                   : cp.status,
+              authorDeleted: !!cp.deleted_at && cp.status !== 'removed',
               text: cp.body,
               context: { channelId: cp.channel_id },
               createdAt: cp.created_at,
@@ -478,6 +488,18 @@ export class ModerationService {
           ? 'removed'
           : 'published';
     if (target.status === next) return null;
+    // Algo audit 2026-10-27 (CONTENT H-6): a restore (moderator, accepted
+    // appeal, approved picture) used to clear `deleted_at` and bring back
+    // what its author had deleted. Such an object is not restorable.
+    if (
+      action === 'restore' &&
+      target.authorDeleted &&
+      (await this.settings.boolean(
+        'moderation.restore_keeps_author_delete_enabled',
+      ))
+    ) {
+      return null;
+    }
     switch (target.type) {
       case 'post': {
         if (target.status === 'removed' && action !== 'restore') return null;
@@ -763,11 +785,15 @@ export class ModerationService {
       const weighted = mode !== 'count' && !!this.reputation;
       const count = await this.settings.number('moderation.auto_hide_reports');
       if (!weighted && count <= 0) return false;
+      // Algo audit 2026-10-27 (CONTENT H-1): a person brought it back —
+      // the reports before that decision were weighed; only newer ones count.
+      const since = await this.lastRestoreAt(type, id);
       const rows = await this.prisma.report.findMany({
         where: {
           target_type: type,
           target_id: id,
           status: { in: ['open', 'actioned'] },
+          ...(since ? { created_at: { gt: since } } : {}),
           // Algo audit 2026-10-27 (C-2): a system «auto_hold» row is a
           // queue ticket, not a complaint (a NULL note is a complaint: SQL
           // `NOT (NULL LIKE …)` is NULL, hence the explicit OR).
@@ -844,6 +870,52 @@ export class ModerationService {
       this.logger.error(`auto-hide failed for ${type}/${id}: ${String(e)}`);
       return false;
     }
+  }
+
+  /**
+   * When a moderator last restored this object (queue «restore», a dismiss
+   * that restored, an accepted appeal) or an automatic hide of it was
+   * reversed on appeal. Null when never, or with
+   * `moderation.reports_after_restore_only_enabled` off (the old rule: all
+   * open + actioned reports count again). Indexed reads only: actions by
+   * (target_type, target_id), automatic ones by their owner (user_id).
+   */
+  async lastRestoreAt(
+    type: ReportTargetType,
+    id: string,
+  ): Promise<Date | null> {
+    if (
+      !(await this.settings.boolean(
+        'moderation.reports_after_restore_only_enabled',
+      ))
+    ) {
+      return null;
+    }
+    const owner = (await this.resolve(type, id))?.authorId ?? null;
+    const [manual, auto] = await Promise.all([
+      this.prisma.moderationAction.findFirst({
+        where: { target_type: type, target_id: id, action: 'restore' },
+        orderBy: { created_at: 'desc' },
+        select: { created_at: true },
+      }),
+      owner
+        ? this.prisma.moderationAutoAction.findFirst({
+            where: {
+              user_id: owner,
+              target_type: type,
+              target_id: id,
+              kind: 'content_hide',
+              reversed_at: { not: null },
+            },
+            orderBy: { reversed_at: 'desc' },
+            select: { reversed_at: true },
+          })
+        : Promise.resolve(null),
+    ]);
+    const times = [manual?.created_at, auto?.reversed_at]
+      .filter((d): d is Date => !!d)
+      .map((d) => d.getTime());
+    return times.length ? new Date(Math.max(...times)) : null;
   }
 
   /** Remember the owner on the object's reports and re-score the account. */

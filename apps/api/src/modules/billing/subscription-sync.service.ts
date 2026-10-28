@@ -235,9 +235,22 @@ export class SubscriptionSyncService {
       ) {
         return null;
       }
+      // Algo audit 2026-10-27 (MONEY M-7): "paid at least once" means a
+      // real subscription invoice — a $0 trial invoice, an offer pack, a
+      // boost or stars (no invoice) used to turn an unpaid trial's end into
+      // `canceled` instead of `expired`.
+      const invoicesOnly = await this.settings.boolean(
+        'billing.had_payment_invoices_only_enabled',
+      );
       const hadPayment =
         (await tx.payment.count({
-          where: { user_id: local.user_id, status: 'succeeded' },
+          where: {
+            user_id: local.user_id,
+            status: 'succeeded',
+            ...(invoicesOnly
+              ? { stripe_invoice_id: { not: null }, amount_cents: { gt: 0 } }
+              : {}),
+          },
         })) > 0;
       const status = mapStatus(remote.status, hadPayment);
       const wasActive = SubscriptionAccessService.rowIsActive(local);
@@ -356,7 +369,10 @@ export class SubscriptionSyncService {
       : invoice.customerId
         ? await this.byCustomer(this.prisma, invoice.customerId)
         : null;
-    if (!sub) return;
+    if (!sub) {
+      await this.onInvoiceWithoutSubscription(invoice, type);
+      return;
+    }
     // Algo audit 2026-10-27 (MONEY H-1): paid is what the invoice SAYS NOW,
     // not the event's name — a late `invoice.payment_failed` (a retried
     // card that then went through) must never turn a paid invoice into a
@@ -612,7 +628,11 @@ export class SubscriptionSyncService {
 
   private async onRefund(chargeId: string): Promise<void> {
     const charge = await this.provider.retrieveCharge(chargeId);
-    if (!charge?.paymentIntentId || !charge.refunded) return;
+    if (!charge?.paymentIntentId) return;
+    if (!charge.refunded) {
+      await this.onPartialRefund(charge);
+      return;
+    }
     const refunded = await this.prisma.payment.findMany({
       where: { stripe_payment_intent_id: charge.paymentIntentId },
       select: { id: true, user_id: true },
@@ -650,6 +670,80 @@ export class SubscriptionSyncService {
     for (const userId of new Set(refunded.map((p) => p.user_id))) {
       await this.partners?.reverseForReferredUser(userId, 'payment_refunded');
     }
+  }
+
+  /**
+   * Algo audit 2026-10-27 (MONEY M-2): a PARTIAL refund made in the Stripe
+   * Dashboard (`charge.refunded` with `refunded: false`) never reached the
+   * books. The payment stays `succeeded` (nothing is taken back — packs and
+   * stars follow full refunds only); the ledger books the refunded part
+   * (idempotent by the running total). `billing.partial_refund_ledger_enabled`
+   * off = ignored as before.
+   */
+  private async onPartialRefund(charge: {
+    paymentIntentId: string | null;
+    amountRefundedCents: number;
+  }): Promise<void> {
+    if (!charge.paymentIntentId || charge.amountRefundedCents <= 0) return;
+    if (!(await this.settings.boolean('billing.partial_refund_ledger_enabled')))
+      return;
+    const rows = await this.prisma.payment.findMany({
+      where: {
+        stripe_payment_intent_id: charge.paymentIntentId,
+        status: 'succeeded',
+      },
+      select: { id: true, user_id: true },
+    });
+    if (!rows.length || !this.ledger) return;
+    await this.prisma.$transaction(async (tx) => {
+      for (const p of rows) {
+        await this.ledger!.paymentRefundSynced(tx, {
+          paymentId: p.id,
+          userId: p.user_id,
+          totalRefundedCents: charge.amountRefundedCents,
+        });
+      }
+    });
+  }
+
+  /**
+   * Algo audit 2026-10-27 (MONEY H-2): a PAID invoice of a subscription we
+   * have no row for yet is usually the card path racing `applyOrder` (the
+   * webhook came first). Dropping it silently lost the Payment, the ledger
+   * entry and the referral. Unless the subscription belongs to a client
+   * (badge / plan, their own handlers), the event fails so the webhook
+   * runner retries it with backoff (5 attempts, then the dead-letter queue
+   * and the Stripe review list) — by then the local row exists.
+   * `billing.invoice_retry_unknown_subscription_enabled` off = the old drop.
+   */
+  private async onInvoiceWithoutSubscription(
+    invoice: { id: string; subscriptionId: string | null; status?: string },
+    type: string,
+  ): Promise<void> {
+    const paid = invoice.status === 'paid' || type === 'invoice.paid';
+    if (!paid || !invoice.subscriptionId) return;
+    if (
+      !(await this.settings.boolean(
+        'billing.invoice_retry_unknown_subscription_enabled',
+      ))
+    ) {
+      return;
+    }
+    const subId = invoice.subscriptionId;
+    const [badge, plan] = await Promise.all([
+      this.prisma.clientVerification.findUnique({
+        where: { stripe_subscription_id: subId },
+        select: { id: true },
+      }),
+      this.prisma.clientSubscription.findUnique({
+        where: { stripe_subscription_id: subId },
+        select: { id: true },
+      }),
+    ]);
+    if (badge || plan) return;
+    throw new Error(
+      `invoice ${invoice.id} paid for subscription ${subId} with no local row yet — retrying`,
+    );
   }
 
   private async byCustomer(

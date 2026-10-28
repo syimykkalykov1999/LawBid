@@ -96,14 +96,7 @@ export class VerificationLossBillingJob {
       did = true;
       // A trial paid nothing; a paid period returns its unused share.
       if (sub.status === 'active' && start !== null && end !== null) {
-        const payment = await this.prisma.payment.findFirst({
-          where: {
-            user_id: userId,
-            status: 'succeeded',
-            stripe_invoice_id: { not: null },
-          },
-          orderBy: { paid_at: 'desc' },
-        });
+        const payment = await this.lastRenewal(userId);
         if (payment) {
           const cents = unusedShare(
             payment.amount_cents,
@@ -181,15 +174,52 @@ export class VerificationLossBillingJob {
         if (got > 0) {
           out.refundedCents += got;
           left -= take;
-          await this.prisma.bidCredit.update({
-            where: { user_id: userId },
+          // Algo audit 2026-10-27 (MONEY M-1): an offer spent meanwhile
+          // (consume() raced this job) never pushes the balance below 0.
+          const dec = await this.prisma.bidCredit.updateMany({
+            where: { user_id: userId, balance: { gte: take } },
             data: { balance: { decrement: take } },
           });
+          if (dec.count === 0) {
+            await this.prisma.bidCredit.updateMany({
+              where: { user_id: userId, balance: { gt: 0 } },
+              data: { balance: 0 },
+            });
+          }
           did = true;
         }
       }
     }
     return did;
+  }
+
+  /**
+   * Algo audit 2026-10-27 (MONEY M-1): the base of "the unused part of the
+   * period" is the last paid RENEWAL invoice — not a small seat-purchase
+   * proration invoice and not a $0 one (those used to shrink the refund).
+   */
+  private async lastRenewal(userId: string) {
+    const candidates = await this.prisma.payment.findMany({
+      where: {
+        user_id: userId,
+        status: 'succeeded',
+        stripe_invoice_id: { not: null },
+        amount_cents: { gt: 0 },
+      },
+      orderBy: { paid_at: 'desc' },
+      take: 10,
+    });
+    if (!candidates.length) return null;
+    const seats = await this.prisma.assistantSeatChange.findMany({
+      where: {
+        stripe_invoice_id: { in: candidates.map((c) => c.stripe_invoice_id!) },
+      },
+      select: { stripe_invoice_id: true },
+    });
+    const seatInvoices = new Set(seats.map((x) => x.stripe_invoice_id));
+    return (
+      candidates.find((c) => !seatInvoices.has(c.stripe_invoice_id)) ?? null
+    );
   }
 
   /** Refunds [cents] of a payment (system actor); returns what went back. */

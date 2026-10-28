@@ -4,8 +4,10 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
-import type { Subscription } from '@prisma/client';
+import type { Payment, Subscription } from '@prisma/client';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
@@ -56,6 +58,7 @@ export class SubscriptionAdminService {
     private readonly refunds: RefundsService,
     private readonly audit: AuditLogService,
     private readonly notifications: NotificationsService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   async cancel(
@@ -194,6 +197,64 @@ export class SubscriptionAdminService {
     return row;
   }
 
+  /**
+   * Algo audit 2026-10-27 (MONEY H-4): the payment to refund is the last
+   * paid SUBSCRIPTION invoice — the `payments` table also holds offer packs,
+   * boosts, stars (no invoice) and $0 trial invoices, and a seat purchase
+   * is its own small invoice; any of those used to become the base of the
+   * prorated refund. The subscription's latest invoice wins when it is a
+   * plain renewal. `billing.admin_refund_by_invoice_enabled` off = the old
+   * "last succeeded payment of the user".
+   */
+  async lastSubscriptionPayment(row: Subscription): Promise<Payment | null> {
+    const strict = this.settings
+      ? await this.settings.boolean('billing.admin_refund_by_invoice_enabled')
+      : true;
+    if (!strict) {
+      return this.prisma.payment.findFirst({
+        where: { user_id: row.user_id, status: 'succeeded' },
+        orderBy: [{ paid_at: 'desc' }, { created_at: 'desc' }],
+      });
+    }
+    const candidates = await this.prisma.payment.findMany({
+      where: {
+        user_id: row.user_id,
+        status: 'succeeded',
+        stripe_invoice_id: { not: null },
+        amount_cents: { gt: 0 },
+      },
+      orderBy: [{ paid_at: 'desc' }, { created_at: 'desc' }],
+      take: 10,
+    });
+    if (!candidates.length) return null;
+    const seats = await this.prisma.assistantSeatChange.findMany({
+      where: {
+        stripe_invoice_id: {
+          in: candidates.map((c) => c.stripe_invoice_id!),
+        },
+      },
+      select: { stripe_invoice_id: true },
+    });
+    const seatInvoices = new Set(seats.map((s) => s.stripe_invoice_id));
+    const renewals = candidates.filter(
+      (c) => !seatInvoices.has(c.stripe_invoice_id),
+    );
+    let latest: string | null = null;
+    try {
+      const remote = row.stripe_subscription_id
+        ? await this.provider.retrieveSubscription(row.stripe_subscription_id)
+        : null;
+      latest = remote?.latestInvoiceId ?? null;
+    } catch {
+      latest = null; // the newest local renewal is good enough
+    }
+    return (
+      (latest && renewals.find((c) => c.stripe_invoice_id === latest)) ||
+      renewals[0] ||
+      null
+    );
+  }
+
   /** The last paid invoice, refunded in full or for the unused days. A
    * failed refund does not undo the cancel: it is reported back (and the
    * refund row keeps the failure, retry from Деньги → Платежи). */
@@ -203,10 +264,7 @@ export class SubscriptionAdminService {
     mode: 'prorated' | 'full',
     reason: string,
   ): Promise<AdminSubscriptionRefundOutcomeDto> {
-    const payment = await this.prisma.payment.findFirst({
-      where: { user_id: row.user_id, status: 'succeeded' },
-      orderBy: [{ paid_at: 'desc' }, { created_at: 'desc' }],
-    });
+    const payment = await this.lastSubscriptionPayment(row);
     if (!payment) {
       return { amountCents: 0, status: 'skipped', message: 'No paid invoice.' };
     }

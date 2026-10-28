@@ -29,6 +29,7 @@ interface Row {
   trust_level: number;
   rating_avg: number;
   rating_count: number;
+  urgent_only: boolean;
 }
 
 /**
@@ -113,7 +114,8 @@ export class CaseAudienceService {
              bool_or(l.state_code = c.primary_state_code) AS primary_state,
              max(p.trust_level)::INT AS trust_level,
              max(p.rating_avg)::FLOAT8 AS rating_avg,
-             max(p.rating_count)::INT AS rating_count
+             max(p.rating_count)::INT AS rating_count,
+             bool_or(p.new_case_alerts_urgent_only) AS urgent_only
       FROM c
       JOIN chosen ch ON ch.practice_area_id = c.practice_area_id
                      OR ch.practice_area_id = c.parent_id
@@ -143,6 +145,10 @@ export class CaseAudienceService {
           WHERE (b.blocker_id = ch.attorney_id AND b.blocked_id = c.client_id)
              OR (b.blocker_id = c.client_id AND b.blocked_id = ch.attorney_id))
       GROUP BY ch.attorney_id
+      -- Algo audit 2026-10-27 (CASES M-5): over the bound, the most
+      -- trusted / reviewed attorneys are kept, not a random slice.
+      ORDER BY max(p.trust_level) DESC, max(p.rating_count) DESC,
+               ch.attorney_id
       LIMIT ${AUDIENCE_QUERY_MAX}`;
     return rows.map((r) => ({
       id: r.id,
@@ -151,6 +157,7 @@ export class CaseAudienceService {
       trustLevel: r.trust_level,
       ratingAvg: Number(r.rating_avg),
       ratingCount: r.rating_count,
+      urgentOnly: r.urgent_only === true,
     }));
   }
 
@@ -217,6 +224,7 @@ export class CaseAudienceService {
         rating_avg: true,
         rating_count: true,
         new_case_alerts_custom: true,
+        new_case_alerts_urgent_only: true,
         practice_areas: { select: { practice_area_id: true } },
         new_case_alert_practices: { select: { practice_area_id: true } },
         licenses: {
@@ -224,6 +232,12 @@ export class CaseAudienceService {
           select: { state_code: true },
         },
       },
+      // CASES M-5: the same order as the single-database query.
+      orderBy: [
+        { trust_level: 'desc' },
+        { rating_count: 'desc' },
+        { user_id: 'asc' },
+      ],
       take: AUDIENCE_QUERY_MAX,
     });
     const ids = profiles.map((p) => p.user_id);
@@ -275,6 +289,7 @@ export class CaseAudienceService {
           trustLevel: p.trust_level,
           ratingAvg: Number(p.rating_avg),
           ratingCount: p.rating_count,
+          urgentOnly: p.new_case_alerts_urgent_only,
         };
       });
   }

@@ -116,3 +116,44 @@ describe('one-time purchases on the card page', () => {
     );
   });
 });
+
+/** Algo audit 2026-10-27 (MONEY M-6): after a canceled PaymentIntent a new
+ * one is made under a NEW key (the old key replayed the canceled intent). */
+describe('one-time purchase after a canceled PaymentIntent', () => {
+  it('names the intent it replaces in the idempotency key', async () => {
+    const createPaymentIntent = jest.fn().mockResolvedValue({
+      id: 'pi_new',
+      clientSecret: 'pi_new_secret_x',
+    });
+    const provider = {
+      createPaymentIntent,
+      retrievePaymentIntent: jest
+        .fn()
+        .mockResolvedValue({ id: 'pi_old', status: 'canceled' }),
+    };
+    const saved: string[] = [];
+    const res = await oneTimePayPageSession({
+      provider: provider as never,
+      row: {
+        id: 'buy1',
+        user_id: 'u1',
+        status: 'pending_payment',
+        price_cents: 1_500,
+        stripe_checkout_id: 'pi_old',
+      },
+      userId: 'u1',
+      kind: 'bid_pack',
+      description: 'pack',
+      save: (pi) => {
+        saved.push(pi);
+        return Promise.resolve();
+      },
+      apply: () => Promise.resolve(true),
+    });
+    expect(createPaymentIntent).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: 'bid_pack-pi:buy1:pi_old' }),
+    );
+    expect(saved).toEqual(['pi_new']);
+    expect(res.clientSecret).toBe('pi_new_secret_x');
+  });
+});

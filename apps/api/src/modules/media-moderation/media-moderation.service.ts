@@ -23,6 +23,7 @@ import {
   type ContentAction,
 } from '../moderation/moderation.service';
 import { VideosService } from '../videos/videos.service';
+import { AutoHoldService } from '../moderation/auto-hold.service';
 import {
   CSAM_HASH_MATCHER,
   CSAM_REPORTER,
@@ -122,6 +123,8 @@ export class MediaModerationService {
     private readonly queue: MediaModerationQueue,
     private readonly logger: PinoLogger,
     @Optional() private readonly videos?: VideosService,
+    // Algo audit 2026-10-27 (CONTENT H-2): tells the author (global module).
+    @Optional() private readonly notices?: AutoHoldService,
   ) {
     this.logger.setContext(MediaModerationService.name);
   }
@@ -213,6 +216,70 @@ export class MediaModerationService {
       reapplied += (await this.hide(check)).length;
     }
     return { reapplied };
+  }
+
+  /**
+   * Algo audit 2026-10-27 (CONTENT M-1): a check that ran out of the daily
+   * budget (`skipped`/`budget`) or failed four times (`error`) used to stay
+   * unchecked for ever (fail-open). Hourly, up to [limit] such checks of
+   * the last [days] days are run again, oldest first; it stops at the first
+   * one the budget skips again. Off: `moderation.image.recheck_enabled`.
+   */
+  async recheckSweep(
+    now: Date = new Date(),
+    limit = 20,
+    days = 3,
+  ): Promise<{ rechecked: number }> {
+    if (!(await this.settings.boolean('moderation.image.recheck_enabled'))) {
+      return { rechecked: 0 };
+    }
+    const rows = await this.prisma.mediaModerationCheck.findMany({
+      where: {
+        OR: [{ status: 'error' }, { status: 'skipped', skip_reason: 'budget' }],
+        decision: null,
+        created_at: { gte: new Date(now.getTime() - days * 24 * 3_600_000) },
+        checked_at: { lte: new Date(now.getTime() - 3_600_000) },
+      },
+      orderBy: { created_at: 'asc' },
+      take: limit,
+      select: { id: true, status: true, file_id: true, video_asset_id: true },
+    });
+    let rechecked = 0;
+    for (const row of rows) {
+      // Claim it (another sweep or a retry may be on it).
+      const claimed = await this.prisma.mediaModerationCheck.updateMany({
+        where: { id: row.id, status: row.status },
+        data: { status: 'pending', skip_reason: null },
+      });
+      if (claimed.count === 0) continue;
+      let result: CheckStatus;
+      try {
+        result = row.file_id
+          ? await this.checkFile(row.file_id)
+          : row.video_asset_id
+            ? await this.checkVideo(row.video_asset_id)
+            : 'skipped';
+      } catch (err) {
+        this.logger.warn(
+          { checkId: row.id, err: String(err) },
+          'media recheck failed',
+        );
+        continue;
+      }
+      rechecked += 1;
+      if (result === 'skipped') {
+        const after = await this.prisma.mediaModerationCheck.findUnique({
+          where: { id: row.id },
+          select: { status: true, skip_reason: true },
+        });
+        if (after?.status === 'pending') {
+          // The file/video is gone: nothing to check any more.
+          await this.finish(row.id, 'skipped', { skip_reason: 'gone' });
+        }
+        if (after?.skip_reason === 'budget') break;
+      }
+    }
+    return { rechecked };
   }
 
   private redo(check: MediaModerationCheck): boolean {
@@ -345,12 +412,19 @@ export class MediaModerationService {
     twin: MediaModerationCheck,
   ): Promise<CheckStatus> {
     const status = twin.status as CheckStatus;
+    // Algo audit 2026-10-27 (CONTENT M-2): a picture a moderator already
+    // approved is approved again (it was hidden and queued once more).
+    const approved =
+      twin.decision === 'approved' &&
+      status !== 'csam_match' &&
+      (await this.settings.boolean('moderation.image.reuse_approval_enabled'));
     await this.finish(check.id, status, {
       provider: 'reuse',
       labels: twin.labels as Prisma.InputJsonValue,
       max_confidence: twin.max_confidence,
       top_label: twin.top_label,
       csam_status: twin.csam_status,
+      ...(approved ? { decision: 'approved', decided_at: new Date() } : {}),
     });
     const fresh = await this.prisma.mediaModerationCheck.findUniqueOrThrow({
       where: { id: check.id },
@@ -508,6 +582,20 @@ export class MediaModerationService {
       data: { hidden_targets: merged as unknown as Prisma.InputJsonValue },
     });
     if (targets.length === 0) await this.queue.enqueueRehide(check.id);
+    // CONTENT H-2: the author hears it once (the first time anything of
+    // theirs went down); never for a CSAM match (no tip-off).
+    if (
+      hidden.length > 0 &&
+      before.length === 0 &&
+      check.status !== 'csam_match' &&
+      check.owner_user_id
+    ) {
+      await this.notices?.mediaHidden({
+        userId: check.owner_user_id,
+        checkId: check.id,
+        hidden: hidden.length,
+      });
+    }
     return hidden;
   }
 

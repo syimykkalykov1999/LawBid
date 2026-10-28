@@ -22,6 +22,8 @@ const SETTINGS: Record<string, number | boolean> = {
   'treasury.min_profit_usd': 50,
   'treasury.payroll_auto': true,
   'treasury.payroll_retry_failed_enabled': true,
+  'treasury.payroll_stuck_sweep_enabled': true,
+  'treasury.payroll_stuck_minutes': 30,
   'treasury.payroll_day': 1,
   'treasury.payroll_warn_days': 5,
 };
@@ -167,6 +169,9 @@ function make(
         nothingOwed: [],
         failed: [] as string[],
       }),
+    ),
+    sweepStuck: jest.fn(() =>
+      Promise.resolve({ resent: 1, failed: 0, tooOld: [] as string[] }),
     ),
   };
   const service = new TreasuryService(
@@ -418,5 +423,43 @@ describe('TreasuryService payroll pay day (owner 2026-10-06)', () => {
     await service.payrollDaily(1_000_000, payDay);
     await service.payrollDaily(1_000_000, new Date('2026-11-02T15:40:00Z'));
     expect(payroll.payBulk).toHaveBeenCalledTimes(1);
+  });
+});
+
+/** Algo audit 2026-10-27 (MONEY H-7): the stuck-payout sweep cron. */
+describe('TreasuryService.payrollStuckSweep', () => {
+  it('re-sends stuck payouts older than the setting, under the payroll lock', async () => {
+    const { service, payroll, kv } = make(twoBanks());
+    const now = new Date('2026-11-01T16:00:00Z');
+    expect(await service.payrollStuckSweep(now)).toEqual({
+      resent: 1,
+      failed: 0,
+      tooOld: 0,
+    });
+    expect(payroll.sweepStuck).toHaveBeenCalledWith(30, now);
+    expect(kv.has('treasury:payroll:lock')).toBe(false);
+  });
+
+  it('waits while a pay day holds the lock', async () => {
+    const { service, payroll, kv } = make(twoBanks());
+    kv.set('treasury:payroll:lock', '1');
+    expect(await service.payrollStuckSweep()).toEqual({ skipped: 'busy' });
+    expect(payroll.sweepStuck).not.toHaveBeenCalled();
+  });
+
+  it('alerts on payouts past the idempotency window; off = nothing', async () => {
+    const { service, payroll, logger } = make(twoBanks());
+    payroll.sweepStuck.mockResolvedValueOnce({
+      resent: 0,
+      failed: 0,
+      tooOld: ['po-old'],
+    });
+    await service.payrollStuckSweep();
+    expect(alerts(logger)).toContain('payroll_payout_stuck');
+    const off = make(twoBanks(), undefined, {
+      'treasury.payroll_stuck_sweep_enabled': false,
+    });
+    expect(await off.service.payrollStuckSweep()).toEqual({ skipped: 'off' });
+    expect(off.payroll.sweepStuck).not.toHaveBeenCalled();
   });
 });
