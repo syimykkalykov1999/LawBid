@@ -1,0 +1,31 @@
+# Журнал известных ошибок (сборка, PR, деплой, прод)
+
+Читать **перед** любой работой в этом репозитории: каждая ошибка здесь уже стоила кругов CI, падения деплоя или простоя.
+Правило (владелец, 2026-10-28): каждая НОВАЯ причина красного PR, упавшего деплоя или сбоя прода дописывается сюда в тот же час, до запуска исправления. Номера не переиспользуются.
+
+## A. Перед единственным пушем (почему PR краснели)
+Каждый пункт стоил отдельного круга CI (~40 мин). Перед ЕДИНСТВЕННЫМ пушем обязательно:
+1. **Mobile analyzer как в CI, по ВСЕМУ приложению:** `cd apps/mobile && flutter analyze` (CI падает даже на `info`, например `require_trailing_commas`). Анализ только изменённых файлов — недостаточно. После правок — `dart format <изменённые файлы>`.
+2. **Gitleaks на свой диф:** `gitleaks git --log-opts="origin/main..HEAD" .` (установлен через brew). Фейковые токены/ключи в тестах называть «test-…-token», не случайной строкой вроде `tok-1-abcdefghijklmnop` или `practice.family_law…` в поле `*_key`.
+3. **ERD после изменения схемы:** `npm run db:erd --workspace apps/api && git diff --exit-code -- docs/db/ERD.md`.
+4. **Новая миграция:** первой строкой `SET LOCAL lock_timeout = '5s';` (squawk require-lock-timeout); проверить `npx squawk-cli@2.70.0 -c .squawk.toml <file>`.
+5. **После merge main:** заново `packages/api-contract/generate.sh` (не contract:fast), oasdiff против main, `python3 apps/mobile/tool/ci/hardcoded_check.py`.
+6. **Новые e2e в режиме двух баз:** вызов сервиса вне HTTP оборачивать в `shardContext.runForCase(...)`; прогнать `E2E_TWO_DB=all` для своего набора.
+7. **Стек PR (B на ветке A):** после слития A сразу `gh pr edit B --base main`, иначе B сольётся в ветку A, а не в main.
+8. **Не трогать чужие файлы форматированием:** никогда `dart format` по всему дереву.
+9. **Сборки на телефоны:** `flutter build ... --release --flavor prod -t lib/main_prod.dart` (без `-t` приложение смотрит в dev-сервер).
+10. **Деплой-проверки читают ответ API в обёртке `{data:…}`:** `/health/ready` → `.data.version`.
+11. **Деплой запускается сам только при изменениях в apps/api, apps/admin, packages, package*.json или deploy.yml.** Правка в scripts/deploy/ или infra/ НЕ создаёт новый деплой: после такой правки нужен ручной запуск `gh workflow run deploy.yml --ref main` (кнопка владельцу), а ждущий старый деплой со старыми скриптами — отменить.
+
+## B. Деплой и прод
+12. **Сайт 503 с 24.10:** CloudFront function опубликована со старым кодом (`cf.kvs(имя)` вместо ID хранилища). После любого Terraform apply проверять `curl -s -o /dev/null -w "%{http_code}" https://lawbid.dev/` = 200 и `aws cloudfront test-function` на LIVE-стадии.
+13. **Terraform apply оборвался на сохранении state:** короткий `aws login` истёк в конце apply → state ушёл в errored.tfstate. Перед apply обновлять вход; при обрыве — `terraform state push errored.tfstate`, а не повторный apply.
+14. **SLO-дашборд не создавался:** `flatten()` расплющил строки метрик → CloudWatch 400. Для списков-строк использовать `concat([...]...)`.
+15. **Деплой не стартовал:** старый деплой от 24.10 висел «ждёт одобрения» и держал очередь (concurrency). Обычный cancel его не берёт — нужен `gh api -X POST …/runs/<id>/force-cancel`.
+16. **Сборка образов не уложилась в 60 мин:** arm64 под эмуляцией QEMU. Собирать каждую архитектуру на родной машине (ubuntu-24.04-arm), склеивать манифестом.
+17. **Предпроверка упала: пустой секрет** `lawbid-prod/SEARCH_INDEX_KEY` (Terraform создал секрет без значения). Перед деплоем проверять, что у всех секретов из task definition есть AWSCURRENT; новые секреты из Terraform сразу заполнять.
+18. **Smoke «версия none»:** скрипт читал `.version`, а API отвечает `{data:{version}}`.
+19. **Пометки отката не было:** SSM `/lawbid-prod/deploy/last_good_tag` отсутствовал. Держать его актуальным после каждого удачного деплоя.
+20. **Сборки на телефоны смотрели в dev-сервер:** без `-t lib/main_prod.dart`.
+21. **Новое приложение + старый сервер = «Нет соединения»:** генерированные модели требовали новые поля. Приложение должно переживать сервер на версию старше (legacy-shape interceptor, таймауты, без бесконечных повторов).
+22. **Mac: полный диск** во время iOS-сборки → всё встало. Перед сборками ≥15 ГБ свободно; кэши Gradle/DerivedData/.next чистить; тяжёлое — на ноуте.
