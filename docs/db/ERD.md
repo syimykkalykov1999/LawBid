@@ -41,6 +41,8 @@ erDiagram
     DateTime deleted_at "nullable"
     DateTime anonymized_at "nullable"
     String full_name_lower "nullable"
+    String name_skel "nullable"
+    String name_cons "nullable"
     String phone_sha256 "nullable"
     DateTime created_at
     DateTime updated_at

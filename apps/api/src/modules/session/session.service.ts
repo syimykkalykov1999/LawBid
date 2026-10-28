@@ -65,6 +65,29 @@ export class SessionService {
     );
   }
 
+  /** Load test 2026-10-28 (#3): the three updated_at stamps in ONE
+   * statement. The Prisma relation select it replaces sent three (users,
+   * attorney_profiles, client_profiles) on every app start; /me/session is
+   * bound by the API's CPU, and each statement costs it. Same rows: the
+   * user unless soft-deleted, each profile when present. */
+  private async stampsOf(userId: string): Promise<SessionInputs['stamps']> {
+    const rows = await this.prisma.$queryRaw<
+      { updated_at: Date; a: Date | null; c: Date | null }[]
+    >`
+      SELECT u.updated_at, ap.updated_at AS a, cp.updated_at AS c
+      FROM users u
+      LEFT JOIN attorney_profiles ap ON ap.user_id = u.id
+      LEFT JOIN client_profiles cp ON cp.user_id = u.id
+      WHERE u.id = ${userId}::UUID AND u.deleted_at IS NULL`;
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      updated_at: row.updated_at,
+      attorney_profile: row.a ? { updated_at: row.a } : null,
+      client_profile: row.c ? { updated_at: row.c } : null,
+    };
+  }
+
   private async unreadSupport(userId: string): Promise<number> {
     return this.prisma.supportTicket.count({
       where: { user_id: userId, unread_by_user: true },
@@ -97,14 +120,7 @@ export class SessionService {
    */
   async inputs(user: RequestUser): Promise<SessionInputs> {
     const [stamps, badges, version, support, calls] = await Promise.all([
-      this.prisma.user.findUnique({
-        where: { id: user.sub },
-        select: {
-          updated_at: true,
-          attorney_profile: { select: { updated_at: true } },
-          client_profile: { select: { updated_at: true } },
-        },
-      }),
+      this.stampsOf(user.sub),
       this.badgesOf(user),
       readConfigVersion(this.redis),
       this.unreadSupport(user.assistant?.userId ?? user.sub),
