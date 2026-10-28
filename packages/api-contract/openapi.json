@@ -138738,6 +138738,17 @@
           "nobody"
         ]
       },
+      "PrivacyAudienceOption": {
+        "type": "string",
+        "enum": [
+          "everyone",
+          "contacts",
+          "followers",
+          "following",
+          "nobody"
+        ],
+        "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow)."
+      },
       "PrivacySettingsDto": {
         "type": "object",
         "properties": {
@@ -138782,6 +138793,48 @@
                 "$ref": "#/components/schemas/PrivacyAudience"
               }
             ]
+          },
+          "lastSeenAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "messageFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "callFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "photoFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "aboutFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "groupAddFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
           },
           "doNotSell": {
             "type": "boolean",
@@ -138855,6 +138908,48 @@
                 "$ref": "#/components/schemas/PrivacyAudience"
               }
             ]
+          },
+          "lastSeenAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow). Wins over the single old value.",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "messageFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow). Wins over the single old value.",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "callFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow). Wins over the single old value.",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "photoFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow). Wins over the single old value.",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "aboutFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow). Wins over the single old value.",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "groupAddFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow). Wins over the single old value.",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
           },
           "doNotSell": {
             "type": "boolean",

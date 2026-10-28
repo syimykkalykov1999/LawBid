@@ -2284,14 +2284,11 @@ export class GroupsService {
       }),
       this.blocks.hiddenIds(by),
     ]);
-    const out: string[] = [];
-    for (const u of users) {
-      if (hidden.has(u.id)) continue;
-      // Their "who can add me to groups" setting (a «no» stays out; the
-      // caller reports them as not added).
-      if (await this.addPolicy.allows(by, u.id)) out.push(u.id);
-    }
-    return out;
+    const live = users.map((u) => u.id).filter((id) => !hidden.has(id));
+    // Their "who can add me to groups" setting (a «no» stays out; the
+    // caller reports them as not added). One batch, not a query per person.
+    const allowed = await this.addPolicy.allowsMany(by, live);
+    return live.filter((id) => allowed.has(id));
   }
 
   private async system(

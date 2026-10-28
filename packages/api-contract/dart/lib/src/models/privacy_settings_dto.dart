@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'privacy_audience.dart';
+import 'privacy_audience_option.dart';
 
 part 'privacy_settings_dto.g.dart';
 
@@ -17,6 +18,12 @@ class PrivacySettingsDto {
     required this.photoFrom,
     required this.aboutFrom,
     required this.groupAddFrom,
+    this.lastSeenAudiences,
+    this.messageFromAudiences,
+    this.callFromAudiences,
+    this.photoFromAudiences,
+    this.aboutFromAudiences,
+    this.groupAddFromAudiences,
     this.doNotSell,
   });
 
@@ -29,6 +36,24 @@ class PrivacySettingsDto {
   final PrivacyAudience photoFrom;
   final PrivacyAudience aboutFrom;
   final PrivacyAudience groupAddFrom;
+
+  /// Owner 2026-10-28: who exactly — ["everyone"], ["nobody"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).
+  final List<PrivacyAudienceOption>? lastSeenAudiences;
+
+  /// Owner 2026-10-28: who exactly — ["everyone"], ["nobody"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).
+  final List<PrivacyAudienceOption>? messageFromAudiences;
+
+  /// Owner 2026-10-28: who exactly — ["everyone"], ["nobody"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).
+  final List<PrivacyAudienceOption>? callFromAudiences;
+
+  /// Owner 2026-10-28: who exactly — ["everyone"], ["nobody"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).
+  final List<PrivacyAudienceOption>? photoFromAudiences;
+
+  /// Owner 2026-10-28: who exactly — ["everyone"], ["nobody"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).
+  final List<PrivacyAudienceOption>? aboutFromAudiences;
+
+  /// Owner 2026-10-28: who exactly — ["everyone"], ["nobody"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).
+  final List<PrivacyAudienceOption>? groupAddFromAudiences;
 
   /// Owner 2026-10-22 (CCPA/CPRA): «Do not sell or share my personal information» — true = opted out. Stored as a do_not_sell consent (in the data export), honoured by the analytics gate.
   final bool? doNotSell;

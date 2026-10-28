@@ -14,7 +14,8 @@ import 'package:lawbid/features/privacy/data/privacy_repository.dart';
 import 'package:lawbid/features/privacy/privacy_routes.dart';
 
 /// Owner 2026-10-20: Settings → Privacy and safety. Who sees my last seen,
-/// who may start a chat or call me (everyone / my contacts / nobody), my
+/// who may start a chat or call me (everyone / my followers / people I
+/// follow / my contacts / nobody, owner 2026-10-28), my
 /// blocked users, my reports and what moderation decided about my content.
 class PrivacyScreen extends ConsumerWidget {
   const PrivacyScreen({super.key});
@@ -54,6 +55,7 @@ class PrivacyScreen extends ConsumerWidget {
                   label: t.t('privacy.lastSeen'),
                   field: PrivacyField.lastSeen,
                   value: s.lastSeen,
+                  followAudiences: s.followAudiences,
                 ),
                 _AudienceRow(
                   rowKey: 'privacy-message-from',
@@ -61,6 +63,7 @@ class PrivacyScreen extends ConsumerWidget {
                   label: t.t('privacy.messageFrom'),
                   field: PrivacyField.messageFrom,
                   value: s.messageFrom,
+                  followAudiences: s.followAudiences,
                 ),
                 _AudienceRow(
                   rowKey: 'privacy-call-from',
@@ -68,6 +71,7 @@ class PrivacyScreen extends ConsumerWidget {
                   label: t.t('privacy.callFrom'),
                   field: PrivacyField.callFrom,
                   value: s.callFrom,
+                  followAudiences: s.followAudiences,
                 ),
                 _AudienceRow(
                   rowKey: 'privacy-photo-from',
@@ -75,6 +79,7 @@ class PrivacyScreen extends ConsumerWidget {
                   label: t.t('privacy.photoFrom'),
                   field: PrivacyField.photoFrom,
                   value: s.photoFrom,
+                  followAudiences: s.followAudiences,
                 ),
                 _AudienceRow(
                   rowKey: 'privacy-about-from',
@@ -82,6 +87,7 @@ class PrivacyScreen extends ConsumerWidget {
                   label: t.t('privacy.aboutFrom'),
                   field: PrivacyField.aboutFrom,
                   value: s.aboutFrom,
+                  followAudiences: s.followAudiences,
                 ),
                 _AudienceRow(
                   rowKey: 'privacy-group-add-from',
@@ -89,12 +95,11 @@ class PrivacyScreen extends ConsumerWidget {
                   label: t.t('privacy.groupAddFrom'),
                   field: PrivacyField.groupAddFrom,
                   value: s.groupAddFrom,
+                  followAudiences: s.followAudiences,
                 ),
               ],
             ),
-            _Hint(text: t.t('privacy.hint.lastSeen')),
-            _Hint(text: t.t('privacy.hint.contacts')),
-            _Hint(text: t.t('privacy.hint.case')),
+            _Hint(text: t.t('privacy.hint.who')),
             const SizedBox(height: AppSpacing.lg),
             AppListSection(
               title: t.t('privacy.section.safety'),
@@ -320,6 +325,12 @@ class _SwitchRow extends StatelessWidget {
 String audienceLabel(Translator t, Audience a) =>
     t.t('privacy.audience.${a.name}');
 
+/// A set in the sheet's order, e.g. «Мои подписки, Мои контакты».
+String audiencesLabel(Translator t, Set<Audience> set) => [
+      for (final a in Audience.values)
+        if (set.contains(a)) audienceLabel(t, a),
+    ].join(', ');
+
 class _Hint extends StatelessWidget {
   const _Hint({required this.text});
 
@@ -350,13 +361,15 @@ class _AudienceRow extends ConsumerWidget {
     required this.label,
     required this.field,
     required this.value,
+    required this.followAudiences,
   });
 
   final String rowKey;
   final IconData icon;
   final String label;
   final PrivacyField field;
-  final Audience value;
+  final Set<Audience> value;
+  final bool followAudiences;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -365,7 +378,7 @@ class _AudienceRow extends ConsumerWidget {
       key: ValueKey(rowKey),
       icon: icon,
       label: label,
-      trailingText: audienceLabel(t, value),
+      trailingText: audiencesLabel(t, value),
       onTap: () => _pick(context, ref),
     );
   }
@@ -378,9 +391,12 @@ class _AudienceRow extends ConsumerWidget {
         t: t,
         title: label,
         current: value,
+        options: followAudiences ? Audience.values : legacyAudiences,
       ),
     );
-    if (chosen == null || chosen == value) return;
+    if (chosen == null || (value.length == 1 && value.contains(chosen))) {
+      return;
+    }
     try {
       await ref.read(privacySettingsProvider.notifier).change(field, chosen);
     } on Object catch (e) {
@@ -394,11 +410,16 @@ class _AudienceSheet extends StatelessWidget {
     required this.t,
     required this.title,
     required this.current,
+    required this.options,
   });
 
   final Translator t;
   final String title;
-  final Audience current;
+
+  /// Owner 2026-10-28: one choice per tap; a combined set (an old
+  /// «contacts» = contacts + following) shows each of its rows as chosen.
+  final Set<Audience> current;
+  final List<Audience> options;
 
   @override
   Widget build(BuildContext context) {
@@ -426,12 +447,12 @@ class _AudienceSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            for (final (i, a) in Audience.values.indexed) ...[
+            for (final (i, a) in options.indexed) ...[
               if (i > 0) const SizedBox(height: AppSpacing.sm),
               AppPickerRow(
                 key: ValueKey('audience-${a.name}'),
                 title: audienceLabel(t, a),
-                selected: a == current,
+                selected: current.contains(a),
                 onTap: () => Navigator.of(context).pop(a),
               ),
             ],

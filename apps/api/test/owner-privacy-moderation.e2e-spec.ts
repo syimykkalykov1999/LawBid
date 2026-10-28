@@ -92,6 +92,12 @@ describe('Privacy settings and moderation appeals (e2e, owner 2026-10-20)', () =
       photoFrom: 'everyone',
       aboutFrom: 'everyone',
       groupAddFrom: 'everyone',
+      lastSeenAudiences: ['everyone'],
+      messageFromAudiences: ['everyone'],
+      callFromAudiences: ['everyone'],
+      photoFromAudiences: ['everyone'],
+      aboutFromAudiences: ['everyone'],
+      groupAddFromAudiences: ['everyone'],
       doNotSell: false,
     });
     const put = await api()
@@ -106,6 +112,13 @@ describe('Privacy settings and moderation appeals (e2e, owner 2026-10-20)', () =
       photoFrom: 'everyone',
       aboutFrom: 'everyone',
       groupAddFrom: 'everyone',
+      lastSeenAudiences: ['nobody'],
+      // Owner 2026-10-28: an old build's «contacts» keeps its old meaning.
+      messageFromAudiences: ['contacts', 'following'],
+      callFromAudiences: ['everyone'],
+      photoFromAudiences: ['everyone'],
+      aboutFromAudiences: ['everyone'],
+      groupAddFromAudiences: ['everyone'],
       doNotSell: false,
     });
     const flag = await api()

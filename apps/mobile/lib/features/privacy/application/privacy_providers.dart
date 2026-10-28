@@ -7,7 +7,8 @@ final privacyRepositoryProvider = Provider<PrivacyRepository>(
   (ref) => ApiPrivacyRepository(ref.watch(dioProvider)),
 );
 
-/// Settings → Privacy: who sees my last seen, may write first, may call.
+/// Settings → Privacy: who sees my last seen, may write first, may call
+/// (owner 2026-10-28: also my followers / people I follow).
 class PrivacySettingsNotifier extends AsyncNotifier<PrivacySettings> {
   @override
   Future<PrivacySettings> build() =>
@@ -18,19 +19,12 @@ class PrivacySettingsNotifier extends AsyncNotifier<PrivacySettings> {
   Future<void> change(PrivacyField field, Audience value) async {
     final before = state.value;
     if (before == null) return;
-    state = AsyncData(
-      switch (field) {
-        PrivacyField.lastSeen => before.copyWith(lastSeen: value),
-        PrivacyField.messageFrom => before.copyWith(messageFrom: value),
-        PrivacyField.callFrom => before.copyWith(callFrom: value),
-        PrivacyField.photoFrom => before.copyWith(photoFrom: value),
-        PrivacyField.aboutFrom => before.copyWith(aboutFrom: value),
-        PrivacyField.groupAddFrom => before.copyWith(groupAddFrom: value),
-      },
-    );
+    state = AsyncData(before.withField(field, {value}));
     try {
       state = AsyncData(
-        await ref.read(privacyRepositoryProvider).change(field, value),
+        await ref
+            .read(privacyRepositoryProvider)
+            .change(field, value, followAudiences: before.followAudiences),
       );
       // The chat list's online dots follow "last seen".
       if (field == PrivacyField.lastSeen) ref.invalidate(conversationsProvider);

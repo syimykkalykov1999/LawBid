@@ -399,6 +399,7 @@ export 'models/file_envelope.dart';
 export 'models/file_view_dto.dart';
 export 'models/file_view_list_envelope.dart';
 export 'models/privacy_audience.dart';
+export 'models/privacy_audience_option.dart';
 export 'models/privacy_settings_dto.dart';
 export 'models/privacy_settings_envelope.dart';
 export 'models/update_privacy_settings_dto.dart';

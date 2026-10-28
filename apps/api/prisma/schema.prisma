@@ -3894,6 +3894,16 @@ model UserPrivacySettings {
   photo_from     PrivacyAudience @default(everyone)
   about_from     PrivacyAudience @default(everyone)
   group_add_from PrivacyAudience @default(everyone)
+  /// Owner 2026-10-28: the same settings as sets (bitmask: 1 = my contacts,
+  /// 2 = my followers, 4 = people I follow, 8 = everyone, 0 = nobody).
+  /// NULL = not set yet: the enum column above decides (its «contacts» =
+  /// 1|4). The enum columns stay written for the release one version older.
+  last_seen_mask      Int?            @db.SmallInt
+  message_from_mask   Int?            @db.SmallInt
+  call_from_mask      Int?            @db.SmallInt
+  photo_from_mask     Int?            @db.SmallInt
+  about_from_mask     Int?            @db.SmallInt
+  group_add_from_mask Int?            @db.SmallInt
   updated_at     DateTime        @updatedAt @db.Timestamptz
 
   @@map("user_privacy_settings")
