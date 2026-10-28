@@ -83,6 +83,12 @@ String? notificationRoute({
       return attorney ? AppRoutes.workCase(caseId) : AppRoutes.myCase(caseId);
     // Audit 2026-10-19: the other side added an update, a task, files or
     // the private details in a case in work.
+    // Deal record 2026-10-27: a signature request opens the record itself
+    // (the workspace is not open before the bid is really accepted).
+    case 'case_workspace_activity'
+        when s('dealRecordId') != null &&
+            (s('kind') ?? '').startsWith('deal_record'):
+      return AppRoutes.dealRecord(s('dealRecordId')!);
     case 'case_workspace_activity':
       if (caseId == null) return null;
       return attorney ? AppRoutes.workCase(caseId) : AppRoutes.myCase(caseId);
@@ -296,6 +302,9 @@ const caseWorkspaceActivityKinds = {
   'sign_request',
   'sign_done',
   'sign_declined',
+  'deal_record_sign',
+  'deal_record_sealed',
+  'deal_record_declined',
 };
 
 String notificationText(Translator t, AppNotification n) {

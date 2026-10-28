@@ -25,10 +25,15 @@ class BidInput {
     this.startDate,
     this.estimatedDurationDays,
     this.sendAsAttorneyId,
+    this.paymentTerms,
   });
 
   /// Owner 2026-10-14: the firm lawyer who sends the bid (null: me).
   final String? sendAsAttorneyId;
+
+  /// Deal record 2026-10-27: rich payment terms (only while the admin
+  /// switch `bids.rich_terms_enabled` is on).
+  final api.PaymentTermsDto? paymentTerms;
   final FeeType feeType;
   final int? amountCents;
 
@@ -168,6 +173,7 @@ abstract interface class CasesRepository {
     int? amountCents,
     int? percentBps,
     String? message,
+    api.PaymentTermsDto? paymentTerms,
   });
   Future<CaseBid> decline(String bidId);
   Future<CaseBid> withdraw(String bidId);
@@ -549,6 +555,7 @@ class ApiCasesRepository implements CasesRepository, CasesSyncRepository {
     int? amountCents,
     int? percentBps,
     String? message,
+    api.PaymentTermsDto? paymentTerms,
   }) async =>
       CasesMappers.bid(
         (await guardApiCall(
@@ -557,6 +564,7 @@ class ApiCasesRepository implements CasesRepository, CasesSyncRepository {
             body: api.CounterOfferDto(
               amountCents: amountCents,
               percentBps: percentBps,
+              paymentTerms: paymentTerms,
               message:
                   (message?.trim().isEmpty ?? true) ? null : message!.trim(),
             ),
@@ -664,6 +672,7 @@ class ApiCasesRepository implements CasesRepository, CasesSyncRepository {
                   : null,
               estimatedDurationDays: input.estimatedDurationDays,
               sendAsAttorneyId: input.sendAsAttorneyId,
+              paymentTerms: input.paymentTerms,
             ),
             extras: _createsResource,
           ),

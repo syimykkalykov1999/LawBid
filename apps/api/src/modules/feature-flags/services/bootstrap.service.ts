@@ -144,6 +144,10 @@ export const PUBLIC_CONFIG_PREFIXES = [
   // change without an app update (api/common/app-settings/client-tuning.ts).
   'store_url_',
   'client.',
+  // Deal record 2026-10-27: the app chooses the accept path and the bid
+  // form variant from these two switches (both off by default).
+  'deal_record.',
+  'bids.rich_terms_enabled',
 ] as const;
 
 @Injectable()

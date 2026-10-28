@@ -8,6 +8,7 @@ import 'bid_attorney_summary_dto.dart';
 import 'bid_status.dart';
 import 'fee_type.dart';
 import 'party_role.dart';
+import 'payment_terms_dto.dart';
 import 'start_availability.dart';
 
 part 'case_bid_item_dto.g.dart';
@@ -35,6 +36,7 @@ class CaseBidItemDto {
     required this.attorney,
     required this.bestPrice,
     required this.lowOffer,
+    this.paymentTerms,
     this.percentBps,
   });
 
@@ -47,6 +49,9 @@ class CaseBidItemDto {
   final BidStatus status;
   final FeeType feeType;
   final int amountCents;
+
+  /// Deal record 2026-10-27: rich payment terms of the current round, if any.
+  final PaymentTermsDto? paymentTerms;
 
   /// Owner 2026-10-17: contingency → basis points (3300 = 33 %).
   final int? percentBps;

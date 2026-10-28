@@ -145,6 +145,12 @@ abstract final class AppRoutes {
   static String myCaseEdit(String id) =>
       '/mine/case/${Uri.encodeComponent(id)}/edit';
 
+  /// Deal record 2026-10-27: the record both parties sign before a bid is
+  /// really accepted (docs/architecture/DEAL_RECORD_PLAN_2026-10-27.md).
+  static const dealRecordPattern = '/deal-record/:id';
+  static String dealRecord(String id) =>
+      '/deal-record/${Uri.encodeComponent(id)}';
+
   /// Bid detail with the negotiation history (docs/04 §5.2, §6).
   static const bidPattern = '/bid/:id';
   static String bid(String id) => '/bid/${Uri.encodeComponent(id)}';

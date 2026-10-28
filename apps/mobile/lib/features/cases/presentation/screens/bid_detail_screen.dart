@@ -11,6 +11,7 @@ import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
+import 'package:lawbid/features/cases/deals/deal_record_data.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/domain/contingency.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
@@ -100,12 +101,27 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
       ].join('\n\n'),
       confirmLabel: t.t('cases.accept.confirm'),
     );
-    if (ok) {
-      await _act(
-        () => ref.read(caseActionsProvider).accept(bid),
-        'cases.accept.done',
-      );
+    if (!ok) return;
+    // Deal record 2026-10-27: with the admin switch on, accepting opens the
+    // record both parties sign; the bid is accepted at the second signature.
+    if (ref.read(dealRecordEnabledProvider)) {
+      if (_busy) return;
+      setState(() => _busy = true);
+      try {
+        final r = await ref.read(dealRecordActionsProvider).start(bid.id);
+        if (mounted) await context.push(AppRoutes.dealRecord(r.id));
+        if (mounted) ref.invalidate(bidProvider(widget.bidId));
+      } on Object catch (e) {
+        if (mounted) showAppSnackBar(context, errorText(t, e));
+      } finally {
+        if (mounted) setState(() => _busy = false);
+      }
+      return;
     }
+    await _act(
+      () => ref.read(caseActionsProvider).accept(bid),
+      'cases.accept.done',
+    );
   }
 
   Future<void> _counter(CaseBid bid) async {

@@ -1447,6 +1447,18 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
  *   sign_reminder_every_days: remind the unsigned side every N days (0 = off).
  * - case_comments.edit_window_minutes: the author may edit a comment this
  *   long after posting (0 = editing off); earlier texts are kept. */
+/**
+ * Deal record 2026-10-27 (docs/architecture/DEAL_RECORD_PLAN_2026-10-27.md):
+ * «Запись о заключении сделки». Both off: the apps accept bids as today and
+ * the bid form shows the classic fee types only.
+ */
+export const OWNER_DEAL_RECORD_SETTINGS = {
+  /** Accept = deal record signed by both parties (POST /deal-records). */
+  'deal_record.enabled': false,
+  /** Rich payment terms (`paymentTerms`) on bids and counter-offers. */
+  'bids.rich_terms_enabled': false,
+};
+
 export const OWNER_CASE_TOOLS_SETTINGS = {
   'case_tools.reminders.mode': 'auto',
   'case_tools.reminders.daily_cap': 2000,
@@ -1688,6 +1700,7 @@ export const APP_SETTINGS = {
   ...OWNER_LEGAL_SECURITY_SETTINGS,
   ...OWNER_PRIVACY_SETTINGS,
   ...OWNER_CASE_TOOLS_SETTINGS,
+  ...OWNER_DEAL_RECORD_SETTINGS,
   ...OWNER_OBSERVABILITY_SETTINGS,
   ...OWNER_CASE_FANOUT_SETTINGS,
   ...OWNER_COST_REGISTRY_SETTINGS,

@@ -20,6 +20,7 @@ import { EventsModule } from '../modules/events/events.module';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { FilesWorkerModule } from '../modules/files/files-worker.module';
 import { CaseHistoryModule } from '../modules/case-history/case-history.module';
+import { DealsModule } from '../modules/deals/deals.module';
 import { PushModule } from '../modules/notifications/push/push.module';
 import { CountersModule } from '../modules/counters/counters.module';
 import { RealtimeModule } from '../modules/realtime/realtime.module';
@@ -113,6 +114,8 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     ChannelFanoutModule.register({ mode: 'worker' }),
     // docs/04 §12 (stage 4.7): case history PDF export queue.
     CaseHistoryModule.register({ mode: 'worker' }),
+    // Deal record 2026-10-27: the `deal-record` PDF queue.
+    DealsModule.register({ mode: 'worker' }),
     // docs/04 stage 4.8: `push` queue consumer.
     PushModule.register({ mode: 'worker' }),
     // docs/05 stage 5.1: counters flush + nightly reconcile.

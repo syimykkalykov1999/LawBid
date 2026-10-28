@@ -16,6 +16,9 @@ BidOfferDto _$BidOfferDtoFromJson(Map<String, dynamic> json) => BidOfferDto(
   status: OfferStatus.fromJson(json['status'] as String),
   createdAt: DateTime.parse(json['createdAt'] as String),
   percentBps: (json['percentBps'] as num?)?.toInt(),
+  paymentTerms: json['paymentTerms'] == null
+      ? null
+      : PaymentTermsDto.fromJson(json['paymentTerms'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$BidOfferDtoToJson(BidOfferDto instance) =>
@@ -27,6 +30,7 @@ Map<String, dynamic> _$BidOfferDtoToJson(BidOfferDto instance) =>
       'amountCents': instance.amountCents,
       'percentBps': ?instance.percentBps,
       'message': ?instance.message,
+      'paymentTerms': ?instance.paymentTerms?.toJson(),
       'status': instance.status.toJson(),
       'createdAt': instance.createdAt.toIso8601String(),
     };

@@ -35,6 +35,13 @@ abstract final class ApiErrorCodes {
   /// A write sent an old `version` (409): somebody else saved first.
   static const staleVersion = 'STALE_VERSION';
 
+  // Deal record 2026-10-27 (docs/architecture/DEAL_RECORD_PLAN_2026-10-27.md).
+  static const dealRecordRequired = 'DEAL_RECORD_REQUIRED';
+  static const dealRecordPending = 'DEAL_RECORD_PENDING';
+  static const dealRecordInvalidState = 'DEAL_RECORD_INVALID_STATE';
+  static const paymentTermsDisabled = 'PAYMENT_TERMS_DISABLED';
+  static const paymentTermsInvalid = 'PAYMENT_TERMS_INVALID';
+
   // Auth (docs/01 §10, stage 1.4). TOKEN_EXPIRED is the one code
   // AuthInterceptor's silent refresh keys off (§10.4).
   static const tokenExpired = 'TOKEN_EXPIRED';
@@ -359,6 +366,11 @@ abstract final class ApiErrorCodes {
     syncTooOld,
     experimentStateInvalid,
     staleVersion,
+    dealRecordRequired,
+    dealRecordPending,
+    dealRecordInvalidState,
+    paymentTermsDisabled,
+    paymentTermsInvalid,
     tokenExpired,
     authOtpInvalid,
     authOtpExpired,

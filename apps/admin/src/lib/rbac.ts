@@ -331,6 +331,8 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/growth-plan', label: 'План роста', icon: 'rocket-launch', area: 'super', ownerOnly: true, hint: 'что включать, когда людей становится больше: по шагам' },
       { href: '/integrations', label: 'Ключи и сервисы', icon: 'key', area: 'super', ownerOnly: true, hint: 'API-ключи, ротация' },
       { href: '/config', label: 'Настройки', icon: 'sliders-horizontal', area: 'config', ownerOnly: true, hint: 'лимиты, версии приложения' },
+      // Deal record 2026-10-27: «Запись о заключении сделки» — switches, texts, PDF preview (owner only).
+      { href: '/deal-record', label: 'Запись о сделке', icon: 'file-text', area: 'settings', ownerOnly: true, hint: 'подписи обеих сторон при принятии ставки, условия оплаты, тексты PDF' },
       { href: '/flags', label: 'Функции', icon: 'toggle-right', area: 'settings', ownerOnly: true, hint: 'флаги, скрытые функции' },
       { href: '/analytics', label: 'Аналитика', icon: 'chart-line', area: 'moneyOwner', ownerOnly: true, hint: 'кто заходит, воронка, отток, покупки' },
       // Owner 2026-10-25: A/B tests of ranking formulas on 5-10% of people (owner only, 2FA).

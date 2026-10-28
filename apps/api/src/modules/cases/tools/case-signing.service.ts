@@ -84,7 +84,8 @@ export class CaseSigningService {
   ): Promise<SignRequestDto[]> {
     const s = await this.ws.side(user, caseId);
     const rows = await this.prisma.caseSignRequest.findMany({
-      where: { case_id: caseId },
+      // Deal record 2026-10-27: its signing request has a card of its own.
+      where: { case_id: caseId, deal_record: null },
       orderBy: { created_at: 'desc' },
       include: { signatures: { orderBy: { signed_at: 'asc' } } },
       take: 100,
@@ -102,7 +103,7 @@ export class CaseSigningService {
     }
     const fresh = rows.some((r) => r.status === 'signed' && !r.final_file_id)
       ? await this.prisma.caseSignRequest.findMany({
-          where: { case_id: caseId },
+          where: { case_id: caseId, deal_record: null },
           orderBy: { created_at: 'desc' },
           include: { signatures: { orderBy: { signed_at: 'asc' } } },
           take: 100,

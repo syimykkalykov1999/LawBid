@@ -33,6 +33,9 @@ BidDto _$BidDtoFromJson(Map<String, dynamic> json) => BidDto(
   offers: (json['offers'] as List<dynamic>)
       .map((e) => BidOfferDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  paymentTerms: json['paymentTerms'] == null
+      ? null
+      : PaymentTermsDto.fromJson(json['paymentTerms'] as Map<String, dynamic>),
   percentBps: (json['percentBps'] as num?)?.toInt(),
   attorney: json['attorney'] == null
       ? null
@@ -48,6 +51,7 @@ Map<String, dynamic> _$BidDtoToJson(BidDto instance) => <String, dynamic>{
   'status': instance.status.toJson(),
   'feeType': instance.feeType.toJson(),
   'amountCents': instance.amountCents,
+  'paymentTerms': ?instance.paymentTerms?.toJson(),
   'percentBps': ?instance.percentBps,
   'message': instance.message,
   'startAvailability': instance.startAvailability.toJson(),

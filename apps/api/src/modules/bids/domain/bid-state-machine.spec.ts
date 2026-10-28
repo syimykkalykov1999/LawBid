@@ -1,5 +1,10 @@
 import { ConflictException } from '@nestjs/common';
-import type { BidStatus, FeeType, PartyRole, Prisma } from '@prisma/client';
+import {
+  Prisma,
+  type BidStatus,
+  type FeeType,
+  type PartyRole,
+} from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import {
   BID_ACTIONS,
@@ -321,6 +326,7 @@ describe('BidStateMachine (docs/04 §5–§7)', () => {
           round_count: 2,
           turn: 'attorney',
           amount_cents: 40_000,
+          payment_terms: Prisma.JsonNull,
           version: { increment: 1 },
         },
       });
@@ -337,6 +343,7 @@ describe('BidStateMachine (docs/04 §5–§7)', () => {
           amount_cents: 40_000,
           percent_bps: null,
           message: 'Can you do 400?',
+          payment_terms: Prisma.JsonNull,
           status: 'pending',
           created_at: now,
         },

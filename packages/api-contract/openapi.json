@@ -61281,6 +61281,825 @@
         ]
       }
     },
+    "/deal-records": {
+      "post": {
+        "operationId": "startDealRecord",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDealRecordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DealRecordEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ASSISTANT_NOT_ALLOWED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND, CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: DEAL_RECORD_PENDING, DEAL_RECORD_INVALID_STATE, CASE_INVALID_STATE, BID_INVALID_STATE, BID_NOT_YOUR_TURN, BID_ATTORNEY_INACTIVE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Accept a bid through the deal record: creates the record (status preparing) and renders the PDF in the background. The bid is accepted only after both signatures.",
+        "tags": [
+          "deal-records"
+        ]
+      }
+    },
+    "/deal-records/{id}": {
+      "get": {
+        "operationId": "getDealRecord",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DealRecordEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ASSISTANT_NOT_ALLOWED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND, CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: DEAL_RECORD_PENDING, DEAL_RECORD_INVALID_STATE, CASE_INVALID_STATE, BID_INVALID_STATE, BID_NOT_YOUR_TURN, BID_ATTORNEY_INACTIVE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A deal record (both parties)",
+        "tags": [
+          "deal-records"
+        ]
+      }
+    },
+    "/cases/{id}/deal-record": {
+      "get": {
+        "operationId": "currentDealRecord",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DealRecordLookupEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ASSISTANT_NOT_ALLOWED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND, CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: DEAL_RECORD_PENDING, DEAL_RECORD_INVALID_STATE, CASE_INVALID_STATE, BID_INVALID_STATE, BID_NOT_YOUR_TURN, BID_ATTORNEY_INACTIVE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The case's current deal record (live, else the sealed one), or null — for the Docs tab card and the bid screen",
+        "tags": [
+          "deal-records"
+        ]
+      }
+    },
+    "/deal-records/{id}/sign": {
+      "post": {
+        "operationId": "signDealRecord",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignDealRecordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DealRecordEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ASSISTANT_NOT_ALLOWED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND, CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: DEAL_RECORD_PENDING, DEAL_RECORD_INVALID_STATE, CASE_INVALID_STATE, BID_INVALID_STATE, BID_NOT_YOUR_TURN, BID_ATTORNEY_INACTIVE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Draw-sign the record (the acceptor first, then the other party). The second signature accepts the bid for real and seals the record.",
+        "tags": [
+          "deal-records"
+        ]
+      }
+    },
+    "/deal-records/{id}/decline": {
+      "post": {
+        "operationId": "declineDealRecord",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclineDealRecordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DealRecordEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ASSISTANT_NOT_ALLOWED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND, CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: DEAL_RECORD_PENDING, DEAL_RECORD_INVALID_STATE, CASE_INVALID_STATE, BID_INVALID_STATE, BID_NOT_YOUR_TURN, BID_ATTORNEY_INACTIVE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Either party declines before the second signature: nothing was accepted, the bid and the case stay as they were.",
+        "tags": [
+          "deal-records"
+        ]
+      }
+    },
+    "/deal-records/{id}/agreement": {
+      "post": {
+        "operationId": "attachAgreement",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachAgreementDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DealRecordEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ASSISTANT_NOT_ALLOWED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND, CASE_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: DEAL_RECORD_PENDING, DEAL_RECORD_INVALID_STATE, CASE_INVALID_STATE, BID_INVALID_STATE, BID_NOT_YOUR_TURN, BID_ATTORNEY_INACTIVE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The attorney links their own agreement PDF (an uploaded case file) to the sealed record.",
+        "tags": [
+          "deal-records"
+        ]
+      }
+    },
+    "/admin/deal-record/preview": {
+      "get": {
+        "operationId": "previewDealRecord",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "deal-record-preview.pdf — a binary file, not the JSON envelope.",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "A sample deal record PDF rendered with the texts as they are now (both signatures drawn as sample images)",
+        "tags": [
+          "admin-deal-record"
+        ]
+      }
+    },
     "/admin/moderation/queue": {
       "get": {
         "operationId": "moderationQueue",
@@ -130824,7 +131643,12 @@
           "UNSUPPORTED_IN_TARGET",
           "SYNC_TOO_OLD",
           "EXPERIMENT_STATE_INVALID",
-          "STALE_VERSION"
+          "STALE_VERSION",
+          "DEAL_RECORD_REQUIRED",
+          "DEAL_RECORD_PENDING",
+          "DEAL_RECORD_INVALID_STATE",
+          "PAYMENT_TERMS_DISABLED",
+          "PAYMENT_TERMS_INVALID"
         ]
       },
       "ErrorBodyDto": {
@@ -137491,6 +138315,89 @@
           "contingency"
         ]
       },
+      "PaymentTermsDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "example": 1
+          },
+          "type": {
+            "enum": [
+              "flat",
+              "hourly",
+              "contingency_pct",
+              "retainer_plus_installments",
+              "mixed",
+              "to_be_clarified"
+            ],
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD"
+            ]
+          },
+          "flatCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000
+          },
+          "hourlyRateCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000
+          },
+          "estimatedHoursMin": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "estimatedHoursMax": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "contingencyBps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "retainerCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000
+          },
+          "installmentCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000
+          },
+          "installmentCount": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 120
+          },
+          "installmentPeriod": {
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly"
+            ],
+            "type": "string"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "version",
+          "type",
+          "currency"
+        ]
+      },
       "StartAvailability": {
         "type": "string",
         "enum": [
@@ -137552,6 +138459,16 @@
           "message": {
             "type": "string",
             "nullable": true
+          },
+          "paymentTerms": {
+            "nullable": true,
+            "description": "Deal record 2026-10-27: rich payment terms of this round, if any.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentTermsDto"
+              }
+            ]
           },
           "status": {
             "allOf": [
@@ -137680,6 +138597,16 @@
           "amountCents": {
             "type": "integer"
           },
+          "paymentTerms": {
+            "nullable": true,
+            "description": "Deal record 2026-10-27: rich payment terms of the current round, if any.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentTermsDto"
+              }
+            ]
+          },
           "percentBps": {
             "type": "integer",
             "nullable": true,
@@ -137781,6 +138708,14 @@
             "format": "uuid",
             "description": "Firm lawyer who sends the bid (must hold a matching verified licence); default: the caller."
           },
+          "paymentTerms": {
+            "description": "Deal record 2026-10-27: rich payment terms; only while `bids.rich_terms_enabled` (else 400 PAYMENT_TERMS_DISABLED).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentTermsDto"
+              }
+            ]
+          },
           "feeType": {
             "allOf": [
               {
@@ -137846,6 +138781,14 @@
       "CounterOfferDto": {
         "type": "object",
         "properties": {
+          "paymentTerms": {
+            "description": "Deal record 2026-10-27: the rich payment terms of this round (replaces the previous round's); only while `bids.rich_terms_enabled`.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentTermsDto"
+              }
+            ]
+          },
           "amountCents": {
             "type": "integer",
             "minimum": 1,
@@ -150228,6 +151171,16 @@
           "amountCents": {
             "type": "integer"
           },
+          "paymentTerms": {
+            "nullable": true,
+            "description": "Deal record 2026-10-27: rich payment terms of the current round, if any.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentTermsDto"
+              }
+            ]
+          },
           "percentBps": {
             "type": "integer",
             "nullable": true,
@@ -151967,6 +152920,16 @@
           },
           "amountCents": {
             "type": "integer"
+          },
+          "paymentTerms": {
+            "nullable": true,
+            "description": "Deal record 2026-10-27: rich payment terms of the current round, if any.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentTermsDto"
+              }
+            ]
           },
           "percentBps": {
             "type": "integer",
@@ -164028,6 +164991,493 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "DealRecordStatus": {
+        "type": "string",
+        "enum": [
+          "preparing",
+          "awaiting_signatures",
+          "sealing",
+          "sealed",
+          "declined",
+          "failed"
+        ]
+      },
+      "DealCaseDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "practice": {
+            "type": "string",
+            "nullable": true
+          },
+          "states": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "title",
+          "practice",
+          "states"
+        ]
+      },
+      "DealPartyDto": {
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "username": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "fullName",
+          "email",
+          "username"
+        ]
+      },
+      "DealAttorneyDto": {
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "username": {
+            "type": "string",
+            "nullable": true
+          },
+          "barState": {
+            "type": "string",
+            "nullable": true
+          },
+          "barNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "firmName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "fullName",
+          "email",
+          "username",
+          "barState",
+          "barNumber",
+          "firmName"
+        ]
+      },
+      "DealTermsDto": {
+        "type": "object",
+        "properties": {
+          "feeType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FeeType"
+              }
+            ]
+          },
+          "amountCents": {
+            "type": "integer"
+          },
+          "percentBps": {
+            "type": "integer",
+            "nullable": true
+          },
+          "paymentTerms": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentTermsDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "feeType",
+          "amountCents",
+          "percentBps"
+        ]
+      },
+      "DealOfferDto": {
+        "type": "object",
+        "properties": {
+          "feeType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FeeType"
+              }
+            ]
+          },
+          "amountCents": {
+            "type": "integer"
+          },
+          "percentBps": {
+            "type": "integer",
+            "nullable": true
+          },
+          "paymentTerms": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentTermsDto"
+              }
+            ]
+          },
+          "roundNo": {
+            "type": "integer"
+          },
+          "fromRole": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartyRole"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "feeType",
+          "amountCents",
+          "percentBps",
+          "roundNo",
+          "fromRole",
+          "createdAt",
+          "message",
+          "status"
+        ]
+      },
+      "DealSignatureDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartyRole"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "signedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "role",
+          "name",
+          "signedAt"
+        ]
+      },
+      "DealRecordDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "caseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bidId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DealRecordStatus"
+              }
+            ]
+          },
+          "acceptedBy": {
+            "description": "Who tapped Accept (signs first).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartyRole"
+              }
+            ]
+          },
+          "myRole": {
+            "description": "The caller's side.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PartyRole"
+              }
+            ]
+          },
+          "myTurnToSign": {
+            "type": "boolean",
+            "description": "True while the caller may draw their signature now."
+          },
+          "recordCode": {
+            "type": "string",
+            "description": "<8 of id>-<8 of SHA-256>, printed on every page."
+          },
+          "snapshotSha256": {
+            "type": "string",
+            "description": "SHA-256 of the canonical snapshot."
+          },
+          "sealedSha256": {
+            "type": "string",
+            "nullable": true,
+            "description": "SHA-256 of the sealed PDF."
+          },
+          "textVersion": {
+            "type": "integer",
+            "description": "Version of the admin texts the record was created with."
+          },
+          "acceptedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "case": {
+            "$ref": "#/components/schemas/DealCaseDto"
+          },
+          "client": {
+            "$ref": "#/components/schemas/DealPartyDto"
+          },
+          "attorney": {
+            "$ref": "#/components/schemas/DealAttorneyDto"
+          },
+          "terms": {
+            "$ref": "#/components/schemas/DealTermsDto"
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DealOfferDto"
+            }
+          },
+          "notContractText": {
+            "type": "string",
+            "description": "The fixed line under the title (English)."
+          },
+          "footerText": {
+            "type": "string",
+            "description": "The footer of every page (English)."
+          },
+          "signatures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DealSignatureDto"
+            }
+          },
+          "unsignedUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "sealedUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "sealedFileId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "unsignedFileId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "agreementFileId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "agreementUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "declineReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "failedReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sealedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "declinedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "caseId",
+          "bidId",
+          "status",
+          "acceptedBy",
+          "myRole",
+          "myTurnToSign",
+          "recordCode",
+          "snapshotSha256",
+          "sealedSha256",
+          "textVersion",
+          "acceptedAt",
+          "case",
+          "client",
+          "attorney",
+          "terms",
+          "history",
+          "notContractText",
+          "footerText",
+          "signatures",
+          "unsignedUrl",
+          "sealedUrl",
+          "sealedFileId",
+          "unsignedFileId",
+          "agreementFileId",
+          "agreementUrl",
+          "declineReason",
+          "failedReason",
+          "createdAt",
+          "sealedAt",
+          "declinedAt"
+        ]
+      },
+      "CreateDealRecordDto": {
+        "type": "object",
+        "properties": {
+          "bidId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The bid being accepted."
+          }
+        },
+        "required": [
+          "bidId"
+        ]
+      },
+      "DealRecordEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DealRecordDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DealRecordLookupDto": {
+        "type": "object",
+        "properties": {
+          "record": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DealRecordDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "record"
+        ]
+      },
+      "DealRecordLookupEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DealRecordLookupDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SignDealRecordDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120,
+            "description": "Full name as the signer wants it printed under the signature."
+          },
+          "imagePngBase64": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 210000,
+            "description": "The drawn signature: PNG with alpha, base64, ≤150 KB."
+          }
+        },
+        "required": [
+          "name",
+          "imagePngBase64"
+        ]
+      },
+      "DeclineDealRecordDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 300
+          }
+        }
+      },
+      "AttachAgreementDto": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The attorney's own agreement PDF (an uploaded case_attachment file of the caller)."
+          }
+        },
+        "required": [
+          "fileId"
         ]
       },
       "ModerationAuthorDto": {

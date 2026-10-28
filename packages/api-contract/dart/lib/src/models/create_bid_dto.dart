@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'fee_type.dart';
+import 'payment_terms_dto.dart';
 import 'start_availability.dart';
 
 part 'create_bid_dto.g.dart';
@@ -16,6 +17,7 @@ class CreateBidDto {
     required this.message,
     required this.startAvailability,
     this.sendAsAttorneyId,
+    this.paymentTerms,
     this.amountCents,
     this.percentBps,
     this.startDate,
@@ -27,6 +29,9 @@ class CreateBidDto {
 
   /// Firm lawyer who sends the bid (must hold a matching verified licence); default: the caller.
   final String? sendAsAttorneyId;
+
+  /// Deal record 2026-10-27: rich payment terms; only while `bids.rich_terms_enabled` (else 400 PAYMENT_TERMS_DISABLED).
+  final PaymentTermsDto? paymentTerms;
   final FeeType feeType;
 
   /// Required for fixed/hourly; ignored (stored as 0) for free_consultation.

@@ -46,6 +46,10 @@ export const FILE_REFERENCES = [
   'gifts.file_id',
   'attorney_tasks.file_ids[]',
   'reviews.photo_ids[]',
+  // Deal record 2026-10-27: the record PDFs and the attorney's agreement.
+  'deal_records.unsigned_file_id',
+  'deal_records.sealed_file_id',
+  'deal_records.agreement_file_id',
   'client_reviews.photo_ids[]',
   'client_verifications.document_file_ids{}',
 ] as const;
@@ -345,6 +349,8 @@ export class StorageCleanupService {
           WHERE pa.file_id = f.id
             AND (p.deleted_at IS NULL OR p.deleted_at >= ${postCutoff}))
         AND NOT EXISTS (SELECT 1 FROM case_photos cp WHERE cp.file_id = f.id)
+        AND NOT EXISTS (SELECT 1 FROM deal_records dr WHERE dr.unsigned_file_id = f.id OR dr.sealed_file_id = f.id OR dr.agreement_file_id = f.id)
+        AND NOT EXISTS (SELECT 1 FROM case_sign_requests sr WHERE sr.source_file_id = f.id OR sr.final_file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM case_expenses ce WHERE ce.receipt_file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM chat_groups cg WHERE cg.avatar_file_id = f.id)

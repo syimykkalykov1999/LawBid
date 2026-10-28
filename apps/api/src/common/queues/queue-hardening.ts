@@ -53,6 +53,11 @@ const TUNING: Record<string, Partial<Omit<WorkerTuning, 'metrics'>>> = {
     stalledInterval: 60_000,
     maxStalledCount: 3,
   },
+  'deal-record': {
+    lockDuration: 120_000,
+    stalledInterval: 60_000,
+    maxStalledCount: 3,
+  },
   'account-deletion': {
     lockDuration: 180_000,
     stalledInterval: 60_000,

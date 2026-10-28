@@ -10,6 +10,7 @@ import 'bid_offer_dto.dart';
 import 'bid_status.dart';
 import 'fee_type.dart';
 import 'party_role.dart';
+import 'payment_terms_dto.dart';
 import 'start_availability.dart';
 
 part 'my_bid_item_dto.g.dart';
@@ -36,6 +37,7 @@ class MyBidItemDto {
     required this.createdAt,
     required this.caseValue,
     required this.lastOffer,
+    this.paymentTerms,
     this.percentBps,
     this.attorney,
     this.coverUrl,
@@ -50,6 +52,9 @@ class MyBidItemDto {
   final BidStatus status;
   final FeeType feeType;
   final int amountCents;
+
+  /// Deal record 2026-10-27: rich payment terms of the current round, if any.
+  final PaymentTermsDto? paymentTerms;
 
   /// Owner 2026-10-17: contingency → basis points (3300 = 33 %).
   final int? percentBps;

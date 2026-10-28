@@ -15,6 +15,7 @@
     "db-sessions",
     "db-social-billing-schema",
     "db-tx-retry",
+    "deal-record",
     "files",
     "guest-browsing",
     "jobs",

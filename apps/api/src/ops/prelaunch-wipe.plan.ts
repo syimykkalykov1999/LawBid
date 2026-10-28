@@ -209,6 +209,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   case_invoices: 'case invoices',
   case_sign_requests: 'documents asked to be signed',
   case_signatures: 'signatures on case documents',
+  deal_records: 'deal records (bid accepted through two signatures)',
   case_conflict_checks: 'conflict-of-interest checks',
   case_reads: 'case read marks',
   post_shares: 'shares',

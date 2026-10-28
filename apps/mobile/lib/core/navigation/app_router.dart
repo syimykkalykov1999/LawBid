@@ -18,6 +18,8 @@ import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/blocks/presentation/blocked_users_screen.dart'
     deferred as d_blocked_users_screen;
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
+import 'package:lawbid/features/cases/deals/deal_record_screen.dart'
+    deferred as d_deal_record_screen;
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/screens/bid_detail_screen.dart'
     deferred as d_bid_detail_screen;
@@ -399,6 +401,20 @@ GoRouter appRouter(Ref ref) {
             load: d_edit_case_screen.loadLibrary,
             builder: (_) => d_edit_case_screen.EditCaseScreen(
               caseId: state.pathParameters['id'] ?? '',
+            ),
+          ),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.dealRecordPattern,
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          DeferredScreen(
+            id: 'deal_record_screen',
+            load: d_deal_record_screen.loadLibrary,
+            builder: (_) => d_deal_record_screen.DealRecordScreen(
+              recordId: state.pathParameters['id'] ?? '',
             ),
           ),
         ),

@@ -14,6 +14,8 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart';
+import 'package:lawbid/features/cases/deals/deal_record_data.dart';
+import 'package:lawbid/features/cases/deals/rich_terms_editor.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/domain/contingency.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart';
@@ -58,6 +60,8 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
   final _amount = TextEditingController();
   final _message = TextEditingController();
   final _duration = TextEditingController();
+  // Deal record 2026-10-27: rich payment terms (admin switch).
+  final _rich = RichTermsDraft();
   bool _busy = false;
   String? _error;
   String? _sendAs;
@@ -95,8 +99,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
           _start = StartAvailability.fromJson(d.startAvailability!);
         }
         _startDate ??= d.startDate;
-        if (d.estimatedDurationDays != null &&
-            _duration.text.trim().isEmpty) {
+        if (d.estimatedDurationDays != null && _duration.text.trim().isEmpty) {
           _duration.text = '${d.estimatedDurationDays}';
         }
         _draftBy = d.preparedBy ?? '';
@@ -178,6 +181,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
     _amount.dispose();
     _message.dispose();
     _duration.dispose();
+    _rich.dispose();
     super.dispose();
   }
 
@@ -212,6 +216,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
               startDate: _startDate,
               estimatedDurationDays: int.tryParse(_duration.text),
               sendAsAttorneyId: _sendAs,
+              paymentTerms: _rich.toDto(),
             ),
           );
       if (!mounted) return;
@@ -368,6 +373,14 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
                     ),
                   ),
           ),
+          if (ref.watch(richTermsEnabledProvider)) ...[
+            const SizedBox(height: AppSpacing.lg),
+            RichTermsEditor(
+              draft: _rich,
+              enabled: !_busy,
+              onChanged: () => setState(() {}),
+            ),
+          ],
           const SizedBox(height: AppSpacing.lg),
           _FirmSender(
             caseId: widget.caseId,

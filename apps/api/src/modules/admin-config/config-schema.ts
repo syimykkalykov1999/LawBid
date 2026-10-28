@@ -850,6 +850,16 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'seo.sitemap_index_enabled':
       'Public SEO pages: /sitemap.xml becomes an index of /sitemaps/*.xml. Changed on the «Продвижение» page.',
   };
+  // Deal record 2026-10-27: switched on the «Запись о сделке» page.
+  const dealRecordText: Record<string, string> = {
+    'deal_record.enabled':
+      'Deal record: accepting a bid opens the "Deal record" (not a contract) that both parties sign in the app; the bid is accepted only after both signatures. Off = accept as before. Changed on the «Запись о сделке» page.',
+    'bids.rich_terms_enabled':
+      'Bids: attorneys may add detailed payment terms (hourly, retainer + installments, contingency, to be clarified, mixed). Off = the classic fee types only. Changed on the «Запись о сделке» page.',
+  };
+  for (const [k, description] of Object.entries(dealRecordText)) {
+    out[k] = { ...out[k], description };
+  }
   for (const [k, description] of Object.entries(seoText)) {
     out[k] = { ...out[k], description };
   }

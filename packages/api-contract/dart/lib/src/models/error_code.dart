@@ -516,6 +516,16 @@ enum ErrorCode {
   experimentStateInvalid('EXPERIMENT_STATE_INVALID'),
   @JsonValue('STALE_VERSION')
   staleVersion('STALE_VERSION'),
+  @JsonValue('DEAL_RECORD_REQUIRED')
+  dealRecordRequired('DEAL_RECORD_REQUIRED'),
+  @JsonValue('DEAL_RECORD_PENDING')
+  dealRecordPending('DEAL_RECORD_PENDING'),
+  @JsonValue('DEAL_RECORD_INVALID_STATE')
+  dealRecordInvalidState('DEAL_RECORD_INVALID_STATE'),
+  @JsonValue('PAYMENT_TERMS_DISABLED')
+  paymentTermsDisabled('PAYMENT_TERMS_DISABLED'),
+  @JsonValue('PAYMENT_TERMS_INVALID')
+  paymentTermsInvalid('PAYMENT_TERMS_INVALID'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

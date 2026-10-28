@@ -36,6 +36,7 @@ export const QUEUE_COST_WEIGHT: Record<string, number> = {
   'media-moderation': 2,
   'data-export': 25,
   'case-history-export': 25,
+  'deal-record': 5,
   'account-deletion': 15,
 };
 

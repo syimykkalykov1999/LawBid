@@ -11,6 +11,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/case_payments/presentation/case_payments_card.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
+import 'package:lawbid/features/cases/deals/deal_record_card.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart'
     show routeSubscriptionError;
@@ -215,6 +216,8 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
       stage: caseStageOf(c.status, c.bidsCount),
       publishedAt: c.createdAt,
       overview: [
+        // Deal record 2026-10-27: compact copy of the Docs-tab card.
+        DealRecordCard(caseId: c.id, isAttorney: true, compact: true),
         if (pending)
           Padding(
             padding: side(AppSpacing.md),
