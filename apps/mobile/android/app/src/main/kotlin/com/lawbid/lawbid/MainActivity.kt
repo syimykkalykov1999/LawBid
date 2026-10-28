@@ -41,9 +41,8 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterFragmentActivity() {
     private var ringtone: Ringtone? = null
     private var pendingPermission: MethodChannel.Result? = null
-    private var callChannel: MethodChannel? = null
-    private var pendingCallAction: String? = null
-    private var pipActive = false
+    // Owner 2026-10-28 (calls variant A): Jitsi Meet's PiP module.
+    private var pip: PictureInPictureModule? = null
     private var chatChannel: MethodChannel? = null
     private var pendingChatOpen: Map<String, String>? = null
 
@@ -74,7 +73,12 @@ class MainActivity : FlutterFragmentActivity() {
             "lawbid/call_pip",
         ).setMethodCallHandler { call, result ->
             if (call.method == "setActive") {
-                pipActive = call.argument<Boolean>("active") == true
+                val active = call.argument<Boolean>("active") == true
+                val module = pip ?: PictureInPictureModule(this).also { pip = it }
+                module.setPictureInPictureEnabled(active)
+                // The call is over: a floating video window of it must not
+                // stay frozen on the last frame (WhatsApp closes it).
+                if (!active) leavePictureInPicture()
                 result.success(null)
             } else {
                 result.notImplemented()
@@ -200,80 +204,6 @@ class MainActivity : FlutterFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
-        // Owner 2026-10-20: the ongoing-call notification / foreground
-        // service (CallForegroundService); its "Hang up" and tap come back
-        // here as `action` events.
-        callChannel = MethodChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            "lawbid/call_service",
-        ).also { ch ->
-            CallBridge.channel = ch
-            ch.setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "start" -> {
-                        val intent = Intent(this, CallForegroundService::class.java)
-                            .putExtra(
-                                CallForegroundService.EXTRA_NAME,
-                                call.argument<String>("name") ?: "",
-                            )
-                            .putExtra(
-                                CallForegroundService.EXTRA_SINCE,
-                                (call.argument<Number>("since") ?: 0L).toLong(),
-                            )
-                            .putExtra(
-                                CallForegroundService.EXTRA_STATUS,
-                                call.argument<String>("status") ?: "",
-                            )
-                            .putExtra(
-                                CallForegroundService.EXTRA_HANGUP,
-                                call.argument<String>("hangup") ?: "",
-                            )
-                        try {
-                            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent)
-                            else startService(intent)
-                            result.success(true)
-                        } catch (e: Exception) {
-                            result.success(false)
-                        }
-                    }
-                    "stop" -> {
-                        stopService(Intent(this, CallForegroundService::class.java))
-                        // The service may be gone already (or never got to
-                        // run): its notification must be too.
-                        try {
-                            getSystemService(NotificationManager::class.java)
-                                ?.cancel(CallForegroundService.NOTIFICATION_ID)
-                        } catch (e: Exception) {
-                        }
-                        clearCallNotifications()
-                        // Owner 2026-10-28 (Samsung: a call in progress was
-                        // still shown after the end): nothing of the call
-                        // plugin stays either (its ongoing-call service).
-                        CallRinging.endAll(this, emptyList())
-                        leavePictureInPicture()
-                        result.success(null)
-                    }
-                    "clear" -> {
-                        clearCallNotifications()
-                        CallRinging.endAll(this, emptyList())
-                        result.success(null)
-                    }
-                    // Owner 2026-10-28: one call's system side ends — its
-                    // Telecom call (Samsung's «call in progress»), the
-                    // plugin's call service and its ringing screen.
-                    "endCall" -> {
-                        val id = call.argument<String>("id")
-                        CallRinging.endAll(this, listOfNotNull(id))
-                        result.success(null)
-                    }
-                    "pendingAction" -> {
-                        result.success(pendingCallAction)
-                        pendingCallAction = null
-                    }
-                    else -> result.notImplemented()
-                }
-            }
-        }
         // Owner 2026-10-22 (WhatsApp): chat notifications drawn natively
         // (ChatNotifications) — the phone-book names of LawBid contacts, an
         // opened chat clears its notification, a sign-out clears them all;
@@ -320,8 +250,6 @@ class MainActivity : FlutterFragmentActivity() {
             }
         }
         ChatNotifications.openTarget(intent)?.let { pendingChatOpen = it }
-        // A cold start from the notification: Dart asks for it (pendingAction).
-        callActionOf(intent)?.let { pendingCallAction = it }
         // Security research #5 (2026-10-22), B5: FLAG_SECURE while a screen
         // with an ID document / licence is open (lib/core/platform/
         // secure_screen.dart) — screenshots and recordings show black.
@@ -393,31 +321,9 @@ class MainActivity : FlutterFragmentActivity() {
         vibrator = null
     }
 
-    /** After a call: no ringing / ongoing notification of any call (ours or
-     * the call plugin's) may stay in the shade. */
-    private fun clearCallNotifications() {
-        val nm = getSystemService(NotificationManager::class.java) ?: return
-        val channels = setOf(
-            "callkit_incoming_channel_id_v2",
-            "callkit_incoming_channel_id",
-            "callkit_ongoing_channel_id",
-            CallForegroundService.CHANNEL,
-        )
-        try {
-            for (n in nm.activeNotifications) {
-                if (Build.VERSION.SDK_INT >= 26 && n.notification.channelId in channels) {
-                    nm.cancel(n.tag, n.id)
-                }
-            }
-        } catch (e: Exception) {
-            // listing not allowed: nothing to clear
-        }
-    }
-
     /** The call is over: a floating video window of it must not stay
      * frozen on the last frame (WhatsApp closes it with the call). */
     private fun leavePictureInPicture() {
-        pipActive = false
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
         try {
             if (isInPictureInPictureMode) moveTaskToBack(false)
@@ -432,20 +338,15 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
-        CallBridge.channel = null
         chatChannel = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (pipActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             try {
-                enterPictureInPictureMode(
-                    android.app.PictureInPictureParams.Builder()
-                        .setAspectRatio(android.util.Rational(9, 16))
-                        .build(),
-                )
+                pip?.enterPictureInPicture()
             } catch (e: Exception) {
                 // PiP not allowed on this device: the call goes on in the
                 // background with its notification.
@@ -455,24 +356,11 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleCallIntent(intent)
         ChatNotifications.openTarget(intent)?.let { target ->
             intent.action = null
             val ch = chatChannel
             if (ch != null) ch.invokeMethod("open", target) else pendingChatOpen = target
         }
-    }
-
-    private fun callActionOf(intent: Intent?): String? = when (intent?.action) {
-        CallForegroundService.ACTION_HANGUP -> "hangup"
-        CallForegroundService.ACTION_OPEN -> "open"
-        else -> null
-    }
-
-    private fun handleCallIntent(intent: Intent?) {
-        val action = callActionOf(intent) ?: return
-        intent?.action = null
-        callChannel?.invokeMethod("action", action)
     }
 
     private fun notificationsAllowed(): Boolean {

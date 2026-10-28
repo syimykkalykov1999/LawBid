@@ -38,6 +38,16 @@ keys:
   $API_KEY: $API_SECRET
 CONF
 
+%{ if webhook_url != "" ~}
+# LiveKit config-sample.yaml «webhook» block: events signed with the API key.
+cat >> /etc/livekit/livekit.yaml <<CONF
+webhook:
+  api_key: $API_KEY
+  urls:
+    - ${webhook_url}
+CONF
+%{ endif ~}
+
 %{ if use_redis ~}
 REDIS_PASSWORD="$(get_secret ${redis_secret} | sed 's#^rediss://:\([^@]*\)@.*#\1#')"
 cat >> /etc/livekit/livekit.yaml <<CONF

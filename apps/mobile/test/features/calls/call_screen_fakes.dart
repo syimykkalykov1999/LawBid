@@ -4,9 +4,8 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 import 'package:lawbid/features/calls/application/call_controller.dart';
-import 'package:lawbid/features/calls/application/call_media.dart';
-import 'package:lawbid/features/calls/application/call_quality.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
+import 'package:lawbid/features/calls/application/livekit_call_media.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 
@@ -41,9 +40,6 @@ class FakeCallMedia extends Fake implements CallMedia {
 
   @override
   final ValueListenable<Set<String>> speaking;
-
-  @override
-  final ValueListenable<LinkQuality> quality = ValueNotifier(LinkQuality.good);
 
   @override
   Set<String> get peers => remoteStreams.value.keys.toSet();

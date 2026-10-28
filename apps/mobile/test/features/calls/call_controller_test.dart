@@ -10,9 +10,8 @@ import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
-import 'package:lawbid/features/calls/application/call_media.dart';
-import 'package:lawbid/features/calls/application/call_quality.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
+import 'package:lawbid/features/calls/application/livekit_call_media.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
@@ -245,21 +244,13 @@ class _FakeRepo implements CallsRepository {
   @override
   Future<bool> providerSupported() async => providerOk;
 
-  /// Owner 2026-10-26 (failover): what the controller asked (relayFailed).
-  final iceAsks = <bool>[];
-  List<IceServer> servers = const [
-    IceServer(urls: ['stun:stun.example.com:3478']),
-  ];
-
-  /// A slow server: the answer waits for this gate (the 1.8 s budget).
-  Completer<void>? iceGate;
+  /// Rooms asked for (POST /calls/{id}/livekit-token).
+  final tokens = <String>[];
 
   @override
-  Future<List<IceServer>> iceServers({bool relayFailed = false}) async {
-    iceAsks.add(relayFailed);
-    final gate = iceGate;
-    if (gate != null) await gate.future;
-    return servers;
+  Future<LiveKitJoin> livekitToken(String callId) async {
+    tokens.add(callId);
+    return const LiveKitJoin(url: 'wss://lk.test', token: 'test-room-token');
   }
 }
 
@@ -269,37 +260,30 @@ class _FakeMedia implements CallMedia {
   bool closed = false;
   bool? muted;
   bool? speaker;
-  Map<String, Object?>? gotAnswer;
-  final candidates = <Map<String, Object?>>[];
-
   bool? openedVideo;
   bool? cameraOn;
   int flips = 0;
-  int iceRestarts = 0;
+  LiveKitJoin? joined;
+
+  /// Who else is in the room (user ids).
+  final room = <String>{};
 
   @override
   Future<void> open(
-    List<IceServer> iceServers, {
-    required void Function(Map<String, Object?> signal) onSignal,
+    LiveKitJoin join, {
     required void Function(CallMediaState state) onState,
     bool video = false,
-    String peer = '',
   }) async {
     opened = true;
     openedVideo = video;
+    joined = join;
     this.onState = onState;
-    firstPeer = peer;
-    links[peer] = onState;
+    // The other person of a 1:1 is in the room.
+    room.add('p1');
   }
 
-  String firstPeer = '';
-
-  /// Group calls: link state callbacks by member.
-  final links = <String, void Function(CallMediaState)>{};
-  final offersFor = <String>[];
-  final answersFor = <String>[];
-  final removed = <String>[];
-  final restarted = <String>[];
+  @override
+  Set<String> get peers => room;
 
   @override
   final ValueListenable<Map<String, MediaStream>> remoteStreams =
@@ -307,65 +291,6 @@ class _FakeMedia implements CallMedia {
 
   @override
   final ValueListenable<Set<String>> speaking = ValueNotifier(const {});
-
-  @override
-  final ValueListenable<LinkQuality> quality = ValueNotifier(LinkQuality.good);
-
-  final iceUpdates = <List<IceServer>>[];
-
-  @override
-  Future<void> updateIceServers(List<IceServer> iceServers) async =>
-      iceUpdates.add(iceServers);
-
-  @override
-  Set<String> get peers => links.keys.toSet();
-
-  @override
-  Future<void> addPeer(
-    String peer, {
-    required void Function(Map<String, Object?> signal) onSignal,
-    required void Function(CallMediaState state) onState,
-  }) async =>
-      links[peer] = onState;
-
-  @override
-  Future<Map<String, Object?>> createOfferFor(String peer) async {
-    offersFor.add(peer);
-    return {'type': 'offer', 'sdp': 'offer-sdp'};
-  }
-
-  @override
-  Future<Map<String, Object?>> answerFor(
-    String peer,
-    Map<String, Object?> offer,
-  ) async {
-    answersFor.add(peer);
-    return {'type': 'answer', 'sdp': 'answer-to-${offer['sdp']}'};
-  }
-
-  @override
-  Future<void> setAnswerFor(String peer, Map<String, Object?> answer) async =>
-      gotAnswer = answer;
-
-  @override
-  Future<void> addCandidateFor(
-    String peer,
-    Map<String, Object?> candidate,
-  ) async =>
-      candidates.add(candidate);
-
-  @override
-  Future<Map<String, Object?>> restartIceFor(String peer) async {
-    restarted.add(peer);
-    iceRestarts++;
-    return {'type': 'offer', 'sdp': 'x'};
-  }
-
-  @override
-  Future<void> removePeer(String peer) async {
-    removed.add(peer);
-    links.remove(peer);
-  }
 
   @override
   final ValueListenable<MediaStream?> localVideo = ValueNotifier(null);
@@ -379,48 +304,14 @@ class _FakeMedia implements CallMedia {
   @override
   Future<void> switchCamera() async => flips++;
 
-  // Owner 2026-10-22: the camera switched on / off mid-call, and glare.
   int videoEnables = 0;
   int videoDisables = 0;
-  bool pendingOffer = false;
-  int rollbacks = 0;
 
   @override
   Future<void> enableVideo() async => videoEnables++;
 
   @override
   Future<void> disableVideo() async => videoDisables++;
-
-  @override
-  Future<bool> offerPendingFor(String peer) async => pendingOffer;
-
-  @override
-  Future<void> rollbackFor(String peer) async {
-    rollbacks++;
-    pendingOffer = false;
-  }
-
-  @override
-  Future<Map<String, Object?>> restartIce() async {
-    iceRestarts++;
-    return {'type': 'offer', 'sdp': 'x'};
-  }
-
-  @override
-  Future<Map<String, Object?>> createOffer() async =>
-      {'type': 'offer', 'sdp': 'offer-sdp'};
-
-  @override
-  Future<Map<String, Object?>> answer(Map<String, Object?> offer) async =>
-      {'type': 'answer', 'sdp': 'answer-to-${offer['sdp']}'};
-
-  @override
-  Future<void> setAnswer(Map<String, Object?> answer) async =>
-      gotAnswer = answer;
-
-  @override
-  Future<void> addCandidate(Map<String, Object?> candidate) async =>
-      candidates.add(candidate);
 
   @override
   void setMuted(bool muted) => this.muted = muted;
@@ -464,30 +355,6 @@ class _Sounds implements AppSounds {
   Future<void> videoRequest() async => played.add('video');
 }
 
-class _FakeForeground implements CallForeground {
-  final started = <String>[];
-  int stops = 0;
-  final _actions = StreamController<String>.broadcast();
-
-  @override
-  Stream<String> get actions => _actions.stream;
-
-  @override
-  Future<String?> pendingAction() async => null;
-
-  @override
-  Future<void> start({
-    required String name,
-    int since = 0,
-    String status = '',
-    String hangup = '',
-  }) async =>
-      started.add('$name|${since > 0}');
-
-  @override
-  Future<void> stop() async => stops++;
-}
-
 class _SystemUi implements SystemCallUi {
   final dismissed = <String>[];
   int endAlls = 0;
@@ -517,7 +384,6 @@ class _Harness {
         callMediaFactoryProvider.overrideWithValue(() => media),
         realtimeEventsProvider.overrideWithValue(events.stream),
         appSoundsProvider.overrideWithValue(sounds),
-        callForegroundProvider.overrideWithValue(foreground),
         systemCallUiProvider.overrideWithValue(systemUi),
         callMyIdProvider.overrideWithValue(me),
         callMicPermissionProvider.overrideWithValue(() async => true),
@@ -544,7 +410,6 @@ class _Harness {
   }
 
   final sounds = _Sounds();
-  final foreground = _FakeForeground();
   final systemUi = _SystemUi();
   final media = _FakeMedia();
   final events = StreamController<RealtimeEvent>.broadcast();
@@ -576,7 +441,7 @@ Future<void> _settle() =>
     Future<void>.delayed(const Duration(milliseconds: 20));
 
 void main() {
-  test('calling out: rings, picked up, offer/answer, talks, hangs up',
+  test('calling out: rings, picked up, in the room together, hangs up',
       () async {
     final h = _Harness();
     addTearDown(h.dispose);
@@ -584,6 +449,9 @@ void main() {
     await h.c.call('conv', peer: _peer);
     expect(h.s.phase, CallPhase.outgoing);
     expect(h.media.opened, isTrue);
+    // Calls variant A: the room comes from the server's LiveKit token.
+    expect(h.repo.tokens, ['c1']);
+    expect(h.media.joined?.url, 'wss://lk.test');
     // OQ-044: ringback while it rings there.
     expect(h.sounds.played, ['ringback']);
     // The call's audio session opened under it: the tone is kept going.
@@ -595,25 +463,8 @@ void main() {
     );
     await _settle();
     expect(h.s.phase, CallPhase.connecting);
-    expect(h.signals.single, {'type': 'offer', 'sdp': 'offer-sdp'});
-
-    h
-      ..emit('call:signal', {
-        'callId': 'c1',
-        'data': {'type': 'answer', 'sdp': 'a'},
-      })
-      ..emit('call:signal', {
-        'callId': 'c1',
-        'data': {'type': 'candidate', 'candidate': 'x', 'sdpMid': '0'},
-      })
-      // Another call's signal is ignored.
-      ..emit('call:signal', {
-        'callId': 'other',
-        'data': {'type': 'answer', 'sdp': 'zzz'},
-      });
-    await _settle();
-    expect(h.media.gotAnswer, {'type': 'answer', 'sdp': 'a'});
-    expect(h.media.candidates, hasLength(1));
+    // No offers / answers of our own: LiveKit connects the room.
+    expect(h.signals, isEmpty);
 
     h.media.onState!(CallMediaState.connected);
     expect(h.s.phase, CallPhase.active);
@@ -630,191 +481,6 @@ void main() {
     expect(h.repo.ends, [CallEndReason.hangup]);
     expect(h.media.closed, isTrue);
     expect(h.sounds.played, ['ringback', 'stop', 'end']);
-  });
-
-  test('a network drop mid-call shows reconnecting and restarts ICE', () {
-    fakeAsync((async) {
-      final h = _Harness();
-      h.c.call('conv', peer: _peer);
-      async.flushMicrotasks();
-      h.emit(
-        'call:accepted',
-        _event(_call('c1', CallStatus.active, outgoing: true)),
-      );
-      async.flushMicrotasks();
-      h.media.onState!(CallMediaState.connected);
-      expect(h.s.phase, CallPhase.active);
-
-      h.media.onState!(CallMediaState.disconnected);
-      async.flushMicrotasks();
-      expect(h.media.iceRestarts, 1);
-      // Owner 2026-10-26: «Reconnecting…» only once the drop lasts > 3 s.
-      expect(h.s.reconnecting, isFalse);
-      async.elapse(kCallReconnectingDelay + const Duration(milliseconds: 100));
-      expect(h.s.reconnecting, isTrue);
-
-      h.media.onState!(CallMediaState.connected);
-      expect(h.s.reconnecting, isFalse);
-      expect(h.s.phase, CallPhase.active);
-      h.c.hangUp();
-      async.flushMicrotasks();
-      h.close();
-    });
-  });
-
-  test(
-    'failover: ICE fails through the Cloudflare relay — fresh servers '
-    '(relayFailed, own TURN first) go into the media BEFORE the ICE '
-    'restart; same call, same media',
-    () {
-      fakeAsync((async) {
-        final h = _Harness()..fakeClock(async);
-        h.repo.servers = const [
-          IceServer(
-            urls: ['turn:turn.cloudflare.com:3478?transport=udp'],
-            username: 'cf',
-            credential: 'x',
-          ),
-        ];
-        h.c.call('conv', peer: _peer);
-        async.flushMicrotasks();
-        h.emit(
-          'call:accepted',
-          _event(_call('c1', CallStatus.active, outgoing: true)),
-        );
-        async.flushMicrotasks();
-        h.media.onState!(CallMediaState.connected);
-        final asksBefore = h.repo.iceAsks.length;
-        const own = [
-          IceServer(
-            urls: ['turn:own.example:3478'],
-            username: 'o',
-            credential: 'y',
-          ),
-        ];
-        h.repo.servers = own;
-
-        h.media.onState!(CallMediaState.failed);
-        async.flushMicrotasks();
-        // One fresh ask, flagged as a dead Cloudflare relay.
-        expect(h.repo.iceAsks.sublist(asksBefore), [true]);
-        // The fresh list reached the links, then ICE restarted.
-        expect(h.media.iceUpdates.last.single.urls, ['turn:own.example:3478']);
-        expect(h.media.iceRestarts, 1);
-        expect(h.media.closed, isFalse);
-        expect(h.s.phase, CallPhase.active);
-        expect(h.s.call?.id, 'c1');
-
-        // Back on our own relay: a second drop does not blame Cloudflare.
-        h.media.onState!(CallMediaState.connected);
-        async.elapse(kCallIceRefreshEvery + const Duration(milliseconds: 100));
-        h.media.onState!(CallMediaState.disconnected);
-        async.flushMicrotasks();
-        expect(h.repo.iceAsks.last, isFalse);
-        h.c.hangUp();
-        async.flushMicrotasks();
-        h.close();
-      });
-    },
-  );
-
-  test(
-    'FO-1: the link fails while still connecting (dead Cloudflare relay, '
-    'live API) — one retry on a fresh list (relayFailed), not a hang-up; '
-    'a second failure gives up',
-    () {
-      fakeAsync((async) {
-        final h = _Harness()..fakeClock(async);
-        h.repo.servers = const [
-          IceServer(
-            urls: ['turn:turn.cloudflare.com:3478?transport=udp'],
-            username: 'cf',
-            credential: 'x',
-          ),
-        ];
-        h.c.call('conv', peer: _peer);
-        async.flushMicrotasks();
-        h.emit(
-          'call:accepted',
-          _event(_call('c1', CallStatus.active, outgoing: true)),
-        );
-        async.flushMicrotasks();
-        expect(h.s.phase, CallPhase.connecting);
-        final asksBefore = h.repo.iceAsks.length;
-        h.repo.servers = const [
-          IceServer(
-            urls: ['turn:own.example:3478'],
-            username: 'o',
-            credential: 'y',
-          ),
-        ];
-
-        h.media.onState!(CallMediaState.failed);
-        async.flushMicrotasks();
-        expect(h.repo.iceAsks.sublist(asksBefore), [true]);
-        expect(h.media.iceUpdates.last.single.urls, ['turn:own.example:3478']);
-        expect(h.media.iceRestarts, 1);
-        expect(h.repo.ends, isEmpty);
-        expect(h.s.phase, CallPhase.connecting);
-
-        // The second chance works: the call comes up on our own relay.
-        h.media.onState!(CallMediaState.connected);
-        expect(h.s.phase, CallPhase.active);
-        h.c.hangUp();
-        async.flushMicrotasks();
-        h.close();
-      });
-    },
-  );
-
-  test('FO-1: a second failure while connecting ends the call (no loop)', () {
-    fakeAsync((async) {
-      final h = _Harness()..fakeClock(async);
-      h.c.call('conv', peer: _peer);
-      async.flushMicrotasks();
-      h.emit(
-        'call:accepted',
-        _event(_call('c1', CallStatus.active, outgoing: true)),
-      );
-      async.flushMicrotasks();
-      h.media.onState!(CallMediaState.failed);
-      async.flushMicrotasks();
-      expect(h.media.iceRestarts, 1);
-      expect(h.repo.ends, isEmpty);
-      h.media.onState!(CallMediaState.failed);
-      async.flushMicrotasks();
-      expect(h.repo.ends, [CallEndReason.failed]);
-      expect(h.s.phase, CallPhase.ended);
-      h.close();
-    });
-  });
-
-  test('an offer that nobody heard is renewed until an answer comes', () {
-    fakeAsync((async) {
-      final h = _Harness();
-      h.c.call('conv', peer: _peer);
-      async.flushMicrotasks();
-      h.emit(
-        'call:accepted',
-        _event(_call('c1', CallStatus.active, outgoing: true)),
-      );
-      async.flushMicrotasks();
-      expect(h.media.iceRestarts, 0);
-      // The callee's socket was not in its room yet: no answer for 3 s.
-      async.elapse(const Duration(milliseconds: 3300));
-      expect(h.media.iceRestarts, 1);
-      h.emit('call:signal', {
-        'callId': 'c1',
-        'data': {'type': 'answer', 'sdp': 'a'},
-      });
-      async
-        ..flushMicrotasks()
-        ..elapse(const Duration(milliseconds: 3300));
-      expect(h.media.iceRestarts, 1);
-      h.c.hangUp();
-      async.flushMicrotasks();
-      h.close();
-    });
   });
 
   test('hanging up reaches the server before the media closes', () async {
@@ -961,7 +627,7 @@ void main() {
     expect(h.container.read(callInviteProvider), isNull);
   });
 
-  test('ringing in: accept answers the offer', () async {
+  test('ringing in: accept joins the call room', () async {
     final h = _Harness();
     addTearDown(h.dispose);
 
@@ -977,12 +643,11 @@ void main() {
     expect(h.repo.accepted, ['c2']);
     expect(h.s.phase, CallPhase.connecting);
 
-    h.emit('call:signal', {
-      'callId': 'c2',
-      'data': {'type': 'offer', 'sdp': 'o'},
-    });
-    await _settle();
-    expect(h.signals.single, {'type': 'answer', 'sdp': 'answer-to-o'});
+    // The server took the answer first, then the room opened.
+    expect(h.repo.tokens, ['c2']);
+    expect(h.media.opened, isTrue);
+    h.media.onState!(CallMediaState.connected);
+    expect(h.s.phase, CallPhase.active);
 
     h.emit(
       'call:ended',
@@ -1238,18 +903,6 @@ void main() {
     await h.c.hangUp();
   });
 
-  test('the ongoing-call notification follows the call (owner 2026-10-20)',
-      () async {
-    final h = _Harness();
-    addTearDown(h.dispose);
-
-    await h.c.call('conv', peer: _peer);
-    expect(h.foreground.started, ['Paul Phone|false']);
-
-    await h.c.hangUp();
-    expect(h.foreground.stops, 1);
-  });
-
   test(
       'a second tap on the call button asks for the call screen, '
       'not a new call', () async {
@@ -1411,81 +1064,6 @@ void main() {
       });
     });
 
-    test('added to a call: the latest to join offers to everyone', () async {
-      final h = await joined();
-      expect(h.media.offersFor.toSet(), {'p1', 'p2'});
-      expect(h.signalTargets.toSet(), {'p1', 'p2'});
-      expect(h.media.peers, {'p1', 'p2'});
-    });
-
-    test('a member who joins later: we link them and answer their offer',
-        () async {
-      final h = await joined();
-      h.media.offersFor.clear();
-      h
-        ..emit('call:participants', {
-          'callId': 'g1',
-          'hostId': 'p1',
-          'participants': [
-            for (final x in [
-              m('p1', CallMemberStatus.joined),
-              m('p2', CallMemberStatus.joined, at: 1),
-              m('me', CallMemberStatus.joined, at: 5),
-              m('p3', CallMemberStatus.joined, at: 9),
-            ])
-              {
-                'userId': x.userId,
-                'displayName': x.displayName,
-                'username': null,
-                'avatarUrl': null,
-                'status': x.status.name,
-                'muted': false,
-                'mutedByHost': false,
-                'joinedAt': x.joinedAt?.toIso8601String(),
-              },
-          ],
-        })
-        ..emit('call:signal', {
-          'callId': 'g1',
-          'from': 'p3',
-          'data': {'type': 'offer', 'sdp': 'o3'},
-        });
-      await _settle();
-      expect(h.media.peers, contains('p3'));
-      expect(h.media.offersFor, isEmpty);
-      expect(h.media.answersFor, ['p3']);
-      expect(h.signalTargets.last, 'p3');
-      expect(h.s.call?.participants, hasLength(4));
-    });
-
-    test('a member who left: their link is closed', () async {
-      final h = await joined();
-      h.emit('call:participants', {
-        'callId': 'g1',
-        'hostId': 'p1',
-        'participants': [
-          for (final x in [
-            m('p1', CallMemberStatus.joined),
-            m('p2', CallMemberStatus.left),
-            m('me', CallMemberStatus.joined, at: 5),
-          ])
-            {
-              'userId': x.userId,
-              'displayName': x.displayName,
-              'username': null,
-              'avatarUrl': null,
-              'status': x.status.name,
-              'muted': false,
-              'mutedByHost': false,
-              'joinedAt': x.joinedAt?.toIso8601String(),
-            },
-        ],
-      });
-      await _settle();
-      expect(h.media.removed, ['p2']);
-      expect(h.media.peers, {'p1'});
-    });
-
     test('the host mutes us: the mic goes off, we may switch it on again',
         () async {
       final h = await joined();
@@ -1515,16 +1093,14 @@ void main() {
       expect(h.repo.ends, isEmpty);
     });
 
-    test('a link that drops is retried while the call goes on', () async {
+    test('the room empties for a moment: the call goes on', () async {
       final h = await joined();
-      h.media.links['p1']!(CallMediaState.connected);
-      h.media.links['p2']!(CallMediaState.connected);
+      h.media.onState!(CallMediaState.connected);
       expect(h.s.phase, CallPhase.active);
 
-      h.media.links['p2']!(CallMediaState.failed);
+      // LiveKit reconnects by itself; the call is still on.
+      h.media.onState!(CallMediaState.disconnected);
       await _settle();
-      // Reconnect attempt first (we offered p2), the call is still on.
-      expect(h.media.restarted, ['p2']);
       expect(h.s.phase, CallPhase.active);
     });
 
@@ -1683,8 +1259,7 @@ void main() {
       return h;
     }
 
-    test('a voice call becomes video: camera, new offer, the others told',
-        () async {
+    test('a voice call becomes video: camera on, the others told', () async {
       final h = await talking();
       expect(h.s.video, isFalse);
       expect(h.c.canSwitchVideo, isTrue);
@@ -1695,21 +1270,11 @@ void main() {
       expect(h.s.cameraOn, isTrue);
       // Like a video call from the start: the loudspeaker.
       expect(h.s.speaker, isTrue);
+      // LiveKit publishes the camera; the others hear it over our socket.
       expect(h.signals, [
-        {'type': 'offer', 'sdp': 'offer-sdp'},
         {'type': 'video', 'on': true},
         {'type': 'camera', 'on': true},
       ]);
-      expect(h.signalTargets.first, 'p1');
-
-      // Their answer to the new offer is taken.
-      h.emit('call:signal', {
-        'callId': 'c1',
-        'from': 'p1',
-        'data': {'type': 'answer', 'sdp': 'a2'},
-      });
-      await _settle();
-      expect(h.media.gotAnswer, {'type': 'answer', 'sdp': 'a2'});
 
       // Off again, nobody else sends a picture: back to the voice screen.
       h.signals.clear();
@@ -1795,47 +1360,6 @@ void main() {
       await h.c.hangUp();
     });
 
-    test('glare: the polite side (smaller id) rolls back, answers, re-offers',
-        () async {
-      // 'me' < 'p1': we are polite.
-      final h = await talking();
-      await h.c.toggleVideo();
-      h.signals.clear();
-      h.media.pendingOffer = true;
-      h.emit('call:signal', {
-        'callId': 'c1',
-        'from': 'p1',
-        'data': {'type': 'offer', 'sdp': 'theirs'},
-      });
-      await _settle();
-      expect(h.media.rollbacks, 1);
-      expect(h.signals, [
-        {'type': 'answer', 'sdp': 'answer-to-theirs'},
-        // Our camera change goes again.
-        {'type': 'offer', 'sdp': 'offer-sdp'},
-      ]);
-      await h.c.hangUp();
-    });
-
-    test('glare: the impolite side ignores the offer that came', () async {
-      // 'zz' > 'p1': impolite.
-      final h = await talking(me: 'zz');
-      await h.c.toggleVideo();
-      h.signals.clear();
-      h.media.pendingOffer = true;
-      h.emit('call:signal', {
-        'callId': 'c1',
-        'from': 'p1',
-        'data': {'type': 'offer', 'sdp': 'theirs'},
-      });
-      await _settle();
-      expect(h.media.rollbacks, 0);
-      expect(h.signals, isEmpty);
-      // The call goes on.
-      expect(h.s.phase, CallPhase.active);
-      await h.c.hangUp();
-    });
-
     test('not before the call is up', () async {
       final h = _Harness();
       addTearDown(h.dispose);
@@ -1864,7 +1388,6 @@ void main() {
       // other trace of a call, and the ongoing-call service…
       if (id != null) expect(h.systemUi.dismissed, contains(id));
       expect(h.systemUi.endAlls, greaterThan(0));
-      expect(h.foreground.stops, greaterThan(0));
       // …and the call screen goes after the «Call ended» moment.
       async.elapse(kCallEndedLinger + const Duration(milliseconds: 100));
       expect(h.s.phase, CallPhase.idle);
@@ -1902,16 +1425,13 @@ void main() {
         async.flushMicrotasks();
         final first = h.systemUi.endAlls;
         expect(first, greaterThan(0));
-        expect(h.foreground.stops, 1);
         // The screen closes at 1.5 s and slides for ~0.4 s: no native
         // work lands in that window.
         async.elapse(const Duration(milliseconds: 2900));
         expect(h.systemUi.endAlls, first);
-        expect(h.foreground.stops, 1);
         expect(kCallLateSweep, greaterThan(kCallEndedLinger));
         async.elapse(const Duration(milliseconds: 200));
         expect(h.systemUi.endAlls, first + 1);
-        expect(h.foreground.stops, 2);
         done(h);
       });
     });
@@ -2000,10 +1520,6 @@ void main() {
         expect(h.s.reconnecting, isFalse);
         expect(h.s.outcome, CallStatus.ended);
         expectClosed(h, async);
-        // No restart timer keeps knocking after the end.
-        final restarts = h.media.iceRestarts;
-        async.elapse(const Duration(seconds: 30));
-        expect(h.media.iceRestarts, restarts);
         done(h);
       });
     });
@@ -2360,7 +1876,6 @@ void main() {
         h.media.onState!(CallMediaState.disconnected);
         async.elapse(const Duration(seconds: 12));
         expect(h.s.reconnecting, isTrue);
-        expect(h.media.iceRestarts, greaterThan(0));
         h.media.onState!(CallMediaState.connected);
         async.flushMicrotasks();
         expect(h.s.reconnecting, isFalse);
@@ -2372,93 +1887,6 @@ void main() {
         h
           ..sub.close()
           ..container.dispose();
-      });
-    });
-  });
-
-  group('the relay list stays fresh (owner 2026-10-26, failover)', () {
-    _Harness talking(FakeAsync async) {
-      final h = _Harness()..fakeClock(async);
-      h.c.call('conv', peer: _peer);
-      async.flushMicrotasks();
-      h.emit(
-        'call:accepted',
-        _event(_call('c1', CallStatus.active, outgoing: true)),
-      );
-      async.flushMicrotasks();
-      h.media.onState!(CallMediaState.connected);
-      h.repo.getStatus = CallStatus.active;
-      return h;
-    }
-
-    test(
-        'FO-4: the fresh list is slow — the first restart goes ahead on the '
-        'old one within the budget, the late answer still lands, the next '
-        'retry carries it, and a later retry asks again', () {
-      fakeAsync((async) {
-        final h = talking(async);
-        final asksBefore = h.repo.iceAsks.length;
-        const fresh = [
-          IceServer(
-            urls: ['turn:own.example:3478'],
-            username: 'o',
-            credential: 'y',
-          ),
-        ];
-        h.repo.servers = fresh;
-        h.repo.iceGate = Completer<void>();
-
-        h.media.onState!(CallMediaState.disconnected);
-        async.flushMicrotasks();
-        expect(h.repo.iceAsks.length, asksBefore + 1);
-        // Waiting for the list, within the budget: no restart yet.
-        expect(h.media.iceRestarts, 0);
-        async.elapse(kCallIceRefreshBudget + const Duration(milliseconds: 50));
-        // The budget ran out: the restart went ahead on the old list.
-        expect(h.media.iceRestarts, 1);
-        expect(h.media.iceUpdates, isEmpty);
-
-        // The slow answer comes: it still goes into the links.
-        h.repo.iceGate!.complete();
-        async.flushMicrotasks();
-        expect(h.media.iceUpdates, hasLength(1));
-        expect(h.media.iceUpdates.last.single.urls, ['turn:own.example:3478']);
-
-        // The retry: a restart with the fresh list in the links; within the
-        // 10 s of the last ask no second request.
-        async.elapse(kCallReconnectRetry);
-        expect(h.media.iceRestarts, 2);
-        expect(h.repo.iceAsks.length, asksBefore + 1);
-        // The next retry is past the 10 s: the list is asked anew first.
-        h.repo.iceGate = null;
-        async.elapse(kCallReconnectRetry);
-        expect(h.repo.iceAsks.length, asksBefore + 2);
-        expect(h.media.iceRestarts, 3);
-
-        h.media.onState!(CallMediaState.connected);
-        h.c.hangUp();
-        async.flushMicrotasks();
-        h.close();
-      });
-    });
-
-    test('TS-4: a new call after a hang-up asks /calls/ice-servers again', () {
-      fakeAsync((async) {
-        final h = talking(async);
-        expect(h.repo.iceAsks, hasLength(1));
-        h.c.hangUp();
-        async
-          ..flushMicrotasks()
-          ..elapse(kCallEndedLinger + const Duration(milliseconds: 100));
-        expect(h.s.phase, CallPhase.idle);
-        // Within the old 5 min: the keys switched on in the admin meanwhile
-        // must reach this call — asked anew.
-        h.c.call('conv', peer: _peer);
-        async.flushMicrotasks();
-        expect(h.repo.iceAsks, hasLength(2));
-        h.c.hangUp();
-        async.flushMicrotasks();
-        h.close();
       });
     });
   });

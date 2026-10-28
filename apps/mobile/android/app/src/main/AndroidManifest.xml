@@ -138,9 +138,6 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-        <receiver
-            android:name=".CallHangupReceiver"
-            android:exported="false" />
         <!-- Owner 2026-10-22 (WhatsApp): a data-only chat push is drawn by the
              app (sender's photo, one notification per chat). Same FCM
              broadcast and permission as firebase_messaging's own receiver. -->
@@ -152,27 +149,11 @@
                 <action android:name="com.google.android.c2dm.intent.RECEIVE" />
             </intent-filter>
         </receiver>
-        <!-- Owner 2026-10-28 (a locked Samsung rang on after the caller hung
-             up): call pushes are handled natively at once — stop ringing,
-             watch a ring until it ends, and the ring-timeout alarm. Same
-             FCM broadcast and permission as ChatPushReceiver. -->
-        <receiver
-            android:name=".CallPushReceiver"
-            android:exported="true"
-            android:permission="com.google.android.c2dm.permission.SEND">
-            <intent-filter>
-                <action android:name="com.google.android.c2dm.intent.RECEIVE" />
-            </intent-filter>
-        </receiver>
         <!-- Owner 2026-10-26: «Ответить» / «Прочитано» on a chat
              notification (only the app's own notifications send it). -->
         <receiver
             android:name=".PushActionReceiver"
             android:exported="false" />
-        <service
-            android:name=".CallForegroundService"
-            android:exported="false"
-            android:foregroundServiceType="phoneCall|microphone" />
         <service
             android:name="com.hiennv.flutter_callkit_incoming.CallkitNotificationService"
             android:foregroundServiceType="phoneCall|microphone"

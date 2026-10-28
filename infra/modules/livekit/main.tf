@@ -53,6 +53,11 @@ variable "caddy_image" {
   type    = string
   default = "livekit/caddyl4:v2.11.3"
 }
+variable "webhook_url" {
+  type        = string
+  default     = ""
+  description = "Owner 2026-10-28 (calls variant A): where LiveKit posts room / participant events (the API's POST /api/v1/webhooks/livekit, signed with the same API key). Empty = no webhooks."
+}
 variable "use_redis" {
   type        = bool
   default     = true
@@ -291,6 +296,7 @@ resource "aws_instance" "this" {
     use_redis      = var.use_redis
     redis_endpoint = var.redis_endpoint
     redis_secret   = var.redis_url_secret_arn
+    webhook_url    = var.webhook_url
   })
   # A new image tag, key or address rewrites the config: replace the box
   # (the Elastic IP stays, calls reconnect within a minute).

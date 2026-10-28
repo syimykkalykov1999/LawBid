@@ -3,14 +3,13 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
-import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
+import 'package:lawbid/features/calls/application/livekit_call_media.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_add_panel.dart';
 import 'package:lawbid/features/calls/presentation/call_stage.dart';

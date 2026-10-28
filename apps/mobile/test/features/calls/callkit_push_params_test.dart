@@ -147,17 +147,13 @@ void main() {
       expect(kCallRingTimeout, const Duration(seconds: 60));
     });
 
-    test('the iPhone rings 60 s, Android reads the same key', () {
+    test('the iPhone rings 60 s', () {
       final swift = File('ios/Runner/AppDelegate.swift').readAsStringSync();
       expect(swift, contains('data.duration = 60000'));
       expect(swift, isNot(contains('data.duration = 45000')));
       // M1: a push for a call already shown still reports it (no early
       // return without a CallKit report).
       expect(swift, isNot(contains('if shown {')));
-      final kt = File(
-        'android/app/src/main/kotlin/com/lawbid/lawbid/CallRinging.kt',
-      ).readAsStringSync();
-      expect(kt, contains('"ringSeconds"'));
     });
   });
 }

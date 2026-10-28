@@ -7,6 +7,7 @@ import UIKit
 import UniformTypeIdentifiers
 import UserNotifications
 import flutter_callkit_incoming
+import livekit_client
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate,
@@ -31,6 +32,12 @@ import flutter_callkit_incoming
     registry.desiredPushTypes = [.voIP]
     voipRegistry = registry
     configureAudioSessionOnce()
+    // Owner 2026-10-28 (calls variant A): LiveKit's CallKit pattern
+    // (livekit-examples/flutter-callkit ab61c434, AppDelegate.swift): the
+    // WebRTC audio engine may run only inside CallKit's didActivate /
+    // didDeactivate window — off at launch. Safe before the Flutter engine
+    // exists (the plugin stores it and applies it at registration).
+    setWebRTCAudioAvailable(false)
     // Planner reminders armed by flutter_local_notifications show while the
     // app is open too.
     UNUserNotificationCenter.current().delegate = self
@@ -454,6 +461,13 @@ import flutter_callkit_incoming
     if (p["silent"] as? String) == "1" {
       data.ringtonePath = "silence"
     }
+    // LiveKit's pattern: the call category before CallKit activates the
+    // session, else a background push wake has no microphone.
+    do {
+      try configureCallAudioSession()
+    } catch {
+      NSLog("Failed to pre-configure AVAudioSession before incoming call: \(error.localizedDescription)")
+    }
     callkit.showCallkitIncoming(
       data,
       fromPushKit: true
@@ -568,33 +582,55 @@ import flutter_callkit_incoming
 
   func onTimeOut(_ call: Call) {}
 
+  // From LiveKit's flutter-callkit example (ab61c434, AppDelegate.swift
+  // CallKitBridge: provider didActivate / didDeactivate,
+  // setWebRTCAudioAvailable, configureCallAudioSession), Apache-2.0,
+  // Copyright 2026 LiveKit — see THIRD_PARTY_NOTICES.md. Here CallKit's
+  // provider is flutter_callkit_incoming's; it calls these two.
   func didActivateAudioSession(_ audioSession: AVAudioSession) {
-    webrtcAudioSession(activated: true, audioSession)
+    do {
+      try configureCallAudioSession()
+      setWebRTCAudioAvailable(true)
+    } catch {
+      NSLog("Failed to configure CallKit audio session: \(error.localizedDescription)")
+    }
   }
 
   func didDeactivateAudioSession(_ audioSession: AVAudioSession) {
-    webrtcAudioSession(activated: false, audioSession)
+    setWebRTCAudioAvailable(false)
   }
 
-  func providerDidReset() {}
+  func providerDidReset() {
+    setWebRTCAudioAvailable(false)
+  }
 
-  /// Tells WebRTC's RTCAudioSession that CallKit activated / deactivated
-  /// the audio session (looked up by name: the framework ships with
-  /// flutter_webrtc, there is no module to import here). Without this
-  /// WebRTC never learns the session is live — a call answered from the
-  /// sheet has no sound, or its audio unit fails and the call ends.
-  private func webrtcAudioSession(activated: Bool, _ session: AVAudioSession) {
-    guard let cls = NSClassFromString("RTCAudioSession") else { return }
-    guard
-      let shared = (cls as AnyObject).perform(NSSelectorFromString("sharedInstance"))?
-        .takeUnretainedValue() as? NSObject
-    else { return }
-    let selector = NSSelectorFromString(
-      activated ? "audioSessionDidActivate:" : "audioSessionDidDeactivate:"
+  /// Gates whether the WebRTC audio engine may run. The engine must only run
+  /// inside CallKit's didActivate/didDeactivate window.
+  ///
+  /// Safe to call before the Flutter engine exists (for example on a
+  /// killed-state VoIP push wake). The LiveKit plugin stores the value and
+  /// applies it at plugin registration, before anything can start the engine.
+  private func setWebRTCAudioAvailable(_ isAvailable: Bool) {
+    LiveKitPlugin.setEngineAvailability(
+      isInputAvailable: isAvailable,
+      isOutputAvailable: isAvailable
     )
-    if shared.responds(to: selector) {
-      _ = shared.perform(selector, with: session)
-    }
+  }
+
+  /// Sets the call category before CallKit activates the session, so the
+  /// activation happens with a recording-capable category. LiveKit
+  /// re-applies the session policy (without activating) from engine
+  /// lifecycle under AudioSessionManagementMode.externalCallSystem, but
+  /// CallKit's own activation can happen before the engine starts, and on a
+  /// background push wake the microphone fails to initialize unless the
+  /// category is set before reportNewIncomingCall.
+  private func configureCallAudioSession() throws {
+    let session = AVAudioSession.sharedInstance()
+    try session.setCategory(
+      .playAndRecord,
+      mode: .voiceChat,
+      options: [.allowBluetooth, .mixWithOthers]
+    )
   }
 }
 

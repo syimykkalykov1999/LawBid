@@ -905,6 +905,7 @@ module "livekit" {
   kms_key_arn             = module.kms.key_arn
   alerts_topic_arn        = module.monitoring.alerts_topic_arn
   egress_alarm_gb_per_day = var.livekit_egress_alarm_gb_per_day
+  webhook_url             = "https://${var.api_host}/api/v1/webhooks/livekit"
   tags                    = local.tags
 
   recovery_window_in_days = var.ephemeral ? 0 : 30

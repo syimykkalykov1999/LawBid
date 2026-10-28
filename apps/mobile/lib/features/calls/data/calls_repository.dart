@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/features/calls/application/livekit_call_media.dart'
+    show LiveKitJoin;
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -42,16 +44,13 @@ abstract interface class CallsRepository {
   });
   Future<AppCall> get(String callId);
 
-  /// STUN / TURN servers. Owner 2026-10-26 (failover): [relayFailed] = the relay of the running
-  /// call died — a fresh login, our own TURN first, and a report for the
-  /// server's Cloudflare health breaker.
-  Future<List<IceServer>> iceServers({bool relayFailed = false});
+  /// Owner 2026-10-28 (calls variant A): the call's LiveKit room —
+  /// `POST /calls/{id}/livekit-token` (address + access token).
+  Future<LiveKitJoin> livekitToken(String callId);
 
-  /// Owner 2026-10-22 (wave 2): which media server the calls run on —
-  /// `GET /calls/video`. False when it is one this build cannot talk to
-  /// (`livekit` before the LiveKit client is in the app, or a value newer
-  /// than the app knows): the call is not started, the person is told to
-  /// update. Any failure to ask answers true (the old behaviour).
+  /// Which media server the calls run on — `GET /calls/video`. This build
+  /// talks to LiveKit only: false for anything else (the call is not
+  /// started, the person is told). Any failure to ask answers true.
   Future<bool> providerSupported();
 
   /// Group calls: adds a person (by id or @username) to the running call.
@@ -275,30 +274,17 @@ class ApiCallsRepository implements CallsRepository {
   Future<bool> providerSupported() async {
     try {
       final config = (await guardApiCall(_api.callVideoConfig)).data;
-      // Owner 2026-10-24: `cloudflare` (group calls over the SFU) is
-      // carried by this build; only LiveKit and unknown values are not.
-      return config.provider == api.VideoCallConfigDtoProvider.webrtc ||
-          config.provider == api.VideoCallConfigDtoProvider.cloudflare;
+      return config.provider == api.VideoCallConfigDtoProvider.livekit;
     } on Object {
       return true;
     }
   }
 
   @override
-  Future<List<IceServer>> iceServers({bool relayFailed = false}) async =>
-      (await guardApiCall(
-        () => _api.callIceServers(relayFailed: relayFailed ? true : null),
-      ))
-          .data
-          .iceServers
-          .map(
-            (s) => IceServer(
-              urls: s.urls,
-              username: s.username,
-              credential: s.credential,
-            ),
-          )
-          .toList();
+  Future<LiveKitJoin> livekitToken(String callId) async {
+    final d = (await guardApiCall(() => _api.livekitToken(id: callId))).data;
+    return LiveKitJoin(url: d.url, token: d.token);
+  }
 }
 
 abstract final class CallMappers {

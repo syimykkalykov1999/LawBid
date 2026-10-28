@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -46,7 +45,6 @@ class CallkitSystemUi implements SystemCallUi {
     } on Object {
       // No plugin / already gone.
     }
-    await endAndroidSystemCall(callId);
   }
 
   @override
@@ -61,14 +59,6 @@ class CallkitSystemUi implements SystemCallUi {
     } on Object {
       // No plugin.
     }
-    // The plugin's own notifications can outlive its calls (a ghost whose
-    // call it no longer knows): sweep what is left of ours in the shade.
-    try {
-      await const MethodChannel('lawbid/call_service')
-          .invokeMethod<void>('clear');
-    } on Object {
-      // Not Android / no host.
-    }
   }
 
   @override
@@ -76,9 +66,9 @@ class CallkitSystemUi implements SystemCallUi {
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       // Owner 2026-10-21 (Apple / LiveKit's CallKit design): the system
       // call is THE call for its whole life. Answered on the sheet: it stays
-      // (green bar, audio session held by iOS). Answered in the app while
-      // the sheet rings: answer that same call — never end it and start a
-      // new one (that ended the call the person had just answered).
+      // (green bar, audio session held by iOS — LiveKit's engine starts in
+      // didActivate). Answered in the app while the sheet rings: answer
+      // that same call — never end it and start a new one.
       try {
         final calls = await FlutterCallkitIncoming.activeCalls();
         final mine = calls.where((c) => c.id == call.id).firstOrNull;
@@ -97,17 +87,27 @@ class CallkitSystemUi implements SystemCallUi {
       await showOngoing(call);
       return;
     }
-    // Android: the ringing screen goes; the app's own ongoing-call
-    // notification (CallForegroundService) is started by the controller.
+    // Android: answered on the plugin's screen — the plugin's own
+    // ongoing-call notification and service run already. Answered in the
+    // app: the ringing goes and the plugin's ongoing call takes its place.
+    try {
+      final calls = await FlutterCallkitIncoming.activeCalls();
+      if (calls.any((c) => c.id == call.id && c.isAccepted)) return;
+    } on Object {
+      // No plugin: fall through.
+    }
     await dismiss(call.id);
+    await showOngoing(call);
   }
 
   @override
   Future<void> showOngoing(AppCall call) async {
     // Owner 2026-10-20: an in-app answer / outgoing call is registered with
-    // CallKit too — the system's green call pill, tap → the app.
-    // (Android has its own foreground-service notification instead.)
-    if (defaultTargetPlatform != TargetPlatform.iOS) return;
+    // the system too — iPhone: CallKit's green call pill, tap → the app;
+    // Android: the plugin's ongoing-call notification and its phoneCall /
+    // microphone service (keeps the call alive in the background, «Hang
+    // up» comes back as an ended event).
+    if (kIsWeb) return;
     try {
       final calls = await FlutterCallkitIncoming.activeCalls();
       if (calls.any((c) => c.id == call.id)) return;
@@ -120,6 +120,13 @@ class CallkitSystemUi implements SystemCallUi {
           handle: call.peer.name.isEmpty ? 'LawBid' : call.peer.name,
           type: call.video ? 1 : 0,
           extra: {'callId': call.id},
+          android: const AndroidParams(
+            isCustomNotification: true,
+            isShowLogo: false,
+            backgroundColor: '#0A1A3F',
+            actionColor: '#C9A24A',
+            textColor: '#ffffff',
+          ),
           ios: IOSParams(
             handleType: 'generic',
             supportsVideo: call.video,
@@ -242,9 +249,6 @@ Future<void> showLawbidIncoming({
   // which «end» closed one and the other stayed as a ghost. One claim per
   // call id, shared by both isolates.
   if (!await _claimRing(callId)) return;
-  // Owner 2026-10-28: the call stopped ringing before this (late) ring got
-  // here — the native side marked it (CallRinging.kt): never show it.
-  if (await ringEndedAlready(callId)) return;
   try {
     // Already on screen (iOS: PushKit reported it before the socket did):
     // a second report would replace the call and end the one being answered.
@@ -362,40 +366,6 @@ IncomingCallPush? incomingCallFromPush(Map<String, dynamic> d) {
     video: d['video'] == '1',
     ring: ringLengthOf(d),
   );
-}
-
-/// Owner 2026-10-28 (a locked Samsung rang on after the caller hung up):
-/// the native stop (CallRinging.kt) marks the call in the shared
-/// preferences; a ring that comes after it is not shown.
-const ringEndedPrefix = 'call.ended.';
-
-@visibleForTesting
-Future<bool> ringEndedAlready(String callId) async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.reload();
-    final at = prefs.getInt('$ringEndedPrefix$callId');
-    return at != null &&
-        DateTime.now().millisecondsSinceEpoch - at <
-            const Duration(minutes: 5).inMilliseconds;
-  } on Object {
-    return false;
-  }
-}
-
-/// Owner 2026-10-28 (Samsung: the phone still showed a call in progress
-/// after the end, and the locked phone's ringing screen stayed): Android's
-/// own side of ending [callId] — its self-managed Telecom call, the call
-/// plugin's ongoing-call service and its full-screen ringing screen
-/// (MainActivity → CallRinging.endAll). Nothing on other platforms.
-Future<void> endAndroidSystemCall(String callId) async {
-  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
-  try {
-    await const MethodChannel('lawbid/call_service')
-        .invokeMethod<void>('endCall', {'id': callId});
-  } on Object {
-    // No host (the push isolate, tests): the plugin's own end has run.
-  }
 }
 
 /// Push 2026-10-19 (`call_ended` push): the caller hung up, the call was

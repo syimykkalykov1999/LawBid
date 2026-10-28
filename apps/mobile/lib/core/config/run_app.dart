@@ -25,6 +25,7 @@ import 'package:lawbid/core/security/app_check.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
+import 'package:lawbid/features/calls/application/livekit_call_media.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/cases/workspace/file_actions.dart';
@@ -66,6 +67,9 @@ Future<void> runLawBid(AppFlavor flavor) async {
     return;
   }
   AppEnvironment.current = AppEnvironment.forFlavor(flavor);
+  // Owner 2026-10-28 (calls variant A): CallKit owns the iPhone's call
+  // audio session (LiveKit's flutter-callkit pattern); before any call.
+  unawaited(configureCallAudioForCallKit());
 
   // Real installed version for X-App-Version (docs/01_FOUNDATION_AUTH.md
   // §7) — before any request, including the splash's /config/bootstrap.
@@ -238,8 +242,7 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // Perf suite markers (no-ops in release): the first frame on the glass.
   PerfMarks.mark('lb.run_app');
   unawaited(
-    WidgetsBinding.instance.waitUntilFirstFrameRasterized
-        .then((_) {
+    WidgetsBinding.instance.waitUntilFirstFrameRasterized.then((_) {
       PerfMarks.mark('lb.first_frame');
       SentryNative.markFirstFrame();
     }),

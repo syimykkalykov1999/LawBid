@@ -48,14 +48,13 @@ void main() {
     expect(systemEndHangsUp(const CallSession(), 'b2'), isFalse);
   });
 
-  test('Android: after a call the shade is swept of the plugin leftovers',
-      () async {
+  test('Android: after a call the plugin ends all its calls', () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     addTearDown(() => debugDefaultTargetPlatformOverride = null);
     final seen = <String>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
-      const MethodChannel('lawbid/call_service'),
+      const MethodChannel('flutter_callkit_incoming'),
       (call) async {
         seen.add(call.method);
         return null;
@@ -64,12 +63,12 @@ void main() {
     addTearDown(
       () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
-        const MethodChannel('lawbid/call_service'),
+        const MethodChannel('flutter_callkit_incoming'),
         null,
       ),
     );
     await const CallkitSystemUi().endAll();
-    expect(seen, ['clear']);
+    expect(seen, ['endAllCalls']);
   });
 }
 
