@@ -6,6 +6,8 @@ import type { Today } from '@/lib/staff-data';
 
 let todayResult: { ok: true; data: Today } | { ok: false; missing: true } = { ok: false, missing: true };
 let digestResult: unknown = { ok: false, missing: true };
+let systemResult: unknown = { ok: false, missing: true };
+const staffPost = vi.fn();
 const staffGet = vi.fn();
 const apiGet = vi.fn();
 
@@ -29,9 +31,10 @@ vi.mock('@/lib/staff-data', async (orig) => {
   return {
     ...real,
     staffGet: (...a: unknown[]) => staffGet(...a),
-    staffPost: vi.fn(),
+    staffPost: (...a: unknown[]) => staffPost(...a),
     useToday: () => ({ data: todayResult, isPending: false, error: null }),
     useDigest: () => ({ data: digestResult, isPending: false }),
+    useTodaySystem: () => ({ data: systemResult, isPending: false }),
   };
 });
 
@@ -63,7 +66,7 @@ beforeEach(() => {
   apiGet.mockImplementation((url: string) =>
     Promise.resolve(
       url === '/admin/system-health'
-        ? { data: { data: { overall: 'green' } } }
+        ? { data: { data: { overall: 'green', items: [] } } }
         : { data: { data: { today: { revenueUsd: 120, costUsd: 20, profitUsd: 100 } } } },
     ),
   );
@@ -74,7 +77,25 @@ afterEach(() => {
   apiGet.mockReset();
   todayResult = { ok: false, missing: true };
   digestResult = { ok: false, missing: true };
+  systemResult = { ok: false, missing: true };
+  staffPost.mockReset();
 });
+
+const sentryOk = { state: 'ok', unresolved: 12, unresolvedAtLeast: false, newCount: 3, issues: [{ id: '77', title: 'TypeError in chat', count: 9, users: 2, firstSeen: 'x', lastSeen: 'x', permalink: 'https://sentry.io/i/77' }], url: 'https://sentry.io/org/issues', error: null, computedAt: 'x' };
+const systemFull = {
+  ok: true,
+  data: {
+    computedAt: '2026-10-27T10:00:00.000Z',
+    freshSec: 300,
+    counts: { critical: 1, high: 0, medium: 1, low: 0 },
+    items: [
+      { code: 'cost_80', severity: 'medium', title: 'Потрачено больше 80 % месячного бюджета', why: 'Потрачено $170 из $200.', action: { kind: 'guide', target: 'aws-budget-ceiling', label: 'Открыть инструкцию' } },
+      { code: 'worker_down', severity: 'critical', title: 'Фоновый обработчик молчит', why: 'Нет сердцебиения.', action: { kind: 'route', target: '/system-health', label: 'Открыть «Здоровье системы»' } },
+      { code: 'launch_dns', severity: 'high', title: 'Шаг запуска: Домен в Cloudflare', why: 'Перенесите NS.', action: { kind: 'launch', target: 'dns', label: 'Открыть инструкцию' } },
+    ],
+    sentry: sentryOk,
+  },
+};
 
 describe('«Сегодня»', () => {
   it('shows the decision of the day and every block from ONE snapshot', async () => {
@@ -138,5 +159,50 @@ describe('«Сегодня»', () => {
     const d = screen.getByTestId('today-digest');
     expect((d).textContent).toContain('1234');
     expect((d).textContent).toContain('3,5 %');
+  });
+
+  it('«Система»: server items and live lights in one list by urgency, each with its button', async () => {
+    todayResult = { ok: true, data: full };
+    systemResult = systemFull;
+    apiGet.mockImplementation((url: string) =>
+      Promise.resolve(
+        url === '/admin/system-health'
+          ? { data: { data: { overall: 'yellow', items: [{ key: 'queues', status: 'yellow', detail: { failed: 2, dlq: 0, oldestSec: 10 } }, { key: 'redis', status: 'green', detail: {} }] } } }
+          : { data: { data: { today: null } } },
+      ),
+    );
+    renderPage();
+    const list = await screen.findByTestId('today-system-items');
+    await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(4));
+    const rows = within(list).getAllByRole('listitem');
+    expect(rows.map((r) => r.getAttribute('data-testid'))).toEqual(['today-system-worker_down', 'today-system-launch_dns', 'today-system-cost_80', 'today-system-live_queues']);
+    expect(rows[0].textContent).toContain('Срочно');
+    expect(within(rows[0]).getByRole('link', { name: 'Открыть «Здоровье системы»' }).getAttribute('href')).toBe('/system-health');
+    expect(within(rows[1]).getByRole('link', { name: 'Открыть инструкцию' }).getAttribute('href')).toBe('/guides?step=dns');
+    expect(within(rows[2]).getByRole('link', { name: 'Открыть инструкцию' }).getAttribute('href')).toBe('/guides/aws-budget-ceiling');
+    expect(rows[3].textContent).toContain('упавших задач: 2');
+    expect(screen.getByTestId('today-health').textContent).toContain('Есть на что посмотреть');
+  });
+
+  it('«Система»: nothing to do is one calm line; Sentry off is explained', async () => {
+    todayResult = { ok: true, data: full };
+    systemResult = { ok: true, data: { ...systemFull.data, items: [], counts: { critical: 0, high: 0, medium: 0, low: 0 }, sentry: { ...sentryOk, state: 'off', issues: [], url: null } } };
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId('today-system-empty').textContent).toContain('ничего не требуется'));
+    expect(screen.getByTestId('today-sentry').textContent).toContain('Сейчас выключено');
+    expect(screen.queryByRole('button', { name: 'Решено' })).toBeNull();
+  });
+
+  it('Sentry line: numbers, «Открыть» and «Решено» (one POST, then the list is reloaded)', async () => {
+    todayResult = { ok: true, data: full };
+    systemResult = systemFull;
+    staffPost.mockResolvedValue({ ...sentryOk, newCount: 2, unresolved: 11, issues: [] });
+    renderPage();
+    const line = await screen.findByTestId('today-sentry');
+    expect(line.textContent).toContain('Ошибки в приложении: 3 новых / 12 нерешённых');
+    expect(within(line).getByRole('link', { name: 'Открыть' }).getAttribute('href')).toBe('https://sentry.io/org/issues');
+    within(line).getByRole('button', { name: 'Решено' }).click();
+    await waitFor(() => expect(staffPost).toHaveBeenCalledWith('/admin/staff/today/sentry/77/resolve'));
+    expect(staffPost).toHaveBeenCalledTimes(1);
   });
 });

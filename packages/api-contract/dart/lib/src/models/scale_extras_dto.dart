@@ -16,6 +16,7 @@ class ScaleExtrasDto {
     required this.redisAutoscale,
     required this.poolerEnabled,
     required this.poolerMinTasks,
+    required this.dbSplitEnabled,
     required this.poolerMaxTasks,
     required this.searchEngine,
   });
@@ -30,6 +31,9 @@ class ScaleExtrasDto {
   /// Our own PgBouncer sits in front of the database.
   final bool poolerEnabled;
   final num? poolerMinTasks;
+
+  /// Owner 2026-10-27: scale.db_split_enabled — the guided «Разделить базу» card on «Масштаб» is shown.
+  final bool dbSplitEnabled;
   final num? poolerMaxTasks;
 
   /// The `search.engine` setting (postgres until another is set).

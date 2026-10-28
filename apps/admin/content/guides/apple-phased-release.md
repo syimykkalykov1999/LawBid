@@ -4,6 +4,7 @@ title: Постепенный выпуск в App Store (за 7 дней)
 category: launch
 cost: бесплатно
 time: 2 минуты на включение, сам выпуск идёт 7 дней
+runbook: mobile-staged-rollout.md
 verified: 2026-10-25
 sources:
   - Apple: Release a version update in phases | https://developer.apple.com/help/app-store-connect/update-your-app/release-a-version-update-in-phases/

@@ -4,6 +4,7 @@ title: Стол сотрудника: вкладки, «Следующий», т
 category: people
 cost: Бесплатно
 time: 10 минут
+runbook: STAFF_LEASES.md
 verified: 2026-10-27
 sources:
   - Репозиторий: план «Админка и сотрудники» | https://github.com/syimykkalykov1999/LawBid/blob/main/docs/architecture/ADMIN_STAFF_PACKAGE_PLAN_2026-10-27.md

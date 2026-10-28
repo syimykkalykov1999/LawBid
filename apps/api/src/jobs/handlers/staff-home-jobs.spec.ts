@@ -3,6 +3,7 @@ import { StaffSettingsService } from '../../modules/staff-core/staff-settings.se
 import type { PushQueueService } from '../../modules/notifications/push/push-queue.service';
 import type { StaffDigestService } from '../../modules/staff-home/staff-digest.service';
 import type { StaffTodayService } from '../../modules/staff-home/staff-today.service';
+import type { StaffTodaySystemService } from '../../modules/staff-home/staff-today-system.service';
 import { StaffTodayJob } from './staff-today.job';
 import { StaffWeeklyDigestJob } from './staff-weekly-digest.job';
 
@@ -40,6 +41,45 @@ describe('staff.today job (T10)', () => {
       decision: 'appeal',
     });
     expect(today.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('owner desk: refreshes the «Система» block only when stale and reports counts', async () => {
+    const today = {
+      refresh: jest.fn().mockResolvedValue({
+        appeals: null,
+        suggestions: null,
+        decision: null,
+      }),
+    };
+    const system = {
+      refreshIfStale: jest
+        .fn()
+        .mockResolvedValueOnce({
+          items: [{ code: 'a' }, { code: 'b' }],
+          counts: { critical: 1, high: 1, medium: 0, low: 0 },
+        })
+        .mockResolvedValueOnce(null)
+        .mockRejectedValueOnce(new Error('redis')),
+    };
+    const job = new StaffTodayJob(
+      settings({ 'staff.owner_home_enabled': true }),
+      today as unknown as StaffTodayService,
+      system as unknown as StaffTodaySystemService,
+    );
+    await expect(job.run()).resolves.toEqual({
+      appeals: 0,
+      suggestions: 0,
+      decision: 'none',
+      systemItems: 2,
+      systemCritical: 1,
+    });
+    await expect(job.run()).resolves.toEqual({
+      appeals: 0,
+      suggestions: 0,
+      decision: 'none',
+    });
+    await expect(job.run()).resolves.toMatchObject({ system: 'failed' });
+    expect(system.refreshIfStale).toHaveBeenCalledTimes(3);
   });
 });
 

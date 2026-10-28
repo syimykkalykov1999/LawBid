@@ -55,6 +55,10 @@ export class ScaleService {
       poolerMinTasks: this.int('OPS_POOLER_MIN'),
       poolerMaxTasks: this.int('OPS_POOLER_MAX'),
       searchEngine: await this.searchEngine(),
+      // Owner 2026-10-27: the guided «Разделить базу» card (read-only).
+      dbSplitEnabled: await this.settings
+        .boolean('scale.db_split_enabled')
+        .catch(() => false),
     };
   }
 }

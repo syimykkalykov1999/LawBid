@@ -154,6 +154,18 @@ export function useToday(enabled: boolean) {
   });
 }
 
+/** Owner 2026-10-27: the «Система» block (server snapshot, 5-minute TTL) + the Sentry line. */
+export const TODAY_SYSTEM_KEY = ['staff-today-system'];
+export function useTodaySystem<T>(enabled: boolean) {
+  return useQuery({
+    queryKey: TODAY_SYSTEM_KEY,
+    enabled,
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+    queryFn: () => staffGet<T>('/admin/staff/today/system'),
+  });
+}
+
 export function useDigest(enabled: boolean) {
   return useQuery({
     queryKey: ['staff-digest'],

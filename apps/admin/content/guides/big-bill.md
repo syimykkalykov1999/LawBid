@@ -5,6 +5,7 @@ category: money
 cost: Бесплатно
 time: 30 минут
 launch:
+runbook: cost.md
 verified: 2026-10-25
 sources:
   - Репозиторий: docs/COST_PROTECTION.md | https://github.com/syimykkalykov1999/LawBid/blob/main/docs/COST_PROTECTION.md

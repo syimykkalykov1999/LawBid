@@ -1266,6 +1266,38 @@ export const PROVIDERS: ProviderDefinition[] = [
         required: false,
         pattern: /^[\w.-]{20,}$/,
       },
+      // Owner 2026-10-27 («Сегодня» as the owner's desk): the Issues API
+      // behind «Ошибки в приложении» (switch today.sentry_enabled). A DSN
+      // only SENDS events; reading and resolving issues needs a token with
+      // event:read + event:write, held here like every other key. Uses
+      // orgSlug above; `host` only for a self-hosted Sentry.
+      {
+        name: 'project',
+        label: 'Project slug (for the «Сегодня» errors line)',
+        secret: false,
+        required: false,
+        pattern: /^[a-z0-9][a-z0-9_-]{0,63}$/,
+        patternHint: 'lawbid-api',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'host',
+        label: 'Sentry host (empty = https://sentry.io)',
+        secret: false,
+        required: false,
+        pattern: /^https:\/\/[\w.-]+(:\d+)?$/,
+        patternHint: 'https://sentry.io',
+        normalize: (v) => cleanPasted(v).replace(/\/+$/, ''),
+      },
+      {
+        name: 'issuesToken',
+        label: 'Auth token with event:read + event:write (for «Сегодня»)',
+        secret: true,
+        required: false,
+        pattern: /^[\w.-]{20,}$/,
+        patternHint: 'sntrys_…',
+        normalize: cleanPasted,
+      },
     ],
   },
   // Owner 2026-10-05: zero maintenance — the worker checks every hour that

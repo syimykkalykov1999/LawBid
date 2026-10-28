@@ -4,6 +4,7 @@ title: Stripe - события вебхука для споров, возвра�
 category: money
 cost: Бесплатно (Smart Disputes берёт комиссию только с выигранных споров)
 time: 15 минут
+runbook: STRIPE_ROBUSTNESS.md, stripe-webhooks.md
 verified: 2026-10-25
 sources:
   - Stripe - Receive Stripe events in your webhook endpoint | https://docs.stripe.com/webhooks

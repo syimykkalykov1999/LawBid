@@ -5,6 +5,7 @@ category: system
 cost: Экономит деньги: Spot до 70 %, ARM64 около 20 % (оценки AWS, проверяйте в Cost Explorer)
 time: 1-2 часа с проверками, по шагам в разные дни
 launch: arm_spot
+runbook: ARM64_SPOT.md
 verified: 2026-10-25
 sources:
   - AWS: Amazon ECS clusters for Fargate (Fargate Spot) | https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-capacity-providers.html

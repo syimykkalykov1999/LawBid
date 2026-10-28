@@ -5,6 +5,7 @@ category: launch
 cost: Бесплатно (минуты GitHub Actions в рамках тарифа)
 time: 15-30 минут
 launch: deploy
+runbook: DEPLOY_PROD.md
 verified: 2026-10-25
 sources:
   - Репозиторий: docs/runbooks/DEPLOY_PROD.md | https://github.com/syimykkalykov1999/LawBid/blob/main/docs/runbooks/DEPLOY_PROD.md

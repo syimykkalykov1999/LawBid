@@ -5,6 +5,7 @@ category: system
 cost: Бесплатно (минуты GitHub Actions); то, что вы включаете, стоит столько, сколько написано в плане
 time: 5 минут на одно изменение; один раз 30 минут на подготовку
 launch:
+runbook: infra-from-admin.md
 verified: 2026-10-26
 sources:
   - GitHub: запуск процесса по кнопке (workflow_dispatch) | https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event

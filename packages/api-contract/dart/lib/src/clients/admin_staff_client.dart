@@ -61,6 +61,7 @@ import '../models/staff_rate_list_envelope.dart';
 import '../models/staff_rating_sort.dart';
 import '../models/staff_rating_status.dart';
 import '../models/staff_reveal_result_envelope.dart';
+import '../models/staff_sentry_summary_envelope.dart';
 import '../models/staff_settings_envelope.dart';
 import '../models/staff_shortlist_envelope.dart';
 import '../models/staff_signal_list_envelope.dart';
@@ -68,6 +69,7 @@ import '../models/staff_suggestion_kind.dart';
 import '../models/staff_suggestion_list_envelope.dart';
 import '../models/staff_suggestion_status.dart';
 import '../models/staff_today_envelope.dart';
+import '../models/staff_today_system_envelope.dart';
 import '../models/staff_watermark_envelope.dart';
 import '../models/staff_workspace_name.dart';
 import '../models/state2.dart';
@@ -428,6 +430,21 @@ abstract class AdminStaffClient {
   /// The owner «Сегодня»: what needs attention (one stored snapshot)
   @GET('/admin/staff/today')
   Future<StaffTodayEnvelope> staffToday({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The «Система» block of «Сегодня»: every system action for the owner, by urgency (cached 5 min), plus the Sentry line
+  @GET('/admin/staff/today/system')
+  Future<StaffTodaySystemEnvelope> staffTodaySystem({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Mark a Sentry issue resolved (fresh 2FA code), then recount.
+  ///
+  /// [id] - Sentry issue id (digits).
+  @POST('/admin/staff/today/sentry/{id}/resolve')
+  Future<StaffSentrySummaryEnvelope> resolveSentryIssue({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -178,6 +178,12 @@ export class ScaleExtrasDto {
   @ApiProperty({ type: Number, nullable: true })
   poolerMinTasks!: number | null;
 
+  @ApiProperty({
+    description:
+      'Owner 2026-10-27: scale.db_split_enabled — the guided «Разделить базу» card on «Масштаб» is shown.',
+  })
+  dbSplitEnabled!: boolean;
+
   @ApiProperty({ type: Number, nullable: true })
   poolerMaxTasks!: number | null;
 
