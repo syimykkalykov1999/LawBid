@@ -70,11 +70,18 @@ function setup(opts: { secrets?: boolean; env?: string } = {}) {
   };
   const config = { get: (k: string) => env[k] } as unknown as ConfigService;
   const lookup = jest.fn().mockResolvedValue({ result: 'pass', details: {} });
-  const adapters: StateBarAdapter[] = [{ type: 'generic_rest', lookup }];
+  const presetLookup = jest
+    .fn()
+    .mockResolvedValue({ result: 'pass', details: { found: true } });
+  const adapters: StateBarAdapter[] = [
+    { type: 'generic_rest', lookup },
+    { type: 'state_preset', lookup: presetLookup },
+  ];
   return {
     service: new StateRegistryService(prisma, config, adapters),
     rows,
     lookup,
+    presetLookup,
   };
 }
 
@@ -233,5 +240,120 @@ describe('StateRegistryService (owner 2026-10-05)', () => {
       result: 'error',
       error: 'The registry refused the key (HTTP 401)',
     });
+  });
+});
+
+describe('StateRegistryService — ready-made presets (owner 2026-10-28)', () => {
+  const name = { firstName: 'Jane', lastName: 'Example' };
+
+  it('a state with a preset can be switched on without settings; others cannot', async () => {
+    const s = setup();
+    const ca = await s.service.save(
+      'CA',
+      { adapter: 'state_preset', enabled: true },
+      'admin1',
+    );
+    expect(ca).toMatchObject({
+      adapter: 'state_preset',
+      enabled: true,
+      support: 'automatic',
+      presetAvailable: true,
+      pausedUntil: null,
+    });
+    // NY: open data, not a preset.
+    await expect(
+      s.service.save('NY', { adapter: 'state_preset', enabled: true }, 'a'),
+    ).rejects.toMatchObject({ response: { details: { field: 'adapter' } } });
+  });
+
+  it('dto says why a state stays manual', async () => {
+    const s = setup();
+    const tx = await s.service.save(
+      'TX',
+      { adapter: 'manual', enabled: false },
+      'a',
+    );
+    expect(tx).toMatchObject({ support: 'automatic', presetAvailable: true });
+    const ny = await s.service.save(
+      'NY',
+      { adapter: 'manual', enabled: false },
+      'a',
+    );
+    expect(ny).toMatchObject({ support: 'automatic', presetAvailable: false });
+  });
+
+  it('preset lookups are cached and rate limited per state', async () => {
+    const s = setup();
+    await s.service.save(
+      'CA',
+      { adapter: 'state_preset', enabled: true, config: { ratePerMin: '2' } },
+      'a',
+    );
+    const reg = (await s.service.resolve('CA'))!;
+    await s.service.lookup({ stateCode: 'CA', barNumber: '1', ...name }, reg);
+    await s.service.lookup({ stateCode: 'CA', barNumber: '1', ...name }, reg);
+    expect(s.presetLookup).toHaveBeenCalledTimes(1); // cached
+    await s.service.lookup({ stateCode: 'CA', barNumber: '2', ...name }, reg);
+    await expect(
+      s.service.lookup({ stateCode: 'CA', barNumber: '3', ...name }, reg),
+    ).rejects.toMatchObject({ kind: 'rate_limited' });
+  });
+
+  it('the admin test asks fresh (no cache) and records the answer', async () => {
+    const s = setup();
+    await s.service.save('CA', { adapter: 'state_preset', enabled: true }, 'a');
+    await s.service.test('CA', { barNumber: '1', ...name });
+    await s.service.test('CA', { barNumber: '1', ...name });
+    expect(s.presetLookup).toHaveBeenCalledTimes(2);
+  });
+
+  it('the monthly sweep skips public web pages (bulk)', async () => {
+    const s = setup();
+    await s.service.save('CA', { adapter: 'state_preset', enabled: true }, 'a');
+    await s.service.save(
+      'TX',
+      {
+        adapter: 'generic_rest',
+        enabled: true,
+        config: vendor,
+        secret: VENDOR_E,
+      },
+      'a',
+    );
+    expect((await s.service.enabledStates()).sort()).toEqual(['CA', 'TX']);
+    expect(await s.service.enabledStates({ bulk: true })).toEqual(['TX']);
+  });
+
+  it('copying a ready-made preset skips states without one', async () => {
+    const s = setup();
+    await s.service.save('CA', { adapter: 'state_preset', enabled: true }, 'a');
+    const out = await s.service.copy('CA', ['NY', 'TX'], 'a');
+    expect(out.copied).toEqual(['TX']);
+  });
+
+  it('rejects a bad rate and bad header JSON', async () => {
+    const s = setup();
+    await expect(
+      s.service.save(
+        'CA',
+        {
+          adapter: 'state_preset',
+          enabled: true,
+          config: { ratePerMin: '500' },
+        },
+        'a',
+      ),
+    ).rejects.toMatchObject({ response: { details: { field: 'ratePerMin' } } });
+    await expect(
+      s.service.save(
+        'TX',
+        {
+          adapter: 'generic_rest',
+          enabled: true,
+          config: { ...vendor, authType: 'none', headers: '{nope' },
+        },
+        'a',
+      ),
+    ).rejects.toMatchObject({ response: { details: { field: 'headers' } } });
   });
 });

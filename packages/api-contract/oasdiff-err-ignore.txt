@@ -574,3 +574,9 @@ GET /admin/case-disputes/{id} added the new required `header` request parameter 
 GET /admin/cases/{id} added the new required `header` request parameter `x-justification`
 GET /admin/contact-issues/{id} added the new required `header` request parameter `x-justification`
 PUT /admin/legal/settings added the new required request property `texts/en/privilegedContentPolicy` (shared schema: `LegalTextsDto`, also at `texts/ru/privilegedContentPolicy`)
+GET /admin/verification/registries added the new `html_page` enum value to the `data/adapterTypes/items/type` response property for the response status `200`
+GET /admin/verification/registries added the new `html_page` enum value to the `data/items/items/adapter` response property for the response status `200`
+GET /admin/verification/registries added the new `state_preset` enum value to the `data/adapterTypes/items/type` response property for the response status `200`
+GET /admin/verification/registries added the new `state_preset` enum value to the `data/items/items/adapter` response property for the response status `200`
+PUT /admin/verification/registries/{stateCode} added the new `html_page` enum value to the `data/adapter` response property for the response status `200`
+PUT /admin/verification/registries/{stateCode} added the new `state_preset` enum value to the `data/adapter` response property for the response status `200`

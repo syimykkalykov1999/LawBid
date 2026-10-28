@@ -205,6 +205,49 @@ export async function fetchJson(
   }
 }
 
+const MONTHS: Record<string, number> = {
+  jan: 1,
+  feb: 2,
+  mar: 3,
+  apr: 4,
+  may: 5,
+  jun: 6,
+  jul: 7,
+  aug: 8,
+  sep: 9,
+  oct: 10,
+  nov: 11,
+  dec: 12,
+};
+
+/**
+ * Owner 2026-10-28: a date as a registry page prints it — "10/26/1992",
+ * "1965-09-29", "October 9, 1979", "10-29-1984" — as YYYY-MM-DD; null when
+ * it is not a full date.
+ */
+export function toIsoDate(raw: string | null | undefined): string | null {
+  const s = (raw ?? '').trim();
+  let y: number, m: number, d: number;
+  let r = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s);
+  if (r) [y, m, d] = [+r[1], +r[2], +r[3]];
+  else if ((r = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(s))) {
+    [m, d, y] = [+r[1], +r[2], +r[3]];
+  } else if ((r = /^([A-Za-z]{3})[a-z]*\.? (\d{1,2}),? (\d{4})$/.exec(s))) {
+    const mm = MONTHS[r[1].toLowerCase()];
+    if (!mm) return null;
+    [m, d, y] = [mm, +r[2], +r[3]];
+  } else return null;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (
+    dt.getUTCFullYear() !== y ||
+    dt.getUTCMonth() !== m - 1 ||
+    dt.getUTCDate() !== d
+  ) {
+    return null;
+  }
+  return dt.toISOString().slice(0, 10);
+}
+
 export interface RegistryRecord {
   status: unknown;
   first: unknown;

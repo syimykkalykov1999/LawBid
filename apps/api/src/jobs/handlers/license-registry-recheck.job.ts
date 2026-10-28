@@ -16,7 +16,8 @@ export interface LicenseRegistryRecheckResult {
  * enabled registry (Admin → Ключи и сервисы, owner 2026-10-05) is looked up again; a license whose
  * number disappeared or whose status is no longer active goes back to the
  * verifier queue (VerificationAdminService.registryRecheck). Lookups run
- * one at a time — the free registry is rate limited.
+ * one at a time — the free registry is rate limited. States read from a
+ * public web page (html_page / state_preset) are skipped.
  */
 @Injectable()
 export class LicenseRegistryRecheckJob {
@@ -30,7 +31,9 @@ export class LicenseRegistryRecheckJob {
   }
 
   async run(now: Date = new Date()): Promise<LicenseRegistryRecheckResult> {
-    const states = await this.registries.enabledStates();
+    // Owner 2026-10-28: public web pages are not swept monthly (polite
+    // use: one lookup per submission + the admin's re-check).
+    const states = await this.registries.enabledStates({ bulk: true });
     const result: LicenseRegistryRecheckResult = { checked: 0, queued: 0 };
     let cursor: string | undefined;
     for (;;) {

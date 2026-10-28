@@ -178,3 +178,112 @@ describe('GenericRestAdapter (owner 2026-10-05)', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe('GenericRestAdapter POST / session (owner 2026-10-28)', () => {
+  const answer = {
+    Results: [
+      { AttorneyNumber: '9-11', Status: 'Active', FullName: 'Other, Person' },
+      { AttorneyNumber: '300123', Status: 'Active', FullName: 'Wexler, Kim' },
+    ],
+  };
+
+  function session(
+    body: string,
+    start = '<meta name="csrf-token" content="test-csrf-token">',
+  ) {
+    const calls: { url: string; init: RequestInit }[] = [];
+    const impl = ((u: URL | string, init: RequestInit = {}) => {
+      const url = u.toString();
+      if (url.endsWith('/robots.txt'))
+        return Promise.resolve(new Response('', { status: 404 }));
+      calls.push({ url, init });
+      return Promise.resolve(
+        new Response(url.endsWith('/start') ? start : body, {
+          status: 200,
+          headers: url.endsWith('/start')
+            ? { 'set-cookie': 'sid=1; path=/' }
+            : {},
+        }),
+      );
+    }) as typeof fetch;
+    return { impl, calls };
+  }
+
+  const post = (config: Record<string, string> = {}) =>
+    registry(
+      {
+        urlTemplate: 'https://api.vendor.example/search',
+        authType: 'none',
+        method: 'POST',
+        bodyType: 'json',
+        bodyTemplate: '{"AttorneyNumber":"{bar_number}","Name":"{last_name}"}',
+        recordPath: 'Results',
+        numberPath: 'AttorneyNumber',
+        statusPath: 'Status',
+        fullNamePath: 'FullName',
+        firstNamePath: '',
+        lastNamePath: '',
+        activeValues: 'Active',
+        ...config,
+      },
+      null,
+    );
+
+  it('JSON body (escaped), picks the record with the same number', async () => {
+    const s = session(JSON.stringify(answer));
+    const out = await new GenericRestAdapter(false, s.impl).lookup(
+      { ...input, lastName: 'We"xler' },
+      post(),
+    );
+    expect(out.details).toMatchObject({ found: true, name: 'Wexler, Kim' });
+    const [call] = s.calls;
+    expect(call.init.method).toBe('POST');
+    expect(JSON.parse(call.init.body as string)).toEqual({
+      AttorneyNumber: '300123',
+      Name: 'We"xler',
+    });
+    expect((call.init.headers as Record<string, string>)['Content-Type']).toBe(
+      'application/json',
+    );
+  });
+
+  it('form body with a CSRF token and cookie from the start page', async () => {
+    const s = session(JSON.stringify(answer));
+    const out = await new GenericRestAdapter(false, s.impl).lookup(
+      input,
+      post({
+        bootstrapUrl: 'https://api.vendor.example/start',
+        csrfSelector: 'css:meta[name=csrf-token]@content',
+        csrfHeader: 'X-CSRF-TOKEN',
+        bodyType: 'form',
+        bodyTemplate: 'action=Search&n={bar_number}',
+        headers: '{"X-Requested-With":"XMLHttpRequest"}',
+      }),
+    );
+    expect(out.result).toBe('pass');
+    const h = s.calls[1].init.headers as Record<string, string>;
+    expect(h['X-CSRF-TOKEN']).toBe('test-csrf-token');
+    expect(h['X-Requested-With']).toBe('XMLHttpRequest');
+    expect(h.Cookie).toBe('sid=1');
+    expect(s.calls[1].init.body as string).toBe('action=Search&n=300123');
+  });
+
+  it('no record with that number / empty body → not_found; not JSON → error', async () => {
+    const none = await new GenericRestAdapter(
+      false,
+      session(JSON.stringify({ Results: [answer.Results[0]] })).impl,
+    ).lookup(input, post());
+    expect(none.details.reason).toBe('not_found');
+    const empty = await new GenericRestAdapter(false, session('').impl).lookup(
+      input,
+      post(),
+    );
+    expect(empty.details.reason).toBe('not_found');
+    await expect(
+      new GenericRestAdapter(false, session('<html>').impl).lookup(
+        input,
+        post(),
+      ),
+    ).rejects.toThrow(/not JSON/);
+  });
+});

@@ -2674,6 +2674,7 @@ export 'models/reject_request_dto_rejection_code.dart';
 export 'models/registry_adapter_descriptor_dto_type.dart';
 export 'models/registry_adapter_descriptor_dto_secret.dart';
 export 'models/state_registry_dto_adapter.dart';
+export 'models/state_registry_dto_support.dart';
 export 'models/save_state_registry_dto_adapter.dart';
 export 'models/registry_test_result_dto_result.dart';
 export 'models/presigned_upload_dto_method.dart';

@@ -138092,7 +138092,9 @@
               "manual",
               "ny_open_data",
               "socrata",
-              "generic_rest"
+              "generic_rest",
+              "html_page",
+              "state_preset"
             ],
             "type": "string"
           },
@@ -138144,7 +138146,9 @@
               "manual",
               "ny_open_data",
               "socrata",
-              "generic_rest"
+              "generic_rest",
+              "html_page",
+              "state_preset"
             ],
             "type": "string"
           },
@@ -138190,6 +138194,28 @@
             "type": "string",
             "nullable": true,
             "description": "The state's own public lookup page (a link for the verifier)."
+          },
+          "support": {
+            "enum": [
+              "automatic",
+              "manual"
+            ],
+            "type": "string",
+            "description": "Owner 2026-10-28: whether the state registry can be checked automatically at all."
+          },
+          "supportNote": {
+            "type": "string",
+            "description": "Russian note: which registry is read, or why the state stays manual."
+          },
+          "presetAvailable": {
+            "type": "boolean",
+            "description": "A ready-made adapter (state_preset) exists for the state."
+          },
+          "pausedUntil": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Lookups to this state are paused by the circuit breaker until then."
           }
         },
         "required": [
@@ -138204,7 +138230,11 @@
           "lastTestAt",
           "lastTestResult",
           "updatedAt",
-          "lookupUrl"
+          "lookupUrl",
+          "support",
+          "supportNote",
+          "presetAvailable",
+          "pausedUntil"
         ]
       },
       "BarFormatMissDto": {
@@ -138290,7 +138320,9 @@
               "manual",
               "ny_open_data",
               "socrata",
-              "generic_rest"
+              "generic_rest",
+              "html_page",
+              "state_preset"
             ],
             "type": "string"
           },

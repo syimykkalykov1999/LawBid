@@ -2,6 +2,7 @@
 
 import { CheckCircle, Copy, Gavel, MagnifyingGlass } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { StatesPicker } from '@/components/states-picker';
 import { StepUpDialog } from '@/components/step-up-dialog';
@@ -68,6 +69,7 @@ export function StateRegistries() {
 
   const items = q.data?.items ?? [];
   const on = items.filter((i) => i.enabled);
+  const possible = items.filter((i) => i.support === 'automatic').map((i) => i.stateCode);
   return (
     <section className="mt-10">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -81,8 +83,18 @@ export function StateRegistries() {
             проверяющий вручную по фото карточки адвоката. В штатах без публичного API проверка ручная, ссылка на
             официальный поиск штата есть у каждого. Выберите способ проверки и введите ключ API — приложение сразу начнёт
             сверять номер и имя. Не совпало — красная отметка и очередь «Проверка → Сверка с реестром». Раз в месяц все
-            лицензии включённых штатов проверяются заново.
+            лицензии включённых штатов проверяются заново (кроме штатов, где читается сайт: там — только новая лицензия
+            и ваша перепроверка).
           </p>
+          {possible.length ? (
+            <p className="mt-1 max-w-3xl text-sm text-muted">
+              Автоматически можно проверять {possible.length} штатов: {possible.join(', ')}. Для них есть способ «Готовый:
+              официальный сайт штата» — выберите его и включите штат. Остальные — вручную, причина в колонке «Можно
+              автоматически». Подробно: <Link href="/guides/state-bar-registries" className="text-gold-600 hover:underline">
+                инструкция
+              </Link>.
+            </p>
+          ) : null}
         </div>
         <Badge tone={on.length ? 'success' : 'neutral'} dot>
           {on.length ? `Автопроверка: ${on.map((i) => i.stateCode).join(', ')}` : 'Автопроверка нигде не включена'}
@@ -98,6 +110,7 @@ export function StateRegistries() {
               <tr>
                 <Th>Штат</Th>
                 <Th>Поиск штата</Th>
+                <Th>Можно автоматически</Th>
                 <Th>Способ</Th>
                 <Th>Ключ</Th>
                 <Th>Последняя проверка</Th>
@@ -123,6 +136,17 @@ export function StateRegistries() {
                         <span className="text-faint">—</span>
                       )}
                     </Td>
+                    <Td className="max-w-xs text-xs">
+                      {it.support === 'automatic' ? (
+                        <Badge tone="success" title={it.supportNote}>
+                          {it.presetAvailable ? 'Да — готовый' : 'Да'}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted" title={it.supportNote}>
+                          Нет — {it.supportNote}
+                        </span>
+                      )}
+                    </Td>
                     <Td className="text-sm">{adapterLabel(it.adapter)}</Td>
                     <Td className="font-mono text-xs">{it.secretMasked ?? <span className="text-faint">—</span>}</Td>
                     <Td className="text-xs">
@@ -135,7 +159,11 @@ export function StateRegistries() {
                       )}
                     </Td>
                     <Td>
-                      {it.enabled ? (
+                      {it.enabled && it.pausedUntil ? (
+                        <Badge tone="warning" dot title="Сайт штата отвечал ошибками — запросы на паузе, лицензии уходят проверяющему">
+                          Пауза до {formatDateTime(it.pausedUntil)}
+                        </Badge>
+                      ) : it.enabled ? (
                         <Badge tone="success" dot>
                           Включена
                         </Badge>
@@ -301,6 +329,18 @@ function RegistryDialog({
             ))}
           </select>
         </label>
+
+        {registry.support === 'manual' ? (
+          <p className="rounded-xl bg-surface-2 p-3 text-xs text-muted">
+            Автоматическая проверка этого штата невозможна: {registry.supportNote} Проверяющий открывает реестр по ссылке.
+          </p>
+        ) : registry.presetAvailable && adapter !== 'state_preset' ? (
+          <p className="rounded-xl bg-surface-2 p-3 text-xs text-muted">
+            Для штата есть готовый способ «{adapterLabel('state_preset')}»: {registry.supportNote}
+          </p>
+        ) : adapter === 'state_preset' ? (
+          <p className="rounded-xl bg-surface-2 p-3 text-xs text-muted">{registry.supportNote}</p>
+        ) : null}
 
         {desc?.fields.map((f) => {
           const ru = FIELD_RU[f.name];
