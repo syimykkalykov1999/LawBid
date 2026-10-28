@@ -599,7 +599,7 @@ function CreateDemoDialog({
             ))}
           </Select>
         </Field>
-        <Field label="Метка (для вас)" htmlFor="cd-label" hint="например «блогер Иван, Instagram»">
+        <Field label="Метка (для вас)" htmlFor="cd-label" hint="например «блогер Иван, фотоблог»">
           <Input id="cd-label" value={label} maxLength={120} onChange={(e) => setLabel(e.target.value)} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">

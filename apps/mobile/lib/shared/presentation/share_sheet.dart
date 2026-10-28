@@ -157,7 +157,7 @@ List<ShareTarget> buildShareTargets(
     ),
     (
       key: 'instagram',
-      icon: brand(FontAwesomeIcons.instagram, const Color(0xFFE1306C)),
+      icon: brand(FontAwesomeIcons.instagram, const Color(0xFF111111)),
       label: 'Instagram',
       go: () => copyAndOpen(
             'instagram://direct-inbox',
