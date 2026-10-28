@@ -4,6 +4,7 @@ title: Twilio - защита от накрутки SMS
 category: people
 cost: Бесплатно в США и Канаде. Для Verify защита Fraud Guard включена без доплаты.
 time: 10 минут
+runbook: sms-spend.md
 verified: 2026-10-25
 sources:
   - Twilio - SMS Pumping Protection для Programmable Messaging | https://www.twilio.com/docs/messaging/features/sms-pumping-protection-programmable-messaging

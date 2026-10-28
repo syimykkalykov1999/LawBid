@@ -126,3 +126,5 @@ Rows are sorted by key (plain code-unit order). Add the row anywhere and run `np
 
 "listed" = in the inventory and the reader exists, no behaviour test yet. `calls.channel_live_enabled` was removed (nothing read it; the feature does not exist).
 Three billable/load switches were converted to off/on/auto (`common/app-settings/switch-mode.ts`).
+| `scale.db_split_enabled` | Масштаб: карточка «Разделить базу» | off | 2 | guided readiness card for the database split on «Масштаб» (read-only; the move itself stays on «Здоровье системы») | `modules/admin-ops/scale.service.ts` | none | listed | |
+| `today.sentry_enabled` | Сегодня: ошибки из Sentry | off | 2 | the «Ошибки в приложении» line on «Сегодня»: one Sentry Issues request per 5 min, «Решено» button | `modules/staff-home/sentry-issues.client.ts` | none | yes | |

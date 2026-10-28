@@ -4,6 +4,7 @@ title: Лестница расходов: что мы платим и как э�
 category: money
 cost: Сама страница бесплатна; на день первый всего ≈ $253–263 в месяц
 time: 15 минут, чтобы прочитать; по 2–5 минут на каждое переключение
+runbook: COST_LADDER.md
 verified: 2026-10-25
 sources:
   - AWS: Pricing | https://aws.amazon.com/pricing/

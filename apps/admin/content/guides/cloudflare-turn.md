@@ -5,6 +5,7 @@ category: system
 cost: Первые 1000 ГБ трафика в месяц бесплатно (общие с SFU), дальше $0,05 за ГБ. STUN бесплатный.
 time: 10 минут
 launch: cloudflare_turn
+runbook: TURN.md
 verified: 2026-10-26
 sources:
   - Realtime TURN: Overview | https://developers.cloudflare.com/realtime/turn/

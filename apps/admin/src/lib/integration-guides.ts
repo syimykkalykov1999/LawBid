@@ -549,6 +549,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
     enable: [
       'SENTRY_DSN сервера читается при запуске: после «Сохранить» → «Включить» перезапустите API.',
       'DSN приложения и админки подхватываются сами при следующем запуске — перезапуск и новая сборка не нужны.',
+      'Строка «Ошибки в приложении» на «Сегодня»: заполните «Проект» и «Токен event:read/event:write», затем включите today.sentry_enabled в «Настройках». Не больше одного запроса к Sentry в 5 минут.',
     ],
     fields: {
       dsn: {
@@ -562,6 +563,18 @@ export const GUIDES: Record<string, ProviderGuide> = {
       adminDsn: {
         how: 'DSN проекта lawbid-admin: Client Keys (DSN). Необязательно.',
         example: 'https://abc@o123.ingest.sentry.io/458',
+      },
+      project: {
+        how: 'Settings → Projects → проект сервера: короткое имя из адреса страницы (slug). Нужно для строки «Ошибки в приложении» на «Сегодня».',
+        example: 'lawbid-api',
+      },
+      host: {
+        how: 'Только для своего сервера Sentry (self-hosted). Для sentry.io оставьте пустым.',
+        example: 'https://sentry.io',
+      },
+      issuesToken: {
+        how: 'Settings → Auth Tokens → Create New Token с правами event:read и event:write (читать и закрывать ошибки). Секрет: не в чат и не в git.',
+        example: 'sntrys_…',
       },
       orgSlug: {
         how: 'Короткое имя организации из адреса sentry.io/organizations/<имя>/. Необязательно: нужно только странице «Расходы» (сколько событий принято и отброшено).',

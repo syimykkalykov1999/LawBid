@@ -4,6 +4,7 @@ title: LiveKit: свой сервер групповых видеозвонко�
 category: system
 cost: Пока выключено, 0. Если включить: машина около $32 в месяц и исходящий трафик $0,09 за ГБ (первые 100 ГБ в месяц на весь аккаунт AWS бесплатно).
 time: 30 минут, и сборка приложения с поддержкой LiveKit
+runbook: LIVEKIT.md
 verified: 2026-10-26
 sources:
   - LiveKit: Deploy to a VM | https://docs.livekit.io/transport/self-hosting/vm/

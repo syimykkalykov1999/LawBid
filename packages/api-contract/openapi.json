@@ -129850,6 +129850,201 @@
         ]
       }
     },
+    "/admin/staff/today/system": {
+      "get": {
+        "operationId": "staffTodaySystem",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffTodaySystemEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "The «Система» block of «Сегодня»: every system action for the owner, by urgency (cached 5 min), plus the Sentry line",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
+    "/admin/staff/today/sentry/{id}/resolve": {
+      "post": {
+        "operationId": "resolveSentryIssue",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Sentry issue id (digits).",
+            "schema": {
+              "pattern": "^\\d{1,20}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffSentrySummaryEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Mark a Sentry issue resolved (fresh 2FA code), then recount",
+        "tags": [
+          "admin-staff"
+        ]
+      }
+    },
     "/admin/staff/digest": {
       "get": {
         "operationId": "staffDigest",
@@ -168888,6 +169083,10 @@
             "type": "number",
             "nullable": true
           },
+          "dbSplitEnabled": {
+            "type": "boolean",
+            "description": "Owner 2026-10-27: scale.db_split_enabled — the guided «Разделить базу» card on «Масштаб» is shown."
+          },
           "poolerMaxTasks": {
             "type": "number",
             "nullable": true
@@ -168902,6 +169101,7 @@
           "redisAutoscale",
           "poolerEnabled",
           "poolerMinTasks",
+          "dbSplitEnabled",
           "poolerMaxTasks",
           "searchEngine"
         ]
@@ -201121,6 +201321,241 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/StaffTodayDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffSystemActionDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "route",
+              "guide",
+              "launch",
+              "url"
+            ],
+            "description": "route = admin page, guide = «Инструкции» id, launch = «Запуск» step id (its guide), url = outside link."
+          },
+          "target": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "description": "The button text."
+          }
+        },
+        "required": [
+          "kind",
+          "target",
+          "label"
+        ]
+      },
+      "StaffSystemItemDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable: the row disappears when done."
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string",
+            "description": "One line: why today."
+          },
+          "action": {
+            "$ref": "#/components/schemas/StaffSystemActionDto"
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "title",
+          "why",
+          "action"
+        ]
+      },
+      "StaffSystemCountsDto": {
+        "type": "object",
+        "properties": {
+          "critical": {
+            "type": "integer"
+          },
+          "high": {
+            "type": "integer"
+          },
+          "medium": {
+            "type": "integer"
+          },
+          "low": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "critical",
+          "high",
+          "medium",
+          "low"
+        ]
+      },
+      "StaffSentryIssueDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "users": {
+            "type": "integer"
+          },
+          "firstSeen": {
+            "type": "string"
+          },
+          "lastSeen": {
+            "type": "string"
+          },
+          "permalink": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "count",
+          "users",
+          "firstSeen",
+          "lastSeen",
+          "permalink"
+        ]
+      },
+      "StaffSentrySummaryDto": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "off",
+              "unconfigured",
+              "ok",
+              "error"
+            ],
+            "description": "off = switch today.sentry_enabled is off; unconfigured = no sentry keys saved."
+          },
+          "unresolved": {
+            "type": "integer"
+          },
+          "unresolvedAtLeast": {
+            "type": "boolean",
+            "description": "True when the page was full (100+)."
+          },
+          "newCount": {
+            "type": "integer",
+            "description": "First seen in the last 24 h."
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffSentryIssueDto"
+            }
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "computedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "state",
+          "unresolved",
+          "unresolvedAtLeast",
+          "newCount",
+          "issues",
+          "url",
+          "error",
+          "computedAt"
+        ]
+      },
+      "StaffTodaySystemDto": {
+        "type": "object",
+        "properties": {
+          "computedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "freshSec": {
+            "type": "integer",
+            "description": "The block is refreshed when older than this many seconds."
+          },
+          "items": {
+            "description": "Ordered by urgency; empty = nothing to do.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffSystemItemDto"
+            }
+          },
+          "counts": {
+            "$ref": "#/components/schemas/StaffSystemCountsDto"
+          },
+          "sentry": {
+            "$ref": "#/components/schemas/StaffSentrySummaryDto"
+          }
+        },
+        "required": [
+          "computedAt",
+          "freshSec",
+          "items",
+          "counts",
+          "sentry"
+        ]
+      },
+      "StaffTodaySystemEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffTodaySystemDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StaffSentrySummaryEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StaffSentrySummaryDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

@@ -1162,6 +1162,12 @@ export const OWNER_OPS_SETTINGS = {
   // S20-8: ceiling of the message re-encryption pass, rows per minute
   // (0 = paused; the pass keeps its place).
   'ops.reencrypt_rows_per_min': 800,
+  // Owner 2026-10-27 («Сегодня» as the owner's desk): the Sentry line on
+  // «Сегодня» (one Sentry request per 5 minutes, needs the `sentry` keys in
+  // «Ключи и сервисы») and the guided «Разделить базу» card on «Масштаб».
+  // Both OFF: with them off nothing is fetched and the pages look as before.
+  'today.sentry_enabled': false,
+  'scale.db_split_enabled': false,
   // S20-4: WebSocket connect / disconnect log lines. off and auto write a
   // weighted sample (log.ws_sample_percent); auto writes every line for 30
   // minutes while reconnects spike; on writes every line.

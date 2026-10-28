@@ -20,6 +20,7 @@ import {
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
+import { AuditLogService } from '../admin-access/audit-log.service';
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import { StaffDecisionService } from './staff-decision.service';
 import { StaffDigestService } from './staff-digest.service';
@@ -29,11 +30,16 @@ import {
   StaffDecideSuggestionResultDto,
   StaffDigestListDto,
   StaffPersonHistoryDto,
+  StaffSentryIssueParamDto,
+  StaffSentrySummaryDto,
   StaffSuggestionParamDto,
   StaffTodayDto,
+  StaffTodaySystemDto,
 } from './staff-home.dto';
 import { StaffPersonCardService } from './staff-person-card.service';
 import { StaffTodayService } from './staff-today.service';
+import { StaffTodaySystemService } from './staff-today-system.service';
+import { SentryIssuesClient } from './sentry-issues.client';
 
 const notFound = () =>
   new NotFoundException({ code: E.NOT_FOUND, message: 'Not found.' });
@@ -57,6 +63,9 @@ export class StaffHomeController {
     private readonly card: StaffPersonCardService,
     private readonly decisions: StaffDecisionService,
     private readonly auth: AdminAuthService,
+    private readonly system: StaffTodaySystemService,
+    private readonly sentry: SentryIssuesClient,
+    private readonly audit: AuditLogService,
   ) {}
 
   @Get('today')
@@ -70,6 +79,53 @@ export class StaffHomeController {
       throw notFound();
     }
     return this.today.read();
+  }
+
+  @Get('today/system')
+  @ApiOperation({
+    summary:
+      'The «Система» block of «Сегодня»: every system action for the owner, by urgency (cached 5 min), plus the Sentry line',
+  })
+  @ApiEnvelopeResponse(StaffTodaySystemDto)
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  async staffTodaySystem(): Promise<StaffTodaySystemDto> {
+    if (!(await this.settings.isOn('staff.owner_home_enabled'))) {
+      throw notFound();
+    }
+    return this.system.read();
+  }
+
+  @Post('today/sentry/:id/resolve')
+  @HttpCode(200)
+  @SkipAutoAudit()
+  @ApiOperation({
+    summary: 'Mark a Sentry issue resolved (fresh 2FA code), then recount',
+  })
+  @ApiEnvelopeResponse(StaffSentrySummaryDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.NOT_FOUND],
+  })
+  async resolveSentryIssue(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: StaffSentryIssueParamDto,
+  ): Promise<StaffSentrySummaryDto> {
+    if (!(await this.settings.isOn('staff.owner_home_enabled'))) {
+      throw notFound();
+    }
+    await this.auth.assertStepUp(admin.sessionId);
+    const r = await this.sentry.resolve(p.id);
+    await this.audit.record({
+      adminId: admin.id,
+      action: 'ops.sentry_resolve',
+      targetType: 'system',
+      targetId: null,
+      before: null,
+      after: { issueId: p.id },
+      ip: admin.ip,
+    });
+    return r;
   }
 
   @Get('digest')

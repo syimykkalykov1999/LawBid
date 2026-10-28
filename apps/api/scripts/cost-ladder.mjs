@@ -121,6 +121,7 @@ function guide() {
   L.push('category: money');
   L.push(`cost: Сама страница бесплатна; на день первый всего ≈ ${usd(totals.all)} в месяц`);
   L.push('time: 15 минут, чтобы прочитать; по 2–5 минут на каждое переключение');
+  L.push('runbook: COST_LADDER.md');
   L.push(`verified: ${checkedAt}`);
   L.push('sources:');
   L.push('  - AWS: Pricing | https://aws.amazon.com/pricing/');

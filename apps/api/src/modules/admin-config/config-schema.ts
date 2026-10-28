@@ -729,6 +729,18 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 100,
     max: 60_000,
   };
+  out['today.sentry_enabled'] = {
+    type: 'boolean',
+    defaultValue: false,
+    description:
+      'Сегодня: строка «Ошибки в приложении» из Sentry (нужны ключи sentry в «Ключи и сервисы»; не чаще одного запроса в 5 минут).',
+  };
+  out['scale.db_split_enabled'] = {
+    type: 'boolean',
+    defaultValue: false,
+    description:
+      'Масштаб: карточка «Разделить базу» с пошаговой проверкой готовности второй базы (только чтение; сам перенос запускается на «Здоровье системы» с кодом 2FA).',
+  };
   out['ops.backup_max_age_hours'] = {
     ...out['ops.backup_max_age_hours'],
     description:

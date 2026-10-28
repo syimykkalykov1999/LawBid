@@ -16,6 +16,7 @@ ScaleExtrasDto _$ScaleExtrasDtoFromJson(Map<String, dynamic> json) =>
       ),
       poolerEnabled: json['poolerEnabled'] as bool,
       poolerMinTasks: json['poolerMinTasks'] as num?,
+      dbSplitEnabled: json['dbSplitEnabled'] as bool,
       poolerMaxTasks: json['poolerMaxTasks'] as num?,
       searchEngine: json['searchEngine'] as String,
     );
@@ -26,6 +27,7 @@ Map<String, dynamic> _$ScaleExtrasDtoToJson(ScaleExtrasDto instance) =>
       'redisAutoscale': instance.redisAutoscale.toJson(),
       'poolerEnabled': instance.poolerEnabled,
       'poolerMinTasks': ?instance.poolerMinTasks,
+      'dbSplitEnabled': instance.dbSplitEnabled,
       'poolerMaxTasks': ?instance.poolerMaxTasks,
       'searchEngine': instance.searchEngine,
     };

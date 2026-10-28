@@ -1,0 +1,506 @@
+{
+  "$comment": "Kept by scripts/guides-check.mjs (--approve). guides = from each guide’s front-matter «runbook:»; skip = a written reason the owner needs no guide. Do not edit the guides lists by hand.",
+  "runbooks": {
+    "ADMIN_HARDENING.md": {
+      "owner": false,
+      "guides": [
+        "admin-hardening"
+      ]
+    },
+    "AGE_SMS_EMAIL_COMPLIANCE.md": {
+      "owner": true,
+      "guides": [
+        "age-sms-email"
+      ]
+    },
+    "APP_CHECK.md": {
+      "owner": true,
+      "guides": [
+        "firebase-app-check"
+      ]
+    },
+    "ARM64_SPOT.md": {
+      "owner": false,
+      "guides": [
+        "arm-spot"
+      ]
+    },
+    "ATTORNEY_ADS.md": {
+      "owner": false,
+      "skip": "Правила рекламы адвокатов для юриста и модераторов; кнопок владельца нет."
+    },
+    "AWS_CLEANUP.md": {
+      "owner": false,
+      "guides": [
+        "aws-cleanup"
+      ]
+    },
+    "BREACH.md": {
+      "owner": false,
+      "guides": [
+        "data-breach"
+      ]
+    },
+    "CALENDAR_GOOGLE_MICROSOFT.md": {
+      "owner": true,
+      "guides": [
+        "calendar-link"
+      ]
+    },
+    "CASE_TOOLS.md": {
+      "owner": false,
+      "guides": [
+        "case-tools"
+      ]
+    },
+    "COST_LADDER.md": {
+      "owner": false,
+      "guides": [
+        "cost-ladder"
+      ]
+    },
+    "COUNTERS_RECONCILE.md": {
+      "owner": false,
+      "skip": "Ночная сверка счётчиков работает сама; разовая починка — команда инженера."
+    },
+    "DB_POOLER.md": {
+      "owner": false,
+      "guides": [
+        "db-pooler"
+      ]
+    },
+    "DEPLOY_PROD.md": {
+      "owner": false,
+      "guides": [
+        "deploy-main"
+      ]
+    },
+    "DEPLOY_SAFETY.md": {
+      "owner": true,
+      "guides": [
+        "rollback-last-good"
+      ]
+    },
+    "DNS_TO_CLOUDFLARE.md": {
+      "owner": true,
+      "guides": [
+        "dns-to-cloudflare"
+      ]
+    },
+    "GAMEDAY.md": {
+      "owner": false,
+      "skip": "Учения на нагрузочном стенде (AWS FIS) ведёт инженер."
+    },
+    "HANDOFF_NEW_ACCOUNT.md": {
+      "owner": true,
+      "skip": "Паспорт проекта для нового аккаунта Claude (21.10.2026): справка для помощника, шагов владельца в админке нет."
+    },
+    "INCIDENT.md": {
+      "owner": true,
+      "guides": [
+        "incident"
+      ]
+    },
+    "IOS_CHAT_NOTIFICATIONS.md": {
+      "owner": false,
+      "skip": "Описание устройства пушей для разработчиков приложения."
+    },
+    "KEY_ROTATION.md": {
+      "owner": false,
+      "guides": [
+        "key-rotation-and-verified-tls"
+      ]
+    },
+    "LEGAL_QA_SAFETY.md": {
+      "owner": false,
+      "skip": "Внутренние меры безопасности «Вопроса юристу» (инженер); переключатели описаны в инструкции «Автомодерация»."
+    },
+    "LEGAL_REQUESTS.md": {
+      "owner": false,
+      "guides": [
+        "legal-requests"
+      ]
+    },
+    "LEGAL_TRANSLATIONS.md": {
+      "owner": false,
+      "skip": "Переводы юридических текстов делает команда командой legal:translate; владелец публикует их по инструкции «Новые юридические тексты»."
+    },
+    "LIVEKIT.md": {
+      "owner": true,
+      "guides": [
+        "livekit"
+      ]
+    },
+    "LOAD_TEST.md": {
+      "owner": false,
+      "skip": "Нагрузочный тест запускает инженер; владелец читает итог в отчёте."
+    },
+    "OWNER.md": {
+      "owner": true,
+      "guides": [
+        "aws-letters"
+      ]
+    },
+    "OWNER_TODO_2026-10-22.md": {
+      "owner": true,
+      "skip": "Одноразовый список дел на 22.10.2026, выполнен; живые шаги — на страницах «Запуск» и «Сегодня»."
+    },
+    "PASSKEYS.md": {
+      "owner": false,
+      "skip": "Описание ключей доступа для разработчиков; домены уже настроены."
+    },
+    "PERSONAL_DATA_ERASURE.md": {
+      "owner": false,
+      "skip": "Реестр хранилищ личных данных для инженера; запросы на удаление обрабатывает экран «Запросы данных»."
+    },
+    "PROD_LAUNCH.md": {
+      "owner": false,
+      "guides": [
+        "prod-launch"
+      ]
+    },
+    "QR_LOGIN.md": {
+      "owner": false,
+      "skip": "Описание входа по QR-коду для разработчиков."
+    },
+    "README.md": {
+      "owner": false,
+      "skip": "Оглавление раздела runbooks."
+    },
+    "REALTIME_LIFECYCLE.md": {
+      "owner": false,
+      "skip": "Описание живого соединения для разработчиков приложения."
+    },
+    "RELEASE_20OCT_FILES.md": {
+      "owner": false,
+      "skip": "Список файлов релиза 20.10 (одноразовый, для инженера)."
+    },
+    "RELEASE_20OCT_HANDOFF.md": {
+      "owner": true,
+      "skip": "Передача релиза 20.10 помощнику на Mac (одноразовая); актуальный порядок выката — инструкция «Выкатить последнюю версию (main)»."
+    },
+    "RELEASE_20OCT_JOURNAL.md": {
+      "owner": false,
+      "skip": "Журнал релиза 20.10 (история, для инженера)."
+    },
+    "SECURITY_LEGAL.md": {
+      "owner": false,
+      "guides": [
+        "security-legal"
+      ]
+    },
+    "SEO_STATIC_PAGES.md": {
+      "owner": true,
+      "guides": [
+        "seo-promotion"
+      ]
+    },
+    "STAFF_LEASES.md": {
+      "owner": false,
+      "guides": [
+        "staff-desk"
+      ]
+    },
+    "STATUS_PAGE.md": {
+      "owner": true,
+      "guides": [
+        "status-page"
+      ]
+    },
+    "STORE_RELEASE.md": {
+      "owner": false,
+      "guides": [
+        "store-release"
+      ]
+    },
+    "STRIPE_ROBUSTNESS.md": {
+      "owner": false,
+      "guides": [
+        "stripe-robustness-webhooks"
+      ]
+    },
+    "STRIPE_TAX.md": {
+      "owner": true,
+      "guides": [
+        "stripe-tax"
+      ]
+    },
+    "TEXT_LIMITS.md": {
+      "owner": false,
+      "skip": "Описание экрана «Лимиты ввода» в «Настройках»; отдельных шагов владельца нет."
+    },
+    "TF_CATCHUP.md": {
+      "owner": false,
+      "guides": [
+        "terraform-catchup"
+      ]
+    },
+    "TURN.md": {
+      "owner": false,
+      "guides": [
+        "cloudflare-turn"
+      ]
+    },
+    "VENDORS.md": {
+      "owner": true,
+      "guides": [
+        "vendors"
+      ]
+    },
+    "WEB_LAUNCH.md": {
+      "owner": false,
+      "guides": [
+        "web-launch"
+      ]
+    },
+    "api-5xx.md": {
+      "owner": false,
+      "skip": "Тревога для дежурного инженера; владелец видит лампочку на «Здоровье системы» и письмо по инструкции «Тревоги инфраструктуры»."
+    },
+    "api-latency.md": {
+      "owner": false,
+      "skip": "Тревога для дежурного инженера (см. инструкцию «Тревоги инфраструктуры»)."
+    },
+    "api-unhealthy.md": {
+      "owner": false,
+      "skip": "Тревога для дежурного инженера (см. «Тревоги инфраструктуры»)."
+    },
+    "auth-abuse.md": {
+      "owner": true,
+      "guides": [
+        "auth-abuse"
+      ]
+    },
+    "aws-guardrails.md": {
+      "owner": true,
+      "guides": [
+        "aws-guardrails"
+      ]
+    },
+    "backup-failed.md": {
+      "owner": false,
+      "guides": [
+        "backups"
+      ]
+    },
+    "backups.md": {
+      "owner": false,
+      "guides": [
+        "backups"
+      ]
+    },
+    "batch-a-owner.md": {
+      "owner": false,
+      "skip": "Одноразовый список включений пакета A (24.10.2026), выполнен; каждый пункт теперь имеет свою инструкцию."
+    },
+    "batch-c-owner.md": {
+      "owner": false,
+      "skip": "Одноразовый список включений пакета C (24.10.2026), выполнен."
+    },
+    "break-glass.md": {
+      "owner": true,
+      "guides": [
+        "aws-break-glass"
+      ]
+    },
+    "cost.md": {
+      "owner": false,
+      "guides": [
+        "big-bill"
+      ]
+    },
+    "db-autoscale.md": {
+      "owner": false,
+      "guides": [
+        "autoscale-db-redis"
+      ]
+    },
+    "db-contention.md": {
+      "owner": false,
+      "skip": "Тревога базы для инженера (см. «Тревоги инфраструктуры»)."
+    },
+    "db-ops.md": {
+      "owner": true,
+      "skip": "Тонкая настройка базы (таймауты, уборка, реплика) для инженера; владельцу — инструкции «Копия базы для чтения», «Сжатие раздутых таблиц», «Автомасштабирование»."
+    },
+    "db-redis-unavailable.md": {
+      "owner": false,
+      "skip": "Недоступность базы/Redis — действия инженера по инструкции «Авария»."
+    },
+    "db-replica.md": {
+      "owner": false,
+      "guides": [
+        "db-read-replica"
+      ]
+    },
+    "dev-speed.md": {
+      "owner": false,
+      "skip": "Скорость локальной разработки (инженер)."
+    },
+    "ecs-capacity.md": {
+      "owner": false,
+      "skip": "Тревога процессора серверов для инженера; владельцу — «Масштаб»."
+    },
+    "infra-alarms.md": {
+      "owner": false,
+      "guides": [
+        "infra-alarms"
+      ]
+    },
+    "infra-from-admin.md": {
+      "owner": false,
+      "guides": [
+        "infra-from-admin"
+      ]
+    },
+    "infra-hardening.md": {
+      "owner": true,
+      "guides": [
+        "infra-hardening"
+      ]
+    },
+    "journal-integrity.md": {
+      "owner": false,
+      "skip": "Критическая тревога целостности журнала — разбор инженером (см. «Авария»)."
+    },
+    "legal-texts-2026-10.md": {
+      "owner": true,
+      "guides": [
+        "legal-texts"
+      ]
+    },
+    "migrate-resolve.md": {
+      "owner": false,
+      "guides": [
+        "migration-stuck"
+      ]
+    },
+    "mobile-staged-rollout.md": {
+      "owner": false,
+      "guides": [
+        "apple-phased-release",
+        "google-play-staged-rollout"
+      ]
+    },
+    "nat-endpoints.md": {
+      "owner": false,
+      "guides": [
+        "nat-endpoints"
+      ]
+    },
+    "org-accounts.md": {
+      "owner": false,
+      "guides": [
+        "aws-organizations"
+      ]
+    },
+    "paging.md": {
+      "owner": false,
+      "guides": [
+        "pagerduty"
+      ]
+    },
+    "payments-failed.md": {
+      "owner": false,
+      "skip": "Тревога платежей для инженера; владельцу — лампочка Stripe и инструкция «Stripe: устойчивость и вебхуки»."
+    },
+    "pg-repack.md": {
+      "owner": false,
+      "guides": [
+        "pg-repack"
+      ]
+    },
+    "prelaunch-wipe.md": {
+      "owner": false,
+      "skip": "Одноразовая очистка тестовых данных перед запуском (инженер, с подтверждением владельца в чате)."
+    },
+    "queues.md": {
+      "owner": false,
+      "skip": "Тревога очередей для инженера; владелец нажимает «Повторить» на «Здоровье системы»."
+    },
+    "redis-autoscale.md": {
+      "owner": false,
+      "guides": [
+        "autoscale-db-redis"
+      ]
+    },
+    "redis-cluster.md": {
+      "owner": true,
+      "guides": [
+        "redis-cluster"
+      ]
+    },
+    "redis.md": {
+      "owner": false,
+      "skip": "Тревога Redis для инженера; владельцу — карточка на «Масштабе» и «Автомасштабирование»."
+    },
+    "restore-drill.md": {
+      "owner": false,
+      "guides": [
+        "restore-drill"
+      ]
+    },
+    "search-load-test.md": {
+      "owner": false,
+      "skip": "Нагрузочный тест поиска (инженер)."
+    },
+    "search-reindex.md": {
+      "owner": true,
+      "guides": [
+        "search-reindex"
+      ]
+    },
+    "secrets-rotation.md": {
+      "owner": true,
+      "guides": [
+        "secrets-rotation"
+      ]
+    },
+    "ses.md": {
+      "owner": false,
+      "skip": "Репутация почты (SES) — инженер; владелец получает письмо AWS (инструкция «Пришло письмо от AWS»)."
+    },
+    "shard-move.md": {
+      "owner": false,
+      "guides": [
+        "db-split"
+      ]
+    },
+    "slo.md": {
+      "owner": false,
+      "guides": [
+        "slo-alarms"
+      ]
+    },
+    "sms-spend.md": {
+      "owner": false,
+      "guides": [
+        "twilio-fraud-guard"
+      ]
+    },
+    "stripe-webhooks.md": {
+      "owner": false,
+      "guides": [
+        "stripe-robustness-webhooks"
+      ]
+    },
+    "synthetic-check.md": {
+      "owner": false,
+      "guides": [
+        "synthetic-check"
+      ]
+    },
+    "table-partitioning.md": {
+      "owner": false,
+      "guides": [
+        "table-partitioning"
+      ]
+    },
+    "treasury.md": {
+      "owner": false,
+      "guides": [
+        "treasury"
+      ]
+    }
+  }
+}

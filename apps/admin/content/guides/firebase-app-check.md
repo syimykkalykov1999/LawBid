@@ -5,6 +5,7 @@ category: system
 cost: Бесплатно в рамках нашего объёма (у Firebase есть квоты на выдачу токенов)
 time: 40 минут на регистрацию, потом неделя наблюдения
 launch: app_check
+runbook: APP_CHECK.md
 verified: 2026-10-25
 sources:
   - Firebase - обзор App Check | https://firebase.google.com/docs/app-check

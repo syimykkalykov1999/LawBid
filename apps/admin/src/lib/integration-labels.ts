@@ -100,7 +100,11 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     warning:
       'Имя бакета R2 должно отличаться от бакетов AWS. Не меняйте бакет после того, как в нём появились файлы.',
   },
-  sentry: { label: 'Sentry (отчёты об ошибках)', description: 'Отчёты о сбоях и ошибках сервера, приложения и админки.' },
+  sentry: {
+    label: 'Sentry (отчёты об ошибках)',
+    description:
+      'Отчёты о сбоях и ошибках сервера, приложения и админки. С полями «Проект» и «Токен event:read/event:write» страница «Сегодня» показывает число новых и нерешённых ошибок и кнопку «Решено» (переключатель today.sentry_enabled в «Настройках»).',
+  },
   apns: {
     label: 'Apple Push (APNs) — звонки на iPhone',
     description: 'Звонит на iPhone, даже когда приложение закрыто (VoIP-пуши).',
@@ -221,6 +225,9 @@ const FIELD_BY_PROVIDER: Record<string, string> = {
   'sentry.adminDsn': 'Адрес для отчётов админки (DSN)',
   'sentry.orgSlug': 'Имя организации (для статистики)',
   'sentry.statsToken': 'Токен с правом org:read (для статистики)',
+  'sentry.project': 'Проект (для строки «Ошибки в приложении» на «Сегодня»)',
+  'sentry.host': 'Адрес Sentry (пусто = sentry.io)',
+  'sentry.issuesToken': 'Токен с правами event:read и event:write (для «Сегодня»)',
   'bunny_stream.apiKey': 'API-ключ библиотеки',
   'bunny_stream.accountApiKey': 'API-ключ аккаунта Bunny (для тревог по трафику, необязательно)',
   'google_translate.apiKey': 'API-ключ',
@@ -322,6 +329,9 @@ const FIELD_EN: Record<string, string> = {
   'sentry.adminDsn': 'DSN',
   'sentry.orgSlug': 'Organization slug',
   'sentry.statsToken': 'Auth token (org:read)',
+  'sentry.project': 'Project slug',
+  'sentry.host': 'Sentry host',
+  'sentry.issuesToken': 'Auth token (event:read, event:write)',
   'stripe.publishableKey': 'Publishable key',
   'apns.keyId': 'Key ID',
   'apns.teamId': 'Team ID',
