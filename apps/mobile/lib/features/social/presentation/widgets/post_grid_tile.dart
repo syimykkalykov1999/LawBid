@@ -28,8 +28,14 @@ class PostGridTile extends StatelessWidget {
     this.autoplay = false,
     this.index = 0,
     this.warmAhead = const [],
+    this.customCover = true,
     super.key,
   });
+
+  /// Owner 2026-10-28: a video's custom cover (a frame or a gallery picture
+  /// the author chose) belongs to the profile grid only. False (Search):
+  /// the tile shows the video's own frame from the stream instead.
+  final bool customCover;
 
   /// Search grid: the tile's place in the list and the next posts below it
   /// (their posters and first video bytes are warmed ahead of the scroll).
@@ -57,7 +63,11 @@ class PostGridTile extends StatelessWidget {
             if (autoplay &&
                 p.video?.status == 'ready' &&
                 p.video?.playbackUrl != null)
-              _PreviewVideo(post: p, previewing: previewing),
+              _PreviewVideo(
+                post: p,
+                previewing: previewing,
+                customCover: customCover,
+              ),
             // Owner 2026-10-12: a pinned post wears a pin (Instagram).
             if (showPin && p.pinSlot != null)
               const PositionedDirectional(
@@ -81,6 +91,7 @@ class PostGridTile extends StatelessWidget {
                 post: p,
                 index: index,
                 warmAhead: warmAhead,
+                customCover: customCover,
                 builder: body,
               )
             : body(previewing: false),
@@ -93,14 +104,14 @@ class PostGridTile extends StatelessWidget {
     Post p,
     Widget Function() cover,
   ) =>
-      p.media.isEmpty && p.video?.thumbnailUrl == null
+      _posterUrl(p, customCover: customCover) == null
           ? cover()
           : Stack(
               fit: StackFit.expand,
               children: [
                 CachedNetworkImage(
-                  imageUrl: _posterUrl(p)!,
-                  cacheKey: _posterKey(p),
+                  imageUrl: _posterUrl(p, customCover: customCover)!,
+                  cacheKey: _posterKey(p, customCover: customCover),
                   cacheManager: AppImageCaches.feed,
                   fit: BoxFit.cover,
                   memCacheWidth: kGridPosterWidth,
@@ -150,23 +161,37 @@ SliverGridDelegate profileGridDelegate() => webWideWindow
 /// Owner 2026-10-23: the width a grid tile's poster is decoded at.
 const int kGridPosterWidth = 400;
 
-String? _posterUrl(Post p) =>
-    p.media.isNotEmpty ? p.media.first.previewUrl : p.video?.thumbnailUrl;
+/// The tile's picture: the first photo, else the video's custom cover
+/// ([customCover], the profile grid) or its own frame (everywhere else).
+String? _posterUrl(Post p, {required bool customCover}) => p.media.isNotEmpty
+    ? p.media.first.previewUrl
+    : customCover
+        ? p.video?.thumbnailUrl
+        : p.video?.frameThumbnailUrl;
 
-String? _posterKey(Post p) =>
-    p.media.isNotEmpty ? '${p.media.first.fileId}:320' : p.video?.thumbnailUrl;
+/// The cache key: a frame's signed URL changes with its token, so it is
+/// keyed by the video's folder (the URL without the token part).
+String? _posterKey(Post p, {required bool customCover}) {
+  if (p.media.isNotEmpty) return '${p.media.first.fileId}:320';
+  if (customCover) return p.video?.thumbnailUrl;
+  final frame = p.video?.frameThumbnailUrl;
+  if (frame == null) return null;
+  final cut =
+      frame.lastIndexOf('/', frame.length - '/thumbnail.jpg'.length - 1);
+  return 'frame:${cut < 0 ? frame : frame.substring(cut)}';
+}
 
 /// The tile's poster exactly as [PostGridTile] draws it (cache key and
 /// decode size), for warming it before the tile is on screen.
-ImageProvider? gridPosterProvider(Post p) {
-  final url = _posterUrl(p);
+ImageProvider? gridPosterProvider(Post p, {bool customCover = true}) {
+  final url = _posterUrl(p, customCover: customCover);
   if (url == null) return null;
   return ResizeImage.resizeIfNeeded(
     kGridPosterWidth,
     null,
     CachedNetworkImageProvider(
       url,
-      cacheKey: _posterKey(p),
+      cacheKey: _posterKey(p, customCover: customCover),
       cacheManager: AppImageCaches.feed,
     ),
   );
@@ -174,10 +199,17 @@ ImageProvider? gridPosterProvider(Post p) {
 
 final _postersWarmed = <String>{};
 
-void _warmPosters(BuildContext context, Iterable<Post> posts) {
+void _warmPosters(
+  BuildContext context,
+  Iterable<Post> posts, {
+  required bool customCover,
+}) {
   for (final p in posts) {
-    final provider = gridPosterProvider(p);
-    if (provider == null || !_postersWarmed.add(_posterKey(p)!)) continue;
+    final provider = gridPosterProvider(p, customCover: customCover);
+    if (provider == null ||
+        !_postersWarmed.add(_posterKey(p, customCover: customCover)!)) {
+      continue;
+    }
     if (_postersWarmed.length > 600) _postersWarmed.clear();
     unawaited(precacheImage(provider, context, onError: (_, __) {}));
   }
@@ -193,12 +225,16 @@ class GridTileProbe extends ConsumerStatefulWidget {
     required this.index,
     required this.warmAhead,
     required this.builder,
+    this.customCover = true,
     super.key,
   });
 
   final Post post;
   final int index;
   final List<Post> warmAhead;
+
+  /// See [PostGridTile.customCover].
+  final bool customCover;
   final Widget Function({required bool previewing}) builder;
 
   @override
@@ -248,7 +284,11 @@ class _GridTileProbeState extends ConsumerState<GridTileProbe>
       onVisibilityChanged: (i) {
         _fraction = i.visibleFraction;
         if (_fraction > 0 && playbackVisible) {
-          _warmPosters(context, [widget.post, ...widget.warmAhead]);
+          _warmPosters(
+            context,
+            [widget.post, ...widget.warmAhead],
+            customCover: widget.customCover,
+          );
         }
         _report();
       },
@@ -269,10 +309,18 @@ const kGridPreviewLength = Duration(seconds: 4);
 /// The muted preview of a video tile (its poster stays under it until the
 /// first frame moves) and the view count at the bottom left.
 class _PreviewVideo extends ConsumerWidget {
-  const _PreviewVideo({required this.post, required this.previewing});
+  const _PreviewVideo({
+    required this.post,
+    required this.previewing,
+    required this.customCover,
+  });
 
   final Post post;
   final bool previewing;
+
+  /// See [PostGridTile.customCover]: false — a player that cannot play
+  /// shows the video's own frame, never the custom cover.
+  final bool customCover;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -280,17 +328,18 @@ class _PreviewVideo extends ConsumerWidget {
     final f = ref.watch(l10nFormatsProvider);
     // A few seconds from where the author's clip starts, looping.
     final end = v.playStart + kGridPreviewLength;
-    final clip = (v.playEnd == null || v.playEnd! > end)
+    final cut = v.playEnd == null || v.playEnd! > end;
+    final clip = (cut || !customCover)
         ? PostVideo(
             status: v.status,
             playbackUrl: v.playbackUrl,
             fallbackUrl: v.fallbackUrl,
-            thumbnailUrl: v.thumbnailUrl,
+            thumbnailUrl: customCover ? v.thumbnailUrl : v.frameThumbnailUrl,
             durationSec: v.durationSec,
             width: v.width,
             height: v.height,
             trimStartMs: v.trimStartMs,
-            trimEndMs: end.inMilliseconds,
+            trimEndMs: cut ? end.inMilliseconds : v.trimEndMs,
           )
         : v;
     return Stack(

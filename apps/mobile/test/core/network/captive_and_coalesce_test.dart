@@ -146,6 +146,44 @@ void main() {
       expect(adapter.requests, hasLength(2));
     });
 
+    test(
+        'a leader taken off the chain before the cache (captive page) never '
+        'leaves the follower waiting: it asks for itself', () async {
+      // Owner 2026-10-28 (app freeze): the follower used to wait forever and
+      // never reached the server.
+      var n = 0;
+      final html = FakeHttpAdapter(
+        (o) async => n++ == 0
+            ? _html(200)
+            : ResponseBody.fromString(
+                jsonEncode({
+                  'data': {'ok': true},
+                }),
+                200,
+                headers: {
+                  Headers.contentTypeHeader: [Headers.jsonContentType],
+                },
+              ),
+      );
+      final dio = Dio(BaseOptions(baseUrl: 'http://t/api'))
+        ..httpClientAdapter = html
+        ..interceptors.addAll([
+          CaptivePortalInterceptor(),
+          HttpCacheInterceptor(
+            followerWait: const Duration(milliseconds: 50),
+          ),
+        ]);
+      final a =
+          dio.get<dynamic>('/feed').then((_) => 'ok').catchError((_) => 'err');
+      final b =
+          dio.get<dynamic>('/feed').then((_) => 'ok').catchError((_) => 'err');
+      expect(
+        await Future.wait([a, b]).timeout(const Duration(seconds: 5)),
+        ['err', 'ok'],
+      );
+      expect(html.requests, hasLength(2));
+    });
+
     test('after the answer a new GET is a new request', () async {
       final dio = make();
       gate.complete();

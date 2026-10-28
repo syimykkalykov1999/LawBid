@@ -6,11 +6,12 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 /// The post sticker's width at scale 1, as a fraction of the frame's width.
 const double kStoryPostStickerWidth = 0.62;
 
-/// The picture of a post for its sticker: the first photo, else the video
-/// cover; null for a text post.
+/// The picture of a post for its sticker: the first photo, else the
+/// video's own frame (owner 2026-10-28: the custom cover is for the
+/// profile grid only); null for a text post.
 String? storyPostImageUrl(Post post) => post.media.isNotEmpty
     ? post.media.first.mediumUrl
-    : post.video?.thumbnailUrl;
+    : post.video?.frameThumbnailUrl;
 
 /// Owner 2026-10-21 (Instagram «Добавить в историю»): a post as a story
 /// sticker — the author row and the photo / video cover (4:5), or the

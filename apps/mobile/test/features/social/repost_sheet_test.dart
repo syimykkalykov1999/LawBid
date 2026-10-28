@@ -7,6 +7,7 @@ import 'package:lawbid/features/profile/presentation/widgets/client_social_profi
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
 
 import '../../helpers/ux_harness.dart';
 import 'social_fakes.dart';
@@ -86,7 +87,7 @@ void main() {
     await settle(t);
   });
 
-  testWidgets('Briefs & reposts tab lists reposts; undo removes the card',
+  testWidgets('Briefs & reposts tab lists reposts as grid tiles',
       (t) async {
     final repo = FakeSocialRepository()
       ..reposts = [
@@ -108,14 +109,7 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
-    expect(find.byType(PostCard), findsOneWidget);
-    await t.tap(find.bySemanticsLabel('Undo repost').first);
-    await t.pump(const Duration(milliseconds: 300));
-    await t.pumpAndSettle();
-    await t.tap(find.byKey(const ValueKey('repost-sheet-undo')));
-    await t.pumpAndSettle();
-    expect(find.byType(PostCard), findsNothing);
-    expect(find.text('No briefs or reposts yet'), findsOneWidget);
+    expect(find.byType(PostGridTile), findsOneWidget);
     await settle(t);
   });
 
@@ -153,7 +147,7 @@ void main() {
     expect(find.bySemanticsLabel('Reviews'), findsNothing);
     await t.tap(find.bySemanticsLabel('Briefs & reposts'));
     await t.pumpAndSettle();
-    expect(find.byType(PostCard), findsOneWidget);
+    expect(find.byType(PostGridTile), findsOneWidget);
     await settle(t);
   });
 

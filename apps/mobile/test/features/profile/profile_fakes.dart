@@ -572,6 +572,7 @@ List<Override> profileOverrides({
   FakeReviewsRepo? reviews,
   FakeClientRepo? clients,
   FakeAvatarRepo? avatars,
+  FakeCasesRepository? cases,
 }) =>
     [
       attorneyProfileRepositoryProvider.overrideWithValue(
@@ -585,7 +586,7 @@ List<Override> profileOverrides({
       if (avatars != null)
         avatarUploadRepositoryProvider.overrideWithValue(avatars),
       clockProvider.overrideWithValue(() => kNow),
-      ...casesOverrides(),
+      ...casesOverrides(repo: cases),
     ];
 
 /// [onboardingWrapper] with the profile fakes.

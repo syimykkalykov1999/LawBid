@@ -13,6 +13,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/l10n/week_start.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/time/local_now.dart';
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
 import 'package:lawbid/features/consultations/application/consultations_providers.dart';
@@ -33,6 +34,9 @@ import 'package:lawbid/shared/presentation/edge_swipe.dart';
 /// «Архив» (finished — kept a year, then removed) and an assistant's
 /// «Результаты».
 enum TasksView { today, all, archive, results }
+
+/// A place of the planner's chips row (a scope of the board, or a view).
+typedef _TaskStop = ({TaskScope? scope, TasksView view});
 
 /// Owner 2026-10-05: the planner's filters — period, case, who does it,
 /// order. Applied on the phone: the lists are small and it is instant.
@@ -259,7 +263,9 @@ class _TasksTabState extends ConsumerState<TasksTab> {
     super.dispose();
   }
 
-  TasksKey get _key => switch (_view) {
+  TasksKey get _key => keyOf(_view);
+
+  static TasksKey keyOf(TasksView view) => switch (view) {
         TasksView.today || TasksView.all => (done: false, mine: false),
         TasksView.archive => (done: true, mine: false),
         TasksView.results => (done: true, mine: true),
@@ -582,6 +588,89 @@ class _TasksTabState extends ConsumerState<TasksTab> {
     }
   }
 
+  /// The list of one place of the chips row: [view] with [filter].
+  Widget _body(
+    TasksView view,
+    TaskFilter filter, {
+    required Translator t,
+    required L10nFormats formats,
+    required AppColorTokens colors,
+    required bool canAdd,
+    required bool assistant,
+  }) {
+    return RefreshIndicator(
+      color: colors.gold,
+      backgroundColor: colors.sheet,
+      onRefresh: () async {
+        await ref.read(tasksProvider(keyOf(view)).notifier).refresh();
+        if (view == TasksView.results) {
+          ref.invalidate(teamRequestsProvider);
+        }
+      },
+      child: view == TasksView.results
+          ? _ResultsList(t: t, formats: formats, listKey: keyOf(view))
+          : _TaskList(
+              t: t,
+              formats: formats,
+              listKey: keyOf(view),
+              view: view,
+              filter: filter,
+              query: _search.text,
+              canAdd: canAdd,
+              onAdd: _add,
+              picked: _choosing ? _picked : null,
+              onPick: _togglePick,
+              onCheck: _quickDone,
+              onStepCheck: _toggleStep,
+              onMarkTap: _markTap,
+              onTomorrow: _tomorrow,
+              onReopen: (task) => _setDone(task, done: false),
+              onOpenCase: _openCase,
+              expanded: _expanded,
+              onToggleSteps: (id) => setState(() {
+                if (!_expanded.remove(id)) _expanded.add(id);
+              }),
+              onFilter: (f) => setState(() => _filter = f),
+              attorneySide: _attorneySide,
+              assistant: assistant,
+            ),
+    );
+  }
+
+  /// Owner 2026-10-28: the places of the chips row a horizontal swipe moves
+  /// through (like the sections of «Дела»): the scopes, then the archive.
+  List<_TaskStop> _stops({required bool assistant}) {
+    // The board's own view (all, or «today» when opened on it) for the
+    // scope chips.
+    final board = _view == TasksView.today ? TasksView.today : TasksView.all;
+    return [
+      (scope: TaskScope.all, view: board),
+      (scope: TaskScope.overdue, view: board),
+      if (!assistant && _attorneySide) ...[
+        (scope: TaskScope.forClient, view: board),
+        (scope: TaskScope.joint, view: board),
+        (scope: TaskScope.assistant, view: board),
+      ] else if (!assistant) ...[
+        (scope: TaskScope.mine, view: board),
+        (scope: TaskScope.joint, view: board),
+      ],
+      (scope: null, view: TasksView.archive),
+      if (assistant) (scope: null, view: TasksView.results),
+    ];
+  }
+
+  _TaskStop get _stop => switch (_view) {
+        TasksView.archive || TasksView.results => (scope: null, view: _view),
+        _ => (scope: _filter.scope, view: _view),
+      };
+
+  void _goStop(_TaskStop stop) => setState(() {
+        _picked.clear();
+        _view = stop.view;
+        final scope = stop.scope;
+        if (scope != null) _filter = _filter.copyWith(scope: scope);
+      });
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
@@ -721,43 +810,32 @@ class _TasksTabState extends ConsumerState<TasksTab> {
             ],
             const SizedBox(height: AppSpacing.sm),
             Expanded(
-              child: RefreshIndicator(
-                color: colors.gold,
-                backgroundColor: colors.sheet,
-                onRefresh: () async {
-                  await ref.read(tasksProvider(_key).notifier).refresh();
-                  if (_view == TasksView.results) {
-                    ref.invalidate(teamRequestsProvider);
-                  }
-                },
-                child: _view == TasksView.results
-                    ? _ResultsList(t: t, formats: formats, listKey: _key)
-                    : _TaskList(
+              child: widget.showViews
+                  ? SwipePages<_TaskStop>(
+                      value: _stop,
+                      values: _stops(assistant: assistant),
+                      onChanged: _goStop,
+                      pageBuilder: (_, stop) => _body(
+                        stop.view,
+                        stop.scope == null
+                            ? _filter
+                            : _filter.copyWith(scope: stop.scope),
                         t: t,
                         formats: formats,
-                        listKey: _key,
-                        view: _view,
-                        filter: _filter,
-                        query: _search.text,
+                        colors: colors,
                         canAdd: canAdd,
-                        onAdd: _add,
-                        picked: _choosing ? _picked : null,
-                        onPick: _togglePick,
-                        onCheck: _quickDone,
-                        onStepCheck: _toggleStep,
-                        onMarkTap: _markTap,
-                        onTomorrow: _tomorrow,
-                        onReopen: (task) => _setDone(task, done: false),
-                        onOpenCase: _openCase,
-                        expanded: _expanded,
-                        onToggleSteps: (id) => setState(() {
-                          if (!_expanded.remove(id)) _expanded.add(id);
-                        }),
-                        onFilter: (f) => setState(() => _filter = f),
-                        attorneySide: _attorneySide,
                         assistant: assistant,
                       ),
-              ),
+                    )
+                  : _body(
+                      _view,
+                      _filter,
+                      t: t,
+                      formats: formats,
+                      colors: colors,
+                      canAdd: canAdd,
+                      assistant: assistant,
+                    ),
             ),
             if (_choosing)
               _BulkBar(

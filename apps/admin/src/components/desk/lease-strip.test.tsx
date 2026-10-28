@@ -72,7 +72,7 @@ describe('lease strip: the item pinned to me', () => {
     const strip = screen.getByTestId('lease-strip');
     expect(strip.textContent).toMatch(/Жалоба/);
     expect(strip.textContent).not.toMatch(/Заявка адвоката/);
-    expect(strip.querySelector('a')?.getAttribute('href')).toBe('/moderation/post/99999999-2222-3333-4444-555555555555?focus=1');
+    expect(strip.querySelector('a')?.getAttribute('href')).toBe('/moderation/review?type=post&id=99999999-2222-3333-4444-555555555555');
   });
 
   it('«Отпустить» releases it', async () => {

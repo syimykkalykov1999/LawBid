@@ -6,6 +6,7 @@ import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api/client';
 import { useNextVerification } from '@/components/workspace/queue-next';
 import { deskPost, MY_LEASES_KEY, type DeskSettingsView, type NextOutcome } from '@/lib/desk-data';
+import { supportReviewHref } from '@/lib/review-flow';
 import { itemHref, KIND_SWITCH, LEASE_SERVED, TAB_KIND, type DeskRole, type LeaseKind } from '@/lib/desk';
 
 /**
@@ -67,7 +68,7 @@ export function useDeskQueue(role: DeskRole, tab: string, settings: DeskSettings
   const legacySupport = useMutation({
     mutationFn: async () => (await api.POST('/admin/support/tickets/next')).data!.data,
     onSuccess: (r) => {
-      if (r.ticket) router.push(`/support/${r.ticket.id}?focus=1`);
+      if (r.ticket) router.push(supportReviewHref(r.ticket.id));
       else toast.success('Очередь пуста: открытых обращений нет');
     },
     onError: (e) => toast.error(e),

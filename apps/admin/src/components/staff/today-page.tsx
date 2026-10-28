@@ -6,7 +6,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { SuggestionCard } from '@/components/staff/suggestion-card';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { useToast } from '@/components/ui/toast';
@@ -16,6 +16,7 @@ import { dayLabel, APPEAL_KIND, STATUS_LABEL } from '@/lib/staff-labels';
 import { useDigest, useToday, useTodaySystem, isOwner, staffPost, TODAY_SYSTEM_KEY, type DigestWeek, type Today, type TodayPerson } from '@/lib/staff-data';
 import { actionHref, mergeSystemItems, sentryLine, SEVERITY_WORD, type SentrySummary, type TodaySystem } from '@/lib/system-items';
 import { formatDateTime } from '@/lib/utils';
+import { OWNER_REVIEW_PATH } from '@/lib/review-flow';
 
 const usd = (cents: number) => new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(cents / 100);
 
@@ -232,6 +233,12 @@ export function TodayPage() {
       <PageHeader
         eyebrow="Сегодня"
         title="Что требует внимания"
+        actions={
+          // Owner 2026-10-28: decide one after another without coming back here.
+          <Link href={OWNER_REVIEW_PATH} className={buttonVariants({ variant: 'gold', size: 'sm' })}>
+            Решать подряд
+          </Link>
+        }
         subtitle={t ? <>Данные на {formatDateTime(t.computedAt)}. Только то, что нужно решить, без длинных журналов.</> : 'Короткий список: что решить сегодня.'}
       />
       <ErrorNote text={q.error ? errorText(q.error) : null} />

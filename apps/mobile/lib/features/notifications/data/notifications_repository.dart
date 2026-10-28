@@ -564,22 +564,33 @@ class ApiNotificationsRepository
     bool localReminders = false,
     bool chatStyle = false,
     bool actorStyle = false,
-  }) =>
-      guardApiCall(
-        () => _api.registerPushToken(
-          body: api.PushTokenDto(
-            token: token,
-            platform: web
-                ? api.PushTokenDtoPlatform.web
-                : ios
-                    ? api.PushTokenDtoPlatform.ios
-                    : api.PushTokenDtoPlatform.android,
-            localReminders: localReminders,
-            chatStyle: chatStyle,
-            actorStyle: actorStyle,
+  }) async {
+    Future<void> send({required bool withActorStyle}) => guardApiCall(
+          () => _api.registerPushToken(
+            body: api.PushTokenDto(
+              token: token,
+              platform: web
+                  ? api.PushTokenDtoPlatform.web
+                  : ios
+                      ? api.PushTokenDtoPlatform.ios
+                      : api.PushTokenDtoPlatform.android,
+              localReminders: localReminders,
+              chatStyle: chatStyle,
+              // Owner 2026-10-28: only sent when on — a server from before
+              // the field (2026-10-24) refuses unknown fields with a 400.
+              actorStyle: withActorStyle ? true : null,
+            ),
           ),
-        ),
-      );
+        );
+    try {
+      await send(withActorStyle: actorStyle);
+    } on ApiException catch (e) {
+      // An older server that does not know `actorStyle` yet: register the
+      // token without it (plain notifications) instead of failing forever.
+      if (!actorStyle || e.code != ApiErrorCodes.validationError) rethrow;
+      await send(withActorStyle: false);
+    }
+  }
 
   @override
   Future<void> setArmedReminders(String token, List<String> ids) =>

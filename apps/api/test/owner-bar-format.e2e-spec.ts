@@ -60,6 +60,13 @@ describe('Bar number format and stepped cooldown (e2e)', () => {
     await prisma.appConfig.deleteMany({
       where: { key: 'verification.bar_formats' },
     });
+    // This suite tests bar numbers, not ID + selfie (required by default since
+    // owner 2026-10-28; covered in verification.e2e-spec).
+    await prisma.appConfig.upsert({
+      where: { key: 'verification.require_identity' },
+      create: { key: 'verification.require_identity', value: false },
+      update: { value: false },
+    });
     await redis.del('config:app_config');
   });
 

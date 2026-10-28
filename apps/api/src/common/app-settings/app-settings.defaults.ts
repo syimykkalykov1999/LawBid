@@ -411,11 +411,14 @@ export const OWNER_BADGE_SETTINGS = {
 // Owner 2026-10-04: an attorney enters state + bar number and confirms
 // them under a sworn statement; the request is then approved at once
 // (`self_attestation_auto_approve`, off = verifier queue as before). A
-// photo of the bar card and ID + selfie are asked for only when switched
-// on here (or, for ID + selfie, after a name change).
+// photo of the bar card is asked for only when switched on here.
+// Owner 2026-10-28 (binding): ID + selfie are now REQUIRED for every new
+// attorney verification request (driver's license / passport / state ID
+// plus a selfie holding it); `verification.require_identity` defaults to
+// true. Already verified attorneys are not re-verified.
 export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   'verification.require_bar_document': false,
-  'verification.require_identity': false,
+  'verification.require_identity': true,
   // Owner 2026-10-16: off — a new license stays pending until the state
   // registry matches it or an admin approves it (with the bar card).
   'verification.self_attestation_auto_approve': false,

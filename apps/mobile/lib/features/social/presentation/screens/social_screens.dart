@@ -881,29 +881,40 @@ class ProfileBriefsAndReposts extends ConsumerWidget {
       }
     }
 
-    final ownProfile =
-        ref.watch(currentUserIdProvider) == attorneyId;
+    final ownProfile = ref.watch(currentUserIdProvider) == attorneyId;
+    // Owner 2026-10-28: the tab is the same full-width 3-column grid as
+    // «Посты» (the same tiles: a video is only its cover, a text brief its
+    // text cover); a tap opens the items as a feed from that tile.
+    final tiles = <Post>[
+      ...pinnedShown,
+      for (final e in shown) e.item,
+    ];
     return Column(
       children: [
         // Owner 2026-10-23: the posts being published lead the own profile.
         if (ownProfile) const PendingPostsStrip(),
-        for (final p in pinnedShown)
-          PostImpressionTracker(
-            key: ValueKey('imp-${p.id}'),
-            post: p,
-            child: PostCard(key: ValueKey(p.id), post: p, showPin: true),
-          ),
-        for (final e in shown)
-          PostImpressionTracker(
-            key: ValueKey('imp-${e.item.id}'),
-            post: e.item,
-            child: PostCard(
-              key: ValueKey(e.item.id),
-              post: e.item,
-              // As in the old «Текст» tab; a repost keeps its own look.
-              showPin: e.source == _briefs,
-            ),
-          ),
+        GridView.builder(
+          key: const ValueKey('profile-reposts-grid'),
+          padding: EdgeInsets.zero,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: profileGridDelegate(),
+          itemCount: tiles.length,
+          itemBuilder: (context, i) {
+            final p = tiles[i];
+            return PostGridTile(
+              key: ValueKey('repost-tile-${p.id}'),
+              post: p,
+              semanticLabel: t.t('post.open'),
+              onTap: () => PostsFeedScreen.open(
+                context,
+                posts: tiles,
+                index: i,
+                subtitle: p.author.username,
+              ),
+            );
+          },
+        ),
         if (merged.hasMore)
           TextButton(
             key: const ValueKey('briefs-reposts-more'),

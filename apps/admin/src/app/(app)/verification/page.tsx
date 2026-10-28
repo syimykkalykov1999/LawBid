@@ -9,12 +9,14 @@ import { MoreButton } from '@/components/legacy/more-button';
 import { RegistryFlags } from '@/components/registries/registry-flags';
 import { useDebounced } from '@/components/legacy/use-debounced';
 import { ErrorNote, PageHeader } from '@/components/page-header';
+import { buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { api, errorText } from '@/lib/api/client';
 import { REQUEST_STATUS, StatusPill } from '@/lib/labels';
+import { VERIFICATION_REVIEW_PATH } from '@/lib/review-flow';
 import { formatDateTime, formatDuration } from '@/lib/utils';
 
 type QueueStatus = '' | 'submitted' | 'needs_more_info' | 'in_review' | 'registry';
@@ -51,7 +53,17 @@ export default function VerificationQueuePage() {
 
   return (
     <>
-      <PageHeader eyebrow="Люди" title="Верификация" subtitle="Очередь заявок адвокатов, старые сверху." />
+      <PageHeader
+        eyebrow="Люди"
+        title="Верификация"
+        subtitle="Очередь заявок адвокатов, старые сверху."
+        actions={
+          // Owner 2026-10-28: review one after another without coming back here.
+          <Link href={VERIFICATION_REVIEW_PATH} className={buttonVariants({ variant: 'gold', size: 'sm' })}>
+            Проверять подряд
+          </Link>
+        }
+      />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Tabs<QueueStatus>
           value={status}
