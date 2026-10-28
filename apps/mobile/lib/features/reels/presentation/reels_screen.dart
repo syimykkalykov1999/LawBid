@@ -261,7 +261,8 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                               ? errorText(t, _error!)
                               : t.t('reels.empty'),
                           textAlign: TextAlign.center,
-                          style: type.body.copyWith(color: Colors.white70),
+                          style: type.body
+                              .copyWith(color: AppMediaOverlay.inkMuted),
                         ),
                 )
               : _refreshable(
@@ -549,7 +550,6 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
         widget.post;
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final actions = ref.read(socialActionsProvider);
     // Owner 2026-10-13: «Смотреть» only when the reel has attachments; with
@@ -581,7 +581,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
       if (title.isNotEmpty && !body.startsWith(title)) title,
       if (body.isNotEmpty) body,
     ].join('\n');
-    const shadow = [Shadow(blurRadius: 8, color: Colors.black54)];
+    const shadow = AppMediaOverlay.shadows;
 
     Widget rail(
       IconData icon,
@@ -609,7 +609,8 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                     AppIcon(
                       icon,
                       size: kReelRailIcon,
-                      color: color ?? Colors.white,
+                      color: color ?? AppMediaOverlay.ink,
+                      shadows: shadow,
                     ),
                     if (count != null && count > 0) ...[
                       const SizedBox(height: 2),
@@ -620,7 +621,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                           SocialFormat.count(f, count),
                           style: type.caption.copyWith(
                             fontSize: 13,
-                            color: Colors.white,
+                            color: AppMediaOverlay.ink,
                             fontWeight: FontWeight.w600,
                             shadows: shadow,
                           ),
@@ -673,7 +674,8 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       child: Text(
                         t.t('reels.processing'),
                         textAlign: TextAlign.center,
-                        style: type.body.copyWith(color: Colors.white70),
+                        style:
+                            type.body.copyWith(color: AppMediaOverlay.inkMuted),
                       ),
                     ),
                   ),
@@ -755,13 +757,14 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                               const AppIcon(
                                 AppIcons.visibilityOutlined,
                                 size: kReelRailIcon,
-                                color: Colors.white,
+                                color: AppMediaOverlay.ink,
+                                shadows: shadow,
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 SocialFormat.count(f, p.viewCount),
                                 style: type.caption.copyWith(
-                                  color: Colors.white,
+                                  color: AppMediaOverlay.ink,
                                   fontWeight: FontWeight.w600,
                                   shadows: shadow,
                                 ),
@@ -776,7 +779,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
                         showLikeCount(ref, p) ? p.likeCount : null,
                         () => run(() => actions.toggleLike(p)),
-                        color: p.likedByMe ? colors.danger : null,
+                        color: p.likedByMe ? AppMediaOverlay.liked : null,
                       ),
                       // Owner 2026-10-07: comments off → no comments
                       // button (the server refuses them anyway).
@@ -797,7 +800,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         t.t(p.repostedByMe ? 'post.unrepost' : 'post.repost'),
                         p.repostCount,
                         () => showRepostSheet(context, ref, p),
-                        color: p.repostedByMe ? colors.success : null,
+                        color: p.repostedByMe ? AppMediaOverlay.reposted : null,
                         onCountTap: () => showRepostersList(context, p.id),
                       ),
                       rail(
@@ -813,7 +816,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         t.t(p.savedByMe ? 'post.unsave' : 'post.save'),
                         null,
                         () => run(() => actions.toggleSave(p)),
-                        color: p.savedByMe ? colors.gold : null,
+                        color: p.savedByMe ? AppMediaOverlay.saved : null,
                       ),
                       rail(
                         AppIcons.moreHorizRounded,
@@ -993,10 +996,10 @@ class ReelFollowButton extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
             decoration: BoxDecoration(
               color: following
-                  ? Colors.white.withValues(alpha: 0.18)
-                  : Colors.transparent,
+                  ? AppMediaOverlay.pillFillActive
+                  : AppMediaOverlay.pillFill,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white70),
+              border: Border.all(color: AppMediaOverlay.pillRing),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1005,7 +1008,8 @@ class ReelFollowButton extends ConsumerWidget {
                   const AppIcon(
                     AppIcons.checkRounded,
                     size: 14,
-                    color: Colors.white,
+                    color: AppMediaOverlay.ink,
+                    shadows: AppMediaOverlay.shadows,
                   ),
                 ],
                 // Owner 2026-10-15: once followed, only the check stays
@@ -1017,7 +1021,7 @@ class ReelFollowButton extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: type.caption.copyWith(
-                        color: Colors.white,
+                        color: AppMediaOverlay.ink,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1070,10 +1074,10 @@ class ReelMoreButton extends StatelessWidget {
       label: label,
       excludeSemantics: true,
       child: Material(
-        color: Colors.white.withValues(alpha: 0.18),
+        color: AppMediaOverlay.pillFill,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: Colors.white38),
+          side: const BorderSide(color: AppMediaOverlay.pillRing),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -1087,7 +1091,7 @@ class ReelMoreButton extends StatelessWidget {
                   const AppIcon(
                     AppIcons.bookOpenTextOutlined,
                     size: 20,
-                    color: Colors.white,
+                    color: AppMediaOverlay.ink,
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
@@ -1096,7 +1100,7 @@ class ReelMoreButton extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: type.body.copyWith(
-                        color: Colors.white,
+                        color: AppMediaOverlay.ink,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -1104,7 +1108,7 @@ class ReelMoreButton extends StatelessWidget {
                   const AppIcon(
                     AppIcons.chevronRightRounded,
                     size: 20,
-                    color: Colors.white,
+                    color: AppMediaOverlay.ink,
                   ),
                 ],
               ),
@@ -1187,7 +1191,7 @@ class _ReelCaption extends StatelessWidget {
                 TextSpan(
                   text: moreLabel,
                   style: style.copyWith(
-                    color: Colors.white70,
+                    color: AppMediaOverlay.inkMuted,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

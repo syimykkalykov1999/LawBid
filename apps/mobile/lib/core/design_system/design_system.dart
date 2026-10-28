@@ -13,6 +13,7 @@ export 'theme/chat_colors.dart';
 export 'tokens/app_call_colors.dart';
 export 'tokens/app_colors.dart';
 export 'tokens/app_fonts.dart';
+export 'tokens/app_media_overlay.dart';
 export 'tokens/app_motion.dart';
 export 'tokens/app_radii.dart';
 export 'tokens/app_sizes.dart';

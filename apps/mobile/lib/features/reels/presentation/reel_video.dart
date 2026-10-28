@@ -477,7 +477,6 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
     final thumb = widget.video.thumbnailUrl;
     final c = _c;
     // Owner 2026-10-27: the cover belongs to the profile grid only — a
@@ -520,13 +519,13 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
               !_ready &&
               !_failed &&
               widget.video.playbackUrl != null)
-            Center(
+            const Center(
               child: SizedBox(
                 width: 28,
                 height: 28,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: colors.gold,
+                  color: AppMediaOverlay.progress,
                 ),
               ),
             ),
