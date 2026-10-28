@@ -66,3 +66,36 @@
 
 ## Дальше (шаг 2 — после ответа владельца)
 Порядок: M1 PushKit (iOS) → замена CallForegroundService → FW Helper для динамика/камеры → остальное. Каждую копию — запись в THIRD_PARTY_NOTICES (CK и FW — MIT, LK — Apache-2.0 + NOTICE), перед пушем — «Известные ошибки» раздел A.
+
+---
+# Дополнение 2026-10-28 (по замечанию владельца): поиск везде
+
+## Лицензии (проверено через GitHub API)
+Можно копировать: CK MIT; Rocket.Chat.ReactNative MIT; zulip-flutter Apache-2.0; connectycube-flutter-call-kit Apache-2.0; react-native-callkeep ISC; flutter-webrtc/callkeep MIT; twilio/voice-quickstart-android MIT; vonage-client-sdk-ios Apache-2.0; android/platform-samples Apache-2.0; androidx Apache-2.0; Jitsi Meet Apache-2.0.
+НЕ копировать: Signal-Android AGPL-3.0; element-android и element-x-android AGPL-3.0; FluffyChat AGPL-3.0; Telegram-Android GPL-2.0; wire-android GPL-3.0; Linphone (GPL; GitHub-зеркала linphone-android нет, код на gitlab.linphone.org). Эти репозитории НЕ читались: для каждого момента нашёлся разрешённый источник, значит описывать «как делают они» не нужно.
+**stream-video-flutter / stream-video-android: лицензия «Stream Source Code License Agreement» (проприетарная, SPDX NOASSERTION) — НЕ копировать** (пункт (d) решён: нет).
+Не найдены на GitHub: flutter_voip_kit (voip-kit), AgoraIO-Community/CallKit-Android, twilio/voice-quickstart-ios-swift (имя не то) — не использованы.
+
+## (a) Исправлена ли ошибка CK «экран звонка не закрывается» (M4)
+Нет. Последний релиз CK — v3.1.6 (2026-10-09, = наш). В апстриме открыт PR #872 «fix(android): dismiss the full-screen incoming call when it ends» (автор mhammad-bouali, head 4ae62216da7afcaf33efea9aed21d1f4a6623383, один файл `CallkitIncomingActivity.kt`, убирает `setClassName` из `getIntentEnded`) — это ровно наш обход M4. Рядом открыты: #878 (завершить звонок, чьё широковещание ещё в очереди), #879 (не принимать Telecom-соединение для уже завершённого звонка), #886, #887, #891. Вывод: наш обход M4 совпадает с исправлением апстрима. **Решение: взять дифф PR #872 как есть (MIT, 1 файл) вместо самописного `CallRinging.closeRingingScreen`**; после слияния в апстрим — обновить пакет. Это ответ на «ВЛАДЕЛЕЦ» в п.5 основной таблицы: источник есть.
+
+## Лучший разрешённый источник по моментам (закреплённые коммиты)
+
+| Момент | Источник (пин) | Что именно | Вместо нашего |
+|---|---|---|---|
+| Звонящий отменил: закрыть полноэкранный экран (Android) | connectycube-flutter-call-kit `4fd1ebe3e2d6c603f34f972b2ce8dc760dd54eea` (Apache-2.0), `IncomingCallActivity.kt` стр. 118–140: приёмник на `LocalBroadcastManager` ловит ACTION_CALL_ENDED / REJECT / NOTIFICATION_CANCELED → `finishAndRemoveTask()`. Резерв: CK PR #872 | схема «приёмник регистрируется в самой Activity, сообщение без адреса класса» | `CallRinging.closeRingingScreen` |
+| Отмена: убрать уведомление и службу | twilio/voice-quickstart-android `ab2c495bd52805b26176d145fe838f7e0405bb7f` (MIT), `VoiceService.java` `cancelledCall(CancelledCallInvite)` стр. 435, `ServiceCompat.stopForeground` стр. 634/696; `IncomingCallService.java` | порядок: пуш «отмена» → убрать входящее уведомление → остановить службу | `CallPushReceiver.kt` (нативный стоп) |
+| Полноэкранный вход + CallStyle входящее/идущее, ответить/отклонить/завершить через Telecom | android/platform-samples `177c3b92c387894648d0a2d42d238e265b05bbc3` (Apache-2.0), `samples/connectivity/telecom/.../TelecomCallNotificationManager.kt` (`CallStyle.forIncomingCall` 110, `forOngoingCall` 120, `setFullScreenIntent` 137, `cancel` 80), `TelecomCallRepository.kt` (`registerCall` 86, `processCallActions` 172, `doAnswer` 269, `doDisconnect` 264) — это официальный эталон Google (Core-Telecom). Основной источник, если переходим на Core-Telecom вместо CK ConnectionService | эталон «как правильно» для сверки с CK; сменять CK на него — решение владельца (CK уже работает и закреплён) | — |
+| Android ConnectionService: завершить и уничтожить соединение | Jitsi Meet `stable/jitsi-meet_11248` / `f765042bf280cbd7dcd4a9bbdb63b09e9e4d3259` (Apache-2.0), `android/sdk/.../ConnectionService.java` `setConnectionDisconnected` (147–165: `setDisconnected(cause)` + `destroy()`), `onCreateIncomingConnection` (253), `PROPERTY_SELF_MANAGED` (215); также react-native-callkeep `0295435762f4fdb31d4e3e348bd7bbf8a672b5c4` (ISC) `VoiceConnection.java` `onDisconnect` 118–128, причины `DisconnectCause` 135–148 | сверка нативного `endAll` | нативный `endAll` (M6) — оба источника подтверждают «setDisconnected + destroy» |
+| iOS: отчёт на каждый VoIP-пуш, конец звонка | CK `PUSHKIT.md` + iOS-плагин (уже выше); react-native-callkeep `RNCallKeep.m` `reportEndCallWithUUID:` стр. 232 (ISC) и Jitsi `ios/sdk/src/callkit/` (Apache-2.0) | — | AppDelegate PushKit-блок |
+| Пропущенный | **Единственный источник с кодом: CK** `CallkitNotificationManager.showMissCallNotification` (414) + `layout_custom_miss_notification.xml` (MIT). Twilio, ConnectyCube, callkeep, platform-samples пропущенных уведомлений не делают (поиск по «missed» — только `DisconnectCause.MISSED` в callkeep) | включить пропущенное CK как параметр; отказаться от самописной логики — решение владельца, если нужен серверный `missed_call` с фото | — |
+| PiP, Android (системное окно) | Jitsi `f765042…` (Apache-2.0), `android/sdk/.../PictureInPictureModule.java`: `PictureInPictureParams.Builder` (стр. 101), `enterPictureInPictureMode`; | КОПИЯ целиком + метод-канал во Flutter (Flutter-обвязка: пакет `floating`/`simple_pip_mode` не проверялись) | `call_pip_window.dart` остаётся только внутриигровым |
+| PiP, iPhone (системное, AVPictureInPictureController) | **Разрешённого источника не найдено**: Jitsi iOS `ios/sdk/src/picture-in-picture/` — это перетаскиваемое окно ВНУТРИ приложения (`DragGestureController.swift`, `PiPViewCoordinator.swift`), не системное PiP; CK/FW/LK/callkeep/Twilio — ничего. Stream — проприетарная лицензия | — | **ВЛАДЕЛЕЦ** (системного PiP на iPhone нет ни в одном разрешённом репозитории из проверенных; Apple-документация/образец «Adopting Picture in Picture for video calls» — не лицензионный код, нужно отдельное решение) |
+
+## Безопасность новых источников
+Прочитаны только указанные файлы. Чужих хостов в них нет, кроме ссылок на документацию (apache.org, developer.android.com, stackoverflow в комментарии Jitsi). Установочных скриптов в используемых путях нет. В Twilio-квикстарте есть каталог `servers/` (пример серверной части) — не копировать.
+
+## Обновлённый итог по основным вопросам владельца
+- Пункт 1 (экран не закрывается): источник есть — ConnectyCube `IncomingCallActivity` + CK PR #872. Больше не «ВЛАДЕЛЕЦ».
+- Пункт 2 (пропущенный): источник есть — CK `showMissCallNotification`; нужен только выбор «CK или серверный `missed_call`».
+- Пункт 5 (PiP): Android — Jitsi (Apache); iPhone — источника нет, ВЛАДЕЛЕЦ.
