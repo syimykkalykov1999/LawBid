@@ -13,6 +13,9 @@ CreateBidDto _$CreateBidDtoFromJson(Map<String, dynamic> json) => CreateBidDto(
     json['startAvailability'] as String,
   ),
   sendAsAttorneyId: json['sendAsAttorneyId'] as String?,
+  paymentTerms: json['paymentTerms'] == null
+      ? null
+      : PaymentTermsDto.fromJson(json['paymentTerms'] as Map<String, dynamic>),
   amountCents: (json['amountCents'] as num?)?.toInt(),
   percentBps: (json['percentBps'] as num?)?.toInt(),
   startDate: json['startDate'] == null
@@ -24,6 +27,7 @@ CreateBidDto _$CreateBidDtoFromJson(Map<String, dynamic> json) => CreateBidDto(
 Map<String, dynamic> _$CreateBidDtoToJson(CreateBidDto instance) =>
     <String, dynamic>{
       'sendAsAttorneyId': ?instance.sendAsAttorneyId,
+      'paymentTerms': ?instance.paymentTerms?.toJson(),
       'feeType': instance.feeType.toJson(),
       'amountCents': ?instance.amountCents,
       'percentBps': ?instance.percentBps,

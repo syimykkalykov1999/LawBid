@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/features/cases/deals/deal_record_card.dart';
 import 'package:lawbid/features/cases/tools/signing_data.dart';
 import 'package:lawbid/features/cases/tools/signing_sheets.dart';
 import 'package:lawbid/features/cases/tools/template_form_sheet.dart';
@@ -82,6 +83,8 @@ class _SigningTabState extends ConsumerState<SigningTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Deal record 2026-10-27: one card, on top of the Docs tab.
+        DealRecordCard(caseId: widget.caseId, isAttorney: widget.isAttorney),
         Padding(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.screenSide,

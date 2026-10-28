@@ -1060,17 +1060,21 @@ model File {
   verification_documents VerificationDocument[]
   data_export_jobs       DataExportJob[]
 
-  post_media            PostMedia[]
-  post_attachments      PostAttachment[]
-  case_photos           CasePhoto[]
-  voice_messages        Message[]            @relation("MessageVoice")
-  sticker               Sticker?
-  gift                  Gift?
-  document_template     DocumentTemplate?
-  expense_receipts      CaseExpense[]        @relation("ExpenseReceipt")
-  support_message_files SupportMessageFile[]
-  stories               Story[]
-  channels              Channel[]
+  post_media             PostMedia[]
+  post_attachments       PostAttachment[]
+  case_photos            CasePhoto[]
+  voice_messages         Message[]            @relation("MessageVoice")
+  sticker                Sticker?
+  gift                   Gift?
+  document_template      DocumentTemplate?
+  expense_receipts       CaseExpense[]        @relation("ExpenseReceipt")
+  support_message_files  SupportMessageFile[]
+  stories                Story[]
+  channels               Channel[]
+  // Deal record 2026-10-27: the record PDFs and the attorney's agreement.
+  deal_records_unsigned  DealRecord[]         @relation("DealRecordUnsignedFile")
+  deal_records_sealed    DealRecord[]         @relation("DealRecordSealedFile")
+  deal_records_agreement DealRecord[]         @relation("DealRecordAgreementFile")
 
   @@index([owner_user_id])
   @@index([s3_bucket, s3_key])
@@ -1987,6 +1991,7 @@ model Case {
   expenses            CaseExpense[]
   invoices            CaseInvoice[]
   sign_requests       CaseSignRequest[]
+  deal_records        DealRecord[]
   case_updates        CaseUpdate[]
   bid_drafts          BidDraft[]
   invites             CaseInvite[]
@@ -2051,6 +2056,9 @@ model Bid {
   percent_bps             Int?
   // ≤2000 chars (§6.1), CHECK in the migration.
   message                 String
+  /// Deal record 2026-10-27: rich payment terms (docs/architecture/DEAL_RECORD_PLAN_2026-10-27.md §2.3),
+  /// only while `bids.rich_terms_enabled`; the columns above stay the headline.
+  payment_terms           Json?
   start_availability      StartAvailability
   start_date              DateTime?         @db.Date
   estimated_duration_days Int?
@@ -2071,6 +2079,7 @@ model Bid {
   offers             BidOffer[]
   contact_disclosure ContactDisclosure?
   contact_issues     ContactIssueReport[]
+  deal_records       DealRecord[]
 
   // One bid per attorney per case (§4.D, §5.1).
   conversations Conversation[]
@@ -2094,17 +2103,19 @@ model Bid {
 // Negotiation history. Append-only except the pending -> accepted/
 // declined/countered/superseded status transition (§4.D).
 model BidOffer {
-  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  bid_id       String      @db.Uuid
-  bid          Bid         @relation(fields: [bid_id], references: [id], onDelete: Restrict)
-  round_no     Int         @db.SmallInt
-  from_role    PartyRole
-  fee_type     FeeType
-  amount_cents Int
-  percent_bps  Int?
-  message      String?
-  status       OfferStatus
-  created_at   DateTime    @default(now()) @db.Timestamptz
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bid_id        String      @db.Uuid
+  bid           Bid         @relation(fields: [bid_id], references: [id], onDelete: Restrict)
+  round_no      Int         @db.SmallInt
+  from_role     PartyRole
+  fee_type      FeeType
+  amount_cents  Int
+  percent_bps   Int?
+  message       String?
+  /// Deal record 2026-10-27: the rich payment terms of this round (verbatim copy).
+  payment_terms Json?
+  status        OfferStatus
+  created_at    DateTime    @default(now()) @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -7543,6 +7554,8 @@ model CaseSignRequest {
   created_at       DateTime        @default(now()) @db.Timestamptz
   updated_at       DateTime        @default(now()) @updatedAt @db.Timestamptz
   signatures       CaseSignature[]
+  /// Deal record 2026-10-27: set when this request is the signing of a deal record.
+  deal_record      DealRecord?
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -7550,6 +7563,65 @@ model CaseSignRequest {
   @@index([case_id, created_at])
   @@index([status, expires_at])
   @@map("case_sign_requests")
+}
+
+enum DealRecordStatus {
+  preparing
+  awaiting_signatures
+  sealing
+  sealed
+  declined
+  failed
+
+  @@map("deal_record_status")
+}
+
+/// Deal record 2026-10-27 (docs/architecture/DEAL_RECORD_PLAN_2026-10-27.md):
+/// "Запись о заключении сделки" — NOT a contract. Created when a party taps
+/// Accept while `deal_record.enabled`; the bid is really accepted only when
+/// both sides have signed (second signature = today's accept transaction).
+/// The snapshot is everything the PDF prints; it never changes after
+/// creation. Signatures live in case_signatures through sign_request.
+model DealRecord {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  case_id           String           @db.Uuid
+  case              Case             @relation(fields: [case_id], references: [id], onDelete: Restrict)
+  bid_id            String           @db.Uuid
+  bid               Bid              @relation(fields: [bid_id], references: [id], onDelete: Restrict)
+  /// Whose turn it was to accept (the first signer).
+  accepted_by       PartyRole
+  initiator_id      String           @db.Uuid
+  status            DealRecordStatus @default(preparing)
+  snapshot          Json
+  snapshot_sha256   String           @db.VarChar(64)
+  /// `<8 of id>-<8 of snapshot_sha256>`, printed on every page.
+  record_code       String           @db.VarChar(24)
+  text_version      Int              @default(0)
+  sign_request_id   String?          @unique @db.Uuid
+  sign_request      CaseSignRequest? @relation(fields: [sign_request_id], references: [id], onDelete: Restrict)
+  unsigned_file_id  String?          @db.Uuid
+  unsigned_file     File?            @relation("DealRecordUnsignedFile", fields: [unsigned_file_id], references: [id], onDelete: Restrict)
+  sealed_file_id    String?          @db.Uuid
+  sealed_file       File?            @relation("DealRecordSealedFile", fields: [sealed_file_id], references: [id], onDelete: Restrict)
+  sealed_sha256     String?          @db.VarChar(64)
+  /// The attorney's own agreement PDF (an ordinary case file), linked after sealing.
+  agreement_file_id String?          @db.Uuid
+  agreement_file    File?            @relation("DealRecordAgreementFile", fields: [agreement_file_id], references: [id], onDelete: Restrict)
+  declined_by       String?          @db.Uuid
+  decline_reason    String?          @db.VarChar(300)
+  failed_reason     String?          @db.VarChar(300)
+  sealed_at         DateTime?        @db.Timestamptz
+  declined_at       DateTime?        @db.Timestamptz
+  created_at        DateTime         @default(now()) @db.Timestamptz
+  updated_at        DateTime         @default(now()) @updatedAt @db.Timestamptz
+
+  /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
+  shard_id Int @default(0) @db.SmallInt
+
+  @@index([case_id, created_at])
+  @@index([bid_id])
+  @@index([status])
+  @@map("deal_records")
 }
 
 /// One side's signature: drawn (PNG) or typed name, with the consent, the

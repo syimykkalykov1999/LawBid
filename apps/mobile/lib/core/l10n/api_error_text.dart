@@ -84,6 +84,9 @@ bool isOfflineError(Object? error) =>
 const _keys = <String, String>{
   ApiException.networkErrorCode: 'error.api.NETWORK_ERROR',
   ApiErrorCodes.validationError: 'error.api.VALIDATION_ERROR',
+  ApiErrorCodes.dealRecordPending: 'error.api.DEAL_RECORD_PENDING',
+  ApiErrorCodes.dealRecordInvalidState: 'error.api.DEAL_RECORD_INVALID_STATE',
+  ApiErrorCodes.paymentTermsInvalid: 'error.api.PAYMENT_TERMS_INVALID',
   ApiErrorCodes.rateLimited: 'error.api.RATE_LIMITED',
   ApiErrorCodes.authOtpInvalid: 'error.api.AUTH_OTP_INVALID',
   ApiErrorCodes.authOtpExpired: 'error.api.AUTH_OTP_EXPIRED',

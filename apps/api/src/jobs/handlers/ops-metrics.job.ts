@@ -12,6 +12,7 @@ import {
   SUBSCRIPTION_JOBS_QUEUE,
 } from '../../modules/billing/billing.constants';
 import { HISTORY_EXPORT_QUEUE } from '../../modules/case-history/case-history-export.runner';
+import { DEAL_RECORD_QUEUE } from '../../modules/deals/deal-record.runner';
 import { FILES_QUEUE } from '../../modules/files/jobs/file-scan.runner';
 import { CASE_FANOUT_QUEUE } from '../../modules/notifications/case-fanout/case-fanout.service';
 import { PUSH_QUEUE } from '../../modules/notifications/push/push.constants';
@@ -56,6 +57,7 @@ export const OBSERVED_QUEUES: readonly string[] = [
   STRIPE_WEBHOOKS_DLQ,
   SUBSCRIPTION_JOBS_QUEUE,
   HISTORY_EXPORT_QUEUE,
+  DEAL_RECORD_QUEUE,
   DATA_EXPORT_QUEUE,
 ];
 

@@ -580,4 +580,19 @@ export enum ErrorCode {
   // and the row was saved by someone else since; reload and retry. details:
   // { currentVersion }.
   STALE_VERSION = 'STALE_VERSION',
+
+  // Deal record 2026-10-27 (docs/architecture/DEAL_RECORD_PLAN_2026-10-27.md).
+  // 409: `deal_record.enabled` is on — accept through POST /deal-records
+  // (an old app build shows "update the app").
+  DEAL_RECORD_REQUIRED = 'DEAL_RECORD_REQUIRED',
+  // 409: this case already has a deal record waiting for signatures.
+  DEAL_RECORD_PENDING = 'DEAL_RECORD_PENDING',
+  // 409: the record is not in a state that allows this (sign twice, decline
+  // a sealed record, attach an agreement before sealing ...).
+  DEAL_RECORD_INVALID_STATE = 'DEAL_RECORD_INVALID_STATE',
+  // 400: rich payment terms were sent while `bids.rich_terms_enabled` is off.
+  PAYMENT_TERMS_DISABLED = 'PAYMENT_TERMS_DISABLED',
+  // 400: the payment terms object breaks the rules of its type.
+  // details: { problems: string[] }.
+  PAYMENT_TERMS_INVALID = 'PAYMENT_TERMS_INVALID',
 }

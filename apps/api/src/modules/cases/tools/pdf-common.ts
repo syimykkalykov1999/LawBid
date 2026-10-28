@@ -20,15 +20,34 @@ export const NAVY = '#0B1B3F';
 export const GOLD = '#B8860B';
 export const MUTED = '#5B6475';
 
-/** A Letter page with the app font; [done] gets the finished bytes. */
-export function startPdf(info: { title: string }): {
+/** A Letter page with the app font; [done] gets the finished bytes.
+ * Deal record 2026-10-27: [bufferPages] keeps pages open for a second pass
+ * ("Page N of M" footers), [bottomMargin] reserves room for that footer,
+ * [creationDate] fixes the Info date so the same input gives the same bytes. */
+export function startPdf(info: {
+  title: string;
+  bufferPages?: boolean;
+  bottomMargin?: number;
+  creationDate?: Date;
+}): {
   doc: PDFKit.PDFDocument;
   done: Promise<Buffer>;
 } {
   const doc = new PDFDocument({
     size: 'LETTER',
-    margin: 54,
-    info: { Title: info.title, Producer: 'LawBid', Creator: 'LawBid' },
+    margins: {
+      top: 54,
+      left: 54,
+      right: 54,
+      bottom: info.bottomMargin ?? 54,
+    },
+    bufferPages: info.bufferPages ?? false,
+    info: {
+      Title: info.title,
+      Producer: 'LawBid',
+      Creator: 'LawBid',
+      ...(info.creationDate ? { CreationDate: info.creationDate } : {}),
+    },
   });
   const chunks: Buffer[] = [];
   const done = new Promise<Buffer>((resolve, reject) => {

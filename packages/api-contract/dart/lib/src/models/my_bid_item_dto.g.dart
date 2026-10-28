@@ -32,6 +32,9 @@ MyBidItemDto _$MyBidItemDtoFromJson(Map<String, dynamic> json) => MyBidItemDto(
   createdAt: DateTime.parse(json['createdAt'] as String),
   caseValue: BidCaseRefDto.fromJson(json['case'] as Map<String, dynamic>),
   lastOffer: BidOfferDto.fromJson(json['lastOffer'] as Map<String, dynamic>),
+  paymentTerms: json['paymentTerms'] == null
+      ? null
+      : PaymentTermsDto.fromJson(json['paymentTerms'] as Map<String, dynamic>),
   percentBps: (json['percentBps'] as num?)?.toInt(),
   attorney: json['attorney'] == null
       ? null
@@ -49,6 +52,7 @@ Map<String, dynamic> _$MyBidItemDtoToJson(MyBidItemDto instance) =>
       'status': instance.status.toJson(),
       'feeType': instance.feeType.toJson(),
       'amountCents': instance.amountCents,
+      'paymentTerms': ?instance.paymentTerms?.toJson(),
       'percentBps': ?instance.percentBps,
       'message': instance.message,
       'startAvailability': instance.startAvailability.toJson(),

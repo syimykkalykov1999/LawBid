@@ -242,6 +242,8 @@ export class CaseToolsSweepService {
           status: 'pending',
           OR: [{ expires_at: null }, { expires_at: { gt: now } }],
           reminders_sent: { lt: cfg.signMaxReminders },
+          // Deal record 2026-10-27: its request has no expiry and no reminders.
+          deal_record: null,
         },
         include: { signatures: { select: { signer_id: true } } },
         orderBy: { id: 'asc' },

@@ -89,6 +89,8 @@ export const SHARDED_MODELS: Readonly<Record<string, ShardedModelSpec>> = {
   CaseInvoice: spec('case', parent('case_id', 'Case')),
   CaseSignRequest: spec('case', parent('case_id', 'Case')),
   CaseSignature: spec('case', parent('request_id', 'CaseSignRequest')),
+  // Deal record 2026-10-27 (trigger in migration 20261107150000_deal_record).
+  DealRecord: spec('case', parent('case_id', 'Case')),
   CaseConflictCheck: spec('case', parent('case_id', 'Case')),
   // Consultations / direct chats may have no case: then the client's shard.
   Consultation: spec('case', parent('case_id', 'Case'), owner('client_id')),

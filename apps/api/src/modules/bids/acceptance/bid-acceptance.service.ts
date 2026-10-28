@@ -29,6 +29,7 @@ import { toBidDto } from '../bids.service';
 import type { BidDto } from '../dto/bid-responses.dto';
 import { disclosedFieldsOf } from './contact-disclosure.util';
 import { touchClientActive } from '../../cases/cases.public';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 
 /** docs/04 §7 step 8: why the losing bids were rejected. */
 export const REJECT_REASON_ANOTHER_BID = 'another_bid_accepted';
@@ -41,7 +42,7 @@ export const WITHDRAW_REASON_ATTORNEY_INACTIVE = 'attorney_inactive';
  * caller withdraws the bid in its own (committed) transaction before
  * answering BID_ATTORNEY_INACTIVE.
  */
-class AttorneyInactive extends Error {
+export class AttorneyInactive extends Error {
   constructor(readonly why: 'not_verified' | 'no_subscription' | 'on_hold') {
     super(`attorney inactive: ${why}`);
   }
@@ -75,7 +76,15 @@ export class BidAcceptanceService {
     private readonly chat: ChatSystemMessages,
     private readonly trust: AttorneyTrustService,
     @Optional() private readonly referrals?: ReferralsService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
+
+  /** Deal record 2026-10-27: while `deal_record.enabled` the plain accept
+   * is refused — acceptance goes through POST /deal-records and happens at
+   * the second signature (DealRecordsService calls acceptInTx). */
+  async dealRecordRequired(): Promise<boolean> {
+    return (await this.settings?.boolean('deal_record.enabled')) ?? false;
+  }
 
   /** POST /bids/:id/accept — the client accepts the attorney's offer, or
    * the attorney accepts the client's counter-offer (§6.3: whoever's turn
@@ -86,45 +95,70 @@ export class BidAcceptanceService {
     meta: RequestMeta,
   ): Promise<BidDto> {
     const by = await this.partyOf(user, bidId);
+    if (await this.dealRecordRequired()) {
+      throw new ConflictException({
+        code: ErrorCode.DEAL_RECORD_REQUIRED,
+        message:
+          'Accepting now goes through the deal record. Please update the app.',
+      });
+    }
     const chat: ChatChange[] = [];
     try {
       const result = await withTxRetry(this.prisma, (tx) => {
         chat.length = 0;
         return this.acceptInTx(tx, bidId, by, user.sub, meta, chat);
       });
-      this.chat.publish(chat);
-      // OQ-054: accepting is the client's own action on the case.
-      if (by === 'client') {
-        await touchClientActive(this.prisma, result.case_id, user.sub);
-      }
-      // Owner 2026-10-05: the client hired someone — a qualifying event of
-      // the partner program (idempotent; never throws).
-      const hired = await this.prisma.case.findUnique({
-        where: { id: result.case_id },
-        select: { client_id: true },
-      });
-      if (hired) {
-        await this.referrals?.onQualifyingEvent(
-          hired.client_id,
-          'bid_accepted',
-        );
-      }
+      await this.afterAccept(result, by, user.sub, chat);
       return toBidDto(result);
     } catch (error) {
-      if (error instanceof AttorneyInactive) {
-        await this.withdrawInactive(bidId, error.why);
-        throw new ConflictException({
-          code: ErrorCode.BID_ATTORNEY_INACTIVE,
-          message:
-            'This attorney is no longer available. Please choose another bid.',
-          details: { reason: error.why },
-        });
-      }
-      throw error;
+      throw await this.translateAcceptError(bidId, error);
     }
   }
 
-  private async acceptInTx(
+  /** The side effects that follow the committed accept transaction (chat
+   * publish, client activity, partner program). Shared with the deal
+   * record's second signature. */
+  async afterAccept(
+    result: { case_id: string },
+    by: PartyRole,
+    actorId: string,
+    chat: ChatChange[],
+  ): Promise<void> {
+    this.chat.publish(chat);
+    // OQ-054: accepting is the client's own action on the case.
+    if (by === 'client') {
+      await touchClientActive(this.prisma, result.case_id, actorId);
+    }
+    // Owner 2026-10-05: the client hired someone — a qualifying event of
+    // the partner program (idempotent; never throws).
+    const hired = await this.prisma.case.findUnique({
+      where: { id: result.case_id },
+      select: { client_id: true },
+    });
+    if (hired) {
+      await this.referrals?.onQualifyingEvent(hired.client_id, 'bid_accepted');
+    }
+  }
+
+  /** AttorneyInactive (thrown inside the rolled-back transaction) becomes
+   * the committed withdrawal + 409 BID_ATTORNEY_INACTIVE; anything else is
+   * returned as is. */
+  async translateAcceptError(bidId: string, error: unknown): Promise<unknown> {
+    if (error instanceof AttorneyInactive) {
+      await this.withdrawInactive(bidId, error.why);
+      return new ConflictException({
+        code: ErrorCode.BID_ATTORNEY_INACTIVE,
+        message:
+          'This attorney is no longer available. Please choose another bid.',
+        details: { reason: error.why },
+      });
+    }
+    return error;
+  }
+
+  /** The accept transaction body; public for the deal record's second
+   * signature (same transaction as the signature row). */
+  async acceptInTx(
     tx: Prisma.TransactionClient,
     bidId: string,
     by: PartyRole,

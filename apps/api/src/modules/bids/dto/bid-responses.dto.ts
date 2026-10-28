@@ -7,6 +7,7 @@ import {
   StartAvailability,
 } from '@prisma/client';
 import { RatingDto } from '../../profiles/dto/attorney-profile.dto';
+import { PaymentTermsDto } from './bid-requests.dto';
 
 /** The bidding attorney as the client sees them on a bid card (docs/04
  * §5.2: photo, name, blue check, rating and review count). Public profile
@@ -81,6 +82,14 @@ export class BidOfferDto {
   @ApiProperty({ type: String, nullable: true })
   message!: string | null;
 
+  @ApiPropertyOptional({
+    type: () => PaymentTermsDto,
+    nullable: true,
+    description:
+      'Deal record 2026-10-27: rich payment terms of this round, if any.',
+  })
+  paymentTerms?: PaymentTermsDto | null;
+
   @ApiProperty({ enum: OfferStatus, enumName: 'OfferStatus' })
   status!: OfferStatus;
 
@@ -110,6 +119,14 @@ export class BidDto {
 
   @ApiProperty({ type: 'integer' })
   amountCents!: number;
+
+  @ApiPropertyOptional({
+    type: () => PaymentTermsDto,
+    nullable: true,
+    description:
+      'Deal record 2026-10-27: rich payment terms of the current round, if any.',
+  })
+  paymentTerms?: PaymentTermsDto | null;
 
   @ApiPropertyOptional({
     type: 'integer',

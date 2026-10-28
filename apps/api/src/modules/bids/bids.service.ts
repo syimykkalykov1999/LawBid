@@ -34,7 +34,15 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { assertContingency, contingencyPolicy } from '../cases/cases.public';
 import { BidStateMachine, bidNotFound } from './domain/bid-state-machine';
 import type { BidDto } from './dto/bid-responses.dto';
-import type { CounterOfferDto, CreateBidDto } from './dto/bid-requests.dto';
+import type {
+  CounterOfferDto,
+  CreateBidDto,
+  PaymentTermsDto,
+} from './dto/bid-requests.dto';
+import {
+  normalizePaymentTerms,
+  paymentTermsProblems,
+} from './domain/payment-terms';
 import { touchClientActive } from '../cases/cases.public';
 import { ConflictCheckService } from './conflict/conflict-check.service';
 
@@ -188,6 +196,7 @@ export class BidsService {
           'You can send an offer only in states where you hold a verified licence.',
       });
     }
+    const paymentTerms = await this.checkPaymentTerms(dto.paymentTerms);
     // Owner 2026-10-17: a percent bid — within the admin cap, never on a
     // case whose topics forbid it (criminal, family by default).
     const percentBps =
@@ -321,6 +330,7 @@ export class BidsService {
           amount_cents: amountCents,
           percent_bps: percentBps,
           message: dto.message,
+          payment_terms: paymentTerms ?? Prisma.JsonNull,
           start_availability: dto.startAvailability,
           start_date: dto.startDate ? new Date(dto.startDate) : null,
           estimated_duration_days: dto.estimatedDurationDays ?? null,
@@ -368,6 +378,7 @@ export class BidsService {
             amount_cents: amountCents,
             percent_bps: percentBps,
             message: dto.message,
+            payment_terms: paymentTerms ?? Prisma.JsonNull,
             status: 'pending',
             created_at: now,
           },
@@ -479,6 +490,7 @@ export class BidsService {
   ): Promise<BidDto> {
     await this.limits?.consume('bid_counter', user.sub);
     const { bid, by } = await this.loadForEitherParty(bidId, user);
+    const paymentTerms = await this.checkPaymentTerms(dto.paymentTerms);
     // OQ-054: a counter from the client is their own action on the case.
     if (by === 'client') {
       await touchClientActive(this.prisma, bid.case_id, user.sub);
@@ -495,6 +507,7 @@ export class BidsService {
       return this.applyAndRespond(bid.id, 'counter', by, {
         percentBps: bps,
         message: dto.message ?? null,
+        paymentTerms,
         expectedVersion,
       });
     }
@@ -508,8 +521,39 @@ export class BidsService {
     return this.applyAndRespond(bid.id, 'counter', by, {
       amountCents: dto.amountCents,
       message: dto.message ?? null,
+      paymentTerms,
       expectedVersion,
     });
+  }
+
+  /**
+   * Deal record 2026-10-27: rich payment terms are accepted only while the
+   * admin switch `bids.rich_terms_enabled` is on (400 PAYMENT_TERMS_DISABLED
+   * otherwise, so an app with the field cannot slip it in), and only when
+   * the object follows the rules of its type (400 PAYMENT_TERMS_INVALID,
+   * details.problems). Returns the canonical object to store, or null.
+   */
+  private async checkPaymentTerms(
+    dto: PaymentTermsDto | undefined,
+  ): Promise<Prisma.InputJsonObject | null> {
+    if (dto === undefined || dto === null) return null;
+    const enabled =
+      (await this.settings?.boolean('bids.rich_terms_enabled')) ?? false;
+    if (!enabled) {
+      throw new BadRequestException({
+        code: ErrorCode.PAYMENT_TERMS_DISABLED,
+        message: 'Detailed payment terms are not available.',
+      });
+    }
+    const problems = paymentTermsProblems(dto);
+    if (problems.length > 0) {
+      throw new BadRequestException({
+        code: ErrorCode.PAYMENT_TERMS_INVALID,
+        message: 'The payment terms are not valid.',
+        details: { problems },
+      });
+    }
+    return normalizePaymentTerms(dto) as unknown as Prisma.InputJsonObject;
   }
 
   /** GET /bids/:id (§15) — the bid's two participants only. */
@@ -609,6 +653,7 @@ export class BidsService {
       amountCents?: number;
       percentBps?: number;
       message?: string | null;
+      paymentTerms?: Prisma.InputJsonObject | null;
       expectedVersion?: number;
     },
   ): Promise<BidDto> {
@@ -631,6 +676,7 @@ export class BidsService {
         amountCents: extra.amountCents,
         percentBps: extra.percentBps,
         message: extra.message,
+        paymentTerms: extra.paymentTerms ?? null,
         expectedVersion: extra.expectedVersion,
       });
       await this.journal.append(tx, {
@@ -882,6 +928,7 @@ export function toBidDto(bid: BidWithOffers): BidDto {
     amountCents: bid.amount_cents,
     percentBps: bid.percent_bps,
     message: bid.message,
+    paymentTerms: paymentTermsOf(bid.payment_terms),
     startAvailability: bid.start_availability,
     startDate: bid.start_date
       ? bid.start_date.toISOString().slice(0, 10)
@@ -905,8 +952,18 @@ export function toBidDto(bid: BidWithOffers): BidDto {
         amountCents: o.amount_cents,
         percentBps: o.percent_bps,
         message: o.message,
+        paymentTerms: paymentTermsOf(o.payment_terms),
         status: o.status,
         createdAt: o.created_at.toISOString(),
       })),
   };
+}
+
+/** The stored JSON as the DTO, or null (a bid placed before the feature). */
+export function paymentTermsOf(
+  value: Prisma.JsonValue | null | undefined,
+): PaymentTermsDto | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as unknown as PaymentTermsDto)
+    : null;
 }

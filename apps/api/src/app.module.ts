@@ -35,6 +35,7 @@ import { UsersModule } from './modules/users/users.module';
 import { I18nModule } from './modules/i18n/i18n.module';
 import { CasesModule } from './modules/cases/cases.module';
 import { CaseHistoryModule } from './modules/case-history/case-history.module';
+import { DealsModule } from './modules/deals/deals.module';
 import { PushModule } from './modules/notifications/push/push.module';
 import { CountersModule } from './modules/counters/counters.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
@@ -350,6 +351,8 @@ const isDev =
     CasesModule,
     // docs/04 §12 (stage 4.7): case history + PDF export queue.
     CaseHistoryModule.register({ mode: 'api' }),
+    // Deal record 2026-10-27: `deal-record` queue + /deal-records (off by default).
+    DealsModule.register({ mode: 'api' }),
     // docs/04 stage 4.8: `push` queue consumer (while JOBS_ENABLED).
     PushModule.register({ mode: 'api' }),
     // docs/05 stage 5.1: counters aggregator + moderation hook (global).

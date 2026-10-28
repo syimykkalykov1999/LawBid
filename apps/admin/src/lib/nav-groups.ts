@@ -80,6 +80,7 @@ export const NAV_GROUP_PAGES: Readonly<Record<NavGroupKey, readonly string[]>> =
     '/status-page',
     '/crashes',
     '/config',
+    '/deal-record',
     '/flags',
     '/integrations',
     '/storage',

@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'fee_type.dart';
 import 'offer_status.dart';
 import 'party_role.dart';
+import 'payment_terms_dto.dart';
 
 part 'bid_offer_dto.g.dart';
 
@@ -22,6 +23,7 @@ class BidOfferDto {
     required this.status,
     required this.createdAt,
     this.percentBps,
+    this.paymentTerms,
   });
 
   factory BidOfferDto.fromJson(Map<String, Object?> json) =>
@@ -36,6 +38,9 @@ class BidOfferDto {
   /// Owner 2026-10-17: contingency → basis points (3300 = 33 %).
   final int? percentBps;
   final String? message;
+
+  /// Deal record 2026-10-27: rich payment terms of this round, if any.
+  final PaymentTermsDto? paymentTerms;
   final OfferStatus status;
   final DateTime createdAt;
 

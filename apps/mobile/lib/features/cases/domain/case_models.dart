@@ -10,6 +10,7 @@ import 'package:lawbid_api/lawbid_api.dart'
         FeeType,
         OfferStatus,
         PartyRole,
+        PaymentTermsDto,
         StartAvailability;
 
 export 'package:lawbid/features/cases/domain/case_urgency.dart';
@@ -23,6 +24,7 @@ export 'package:lawbid_api/lawbid_api.dart'
         FeeType,
         OfferStatus,
         PartyRole,
+        PaymentTermsDto,
         StartAvailability,
         StillNeededAnswer;
 
@@ -391,6 +393,7 @@ class BidOffer {
     required this.status,
     required this.createdAt,
     this.percentBps,
+    this.paymentTerms,
   });
 
   final String id;
@@ -404,6 +407,9 @@ class BidOffer {
   final String? message;
   final OfferStatus status;
   final DateTime createdAt;
+
+  /// Deal record 2026-10-27: rich payment terms of this round, if any.
+  final PaymentTermsDto? paymentTerms;
 }
 
 /// A bid with its terms; [attorney] is present in the client's list,
@@ -430,6 +436,7 @@ class CaseBid {
     this.outsidePractice = false,
     this.outsideLicensedStates = false,
     this.percentBps,
+    this.paymentTerms,
   });
 
   /// Owner 2026-09-30: the case's practice is outside the attorney's own —
@@ -449,6 +456,9 @@ class CaseBid {
 
   /// Owner 2026-10-17: contingency → basis points (3300 = 33 %).
   final int? percentBps;
+
+  /// Deal record 2026-10-27: rich payment terms of the current round.
+  final PaymentTermsDto? paymentTerms;
   final String message;
   final StartAvailability startAvailability;
   final DateTime? startDate;

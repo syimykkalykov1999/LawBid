@@ -12,6 +12,7 @@ import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/case_payments/presentation/case_payments_card.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
+import 'package:lawbid/features/cases/deals/deal_record_card.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart'
     show caseStageOf;
@@ -390,6 +391,8 @@ class _OwnerCaseBody extends ConsumerWidget {
         stage: caseStageOf(c.status, c.bidsCount),
         publishedAt: c.createdAt,
         overview: [
+          // Deal record 2026-10-27: compact copy of the Docs-tab card.
+          DealRecordCard(caseId: c.id, isAttorney: false, compact: true),
           if (c.status == CaseStatus.pendingCompletion)
             Padding(
               padding: const EdgeInsets.fromLTRB(

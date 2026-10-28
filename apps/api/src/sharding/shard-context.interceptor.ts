@@ -43,6 +43,8 @@ const SHARDED_ID_ROUTES = new Set([
   'payment-requests',
   'posts',
   'comments',
+  // Deal record 2026-10-27: ids made with newShardedId(shardOf(caseId)).
+  'deal-records',
 ]);
 
 const ID_ROUTE_RE = /\/([a-z][a-z-]*)\/:id(?:\/|$)/;

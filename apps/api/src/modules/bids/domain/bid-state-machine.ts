@@ -3,13 +3,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type {
-  Bid,
-  BidStatus,
-  CaseJournalEvent,
-  OfferStatus,
-  PartyRole,
+import {
   Prisma,
+  type Bid,
+  type BidStatus,
+  type CaseJournalEvent,
+  type OfferStatus,
+  type PartyRole,
 } from '@prisma/client';
 import {
   assertExpectedVersion,
@@ -242,6 +242,9 @@ export interface ApplyBidActionInput {
   percentBps?: number;
   /** counter only: optional note (≤500 chars, validated by the DTO). */
   message?: string | null;
+  /** counter only (deal record 2026-10-27): the rich payment terms of the
+   * new round; null/undefined = the round states none. */
+  paymentTerms?: Prisma.InputJsonValue | null;
   /** If-Match from the client; a different stored version is 409 STALE_VERSION. */
   expectedVersion?: number;
 }
@@ -294,6 +297,9 @@ export class BidStateMachine {
       }
       data.amount_cents = amount;
     }
+    if (plan.newOffer) {
+      data.payment_terms = input.paymentTerms ?? Prisma.JsonNull;
+    }
     const { count } = await tx.bid.updateMany({
       where: {
         id: bid.id,
@@ -331,6 +337,7 @@ export class BidStateMachine {
               ? (data.percent_bps as number)
               : null,
           message: input.message ?? null,
+          payment_terms: input.paymentTerms ?? Prisma.JsonNull,
           status: 'pending',
           created_at: now,
         },

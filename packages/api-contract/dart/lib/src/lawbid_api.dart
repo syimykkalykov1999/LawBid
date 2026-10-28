@@ -70,6 +70,8 @@ import 'clients/admin_media_moderation_client.dart';
 import 'clients/i18n_client.dart';
 import 'clients/admin_i18n_client.dart';
 import 'clients/case_history_client.dart';
+import 'clients/deal_records_client.dart';
+import 'clients/admin_deal_record_client.dart';
 import 'clients/admin_moderation_client.dart';
 import 'clients/moderation_client.dart';
 import 'clients/reports_client.dart';
@@ -219,6 +221,8 @@ class LawbidApi {
   I18nClient? _i18n;
   AdminI18nClient? _adminI18n;
   CaseHistoryClient? _caseHistory;
+  DealRecordsClient? _dealRecords;
+  AdminDealRecordClient? _adminDealRecord;
   AdminModerationClient? _adminModeration;
   ModerationClient? _moderation;
   ReportsClient? _reports;
@@ -480,6 +484,12 @@ class LawbidApi {
 
   CaseHistoryClient get caseHistory =>
       _caseHistory ??= CaseHistoryClient(_dio, baseUrl: _baseUrl);
+
+  DealRecordsClient get dealRecords =>
+      _dealRecords ??= DealRecordsClient(_dio, baseUrl: _baseUrl);
+
+  AdminDealRecordClient get adminDealRecord =>
+      _adminDealRecord ??= AdminDealRecordClient(_dio, baseUrl: _baseUrl);
 
   AdminModerationClient get adminModeration =>
       _adminModeration ??= AdminModerationClient(_dio, baseUrl: _baseUrl);
