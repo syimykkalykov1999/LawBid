@@ -12,3 +12,9 @@
 # flutter_callkit_incoming: the full-screen incoming-call UI is started by
 # class name from the notification.
 -keep class com.hiennv.flutter_callkit_incoming.** { *; }
+
+# google_mlkit_text_recognition: optional script recognizers are not bundled (plugin README)
+-dontwarn com.google.mlkit.vision.text.chinese.**
+-dontwarn com.google.mlkit.vision.text.devanagari.**
+-dontwarn com.google.mlkit.vision.text.japanese.**
+-dontwarn com.google.mlkit.vision.text.korean.**
