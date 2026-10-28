@@ -21,3 +21,5 @@ For any area that keeps breaking (calls, reels/video player, uploads, push notif
 **2026-10-28 add:** applies to iOS and Android native code too. GPL/AGPL/"open your code" licences: never copy — study and rebuild the same behaviour exactly, no inventing.
 
 **2026-10-28 add:** only copy from now on. Own code forbidden unless nothing exists anywhere AND owner explicitly approves after being asked.
+
+**2026-10-28 add (owner, angry, important):** breakage is caused by my half-working code mixed with copied fragments. Take proven implementations WHOLE, delete our replaced code, connect only at edges; never patch copied code with our own fixes.
