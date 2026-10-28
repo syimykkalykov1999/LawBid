@@ -146,7 +146,7 @@ dependencies:
   # Dart, no plugin); `mobile_scanner` reads codes from the camera and from
   # a gallery picture (compileSdk 36, AGP 9 aware); `gal` saves the QR card
   # picture to the phone's gallery.
-  qr: ^3.0.2
+  qr: ^4.0.0
   mobile_scanner: ^7.4.2
   gal: ^2.3.3
   # Owner 2026-10-20: «Перевести» on the phone instead of paid Google
