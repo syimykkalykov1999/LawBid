@@ -1,4 +1,5 @@
 import {
+  CLOUDFLARE_SFU_CONNECT_BUDGET_MS,
   CloudflareSfuClient,
   CloudflareSfuError,
 } from './cloudflare-sfu.client';
@@ -8,6 +9,8 @@ import { decideMediaProvider } from './media-provider';
 import { PROVIDERS } from '../../common/secrets/provider-registry';
 
 const creds = { appId: 'a'.repeat(32), appToken: 'good-secret' };
+/** No real backoff in unit tests. */
+const fast = { sleep: () => Promise.resolve() };
 
 describe('CloudflareSfuClient', () => {
   it('sends the App Secret only as a Bearer header, never in the URL or body', async () => {
@@ -70,9 +73,10 @@ describe('CloudflareSfuClient', () => {
     expect(boom).toHaveBeenCalledTimes(2);
   });
 
-  it('does not retry a mutation (tracks/new)', async () => {
+  it('FO-3: a mutation (tracks/new) is retried ONCE after a backoff on 5xx; a second 5xx is final', async () => {
     const cf = new FakeCloudflare();
-    const c = new CloudflareSfuClient(creds, cf.fetch);
+    const sleep = jest.fn<Promise<void>, [number]>(() => Promise.resolve());
+    const c = new CloudflareSfuClient(creds, cf.fetch, { sleep });
     const { sessionId } = await c.newSession();
     cf.failStatus = 503;
     const before = cf.calls.length;
@@ -80,8 +84,196 @@ describe('CloudflareSfuClient', () => {
       c.newTracks(sessionId, [
         { location: 'remote', sessionId: 'x', trackName: 'mic' },
       ]),
-    ).rejects.toBeInstanceOf(CloudflareSfuError);
+    ).rejects.toMatchObject({ status: 503, isOutage: true });
+    expect(cf.calls.length - before).toBe(2);
+    expect(sleep).toHaveBeenCalledTimes(1);
+    const wait = sleep.mock.calls[0][0];
+    expect(wait).toBeGreaterThanOrEqual(200);
+    expect(wait).toBeLessThan(400);
+  });
+
+  it('FO-3: one 5xx blip is absorbed — the retry succeeds and the caller never sees it', async () => {
+    const cf = new FakeCloudflare();
+    const c = new CloudflareSfuClient(creds, cf.fetch, fast);
+    cf.failStatus = 503;
+    cf.failTimes = 1;
+    const { sessionId } = await c.newSession();
+    expect(sessionId).toBe('sess-1');
+    expect(cf.calls).toHaveLength(2);
+  });
+
+  it('a 4xx of the caller (bad request) is never retried', async () => {
+    const cf = new FakeCloudflare();
+    const c = new CloudflareSfuClient(creds, cf.fetch, fast);
+    const { sessionId } = await c.newSession();
+    cf.failStatus = 400;
+    const before = cf.calls.length;
+    await expect(
+      c.renegotiate(sessionId, { type: 'answer', sdp: 'v=0' }),
+    ).rejects.toMatchObject({ status: 400, kind: 'caller' });
     expect(cf.calls.length - before).toBe(1);
+  });
+
+  it('CF-1: HTTP 404 on sessions/new is the App ID (configuration), not the caller, not an outage', async () => {
+    const cf = new FakeCloudflare();
+    const c = new CloudflareSfuClient(creds, cf.fetch, fast);
+    cf.failStatus = 404;
+    const err = (await c
+      .newSession()
+      .catch((e: unknown) => e)) as CloudflareSfuError;
+    expect(err).toBeInstanceOf(CloudflareSfuError);
+    expect(err.status).toBe(404);
+    expect(err.kind).toBe('config');
+    expect(err.isConfigFailure).toBe(true);
+    expect(err.isOutage).toBe(false);
+    expect(err.countsAgainstCloudflare).toBe(true);
+    expect(err.message).toMatch(/App ID/);
+    expect(err.message).not.toContain('good-secret');
+    // Deterministic: not retried.
+    expect(cf.calls).toHaveLength(1);
+  });
+
+  it('CF-4: HTTP 404 on a session route means the session is gone (the phone opens a new one)', async () => {
+    const cf = new FakeCloudflare();
+    const c = new CloudflareSfuClient(creds, cf.fetch, fast);
+    const err = (await c
+      .newTracks('sess-gone', [
+        { location: 'remote', sessionId: 'x', trackName: 'mic' },
+      ])
+      .catch((e: unknown) => e)) as CloudflareSfuError;
+    expect(err.status).toBe(404);
+    expect(err.kind).toBe('session');
+    expect(err.isSessionGone).toBe(true);
+    expect(err.countsAgainstCloudflare).toBe(false);
+  });
+
+  it('CF-3: HTTP 429 is a rate limit of this session — retried once after Retry-After, never an outage', async () => {
+    const cf = new FakeCloudflare();
+    const sleep = jest.fn<Promise<void>, [number]>(() => Promise.resolve());
+    const c = new CloudflareSfuClient(creds, cf.fetch, { sleep });
+    const { sessionId } = await c.newSession();
+    cf.failStatus = 429;
+    cf.failHeaders = { 'retry-after': '1' };
+    const before = cf.calls.length;
+    const err = (await c
+      .renegotiate(sessionId, { type: 'answer', sdp: 'v=0' })
+      .catch((e: unknown) => e)) as CloudflareSfuError;
+    expect(err.status).toBe(429);
+    expect(err.isRateLimited).toBe(true);
+    expect(err.isOutage).toBe(false);
+    expect(err.countsAgainstCloudflare).toBe(false);
+    expect(err.retryAfterMs).toBe(1000);
+    expect(cf.calls.length - before).toBe(2);
+    expect(sleep).toHaveBeenCalledWith(1000);
+    // A 429 that clears after the backoff is invisible to the caller.
+    cf.failTimes = 1;
+    await expect(
+      c.renegotiate(sessionId, { type: 'answer', sdp: 'v=0' }),
+    ).resolves.toBeDefined();
+  });
+
+  it.each([
+    ['retryable_transient_error', 'outage', 503, 2],
+    ['temporarily_unavailable_error', 'outage', 503, 2],
+    ['backend_error', 'outage', 503, 2],
+    ['internal_error', 'outage', 503, 2],
+    ['session_error', 'session', 404, 1],
+    ['session_not_found', 'session', 404, 1],
+    ['some_new_code', 'caller', 400, 1],
+  ])(
+    'CF-4: HTTP 200 with errorCode %s is %s (status %i, %i attempt(s))',
+    async (code, kind, status, attempts) => {
+      const cf = new FakeCloudflare();
+      const c = new CloudflareSfuClient(creds, cf.fetch, fast);
+      const { sessionId } = await c.newSession();
+      cf.bodyErrorCode = code;
+      const before = cf.calls.length;
+      const err = (await c
+        .newTracks(sessionId, [
+          { location: 'remote', sessionId: 'x', trackName: 'mic' },
+        ])
+        .catch((e: unknown) => e)) as CloudflareSfuError;
+      expect(err).toBeInstanceOf(CloudflareSfuError);
+      expect(err.code).toBe(code);
+      expect(err.kind).toBe(kind);
+      expect(err.status).toBe(status);
+      expect(cf.calls.length - before).toBe(attempts);
+    },
+  );
+
+  it('CF-4: an in-body not_found on sessions/new is the App ID too', async () => {
+    const cf = new FakeCloudflare();
+    const c = new CloudflareSfuClient(creds, cf.fetch, fast);
+    cf.bodyErrorCode = 'not_found';
+    const err = (await c
+      .newSession()
+      .catch((e: unknown) => e)) as CloudflareSfuError;
+    expect(err.kind).toBe('config');
+    expect(err.isConfigFailure).toBe(true);
+  });
+
+  it('TS-1: a dead SFU (fetch never answers) fails sessions/new within the 2.5 s connect budget, not 16 s', async () => {
+    jest.useFakeTimers();
+    try {
+      const hanging: typeof fetch = (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const e = new Error('aborted');
+            e.name = 'AbortError';
+            reject(e);
+          });
+        });
+      const c = new CloudflareSfuClient(creds, hanging);
+      const started = Date.now();
+      let settled: CloudflareSfuError | null = null;
+      const p = c.newSession().catch((e: CloudflareSfuError) => {
+        settled = e;
+      });
+      await jest.advanceTimersByTimeAsync(
+        CLOUDFLARE_SFU_CONNECT_BUDGET_MS + 50,
+      );
+      await p;
+      expect(settled).not.toBeNull();
+      expect(settled!.status).toBe(0);
+      expect(settled!.isOutage).toBe(true);
+      expect(Date.now() - started).toBeLessThanOrEqual(
+        CLOUDFLARE_SFU_CONNECT_BUDGET_MS + 50,
+      );
+      expect(Date.now() - started).toBeLessThan(3000);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('in-call mutations keep the long 8 s attempt (a retry only when the 12 s budget allows)', async () => {
+    jest.useFakeTimers();
+    try {
+      let attempts = 0;
+      const hanging: typeof fetch = (_input, init) =>
+        new Promise((_resolve, reject) => {
+          attempts += 1;
+          init?.signal?.addEventListener('abort', () => {
+            const e = new Error('aborted');
+            e.name = 'AbortError';
+            reject(e);
+          });
+        });
+      const c = new CloudflareSfuClient(creds, hanging);
+      let settled: CloudflareSfuError | null = null;
+      const p = c
+        .renegotiate('s', { type: 'answer', sdp: 'v=0' })
+        .catch((e: CloudflareSfuError) => {
+          settled = e;
+        });
+      await jest.advanceTimersByTimeAsync(7_900);
+      expect(settled).toBeNull(); // still the first 8 s attempt
+      await jest.advanceTimersByTimeAsync(4_200);
+      await p;
+      expect(settled).not.toBeNull();
+      expect(attempts).toBe(2); // one bounded retry inside the budget
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('turns an errorCode inside HTTP 200 into an error', async () => {

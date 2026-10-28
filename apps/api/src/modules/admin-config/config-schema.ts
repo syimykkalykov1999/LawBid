@@ -149,7 +149,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     type: 'string',
     defaultValue: 'p2p',
     description:
-      'Our OWN (backup) path for group calls: p2p (device to device, up to 9 people) or livekit (media server; needs the LiveKit keys in Integrations). Cloudflare is chosen by calls.transport, not here; the old value cloudflare reads like p2p.',
+      'Media server for group calls on our own path: p2p (device to device, up to 9 people) or livekit (needs the LiveKit keys in Integrations). The AUTOMATIC backup when Cloudflare fails is always device to device (+ own coturn) — LiveKit is not part of it (TS-3). Cloudflare is chosen by calls.transport, not here; the old value cloudflare reads like p2p.',
     pattern: /^(p2p|livekit|cloudflare)$/,
   };
   out['calls.sfu_max_participants'] = {
@@ -190,6 +190,22 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'The window, in seconds, in which calls.transport_fail_limit Cloudflare failures switch new calls to our own path.',
     min: 10,
     max: 3600,
+  };
+  out['calls.transport_report_min'] = {
+    type: 'integer',
+    defaultValue: 10,
+    description:
+      'Phones reporting a dead Cloudflare relay (within calls.transport_fail_window_sec) switch new calls to our own path when at least this many distinct phones say so; with only a few calls the minimum shrinks by itself to 2 phones / half of the calls.',
+    min: 2,
+    max: 10000,
+  };
+  out['calls.transport_report_ratio_pct'] = {
+    type: 'integer',
+    defaultValue: 30,
+    description:
+      'The reporting phones must also be at least this percent of the calls that took Cloudflare in the window (one phone in a lift is not an outage).',
+    min: 0,
+    max: 100,
   };
   out['calls.max_participants'] = {
     type: 'integer',

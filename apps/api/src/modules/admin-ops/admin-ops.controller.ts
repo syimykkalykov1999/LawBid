@@ -18,6 +18,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { AppSettingsWriter } from '../../common/app-settings/app-settings.writer';
 import { AwsOpsService } from '../../common/ops/aws-ops.service';
 import { OpsStateService } from '../../common/ops/ops-state.service';
+import { StatusProbesService } from '../../common/ops/status/status-probes.service';
 import { MessageReencryptJob } from '../../jobs/handlers/message-reencrypt.job';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import {
@@ -31,6 +32,7 @@ import { PartitionService } from '../../partitioning/partition.service';
 import { ReplicaAdminService } from '../../prisma/replica-admin.service';
 import {
   BackfillRunDto,
+  CallsPathDto,
   HeavyHittersDto,
   HeavyJobsDto,
   PartitionCardDto,
@@ -78,7 +80,30 @@ export class AdminOpsController {
     private readonly replica: ReplicaAdminService,
     private readonly backfills: BackfillsService,
     private readonly queues: QueueAdminService,
+    private readonly probes: StatusProbesService,
   ) {}
+
+  // Owner 2026-10-26 (calls failover): Integrations -> «Связь для звонков».
+  @Get('calls-path')
+  @ApiOperation({
+    summary:
+      'Calls transport: who carries calls now, breakers, last probe (no outside request)',
+  })
+  @ApiEnvelopeResponse(CallsPathDto)
+  getCallsPath(): Promise<CallsPathDto> {
+    return this.probes.callsPath(false);
+  }
+
+  @Post('calls-path/check')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Run the synthetic STUN + TURN allocate test on Cloudflare and on our own relays now',
+  })
+  @ApiEnvelopeResponse(CallsPathDto)
+  checkCallsPath(): Promise<CallsPathDto> {
+    return this.probes.callsPath(true);
+  }
 
   @Get('db-replica')
   @ApiOperation({ summary: 'Read copy of the database: state, lag' })

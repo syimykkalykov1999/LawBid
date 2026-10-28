@@ -244,4 +244,42 @@ describe('POST /calls/:id/end is idempotent', () => {
     ).toEqual(['a', 'b', 'c']);
     expect(w.rows.every((r) => r.status === 'left')).toBe(true);
   });
+
+  /** LC-2 (audit 2026-10-26): a connected call whose link died is logged
+   * as a call that took place — not «failed» with 0 s. */
+  it('a connected 1:1 that lost its link: «ended» with its length, cause link_lost', async () => {
+    const w = world({ group: false });
+    await w.svc.end(user('a'), 'c1', { reason: 'failed' });
+    const c = w.call as unknown as {
+      status: string;
+      duration_sec: number;
+      end_reason: string;
+    };
+    expect(c.status).toBe('ended');
+    expect(c.end_reason).toBe('link_lost');
+    expect(c.duration_sec).toBeGreaterThanOrEqual(59);
+  });
+
+  it('a call that never got through stays «failed» with 0 s', async () => {
+    const w = world({ group: false });
+    Object.assign(w.call, { status: 'ringing', answered_at: null });
+    await w.svc.end(user('a'), 'c1', { reason: 'failed' });
+    const c = w.call as unknown as { status: string; duration_sec: number };
+    expect(c.status).toBe('failed');
+    expect(c.duration_sec).toBe(0);
+  });
+
+  /** LC-1: the phone that declined gets no VoIP «stop ringing» (it would
+   * have to flash a CallKit call just to end it). */
+  it('a declined ring stops the other phones, not the one that declined', async () => {
+    const w = world({ group: false });
+    Object.assign(w.call, { status: 'ringing', answered_at: null });
+    await w.svc.decline({ sub: 'b', sid: 'chain-b' } as never, 'c1');
+    const stop = (w.svc as unknown as { stopRingingPush: jest.Mock })
+      .stopRingingPush;
+    expect(stop).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'c1' }),
+      'chain-b',
+    );
+  });
 });

@@ -1,6 +1,7 @@
 import {
   ConflictException,
   ForbiddenException,
+  HttpException,
   Inject,
   Injectable,
   Logger,
@@ -16,6 +17,7 @@ import { UsageHardStopService } from '../../common/ops/usage/usage-hard-stop.ser
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import {
+  CLOUDFLARE_SFU_APP_NOT_FOUND_HINT,
   CLOUDFLARE_SFU_MAX_TRACKS_PER_REQUEST,
   CloudflareSfuError,
   type SfuTrackRequest,
@@ -112,6 +114,27 @@ const mediaDown = (message = 'The media service is not available.') =>
 
 const conflict = (message: string) =>
   new ConflictException({ code: ErrorCode.CALL_STATE_CONFLICT, message });
+
+/** CF-4: Cloudflare no longer has this session — the phone opens a fresh
+ * one at once (`details.reason` = session_gone) instead of retrying. */
+const sessionGone = () =>
+  new ConflictException({
+    code: ErrorCode.CALL_STATE_CONFLICT,
+    message: 'The media session is gone; open a new SFU session.',
+    details: { reason: 'session_gone' },
+  });
+
+/** CF-3: HTTP 429 from Cloudflare is THIS session asking too often (50
+ * req/s), not an outage: the phone backs off, nothing moves, nothing counts. */
+const tooFast = () =>
+  new HttpException(
+    {
+      code: ErrorCode.RATE_LIMITED,
+      message:
+        'The media service is busy with this session; try again in a moment.',
+    },
+    429,
+  );
 
 const invalid = (message: string, field: string) =>
   new BadRequestException({
@@ -256,19 +279,55 @@ export class SfuBrokerService {
 
   // --- Errors ----------------------------------------------------------------
 
-  /** Maps Cloudflare failures to ours; counts outages for the health check. */
-  private fail(e: unknown, what: string): never {
+  /**
+   * Maps Cloudflare failures to ours (audit 2026-10-26, CF-1 / CF-3 / CF-4 /
+   * FO-3). The client has already retried a transient failure once inside
+   * the per-session queue, so what arrives here is final for this request:
+   *  - outage (5xx / timeout / transient code): one failure of N in M for
+   *    the shared breaker; 503 CALL_MEDIA_UNAVAILABLE so the call moves to
+   *    our own path — except on a non-critical route (simulcast layer),
+   *    which counts but answers 409: a layer change is not worth a move;
+   *  - config (401 / 403, or 404 on the App = wrong / not-yet-live App ID):
+   *    opens the breaker at once (every call would fail the same way) and
+   *    the admin board shows [CLOUDFLARE_SFU_APP_NOT_FOUND_HINT]; 503;
+   *  - 429: this session only; 429 to the phone, never counted, no move;
+   *  - session gone: 409 with reason session_gone (open a new session);
+   *  - anything else is the caller's: 409, not counted.
+   */
+  private fail(
+    e: unknown,
+    what: string,
+    opts: { critical?: boolean } = {},
+  ): never {
     if (e instanceof CloudflareSfuError) {
-      // Owner 2026-10-26: outages and a refused key both count against the
-      // Cloudflare path (shared breaker -> new calls take our own path).
-      if (e.isOutage || e.status === 401 || e.status === 403) {
+      const critical = opts.critical !== false;
+      // The message of CloudflareSfuError never holds the App Secret.
+      this.logger.warn(`Cloudflare SFU ${what} failed: ${e.message}`);
+      if (e.isConfigFailure) {
+        const why =
+          e.status === 404
+            ? `${what}: ${CLOUDFLARE_SFU_APP_NOT_FOUND_HINT}`
+            : `${what}: ${e.message}`;
+        void this.transport
+          .trip('sfu', 'refuses the App ID / App Secret', why)
+          .catch(() => undefined);
+        throw mediaDown(
+          e.status === 404
+            ? CLOUDFLARE_SFU_APP_NOT_FOUND_HINT
+            : 'The media service refused our keys.',
+        );
+      }
+      if (e.isOutage) {
         void this.transport
           .recordFailure('sfu', `${what}: ${e.message}`)
           .catch(() => undefined);
+        if (critical) throw mediaDown();
+        throw conflict(
+          `The media service did not apply this now (${e.code ?? e.status}); try again.`,
+        );
       }
-      // The message of CloudflareSfuError never holds the App Secret.
-      this.logger.warn(`Cloudflare SFU ${what} failed: ${e.message}`);
-      if (e.isOutage || e.status === 401 || e.status === 403) throw mediaDown();
+      if (e.isRateLimited) throw tooFast();
+      if (e.isSessionGone) throw sessionGone();
       throw conflict(`The media service refused this (${e.code ?? e.status}).`);
     }
     throw e;
@@ -305,6 +364,15 @@ export class SfuBrokerService {
   createSession(ctx: SfuCtx): Promise<SfuSession> {
     return this.store.withSession(ctx.callId, ctx.userId, async () => {
       const client = await this.client();
+      // TS-1: while the breaker is open (unless the admin forces Cloudflare)
+      // nobody waits for a dead SFU — 503 at once, the call takes the mesh.
+      const d = await this.transport.decide('sfu', true);
+      if (!d.use && d.reason === 'breaker_open') {
+        this.logger.warn(
+          `Cloudflare SFU sessions/new skipped for call ${ctx.callId}: breaker open`,
+        );
+        throw mediaDown('The media service is down right now.');
+      }
       const old = await this.store.get(ctx.callId, ctx.userId);
       if (old) await this.closeOwnQuietly(old);
       let sessionId: string;
@@ -539,7 +607,7 @@ export class SfuBrokerService {
         await client.renegotiate(st.sessionId, { type: 'answer', sdp });
       } catch (e) {
         // A refused answer must not wedge the session for good.
-        if (e instanceof CloudflareSfuError && !e.isOutage) {
+        if (e instanceof CloudflareSfuError && !e.countsAgainstCloudflare) {
           st.negotiatingSince = null;
           await this.store.set(ctx.callId, ctx.userId, st);
         }
@@ -632,7 +700,8 @@ export class SfuBrokerService {
           },
         ]);
       } catch (e) {
-        this.fail(e, 'tracks/update');
+        // FO-3: a layer change is not worth moving the whole call.
+        this.fail(e, 'tracks/update', { critical: false });
       }
       return { ok: true as const };
     });

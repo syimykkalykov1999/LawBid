@@ -71757,6 +71757,160 @@
         ]
       }
     },
+    "/admin/system-health/calls-path": {
+      "get": {
+        "operationId": "getCallsPath",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallsPathEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Calls transport: who carries calls now, breakers, last probe (no outside request)",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
+    "/admin/system-health/calls-path/check": {
+      "post": {
+        "operationId": "checkCallsPath",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallsPathEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Run the synthetic STUN + TURN allocate test on Cloudflare and on our own relays now",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
     "/admin/system-health/db-replica": {
       "get": {
         "operationId": "getReplica",
@@ -101189,10 +101343,107 @@
         ]
       }
     },
+    "/calls/{id}/sfu/failed": {
+      "post": {
+        "operationId": "sfuFailed",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfuFailedResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CALL_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My phone cannot reach the Cloudflare SFU of this call",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
     "/calls/ice-servers": {
       "get": {
         "operationId": "callIceServers",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "relayFailed",
+            "required": false,
+            "in": "query",
+            "description": "The relay of my running call died (ICE failed): a fresh login, our own TURN first, and a report for the Cloudflare health breaker.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success envelope (docs/01 §7).",
@@ -168382,6 +168633,197 @@
           "data"
         ]
       },
+      "CallsPathBreakersDto": {
+        "type": "object",
+        "properties": {
+          "turn": {
+            "enum": [
+              "open",
+              "closed"
+            ],
+            "type": "string"
+          },
+          "sfu": {
+            "enum": [
+              "open",
+              "closed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "turn",
+          "sfu"
+        ]
+      },
+      "CallsPathStepDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "ms": {
+            "type": "integer",
+            "description": "Milliseconds."
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "ok",
+          "ms"
+        ]
+      },
+      "CallsPathCheckDto": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "ms": {
+            "type": "integer",
+            "description": "Whole check, ms."
+          },
+          "stun": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CallsPathStepDto"
+              }
+            ]
+          },
+          "turn": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CallsPathStepDto"
+              }
+            ]
+          },
+          "media": {
+            "nullable": true,
+            "description": "Cloudflare SFU session / LiveKit connect.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CallsPathStepDto"
+              }
+            ]
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "at",
+          "ok",
+          "ms",
+          "stun",
+          "turn",
+          "media",
+          "error"
+        ]
+      },
+      "CallsPathSideDto": {
+        "type": "object",
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "parts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "description": "Which parts have keys (turn / sfu / livekit)."
+          },
+          "lastProbeAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "lastProbeOk": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "check": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CallsPathCheckDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "configured",
+          "parts",
+          "lastProbeAt",
+          "lastProbeOk",
+          "check"
+        ]
+      },
+      "CallsPathDto": {
+        "type": "object",
+        "properties": {
+          "transport": {
+            "enum": [
+              "auto",
+              "cloudflare",
+              "own"
+            ],
+            "type": "string"
+          },
+          "carrying": {
+            "enum": [
+              "cloudflare",
+              "own"
+            ],
+            "type": "string",
+            "description": "Who carries NEW calls right now."
+          },
+          "breakers": {
+            "$ref": "#/components/schemas/CallsPathBreakersDto"
+          },
+          "cloudflare": {
+            "$ref": "#/components/schemas/CallsPathSideDto"
+          },
+          "own": {
+            "$ref": "#/components/schemas/CallsPathSideDto"
+          }
+        },
+        "required": [
+          "transport",
+          "carrying",
+          "breakers",
+          "cloudflare",
+          "own"
+        ]
+      },
+      "CallsPathEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CallsPathDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "ReplicaStatusDto": {
         "type": "object",
         "properties": {
@@ -186161,6 +186603,37 @@
         "required": [
           "userId",
           "rid"
+        ]
+      },
+      "SfuFailedResultDto": {
+        "type": "object",
+        "properties": {
+          "moved": {
+            "type": "boolean",
+            "description": "The call moved to our own path (now, or before this report came)"
+          },
+          "reports": {
+            "type": "number",
+            "description": "Members of this call that reported in the last minute"
+          }
+        },
+        "required": [
+          "moved",
+          "reports"
+        ]
+      },
+      "SfuFailedResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SfuFailedResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "IceServerDto": {

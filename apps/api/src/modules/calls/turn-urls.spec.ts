@@ -1,4 +1,5 @@
 import {
+  DEFAULT_STUN_URLS,
   GROUP_MAX_AUDIO,
   GROUP_MAX_VIDEO,
   withTcpFallback,
@@ -20,6 +21,15 @@ describe('withTcpFallback', () => {
   it('does not duplicate a TCP address that is already listed', () => {
     const urls = ['turn:1.2.3.4:3478', 'turn:1.2.3.4:3478?transport=tcp'];
     expect(withTcpFallback(urls)).toEqual(urls);
+  });
+});
+
+describe('default STUN list (CF-7, audit 2026-10-26)', () => {
+  it("has Cloudflare's STUN ahead of Google's", () => {
+    expect(DEFAULT_STUN_URLS).toEqual([
+      'stun:stun.cloudflare.com:3478',
+      'stun:stun.l.google.com:19302',
+    ]);
   });
 });
 

@@ -986,6 +986,12 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
    * calls to our own path; Cloudflare is then probed once a minute. */
   'calls.transport_fail_limit': 5,
   'calls.transport_fail_window_sec': 120,
+  /** Phones reporting a dead Cloudflare relay open the breaker when at
+   * least this many distinct phones (the cap; at launch scale it shrinks
+   * to 2 phones / half of the calls) AND this share (percent) of the calls
+   * that took Cloudflare in the window say so. */
+  'calls.transport_report_min': 10,
+  'calls.transport_report_ratio_pct': 30,
   /** off | on | auto (default). Ceiling: per person per day below. */
   'chat.link_preview_enabled': 'auto',
   'chat.link_preview_per_user_per_day': 1000,

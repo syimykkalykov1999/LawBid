@@ -24,6 +24,12 @@ export class FakeCloudflare {
   private n = 0;
   /** When set, every request answers with this HTTP status (outage test). */
   failStatus: number | null = null;
+  /** When set with [failStatus]: only the next N requests fail (a blip). */
+  failTimes: number | null = null;
+  /** When set, every HTTP 200 carries this top-level `errorCode` (CF-4). */
+  bodyErrorCode: string | null = null;
+  /** Headers of a failing answer (e.g. Retry-After of a 429). */
+  failHeaders: Record<string, string> = {};
   /** Track names (published) that the SFU refuses to pull. */
   refusePull = new Set<string>();
 
@@ -58,7 +64,19 @@ export class FakeCloudflare {
       auth: headers?.authorization ?? null,
       body,
     });
-    if (this.failStatus) return this.json(this.failStatus, {});
+    if (this.failStatus && (this.failTimes === null || this.failTimes > 0)) {
+      if (this.failTimes !== null) this.failTimes -= 1;
+      return new Response(JSON.stringify({}), {
+        status: this.failStatus,
+        headers: { 'content-type': 'application/json', ...this.failHeaders },
+      });
+    }
+    if (this.bodyErrorCode) {
+      return this.json(200, {
+        errorCode: this.bodyErrorCode,
+        errorDescription: 'from the fake',
+      });
+    }
     if (headers?.authorization !== 'Bearer good-secret') {
       return this.json(401, {});
     }

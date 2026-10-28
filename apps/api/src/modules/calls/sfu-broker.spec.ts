@@ -2,6 +2,14 @@ import { FakeCloudflare } from './cloudflare-sfu.fake';
 import { CloudflareSfuProvider } from './cloudflare-sfu.provider';
 import { SfuBrokerService, type SfuCtx } from './sfu-broker.service';
 import { CloudflareSfuError } from './cloudflare-sfu.client';
+import {
+  CF_BREAKER_CLOSE_OK_PROBES,
+  CF_BREAKER_PROBE_MS,
+  CloudflareTransport,
+} from './cloudflare-transport';
+
+/** No real retry backoff in unit tests. */
+const fast = { sleep: () => Promise.resolve() };
 
 const SDP = 'v=0\r\no=- 1 1 IN IP4 0.0.0.0\r\n';
 const APP = 'b'.repeat(32);
@@ -24,8 +32,19 @@ function setup(settings?: Record<string, string | number>) {
     settings ? (st as never) : undefined,
   );
   (broker as unknown as { provider: CloudflareSfuProvider }).provider =
-    new CloudflareSfuProvider(secrets, undefined, cf.fetch);
+    new CloudflareSfuProvider(secrets, undefined, cf.fetch, fast);
   return { cf, broker };
+}
+
+/** The broker's breaker on a fake clock (probe slots are a minute apart). */
+function withClock(broker: SfuBrokerService, now: () => number) {
+  const t = new CloudflareTransport(
+    undefined,
+    (broker as unknown as { settings: never }).settings,
+    now,
+  );
+  (broker as unknown as { transport: CloudflareTransport }).transport = t;
+  return t;
 }
 
 const USERS = ['u1', 'u2', 'u3', 'u4'];
@@ -353,23 +372,143 @@ describe('SfuBrokerService.decide (owner 2026-10-26: Cloudflare primary)', () =>
     ).toEqual({ mediaProvider: 'p2p', video: false, degraded: true });
   });
 
-  it('probe success closes the breaker: the next new call is back on Cloudflare', async () => {
+  it('FO-6: three good probes in a row (one a minute) close the breaker; the next new call is back on Cloudflare', async () => {
     const { cf, broker } = setup(S);
-    for (let i = 0; i < 3; i++) {
-      await broker.transport.recordFailure('sfu', 'test');
-    }
+    let now = 1_000_000;
+    const t = withClock(broker, () => now);
+    for (let i = 0; i < 3; i++) await t.recordFailure('sfu', 'test');
     cf.failStatus = null; // Cloudflare healthy again
-    const first = await broker.decide({
-      isGroup: true,
-      video: true,
-      headcount: 3,
-    });
-    expect(first.mediaProvider).toBe('p2p'); // this call never waits
-    await new Promise((r) => setTimeout(r, 10)); // background probe
-    expect(await broker.transport.isOpen('sfu')).toBe(false);
+    for (let k = 1; k < CF_BREAKER_CLOSE_OK_PROBES; k++) {
+      const d = await broker.decide({
+        isGroup: true,
+        video: true,
+        headcount: 3,
+      });
+      expect(d.mediaProvider).toBe('p2p'); // this call never waits
+      await new Promise((r) => setTimeout(r, 10)); // background probe
+      expect(await t.isOpen('sfu')).toBe(true); // one good probe is not enough
+      expect((await t.state('sfu')).probeOkStreak).toBe(k);
+      now += CF_BREAKER_PROBE_MS;
+    }
+    await broker.decide({ isGroup: true, video: true, headcount: 3 });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(await t.isOpen('sfu')).toBe(false);
+    expect(cf.calls).toHaveLength(CF_BREAKER_CLOSE_OK_PROBES);
     expect(
       await broker.decide({ isGroup: true, video: true, headcount: 3 }),
     ).toMatchObject({ mediaProvider: 'cloudflare' });
+  });
+
+  it('CF-1: HTTP 404 on sessions/new (wrong / fresh App ID) opens the breaker at once, answers 503 with the App ID hint, never a 400', async () => {
+    const { cf, broker } = setup(S);
+    cf.failStatus = 404;
+    const err = (await broker
+      .createSession(ctx('u1'))
+      .catch((e: unknown) => e)) as { status: number; response: unknown };
+    expect(err.status).toBe(503);
+    const body = JSON.stringify(err.response);
+    expect(body).toContain('CALL_MEDIA_UNAVAILABLE');
+    expect(body).toContain('App ID');
+    expect(body).not.toContain('good-secret');
+    await new Promise((r) => setImmediate(r));
+    expect(await broker.transport.isOpen('sfu')).toBe(true);
+    expect(
+      await broker.decide({ isGroup: true, video: true, headcount: 3 }),
+    ).toMatchObject({ mediaProvider: 'p2p', degraded: true });
+  });
+
+  it('CF-3: five 429s from one session never open the breaker; the phone gets 429 RATE_LIMITED', async () => {
+    const { cf, broker } = setup(S);
+    await broker.createSession(ctx('u1'));
+    cf.failStatus = 429;
+    for (let i = 0; i < 5; i++) {
+      const err = (await broker
+        .publish(ctx('u1'), {
+          sdp: SDP,
+          tracks: [{ mid: '0', trackName: 'mic' }],
+        })
+        .catch((e: unknown) => e)) as { status: number; response: unknown };
+      expect(err.status).toBe(429);
+      expect(JSON.stringify(err.response)).toContain('RATE_LIMITED');
+    }
+    await new Promise((r) => setImmediate(r));
+    expect(await broker.transport.isOpen('sfu')).toBe(false);
+    expect((await broker.transport.state('sfu')).failures).toBe(0);
+  });
+
+  it('FO-3: one 503 on subscribe does NOT fail the request (retried inside the session queue); two in a row do, and count once', async () => {
+    const { cf, broker } = setup(S);
+    for (const u of USERS) await join(broker, u);
+    cf.failStatus = 503;
+    cf.failTimes = 1; // a blip
+    const r = await broker.subscribe(ctx('u1'), { userIds: ['u2'] });
+    expect(r.subscriptions).toHaveLength(2);
+    await new Promise((r) => setImmediate(r));
+    expect((await broker.transport.state('sfu')).failures).toBe(0);
+    cf.failTimes = null; // a real outage: both attempts fail
+    await expect(
+      broker.subscribe(ctx('u3'), { userIds: ['u2'] }),
+    ).rejects.toMatchObject({ status: 503 });
+    await new Promise((r) => setImmediate(r));
+    expect((await broker.transport.state('sfu')).failures).toBe(1);
+    expect(await broker.transport.isOpen('sfu')).toBe(false);
+  });
+
+  it('TS-1: while the breaker is open a new session is refused at once (503), Cloudflare is not even asked', async () => {
+    const { cf, broker } = setup(S);
+    for (let i = 0; i < 3; i++)
+      await broker.transport.recordFailure('sfu', 'x');
+    const before = cf.calls.length;
+    await expect(broker.createSession(ctx('u1'))).rejects.toMatchObject({
+      status: 503,
+    });
+    expect(cf.calls.length).toBe(before);
+    // Forced Cloudflare ignores the breaker.
+    const forced = setup({ ...S, 'calls.transport': 'cloudflare' });
+    for (let i = 0; i < 3; i++) {
+      await forced.broker.transport.recordFailure('sfu', 'x');
+    }
+    await expect(forced.broker.createSession(ctx('u1'))).resolves.toMatchObject(
+      { sessionId: 'sess-1' },
+    );
+  });
+
+  it('CF-4: in-body codes map per code — backend_error is a counted 503, session_error a 409 session_gone, an unknown code a 409 of the caller', async () => {
+    const { cf, broker } = setup(S);
+    for (const u of ['u1', 'u2']) await join(broker, u);
+    cf.bodyErrorCode = 'backend_error';
+    await expect(
+      broker.subscribe(ctx('u1', ['u1', 'u2']), { userIds: ['u2'] }),
+    ).rejects.toMatchObject({ status: 503 });
+    await new Promise((r) => setImmediate(r));
+    expect((await broker.transport.state('sfu')).failures).toBe(1);
+
+    cf.bodyErrorCode = 'session_error';
+    const gone = (await broker
+      .subscribe(ctx('u1', ['u1', 'u2']), { userIds: ['u2'] })
+      .catch((e: unknown) => e)) as { status: number; response: unknown };
+    expect(gone.status).toBe(409);
+    expect(JSON.stringify(gone.response)).toContain('session_gone');
+
+    cf.bodyErrorCode = 'weird_new_code';
+    await expect(
+      broker.subscribe(ctx('u1', ['u1', 'u2']), { userIds: ['u2'] }),
+    ).rejects.toMatchObject({ status: 409 });
+    await new Promise((r) => setImmediate(r));
+    expect((await broker.transport.state('sfu')).failures).toBe(1); // unchanged
+  });
+
+  it('FO-3: a failing simulcast layer change (tracks/update) counts but answers 409, not the 503 that moves the call', async () => {
+    const { cf, broker } = setup(S);
+    for (const u of ['u1', 'u2']) await join(broker, u);
+    await broker.subscribe(ctx('u1', ['u1', 'u2']), { userIds: ['u2'] });
+    await broker.answer(ctx('u1', ['u1', 'u2']), SDP);
+    cf.failStatus = 503;
+    await expect(
+      broker.setLayer(ctx('u1', ['u1', 'u2']), { userId: 'u2', rid: 'f' }),
+    ).rejects.toMatchObject({ status: 409 });
+    await new Promise((r) => setImmediate(r));
+    expect((await broker.transport.state('sfu')).failures).toBe(1);
   });
 
   it('calls.transport: own never uses Cloudflare; cloudflare ignores an open breaker', async () => {

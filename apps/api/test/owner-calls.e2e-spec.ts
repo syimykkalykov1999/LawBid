@@ -492,6 +492,57 @@ describe('In-app calls (e2e, OQ-041)', () => {
     expect(turn.credential).toBeTruthy();
   });
 
+  /** T1 (audit 2026-10-26): the phone-side failover rides this wire —
+   * GET /calls/ice-servers?relayFailed=true through the real query DTO
+   * (whitelist + forbidNonWhitelisted) and the 30-a-minute throttle. */
+  describe('GET /calls/ice-servers?relayFailed (T1)', () => {
+    it('relayFailed=true: 200 with our own TURN login', async () => {
+      const c = await chat();
+      const res = await api()
+        .get('/api/v1/calls/ice-servers?relayFailed=true')
+        .set(c.client.auth)
+        .expect(200);
+      const servers = res.body.data.iceServers as {
+        urls: string[];
+        username: string | null;
+      }[];
+      const turn = servers.find((s) => s.urls[0].startsWith('turn:'))!;
+      expect(turn.username).toMatch(new RegExp(`^\\d+:${c.client.id}$`));
+      await api()
+        .get('/api/v1/calls/ice-servers?relayFailed=false')
+        .set(c.client.auth)
+        .expect(200);
+    });
+
+    it('anything but true / false, or an unknown field, is refused', async () => {
+      const c = await chat();
+      await api()
+        .get('/api/v1/calls/ice-servers?relayFailed=maybe')
+        .set(c.client.auth)
+        .expect(400);
+      await api()
+        .get('/api/v1/calls/ice-servers?bogus=1')
+        .set(c.client.auth)
+        .expect(400);
+    });
+
+    it('a looping phone is held at 30 a minute', async () => {
+      const c = await chat();
+      const codes: number[] = [];
+      for (let i = 0; i < 31; i++) {
+        codes.push(
+          (
+            await api()
+              .get('/api/v1/calls/ice-servers?relayFailed=true')
+              .set(c.client.auth)
+          ).status,
+        );
+      }
+      expect(codes.slice(0, 30).every((s) => s === 200)).toBe(true);
+      expect(codes[30]).toBe(429);
+    });
+  });
+
   describe('video calls (owner 2026-10-05)', () => {
     async function setVideoFlag(enabled: boolean): Promise<void> {
       await prisma.featureFlag.upsert({

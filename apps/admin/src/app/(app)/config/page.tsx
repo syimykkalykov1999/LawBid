@@ -256,6 +256,10 @@ const KEY_TEXT: Record<string, string> = {
     'Сколько сбоев Cloudflare (за время из calls.transport_fail_window_sec) переводят новые звонки на наш запасной путь. По умолчанию 5.',
   'calls.transport_fail_window_sec':
     'За сколько секунд считаются сбои Cloudflare для переключения на запасной путь. По умолчанию 120 (2 минуты).',
+  'calls.transport_report_min':
+    'Сколько разных телефонов должны сообщить, что связь через Cloudflare у них оборвалась (за то же окно), чтобы новые звонки перешли на запасной путь. По умолчанию 10; пока звонков мало, порог сам снижается до 2 телефонов / половины звонков.',
+  'calls.transport_report_ratio_pct':
+    'Сообщившие телефоны должны быть не меньше этого процента от звонков через Cloudflare за окно (по умолчанию 30): один телефон в лифте — не сбой Cloudflare.',
   'calls.sfu_max_participants':
     'Сколько человек в одном групповом звонке, когда групповые звонки идут через Cloudflare SFU (есть ключи Cloudflare SFU и calls.transport не own). По умолчанию 20. Для звонков напрямую между телефонами остаётся лимит calls.max_participants (9).',
   'calls.sfu_fallback_mesh_max':

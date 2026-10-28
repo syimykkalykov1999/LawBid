@@ -222,6 +222,7 @@ export class PushQueueService
     recipientId: string;
     callId: string;
     ended?: boolean;
+    exceptChainId?: string;
   }) {
     if (demoContext.isDemo()) return;
     if (!this.queue) return;
