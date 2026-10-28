@@ -930,12 +930,13 @@ class MiniChip extends StatelessWidget {
       child: AppPressable(
         onTap: onTap,
         child: Container(
-          height: 30,
+          height: AppRoundChipButton.diameter,
           constraints: const BoxConstraints(minWidth: 44),
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
             color: bg,
-            borderRadius: BorderRadius.circular(15),
+            borderRadius:
+                BorderRadius.circular(AppRoundChipButton.diameter / 2),
           ),
           child: Center(
             widthFactor: 1,

@@ -18,6 +18,10 @@ class AppRoundChipButton extends StatelessWidget {
     super.key,
   });
 
+  /// The circle's diameter; the chip pills that share a row with these
+  /// buttons (Q&A segment, Tasks chips) are exactly this tall.
+  static const double diameter = 32;
+
   final IconData icon;
 
   /// The screen-reader label.
@@ -42,8 +46,8 @@ class AppRoundChipButton extends StatelessWidget {
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: 32,
-                height: 32,
+                width: diameter,
+                height: diameter,
                 decoration: BoxDecoration(
                   color: colors.chip,
                   shape: BoxShape.circle,
