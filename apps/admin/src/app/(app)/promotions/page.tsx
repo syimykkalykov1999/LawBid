@@ -127,7 +127,7 @@ export default function PromotionsPage() {
       <PageHeader
         eyebrow="Рост"
         title="Продвижение постов и кейсов"
-        subtitle="Как в Instagram: человек выбирает бюджет и дни, видит «покажем примерно N людям» и платит. Посты показываются в ленте с пометкой «Реклама», кейсы вверху ленты адвокатов. Подписка не нужна."
+        subtitle="Человек выбирает бюджет и дни, видит «покажем примерно N людям» и платит. Посты показываются в ленте с пометкой «Реклама», кейсы вверху ленты адвокатов. Подписка не нужна."
         actions={
           canWrite ? (
             <Button variant="gold" onClick={() => setGranting(true)}>
@@ -734,7 +734,7 @@ function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit: boolea
             <Toggle title="Продвижение видео (рилсы)" text="Кнопка «Продвигать» на видео и реклама среди рилсов с пометкой «Реклама» (свой счётчик, отдельно от ленты)." checked={reelsEnabled} onChange={setReelsEnabled} disabled={!canEdit} />
             <Toggle title="Кнопка под рекламой" text="Рекламодатель выбирает кнопку: сайт, профиль, скачать, позвонить. У кейсов клиента только «Откликнуться»." checked={ctaEnabled} onChange={setCtaEnabled} disabled={!canEdit} />
             <Toggle title="Автопроверка" text="Включено: продвижение стартует сразу после оплаты, если на контент нет открытых жалоб. Выключено: каждое продвижение ждёт проверки сотрудника." checked={autoApprove} onChange={setAutoApprove} disabled={!canEdit} />
-            <Toggle title="Только по подписке" text="Выключено (как в Instagram): продвигать может любой. Включено: только те, у кого в плане есть «Продвижение»." checked={requireSub} onChange={setRequireSub} disabled={!canEdit} />
+            <Toggle title="Только по подписке" text="Выключено: продвигать может любой. Включено: только те, у кого в плане есть «Продвижение»." checked={requireSub} onChange={setRequireSub} disabled={!canEdit} />
           </div>
 
           <h3 className="mt-5 font-medium text-heading">Бюджет и охват</h3>

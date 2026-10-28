@@ -502,7 +502,7 @@ function CreatePartnerCard({ onDone }: { onDone: () => void }) {
                 placeholder="Иван Петров"
               />
             </Field>
-            <Field label="Контакт" htmlFor="np-ext-contact" hint="Telegram, Instagram, e-mail или телефон">
+            <Field label="Контакт" htmlFor="np-ext-contact" hint="Ник в соцсети, e-mail или телефон">
               <Input
                 id="np-ext-contact"
                 value={extContact}
@@ -517,7 +517,7 @@ function CreatePartnerCard({ onDone }: { onDone: () => void }) {
             <UserPicker id="np-user" picked={picked} onPick={setPicked} />
           </Field>
         )}
-        <Field label="Метка (для вас)" htmlFor="np-label" hint="например «блогер Иван, YouTube»">
+        <Field label="Метка (для вас)" htmlFor="np-label" hint="например «блогер Иван, видеоблог»">
           <Input id="np-label" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={120} />
         </Field>
         <Field label="Свой код (необязательно)" htmlFor="np-code" hint="4–24 латинские буквы или цифры">
