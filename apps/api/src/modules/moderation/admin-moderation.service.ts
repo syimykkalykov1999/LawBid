@@ -557,8 +557,13 @@ export function availableActions(
     if (target.status === 'removed') out.push('restore');
   } else {
     if (target.status === 'published') out.push('hide', 'remove');
-    if (target.status === 'hidden') out.push('remove', 'restore');
-    if (target.status === 'removed') out.push('restore');
+    // CONTENT H-6: what its author deleted can't be restored.
+    const restorable = !target.authorDeleted;
+    if (target.status === 'hidden') {
+      out.push('remove');
+      if (restorable) out.push('restore');
+    }
+    if (target.status === 'removed' && restorable) out.push('restore');
   }
   if (authorActive) out.push('warn', 'suspend');
   return out;

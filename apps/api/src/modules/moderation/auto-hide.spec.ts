@@ -1,3 +1,4 @@
+import { availableActions } from './admin-moderation.service';
 import { ModerationService } from './moderation.service';
 import { computeReportWeights, type WeightConfig } from './report-weight';
 
@@ -40,6 +41,10 @@ interface Setup {
     sources: string[];
   }[];
   verifiedAuthor: boolean;
+  /** When a moderator last restored the post (H-1). */
+  restoredAt?: Date;
+  /** When an automatic hide of it was reversed on appeal (H-1). */
+  autoReversedAt?: Date;
 }
 
 function build(s: Setup) {
@@ -58,6 +63,18 @@ function build(s: Setup) {
     },
     post: { findUnique: jest.fn().mockResolvedValue(post) },
     user: { findUnique: jest.fn().mockResolvedValue({ role: 'attorney' }) },
+    moderationAction: {
+      findFirst: jest
+        .fn()
+        .mockResolvedValue(s.restoredAt ? { created_at: s.restoredAt } : null),
+    },
+    moderationAutoAction: {
+      findFirst: jest
+        .fn()
+        .mockResolvedValue(
+          s.autoReversedAt ? { reversed_at: s.autoReversedAt } : null,
+        ),
+    },
   };
   txMock.post.update.mockClear();
   txMock.post.findUnique.mockResolvedValue(post);
@@ -65,6 +82,7 @@ function build(s: Setup) {
   const settings = {
     string: jest.fn((k: string) => Promise.resolve(s.settings[k])),
     number: jest.fn((k: string) => Promise.resolve(s.settings[k])),
+    boolean: jest.fn((k: string) => Promise.resolve(s.settings[k] ?? true)),
   };
   const reputation = {
     weigh: jest.fn((ids: string[]) =>
@@ -103,7 +121,7 @@ function build(s: Setup) {
     reputation as never,
     auto as never,
   );
-  return { svc, report, auto, txMock };
+  return { svc, report, auto, txMock, prisma };
 }
 
 const BASE = {
@@ -215,5 +233,195 @@ describe('autoHideIfThreshold (owner 2026-10-27)', () => {
     });
     expect(await svc.autoHideIfThreshold('post', 'p1')).toBe(true);
     expect(tx.post.update).toHaveBeenCalled();
+  });
+});
+
+describe('autoHideIfThreshold after a restore (algo audit 2026-10-27, CONTENT H-1)', () => {
+  const restoredAt = new Date(NOW.getTime() - DAY);
+
+  it('counts only reports made after the last moderator restore', async () => {
+    const { svc, report, prisma } = build({
+      settings: BASE,
+      reporters: [old(1), old(2), old(3), old(4)],
+      verifiedAuthor: false,
+      restoredAt,
+    });
+    await svc.autoHideIfThreshold('post', 'p1');
+    expect(prisma.moderationAction.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { target_type: 'post', target_id: 'p1', action: 'restore' },
+      }),
+    );
+    expect(report.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          created_at: { gt: restoredAt },
+        }),
+      }),
+    );
+  });
+
+  it('a reversed automatic hide (by its owner, indexed) counts as a restore too; the later one wins', async () => {
+    const later = new Date(NOW.getTime() - 3600_000);
+    const { svc, report, prisma } = build({
+      settings: BASE,
+      reporters: [old(1), old(2), old(3), old(4)],
+      verifiedAuthor: false,
+      restoredAt,
+      autoReversedAt: later,
+    });
+    await svc.autoHideIfThreshold('post', 'p1');
+    expect(prisma.moderationAutoAction.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ user_id: 'author', target_id: 'p1' }),
+      }),
+    );
+    expect(report.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ created_at: { gt: later } }),
+      }),
+    );
+  });
+
+  it('never restored: all open + actioned reports count (unchanged)', async () => {
+    const { svc, report } = build({
+      settings: BASE,
+      reporters: [old(1), old(2), old(3), old(4)],
+      verifiedAuthor: false,
+    });
+    expect(await svc.autoHideIfThreshold('post', 'p1')).toBe(true);
+    const where = report.findMany.mock.calls[0][0].where;
+    expect(where.created_at).toBeUndefined();
+  });
+
+  it('switch off = the old rule (no restore lookup)', async () => {
+    const { svc, report, prisma } = build({
+      settings: {
+        ...BASE,
+        'moderation.reports_after_restore_only_enabled': false,
+      },
+      reporters: [old(1), old(2), old(3), old(4)],
+      verifiedAuthor: false,
+      restoredAt,
+    });
+    await svc.autoHideIfThreshold('post', 'p1');
+    expect(prisma.moderationAction.findFirst).not.toHaveBeenCalled();
+    expect(report.findMany.mock.calls[0][0].where.created_at).toBeUndefined();
+  });
+});
+
+describe('restore of what its author deleted (algo audit 2026-10-27, CONTENT H-6)', () => {
+  function svcWith(on: boolean) {
+    const { svc } = build({
+      settings: {
+        ...BASE,
+        'moderation.restore_keeps_author_delete_enabled': on,
+      },
+      reporters: [],
+      verifiedAuthor: false,
+    });
+    return svc;
+  }
+  const target = {
+    type: 'post' as const,
+    id: 'p1',
+    authorId: 'author',
+    status: 'removed',
+    text: 'x',
+    context: {},
+    createdAt: NOW,
+    authorDeleted: true,
+  };
+
+  it('resolve marks a post its author deleted (deleted_at, status not removed)', async () => {
+    const { svc, prisma } = build({
+      settings: BASE,
+      reporters: [],
+      verifiedAuthor: false,
+    });
+    prisma.post.findUnique.mockResolvedValueOnce({
+      ...post,
+      status: 'hidden',
+      deleted_at: NOW,
+    });
+    const t = await svc.resolve('post', 'p1');
+    expect(t).toMatchObject({ status: 'removed', authorDeleted: true });
+    prisma.post.findUnique.mockResolvedValueOnce({
+      ...post,
+      status: 'removed',
+      deleted_at: NOW,
+    });
+    expect(await svc.resolve('post', 'p1')).toMatchObject({
+      status: 'removed',
+      authorDeleted: false,
+    });
+  });
+
+  it('a restore does not bring it back (no write, not applicable)', async () => {
+    const svc = svcWith(true);
+    txMock.post.update.mockClear();
+    const after: (() => Promise<void>)[] = [];
+    expect(
+      await svc.setContentStatus(txMock as never, target, 'restore', after),
+    ).toBeNull();
+    expect(txMock.post.update).not.toHaveBeenCalled();
+  });
+
+  it('a moderator-removed post is still restored (deleted_at cleared)', async () => {
+    const svc = svcWith(true);
+    txMock.post.update.mockClear();
+    const after: (() => Promise<void>)[] = [];
+    expect(
+      await svc.setContentStatus(
+        txMock as never,
+        { ...target, authorDeleted: false },
+        'restore',
+        after,
+      ),
+    ).toBe('removed');
+    expect(txMock.post.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { status: 'published', deleted_at: null },
+      }),
+    );
+  });
+
+  it('switch off = the old behaviour', async () => {
+    const svc = svcWith(false);
+    txMock.post.update.mockClear();
+    const after: (() => Promise<void>)[] = [];
+    expect(
+      await svc.setContentStatus(txMock as never, target, 'restore', after),
+    ).toBe('removed');
+  });
+});
+
+describe('queue actions on what its author deleted (CONTENT H-6)', () => {
+  const base = {
+    type: 'post' as const,
+    id: 'p1',
+    authorId: 'a',
+    text: 'x',
+    context: {},
+    createdAt: NOW,
+  };
+  const author = { status: 'active' } as never;
+
+  it('no «restore» for an author-deleted object; a moderator-removed one keeps it', () => {
+    expect(
+      availableActions(
+        { ...base, status: 'removed', authorDeleted: true },
+        author,
+      ),
+    ).not.toContain('restore');
+    expect(
+      availableActions(
+        { ...base, status: 'removed', authorDeleted: false },
+        author,
+      ),
+    ).toContain('restore');
+    expect(availableActions({ ...base, status: 'hidden' }, author)).toEqual(
+      expect.arrayContaining(['remove', 'restore']),
+    );
   });
 });

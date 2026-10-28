@@ -37,11 +37,13 @@ import {
 } from './domain/case-staleness';
 import {
   DEFAULT_URGENCY_THRESHOLDS,
+  effectiveUrgency,
   hasUrgencyInput,
   loadUrgencyThresholds,
   resolveUrgencyInput,
   UrgencyInputError,
   urgencyFields,
+  URGENT_LEVELS,
   type UrgencyInput,
   type UrgencyThresholds,
 } from './domain/case-urgency';
@@ -585,6 +587,13 @@ export class CasesService {
     });
     await this.outbox?.flush(tickets);
     await this.events?.flush(eventTickets);
+    // Never throws; awaited so it does not outlive the request. Algo audit
+    // 2026-10-27 (CASES M-4): BEFORE the alerts are planned, so the fan-out
+    // gate reads the client's status this case may have just changed.
+    await this.fraud?.onCaseCreated(
+      user.sub,
+      `${dto.title}\n${dto.description}`,
+    );
     // Owner 2026-09-30: attorneys who turned "New cases" alerts on.
     const alerts = this.alerts;
     alerts?.later(() => alerts.attorneysForCase(created.id), {
@@ -595,11 +604,6 @@ export class CasesService {
     } catch {
       // Referral bookkeeping never breaks case creation.
     }
-    // Never throws; awaited so it does not outlive the request.
-    await this.fraud?.onCaseCreated(
-      user.sub,
-      `${dto.title}\n${dto.description}`,
-    );
 
     return toCaseDto(
       {
@@ -948,6 +952,14 @@ export class CasesService {
     if (user.role !== 'client' && user.role !== 'attorney') {
       throw forbidden('Only the client or the hired attorney can do this.');
     }
+    // Filled inside the transaction (CASES C-1, urgent top-up).
+    const seen: {
+      before?: {
+        urgency: string | null;
+        deadlineAt: Date | null;
+        clientId: string;
+      };
+    } = {};
     const updated = await withTxRetry(this.prisma, async (tx) => {
       const current = await tx.case.findUnique({
         where: { id: caseId },
@@ -961,6 +973,11 @@ export class CasesService {
         hiredAttorney === user.sub &&
         current.status !== 'open';
       if (!isClient && !isAttorney) throw caseNotFound();
+      seen.before = {
+        urgency: current.urgency,
+        deadlineAt: current.deadline_at,
+        clientId: current.client_id,
+      };
 
       const diff: Record<string, { old: unknown; new: unknown }> = {};
       const extra = urgencyDiff(dto, current, diff);
@@ -1013,7 +1030,54 @@ export class CasesService {
       }
       return afterCase;
     });
+    if (seen.before) await this.urgentTopUpIfNeeded(updated, seen.before);
     return this.toFullDto(updated);
+  }
+
+  /**
+   * Algo audit 2026-10-27 (CASES C-1): an open case that has just become
+   * urgent (the client set a near date or «Срочно») — the attorneys with
+   * «Только срочные», left out of the first round, are told now (one extra
+   * round of the same generation: nobody hears twice). After the commit;
+   * `case_alerts.urgent_upgrade_enabled`.
+   */
+  private async urgentTopUpIfNeeded(
+    after: {
+      id: string;
+      status: string;
+      paused_at: Date | null;
+      deleted_at: Date | null;
+      urgency: string | null;
+      deadline_at: Date | null;
+    },
+    before: {
+      urgency: string | null;
+      deadlineAt: Date | null;
+      clientId: string;
+    },
+  ): Promise<void> {
+    const alerts = this.alerts;
+    if (!alerts || after.status !== 'open' || after.paused_at) return;
+    if (after.deleted_at) return;
+    const on = this.settings
+      ? await this.settings.boolean('case_alerts.urgent_upgrade_enabled')
+      : APP_SETTINGS['case_alerts.urgent_upgrade_enabled'];
+    if (!on) return;
+    const t = await this.thresholds();
+    const tz = (
+      await this.prisma.user.findUnique({
+        where: { id: before.clientId },
+        select: { timezone: true },
+      })
+    )?.timezone;
+    const now = new Date();
+    const urgent = (u: string | null, d: Date | null) => {
+      const level = effectiveUrgency(u, d, now, t, tz);
+      return level !== null && URGENT_LEVELS.includes(level);
+    };
+    if (urgent(before.urgency, before.deadlineAt)) return;
+    if (!urgent(after.urgency, after.deadline_at)) return;
+    alerts.later(() => alerts.urgentTopUp(after.id), { caseId: after.id });
   }
 
   /** PATCH /cases/:id/private-details — audit 2026-10-19: the client's

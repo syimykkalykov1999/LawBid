@@ -254,6 +254,21 @@ describe('stage 6.4 — moderation (e2e)', () => {
         where: { target_id: heldId, note: { startsWith: 'auto_hold' } },
       }),
     ).toBe(1);
+    // CONTENT H-2: the author is told the post waits for a moderator (it
+    // used to be hidden silently).
+    const heldNotices = await prisma.notification.findMany({
+      where: { user_id: a.id, type: 'moderation_notice' },
+      select: { payload: true },
+    });
+    expect(heldNotices.map((n) => n.payload)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'content_held',
+          targetType: 'post',
+          targetId: heldId,
+        }),
+      ]),
+    );
 
     // CONTENT C-1: «Отклонить жалобы» on a post the rules hid puts it back
     // (recorded as a restore, the author told); the moderator may still
@@ -695,6 +710,58 @@ describe('stage 6.4 — moderation (e2e)', () => {
       (
         await prisma.message.findFirstOrThrow({
           where: withDeleted({ id: msg.id }),
+        })
+      ).deleted_at,
+    ).toBeTruthy();
+  });
+
+  // Algo audit 2026-10-27 (CONTENT H-1, H-6).
+  it('after a restore old reports do not count again; what its author deleted is never restored', async () => {
+    const mod = await adminSession(baseUrl, prisma, 'moderator');
+    const a = await attorney();
+    const postId = await post(a, `Restore rules ${randomUUID().slice(0, 8)}`);
+    const status = async () =>
+      (await prisma.post.findUniqueOrThrow({ where: { id: postId } })).status;
+    await reportBy(3, 'post', postId);
+    expect(await status()).toBe('hidden');
+    await api()
+      .post(`/api/v1/admin/moderation/targets/post/${postId}/actions`)
+      .set(mod.auth)
+      .send({ action: 'restore', reason: 'Reports were unfounded' })
+      .expect(200);
+    expect(await status()).toBe('published');
+    // H-1: one new report is not three — the 3 handled ones are history.
+    await reportBy(1, 'post', postId);
+    expect(await status()).toBe('published');
+    // Three NEW people still hide it.
+    await reportBy(2, 'post', postId);
+    expect(await status()).toBe('hidden');
+
+    // H-6: the author deletes the hidden post; neither the queue nor the
+    // admin content page can bring it back.
+    await api().delete(`/api/v1/posts/${postId}`).set(a.auth).expect(200);
+    const card = await api()
+      .get(`/api/v1/admin/moderation/targets/post/${postId}`)
+      .set(mod.auth)
+      .expect(200);
+    expect(
+      (card.body as { data: { availableActions: string[] } }).data
+        .availableActions,
+    ).not.toContain('restore');
+    await api()
+      .post(`/api/v1/admin/moderation/targets/post/${postId}/actions`)
+      .set(mod.auth)
+      .send({ action: 'restore', reason: 'Try to bring it back' })
+      .expect(409);
+    await api()
+      .post(`/api/v1/admin/content/posts/${postId}/restore`)
+      .set(mod.auth)
+      .send({ reason: 'Try to bring it back' })
+      .expect(409);
+    expect(
+      (
+        await prisma.post.findUniqueOrThrow({
+          where: withDeleted({ id: postId }),
         })
       ).deleted_at,
     ).toBeTruthy();

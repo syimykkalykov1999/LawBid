@@ -70,9 +70,23 @@ export class CaseFanoutWorker
       },
     );
     this.worker.on('failed', (job, error) => {
+      // Algo audit 2026-10-27 (CASES M-1): the last attempt is an ops alert
+      // (`alert: case_fanout_failed`, the log metric filter pages on it);
+      // the hourly `cases.rebroadcast` (24 h / 72 h without offers) is the
+      // safety net that reaches the people this wave missed.
+      const final = !!job && job.attemptsMade >= (job.opts.attempts ?? 1);
       this.logger.error(
-        { caseId: job?.data.caseId, wave: job?.data.wave, err: error.message },
-        'case fan-out wave failed',
+        {
+          caseId: job?.data.caseId,
+          wave: job?.data.wave,
+          mode: job?.data.mode,
+          attempts: job?.attemptsMade,
+          err: error.message,
+          ...(final ? { alert: 'case_fanout_failed' } : {}),
+        },
+        final
+          ? 'case fan-out wave failed for good'
+          : 'case fan-out wave failed',
       );
     });
   }

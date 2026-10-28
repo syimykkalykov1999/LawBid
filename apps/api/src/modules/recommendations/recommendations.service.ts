@@ -3,7 +3,10 @@ import { Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import type Redis from 'ioredis';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
-import type { AppSettingKey } from '../../common/app-settings/app-settings.defaults';
+import {
+  APP_SETTINGS,
+  type AppSettingKey,
+} from '../../common/app-settings/app-settings.defaults';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 import { cached } from '../../common/cache/cached';
@@ -51,6 +54,8 @@ export const POST_CANDIDATES = 400;
 export const POST_POOL = 300;
 export const CASE_POOL = 300;
 const PEOPLE_SCAN = 600;
+/** CONTENT M-6: a For-You grid list a viewer started paging stays this long. */
+export const POST_PIN_TTL_SEC = 15 * 60;
 
 /**
  * Interest signals, one row per (viewer, practice category): where the
@@ -306,14 +311,42 @@ export class RecommendationsService {
     viewerId: string,
     mode: { suggest: true } | { ids: string[] },
   ): Promise<PersonCandidate[]> {
+    // Algo audit 2026-10-27 (CONTENT H-4): next to the PEOPLE_SCAN best
+    // rated, the newest verified attorneys are candidates too — before, a
+    // new attorney (rating 0) was cut by the LIMIT before any scoring and
+    // could never be suggested. The scoring then decides.
+    const newest = 'ids' in mode ? 0 : await this.peopleNewest();
+    const eligible = (x: string) => Prisma.sql`
+      SELECT ${Prisma.raw(x)}.user_id FROM attorney_profiles ${Prisma.raw(x)}
+      JOIN users ${Prisma.raw(`${x}u`)} ON ${Prisma.raw(`${x}u`)}.id = ${Prisma.raw(x)}.user_id
+        AND ${Prisma.raw(`${x}u`)}.status = 'active' AND ${Prisma.raw(`${x}u`)}.deleted_at IS NULL
+      WHERE ${Prisma.raw(x)}.verification_status = 'verified'
+        AND ${Prisma.raw(x)}.user_id <> ${viewerId}::UUID
+        AND NOT EXISTS (SELECT 1 FROM follows fx
+          WHERE fx.follower_id = ${viewerId}::UUID AND fx.followee_id = ${Prisma.raw(x)}.user_id)
+        AND NOT EXISTS (SELECT 1 FROM user_blocks ub
+          WHERE (ub.blocker_id = ${viewerId}::UUID AND ub.blocked_id = ${Prisma.raw(x)}.user_id)
+             OR (ub.blocker_id = ${Prisma.raw(x)}.user_id AND ub.blocked_id = ${viewerId}::UUID))`;
     const filter =
       'ids' in mode
         ? Prisma.sql`AND a.verification_status <> 'suspended'
             AND a.user_id = ANY(${mode.ids}::UUID[])`
-        : Prisma.sql`AND a.verification_status = 'verified'
+        : newest > 0
+          ? Prisma.sql`AND a.verification_status = 'verified'
+            AND NOT EXISTS (SELECT 1 FROM follows fx
+              WHERE fx.follower_id = ${viewerId}::UUID AND fx.followee_id = a.user_id)
+            AND a.user_id IN (
+              (${eligible('t')}
+                ORDER BY t.rating_avg DESC, t.followers_count DESC, t.user_id
+                LIMIT ${PEOPLE_SCAN})
+              UNION
+              (${eligible('n')}
+                ORDER BY n.verified_at DESC NULLS LAST, n.user_id
+                LIMIT ${newest}))`
+          : Prisma.sql`AND a.verification_status = 'verified'
             AND NOT EXISTS (SELECT 1 FROM follows fx
               WHERE fx.follower_id = ${viewerId}::UUID AND fx.followee_id = a.user_id)`;
-    const limit = 'ids' in mode ? mode.ids.length : PEOPLE_SCAN;
+    const limit = 'ids' in mode ? mode.ids.length : PEOPLE_SCAN + newest;
     const rows = await this.prisma.$queryRaw<PersonRow[]>`
       SELECT a.user_id::TEXT AS id,
         a.rating_avg::FLOAT8 AS rating_avg, a.rating_count::INT AS rating_count,
@@ -364,7 +397,62 @@ export class RecommendationsService {
     return rows.map(toPerson);
   }
 
+  /** `reco.people_newest`, clamped to 0..1000 (default without settings). */
+  private async peopleNewest(): Promise<number> {
+    let v: number = APP_SETTINGS['reco.people_newest'];
+    try {
+      if (this.settings) v = await this.settings.number('reco.people_newest');
+    } catch {
+      // unreadable: the built-in default
+    }
+    return Math.min(1000, Math.max(0, Math.floor(v)));
+  }
+
   // --- posts -------------------------------------------------------------
+
+  /**
+   * Algo audit 2026-10-27 (CONTENT M-6): the For-You grid pages by offset
+   * over a list that is rebuilt every few minutes — a rebuild mid-scroll
+   * skipped or repeated posts. The first page (offset 0) pins the list it
+   * served for POST_PIN_TTL_SEC; later pages read that copy while it lives
+   * (a lost copy = today's behaviour). `reco.pin_paging_enabled` off = no
+   * pin. Status and blocks are re-checked when the page is presented.
+   */
+  async postsForPage(
+    viewerId: string,
+    where: Prisma.PostWhereInput,
+    filterKey: unknown,
+    offset: number,
+  ): Promise<string[]> {
+    let pin = APP_SETTINGS['reco.pin_paging_enabled'];
+    try {
+      if (this.settings)
+        pin = await this.settings.boolean('reco.pin_paging_enabled');
+    } catch {
+      // unreadable: the built-in default
+    }
+    if (!pin) return this.postsFor(viewerId, where, filterKey);
+    const key = `reco:posts:pin:${viewerId}:${hashOf(filterKey)}`;
+    if (offset > 0) {
+      try {
+        const raw = await this.redis.get(key);
+        if (raw) {
+          const ids = JSON.parse(raw) as unknown;
+          if (Array.isArray(ids)) return ids as string[];
+        }
+      } catch {
+        // cache down or garbage: rebuild below
+      }
+    }
+    const ids = await this.postsFor(viewerId, where, filterKey);
+    // Pinned on the first page, or re-pinned when the copy was lost.
+    await Promise.resolve()
+      .then(() =>
+        this.redis.set(key, JSON.stringify(ids), 'EX', POST_PIN_TTL_SEC),
+      )
+      .catch(() => undefined);
+    return ids;
+  }
 
   /**
    * Post ids for the Search grid, best first, among the newest

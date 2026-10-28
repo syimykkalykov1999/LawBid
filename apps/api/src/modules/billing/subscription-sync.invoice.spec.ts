@@ -106,3 +106,138 @@ describe('SubscriptionSyncService.onInvoice — paid is what the invoice says', 
     expect(h.access.invalidate).not.toHaveBeenCalled();
   });
 });
+
+/** Algo audit 2026-10-27 (MONEY H-2): a paid invoice that arrives before
+ * the local subscription row exists is retried, not dropped. */
+describe('SubscriptionSyncService.onInvoice — no local subscription yet', () => {
+  function setup(opts: {
+    status?: 'paid' | 'open';
+    badge?: boolean;
+    plan?: boolean;
+    enabled?: boolean;
+  }) {
+    const prisma = {
+      subscription: { findUnique: jest.fn().mockResolvedValue(null) },
+      clientVerification: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue(opts.badge ? { id: 'cv-1' } : null),
+      },
+      clientSubscription: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue(opts.plan ? { id: 'cs-1' } : null),
+      },
+      payment: { upsert: jest.fn() },
+    };
+    const provider = {
+      retrieveInvoice: jest.fn().mockResolvedValue({
+        id: 'in_9',
+        customerId: 'cus_9',
+        subscriptionId: 'sub_9',
+        amountCents: 39_900,
+        currency: 'usd',
+        status: opts.status ?? 'paid',
+        paidAt: 1_700_000_000,
+        paymentIntentId: 'pi_9',
+        failureCode: null,
+      }),
+    };
+    const svc = Object.create(SubscriptionSyncService.prototype) as {
+      onInvoice(invoiceId: string, type: string): Promise<void>;
+    };
+    Object.assign(svc, {
+      prisma,
+      provider,
+      settings: {
+        number: jest.fn().mockResolvedValue(3),
+        boolean: jest.fn().mockResolvedValue(opts.enabled ?? true),
+      },
+      logger: { warn: jest.fn(), debug: jest.fn(), error: jest.fn() },
+    });
+    return { svc, prisma };
+  }
+
+  it('a paid invoice of an unknown attorney subscription throws (the runner retries)', async () => {
+    const h = setup({});
+    await expect(h.svc.onInvoice('in_9', 'invoice.paid')).rejects.toThrow(
+      /no local row yet/,
+    );
+    expect(h.prisma.payment.upsert).not.toHaveBeenCalled();
+  });
+
+  it("a client's badge or plan subscription is not ours: no retry", async () => {
+    await expect(
+      setup({ badge: true }).svc.onInvoice('in_9', 'invoice.paid'),
+    ).resolves.toBeUndefined();
+    await expect(
+      setup({ plan: true }).svc.onInvoice('in_9', 'invoice.paid'),
+    ).resolves.toBeUndefined();
+  });
+
+  it('an unpaid invoice or the switch off: dropped as before', async () => {
+    await expect(
+      setup({ status: 'open' }).svc.onInvoice('in_9', 'invoice.payment_failed'),
+    ).resolves.toBeUndefined();
+    await expect(
+      setup({ enabled: false }).svc.onInvoice('in_9', 'invoice.paid'),
+    ).resolves.toBeUndefined();
+  });
+});
+
+/** Algo audit 2026-10-27 (MONEY M-2): a partial refund reaches the ledger. */
+describe('SubscriptionSyncService.onRefund — partial refunds', () => {
+  function setup(opts: { refunded: boolean; enabled?: boolean }) {
+    const tx = {};
+    const prisma = {
+      payment: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: 'pay-1', user_id: 'att-1' }]),
+        updateMany: jest.fn(),
+      },
+      $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
+    };
+    const ledger = { paymentRefundSynced: jest.fn() };
+    const bidPacks = { refundPayments: jest.fn() };
+    const stars = { refundPayments: jest.fn() };
+    const svc = Object.create(SubscriptionSyncService.prototype) as {
+      onRefund(chargeId: string): Promise<void>;
+    };
+    Object.assign(svc, {
+      prisma,
+      ledger,
+      bidPacks,
+      stars,
+      provider: {
+        retrieveCharge: jest.fn().mockResolvedValue({
+          id: 'ch_1',
+          paymentIntentId: 'pi_1',
+          refunded: opts.refunded,
+          amountRefundedCents: 5_000,
+        }),
+      },
+      settings: { boolean: jest.fn().mockResolvedValue(opts.enabled ?? true) },
+      logger: { warn: jest.fn(), debug: jest.fn(), error: jest.fn() },
+    });
+    return { svc, prisma, ledger, bidPacks, stars };
+  }
+
+  it('books the refunded part, keeps the payment succeeded, takes nothing back', async () => {
+    const h = setup({ refunded: false });
+    await h.svc.onRefund('ch_1');
+    expect(h.ledger.paymentRefundSynced).toHaveBeenCalledWith(
+      expect.anything(),
+      { paymentId: 'pay-1', userId: 'att-1', totalRefundedCents: 5_000 },
+    );
+    expect(h.prisma.payment.updateMany).not.toHaveBeenCalled();
+    expect(h.bidPacks.refundPayments).not.toHaveBeenCalled();
+    expect(h.stars.refundPayments).not.toHaveBeenCalled();
+  });
+
+  it('switch off: a partial refund is ignored as before', async () => {
+    const h = setup({ refunded: false, enabled: false });
+    await h.svc.onRefund('ch_1');
+    expect(h.ledger.paymentRefundSynced).not.toHaveBeenCalled();
+  });
+});

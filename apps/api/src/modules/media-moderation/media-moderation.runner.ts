@@ -101,7 +101,11 @@ export class MediaModerationRunner
       case 'rehide':
         return this.service.rehide(data.checkId);
       case 'rehide_sweep':
-        return this.service.rehideSweep();
+        // CONTENT M-1: the same hourly tick re-runs budget/error checks.
+        return this.service.rehideSweep().then(async (r) => ({
+          ...r,
+          ...(await this.service.recheckSweep()),
+        }));
     }
   }
 

@@ -69,8 +69,10 @@ describe('Opt-in follow / new-case alerts (e2e, owner 2026-09-30)', () => {
     await app.close();
   });
 
-  const notifs = (userId: string, type: 'followed_post' | 'new_case') =>
-    prisma.notification.count({ where: { user_id: userId, type } });
+  const notifs = (
+    userId: string,
+    type: 'followed_post' | 'new_case' | 'new_urgent_case',
+  ) => prisma.notification.count({ where: { user_id: userId, type } });
 
   const optIn = (userId: string, category: 'following' | 'new_cases') =>
     prisma.notificationSetting.create({
@@ -80,7 +82,7 @@ describe('Opt-in follow / new-case alerts (e2e, owner 2026-09-30)', () => {
   /** Waits (≤ 5 s) until [count] rows of [type] exist for [userId]. */
   async function waitForNotifs(
     userId: string,
-    type: 'new_case',
+    type: 'new_case' | 'new_urgent_case',
     count: number,
   ): Promise<number> {
     for (let i = 0; i < 50; i++) {
@@ -324,6 +326,151 @@ describe('Opt-in follow / new-case alerts (e2e, owner 2026-09-30)', () => {
     expect(row.dedupe_key).toBe(CaseFanoutService.key(c.id, 1));
     // The arbitration lawyer keeps the old row; the case is not his now.
     expect(await notifs(arbitration, 'new_case')).toBe(1);
+  });
+
+  // Algo audit 2026-10-27 (CASES C-1 urgent top-up, M-3 re-broadcast).
+  describe('later rounds of the same generation', () => {
+    async function leafOf(code: string) {
+      const family = await prisma.practiceArea.findUniqueOrThrow({
+        where: { code: 'family_law' },
+      });
+      return prisma.practiceArea.upsert({
+        where: { code: `family_law.${code}` },
+        create: {
+          code: `family_law.${code}`,
+          name_en: code,
+          i18n_key: ['practice', 'family_law', code].join('.'),
+          sort: 1,
+          parent_id: family.id,
+        },
+        update: {},
+      });
+    }
+    async function attorney(practiceId: string, urgentOnly = false) {
+      const u = await prisma.user.create({ data: { role: 'attorney' } });
+      const username = `ur_${u.id.slice(0, 8)}`;
+      await prisma.attorneyProfile.create({
+        data: {
+          user_id: u.id,
+          username,
+          username_lower: username,
+          languages: ['en'],
+          verification_status: 'verified',
+          new_case_alerts_urgent_only: urgentOnly,
+        },
+      });
+      await prisma.attorneyLicense.create({
+        data: {
+          attorney_id: u.id,
+          state_code: 'NJ',
+          bar_number: `NJ-${randomUUID()}`,
+          license_status: 'verified',
+        },
+      });
+      await prisma.attorneyPracticeArea.create({
+        data: { attorney_id: u.id, practice_area_id: practiceId },
+      });
+      return u.id;
+    }
+    async function openCase(practiceId: string) {
+      const client = await prisma.user.create({ data: { role: 'client' } });
+      const c = await prisma.case.create({
+        data: {
+          client_id: client.id,
+          title: 'Custody hearing date set later',
+          description: 'At first flexible, then the court date came in',
+          practice_area_id: practiceId,
+          primary_state_code: 'NJ',
+          budget_mode: 'clarify_later',
+          urgency: 'flexible',
+        },
+      });
+      await prisma.caseState.create({
+        data: { case_id: c.id, state_code: 'NJ', is_primary: true },
+      });
+      return { caseId: c.id, clientId: client.id };
+    }
+
+    it('C-1: a case that becomes urgent tells the «Только срочные» attorneys, nobody twice', async () => {
+      const leaf = await leafOf('e2e_urgent_upgrade');
+      const regular = await attorney(leaf.id);
+      const urgentOnly = await attorney(leaf.id, true);
+      const { caseId, clientId } = await openCase(leaf.id);
+      expect(await alerts.attorneysForCase(caseId)).toBe(1);
+      expect(await notifs(regular, 'new_case')).toBe(1);
+      expect(await notifs(urgentOnly, 'new_case')).toBe(0);
+
+      await shardContext.runForCase(caseId, () =>
+        app.get(CasesService).updateUrgency(
+          {
+            sub: clientId,
+            role: 'client',
+            sid: randomUUID(),
+            verified: false,
+            subscriptionStatus: 'none',
+          },
+          caseId,
+          { urgency: 'urgent' },
+        ),
+      );
+      expect(await waitForNotifs(urgentOnly, 'new_urgent_case', 1)).toBe(1);
+      const row = await prisma.notification.findFirstOrThrow({
+        where: { user_id: urgentOnly, type: 'new_urgent_case' },
+        select: { dedupe_key: true },
+      });
+      expect(row.dedupe_key).toBe(CaseFanoutService.key(caseId, 0));
+      // The regular attorney already had it: no second alert.
+      await new Promise((r) => setTimeout(r, 300));
+      expect(await notifs(regular, 'new_urgent_case')).toBe(0);
+      expect(await notifs(regular, 'new_case')).toBe(1);
+    });
+
+    it('C-1: the switch off keeps the old behaviour (no extra round)', async () => {
+      await setConfig('case_alerts.urgent_upgrade_enabled', false);
+      try {
+        const leaf = await leafOf('e2e_urgent_upgrade_off');
+        const urgentOnly = await attorney(leaf.id, true);
+        const { caseId, clientId } = await openCase(leaf.id);
+        await alerts.attorneysForCase(caseId);
+        await shardContext.runForCase(caseId, () =>
+          app.get(CasesService).updateUrgency(
+            {
+              sub: clientId,
+              role: 'client',
+              sid: randomUUID(),
+              verified: false,
+              subscriptionStatus: 'none',
+            },
+            caseId,
+            { urgency: 'very_urgent' },
+          ),
+        );
+        await new Promise((r) => setTimeout(r, 500));
+        expect(await notifs(urgentOnly, 'new_urgent_case')).toBe(0);
+      } finally {
+        await setConfig('case_alerts.urgent_upgrade_enabled', null);
+      }
+    });
+
+    it('M-3: a re-broadcast reaches an attorney verified after the first round, never the first one again', async () => {
+      const leaf = await leafOf('e2e_rebroadcast');
+      const early = await attorney(leaf.id);
+      const { caseId } = await openCase(leaf.id);
+      expect(await alerts.attorneysForCase(caseId)).toBe(1);
+      const late = await attorney(leaf.id);
+      expect(
+        await shardContext.runForCase(caseId, () =>
+          alerts.rebroadcast(caseId, '24h'),
+        ),
+      ).toBe(1);
+      expect(await notifs(late, 'new_case')).toBe(1);
+      expect(await notifs(early, 'new_case')).toBe(1);
+      expect(
+        await shardContext.runForCase(caseId, () =>
+          alerts.rebroadcast(caseId, '72h'),
+        ),
+      ).toBe(0);
+    });
   });
 
   // Algo audit 2026-10-27 (CASES H-1).

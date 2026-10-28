@@ -298,6 +298,43 @@ export class LedgerPostingService {
     });
   }
 
+  /**
+   * Algo audit 2026-10-27 (MONEY M-8): a paid cost taken back (a salary
+   * transfer reversed when the payout is canceled) — the mirror image of
+   * its `paid` entry. Idempotent (one `reversed` per original) and a no-op
+   * when the original was never booked.
+   */
+  async expenseReversed(
+    db: LedgerDb,
+    input: {
+      sourceType: string;
+      sourceId: string;
+      stripeRef?: string | null;
+      partyUserId?: string | null;
+      description: string;
+    },
+  ): Promise<{ created: boolean }> {
+    const orig = await this.ledger.linesOf(db, {
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      event: 'paid',
+    });
+    if (!orig) return { created: false };
+    return this.ledger.post(db, {
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      event: 'reversed',
+      currency: orig.currency,
+      description: input.description,
+      stripeRef: input.stripeRef ?? null,
+      partyUserId: input.partyUserId ?? null,
+      lines: orig.lines.map((l) => ({
+        ...l,
+        direction: l.direction === 'debit' ? 'credit' : 'debit',
+      })),
+    });
+  }
+
   /** Nightly sync: a Stripe fee / payout / unclassified movement, by balance transaction id. */
   stripeMovement(
     db: LedgerDb,

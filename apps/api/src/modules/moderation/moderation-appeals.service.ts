@@ -361,7 +361,8 @@ export class ModerationAppealsService {
         );
         // Already published again (restored from the queue meanwhile):
         // nothing to restore, the appeal is still accepted.
-        if (target && target.status !== 'published') {
+        // CONTENT H-6: deleted by its author meanwhile — nothing comes back.
+        if (target && target.status !== 'published' && !target.authorDeleted) {
           await this.adminModeration.act(
             admin,
             appeal.target_type,

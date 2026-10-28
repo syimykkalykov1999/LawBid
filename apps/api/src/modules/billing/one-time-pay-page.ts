@@ -85,13 +85,18 @@ export async function oneTimePayPageSession(opts: {
       };
     }
   }
+  // Algo audit 2026-10-27 (MONEY M-6): after a canceled PaymentIntent the
+  // same key would make Stripe replay that canceled intent for 24 h (the
+  // buyer could not pay). The key then names the intent it replaces —
+  // still one new intent per state, never two.
+  const replaces = current && isPaymentIntentId(current) ? `:${current}` : '';
   const pi = await provider.createPaymentIntent({
     amountCents: row.price_cents,
     currency: 'usd',
     description: opts.description,
     metadata: { kind: opts.kind, purchaseId: row.id, userId },
     receiptEmail: opts.receiptEmail ?? null,
-    idempotencyKey: `${opts.kind}-pi:${row.id}`,
+    idempotencyKey: `${opts.kind}-pi:${row.id}${replaces}`,
   });
   await opts.save(pi.id);
   return {

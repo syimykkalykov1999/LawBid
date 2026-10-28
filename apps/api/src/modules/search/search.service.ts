@@ -567,10 +567,12 @@ export class SearchService {
         : []),
     ];
     if (forYou && this.recommendations) {
-      const ids = await this.recommendations.postsFor(
+      // Algo audit 2026-10-27 (CONTENT M-6): pages through a pinned copy.
+      const ids = await this.recommendations.postsForPage(
         user.sub,
         { AND: base },
         { state, filter: { ...filter, contentClass } },
+        offset,
       );
       const slice = ids.slice(offset, offset + PAGE);
       return {

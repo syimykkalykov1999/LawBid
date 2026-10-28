@@ -355,6 +355,42 @@ describe('PayPageService (owner 2026-10-16 / 2026-10-22: our own card page)', ()
     expect(tax.calculateTax).not.toHaveBeenCalled();
   });
 
+  it('MONEY M-5: a failed tax calculation is logged as an alert, the page still opens', async () => {
+    const h = make();
+    const { svc, links, prisma, subscriptions, provider } = h;
+    subscriptions.stripeTaxEnabled.mockResolvedValue(true);
+    Object.assign(provider, {
+      retrievePaymentIntent: jest.fn().mockResolvedValue(null),
+      calculateTax: jest.fn().mockRejectedValue(new Error('tax down')),
+    });
+    h.promotions.payPageSession.mockResolvedValue({
+      paid: false,
+      amountCents: 3000,
+      currency: 'usd',
+      days: 3,
+      target: 'post',
+      clientSecret: 'pi_1_secret_x',
+      paymentIntentId: 'pi_1',
+    });
+    prisma.user.findUnique.mockResolvedValue({
+      role: 'client',
+      status: 'active',
+    });
+    const warn = jest
+      .spyOn((svc as unknown as { log: { warn: () => void } }).log, 'warn')
+      .mockImplementation(() => undefined);
+    const link = await links.link(
+      'u1',
+      { kind: 'promotion', promotionId: 'promo-1' },
+      'https://api.example/api/v1',
+    );
+    const s = await svc.session(link.token, {});
+    expect(s.priceCents).toBe(3000);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('alert: stripe_tax_failed'),
+    );
+  });
+
   it('promotion: any active user pays their own Boost by PaymentIntent', async () => {
     const { svc, links, prisma, promotions } = make();
     prisma.user.findUnique.mockResolvedValue({

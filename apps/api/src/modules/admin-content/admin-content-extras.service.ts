@@ -90,7 +90,18 @@ export class AdminContentExtrasService {
       }
       const target = await this.moderation.resolve(type, id, tx);
       if (!target) throw notFound();
-      await this.moderation.setContentStatus(tx, target, 'restore', after);
+      const prev = await this.moderation.setContentStatus(
+        tx,
+        target,
+        'restore',
+        after,
+      );
+      // CONTENT H-6: its author deleted it — it stays deleted.
+      if (prev === null) {
+        throw invalidState('The author deleted this content.', {
+          status: target.status,
+        });
+      }
       if (opts.audit === false) return;
       await this.audit.record(
         {

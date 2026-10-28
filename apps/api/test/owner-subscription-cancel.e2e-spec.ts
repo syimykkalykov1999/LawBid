@@ -76,6 +76,9 @@ describe('Admin cancels a subscription (e2e, fake provider)', () => {
       data: {
         user_id: u.id,
         stripe_payment_intent_id: `pi_${randomUUID().slice(0, 8)}`,
+        // A subscription payment always has its invoice (SubscriptionSync
+        // upserts it by stripe_invoice_id); MONEY H-4 / M-7 key on it.
+        stripe_invoice_id: `in_${randomUUID().slice(0, 8)}`,
         amount_cents: 39_900,
         status: 'succeeded',
         paid_at: new Date(),

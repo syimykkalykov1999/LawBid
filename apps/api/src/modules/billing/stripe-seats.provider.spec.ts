@@ -236,4 +236,32 @@ describe('StripePaymentProvider seats', () => {
       proration_behavior: 'none',
     });
   });
+
+  it('MONEY M-3: switchToYearly is one keyed update; already yearly = no update', async () => {
+    const update = jest.fn().mockResolvedValue(sub(1));
+    const p = make({
+      subscriptions: { retrieve: jest.fn().mockResolvedValue(sub(1)), update },
+    });
+    await p.switchToYearly('sub_1', 'price_year');
+    expect(update).toHaveBeenCalledWith(
+      'sub_1',
+      expect.objectContaining({ proration_behavior: 'always_invoice' }),
+      { idempotencyKey: 'switch-yearly:sub_1:si_plan,si_seat:price_year' },
+    );
+    const yearly = {
+      ...sub(null),
+      items: {
+        data: [{ id: 'si_y', quantity: 1, price: { id: 'price_year' } }],
+      },
+    };
+    const update2 = jest.fn();
+    const p2 = make({
+      subscriptions: {
+        retrieve: jest.fn().mockResolvedValue(yearly),
+        update: update2,
+      },
+    });
+    await p2.switchToYearly('sub_1', 'price_year');
+    expect(update2).not.toHaveBeenCalled();
+  });
 });
