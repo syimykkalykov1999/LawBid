@@ -1526,3 +1526,5 @@ PRINCIPLE (owner 07:55): assume the attacker is an automated AI (tireless, tries
 - 2026-10-28 07:55 OWNER RULE (all features, not only uploads): light on user phones + light on server + Instagram quality. Audit existing heavy paths (reels playback/preload, calls, feeds images, chat media) against it in the smoothness/perf audit.
 - 2026-10-28 07:55 tick: #512 (Моё swipe) merged 07:48. Open 507/509/510/511 UNSTABLE. Disk 14G.
 - 2026-10-28 08:25 MAIN RED since 05:09 CDT: API lint heap OOM (6GB). Fix PR #513 claude/ci-lint-oom (lint split in 2 processes). After merge: rerun/update 507/509/510/511 (base update). KNOWN_ERRORS #23.
+- 2026-10-28 08:45 a098c50 DONE → PR #514 theme-contrast (reels rail fixed overlay colors, WCAG tokens). Merge after main green (#513 + PDF determinism fix).
+- 2026-10-28 08:50 a48b0fd → PR #515 people/chat search tiers (stacked on #507; retarget to main after #507). Resumed same agent for deferred: attorney/case search + filters + wizard practice search.
