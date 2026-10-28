@@ -14,6 +14,9 @@ import { VerificationController } from './controllers/verification.controller';
 import { AutoBarLookupProvider } from './providers/bar-lookup/auto-bar-lookup.provider';
 import { GenericRestAdapter } from './providers/bar-lookup/generic-rest.adapter';
 import { SocrataAdapter } from './providers/bar-lookup/socrata.adapter';
+import { HtmlPageAdapter } from './providers/bar-lookup/html-page.adapter';
+import { RegistryGuard } from './providers/bar-lookup/registry-guard';
+import { StatePresetAdapter } from './providers/bar-lookup/state-preset.adapter';
 import {
   STATE_BAR_ADAPTERS,
   type StateBarAdapter,
@@ -77,10 +80,14 @@ import { SelfieCaptureTokensService } from './services/selfie-capture-tokens.ser
           ny,
           new SocrataAdapter(allowLocal),
           new GenericRestAdapter(allowLocal),
+          // Owner 2026-10-28: public lookup pages and per-state presets.
+          new HtmlPageAdapter(allowLocal),
+          new StatePresetAdapter(allowLocal),
         ];
       },
       inject: [NyOpenDataAdapter, ConfigService],
     },
+    RegistryGuard,
     StateRegistryService,
     AutoBarLookupProvider,
     VerificationProviderSelector,

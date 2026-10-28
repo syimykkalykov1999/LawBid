@@ -24,6 +24,12 @@ StateRegistryDto _$StateRegistryDtoFromJson(Map<String, dynamic> json) =>
           ? null
           : DateTime.parse(json['updatedAt'] as String),
       lookupUrl: json['lookupUrl'] as String?,
+      support: StateRegistryDtoSupport.fromJson(json['support'] as String),
+      supportNote: json['supportNote'] as String,
+      presetAvailable: json['presetAvailable'] as bool,
+      pausedUntil: json['pausedUntil'] == null
+          ? null
+          : DateTime.parse(json['pausedUntil'] as String),
     );
 
 Map<String, dynamic> _$StateRegistryDtoToJson(StateRegistryDto instance) =>
@@ -40,4 +46,8 @@ Map<String, dynamic> _$StateRegistryDtoToJson(StateRegistryDto instance) =>
       'lastTestResult': ?instance.lastTestResult,
       'updatedAt': ?instance.updatedAt?.toIso8601String(),
       'lookupUrl': ?instance.lookupUrl,
+      'support': instance.support.toJson(),
+      'supportNote': instance.supportNote,
+      'presetAvailable': instance.presetAvailable,
+      'pausedUntil': ?instance.pausedUntil?.toIso8601String(),
     };

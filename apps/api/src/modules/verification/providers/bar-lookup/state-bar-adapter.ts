@@ -17,8 +17,37 @@ export const REGISTRY_ADAPTER_TYPES = [
   'ny_open_data',
   'socrata',
   'generic_rest',
+  // Owner 2026-10-28: public lookup pages, and the ready-made per-state
+  // settings for them (state-presets.ts).
+  'html_page',
+  'state_preset',
 ] as const;
 export type RegistryAdapterType = (typeof REGISTRY_ADAPTER_TYPES)[number];
+
+/**
+ * Owner 2026-10-28 (polite use): adapters that ask a state's public web
+ * page or a third-party API go through the per-state rate limit, the 24 h
+ * cache and the circuit breaker (registry-guard.ts).
+ */
+export const GUARDED_ADAPTERS: ReadonlySet<RegistryAdapterType> = new Set([
+  'generic_rest',
+  'html_page',
+  'state_preset',
+]);
+
+/**
+ * Owner 2026-10-28: "one lookup per new attorney submission plus the
+ * admin's re-check" — public web pages are never swept by the monthly
+ * re-check of every verified license (licenses.registry-recheck); only
+ * open-data datasets and keyed APIs are.
+ */
+export const NO_BULK_RECHECK: ReadonlySet<RegistryAdapterType> = new Set([
+  'html_page',
+  'state_preset',
+]);
+
+/** Requests per minute to one state's registry unless the admin sets it. */
+export const DEFAULT_RATE_PER_MIN = 10;
 
 /** A state's registry settings, the key decrypted. */
 export interface ResolvedRegistry {
@@ -58,6 +87,14 @@ export interface RegistryAdapterDescriptor {
   secret: 'none' | 'optional' | 'required';
   secretLabel?: string;
 }
+
+const RATE_FIELD: RegistryFieldDescriptor = {
+  name: 'ratePerMin',
+  label: 'Requests per minute (limit)',
+  required: false,
+  placeholder: String(10),
+  help: 'Polite use: at most this many lookups a minute to this registry (default 10).',
+};
 
 const NAME_HELP =
   'Path in the JSON answer, dots between keys, numbers for list items: results.0.last_name';
@@ -210,6 +247,12 @@ export const REGISTRY_ADAPTERS: RegistryAdapterDescriptor[] = [
         placeholder: 'admitted',
       },
       {
+        name: 'expiresPath',
+        label: 'Valid-until date path',
+        required: false,
+        placeholder: 'expires',
+      },
+      {
         name: 'activeValues',
         label: 'Statuses that mean "active"',
         required: false,
@@ -217,14 +260,166 @@ export const REGISTRY_ADAPTERS: RegistryAdapterDescriptor[] = [
         help: 'Comma separated, any case. Empty = any record found counts as active.',
       },
       {
+        name: 'method',
+        label: 'HTTP method',
+        required: false,
+        options: ['GET', 'POST'],
+        help: 'POST sends the body below (Indiana, Ohio).',
+      },
+      {
+        name: 'bodyType',
+        label: 'POST body type',
+        required: false,
+        options: ['json', 'form'],
+      },
+      {
+        name: 'bodyTemplate',
+        label: 'POST body',
+        required: false,
+        placeholder: '{"AttorneyNumber":"{bar_number}","Page":1}',
+        help: 'Takes {bar_number}, {state}, {first_name}, {last_name}.',
+      },
+      {
+        name: 'headers',
+        label: 'Extra headers (JSON)',
+        required: false,
+        placeholder: '{"X-Requested-With":"XMLHttpRequest"}',
+      },
+      {
+        name: 'bootstrapUrl',
+        label: 'Start page (cookies / CSRF token)',
+        required: false,
+        placeholder: 'https://registry.example/search/',
+      },
+      {
+        name: 'csrfSelector',
+        label: 'CSRF token on the start page',
+        required: false,
+        placeholder: 'css:meta[name=csrf-token]@content',
+      },
+      {
+        name: 'csrfHeader',
+        label: 'CSRF header name',
+        required: false,
+        placeholder: 'X-CSRF-TOKEN',
+      },
+      {
+        name: 'numberPath',
+        label: 'Bar number path (pick the record from a list)',
+        required: false,
+        placeholder: 'AttorneyNumber',
+      },
+      {
         name: 'profileUrl',
         label: 'Public profile link (optional)',
         required: false,
         placeholder: 'https://…/{bar_number}',
       },
+      RATE_FIELD,
     ],
     secret: 'optional',
     secretLabel: 'API key',
+  },
+  {
+    type: 'state_preset',
+    label: 'Готовый: официальный сайт штата',
+    description:
+      "Ready-made settings for this state's public lookup page or API (tested 2026-10-28). Nothing to fill in; one lookup per new license, 24 h cache, rate limit and circuit breaker.",
+    fields: [RATE_FIELD],
+    secret: 'none',
+  },
+  {
+    type: 'html_page',
+    label: 'Публичная страница коллегии (HTML)',
+    description:
+      'A public lookup page with a stable address per bar number, or a search form. Values are read with selectors: css:<selector>[@attr], label:<caption>, regex:<pattern>; join two with " && ".',
+    fields: [
+      {
+        name: 'urlTemplate',
+        label: 'Page / form address',
+        required: true,
+        placeholder: 'https://registry.example/attorney/{bar_number}',
+      },
+      {
+        name: 'method',
+        label: 'HTTP method',
+        required: false,
+        options: ['GET', 'POST'],
+      },
+      {
+        name: 'bodyTemplate',
+        label: 'Form fields (POST)',
+        required: false,
+        placeholder: 'brnum={bar_number}',
+      },
+      {
+        name: 'numberFormat',
+        label: 'Bar number as the site wants it',
+        required: false,
+        options: ['as_typed', 'digits'],
+      },
+      {
+        name: 'numberPad',
+        label: 'Pad with zeros to this many digits',
+        required: false,
+        placeholder: '6',
+      },
+      {
+        name: 'bootstrapUrl',
+        label: 'Start page (cookies, hidden fields)',
+        required: false,
+      },
+      {
+        name: 'bootstrapHidden',
+        label: 'Send the hidden fields of the start page',
+        required: false,
+        options: ['no', 'yes'],
+      },
+      { name: 'referer', label: 'Referer header', required: false },
+      {
+        name: 'csrfSelector',
+        label: 'CSRF token on the start page',
+        required: false,
+      },
+      { name: 'csrfHeader', label: 'CSRF header name', required: false },
+      {
+        name: 'detailLinkSelector',
+        label: 'Link to the detail page in the result',
+        required: false,
+      },
+      {
+        name: 'recordSelector',
+        label: 'One result (row / card)',
+        required: false,
+        placeholder: 'table.results tbody tr',
+      },
+      { name: 'numberSelector', label: 'Bar number', required: false },
+      { name: 'nameSelector', label: 'Full name', required: false },
+      { name: 'firstNameSelector', label: 'First name', required: false },
+      { name: 'lastNameSelector', label: 'Last name', required: false },
+      {
+        name: 'statusSelector',
+        label: 'License status',
+        required: false,
+        help: 'Empty = the page has no status; a found record then goes to a verifier.',
+      },
+      {
+        name: 'activeValues',
+        label: 'Statuses that mean "active"',
+        required: false,
+        placeholder: 'Active',
+      },
+      { name: 'admittedSelector', label: 'Admission date', required: false },
+      { name: 'expiresSelector', label: 'Valid until', required: false },
+      { name: 'firmSelector', label: 'Firm', required: false },
+      {
+        name: 'profileUrl',
+        label: 'Public profile link (optional)',
+        required: false,
+      },
+      RATE_FIELD,
+    ],
+    secret: 'none',
   },
 ];
 
@@ -234,8 +429,13 @@ export function adapterDescriptor(
   return REGISTRY_ADAPTERS.find((a) => a.type === type);
 }
 
-/** {bar_number}, {state}, {first_name}, {last_name} → URL-encoded values. */
-export function fillTemplate(template: string, input: BarLookupInput): string {
+/** {bar_number}, {state}, {first_name}, {last_name} → URL-encoded values
+ * (or JSON-string-escaped for a JSON body). */
+export function fillTemplate(
+  template: string,
+  input: BarLookupInput,
+  mode: 'url' | 'json' = 'url',
+): string {
   const values: Record<string, string> = {
     bar_number: input.barNumber,
     state: input.stateCode,
@@ -244,6 +444,28 @@ export function fillTemplate(template: string, input: BarLookupInput): string {
   };
   return template.replace(
     /\{(bar_number|state|first_name|last_name)\}/g,
-    (_, k: string) => encodeURIComponent(values[k] ?? ''),
+    (_, k: string) =>
+      mode === 'json'
+        ? JSON.stringify(values[k] ?? '').slice(1, -1)
+        : encodeURIComponent(values[k] ?? ''),
   );
+}
+
+/**
+ * Owner 2026-10-28: the bar number the way the state's site wants it —
+ * as typed (trimmed), digits only, and/or zero-padded (ND 5, ME 6, WA 12).
+ */
+export function formatBarNumber(
+  raw: string,
+  config: Record<string, string>,
+): string {
+  let n = raw.trim();
+  if (config.numberFormat === 'digits' || config.numberPad) {
+    n = n.replace(/\D/g, '');
+  }
+  const pad = Number(config.numberPad);
+  if (Number.isInteger(pad) && pad > 0 && pad <= 20 && n) {
+    n = n.replace(/^0+(?=\d)/, '').padStart(pad, '0');
+  }
+  return n;
 }

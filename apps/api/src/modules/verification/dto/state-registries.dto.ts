@@ -111,6 +111,33 @@ export class StateRegistryDto {
       "The state's own public lookup page (a link for the verifier).",
   })
   lookupUrl!: string | null;
+
+  @ApiProperty({
+    enum: ['automatic', 'manual'],
+    description:
+      'Owner 2026-10-28: whether the state registry can be checked automatically at all.',
+  })
+  support!: 'automatic' | 'manual';
+
+  @ApiProperty({
+    description:
+      'Russian note: which registry is read, or why the state stays manual.',
+  })
+  supportNote!: string;
+
+  @ApiProperty({
+    description: 'A ready-made adapter (state_preset) exists for the state.',
+  })
+  presetAvailable!: boolean;
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'Lookups to this state are paused by the circuit breaker until then.',
+  })
+  pausedUntil!: string | null;
 }
 
 export class BarFormatMissDto {
