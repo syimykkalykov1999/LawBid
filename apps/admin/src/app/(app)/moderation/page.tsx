@@ -7,6 +7,7 @@ import { useState } from "react";
 import { MotionRow } from "@/components/legacy/fade-in";
 import { MoreButton } from "@/components/legacy/more-button";
 import { ErrorNote, PageHeader } from "@/components/page-header";
+import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/card";
 import { Select } from "@/components/ui/input";
 import { Table, TableEmpty, Td, Th } from "@/components/ui/table";
@@ -23,6 +24,7 @@ import {
   TARGET_TYPE,
 } from "@/lib/labels";
 import { canOpen } from "@/lib/rbac";
+import { MODERATION_REVIEW_PATH } from "@/lib/review-flow";
 import { formatDateTime } from "@/lib/utils";
 
 type QStatus = "open" | "actioned" | "dismissed";
@@ -63,6 +65,15 @@ export default function ModerationQueuePage() {
         eyebrow="Модерация"
         title="Жалобы"
         subtitle="Жалобы, сгруппированные по объекту; старые сверху."
+        actions={
+          // Owner 2026-10-28: complaints one after another, no trip back here.
+          <Link
+            href={MODERATION_REVIEW_PATH}
+            className={buttonVariants({ variant: "gold", size: "sm" })}
+          >
+            Разбирать подряд
+          </Link>
+        }
       />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Tabs<QStatus>

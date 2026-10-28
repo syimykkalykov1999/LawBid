@@ -8,7 +8,7 @@ import { useConfirm } from '@/components/legacy/confirm';
 import { FadeIn, MotionRow } from '@/components/legacy/fade-in';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
-import { RegistryResult } from '@/components/verification/registry-result';
+import { hasRegistryResult, RegistryResult } from '@/components/verification/registry-result';
 import { TrustPanel } from '@/components/trust/trust-panel';
 import { Button } from '@/components/ui/button';
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -430,10 +430,13 @@ export default function VerificationCardPage() {
                         <div className="mt-1 font-medium text-warning">Отмечено для проверки: реестр не подтвердил</div>
                       ) : null}
                       <RegistryResult result={l.autoCheckResult} profileName={name} />
-                      <details className="mt-1">
-                        <summary className="cursor-pointer text-muted">Подробно</summary>
-                        <pre className="max-h-24 overflow-auto rounded-lg bg-surface-2 p-1.5">{JSON.stringify(l.autoCheckResult, null, 1)}</pre>
-                      </details>
+                      {/* The readable block carries the raw answer in its own «Подробнее». */}
+                      {hasRegistryResult(l.autoCheckResult) ? null : (
+                        <details className="mt-1">
+                          <summary className="cursor-pointer text-muted">Подробнее</summary>
+                          <pre className="max-h-24 overflow-auto rounded-lg bg-surface-2 p-1.5">{JSON.stringify(l.autoCheckResult, null, 1)}</pre>
+                        </details>
+                      )}
                     </>
                   ) : '—'}
                 </Td>
