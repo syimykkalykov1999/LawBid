@@ -24,3 +24,4 @@
 - [Union waves](union-waves.md) — 2026-10-27: one union branch per wave, branch from union head, registries only via generators
 - [Bid terms + agreement PDF](bid-terms-agreement.md) — 2026-10-27: retainer/monthly terms in bids, signed fee-agreement PDF pinned in case, payments stay OFF
 - [Device build entry point](device-build-entrypoint.md) — 2026-10-28: always -t lib/main_prod.dart with --flavor prod, else app talks to dev API
+- [Test phase plan](test-phase-plan.md) — 2026-10-28: deploy now; owner tests phones, I load-test on laptop; collect fixes; NO phone rebuilds until he says
