@@ -916,6 +916,9 @@ class SocialActions {
     _ref.read(postEventsQueueProvider).view(post.id);
     if (!_viewed.add(post.id)) return;
     final now = _latest(post);
+    // A view counter the author hid stays hidden (no local «+1» on the 0
+    // the server sends to others).
+    if (now.viewsHidden && !now.isMine) return;
     _ref
         .read(postOverridesProvider.notifier)
         .put(now.copyWith(viewCount: now.viewCount + 1));
@@ -951,7 +954,7 @@ class SocialActions {
         refreshProfileCounters(_ref);
       });
 
-  /// Owner 2026-10-12: pin to slot 1..3 / unpin; the profile lists reload
+  /// Owner 2026-10-12: pin to slot 1..6 / unpin; the profile lists reload
   /// (pinned posts lead them).
   /// Owner 2026-10-15 (Instagram): the author hides / shows the like and
   /// view counters of an own post.
@@ -961,12 +964,28 @@ class SocialActions {
     bool? hideViews,
   }) =>
       _guard('counters:${post.id}', () async {
-        final updated = await _repo.setPostCounters(
-          post.id,
-          hideLikes: hideLikes,
-          hideViews: hideViews,
-        );
-        _ref.read(postOverridesProvider.notifier).put(updated);
+        // Owner 2026-10-28: the switch flips at once on every surface (the
+        // reel rail, the card, the menu label); the server's answer settles
+        // it, an error puts the old state back.
+        final before = _latest(post);
+        final overrides = _ref.read(postOverridesProvider.notifier)
+          ..put(
+            before.copyWith(
+              likesHidden: hideLikes ?? before.likesHidden,
+              viewsHidden: hideViews ?? before.viewsHidden,
+            ),
+          );
+        try {
+          final updated = await _repo.setPostCounters(
+            post.id,
+            hideLikes: hideLikes,
+            hideViews: hideViews,
+          );
+          overrides.put(updated);
+        } on Object {
+          overrides.put(before);
+          rethrow;
+        }
       });
 
   Future<Object?> pinPost(Post post, int slot) =>
@@ -1150,3 +1169,20 @@ bool showLikeCount(WidgetRef ref, Post post) {
   // only the author's choice for their own post.
   return !post.likesHidden;
 }
+
+/// The same for [post]'s view counter. The server already sends others a 0
+/// for a hidden one; this also keeps a local «+1» from showing.
+bool showViewCount(WidgetRef ref, Post post) {
+  if (post.isMine) return true;
+  if (!ref.watch(featureFlagsControllerProvider).isEnabled('hide_counts')) {
+    return true;
+  }
+  return !post.viewsHidden;
+}
+
+/// Owner 2026-10-28 (Instagram): the author still sees the own numbers of a
+/// post whose counter they hid, with a small «Скрыто для других» mark.
+bool hiddenForOthersMark(WidgetRef ref, Post post, {required bool views}) =>
+    post.isMine &&
+    (views ? post.viewsHidden : post.likesHidden) &&
+    ref.watch(featureFlagsControllerProvider).isEnabled('hide_counts');

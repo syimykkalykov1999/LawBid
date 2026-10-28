@@ -19,6 +19,7 @@ import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
+import 'package:lawbid/features/social/presentation/widgets/hidden_counter_mark.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_attachments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
@@ -590,6 +591,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
       VoidCallback onTap, {
       Color? color,
       VoidCallback? onCountTap,
+      bool hiddenMark = false,
     }) =>
         Padding(
           // Owner 2026-10-13: Instagram-like rail — the count in 12, a tight
@@ -616,13 +618,21 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       GestureDetector(
                         onTap: onCountTap ?? onTap,
                         behavior: HitTestBehavior.opaque,
-                        child: Text(
-                          SocialFormat.count(f, count),
+                        child: DefaultTextStyle.merge(
                           style: type.caption.copyWith(
                             fontSize: 13,
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
                             shadows: shadow,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(SocialFormat.count(f, count)),
+                              // The mark takes the number's colour.
+                              if (hiddenMark)
+                                const HiddenCounterMark(inheritColor: true),
+                            ],
                           ),
                         ),
                       ),
@@ -747,7 +757,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                   child: Column(
                     children: [
                       // Owner 2026-10-12: the view counter above the actions.
-                      if (p.viewCount > 0)
+                      if (p.viewCount > 0 && showViewCount(ref, p))
                         Padding(
                           padding: const EdgeInsets.only(bottom: AppSpacing.lg),
                           child: Column(
@@ -758,12 +768,25 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                                 color: Colors.white,
                               ),
                               const SizedBox(height: 2),
-                              Text(
-                                SocialFormat.count(f, p.viewCount),
+                              DefaultTextStyle.merge(
                                 style: type.caption.copyWith(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w600,
                                   shadows: shadow,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(SocialFormat.count(f, p.viewCount)),
+                                    if (hiddenForOthersMark(
+                                      ref,
+                                      p,
+                                      views: true,
+                                    ))
+                                      const HiddenCounterMark(
+                                        inheritColor: true,
+                                      ),
+                                  ],
                                 ),
                               ),
                             ],
@@ -777,6 +800,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         showLikeCount(ref, p) ? p.likeCount : null,
                         () => run(() => actions.toggleLike(p)),
                         color: p.likedByMe ? colors.danger : null,
+                        hiddenMark: hiddenForOthersMark(ref, p, views: false),
                       ),
                       // Owner 2026-10-07: comments off → no comments
                       // button (the server refuses them anyway).

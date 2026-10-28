@@ -250,10 +250,11 @@ export class PostsController {
     return this.posts.remove(user, p.id);
   }
 
-  // Owner 2026-10-12: pin an own post (slot 1..3) to the top of the profile.
+  // Owner 2026-10-12: pin an own post (slot 1..6 since 2026-10-28) to the top
+  // of the profile.
   @AttorneyOnly('publish')
   @Post('posts/:id/pin')
-  @ApiOperation({ summary: 'Pin an own post to slot 1, 2 or 3' })
+  @ApiOperation({ summary: 'Pin an own post to slot 1..6' })
   @ApiEnvelopeResponse(PostDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.POST_NOT_FOUND] })
   pinPost(
