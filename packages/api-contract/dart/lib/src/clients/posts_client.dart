@@ -101,7 +101,7 @@ abstract class PostsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Pin an own post to slot 1, 2 or 3
+  /// Pin an own post to slot 1..6
   @POST('/posts/{id}/pin')
   Future<PostEnvelope> pinPost({
     @Path('id') required String id,

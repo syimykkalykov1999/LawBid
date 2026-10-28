@@ -710,7 +710,7 @@ export class PostsService {
     return { deleted: true };
   }
 
-  /** Owner 2026-10-12: pins an own post to slot 1..3 of its list (posts
+  /** Owner 2026-10-12: pins an own post to slot 1..6 of its list (posts
    * with files, or text-only briefs). A taken slot is not refused: the post
    * that held it takes the pinned post's old slot, or loses its pin. */
   async pin(user: RequestUser, id: string, slot: number): Promise<PostDto> {

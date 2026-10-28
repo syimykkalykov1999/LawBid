@@ -177,7 +177,14 @@ void refreshPostLists(WidgetRef ref) {
     ..invalidate(attorneyReelsProvider);
 }
 
-/// Owner 2026-10-12: a small sheet with three numbers — the slot the post
+/// The pin slots the sheet offers (owner 2026-10-28: six, was three), in
+/// rows of three. The server allows 1..6 (PinPostDto).
+const kPinSlotRows = [
+  [1, 2, 3],
+  [4, 5, 6],
+];
+
+/// Owner 2026-10-12: a small sheet with numbered circles — the slot the post
 /// takes at the top of the profile (a taken slot is handed over).
 Future<void> showPinSlotSheet(BuildContext context, WidgetRef ref, Post post) {
   final t = ref.read(translatorProvider);
@@ -200,44 +207,48 @@ Future<void> showPinSlotSheet(BuildContext context, WidgetRef ref, Post post) {
               children: [
                 const AppSheetHandle(),
                 const SizedBox(height: AppSpacing.md),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    for (final slot in const [1, 2, 3])
-                      Semantics(
-                        button: true,
-                        label: t.t('post.pin.slot', {'n': '$slot'}),
-                        excludeSemantics: true,
-                        child: AppPressable(
-                          key: ValueKey('pin-slot-$slot'),
-                          onTap: () async {
-                            Navigator.of(sheet).pop();
-                            final error = await ref
-                                .read(socialActionsProvider)
-                                .pinPost(post, slot);
-                            if (error != null && context.mounted) {
-                              showAppSnackBar(context, errorText(t, error));
-                            }
-                          },
-                          child: Container(
-                            width: 64,
-                            height: 64,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: colors.surface,
-                              border: Border.all(color: colors.gold),
-                            ),
-                            child: Text(
-                              context.digits(slot),
-                              style:
-                                  type.titleMedium.copyWith(color: colors.text),
+                for (final (i, row) in kPinSlotRows.indexed) ...[
+                  if (i > 0) const SizedBox(height: AppSpacing.md),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      for (final slot in row)
+                        Semantics(
+                          button: true,
+                          label: t.t('post.pin.slot', {'n': '$slot'}),
+                          excludeSemantics: true,
+                          child: AppPressable(
+                            key: ValueKey('pin-slot-$slot'),
+                            onTap: () async {
+                              Navigator.of(sheet).pop();
+                              final error = await ref
+                                  .read(socialActionsProvider)
+                                  .pinPost(post, slot);
+                              if (error != null && context.mounted) {
+                                showAppSnackBar(context, errorText(t, error));
+                              }
+                            },
+                            child: Container(
+                              width: 64,
+                              height: 64,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: colors.surface,
+                                border: Border.all(color: colors.gold),
+                              ),
+                              child: Text(
+                                context.digits(slot),
+                                style: type.titleMedium.copyWith(
+                                  color: colors.text,
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -298,7 +309,7 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                             showEditPostSheet(context, ref, post);
                           },
                         ),
-                      // Owner 2026-10-12: pin to the profile top (1..3).
+                      // Owner 2026-10-12: pin to the profile top (1..6).
                       if (!post.isNews &&
                           !post.isArchived &&
                           post.status == 'published' &&
@@ -410,13 +421,23 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                                 ? 'post.menu.showLikes'
                                 : 'post.menu.hideLikes',
                           ),
+                          // Owner 2026-10-28: the author sees the own number
+                          // either way — the row says it is hidden now.
+                          subtitle: post.likesHidden
+                              ? t.t('post.counts.hiddenForOthers')
+                              : null,
                           showChevron: false,
-                          onTap: () {
+                          onTap: () async {
                             Navigator.of(sheet).pop();
-                            ref.read(socialActionsProvider).setCounters(
+                            final error = await ref
+                                .read(socialActionsProvider)
+                                .setCounters(
                                   post,
                                   hideLikes: !post.likesHidden,
                                 );
+                            if (error != null && context.mounted) {
+                              showAppSnackBar(context, errorText(t, error));
+                            }
                           },
                         ),
                         if (post.video != null)
@@ -430,13 +451,21 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                                   ? 'post.menu.showViews'
                                   : 'post.menu.hideViews',
                             ),
+                            subtitle: post.viewsHidden
+                                ? t.t('post.counts.hiddenForOthers')
+                                : null,
                             showChevron: false,
-                            onTap: () {
+                            onTap: () async {
                               Navigator.of(sheet).pop();
-                              ref.read(socialActionsProvider).setCounters(
+                              final error = await ref
+                                  .read(socialActionsProvider)
+                                  .setCounters(
                                     post,
                                     hideViews: !post.viewsHidden,
                                   );
+                              if (error != null && context.mounted) {
+                                showAppSnackBar(context, errorText(t, error));
+                              }
                             },
                           ),
                       ],
