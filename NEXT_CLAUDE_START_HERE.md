@@ -1461,3 +1461,4 @@ PRINCIPLE (owner 07:55): assume the attacker is an automated AI (tireless, tries
 - NEXT after helpers report: 21:16 #484 chat fixes (клавиатура↔эмодзи, «Пригласить» SMS) влит. #485 на мобильных сборках. Deal-record: правки идут (21:14), footer «не посредник» передан. Активно: a4e5d69466c01afef.
 - NEXT after helpers report: 21:30 Owner: обложка видео только в сетке профиля; в плеерах (лента, пост, рилс, чат) сразу кадры видео, без зависшей обложки. Worker a4aa0aac884520972 (sonnet), branch claude/video-cover-grid-only. Активно: a4e5d69466c01afef a4aa0aac884520972.
 - NEXT after helpers report: 21:36 #485 «Сегодня» system wave влит (loop). Осталось: deal-record (тесты идут), video-cover. Активно: a4e5d69466c01afef a4aa0aac884520972.
+- NEXT after helpers report: 21:38 PR #486 video cover only in grid (ReelVideo/ChatVideoTile; stories untouched). Ждёт CI, loop сольёт. Активно: a4e5d69466c01afef.
