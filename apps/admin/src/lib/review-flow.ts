@@ -14,6 +14,21 @@
 export const VERIFICATION_REVIEW_PATH = '/verification/review';
 export const MODERATION_REVIEW_PATH = '/moderation/review';
 
+export const SUPPORT_REVIEW_PATH = '/support/review';
+export const OWNER_REVIEW_PATH = '/today/review';
+
+export function supportReviewHref(id?: string | null): string {
+  return id ? `${SUPPORT_REVIEW_PATH}?id=${encodeURIComponent(id)}` : SUPPORT_REVIEW_PATH;
+}
+
+/** The owner's items in a row: a head appeal, a red flag, a staff suggestion. */
+export type OwnerItemKind = 'flag' | 'appeal' | 'suggestion';
+
+export function ownerReviewHref(kind?: OwnerItemKind | null, id?: string | null): string {
+  if (!kind || !id) return OWNER_REVIEW_PATH;
+  return `${OWNER_REVIEW_PATH}?kind=${kind}&id=${encodeURIComponent(id)}`;
+}
+
 export function verificationReviewHref(id?: string | null): string {
   return id ? `${VERIFICATION_REVIEW_PATH}?id=${encodeURIComponent(id)}` : VERIFICATION_REVIEW_PATH;
 }

@@ -1,5 +1,5 @@
 import type { AdminRole, AdminWorkspace } from './rbac';
-import { moderationReviewHref, verificationReviewHref } from './review-flow';
+import { moderationReviewHref, supportReviewHref, verificationReviewHref } from './review-flow';
 import { navModeFor } from './rbac';
 
 /**
@@ -150,13 +150,12 @@ export const KIND_SWITCH: Readonly<Record<LeaseKind, string>> = {
 };
 
 /**
- * Where the card of a leased item opens. A support ticket has a page of its
- * own; a verification request and a report open the review screen of their
+ * Where the card of a leased item opens. A support ticket, a verification request and a report open the review screen of their
  * queue (a report's object kind comes with the lease); the appeals are worked right in the
  * desk tab (their lists are the card). null = no page for the kind.
  */
 export function itemHref(kind: string, id: string, targetType?: string | null): string | null {
-  if (kind === 'support_ticket') return `/support/${id}?focus=1`;
+  if (kind === 'support_ticket') return supportReviewHref(id);
   // Owner 2026-10-28: requests and complaints open on their «…и дальше» review screens.
   if (kind === 'verification') return verificationReviewHref(id);
   if (kind === 'report') return targetType ? moderationReviewHref(targetType, id) : deskPath('moderator', 'reports');

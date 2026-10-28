@@ -24,6 +24,7 @@ import { livePoll } from '@/lib/live';
 import { useMe } from '@/lib/hooks';
 import { PRIORITY, StatusPill, TICKET_STATUS } from '@/lib/labels';
 import { canOpen } from '@/lib/rbac';
+import { supportReviewHref } from '@/lib/review-flow';
 import { formatDateTime } from '@/lib/utils';
 
 type Patch = { status?: TicketStatus; priority?: TicketPriority; assigneeId?: string | null };
@@ -93,7 +94,7 @@ export default function SupportTicketPage() {
   const next = useMutation({
     mutationFn: async () => (await api.POST('/admin/support/tickets/next')).data!.data,
     onSuccess: (r) => {
-      if (r.ticket && r.ticket.id !== id) router.push(`/support/${r.ticket.id}?focus=1`);
+      if (r.ticket && r.ticket.id !== id) router.push(supportReviewHref(r.ticket.id));
       else if (!r.ticket) {
         toast.success('Очередь пуста: вы ответили на всё');
         router.push('/workspace');
