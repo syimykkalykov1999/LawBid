@@ -59,6 +59,7 @@ export 'widgets/lists/app_picker_row.dart';
 export 'widgets/motion/app_entrance.dart';
 export 'widgets/motion/app_pressable.dart';
 export 'widgets/motion/app_tap_target.dart';
+export 'widgets/motion/hover_surface.dart';
 export 'widgets/performance/defer_first_frame.dart';
 export 'widgets/performance/text_warm_up.dart';
 export 'widgets/text/fit_text.dart';
