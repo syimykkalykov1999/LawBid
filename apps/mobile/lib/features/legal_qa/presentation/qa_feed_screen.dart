@@ -60,9 +60,8 @@ class QaFeedBody extends ConsumerStatefulWidget {
 
   final bool initialUnanswered;
 
-  /// Inside the Cases tabs: the sections are nested [SwipePages] — a swipe
-  /// moves through them first and, at the first / last one, on to the
-  /// neighbouring Cases tab; a drag to the right is not «back».
+  /// Inside the Cases tabs: the sections change by tap only, a swipe moves
+  /// between the Cases tabs; a drag to the right is not «back».
   final bool embedded;
 
   @override
@@ -248,10 +247,10 @@ class _QaFeedBodyState extends ConsumerState<QaFeedBody> {
                 // Owner 2026-10-22: the first page's drag to the right is
                 // «back».
                 child: widget.embedded
-                    // Owner 2026-10-28: inside the Cases tabs a swipe moves
-                    // through these sections first and only past the last
-                    // (or first) one to the next Cases tab — like «Дела».
+                    // Owner 2026-10-28: inside the Cases tabs these sections
+                    // change by tap only; a swipe moves between the tabs.
                     ? SwipePages<QaTab>(
+                        swipe: false,
                         value: _tab,
                         values: QaTab.values,
                         onChanged: (v) => setState(() => _tab = v),

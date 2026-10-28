@@ -124,8 +124,10 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
                   ),
                 ),
                 Expanded(
-                  // Owner 2026-10-22: Active | Completed swipe like the tabs.
+                  // Owner 2026-10-28: Active | Completed change by tap only; a
+                  // swipe moves between the top tabs.
                   child: SwipePages<_CaseSection>(
+                    swipe: false,
                     value: _section,
                     values: _CaseSection.values,
                     onChanged: (v) => setState(() => _section = v),
@@ -390,6 +392,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
             onKind: (v) => setState(() => _savedKind = v),
           )
         : SwipePages<AttorneyCasesSection>(
+            swipe: false,
             value: _section,
             values: AttorneyCasesSection.values,
             onChanged: (v) => setState(() => _section = v),
@@ -597,6 +600,7 @@ class _AttorneySavedState extends ConsumerState<_AttorneySaved> {
         // Owner 2026-10-19 (Instagram): cases and posts slide side by side.
         Expanded(
           child: SwipePages<_SavedKind>(
+            swipe: false,
             value: _kind,
             values: _SavedKind.values,
             onChanged: widget.onKind,
