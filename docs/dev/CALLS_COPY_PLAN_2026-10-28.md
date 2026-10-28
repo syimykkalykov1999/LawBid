@@ -99,3 +99,39 @@
 - Пункт 1 (экран не закрывается): источник есть — ConnectyCube `IncomingCallActivity` + CK PR #872. Больше не «ВЛАДЕЛЕЦ».
 - Пункт 2 (пропущенный): источник есть — CK `showMissCallNotification`; нужен только выбор «CK или серверный `missed_call`».
 - Пункт 5 (PiP): Android — Jitsi (Apache); iPhone — источника нет, ВЛАДЕЛЕЦ.
+
+---
+# Дополнение 2: перенос ОДНОГО целого стека (по указанию владельца, 2026-10-28). Перенос НЕ начат — ждём подтверждения.
+
+## Честный итог поиска «одного готового целого»
+Единого проекта «Flutter + iPhone + Android + заблокированный экран + отмена + пропущенный + идущий звонок + переподключение + видео» под разрешённой лицензией **не существует**. Ближайшие:
+
+| Проект | Лицензия | Что покрывает | Почему не «целиком» |
+|---|---|---|---|
+| **LiveKit: `livekit_client` v2.13.2 (7adc595) + `livekit-examples/flutter-callkit` (ab61c43432d2772c8c76981c9e8ed1f7140956b8) + сервер `livekit/livekit`** | Apache-2.0 (+ MIT у CK для Android) | Весь Flutter-слой медиа: подключение, переподключение, ICE-рестарт, микрофон, камера, динамик, смена камеры, видео; iOS CallKit+PushKit официальный образец от самого LiveKit (звонок из VoIP-пуша, mute/end из системного экрана, аудиосессия отдаётся CallKit) | Образец LiveKit — **только iOS**, 969 строк, демо: без отмены звонящим, пропущенного, идущего уведомления, Android. Android-часть — CK v3.1.6 (MIT) |
+| **Rocket.Chat.ReactNative** (472d1712a42168e88ac91c4154da75489eba27b0) | MIT | Самый полный нативный VoIP под обе платформы: PushKit+CallKit (`ios/Libraries/VoipService.swift`, `AppDelegate+Voip.swift`), Android self-managed PhoneAccount, `VoipCallService` (FGS microphone\|phoneCall), `IncomingCallActivity` на заблокированном экране, `VoipIncomingCallDispatch`; описание в `app/lib/services/voip/docs/*.md` | React Native, а не Flutter; принятие звонка идёт через их DDP-клиент к серверу Rocket.Chat (`media-calls.answer`) — пришлось бы переписывать связь с нашим сервером, т.е. писать своё |
+| Jitsi Meet (f765042bf280cbd7dcd4a9bbdb63b09e9e4d3259) | Apache-2.0 | Полный стек (iOS CallKit, Android ConnectionService, переподключение, PiP Android) | Свой интерфейс на React Native и свой сервер Jitsi; наши экраны подключить нельзя |
+| Signal, Element, Telegram, Wire, Linphone, FluffyChat | GPL/AGPL | — | Не копировать |
+| Stream Video | проприетарная | — | Не копировать |
+
+## Рекомендация: стек LiveKit (вариант A)
+Он ближе всего к «одному целому» именно для нас: наш клиент — Flutter, а у LiveKit есть Flutter-SDK, официальный образец CallKit и сервер; в нашем API уже есть `livekit.provider.ts` и вебхук. Android-слой звонка остаётся пакетом CK v3.1.6 (MIT) с применением его апстрим-исправления PR #872 (4ae62216da7afcaf33efea9aed21d1f4a6623383). Это единственная стыковка двух источников; своих исправлений не пишем. Запасной вариант B — нативный слой Rocket.Chat (потребует переписать DDP-связь → «своё», нужно отдельное разрешение).
+
+## Проверка безопасности
+- `livekit-examples/flutter-callkit`: 969 строк, прочитан README и список файлов; чужих хостов нет (только apache.org, apple.com DTD, git-lfs); скриптов установки нет. Остальные источники — как в предыдущих разделах (LK, CK, FW без чужих хостов; LK `android/build.gradle` подключает jitpack.io — решение владельца).
+- LiveKit-сервер (`livekit/livekit`, Apache-2.0, ветка master) — перед развёртыванием отдельно прочитать конфиг и образ; собирать только из закреплённого релиза.
+
+## Список наших файлов, которые удаляются или заменяются (предварительно, сверить на шаге 2)
+Mobile (Dart), удалить/заменить на LiveKit `Room`: `application/call_media.dart`, `application/sfu_rtc.dart`, `application/cloudflare_sfu_call_media.dart`, `data/calls_sfu_api.dart`, `application/call_quality.dart` (статистика → LiveKit stats), `application/call_media_view.dart` (вид медиа → LiveKit video track), `application/callkit_bridge.dart` (→ события CK + образец flutter-callkit), `application/call_controller.dart` (2766 строк → тонкий адаптер: тот же публичный интерфейс для экранов, внутри Room + CK).
+Mobile (нативное): `ios/Runner/AppDelegate.swift` (звонковая часть → AppDelegate образца flutter-callkit + PushKit CK), `android/.../CallRinging.kt`, `CallPushReceiver.kt`, `CallHangupReceiver.kt`, `CallForegroundService.kt` (→ служба и экран CK; самописные исправления #519/#522 уходят, остаётся апстрим-PR #872).
+Остаются без изменений (внешний вид): `call_screen.dart`, `call_stage.dart`, `call_controls.dart`, `call_host.dart`, `call_widgets.dart`, `call_group.dart`, `call_add_panel.dart`, `call_pip_window.dart`, `call_invite_bar.dart`, `call_vote.dart`, `live_calls_fab.dart`, `call_video_layout.dart`, экраны истории и контактов. Подключаются к новому адаптеру.
+Остаётся наше: вход (auth), отправка пушей (`push-dispatcher`, `apns-voip.sender.ts`), история звонков.
+Сервер (удалить как лишнее после перехода): `cloudflare-sfu.client.ts`, `cloudflare-sfu.provider.ts`, `cloudflare-sfu.fake.ts`, `cloudflare-transport.ts`, `cloudflare-turn.ts`, `cloudflare-relay-probe.ts`, `relay-check.ts`, `sfu-broker.service.ts`, `sfu-state.store.ts`, `sfu.dto.ts`, `call-poll-token.ts` и `call-status.controller.ts` (опрос статуса под M8) вместе с их тестами; в `media-provider.ts` режимы `p2p|cloudflare` → `livekit`.
+
+## Какая часть сервера нужна
+1. Сервер LiveKit (Apache-2.0): Redis (общий), открытые порты 7880 (HTTPS/WS), 7881 (TCP), 50000-60000/UDP или 7882/UDP мультиплекс, встроенный или отдельный TURN на 443/5349; для масштабирования — несколько узлов с общим Redis; рекомендуется отдельная группа ECS/EC2 с авто-ростом.
+2. В нашем API оставить: `livekit.provider.ts` (выдача токена комнаты), `livekit-webhook.controller.ts` (события участников/комнаты → история и «звонок окончен»), пуши входящего/отмены (VoIP на iPhone, FCM data high на Android) — уже есть.
+3. Ключи LiveKit (API key/secret) — в SSM/Secrets Manager; вносит владелец. Деплой и Terraform — кнопкой владельца.
+
+## Решение владельца (ждём)
+Подтвердить вариант A (LiveKit + CK) и начало переноса. Тогда шаг 2 идёт в порядке: сервер LiveKit на ноуте → клиент `livekit_client` → iOS по образцу flutter-callkit → Android CK+#872 → удаление старого → проверка на телефонах.
