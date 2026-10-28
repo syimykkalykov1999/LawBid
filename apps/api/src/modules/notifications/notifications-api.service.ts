@@ -6,6 +6,7 @@ import {
 import { Prisma, type Notification } from '@prisma/client';
 import {
   allWordsSql,
+  nameKeys,
   nameMatchSql,
   typedWords,
 } from '../../common/search/name-match.sql';
@@ -152,6 +153,7 @@ export class NotificationsApiService {
   private async matchingIds(userId: string, q: string): Promise<string[]> {
     const words = typedWords(q);
     if (!words.length) return [];
+    const keys = await nameKeys(this.prisma, q);
     const text = Prisma.sql`concat_ws(' ', n.payload->>'title', n.payload->>'body', n.payload->>'reason', n.payload->>'note')`;
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       SELECT n.id::TEXT AS id
@@ -165,7 +167,7 @@ export class NotificationsApiService {
       WHERE n.user_id = ${userId}::UUID
         AND (${allWordsSql(text, words)}
              OR (a.id IS NOT NULL
-                 AND ${nameMatchSql(q, Prisma.sql`a.full_name_lower`)}))
+                 AND ${nameMatchSql(keys, 'a')}))
       LIMIT 2000`;
     return rows.map((r) => r.id);
   }

@@ -875,6 +875,12 @@ model User {
   // STORED computed column (§5.3): lower(first_name || ' ' || last_name),
   // trigram GIN-indexed. Read-only — never write it.
   full_name_lower          String?                 @default(dbgenerated("lower(((COALESCE(first_name, ''::text) || ' '::text) || COALESCE(last_name, ''::text)))"))
+  // Load test 2026-10-28: f_name_skel / f_name_cons of full_name_lower,
+  // kept by the users_name_keys_trg trigger (migration
+  // 20261108100000_users_name_keys) for people search (nameMatchSql).
+  // Raw SQL only; never read or write them through Prisma.
+  name_skel                String?                 @ignore
+  name_cons                String?                 @ignore
   // Owner 2026-10-13 (contacts sync): STORED computed column, lowercase hex
   // SHA-256 of phone_e164. Lets the app match its address book without
   // sending a single raw number. Read-only — never write it.
