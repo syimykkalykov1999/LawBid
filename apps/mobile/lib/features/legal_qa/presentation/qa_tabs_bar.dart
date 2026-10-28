@@ -27,7 +27,7 @@ class QaTabsBar extends StatelessWidget {
 
   /// The widest the segment grows on a big screen.
   static const maxWidth = 340.0;
-  static const _height = 32.0;
+  static const _height = AppRoundChipButton.diameter;
   static const _padding = 8.0;
 
   @override
