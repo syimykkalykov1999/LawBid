@@ -5,6 +5,7 @@ import type Redis from 'ioredis';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import { shardContext } from '../src/sharding/shard-context';
 import { CasesService } from '../src/modules/cases/cases.service';
 import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 import { CaseFanoutService } from '../src/modules/notifications/case-fanout/case-fanout.service';
@@ -295,17 +296,21 @@ describe('Opt-in follow / new-case alerts (e2e, owner 2026-09-30)', () => {
     expect(await alerts.attorneysForCase(c.id)).toBe(0);
 
     // The client corrects the practice → cases.alert_generation = 1 and
-    // the fan-out runs again after the response.
-    await app.get(CasesService).update(
-      {
-        sub: client.id,
-        role: 'client',
-        sid: randomUUID(),
-        verified: false,
-        subscriptionStatus: 'none',
-      },
-      c.id,
-      { practiceAreaId: familyLeaf.id },
+    // the fan-out runs again after the response. Called as a request would:
+    // inside the case's shard context (two-database mode routes the
+    // transaction by it; the HTTP layer sets it from `cases/:id`).
+    await shardContext.runForCase(c.id, () =>
+      app.get(CasesService).update(
+        {
+          sub: client.id,
+          role: 'client',
+          sid: randomUUID(),
+          verified: false,
+          subscriptionStatus: 'none',
+        },
+        c.id,
+        { practiceAreaId: familyLeaf.id },
+      ),
     );
     expect(
       (await prisma.case.findUniqueOrThrow({ where: { id: c.id } }))
