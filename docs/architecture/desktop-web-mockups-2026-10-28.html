@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LawBid desktop mockups</title>
+<style>
+:root{
+  --bg:#f4f5f7; --page:#ffffff; --panel:#fafafa; --line:#e4e6ea; --text:#15171a;
+  --muted:#6b7280; --accent:#1f4e8c; --accent-soft:#e8eef8; --bubble-in:#ffffff;
+  --bubble-out:#dfeafe; --hover:#f0f2f5; --ok:#1f8a4c; --badge:#d93a3a; --ph:#d9dde3;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0e0f11; --page:#16181b; --panel:#1b1d21; --line:#2a2d33; --text:#eceef1;
+    --muted:#9aa1ab; --accent:#7ea7e6; --accent-soft:#1f2a3b; --bubble-in:#22252a;
+    --bubble-out:#1f3354; --hover:#22252a; --ok:#4cc27e; --badge:#ef5b5b; --ph:#30343a;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+header.top{max-width:1480px;margin:0 auto;padding:24px 16px 8px}
+header.top h1{font-size:22px;margin:0 0 6px}
+header.top p{margin:4px 0;color:var(--muted);max-width:900px}
+nav.tabs{max-width:1480px;margin:0 auto;padding:8px 16px;display:flex;gap:8px;flex-wrap:wrap}
+nav.tabs a{padding:6px 12px;border:1px solid var(--line);border-radius:999px;color:var(--text);text-decoration:none;background:var(--page)}
+nav.tabs a:hover{background:var(--hover)}
+section.mock{max-width:1480px;margin:16px auto 40px;padding:0 16px}
+section.mock h2{font-size:17px;margin:0 0 4px}
+section.mock .note{color:var(--muted);margin:0 0 10px}
+.frame{width:100%;overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--page);box-shadow:0 4px 18px rgba(0,0,0,.06)}
+.screen{width:1440px;height:900px;display:flex;background:var(--page);position:relative}
+.dim{position:absolute;right:10px;bottom:8px;font-size:11px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:2px 6px}
+/* rail */
+.rail{border-right:1px solid var(--line);padding:18px 10px;display:flex;flex-direction:column;gap:2px;flex:none}
+.rail.wide{width:220px}.rail.narrow{width:76px;align-items:center}
+.logo{font-weight:700;font-size:20px;padding:6px 12px 22px;letter-spacing:.2px}
+.rail.narrow .logo{padding:6px 0 22px;font-size:18px}
+.ni{display:flex;align-items:center;gap:14px;padding:11px 12px;border-radius:10px;cursor:pointer;position:relative}
+.ni:hover{background:var(--hover)}
+.ni.on{font-weight:700}
+.ic{width:24px;height:24px;border:2px solid currentColor;border-radius:7px;flex:none}
+.ni.on .ic{background:currentColor}
+.cnt{margin-left:auto;background:var(--badge);color:#fff;font-size:11px;border-radius:999px;padding:1px 7px}
+.rail.narrow .cnt{position:absolute;top:4px;right:2px;margin:0}
+.spacer{flex:1}
+/* generic */
+.av{width:36px;height:36px;border-radius:50%;background:var(--ph);flex:none}
+.av.s{width:28px;height:28px}.av.l{width:56px;height:56px}
+.ph{background:var(--ph);border-radius:6px}
+.btn{display:inline-block;padding:7px 14px;border-radius:8px;background:var(--accent);color:#fff;font-weight:600;font-size:13px;border:0;cursor:pointer}
+.btn.g{background:var(--accent-soft);color:var(--accent)}
+.muted{color:var(--muted)}
+.h{font-weight:700}
+.row{display:flex;align-items:center;gap:10px}
+.card{border:1px solid var(--line);border-radius:10px;background:var(--page)}
+.card:hover{border-color:var(--muted)}
+.sec{padding:14px 16px;border-bottom:1px solid var(--line)}
+.sec:last-child{border-bottom:0}
+.lbl{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px;font-weight:600}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;background:var(--accent-soft);color:var(--accent)}
+.pill.ok{background:rgba(31,138,76,.12);color:var(--ok)}
+/* feed */
+.feedmain{flex:1;overflow:hidden;display:flex;justify-content:center;gap:48px;padding:22px 24px}
+.feedcol{width:470px}
+.stories{display:flex;gap:14px;margin-bottom:22px}
+.story{width:62px;text-align:center;font-size:11px;color:var(--muted)}
+.story .av{width:58px;height:58px;margin:0 auto 4px;box-shadow:0 0 0 2px var(--page),0 0 0 4px var(--accent)}
+.post{margin-bottom:20px}
+.post .hd{padding:10px 12px}
+.post .media{height:470px;border-radius:0}
+.post .act{padding:10px 12px 4px;display:flex;gap:14px}
+.post .act span{width:22px;height:22px;border:2px solid var(--text);border-radius:6px}
+.post .tx{padding:4px 12px 14px}
+.side{width:320px;flex:none}
+.side .card{margin-bottom:14px}
+.dl{display:flex;justify-content:space-between;padding:4px 0}
+/* chats */
+.clist{width:400px;border-right:1px solid var(--line);display:flex;flex-direction:column;flex:none}
+.clist .top{padding:18px 16px 10px}
+.search{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:8px 12px;color:var(--muted)}
+.chips{display:flex;gap:6px;margin-top:10px}
+.chip{padding:4px 10px;border-radius:999px;border:1px solid var(--line);font-size:12px}
+.chip.on{background:var(--text);color:var(--page);border-color:var(--text)}
+.ci{display:flex;gap:12px;padding:11px 16px;cursor:pointer}
+.ci:hover{background:var(--hover)}
+.ci.sel{background:var(--accent-soft)}
+.ci .b{flex:1;min-width:0}
+.ci .t{display:flex;justify-content:space-between}
+.ci .p{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;justify-content:space-between}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--accent);flex:none;margin-top:5px}
+.conv{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--panel)}
+.conv .bar{padding:12px 18px;border-bottom:1px solid var(--line);background:var(--page)}
+.msgs{flex:1;padding:18px 28px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+.day{align-self:center;font-size:12px;color:var(--muted);background:var(--page);border:1px solid var(--line);border-radius:999px;padding:2px 10px;margin:6px 0}
+.m{max-width:520px;padding:8px 12px;border-radius:12px;background:var(--bubble-in);border:1px solid var(--line)}
+.m.o{align-self:flex-end;background:var(--bubble-out);border-color:transparent}
+.m small{display:block;text-align:right;color:var(--muted);font-size:11px}
+.file{display:flex;gap:10px;align-items:center}
+.file .ph{width:38px;height:44px}
+.composer{padding:10px 18px;border-top:1px solid var(--line);background:var(--page);display:flex;gap:10px;align-items:center}
+.composer .in{flex:1;border:1px solid var(--line);border-radius:20px;padding:9px 14px;color:var(--muted);background:var(--panel)}
+.kbd{font:11px/1 ui-monospace,Menlo,monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:2px 5px;color:var(--muted);background:var(--page)}
+.info{width:340px;border-left:1px solid var(--line);flex:none}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.grid4 .ph{aspect-ratio:1}
+/* case */
+.caselist{width:400px;border-right:1px solid var(--line);flex:none}
+.caseitem{display:flex;gap:12px;padding:12px 16px;cursor:pointer}
+.caseitem:hover{background:var(--hover)}
+.caseitem.sel{background:var(--accent-soft)}
+.caseitem .ph{width:54px;height:54px;flex:none}
+.casemain{flex:1;overflow:hidden;display:flex;justify-content:center}
+.casecol{width:760px;padding:18px 24px}
+.cover{height:200px;border-radius:10px;margin:12px 0 16px}
+.docs{display:flex;gap:10px;margin:10px 0}
+.docs .ph{width:84px;height:104px}
+.bid{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.bid:last-child{border-bottom:0}
+.bid .amt{margin-left:auto;font-weight:700}
+.sum{width:340px;border-left:1px solid var(--line);padding:18px;flex:none}
+.kv{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line)}
+.legend{max-width:1480px;margin:0 auto 30px;padding:0 16px;color:var(--muted)}
+.legend li{margin:4px 0}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>LawBid в браузере на компьютере: макеты, 28.10.2026</h1>
+  <p>Так будет выглядеть сайт, когда окно шире 1024 px. Это картинки-наброски, не готовый дизайн: цвета и шрифты останутся как в приложении. На телефоне ничего не меняется.</p>
+  <p>Ширина каждого макета 1440 px (обычный большой ноутбук или монитор). Если экран меньше, макет прокручивается вбок. Наведите мышь на строки и карточки, чтобы увидеть подсветку.</p>
+</header>
+<nav class="tabs"><a href="#home">1. Лента</a><a href="#chats">2. Сообщения</a><a href="#case">3. Дело</a></nav>
+
+<!-- 1. HOME -->
+<section class="mock" id="home">
+  <h2>1. Лента: меню слева, посты по центру, боковая панель справа</h2>
+  <p class="note">Колонка постов 470 px, как у Instagram. Справа — сроки, мои дела и рекомендации (только при ширине от 1280 px).</p>
+  <div class="frame"><div class="screen">
+    <aside class="rail wide">
+      <div class="logo">LawBid</div>
+      <div class="ni on"><span class="ic"></span>Лента</div>
+      <div class="ni"><span class="ic"></span>Поиск</div>
+      <div class="ni"><span class="ic"></span>Сообщения<span class="cnt">3</span></div>
+      <div class="ni"><span class="ic"></span>Моё</div>
+      <div class="ni"><span class="ic"></span>Уведомления<span class="cnt">5</span></div>
+      <div class="ni"><span class="ic"></span>Создать</div>
+      <div class="ni"><span class="av s"></span>Профиль</div>
+      <div class="spacer"></div>
+      <div class="ni"><span class="ic"></span>Настройки</div>
+      <div class="ni"><span class="ic"></span>Ещё</div>
+    </aside>
+    <main class="feedmain">
+      <div class="feedcol">
+        <div class="stories">
+          <div class="story"><div class="av"></div>Вы</div>
+          <div class="story"><div class="av"></div>adv.bekov</div>
+          <div class="story"><div class="av"></div>asanova</div>
+          <div class="story"><div class="av"></div>law.kg</div>
+          <div class="story"><div class="av"></div>notarius</div>
+          <div class="story"><div class="av"></div>urist.osh</div>
+        </div>
+        <article class="card post">
+          <div class="hd row"><span class="av s"></span><span class="h">adv.bekov</span><span class="muted">· 2 ч</span><span class="muted" style="margin-left:auto">•••</span></div>
+          <div class="ph media"></div>
+          <div class="act"><span></span><span></span><span></span><span style="margin-left:auto"></span></div>
+          <div class="tx"><b>128 отметок</b><br><b>adv.bekov</b> Что делать, если работодатель задерживает зарплату: три шага до суда…</div>
+        </article>
+        <article class="card post">
+          <div class="hd row"><span class="av s"></span><span class="h">asanova.law</span><span class="muted">· 5 ч</span></div>
+          <div class="tx">Бриф: раздел имущества после развода — какие документы собрать заранее…</div>
+        </article>
+      </div>
+      <aside class="side">
+        <div class="row" style="margin:6px 0 16px"><span class="av l"></span><div><div class="h">Айгуль Т.</div><div class="muted">клиент</div></div><span class="btn g" style="margin-left:auto">Сменить</span></div>
+        <div class="card"><div class="sec"><div class="lbl">Ближайшие сроки</div>
+          <div class="dl"><span>Подать исковое заявление</span><span class="muted">30.10</span></div>
+          <div class="dl"><span>Заседание, Октябрьский суд</span><span class="muted">02.11</span></div></div></div>
+        <div class="card"><div class="sec"><div class="lbl">Мои активные дела</div>
+          <div class="dl"><span>Раздел имущества</span><span class="pill">4 ставки</span></div>
+          <div class="dl"><span>Трудовой спор</span><span class="pill ok">в работе</span></div></div></div>
+        <div class="card"><div class="sec"><div class="lbl">Рекомендуем</div>
+          <div class="row" style="padding:5px 0"><span class="av s"></span><div><div class="h">Адв. Исаков</div><div class="muted">Семейное право · ★4.9</div></div><span class="btn g" style="margin-left:auto">Подписаться</span></div>
+          <div class="row" style="padding:5px 0"><span class="av s"></span><div><div class="h">Адв. Керимова</div><div class="muted">Трудовое право · ★4.8</div></div><span class="btn g" style="margin-left:auto">Подписаться</span></div></div></div>
+        <div class="muted" style="font-size:12px">© LawBid · Правила · Конфиденциальность</div>
+      </aside>
+    </main>
+    <span class="dim">1440 × 900 · меню 220 · лента 470 · панель 320</span>
+  </div></div>
+</section>
+
+<!-- 2. CHATS -->
+<section class="mock" id="chats">
+  <h2>2. Сообщения: список чатов и открытый чат рядом</h2>
+  <p class="note">Как WhatsApp Web: меню сжимается до иконок, слева список, в центре чат, справа данные собеседника (от 1440 px, по кнопке ⓘ). <span class="kbd">Enter</span> отправить, <span class="kbd">Shift</span>+<span class="kbd">Enter</span> новая строка, <span class="kbd">Esc</span> закрыть, <span class="kbd">Ctrl/⌘</span>+<span class="kbd">K</span> поиск.</p>
+  <div class="frame"><div class="screen">
+    <aside class="rail narrow">
+      <div class="logo">LB</div>
+      <div class="ni"><span class="ic"></span></div>
+      <div class="ni"><span class="ic"></span></div>
+      <div class="ni on"><span class="ic"></span><span class="cnt">3</span></div>
+      <div class="ni"><span class="ic"></span></div>
+      <div class="ni"><span class="ic"></span><span class="cnt">5</span></div>
+      <div class="ni"><span class="ic"></span></div>
+      <div class="ni"><span class="av s"></span></div>
+      <div class="spacer"></div>
+      <div class="ni"><span class="ic"></span></div>
+    </aside>
+    <section class="clist">
+      <div class="top">
+        <div class="row" style="margin-bottom:12px"><span class="h" style="font-size:20px">Сообщения</span><span class="muted" style="margin-left:auto">✎ &nbsp; •••</span></div>
+        <div class="search">Поиск &nbsp;<span class="kbd">Ctrl/⌘ K</span></div>
+        <div class="chips"><span class="chip on">Все</span><span class="chip">Личные</span><span class="chip">Дела</span><span class="chip">Непрочитанные</span></div>
+      </div>
+      <div class="ci sel"><span class="av"></span><div class="b"><div class="t"><span class="h">Адв. Беков</span><span class="muted">12:40</span></div><div class="p"><span>Документы получил, посмотрю сегодня</span></div></div></div>
+      <div class="ci"><span class="av"></span><div class="b"><div class="t"><span class="h">Дело №1042 · Раздел имущества</span><span class="muted">11:02</span></div><div class="p"><span>Новая ставка: 35 000 сом</span></div></div><span class="dot"></span></div>
+      <div class="ci"><span class="av"></span><div class="b"><div class="t"><span class="h">Адв. Асанова</span><span class="muted">вчера</span></div><div class="p"><span>Вы: Спасибо, жду договор</span></div></div></div>
+      <div class="ci"><span class="av"></span><div class="b"><div class="t"><span class="h">Поддержка LawBid</span><span class="muted">пн</span></div><div class="p"><span>Ваша заявка закрыта</span></div></div></div>
+      <div class="ci"><span class="av"></span><div class="b"><div class="t"><span class="h">Нотариус Осмонова</span><span class="muted">20.10</span></div><div class="p"><span>Голосовое сообщение · 0:42</span></div></div></div>
+    </section>
+    <section class="conv">
+      <div class="bar row"><span class="av"></span><div><div class="h">Адв. Беков</div><div class="muted" style="font-size:12px">в сети</div></div><span class="muted" style="margin-left:auto;letter-spacing:10px">📞🎥⌕ⓘ</span></div>
+      <div class="msgs">
+        <span class="day">вчера</span>
+        <div class="m">Здравствуйте! Чтобы оценить шансы, пришлите, пожалуйста, свидетельство о браке и выписку о собственности.<small>18:20</small></div>
+        <div class="m o"><div class="file"><span class="ph"></span><div><b>svidetelstvo.pdf</b><div class="muted">1,2 МБ</div></div></div><small>18:31 ✓✓</small></div>
+        <div class="m o">Выписку пришлю завтра утром.<small>18:32 ✓✓</small></div>
+        <span class="day">сегодня</span>
+        <div class="m">Документы получил, посмотрю сегодня и напишу план.<small>12:40</small></div>
+      </div>
+      <div class="composer"><span class="muted">📎</span><span class="in">Сообщение… (файл можно перетащить сюда)</span><span class="muted">😊</span><span class="btn">➤</span></div>
+    </section>
+    <aside class="info">
+      <div class="sec" style="text-align:center"><div class="av l" style="width:96px;height:96px;margin:10px auto"></div><div class="h" style="font-size:17px">Адв. Беков</div><div class="muted">Семейное право · Бишкек · ★4.9</div><div style="margin-top:10px"><span class="btn g">Профиль</span></div></div>
+      <div class="sec"><div class="lbl">Медиа и файлы</div><div class="grid4"><span class="ph"></span><span class="ph"></span><span class="ph"></span><span class="ph"></span></div></div>
+      <div class="sec"><div class="lbl">Общие дела</div><div class="dl"><span>Раздел имущества</span><span class="pill">4 ставки</span></div></div>
+      <div class="sec muted">Без звука · Исчезающие сообщения</div>
+      <div class="sec" style="color:var(--badge)">Заблокировать · Пожаловаться</div>
+    </aside>
+    <span class="dim">меню 76 · список 400 · чат · панель 340 (≥1440)</span>
+  </div></div>
+</section>
+
+<!-- 3. CASE -->
+<section class="mock" id="case">
+  <h2>3. Дело: список дел слева, открытое дело в центре, сводка справа</h2>
+  <p class="note">Ставку адвоката открываем окном поверх, а не новой страницей. На ширине 1024–1439 px сводка переезжает наверх карточки дела.</p>
+  <div class="frame"><div class="screen">
+    <aside class="rail narrow">
+      <div class="logo">LB</div>
+      <div class="ni"><span class="ic"></span></div>
+      <div class="ni"><span class="ic"></span></div>
+      <div class="ni"><span class="ic"></span><span class="cnt">3</span></div>
+      <div class="ni on"><span class="ic"></span></div>
+      <div class="ni"><span class="ic"></span><span class="cnt">5</span></div>
+      <div class="ni"><span class="ic"></span></div>
+      <div class="ni"><span class="av s"></span></div>
+    </aside>
+    <section class="caselist">
+      <div class="sec" style="border:0">
+        <div class="row" style="margin-bottom:12px"><span class="h" style="font-size:20px">Моё</span><span class="chip on" style="margin-left:12px">Дела</span><span class="chip">Ставки</span><span class="chip">Архив</span></div>
+        <div class="row"><span class="search" style="flex:1">Поиск по делам</span><span class="chip">Статус ▾</span></div>
+      </div>
+      <div class="caseitem sel"><span class="ph"></span><div><div class="h">Раздел имущества</div><div class="muted">4 ставки · создано 2 дня назад</div><span class="pill">открыто</span></div></div>
+      <div class="caseitem"><span class="ph"></span><div><div class="h">Трудовой спор с работодателем</div><div class="muted">адв. Асанова</div><span class="pill ok">в работе</span></div></div>
+      <div class="caseitem"><span class="ph"></span><div><div class="h">Договор аренды квартиры</div><div class="muted">черновик</div></div></div>
+      <div class="caseitem"><span class="ph"></span><div><div class="h">Наследство после отца</div><div class="muted">завершено 12.09</div></div></div>
+    </section>
+    <main class="casemain"><div class="casecol">
+      <div class="row"><span class="muted">←</span><span class="h" style="font-size:20px">Раздел имущества</span><span class="pill" style="margin-left:8px">открыто</span><span class="muted" style="margin-left:auto">•••</span></div>
+      <div class="ph cover"></div>
+      <div class="lbl">Описание</div>
+      <p style="margin:0 0 8px">Развод оформлен в 2025 году. Нужно разделить квартиру и автомобиль, купленные в браке. Бывший супруг не согласен на мировое соглашение…</p>
+      <div class="lbl" style="margin-top:14px">Документы</div>
+      <div class="docs"><span class="ph"></span><span class="ph"></span><span class="ph"></span></div>
+      <div class="card" style="margin-top:16px"><div class="sec"><div class="lbl">Ставки (4)</div>
+        <div class="bid"><span class="av"></span><div><div class="h">Адв. Беков</div><div class="muted">★4.9 · 7 лет практики · срок 2 мес</div></div><span class="amt">35 000 сом</span><span class="btn g">Открыть</span></div>
+        <div class="bid"><span class="av"></span><div><div class="h">Адв. Асанова</div><div class="muted">★4.8 · 11 лет · срок 6 нед</div></div><span class="amt">40 000 сом</span><span class="btn g">Открыть</span></div>
+        <div class="bid"><span class="av"></span><div><div class="h">Адв. Исаков</div><div class="muted">★4.7 · 5 лет · срок 3 мес</div></div><span class="amt">30 000 сом</span><span class="btn g">Открыть</span></div>
+      </div></div>
+      <div class="lbl" style="margin-top:16px">Комментарии (12)</div>
+    </div></main>
+    <aside class="sum">
+      <div class="lbl">Сводка</div>
+      <div class="kv"><span class="muted">Бюджет</span><span>до 40 000 сом</span></div>
+      <div class="kv"><span class="muted">Срок</span><span>15.11.2026</span></div>
+      <div class="kv"><span class="muted">Ставок</span><span>4</span></div>
+      <div class="kv"><span class="muted">Город</span><span>Бишкек</span></div>
+      <div style="margin:16px 0;display:flex;flex-direction:column;gap:8px"><span class="btn" style="text-align:center">Выбрать адвоката</span><span class="btn g" style="text-align:center">Написать в чат дела</span></div>
+      <div class="lbl" style="margin-top:20px">История</div>
+      <div class="dl"><span>Дело создано</span><span class="muted">26.10</span></div>
+      <div class="dl"><span>Первая ставка</span><span class="muted">26.10</span></div>
+      <div class="dl"><span>Добавлены документы</span><span class="muted">27.10</span></div>
+    </aside>
+    <span class="dim">меню 76 · список 400 · дело ≤760 · сводка 340 (≥1440)</span>
+  </div></div>
+</section>
+
+<ul class="legend">
+  <li>Телефон: без изменений. Планшет (600–1023 px): как сейчас, одна колонка и меню слева.</li>
+  <li>Подробный план, пороги ширины, тесты и разбивка на 5 частей: <code>docs/architecture/DESKTOP_WEB_PLAN_2026-10-28.md</code>.</li>
+</ul>
+</body>
+</html>
