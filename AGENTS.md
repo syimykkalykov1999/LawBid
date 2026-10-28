@@ -1,5 +1,7 @@
 # Rules for every AI agent, helper and session working on LawBid
 
+**Start with [`docs/dev/PROJECT_MAP.md`](docs/dev/PROJECT_MAP.md) — the current plan and state. Work from the map, not from old chat transcripts.**
+
 ## RULE #1 — THE MOST IMPORTANT RULE (owner, 2026-10-28)
 
 **Do not invent the alphabet when a ready language exists.**
