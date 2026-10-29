@@ -133,7 +133,7 @@ class PagedListBody<T> extends ConsumerWidget {
         : value;
     final body = switch (shown) {
       AsyncData(:final value) when value.items.isEmpty && !value.hasMore =>
-        RefreshIndicator(
+        AppRefreshIndicator(
           key: const ValueKey('empty'),
           color: colors.gold,
           backgroundColor: colors.sheet,

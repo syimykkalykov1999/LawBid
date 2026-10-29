@@ -155,7 +155,7 @@ class _CallsTabState extends ConsumerState<CallsTab> {
       data: (list) {
         final groups = groupCallHistory(list.items);
         if (groups.isEmpty && ongoing.isEmpty) {
-          return RefreshIndicator(
+          return AppRefreshIndicator(
             onRefresh: _refresh,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -172,7 +172,7 @@ class _CallsTabState extends ConsumerState<CallsTab> {
           );
         }
         final bottom = AppSpacing.xxl + MediaQuery.paddingOf(context).bottom;
-        return RefreshIndicator(
+        return AppRefreshIndicator(
           onRefresh: _refresh,
           child: ListView(
             controller: _scroll,

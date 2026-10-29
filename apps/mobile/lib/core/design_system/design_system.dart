@@ -47,6 +47,7 @@ export 'widgets/display/watermark_scales.dart';
 export 'widgets/feedback/app_alert_dialog.dart';
 export 'widgets/feedback/app_empty_state.dart';
 export 'widgets/feedback/app_error_state.dart';
+export 'widgets/feedback/app_refresh_indicator.dart';
 export 'widgets/feedback/app_skeleton.dart';
 export 'widgets/feedback/app_snackbar.dart';
 export 'widgets/feedback/app_state_layout.dart';

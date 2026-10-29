@@ -129,7 +129,7 @@ class _PayoutAccountScreenState extends ConsumerState<PayoutAccountScreen>
               cta = null;
               ctaLink = null;
           }
-          return RefreshIndicator(
+          return AppRefreshIndicator(
             color: colors.gold,
             backgroundColor: colors.sheet,
             onRefresh: _refresh,

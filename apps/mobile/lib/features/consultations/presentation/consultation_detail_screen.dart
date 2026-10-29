@@ -148,7 +148,7 @@ class _ConsultationDetailScreenState
           t: t,
           onRetry: () => ref.invalidate(consultationProvider(widget.id)),
         ),
-        data: (c) => RefreshIndicator(
+        data: (c) => AppRefreshIndicator(
           color: colors.gold,
           backgroundColor: colors.sheet,
           onRefresh: () async {

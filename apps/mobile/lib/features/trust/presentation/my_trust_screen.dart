@@ -47,7 +47,7 @@ class MyTrustScreen extends ConsumerWidget {
             retryLabel: t.t('error.retry'),
             onRetry: () => ref.invalidate(myTrustProvider),
           ),
-          data: (me) => RefreshIndicator(
+          data: (me) => AppRefreshIndicator(
             color: colors.gold,
             onRefresh: () => ref.refresh(myTrustProvider.future),
             child: ListView(

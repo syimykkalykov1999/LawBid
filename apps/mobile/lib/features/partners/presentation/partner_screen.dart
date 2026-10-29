@@ -76,7 +76,7 @@ class PartnerScreen extends ConsumerWidget {
               }
               return _JoinIntro(me: me, t: t, f: f);
             }
-            return RefreshIndicator(
+            return AppRefreshIndicator(
               color: colors.gold,
               onRefresh: () {
                 ref.invalidate(demoMeProvider);

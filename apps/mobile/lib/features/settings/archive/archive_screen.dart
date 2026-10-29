@@ -47,7 +47,7 @@ class ArchiveScreen extends ConsumerWidget {
                   message: t.t('archive.empty.message'),
                 );
               }
-              return RefreshIndicator(
+              return AppRefreshIndicator(
                 color: colors.gold,
                 onRefresh: notifier.refresh,
                 child: GridView.builder(

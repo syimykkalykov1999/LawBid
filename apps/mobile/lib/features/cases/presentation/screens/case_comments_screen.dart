@@ -58,7 +58,7 @@ class _CaseCommentsScreenState extends ConsumerState<CaseCommentsScreen> {
       body: Column(
         children: [
           Expanded(
-            child: RefreshIndicator(
+            child: AppRefreshIndicator(
               color: colors.gold,
               onRefresh: () =>
                   ref.read(commentsProvider(_thread).notifier).refresh(),

@@ -476,7 +476,7 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
         : 0;
     final archivedChannels =
         archivable ? ref.watch(archivedChannelsProvider).value?.length ?? 0 : 0;
-    Widget list(_Kind kind, List<Widget> rows) => RefreshIndicator(
+    Widget list(_Kind kind, List<Widget> rows) => AppRefreshIndicator(
           color: colors.gold,
           backgroundColor: colors.sheet,
           onRefresh: refresh,

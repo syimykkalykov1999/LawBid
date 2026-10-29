@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
+import 'package:lawbid/core/design_system/widgets/feedback/app_refresh_indicator.dart';
 
 /// Owner 2026-10-06 (Instagram-style): tapping the bottom-nav tab that is
 /// already selected scrolls that tab back to the top and refreshes it.
@@ -39,7 +40,7 @@ Future<void> _scrollUp(
   final bounds = _globalRect(rootBox);
 
   final scrollables = <ScrollableState>[];
-  final refreshers = <RefreshIndicatorState>[];
+  final refreshers = <AppRefreshIndicatorState>[];
   void visit(Element element) {
     final widget = element.widget;
     // Hidden subtrees: inactive shell branches (Offstage + TickerMode),
@@ -62,7 +63,7 @@ Future<void> _scrollUp(
       if (state is ScrollableState &&
           axisDirectionToAxis(state.axisDirection) == Axis.vertical) {
         scrollables.add(state);
-      } else if (state is RefreshIndicatorState) {
+      } else if (state is AppRefreshIndicatorState) {
         refreshers.add(state);
       }
     }

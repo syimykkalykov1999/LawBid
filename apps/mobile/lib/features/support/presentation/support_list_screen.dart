@@ -113,7 +113,7 @@ class SupportListScreen extends ConsumerWidget {
                         title: t.t('support.empty.title'),
                         message: t.t('support.empty.message'),
                       )
-                    : RefreshIndicator(
+                    : AppRefreshIndicator(
                         color: colors.gold,
                         onRefresh: () async =>
                             ref.refresh(supportTicketsProvider.future),

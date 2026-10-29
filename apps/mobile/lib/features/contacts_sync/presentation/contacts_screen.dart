@@ -192,7 +192,7 @@ class _BodyState extends ConsumerState<_Body> {
             if (hit(c.name)) c,
         ];
         final bottom = AppSpacing.xxl + MediaQuery.paddingOf(context).bottom;
-        return RefreshIndicator(
+        return AppRefreshIndicator(
           onRefresh: () async {
             ref.invalidate(phoneContactsProvider);
             await ref.read(phoneContactsProvider.future);

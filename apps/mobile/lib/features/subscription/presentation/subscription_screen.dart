@@ -288,7 +288,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
         value: overview,
         t: t,
         onRetry: () => ref.invalidate(subscriptionOverviewProvider),
-        builder: (o) => RefreshIndicator(
+        builder: (o) => AppRefreshIndicator(
           color: colors.gold,
           backgroundColor: colors.sheet,
           onRefresh: _refresh,

@@ -69,7 +69,7 @@ class PostInsightsScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-        data: (s) => RefreshIndicator(
+        data: (s) => AppRefreshIndicator(
           onRefresh: () => ref.refresh(postInsightsProvider(postId).future),
           child: _Body(insights: s, post: p),
         ),

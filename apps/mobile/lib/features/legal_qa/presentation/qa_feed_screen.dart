@@ -325,7 +325,7 @@ class _QaPage extends ConsumerWidget {
                 attorney ? 'qa.empty.attorney' : 'qa.empty.message',
               ),
             )
-          : RefreshIndicator(
+          : AppRefreshIndicator(
               color: colors.gold,
               onRefresh: notifier.refresh,
               child: NotificationListener<ScrollNotification>(

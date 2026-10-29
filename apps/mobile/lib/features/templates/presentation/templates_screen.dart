@@ -232,7 +232,7 @@ class _TemplatesScreenState extends ConsumerState<TemplatesScreen> {
                         title: t.t('templates.empty.title'),
                         message: t.t('templates.empty.message'),
                       )
-                    : RefreshIndicator(
+                    : AppRefreshIndicator(
                         color: colors.gold,
                         onRefresh: notifier.refresh,
                         child: NotificationListener<ScrollNotification>(

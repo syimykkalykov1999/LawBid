@@ -362,7 +362,7 @@ class PagedTileGrid<T> extends StatelessWidget {
     return switch (value) {
       AsyncData(:final value) when value.items.isEmpty && !value.hasMore =>
         empty,
-      AsyncData(:final value) => RefreshIndicator(
+      AsyncData(:final value) => AppRefreshIndicator(
           color: colors.gold,
           onRefresh: onRefresh,
           child: NotificationListener<ScrollNotification>(
