@@ -11,6 +11,8 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/back_swipe.dart';
+import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/core/perf/build_counter.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/calls/presentation/call_log_entry.dart'
@@ -65,10 +67,16 @@ class InboxScreen extends ConsumerStatefulWidget {
   const InboxScreen({
     this.initialTab = InboxTab.chats,
     this.onBack,
+    this.overBell = false,
     super.key,
   });
 
   final InboxTab initialTab;
+
+  /// Owner 2026-10-28: Notifications opened by the bell is a screen pushed
+  /// ON TOP of Chats, so the back arrow, the edge swipe, Android back and
+  /// the bell itself all simply close it and land on Chats.
+  final bool overBell;
 
   /// Owner 2026-10-22: as the feed's last page the back arrow slides back
   /// to the feed (null = pop the pushed screen).
@@ -166,11 +174,32 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
       count: badges.$2,
       selected: tab == InboxTab.notifications,
       label: t.t('inbox.tab.notifications'),
-      onTap: () => setState(
-        () => _tab = tab == InboxTab.notifications && chatsAllowed
-            ? InboxTab.chats
-            : InboxTab.notifications,
-      ),
+      onTap: () {
+        if (tab == InboxTab.notifications) {
+          if (widget.overBell) {
+            unawaited(Navigator.of(context).maybePop());
+          } else if (chatsAllowed) {
+            setState(() => _tab = InboxTab.chats);
+          }
+          return;
+        }
+        unawaited(
+          Navigator.of(context, rootNavigator: true).push(
+            MaterialPageRoute<void>(
+              builder: (_) => WebPageFrame(
+                location: ChatRoutes.inboxTab(InboxTab.notifications),
+                child: const BackSwipe(
+                  mode: BackSwipeMode.rows,
+                  child: InboxScreen(
+                    initialTab: InboxTab.notifications,
+                    overBell: true,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
     return Scaffold(
       backgroundColor: colors.bg,
@@ -443,7 +472,13 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                         InboxTab.notifications => NotificationsView(
                             // Audit 2026-10-04: an Inbox tab target switches the
                             // tab here instead of pushing a second Inbox.
-                            onInboxTab: (v) => setState(() => _tab = v),
+                            onInboxTab: (v) {
+                              if (widget.overBell && v == InboxTab.chats) {
+                                unawaited(Navigator.of(context).maybePop());
+                              } else {
+                                setState(() => _tab = v);
+                              }
+                            },
                           ),
                         InboxTab.requests => const SizedBox.shrink(),
                         InboxTab.team => const TeamInboxTab(),

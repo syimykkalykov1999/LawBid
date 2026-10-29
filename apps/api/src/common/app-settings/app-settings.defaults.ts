@@ -968,6 +968,12 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * balancer; without it nothing fires. Costs an e-mail + a push per alert
    * (cost gate): OFF by default, at most one alert per account per 24 h. */
   'security.new_country_alert_enabled': false,
+  /** Owner 2026-10-28: linking an ADDITIONAL sign-in phone/email (or
+   * Apple/Google) to an account via `POST /auth/identifiers` costs SMS money
+   * and is not needed, so it is OFF: the endpoint stays for older apps and
+   * answers 403 FEATURE_DISABLED. Identifiers already linked keep working for
+   * sign-in; changing the account's one phone/email is a different route. */
+  'auth.additional_identifiers_enabled': false,
 };
 
 /** Owner 2026-10-05: storage like Telegram (Система → Хранилище). Every

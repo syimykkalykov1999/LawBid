@@ -6,6 +6,8 @@ import { LoggerErrorInterceptor, Logger } from 'nestjs-pino';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import type Redis from 'ioredis';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { attachCleanAvatar } from './support/clean-avatar';
 
@@ -26,6 +28,7 @@ jest.setTimeout(30_000);
 describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  let redis: Redis;
   let phoneSeq = 0;
   let baseUrl = '';
 
@@ -56,6 +59,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
     const { port } = server.address() as AddressInfo;
     baseUrl = `http://127.0.0.1:${port}`;
     prisma = app.get(PrismaService);
+    redis = app.get<Redis>(REDIS_CLIENT);
     // The per-run e2e database is migrated but not seeded.
     for (const [code, name, active] of [
       ['NY', 'New York', true],
@@ -81,6 +85,16 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
   function nextPhone(): string {
     phoneSeq += 1;
     return `+1202555${String(7100 + phoneSeq).padStart(4, '0')}`;
+  }
+
+  /** Stored admin switch (app_config) + drop the shared config cache. */
+  async function setSwitch(key: string, value: unknown): Promise<void> {
+    await prisma.appConfig.upsert({
+      where: { key },
+      create: { key, value: value as never },
+      update: { value: value as never },
+    });
+    await redis.del('config:app_config');
   }
 
   async function login(phone: string): Promise<Record<string, string>> {
@@ -602,12 +616,41 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       .post('/api/v1/auth/otp/request')
       .send({ channel: 'phone', identifier: extra })
       .expect(200);
-    await api()
+    // Owner 2026-10-28: the route is kept for older apps but the switch
+    // `auth.additional_identifiers_enabled` is OFF by default.
+    const disabled = await api()
       .post('/api/v1/auth/identifiers')
       .set(auth)
       .set('X-Reauth-Token', again.body.data.reauthToken as string)
       .send({ provider: 'phone', identifier: extra, code: '000000' })
+      .expect(403);
+    expect(disabled.body.error.code).toBe('FEATURE_DISABLED');
+    expect(
+      await prisma.userIdentifier.count({
+        where: { user_id: userId, provider_uid: extra },
+      }),
+    ).toBe(0);
+    // Already-linked identifiers keep signing in with the switch off, so
+    // an account linked before the switch was turned off is not locked out.
+    await setSwitch('auth.additional_identifiers_enabled', true);
+    const again2 = await api()
+      .post('/api/v1/auth/reauth')
+      .set(auth)
+      .send({ method: 'otp', identifier: newPhone, code: '000000' })
       .expect(201);
+    await api()
+      .post('/api/v1/auth/identifiers')
+      .set(auth)
+      .set('X-Reauth-Token', again2.body.data.reauthToken as string)
+      .send({ provider: 'phone', identifier: extra, code: '000000' })
+      .expect(201);
+    await setSwitch('auth.additional_identifiers_enabled', false);
+    const extraAuth = await login(extra);
+    const viaExtra = await api()
+      .get('/api/v1/users/me')
+      .set(extraAuth)
+      .expect(200);
+    expect((viaExtra.body as { data: { id: string } }).data.id).toBe(userId);
     const withExtra = await api()
       .get('/api/v1/users/me/identifiers')
       .set(auth)
