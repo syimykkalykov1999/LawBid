@@ -3,3 +3,6 @@
 source "https://rubygems.org"
 
 gem "fastlane", "~> 2.228"
+
+# flutter build ipa runs `pod` inside `bundle exec fastlane`; without it here bundler hides CocoaPods ("installed but broken").
+gem "cocoapods"
