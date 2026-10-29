@@ -281,14 +281,13 @@ import flutter_callkit_incoming
     )
     data.appName = "LawBid"
     data.duration = 45000
-    // Owner 2026-10-26: the caller's photo (CallKit itself shows only the
-    // name; the app's call screen takes the photo from here).
-    let avatar = (p["avatarUrl"] as? String) ?? ""
-    data.avatar = avatar
+    // AN-4 (2026-10-26): CallKit shows no photo (Apple's sheet has the name
+    // only), and the app's call screen takes the caller's photo from the
+    // call it fetches (GET /calls/:id) — nothing here reads a picture, so
+    // none is stored. The push's `avatarUrl` is for Android's ring screen.
     data.extra = [
       "callId": callId,
       "conversationId": (p["conversationId"] as? String) ?? "",
-      "avatarUrl": avatar,
     ]
     data.handleType = "generic"
     data.supportsVideo = video

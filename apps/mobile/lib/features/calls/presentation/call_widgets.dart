@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -179,6 +181,53 @@ class CallAvatar extends StatelessWidget {
                     ),
                   ],
                 ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-26 (REFERENCE.md, FaceTime / WhatsApp): behind a person
+/// whose camera is off (and behind the big photo of a 1:1 video call that
+/// has no picture yet) — their own photo, blown up and blurred (σ 40)
+/// under a dark wash, never a flat box. Without a photo: the dark tile
+/// fill. A small (64 px) decode is blurred once and kept as a layer
+/// (RepaintBoundary): nothing is redrawn while the call goes on.
+class CallPhotoBackdrop extends StatelessWidget {
+  const CallPhotoBackdrop({required this.url, super.key});
+
+  final String? url;
+
+  /// The blur (REFERENCE.md: σ 40).
+  static const double sigma = 40;
+
+  @override
+  Widget build(BuildContext context) {
+    final link = url;
+    if (link == null || link.isEmpty) {
+      return const ColoredBox(color: AppCallColors.tileOff);
+    }
+    return RepaintBoundary(
+      child: ClipRect(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const ColoredBox(color: AppCallColors.tileOff),
+            ImageFiltered(
+              imageFilter: ImageFilter.blur(
+                sigmaX: sigma,
+                sigmaY: sigma,
+                tileMode: TileMode.clamp,
+              ),
+              child: Image(
+                image: appNetworkImage(link, 64),
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            ),
+            ColoredBox(color: AppCallColors.stage.withValues(alpha: 0.45)),
+          ],
         ),
       ),
     );

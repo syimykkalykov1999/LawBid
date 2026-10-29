@@ -475,14 +475,19 @@ class _FakeForeground implements CallForeground {
   @override
   Future<String?> pendingAction() async => null;
 
+  final avatars = <String?>[];
+
   @override
   Future<void> start({
     required String name,
     int since = 0,
     String status = '',
     String hangup = '',
-  }) async =>
-      started.add('$name|${since > 0}');
+    String? avatarUrl,
+  }) async {
+    started.add('$name|${since > 0}');
+    avatars.add(avatarUrl);
+  }
 
   @override
   Future<void> stop() async => stops++;

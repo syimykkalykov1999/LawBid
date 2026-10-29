@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
@@ -276,6 +278,8 @@ class _CallGroupGridState extends ConsumerState<CallGroupGrid> {
                   onTap: !s.video
                       ? widget.onTapBackground
                       : () {
+                          // UI-11: a tile answers the finger like a button.
+                          unawaited(HapticFeedback.selectionClick());
                           notifier.showControls();
                           if (strip.contains(x.userId)) {
                             notifier.setMain(x.userId);
@@ -412,7 +416,12 @@ class CallTile extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              const ColoredBox(color: AppCallColors.tileOff),
+              // UI-09 / AN-1: camera off = their photo blown up and blurred
+              // under the avatar (FaceTime), never a flat box.
+              if (picture == null)
+                CallPhotoBackdrop(url: member.avatarUrl)
+              else
+                const ColoredBox(color: AppCallColors.tileOff),
               AnimatedSwitcher(
                 duration:
                     context.reduceMotion ? Duration.zero : CallMotion.quick,

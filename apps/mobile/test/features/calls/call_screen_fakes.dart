@@ -96,12 +96,16 @@ Widget fakeVideo(MediaStream stream, {bool mirror = false}) {
 
 const _peer = CallPeer(id: 'u1', isAttorney: true, displayName: 'Amelia Hart');
 
+/// T7: the screen's clock stands still in a test — every timer text is
+/// fixed («1:29», «3:00»), so goldens never drift by a second.
+final kCallFakeNow = DateTime(2026, 10, 26, 12, 30);
+
 CallSession callSession1to1(CallPhase phase, {bool video = false}) =>
     CallSession(
       phase: phase,
       video: video,
       connectedAt: phase == CallPhase.active
-          ? DateTime.now().subtract(const Duration(minutes: 1, seconds: 29))
+          ? kCallFakeNow.subtract(const Duration(minutes: 1, seconds: 29))
           : null,
       peer: _peer,
       call: AppCall(
@@ -131,7 +135,7 @@ const _names = [
 CallSession callSessionGroup(int people, {bool video = false}) => CallSession(
       phase: CallPhase.active,
       video: video,
-      connectedAt: DateTime.now().subtract(const Duration(minutes: 3)),
+      connectedAt: kCallFakeNow.subtract(const Duration(minutes: 3)),
       peer: _peer,
       call: AppCall(
         id: 'g1',
@@ -180,6 +184,7 @@ List<Override> callScreenFakeOverrides(
 }) =>
     [
       callMyIdProvider.overrideWithValue('u0'),
+      callClockProvider.overrideWithValue(() => kCallFakeNow),
       callControllerProvider
           .overrideWith(() => FixedCallController(s, fakeMediaFor(s))),
       callVideoLayoutProvider.overrideWith(() => FixedLayout(layout)),

@@ -44,12 +44,15 @@ class CallForeground {
   /// Shows / updates the notification; [since] (ms since epoch) starts the
   /// timer, 0 = still connecting.
   ///
-  /// [status] and [hangup] are the app's own (in-app language) texts.
+  /// [status] and [hangup] are the app's own (in-app language) texts;
+  /// [avatarUrl] (AN-3) is the other side's photo — the notification shows
+  /// it as the person's picture (Android 12+ call style), like WhatsApp.
   Future<void> start({
     required String name,
     int since = 0,
     String status = '',
     String hangup = '',
+    String? avatarUrl,
   }) async {
     if (!_supported) return;
     try {
@@ -58,6 +61,7 @@ class CallForeground {
         'since': since,
         'status': status,
         'hangup': hangup,
+        'avatarUrl': avatarUrl ?? '',
       });
     } on Object catch (e) {
       debugPrint('call service unavailable: $e');

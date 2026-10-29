@@ -1,13 +1,12 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/live_calls.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart'
@@ -176,14 +175,11 @@ class _LiveCallRowState extends ConsumerState<LiveCallRow> {
         child: Row(
           children: [
             AppAvatar(
+              // AN-5: the one avatar path of the app (disk cache keyed by
+              // the file, decoded small) — the same picture as CallAvatar.
               imageProvider: c.avatarUrl == null
                   ? null
-                  : CachedNetworkImageProvider(
-                      c.avatarUrl!,
-                      // Signed URLs change per request: cache by the path.
-                      cacheKey: Uri.parse(c.avatarUrl!).path,
-                      cacheManager: AppImageCaches.feed,
-                    ),
+                  : appNetworkImage(c.avatarUrl!, decodeWidthFor(44)),
               initials: avatarInitials(c.title),
               size: 44,
             ),

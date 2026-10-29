@@ -612,7 +612,10 @@ class CallController extends Notifier<CallSession> {
     final since = next.phase == CallPhase.active
         ? (next.connectedAt ?? DateTime.now()).millisecondsSinceEpoch
         : 0;
-    final key = '$name|$since';
+    // AN-3: the other side's photo on the notification (a group: the
+    // group's / the host's picture the call came with).
+    final avatarUrl = (next.peer ?? next.call?.peer)?.avatarUrl;
+    final key = '$name|$since|${avatarUrl ?? ''}';
     if (key == _fgKey) return;
     _fgKey = key;
     final t = ref.read(translatorProvider);
@@ -622,6 +625,7 @@ class CallController extends Notifier<CallSession> {
         since: since,
         status: t.t(since > 0 ? 'call.ongoing' : 'call.status.connecting'),
         hangup: t.t('call.end'),
+        avatarUrl: avatarUrl,
       ),
     );
   }

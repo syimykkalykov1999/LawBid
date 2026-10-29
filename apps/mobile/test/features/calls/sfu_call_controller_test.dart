@@ -306,6 +306,7 @@ class _Foreground implements CallForeground {
     int since = 0,
     String status = '',
     String hangup = '',
+    String? avatarUrl,
   }) async {}
   @override
   Future<void> stop() async {}
