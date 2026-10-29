@@ -12,6 +12,8 @@ describe('BadgesService.countChats unread bound', () => {
     const sqls: string[] = [];
     const prisma = {
       notificationSetting: { findMany: () => Promise.resolve([]) },
+      // the switches are read with the user row (cached, load test round 2)
+      user: { findUnique: () => Promise.resolve(null) },
       $queryRaw: (strings: TemplateStringsArray) => {
         sqls.push(strings.join('?'));
         return Promise.resolve([{ n: 3n }]);

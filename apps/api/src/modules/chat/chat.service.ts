@@ -2091,7 +2091,9 @@ export class ChatService {
   ): Promise<MediaLinks> {
     const other =
       senderId === conv.client_id ? conv.attorney_id : conv.client_id;
-    const urls = await this.mediaLinks([message]);
+    // The first delivery runs right after the insert (no reactions / pins
+    // can exist yet); a re-run after a crash reads them like any page.
+    const urls = await this.mediaLinks([message], { fresh: !flags.recount });
     this.realtime.toUsers([senderId], 'message:new', {
       message: this.toMessage(message, senderId, undefined, urls),
     });
@@ -2189,7 +2191,10 @@ export class ChatService {
   }
 
   /** Signed links for the voice notes and attachments among [rows]. */
-  async mediaLinks(rows: Message[]): Promise<MediaLinks> {
+  async mediaLinks(
+    rows: Message[],
+    opts: { fresh?: boolean } = {},
+  ): Promise<MediaLinks> {
     const ids = (type: Message['type']) =>
       rows.flatMap((m) => (m.type === type && m.file_id ? [m.file_id] : []));
     const [voice, attachments, stickers, gifts, contacts, posts] =
@@ -2215,7 +2220,7 @@ export class ChatService {
           }),
         ) ?? Promise.resolve(new Map<string, SharedPostCardDto>()),
       ]);
-    const extras = await loadMessageExtras(this.prisma, rows);
+    const extras = await loadMessageExtras(this.prisma, rows, opts);
     return { voice, attachments, stickers, gifts, contacts, posts, extras };
   }
 

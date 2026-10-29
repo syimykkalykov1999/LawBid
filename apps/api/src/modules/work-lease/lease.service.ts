@@ -255,6 +255,8 @@ export class LeaseService implements LeasePort {
             actor.adminId,
             ttlSec,
             excludeMinutes,
+            false,
+            true,
           );
           if (lease) return { status: 'leased', lease };
         }
@@ -315,7 +317,20 @@ export class LeaseService implements LeasePort {
     ttlSec: number,
     excludeMinutes: number,
     golden = false,
+    skipIfBusy = false,
   ): Promise<LeaseView | null> {
+    // Load test round 2 (docs/perf/LOCAL_LOAD_TEST_2026-10-28.md): with
+    // hundreds of workers pressing «Следующий» at once they all reach for
+    // the same oldest item; each waited on the first one's row lock only to
+    // find it taken (63 ms per attempt, 3 attempts per grant at 1 000
+    // staff). An item somebody is claiming at this very moment is not free
+    // for «Следующий»: skip it at once and try the next candidate. A click
+    // on one specific item ([claim]) still waits as before.
+    if (skipIfBusy) {
+      const [lock] = await tx.$queryRaw<Array<{ ok: boolean }>>`
+        SELECT pg_try_advisory_xact_lock(hashtext(${`lease-item:${src.kind}:${itemId}`})) AS ok`;
+      if (!lock?.ok) return null;
+    }
     // An expired lease nobody swept yet: remember who loses it.
     const prev = await tx.$queryRaw<
       Array<{ admin_id: string; taken_at: Date }>

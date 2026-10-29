@@ -29,7 +29,7 @@ async function api(path, token) {
 const V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const list = (d) => (Array.isArray(d) ? d : (d?.items ?? d?.data ?? []));
 
-const fx = { conversations: [], posts: [], cases: [], usernames: [], attorneyIds: [], assets: [], langs: [] };
+const fx = { conversations: [], posts: [], cases: [], usernames: [], attorneyIds: [], assets: [], langs: [], practices: [], states: [], deals: [] };
 
 // 1. chats with v4 ids (sending a message / starting a call need them,
 //    sql/loadtest-extra.sql): the chats of the first 1 200 attorneys, 20 at a time.
@@ -67,17 +67,33 @@ for (let n = 1; n <= 30; n++) {
     for (const post of list((await api(p, c)).data)) {
       if (post.id && V4.test(post.id)) fx.posts.push(post.id);
       if (post.author?.username) fx.usernames.push(post.author.username);
-      if (post.author?.id) fx.attorneyIds.push(post.author.id);
+      if (post.author?.id && V4.test(post.author.id)) fx.attorneyIds.push(post.author.id);
     }
   }
 }
 for (const q of ['law', 'sofia', 'omar', 'carter', 'kim']) {
   for (const a of list((await api(`/search/attorneys?q=${q}`, access(1, 'client'))).data)) {
     if (a.username) fx.usernames.push(a.username);
-    if (a.id) fx.attorneyIds.push(a.id);
+    if (a.id && V4.test(a.id)) fx.attorneyIds.push(a.id);
   }
 }
 const uniq = (a) => [...new Set(a)];
+// more posts from POSTS_FILE (one id per line, local-docker/prepare.sh): the
+// feeds of 25 people repeat the same few dozen posts
+if (process.env.POSTS_FILE) {
+  const { readFileSync } = await import('node:fs');
+  for (const id of readFileSync(process.env.POSTS_FILE, 'utf8').split('\n')) if (V4.test(id.trim())) fx.posts.push(id.trim());
+}
+// attorneys with version-4 ids (the profile sub-pages validate the id
+// strictly; md5 seed ids mostly are not v4): ATTORNEYS_FILE "<id> <username>"
+if (process.env.ATTORNEYS_FILE) {
+  const { readFileSync } = await import('node:fs');
+  for (const line of readFileSync(process.env.ATTORNEYS_FILE, 'utf8').split('\n')) {
+    const [id, username] = line.trim().split(/\s+/);
+    if (id && V4.test(id)) fx.attorneyIds.push(id);
+    if (username) fx.usernames.push(username);
+  }
+}
 fx.posts = uniq(fx.posts);
 fx.usernames = uniq(fx.usernames);
 fx.attorneyIds = uniq(fx.attorneyIds);
@@ -98,12 +114,30 @@ for (let n = 1; n < 800 && fx.cases.length < 60; n++) {
 // translations has none: then the mix skips that request)
 for (const l of list((await api('/i18n/languages', access(1, 'client'))).data)) if (l.code) fx.langs.push(l.code);
 
-// 4. static assets uploaded by the workflow (scripts/upload-assets.sh)
+// 4. full mix (MIX=full): practice areas + states for a new case (API list,
+//    or PRACTICES_FILE when the API lists none), and cases with an accepted offer for the deal record, found by
+//    DEALS_FILE (one "<case id> <client user id>" per line, local-docker/prepare.sh)
+for (const p of list((await api('/practice-areas', access(1, 'client'))).data)) if (p.id) fx.practices.push(p.id);
+if (process.env.PRACTICES_FILE) {
+  const { readFileSync } = await import('node:fs');
+  for (const id of readFileSync(process.env.PRACTICES_FILE, 'utf8').split('\n')) if (id.trim()) fx.practices.push(id.trim());
+}
+fx.practices = [...new Set(fx.practices)];
+fx.states = (process.env.STATES || 'CA,NY,TX,FL,IL,WA,MA,GA,NJ,PA').split(',');
+if (process.env.DEALS_FILE) {
+  const { readFileSync } = await import('node:fs');
+  for (const line of readFileSync(process.env.DEALS_FILE, 'utf8').split('\n')) {
+    const [id, client] = line.trim().split(/\s+/);
+    if (id && client && V4.test(id)) fx.deals.push({ id, t: accessFor(client, 'client') });
+  }
+}
+
+// 5. static assets uploaded by the workflow (scripts/upload-assets.sh)
 for (let i = 0; i < Number(nAssets); i++) fx.assets.push(`/assets/a-${i}.bin`);
 
 writeFileSync(out, JSON.stringify(fx));
 console.error(
-  `fixtures: ${fx.conversations.length} chats, ${fx.posts.length} posts, ${fx.usernames.length} usernames, ${fx.attorneyIds.length} attorneys, ${fx.cases.length} cases, ${fx.assets.length} assets -> ${out}`,
+  `fixtures: ${fx.conversations.length} chats, ${fx.posts.length} posts, ${fx.usernames.length} usernames, ${fx.attorneyIds.length} attorneys, ${fx.cases.length} cases, ${fx.practices.length} practices, ${fx.deals.length} deals, ${fx.assets.length} assets -> ${out}`,
 );
 if (fx.conversations.length === 0 || fx.posts.length === 0) {
   console.error('discover: no chats or posts found: the database is not seeded (scripts/ops/*-load-gen.sql)');

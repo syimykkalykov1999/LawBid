@@ -22,6 +22,10 @@ export interface MessageExtras {
 export async function loadMessageExtras(
   prisma: PrismaService,
   rows: { id: string; conversation_id: string; reply_to_id: string | null }[],
+  /** Load test round 2: rows inserted by this very request (a message just
+   * sent) can carry no reactions or pins yet — nobody has seen their id —
+   * so those two lookups are skipped; the quoted message is still read. */
+  opts: { fresh?: boolean } = {},
 ): Promise<MessageExtras> {
   const ids = rows.map((r) => r.id);
   const replyIds = [
@@ -36,11 +40,13 @@ export async function loadMessageExtras(
     return { reactions: new Map(), replyTargets: new Map(), pinned: new Set() };
   }
   const [reactions, targets, pins] = await Promise.all([
-    prisma.messageReaction.findMany({
-      where: { message_id: { in: ids } },
-      select: { message_id: true, user_id: true, emoji: true },
-      orderBy: { created_at: 'asc' },
-    }),
+    opts.fresh
+      ? Promise.resolve([])
+      : prisma.messageReaction.findMany({
+          where: { message_id: { in: ids } },
+          select: { message_id: true, user_id: true, emoji: true },
+          orderBy: { created_at: 'asc' },
+        }),
     replyIds.length
       ? prisma.message.findMany({
           where: {
@@ -56,10 +62,12 @@ export async function loadMessageExtras(
           },
         })
       : Promise.resolve([]),
-    prisma.messagePin.findMany({
-      where: { message_id: { in: ids } },
-      select: { message_id: true },
-    }),
+    opts.fresh
+      ? Promise.resolve([])
+      : prisma.messagePin.findMany({
+          where: { message_id: { in: ids } },
+          select: { message_id: true },
+        }),
   ]);
   const byMessage = new Map<string, { emoji: string; userId: string }[]>();
   for (const r of reactions) {

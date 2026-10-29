@@ -8,6 +8,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
+import { BadgesService } from '../src/modules/notifications/badges.service';
 import {
   NotificationNotCommittedError,
   PushDispatcher,
@@ -305,6 +306,10 @@ describe('Case & bid notifications (e2e, docs/04 §13, stage 4.8)', () => {
     await prisma.notificationSetting.create({
       data: { user_id: client.id, category: 'bids', push_enabled: false },
     });
+    // Written straight to the table here; the app writes it through
+    // NotificationsApiService, which drops the cached switches
+    // (BadgesService.settingsChanged, load test round 2).
+    await app.get(BadgesService).dropPrefs(client.id);
     expect(await dispatcher.dispatch({ notificationId: row.id }, row.id)).toBe(
       'disabled',
     );

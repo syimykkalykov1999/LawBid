@@ -157,6 +157,14 @@ resource "aws_db_parameter_group" "this" {
     value        = "pg_stat_statements"
     apply_method = "pending-reboot"
   }
+  # Load test 2026-10-28 (docs/perf/LOCAL_LOAD_TEST_2026-10-28.md): the JIT
+  # compiler spent 310-360 ms per call of the attorneys' case feed to save
+  # nothing (the app's queries are short index lookups). Off for the whole
+  # database. Dynamic: applied at once, no reboot.
+  parameter {
+    name  = "jit"
+    value = "0"
+  }
 
   # --- autovacuum / bloat visibility (docs/runbooks/db-ops.md) -------------
   # All of these are dynamic (applied at once, no reboot).
