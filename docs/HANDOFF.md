@@ -1,89 +1,156 @@
-# HANDOFF — continue exactly here (written 2026-10-24 night by the coordinator)
+# HANDOFF — как продолжить работу из любой сессии и с любым ИИ (2026-10-29)
 
-Another Claude account may pick this up. Read ALL of this before doing anything.
+Ветка спасения: `claude/mac-rescue-2026-10-29` — всё, что лежало на Mac владельца несохранённым.
+Правила: [`AGENTS.md`](../AGENTS.md) (главное правило №1: только копировать проверенный открытый код целиком; своё — только с прямого разрешения владельца).
+Подробный план и свежее состояние: ветка `claude/proven-reference-rule` (PR #526) → `docs/dev/PROJECT_MAP.md`, `docs/dev/HANDOFF_2026-10-29.md`.
+**Все сообщения владельца дословно, по дням:** `docs/dev/owner-requests/` (в этой ветке и в PR #526). Если ниже формулировка короткая — точные слова там, по дате.
 
-## 1. Who and how
-- **Owner:** SiMA (Syimyk Kalykov). He is not a programmer.
-  - Always answer in Russian, in plain words, 2-4 short lines. No long tables or "books" unless he asks.
-  - He gets angry at long texts, jargon, guesses, and at re-proposing things that are already done.
-- **You are the foreman.** Delegate the work to sub-agents:
-  - model `sonnet` (or `haiku` for mechanical work);
-  - at most 2 heavy workers at once;
-  - `isolation: worktree`.
-  - Every brief says: research first with LIVE web search using 2025-2026 sources and citing dates, then design, then code. Never guess; copy proven open-source or managed tools where they exist.
-- **The app's LOOK is FROZEN:** layout, buttons, colors, screens.
-  - Change UI only when he asks for it, and then minimally. «чуть чуть» means about 20 px.
-  - The held branch `claude/mine-menus-polish` (menu rewrites) is NOT to be merged without his OK.
-- **Scaling rule:**
-  - every component starts cheapest and grows or shrinks by itself;
-  - its ceiling can be raised in the admin;
-  - the move to bigger, split or cluster setups is ready now as a switch or button.
-  - We never pay for empty capacity and never need code changes later.
-- **Git:**
-  - Push and self-merge PRs when CI is green: `gh ... -R syimykkalykov1999/LawBid`; there are two remotes.
-  - Never use `--no-verify`.
-  - Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-  - PR bodies end with the Claude Code line.
-- **Prod Terraform apply is done ONLY by the owner, pressing Run on a saved plan you prepared.** The classifier blocks you from applying to prod and from IAM changes. Give him one bash block.
-- **AWS credentials:** `unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_CREDENTIAL_EXPIRATION; eval "$(aws configure export-credentials --format env)"`. If the session expired, tell him to run `aws login`.
-- **Hooks:**
-  - The Fact-Forcing Gate wants facts before the first Bash command and before rm or destructive commands: request, what the command does, rollback, and his words quoted. Then retry the SAME command.
-  - With `rm` on variables, use `${x:?}`.
-- **Mac hygiene:** when free space is below 15 GB, delete build outputs; after installing builds on the phones, delete apps/mobile/build. A battery watch runs; at 15 % send him a PushNotification.
+Владелец не программист: отвечать по‑русски, коротко, простыми словами, команды — блоками Run; пароли/коды за него не вводить; ждать, пока договорит; внешний вид не менять без просьбы; экономить токены.
 
-## 2. Where things are
-- **Prod tfvars (git-ignored):** `.claude/worktrees/tf-plan/infra/envs/prod/terraform.tfvars`. A backup is in Secrets Manager `lawbid-prod/terraform-tfvars`; re-upload it after every edit.
-  - Settings: turn_enabled=false (calls use Cloudflare); api_max_tasks 50 / worker 20; redis_replicas 1.
-  - Do NOT copy launch.tfvars.example blindly.
-- **Load-test IAM state (local):** `.claude/worktrees/tf-plan/infra/bootstrap-loadtest/terraform.tfstate`, backed up to `s3://lawbid-prod-tfstate/bootstrap-loadtest/terraform.tfstate`. Keep the tf-plan worktree; do not delete it.
-- **Prod state:** `s3://lawbid-prod-tfstate/prod/terraform.tfstate`, init with `-backend-config=backend.hcl` in envs/prod.
-- **Docs to read:**
-  - docs/architecture/: SHARDING_READY, DB_POOLER, DB_AUTOSCALE, REDIS_AUTOSCALE, SEARCH_READY, R2_PUBLIC_MEDIA, GROUP_CALLS_CLOUDFLARE_SFU, BENCHMARK_BIG_APPS, P0_AND_COST_PLAN.
-  - docs/runbooks/: DNS_TO_CLOUDFLARE, TURN, db-autoscale, redis-autoscale, DB_POOLER, batch-a-owner, paging, restore-drill, nat-endpoints.
-- **Pending-owner checklist (memory):** `~/.claude/projects/-Users-sima-Desktop-LawBid/memory/release-checklist-2026-10-24.md`. Read MEMORY.md and all the files it links.
+---
 
-## 3. State at handoff
-**Merged to main today:**
-- Cloudflare TURN #299, R2 public media #303 (switch off), group calls API/app #304/#307, Mine polish #309/#310, Cloudflare parity #311.
-- Own PgBouncer #312 (off), image /tmp VOLUME fix #313, shard-ready 0-2 #314, DB autoscale #315.
-- Pooler max 4 #316, docs #318, batch A #320.
-- Load-test fixes #300 #302 #305 #306 #308.
+## 1. «Я просил» — все запросы (точные слова владельца в кавычках)
 
-**Open PRs, to merge when green:**
-- #317 Redis autoscale (conflict just resolved);
-- #319 shard-ready 3-5;
-- #321 search-ready.
+### Звонки (главное: «Самое главное звонки»)
+1. Сброс на заблокированном экране: Android продолжает звонить после отмены звонящим.
+2. «На айфон вообще с самсунг не приходит видеозвонок когда на профиле адвоката звоню клиенту приходит только уведомление о непринятом звонке».
+3. Видеозвонок на Samsung после завершения зависает на последнем кадре, системная «плашка звонка» остаётся.
+4. Звонки лагают; шторка в конце звонка застревает посередине.
+5. Аватарка и имя **звонящего** на системном экране и в уведомлении сверху («Не наша аватарка а аватарка звоняшего человека»).
+6. «Звонки все моменты видео и аудио скопируйте все все все до единого… ответы на заблокированном экране, отключение, принятия… процесс звонков» — копировать из проверенных открытых источников, вид не менять («Косметику не пменяем»).
+7. Последнее решение: «Верни обратно наши сломанный звонок… и просто постарайся починить его», затем «посмотри у них [LiveKit] как код устроен, построй у нас точь‑в‑точь».
 
-**Running worker:** batch B (abuse and quotas) on `claude/batch-b-abuse`. When it reports, open a PR and merge.
+### iPhone
+8. «Айфон на мертво зависает», «на айфоне все на перекосяк»; Samsung работает нормально. Рилс в ленте постов показывается чёрным.
 
-**Prod:**
-- The API is healthy on the old images.
-- The deploy of the latest main waits for the OWNER's approval in GitHub Actions (Deploy workflow, environment production). Before approving, CANCEL older queued deploy runs: stale runs block the queue (`gh run cancel`, then `gh api -X POST .../runs/<id>/force-cancel`).
-- The previous deploy rolled back because of the read-only /tmp issue; #313 fixes it.
-- RDS Multi-AZ is pending for the Sunday window.
-- The first AWS Backup job was started manually on 2026-10-24.
+### Внешний вид и экраны (по скриншотам)
+9. Строка кнопок в карточке контакта сделана плохо.
+10. Бледные иконки в недефолтных темах.
+11. Обновление жестом слишком чувствительное, крутилка посередине экрана.
+12. «Моё»: свайп только между Дела/Задачи/Вопросы.
+13. Чипы‑фильтры по высоте как круглые кнопки.
+14. Шапка брифа: имя ниже аватарки; «троеточие и кнопка продвигать… в брифах чуть левее… сделай везде одинаковыми как в постах»; имя чуть выше центра аватарки.
+15. Рилсы: «есть текст или нет текст должны быть как у адвокатов везде» — строка автора на одной высоте.
+16. «После того как убрал поисковик не только плюс но и все приложение поднялось наверх везде так» (застревающий отступ клавиатуры).
+17. «Любую новую тему открываю окно на миллисекунды становится белым».
+18. Профиль: «На милисекунду становится таким» — пустые квадраты перед фото.
+19. Сохранённое: посты сеткой; вопрос «Чаты» в Сохранённом оставить или убрать — ответа нет.
+20. Архив открывается серым экраном.
+21. После выхода из настроек половина экрана пустая.
+22. Убрать «добавить дополнительный телефон для входа»; кнопки экрана кода одинаковые.
+23. Подтверждение важных действий паролем аккаунта, а не SMS.
+24. Уведомления (колокольчик): «назад… должен выводить в назад раздел а не в ленту и слайд тоже… и тап системной кнопки назад».
+25. Надпись загрузки: «Не завершить а загрузить».
+26. Скрытие лайков/просмотров не работает («все у нас криво работает»).
+27. «Закрепить до 6 постов сделай».
+28. Приватность «Кто может»: добавить «Мои подписчики / Мои подписки» без скобок.
 
-## 4. Queue — do ALL, in order (the owner wants everything, nothing skipped)
-1. **Batch C** (P0_AND_COST_PLAN): SES and Stripe circuit breakers; a separate allkeys-lru cache Redis; Cache-Control on anonymous public GETs (careful: no personalized data through the CDN) and hot search cache 30-60 s; Cloudflare TURN usage via GraphQL `callsTurnUsageAdaptiveGroups`, alert at 700/1000 GB; Bunny `/statistics` polling and alerts.
-2. **Batch D (after B):** the Flutter WEB Turnstile widget (web only), the honest wording fixes, and the admin «Масштаб» page: all ceilings, buttons, and alarm cards "what happened / what was done automatically / button", in the existing admin style.
-3. **DB split, steps 6-10 of SHARDING_READY:** user loader, outbox for cross-family writes, feed/search/admin scatter-gather, dropping cross-family FKs, the move tool, and the admin «Разделить базу» button with checks and rollback. Use the 113 known two-DB limitations in apps/api/test/two-db-suites.json as the worklist.
-4. **Redis cluster-mode readiness:** hash tags for BullMQ and Lua keys; a switch.
-5. **A search alert:** search p95 above 300 ms emails «пора вынести поиск».
-6. **P1, first month:** ECS canary/blue-green, Terraform drift check, an AWS FIS GameDay, cosign + SBOM, S3 Intelligent-Tiering, k6 p95 gates, push collapse keys, ARM64 + worker Spot (scripts ready: scratchpad spot-no-downtime.sh approach, `scripts/ops/arm64-check.sh`, the Mirror ClamAV workflow).
-7. **Then the owner's main path:**
-   - the owner pastes the Cloudflare TURN key and creates the SFU key; 1:1 and group call tests on his phones;
-   - the DNS move to Cloudflare (runbook), then R2 (bucket, CORS, cache rule, verify-r2-media.sh), then flip `media.public_store`;
-   - load tests on AWS (smoke, m1, m10, calls) ONLY after the moves; the `load-test.yml` workflow; each run needs his approval;
-   - final iOS + Android builds on his phones (iPhone 00008150-001E545A1480401C, Samsung R5GL11433DD; prod flavor, `--dart-define-from-file=config/prod.json`), then the .aab for Google Play.
+### Поиск и фильтры
+29. Поиск людей: «jah» находит Kalykov; «sima kalykov» показывает Syimyk.
+30. «Поисковик хуево работает» (чаты); поиск постов и тем плохой; «С фильтрами тоже проблемки везде… почекай там сам».
+31. «Адвокаты не получают в поисковиках те результаты что ищут», кейсы в поиске и фильтры плохо работают; «исправляй в всех профилях если есть и там и там».
+32. Поиск в мастере дела («О чём ваш кейс?») — «Здесь тоже с поисковиком поработай».
+33. Стартовый экран поиска потерял сетки.
 
-## 5. Owner to-do list (show him as a short list when relevant)
-1. Approve the Deploy run in GitHub.
-2. Cloudflare: TURN key into admin (Integrations → Cloudflare TURN); create the Serverless SFU app and its key; the DNS move.
-3. PagerDuty Free signup; give the integration URL (docs/runbooks/paging.md).
-4. Name the monthly budget ceiling. He said up to $500 is OK. Note: the cost-guard caps ECS at min when the budget is hit, so do not set it too low.
-5. Delete the manual $50 budget "LawBid Monthly" in the console.
-6. Run the restore drill when asked.
-7. At the end: the Apple account transfer to SiMA LLC, the Stripe live key.
+### Уведомления, медиа, чат
+34. «Кейсы не приходят уведомления и тд все уведомления чекни».
+35. «Видео ахуенно медленно загружаются даже 5 секундное»; «С фотами и с другими вещами тоже также сделай»; качество не снижать; нагрузка на сервер не расти; телефоны пользователей не должны страдать.
+36. Отправка местоположения в чате как в WhatsApp/Telegram, бесплатно, с переходом в Apple/Google Maps, «чтобы нас не засудили».
+37. Плавность анимаций везде.
 
-## 6. VERY LAST TASK (the owner's "everything is done" signal)
-ONLY after every item above is finished: the verified checkmark badges (attorney green, client badge) look greyish in some themes. Fix ONLY their colors per theme (Day, Night, Blue, Green) so each is clearly visible; keep the icon shape and size. If anything else is unfinished, do NOT do this, because the owner uses it to know all work is complete.
+### Правила работы
+38. «Не надо самому создавать азбуку, когда есть готовый язык!» — только копировать проверенное (MIT/Apache/BSD) целиком; GPL — изучить и построить так же; проверять на вирусы; своё — только после вопроса владельцу и его «да». Правило — первым в карте проекта, для всех ИИ.
+39. «Чтобы по карте проекта работали а не читали каждый раз наши переписки».
+40. «Со всеми, где можно кэшировать, где можно экономика, быстрота… везде также делайте».
+41. Порядок: сначала основа (звонки, кэш, передача кусками, загрузки, серверы, база, Redis, балансировщик, автомасштаб), потом функции (поиск, чаты, ленты, сетки, показы, вход, комменты, уведомления, профиль, админка, шторки), то же для сайта и админки.
+42. Работать на мощном Linux‑ноутбуке; Mac — только для сборки iPhone. Установить Claude на ноутбук, ярлык «Claude» на рабочем столе, чистый, управлять с телефона.
+43. Проверки нагрузки, экономики, скорости, затем автопроход по всем экранам на эмуляторе — до сборки на телефоны; честный отчёт без видео.
+44. Общая «карта постройки приложений на 1 млрд пользователей» (не про LawBid) — один файл, пошагово, для любого ИИ.
+45. Сохранить всё в GitHub, чтобы продолжить с любым ИИ без ноутбуков.
+
+---
+
+## 2. «Сделано» (PR / ветка)
+| № | Что | Где |
+|---|---|---|
+| 9, 14, кнопка фото в деле | карточка контакта, шапка брифа = шапка поста | PR #521 — влит |
+| 10 | контрастные иконки в темах | PR #514 — влит |
+| 12 | свайп «Моё» | PR #512 — влит |
+| 1, 2 (причина: VoIP‑токен не перерегистрировался), 3, конец звонка | сброс на заблокированном Android, VoIP‑токен при смене аккаунта, плавное завершение | PR #519 — влит; PR #522 (каждый VoIP‑пуш → CallKit, звонок 60 с) — открыт |
+| 6 | план копирования звонков из LiveKit / flutter_callkit_incoming / Jitsi | PR #523 (документ) |
+| 7 | вариант «LiveKit целиком» (отложен) | ветка `claude/calls-variant-a` |
+| 26, 27 | скрытие счётчиков + закреп до 6 | PR #517 — открыт |
+| 29–33 | поиск людей/чатов, поиск дел, мастер дела | PR #515 → #520 — открыты |
+| 38–40 | правила для всех ИИ, карта проекта | PR #518 влит; дополнения — PR #526 |
+| 44 | общая карта постройки | `docs/architecture/APP_BUILD_ROADMAP.md` (эта ветка); полная — у владельца на ноутбуке `~/Рабочий стол/app-maps/КАРТА.md` |
+| 42 | Claude Code установлен на ноутбук, ярлык «Claude» | на ноутбуке (вход в аккаунт — за владельцем) |
+| — | проверка памяти CI (main был красный) | PR #513 — влит |
+| — | сборка Android release (ML Kit R8) | PR #525 — открыт |
+| — | реестры адвокатов всех штатов | PR #516 — открыт |
+| 43 (часть) | нагрузка 1 млн: 24 сценария без ошибок, p95 ≤ 0,16 с; админка 1000 сотрудников | результаты на ноутбуке `~/loadtest/results`; скрипты — ветка `claude/perf-round-2` |
+
+## 3. «Не сделано / не начато»
+| № | Состояние |
+|---|---|
+| 8 (iPhone зависает), рилс чёрный, 15 | код начат — ветка `claude/reels-freeze`, не проверен; план: 3 сборки iPhone из разных дней истории, найти первую с зависанием |
+| 11, 18, 19 | код начат — ветка `claude/pull-refresh`, не проверен |
+| 16, 17, 20, 21, 23 | код начат — ветка `claude/archive-reauth`, не проверен |
+| 22, 24, 25 | код начат — ветка `claude/no-extra-phone`, не проверен |
+| 28 | код начат — ветка `claude/privacy-follow` |
+| 4 (лаги звонков) | не начато: нужен замер getStats на телефонах |
+| 5 | на iPhone системный экран CallKit аватарку показывать не даёт (правило Apple); в уведомлении и нашем экране — да |
+| 13 (высота чипов) | не подтверждено |
+| 19 «Чаты» в Сохранённом | ждёт ответа владельца |
+| 30 (поиск постов/тем, фильтры везде), 37 (плавность) | не начато |
+| 34 уведомления | не начато |
+| 35 загрузки кусками | не начато |
+| 36 местоположение | не начато |
+| 41 волна A по пунктам | начата только со звонков |
+| 43 автопроход по экранам, 10 млн, окупаемость | не начато |
+| баг из нагрузки: двум сотрудникам выдаётся одна задача | не начато |
+| сборка на телефоны с исправлениями | Android‑APK собран на ноутбуке (`~/LawBid-calls/.../app-prod-release.apk`), не установлен (телефон не подключён); iPhone — не собран |
+
+## 4. Четыре остановленные фоновые задачи (на Mac)
+| ID | Что это | Где код |
+|---|---|---|
+| ba0mapska | сторож памяти Mac (`bash docs/dev/ram-guard.sh`) — пауза помощников при нехватке RAM | `docs/dev/ram-guard.sh` (эта ветка) |
+| bwddqfvq7 | сторож диска и нагрузки Mac (`bash MACGUARD.sh`), лог `/tmp/lawbid-macguard.log` | `MACGUARD.sh` — только на Mac (в git‑исключениях; не опубликован) |
+| bunpvgix6 | цикл синхронизации журнала каждые 10 мин (`scripts/dev/handoff-sync.sh 600`) в ветку `claude/handoff-log` | `scripts/dev/handoff-sync.sh` (эта ветка) |
+| bksj8xee3 | ожидание конца скачивания проекта на ноутбук (служебный цикл) | кода нет |
+
+Скачивание проекта на ноутбук (`git clone` в `~/LawBid-work`) поставлено на паузу; ноутбук был недоступен по сети, чтобы его завершить. Чтобы убрать: перезагрузить ноутбук или в терминале ноутбука `pkill -9 -f "git clone https://github.com/syimykkalykov1999/LawBid"`.
+
+## 5. Почему красные PR
+| PR | Причина | Что сделать |
+|---|---|---|
+| #515 | конфликт с main (DIRTY) после влива #507 | обновить от main, пересобрать договор/генерацию |
+| #516 | 1 мобильный тест упал: `voice_test.dart` «a refused upload keeps the note with Retry» — ожидалось `failed`, получено `sending` (нестабильный тест, к реестрам не относится) | перезапустить; если повторится — чинить тест голосовых |
+| #517 | шаг «Translations are complete in every language»: новые надписи («Скрыто для других» и др.) не переведены на все языки; плюс конфликт с main | добавить переводы ключей во все языки, обновить от main |
+| #525 | iOS‑сборка: `Could not resolve host: cdn.cocoapods.org` — сбой сети у GitHub‑раннера | просто перезапустить проверку |
+
+## 6. Что живёт только на Mac / ноутбуке (в GitHub НЕ попало)
+**Секреты — специально не опубликованы (репозиторий публичный):**
+- `apps/api/.env`, `apps/api/.env.bak`, `apps/admin/.env.local` — локальные настройки сервера/админки.
+- `apps/mobile/android/key.properties` (+ сам ключ подписи `lawbid-upload.jks` на ноутбуке в `~/lawbid-build-secrets/`).
+- `apps/mobile/ios/Runner/GoogleService-Info.plist`, `apps/mobile/android/app/src/prod/google-services.json` — настройки Firebase.
+- `.mcp.json` — содержит ключ сервиса Ref.
+- `infra/envs/prod/errored.tfstate` и `.terraform/terraform.tfstate` в папках `.claude/worktrees/tf-owner`, `tf-plan-green` — состояние Terraform (в нём секреты).
+- Сертификаты и профили подписи iPhone — в Связке ключей и Xcode на Mac.
+- Вход AWS (`aws login`) — на Mac владельца.
+
+**Прод‑tfvars:** в AWS Secrets Manager, секрет `lawbid-prod/terraform-tfvars` (по `OWNER_STEPS`); в репозитории только тестовые профили `infra/envs/loadtest/profiles/*.tfvars`.
+
+**Память сессии:** `~/.claude/projects/-Users-sima-Desktop-LawBid/memory/` (34 файла; копия на ноутбуке `~/.claude/projects/-home-sima-LawBid-work/memory/`). Не опубликована — автоматическая защита Claude запретила как риск утечки; её правила перенесены в AGENTS.md, PROJECT_MAP.md и этот файл.
+
+**Переписки:** `~/.claude/projects/*LawBid*/*.jsonl` на Mac. Слова владельца из них — в `docs/dev/owner-requests/`. Ответы ИИ не опубликованы.
+
+**Личные заметки** (не опубликованы, заблокировано защитой): `NEXT_CLAUDE_START_HERE.md` (журнал), `WORKER_BUILD_RULES.md`, `OWNER_STEPS.md`, `HANDOFF_FOR_NEXT_SESSION.md`, `MACGUARD.sh`. Их суть — в этом файле и в `docs/dev/KNOWN_ERRORS.md`.
+
+**Ноутбук:** тестовая база на 1 млн (Docker‑том `lawbid-lt-pgdata`, контейнеры остановлены), результаты нагрузки `~/loadtest/results`, собранный APK, Claude Code.
+
+## 7. Ветки, сохранённые 29.10
+- `claude/mac-rescue-2026-10-29` — несохранённое из основной папки Mac (контакты, стикеры, iOS, CLAUDE.md, ~40 документов) + этот файл.
+- Работа помощников: `claude/archive-reauth`, `claude/no-extra-phone`, `claude/pull-refresh`, `claude/privacy-follow`, `claude/reels-freeze`, `claude/calls-variant-a`, `claude/perf-round-2`.
+- Ранее не отправленные локальные ветки (20 шт.): `claude/badge-toggle-29`, `claude/boost-pricing-models`, `claude/group-calls-sfu-mobile`, `claude/merge-union-2026-10-27c`, `claude/qa-fix-a…d`, `claude/redis-hardening`, `phone-build-2`, `phone-build-3`, `worktree-agent-*` (9 шт.); две с расхождением сохранены как `rescue/group-chats-polls-a41ykg-local`, `rescue/partition-messages-local`.
+- Отложенные правки (stash): `rescue/stash-0 … rescue/stash-14` (на Mac они не удалены).
+- Несохранённые правки старых папок помощников: `rescue/wt-*` (15 шт.; `rescue/wt-agent-ad7821003a1445008` — только кэш карты кода graphify, 182 МБ, можно игнорировать).
