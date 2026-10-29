@@ -45,6 +45,12 @@ UpdateGroupDto _$UpdateGroupDtoFromJson(
   username: json['username'] as String?,
   joinApproval: json['joinApproval'] as bool?,
   topicsEnabled: json['topicsEnabled'] as bool?,
+  reactionsMode: json['reactionsMode'] == null
+      ? null
+      : ReactionMode.fromJson(json['reactionsMode'] as String),
+  reactionsAllowed: (json['reactionsAllowed'] as List<dynamic>?)
+      ?.map((e) => UpdateGroupDtoReactionsAllowed.fromJson(e as String))
+      .toList(),
 );
 
 Map<String, dynamic> _$UpdateGroupDtoToJson(UpdateGroupDto instance) =>
@@ -67,4 +73,8 @@ Map<String, dynamic> _$UpdateGroupDtoToJson(UpdateGroupDto instance) =>
       'username': ?instance.username,
       'joinApproval': ?instance.joinApproval,
       'topicsEnabled': ?instance.topicsEnabled,
+      'reactionsMode': ?instance.reactionsMode?.toJson(),
+      'reactionsAllowed': ?instance.reactionsAllowed
+          ?.map((e) => e.toJson())
+          .toList(),
     };

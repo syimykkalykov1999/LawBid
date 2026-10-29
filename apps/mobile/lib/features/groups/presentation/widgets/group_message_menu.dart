@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/shared/presentation/reaction_sheets.dart';
 
 /// What the long-press menu of a message can do. Owner 2026-10-21
 /// (Telegram): forward, select, and — in a group that restricts saving
@@ -31,6 +32,9 @@ Future<GroupMessageAction?> showGroupMessageMenu(
   bool canForward = false,
   bool canShareLink = false,
   bool canSelect = false,
+  List<String> reactions = const [],
+  String? myReaction,
+  ValueChanged<String>? onReact,
 }) =>
     showAppBottomSheet<GroupMessageAction>(
       context: context,
@@ -53,6 +57,20 @@ Future<GroupMessageAction?> showGroupMessageMenu(
             mainAxisSize: MainAxisSize.min,
             children: [
               const AppSheetHandle(),
+              // Owner 2026-10-21 (inbox 26c, Telegram): the reactions the
+              // group opened, on top; a tap puts (or takes back) mine.
+              if (onReact != null && reactions.isNotEmpty)
+                ReactionQuickBar(
+                  key: const ValueKey('group-react-bar'),
+                  choices: reactions,
+                  mine: myReaction,
+                  keyPrefix: 'group-react',
+                  label: (e) => t.t('channel.react.pick', {'emoji': e}),
+                  onPick: (e) {
+                    Navigator.of(sheet).pop();
+                    onReact(e);
+                  },
+                ),
               if (canReply)
                 row(
                   GroupMessageAction.reply,

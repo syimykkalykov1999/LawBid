@@ -596,6 +596,14 @@ class GroupThread extends Notifier<GroupThreadState> {
     await load();
   }
 
+  /// Owner 2026-10-21 (inbox 26c, Telegram): tapping my own reaction takes
+  /// it back, any other one puts / replaces it.
+  Future<void> react(api.GroupMessageDto m, String emoji) async {
+    final next = m.myReaction == emoji ? null : emoji;
+    final updated = await _repo.react(key.groupId, m.id, next);
+    if (ref.mounted) _upsert(updated);
+  }
+
   Future<void> pin(String? messageId) async {
     await _repo.pin(key.groupId, messageId);
     if (ref.mounted) ref.invalidate(groupDetailProvider(key.groupId));

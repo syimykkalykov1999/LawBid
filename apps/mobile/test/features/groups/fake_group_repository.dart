@@ -153,6 +153,27 @@ class FakeGroupRepository implements GroupRepository {
     return items.firstWhere((g) => g.id == id);
   }
 
+  /// `messageId:emoji` (or `messageId:-` when taken back).
+  final reacts = <String>[];
+
+  @override
+  Future<api.GroupMessageDto> react(
+    String id,
+    String messageId,
+    String? emoji,
+  ) async {
+    reacts.add('$messageId:${emoji ?? '-'}');
+    final m = thread.firstWhere((x) => x.id == messageId);
+    return message(
+      m.id,
+      body: m.body,
+      mine: m.mine,
+      sender: m.sender,
+      reactions: {if (emoji != null) emoji: 1},
+      myReaction: emoji,
+    );
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
 }
@@ -224,6 +245,8 @@ api.GroupMessageDto message(
   String? topicId,
   DateTime? expiresAt,
   String? forwardedFrom,
+  Map<String, int> reactions = const {},
+  String? myReaction,
 }) =>
     api.GroupMessageDto(
       id: id,
@@ -247,6 +270,11 @@ api.GroupMessageDto message(
       expiresAt: expiresAt,
       forwarded: forwardedFrom != null,
       forwardedFrom: forwardedFrom,
+      reactions: [
+        for (final r in reactions.entries)
+          api.GroupReactionCountDto(emoji: r.key, count: r.value),
+      ],
+      myReaction: myReaction,
     );
 
 api.PollDto poll(
@@ -387,6 +415,8 @@ api.GroupDetailDto groupDetail({
   bool canEditInfo = true,
   bool withInvited = false,
   bool protectContent = false,
+  api.ReactionMode reactionsMode = api.ReactionMode.all,
+  List<String> reactionsAllowed = const [],
 }) {
   final canPost = !readOnly;
   return api.GroupDetailDto(
@@ -411,6 +441,8 @@ api.GroupDetailDto groupDetail({
     showServiceMessages: true,
     disappearAfterS: disappearAfterS,
     protectContent: protectContent,
+    reactionsMode: reactionsMode,
+    reactionsAllowed: reactionsAllowed,
     whoCanMedia: api.GroupWho.all,
     whoCanPoll: api.GroupWho.all,
     whoCanPin: api.GroupWho.admins,

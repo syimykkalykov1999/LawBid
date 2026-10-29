@@ -11,56 +11,59 @@ import 'group_person_dto.dart';
 import 'group_role.dart';
 import 'group_type.dart';
 import 'group_who.dart';
+import 'reaction_mode.dart';
 
 part 'group_detail_dto.g.dart';
 
 @JsonSerializable()
 class GroupDetailDto {
   const GroupDetailDto({
-    required this.showServiceMessages,
+    required this.canCall,
     required this.title,
     required this.memberCount,
     required this.type,
-    required this.whoCanAdd,
+    required this.whoCanEditInfo,
     required this.joinApproval,
     required this.topicsEnabled,
     required this.pendingRequests,
     required this.whoCanPost,
+    required this.whoCanAdd,
     required this.id,
-    required this.whoCanEditInfo,
     required this.whoCanCall,
     required this.whoCanMedia,
     required this.whoCanPoll,
     required this.whoCanPin,
     required this.myRights,
-    required this.isAdmin,
+    required this.showServiceMessages,
     required this.canPost,
     required this.canAdd,
     required this.canEditInfo,
-    required this.canCall,
-    required this.inviteEnabled,
+    required this.createdAt,
+    required this.updatedAt,
     required this.callsMuted,
     required this.unreadMentions,
+    required this.unreadCount,
+    required this.inviteEnabled,
     required this.pinned,
     required this.invited,
     required this.members,
-    required this.createdAt,
-    required this.unreadCount,
-    required this.updatedAt,
+    required this.isAdmin,
+    this.notAdded,
+    this.reactionsAllowed,
     this.inviteLink,
     this.pinnedMessage,
     this.lastMessage,
     this.lastMessageAt,
-    this.notAdded,
+    this.reactionsMode,
     this.protectContent,
     this.mutedUntil,
-    this.disappearAfterS,
+    this.username,
     this.myRole,
     this.generalTopicId,
     this.avatarFullUrl,
     this.avatarUrl,
     this.description,
-    this.username,
+    this.disappearAfterS,
   });
 
   factory GroupDetailDto.fromJson(Map<String, Object?> json) =>
@@ -108,6 +111,12 @@ class GroupDetailDto {
 
   /// Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link.
   final bool? protectContent;
+
+  /// Owner 2026-10-21 (inbox 26c): all / selected / off.
+  final ReactionMode? reactionsMode;
+
+  /// The selected reactions (mode «some»), palette order.
+  final List<String>? reactionsAllowed;
 
   /// What I may do here (derived from the above).
   final bool canPost;

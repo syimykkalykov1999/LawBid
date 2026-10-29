@@ -254,4 +254,108 @@ describe('Groups and channels — Telegram parity (e2e)', () => {
       await react(reader, ch.id, post, 'x').expect(400);
     });
   });
+
+  // ── groups ────────────────────────────────────────────────────────────
+
+  /** A closed group of [owner] with [people] who accepted the invitation. */
+  async function group(owner: Who, people: Who[]): Promise<string> {
+    const res = await api()
+      .post('/api/v1/groups')
+      .set(owner.auth)
+      .send({
+        title: 'Parity team',
+        type: 'closed',
+        memberIds: people.map((p) => p.id),
+      })
+      .expect(201);
+    const id = res.body.data.id as string;
+    for (const p of people) {
+      const list = await api()
+        .get('/api/v1/groups/invites')
+        .set(p.auth)
+        .expect(200);
+      const invite = (list.body.data as { id: string; groupId: string }[]).find(
+        (i) => i.groupId === id,
+      );
+      await api()
+        .post(`/api/v1/groups/invites/${invite!.id}/accept`)
+        .set(p.auth)
+        .expect(200);
+    }
+    return id;
+  }
+
+  const say = async (who: Who, groupId: string, body = 'hi') =>
+    (
+      await api()
+        .post(`/api/v1/groups/${groupId}/messages`)
+        .set(who.auth)
+        .send({ clientMessageId: randomUUID(), type: 'text', body })
+        .expect(201)
+    ).body.data as { id: string };
+
+  describe('group: reactions (item 4)', () => {
+    const react = (who: Who, g: string, msg: string, emoji: string) =>
+      api()
+        .put(`/api/v1/groups/${g}/messages/${msg}/reaction`)
+        .set(who.auth)
+        .send({ emoji });
+
+    it('one per person, counted for everyone; the admins narrow or switch it off', async () => {
+      const owner = await client('Olga');
+      const ann = await client('Ann');
+      const g = await group(owner, [ann]);
+      const msg = await say(owner, g);
+
+      const r1 = await react(ann, g, msg.id, '🔥').expect(200);
+      expect(r1.body.data.myReaction).toBe('🔥');
+      // Changing replaces it.
+      await react(ann, g, msg.id, '👍').expect(200);
+      await react(owner, g, msg.id, '👍').expect(200);
+      const list = await api()
+        .get(`/api/v1/groups/${g}/messages`)
+        .set(owner.auth)
+        .expect(200);
+      const seen = (
+        list.body.data as {
+          id: string;
+          reactions: { emoji: string; count: number }[];
+          myReaction: string | null;
+        }[]
+      ).find((m) => m.id === msg.id)!;
+      expect(seen.reactions).toEqual([{ emoji: '👍', count: 2 }]);
+      expect(seen.myReaction).toBe('👍');
+
+      // A member cannot change the setting.
+      await api()
+        .patch(`/api/v1/groups/${g}`)
+        .set(ann.auth)
+        .send({ reactionsMode: 'off' })
+        .expect(403);
+      const some = await api()
+        .patch(`/api/v1/groups/${g}`)
+        .set(owner.auth)
+        .send({ reactionsMode: 'some', reactionsAllowed: ['❤️'] })
+        .expect(200);
+      expect(some.body.data.reactionsMode).toBe('some');
+      expect(some.body.data.reactionsAllowed).toEqual(['❤️']);
+      await react(ann, g, msg.id, '🔥').expect(403);
+      await react(ann, g, msg.id, '❤️').expect(200);
+
+      await api()
+        .patch(`/api/v1/groups/${g}`)
+        .set(owner.auth)
+        .send({ reactionsMode: 'off' })
+        .expect(200);
+      await react(ann, g, msg.id, '❤️').expect(403);
+      const back = await api()
+        .delete(`/api/v1/groups/${g}/messages/${msg.id}/reaction`)
+        .set(ann.auth)
+        .expect(200);
+      expect(back.body.data.myReaction).toBeNull();
+      // Not a member: 404.
+      const out = await client('Out');
+      await react(out, g, msg.id, '👍').expect(404);
+    });
+  });
 });

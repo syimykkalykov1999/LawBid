@@ -7,19 +7,14 @@ part of 'group_dto.dart';
 // **************************************************************************
 
 GroupDto _$GroupDtoFromJson(Map<String, dynamic> json) => GroupDto(
-  whoCanAdd: GroupWho.fromJson(json['whoCanAdd'] as String),
+  showServiceMessages: json['showServiceMessages'] as bool,
   title: json['title'] as String,
-  createdAt: DateTime.parse(json['createdAt'] as String),
-  pinned: json['pinned'] as bool,
-  callsMuted: json['callsMuted'] as bool,
   memberCount: json['memberCount'] as num,
   type: GroupType.fromJson(json['type'] as String),
-  unreadMentions: json['unreadMentions'] as num,
+  whoCanAdd: GroupWho.fromJson(json['whoCanAdd'] as String),
   joinApproval: json['joinApproval'] as bool,
   topicsEnabled: json['topicsEnabled'] as bool,
-  unreadCount: json['unreadCount'] as num,
   pendingRequests: json['pendingRequests'] as num,
-  inviteEnabled: json['inviteEnabled'] as bool,
   whoCanPost: GroupWho.fromJson(json['whoCanPost'] as String),
   id: json['id'] as String,
   whoCanEditInfo: GroupWho.fromJson(json['whoCanEditInfo'] as String),
@@ -30,17 +25,26 @@ GroupDto _$GroupDtoFromJson(Map<String, dynamic> json) => GroupDto(
   myRights: (json['myRights'] as List<dynamic>)
       .map((e) => GroupDtoMyRights.fromJson(e as String))
       .toList(),
-  showServiceMessages: json['showServiceMessages'] as bool,
-  isAdmin: json['isAdmin'] as bool,
-  canCall: json['canCall'] as bool,
+  canEditInfo: json['canEditInfo'] as bool,
   canPost: json['canPost'] as bool,
   canAdd: json['canAdd'] as bool,
+  pinned: json['pinned'] as bool,
+  unreadMentions: json['unreadMentions'] as num,
+  callsMuted: json['callsMuted'] as bool,
+  inviteEnabled: json['inviteEnabled'] as bool,
+  isAdmin: json['isAdmin'] as bool,
+  canCall: json['canCall'] as bool,
   updatedAt: DateTime.parse(json['updatedAt'] as String),
-  canEditInfo: json['canEditInfo'] as bool,
-  disappearAfterS: json['disappearAfterS'] as num?,
-  myRole: json['myRole'] == null
+  unreadCount: json['unreadCount'] as num,
+  createdAt: DateTime.parse(json['createdAt'] as String),
+  reactionsAllowed: (json['reactionsAllowed'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
+  reactionsMode: json['reactionsMode'] == null
       ? null
-      : GroupRole.fromJson(json['myRole'] as String),
+      : ReactionMode.fromJson(json['reactionsMode'] as String),
+  protectContent: json['protectContent'] as bool?,
+  disappearAfterS: json['disappearAfterS'] as num?,
   inviteLink: json['inviteLink'] as String?,
   pinnedMessage: json['pinnedMessage'] == null
       ? null
@@ -51,15 +55,17 @@ GroupDto _$GroupDtoFromJson(Map<String, dynamic> json) => GroupDto(
   lastMessageAt: json['lastMessageAt'] == null
       ? null
       : DateTime.parse(json['lastMessageAt'] as String),
+  myRole: json['myRole'] == null
+      ? null
+      : GroupRole.fromJson(json['myRole'] as String),
   generalTopicId: json['generalTopicId'] as String?,
-  username: json['username'] as String?,
   mutedUntil: json['mutedUntil'] == null
       ? null
       : DateTime.parse(json['mutedUntil'] as String),
   avatarFullUrl: json['avatarFullUrl'] as String?,
   avatarUrl: json['avatarUrl'] as String?,
   description: json['description'] as String?,
-  protectContent: json['protectContent'] as bool?,
+  username: json['username'] as String?,
 );
 
 Map<String, dynamic> _$GroupDtoToJson(GroupDto instance) => <String, dynamic>{
@@ -87,6 +93,8 @@ Map<String, dynamic> _$GroupDtoToJson(GroupDto instance) => <String, dynamic>{
   'showServiceMessages': instance.showServiceMessages,
   'disappearAfterS': ?instance.disappearAfterS,
   'protectContent': ?instance.protectContent,
+  'reactionsMode': ?instance.reactionsMode?.toJson(),
+  'reactionsAllowed': ?instance.reactionsAllowed,
   'canPost': instance.canPost,
   'canAdd': instance.canAdd,
   'canEditInfo': instance.canEditInfo,

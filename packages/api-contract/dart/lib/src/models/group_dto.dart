@@ -9,25 +9,21 @@ import 'group_message_dto.dart';
 import 'group_role.dart';
 import 'group_type.dart';
 import 'group_who.dart';
+import 'reaction_mode.dart';
 
 part 'group_dto.g.dart';
 
 @JsonSerializable()
 class GroupDto {
   const GroupDto({
-    required this.whoCanAdd,
+    required this.showServiceMessages,
     required this.title,
-    required this.createdAt,
-    required this.pinned,
-    required this.callsMuted,
     required this.memberCount,
     required this.type,
-    required this.unreadMentions,
+    required this.whoCanAdd,
     required this.joinApproval,
     required this.topicsEnabled,
-    required this.unreadCount,
     required this.pendingRequests,
-    required this.inviteEnabled,
     required this.whoCanPost,
     required this.id,
     required this.whoCanEditInfo,
@@ -36,26 +32,33 @@ class GroupDto {
     required this.whoCanPoll,
     required this.whoCanPin,
     required this.myRights,
-    required this.showServiceMessages,
-    required this.isAdmin,
-    required this.canCall,
+    required this.canEditInfo,
     required this.canPost,
     required this.canAdd,
+    required this.pinned,
+    required this.unreadMentions,
+    required this.callsMuted,
+    required this.inviteEnabled,
+    required this.isAdmin,
+    required this.canCall,
     required this.updatedAt,
-    required this.canEditInfo,
+    required this.unreadCount,
+    required this.createdAt,
+    this.reactionsAllowed,
+    this.reactionsMode,
+    this.protectContent,
     this.disappearAfterS,
-    this.myRole,
     this.inviteLink,
     this.pinnedMessage,
     this.lastMessage,
     this.lastMessageAt,
+    this.myRole,
     this.generalTopicId,
-    this.username,
     this.mutedUntil,
     this.avatarFullUrl,
     this.avatarUrl,
     this.description,
-    this.protectContent,
+    this.username,
   });
 
   factory GroupDto.fromJson(Map<String, Object?> json) =>
@@ -103,6 +106,12 @@ class GroupDto {
 
   /// Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link.
   final bool? protectContent;
+
+  /// Owner 2026-10-21 (inbox 26c): all / selected / off.
+  final ReactionMode? reactionsMode;
+
+  /// The selected reactions (mode «some»), palette order.
+  final List<String>? reactionsAllowed;
 
   /// What I may do here (derived from the above).
   final bool canPost;

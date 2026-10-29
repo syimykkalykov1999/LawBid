@@ -19,6 +19,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show GoldRingAvatar;
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
     show openProfile;
+import 'package:lawbid/shared/presentation/reaction_sheets.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// The corner shape of a bubble: the corner at the sender's side is tight.
@@ -66,6 +67,8 @@ class GroupMessageBubble extends ConsumerWidget {
     this.selected = false,
     this.onTap,
     this.protectContent = false,
+    this.reactionOptions = const [],
+    this.onReact,
     super.key,
   });
 
@@ -96,6 +99,13 @@ class GroupMessageBubble extends ConsumerWidget {
   /// The group restricts saving content: a file is not opened outside the
   /// app.
   final bool protectContent;
+
+  /// Owner 2026-10-21 (inbox 26c): the reactions the group opened; a chip
+  /// of another reaction is shown but not tappable.
+  final List<String> reactionOptions;
+
+  /// Null: the chips are not tappable (selecting).
+  final ValueChanged<String>? onReact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -312,6 +322,49 @@ class GroupMessageBubble extends ConsumerWidget {
       ),
     );
 
+    // Owner 2026-10-21 (inbox 26c, Telegram): small chips under the
+    // bubble, at the sender's side.
+    final counts = [
+      for (final r in m.reactions ?? const <api.GroupReactionCountDto>[])
+        if (r.count > 0) r,
+    ];
+    final reacted = counts.isEmpty || m.deleted
+        ? null
+        : Column(
+            crossAxisAlignment:
+                mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              interactive,
+              Padding(
+                padding: const EdgeInsets.only(top: 3),
+                child: Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  alignment: mine ? WrapAlignment.end : WrapAlignment.start,
+                  children: [
+                    for (final r in counts)
+                      ReactionChip(
+                        key: ValueKey('group-react-${m.id}-${r.emoji}'),
+                        emoji: r.emoji,
+                        count: context.digits(r.count),
+                        selected: m.myReaction == r.emoji,
+                        label: t.t('channel.react.chip', {
+                          'emoji': r.emoji,
+                          'count': context.digits(r.count),
+                        }),
+                        onTap: onReact != null &&
+                                (m.myReaction == r.emoji ||
+                                    reactionOptions.contains(r.emoji))
+                            ? () => onReact!(r.emoji)
+                            : null,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          );
+
     Widget avatar() {
       final s = sender;
       if (!showAvatar || s == null) return const SizedBox(width: 32);
@@ -334,7 +387,7 @@ class GroupMessageBubble extends ConsumerWidget {
           avatar(),
           const SizedBox(width: AppSpacing.xs + 2),
         ],
-        Flexible(child: interactive),
+        Flexible(child: reacted ?? interactive),
       ],
     );
 

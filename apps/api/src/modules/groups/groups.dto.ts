@@ -20,6 +20,11 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { ChatAttachmentDto } from '../chat/chat.dto';
+import {
+  REACTION_MODES,
+  REACTION_PALETTE,
+  type ReactionMode,
+} from '../../common/reactions/reaction-palette';
 
 /** Owner 2026-10-20: group chats (Telegram + WhatsApp) — limits. */
 export const GROUP_TITLE_MAX = 80;
@@ -292,6 +297,31 @@ export class UpdateGroupDto {
   @IsOptional()
   @IsBoolean()
   topicsEnabled?: boolean;
+
+  /** Owner 2026-10-21 (inbox 26c): reactions all / selected / off. */
+  @ApiPropertyOptional({
+    enum: REACTION_MODES,
+    enumName: 'ReactionMode',
+    description: 'Admins with «edit info».',
+  })
+  @IsOptional()
+  @IsIn(REACTION_MODES)
+  reactionsMode?: ReactionMode;
+
+  /** With reactionsMode «some»: the reactions left open (≥ 1). */
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(REACTION_PALETTE.length)
+  @IsIn(REACTION_PALETTE, { each: true })
+  reactionsAllowed?: string[];
+}
+
+/** Owner 2026-10-21 (inbox 26c, Telegram): one emoji per person. */
+export class GroupReactionDto {
+  @ApiProperty({ description: 'One of the app palette (and the group setting).' })
+  @IsIn(REACTION_PALETTE)
+  emoji!: string;
 }
 
 export class AddGroupMembersDto {
@@ -667,6 +697,14 @@ export class GroupReplyPreviewDto {
   deleted!: boolean;
 }
 
+export class GroupReactionCountDto {
+  @ApiProperty()
+  emoji!: string;
+
+  @ApiProperty({ type: 'integer' })
+  count!: number;
+}
+
 export class GroupMessageDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -760,6 +798,13 @@ export class GroupMessageDto {
     description: 'The first author (or channel) of a forwarded message.',
   })
   forwardedFrom!: string | null;
+
+  /** Owner 2026-10-21 (inbox 26c): reactions, most first. */
+  @ApiPropertyOptional({ type: [GroupReactionCountDto] })
+  reactions?: GroupReactionCountDto[];
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  myReaction?: string | null;
 }
 
 export class GroupDto {
@@ -858,6 +903,14 @@ export class GroupDto {
       'Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link.',
   })
   protectContent!: boolean;
+
+  /** Owner 2026-10-21 (inbox 26c): all / selected / off. */
+  @ApiPropertyOptional({ enum: REACTION_MODES, enumName: 'ReactionMode' })
+  reactionsMode?: ReactionMode;
+
+  /** The selected reactions (mode «some»), palette order. */
+  @ApiPropertyOptional({ type: [String] })
+  reactionsAllowed?: string[];
 
   @ApiProperty({ description: 'What I may do here (derived from the above).' })
   canPost!: boolean;

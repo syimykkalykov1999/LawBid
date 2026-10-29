@@ -5,7 +5,9 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'group_type.dart';
+import 'reaction_mode.dart';
 import 'update_group_dto_disappear_after_s.dart';
+import 'update_group_dto_reactions_allowed.dart';
 import 'update_group_dto_who_can_add.dart';
 import 'update_group_dto_who_can_call.dart';
 import 'update_group_dto_who_can_edit_info.dart';
@@ -37,6 +39,8 @@ class UpdateGroupDto {
     this.username,
     this.joinApproval,
     this.topicsEnabled,
+    this.reactionsMode,
+    this.reactionsAllowed,
   });
 
   factory UpdateGroupDto.fromJson(Map<String, Object?> json) =>
@@ -94,6 +98,12 @@ class UpdateGroupDto {
 
   /// Admins only: forum mode (topics).
   final bool? topicsEnabled;
+
+  /// Admins with «edit info».
+  final ReactionMode? reactionsMode;
+
+  /// With reactionsMode «some»: the reactions left open (≥ 1).
+  final List<UpdateGroupDtoReactionsAllowed>? reactionsAllowed;
 
   Map<String, Object?> toJson() => _$UpdateGroupDtoToJson(this);
 }
