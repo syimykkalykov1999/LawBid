@@ -537,12 +537,17 @@ class SwipePages<T> extends StatefulWidget {
     required this.pageBuilder,
     this.onPosition,
     this.onSettled,
+    this.swipe = true,
     super.key,
   });
 
   final T value;
   final List<T> values;
   final ValueChanged<T> onChanged;
+
+  /// Owner 2026-10-28: false = the pages change by [value] only (a tap
+  /// slides to them), a drag is left to the pages around.
+  final bool swipe;
   final Widget Function(BuildContext context, T value) pageBuilder;
 
   /// Where the pages are, every frame (0 = the first page, 1.5 = half way
@@ -703,7 +708,11 @@ class _SwipePagesState<T> extends State<SwipePages<T>> {
     final view = PageView.builder(
       controller: _pages,
       // Nested: the drag below moves the pages, not the page view's own.
-      physics: nested || back ? const OwnDragPhysics() : null,
+      physics: !widget.swipe
+          ? const NeverScrollableScrollPhysics()
+          : nested || back
+              ? const OwnDragPhysics()
+              : null,
       itemCount: widget.values.length,
       onPageChanged: (i) {
         // Mid-animation pages of a tap are passed by, not chosen.
@@ -723,7 +732,7 @@ class _SwipePagesState<T> extends State<SwipePages<T>> {
         child: view,
       ),
     );
-    if (!nested && !back) return scoped;
+    if (!widget.swipe || (!nested && !back)) return scoped;
     // Nested pages (and pages on a pushed screen) drive their own drag.
     return PageDragHost(
       controller: _pages,
