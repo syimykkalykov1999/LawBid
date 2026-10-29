@@ -278,6 +278,11 @@ export class CallsService {
    * registry V7 still wins). Otherwise our own path: `calls.video_provider`
    * = livekit while its keys exist, else device to device (p2p). */
   private async activeVideoProvider(): Promise<VideoCallProvider> {
+    // Owner 2026-10-28 (calls variant A): the app talks to LiveKit only —
+    // as soon as its keys exist (Admin → Integrations → LiveKit, or
+    // LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET) every call runs
+    // on it, whatever else is configured.
+    if (await this.livekit.isConfigured()) return this.livekit;
     if (
       this.sfu &&
       (await this.sfu.cloudflareWanted()) &&
@@ -415,6 +420,10 @@ export class CallsService {
     headcount: number,
   ): Promise<{ mediaProvider: MediaProvider; video: boolean }> {
     if (!this.sfu) return { mediaProvider: 'p2p', video };
+    // LiveKit carries every call: no Cloudflare SFU, no mesh fallback.
+    if (await this.livekit.isConfigured()) {
+      return { mediaProvider: 'p2p', video };
+    }
     const d = await this.sfu.decide({ isGroup, video, headcount });
     return { mediaProvider: d.mediaProvider, video: d.video };
   }
@@ -1433,8 +1442,9 @@ export class CallsService {
     // Owner 2026-10-26: Cloudflare wanted (SFU keys set, transport not
     // `own`) = SFU seats, also during the automatic backup (never fewer).
     if (
-      mediaProvider === 'cloudflare' ||
-      (this.sfu && (await this.sfu.cloudflareWanted()))
+      !(await this.livekit.isConfigured()) &&
+      (mediaProvider === 'cloudflare' ||
+        (this.sfu && (await this.sfu.cloudflareWanted())))
     ) {
       return this.settings
         ? await this.settings.number('calls.sfu_max_participants')
@@ -1465,6 +1475,7 @@ export class CallsService {
       this.mediaOf(call) !== 'p2p' ||
       !this.settings ||
       !this.sfu ||
+      (await this.livekit.isConfigured()) ||
       !(await this.sfu.cloudflareWanted()) ||
       joinedCount <= (await this.settings.number('calls.sfu_fallback_mesh_max'))
     ) {
@@ -1489,6 +1500,7 @@ export class CallsService {
     joinedCount: number,
   ): Promise<CallMediaFallbackDto | undefined> {
     if (!call.is_group || !this.settings || !this.sfu) return undefined;
+    if (await this.livekit.isConfigured()) return undefined;
     const active =
       this.mediaOf(call) === 'p2p' && (await this.sfu.cloudflareWanted());
     const max = await this.settings.number('calls.sfu_fallback_mesh_max');
