@@ -5,6 +5,7 @@ import 'package:lawbid/features/auth/data/auth_repository.dart';
 import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
 import 'package:lawbid/features/auth/domain/reauth_result.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/domain/delete_account_flow_state.dart';
 import 'package:lawbid/features/profile/domain/delete_account_step.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -48,8 +49,42 @@ class DeleteAccountController extends _$DeleteAccountController {
     final available =
         await ref.read(biometricAuthServiceProvider).isAvailable();
     state = state.copyWith(
-      step: DeleteAccountStep.reauthPhone,
+      step: _identityStep,
       biometricAvailable: available,
+    );
+  }
+
+  /// Owner 2026-10-28: the account password first; the code only for an
+  /// account without one (or after «Забыли пароль?», [useCode]).
+  DeleteAccountStep get _identityStep {
+    bool noPassword;
+    try {
+      noPassword =
+          ref.read(currentUserControllerProvider).user?.passwordRequired ??
+              false;
+    } on Object {
+      noPassword = false;
+    }
+    return noPassword
+        ? DeleteAccountStep.reauthPhone
+        : DeleteAccountStep.reauthPassword;
+  }
+
+  /// The password step gave the reauth token (`PasswordStepUp`).
+  void acceptToken(String reauthToken) {
+    state = state.copyWith(
+      reauthToken: reauthToken,
+      isSubmitting: false,
+      errorMessage: null,
+      step: DeleteAccountStep.confirmPhrase,
+    );
+  }
+
+  /// «Забыли пароль? Получить код по SMS» / no password on the account.
+  void useCode() {
+    state = state.copyWith(
+      errorMessage: null,
+      step: DeleteAccountStep.reauthPhone,
     );
   }
 
@@ -159,7 +194,7 @@ class DeleteAccountController extends _$DeleteAccountController {
     // A demo session gets a fresh token from the warning step's button.
     final reauthStep = ref.read(isDemoSessionProvider)
         ? DeleteAccountStep.warning
-        : DeleteAccountStep.reauthPhone;
+        : _identityStep;
     final result = await _repo.deleteAccount(reauthToken: token);
     var succeeded = false;
     result.when(

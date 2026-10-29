@@ -213,8 +213,7 @@ class ApiPracticesRepository implements PracticesRepository {
   final api.AttorneysClient _attorneys;
 
   @override
-  Future<List<PracticeCategory>> fetchTree() async =>
-      (await guardApiCall(
+  Future<List<PracticeCategory>> fetchTree() async => (await guardApiCall(
         // Delta audit P7: the tree changes a few times a year; the server
         // ETag still revalidates it after the hour.
         () => _tree.listPracticeAreas(

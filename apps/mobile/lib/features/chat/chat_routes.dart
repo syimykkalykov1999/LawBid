@@ -71,7 +71,7 @@ List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
           DeferredScreen(
-            id: 'archive_screen',
+            id: 'chat_archive_screen',
             load: d_archive_screen.loadLibrary,
             builder: (_) => d_archive_screen.ArchiveScreen(),
           ),

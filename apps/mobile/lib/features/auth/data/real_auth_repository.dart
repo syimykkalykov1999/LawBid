@@ -7,6 +7,7 @@ import 'package:lawbid/features/auth/data/magic_link_verifier_store.dart';
 import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
 import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
 import 'package:lawbid/features/auth/domain/password_auth_result.dart';
+import 'package:lawbid/features/auth/domain/password_reauth_outcome.dart';
 import 'package:lawbid/features/auth/domain/reauth_result.dart';
 
 /// Real dio-backed [AuthRepository] (docs/CHANGELOG.md, stage-1.7-auth —
@@ -148,7 +149,8 @@ class RealAuthRepository implements AuthRepository {
       await _session.applyTokens(tokens);
       return const PasswordAuthResult.success();
     } on ApiException catch (e) {
-      return _passwordFailure(e);} catch (_) {
+      return _passwordFailure(e);
+    } catch (_) {
       return const PasswordAuthResult(PasswordAuthStatus.networkError);
     }
   }
@@ -294,6 +296,31 @@ class RealAuthRepository implements AuthRepository {
         default:
           return const ReauthResult.networkError();
       }
+    }
+  }
+
+  @override
+  Future<PasswordReauthOutcome> reauthWithPassword(String password) async {
+    try {
+      return PasswordReauthOk(await _client.reauthWithPassword(password));
+    } on ApiException catch (e) {
+      switch (e.code) {
+        case ApiErrorCodes.reauthInvalid:
+          final reason = e.details?['reason'];
+          return reason == 'no_password' || reason == 'passkey_required'
+              ? const PasswordReauthUseCode()
+              : const PasswordReauthWrong();
+        case ApiErrorCodes.rateLimited:
+          final retryAfter = e.details?['retryAfterSeconds'];
+          return PasswordReauthLocked(retryAfter is int ? retryAfter : 60);
+        // A server one version older only accepts `method: otp`.
+        case ApiErrorCodes.validationError:
+          return const PasswordReauthUseCode();
+        default:
+          return const PasswordReauthNetworkError();
+      }
+    } on Object {
+      return const PasswordReauthNetworkError();
     }
   }
 

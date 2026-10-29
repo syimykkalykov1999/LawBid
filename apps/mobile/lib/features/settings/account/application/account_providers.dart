@@ -87,27 +87,55 @@ class IdentifierLinkController extends Notifier<ContactVerificationState> {
     }
   }
 
-  /// Step 1: a code to a contact the account already has.
-  Future<void> sendCode(String value) => _guard(() async {
+  /// Step 1: «it's me» — owner 2026-10-28: with [passwordFirst] the
+  /// account password (no SMS) unless the account has none; otherwise a
+  /// code to a contact the account already has.
+  Future<void> sendCode(String value, {bool passwordFirst = false}) =>
+      _guard(() async {
         state = state.copyWith(value: value);
         _reauthToken = null;
-        final target =
-            ref.read(currentUserControllerProvider).user?.reauthIdentifier;
-        if (target == null) {
-          throw const ApiException(
-            code: kNoReauthContactCode,
-            message: 'No verified contact',
+        final me = ref.read(currentUserControllerProvider).user;
+        if (passwordFirst && !(me?.passwordRequired ?? false)) {
+          state = state.copyWith(
+            stage: ContactVerificationStage.confirmIdentity,
+            passwordIdentity: true,
+            attempt: state.attempt + 1,
           );
+          return;
         }
-        await ref.read(onboardingRepositoryProvider).requestReauthCode(
-              channel: target.channel,
-              identifier: target.identifier,
-            );
-        state = state.copyWith(
-          stage: ContactVerificationStage.confirmIdentity,
-          reauthTarget: target.identifier,
-          attempt: state.attempt + 1,
+        await _sendIdentityCode();
+      });
+
+  Future<void> _sendIdentityCode() async {
+    final target =
+        ref.read(currentUserControllerProvider).user?.reauthIdentifier;
+    if (target == null) {
+      throw const ApiException(
+        code: kNoReauthContactCode,
+        message: 'No verified contact',
+      );
+    }
+    await ref.read(onboardingRepositoryProvider).requestReauthCode(
+          channel: target.channel,
+          identifier: target.identifier,
         );
+    state = state.copyWith(
+      stage: ContactVerificationStage.confirmIdentity,
+      reauthTarget: target.identifier,
+      passwordIdentity: false,
+      attempt: state.attempt + 1,
+    );
+  }
+
+  /// «Забыли пароль? Получить код по SMS» on the password identity step.
+  Future<void> useSmsCode() => _guard(_sendIdentityCode);
+
+  /// The account password gave the reauth token: on to the new contact.
+  Future<void> confirmWithToken(String token) => _guard(() async {
+        final value = state.value;
+        if (value == null) return;
+        _reauthToken = token;
+        await _sendLinkCode(value);
       });
 
   /// Step 2: that code → a reauth token, then the code to the new contact.
@@ -152,7 +180,7 @@ class IdentifierLinkController extends Notifier<ContactVerificationState> {
         _reauthToken != null) {
       await _guard(() => _sendLinkCode(value));
     } else {
-      await sendCode(value);
+      await sendCode(value, passwordFirst: state.passwordIdentity);
     }
   }
 

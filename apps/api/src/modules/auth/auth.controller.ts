@@ -63,6 +63,7 @@ import { TokenService } from './services/token.service';
 import { QrLoginService } from './services/qr-login.service';
 import { AssistantSelf } from './assistant/assistant-context';
 import { ReauthGuard } from './guards/reauth.guard';
+import { PasswordReauthService } from './services/password-reauth.service';
 import { AppCheckGuard, RequireAppCheck } from './app-check/app-check.guard';
 import { ReauthRequired } from './decorators/reauth-required.decorator';
 import { requestCountry } from './request-country.util';
@@ -140,6 +141,7 @@ export class AuthController {
     private readonly webCookies: WebSessionCookies,
     private readonly reauthVerifier: ReauthVerifier,
     private readonly demoReauth: DemoReauthService,
+    private readonly passwordReauth: PasswordReauthService,
   ) {}
 
   @ApiEnvelopeResponse(OtpSentDto)
@@ -403,6 +405,7 @@ export class AuthController {
     400: [E.VALIDATION_ERROR],
     401: [...BEARER_401, E.REAUTH_INVALID],
     409: [E.IDEMPOTENCY_KEY_CONFLICT],
+    429: [E.RATE_LIMITED],
   })
   @IdempotencyKeyHeader
   @Post('reauth')
@@ -412,6 +415,14 @@ export class AuthController {
     @CurrentUser() user: RequestUser,
     @Req() req: Request,
   ): Promise<ReauthTokenDto> {
+    // Owner 2026-10-28: the account password instead of an SMS code.
+    if (dto.method === 'password') {
+      return this.passwordReauth.reauth(
+        dto.password ?? '',
+        user,
+        this.meta(req),
+      );
+    }
     return this.auth.reauth(dto, user, this.meta(req));
   }
 

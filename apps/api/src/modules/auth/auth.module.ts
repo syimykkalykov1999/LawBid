@@ -27,6 +27,7 @@ import { WebSessionCookies } from './web-session-cookie';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ComplianceCoreModule } from '../compliance/compliance-core.module';
 import { ReauthGuard } from './guards/reauth.guard';
+import { PasswordReauthService } from './services/password-reauth.service';
 import { AppCheckGuard } from './app-check/app-check.guard';
 import { AppCheckService } from './app-check/app-check.service';
 import { TurnstileService } from './turnstile/turnstile.service';
@@ -125,6 +126,8 @@ import { demoNoop } from '../../common/demo/demo-guards';
     TurnstileService,
     AppCheckGuard,
     DemoReauthService,
+    // Owner 2026-10-28: step-up with the account password.
+    PasswordReauthService,
     LoginMethodPolicy,
     AssistantCodeService,
     QrLoginService,

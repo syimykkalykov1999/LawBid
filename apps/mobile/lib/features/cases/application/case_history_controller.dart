@@ -21,6 +21,7 @@ class HistoryAccess {
     this.codeSent = false,
     this.busy = false,
     this.error,
+    this.useCode = false,
   });
 
   final String? token;
@@ -30,6 +31,11 @@ class HistoryAccess {
 
   /// 'invalid' | 'network' | 'rateLimited'
   final String? error;
+
+  /// Owner 2026-10-28: the gate asks for the account password first; true
+  /// once the person chose «Забыли пароль? Получить код по SMS» (or the
+  /// account has no password) — the SMS code path below.
+  final bool useCode;
 
   bool get isOpen =>
       token != null &&
@@ -48,29 +54,33 @@ class HistoryAccessController extends Notifier<HistoryAccess> {
   Future<void> sendCode() async {
     final p = phone;
     if (p == null) return;
-    state = const HistoryAccess(busy: true);
+    state = const HistoryAccess(busy: true, useCode: true);
     try {
       await ref.read(authRepositoryProvider).requestOtp(p);
-      state = const HistoryAccess(codeSent: true);
+      state = const HistoryAccess(codeSent: true, useCode: true);
     } on Object {
-      state = const HistoryAccess(error: 'network');
+      state = const HistoryAccess(error: 'network', useCode: true);
     }
   }
 
   Future<void> submitCode(String code) async {
     final p = phone;
     if (p == null) return;
-    state = const HistoryAccess(codeSent: true, busy: true);
+    state = const HistoryAccess(codeSent: true, busy: true, useCode: true);
     final result = await ref
         .read(authRepositoryProvider)
         .reauthWithOtp(identifier: p, code: code);
     state = switch (result) {
       ReauthSuccess(:final reauthToken) =>
         HistoryAccess(token: reauthToken, issuedAt: DateTime.now()),
-      ReauthInvalid() => const HistoryAccess(codeSent: true, error: 'invalid'),
-      ReauthRateLimited() =>
-        const HistoryAccess(codeSent: true, error: 'rateLimited'),
-      _ => const HistoryAccess(codeSent: true, error: 'network'),
+      ReauthInvalid() =>
+        const HistoryAccess(codeSent: true, error: 'invalid', useCode: true),
+      ReauthRateLimited() => const HistoryAccess(
+          codeSent: true,
+          error: 'rateLimited',
+          useCode: true,
+        ),
+      _ => const HistoryAccess(codeSent: true, error: 'network', useCode: true),
     };
   }
 
@@ -88,6 +98,14 @@ class HistoryAccessController extends Notifier<HistoryAccess> {
       _ => const HistoryAccess(error: 'network'),
     };
   }
+
+  /// Owner 2026-10-28: the account password gave the token (see
+  /// `PasswordStepUp`) — the same 5-minute window as the code.
+  void acceptToken(String reauthToken) =>
+      state = HistoryAccess(token: reauthToken, issuedAt: DateTime.now());
+
+  /// «Забыли пароль? Получить код по SMS» / no password on the account.
+  void useCode() => state = const HistoryAccess(useCode: true);
 
   /// A token was consumed (export / download) or refused: ask again.
   void lock() => state = const HistoryAccess();

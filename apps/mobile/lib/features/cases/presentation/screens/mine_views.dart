@@ -187,7 +187,7 @@ class _QaTabPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DeferredScreen(
-        id: 'qa_feed_screen',
+        id: 'qa_feed_tab',
         load: d_qa_feed.loadLibrary,
         builder: (_) => d_qa_feed.QaFeedBody(
           key: const ValueKey('qa-tab'),

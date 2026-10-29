@@ -309,6 +309,20 @@ class AuthApiClient {
     return envelope.data.reauthToken;
   }
 
+  /// `POST /auth/reauth` with the account password (owner 2026-10-28):
+  /// the same single-use `reauthToken` as the code path, without an SMS.
+  Future<String> reauthWithPassword(String password) async {
+    final envelope = await guardApiCall(
+      () => _auth.reauth(
+        body: api.ReauthDto(
+          method: api.ReauthDtoMethod.password,
+          password: password,
+        ),
+      ),
+    );
+    return envelope.data.reauthToken;
+  }
+
   /// `POST /auth/reauth/demo` (owner 2026-10-08): a DEMO session's
   /// `reauthToken` without the one-time code, which the demo world cannot
   /// deliver. The server decides from the signed `demo` claim and answers

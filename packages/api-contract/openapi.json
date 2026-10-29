@@ -133086,21 +133086,28 @@
           "method": {
             "type": "string",
             "enum": [
-              "otp"
+              "otp",
+              "password"
             ]
           },
           "identifier": {
-            "type": "string"
+            "type": "string",
+            "description": "Required for `otp`: the verified phone / e-mail the code went to."
           },
           "code": {
             "type": "string",
+            "description": "Required for `otp`: the 6-digit code.",
             "pattern": "^\\d{6}$"
+          },
+          "password": {
+            "type": "string",
+            "description": "Required for `password`: the account password.",
+            "minLength": 1,
+            "maxLength": 256
           }
         },
         "required": [
-          "method",
-          "identifier",
-          "code"
+          "method"
         ]
       },
       "ReauthTokenEnvelope": {

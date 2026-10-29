@@ -23,7 +23,7 @@ import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 ///
 /// Full-bleed dark screens (reels, calls, photo viewer) paint the strip in
 /// their own colour with [SystemNavBandColor].
-class SystemNavBand extends StatelessWidget {
+class SystemNavBand extends StatefulWidget {
   const SystemNavBand({required this.child, super.key});
 
   final Widget child;
@@ -33,6 +33,60 @@ class SystemNavBand extends StatelessWidget {
   static final ValueNotifier<List<Color>> _overrides =
       ValueNotifier<List<Color>>(const []);
 
+  /// Owner bug 2026-10-28 (Samsung): after a search field (Chats) or a
+  /// code field (История кейсов) was closed, the phone kept reporting the
+  /// keyboard height — every screen stayed squashed into the top half, the
+  /// «+» floated mid-screen, the reels had black space below, across all
+  /// tabs. A keyboard can only be up for a focused field (a text field or
+  /// a platform view such as a web page): with no focused leaf at all, a
+  /// non-zero bottom inset is stale and is ignored here, once, for the
+  /// whole app. Upstream: flutter/flutter#191156 («[Android]
+  /// viewInsets.bottom is restored to the keyboard height … while no
+  /// TextField is focused», open in Flutter 3.44–3.47); only public
+  /// framework API is used (FocusManager.primaryFocus + MediaQuery).
+  @visibleForTesting
+  static bool keyboardCanBeOpen() {
+    final focus = FocusManager.instance.primaryFocus;
+    return focus != null && focus is! FocusScopeNode;
+  }
+
+  @override
+  State<SystemNavBand> createState() => _SystemNavBandState();
+}
+
+class _SystemNavBandState extends State<SystemNavBand> {
+  bool _keyboardCanBeOpen = SystemNavBand.keyboardCanBeOpen();
+
+  @override
+  void initState() {
+    super.initState();
+    FocusManager.instance.addListener(_focusChanged);
+  }
+
+  @override
+  void dispose() {
+    FocusManager.instance.removeListener(_focusChanged);
+    super.dispose();
+  }
+
+  void _focusChanged() {
+    final next = SystemNavBand.keyboardCanBeOpen();
+    if (next == _keyboardCanBeOpen || !mounted) return;
+    // Focus changes can arrive mid-frame (a field disposed while focused).
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(
+            () => _keyboardCanBeOpen = SystemNavBand.keyboardCanBeOpen(),
+          );
+        }
+      });
+    } else {
+      setState(() => _keyboardCanBeOpen = next);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
@@ -40,15 +94,17 @@ class SystemNavBand extends StatelessWidget {
     // viewPadding stays the same while the keyboard is open, so the strip
     // never jumps.
     final band = android ? media.viewPadding.bottom : 0.0;
-    final inner = band == 0
+    final keyboard = _keyboardCanBeOpen ? media.viewInsets.bottom : 0.0;
+    final inner = band == 0 && keyboard == media.viewInsets.bottom
         ? media
         : media.copyWith(
-            padding: media.padding.copyWith(bottom: 0),
-            viewPadding: media.viewPadding.copyWith(bottom: 0),
+            padding: band == 0 ? null : media.padding.copyWith(bottom: 0),
+            viewPadding:
+                band == 0 ? null : media.viewPadding.copyWith(bottom: 0),
             // The keyboard covers the strip too: only what rises above it
             // still pushes the screen up.
             viewInsets: media.viewInsets.copyWith(
-              bottom: math.max(0, media.viewInsets.bottom - band),
+              bottom: math.max(0, keyboard - band),
             ),
           );
     final tokens = Theme.of(context).extension<AppColorTokens>();
@@ -57,7 +113,7 @@ class SystemNavBand extends StatelessWidget {
     // app below never loses its state.
     return Column(
       children: [
-        Expanded(child: MediaQuery(data: inner, child: child)),
+        Expanded(child: MediaQuery(data: inner, child: widget.child)),
         _Strip(height: band, pageColor: pageColor),
       ],
     );

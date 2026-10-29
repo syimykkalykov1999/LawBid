@@ -6,6 +6,11 @@ enum DeleteAccountStep {
   /// the screen shows, before anything destructive is even possible.
   warning,
 
+  /// Owner 2026-10-28: the account password (`POST /auth/reauth` with
+  /// `method: password`) — no SMS. «Забыли пароль?» or an account without
+  /// a password goes on to [reauthPhone] (the code path).
+  reauthPassword,
+
   /// Reauth sub-step 1: enter the phone number verified on this account
   /// (there is no `GET /users/me` yet to prefill it, see
   /// `AuthRepository.reauthWithOtp`'s doc comment) and request a code.

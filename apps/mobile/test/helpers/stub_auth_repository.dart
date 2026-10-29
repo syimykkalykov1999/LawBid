@@ -3,6 +3,7 @@ import 'package:lawbid/features/auth/data/auth_repository.dart';
 import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
 import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
 import 'package:lawbid/features/auth/domain/password_auth_result.dart';
+import 'package:lawbid/features/auth/domain/password_reauth_outcome.dart';
 import 'package:lawbid/features/auth/domain/reauth_result.dart';
 
 /// Local-only stub for widget/golden tests (moved out of lib/, audit X-12) — no
@@ -143,6 +144,20 @@ class StubAuthRepository implements AuthRepository {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     if (code == _invalidCode) return const ReauthResult.invalid();
     return const ReauthResult.success(reauthToken: 'stub-reauth-token');
+  }
+
+  /// Owner 2026-10-28: the stub's account password is `stub-password`
+  /// (any other is wrong, `locked` is locked, `nopassword` falls back to
+  /// the code).
+  @override
+  Future<PasswordReauthOutcome> reauthWithPassword(String password) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    return switch (password) {
+      'stub-password' => const PasswordReauthOk('stub-reauth-token'),
+      'locked' => const PasswordReauthLocked(900),
+      'nopassword' => const PasswordReauthUseCode(),
+      _ => const PasswordReauthWrong(),
+    };
   }
 
   @override
