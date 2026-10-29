@@ -45,8 +45,15 @@ import java.util.concurrent.Executors
  *    ongoing-call service and its screen.
  */
 object CallRinging {
-    /** The server gives up at 65 s (calls.service CALL_RING_TIMEOUT_MS). */
-    const val RING_TIMEOUT_MS = 65_000L
+    /** M2 (2026-10-28): one ring length everywhere — the server's
+     * `ringSeconds` (common/calls/ring.ts); 60 s from an older server. */
+    const val RING_DEFAULT_MS = 60_000L
+
+    /** The ring length a push names (10…120 s), else [RING_DEFAULT_MS]. */
+    fun ringMsOf(data: Map<String, String?>): Long {
+        val s = data["ringSeconds"]?.toLongOrNull() ?: return RING_DEFAULT_MS
+        return if (s in 10L..120L) s * 1000 else RING_DEFAULT_MS
+    }
     private const val POLL_EVERY_MS = 3_000L
     private const val FIRST_POLL_MS = 2_000L
     private const val ACTION_TIMEOUT = "com.lawbid.lawbid.CALL_RING_TIMEOUT"
@@ -168,9 +175,14 @@ object CallRinging {
     }
 
     /** A ring push arrived: watch the call until it stops ringing. */
-    fun watch(context: Context, callId: String, pollToken: String?) {
+    fun watch(
+        context: Context,
+        callId: String,
+        pollToken: String?,
+        ringMs: Long = RING_DEFAULT_MS,
+    ) {
         val app = context.applicationContext
-        armTimeout(app, callId)
+        armTimeout(app, callId, ringMs)
         if (pollToken.isNullOrEmpty()) return
         val api = ChatNotifications.pushActions(app)?.first ?: return
         if (pollers.putIfAbsent(callId, true) != null) return
@@ -179,7 +191,7 @@ object CallRinging {
             try {
                 Thread.sleep(FIRST_POLL_MS)
                 while (pollers.containsKey(callId) &&
-                    SystemClock.elapsedRealtime() - started < RING_TIMEOUT_MS
+                    SystemClock.elapsedRealtime() - started < ringMs
                 ) {
                     // Answered here: the app takes over.
                     if (record(app, callId)?.isAccepted == true) break
@@ -260,14 +272,14 @@ object CallRinging {
     }
 
     /** The safety net: at the server's ring timeout the ring ends anyway. */
-    private fun armTimeout(context: Context, callId: String) {
+    private fun armTimeout(context: Context, callId: String, ringMs: Long) {
         try {
             val am = context.getSystemService(AlarmManager::class.java) ?: return
             val pi = timeoutIntent(context, callId, true) ?: return
             // Inexact is enough: the phone is awake while it rings.
             am.setAndAllowWhileIdle(
                 AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                SystemClock.elapsedRealtime() + RING_TIMEOUT_MS,
+                SystemClock.elapsedRealtime() + ringMs,
                 pi,
             )
         } catch (e: Exception) {

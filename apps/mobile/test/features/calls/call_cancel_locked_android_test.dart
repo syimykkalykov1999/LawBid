@@ -209,7 +209,7 @@ void main() {
 
     test('the ring is watched with the push ticket and a timeout alarm', () {
       expect(ringing, contains(r'$api/calls/$callId/status?t='));
-      expect(ringing, contains('RING_TIMEOUT_MS = 65_000L'));
+      expect(ringing, contains('RING_DEFAULT_MS = 60_000L'));
       expect(ringing, contains('setAndAllowWhileIdle'));
       // No session header from the native side.
       expect(ringing, isNot(contains('Authorization')));
