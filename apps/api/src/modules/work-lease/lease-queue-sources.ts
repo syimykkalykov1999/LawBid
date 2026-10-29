@@ -162,10 +162,17 @@ const verificationSource: LeaseQueueSource = {
     return tx.$queryRaw<Row[]>`
       SELECT t.id::text AS id
       FROM verification_requests t
-      JOIN users u ON u.id = t.attorney_id
       WHERE t.status IN ('submitted', 'in_review')
         AND t.submitted_at IS NOT NULL
-        ${inCountries(Prisma.sql`u.country_code`, q.countries)}
+        -- Load test round 2: the attorney's row is read only for a country
+        -- scope (the foreign key guarantees it exists); the plain JOIN
+        -- walked the users primary key (30 000 rows, 168 ms -> 12 ms).
+        ${
+          q.countries
+            ? Prisma.sql`AND EXISTS (SELECT 1 FROM users u WHERE u.id = t.attorney_id
+                ${inCountries(Prisma.sql`u.country_code`, q.countries)})`
+            : Prisma.empty
+        }
         AND NOT ${blocked('verification', item, q.adminId, q.excludeMinutes)}
       ORDER BY ${priority('verification', item)} DESC,
                t.submitted_at ASC, t.id ASC
