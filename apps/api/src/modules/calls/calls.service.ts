@@ -902,14 +902,17 @@ export class CallsService {
     return call.channel_id ? joined < 1 : joined < 2;
   }
 
-  /** May end the call for everyone besides the host: an admin of the group
-   * / channel it belongs to (Telegram: admins run the video chat). */
+  /** Runs the call besides the host (ends it for everyone, mutes, removes):
+   * an admin of the channel, or the group's owner / an admin holding the
+   * group's «calls» right (Telegram «Manage video chats»; item 26b). */
   private async isCallAdmin(call: Call, userId: string): Promise<boolean> {
     if (call.channel_id) {
       return (await this.channelRole(userId, call.channel_id)) !== null;
     }
     if (call.group_id && this.groups) {
-      return (await this.groups.adminIds(call.group_id)).includes(userId);
+      return (await this.groups.callManagerIds(call.group_id)).includes(
+        userId,
+      );
     }
     return false;
   }
@@ -1358,13 +1361,27 @@ export class CallsService {
     const call = await this.load(user, id);
     if (!call.is_group || call.status !== 'active') throw conflict();
     const rows = await this.rowsOf(call.id);
-    if ((await this.hostFor(call, rows)) !== user.sub) {
+    if (!(await this.canManage(call, rows, user.sub))) {
       throw new ForbiddenException({
         code: ErrorCode.FORBIDDEN,
         message: 'Only the host can do this.',
       });
     }
     return { call, rows };
+  }
+
+  /** The host, or (Telegram) an admin who runs the group's / channel's video
+   * chat while they are in it — mutes, removes, lowers hands, sets the title,
+   * runs polls. */
+  private async canManage(
+    call: Call,
+    rows: CallParticipant[],
+    userId: string,
+  ): Promise<boolean> {
+    if (!call.is_group) return false;
+    if ((await this.hostFor(call, rows)) === userId) return true;
+    const me = rows.find((r) => r.user_id === userId);
+    return me?.status === 'joined' && (await this.isCallAdmin(call, userId));
   }
 
   /** POST /calls/:id/participants/:userId/mute — the host switches
@@ -1458,7 +1475,7 @@ export class CallsService {
       return admins.some((a) => joined.has(a.user_id));
     }
     if (!call.group_id || !this.groups) return false;
-    const admins = await this.groups.adminIds(call.group_id);
+    const admins = await this.groups.callManagerIds(call.group_id);
     return admins.some((a) => joined.has(a));
   }
 
@@ -1990,6 +2007,9 @@ export class CallsService {
       hostId: await this.hostFor(call, rows),
       participants: await this.participantDtos(rows),
       moderated: call.is_group ? await this.isModerated(call, rows) : true,
+      canManage:
+        LIVE.includes(call.status) &&
+        (await this.canManage(call, rows, viewerId)),
       vote: await this.openVoteDtoOf(call, rows, viewerId),
       createdAt: call.created_at,
       answeredAt: call.answered_at,

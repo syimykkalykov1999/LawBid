@@ -317,6 +317,12 @@ export class CallDto {
   })
   moderated!: boolean;
 
+  @ApiProperty({
+    description:
+      'The viewer runs this group call: its host, or (item 26b, Telegram) an admin of the group holding the «calls» right / of the channel while in it — mutes, removes, lowers hands, sets the title.',
+  })
+  canManage!: boolean;
+
   @ApiPropertyOptional({ type: CallVoteDto, nullable: true })
   vote!: CallVoteDto | null;
 

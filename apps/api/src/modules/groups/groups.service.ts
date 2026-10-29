@@ -182,13 +182,17 @@ export class GroupsService {
     return rows.map((r) => r.user_id);
   }
 
-  /** For the calls module: the owner and admins currently in the group. */
-  async adminIds(groupId: string): Promise<string[]> {
+  /** For the calls module: who runs the group's video chat — the owner and
+   * the admins holding the «calls» right (Telegram «Manage video chats»).
+   * An admin without it is a plain member in the call. */
+  async callManagerIds(groupId: string): Promise<string[]> {
     const rows = await this.prisma.chatGroupMember.findMany({
       where: { group_id: groupId, left_at: null },
-      select: { user_id: true, role: true },
+      select: { user_id: true, role: true, admin_rights: true },
     });
-    return rows.filter((r) => isAdminRole(r.role)).map((r) => r.user_id);
+    return rows
+      .filter((r) => rightsOf(r).includes('calls'))
+      .map((r) => r.user_id);
   }
 
   /** For the calls module: may [userId] ring the whole group? */
