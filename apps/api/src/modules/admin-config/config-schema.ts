@@ -621,6 +621,16 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'An attorney who loses verification (rejected / suspended): the subscription ends now and the unused part of the period, offer packs and Boost is refunded. Off: nothing is canceled automatically.',
   };
+  out['billing.duplicate_subscription_autofix'] = {
+    ...out['billing.duplicate_subscription_autofix'],
+    description:
+      'On (default): when one attorney ends up with two live subscriptions (a second device, a re-subscription after grace), the system keeps the newest paid one, cancels the other at once and refunds only the unused part of its last invoice — never on a disputed charge, an account under fraud review, a third duplicate in 90 days or above the daily cap (those wait for a person). Off: the newcomer is cancelled without a refund (old behaviour); the owner gets an alert either way.',
+  };
+  out['billing.duplicate_autorefund_daily_cap_cents'] = {
+    ...out['billing.duplicate_autorefund_daily_cap_cents'],
+    description:
+      'The most the duplicate-subscription auto-fix may refund in one UTC day, all attorneys together (cents; default 50000 = $500). A refund above it is not sent: it waits in «Проверки Stripe» for a person.',
+  };
   out['billing.require_verified_for_purchases'] = {
     ...out['billing.require_verified_for_purchases'],
     description:

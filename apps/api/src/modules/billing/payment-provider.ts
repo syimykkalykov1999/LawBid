@@ -35,6 +35,8 @@ export interface ProviderSubscription {
    * invoice to be paid (expires at that moment, unix seconds). */
   pendingUpdateExpiresAt?: number | null;
   latestInvoiceId?: string | null;
+  /** When the subscription was created (unix seconds; absent on old fakes). */
+  created?: number | null;
 }
 
 export interface ProviderSubscriptionItem {
@@ -238,7 +240,10 @@ export interface PaymentProvider {
   ): Promise<ProviderSubscription>;
   /** docs/06 §5.1 account anonymization: cancel immediately, no proration
    * refund; the row is then synced like any provider state. */
-  cancelNow(id: string): Promise<ProviderSubscription>;
+  cancelNow(
+    id: string,
+    opts?: { idempotencyKey?: string },
+  ): Promise<ProviderSubscription>;
   /** §1.6 "продлить подписку на N дней": moves trial_end / the period. */
   extendUntil(id: string, untilUnix: number): Promise<ProviderSubscription>;
   /** §1.1 on web checkout: a card that already had a trial pays now. */
@@ -329,6 +334,16 @@ export interface PaymentProvider {
     customerId: string,
     options?: { stripeAccount?: string },
   ): Promise<void>;
+  /** Algo audit M-4 (owner 2026-10-28): every subscription of a customer
+   * (any status, newest first, at most [limit]) — finds a duplicate bought
+   * from a second device or left behind by a re-subscription. */
+  listCustomerSubscriptions?(
+    customerId: string,
+    limit?: number,
+  ): Promise<ProviderSubscription[]>;
+  /** Algo audit M-4: true when any charge of the PaymentIntent was ever
+   * disputed (chargeback) — such money is never refunded automatically. */
+  paymentIntentDisputed?(paymentIntentId: string): Promise<boolean>;
   /** Owner 2026-10-02 (admin refunds): refund part or all of a payment. */
   refund?(input: {
     paymentIntentId: string;

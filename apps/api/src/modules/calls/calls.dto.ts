@@ -69,6 +69,16 @@ export class CallIdParamDto {
   id!: string;
 }
 
+/** GET /calls/:id/status — owner 2026-10-28: the ring push's ticket. */
+export class CallStatusQueryDto {
+  @ApiProperty({
+    description: 'The `pollToken` of the ring push (short-lived, per call).',
+  })
+  @IsString()
+  @MaxLength(512)
+  t!: string;
+}
+
 export class EndCallDto {
   @ApiPropertyOptional({
     enum: ['hangup', 'no_answer', 'failed'],

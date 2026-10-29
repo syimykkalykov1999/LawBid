@@ -10,6 +10,7 @@ import { PrivacySettingsModule } from '../privacy-settings/privacy-settings.modu
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { CallHistoryController } from './call-history.controller';
 import { CallHistoryService } from './call-history.service';
+import { CallStatusController } from './call-status.controller';
 import { CallsController } from './calls.controller';
 import { LiveKitWebhookController } from './livekit-webhook.controller';
 import { CallsService } from './calls.service';
@@ -32,6 +33,8 @@ import { SfuBrokerService } from './sfu-broker.service';
   // CallHistoryController first: `calls/history` must not match `calls/:id`.
   controllers: [
     CallHistoryController,
+    // Owner 2026-10-28: the ring watcher's token-only status (public).
+    CallStatusController,
     CallsController,
     LiveKitWebhookController,
   ],

@@ -50,6 +50,14 @@ class PushService {
     final user = _ref.read(currentUserIdProvider);
     if (user == null || _startedFor == user) return;
     _startedFor = user;
+    // Owner 2026-10-28 (a video call to the iPhone never rang, only «missed
+    // call» came — prod: «apns voip ring done devices: 0»): the PushKit
+    // token is the same for every account on this iPhone, but the server
+    // binds it to the SESSION. After another account (or a new sign-in of
+    // the same one) the old binding is gone, and «same token as before»
+    // skipped the registration — calls reached the phone only as a plain
+    // notification. Every sign-in registers it again.
+    _voipToken = null;
     for (final s in _subs) {
       await s.cancel();
     }
@@ -415,6 +423,14 @@ class PushService {
     unawaited(_ref.read(badgesProvider.notifier).refresh());
   }
 
+  /// The session ended without our own sign-out (signed in elsewhere,
+  /// session revoked): the next sign-in — the same account too — registers
+  /// this device's push and VoIP tokens for its new session.
+  void forgetSession() {
+    _startedFor = null;
+    _voipToken = null;
+  }
+
   void dispose() {
     for (final s in _subs) {
       s.cancel();
@@ -433,7 +449,13 @@ final pushServiceProvider = Provider<PushService>((ref) {
 /// runs from a widget's build).
 final sessionServicesProvider = Provider<void>((ref) {
   final user = ref.watch(currentUserIdProvider);
-  if (user == null) return;
+  if (user == null) {
+    // Owner 2026-10-28: signed out by the server (another device took the
+    // account): the same account signing in again here must register its
+    // tokens for the new session, or calls stop ringing on this phone.
+    ref.read(pushServiceProvider).forgetSession();
+    return;
+  }
   // Owner 2026-10-20: the phone's time zone and the planner's reminder
   // alarms follow the session.
   ref

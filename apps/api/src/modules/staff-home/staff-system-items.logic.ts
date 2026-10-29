@@ -81,6 +81,13 @@ export interface SystemSignals {
   /** Tables whose wasted space is over the line (nightly bloat check). */
   bloatOver: string[];
   rotation: { name: string; state: string }[];
+  /** Algo audit M-4: today's duplicate-subscription auto-fixes (cached). */
+  billingDuplicates?: {
+    fixed: number;
+    refundedCents: number;
+    needsReview: number;
+    blocked: number;
+  } | null;
 }
 
 const DAY_MS = 86_400_000;
@@ -326,6 +333,34 @@ function backupItems(s: SystemSignals): SystemItem[] {
   return out;
 }
 
+/** Algo audit M-4 (owner 2026-10-28): what the duplicate-subscription
+ * auto-fix did today — a person is needed for the held ones. */
+function billingDuplicateItems(s: SystemSignals): SystemItem[] {
+  const d = s.billingDuplicates;
+  if (!d) return [];
+  const out: SystemItem[] = [];
+  const held = d.needsReview + d.blocked;
+  if (held > 0) {
+    out.push({
+      code: 'billing_duplicates_review',
+      severity: 'high',
+      title: 'Двойные подписки ждут решения',
+      why: `Сегодня ${held} случ. система не стала возвращать деньги сама (спор по платежу, проверка на мошенничество, третий дубль за 90 дней или дневной лимит). Откройте «Проверки Stripe» → «Двойная подписка».`,
+      action: route('/stripe-review', 'Открыть «Проверки Stripe»'),
+    });
+  }
+  if (d.fixed > 0) {
+    out.push({
+      code: 'billing_duplicates_fixed',
+      severity: 'low',
+      title: 'Система сама исправила двойные подписки',
+      why: `Сегодня отменено дублей: ${d.fixed}, возвращено ${usd(d.refundedCents / 100)}. Подробности — «Платежи и возвраты» → «Двойные подписки».`,
+      action: route('/payments', 'Открыть «Платежи и возвраты»'),
+    });
+  }
+  return out;
+}
+
 function healthItems(s: SystemSignals): SystemItem[] {
   const out: SystemItem[] = [];
   const seen = new Set<string>();
@@ -396,6 +431,7 @@ export function buildSystemItems(
     ...backupItems(s),
     ...healthItems(s),
     ...launchItems(s),
+    ...billingDuplicateItems(s),
   ];
   const seen = new Set<string>();
   const unique = all.filter((i) =>

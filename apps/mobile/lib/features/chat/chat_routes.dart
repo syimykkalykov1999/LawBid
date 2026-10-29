@@ -9,6 +9,7 @@ import 'package:lawbid/features/chat/presentation/archive_screen.dart'
     deferred as d_archive_screen;
 import 'package:lawbid/features/chat/presentation/conversation_screen.dart'
     deferred as d_conversation_screen;
+import 'package:lawbid/features/chat/presentation/desktop_chats.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/notifications/presentation/notification_settings_screen.dart'
     deferred as d_notification_settings_screen;
@@ -39,20 +40,25 @@ List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
         path: ChatRoutes.inbox,
         parentNavigatorKey: root,
         // Rows with side actions on their edges (docs/ux/GESTURES.md).
-        pageBuilder: (context, state) => AppPageTransitions.push(
-          state,
-          BackSwipe(
-            mode: BackSwipeMode.rows,
-            child: InboxScreen(
-              initialTab: switch (state.uri.queryParameters['tab']) {
-                'notifications' => InboxTab.notifications,
-                'requests' => InboxTab.requests,
-                'team' => InboxTab.team,
-                _ => InboxTab.chats,
-              },
+        pageBuilder: (context, state) {
+          final tab = switch (state.uri.queryParameters['tab']) {
+            'notifications' => InboxTab.notifications,
+            'requests' => InboxTab.requests,
+            'team' => InboxTab.team,
+            _ => InboxTab.chats,
+          };
+          return AppPageTransitions.push(
+            state,
+            // Desktop web plan 2026-10-28: list | chat on a desktop window.
+            ChatsAdaptivePage(
+              tab: tab,
+              phone: BackSwipe(
+                mode: BackSwipeMode.rows,
+                child: InboxScreen(initialTab: tab),
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
       GoRoute(
         path: ChatRoutes.requests,
@@ -82,11 +88,14 @@ List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'conversation_screen',
-            load: d_conversation_screen.loadLibrary,
-            builder: (_) => d_conversation_screen.ConversationScreen(
-              conversationId: state.pathParameters['id'] ?? '',
+          ChatsAdaptivePage(
+            conversationId: state.pathParameters['id'] ?? '',
+            phone: DeferredScreen(
+              id: 'conversation_screen',
+              load: d_conversation_screen.loadLibrary,
+              builder: (_) => d_conversation_screen.ConversationScreen(
+                conversationId: state.pathParameters['id'] ?? '',
+              ),
             ),
           ),
         ),

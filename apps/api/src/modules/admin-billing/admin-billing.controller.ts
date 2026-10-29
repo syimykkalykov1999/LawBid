@@ -34,6 +34,8 @@ import {
   AdminBillingSubscriptionRowDto,
   AdminBillingSubscriptionsQueryDto,
   AdminBillingUserParamDto,
+  AdminDuplicateFixDto,
+  AdminDuplicateFixesQueryDto,
   AdminGrantsQueryDto,
   AdminPaymentDto,
   AdminPaymentsQueryDto,
@@ -60,6 +62,7 @@ import { PromoCodesService } from './promo-codes.service';
 import { RefundsService } from './refunds.service';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import { SeatChangesAdminService } from './seat-changes-admin.service';
+import { DuplicateFixesAdminService } from './duplicate-fixes-admin.service';
 
 const E = ErrorCode;
 
@@ -81,6 +84,7 @@ export class AdminBillingController {
     private readonly refundsService: RefundsService,
     private readonly auth: AdminAuthService,
     private readonly seatChanges: SeatChangesAdminService,
+    private readonly duplicateFixes: DuplicateFixesAdminService,
   ) {}
 
   // --- dashboard -------------------------------------------------------------
@@ -304,6 +308,19 @@ export class AdminBillingController {
     @Query() q: AdminSeatChangesQueryDto,
   ): Promise<Page<AdminSeatChangeDto>> {
     return this.seatChanges.list(q);
+  }
+
+  @Get('duplicate-subscriptions')
+  @ApiOperation({
+    summary:
+      'Duplicate subscriptions cancelled / refunded automatically or held for a person (algo audit M-4, cursor)',
+  })
+  @ApiEnvelopeResponse(AdminDuplicateFixDto, { isArray: true })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  listDuplicateSubscriptionFixes(
+    @Query() q: AdminDuplicateFixesQueryDto,
+  ): Promise<Page<AdminDuplicateFixDto>> {
+    return this.duplicateFixes.list(q);
   }
 
   @Get('refunds')

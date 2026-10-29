@@ -76,6 +76,14 @@ abstract final class AppColorsLight {
   /// under 4.5. Same hue, darker: 5.20:1. Used for destructive labels
   /// inside the app; `danger` itself stays the spec value.
   static const Color dangerText = Color(0xFFC53A3A);
+
+  /// Warning on white (2026-10-28): the shared amber is 2.8:1 there; this
+  /// deeper amber is 4.7:1 (WCAG 1.4.11 icons, 1.4.3 text).
+  static const Color warning = Color(0xFFA86400);
+
+  /// Green for TEXT on white (2026-10-28): the status green is 3.5:1, this
+  /// one is 4.9:1 (WCAG 1.4.3). Icons keep [AppColorsStatus.success].
+  static const Color successText = Color(0xFF15805A);
 }
 
 /// Dark-theme raw palette (file 07 §2, "Тёмная" column).

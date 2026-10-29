@@ -37,6 +37,7 @@ import { UsageLimitsService } from '../../common/usage-limits/usage-limits.servi
 import {
   allWordsSql,
   escapeLike,
+  nameKeys,
   nameMatchSql,
   typedWords,
 } from '../../common/search/name-match.sql';
@@ -78,7 +79,7 @@ import {
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { fileNameAad } from '../../common/secrets/field-aad';
 import { MessageSearchIndex } from '../../common/secrets/message-search-index';
-import { writeSearchTokens } from './chat-search-tokens';
+import { searchTokenRows, writeSearchTokenRows } from './chat-search-tokens';
 import { loadMessageExtras, type MessageExtras } from './chat-message-extras';
 import { messagesByPairs } from './messages-by-pairs';
 import { expiresAtFor, notExpired } from './disappearing';
@@ -433,6 +434,7 @@ export class ChatService {
     if (!words.length) return new Map();
     const handle = `${escapeLike(q.trim().replace(/^@+/, '').toLowerCase())}%`;
     const textMatch = await this.messageTextMatch(q, words);
+    const keys = await nameKeys(this.prisma, q);
     const rows = await this.prisma.$queryRaw<
       {
         id: string;
@@ -442,7 +444,7 @@ export class ChatService {
       }[]
     >`
       SELECT * FROM (SELECT c.id::TEXT AS id, msg.body AS body, msg.msg_id AS msg_id,
-             ((NOT hidden.v AND (${nameMatchSql(q, Prisma.sql`o.full_name_lower`)}
+             ((NOT hidden.v AND (${nameMatchSql(keys, 'o')}
                  OR coalesce(ap.username_lower, cp.username_lower) LIKE ${handle}))
               OR (cs.title IS NOT NULL AND ${allWordsSql(Prisma.sql`cs.title`, words)})) AS by_meta
       FROM conversations c
@@ -1199,6 +1201,58 @@ export class ChatService {
     const searchPrefixes = this.searchIndex?.enabled
       ? await this.searchIndex.prefixMode()
       : false;
+    // Load test 2026-10-28 (docs/perf/LOCAL_LOAD_TEST_2026-10-28.md, #4):
+    // everything that does not need the conversation row lock is prepared
+    // BEFORE the transaction — the message id, the sealed bodies and file
+    // name (the latter may read a setting), the masking and the blind search
+    // tokens. The `FOR UPDATE` used to be held (and the pooled connection
+    // kept "idle in transaction", up to 350 ms under load) while Node did
+    // this work. Inside, only the lock, the checks it guards and the writes.
+    // The masking depends on contacts_unlocked: prepared for the value read
+    // just now, redone inside in the rare case the locked row says otherwise.
+    const messageId = randomUUID();
+    const messageType = voice
+      ? 'voice'
+      : attachment
+        ? 'attachment'
+        : sticker
+          ? 'sticker'
+          : gift
+            ? 'gift'
+            : contact
+              ? 'contact'
+              : place
+                ? 'place'
+                : post
+                  ? 'post'
+                  : 'text';
+    // S3-5: the attachment's original name is sealed like the body.
+    const fileName = attachment ? cleanFileName(dto.fileName!) : null;
+    const storedFileName =
+      fileName !== null && this.cipher
+        ? await this.cipher.sealMetadata(fileName, fileNameAad(messageId))
+        : fileName;
+    const bodyOriginal = this.seal(gift ? '' : body, messageId);
+    const prepare = (unlocked: boolean) => {
+      const masked =
+        voice || contact || post || unlocked
+          ? { text: body, masked: false }
+          : maskContactInfo(body);
+      return {
+        unlocked,
+        masked,
+        giftNote: gift && masked.text ? masked.text.slice(0, 200) : null,
+        bodyDisplay: this.seal(gift ? '' : masked.text, messageId),
+        // BUG-1: the words of the shown text, as blind tokens.
+        tokens: searchTokenRows(
+          this.searchIndex,
+          { id: messageId, conversation_id: id, type: messageType },
+          gift ? '' : masked.text,
+          searchPrefixes,
+        ),
+      };
+    };
+    const prepared = prepare(conv.contacts_unlocked);
     let message: Message;
     try {
       message = await withTxRetry(
@@ -1221,12 +1275,10 @@ export class ChatService {
               message: 'Files can be sent once the bid is accepted.',
             });
           }
-          const masked =
-            voice || contact || post || locked.contacts_unlocked
-              ? { text: body, masked: false }
-              : maskContactInfo(body);
-          const giftNote =
-            gift && masked.text ? masked.text.slice(0, 200) : null;
+          const p =
+            prepared.unlocked === locked.contacts_unlocked
+              ? prepared
+              : prepare(locked.contacts_unlocked);
           const given = gift
             ? await this.stars.giveGift(tx, {
                 giftId: dto.giftId!,
@@ -1236,17 +1288,10 @@ export class ChatService {
                     ? conv.attorney_id
                     : conv.client_id,
                 conversationId: id,
-                note: giftNote,
+                note: p.giftNote,
               })
             : null;
-          // Audit #6: the id is chosen here, the sealed bodies are bound to it.
-          const messageId = randomUUID();
-          // S3-5: the attachment's original name is sealed like the body.
-          const fileName = attachment ? cleanFileName(dto.fileName!) : null;
-          const storedFileName =
-            fileName !== null && this.cipher
-              ? await this.cipher.sealMetadata(fileName, fileNameAad(messageId))
-              : fileName;
+          // Audit #6: the id was chosen above, the sealed bodies are bound to it.
           const m = await tx.message.create({
             data: {
               id: messageId,
@@ -1254,24 +1299,10 @@ export class ChatService {
               sender_id: user.sub,
               sent_by_membership_id: user.assistant?.membershipId ?? null,
               sent_by_name: user.assistant?.name.slice(0, 80) ?? null,
-              type: voice
-                ? 'voice'
-                : attachment
-                  ? 'attachment'
-                  : sticker
-                    ? 'sticker'
-                    : gift
-                      ? 'gift'
-                      : contact
-                        ? 'contact'
-                        : place
-                          ? 'place'
-                          : post
-                            ? 'post'
-                            : 'text',
-              body_original: this.seal(gift ? '' : body, messageId),
-              body_display: this.seal(gift ? '' : masked.text, messageId),
-              contact_masked: masked.masked,
+              type: messageType,
+              body_original: bodyOriginal,
+              body_display: p.bodyDisplay,
+              contact_masked: p.masked.masked,
               client_message_id: dto.clientMessageId,
               reply_to_id: replyToId,
               // Owner 2026-10-21: disappearing messages.
@@ -1296,15 +1327,9 @@ export class ChatService {
                       : {}),
             },
           });
-          // BUG-1: the words of the shown text, as blind tokens, in the same
-          // transaction (a message is never searchable-less or vice versa).
-          await writeSearchTokens(
-            tx,
-            this.searchIndex,
-            m,
-            gift ? '' : masked.text,
-            searchPrefixes,
-          );
+          // BUG-1: the blind tokens (prepared above) in the same transaction
+          // (a message is never searchable-less or vice versa).
+          await writeSearchTokenRows(tx, p.tokens);
           await tx.conversation.update({
             where: { id },
             data: { last_message_at: m.created_at, last_message_id: m.id },

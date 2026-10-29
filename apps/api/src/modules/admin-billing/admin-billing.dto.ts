@@ -848,3 +848,71 @@ export class AdminSeatChangeDto {
   effectiveAt!: string | null;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
+
+/** Algo audit M-4 (owner 2026-10-28): states of a duplicate-subscription fix. */
+export const DUPLICATE_FIX_STATUSES = [
+  'pending',
+  'canceled',
+  'refunding',
+  'refunded',
+  'no_refund',
+  'review',
+  'blocked',
+] as const;
+
+export class AdminDuplicateFixesQueryDto extends AdminBillingCursorQueryDto {
+  @ApiPropertyOptional({
+    enum: DUPLICATE_FIX_STATUSES,
+    enumName: 'DuplicateSubscriptionFixStatus',
+  })
+  @IsOptional()
+  @IsIn(DUPLICATE_FIX_STATUSES)
+  status?: (typeof DUPLICATE_FIX_STATUSES)[number];
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  userId?: string;
+}
+
+/** Algo audit M-4: one duplicate subscription the system resolved (or held). */
+export class AdminDuplicateFixDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ format: 'uuid' }) userId!: string;
+  @ApiProperty({ type: AdminBillingUserDto, nullable: true })
+  user!: AdminBillingUserDto | null;
+  @ApiProperty({ description: 'The Stripe subscription that stays.' })
+  keptSubscriptionId!: string;
+  @ApiProperty({ description: 'The duplicate (cancelled unless blocked).' })
+  duplicateSubscriptionId!: string;
+  @ApiProperty({ enum: ['app_order', 'webhook', 'grace_resubscribe'] })
+  trigger!: string;
+  @ApiProperty({
+    enum: DUPLICATE_FIX_STATUSES,
+    enumName: 'DuplicateSubscriptionFixStatus',
+  })
+  status!: (typeof DUPLICATE_FIX_STATUSES)[number];
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Why there is no automatic refund (no_charge, period_over, dispute, fraud_review, daily_cap, nth_duplicate, switch_off, refund_failed …).',
+  })
+  reason!: string | null;
+  @ApiProperty({
+    type: 'integer',
+    description: "What the duplicate's last invoice charged.",
+  })
+  chargedCents!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Refunded (or proposed, when held for a person).',
+  })
+  refundCents!: number;
+  @ApiProperty() currency!: string;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  refundId!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  canceledAt!: string | null;
+  @ApiProperty({ format: 'date-time' }) createdAt!: string;
+}

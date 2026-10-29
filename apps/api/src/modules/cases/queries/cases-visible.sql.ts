@@ -222,9 +222,11 @@ export function buildVisibleCasesSql(
           JOIN practice_areas pa ON pa.id = ap.practice_area_id
           JOIN practice_areas pa2 ON pa2.code = ${NOT_SURE_OR_OTHER_CODE}
           WHERE ap.attorney_id = ${attorneyId}::UUID AND pa.code = ${GENERAL_PRACTICE_CODE}`;
+  // Load test 2026-10-28: the keyset bound goes into every branch (a row
+  // comparison is an index condition on (…, created_at DESC, id DESC)), not
+  // only after the UNION, so each branch stops after [limit] rows.
   const cursorFilter = cursor
-    ? Prisma.sql`AND (created_at < ${cursor.createdAt}
-        OR (created_at = ${cursor.createdAt} AND id < ${cursor.id}::UUID))`
+    ? Prisma.sql`AND (c.created_at, c.id) < (${cursor.createdAt}, ${cursor.id}::UUID)`
     : Prisma.empty;
 
   if (browseAll) {
@@ -242,43 +244,83 @@ export function buildVisibleCasesSql(
       LIMIT ${limit}`;
   }
 
+  // Filters every branch shares (they all read the case as `c`).
+  const common = Prisma.sql`
+        ${categoryFilter}
+        ${extraFilter}
+        ${text || since ? searchFilter : Prisma.empty}
+        ${cursorFilter}`;
+  const open = Prisma.sql`c.status = 'open' AND c.deleted_at IS NULL AND c.paused_at IS NULL`;
+  const licensedStates = globals
+    ? Prisma.sql`SELECT unnest(${globals.licensed}::TEXT[])`
+    : Prisma.sql`SELECT state_code FROM attorney_licenses
+          WHERE attorney_id = ${attorneyId}::UUID AND license_status = 'verified'`;
+  const newestFirst = Prisma.sql`ORDER BY c.created_at DESC, c.id DESC LIMIT ${limit}`;
+
+  // Load test 2026-10-28 (docs/perf/LOCAL_LOAD_TEST_2026-10-28.md, #1): the
+  // same visibility rule as before, written so that no branch reads every
+  // open case. The old single `(state, topic) IN (…) OR EXISTS (…)` form made
+  // PostgreSQL walk all open cases newest first and test each one (250k rows
+  // per request at 1M users). Each branch below is driven by an index and
+  // returns at most [limit] rows past the cursor; the newest [limit] of their
+  // UNION are exactly the newest [limit] of the whole rule.
+  //  1. primary state + main topic: one index range per (state, topic) pair
+  //     (cases_open_feed_pair_idx), newest first, LIMIT each;
+  //  2. primary state + an additional topic: the candidates come from
+  //     case_extra_practices (practice_area_id, case_id), each case read by
+  //     its key;
+  //  3. an additional state: the candidates come from case_states_secondary_idx
+  //     (non-primary rows only), each case read by its key.
+  // `OFFSET 0` keeps 2 and 3 candidate-driven: without it the planner may
+  // walk every open case newest first and probe the candidate set instead
+  // (63k rows read for 21 found in the 1M test).
   return Prisma.sql`
     SELECT id, created_at FROM (
-      SELECT c.id, c.created_at FROM cases c
-      WHERE c.status = 'open' AND c.deleted_at IS NULL AND c.paused_at IS NULL
-        AND ((c.primary_state_code, c.practice_area_id) IN (${stateTopics})
-          OR EXISTS (
-            SELECT 1 FROM case_extra_practices x
-            WHERE x.case_id = c.id
-              AND (c.primary_state_code, x.practice_area_id) IN (${stateTopics})))
-        ${primaryStateFilter}
-        ${primaryPracticeFilter}
-        ${categoryFilter}
-        ${extraFilter}
-        ${text || since ? searchFilter : Prisma.empty}
+      (SELECT p.id, p.created_at
+      FROM (${stateTopics}) AS st(s, p)
+      CROSS JOIN LATERAL (
+        SELECT c.id, c.created_at FROM cases c
+        WHERE ${open}
+          AND c.primary_state_code = st.s AND c.practice_area_id = st.p
+          ${primaryStateFilter}
+          ${primaryPracticeFilter}
+          ${common}
+        ${newestFirst}) p)
       UNION
-      SELECT c.id, c.created_at FROM case_states cs
-      JOIN cases c ON c.id = cs.case_id
-      WHERE NOT cs.is_primary
-        AND cs.state_code IN (${
-          globals
-            ? Prisma.sql`SELECT unnest(${globals.licensed}::TEXT[])`
-            : Prisma.sql`SELECT state_code FROM attorney_licenses
-          WHERE attorney_id = ${attorneyId}::UUID AND license_status = 'verified'`
-        })
-        AND c.status = 'open' AND c.deleted_at IS NULL AND c.paused_at IS NULL
-        AND (c.practice_area_id IN (${attorneyTopics})
-          OR EXISTS (
-            SELECT 1 FROM case_extra_practices x
-            WHERE x.case_id = c.id AND x.practice_area_id IN (${attorneyTopics})))
-        ${secondaryStateFilter}
-        ${secondaryPracticeFilter}
-        ${categoryFilter}
-        ${extraFilter}
-        ${text || since ? searchFilter : Prisma.empty}
+      (SELECT c.id, c.created_at
+      FROM (SELECT DISTINCT x.case_id FROM case_extra_practices x
+            WHERE x.practice_area_id IN (${attorneyTopics})) xe
+      CROSS JOIN LATERAL (
+        SELECT c.id, c.created_at FROM cases c
+        WHERE c.id = xe.case_id
+          AND ${open}
+          -- = (primary state, that topic) IN stateTopics: the pairs are
+          -- exactly licensed states x topics (both forms above).
+          AND c.primary_state_code IN (${licensedStates})
+          ${primaryStateFilter}
+          ${primaryPracticeFilter}
+          ${common}
+        OFFSET 0) c
+      ${newestFirst})
+      UNION
+      (SELECT c.id, c.created_at
+      FROM (SELECT DISTINCT cs.case_id FROM case_states cs
+            WHERE NOT cs.is_primary
+              AND cs.state_code IN (${licensedStates})
+              ${secondaryStateFilter}) xs
+      CROSS JOIN LATERAL (
+        SELECT c.id, c.created_at FROM cases c
+        WHERE c.id = xs.case_id
+          AND ${open}
+          AND (c.practice_area_id IN (${attorneyTopics})
+            OR EXISTS (
+              SELECT 1 FROM case_extra_practices x
+              WHERE x.case_id = c.id AND x.practice_area_id IN (${attorneyTopics})))
+          ${secondaryPracticeFilter}
+          ${common}
+        OFFSET 0) c
+      ${newestFirst})
     ) v
-    WHERE TRUE
-      ${cursorFilter}
     ORDER BY created_at DESC, id DESC
     LIMIT ${limit}`;
 }
