@@ -15,10 +15,9 @@ class TrustHoldsDto {
     required this.bidsAt,
     required this.note,
   });
-
-  factory TrustHoldsDto.fromJson(Map<String, Object?> json) =>
-      _$TrustHoldsDtoFromJson(json);
-
+  
+  factory TrustHoldsDto.fromJson(Map<String, Object?> json) => _$TrustHoldsDtoFromJson(json);
+  
   final String? payments;
   final DateTime? paymentsAt;
   final String? bids;

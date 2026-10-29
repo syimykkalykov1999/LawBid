@@ -16,10 +16,9 @@ class SignDto {
     required this.consent,
     this.imagePngBase64,
   });
-
-  factory SignDto.fromJson(Map<String, Object?> json) =>
-      _$SignDtoFromJson(json);
-
+  
+  factory SignDto.fromJson(Map<String, Object?> json) => _$SignDtoFromJson(json);
+  
   final SignDtoMethod method;
 
   /// The name the signer types.

@@ -8,11 +8,14 @@ part 'update_treasury_expense_dto.g.dart';
 
 @JsonSerializable()
 class UpdateTreasuryExpenseDto {
-  const UpdateTreasuryExpenseDto({this.name, this.monthlyCents, this.active});
-
-  factory UpdateTreasuryExpenseDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateTreasuryExpenseDtoFromJson(json);
-
+  const UpdateTreasuryExpenseDto({
+    this.name,
+    this.monthlyCents,
+    this.active,
+  });
+  
+  factory UpdateTreasuryExpenseDto.fromJson(Map<String, Object?> json) => _$UpdateTreasuryExpenseDtoFromJson(json);
+  
   final String? name;
   final int? monthlyCents;
   final bool? active;

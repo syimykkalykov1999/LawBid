@@ -8,11 +8,13 @@ part 'set_admin_credentials_dto.g.dart';
 
 @JsonSerializable()
 class SetAdminCredentialsDto {
-  const SetAdminCredentialsDto({this.login, this.password});
-
-  factory SetAdminCredentialsDto.fromJson(Map<String, Object?> json) =>
-      _$SetAdminCredentialsDtoFromJson(json);
-
+  const SetAdminCredentialsDto({
+    this.login,
+    this.password,
+  });
+  
+  factory SetAdminCredentialsDto.fromJson(Map<String, Object?> json) => _$SetAdminCredentialsDtoFromJson(json);
+  
   final String? login;
   final String? password;
 

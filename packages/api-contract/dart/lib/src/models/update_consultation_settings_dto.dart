@@ -22,10 +22,9 @@ class UpdateConsultationSettingsDto {
     required this.windows,
     required this.timeOff,
   });
-
-  factory UpdateConsultationSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateConsultationSettingsDtoFromJson(json);
-
+  
+  factory UpdateConsultationSettingsDto.fromJson(Map<String, Object?> json) => _$UpdateConsultationSettingsDtoFromJson(json);
+  
   final bool enabled;
   final int slotMinutes;
   final int bufferMinutes;

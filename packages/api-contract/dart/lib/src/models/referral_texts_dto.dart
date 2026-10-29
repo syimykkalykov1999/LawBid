@@ -14,10 +14,9 @@ class ReferralTextsDto {
     required this.terms,
     required this.shareMessage,
   });
-
-  factory ReferralTextsDto.fromJson(Map<String, Object?> json) =>
-      _$ReferralTextsDtoFromJson(json);
-
+  
+  factory ReferralTextsDto.fromJson(Map<String, Object?> json) => _$ReferralTextsDtoFromJson(json);
+  
   final String title;
   final String summary;
 

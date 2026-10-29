@@ -17,10 +17,9 @@ class ReplicaStatusDto {
     required this.serving,
     required this.note,
   });
-
-  factory ReplicaStatusDto.fromJson(Map<String, Object?> json) =>
-      _$ReplicaStatusDtoFromJson(json);
-
+  
+  factory ReplicaStatusDto.fromJson(Map<String, Object?> json) => _$ReplicaStatusDtoFromJson(json);
+  
   final ReplicaStatusDtoState state;
 
   /// Seconds behind the primary.

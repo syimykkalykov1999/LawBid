@@ -8,11 +8,12 @@ part 'timezone_dto.g.dart';
 
 @JsonSerializable()
 class TimezoneDto {
-  const TimezoneDto({required this.timezone});
-
-  factory TimezoneDto.fromJson(Map<String, Object?> json) =>
-      _$TimezoneDtoFromJson(json);
-
+  const TimezoneDto({
+    required this.timezone,
+  });
+  
+  factory TimezoneDto.fromJson(Map<String, Object?> json) => _$TimezoneDtoFromJson(json);
+  
   final String timezone;
 
   Map<String, Object?> toJson() => _$TimezoneDtoToJson(this);

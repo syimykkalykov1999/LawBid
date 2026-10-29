@@ -26,10 +26,9 @@ class StorageSettingsDto {
     required this.notificationsRetentionDays,
     required this.growthAlertPercent,
   });
-
-  factory StorageSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$StorageSettingsDtoFromJson(json);
-
+  
+  factory StorageSettingsDto.fromJson(Map<String, Object?> json) => _$StorageSettingsDtoFromJson(json);
+  
   /// Identical uploads share one stored copy.
   final bool dedup;
 

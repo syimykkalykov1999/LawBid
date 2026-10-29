@@ -14,10 +14,9 @@ class QaPracticeAreaDto {
     required this.i18nKey,
     required this.nameEn,
   });
-
-  factory QaPracticeAreaDto.fromJson(Map<String, Object?> json) =>
-      _$QaPracticeAreaDtoFromJson(json);
-
+  
+  factory QaPracticeAreaDto.fromJson(Map<String, Object?> json) => _$QaPracticeAreaDtoFromJson(json);
+  
   final String id;
   final String code;
   final String i18nKey;

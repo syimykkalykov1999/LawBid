@@ -11,15 +11,15 @@ part 'passkey_authentication_options_envelope.g.dart';
 
 @JsonSerializable()
 class PasskeyAuthenticationOptionsEnvelope {
-  const PasskeyAuthenticationOptionsEnvelope({required this.data, this.meta});
-
-  factory PasskeyAuthenticationOptionsEnvelope.fromJson(
-    Map<String, Object?> json,
-  ) => _$PasskeyAuthenticationOptionsEnvelopeFromJson(json);
-
+  const PasskeyAuthenticationOptionsEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PasskeyAuthenticationOptionsEnvelope.fromJson(Map<String, Object?> json) => _$PasskeyAuthenticationOptionsEnvelopeFromJson(json);
+  
   final PasskeyAuthenticationOptionsDto data;
   final ResponseMetaDto? meta;
 
-  Map<String, Object?> toJson() =>
-      _$PasskeyAuthenticationOptionsEnvelopeToJson(this);
+  Map<String, Object?> toJson() => _$PasskeyAuthenticationOptionsEnvelopeToJson(this);
 }

@@ -11,11 +11,13 @@ part 'replica_status_envelope.g.dart';
 
 @JsonSerializable()
 class ReplicaStatusEnvelope {
-  const ReplicaStatusEnvelope({required this.data, this.meta});
-
-  factory ReplicaStatusEnvelope.fromJson(Map<String, Object?> json) =>
-      _$ReplicaStatusEnvelopeFromJson(json);
-
+  const ReplicaStatusEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory ReplicaStatusEnvelope.fromJson(Map<String, Object?> json) => _$ReplicaStatusEnvelopeFromJson(json);
+  
   final ReplicaStatusDto data;
   final ResponseMetaDto? meta;
 

@@ -18,10 +18,9 @@ class TreasurySettingsDto {
     required this.payrollDay,
     required this.payrollWarnDays,
   });
-
-  factory TreasurySettingsDto.fromJson(Map<String, Object?> json) =>
-      _$TreasurySettingsDtoFromJson(json);
-
+  
+  factory TreasurySettingsDto.fromJson(Map<String, Object?> json) => _$TreasurySettingsDtoFromJson(json);
+  
   /// The split runs by itself every month.
   final bool auto;
   final int payoutDay;

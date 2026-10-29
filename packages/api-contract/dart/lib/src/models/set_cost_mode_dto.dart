@@ -10,11 +10,12 @@ part 'set_cost_mode_dto.g.dart';
 
 @JsonSerializable()
 class SetCostModeDto {
-  const SetCostModeDto({required this.state});
-
-  factory SetCostModeDto.fromJson(Map<String, Object?> json) =>
-      _$SetCostModeDtoFromJson(json);
-
+  const SetCostModeDto({
+    required this.state,
+  });
+  
+  factory SetCostModeDto.fromJson(Map<String, Object?> json) => _$SetCostModeDtoFromJson(json);
+  
   final SetCostModeDtoState state;
 
   Map<String, Object?> toJson() => _$SetCostModeDtoToJson(this);

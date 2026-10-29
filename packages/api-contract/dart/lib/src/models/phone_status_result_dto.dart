@@ -12,10 +12,9 @@ class PhoneStatusResultDto {
     required this.registered,
     required this.hasPassword,
   });
-
-  factory PhoneStatusResultDto.fromJson(Map<String, Object?> json) =>
-      _$PhoneStatusResultDtoFromJson(json);
-
+  
+  factory PhoneStatusResultDto.fromJson(Map<String, Object?> json) => _$PhoneStatusResultDtoFromJson(json);
+  
   final bool registered;
 
   /// The account has a password (else: sign in with a code once).

@@ -8,11 +8,13 @@ part 'qa_stats_dto.g.dart';
 
 @JsonSerializable()
 class QaStatsDto {
-  const QaStatsDto({required this.answers, required this.best});
-
-  factory QaStatsDto.fromJson(Map<String, Object?> json) =>
-      _$QaStatsDtoFromJson(json);
-
+  const QaStatsDto({
+    required this.answers,
+    required this.best,
+  });
+  
+  factory QaStatsDto.fromJson(Map<String, Object?> json) => _$QaStatsDtoFromJson(json);
+  
   /// Published answers to public questions.
   final num answers;
 

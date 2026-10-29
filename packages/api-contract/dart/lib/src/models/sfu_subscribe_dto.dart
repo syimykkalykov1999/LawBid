@@ -11,11 +11,14 @@ part 'sfu_subscribe_dto.g.dart';
 
 @JsonSerializable()
 class SfuSubscribeDto {
-  const SfuSubscribeDto({this.userIds, this.trackNames, this.rid});
-
-  factory SfuSubscribeDto.fromJson(Map<String, Object?> json) =>
-      _$SfuSubscribeDtoFromJson(json);
-
+  const SfuSubscribeDto({
+    this.userIds,
+    this.trackNames,
+    this.rid,
+  });
+  
+  factory SfuSubscribeDto.fromJson(Map<String, Object?> json) => _$SfuSubscribeDtoFromJson(json);
+  
   /// People to receive; empty = everybody in the call.
   final List<String>? userIds;
   final List<SfuSubscribeDtoTrackNames>? trackNames;

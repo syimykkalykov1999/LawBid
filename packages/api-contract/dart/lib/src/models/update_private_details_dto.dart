@@ -8,11 +8,12 @@ part 'update_private_details_dto.g.dart';
 
 @JsonSerializable()
 class UpdatePrivateDetailsDto {
-  const UpdatePrivateDetailsDto({required this.privateDetails});
-
-  factory UpdatePrivateDetailsDto.fromJson(Map<String, Object?> json) =>
-      _$UpdatePrivateDetailsDtoFromJson(json);
-
+  const UpdatePrivateDetailsDto({
+    required this.privateDetails,
+  });
+  
+  factory UpdatePrivateDetailsDto.fromJson(Map<String, Object?> json) => _$UpdatePrivateDetailsDtoFromJson(json);
+  
   /// Only the owner and the accepted attorney read them; empty clears.
   final String privateDetails;
 

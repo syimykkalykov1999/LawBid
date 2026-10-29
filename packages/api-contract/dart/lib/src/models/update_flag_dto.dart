@@ -8,11 +8,13 @@ part 'update_flag_dto.g.dart';
 
 @JsonSerializable()
 class UpdateFlagDto {
-  const UpdateFlagDto({this.enabled, this.rolloutPercent});
-
-  factory UpdateFlagDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateFlagDtoFromJson(json);
-
+  const UpdateFlagDto({
+    this.enabled,
+    this.rolloutPercent,
+  });
+  
+  factory UpdateFlagDto.fromJson(Map<String, Object?> json) => _$UpdateFlagDtoFromJson(json);
+  
   final bool? enabled;
   final int? rolloutPercent;
 

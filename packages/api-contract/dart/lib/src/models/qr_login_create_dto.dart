@@ -10,11 +10,12 @@ part 'qr_login_create_dto.g.dart';
 
 @JsonSerializable()
 class QrLoginCreateDto {
-  const QrLoginCreateDto({this.deviceInfo});
-
-  factory QrLoginCreateDto.fromJson(Map<String, Object?> json) =>
-      _$QrLoginCreateDtoFromJson(json);
-
+  const QrLoginCreateDto({
+    this.deviceInfo,
+  });
+  
+  factory QrLoginCreateDto.fromJson(Map<String, Object?> json) => _$QrLoginCreateDtoFromJson(json);
+  
   /// The browser (shown to the phone owner before approving).
   final DeviceInfoDto? deviceInfo;
 

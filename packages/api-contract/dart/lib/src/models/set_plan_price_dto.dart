@@ -14,10 +14,9 @@ class SetPlanPriceDto {
     this.compareAtCents,
     this.showDiscount,
   });
-
-  factory SetPlanPriceDto.fromJson(Map<String, Object?> json) =>
-      _$SetPlanPriceDtoFromJson(json);
-
+  
+  factory SetPlanPriceDto.fromJson(Map<String, Object?> json) => _$SetPlanPriceDtoFromJson(json);
+  
   /// New price in cents ($1 … $100,000).
   final int amountCents;
   final String? note;

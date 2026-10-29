@@ -22,10 +22,9 @@ class OutreachSettingsDto {
     this.emailCooldownDays,
     this.leadRetentionDays,
   });
-
-  factory OutreachSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$OutreachSettingsDtoFromJson(json);
-
+  
+  factory OutreachSettingsDto.fromJson(Map<String, Object?> json) => _$OutreachSettingsDtoFromJson(json);
+  
   final num dailyEmailLimit;
   final String fromName;
 

@@ -10,11 +10,12 @@ part 'still_needed_answer_dto.g.dart';
 
 @JsonSerializable()
 class StillNeededAnswerDto {
-  const StillNeededAnswerDto({required this.answer});
-
-  factory StillNeededAnswerDto.fromJson(Map<String, Object?> json) =>
-      _$StillNeededAnswerDtoFromJson(json);
-
+  const StillNeededAnswerDto({
+    required this.answer,
+  });
+  
+  factory StillNeededAnswerDto.fromJson(Map<String, Object?> json) => _$StillNeededAnswerDtoFromJson(json);
+  
   /// «Да, нужен» / «Жду предложений получше» / «Уже не нужен» (closes the case) / «Сменить на «Не срочно»».
   final StillNeededAnswer answer;
 

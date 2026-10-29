@@ -10,11 +10,12 @@ part 'set_admin_role_dto.g.dart';
 
 @JsonSerializable()
 class SetAdminRoleDto {
-  const SetAdminRoleDto({required this.role});
-
-  factory SetAdminRoleDto.fromJson(Map<String, Object?> json) =>
-      _$SetAdminRoleDtoFromJson(json);
-
+  const SetAdminRoleDto({
+    required this.role,
+  });
+  
+  factory SetAdminRoleDto.fromJson(Map<String, Object?> json) => _$SetAdminRoleDtoFromJson(json);
+  
   final SetAdminRoleDtoRole role;
 
   Map<String, Object?> toJson() => _$SetAdminRoleDtoToJson(this);

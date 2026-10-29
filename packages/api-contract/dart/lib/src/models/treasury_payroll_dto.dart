@@ -17,10 +17,9 @@ class TreasuryPayrollDto {
     required this.notLinked,
     required this.shortCents,
   });
-
-  factory TreasuryPayrollDto.fromJson(Map<String, Object?> json) =>
-      _$TreasuryPayrollDtoFromJson(json);
-
+  
+  factory TreasuryPayrollDto.fromJson(Map<String, Object?> json) => _$TreasuryPayrollDtoFromJson(json);
+  
   /// Flag payroll_stripe_payouts on and Stripe keys saved.
   final bool stripeReady;
   final DateTime nextPayAt;

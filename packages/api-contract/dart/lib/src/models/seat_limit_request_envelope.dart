@@ -11,11 +11,13 @@ part 'seat_limit_request_envelope.g.dart';
 
 @JsonSerializable()
 class SeatLimitRequestEnvelope {
-  const SeatLimitRequestEnvelope({required this.data, this.meta});
-
-  factory SeatLimitRequestEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SeatLimitRequestEnvelopeFromJson(json);
-
+  const SeatLimitRequestEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SeatLimitRequestEnvelope.fromJson(Map<String, Object?> json) => _$SeatLimitRequestEnvelopeFromJson(json);
+  
   final SeatLimitRequestDto data;
   final ResponseMetaDto? meta;
 

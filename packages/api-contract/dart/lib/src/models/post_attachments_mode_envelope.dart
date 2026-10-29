@@ -11,11 +11,13 @@ part 'post_attachments_mode_envelope.g.dart';
 
 @JsonSerializable()
 class PostAttachmentsModeEnvelope {
-  const PostAttachmentsModeEnvelope({required this.data, this.meta});
-
-  factory PostAttachmentsModeEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PostAttachmentsModeEnvelopeFromJson(json);
-
+  const PostAttachmentsModeEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PostAttachmentsModeEnvelope.fromJson(Map<String, Object?> json) => _$PostAttachmentsModeEnvelopeFromJson(json);
+  
   final PostAttachmentsModeDto data;
   final ResponseMetaDto? meta;
 

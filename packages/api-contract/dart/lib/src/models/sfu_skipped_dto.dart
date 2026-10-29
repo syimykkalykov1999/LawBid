@@ -13,10 +13,9 @@ class SfuSkippedDto {
     required this.trackName,
     required this.reason,
   });
-
-  factory SfuSkippedDto.fromJson(Map<String, Object?> json) =>
-      _$SfuSkippedDtoFromJson(json);
-
+  
+  factory SfuSkippedDto.fromJson(Map<String, Object?> json) => _$SfuSkippedDtoFromJson(json);
+  
   final String userId;
 
   /// mic, cam or * for all of that person.

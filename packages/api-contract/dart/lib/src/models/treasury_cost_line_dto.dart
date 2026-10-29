@@ -16,10 +16,9 @@ class TreasuryCostLineDto {
     required this.monthlyCents,
     required this.via,
   });
-
-  factory TreasuryCostLineDto.fromJson(Map<String, Object?> json) =>
-      _$TreasuryCostLineDtoFromJson(json);
-
+  
+  factory TreasuryCostLineDto.fromJson(Map<String, Object?> json) => _$TreasuryCostLineDtoFromJson(json);
+  
   final TreasuryCostLineDtoKey key;
   final int monthlyCents;
 

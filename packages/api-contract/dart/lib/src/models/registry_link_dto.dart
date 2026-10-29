@@ -13,10 +13,9 @@ class RegistryLinkDto {
     required this.stateName,
     required this.url,
   });
-
-  factory RegistryLinkDto.fromJson(Map<String, Object?> json) =>
-      _$RegistryLinkDtoFromJson(json);
-
+  
+  factory RegistryLinkDto.fromJson(Map<String, Object?> json) => _$RegistryLinkDtoFromJson(json);
+  
   final String stateCode;
   final String stateName;
 

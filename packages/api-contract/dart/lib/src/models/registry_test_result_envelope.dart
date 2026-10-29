@@ -11,11 +11,13 @@ part 'registry_test_result_envelope.g.dart';
 
 @JsonSerializable()
 class RegistryTestResultEnvelope {
-  const RegistryTestResultEnvelope({required this.data, this.meta});
-
-  factory RegistryTestResultEnvelope.fromJson(Map<String, Object?> json) =>
-      _$RegistryTestResultEnvelopeFromJson(json);
-
+  const RegistryTestResultEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory RegistryTestResultEnvelope.fromJson(Map<String, Object?> json) => _$RegistryTestResultEnvelopeFromJson(json);
+  
   final RegistryTestResultDto data;
   final ResponseMetaDto? meta;
 

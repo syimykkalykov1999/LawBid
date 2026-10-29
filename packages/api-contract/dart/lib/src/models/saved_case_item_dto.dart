@@ -17,10 +17,9 @@ class SavedCaseItemDto {
     this.title,
     this.caseValue,
   });
-
-  factory SavedCaseItemDto.fromJson(Map<String, Object?> json) =>
-      _$SavedCaseItemDtoFromJson(json);
-
+  
+  factory SavedCaseItemDto.fromJson(Map<String, Object?> json) => _$SavedCaseItemDtoFromJson(json);
+  
   final String caseId;
   final String savedAt;
 

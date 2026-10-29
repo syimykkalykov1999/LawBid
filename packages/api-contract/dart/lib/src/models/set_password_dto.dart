@@ -8,11 +8,13 @@ part 'set_password_dto.g.dart';
 
 @JsonSerializable()
 class SetPasswordDto {
-  const SetPasswordDto({required this.password, this.currentPassword});
-
-  factory SetPasswordDto.fromJson(Map<String, Object?> json) =>
-      _$SetPasswordDtoFromJson(json);
-
+  const SetPasswordDto({
+    required this.password,
+    this.currentPassword,
+  });
+  
+  factory SetPasswordDto.fromJson(Map<String, Object?> json) => _$SetPasswordDtoFromJson(json);
+  
   final String password;
 
   /// Required only when the account already has a password.

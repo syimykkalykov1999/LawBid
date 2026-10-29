@@ -20,10 +20,9 @@ class UploadPlaceDto {
     required this.ceiling,
     required this.defaults,
   });
-
-  factory UploadPlaceDto.fromJson(Map<String, Object?> json) =>
-      _$UploadPlaceDtoFromJson(json);
-
+  
+  factory UploadPlaceDto.fromJson(Map<String, Object?> json) => _$UploadPlaceDtoFromJson(json);
+  
   final UploadPlaceLimitsDto limits;
   final UploadCountMode count;
 

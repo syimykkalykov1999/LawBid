@@ -19,10 +19,9 @@ class UserBriefDto {
     this.lastName,
     this.avatarUrl,
   });
-
-  factory UserBriefDto.fromJson(Map<String, Object?> json) =>
-      _$UserBriefDtoFromJson(json);
-
+  
+  factory UserBriefDto.fromJson(Map<String, Object?> json) => _$UserBriefDtoFromJson(json);
+  
   final String id;
   final UserBriefDtoRole role;
   final String username;

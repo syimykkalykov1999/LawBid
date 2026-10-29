@@ -8,11 +8,12 @@ part 'promotion_click_result_dto.g.dart';
 
 @JsonSerializable()
 class PromotionClickResultDto {
-  const PromotionClickResultDto({required this.ok});
-
-  factory PromotionClickResultDto.fromJson(Map<String, Object?> json) =>
-      _$PromotionClickResultDtoFromJson(json);
-
+  const PromotionClickResultDto({
+    required this.ok,
+  });
+  
+  factory PromotionClickResultDto.fromJson(Map<String, Object?> json) => _$PromotionClickResultDtoFromJson(json);
+  
   final bool ok;
 
   Map<String, Object?> toJson() => _$PromotionClickResultDtoToJson(this);

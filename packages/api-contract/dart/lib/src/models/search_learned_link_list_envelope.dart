@@ -11,11 +11,13 @@ part 'search_learned_link_list_envelope.g.dart';
 
 @JsonSerializable()
 class SearchLearnedLinkListEnvelope {
-  const SearchLearnedLinkListEnvelope({required this.data, this.meta});
-
-  factory SearchLearnedLinkListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SearchLearnedLinkListEnvelopeFromJson(json);
-
+  const SearchLearnedLinkListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SearchLearnedLinkListEnvelope.fromJson(Map<String, Object?> json) => _$SearchLearnedLinkListEnvelopeFromJson(json);
+  
   final List<SearchLearnedLinkDto> data;
   final ResponseMetaDto? meta;
 

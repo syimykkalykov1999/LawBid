@@ -17,10 +17,9 @@ class PayrollBulkPayDto {
     this.note,
     this.method = PayrollBulkPayDtoMethod.manual,
   });
-
-  factory PayrollBulkPayDto.fromJson(Map<String, Object?> json) =>
-      _$PayrollBulkPayDtoFromJson(json);
-
+  
+  factory PayrollBulkPayDto.fromJson(Map<String, Object?> json) => _$PayrollBulkPayDtoFromJson(json);
+  
   final List<String> employeeIds;
 
   /// Month or any period label.

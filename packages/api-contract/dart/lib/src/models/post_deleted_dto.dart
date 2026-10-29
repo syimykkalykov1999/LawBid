@@ -8,11 +8,12 @@ part 'post_deleted_dto.g.dart';
 
 @JsonSerializable()
 class PostDeletedDto {
-  const PostDeletedDto({this.deleted = true});
-
-  factory PostDeletedDto.fromJson(Map<String, Object?> json) =>
-      _$PostDeletedDtoFromJson(json);
-
+  const PostDeletedDto({
+    this.deleted = true,
+  });
+  
+  factory PostDeletedDto.fromJson(Map<String, Object?> json) => _$PostDeletedDtoFromJson(json);
+  
   final bool deleted;
 
   Map<String, Object?> toJson() => _$PostDeletedDtoToJson(this);

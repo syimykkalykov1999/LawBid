@@ -24,10 +24,9 @@ class StaffDecisionStatsDto {
     required this.firstDecisionAt,
     required this.lastDecisionAt,
   });
-
-  factory StaffDecisionStatsDto.fromJson(Map<String, Object?> json) =>
-      _$StaffDecisionStatsDtoFromJson(json);
-
+  
+  factory StaffDecisionStatsDto.fromJson(Map<String, Object?> json) => _$StaffDecisionStatsDtoFromJson(json);
+  
   final StaffAdminDto admin;
 
   /// «Подтвердить» pressed.

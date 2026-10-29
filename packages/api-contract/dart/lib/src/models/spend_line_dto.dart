@@ -17,10 +17,9 @@ class SpendLineDto {
     required this.projectedUsd,
     required this.source,
   });
-
-  factory SpendLineDto.fromJson(Map<String, Object?> json) =>
-      _$SpendLineDtoFromJson(json);
-
+  
+  factory SpendLineDto.fromJson(Map<String, Object?> json) => _$SpendLineDtoFromJson(json);
+  
   final SpendLineDtoKey key;
   final num monthToDateUsd;
   final num projectedUsd;

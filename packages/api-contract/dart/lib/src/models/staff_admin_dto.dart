@@ -14,10 +14,9 @@ class StaffAdminDto {
     required this.email,
     required this.role,
   });
-
-  factory StaffAdminDto.fromJson(Map<String, Object?> json) =>
-      _$StaffAdminDtoFromJson(json);
-
+  
+  factory StaffAdminDto.fromJson(Map<String, Object?> json) => _$StaffAdminDtoFromJson(json);
+  
   final String id;
   final String? name;
   final String? email;

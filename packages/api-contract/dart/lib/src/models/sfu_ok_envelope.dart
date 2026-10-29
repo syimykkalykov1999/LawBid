@@ -11,11 +11,13 @@ part 'sfu_ok_envelope.g.dart';
 
 @JsonSerializable()
 class SfuOkEnvelope {
-  const SfuOkEnvelope({required this.data, this.meta});
-
-  factory SfuOkEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SfuOkEnvelopeFromJson(json);
-
+  const SfuOkEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SfuOkEnvelope.fromJson(Map<String, Object?> json) => _$SfuOkEnvelopeFromJson(json);
+  
   final SfuOkDto data;
   final ResponseMetaDto? meta;
 

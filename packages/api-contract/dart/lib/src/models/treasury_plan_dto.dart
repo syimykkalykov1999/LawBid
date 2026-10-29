@@ -21,10 +21,9 @@ class TreasuryPlanDto {
     required this.shortfallCents,
     required this.coverMonths,
   });
-
-  factory TreasuryPlanDto.fromJson(Map<String, Object?> json) =>
-      _$TreasuryPlanDtoFromJson(json);
-
+  
+  factory TreasuryPlanDto.fromJson(Map<String, Object?> json) => _$TreasuryPlanDtoFromJson(json);
+  
   final int servicesCents;
   final int expenseAllowanceCents;
   final int stripeObligationsCents;

@@ -16,10 +16,9 @@ class PushTokenDto {
     this.localReminders,
     this.chatStyle,
   });
-
-  factory PushTokenDto.fromJson(Map<String, Object?> json) =>
-      _$PushTokenDtoFromJson(json);
-
+  
+  factory PushTokenDto.fromJson(Map<String, Object?> json) => _$PushTokenDtoFromJson(json);
+  
   /// FCM registration token.
   final String token;
   final PushTokenDtoPlatform platform;

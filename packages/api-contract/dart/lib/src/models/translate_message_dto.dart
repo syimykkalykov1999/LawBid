@@ -8,11 +8,12 @@ part 'translate_message_dto.g.dart';
 
 @JsonSerializable()
 class TranslateMessageDto {
-  const TranslateMessageDto({required this.target});
-
-  factory TranslateMessageDto.fromJson(Map<String, Object?> json) =>
-      _$TranslateMessageDtoFromJson(json);
-
+  const TranslateMessageDto({
+    required this.target,
+  });
+  
+  factory TranslateMessageDto.fromJson(Map<String, Object?> json) => _$TranslateMessageDtoFromJson(json);
+  
   /// Target language, ISO 639-1 (or zh-CN / zh-TW), e.g. "ru".
   final String target;
 

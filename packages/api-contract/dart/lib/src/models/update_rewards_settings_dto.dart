@@ -17,10 +17,9 @@ class UpdateRewardsSettingsDto {
     this.period,
     this.departments,
   });
-
-  factory UpdateRewardsSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateRewardsSettingsDtoFromJson(json);
-
+  
+  factory UpdateRewardsSettingsDto.fromJson(Map<String, Object?> json) => _$UpdateRewardsSettingsDtoFromJson(json);
+  
   final bool? enabled;
   final bool? autoAward;
   final UpdateRewardsSettingsDtoPeriod? period;

@@ -8,11 +8,13 @@ part 'payroll_stripe_link_dto.g.dart';
 
 @JsonSerializable()
 class PayrollStripeLinkDto {
-  const PayrollStripeLinkDto({required this.url, required this.payoutsEnabled});
-
-  factory PayrollStripeLinkDto.fromJson(Map<String, Object?> json) =>
-      _$PayrollStripeLinkDtoFromJson(json);
-
+  const PayrollStripeLinkDto({
+    required this.url,
+    required this.payoutsEnabled,
+  });
+  
+  factory PayrollStripeLinkDto.fromJson(Map<String, Object?> json) => _$PayrollStripeLinkDtoFromJson(json);
+  
   /// Stripe page where the person links a bank account or debit card (send it to them).
   final String url;
   final bool payoutsEnabled;

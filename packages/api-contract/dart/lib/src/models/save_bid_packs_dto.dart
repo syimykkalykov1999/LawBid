@@ -10,11 +10,12 @@ part 'save_bid_packs_dto.g.dart';
 
 @JsonSerializable()
 class SaveBidPacksDto {
-  const SaveBidPacksDto({required this.packs});
-
-  factory SaveBidPacksDto.fromJson(Map<String, Object?> json) =>
-      _$SaveBidPacksDtoFromJson(json);
-
+  const SaveBidPacksDto({
+    required this.packs,
+  });
+  
+  factory SaveBidPacksDto.fromJson(Map<String, Object?> json) => _$SaveBidPacksDtoFromJson(json);
+  
   final List<BidPackDto> packs;
 
   Map<String, Object?> toJson() => _$SaveBidPacksDtoToJson(this);

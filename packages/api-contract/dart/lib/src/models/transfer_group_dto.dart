@@ -8,11 +8,12 @@ part 'transfer_group_dto.g.dart';
 
 @JsonSerializable()
 class TransferGroupDto {
-  const TransferGroupDto({required this.userId});
-
-  factory TransferGroupDto.fromJson(Map<String, Object?> json) =>
-      _$TransferGroupDtoFromJson(json);
-
+  const TransferGroupDto({
+    required this.userId,
+  });
+  
+  factory TransferGroupDto.fromJson(Map<String, Object?> json) => _$TransferGroupDtoFromJson(json);
+  
   final String userId;
 
   Map<String, Object?> toJson() => _$TransferGroupDtoToJson(this);

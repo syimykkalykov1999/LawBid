@@ -18,10 +18,9 @@ class ReviewReportDto {
     required this.status,
     required this.createdAt,
   });
-
-  factory ReviewReportDto.fromJson(Map<String, Object?> json) =>
-      _$ReviewReportDtoFromJson(json);
-
+  
+  factory ReviewReportDto.fromJson(Map<String, Object?> json) => _$ReviewReportDtoFromJson(json);
+  
   final String id;
   final String reviewId;
   final ReportReason reason;

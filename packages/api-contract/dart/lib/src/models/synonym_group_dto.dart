@@ -19,10 +19,9 @@ class SynonymGroupDto {
     required this.terms,
     this.practiceCode,
   });
-
-  factory SynonymGroupDto.fromJson(Map<String, Object?> json) =>
-      _$SynonymGroupDtoFromJson(json);
-
+  
+  factory SynonymGroupDto.fromJson(Map<String, Object?> json) => _$SynonymGroupDtoFromJson(json);
+  
   final String id;
   final String key;
 

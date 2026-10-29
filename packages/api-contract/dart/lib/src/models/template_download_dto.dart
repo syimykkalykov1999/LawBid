@@ -14,10 +14,9 @@ class TemplateDownloadDto {
     required this.mime,
     required this.sizeBytes,
   });
-
-  factory TemplateDownloadDto.fromJson(Map<String, Object?> json) =>
-      _$TemplateDownloadDtoFromJson(json);
-
+  
+  factory TemplateDownloadDto.fromJson(Map<String, Object?> json) => _$TemplateDownloadDtoFromJson(json);
+  
   /// Short-lived signed link (saves as fileName).
   final String url;
   final String fileName;

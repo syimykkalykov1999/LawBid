@@ -28,10 +28,9 @@ class SubscriptionMeDto {
     required this.entitlements,
     required this.seats,
   });
-
-  factory SubscriptionMeDto.fromJson(Map<String, Object?> json) =>
-      _$SubscriptionMeDtoFromJson(json);
-
+  
+  factory SubscriptionMeDto.fromJson(Map<String, Object?> json) => _$SubscriptionMeDtoFromJson(json);
+  
   final SubscriptionDto? subscription;
 
   /// An active free subscription under a contract (isActive is true while it runs).

@@ -13,10 +13,9 @@ class TaskPlaceSuggestionDto {
     required this.uses,
     this.label,
   });
-
-  factory TaskPlaceSuggestionDto.fromJson(Map<String, Object?> json) =>
-      _$TaskPlaceSuggestionDtoFromJson(json);
-
+  
+  factory TaskPlaceSuggestionDto.fromJson(Map<String, Object?> json) => _$TaskPlaceSuggestionDtoFromJson(json);
+  
   final String address;
   final String? label;
   final num uses;

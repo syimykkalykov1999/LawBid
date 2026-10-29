@@ -19,10 +19,9 @@ class SupportMessageDto {
     required this.createdAt,
     this.authorName,
   });
-
-  factory SupportMessageDto.fromJson(Map<String, Object?> json) =>
-      _$SupportMessageDtoFromJson(json);
-
+  
+  factory SupportMessageDto.fromJson(Map<String, Object?> json) => _$SupportMessageDtoFromJson(json);
+  
   final String id;
   final SupportMessageDtoAuthor author;
 

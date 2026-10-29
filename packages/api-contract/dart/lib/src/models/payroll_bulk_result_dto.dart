@@ -19,10 +19,9 @@ class PayrollBulkResultDto {
     required this.nothingOwed,
     required this.failed,
   });
-
-  factory PayrollBulkResultDto.fromJson(Map<String, Object?> json) =>
-      _$PayrollBulkResultDtoFromJson(json);
-
+  
+  factory PayrollBulkResultDto.fromJson(Map<String, Object?> json) => _$PayrollBulkResultDtoFromJson(json);
+  
   final String batchId;
   final int count;
 

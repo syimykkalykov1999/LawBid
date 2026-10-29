@@ -13,10 +13,9 @@ class UploadCeilingDto {
     required this.fileMb,
     required this.totalMb,
   });
-
-  factory UploadCeilingDto.fromJson(Map<String, Object?> json) =>
-      _$UploadCeilingDtoFromJson(json);
-
+  
+  factory UploadCeilingDto.fromJson(Map<String, Object?> json) => _$UploadCeilingDtoFromJson(json);
+  
   /// Most photos / files an admin may allow.
   final num count;
 

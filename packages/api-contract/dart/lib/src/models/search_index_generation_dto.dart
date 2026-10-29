@@ -17,10 +17,9 @@ class SearchIndexGenerationDto {
     required this.sizeBytes,
     required this.role,
   });
-
-  factory SearchIndexGenerationDto.fromJson(Map<String, Object?> json) =>
-      _$SearchIndexGenerationDtoFromJson(json);
-
+  
+  factory SearchIndexGenerationDto.fromJson(Map<String, Object?> json) => _$SearchIndexGenerationDtoFromJson(json);
+  
   final String name;
   final num generation;
   final num docs;

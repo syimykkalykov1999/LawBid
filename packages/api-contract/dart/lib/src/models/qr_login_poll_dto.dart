@@ -8,11 +8,13 @@ part 'qr_login_poll_dto.g.dart';
 
 @JsonSerializable()
 class QrLoginPollDto {
-  const QrLoginPollDto({required this.qrId, required this.pollSecret});
-
-  factory QrLoginPollDto.fromJson(Map<String, Object?> json) =>
-      _$QrLoginPollDtoFromJson(json);
-
+  const QrLoginPollDto({
+    required this.qrId,
+    required this.pollSecret,
+  });
+  
+  factory QrLoginPollDto.fromJson(Map<String, Object?> json) => _$QrLoginPollDtoFromJson(json);
+  
   final String qrId;
   final String pollSecret;
 

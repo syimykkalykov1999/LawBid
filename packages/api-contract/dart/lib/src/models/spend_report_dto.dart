@@ -21,10 +21,9 @@ class SpendReportDto {
     required this.prices,
     required this.total,
   });
-
-  factory SpendReportDto.fromJson(Map<String, Object?> json) =>
-      _$SpendReportDtoFromJson(json);
-
+  
+  factory SpendReportDto.fromJson(Map<String, Object?> json) => _$SpendReportDtoFromJson(json);
+  
   final String generatedAt;
   final String? refreshedAt;
   final List<VendorSpendDto> vendors;

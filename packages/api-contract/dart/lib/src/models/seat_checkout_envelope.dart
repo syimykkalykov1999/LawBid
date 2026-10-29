@@ -11,11 +11,13 @@ part 'seat_checkout_envelope.g.dart';
 
 @JsonSerializable()
 class SeatCheckoutEnvelope {
-  const SeatCheckoutEnvelope({required this.data, this.meta});
-
-  factory SeatCheckoutEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SeatCheckoutEnvelopeFromJson(json);
-
+  const SeatCheckoutEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SeatCheckoutEnvelope.fromJson(Map<String, Object?> json) => _$SeatCheckoutEnvelopeFromJson(json);
+  
   final SeatCheckoutDto data;
   final ResponseMetaDto? meta;
 

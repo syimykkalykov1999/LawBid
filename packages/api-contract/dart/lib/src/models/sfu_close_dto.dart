@@ -10,11 +10,14 @@ part 'sfu_close_dto.g.dart';
 
 @JsonSerializable()
 class SfuCloseDto {
-  const SfuCloseDto({this.trackNames, this.userIds, this.sdp});
-
-  factory SfuCloseDto.fromJson(Map<String, Object?> json) =>
-      _$SfuCloseDtoFromJson(json);
-
+  const SfuCloseDto({
+    this.trackNames,
+    this.userIds,
+    this.sdp,
+  });
+  
+  factory SfuCloseDto.fromJson(Map<String, Object?> json) => _$SfuCloseDtoFromJson(json);
+  
   /// Stop publishing these of your own tracks.
   final List<SfuCloseDtoTrackNames>? trackNames;
 

@@ -11,11 +11,13 @@ part 'sticker_library_dto.g.dart';
 
 @JsonSerializable()
 class StickerLibraryDto {
-  const StickerLibraryDto({required this.recent, required this.packs});
-
-  factory StickerLibraryDto.fromJson(Map<String, Object?> json) =>
-      _$StickerLibraryDtoFromJson(json);
-
+  const StickerLibraryDto({
+    required this.recent,
+    required this.packs,
+  });
+  
+  factory StickerLibraryDto.fromJson(Map<String, Object?> json) => _$StickerLibraryDtoFromJson(json);
+  
   final List<StickerDto> recent;
   final List<StickerPackDto> packs;
 

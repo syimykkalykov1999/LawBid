@@ -11,11 +11,13 @@ part 'workspace_file_list_envelope.g.dart';
 
 @JsonSerializable()
 class WorkspaceFileListEnvelope {
-  const WorkspaceFileListEnvelope({required this.data, this.meta});
-
-  factory WorkspaceFileListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$WorkspaceFileListEnvelopeFromJson(json);
-
+  const WorkspaceFileListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory WorkspaceFileListEnvelope.fromJson(Map<String, Object?> json) => _$WorkspaceFileListEnvelopeFromJson(json);
+  
   final List<WorkspaceFileDto> data;
   final ResponseMetaDto? meta;
 

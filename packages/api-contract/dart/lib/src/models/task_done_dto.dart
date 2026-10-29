@@ -8,11 +8,12 @@ part 'task_done_dto.g.dart';
 
 @JsonSerializable()
 class TaskDoneDto {
-  const TaskDoneDto({required this.done});
-
-  factory TaskDoneDto.fromJson(Map<String, Object?> json) =>
-      _$TaskDoneDtoFromJson(json);
-
+  const TaskDoneDto({
+    required this.done,
+  });
+  
+  factory TaskDoneDto.fromJson(Map<String, Object?> json) => _$TaskDoneDtoFromJson(json);
+  
   final bool done;
 
   Map<String, Object?> toJson() => _$TaskDoneDtoToJson(this);

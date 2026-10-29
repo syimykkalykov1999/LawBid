@@ -15,10 +15,9 @@ class SearchClickDto {
     required this.targetType,
     required this.targetId,
   });
-
-  factory SearchClickDto.fromJson(Map<String, Object?> json) =>
-      _$SearchClickDtoFromJson(json);
-
+  
+  factory SearchClickDto.fromJson(Map<String, Object?> json) => _$SearchClickDtoFromJson(json);
+  
   /// The text that was searched.
   final String q;
   final SearchClickDtoTargetType targetType;

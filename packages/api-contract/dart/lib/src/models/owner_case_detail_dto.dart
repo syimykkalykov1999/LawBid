@@ -58,10 +58,9 @@ class OwnerCaseDetailDto {
     this.conversationId,
     this.coverKey,
   });
-
-  factory OwnerCaseDetailDto.fromJson(Map<String, Object?> json) =>
-      _$OwnerCaseDetailDtoFromJson(json);
-
+  
+  factory OwnerCaseDetailDto.fromJson(Map<String, Object?> json) => _$OwnerCaseDetailDtoFromJson(json);
+  
   final String id;
   final String title;
   final String description;

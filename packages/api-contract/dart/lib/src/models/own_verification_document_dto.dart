@@ -19,10 +19,9 @@ class OwnVerificationDocumentDto {
     required this.fileId,
     required this.createdAt,
   });
-
-  factory OwnVerificationDocumentDto.fromJson(Map<String, Object?> json) =>
-      _$OwnVerificationDocumentDtoFromJson(json);
-
+  
+  factory OwnVerificationDocumentDto.fromJson(Map<String, Object?> json) => _$OwnVerificationDocumentDtoFromJson(json);
+  
   final String id;
   final VerificationDocType docType;
   final OwnVerificationDocumentDtoSide? side;

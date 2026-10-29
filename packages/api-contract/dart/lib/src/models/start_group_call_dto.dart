@@ -8,11 +8,13 @@ part 'start_group_call_dto.g.dart';
 
 @JsonSerializable()
 class StartGroupCallDto {
-  const StartGroupCallDto({this.video, this.userIds});
-
-  factory StartGroupCallDto.fromJson(Map<String, Object?> json) =>
-      _$StartGroupCallDtoFromJson(json);
-
+  const StartGroupCallDto({
+    this.video,
+    this.userIds,
+  });
+  
+  factory StartGroupCallDto.fromJson(Map<String, Object?> json) => _$StartGroupCallDtoFromJson(json);
+  
   /// Video call (default: audio).
   final bool? video;
 

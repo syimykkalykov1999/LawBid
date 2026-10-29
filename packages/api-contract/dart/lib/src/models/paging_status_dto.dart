@@ -18,10 +18,9 @@ class PagingStatusDto {
     required this.stale,
     required this.checkedAt,
   });
-
-  factory PagingStatusDto.fromJson(Map<String, Object?> json) =>
-      _$PagingStatusDtoFromJson(json);
-
+  
+  factory PagingStatusDto.fromJson(Map<String, Object?> json) => _$PagingStatusDtoFromJson(json);
+  
   final bool available;
   final bool configured;
   final String? endpointMasked;

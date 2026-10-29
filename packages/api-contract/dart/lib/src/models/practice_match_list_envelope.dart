@@ -11,11 +11,13 @@ part 'practice_match_list_envelope.g.dart';
 
 @JsonSerializable()
 class PracticeMatchListEnvelope {
-  const PracticeMatchListEnvelope({required this.data, this.meta});
-
-  factory PracticeMatchListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PracticeMatchListEnvelopeFromJson(json);
-
+  const PracticeMatchListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PracticeMatchListEnvelope.fromJson(Map<String, Object?> json) => _$PracticeMatchListEnvelopeFromJson(json);
+  
   final List<PracticeMatchDto> data;
   final ResponseMetaDto? meta;
 

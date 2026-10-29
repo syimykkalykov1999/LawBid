@@ -11,11 +11,13 @@ part 'subscription_me_envelope.g.dart';
 
 @JsonSerializable()
 class SubscriptionMeEnvelope {
-  const SubscriptionMeEnvelope({required this.data, this.meta});
-
-  factory SubscriptionMeEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SubscriptionMeEnvelopeFromJson(json);
-
+  const SubscriptionMeEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SubscriptionMeEnvelope.fromJson(Map<String, Object?> json) => _$SubscriptionMeEnvelopeFromJson(json);
+  
   final SubscriptionMeDto data;
   final ResponseMetaDto? meta;
 

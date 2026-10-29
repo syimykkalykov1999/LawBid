@@ -31,10 +31,9 @@ class StorageOverviewDto {
     required this.settings,
     required this.r2,
   });
-
-  factory StorageOverviewDto.fromJson(Map<String, Object?> json) =>
-      _$StorageOverviewDtoFromJson(json);
-
+  
+  factory StorageOverviewDto.fromJson(Map<String, Object?> json) => _$StorageOverviewDtoFromJson(json);
+  
   /// Live files as users see them.
   final num filesBytes;
   final num filesCount;

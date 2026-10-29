@@ -37,10 +37,9 @@ class SeatChangeResultDto {
     required this.changeId,
     required this.overview,
   });
-
-  factory SeatChangeResultDto.fromJson(Map<String, Object?> json) =>
-      _$SeatChangeResultDtoFromJson(json);
-
+  
+  factory SeatChangeResultDto.fromJson(Map<String, Object?> json) => _$SeatChangeResultDtoFromJson(json);
+  
   final SubscriptionDto? subscription;
 
   /// An active free subscription under a contract (isActive is true while it runs).

@@ -10,11 +10,12 @@ part 'update_notification_settings_dto.g.dart';
 
 @JsonSerializable()
 class UpdateNotificationSettingsDto {
-  const UpdateNotificationSettingsDto({required this.items});
-
-  factory UpdateNotificationSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateNotificationSettingsDtoFromJson(json);
-
+  const UpdateNotificationSettingsDto({
+    required this.items,
+  });
+  
+  factory UpdateNotificationSettingsDto.fromJson(Map<String, Object?> json) => _$UpdateNotificationSettingsDtoFromJson(json);
+  
   final List<CategorySettingDto> items;
 
   Map<String, Object?> toJson() => _$UpdateNotificationSettingsDtoToJson(this);

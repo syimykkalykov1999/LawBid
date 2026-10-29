@@ -11,15 +11,15 @@ part 'trust_attorney_list_item_list_envelope.g.dart';
 
 @JsonSerializable()
 class TrustAttorneyListItemListEnvelope {
-  const TrustAttorneyListItemListEnvelope({required this.data, this.meta});
-
-  factory TrustAttorneyListItemListEnvelope.fromJson(
-    Map<String, Object?> json,
-  ) => _$TrustAttorneyListItemListEnvelopeFromJson(json);
-
+  const TrustAttorneyListItemListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory TrustAttorneyListItemListEnvelope.fromJson(Map<String, Object?> json) => _$TrustAttorneyListItemListEnvelopeFromJson(json);
+  
   final List<TrustAttorneyListItemDto> data;
   final ResponseMetaDto? meta;
 
-  Map<String, Object?> toJson() =>
-      _$TrustAttorneyListItemListEnvelopeToJson(this);
+  Map<String, Object?> toJson() => _$TrustAttorneyListItemListEnvelopeToJson(this);
 }

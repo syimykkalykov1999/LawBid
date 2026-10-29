@@ -8,11 +8,14 @@ part 'quiet_hours_dto.g.dart';
 
 @JsonSerializable()
 class QuietHoursDto {
-  const QuietHoursDto({this.start, this.end, this.timezone});
-
-  factory QuietHoursDto.fromJson(Map<String, Object?> json) =>
-      _$QuietHoursDtoFromJson(json);
-
+  const QuietHoursDto({
+    this.start,
+    this.end,
+    this.timezone,
+  });
+  
+  factory QuietHoursDto.fromJson(Map<String, Object?> json) => _$QuietHoursDtoFromJson(json);
+  
   /// Absent or null clears the quiet hours.
   final String? start;
   final String? end;

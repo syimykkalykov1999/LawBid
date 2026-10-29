@@ -11,11 +11,13 @@ part 'qr_login_created_envelope.g.dart';
 
 @JsonSerializable()
 class QrLoginCreatedEnvelope {
-  const QrLoginCreatedEnvelope({required this.data, this.meta});
-
-  factory QrLoginCreatedEnvelope.fromJson(Map<String, Object?> json) =>
-      _$QrLoginCreatedEnvelopeFromJson(json);
-
+  const QrLoginCreatedEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory QrLoginCreatedEnvelope.fromJson(Map<String, Object?> json) => _$QrLoginCreatedEnvelopeFromJson(json);
+  
   final QrLoginCreatedDto data;
   final ResponseMetaDto? meta;
 

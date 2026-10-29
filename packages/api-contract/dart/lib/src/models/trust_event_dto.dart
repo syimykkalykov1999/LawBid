@@ -18,10 +18,9 @@ class TrustEventDto {
     required this.details,
     required this.createdAt,
   });
-
-  factory TrustEventDto.fromJson(Map<String, Object?> json) =>
-      _$TrustEventDtoFromJson(json);
-
+  
+  factory TrustEventDto.fromJson(Map<String, Object?> json) => _$TrustEventDtoFromJson(json);
+  
   final String id;
   final String kind;
   final int? fromLevel;

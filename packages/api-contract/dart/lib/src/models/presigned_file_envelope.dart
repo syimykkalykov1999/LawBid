@@ -11,11 +11,13 @@ part 'presigned_file_envelope.g.dart';
 
 @JsonSerializable()
 class PresignedFileEnvelope {
-  const PresignedFileEnvelope({required this.data, this.meta});
-
-  factory PresignedFileEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PresignedFileEnvelopeFromJson(json);
-
+  const PresignedFileEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PresignedFileEnvelope.fromJson(Map<String, Object?> json) => _$PresignedFileEnvelopeFromJson(json);
+  
   final PresignedFileDto data;
   final ResponseMetaDto? meta;
 

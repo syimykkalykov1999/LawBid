@@ -19,10 +19,9 @@ class SfuSubscribeResultDto {
     required this.subscriptions,
     required this.skipped,
   });
-
-  factory SfuSubscribeResultDto.fromJson(Map<String, Object?> json) =>
-      _$SfuSubscribeResultDtoFromJson(json);
-
+  
+  factory SfuSubscribeResultDto.fromJson(Map<String, Object?> json) => _$SfuSubscribeResultDtoFromJson(json);
+  
   /// true: apply `sdp` as the remote offer, answer it with POST /calls/:id/sfu/answer.
   final bool requiresAnswer;
   final SfuSubscribeResultDtoType? type;

@@ -15,10 +15,9 @@ class SeatLimitStateDto {
     required this.isPersonal,
     required this.request,
   });
-
-  factory SeatLimitStateDto.fromJson(Map<String, Object?> json) =>
-      _$SeatLimitStateDtoFromJson(json);
-
+  
+  factory SeatLimitStateDto.fromJson(Map<String, Object?> json) => _$SeatLimitStateDtoFromJson(json);
+  
   /// The attorney's limit.
   final int limit;
 

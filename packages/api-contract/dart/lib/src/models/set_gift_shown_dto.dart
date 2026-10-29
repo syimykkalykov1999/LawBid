@@ -8,11 +8,12 @@ part 'set_gift_shown_dto.g.dart';
 
 @JsonSerializable()
 class SetGiftShownDto {
-  const SetGiftShownDto({required this.shown});
-
-  factory SetGiftShownDto.fromJson(Map<String, Object?> json) =>
-      _$SetGiftShownDtoFromJson(json);
-
+  const SetGiftShownDto({
+    required this.shown,
+  });
+  
+  factory SetGiftShownDto.fromJson(Map<String, Object?> json) => _$SetGiftShownDtoFromJson(json);
+  
   final bool shown;
 
   Map<String, Object?> toJson() => _$SetGiftShownDtoToJson(this);

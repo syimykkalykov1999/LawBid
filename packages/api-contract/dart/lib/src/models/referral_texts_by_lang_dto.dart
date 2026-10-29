@@ -10,11 +10,13 @@ part 'referral_texts_by_lang_dto.g.dart';
 
 @JsonSerializable()
 class ReferralTextsByLangDto {
-  const ReferralTextsByLangDto({required this.en, required this.ru});
-
-  factory ReferralTextsByLangDto.fromJson(Map<String, Object?> json) =>
-      _$ReferralTextsByLangDtoFromJson(json);
-
+  const ReferralTextsByLangDto({
+    required this.en,
+    required this.ru,
+  });
+  
+  factory ReferralTextsByLangDto.fromJson(Map<String, Object?> json) => _$ReferralTextsByLangDtoFromJson(json);
+  
   final ReferralTextsDto en;
   final ReferralTextsDto ru;
 

@@ -11,11 +11,13 @@ part 'sfu_session_envelope.g.dart';
 
 @JsonSerializable()
 class SfuSessionEnvelope {
-  const SfuSessionEnvelope({required this.data, this.meta});
-
-  factory SfuSessionEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SfuSessionEnvelopeFromJson(json);
-
+  const SfuSessionEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SfuSessionEnvelope.fromJson(Map<String, Object?> json) => _$SfuSessionEnvelopeFromJson(json);
+  
   final SfuSessionDto data;
   final ResponseMetaDto? meta;
 

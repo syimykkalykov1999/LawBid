@@ -10,11 +10,13 @@ part 'story_viewer_dto.g.dart';
 
 @JsonSerializable()
 class StoryViewerDto {
-  const StoryViewerDto({required this.user, required this.viewedAt});
-
-  factory StoryViewerDto.fromJson(Map<String, Object?> json) =>
-      _$StoryViewerDtoFromJson(json);
-
+  const StoryViewerDto({
+    required this.user,
+    required this.viewedAt,
+  });
+  
+  factory StoryViewerDto.fromJson(Map<String, Object?> json) => _$StoryViewerDtoFromJson(json);
+  
   final UserBriefDto user;
   final DateTime viewedAt;
 

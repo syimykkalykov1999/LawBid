@@ -31,10 +31,9 @@ class TrustAttorneyListItemDto {
     required this.lookups,
     required this.blocked,
   });
-
-  factory TrustAttorneyListItemDto.fromJson(Map<String, Object?> json) =>
-      _$TrustAttorneyListItemDtoFromJson(json);
-
+  
+  factory TrustAttorneyListItemDto.fromJson(Map<String, Object?> json) => _$TrustAttorneyListItemDtoFromJson(json);
+  
   final AdminTrustAttorneyDto attorney;
   final int level;
   final TrustAttorneyListItemDtoBadgeStatus badgeStatus;

@@ -20,10 +20,9 @@ class SeatLimitRequestDto {
     required this.createdAt,
     required this.decidedAt,
   });
-
-  factory SeatLimitRequestDto.fromJson(Map<String, Object?> json) =>
-      _$SeatLimitRequestDtoFromJson(json);
-
+  
+  factory SeatLimitRequestDto.fromJson(Map<String, Object?> json) => _$SeatLimitRequestDtoFromJson(json);
+  
   final String id;
   final SeatLimitRequestStatus status;
   final int requestedSeats;

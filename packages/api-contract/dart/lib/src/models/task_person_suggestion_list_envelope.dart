@@ -11,15 +11,15 @@ part 'task_person_suggestion_list_envelope.g.dart';
 
 @JsonSerializable()
 class TaskPersonSuggestionListEnvelope {
-  const TaskPersonSuggestionListEnvelope({required this.data, this.meta});
-
-  factory TaskPersonSuggestionListEnvelope.fromJson(
-    Map<String, Object?> json,
-  ) => _$TaskPersonSuggestionListEnvelopeFromJson(json);
-
+  const TaskPersonSuggestionListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory TaskPersonSuggestionListEnvelope.fromJson(Map<String, Object?> json) => _$TaskPersonSuggestionListEnvelopeFromJson(json);
+  
   final List<TaskPersonSuggestionDto> data;
   final ResponseMetaDto? meta;
 
-  Map<String, Object?> toJson() =>
-      _$TaskPersonSuggestionListEnvelopeToJson(this);
+  Map<String, Object?> toJson() => _$TaskPersonSuggestionListEnvelopeToJson(this);
 }

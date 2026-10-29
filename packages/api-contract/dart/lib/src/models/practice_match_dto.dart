@@ -13,10 +13,9 @@ class PracticeMatchDto {
     required this.nameEn,
     required this.hit,
   });
-
-  factory PracticeMatchDto.fromJson(Map<String, Object?> json) =>
-      _$PracticeMatchDtoFromJson(json);
-
+  
+  factory PracticeMatchDto.fromJson(Map<String, Object?> json) => _$PracticeMatchDtoFromJson(json);
+  
   /// practice code, e.g. family_law.divorce
   final String code;
   final String nameEn;

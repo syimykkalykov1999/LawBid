@@ -8,11 +8,13 @@ part 'passkey_assert_dto.g.dart';
 
 @JsonSerializable()
 class PasskeyAssertDto {
-  const PasskeyAssertDto({required this.challengeId, required this.response});
-
-  factory PasskeyAssertDto.fromJson(Map<String, Object?> json) =>
-      _$PasskeyAssertDtoFromJson(json);
-
+  const PasskeyAssertDto({
+    required this.challengeId,
+    required this.response,
+  });
+  
+  factory PasskeyAssertDto.fromJson(Map<String, Object?> json) => _$PasskeyAssertDtoFromJson(json);
+  
   final String challengeId;
 
   /// AuthenticationResponseJSON from the authenticator.

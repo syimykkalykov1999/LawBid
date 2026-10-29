@@ -26,10 +26,9 @@ class SystemHealthDto {
     this.heavyPause,
     this.scaleMode,
   });
-
-  factory SystemHealthDto.fromJson(Map<String, Object?> json) =>
-      _$SystemHealthDtoFromJson(json);
-
+  
+  factory SystemHealthDto.fromJson(Map<String, Object?> json) => _$SystemHealthDtoFromJson(json);
+  
   final SystemHealthDtoOverall overall;
   final String generatedAt;
   final List<HealthItemDto> items;

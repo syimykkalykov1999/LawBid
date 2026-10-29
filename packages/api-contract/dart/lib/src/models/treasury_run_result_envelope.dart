@@ -11,11 +11,13 @@ part 'treasury_run_result_envelope.g.dart';
 
 @JsonSerializable()
 class TreasuryRunResultEnvelope {
-  const TreasuryRunResultEnvelope({required this.data, this.meta});
-
-  factory TreasuryRunResultEnvelope.fromJson(Map<String, Object?> json) =>
-      _$TreasuryRunResultEnvelopeFromJson(json);
-
+  const TreasuryRunResultEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory TreasuryRunResultEnvelope.fromJson(Map<String, Object?> json) => _$TreasuryRunResultEnvelopeFromJson(json);
+  
   final TreasuryRunResultDto data;
   final ResponseMetaDto? meta;
 

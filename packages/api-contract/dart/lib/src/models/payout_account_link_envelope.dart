@@ -11,11 +11,13 @@ part 'payout_account_link_envelope.g.dart';
 
 @JsonSerializable()
 class PayoutAccountLinkEnvelope {
-  const PayoutAccountLinkEnvelope({required this.data, this.meta});
-
-  factory PayoutAccountLinkEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PayoutAccountLinkEnvelopeFromJson(json);
-
+  const PayoutAccountLinkEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PayoutAccountLinkEnvelope.fromJson(Map<String, Object?> json) => _$PayoutAccountLinkEnvelopeFromJson(json);
+  
   final PayoutAccountLinkDto data;
   final ResponseMetaDto? meta;
 

@@ -8,11 +8,13 @@ part 'partner_texts_dto.g.dart';
 
 @JsonSerializable()
 class PartnerTextsDto {
-  const PartnerTextsDto({required this.title, required this.summary});
-
-  factory PartnerTextsDto.fromJson(Map<String, Object?> json) =>
-      _$PartnerTextsDtoFromJson(json);
-
+  const PartnerTextsDto({
+    required this.title,
+    required this.summary,
+  });
+  
+  factory PartnerTextsDto.fromJson(Map<String, Object?> json) => _$PartnerTextsDtoFromJson(json);
+  
   final String title;
   final String summary;
 

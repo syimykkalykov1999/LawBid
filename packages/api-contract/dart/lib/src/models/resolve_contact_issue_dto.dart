@@ -10,11 +10,13 @@ part 'resolve_contact_issue_dto.g.dart';
 
 @JsonSerializable()
 class ResolveContactIssueDto {
-  const ResolveContactIssueDto({required this.decision, required this.note});
-
-  factory ResolveContactIssueDto.fromJson(Map<String, Object?> json) =>
-      _$ResolveContactIssueDtoFromJson(json);
-
+  const ResolveContactIssueDto({
+    required this.decision,
+    required this.note,
+  });
+  
+  factory ResolveContactIssueDto.fromJson(Map<String, Object?> json) => _$ResolveContactIssueDtoFromJson(json);
+  
   final ResolveContactIssueDtoDecision decision;
   final String note;
 

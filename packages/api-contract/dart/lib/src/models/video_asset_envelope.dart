@@ -11,11 +11,13 @@ part 'video_asset_envelope.g.dart';
 
 @JsonSerializable()
 class VideoAssetEnvelope {
-  const VideoAssetEnvelope({required this.data, this.meta});
-
-  factory VideoAssetEnvelope.fromJson(Map<String, Object?> json) =>
-      _$VideoAssetEnvelopeFromJson(json);
-
+  const VideoAssetEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory VideoAssetEnvelope.fromJson(Map<String, Object?> json) => _$VideoAssetEnvelopeFromJson(json);
+  
   final VideoAssetDto data;
   final ResponseMetaDto? meta;
 

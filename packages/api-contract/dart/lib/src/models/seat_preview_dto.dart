@@ -20,10 +20,9 @@ class SeatPreviewDto {
     required this.nextChargeCents,
     this.taxCents,
   });
-
-  factory SeatPreviewDto.fromJson(Map<String, Object?> json) =>
-      _$SeatPreviewDtoFromJson(json);
-
+  
+  factory SeatPreviewDto.fromJson(Map<String, Object?> json) => _$SeatPreviewDtoFromJson(json);
+  
   /// The wanted extra seats.
   final int seats;
 

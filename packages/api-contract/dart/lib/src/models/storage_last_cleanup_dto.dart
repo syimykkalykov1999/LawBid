@@ -17,10 +17,9 @@ class StorageLastCleanupDto {
     required this.rowsRemoved,
     required this.at,
   });
-
-  factory StorageLastCleanupDto.fromJson(Map<String, Object?> json) =>
-      _$StorageLastCleanupDtoFromJson(json);
-
+  
+  factory StorageLastCleanupDto.fromJson(Map<String, Object?> json) => _$StorageLastCleanupDtoFromJson(json);
+  
   final num pendingUploadsRemoved;
   final num orphansFound;
   final num deletedPostMedia;

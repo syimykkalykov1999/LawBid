@@ -10,11 +10,12 @@ part 'set_disappearing_dto.g.dart';
 
 @JsonSerializable()
 class SetDisappearingDto {
-  const SetDisappearingDto({this.afterS});
-
-  factory SetDisappearingDto.fromJson(Map<String, Object?> json) =>
-      _$SetDisappearingDtoFromJson(json);
-
+  const SetDisappearingDto({
+    this.afterS,
+  });
+  
+  factory SetDisappearingDto.fromJson(Map<String, Object?> json) => _$SetDisappearingDtoFromJson(json);
+  
   /// Seconds a new message lives: 86400 (24 h), 604800 (7 d) or 7776000 (90 d); absent or null = off.
   final SetDisappearingDtoAfterS? afterS;
 

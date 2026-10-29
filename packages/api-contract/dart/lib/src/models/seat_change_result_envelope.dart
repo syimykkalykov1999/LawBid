@@ -11,11 +11,13 @@ part 'seat_change_result_envelope.g.dart';
 
 @JsonSerializable()
 class SeatChangeResultEnvelope {
-  const SeatChangeResultEnvelope({required this.data, this.meta});
-
-  factory SeatChangeResultEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SeatChangeResultEnvelopeFromJson(json);
-
+  const SeatChangeResultEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SeatChangeResultEnvelope.fromJson(Map<String, Object?> json) => _$SeatChangeResultEnvelopeFromJson(json);
+  
   final SeatChangeResultDto data;
   final ResponseMetaDto? meta;
 

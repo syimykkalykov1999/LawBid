@@ -15,10 +15,9 @@ class SearchQueryStatDto {
     required this.scopes,
     required this.lastAt,
   });
-
-  factory SearchQueryStatDto.fromJson(Map<String, Object?> json) =>
-      _$SearchQueryStatDtoFromJson(json);
-
+  
+  factory SearchQueryStatDto.fromJson(Map<String, Object?> json) => _$SearchQueryStatDtoFromJson(json);
+  
   final String q;
   final num count;
 

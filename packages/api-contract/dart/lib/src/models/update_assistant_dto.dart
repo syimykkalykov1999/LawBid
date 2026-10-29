@@ -10,11 +10,14 @@ part 'update_assistant_dto.g.dart';
 
 @JsonSerializable()
 class UpdateAssistantDto {
-  const UpdateAssistantDto({this.name, this.duties, this.acceptLiability});
-
-  factory UpdateAssistantDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateAssistantDtoFromJson(json);
-
+  const UpdateAssistantDto({
+    this.name,
+    this.duties,
+    this.acceptLiability,
+  });
+  
+  factory UpdateAssistantDto.fromJson(Map<String, Object?> json) => _$UpdateAssistantDtoFromJson(json);
+  
   final String? name;
   final List<UpdateAssistantDtoDuties>? duties;
 

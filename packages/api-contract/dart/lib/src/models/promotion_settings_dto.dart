@@ -35,10 +35,9 @@ class PromotionSettingsDto {
     required this.requireSubscription,
     this.maxActivePerCase = 1,
   });
-
-  factory PromotionSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$PromotionSettingsDtoFromJson(json);
-
+  
+  factory PromotionSettingsDto.fromJson(Map<String, Object?> json) => _$PromotionSettingsDtoFromJson(json);
+  
   final bool enabled;
   final int priceCentsPerDay;
   final int maxDays;

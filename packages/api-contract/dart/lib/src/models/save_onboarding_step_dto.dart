@@ -16,10 +16,9 @@ class SaveOnboardingStepDto {
     this.data,
     this.profile,
   });
-
-  factory SaveOnboardingStepDto.fromJson(Map<String, Object?> json) =>
-      _$SaveOnboardingStepDtoFromJson(json);
-
+  
+  factory SaveOnboardingStepDto.fromJson(Map<String, Object?> json) => _$SaveOnboardingStepDtoFromJson(json);
+  
   final SaveOnboardingStepDtoCurrentStep currentStep;
 
   /// Free-form step-local UI data. Merged, not replaced. Profile fields.

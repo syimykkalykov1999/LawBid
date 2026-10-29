@@ -8,11 +8,12 @@ part 'update_prices_dto.g.dart';
 
 @JsonSerializable()
 class UpdatePricesDto {
-  const UpdatePricesDto({required this.values});
-
-  factory UpdatePricesDto.fromJson(Map<String, Object?> json) =>
-      _$UpdatePricesDtoFromJson(json);
-
+  const UpdatePricesDto({
+    required this.values,
+  });
+  
+  factory UpdatePricesDto.fromJson(Map<String, Object?> json) => _$UpdatePricesDtoFromJson(json);
+  
   /// Price key → new value (only known keys are saved).
   final Map<String, num> values;
 

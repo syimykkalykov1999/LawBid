@@ -20,10 +20,9 @@ class WorkspaceQueueDto {
     required this.focus,
     required this.canAct,
   });
-
-  factory WorkspaceQueueDto.fromJson(Map<String, Object?> json) =>
-      _$WorkspaceQueueDtoFromJson(json);
-
+  
+  factory WorkspaceQueueDto.fromJson(Map<String, Object?> json) => _$WorkspaceQueueDtoFromJson(json);
+  
   final WorkspaceQueueDtoKey key;
   final String label;
 

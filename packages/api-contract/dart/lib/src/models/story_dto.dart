@@ -32,10 +32,9 @@ class StoryDto {
     this.text,
     this.background,
   });
-
-  factory StoryDto.fromJson(Map<String, Object?> json) =>
-      _$StoryDtoFromJson(json);
-
+  
+  factory StoryDto.fromJson(Map<String, Object?> json) => _$StoryDtoFromJson(json);
+  
   final String id;
   final UserBriefDto author;
   final StoryKind kind;

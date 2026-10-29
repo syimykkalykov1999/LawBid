@@ -11,11 +11,13 @@ part 'outreach_import_report_envelope.g.dart';
 
 @JsonSerializable()
 class OutreachImportReportEnvelope {
-  const OutreachImportReportEnvelope({required this.data, this.meta});
-
-  factory OutreachImportReportEnvelope.fromJson(Map<String, Object?> json) =>
-      _$OutreachImportReportEnvelopeFromJson(json);
-
+  const OutreachImportReportEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory OutreachImportReportEnvelope.fromJson(Map<String, Object?> json) => _$OutreachImportReportEnvelopeFromJson(json);
+  
   final OutreachImportReportDto data;
   final ResponseMetaDto? meta;
 

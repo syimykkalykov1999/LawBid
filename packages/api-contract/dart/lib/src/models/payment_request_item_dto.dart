@@ -13,10 +13,9 @@ class PaymentRequestItemDto {
     this.description,
     this.dueAt,
   });
-
-  factory PaymentRequestItemDto.fromJson(Map<String, Object?> json) =>
-      _$PaymentRequestItemDtoFromJson(json);
-
+  
+  factory PaymentRequestItemDto.fromJson(Map<String, Object?> json) => _$PaymentRequestItemDtoFromJson(json);
+  
   final int amountCents;
 
   /// What this is for; defaults to the plan description.

@@ -8,11 +8,12 @@ part 'passkey_registration_options_dto.g.dart';
 
 @JsonSerializable()
 class PasskeyRegistrationOptionsDto {
-  const PasskeyRegistrationOptionsDto({required this.options});
-
-  factory PasskeyRegistrationOptionsDto.fromJson(Map<String, Object?> json) =>
-      _$PasskeyRegistrationOptionsDtoFromJson(json);
-
+  const PasskeyRegistrationOptionsDto({
+    required this.options,
+  });
+  
+  factory PasskeyRegistrationOptionsDto.fromJson(Map<String, Object?> json) => _$PasskeyRegistrationOptionsDtoFromJson(json);
+  
   /// PublicKeyCredentialCreationOptionsJSON — pass to @simplewebauthn/browser startRegistration() or the native passkey API as is.
   final dynamic options;
 

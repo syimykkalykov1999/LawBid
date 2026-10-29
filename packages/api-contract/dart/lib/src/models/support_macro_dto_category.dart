@@ -12,7 +12,6 @@ enum SupportMacroDtoCategory {
   billing('billing'),
   @JsonValue('verification')
   verification('verification'),
-
   /// The name has been replaced because it contains a keyword. Original name: `case`.
   @JsonValue('case')
   valueCase('case'),
@@ -22,31 +21,28 @@ enum SupportMacroDtoCategory {
   abuse('abuse'),
   @JsonValue('other')
   other('other'),
-
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 
   const SupportMacroDtoCategory(this.json);
 
-  factory SupportMacroDtoCategory.fromJson(String json) =>
-      values.firstWhere((e) => e.json == json, orElse: () => $unknown);
+  factory SupportMacroDtoCategory.fromJson(String json) => values.firstWhere(
+        (e) => e.json == json,
+        orElse: () => $unknown,
+      );
 
   final String? json;
   String toJson() {
     final value = json;
     if (value == null) {
-      throw StateError(
-        'Cannot convert enum value with null JSON representation to String. '
-        'This usually happens for \$unknown or @JsonValue(null) entries.',
-      );
+      throw StateError('Cannot convert enum value with null JSON representation to String. '
+          'This usually happens for \$unknown or @JsonValue(null) entries.');
     }
     return value as String;
   }
 
   @override
   String toString() => json?.toString() ?? super.toString();
-
   /// Returns all defined enum values excluding the $unknown value.
-  static List<SupportMacroDtoCategory> get $valuesDefined =>
-      values.where((value) => value != $unknown).toList();
+  static List<SupportMacroDtoCategory> get $valuesDefined => values.where((value) => value != $unknown).toList();
 }

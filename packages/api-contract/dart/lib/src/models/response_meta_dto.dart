@@ -8,11 +8,14 @@ part 'response_meta_dto.g.dart';
 
 @JsonSerializable()
 class ResponseMetaDto {
-  const ResponseMetaDto({this.nextCursor, this.deletedIds, this.syncedAt});
-
-  factory ResponseMetaDto.fromJson(Map<String, Object?> json) =>
-      _$ResponseMetaDtoFromJson(json);
-
+  const ResponseMetaDto({
+    this.nextCursor,
+    this.deletedIds,
+    this.syncedAt,
+  });
+  
+  factory ResponseMetaDto.fromJson(Map<String, Object?> json) => _$ResponseMetaDtoFromJson(json);
+  
   /// Opaque cursor for the next page; null on the last page.
   final String? nextCursor;
 

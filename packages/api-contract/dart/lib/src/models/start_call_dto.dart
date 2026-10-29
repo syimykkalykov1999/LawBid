@@ -8,11 +8,12 @@ part 'start_call_dto.g.dart';
 
 @JsonSerializable()
 class StartCallDto {
-  const StartCallDto({this.video = false});
-
-  factory StartCallDto.fromJson(Map<String, Object?> json) =>
-      _$StartCallDtoFromJson(json);
-
+  const StartCallDto({
+    this.video = false,
+  });
+  
+  factory StartCallDto.fromJson(Map<String, Object?> json) => _$StartCallDtoFromJson(json);
+  
   /// A video call (needs the `video_calls` flag).
   final bool video;
 

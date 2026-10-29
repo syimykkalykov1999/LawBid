@@ -13,10 +13,9 @@ class SetReferralCodeDto {
     required this.code,
     this.reason = '',
   });
-
-  factory SetReferralCodeDto.fromJson(Map<String, Object?> json) =>
-      _$SetReferralCodeDtoFromJson(json);
-
+  
+  factory SetReferralCodeDto.fromJson(Map<String, Object?> json) => _$SetReferralCodeDtoFromJson(json);
+  
   final String userId;
 
   /// Your own word: 4-24 letters or digits (case does not matter).

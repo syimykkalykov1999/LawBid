@@ -23,10 +23,9 @@ class SupportClientContextDto {
     this.userId,
     this.role,
   });
-
-  factory SupportClientContextDto.fromJson(Map<String, Object?> json) =>
-      _$SupportClientContextDtoFromJson(json);
-
+  
+  factory SupportClientContextDto.fromJson(Map<String, Object?> json) => _$SupportClientContextDtoFromJson(json);
+  
   final String? appVersion;
   final String? buildNumber;
   final SupportClientContextDtoPlatform? platform;

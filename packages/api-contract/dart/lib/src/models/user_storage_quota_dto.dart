@@ -14,10 +14,9 @@ class UserStorageQuotaDto {
     required this.usedBytes,
     required this.quotaBytes,
   });
-
-  factory UserStorageQuotaDto.fromJson(Map<String, Object?> json) =>
-      _$UserStorageQuotaDtoFromJson(json);
-
+  
+  factory UserStorageQuotaDto.fromJson(Map<String, Object?> json) => _$UserStorageQuotaDtoFromJson(json);
+  
   final String userId;
   final num? quotaMb;
   final num usedBytes;

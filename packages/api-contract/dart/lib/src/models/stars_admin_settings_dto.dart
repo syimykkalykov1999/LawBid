@@ -19,10 +19,9 @@ class StarsAdminSettingsDto {
     required this.reactionStars,
     required this.premiumReactions,
   });
-
-  factory StarsAdminSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$StarsAdminSettingsDtoFromJson(json);
-
+  
+  factory StarsAdminSettingsDto.fromJson(Map<String, Object?> json) => _$StarsAdminSettingsDtoFromJson(json);
+  
   final List<StarPackDto> packs;
   final bool enabled;
   final int giftConvertPercent;

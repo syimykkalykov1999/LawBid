@@ -8,11 +8,12 @@ part 'set_user_storage_quota_dto.g.dart';
 
 @JsonSerializable()
 class SetUserStorageQuotaDto {
-  const SetUserStorageQuotaDto({required this.quotaMb});
-
-  factory SetUserStorageQuotaDto.fromJson(Map<String, Object?> json) =>
-      _$SetUserStorageQuotaDtoFromJson(json);
-
+  const SetUserStorageQuotaDto({
+    required this.quotaMb,
+  });
+  
+  factory SetUserStorageQuotaDto.fromJson(Map<String, Object?> json) => _$SetUserStorageQuotaDtoFromJson(json);
+  
   /// MB; 0 = no cap, null = back to the default.
   final num? quotaMb;
 

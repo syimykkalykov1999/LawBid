@@ -11,11 +11,13 @@ part 'running_timer_envelope.g.dart';
 
 @JsonSerializable()
 class RunningTimerEnvelope {
-  const RunningTimerEnvelope({required this.data, this.meta});
-
-  factory RunningTimerEnvelope.fromJson(Map<String, Object?> json) =>
-      _$RunningTimerEnvelopeFromJson(json);
-
+  const RunningTimerEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory RunningTimerEnvelope.fromJson(Map<String, Object?> json) => _$RunningTimerEnvelopeFromJson(json);
+  
   final RunningTimerDto data;
   final ResponseMetaDto? meta;
 

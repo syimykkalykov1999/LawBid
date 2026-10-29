@@ -16,10 +16,9 @@ class SignVerifyDto {
     required this.sourceSha256,
     required this.finalSha256,
   });
-
-  factory SignVerifyDto.fromJson(Map<String, Object?> json) =>
-      _$SignVerifyDtoFromJson(json);
-
+  
+  factory SignVerifyDto.fromJson(Map<String, Object?> json) => _$SignVerifyDtoFromJson(json);
+  
   /// The original file still has the recorded SHA-256.
   final bool sourceOk;
 

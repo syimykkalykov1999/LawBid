@@ -8,11 +8,12 @@ part 'set_admin_countries_dto.g.dart';
 
 @JsonSerializable()
 class SetAdminCountriesDto {
-  const SetAdminCountriesDto({required this.countries});
-
-  factory SetAdminCountriesDto.fromJson(Map<String, Object?> json) =>
-      _$SetAdminCountriesDtoFromJson(json);
-
+  const SetAdminCountriesDto({
+    required this.countries,
+  });
+  
+  factory SetAdminCountriesDto.fromJson(Map<String, Object?> json) => _$SetAdminCountriesDtoFromJson(json);
+  
   /// ISO 3166-1 alpha-2 codes; an empty list = every country. Applies at once.
   final List<String> countries;
 

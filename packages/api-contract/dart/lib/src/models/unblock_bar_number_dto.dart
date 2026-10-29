@@ -8,11 +8,12 @@ part 'unblock_bar_number_dto.g.dart';
 
 @JsonSerializable()
 class UnblockBarNumberDto {
-  const UnblockBarNumberDto({required this.reason});
-
-  factory UnblockBarNumberDto.fromJson(Map<String, Object?> json) =>
-      _$UnblockBarNumberDtoFromJson(json);
-
+  const UnblockBarNumberDto({
+    required this.reason,
+  });
+  
+  factory UnblockBarNumberDto.fromJson(Map<String, Object?> json) => _$UnblockBarNumberDtoFromJson(json);
+  
   /// Why the block is lifted (what the person explained / proved).
   final String reason;
 

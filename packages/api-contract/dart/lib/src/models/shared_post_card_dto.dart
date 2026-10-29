@@ -19,10 +19,9 @@ class SharedPostCardDto {
     this.excerpt,
     this.thumbnailUrl,
   });
-
-  factory SharedPostCardDto.fromJson(Map<String, Object?> json) =>
-      _$SharedPostCardDtoFromJson(json);
-
+  
+  factory SharedPostCardDto.fromJson(Map<String, Object?> json) => _$SharedPostCardDtoFromJson(json);
+  
   final String id;
   final SharedPostAuthorDto? author;
   final String? title;

@@ -8,11 +8,12 @@ part 'set_notify_joined_dto.g.dart';
 
 @JsonSerializable()
 class SetNotifyJoinedDto {
-  const SetNotifyJoinedDto({required this.enabled});
-
-  factory SetNotifyJoinedDto.fromJson(Map<String, Object?> json) =>
-      _$SetNotifyJoinedDtoFromJson(json);
-
+  const SetNotifyJoinedDto({
+    required this.enabled,
+  });
+  
+  factory SetNotifyJoinedDto.fromJson(Map<String, Object?> json) => _$SetNotifyJoinedDtoFromJson(json);
+  
   /// «Notify me when contacts join LawBid»: the server sends "X joined LawBid".
   final bool enabled;
 

@@ -18,10 +18,9 @@ class UpdateTreasurySettingsDto {
     this.payrollDay,
     this.payrollWarnDays,
   });
-
-  factory UpdateTreasurySettingsDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateTreasurySettingsDtoFromJson(json);
-
+  
+  factory UpdateTreasurySettingsDto.fromJson(Map<String, Object?> json) => _$UpdateTreasurySettingsDtoFromJson(json);
+  
   final bool? auto;
   final int? payoutDay;
   final int? bufferPercent;

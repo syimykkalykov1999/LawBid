@@ -18,10 +18,9 @@ class StarLedgerItemDto {
     required this.createdAt,
     this.note,
   });
-
-  factory StarLedgerItemDto.fromJson(Map<String, Object?> json) =>
-      _$StarLedgerItemDtoFromJson(json);
-
+  
+  factory StarLedgerItemDto.fromJson(Map<String, Object?> json) => _$StarLedgerItemDtoFromJson(json);
+  
   final String id;
   final int delta;
   final int balanceAfter;

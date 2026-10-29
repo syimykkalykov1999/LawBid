@@ -26,10 +26,9 @@ class TaskStepDto {
     this.doneAt,
     this.createdByName,
   });
-
-  factory TaskStepDto.fromJson(Map<String, Object?> json) =>
-      _$TaskStepDtoFromJson(json);
-
+  
+  factory TaskStepDto.fromJson(Map<String, Object?> json) => _$TaskStepDtoFromJson(json);
+  
   final String id;
   final num position;
   final AttorneyTaskKind? kind;

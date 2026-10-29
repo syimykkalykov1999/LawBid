@@ -11,11 +11,13 @@ part 'video_call_config_envelope.g.dart';
 
 @JsonSerializable()
 class VideoCallConfigEnvelope {
-  const VideoCallConfigEnvelope({required this.data, this.meta});
-
-  factory VideoCallConfigEnvelope.fromJson(Map<String, Object?> json) =>
-      _$VideoCallConfigEnvelopeFromJson(json);
-
+  const VideoCallConfigEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory VideoCallConfigEnvelope.fromJson(Map<String, Object?> json) => _$VideoCallConfigEnvelopeFromJson(json);
+  
   final VideoCallConfigDto data;
   final ResponseMetaDto? meta;
 

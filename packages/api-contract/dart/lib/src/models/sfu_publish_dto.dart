@@ -10,11 +10,13 @@ part 'sfu_publish_dto.g.dart';
 
 @JsonSerializable()
 class SfuPublishDto {
-  const SfuPublishDto({required this.sdp, required this.tracks});
-
-  factory SfuPublishDto.fromJson(Map<String, Object?> json) =>
-      _$SfuPublishDtoFromJson(json);
-
+  const SfuPublishDto({
+    required this.sdp,
+    required this.tracks,
+  });
+  
+  factory SfuPublishDto.fromJson(Map<String, Object?> json) => _$SfuPublishDtoFromJson(json);
+  
   /// Your SDP offer (sendonly transceivers).
   final String sdp;
   final List<SfuPublishTrackDto> tracks;

@@ -11,11 +11,13 @@ part 'workspace_envelope.g.dart';
 
 @JsonSerializable()
 class WorkspaceEnvelope {
-  const WorkspaceEnvelope({required this.data, this.meta});
-
-  factory WorkspaceEnvelope.fromJson(Map<String, Object?> json) =>
-      _$WorkspaceEnvelopeFromJson(json);
-
+  const WorkspaceEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory WorkspaceEnvelope.fromJson(Map<String, Object?> json) => _$WorkspaceEnvelopeFromJson(json);
+  
   final WorkspaceDto data;
   final ResponseMetaDto? meta;
 

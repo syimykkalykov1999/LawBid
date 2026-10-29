@@ -21,10 +21,9 @@ class RewardDepartmentBoardDto {
     required this.rows,
     this.award,
   });
-
-  factory RewardDepartmentBoardDto.fromJson(Map<String, Object?> json) =>
-      _$RewardDepartmentBoardDtoFromJson(json);
-
+  
+  factory RewardDepartmentBoardDto.fromJson(Map<String, Object?> json) => _$RewardDepartmentBoardDtoFromJson(json);
+  
   final RewardDepartmentBoardDtoKey key;
   final String label;
   final String prize;

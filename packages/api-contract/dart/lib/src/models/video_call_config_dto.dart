@@ -16,10 +16,9 @@ class VideoCallConfigDto {
     required this.provider,
     this.reason,
   });
-
-  factory VideoCallConfigDto.fromJson(Map<String, Object?> json) =>
-      _$VideoCallConfigDtoFromJson(json);
-
+  
+  factory VideoCallConfigDto.fromJson(Map<String, Object?> json) => _$VideoCallConfigDtoFromJson(json);
+  
   final bool available;
   final VideoCallConfigDtoProvider provider;
 

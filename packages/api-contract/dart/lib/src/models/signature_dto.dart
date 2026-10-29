@@ -17,10 +17,9 @@ class SignatureDto {
     required this.method,
     required this.signedAt,
   });
-
-  factory SignatureDto.fromJson(Map<String, Object?> json) =>
-      _$SignatureDtoFromJson(json);
-
+  
+  factory SignatureDto.fromJson(Map<String, Object?> json) => _$SignatureDtoFromJson(json);
+  
   final SignatureDtoRole role;
   final String name;
   final SignatureDtoMethod method;

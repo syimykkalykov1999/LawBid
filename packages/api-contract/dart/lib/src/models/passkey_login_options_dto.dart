@@ -10,11 +10,12 @@ part 'passkey_login_options_dto.g.dart';
 
 @JsonSerializable()
 class PasskeyLoginOptionsDto {
-  const PasskeyLoginOptionsDto({this.deviceInfo});
-
-  factory PasskeyLoginOptionsDto.fromJson(Map<String, Object?> json) =>
-      _$PasskeyLoginOptionsDtoFromJson(json);
-
+  const PasskeyLoginOptionsDto({
+    this.deviceInfo,
+  });
+  
+  factory PasskeyLoginOptionsDto.fromJson(Map<String, Object?> json) => _$PasskeyLoginOptionsDtoFromJson(json);
+  
   final DeviceInfoDto? deviceInfo;
 
   Map<String, Object?> toJson() => _$PasskeyLoginOptionsDtoToJson(this);

@@ -8,11 +8,13 @@ part 'update_country_region_dto.g.dart';
 
 @JsonSerializable()
 class UpdateCountryRegionDto {
-  const UpdateCountryRegionDto({this.isActive, this.attorneyAdvertisingLabel});
-
-  factory UpdateCountryRegionDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateCountryRegionDtoFromJson(json);
-
+  const UpdateCountryRegionDto({
+    this.isActive,
+    this.attorneyAdvertisingLabel,
+  });
+  
+  factory UpdateCountryRegionDto.fromJson(Map<String, Object?> json) => _$UpdateCountryRegionDtoFromJson(json);
+  
   final bool? isActive;
 
   /// Owner 2026-10-22 (audit #4 §5): the «Attorney Advertising» switch.

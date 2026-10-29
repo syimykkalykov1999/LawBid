@@ -24,10 +24,9 @@ class PaymentQuoteDto {
     required this.feePayer,
     required this.processingFeePayer,
   });
-
-  factory PaymentQuoteDto.fromJson(Map<String, Object?> json) =>
-      _$PaymentQuoteDtoFromJson(json);
-
+  
+  factory PaymentQuoteDto.fromJson(Map<String, Object?> json) => _$PaymentQuoteDtoFromJson(json);
+  
   /// The attorney's fee paid.
   final int amountCents;
   final int platformFeeCents;

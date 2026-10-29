@@ -14,10 +14,9 @@ class SaveAdminRoleTemplateDto {
     required this.name,
     required this.permissions,
   });
-
-  factory SaveAdminRoleTemplateDto.fromJson(Map<String, Object?> json) =>
-      _$SaveAdminRoleTemplateDtoFromJson(json);
-
+  
+  factory SaveAdminRoleTemplateDto.fromJson(Map<String, Object?> json) => _$SaveAdminRoleTemplateDtoFromJson(json);
+  
   final String name;
   final Map<String, PermissionsPermissions> permissions;
 

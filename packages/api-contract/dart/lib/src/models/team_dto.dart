@@ -18,10 +18,9 @@ class TeamDto {
     required this.plan,
     required this.maxDuties,
   });
-
-  factory TeamDto.fromJson(Map<String, Object?> json) =>
-      _$TeamDtoFromJson(json);
-
+  
+  factory TeamDto.fromJson(Map<String, Object?> json) => _$TeamDtoFromJson(json);
+  
   final List<AssistantMemberDto> members;
   final int seats;
   final int used;

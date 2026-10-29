@@ -13,10 +13,9 @@ class ProfileCountersDto {
     required this.followers,
     required this.following,
   });
-
-  factory ProfileCountersDto.fromJson(Map<String, Object?> json) =>
-      _$ProfileCountersDtoFromJson(json);
-
+  
+  factory ProfileCountersDto.fromJson(Map<String, Object?> json) => _$ProfileCountersDtoFromJson(json);
+  
   final num posts;
   final num followers;
   final num following;

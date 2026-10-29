@@ -13,10 +13,9 @@ class SearchOverviewDto {
     required this.noResults,
     required this.clicks,
   });
-
-  factory SearchOverviewDto.fromJson(Map<String, Object?> json) =>
-      _$SearchOverviewDtoFromJson(json);
-
+  
+  factory SearchOverviewDto.fromJson(Map<String, Object?> json) => _$SearchOverviewDtoFromJson(json);
+  
   /// Queries in the period.
   final num queries;
 

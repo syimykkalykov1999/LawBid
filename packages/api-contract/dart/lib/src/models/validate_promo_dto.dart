@@ -10,11 +10,13 @@ part 'validate_promo_dto.g.dart';
 
 @JsonSerializable()
 class ValidatePromoDto {
-  const ValidatePromoDto({required this.code, required this.appliesTo});
-
-  factory ValidatePromoDto.fromJson(Map<String, Object?> json) =>
-      _$ValidatePromoDtoFromJson(json);
-
+  const ValidatePromoDto({
+    required this.code,
+    required this.appliesTo,
+  });
+  
+  factory ValidatePromoDto.fromJson(Map<String, Object?> json) => _$ValidatePromoDtoFromJson(json);
+  
   final String code;
 
   /// What the code is for.

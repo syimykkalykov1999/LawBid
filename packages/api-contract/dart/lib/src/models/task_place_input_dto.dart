@@ -8,11 +8,13 @@ part 'task_place_input_dto.g.dart';
 
 @JsonSerializable()
 class TaskPlaceInputDto {
-  const TaskPlaceInputDto({required this.address, this.label});
-
-  factory TaskPlaceInputDto.fromJson(Map<String, Object?> json) =>
-      _$TaskPlaceInputDtoFromJson(json);
-
+  const TaskPlaceInputDto({
+    required this.address,
+    this.label,
+  });
+  
+  factory TaskPlaceInputDto.fromJson(Map<String, Object?> json) => _$TaskPlaceInputDtoFromJson(json);
+  
   /// What the place is ("Court", "Client's home").
   final String? label;
   final String address;

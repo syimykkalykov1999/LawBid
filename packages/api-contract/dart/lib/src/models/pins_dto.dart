@@ -16,10 +16,9 @@ class PinsDto {
     required this.deleteForAllHours,
     required this.maxPins,
   });
-
-  factory PinsDto.fromJson(Map<String, Object?> json) =>
-      _$PinsDtoFromJson(json);
-
+  
+  factory PinsDto.fromJson(Map<String, Object?> json) => _$PinsDtoFromJson(json);
+  
   final List<MessageDto> items;
 
   /// Minutes a text message can be edited.

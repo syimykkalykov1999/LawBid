@@ -11,11 +11,13 @@ part 'registry_flag_item_list_envelope.g.dart';
 
 @JsonSerializable()
 class RegistryFlagItemListEnvelope {
-  const RegistryFlagItemListEnvelope({required this.data, this.meta});
-
-  factory RegistryFlagItemListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$RegistryFlagItemListEnvelopeFromJson(json);
-
+  const RegistryFlagItemListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory RegistryFlagItemListEnvelope.fromJson(Map<String, Object?> json) => _$RegistryFlagItemListEnvelopeFromJson(json);
+  
   final List<RegistryFlagItemDto> data;
   final ResponseMetaDto? meta;
 

@@ -8,11 +8,12 @@ part 'reschedule_consultation_dto.g.dart';
 
 @JsonSerializable()
 class RescheduleConsultationDto {
-  const RescheduleConsultationDto({required this.startsAt});
-
-  factory RescheduleConsultationDto.fromJson(Map<String, Object?> json) =>
-      _$RescheduleConsultationDtoFromJson(json);
-
+  const RescheduleConsultationDto({
+    required this.startsAt,
+  });
+  
+  factory RescheduleConsultationDto.fromJson(Map<String, Object?> json) => _$RescheduleConsultationDtoFromJson(json);
+  
   final String startsAt;
 
   Map<String, Object?> toJson() => _$RescheduleConsultationDtoToJson(this);

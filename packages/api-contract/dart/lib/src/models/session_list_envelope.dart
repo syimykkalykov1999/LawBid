@@ -11,11 +11,13 @@ part 'session_list_envelope.g.dart';
 
 @JsonSerializable()
 class SessionListEnvelope {
-  const SessionListEnvelope({required this.data, this.meta});
-
-  factory SessionListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SessionListEnvelopeFromJson(json);
-
+  const SessionListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SessionListEnvelope.fromJson(Map<String, Object?> json) => _$SessionListEnvelopeFromJson(json);
+  
   final List<SessionDto> data;
   final ResponseMetaDto? meta;
 

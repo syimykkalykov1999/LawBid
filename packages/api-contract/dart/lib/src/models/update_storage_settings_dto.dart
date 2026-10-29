@@ -26,10 +26,9 @@ class UpdateStorageSettingsDto {
     this.notificationsRetentionDays,
     this.growthAlertPercent,
   });
-
-  factory UpdateStorageSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateStorageSettingsDtoFromJson(json);
-
+  
+  factory UpdateStorageSettingsDto.fromJson(Map<String, Object?> json) => _$UpdateStorageSettingsDtoFromJson(json);
+  
   final bool? dedup;
   final bool? autoCleanup;
   final num? orphanGraceHours;

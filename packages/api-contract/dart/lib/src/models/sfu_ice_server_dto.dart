@@ -8,11 +8,12 @@ part 'sfu_ice_server_dto.g.dart';
 
 @JsonSerializable()
 class SfuIceServerDto {
-  const SfuIceServerDto({required this.urls});
-
-  factory SfuIceServerDto.fromJson(Map<String, Object?> json) =>
-      _$SfuIceServerDtoFromJson(json);
-
+  const SfuIceServerDto({
+    required this.urls,
+  });
+  
+  factory SfuIceServerDto.fromJson(Map<String, Object?> json) => _$SfuIceServerDtoFromJson(json);
+  
   final List<String> urls;
 
   Map<String, Object?> toJson() => _$SfuIceServerDtoToJson(this);

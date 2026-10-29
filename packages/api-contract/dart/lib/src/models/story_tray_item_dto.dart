@@ -17,10 +17,9 @@ class StoryTrayItemDto {
     required this.unseenCount,
     this.latestAt,
   });
-
-  factory StoryTrayItemDto.fromJson(Map<String, Object?> json) =>
-      _$StoryTrayItemDtoFromJson(json);
-
+  
+  factory StoryTrayItemDto.fromJson(Map<String, Object?> json) => _$StoryTrayItemDtoFromJson(json);
+  
   final UserBriefDto user;
   final bool isMe;
   final int storyCount;

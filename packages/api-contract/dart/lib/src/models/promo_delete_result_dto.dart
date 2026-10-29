@@ -10,11 +10,13 @@ part 'promo_delete_result_dto.g.dart';
 
 @JsonSerializable()
 class PromoDeleteResultDto {
-  const PromoDeleteResultDto({required this.id, required this.outcome});
-
-  factory PromoDeleteResultDto.fromJson(Map<String, Object?> json) =>
-      _$PromoDeleteResultDtoFromJson(json);
-
+  const PromoDeleteResultDto({
+    required this.id,
+    required this.outcome,
+  });
+  
+  factory PromoDeleteResultDto.fromJson(Map<String, Object?> json) => _$PromoDeleteResultDtoFromJson(json);
+  
   final String id;
 
   /// deleted: never used, removed for good (the code can be reused); archived: already used, hidden and switched off so payment history stays intact.

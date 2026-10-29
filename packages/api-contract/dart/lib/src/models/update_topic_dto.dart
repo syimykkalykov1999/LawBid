@@ -15,10 +15,9 @@ class UpdateTopicDto {
     this.closed,
     this.pinned,
   });
-
-  factory UpdateTopicDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateTopicDtoFromJson(json);
-
+  
+  factory UpdateTopicDto.fromJson(Map<String, Object?> json) => _$UpdateTopicDtoFromJson(json);
+  
   final String? title;
   final String? iconEmoji;
   final num? color;

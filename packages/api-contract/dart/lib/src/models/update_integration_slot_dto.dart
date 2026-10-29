@@ -8,11 +8,13 @@ part 'update_integration_slot_dto.g.dart';
 
 @JsonSerializable()
 class UpdateIntegrationSlotDto {
-  const UpdateIntegrationSlotDto({this.label, this.enabled});
-
-  factory UpdateIntegrationSlotDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateIntegrationSlotDtoFromJson(json);
-
+  const UpdateIntegrationSlotDto({
+    this.label,
+    this.enabled,
+  });
+  
+  factory UpdateIntegrationSlotDto.fromJson(Map<String, Object?> json) => _$UpdateIntegrationSlotDtoFromJson(json);
+  
   final String? label;
 
   /// Off: the API skips this key set.

@@ -30,10 +30,9 @@ class VendorSpendDto {
     required this.freeTier,
     required this.notes,
   });
-
-  factory VendorSpendDto.fromJson(Map<String, Object?> json) =>
-      _$VendorSpendDtoFromJson(json);
-
+  
+  factory VendorSpendDto.fromJson(Map<String, Object?> json) => _$VendorSpendDtoFromJson(json);
+  
   final VendorSpendDtoId id;
   final String label;
   final VendorSpendDtoStatus status;

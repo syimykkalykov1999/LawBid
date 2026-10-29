@@ -8,11 +8,13 @@ part 'stars_buy_dto.g.dart';
 
 @JsonSerializable()
 class StarsBuyDto {
-  const StarsBuyDto({required this.purchaseId, required this.checkoutUrl});
-
-  factory StarsBuyDto.fromJson(Map<String, Object?> json) =>
-      _$StarsBuyDtoFromJson(json);
-
+  const StarsBuyDto({
+    required this.purchaseId,
+    required this.checkoutUrl,
+  });
+  
+  factory StarsBuyDto.fromJson(Map<String, Object?> json) => _$StarsBuyDtoFromJson(json);
+  
   final String purchaseId;
   final String checkoutUrl;
 

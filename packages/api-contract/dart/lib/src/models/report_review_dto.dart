@@ -10,11 +10,13 @@ part 'report_review_dto.g.dart';
 
 @JsonSerializable()
 class ReportReviewDto {
-  const ReportReviewDto({required this.reason, this.note});
-
-  factory ReportReviewDto.fromJson(Map<String, Object?> json) =>
-      _$ReportReviewDtoFromJson(json);
-
+  const ReportReviewDto({
+    required this.reason,
+    this.note,
+  });
+  
+  factory ReportReviewDto.fromJson(Map<String, Object?> json) => _$ReportReviewDtoFromJson(json);
+  
   final ReportReason reason;
   final String? note;
 

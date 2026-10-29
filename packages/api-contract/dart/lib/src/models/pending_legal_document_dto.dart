@@ -21,10 +21,9 @@ class PendingLegalDocumentDto {
     required this.publishedAt,
     required this.reason,
   });
-
-  factory PendingLegalDocumentDto.fromJson(Map<String, Object?> json) =>
-      _$PendingLegalDocumentDtoFromJson(json);
-
+  
+  factory PendingLegalDocumentDto.fromJson(Map<String, Object?> json) => _$PendingLegalDocumentDtoFromJson(json);
+  
   final String id;
   final PendingLegalDocumentDtoDocType docType;
   final PendingLegalDocumentDtoLocale locale;

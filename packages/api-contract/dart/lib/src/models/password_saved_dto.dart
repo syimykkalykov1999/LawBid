@@ -8,11 +8,12 @@ part 'password_saved_dto.g.dart';
 
 @JsonSerializable()
 class PasswordSavedDto {
-  const PasswordSavedDto({required this.saved});
-
-  factory PasswordSavedDto.fromJson(Map<String, Object?> json) =>
-      _$PasswordSavedDtoFromJson(json);
-
+  const PasswordSavedDto({
+    required this.saved,
+  });
+  
+  factory PasswordSavedDto.fromJson(Map<String, Object?> json) => _$PasswordSavedDtoFromJson(json);
+  
   final bool saved;
 
   Map<String, Object?> toJson() => _$PasswordSavedDtoToJson(this);

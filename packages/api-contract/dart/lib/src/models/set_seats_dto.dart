@@ -8,11 +8,13 @@ part 'set_seats_dto.g.dart';
 
 @JsonSerializable()
 class SetSeatsDto {
-  const SetSeatsDto({required this.seats, this.prorationDate});
-
-  factory SetSeatsDto.fromJson(Map<String, Object?> json) =>
-      _$SetSeatsDtoFromJson(json);
-
+  const SetSeatsDto({
+    required this.seats,
+    this.prorationDate,
+  });
+  
+  factory SetSeatsDto.fromJson(Map<String, Object?> json) => _$SetSeatsDtoFromJson(json);
+  
   /// Extra seats on top of the ones the plan includes.
   final int seats;
 

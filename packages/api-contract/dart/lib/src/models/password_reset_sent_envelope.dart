@@ -11,11 +11,13 @@ part 'password_reset_sent_envelope.g.dart';
 
 @JsonSerializable()
 class PasswordResetSentEnvelope {
-  const PasswordResetSentEnvelope({required this.data, this.meta});
-
-  factory PasswordResetSentEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PasswordResetSentEnvelopeFromJson(json);
-
+  const PasswordResetSentEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PasswordResetSentEnvelope.fromJson(Map<String, Object?> json) => _$PasswordResetSentEnvelopeFromJson(json);
+  
   final PasswordResetSentDto data;
   final ResponseMetaDto? meta;
 

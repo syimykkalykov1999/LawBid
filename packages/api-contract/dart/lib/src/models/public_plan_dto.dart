@@ -33,10 +33,9 @@ class PublicPlanDto {
     required this.isDefault,
     required this.trialDays,
   });
-
-  factory PublicPlanDto.fromJson(Map<String, Object?> json) =>
-      _$PublicPlanDtoFromJson(json);
-
+  
+  factory PublicPlanDto.fromJson(Map<String, Object?> json) => _$PublicPlanDtoFromJson(json);
+  
   final String id;
   final String code;
   final PublicPlanDtoAudience audience;

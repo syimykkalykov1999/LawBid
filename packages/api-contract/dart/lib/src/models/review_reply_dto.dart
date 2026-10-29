@@ -8,11 +8,12 @@ part 'review_reply_dto.g.dart';
 
 @JsonSerializable()
 class ReviewReplyDto {
-  const ReviewReplyDto({required this.body});
-
-  factory ReviewReplyDto.fromJson(Map<String, Object?> json) =>
-      _$ReviewReplyDtoFromJson(json);
-
+  const ReviewReplyDto({
+    required this.body,
+  });
+  
+  factory ReviewReplyDto.fromJson(Map<String, Object?> json) => _$ReviewReplyDtoFromJson(json);
+  
   final String body;
 
   Map<String, Object?> toJson() => _$ReviewReplyDtoToJson(this);

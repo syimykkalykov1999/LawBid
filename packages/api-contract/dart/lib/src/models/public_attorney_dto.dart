@@ -23,10 +23,9 @@ class PublicAttorneyDto {
     required this.licensedStates,
     this.bio,
   });
-
-  factory PublicAttorneyDto.fromJson(Map<String, Object?> json) =>
-      _$PublicAttorneyDtoFromJson(json);
-
+  
+  factory PublicAttorneyDto.fromJson(Map<String, Object?> json) => _$PublicAttorneyDtoFromJson(json);
+  
   final String username;
   final String displayName;
   final String? bio;

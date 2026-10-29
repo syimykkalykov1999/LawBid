@@ -35,10 +35,9 @@ class ReviewDto {
     required this.editableUntil,
     required this.editable,
   });
-
-  factory ReviewDto.fromJson(Map<String, Object?> json) =>
-      _$ReviewDtoFromJson(json);
-
+  
+  factory ReviewDto.fromJson(Map<String, Object?> json) => _$ReviewDtoFromJson(json);
+  
   final String id;
   final int rating;
   final String? body;

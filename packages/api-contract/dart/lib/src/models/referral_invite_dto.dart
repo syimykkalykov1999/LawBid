@@ -21,10 +21,9 @@ class ReferralInviteDto {
     this.qualifiedAt,
     this.rewardedAt,
   });
-
-  factory ReferralInviteDto.fromJson(Map<String, Object?> json) =>
-      _$ReferralInviteDtoFromJson(json);
-
+  
+  factory ReferralInviteDto.fromJson(Map<String, Object?> json) => _$ReferralInviteDtoFromJson(json);
+  
   final String id;
   final ReferralStatus status;
   final ReferralInviteDtoRefereeRole refereeRole;

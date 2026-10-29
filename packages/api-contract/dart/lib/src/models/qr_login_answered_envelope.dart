@@ -11,11 +11,13 @@ part 'qr_login_answered_envelope.g.dart';
 
 @JsonSerializable()
 class QrLoginAnsweredEnvelope {
-  const QrLoginAnsweredEnvelope({required this.data, this.meta});
-
-  factory QrLoginAnsweredEnvelope.fromJson(Map<String, Object?> json) =>
-      _$QrLoginAnsweredEnvelopeFromJson(json);
-
+  const QrLoginAnsweredEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory QrLoginAnsweredEnvelope.fromJson(Map<String, Object?> json) => _$QrLoginAnsweredEnvelopeFromJson(json);
+  
   final QrLoginAnsweredDto data;
   final ResponseMetaDto? meta;
 

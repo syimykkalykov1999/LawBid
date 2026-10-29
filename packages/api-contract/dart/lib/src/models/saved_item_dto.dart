@@ -10,11 +10,13 @@ part 'saved_item_dto.g.dart';
 
 @JsonSerializable()
 class SavedItemDto {
-  const SavedItemDto({required this.itemType, required this.itemId});
-
-  factory SavedItemDto.fromJson(Map<String, Object?> json) =>
-      _$SavedItemDtoFromJson(json);
-
+  const SavedItemDto({
+    required this.itemType,
+    required this.itemId,
+  });
+  
+  factory SavedItemDto.fromJson(Map<String, Object?> json) => _$SavedItemDtoFromJson(json);
+  
   final SavedItemType itemType;
   final String itemId;
 

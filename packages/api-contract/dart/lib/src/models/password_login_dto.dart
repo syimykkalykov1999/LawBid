@@ -15,10 +15,9 @@ class PasswordLoginDto {
     required this.password,
     this.deviceInfo,
   });
-
-  factory PasswordLoginDto.fromJson(Map<String, Object?> json) =>
-      _$PasswordLoginDtoFromJson(json);
-
+  
+  factory PasswordLoginDto.fromJson(Map<String, Object?> json) => _$PasswordLoginDtoFromJson(json);
+  
   /// E.164 phone number or e-mail address.
   final String identifier;
   final String password;

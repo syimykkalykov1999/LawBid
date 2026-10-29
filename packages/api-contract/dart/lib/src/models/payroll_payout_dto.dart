@@ -31,10 +31,9 @@ class PayrollPayoutDto {
     this.failure,
     this.cancelReason,
   });
-
-  factory PayrollPayoutDto.fromJson(Map<String, Object?> json) =>
-      _$PayrollPayoutDtoFromJson(json);
-
+  
+  factory PayrollPayoutDto.fromJson(Map<String, Object?> json) => _$PayrollPayoutDtoFromJson(json);
+  
   final String id;
   final String employeeId;
   final String employeeName;

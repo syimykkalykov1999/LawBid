@@ -10,11 +10,13 @@ part 'sfu_publish_track_dto.g.dart';
 
 @JsonSerializable()
 class SfuPublishTrackDto {
-  const SfuPublishTrackDto({required this.mid, required this.trackName});
-
-  factory SfuPublishTrackDto.fromJson(Map<String, Object?> json) =>
-      _$SfuPublishTrackDtoFromJson(json);
-
+  const SfuPublishTrackDto({
+    required this.mid,
+    required this.trackName,
+  });
+  
+  factory SfuPublishTrackDto.fromJson(Map<String, Object?> json) => _$SfuPublishTrackDtoFromJson(json);
+  
   /// Transceiver mid in your offer.
   final String mid;
   final SfuPublishTrackDtoTrackName trackName;

@@ -17,10 +17,9 @@ class OutreachStatsDto {
     required this.totals,
     required this.byStatus,
   });
-
-  factory OutreachStatsDto.fromJson(Map<String, Object?> json) =>
-      _$OutreachStatsDtoFromJson(json);
-
+  
+  factory OutreachStatsDto.fromJson(Map<String, Object?> json) => _$OutreachStatsDtoFromJson(json);
+  
   final DateTime from;
   final DateTime to;
   final List<OutreachPartnerStatsDto> partners;

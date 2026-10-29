@@ -15,10 +15,9 @@ class SetAdminPermissionsDto {
     this.canManageAdmins,
     this.noPii,
   });
-
-  factory SetAdminPermissionsDto.fromJson(Map<String, Object?> json) =>
-      _$SetAdminPermissionsDtoFromJson(json);
-
+  
+  factory SetAdminPermissionsDto.fromJson(Map<String, Object?> json) => _$SetAdminPermissionsDtoFromJson(json);
+  
   /// Area → "view" | "manage". Areas left out are closed. Applies at once.
   final Map<String, PermissionsPermissions> permissions;
 

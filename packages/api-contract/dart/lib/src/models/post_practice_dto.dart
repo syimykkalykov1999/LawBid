@@ -14,10 +14,9 @@ class PostPracticeDto {
     required this.nameEn,
     required this.i18nKey,
   });
-
-  factory PostPracticeDto.fromJson(Map<String, Object?> json) =>
-      _$PostPracticeDtoFromJson(json);
-
+  
+  factory PostPracticeDto.fromJson(Map<String, Object?> json) => _$PostPracticeDtoFromJson(json);
+  
   final String code;
   final String categoryCode;
   final String nameEn;

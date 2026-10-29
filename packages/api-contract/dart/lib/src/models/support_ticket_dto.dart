@@ -22,10 +22,9 @@ class SupportTicketDto {
     required this.canReply,
     this.resolvedAt,
   });
-
-  factory SupportTicketDto.fromJson(Map<String, Object?> json) =>
-      _$SupportTicketDtoFromJson(json);
-
+  
+  factory SupportTicketDto.fromJson(Map<String, Object?> json) => _$SupportTicketDtoFromJson(json);
+  
   final String id;
   final String subject;
   final SupportTicketDtoCategory category;

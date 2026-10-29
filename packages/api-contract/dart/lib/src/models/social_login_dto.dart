@@ -19,10 +19,9 @@ class SocialLoginDto {
     this.lastName,
     this.deviceInfo,
   });
-
-  factory SocialLoginDto.fromJson(Map<String, Object?> json) =>
-      _$SocialLoginDtoFromJson(json);
-
+  
+  factory SocialLoginDto.fromJson(Map<String, Object?> json) => _$SocialLoginDtoFromJson(json);
+  
   final SocialLoginDtoProvider provider;
   final String idToken;
   final String nonce;

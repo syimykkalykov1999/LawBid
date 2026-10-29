@@ -11,11 +11,13 @@ part 'paging_status_envelope.g.dart';
 
 @JsonSerializable()
 class PagingStatusEnvelope {
-  const PagingStatusEnvelope({required this.data, this.meta});
-
-  factory PagingStatusEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PagingStatusEnvelopeFromJson(json);
-
+  const PagingStatusEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PagingStatusEnvelope.fromJson(Map<String, Object?> json) => _$PagingStatusEnvelopeFromJson(json);
+  
   final PagingStatusDto data;
   final ResponseMetaDto? meta;
 

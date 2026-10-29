@@ -11,11 +11,13 @@ part 'question_list_envelope.g.dart';
 
 @JsonSerializable()
 class QuestionListEnvelope {
-  const QuestionListEnvelope({required this.data, this.meta});
-
-  factory QuestionListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$QuestionListEnvelopeFromJson(json);
-
+  const QuestionListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory QuestionListEnvelope.fromJson(Map<String, Object?> json) => _$QuestionListEnvelopeFromJson(json);
+  
   final List<QuestionDto> data;
   final ResponseMetaDto? meta;
 

@@ -14,10 +14,9 @@ class PartnerMeTextsDto {
     required this.disclosure,
     required this.terms,
   });
-
-  factory PartnerMeTextsDto.fromJson(Map<String, Object?> json) =>
-      _$PartnerMeTextsDtoFromJson(json);
-
+  
+  factory PartnerMeTextsDto.fromJson(Map<String, Object?> json) => _$PartnerMeTextsDtoFromJson(json);
+  
   final String title;
   final String summary;
 

@@ -11,11 +11,13 @@ part 'suggestion_list_envelope.g.dart';
 
 @JsonSerializable()
 class SuggestionListEnvelope {
-  const SuggestionListEnvelope({required this.data, this.meta});
-
-  factory SuggestionListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SuggestionListEnvelopeFromJson(json);
-
+  const SuggestionListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SuggestionListEnvelope.fromJson(Map<String, Object?> json) => _$SuggestionListEnvelopeFromJson(json);
+  
   final List<SuggestionDto> data;
   final ResponseMetaDto? meta;
 

@@ -10,11 +10,13 @@ part 'outreach_suppressions_dto.g.dart';
 
 @JsonSerializable()
 class OutreachSuppressionsDto {
-  const OutreachSuppressionsDto({required this.count, required this.latest});
-
-  factory OutreachSuppressionsDto.fromJson(Map<String, Object?> json) =>
-      _$OutreachSuppressionsDtoFromJson(json);
-
+  const OutreachSuppressionsDto({
+    required this.count,
+    required this.latest,
+  });
+  
+  factory OutreachSuppressionsDto.fromJson(Map<String, Object?> json) => _$OutreachSuppressionsDtoFromJson(json);
+  
   final num count;
 
   /// Newest ≤ 50.

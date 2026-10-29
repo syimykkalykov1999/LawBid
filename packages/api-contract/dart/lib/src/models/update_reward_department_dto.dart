@@ -16,10 +16,9 @@ class UpdateRewardDepartmentDto {
     this.prize,
     this.bonusCents,
   });
-
-  factory UpdateRewardDepartmentDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateRewardDepartmentDtoFromJson(json);
-
+  
+  factory UpdateRewardDepartmentDto.fromJson(Map<String, Object?> json) => _$UpdateRewardDepartmentDtoFromJson(json);
+  
   final UpdateRewardDepartmentDtoKey key;
   final bool? enabled;
   final String? prize;

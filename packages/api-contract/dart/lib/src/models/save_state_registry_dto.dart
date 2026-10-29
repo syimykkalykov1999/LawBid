@@ -18,10 +18,9 @@ class SaveStateRegistryDto {
     this.clearSecret,
     this.testBarNumber,
   });
-
-  factory SaveStateRegistryDto.fromJson(Map<String, Object?> json) =>
-      _$SaveStateRegistryDtoFromJson(json);
-
+  
+  factory SaveStateRegistryDto.fromJson(Map<String, Object?> json) => _$SaveStateRegistryDtoFromJson(json);
+  
   final SaveStateRegistryDtoAdapter adapter;
   final bool enabled;
   final Map<String, String>? config;

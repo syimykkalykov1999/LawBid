@@ -8,11 +8,12 @@ part 'set_find_by_phone_dto.g.dart';
 
 @JsonSerializable()
 class SetFindByPhoneDto {
-  const SetFindByPhoneDto({required this.enabled});
-
-  factory SetFindByPhoneDto.fromJson(Map<String, Object?> json) =>
-      _$SetFindByPhoneDtoFromJson(json);
-
+  const SetFindByPhoneDto({
+    required this.enabled,
+  });
+  
+  factory SetFindByPhoneDto.fromJson(Map<String, Object?> json) => _$SetFindByPhoneDtoFromJson(json);
+  
   /// Clients only: people who have my number in their address book may find me.
   final bool enabled;
 

@@ -10,11 +10,13 @@ part 'update_contact_preferences_dto.g.dart';
 
 @JsonSerializable()
 class UpdateContactPreferencesDto {
-  const UpdateContactPreferencesDto({this.contactMethod, this.contactNote});
-
-  factory UpdateContactPreferencesDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateContactPreferencesDtoFromJson(json);
-
+  const UpdateContactPreferencesDto({
+    this.contactMethod,
+    this.contactNote,
+  });
+  
+  factory UpdateContactPreferencesDto.fromJson(Map<String, Object?> json) => _$UpdateContactPreferencesDtoFromJson(json);
+  
   final UpdateContactPreferencesDtoContactMethod? contactMethod;
   final String? contactNote;
 

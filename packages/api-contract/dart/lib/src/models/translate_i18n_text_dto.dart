@@ -8,11 +8,13 @@ part 'translate_i18n_text_dto.g.dart';
 
 @JsonSerializable()
 class TranslateI18nTextDto {
-  const TranslateI18nTextDto({required this.text, required this.source});
-
-  factory TranslateI18nTextDto.fromJson(Map<String, Object?> json) =>
-      _$TranslateI18nTextDtoFromJson(json);
-
+  const TranslateI18nTextDto({
+    required this.text,
+    required this.source,
+  });
+  
+  factory TranslateI18nTextDto.fromJson(Map<String, Object?> json) => _$TranslateI18nTextDtoFromJson(json);
+  
   /// The source text as edited.
   final String text;
   final String source;

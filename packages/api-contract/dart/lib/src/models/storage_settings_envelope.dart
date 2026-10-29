@@ -11,11 +11,13 @@ part 'storage_settings_envelope.g.dart';
 
 @JsonSerializable()
 class StorageSettingsEnvelope {
-  const StorageSettingsEnvelope({required this.data, this.meta});
-
-  factory StorageSettingsEnvelope.fromJson(Map<String, Object?> json) =>
-      _$StorageSettingsEnvelopeFromJson(json);
-
+  const StorageSettingsEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory StorageSettingsEnvelope.fromJson(Map<String, Object?> json) => _$StorageSettingsEnvelopeFromJson(json);
+  
   final StorageSettingsDto data;
   final ResponseMetaDto? meta;
 

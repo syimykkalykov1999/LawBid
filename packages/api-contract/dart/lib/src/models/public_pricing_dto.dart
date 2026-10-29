@@ -23,10 +23,9 @@ class PublicPricingDto {
     required this.yearlyDiscount,
     required this.clientBadgeDiscount,
   });
-
-  factory PublicPricingDto.fromJson(Map<String, Object?> json) =>
-      _$PublicPricingDtoFromJson(json);
-
+  
+  factory PublicPricingDto.fromJson(Map<String, Object?> json) => _$PublicPricingDtoFromJson(json);
+  
   final String currency;
   final int monthlyCents;
   final int seatCents;

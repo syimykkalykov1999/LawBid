@@ -10,11 +10,13 @@ part 'poll_voter_option_dto.g.dart';
 
 @JsonSerializable()
 class PollVoterOptionDto {
-  const PollVoterOptionDto({required this.optionId, required this.voters});
-
-  factory PollVoterOptionDto.fromJson(Map<String, Object?> json) =>
-      _$PollVoterOptionDtoFromJson(json);
-
+  const PollVoterOptionDto({
+    required this.optionId,
+    required this.voters,
+  });
+  
+  factory PollVoterOptionDto.fromJson(Map<String, Object?> json) => _$PollVoterOptionDtoFromJson(json);
+  
   final String optionId;
   final List<GroupPersonDto> voters;
 

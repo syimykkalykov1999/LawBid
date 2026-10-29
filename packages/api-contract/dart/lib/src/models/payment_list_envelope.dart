@@ -11,11 +11,13 @@ part 'payment_list_envelope.g.dart';
 
 @JsonSerializable()
 class PaymentListEnvelope {
-  const PaymentListEnvelope({required this.data, this.meta});
-
-  factory PaymentListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PaymentListEnvelopeFromJson(json);
-
+  const PaymentListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PaymentListEnvelope.fromJson(Map<String, Object?> json) => _$PaymentListEnvelopeFromJson(json);
+  
   final List<PaymentDto> data;
   final ResponseMetaDto? meta;
 

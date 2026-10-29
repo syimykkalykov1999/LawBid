@@ -8,11 +8,12 @@ part 'session_ended_dto.g.dart';
 
 @JsonSerializable()
 class SessionEndedDto {
-  const SessionEndedDto({required this.ended});
-
-  factory SessionEndedDto.fromJson(Map<String, Object?> json) =>
-      _$SessionEndedDtoFromJson(json);
-
+  const SessionEndedDto({
+    required this.ended,
+  });
+  
+  factory SessionEndedDto.fromJson(Map<String, Object?> json) => _$SessionEndedDtoFromJson(json);
+  
   /// Always true.
   final bool ended;
 

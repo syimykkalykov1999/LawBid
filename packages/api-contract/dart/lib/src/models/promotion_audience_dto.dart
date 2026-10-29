@@ -16,10 +16,9 @@ class PromotionAudienceDto {
     required this.topics,
     this.role = PromotionAudienceDtoRole.all,
   });
-
-  factory PromotionAudienceDto.fromJson(Map<String, Object?> json) =>
-      _$PromotionAudienceDtoFromJson(json);
-
+  
+  factory PromotionAudienceDto.fromJson(Map<String, Object?> json) => _$PromotionAudienceDtoFromJson(json);
+  
   final PromotionAudienceDtoRole role;
 
   /// US state codes.

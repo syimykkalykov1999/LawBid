@@ -8,11 +8,12 @@ part 'outreach_send_email_dto.g.dart';
 
 @JsonSerializable()
 class OutreachSendEmailDto {
-  const OutreachSendEmailDto({required this.templateId});
-
-  factory OutreachSendEmailDto.fromJson(Map<String, Object?> json) =>
-      _$OutreachSendEmailDtoFromJson(json);
-
+  const OutreachSendEmailDto({
+    required this.templateId,
+  });
+  
+  factory OutreachSendEmailDto.fromJson(Map<String, Object?> json) => _$OutreachSendEmailDtoFromJson(json);
+  
   final String templateId;
 
   Map<String, Object?> toJson() => _$OutreachSendEmailDtoToJson(this);

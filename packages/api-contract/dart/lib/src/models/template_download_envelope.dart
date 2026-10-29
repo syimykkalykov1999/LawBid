@@ -11,11 +11,13 @@ part 'template_download_envelope.g.dart';
 
 @JsonSerializable()
 class TemplateDownloadEnvelope {
-  const TemplateDownloadEnvelope({required this.data, this.meta});
-
-  factory TemplateDownloadEnvelope.fromJson(Map<String, Object?> json) =>
-      _$TemplateDownloadEnvelopeFromJson(json);
-
+  const TemplateDownloadEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory TemplateDownloadEnvelope.fromJson(Map<String, Object?> json) => _$TemplateDownloadEnvelopeFromJson(json);
+  
   final TemplateDownloadDto data;
   final ResponseMetaDto? meta;
 

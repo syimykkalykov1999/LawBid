@@ -21,10 +21,9 @@ class VerificationQueueItemDto {
     required this.reviewerId,
     required this.adminNote,
   });
-
-  factory VerificationQueueItemDto.fromJson(Map<String, Object?> json) =>
-      _$VerificationQueueItemDtoFromJson(json);
-
+  
+  factory VerificationQueueItemDto.fromJson(Map<String, Object?> json) => _$VerificationQueueItemDtoFromJson(json);
+  
   final String id;
   final VerificationRequestStatus status;
   final DateTime? submittedAt;

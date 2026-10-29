@@ -11,11 +11,13 @@ part 'verification_overview_envelope.g.dart';
 
 @JsonSerializable()
 class VerificationOverviewEnvelope {
-  const VerificationOverviewEnvelope({required this.data, this.meta});
-
-  factory VerificationOverviewEnvelope.fromJson(Map<String, Object?> json) =>
-      _$VerificationOverviewEnvelopeFromJson(json);
-
+  const VerificationOverviewEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory VerificationOverviewEnvelope.fromJson(Map<String, Object?> json) => _$VerificationOverviewEnvelopeFromJson(json);
+  
   final VerificationOverviewDto data;
   final ResponseMetaDto? meta;
 

@@ -22,10 +22,9 @@ class SupportDeskSettingsDto {
     required this.autoReply,
     required this.autoCloseResolvedDays,
   });
-
-  factory SupportDeskSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$SupportDeskSettingsDtoFromJson(json);
-
+  
+  factory SupportDeskSettingsDto.fromJson(Map<String, Object?> json) => _$SupportDeskSettingsDtoFromJson(json);
+  
   /// New tickets go to agents on shift by themselves.
   final bool autoAssign;
   final num slaFirstResponseMinutes;

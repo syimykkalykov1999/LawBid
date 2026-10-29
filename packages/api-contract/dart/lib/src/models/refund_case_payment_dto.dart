@@ -8,11 +8,13 @@ part 'refund_case_payment_dto.g.dart';
 
 @JsonSerializable()
 class RefundCasePaymentDto {
-  const RefundCasePaymentDto({required this.reason, this.amountCents});
-
-  factory RefundCasePaymentDto.fromJson(Map<String, Object?> json) =>
-      _$RefundCasePaymentDtoFromJson(json);
-
+  const RefundCasePaymentDto({
+    required this.reason,
+    this.amountCents,
+  });
+  
+  factory RefundCasePaymentDto.fromJson(Map<String, Object?> json) => _$RefundCasePaymentDtoFromJson(json);
+  
   /// Part of the attorney fee to give back; default = all left.
   final int? amountCents;
   final String reason;

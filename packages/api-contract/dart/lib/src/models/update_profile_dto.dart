@@ -19,10 +19,9 @@ class UpdateProfileDto {
     this.hideLikeCounts,
     this.email,
   });
-
-  factory UpdateProfileDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateProfileDtoFromJson(json);
-
+  
+  factory UpdateProfileDto.fromJson(Map<String, Object?> json) => _$UpdateProfileDtoFromJson(json);
+  
   /// docs/03 §4.1 photo (OQ-012 attorney onboarding photo step): a clean.
   /// `avatar` file from POST /files/presign + confirm; null removes it.
   final String? avatarFileId;

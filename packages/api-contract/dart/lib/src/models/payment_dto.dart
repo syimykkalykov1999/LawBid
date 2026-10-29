@@ -25,10 +25,9 @@ class PaymentDto {
     this.boostTarget,
     this.boostDays,
   });
-
-  factory PaymentDto.fromJson(Map<String, Object?> json) =>
-      _$PaymentDtoFromJson(json);
-
+  
+  factory PaymentDto.fromJson(Map<String, Object?> json) => _$PaymentDtoFromJson(json);
+  
   final String id;
   final int amountCents;
   final String currency;

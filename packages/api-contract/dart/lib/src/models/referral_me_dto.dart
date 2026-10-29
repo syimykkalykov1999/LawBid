@@ -32,10 +32,9 @@ class ReferralMeDto {
     required this.textsLanguage,
     this.referredBy,
   });
-
-  factory ReferralMeDto.fromJson(Map<String, Object?> json) =>
-      _$ReferralMeDtoFromJson(json);
-
+  
+  factory ReferralMeDto.fromJson(Map<String, Object?> json) => _$ReferralMeDtoFromJson(json);
+  
   /// Program switched on in the admin.
   final bool enabled;
   final String code;

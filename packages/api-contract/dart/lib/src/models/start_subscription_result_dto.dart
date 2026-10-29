@@ -16,10 +16,9 @@ class StartSubscriptionResultDto {
     required this.priceCents,
     required this.trialDays,
   });
-
-  factory StartSubscriptionResultDto.fromJson(Map<String, Object?> json) =>
-      _$StartSubscriptionResultDtoFromJson(json);
-
+  
+  factory StartSubscriptionResultDto.fromJson(Map<String, Object?> json) => _$StartSubscriptionResultDtoFromJson(json);
+  
   /// SetupIntent client secret for the PaymentSheet.
   final String clientSecret;
   final String setupIntentId;

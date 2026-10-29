@@ -34,10 +34,9 @@ class PartnerMeDto {
     this.status,
     this.termsAcceptedVersion,
   });
-
-  factory PartnerMeDto.fromJson(Map<String, Object?> json) =>
-      _$PartnerMeDtoFromJson(json);
-
+  
+  factory PartnerMeDto.fromJson(Map<String, Object?> json) => _$PartnerMeDtoFromJson(json);
+  
   /// Program switched on by the owner. Off: the app hides the section.
   final bool enabled;
 

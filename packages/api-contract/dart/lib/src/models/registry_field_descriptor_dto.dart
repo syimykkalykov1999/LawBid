@@ -16,10 +16,9 @@ class RegistryFieldDescriptorDto {
     this.help,
     this.options,
   });
-
-  factory RegistryFieldDescriptorDto.fromJson(Map<String, Object?> json) =>
-      _$RegistryFieldDescriptorDtoFromJson(json);
-
+  
+  factory RegistryFieldDescriptorDto.fromJson(Map<String, Object?> json) => _$RegistryFieldDescriptorDtoFromJson(json);
+  
   final String name;
   final String label;
 

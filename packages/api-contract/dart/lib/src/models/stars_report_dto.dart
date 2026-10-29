@@ -25,10 +25,9 @@ class StarsReportDto {
     required this.byKind,
     required this.topGifts,
   });
-
-  factory StarsReportDto.fromJson(Map<String, Object?> json) =>
-      _$StarsReportDtoFromJson(json);
-
+  
+  factory StarsReportDto.fromJson(Map<String, Object?> json) => _$StarsReportDtoFromJson(json);
+  
   final int days;
 
   /// Stars bought in the period.

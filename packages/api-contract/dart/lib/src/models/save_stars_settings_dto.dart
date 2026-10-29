@@ -18,10 +18,9 @@ class SaveStarsSettingsDto {
     this.reactionStars,
     this.premiumReactions,
   });
-
-  factory SaveStarsSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$SaveStarsSettingsDtoFromJson(json);
-
+  
+  factory SaveStarsSettingsDto.fromJson(Map<String, Object?> json) => _$SaveStarsSettingsDtoFromJson(json);
+  
   final List<StarPackDto> packs;
   final int giftConvertPercent;
   final int giftsPerDayMax;

@@ -33,10 +33,9 @@ class PromotionQuoteDto {
     required this.casesEnabled,
     required this.ctaTypes,
   });
-
-  factory PromotionQuoteDto.fromJson(Map<String, Object?> json) =>
-      _$PromotionQuoteDtoFromJson(json);
-
+  
+  factory PromotionQuoteDto.fromJson(Map<String, Object?> json) => _$PromotionQuoteDtoFromJson(json);
+  
   final int days;
   final int priceCentsPerDay;
 

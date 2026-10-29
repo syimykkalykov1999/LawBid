@@ -14,10 +14,9 @@ class PracticeAreaRefDto {
     required this.nameEn,
     required this.i18nKey,
   });
-
-  factory PracticeAreaRefDto.fromJson(Map<String, Object?> json) =>
-      _$PracticeAreaRefDtoFromJson(json);
-
+  
+  factory PracticeAreaRefDto.fromJson(Map<String, Object?> json) => _$PracticeAreaRefDtoFromJson(json);
+  
   final String id;
   final String code;
   final String nameEn;

@@ -11,11 +11,13 @@ part 'outreach_template_list_envelope.g.dart';
 
 @JsonSerializable()
 class OutreachTemplateListEnvelope {
-  const OutreachTemplateListEnvelope({required this.data, this.meta});
-
-  factory OutreachTemplateListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$OutreachTemplateListEnvelopeFromJson(json);
-
+  const OutreachTemplateListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory OutreachTemplateListEnvelope.fromJson(Map<String, Object?> json) => _$OutreachTemplateListEnvelopeFromJson(json);
+  
   final List<OutreachTemplateDto> data;
   final ResponseMetaDto? meta;
 

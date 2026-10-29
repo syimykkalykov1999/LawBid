@@ -18,10 +18,9 @@ class TrustGateDto {
     required this.current,
     required this.hold,
   });
-
-  factory TrustGateDto.fromJson(Map<String, Object?> json) =>
-      _$TrustGateDtoFromJson(json);
-
+  
+  factory TrustGateDto.fromJson(Map<String, Object?> json) => _$TrustGateDtoFromJson(json);
+  
   final bool ok;
   final TrustGateDtoReason? reason;
 

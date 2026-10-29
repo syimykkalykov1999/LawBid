@@ -10,11 +10,13 @@ part 'update_data_request_status_dto.g.dart';
 
 @JsonSerializable()
 class UpdateDataRequestStatusDto {
-  const UpdateDataRequestStatusDto({required this.status, this.notes});
-
-  factory UpdateDataRequestStatusDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateDataRequestStatusDtoFromJson(json);
-
+  const UpdateDataRequestStatusDto({
+    required this.status,
+    this.notes,
+  });
+  
+  factory UpdateDataRequestStatusDto.fromJson(Map<String, Object?> json) => _$UpdateDataRequestStatusDtoFromJson(json);
+  
   final UpdateDataRequestStatusDtoStatus status;
   final String? notes;
 

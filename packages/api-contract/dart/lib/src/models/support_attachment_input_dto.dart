@@ -8,11 +8,13 @@ part 'support_attachment_input_dto.g.dart';
 
 @JsonSerializable()
 class SupportAttachmentInputDto {
-  const SupportAttachmentInputDto({required this.fileId, required this.name});
-
-  factory SupportAttachmentInputDto.fromJson(Map<String, Object?> json) =>
-      _$SupportAttachmentInputDtoFromJson(json);
-
+  const SupportAttachmentInputDto({
+    required this.fileId,
+    required this.name,
+  });
+  
+  factory SupportAttachmentInputDto.fromJson(Map<String, Object?> json) => _$SupportAttachmentInputDtoFromJson(json);
+  
   /// A clean file of purpose support_attachment owned by the sender (presign → upload → confirm).
   final String fileId;
 

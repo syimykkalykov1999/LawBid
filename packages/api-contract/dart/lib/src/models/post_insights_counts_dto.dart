@@ -19,10 +19,9 @@ class PostInsightsCountsDto {
     required this.shares,
     required this.profileVisits,
   });
-
-  factory PostInsightsCountsDto.fromJson(Map<String, Object?> json) =>
-      _$PostInsightsCountsDtoFromJson(json);
-
+  
+  factory PostInsightsCountsDto.fromJson(Map<String, Object?> json) => _$PostInsightsCountsDtoFromJson(json);
+  
   /// Times the card was shown
   final int impressions;
 

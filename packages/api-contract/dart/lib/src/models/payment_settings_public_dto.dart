@@ -33,10 +33,9 @@ class PaymentSettingsPublicDto {
     required this.disclaimerEn,
     required this.disclaimerRu,
   });
-
-  factory PaymentSettingsPublicDto.fromJson(Map<String, Object?> json) =>
-      _$PaymentSettingsPublicDtoFromJson(json);
-
+  
+  factory PaymentSettingsPublicDto.fromJson(Map<String, Object?> json) => _$PaymentSettingsPublicDtoFromJson(json);
+  
   /// Flag on and Stripe configured: payments can be made.
   final bool enabled;
   final PaymentFeeType feeType;

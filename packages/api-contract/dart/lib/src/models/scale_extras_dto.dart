@@ -19,10 +19,9 @@ class ScaleExtrasDto {
     required this.poolerMaxTasks,
     required this.searchEngine,
   });
-
-  factory ScaleExtrasDto.fromJson(Map<String, Object?> json) =>
-      _$ScaleExtrasDtoFromJson(json);
-
+  
+  factory ScaleExtrasDto.fromJson(Map<String, Object?> json) => _$ScaleExtrasDtoFromJson(json);
+  
   /// Does the database change size by itself (Terraform switch).
   final ScaleExtrasDtoDbAutoscale dbAutoscale;
   final ScaleExtrasDtoRedisAutoscale redisAutoscale;

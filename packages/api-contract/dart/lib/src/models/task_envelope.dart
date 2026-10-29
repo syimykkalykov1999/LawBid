@@ -11,11 +11,13 @@ part 'task_envelope.g.dart';
 
 @JsonSerializable()
 class TaskEnvelope {
-  const TaskEnvelope({required this.data, this.meta});
-
-  factory TaskEnvelope.fromJson(Map<String, Object?> json) =>
-      _$TaskEnvelopeFromJson(json);
-
+  const TaskEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory TaskEnvelope.fromJson(Map<String, Object?> json) => _$TaskEnvelopeFromJson(json);
+  
   final TaskDto data;
   final ResponseMetaDto? meta;
 

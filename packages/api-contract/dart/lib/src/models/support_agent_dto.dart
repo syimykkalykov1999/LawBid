@@ -15,10 +15,9 @@ class SupportAgentDto {
     required this.maxOpen,
     required this.openTickets,
   });
-
-  factory SupportAgentDto.fromJson(Map<String, Object?> json) =>
-      _$SupportAgentDtoFromJson(json);
-
+  
+  factory SupportAgentDto.fromJson(Map<String, Object?> json) => _$SupportAgentDtoFromJson(json);
+  
   final String adminId;
   final String name;
   final bool onShift;

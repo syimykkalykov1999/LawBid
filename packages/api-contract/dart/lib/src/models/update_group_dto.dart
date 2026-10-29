@@ -38,10 +38,9 @@ class UpdateGroupDto {
     this.joinApproval,
     this.topicsEnabled,
   });
-
-  factory UpdateGroupDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateGroupDtoFromJson(json);
-
+  
+  factory UpdateGroupDto.fromJson(Map<String, Object?> json) => _$UpdateGroupDtoFromJson(json);
+  
   final String? title;
 
   /// Empty string clears it.

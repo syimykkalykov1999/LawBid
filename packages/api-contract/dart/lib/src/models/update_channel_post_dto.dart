@@ -8,11 +8,12 @@ part 'update_channel_post_dto.g.dart';
 
 @JsonSerializable()
 class UpdateChannelPostDto {
-  const UpdateChannelPostDto({required this.body});
-
-  factory UpdateChannelPostDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateChannelPostDtoFromJson(json);
-
+  const UpdateChannelPostDto({
+    required this.body,
+  });
+  
+  factory UpdateChannelPostDto.fromJson(Map<String, Object?> json) => _$UpdateChannelPostDtoFromJson(json);
+  
   final String body;
 
   Map<String, Object?> toJson() => _$UpdateChannelPostDtoToJson(this);

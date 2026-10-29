@@ -8,11 +8,12 @@ part 'start_direct_chat_dto.g.dart';
 
 @JsonSerializable()
 class StartDirectChatDto {
-  const StartDirectChatDto({required this.userId});
-
-  factory StartDirectChatDto.fromJson(Map<String, Object?> json) =>
-      _$StartDirectChatDtoFromJson(json);
-
+  const StartDirectChatDto({
+    required this.userId,
+  });
+  
+  factory StartDirectChatDto.fromJson(Map<String, Object?> json) => _$StartDirectChatDtoFromJson(json);
+  
   final String userId;
 
   Map<String, Object?> toJson() => _$StartDirectChatDtoToJson(this);

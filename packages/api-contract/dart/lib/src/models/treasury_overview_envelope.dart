@@ -11,11 +11,13 @@ part 'treasury_overview_envelope.g.dart';
 
 @JsonSerializable()
 class TreasuryOverviewEnvelope {
-  const TreasuryOverviewEnvelope({required this.data, this.meta});
-
-  factory TreasuryOverviewEnvelope.fromJson(Map<String, Object?> json) =>
-      _$TreasuryOverviewEnvelopeFromJson(json);
-
+  const TreasuryOverviewEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory TreasuryOverviewEnvelope.fromJson(Map<String, Object?> json) => _$TreasuryOverviewEnvelopeFromJson(json);
+  
   final TreasuryOverviewDto data;
   final ResponseMetaDto? meta;
 

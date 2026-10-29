@@ -18,10 +18,9 @@ class PollOptionDto {
     required this.voted,
     required this.recentVoters,
   });
-
-  factory PollOptionDto.fromJson(Map<String, Object?> json) =>
-      _$PollOptionDtoFromJson(json);
-
+  
+  factory PollOptionDto.fromJson(Map<String, Object?> json) => _$PollOptionDtoFromJson(json);
+  
   final String id;
   final String text;
 

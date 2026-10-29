@@ -16,10 +16,9 @@ class TreasurySetupDto {
     required this.bankCount,
     required this.separateExpenseBank,
   });
-
-  factory TreasurySetupDto.fromJson(Map<String, Object?> json) =>
-      _$TreasurySetupDtoFromJson(json);
-
+  
+  factory TreasurySetupDto.fromJson(Map<String, Object?> json) => _$TreasurySetupDtoFromJson(json);
+  
   /// Stripe keys are saved (or the dev stand-in).
   final bool stripeConnected;
 

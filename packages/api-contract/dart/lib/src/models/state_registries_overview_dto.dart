@@ -18,10 +18,9 @@ class StateRegistriesOverviewDto {
     required this.items,
     required this.formatMisses,
   });
-
-  factory StateRegistriesOverviewDto.fromJson(Map<String, Object?> json) =>
-      _$StateRegistriesOverviewDtoFromJson(json);
-
+  
+  factory StateRegistriesOverviewDto.fromJson(Map<String, Object?> json) => _$StateRegistriesOverviewDtoFromJson(json);
+  
   /// The server can store keys (master key set).
   final bool secretsEnabled;
   final List<RegistryAdapterDescriptorDto> adapterTypes;

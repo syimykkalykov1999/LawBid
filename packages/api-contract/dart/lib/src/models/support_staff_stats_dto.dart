@@ -19,10 +19,9 @@ class SupportStaffStatsDto {
     required this.onShift,
     this.medianFirstResponseMinutes,
   });
-
-  factory SupportStaffStatsDto.fromJson(Map<String, Object?> json) =>
-      _$SupportStaffStatsDtoFromJson(json);
-
+  
+  factory SupportStaffStatsDto.fromJson(Map<String, Object?> json) => _$SupportStaffStatsDtoFromJson(json);
+  
   final String adminId;
   final String name;
 

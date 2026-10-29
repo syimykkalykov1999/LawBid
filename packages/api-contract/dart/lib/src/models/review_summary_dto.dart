@@ -15,10 +15,9 @@ class ReviewSummaryDto {
     required this.ratingCount,
     required this.distribution,
   });
-
-  factory ReviewSummaryDto.fromJson(Map<String, Object?> json) =>
-      _$ReviewSummaryDtoFromJson(json);
-
+  
+  factory ReviewSummaryDto.fromJson(Map<String, Object?> json) => _$ReviewSummaryDtoFromJson(json);
+  
   /// Average of published reviews rounded to one decimal; null when there are none ("New — no reviews").
   final num? ratingAvg;
   final int ratingCount;

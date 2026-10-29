@@ -12,10 +12,9 @@ class UpdateOpsSettingsDto {
     this.autoPauseHeavyJobs,
     this.autoScaleDownOnBudget,
   });
-
-  factory UpdateOpsSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateOpsSettingsDtoFromJson(json);
-
+  
+  factory UpdateOpsSettingsDto.fromJson(Map<String, Object?> json) => _$UpdateOpsSettingsDtoFromJson(json);
+  
   final bool? autoPauseHeavyJobs;
   final bool? autoScaleDownOnBudget;
 

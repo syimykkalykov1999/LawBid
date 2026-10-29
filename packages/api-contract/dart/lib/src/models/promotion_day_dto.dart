@@ -14,10 +14,9 @@ class PromotionDayDto {
     required this.reach,
     required this.clicks,
   });
-
-  factory PromotionDayDto.fromJson(Map<String, Object?> json) =>
-      _$PromotionDayDtoFromJson(json);
-
+  
+  factory PromotionDayDto.fromJson(Map<String, Object?> json) => _$PromotionDayDtoFromJson(json);
+  
   final String day;
   final int impressions;
   final int reach;

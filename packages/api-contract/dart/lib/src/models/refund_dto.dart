@@ -24,10 +24,9 @@ class RefundDto {
     required this.adminId,
     required this.createdAt,
   });
-
-  factory RefundDto.fromJson(Map<String, Object?> json) =>
-      _$RefundDtoFromJson(json);
-
+  
+  factory RefundDto.fromJson(Map<String, Object?> json) => _$RefundDtoFromJson(json);
+  
   final String id;
   final String paymentId;
   final String userId;

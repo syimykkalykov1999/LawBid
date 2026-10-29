@@ -20,10 +20,9 @@ class TaskPersonDto {
     this.phone,
     this.email,
   });
-
-  factory TaskPersonDto.fromJson(Map<String, Object?> json) =>
-      _$TaskPersonDtoFromJson(json);
-
+  
+  factory TaskPersonDto.fromJson(Map<String, Object?> json) => _$TaskPersonDtoFromJson(json);
+  
   final String id;
   final String? userId;
 

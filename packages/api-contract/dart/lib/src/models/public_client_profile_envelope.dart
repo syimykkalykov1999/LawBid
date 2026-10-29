@@ -11,11 +11,13 @@ part 'public_client_profile_envelope.g.dart';
 
 @JsonSerializable()
 class PublicClientProfileEnvelope {
-  const PublicClientProfileEnvelope({required this.data, this.meta});
-
-  factory PublicClientProfileEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PublicClientProfileEnvelopeFromJson(json);
-
+  const PublicClientProfileEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PublicClientProfileEnvelope.fromJson(Map<String, Object?> json) => _$PublicClientProfileEnvelopeFromJson(json);
+  
   final PublicClientProfileDto data;
   final ResponseMetaDto? meta;
 

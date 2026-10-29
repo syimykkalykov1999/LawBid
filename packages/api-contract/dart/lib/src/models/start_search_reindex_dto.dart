@@ -10,11 +10,12 @@ part 'start_search_reindex_dto.g.dart';
 
 @JsonSerializable()
 class StartSearchReindexDto {
-  const StartSearchReindexDto({this.source});
-
-  factory StartSearchReindexDto.fromJson(Map<String, Object?> json) =>
-      _$StartSearchReindexDtoFromJson(json);
-
+  const StartSearchReindexDto({
+    this.source,
+  });
+  
+  factory StartSearchReindexDto.fromJson(Map<String, Object?> json) => _$StartSearchReindexDtoFromJson(json);
+  
   /// postgres (default): rebuild documents from the database. engine: copy inside the engine with the native _reindex task (documents keep their shape).
   final StartSearchReindexDtoSource? source;
 

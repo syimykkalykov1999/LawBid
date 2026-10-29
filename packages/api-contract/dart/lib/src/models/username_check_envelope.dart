@@ -11,11 +11,13 @@ part 'username_check_envelope.g.dart';
 
 @JsonSerializable()
 class UsernameCheckEnvelope {
-  const UsernameCheckEnvelope({required this.data, this.meta});
-
-  factory UsernameCheckEnvelope.fromJson(Map<String, Object?> json) =>
-      _$UsernameCheckEnvelopeFromJson(json);
-
+  const UsernameCheckEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory UsernameCheckEnvelope.fromJson(Map<String, Object?> json) => _$UsernameCheckEnvelopeFromJson(json);
+  
   final UsernameCheckDto data;
   final ResponseMetaDto? meta;
 

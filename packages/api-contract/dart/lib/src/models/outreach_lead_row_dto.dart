@@ -38,10 +38,9 @@ class OutreachLeadRowDto {
     required this.emailsSent,
     required this.createdAt,
   });
-
-  factory OutreachLeadRowDto.fromJson(Map<String, Object?> json) =>
-      _$OutreachLeadRowDtoFromJson(json);
-
+  
+  factory OutreachLeadRowDto.fromJson(Map<String, Object?> json) => _$OutreachLeadRowDtoFromJson(json);
+  
   final String id;
   final OutreachLeadKind kind;
   final String? firstName;

@@ -8,11 +8,12 @@ part 'set_sticker_pack_price_dto.g.dart';
 
 @JsonSerializable()
 class SetStickerPackPriceDto {
-  const SetStickerPackPriceDto({required this.priceStars});
-
-  factory SetStickerPackPriceDto.fromJson(Map<String, Object?> json) =>
-      _$SetStickerPackPriceDtoFromJson(json);
-
+  const SetStickerPackPriceDto({
+    required this.priceStars,
+  });
+  
+  factory SetStickerPackPriceDto.fromJson(Map<String, Object?> json) => _$SetStickerPackPriceDtoFromJson(json);
+  
   final int priceStars;
 
   Map<String, Object?> toJson() => _$SetStickerPackPriceDtoToJson(this);

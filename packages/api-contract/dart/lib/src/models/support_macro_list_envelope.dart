@@ -11,11 +11,13 @@ part 'support_macro_list_envelope.g.dart';
 
 @JsonSerializable()
 class SupportMacroListEnvelope {
-  const SupportMacroListEnvelope({required this.data, this.meta});
-
-  factory SupportMacroListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SupportMacroListEnvelopeFromJson(json);
-
+  const SupportMacroListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SupportMacroListEnvelope.fromJson(Map<String, Object?> json) => _$SupportMacroListEnvelopeFromJson(json);
+  
   final List<SupportMacroDto> data;
   final ResponseMetaDto? meta;
 

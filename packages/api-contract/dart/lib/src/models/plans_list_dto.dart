@@ -18,10 +18,9 @@ class PlansListDto {
     required this.baseline,
     required this.catalog,
   });
-
-  factory PlansListDto.fromJson(Map<String, Object?> json) =>
-      _$PlansListDtoFromJson(json);
-
+  
+  factory PlansListDto.fromJson(Map<String, Object?> json) => _$PlansListDtoFromJson(json);
+  
   final PlansListDtoAudience audience;
   final List<PublicPlanDto> plans;
   final PublicPlanDto? baseline;

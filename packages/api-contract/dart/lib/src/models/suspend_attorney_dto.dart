@@ -8,11 +8,12 @@ part 'suspend_attorney_dto.g.dart';
 
 @JsonSerializable()
 class SuspendAttorneyDto {
-  const SuspendAttorneyDto({this.reason = ''});
-
-  factory SuspendAttorneyDto.fromJson(Map<String, Object?> json) =>
-      _$SuspendAttorneyDtoFromJson(json);
-
+  const SuspendAttorneyDto({
+    this.reason = '',
+  });
+  
+  factory SuspendAttorneyDto.fromJson(Map<String, Object?> json) => _$SuspendAttorneyDtoFromJson(json);
+  
   final String reason;
 
   Map<String, Object?> toJson() => _$SuspendAttorneyDtoToJson(this);

@@ -8,11 +8,12 @@ part 'vote_poll_dto.g.dart';
 
 @JsonSerializable()
 class VotePollDto {
-  const VotePollDto({required this.optionIds});
-
-  factory VotePollDto.fromJson(Map<String, Object?> json) =>
-      _$VotePollDtoFromJson(json);
-
+  const VotePollDto({
+    required this.optionIds,
+  });
+  
+  factory VotePollDto.fromJson(Map<String, Object?> json) => _$VotePollDtoFromJson(json);
+  
   /// The chosen options (one unless the poll is multiple); an empty list retracts the vote.
   final List<String> optionIds;
 

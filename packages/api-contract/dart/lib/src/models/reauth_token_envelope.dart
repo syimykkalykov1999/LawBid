@@ -11,11 +11,13 @@ part 'reauth_token_envelope.g.dart';
 
 @JsonSerializable()
 class ReauthTokenEnvelope {
-  const ReauthTokenEnvelope({required this.data, this.meta});
-
-  factory ReauthTokenEnvelope.fromJson(Map<String, Object?> json) =>
-      _$ReauthTokenEnvelopeFromJson(json);
-
+  const ReauthTokenEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory ReauthTokenEnvelope.fromJson(Map<String, Object?> json) => _$ReauthTokenEnvelopeFromJson(json);
+  
   final ReauthTokenDto data;
   final ResponseMetaDto? meta;
 

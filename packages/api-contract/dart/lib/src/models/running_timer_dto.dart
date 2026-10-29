@@ -14,10 +14,9 @@ class RunningTimerDto {
     required this.caseTitle,
     required this.startedAt,
   });
-
-  factory RunningTimerDto.fromJson(Map<String, Object?> json) =>
-      _$RunningTimerDtoFromJson(json);
-
+  
+  factory RunningTimerDto.fromJson(Map<String, Object?> json) => _$RunningTimerDtoFromJson(json);
+  
   final String entryId;
   final String caseId;
   final String caseTitle;

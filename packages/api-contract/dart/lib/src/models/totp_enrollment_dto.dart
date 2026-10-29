@@ -8,11 +8,13 @@ part 'totp_enrollment_dto.g.dart';
 
 @JsonSerializable()
 class TotpEnrollmentDto {
-  const TotpEnrollmentDto({required this.secret, required this.otpauthUri});
-
-  factory TotpEnrollmentDto.fromJson(Map<String, Object?> json) =>
-      _$TotpEnrollmentDtoFromJson(json);
-
+  const TotpEnrollmentDto({
+    required this.secret,
+    required this.otpauthUri,
+  });
+  
+  factory TotpEnrollmentDto.fromJson(Map<String, Object?> json) => _$TotpEnrollmentDtoFromJson(json);
+  
   /// Base32 secret (manual entry).
   final String secret;
 

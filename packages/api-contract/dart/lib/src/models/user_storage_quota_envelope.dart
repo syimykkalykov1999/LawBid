@@ -11,11 +11,13 @@ part 'user_storage_quota_envelope.g.dart';
 
 @JsonSerializable()
 class UserStorageQuotaEnvelope {
-  const UserStorageQuotaEnvelope({required this.data, this.meta});
-
-  factory UserStorageQuotaEnvelope.fromJson(Map<String, Object?> json) =>
-      _$UserStorageQuotaEnvelopeFromJson(json);
-
+  const UserStorageQuotaEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory UserStorageQuotaEnvelope.fromJson(Map<String, Object?> json) => _$UserStorageQuotaEnvelopeFromJson(json);
+  
   final UserStorageQuotaDto data;
   final ResponseMetaDto? meta;
 

@@ -10,11 +10,13 @@ part 'prepare_package_dto.g.dart';
 
 @JsonSerializable()
 class PreparePackageDto {
-  const PreparePackageDto({required this.userId, required this.sections});
-
-  factory PreparePackageDto.fromJson(Map<String, Object?> json) =>
-      _$PreparePackageDtoFromJson(json);
-
+  const PreparePackageDto({
+    required this.userId,
+    required this.sections,
+  });
+  
+  factory PreparePackageDto.fromJson(Map<String, Object?> json) => _$PreparePackageDtoFromJson(json);
+  
   /// The user the request concerns.
   final String userId;
 

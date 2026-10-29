@@ -30,10 +30,9 @@ class UpdateCaseDto {
     this.deadlineKind,
     this.photoFileIds,
   });
-
-  factory UpdateCaseDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateCaseDtoFromJson(json);
-
+  
+  factory UpdateCaseDto.fromJson(Map<String, Object?> json) => _$UpdateCaseDtoFromJson(json);
+  
   final String? title;
   final String? description;
 

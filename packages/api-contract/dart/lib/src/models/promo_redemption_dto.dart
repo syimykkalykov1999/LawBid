@@ -19,10 +19,9 @@ class PromoRedemptionDto {
     required this.paymentId,
     required this.createdAt,
   });
-
-  factory PromoRedemptionDto.fromJson(Map<String, Object?> json) =>
-      _$PromoRedemptionDtoFromJson(json);
-
+  
+  factory PromoRedemptionDto.fromJson(Map<String, Object?> json) => _$PromoRedemptionDtoFromJson(json);
+  
   final String id;
   final String promoId;
   final String userId;

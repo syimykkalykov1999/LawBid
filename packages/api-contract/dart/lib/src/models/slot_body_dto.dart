@@ -8,11 +8,12 @@ part 'slot_body_dto.g.dart';
 
 @JsonSerializable()
 class SlotBodyDto {
-  const SlotBodyDto({this.slot});
-
-  factory SlotBodyDto.fromJson(Map<String, Object?> json) =>
-      _$SlotBodyDtoFromJson(json);
-
+  const SlotBodyDto({
+    this.slot,
+  });
+  
+  factory SlotBodyDto.fromJson(Map<String, Object?> json) => _$SlotBodyDtoFromJson(json);
+  
   /// Key set; "main" when omitted.
   final String? slot;
 

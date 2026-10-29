@@ -21,10 +21,9 @@ class VerificationLicenseDto {
     required this.rejectionNote,
     required this.manualReview,
   });
-
-  factory VerificationLicenseDto.fromJson(Map<String, Object?> json) =>
-      _$VerificationLicenseDtoFromJson(json);
-
+  
+  factory VerificationLicenseDto.fromJson(Map<String, Object?> json) => _$VerificationLicenseDtoFromJson(json);
+  
   final String id;
   final StateRefDto state;
   final String barNumber;

@@ -14,10 +14,9 @@ class StorageR2UsageDto {
     required this.truncated,
     required this.updatedAt,
   });
-
-  factory StorageR2UsageDto.fromJson(Map<String, Object?> json) =>
-      _$StorageR2UsageDtoFromJson(json);
-
+  
+  factory StorageR2UsageDto.fromJson(Map<String, Object?> json) => _$StorageR2UsageDtoFromJson(json);
+  
   /// Bytes in the R2 bucket (public media).
   final num bytes;
   final num objects;

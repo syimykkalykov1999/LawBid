@@ -17,10 +17,9 @@ class RewardDepartmentSettingsDto {
     required this.prize,
     required this.bonusCents,
   });
-
-  factory RewardDepartmentSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$RewardDepartmentSettingsDtoFromJson(json);
-
+  
+  factory RewardDepartmentSettingsDto.fromJson(Map<String, Object?> json) => _$RewardDepartmentSettingsDtoFromJson(json);
+  
   final RewardDepartmentSettingsDtoKey key;
   final String label;
 

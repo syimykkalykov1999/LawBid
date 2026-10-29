@@ -11,11 +11,13 @@ part 'post_deleted_envelope.g.dart';
 
 @JsonSerializable()
 class PostDeletedEnvelope {
-  const PostDeletedEnvelope({required this.data, this.meta});
-
-  factory PostDeletedEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PostDeletedEnvelopeFromJson(json);
-
+  const PostDeletedEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PostDeletedEnvelope.fromJson(Map<String, Object?> json) => _$PostDeletedEnvelopeFromJson(json);
+  
   final PostDeletedDto data;
   final ResponseMetaDto? meta;
 

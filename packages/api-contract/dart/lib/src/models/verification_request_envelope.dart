@@ -11,11 +11,13 @@ part 'verification_request_envelope.g.dart';
 
 @JsonSerializable()
 class VerificationRequestEnvelope {
-  const VerificationRequestEnvelope({required this.data, this.meta});
-
-  factory VerificationRequestEnvelope.fromJson(Map<String, Object?> json) =>
-      _$VerificationRequestEnvelopeFromJson(json);
-
+  const VerificationRequestEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory VerificationRequestEnvelope.fromJson(Map<String, Object?> json) => _$VerificationRequestEnvelopeFromJson(json);
+  
   final VerificationRequestDto data;
   final ResponseMetaDto? meta;
 

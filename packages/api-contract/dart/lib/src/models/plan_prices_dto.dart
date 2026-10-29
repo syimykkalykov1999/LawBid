@@ -20,10 +20,9 @@ class PlanPricesDto {
     required this.seatDiscount,
     required this.yearlyDiscount,
   });
-
-  factory PlanPricesDto.fromJson(Map<String, Object?> json) =>
-      _$PlanPricesDtoFromJson(json);
-
+  
+  factory PlanPricesDto.fromJson(Map<String, Object?> json) => _$PlanPricesDtoFromJson(json);
+  
   final int monthlyCents;
   final int seatCents;
   final int yearlyCents;

@@ -14,10 +14,9 @@ class UpdateChannelSubscriptionDto {
     this.pinned,
     this.archived,
   });
-
-  factory UpdateChannelSubscriptionDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateChannelSubscriptionDtoFromJson(json);
-
+  
+  factory UpdateChannelSubscriptionDto.fromJson(Map<String, Object?> json) => _$UpdateChannelSubscriptionDtoFromJson(json);
+  
   /// true = muted for good, false = unmuted (also ends a timed mute).
   final bool? muted;
 

@@ -11,11 +11,13 @@ part 'search_overview_envelope.g.dart';
 
 @JsonSerializable()
 class SearchOverviewEnvelope {
-  const SearchOverviewEnvelope({required this.data, this.meta});
-
-  factory SearchOverviewEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SearchOverviewEnvelopeFromJson(json);
-
+  const SearchOverviewEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SearchOverviewEnvelope.fromJson(Map<String, Object?> json) => _$SearchOverviewEnvelopeFromJson(json);
+  
   final SearchOverviewDto data;
   final ResponseMetaDto? meta;
 

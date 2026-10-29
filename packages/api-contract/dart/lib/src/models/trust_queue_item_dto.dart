@@ -36,10 +36,9 @@ class TrustQueueItemDto {
     required this.waitingSince,
     required this.badgeStatus,
   });
-
-  factory TrustQueueItemDto.fromJson(Map<String, Object?> json) =>
-      _$TrustQueueItemDtoFromJson(json);
-
+  
+  factory TrustQueueItemDto.fromJson(Map<String, Object?> json) => _$TrustQueueItemDtoFromJson(json);
+  
   final AdminTrustAttorneyDto attorney;
   final int level;
   final List<TrustQueueItemDtoReasons> reasons;

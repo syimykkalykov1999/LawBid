@@ -10,11 +10,13 @@ part 'trust_set_status_dto.g.dart';
 
 @JsonSerializable()
 class TrustSetStatusDto {
-  const TrustSetStatusDto({required this.status, required this.note});
-
-  factory TrustSetStatusDto.fromJson(Map<String, Object?> json) =>
-      _$TrustSetStatusDtoFromJson(json);
-
+  const TrustSetStatusDto({
+    required this.status,
+    required this.note,
+  });
+  
+  factory TrustSetStatusDto.fromJson(Map<String, Object?> json) => _$TrustSetStatusDtoFromJson(json);
+  
   final TrustSetStatusDtoStatus status;
   final String note;
 

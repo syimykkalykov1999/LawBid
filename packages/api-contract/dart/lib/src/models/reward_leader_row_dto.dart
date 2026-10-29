@@ -17,10 +17,9 @@ class RewardLeaderRowDto {
     required this.score,
     required this.metrics,
   });
-
-  factory RewardLeaderRowDto.fromJson(Map<String, Object?> json) =>
-      _$RewardLeaderRowDtoFromJson(json);
-
+  
+  factory RewardLeaderRowDto.fromJson(Map<String, Object?> json) => _$RewardLeaderRowDtoFromJson(json);
+  
   final String adminId;
   final String name;
   final num rank;

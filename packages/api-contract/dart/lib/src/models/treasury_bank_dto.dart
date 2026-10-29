@@ -14,10 +14,9 @@ class TreasuryBankDto {
     required this.last4,
     required this.isDefault,
   });
-
-  factory TreasuryBankDto.fromJson(Map<String, Object?> json) =>
-      _$TreasuryBankDtoFromJson(json);
-
+  
+  factory TreasuryBankDto.fromJson(Map<String, Object?> json) => _$TreasuryBankDtoFromJson(json);
+  
   final String id;
   final String label;
   final String last4;

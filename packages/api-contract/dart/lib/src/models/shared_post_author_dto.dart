@@ -19,10 +19,9 @@ class SharedPostAuthorDto {
     this.lastName,
     this.avatarUrl,
   });
-
-  factory SharedPostAuthorDto.fromJson(Map<String, Object?> json) =>
-      _$SharedPostAuthorDtoFromJson(json);
-
+  
+  factory SharedPostAuthorDto.fromJson(Map<String, Object?> json) => _$SharedPostAuthorDtoFromJson(json);
+  
   final String id;
   final SharedPostAuthorDtoRole role;
   final String username;

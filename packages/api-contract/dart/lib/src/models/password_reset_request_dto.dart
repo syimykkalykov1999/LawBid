@@ -8,11 +8,12 @@ part 'password_reset_request_dto.g.dart';
 
 @JsonSerializable()
 class PasswordResetRequestDto {
-  const PasswordResetRequestDto({required this.identifier});
-
-  factory PasswordResetRequestDto.fromJson(Map<String, Object?> json) =>
-      _$PasswordResetRequestDtoFromJson(json);
-
+  const PasswordResetRequestDto({
+    required this.identifier,
+  });
+  
+  factory PasswordResetRequestDto.fromJson(Map<String, Object?> json) => _$PasswordResetRequestDtoFromJson(json);
+  
   /// E.164 phone number or e-mail address.
   final String identifier;
 

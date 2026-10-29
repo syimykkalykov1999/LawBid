@@ -11,14 +11,15 @@ part 'outreach_send_email_result_envelope.g.dart';
 
 @JsonSerializable()
 class OutreachSendEmailResultEnvelope {
-  const OutreachSendEmailResultEnvelope({required this.data, this.meta});
-
-  factory OutreachSendEmailResultEnvelope.fromJson(Map<String, Object?> json) =>
-      _$OutreachSendEmailResultEnvelopeFromJson(json);
-
+  const OutreachSendEmailResultEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory OutreachSendEmailResultEnvelope.fromJson(Map<String, Object?> json) => _$OutreachSendEmailResultEnvelopeFromJson(json);
+  
   final OutreachSendEmailResultDto data;
   final ResponseMetaDto? meta;
 
-  Map<String, Object?> toJson() =>
-      _$OutreachSendEmailResultEnvelopeToJson(this);
+  Map<String, Object?> toJson() => _$OutreachSendEmailResultEnvelopeToJson(this);
 }

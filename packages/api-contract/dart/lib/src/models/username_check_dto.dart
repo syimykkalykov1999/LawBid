@@ -16,10 +16,9 @@ class UsernameCheckDto {
     required this.reason,
     required this.suggestions,
   });
-
-  factory UsernameCheckDto.fromJson(Map<String, Object?> json) =>
-      _$UsernameCheckDtoFromJson(json);
-
+  
+  factory UsernameCheckDto.fromJson(Map<String, Object?> json) => _$UsernameCheckDtoFromJson(json);
+  
   /// Normalized: lower case, no @.
   final String username;
   final bool available;

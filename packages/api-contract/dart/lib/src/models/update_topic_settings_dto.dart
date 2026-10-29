@@ -10,11 +10,12 @@ part 'update_topic_settings_dto.g.dart';
 
 @JsonSerializable()
 class UpdateTopicSettingsDto {
-  const UpdateTopicSettingsDto({required this.items});
-
-  factory UpdateTopicSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateTopicSettingsDtoFromJson(json);
-
+  const UpdateTopicSettingsDto({
+    required this.items,
+  });
+  
+  factory UpdateTopicSettingsDto.fromJson(Map<String, Object?> json) => _$UpdateTopicSettingsDtoFromJson(json);
+  
   final List<TopicSettingDto> items;
 
   Map<String, Object?> toJson() => _$UpdateTopicSettingsDtoToJson(this);

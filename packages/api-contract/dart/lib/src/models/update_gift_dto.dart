@@ -16,10 +16,9 @@ class UpdateGiftDto {
     this.position,
     this.status,
   });
-
-  factory UpdateGiftDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateGiftDtoFromJson(json);
-
+  
+  factory UpdateGiftDto.fromJson(Map<String, Object?> json) => _$UpdateGiftDtoFromJson(json);
+  
   final String? title;
   final int? priceStars;
   final int? position;

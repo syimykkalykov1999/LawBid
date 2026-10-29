@@ -20,10 +20,9 @@ class PostInsightsDayDto {
     required this.profileVisits,
     required this.date,
   });
-
-  factory PostInsightsDayDto.fromJson(Map<String, Object?> json) =>
-      _$PostInsightsDayDtoFromJson(json);
-
+  
+  factory PostInsightsDayDto.fromJson(Map<String, Object?> json) => _$PostInsightsDayDtoFromJson(json);
+  
   /// Times the card was shown
   final int impressions;
 

@@ -10,11 +10,13 @@ part 'suggestion_dto.g.dart';
 
 @JsonSerializable()
 class SuggestionDto {
-  const SuggestionDto({required this.kind, required this.text});
-
-  factory SuggestionDto.fromJson(Map<String, Object?> json) =>
-      _$SuggestionDtoFromJson(json);
-
+  const SuggestionDto({
+    required this.kind,
+    required this.text,
+  });
+  
+  factory SuggestionDto.fromJson(Map<String, Object?> json) => _$SuggestionDtoFromJson(json);
+  
   final SuggestionDtoKind kind;
   final String text;
 

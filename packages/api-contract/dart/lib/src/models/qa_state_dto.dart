@@ -8,11 +8,13 @@ part 'qa_state_dto.g.dart';
 
 @JsonSerializable()
 class QaStateDto {
-  const QaStateDto({required this.code, required this.name});
-
-  factory QaStateDto.fromJson(Map<String, Object?> json) =>
-      _$QaStateDtoFromJson(json);
-
+  const QaStateDto({
+    required this.code,
+    required this.name,
+  });
+  
+  factory QaStateDto.fromJson(Map<String, Object?> json) => _$QaStateDtoFromJson(json);
+  
   final String code;
   final String name;
 

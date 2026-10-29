@@ -8,11 +8,12 @@ part 'pin_group_message_dto.g.dart';
 
 @JsonSerializable()
 class PinGroupMessageDto {
-  const PinGroupMessageDto({this.messageId});
-
-  factory PinGroupMessageDto.fromJson(Map<String, Object?> json) =>
-      _$PinGroupMessageDtoFromJson(json);
-
+  const PinGroupMessageDto({
+    this.messageId,
+  });
+  
+  factory PinGroupMessageDto.fromJson(Map<String, Object?> json) => _$PinGroupMessageDtoFromJson(json);
+  
   /// The message to pin; null unpins.
   final String? messageId;
 

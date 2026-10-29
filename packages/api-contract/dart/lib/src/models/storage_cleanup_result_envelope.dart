@@ -11,11 +11,13 @@ part 'storage_cleanup_result_envelope.g.dart';
 
 @JsonSerializable()
 class StorageCleanupResultEnvelope {
-  const StorageCleanupResultEnvelope({required this.data, this.meta});
-
-  factory StorageCleanupResultEnvelope.fromJson(Map<String, Object?> json) =>
-      _$StorageCleanupResultEnvelopeFromJson(json);
-
+  const StorageCleanupResultEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory StorageCleanupResultEnvelope.fromJson(Map<String, Object?> json) => _$StorageCleanupResultEnvelopeFromJson(json);
+  
   final StorageCleanupResultDto data;
   final ResponseMetaDto? meta;
 

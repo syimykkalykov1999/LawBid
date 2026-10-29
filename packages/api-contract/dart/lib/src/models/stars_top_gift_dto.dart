@@ -13,10 +13,9 @@ class StarsTopGiftDto {
     required this.sent,
     required this.stars,
   });
-
-  factory StarsTopGiftDto.fromJson(Map<String, Object?> json) =>
-      _$StarsTopGiftDtoFromJson(json);
-
+  
+  factory StarsTopGiftDto.fromJson(Map<String, Object?> json) => _$StarsTopGiftDtoFromJson(json);
+  
   final String title;
   final int sent;
   final int stars;

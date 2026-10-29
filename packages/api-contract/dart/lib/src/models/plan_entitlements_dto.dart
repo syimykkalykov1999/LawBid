@@ -32,10 +32,9 @@ class PlanEntitlementsDto {
     this.priorityFeed,
     this.maxActiveCases,
   });
-
-  factory PlanEntitlementsDto.fromJson(Map<String, Object?> json) =>
-      _$PlanEntitlementsDtoFromJson(json);
-
+  
+  factory PlanEntitlementsDto.fromJson(Map<String, Object?> json) => _$PlanEntitlementsDtoFromJson(json);
+  
   @JsonKey(name: 'included_seats')
   final int? includedSeats;
   @JsonKey(name: 'max_seats')

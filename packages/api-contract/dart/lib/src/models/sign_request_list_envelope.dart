@@ -11,11 +11,13 @@ part 'sign_request_list_envelope.g.dart';
 
 @JsonSerializable()
 class SignRequestListEnvelope {
-  const SignRequestListEnvelope({required this.data, this.meta});
-
-  factory SignRequestListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SignRequestListEnvelopeFromJson(json);
-
+  const SignRequestListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SignRequestListEnvelope.fromJson(Map<String, Object?> json) => _$SignRequestListEnvelopeFromJson(json);
+  
   final List<SignRequestDto> data;
   final ResponseMetaDto? meta;
 

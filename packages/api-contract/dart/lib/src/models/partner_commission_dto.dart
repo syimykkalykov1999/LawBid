@@ -27,10 +27,9 @@ class PartnerCommissionDto {
     this.reversedReason,
     this.note,
   });
-
-  factory PartnerCommissionDto.fromJson(Map<String, Object?> json) =>
-      _$PartnerCommissionDtoFromJson(json);
-
+  
+  factory PartnerCommissionDto.fromJson(Map<String, Object?> json) => _$PartnerCommissionDtoFromJson(json);
+  
   final String id;
   final PartnerCommissionKind kind;
 

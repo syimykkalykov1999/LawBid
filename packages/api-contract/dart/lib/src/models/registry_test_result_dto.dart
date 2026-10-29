@@ -16,10 +16,9 @@ class RegistryTestResultDto {
     required this.error,
     required this.testedAt,
   });
-
-  factory RegistryTestResultDto.fromJson(Map<String, Object?> json) =>
-      _$RegistryTestResultDtoFromJson(json);
-
+  
+  factory RegistryTestResultDto.fromJson(Map<String, Object?> json) => _$RegistryTestResultDtoFromJson(json);
+  
   final RegistryTestResultDtoResult result;
   final dynamic details;
   final String? error;

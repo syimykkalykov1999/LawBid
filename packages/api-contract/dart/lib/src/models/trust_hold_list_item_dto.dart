@@ -18,10 +18,9 @@ class TrustHoldListItemDto {
     required this.complaintsTotal,
     required this.heldSince,
   });
-
-  factory TrustHoldListItemDto.fromJson(Map<String, Object?> json) =>
-      _$TrustHoldListItemDtoFromJson(json);
-
+  
+  factory TrustHoldListItemDto.fromJson(Map<String, Object?> json) => _$TrustHoldListItemDtoFromJson(json);
+  
   final AdminTrustAttorneyDto attorney;
   final int level;
   final TrustHoldsDto holds;

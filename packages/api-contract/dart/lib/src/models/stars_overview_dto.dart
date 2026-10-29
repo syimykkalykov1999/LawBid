@@ -20,10 +20,9 @@ class StarsOverviewDto {
     required this.premiumReactions,
     required this.freeReactions,
   });
-
-  factory StarsOverviewDto.fromJson(Map<String, Object?> json) =>
-      _$StarsOverviewDtoFromJson(json);
-
+  
+  factory StarsOverviewDto.fromJson(Map<String, Object?> json) => _$StarsOverviewDtoFromJson(json);
+  
   final bool enabled;
   final int balance;
   final List<StarPackDto> packs;

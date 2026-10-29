@@ -11,11 +11,13 @@ part 'reward_award_list_envelope.g.dart';
 
 @JsonSerializable()
 class RewardAwardListEnvelope {
-  const RewardAwardListEnvelope({required this.data, this.meta});
-
-  factory RewardAwardListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$RewardAwardListEnvelopeFromJson(json);
-
+  const RewardAwardListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory RewardAwardListEnvelope.fromJson(Map<String, Object?> json) => _$RewardAwardListEnvelopeFromJson(json);
+  
   final List<RewardAwardDto> data;
   final ResponseMetaDto? meta;
 

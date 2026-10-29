@@ -42,6 +42,10 @@ move to Выкл/Вкл/Авто there. "Ceiling" is the number that caps the be
 | `scale.capacity_ceiling.mode` | Потолок размера базы и Redis по деньгам | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/economy/economy.service.ts:348` | see the setting | listed | |
 | `scale.bunny_hardstop.mode` | Новые загрузки видео (Bunny) | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1622` | see the setting | listed | |
 | `scale.cloudflare_hardstop.mode` | Групповые видеозвонки на Cloudflare | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1654` | see the setting | listed | |
+| `db.health_mode` | Ежедневная проверка базы (размер таблиц, мёртвые строки) | auto | 3 (off/on/auto) | daily DB health check (#363): table sizes, dead rows, vacuum lag | `jobs/handlers/db-health.job.ts:104` | see the setting | listed | |
+| `partition.messages_mode` | Разделение таблицы сообщений чатов по хешу | off | 3 (off/on/auto) | #358: hash partitioning of this table via the online runner | `partitioning/partition.service.ts:94` | see the setting | listed | |
+| `partition.chat_group_messages_mode` | То же для сообщений групп | off | 3 (off/on/auto) | #358: hash partitioning of this table via the online runner | `partitioning/partition.service.ts:95` | see the setting | listed | |
+| `partition.notifications_mode` | То же для уведомлений | off | 3 (off/on/auto) | #358: hash partitioning of this table via the online runner | `partitioning/partition.service.ts:96` | see the setting | listed | |
 
 "listed" = in the inventory and the reader exists, no behaviour test yet. `calls.channel_live_enabled` was removed (nothing read it; the feature does not exist).
 Three billable/load switches were converted to off/on/auto (`common/app-settings/switch-mode.ts`).

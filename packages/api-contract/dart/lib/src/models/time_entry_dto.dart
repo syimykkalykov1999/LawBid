@@ -18,10 +18,9 @@ class TimeEntryDto {
     required this.cents,
     required this.invoiceId,
   });
-
-  factory TimeEntryDto.fromJson(Map<String, Object?> json) =>
-      _$TimeEntryDtoFromJson(json);
-
+  
+  factory TimeEntryDto.fromJson(Map<String, Object?> json) => _$TimeEntryDtoFromJson(json);
+  
   final String id;
   final DateTime workedOn;
 

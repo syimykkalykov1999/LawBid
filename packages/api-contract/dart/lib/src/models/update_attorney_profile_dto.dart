@@ -19,10 +19,9 @@ class UpdateAttorneyProfileDto {
     this.languages,
     this.username,
   });
-
-  factory UpdateAttorneyProfileDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateAttorneyProfileDtoFromJson(json);
-
+  
+  factory UpdateAttorneyProfileDto.fromJson(Map<String, Object?> json) => _$UpdateAttorneyProfileDtoFromJson(json);
+  
   /// Owner 2026-09-30 (OQ-030): several firms (≤ 5, each ≤ 80 chars);.
   /// replaces the list. `firmName` mirrors the first one.
   final List<String>? firms;

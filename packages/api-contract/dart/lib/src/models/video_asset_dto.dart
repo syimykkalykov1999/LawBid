@@ -16,10 +16,9 @@ class VideoAssetDto {
     this.durationSec,
     this.failureReason,
   });
-
-  factory VideoAssetDto.fromJson(Map<String, Object?> json) =>
-      _$VideoAssetDtoFromJson(json);
-
+  
+  factory VideoAssetDto.fromJson(Map<String, Object?> json) => _$VideoAssetDtoFromJson(json);
+  
   final String id;
   final VideoAssetStatus status;
   final int? durationSec;

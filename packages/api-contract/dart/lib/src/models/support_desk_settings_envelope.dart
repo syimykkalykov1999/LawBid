@@ -11,11 +11,13 @@ part 'support_desk_settings_envelope.g.dart';
 
 @JsonSerializable()
 class SupportDeskSettingsEnvelope {
-  const SupportDeskSettingsEnvelope({required this.data, this.meta});
-
-  factory SupportDeskSettingsEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SupportDeskSettingsEnvelopeFromJson(json);
-
+  const SupportDeskSettingsEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SupportDeskSettingsEnvelope.fromJson(Map<String, Object?> json) => _$SupportDeskSettingsEnvelopeFromJson(json);
+  
   final SupportDeskSettingsDto data;
   final ResponseMetaDto? meta;
 

@@ -16,10 +16,9 @@ class SpendTotalDto {
     required this.fixedMonthUsd,
     required this.stripeFeesUsd,
   });
-
-  factory SpendTotalDto.fromJson(Map<String, Object?> json) =>
-      _$SpendTotalDtoFromJson(json);
-
+  
+  factory SpendTotalDto.fromJson(Map<String, Object?> json) => _$SpendTotalDtoFromJson(json);
+  
   final num monthToDateUsd;
   final num forecastUsd;
   final num marginPercent;

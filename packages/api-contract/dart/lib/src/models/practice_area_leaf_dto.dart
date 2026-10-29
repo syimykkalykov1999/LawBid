@@ -14,10 +14,9 @@ class PracticeAreaLeafDto {
     required this.i18nKey,
     required this.nameEn,
   });
-
-  factory PracticeAreaLeafDto.fromJson(Map<String, Object?> json) =>
-      _$PracticeAreaLeafDtoFromJson(json);
-
+  
+  factory PracticeAreaLeafDto.fromJson(Map<String, Object?> json) => _$PracticeAreaLeafDtoFromJson(json);
+  
   final String id;
   final String code;
 

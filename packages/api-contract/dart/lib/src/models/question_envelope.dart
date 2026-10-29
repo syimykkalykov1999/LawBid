@@ -11,11 +11,13 @@ part 'question_envelope.g.dart';
 
 @JsonSerializable()
 class QuestionEnvelope {
-  const QuestionEnvelope({required this.data, this.meta});
-
-  factory QuestionEnvelope.fromJson(Map<String, Object?> json) =>
-      _$QuestionEnvelopeFromJson(json);
-
+  const QuestionEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory QuestionEnvelope.fromJson(Map<String, Object?> json) => _$QuestionEnvelopeFromJson(json);
+  
   final QuestionDto data;
   final ResponseMetaDto? meta;
 

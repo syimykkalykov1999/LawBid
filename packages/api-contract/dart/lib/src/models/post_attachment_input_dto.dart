@@ -8,11 +8,13 @@ part 'post_attachment_input_dto.g.dart';
 
 @JsonSerializable()
 class PostAttachmentInputDto {
-  const PostAttachmentInputDto({required this.fileId, required this.fileName});
-
-  factory PostAttachmentInputDto.fromJson(Map<String, Object?> json) =>
-      _$PostAttachmentInputDtoFromJson(json);
-
+  const PostAttachmentInputDto({
+    required this.fileId,
+    required this.fileName,
+  });
+  
+  factory PostAttachmentInputDto.fromJson(Map<String, Object?> json) => _$PostAttachmentInputDtoFromJson(json);
+  
   /// A clean post_attachment file.
   final String fileId;
 

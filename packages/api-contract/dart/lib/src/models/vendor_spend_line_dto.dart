@@ -13,10 +13,9 @@ class VendorSpendLineDto {
     required this.usd,
     required this.note,
   });
-
-  factory VendorSpendLineDto.fromJson(Map<String, Object?> json) =>
-      _$VendorSpendLineDtoFromJson(json);
-
+  
+  factory VendorSpendLineDto.fromJson(Map<String, Object?> json) => _$VendorSpendLineDtoFromJson(json);
+  
   final String label;
   final num usd;
   final String? note;

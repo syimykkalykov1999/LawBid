@@ -11,11 +11,13 @@ part 'registry_check_envelope.g.dart';
 
 @JsonSerializable()
 class RegistryCheckEnvelope {
-  const RegistryCheckEnvelope({required this.data, this.meta});
-
-  factory RegistryCheckEnvelope.fromJson(Map<String, Object?> json) =>
-      _$RegistryCheckEnvelopeFromJson(json);
-
+  const RegistryCheckEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory RegistryCheckEnvelope.fromJson(Map<String, Object?> json) => _$RegistryCheckEnvelopeFromJson(json);
+  
   final RegistryCheckDto data;
   final ResponseMetaDto? meta;
 

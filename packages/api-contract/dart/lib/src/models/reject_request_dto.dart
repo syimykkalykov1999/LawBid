@@ -10,11 +10,13 @@ part 'reject_request_dto.g.dart';
 
 @JsonSerializable()
 class RejectRequestDto {
-  const RejectRequestDto({required this.rejectionCode, this.comment});
-
-  factory RejectRequestDto.fromJson(Map<String, Object?> json) =>
-      _$RejectRequestDtoFromJson(json);
-
+  const RejectRequestDto({
+    required this.rejectionCode,
+    this.comment,
+  });
+  
+  factory RejectRequestDto.fromJson(Map<String, Object?> json) => _$RejectRequestDtoFromJson(json);
+  
   final RejectRequestDtoRejectionCode rejectionCode;
   final String? comment;
 

@@ -11,11 +11,13 @@ part 'sign_verify_envelope.g.dart';
 
 @JsonSerializable()
 class SignVerifyEnvelope {
-  const SignVerifyEnvelope({required this.data, this.meta});
-
-  factory SignVerifyEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SignVerifyEnvelopeFromJson(json);
-
+  const SignVerifyEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SignVerifyEnvelope.fromJson(Map<String, Object?> json) => _$SignVerifyEnvelopeFromJson(json);
+  
   final SignVerifyDto data;
   final ResponseMetaDto? meta;
 

@@ -11,15 +11,15 @@ part 'verification_queue_item_list_envelope.g.dart';
 
 @JsonSerializable()
 class VerificationQueueItemListEnvelope {
-  const VerificationQueueItemListEnvelope({required this.data, this.meta});
-
-  factory VerificationQueueItemListEnvelope.fromJson(
-    Map<String, Object?> json,
-  ) => _$VerificationQueueItemListEnvelopeFromJson(json);
-
+  const VerificationQueueItemListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory VerificationQueueItemListEnvelope.fromJson(Map<String, Object?> json) => _$VerificationQueueItemListEnvelopeFromJson(json);
+  
   final List<VerificationQueueItemDto> data;
   final ResponseMetaDto? meta;
 
-  Map<String, Object?> toJson() =>
-      _$VerificationQueueItemListEnvelopeToJson(this);
+  Map<String, Object?> toJson() => _$VerificationQueueItemListEnvelopeToJson(this);
 }

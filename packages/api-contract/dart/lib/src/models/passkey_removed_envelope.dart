@@ -11,11 +11,13 @@ part 'passkey_removed_envelope.g.dart';
 
 @JsonSerializable()
 class PasskeyRemovedEnvelope {
-  const PasskeyRemovedEnvelope({required this.data, this.meta});
-
-  factory PasskeyRemovedEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PasskeyRemovedEnvelopeFromJson(json);
-
+  const PasskeyRemovedEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PasskeyRemovedEnvelope.fromJson(Map<String, Object?> json) => _$PasskeyRemovedEnvelopeFromJson(json);
+  
   final PasskeyRemovedDto data;
   final ResponseMetaDto? meta;
 

@@ -14,10 +14,9 @@ class SeatSummaryDto {
     required this.total,
     required this.max,
   });
-
-  factory SeatSummaryDto.fromJson(Map<String, Object?> json) =>
-      _$SeatSummaryDtoFromJson(json);
-
+  
+  factory SeatSummaryDto.fromJson(Map<String, Object?> json) => _$SeatSummaryDtoFromJson(json);
+  
   final int included;
   final int extra;
   final int total;

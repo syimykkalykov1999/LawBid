@@ -8,11 +8,13 @@ part 'passkey_register_dto.g.dart';
 
 @JsonSerializable()
 class PasskeyRegisterDto {
-  const PasskeyRegisterDto({required this.response, this.name});
-
-  factory PasskeyRegisterDto.fromJson(Map<String, Object?> json) =>
-      _$PasskeyRegisterDtoFromJson(json);
-
+  const PasskeyRegisterDto({
+    required this.response,
+    this.name,
+  });
+  
+  factory PasskeyRegisterDto.fromJson(Map<String, Object?> json) => _$PasskeyRegisterDtoFromJson(json);
+  
   /// RegistrationResponseJSON from the authenticator.
   final dynamic response;
 

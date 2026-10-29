@@ -8,11 +8,12 @@ part 'read_conversation_dto.g.dart';
 
 @JsonSerializable()
 class ReadConversationDto {
-  const ReadConversationDto({required this.lastReadMessageId});
-
-  factory ReadConversationDto.fromJson(Map<String, Object?> json) =>
-      _$ReadConversationDtoFromJson(json);
-
+  const ReadConversationDto({
+    required this.lastReadMessageId,
+  });
+  
+  factory ReadConversationDto.fromJson(Map<String, Object?> json) => _$ReadConversationDtoFromJson(json);
+  
   final String lastReadMessageId;
 
   Map<String, Object?> toJson() => _$ReadConversationDtoToJson(this);

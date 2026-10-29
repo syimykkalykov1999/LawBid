@@ -11,11 +11,13 @@ part 'support_ticket_envelope.g.dart';
 
 @JsonSerializable()
 class SupportTicketEnvelope {
-  const SupportTicketEnvelope({required this.data, this.meta});
-
-  factory SupportTicketEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SupportTicketEnvelopeFromJson(json);
-
+  const SupportTicketEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SupportTicketEnvelope.fromJson(Map<String, Object?> json) => _$SupportTicketEnvelopeFromJson(json);
+  
   final SupportTicketDto data;
   final ResponseMetaDto? meta;
 

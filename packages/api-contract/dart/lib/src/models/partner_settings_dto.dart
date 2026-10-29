@@ -22,10 +22,9 @@ class PartnerSettingsDto {
     this.joinMode,
     this.requireW9,
   });
-
-  factory PartnerSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$PartnerSettingsDtoFromJson(json);
-
+  
+  factory PartnerSettingsDto.fromJson(Map<String, Object?> json) => _$PartnerSettingsDtoFromJson(json);
+  
   final bool enabled;
 
   /// open: anyone joins at once; approval: requests wait for the admin; closed: only the admin adds partners. Omitted = keep the current mode.

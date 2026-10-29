@@ -8,11 +8,12 @@ part 'replace_practice_areas_dto.g.dart';
 
 @JsonSerializable()
 class ReplacePracticeAreasDto {
-  const ReplacePracticeAreasDto({required this.practiceAreaIds});
-
-  factory ReplacePracticeAreasDto.fromJson(Map<String, Object?> json) =>
-      _$ReplacePracticeAreasDtoFromJson(json);
-
+  const ReplacePracticeAreasDto({
+    required this.practiceAreaIds,
+  });
+  
+  factory ReplacePracticeAreasDto.fromJson(Map<String, Object?> json) => _$ReplacePracticeAreasDtoFromJson(json);
+  
   final List<String> practiceAreaIds;
 
   Map<String, Object?> toJson() => _$ReplacePracticeAreasDtoToJson(this);

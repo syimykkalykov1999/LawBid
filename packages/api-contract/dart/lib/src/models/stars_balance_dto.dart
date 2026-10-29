@@ -8,11 +8,12 @@ part 'stars_balance_dto.g.dart';
 
 @JsonSerializable()
 class StarsBalanceDto {
-  const StarsBalanceDto({required this.balance});
-
-  factory StarsBalanceDto.fromJson(Map<String, Object?> json) =>
-      _$StarsBalanceDtoFromJson(json);
-
+  const StarsBalanceDto({
+    required this.balance,
+  });
+  
+  factory StarsBalanceDto.fromJson(Map<String, Object?> json) => _$StarsBalanceDtoFromJson(json);
+  
   final int balance;
 
   Map<String, Object?> toJson() => _$StarsBalanceDtoToJson(this);

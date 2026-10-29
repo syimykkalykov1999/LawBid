@@ -42,10 +42,9 @@ class PublicAttorneyProfileDto {
     required this.isBlocked,
     required this.hasBlockedMe,
   });
-
-  factory PublicAttorneyProfileDto.fromJson(Map<String, Object?> json) =>
-      _$PublicAttorneyProfileDtoFromJson(json);
-
+  
+  factory PublicAttorneyProfileDto.fromJson(Map<String, Object?> json) => _$PublicAttorneyProfileDtoFromJson(json);
+  
   /// Owner 2026-10-14: the firm the lawyer works in (active member).
   final ProfileFirmDto? firm;
   final String id;

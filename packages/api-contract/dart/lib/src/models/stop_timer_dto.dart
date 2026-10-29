@@ -8,11 +8,12 @@ part 'stop_timer_dto.g.dart';
 
 @JsonSerializable()
 class StopTimerDto {
-  const StopTimerDto({this.note});
-
-  factory StopTimerDto.fromJson(Map<String, Object?> json) =>
-      _$StopTimerDtoFromJson(json);
-
+  const StopTimerDto({
+    this.note,
+  });
+  
+  factory StopTimerDto.fromJson(Map<String, Object?> json) => _$StopTimerDtoFromJson(json);
+  
   final String? note;
 
   Map<String, Object?> toJson() => _$StopTimerDtoToJson(this);

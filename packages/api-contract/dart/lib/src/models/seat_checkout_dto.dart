@@ -8,11 +8,13 @@ part 'seat_checkout_dto.g.dart';
 
 @JsonSerializable()
 class SeatCheckoutDto {
-  const SeatCheckoutDto({required this.url, required this.sessionId});
-
-  factory SeatCheckoutDto.fromJson(Map<String, Object?> json) =>
-      _$SeatCheckoutDtoFromJson(json);
-
+  const SeatCheckoutDto({
+    required this.url,
+    required this.sessionId,
+  });
+  
+  factory SeatCheckoutDto.fromJson(Map<String, Object?> json) => _$SeatCheckoutDtoFromJson(json);
+  
   /// One-time link to the card page; open it in the browser, then re-read GET /subscriptions/me.
   final String url;
   final String sessionId;

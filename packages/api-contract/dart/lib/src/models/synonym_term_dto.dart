@@ -8,11 +8,13 @@ part 'synonym_term_dto.g.dart';
 
 @JsonSerializable()
 class SynonymTermDto {
-  const SynonymTermDto({required this.lang, required this.term});
-
-  factory SynonymTermDto.fromJson(Map<String, Object?> json) =>
-      _$SynonymTermDtoFromJson(json);
-
+  const SynonymTermDto({
+    required this.lang,
+    required this.term,
+  });
+  
+  factory SynonymTermDto.fromJson(Map<String, Object?> json) => _$SynonymTermDtoFromJson(json);
+  
   /// Language code of the phrase.
   final String lang;
   final String term;

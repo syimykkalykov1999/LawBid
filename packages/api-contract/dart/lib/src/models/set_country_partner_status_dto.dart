@@ -10,11 +10,12 @@ part 'set_country_partner_status_dto.g.dart';
 
 @JsonSerializable()
 class SetCountryPartnerStatusDto {
-  const SetCountryPartnerStatusDto({required this.status});
-
-  factory SetCountryPartnerStatusDto.fromJson(Map<String, Object?> json) =>
-      _$SetCountryPartnerStatusDtoFromJson(json);
-
+  const SetCountryPartnerStatusDto({
+    required this.status,
+  });
+  
+  factory SetCountryPartnerStatusDto.fromJson(Map<String, Object?> json) => _$SetCountryPartnerStatusDtoFromJson(json);
+  
   /// paused = payouts wait, the team keeps working; disabled = the whole team is signed out and blocked, payouts stop.
   final CountryPartnerStatus status;
 

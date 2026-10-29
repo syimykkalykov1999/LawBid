@@ -16,10 +16,9 @@ class PasswordResetConfirmDto {
     required this.code,
     this.deviceInfo,
   });
-
-  factory PasswordResetConfirmDto.fromJson(Map<String, Object?> json) =>
-      _$PasswordResetConfirmDtoFromJson(json);
-
+  
+  factory PasswordResetConfirmDto.fromJson(Map<String, Object?> json) => _$PasswordResetConfirmDtoFromJson(json);
+  
   final String newPassword;
   final String identifier;
   final String code;

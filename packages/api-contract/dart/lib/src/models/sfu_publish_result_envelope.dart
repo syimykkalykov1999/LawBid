@@ -11,11 +11,13 @@ part 'sfu_publish_result_envelope.g.dart';
 
 @JsonSerializable()
 class SfuPublishResultEnvelope {
-  const SfuPublishResultEnvelope({required this.data, this.meta});
-
-  factory SfuPublishResultEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SfuPublishResultEnvelopeFromJson(json);
-
+  const SfuPublishResultEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SfuPublishResultEnvelope.fromJson(Map<String, Object?> json) => _$SfuPublishResultEnvelopeFromJson(json);
+  
   final SfuPublishResultDto data;
   final ResponseMetaDto? meta;
 

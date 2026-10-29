@@ -11,11 +11,13 @@ part 'recompute_all_result_envelope.g.dart';
 
 @JsonSerializable()
 class RecomputeAllResultEnvelope {
-  const RecomputeAllResultEnvelope({required this.data, this.meta});
-
-  factory RecomputeAllResultEnvelope.fromJson(Map<String, Object?> json) =>
-      _$RecomputeAllResultEnvelopeFromJson(json);
-
+  const RecomputeAllResultEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory RecomputeAllResultEnvelope.fromJson(Map<String, Object?> json) => _$RecomputeAllResultEnvelopeFromJson(json);
+  
   final RecomputeAllResultDto data;
   final ResponseMetaDto? meta;
 

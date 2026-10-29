@@ -10,11 +10,13 @@ part 'update_story_settings_dto.g.dart';
 
 @JsonSerializable()
 class UpdateStorySettingsDto {
-  const UpdateStorySettingsDto({this.audience, this.allowReplies});
-
-  factory UpdateStorySettingsDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateStorySettingsDtoFromJson(json);
-
+  const UpdateStorySettingsDto({
+    this.audience,
+    this.allowReplies,
+  });
+  
+  factory UpdateStorySettingsDto.fromJson(Map<String, Object?> json) => _$UpdateStorySettingsDtoFromJson(json);
+  
   final StoryAudience? audience;
   final bool? allowReplies;
 

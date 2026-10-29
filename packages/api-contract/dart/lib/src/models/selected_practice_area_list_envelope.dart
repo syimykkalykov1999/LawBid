@@ -11,15 +11,15 @@ part 'selected_practice_area_list_envelope.g.dart';
 
 @JsonSerializable()
 class SelectedPracticeAreaListEnvelope {
-  const SelectedPracticeAreaListEnvelope({required this.data, this.meta});
-
-  factory SelectedPracticeAreaListEnvelope.fromJson(
-    Map<String, Object?> json,
-  ) => _$SelectedPracticeAreaListEnvelopeFromJson(json);
-
+  const SelectedPracticeAreaListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SelectedPracticeAreaListEnvelope.fromJson(Map<String, Object?> json) => _$SelectedPracticeAreaListEnvelopeFromJson(json);
+  
   final List<SelectedPracticeAreaDto> data;
   final ResponseMetaDto? meta;
 
-  Map<String, Object?> toJson() =>
-      _$SelectedPracticeAreaListEnvelopeToJson(this);
+  Map<String, Object?> toJson() => _$SelectedPracticeAreaListEnvelopeToJson(this);
 }

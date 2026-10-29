@@ -11,11 +11,13 @@ part 'team_envelope.g.dart';
 
 @JsonSerializable()
 class TeamEnvelope {
-  const TeamEnvelope({required this.data, this.meta});
-
-  factory TeamEnvelope.fromJson(Map<String, Object?> json) =>
-      _$TeamEnvelopeFromJson(json);
-
+  const TeamEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory TeamEnvelope.fromJson(Map<String, Object?> json) => _$TeamEnvelopeFromJson(json);
+  
   final TeamDto data;
   final ResponseMetaDto? meta;
 

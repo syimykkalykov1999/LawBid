@@ -13,10 +13,9 @@ class QueueRetryResultDto {
     required this.stripeReplayed,
     required this.byQueue,
   });
-
-  factory QueueRetryResultDto.fromJson(Map<String, Object?> json) =>
-      _$QueueRetryResultDtoFromJson(json);
-
+  
+  factory QueueRetryResultDto.fromJson(Map<String, Object?> json) => _$QueueRetryResultDtoFromJson(json);
+  
   /// Failed jobs put back in their queues.
   final num retried;
 

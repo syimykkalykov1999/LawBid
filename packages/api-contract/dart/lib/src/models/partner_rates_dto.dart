@@ -17,10 +17,9 @@ class PartnerRatesDto {
     required this.clientRule,
     required this.holdDays,
   });
-
-  factory PartnerRatesDto.fromJson(Map<String, Object?> json) =>
-      _$PartnerRatesDtoFromJson(json);
-
+  
+  factory PartnerRatesDto.fromJson(Map<String, Object?> json) => _$PartnerRatesDtoFromJson(json);
+  
   /// Per paying attorney, cents.
   final int attorneyRateCents;
 

@@ -8,11 +8,12 @@ part 'seat_preview_request_dto.g.dart';
 
 @JsonSerializable()
 class SeatPreviewRequestDto {
-  const SeatPreviewRequestDto({required this.seats});
-
-  factory SeatPreviewRequestDto.fromJson(Map<String, Object?> json) =>
-      _$SeatPreviewRequestDtoFromJson(json);
-
+  const SeatPreviewRequestDto({
+    required this.seats,
+  });
+  
+  factory SeatPreviewRequestDto.fromJson(Map<String, Object?> json) => _$SeatPreviewRequestDtoFromJson(json);
+  
   /// The wanted EXTRA seats (on top of the plan's included).
   final int seats;
 

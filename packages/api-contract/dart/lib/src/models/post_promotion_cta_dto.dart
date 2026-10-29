@@ -10,11 +10,13 @@ part 'post_promotion_cta_dto.g.dart';
 
 @JsonSerializable()
 class PostPromotionCtaDto {
-  const PostPromotionCtaDto({required this.type, this.value});
-
-  factory PostPromotionCtaDto.fromJson(Map<String, Object?> json) =>
-      _$PostPromotionCtaDtoFromJson(json);
-
+  const PostPromotionCtaDto({
+    required this.type,
+    this.value,
+  });
+  
+  factory PostPromotionCtaDto.fromJson(Map<String, Object?> json) => _$PostPromotionCtaDtoFromJson(json);
+  
   final PostPromotionCtaDtoType type;
   final String? value;
 

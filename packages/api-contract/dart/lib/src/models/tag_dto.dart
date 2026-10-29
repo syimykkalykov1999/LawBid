@@ -8,10 +8,14 @@ part 'tag_dto.g.dart';
 
 @JsonSerializable()
 class TagDto {
-  const TagDto({required this.tag, this.postsCount, this.categoryCode});
-
+  const TagDto({
+    required this.tag,
+    this.postsCount,
+    this.categoryCode,
+  });
+  
   factory TagDto.fromJson(Map<String, Object?> json) => _$TagDtoFromJson(json);
-
+  
   /// Lowercase, without "#".
   final String tag;
 

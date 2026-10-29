@@ -19,10 +19,9 @@ class TaskStepInputDto {
     this.contactPhone,
     this.contactEmail,
   });
-
-  factory TaskStepInputDto.fromJson(Map<String, Object?> json) =>
-      _$TaskStepInputDtoFromJson(json);
-
+  
+  factory TaskStepInputDto.fromJson(Map<String, Object?> json) => _$TaskStepInputDtoFromJson(json);
+  
   final AttorneyTaskKind? kind;
   final String title;
   final DateTime? dueAt;

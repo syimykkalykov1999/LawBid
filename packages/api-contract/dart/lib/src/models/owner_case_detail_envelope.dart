@@ -11,11 +11,13 @@ part 'owner_case_detail_envelope.g.dart';
 
 @JsonSerializable()
 class OwnerCaseDetailEnvelope {
-  const OwnerCaseDetailEnvelope({required this.data, this.meta});
-
-  factory OwnerCaseDetailEnvelope.fromJson(Map<String, Object?> json) =>
-      _$OwnerCaseDetailEnvelopeFromJson(json);
-
+  const OwnerCaseDetailEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory OwnerCaseDetailEnvelope.fromJson(Map<String, Object?> json) => _$OwnerCaseDetailEnvelopeFromJson(json);
+  
   final OwnerCaseDetailDto data;
   final ResponseMetaDto? meta;
 

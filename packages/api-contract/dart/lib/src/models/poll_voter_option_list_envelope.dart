@@ -11,11 +11,13 @@ part 'poll_voter_option_list_envelope.g.dart';
 
 @JsonSerializable()
 class PollVoterOptionListEnvelope {
-  const PollVoterOptionListEnvelope({required this.data, this.meta});
-
-  factory PollVoterOptionListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PollVoterOptionListEnvelopeFromJson(json);
-
+  const PollVoterOptionListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PollVoterOptionListEnvelope.fromJson(Map<String, Object?> json) => _$PollVoterOptionListEnvelopeFromJson(json);
+  
   final List<PollVoterOptionDto> data;
   final ResponseMetaDto? meta;
 

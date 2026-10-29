@@ -8,11 +8,13 @@ part 'state_ref_dto.g.dart';
 
 @JsonSerializable()
 class StateRefDto {
-  const StateRefDto({required this.code, required this.name});
-
-  factory StateRefDto.fromJson(Map<String, Object?> json) =>
-      _$StateRefDtoFromJson(json);
-
+  const StateRefDto({
+    required this.code,
+    required this.name,
+  });
+  
+  factory StateRefDto.fromJson(Map<String, Object?> json) => _$StateRefDtoFromJson(json);
+  
   final String code;
   final String name;
 

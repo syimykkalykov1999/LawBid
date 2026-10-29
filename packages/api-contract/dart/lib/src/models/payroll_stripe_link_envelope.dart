@@ -11,11 +11,13 @@ part 'payroll_stripe_link_envelope.g.dart';
 
 @JsonSerializable()
 class PayrollStripeLinkEnvelope {
-  const PayrollStripeLinkEnvelope({required this.data, this.meta});
-
-  factory PayrollStripeLinkEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PayrollStripeLinkEnvelopeFromJson(json);
-
+  const PayrollStripeLinkEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PayrollStripeLinkEnvelope.fromJson(Map<String, Object?> json) => _$PayrollStripeLinkEnvelopeFromJson(json);
+  
   final PayrollStripeLinkDto data;
   final ResponseMetaDto? meta;
 

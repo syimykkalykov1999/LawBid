@@ -10,11 +10,13 @@ part 'resolve_case_dispute_dto.g.dart';
 
 @JsonSerializable()
 class ResolveCaseDisputeDto {
-  const ResolveCaseDisputeDto({required this.decision, required this.note});
-
-  factory ResolveCaseDisputeDto.fromJson(Map<String, Object?> json) =>
-      _$ResolveCaseDisputeDtoFromJson(json);
-
+  const ResolveCaseDisputeDto({
+    required this.decision,
+    required this.note,
+  });
+  
+  factory ResolveCaseDisputeDto.fromJson(Map<String, Object?> json) => _$ResolveCaseDisputeDtoFromJson(json);
+  
   final ResolveCaseDisputeDtoDecision decision;
   final String note;
 

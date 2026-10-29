@@ -19,10 +19,9 @@ class TopicSettingViewDto {
     required this.attorneyOnly,
     this.parent,
   });
-
-  factory TopicSettingViewDto.fromJson(Map<String, Object?> json) =>
-      _$TopicSettingViewDtoFromJson(json);
-
+  
+  factory TopicSettingViewDto.fromJson(Map<String, Object?> json) => _$TopicSettingViewDtoFromJson(json);
+  
   final NotificationTopic topic;
   final NotificationTopicBlock block;
   final bool pushEnabled;

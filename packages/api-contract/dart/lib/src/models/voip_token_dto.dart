@@ -15,10 +15,9 @@ class VoipTokenDto {
     required this.bundleId,
     required this.environment,
   });
-
-  factory VoipTokenDto.fromJson(Map<String, Object?> json) =>
-      _$VoipTokenDtoFromJson(json);
-
+  
+  factory VoipTokenDto.fromJson(Map<String, Object?> json) => _$VoipTokenDtoFromJson(json);
+  
   /// PushKit token, hex.
   final String token;
 

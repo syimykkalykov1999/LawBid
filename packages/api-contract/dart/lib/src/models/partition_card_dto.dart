@@ -33,10 +33,9 @@ class PartitionCardDto {
     required this.mode,
     required this.autoRows,
   });
-
-  factory PartitionCardDto.fromJson(Map<String, Object?> json) =>
-      _$PartitionCardDtoFromJson(json);
-
+  
+  factory PartitionCardDto.fromJson(Map<String, Object?> json) => _$PartitionCardDtoFromJson(json);
+  
   final String table;
 
   /// Russian name of the table.

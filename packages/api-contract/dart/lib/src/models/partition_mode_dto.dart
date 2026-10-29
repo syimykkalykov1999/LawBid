@@ -10,11 +10,12 @@ part 'partition_mode_dto.g.dart';
 
 @JsonSerializable()
 class PartitionModeDto {
-  const PartitionModeDto({required this.mode});
-
-  factory PartitionModeDto.fromJson(Map<String, Object?> json) =>
-      _$PartitionModeDtoFromJson(json);
-
+  const PartitionModeDto({
+    required this.mode,
+  });
+  
+  factory PartitionModeDto.fromJson(Map<String, Object?> json) => _$PartitionModeDtoFromJson(json);
+  
   final PartitionModeDtoMode mode;
 
   Map<String, Object?> toJson() => _$PartitionModeDtoToJson(this);

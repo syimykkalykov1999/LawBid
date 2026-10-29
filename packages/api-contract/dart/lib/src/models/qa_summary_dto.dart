@@ -15,10 +15,9 @@ class QaSummaryDto {
     required this.bannerMinNew,
     required this.profileCtaEnabled,
   });
-
-  factory QaSummaryDto.fromJson(Map<String, Object?> json) =>
-      _$QaSummaryDtoFromJson(json);
-
+  
+  factory QaSummaryDto.fromJson(Map<String, Object?> json) => _$QaSummaryDtoFromJson(json);
+  
   /// Unanswered questions of the last 24 hours in my practice areas and states (attorney; 0 for others)
   final num newCount;
 

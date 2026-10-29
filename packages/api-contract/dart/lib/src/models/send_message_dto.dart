@@ -26,10 +26,9 @@ class SendMessageDto {
     this.waveform,
     this.type = SendMessageType.text,
   });
-
-  factory SendMessageDto.fromJson(Map<String, Object?> json) =>
-      _$SendMessageDtoFromJson(json);
-
+  
+  factory SendMessageDto.fromJson(Map<String, Object?> json) => _$SendMessageDtoFromJson(json);
+  
   /// App-generated id (UUID), idempotency key.
   final String clientMessageId;
   final SendMessageType type;

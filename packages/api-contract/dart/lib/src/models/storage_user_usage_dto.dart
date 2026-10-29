@@ -16,10 +16,9 @@ class StorageUserUsageDto {
     required this.count,
     required this.quotaMb,
   });
-
-  factory StorageUserUsageDto.fromJson(Map<String, Object?> json) =>
-      _$StorageUserUsageDtoFromJson(json);
-
+  
+  factory StorageUserUsageDto.fromJson(Map<String, Object?> json) => _$StorageUserUsageDtoFromJson(json);
+  
   final String userId;
   final String? name;
   final String? email;

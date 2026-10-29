@@ -20,10 +20,9 @@ class PayrollSummaryDto {
     required this.pending,
     required this.stripeFees,
   });
-
-  factory PayrollSummaryDto.fromJson(Map<String, Object?> json) =>
-      _$PayrollSummaryDtoFromJson(json);
-
+  
+  factory PayrollSummaryDto.fromJson(Map<String, Object?> json) => _$PayrollSummaryDtoFromJson(json);
+  
   final String period;
   final int activeEmployees;
 

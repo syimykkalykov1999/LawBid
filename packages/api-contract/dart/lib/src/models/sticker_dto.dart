@@ -14,10 +14,9 @@ class StickerDto {
     required this.emoji,
     required this.url,
   });
-
-  factory StickerDto.fromJson(Map<String, Object?> json) =>
-      _$StickerDtoFromJson(json);
-
+  
+  factory StickerDto.fromJson(Map<String, Object?> json) => _$StickerDtoFromJson(json);
+  
   final String id;
   final String packId;
 

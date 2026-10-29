@@ -8,11 +8,13 @@ part 'sfu_publish_failed_dto.g.dart';
 
 @JsonSerializable()
 class SfuPublishFailedDto {
-  const SfuPublishFailedDto({required this.trackName, required this.errorCode});
-
-  factory SfuPublishFailedDto.fromJson(Map<String, Object?> json) =>
-      _$SfuPublishFailedDtoFromJson(json);
-
+  const SfuPublishFailedDto({
+    required this.trackName,
+    required this.errorCode,
+  });
+  
+  factory SfuPublishFailedDto.fromJson(Map<String, Object?> json) => _$SfuPublishFailedDtoFromJson(json);
+  
   final String trackName;
   final String errorCode;
 

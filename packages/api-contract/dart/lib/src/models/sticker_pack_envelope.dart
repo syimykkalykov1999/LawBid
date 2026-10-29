@@ -11,11 +11,13 @@ part 'sticker_pack_envelope.g.dart';
 
 @JsonSerializable()
 class StickerPackEnvelope {
-  const StickerPackEnvelope({required this.data, this.meta});
-
-  factory StickerPackEnvelope.fromJson(Map<String, Object?> json) =>
-      _$StickerPackEnvelopeFromJson(json);
-
+  const StickerPackEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory StickerPackEnvelope.fromJson(Map<String, Object?> json) => _$StickerPackEnvelopeFromJson(json);
+  
   final StickerPackDto data;
   final ResponseMetaDto? meta;
 

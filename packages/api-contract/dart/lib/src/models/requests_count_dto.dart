@@ -8,11 +8,12 @@ part 'requests_count_dto.g.dart';
 
 @JsonSerializable()
 class RequestsCountDto {
-  const RequestsCountDto({required this.count});
-
-  factory RequestsCountDto.fromJson(Map<String, Object?> json) =>
-      _$RequestsCountDtoFromJson(json);
-
+  const RequestsCountDto({
+    required this.count,
+  });
+  
+  factory RequestsCountDto.fromJson(Map<String, Object?> json) => _$RequestsCountDtoFromJson(json);
+  
   final int count;
 
   Map<String, Object?> toJson() => _$RequestsCountDtoToJson(this);

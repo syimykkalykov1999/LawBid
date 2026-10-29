@@ -17,10 +17,9 @@ class SelectedPracticeAreaDto {
     required this.categoryCode,
     required this.categoryI18nKey,
   });
-
-  factory SelectedPracticeAreaDto.fromJson(Map<String, Object?> json) =>
-      _$SelectedPracticeAreaDtoFromJson(json);
-
+  
+  factory SelectedPracticeAreaDto.fromJson(Map<String, Object?> json) => _$SelectedPracticeAreaDtoFromJson(json);
+  
   final String id;
   final String code;
 

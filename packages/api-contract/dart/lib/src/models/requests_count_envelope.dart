@@ -11,11 +11,13 @@ part 'requests_count_envelope.g.dart';
 
 @JsonSerializable()
 class RequestsCountEnvelope {
-  const RequestsCountEnvelope({required this.data, this.meta});
-
-  factory RequestsCountEnvelope.fromJson(Map<String, Object?> json) =>
-      _$RequestsCountEnvelopeFromJson(json);
-
+  const RequestsCountEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory RequestsCountEnvelope.fromJson(Map<String, Object?> json) => _$RequestsCountEnvelopeFromJson(json);
+  
   final RequestsCountDto data;
   final ResponseMetaDto? meta;
 

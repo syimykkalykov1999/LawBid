@@ -16,10 +16,9 @@ class RegistryFlagItemDto {
     required this.license,
     required this.latestRequestId,
   });
-
-  factory RegistryFlagItemDto.fromJson(Map<String, Object?> json) =>
-      _$RegistryFlagItemDtoFromJson(json);
-
+  
+  factory RegistryFlagItemDto.fromJson(Map<String, Object?> json) => _$RegistryFlagItemDtoFromJson(json);
+  
   final AdminAttorneySummaryDto attorney;
   final AdminLicenseDto license;
 

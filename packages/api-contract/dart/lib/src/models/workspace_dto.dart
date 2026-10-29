@@ -11,11 +11,13 @@ part 'workspace_dto.g.dart';
 
 @JsonSerializable()
 class WorkspaceDto {
-  const WorkspaceDto({required this.queues, this.shift});
-
-  factory WorkspaceDto.fromJson(Map<String, Object?> json) =>
-      _$WorkspaceDtoFromJson(json);
-
+  const WorkspaceDto({
+    required this.queues,
+    this.shift,
+  });
+  
+  factory WorkspaceDto.fromJson(Map<String, Object?> json) => _$WorkspaceDtoFromJson(json);
+  
   final List<WorkspaceQueueDto> queues;
 
   /// My support shift (support agents only).

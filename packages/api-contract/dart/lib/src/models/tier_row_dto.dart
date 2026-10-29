@@ -14,10 +14,9 @@ class TierRowDto {
     required this.monthUsd,
     required this.current,
   });
-
-  factory TierRowDto.fromJson(Map<String, Object?> json) =>
-      _$TierRowDtoFromJson(json);
-
+  
+  factory TierRowDto.fromJson(Map<String, Object?> json) => _$TierRowDtoFromJson(json);
+  
   final String name;
   final num memoryGb;
   final num monthUsd;

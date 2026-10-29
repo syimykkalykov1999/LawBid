@@ -30,10 +30,9 @@ class PublicClientProfileDto {
     required this.ratingCount,
     this.ratingAvg,
   });
-
-  factory PublicClientProfileDto.fromJson(Map<String, Object?> json) =>
-      _$PublicClientProfileDtoFromJson(json);
-
+  
+  factory PublicClientProfileDto.fromJson(Map<String, Object?> json) => _$PublicClientProfileDtoFromJson(json);
+  
   final String id;
   final String username;
   final String? firstName;

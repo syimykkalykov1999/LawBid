@@ -8,11 +8,12 @@ part 'start_call_vote_dto.g.dart';
 
 @JsonSerializable()
 class StartCallVoteDto {
-  const StartCallVoteDto({required this.targetId});
-
-  factory StartCallVoteDto.fromJson(Map<String, Object?> json) =>
-      _$StartCallVoteDtoFromJson(json);
-
+  const StartCallVoteDto({
+    required this.targetId,
+  });
+  
+  factory StartCallVoteDto.fromJson(Map<String, Object?> json) => _$StartCallVoteDtoFromJson(json);
+  
   final String targetId;
 
   Map<String, Object?> toJson() => _$StartCallVoteDtoToJson(this);

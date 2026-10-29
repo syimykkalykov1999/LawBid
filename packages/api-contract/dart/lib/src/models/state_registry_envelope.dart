@@ -11,11 +11,13 @@ part 'state_registry_envelope.g.dart';
 
 @JsonSerializable()
 class StateRegistryEnvelope {
-  const StateRegistryEnvelope({required this.data, this.meta});
-
-  factory StateRegistryEnvelope.fromJson(Map<String, Object?> json) =>
-      _$StateRegistryEnvelopeFromJson(json);
-
+  const StateRegistryEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory StateRegistryEnvelope.fromJson(Map<String, Object?> json) => _$StateRegistryEnvelopeFromJson(json);
+  
   final StateRegistryDto data;
   final ResponseMetaDto? meta;
 

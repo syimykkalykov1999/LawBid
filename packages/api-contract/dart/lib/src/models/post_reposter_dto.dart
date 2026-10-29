@@ -17,10 +17,9 @@ class PostReposterDto {
     required this.role,
     this.repostedAt,
   });
-
-  factory PostReposterDto.fromJson(Map<String, Object?> json) =>
-      _$PostReposterDtoFromJson(json);
-
+  
+  factory PostReposterDto.fromJson(Map<String, Object?> json) => _$PostReposterDtoFromJson(json);
+  
   final String id;
   final String username;
 

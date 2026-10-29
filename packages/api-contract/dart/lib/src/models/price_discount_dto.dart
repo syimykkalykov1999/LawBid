@@ -8,11 +8,13 @@ part 'price_discount_dto.g.dart';
 
 @JsonSerializable()
 class PriceDiscountDto {
-  const PriceDiscountDto({required this.compareAtCents, required this.percent});
-
-  factory PriceDiscountDto.fromJson(Map<String, Object?> json) =>
-      _$PriceDiscountDtoFromJson(json);
-
+  const PriceDiscountDto({
+    required this.compareAtCents,
+    required this.percent,
+  });
+  
+  factory PriceDiscountDto.fromJson(Map<String, Object?> json) => _$PriceDiscountDtoFromJson(json);
+  
   /// Old price, struck through.
   final int compareAtCents;
   final int percent;

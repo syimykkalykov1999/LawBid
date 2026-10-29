@@ -14,10 +14,9 @@ class SaveEmailTemplateDto {
     required this.enabled,
     this.htmlBody,
   });
-
-  factory SaveEmailTemplateDto.fromJson(Map<String, Object?> json) =>
-      _$SaveEmailTemplateDtoFromJson(json);
-
+  
+  factory SaveEmailTemplateDto.fromJson(Map<String, Object?> json) => _$SaveEmailTemplateDtoFromJson(json);
+  
   /// Subject; `{{var}}` placeholders.
   final String subject;
 

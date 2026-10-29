@@ -11,11 +11,13 @@ part 'save_bid_packs_envelope.g.dart';
 
 @JsonSerializable()
 class SaveBidPacksEnvelope {
-  const SaveBidPacksEnvelope({required this.data, this.meta});
-
-  factory SaveBidPacksEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SaveBidPacksEnvelopeFromJson(json);
-
+  const SaveBidPacksEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SaveBidPacksEnvelope.fromJson(Map<String, Object?> json) => _$SaveBidPacksEnvelopeFromJson(json);
+  
   final SaveBidPacksDto data;
   final ResponseMetaDto? meta;
 

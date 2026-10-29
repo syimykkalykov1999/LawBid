@@ -35,10 +35,9 @@ class UpdatePromotionSettingsDto {
     this.requireSubscription,
     this.feedEveryN,
   });
-
-  factory UpdatePromotionSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$UpdatePromotionSettingsDtoFromJson(json);
-
+  
+  factory UpdatePromotionSettingsDto.fromJson(Map<String, Object?> json) => _$UpdatePromotionSettingsDtoFromJson(json);
+  
   final bool? enabled;
   final int? priceCentsPerDay;
   final int? maxDays;

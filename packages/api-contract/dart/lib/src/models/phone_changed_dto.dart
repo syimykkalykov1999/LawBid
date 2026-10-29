@@ -13,10 +13,9 @@ class PhoneChangedDto {
     required this.phone,
     required this.revokedSessions,
   });
-
-  factory PhoneChangedDto.fromJson(Map<String, Object?> json) =>
-      _$PhoneChangedDtoFromJson(json);
-
+  
+  factory PhoneChangedDto.fromJson(Map<String, Object?> json) => _$PhoneChangedDtoFromJson(json);
+  
   final String userId;
   final String phone;
   final num revokedSessions;

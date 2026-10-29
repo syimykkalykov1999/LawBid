@@ -28,10 +28,9 @@ class UpdateDeadlineRuleDto {
     this.isActive,
     this.sort,
   });
-
-  factory UpdateDeadlineRuleDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateDeadlineRuleDtoFromJson(json);
-
+  
+  factory UpdateDeadlineRuleDto.fromJson(Map<String, Object?> json) => _$UpdateDeadlineRuleDtoFromJson(json);
+  
   final UpdateDeadlineRuleDtoKind? kind;
   final Map<String, String>? labels;
   final int? amount;

@@ -11,11 +11,13 @@ part 'qr_login_poll_result_envelope.g.dart';
 
 @JsonSerializable()
 class QrLoginPollResultEnvelope {
-  const QrLoginPollResultEnvelope({required this.data, this.meta});
-
-  factory QrLoginPollResultEnvelope.fromJson(Map<String, Object?> json) =>
-      _$QrLoginPollResultEnvelopeFromJson(json);
-
+  const QrLoginPollResultEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory QrLoginPollResultEnvelope.fromJson(Map<String, Object?> json) => _$QrLoginPollResultEnvelopeFromJson(json);
+  
   final QrLoginPollResultDto data;
   final ResponseMetaDto? meta;
 

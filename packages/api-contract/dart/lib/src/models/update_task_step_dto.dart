@@ -10,11 +10,14 @@ part 'update_task_step_dto.g.dart';
 
 @JsonSerializable()
 class UpdateTaskStepDto {
-  const UpdateTaskStepDto({this.status, this.note, this.dueAt});
-
-  factory UpdateTaskStepDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateTaskStepDtoFromJson(json);
-
+  const UpdateTaskStepDto({
+    this.status,
+    this.note,
+    this.dueAt,
+  });
+  
+  factory UpdateTaskStepDto.fromJson(Map<String, Object?> json) => _$UpdateTaskStepDtoFromJson(json);
+  
   final TaskStepStatus? status;
   final String? note;
 

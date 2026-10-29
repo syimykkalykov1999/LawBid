@@ -31,10 +31,9 @@ class QuestionDetailDto {
     this.bestAnswerId,
     this.myAnswerId,
   });
-
-  factory QuestionDetailDto.fromJson(Map<String, Object?> json) =>
-      _$QuestionDetailDtoFromJson(json);
-
+  
+  factory QuestionDetailDto.fromJson(Map<String, Object?> json) => _$QuestionDetailDtoFromJson(json);
+  
   final String id;
   final String title;
   final String body;

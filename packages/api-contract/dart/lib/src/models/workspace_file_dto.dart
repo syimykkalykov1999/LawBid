@@ -27,10 +27,9 @@ class WorkspaceFileDto {
     this.sourceItemId,
     this.viewCount,
   });
-
-  factory WorkspaceFileDto.fromJson(Map<String, Object?> json) =>
-      _$WorkspaceFileDtoFromJson(json);
-
+  
+  factory WorkspaceFileDto.fromJson(Map<String, Object?> json) => _$WorkspaceFileDtoFromJson(json);
+  
   final String fileId;
   final String url;
   final String previewUrl;

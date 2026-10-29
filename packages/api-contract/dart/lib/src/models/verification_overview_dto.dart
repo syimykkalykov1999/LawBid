@@ -20,10 +20,9 @@ class VerificationOverviewDto {
     required this.maxSubmissions30Days,
     this.request,
   });
-
-  factory VerificationOverviewDto.fromJson(Map<String, Object?> json) =>
-      _$VerificationOverviewDtoFromJson(json);
-
+  
+  factory VerificationOverviewDto.fromJson(Map<String, Object?> json) => _$VerificationOverviewDtoFromJson(json);
+  
   final VerificationStatus verificationStatus;
 
   /// The latest request, or null if none yet.

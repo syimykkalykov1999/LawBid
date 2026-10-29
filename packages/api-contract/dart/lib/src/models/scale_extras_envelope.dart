@@ -11,11 +11,13 @@ part 'scale_extras_envelope.g.dart';
 
 @JsonSerializable()
 class ScaleExtrasEnvelope {
-  const ScaleExtrasEnvelope({required this.data, this.meta});
-
-  factory ScaleExtrasEnvelope.fromJson(Map<String, Object?> json) =>
-      _$ScaleExtrasEnvelopeFromJson(json);
-
+  const ScaleExtrasEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory ScaleExtrasEnvelope.fromJson(Map<String, Object?> json) => _$ScaleExtrasEnvelopeFromJson(json);
+  
   final ScaleExtrasDto data;
   final ResponseMetaDto? meta;
 

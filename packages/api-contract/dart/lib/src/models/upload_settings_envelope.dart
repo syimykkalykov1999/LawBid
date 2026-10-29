@@ -11,11 +11,13 @@ part 'upload_settings_envelope.g.dart';
 
 @JsonSerializable()
 class UploadSettingsEnvelope {
-  const UploadSettingsEnvelope({required this.data, this.meta});
-
-  factory UploadSettingsEnvelope.fromJson(Map<String, Object?> json) =>
-      _$UploadSettingsEnvelopeFromJson(json);
-
+  const UploadSettingsEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory UploadSettingsEnvelope.fromJson(Map<String, Object?> json) => _$UploadSettingsEnvelopeFromJson(json);
+  
   final UploadSettingsDto data;
   final ResponseMetaDto? meta;
 

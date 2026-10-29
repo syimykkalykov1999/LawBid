@@ -11,11 +11,13 @@ part 'portal_session_envelope.g.dart';
 
 @JsonSerializable()
 class PortalSessionEnvelope {
-  const PortalSessionEnvelope({required this.data, this.meta});
-
-  factory PortalSessionEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PortalSessionEnvelopeFromJson(json);
-
+  const PortalSessionEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PortalSessionEnvelope.fromJson(Map<String, Object?> json) => _$PortalSessionEnvelopeFromJson(json);
+  
   final PortalSessionDto data;
   final ResponseMetaDto? meta;
 

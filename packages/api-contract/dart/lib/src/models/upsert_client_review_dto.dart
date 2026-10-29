@@ -8,11 +8,14 @@ part 'upsert_client_review_dto.g.dart';
 
 @JsonSerializable()
 class UpsertClientReviewDto {
-  const UpsertClientReviewDto({required this.rating, this.body, this.photoIds});
-
-  factory UpsertClientReviewDto.fromJson(Map<String, Object?> json) =>
-      _$UpsertClientReviewDtoFromJson(json);
-
+  const UpsertClientReviewDto({
+    required this.rating,
+    this.body,
+    this.photoIds,
+  });
+  
+  factory UpsertClientReviewDto.fromJson(Map<String, Object?> json) => _$UpsertClientReviewDtoFromJson(json);
+  
   final num rating;
   final String? body;
 

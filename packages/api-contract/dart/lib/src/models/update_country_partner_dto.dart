@@ -19,10 +19,9 @@ class UpdateCountryPartnerDto {
     this.goals,
     this.note,
   });
-
-  factory UpdateCountryPartnerDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateCountryPartnerDtoFromJson(json);
-
+  
+  factory UpdateCountryPartnerDto.fromJson(Map<String, Object?> json) => _$UpdateCountryPartnerDtoFromJson(json);
+  
   final String? name;
   final String? contact;
   final int? maxAdmins;

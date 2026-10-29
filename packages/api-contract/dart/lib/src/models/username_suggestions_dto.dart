@@ -8,11 +8,12 @@ part 'username_suggestions_dto.g.dart';
 
 @JsonSerializable()
 class UsernameSuggestionsDto {
-  const UsernameSuggestionsDto({required this.suggestions});
-
-  factory UsernameSuggestionsDto.fromJson(Map<String, Object?> json) =>
-      _$UsernameSuggestionsDtoFromJson(json);
-
+  const UsernameSuggestionsDto({
+    required this.suggestions,
+  });
+  
+  factory UsernameSuggestionsDto.fromJson(Map<String, Object?> json) => _$UsernameSuggestionsDtoFromJson(json);
+  
   final List<String> suggestions;
 
   Map<String, Object?> toJson() => _$UsernameSuggestionsDtoToJson(this);

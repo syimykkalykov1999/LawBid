@@ -8,11 +8,12 @@ part 'set_country_partner_payouts_dto.g.dart';
 
 @JsonSerializable()
 class SetCountryPartnerPayoutsDto {
-  const SetCountryPartnerPayoutsDto({required this.enabled});
-
-  factory SetCountryPartnerPayoutsDto.fromJson(Map<String, Object?> json) =>
-      _$SetCountryPartnerPayoutsDtoFromJson(json);
-
+  const SetCountryPartnerPayoutsDto({
+    required this.enabled,
+  });
+  
+  factory SetCountryPartnerPayoutsDto.fromJson(Map<String, Object?> json) => _$SetCountryPartnerPayoutsDtoFromJson(json);
+  
   final bool enabled;
 
   Map<String, Object?> toJson() => _$SetCountryPartnerPayoutsDtoToJson(this);

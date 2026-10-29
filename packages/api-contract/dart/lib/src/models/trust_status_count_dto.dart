@@ -10,11 +10,13 @@ part 'trust_status_count_dto.g.dart';
 
 @JsonSerializable()
 class TrustStatusCountDto {
-  const TrustStatusCountDto({required this.status, required this.attorneys});
-
-  factory TrustStatusCountDto.fromJson(Map<String, Object?> json) =>
-      _$TrustStatusCountDtoFromJson(json);
-
+  const TrustStatusCountDto({
+    required this.status,
+    required this.attorneys,
+  });
+  
+  factory TrustStatusCountDto.fromJson(Map<String, Object?> json) => _$TrustStatusCountDtoFromJson(json);
+  
   final TrustStatusCountDtoStatus status;
   final int attorneys;
 

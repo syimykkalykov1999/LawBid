@@ -11,11 +11,13 @@ part 'sanction_result_envelope.g.dart';
 
 @JsonSerializable()
 class SanctionResultEnvelope {
-  const SanctionResultEnvelope({required this.data, this.meta});
-
-  factory SanctionResultEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SanctionResultEnvelopeFromJson(json);
-
+  const SanctionResultEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SanctionResultEnvelope.fromJson(Map<String, Object?> json) => _$SanctionResultEnvelopeFromJson(json);
+  
   final SanctionResultDto data;
   final ResponseMetaDto? meta;
 

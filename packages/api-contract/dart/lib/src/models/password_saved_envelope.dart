@@ -11,11 +11,13 @@ part 'password_saved_envelope.g.dart';
 
 @JsonSerializable()
 class PasswordSavedEnvelope {
-  const PasswordSavedEnvelope({required this.data, this.meta});
-
-  factory PasswordSavedEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PasswordSavedEnvelopeFromJson(json);
-
+  const PasswordSavedEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PasswordSavedEnvelope.fromJson(Map<String, Object?> json) => _$PasswordSavedEnvelopeFromJson(json);
+  
   final PasswordSavedDto data;
   final ResponseMetaDto? meta;
 

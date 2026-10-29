@@ -11,11 +11,13 @@ part 'saved_case_item_list_envelope.g.dart';
 
 @JsonSerializable()
 class SavedCaseItemListEnvelope {
-  const SavedCaseItemListEnvelope({required this.data, this.meta});
-
-  factory SavedCaseItemListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SavedCaseItemListEnvelopeFromJson(json);
-
+  const SavedCaseItemListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SavedCaseItemListEnvelope.fromJson(Map<String, Object?> json) => _$SavedCaseItemListEnvelopeFromJson(json);
+  
   final List<SavedCaseItemDto> data;
   final ResponseMetaDto? meta;
 

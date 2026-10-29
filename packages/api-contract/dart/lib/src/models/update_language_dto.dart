@@ -8,11 +8,13 @@ part 'update_language_dto.g.dart';
 
 @JsonSerializable()
 class UpdateLanguageDto {
-  const UpdateLanguageDto({this.isActive, this.sort});
-
-  factory UpdateLanguageDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateLanguageDtoFromJson(json);
-
+  const UpdateLanguageDto({
+    this.isActive,
+    this.sort,
+  });
+  
+  factory UpdateLanguageDto.fromJson(Map<String, Object?> json) => _$UpdateLanguageDtoFromJson(json);
+  
   final bool? isActive;
   final int? sort;
 

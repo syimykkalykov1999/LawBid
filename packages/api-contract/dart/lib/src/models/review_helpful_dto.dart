@@ -8,11 +8,12 @@ part 'review_helpful_dto.g.dart';
 
 @JsonSerializable()
 class ReviewHelpfulDto {
-  const ReviewHelpfulDto({required this.helpful});
-
-  factory ReviewHelpfulDto.fromJson(Map<String, Object?> json) =>
-      _$ReviewHelpfulDtoFromJson(json);
-
+  const ReviewHelpfulDto({
+    required this.helpful,
+  });
+  
+  factory ReviewHelpfulDto.fromJson(Map<String, Object?> json) => _$ReviewHelpfulDtoFromJson(json);
+  
   final bool helpful;
 
   Map<String, Object?> toJson() => _$ReviewHelpfulDtoToJson(this);

@@ -8,11 +8,12 @@ part 'set_license_expiry_dto.g.dart';
 
 @JsonSerializable()
 class SetLicenseExpiryDto {
-  const SetLicenseExpiryDto({required this.expiresAt});
-
-  factory SetLicenseExpiryDto.fromJson(Map<String, Object?> json) =>
-      _$SetLicenseExpiryDtoFromJson(json);
-
+  const SetLicenseExpiryDto({
+    required this.expiresAt,
+  });
+  
+  factory SetLicenseExpiryDto.fromJson(Map<String, Object?> json) => _$SetLicenseExpiryDtoFromJson(json);
+  
   final DateTime? expiresAt;
 
   Map<String, Object?> toJson() => _$SetLicenseExpiryDtoToJson(this);

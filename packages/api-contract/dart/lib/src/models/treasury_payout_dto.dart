@@ -23,10 +23,9 @@ class TreasuryPayoutDto {
     required this.failure,
     required this.createdAt,
   });
-
-  factory TreasuryPayoutDto.fromJson(Map<String, Object?> json) =>
-      _$TreasuryPayoutDtoFromJson(json);
-
+  
+  factory TreasuryPayoutDto.fromJson(Map<String, Object?> json) => _$TreasuryPayoutDtoFromJson(json);
+  
   final String id;
   final String period;
   final TreasuryPayoutDtoKind kind;

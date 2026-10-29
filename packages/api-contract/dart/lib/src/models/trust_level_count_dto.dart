@@ -8,11 +8,13 @@ part 'trust_level_count_dto.g.dart';
 
 @JsonSerializable()
 class TrustLevelCountDto {
-  const TrustLevelCountDto({required this.level, required this.attorneys});
-
-  factory TrustLevelCountDto.fromJson(Map<String, Object?> json) =>
-      _$TrustLevelCountDtoFromJson(json);
-
+  const TrustLevelCountDto({
+    required this.level,
+    required this.attorneys,
+  });
+  
+  factory TrustLevelCountDto.fromJson(Map<String, Object?> json) => _$TrustLevelCountDtoFromJson(json);
+  
   final int level;
   final int attorneys;
 

@@ -17,10 +17,9 @@ class UpdatePayrollEmployeeDto {
     this.email,
     this.active,
   });
-
-  factory UpdatePayrollEmployeeDto.fromJson(Map<String, Object?> json) =>
-      _$UpdatePayrollEmployeeDtoFromJson(json);
-
+  
+  factory UpdatePayrollEmployeeDto.fromJson(Map<String, Object?> json) => _$UpdatePayrollEmployeeDtoFromJson(json);
+  
   final String? name;
   final String? roleTitle;
   final int? amountCents;

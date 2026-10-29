@@ -8,11 +8,12 @@ part 'replica_toggle_dto.g.dart';
 
 @JsonSerializable()
 class ReplicaToggleDto {
-  const ReplicaToggleDto({required this.enabled});
-
-  factory ReplicaToggleDto.fromJson(Map<String, Object?> json) =>
-      _$ReplicaToggleDtoFromJson(json);
-
+  const ReplicaToggleDto({
+    required this.enabled,
+  });
+  
+  factory ReplicaToggleDto.fromJson(Map<String, Object?> json) => _$ReplicaToggleDtoFromJson(json);
+  
   final bool enabled;
 
   Map<String, Object?> toJson() => _$ReplicaToggleDtoToJson(this);

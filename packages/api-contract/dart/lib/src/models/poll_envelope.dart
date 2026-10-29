@@ -11,11 +11,13 @@ part 'poll_envelope.g.dart';
 
 @JsonSerializable()
 class PollEnvelope {
-  const PollEnvelope({required this.data, this.meta});
-
-  factory PollEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PollEnvelopeFromJson(json);
-
+  const PollEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PollEnvelope.fromJson(Map<String, Object?> json) => _$PollEnvelopeFromJson(json);
+  
   final PollDto data;
   final ResponseMetaDto? meta;
 

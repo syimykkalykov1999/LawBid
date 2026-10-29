@@ -18,10 +18,9 @@ class SfuPublishResultDto {
     required this.tracks,
     required this.failed,
   });
-
-  factory SfuPublishResultDto.fromJson(Map<String, Object?> json) =>
-      _$SfuPublishResultDtoFromJson(json);
-
+  
+  factory SfuPublishResultDto.fromJson(Map<String, Object?> json) => _$SfuPublishResultDtoFromJson(json);
+  
   final SfuPublishResultDtoType type;
 
   /// Apply with setRemoteDescription.

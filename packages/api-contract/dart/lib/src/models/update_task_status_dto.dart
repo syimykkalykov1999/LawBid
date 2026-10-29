@@ -15,10 +15,9 @@ class UpdateTaskStatusDto {
     this.outcomeNote,
     this.rescheduleTo,
   });
-
-  factory UpdateTaskStatusDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateTaskStatusDtoFromJson(json);
-
+  
+  factory UpdateTaskStatusDto.fromJson(Map<String, Object?> json) => _$UpdateTaskStatusDtoFromJson(json);
+  
   final UpdateTaskStatusDtoStatus status;
   final String? outcomeNote;
 

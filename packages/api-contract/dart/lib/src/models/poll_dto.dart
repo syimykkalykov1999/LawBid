@@ -22,10 +22,9 @@ class PollDto {
     required this.myOptionIds,
     this.closedAt,
   });
-
-  factory PollDto.fromJson(Map<String, Object?> json) =>
-      _$PollDtoFromJson(json);
-
+  
+  factory PollDto.fromJson(Map<String, Object?> json) => _$PollDtoFromJson(json);
+  
   final String id;
   final String question;
   final bool multiple;

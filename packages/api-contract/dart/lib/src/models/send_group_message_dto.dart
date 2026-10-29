@@ -20,10 +20,9 @@ class SendGroupMessageDto {
     this.fileId,
     this.fileName,
   });
-
-  factory SendGroupMessageDto.fromJson(Map<String, Object?> json) =>
-      _$SendGroupMessageDtoFromJson(json);
-
+  
+  factory SendGroupMessageDto.fromJson(Map<String, Object?> json) => _$SendGroupMessageDtoFromJson(json);
+  
   /// Client-generated idempotency key.
   final String clientMessageId;
   final SendGroupMessageDtoType type;

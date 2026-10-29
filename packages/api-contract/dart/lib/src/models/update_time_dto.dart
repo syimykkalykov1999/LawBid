@@ -8,11 +8,14 @@ part 'update_time_dto.g.dart';
 
 @JsonSerializable()
 class UpdateTimeDto {
-  const UpdateTimeDto({this.minutes, this.workedOn, this.note});
-
-  factory UpdateTimeDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateTimeDtoFromJson(json);
-
+  const UpdateTimeDto({
+    this.minutes,
+    this.workedOn,
+    this.note,
+  });
+  
+  factory UpdateTimeDto.fromJson(Map<String, Object?> json) => _$UpdateTimeDtoFromJson(json);
+  
   final num? minutes;
   final DateTime? workedOn;
   final String? note;

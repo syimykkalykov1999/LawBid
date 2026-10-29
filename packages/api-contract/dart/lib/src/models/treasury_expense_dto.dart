@@ -19,10 +19,9 @@ class TreasuryExpenseDto {
     required this.active,
     required this.sort,
   });
-
-  factory TreasuryExpenseDto.fromJson(Map<String, Object?> json) =>
-      _$TreasuryExpenseDtoFromJson(json);
-
+  
+  factory TreasuryExpenseDto.fromJson(Map<String, Object?> json) => _$TreasuryExpenseDtoFromJson(json);
+  
   final String id;
   final String name;
 

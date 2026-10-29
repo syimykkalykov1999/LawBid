@@ -18,10 +18,9 @@ class SearchIndexEntityDto {
     required this.mappingOutdated,
     required this.indexes,
   });
-
-  factory SearchIndexEntityDto.fromJson(Map<String, Object?> json) =>
-      _$SearchIndexEntityDtoFromJson(json);
-
+  
+  factory SearchIndexEntityDto.fromJson(Map<String, Object?> json) => _$SearchIndexEntityDtoFromJson(json);
+  
   final SearchIndexEntityDtoEntity entity;
   final String? readTarget;
   final String? writeTarget;

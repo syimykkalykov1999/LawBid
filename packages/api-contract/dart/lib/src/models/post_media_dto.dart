@@ -17,10 +17,9 @@ class PostMediaDto {
     this.width,
     this.height,
   });
-
-  factory PostMediaDto.fromJson(Map<String, Object?> json) =>
-      _$PostMediaDtoFromJson(json);
-
+  
+  factory PostMediaDto.fromJson(Map<String, Object?> json) => _$PostMediaDtoFromJson(json);
+  
   final String fileId;
   final int position;
   final int? width;

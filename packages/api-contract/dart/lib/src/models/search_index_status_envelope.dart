@@ -11,11 +11,13 @@ part 'search_index_status_envelope.g.dart';
 
 @JsonSerializable()
 class SearchIndexStatusEnvelope {
-  const SearchIndexStatusEnvelope({required this.data, this.meta});
-
-  factory SearchIndexStatusEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SearchIndexStatusEnvelopeFromJson(json);
-
+  const SearchIndexStatusEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SearchIndexStatusEnvelope.fromJson(Map<String, Object?> json) => _$SearchIndexStatusEnvelopeFromJson(json);
+  
   final SearchIndexStatusDto data;
   final ResponseMetaDto? meta;
 

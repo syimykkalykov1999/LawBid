@@ -11,11 +11,13 @@ part 'totp_enrollment_envelope.g.dart';
 
 @JsonSerializable()
 class TotpEnrollmentEnvelope {
-  const TotpEnrollmentEnvelope({required this.data, this.meta});
-
-  factory TotpEnrollmentEnvelope.fromJson(Map<String, Object?> json) =>
-      _$TotpEnrollmentEnvelopeFromJson(json);
-
+  const TotpEnrollmentEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory TotpEnrollmentEnvelope.fromJson(Map<String, Object?> json) => _$TotpEnrollmentEnvelopeFromJson(json);
+  
   final TotpEnrollmentDto data;
   final ResponseMetaDto? meta;
 

@@ -10,11 +10,12 @@ part 'support_next_ticket_dto.g.dart';
 
 @JsonSerializable()
 class SupportNextTicketDto {
-  const SupportNextTicketDto({this.ticket});
-
-  factory SupportNextTicketDto.fromJson(Map<String, Object?> json) =>
-      _$SupportNextTicketDtoFromJson(json);
-
+  const SupportNextTicketDto({
+    this.ticket,
+  });
+  
+  factory SupportNextTicketDto.fromJson(Map<String, Object?> json) => _$SupportNextTicketDtoFromJson(json);
+  
   /// null = the queue is empty.
   final AdminSupportTicketDetailDto? ticket;
 

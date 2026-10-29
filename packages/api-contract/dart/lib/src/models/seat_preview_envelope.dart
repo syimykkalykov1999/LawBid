@@ -11,11 +11,13 @@ part 'seat_preview_envelope.g.dart';
 
 @JsonSerializable()
 class SeatPreviewEnvelope {
-  const SeatPreviewEnvelope({required this.data, this.meta});
-
-  factory SeatPreviewEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SeatPreviewEnvelopeFromJson(json);
-
+  const SeatPreviewEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SeatPreviewEnvelope.fromJson(Map<String, Object?> json) => _$SeatPreviewEnvelopeFromJson(json);
+  
   final SeatPreviewDto data;
   final ResponseMetaDto? meta;
 

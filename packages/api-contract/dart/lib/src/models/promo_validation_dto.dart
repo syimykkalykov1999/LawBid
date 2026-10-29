@@ -21,10 +21,9 @@ class PromoValidationDto {
     required this.description,
     required this.reason,
   });
-
-  factory PromoValidationDto.fromJson(Map<String, Object?> json) =>
-      _$PromoValidationDtoFromJson(json);
-
+  
+  factory PromoValidationDto.fromJson(Map<String, Object?> json) => _$PromoValidationDtoFromJson(json);
+  
   final bool valid;
 
   /// Normalized (upper-case).

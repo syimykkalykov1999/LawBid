@@ -11,11 +11,13 @@ part 'trust_stats_envelope.g.dart';
 
 @JsonSerializable()
 class TrustStatsEnvelope {
-  const TrustStatsEnvelope({required this.data, this.meta});
-
-  factory TrustStatsEnvelope.fromJson(Map<String, Object?> json) =>
-      _$TrustStatsEnvelopeFromJson(json);
-
+  const TrustStatsEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory TrustStatsEnvelope.fromJson(Map<String, Object?> json) => _$TrustStatsEnvelopeFromJson(json);
+  
   final TrustStatsDto data;
   final ResponseMetaDto? meta;
 

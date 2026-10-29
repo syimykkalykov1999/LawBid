@@ -8,11 +8,12 @@ part 'reorder_sticker_packs_dto.g.dart';
 
 @JsonSerializable()
 class ReorderStickerPacksDto {
-  const ReorderStickerPacksDto({required this.packIds});
-
-  factory ReorderStickerPacksDto.fromJson(Map<String, Object?> json) =>
-      _$ReorderStickerPacksDtoFromJson(json);
-
+  const ReorderStickerPacksDto({
+    required this.packIds,
+  });
+  
+  factory ReorderStickerPacksDto.fromJson(Map<String, Object?> json) => _$ReorderStickerPacksDtoFromJson(json);
+  
   final List<String> packIds;
 
   Map<String, Object?> toJson() => _$ReorderStickerPacksDtoToJson(this);

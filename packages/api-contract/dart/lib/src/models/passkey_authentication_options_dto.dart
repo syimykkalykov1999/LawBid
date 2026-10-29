@@ -12,16 +12,14 @@ class PasskeyAuthenticationOptionsDto {
     required this.challengeId,
     required this.options,
   });
-
-  factory PasskeyAuthenticationOptionsDto.fromJson(Map<String, Object?> json) =>
-      _$PasskeyAuthenticationOptionsDtoFromJson(json);
-
+  
+  factory PasskeyAuthenticationOptionsDto.fromJson(Map<String, Object?> json) => _$PasskeyAuthenticationOptionsDtoFromJson(json);
+  
   /// Send it back with the assertion (single use, 5 minutes).
   final String challengeId;
 
   /// PublicKeyCredentialRequestOptionsJSON — pass to startAuthentication() or the native passkey API as is.
   final dynamic options;
 
-  Map<String, Object?> toJson() =>
-      _$PasskeyAuthenticationOptionsDtoToJson(this);
+  Map<String, Object?> toJson() => _$PasskeyAuthenticationOptionsDtoToJson(this);
 }

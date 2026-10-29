@@ -11,11 +11,13 @@ part 'set_group_role_dto.g.dart';
 
 @JsonSerializable()
 class SetGroupRoleDto {
-  const SetGroupRoleDto({required this.role, this.rights});
-
-  factory SetGroupRoleDto.fromJson(Map<String, Object?> json) =>
-      _$SetGroupRoleDtoFromJson(json);
-
+  const SetGroupRoleDto({
+    required this.role,
+    this.rights,
+  });
+  
+  factory SetGroupRoleDto.fromJson(Map<String, Object?> json) => _$SetGroupRoleDtoFromJson(json);
+  
   final SetGroupRoleDtoRole role;
 
   /// Admin checkboxes (role admin); default = the usual six.

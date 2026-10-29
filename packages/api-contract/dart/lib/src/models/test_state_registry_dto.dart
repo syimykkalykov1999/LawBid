@@ -13,10 +13,9 @@ class TestStateRegistryDto {
     this.firstName,
     this.lastName,
   });
-
-  factory TestStateRegistryDto.fromJson(Map<String, Object?> json) =>
-      _$TestStateRegistryDtoFromJson(json);
-
+  
+  factory TestStateRegistryDto.fromJson(Map<String, Object?> json) => _$TestStateRegistryDtoFromJson(json);
+  
   final String barNumber;
   final String? firstName;
   final String? lastName;

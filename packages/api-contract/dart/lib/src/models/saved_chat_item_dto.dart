@@ -17,10 +17,9 @@ class SavedChatItemDto {
     required this.chat,
     required this.mine,
   });
-
-  factory SavedChatItemDto.fromJson(Map<String, Object?> json) =>
-      _$SavedChatItemDtoFromJson(json);
-
+  
+  factory SavedChatItemDto.fromJson(Map<String, Object?> json) => _$SavedChatItemDtoFromJson(json);
+  
   final DateTime savedAt;
   final MessageDto message;
 

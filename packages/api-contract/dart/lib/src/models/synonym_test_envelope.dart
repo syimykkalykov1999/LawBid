@@ -11,11 +11,13 @@ part 'synonym_test_envelope.g.dart';
 
 @JsonSerializable()
 class SynonymTestEnvelope {
-  const SynonymTestEnvelope({required this.data, this.meta});
-
-  factory SynonymTestEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SynonymTestEnvelopeFromJson(json);
-
+  const SynonymTestEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SynonymTestEnvelope.fromJson(Map<String, Object?> json) => _$SynonymTestEnvelopeFromJson(json);
+  
   final SynonymTestDto data;
   final ResponseMetaDto? meta;
 

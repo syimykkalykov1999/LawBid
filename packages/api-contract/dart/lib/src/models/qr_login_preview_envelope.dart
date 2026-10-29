@@ -11,11 +11,13 @@ part 'qr_login_preview_envelope.g.dart';
 
 @JsonSerializable()
 class QrLoginPreviewEnvelope {
-  const QrLoginPreviewEnvelope({required this.data, this.meta});
-
-  factory QrLoginPreviewEnvelope.fromJson(Map<String, Object?> json) =>
-      _$QrLoginPreviewEnvelopeFromJson(json);
-
+  const QrLoginPreviewEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory QrLoginPreviewEnvelope.fromJson(Map<String, Object?> json) => _$QrLoginPreviewEnvelopeFromJson(json);
+  
   final QrLoginPreviewDto data;
   final ResponseMetaDto? meta;
 

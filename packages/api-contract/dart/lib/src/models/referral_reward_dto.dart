@@ -15,10 +15,9 @@ class ReferralRewardDto {
     required this.value,
     this.amount,
   });
-
-  factory ReferralRewardDto.fromJson(Map<String, Object?> json) =>
-      _$ReferralRewardDtoFromJson(json);
-
+  
+  factory ReferralRewardDto.fromJson(Map<String, Object?> json) => _$ReferralRewardDtoFromJson(json);
+  
   final ReferralRewardType type;
 
   /// balance_cents: cents of credit; percent_first_invoice: percent; promotion_days: whole days (see amount).

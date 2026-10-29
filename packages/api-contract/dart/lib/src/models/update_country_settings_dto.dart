@@ -8,11 +8,12 @@ part 'update_country_settings_dto.g.dart';
 
 @JsonSerializable()
 class UpdateCountrySettingsDto {
-  const UpdateCountrySettingsDto({this.notifyWaitlist});
-
-  factory UpdateCountrySettingsDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateCountrySettingsDtoFromJson(json);
-
+  const UpdateCountrySettingsDto({
+    this.notifyWaitlist,
+  });
+  
+  factory UpdateCountrySettingsDto.fromJson(Map<String, Object?> json) => _$UpdateCountrySettingsDtoFromJson(json);
+  
   final bool? notifyWaitlist;
 
   Map<String, Object?> toJson() => _$UpdateCountrySettingsDtoToJson(this);

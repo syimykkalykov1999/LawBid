@@ -10,11 +10,13 @@ part 'topic_setting_dto.g.dart';
 
 @JsonSerializable()
 class TopicSettingDto {
-  const TopicSettingDto({required this.topic, required this.pushEnabled});
-
-  factory TopicSettingDto.fromJson(Map<String, Object?> json) =>
-      _$TopicSettingDtoFromJson(json);
-
+  const TopicSettingDto({
+    required this.topic,
+    required this.pushEnabled,
+  });
+  
+  factory TopicSettingDto.fromJson(Map<String, Object?> json) => _$TopicSettingDtoFromJson(json);
+  
   final NotificationTopic topic;
   final bool pushEnabled;
 

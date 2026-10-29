@@ -11,11 +11,13 @@ part 'synonym_group_list_envelope.g.dart';
 
 @JsonSerializable()
 class SynonymGroupListEnvelope {
-  const SynonymGroupListEnvelope({required this.data, this.meta});
-
-  factory SynonymGroupListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SynonymGroupListEnvelopeFromJson(json);
-
+  const SynonymGroupListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SynonymGroupListEnvelope.fromJson(Map<String, Object?> json) => _$SynonymGroupListEnvelopeFromJson(json);
+  
   final List<SynonymGroupDto> data;
   final ResponseMetaDto? meta;
 

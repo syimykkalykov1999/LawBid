@@ -28,10 +28,9 @@ class OutreachLeadInputDto {
     this.sourceNote,
     this.doNotContact,
   });
-
-  factory OutreachLeadInputDto.fromJson(Map<String, Object?> json) =>
-      _$OutreachLeadInputDtoFromJson(json);
-
+  
+  factory OutreachLeadInputDto.fromJson(Map<String, Object?> json) => _$OutreachLeadInputDtoFromJson(json);
+  
   final OutreachLeadKind? kind;
   final String? firstName;
   final String? lastName;

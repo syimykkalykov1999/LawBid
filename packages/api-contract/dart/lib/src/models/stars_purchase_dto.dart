@@ -15,10 +15,9 @@ class StarsPurchaseDto {
     required this.stars,
     required this.balance,
   });
-
-  factory StarsPurchaseDto.fromJson(Map<String, Object?> json) =>
-      _$StarsPurchaseDtoFromJson(json);
-
+  
+  factory StarsPurchaseDto.fromJson(Map<String, Object?> json) => _$StarsPurchaseDtoFromJson(json);
+  
   final StarsPurchaseDtoStatus status;
   final int stars;
   final int balance;

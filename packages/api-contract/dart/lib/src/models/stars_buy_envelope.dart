@@ -11,11 +11,13 @@ part 'stars_buy_envelope.g.dart';
 
 @JsonSerializable()
 class StarsBuyEnvelope {
-  const StarsBuyEnvelope({required this.data, this.meta});
-
-  factory StarsBuyEnvelope.fromJson(Map<String, Object?> json) =>
-      _$StarsBuyEnvelopeFromJson(json);
-
+  const StarsBuyEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory StarsBuyEnvelope.fromJson(Map<String, Object?> json) => _$StarsBuyEnvelopeFromJson(json);
+  
   final StarsBuyDto data;
   final ResponseMetaDto? meta;
 

@@ -17,10 +17,9 @@ class RewardsSettingsDto {
     required this.period,
     required this.departments,
   });
-
-  factory RewardsSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$RewardsSettingsDtoFromJson(json);
-
+  
+  factory RewardsSettingsDto.fromJson(Map<String, Object?> json) => _$RewardsSettingsDtoFromJson(json);
+  
   /// Master switch (owner). Off = nothing is shown anywhere.
   final bool enabled;
 

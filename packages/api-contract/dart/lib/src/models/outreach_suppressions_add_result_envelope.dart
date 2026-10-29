@@ -11,15 +11,15 @@ part 'outreach_suppressions_add_result_envelope.g.dart';
 
 @JsonSerializable()
 class OutreachSuppressionsAddResultEnvelope {
-  const OutreachSuppressionsAddResultEnvelope({required this.data, this.meta});
-
-  factory OutreachSuppressionsAddResultEnvelope.fromJson(
-    Map<String, Object?> json,
-  ) => _$OutreachSuppressionsAddResultEnvelopeFromJson(json);
-
+  const OutreachSuppressionsAddResultEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory OutreachSuppressionsAddResultEnvelope.fromJson(Map<String, Object?> json) => _$OutreachSuppressionsAddResultEnvelopeFromJson(json);
+  
   final OutreachSuppressionsAddResultDto data;
   final ResponseMetaDto? meta;
 
-  Map<String, Object?> toJson() =>
-      _$OutreachSuppressionsAddResultEnvelopeToJson(this);
+  Map<String, Object?> toJson() => _$OutreachSuppressionsAddResultEnvelopeToJson(this);
 }

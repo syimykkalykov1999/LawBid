@@ -15,10 +15,9 @@ class SfuSubscriptionDto {
     required this.trackName,
     required this.mid,
   });
-
-  factory SfuSubscriptionDto.fromJson(Map<String, Object?> json) =>
-      _$SfuSubscriptionDtoFromJson(json);
-
+  
+  factory SfuSubscriptionDto.fromJson(Map<String, Object?> json) => _$SfuSubscriptionDtoFromJson(json);
+  
   final String userId;
   final SfuSubscriptionDtoTrackName trackName;
 

@@ -10,11 +10,13 @@ part 'refresh_token_dto.g.dart';
 
 @JsonSerializable()
 class RefreshTokenDto {
-  const RefreshTokenDto({required this.refreshToken, this.deviceInfo});
-
-  factory RefreshTokenDto.fromJson(Map<String, Object?> json) =>
-      _$RefreshTokenDtoFromJson(json);
-
+  const RefreshTokenDto({
+    required this.refreshToken,
+    this.deviceInfo,
+  });
+  
+  factory RefreshTokenDto.fromJson(Map<String, Object?> json) => _$RefreshTokenDtoFromJson(json);
+  
   final String refreshToken;
   final DeviceInfoDto? deviceInfo;
 

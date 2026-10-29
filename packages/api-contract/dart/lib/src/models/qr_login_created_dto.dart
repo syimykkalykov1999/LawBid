@@ -14,10 +14,9 @@ class QrLoginCreatedDto {
     required this.qrUrl,
     required this.expiresIn,
   });
-
-  factory QrLoginCreatedDto.fromJson(Map<String, Object?> json) =>
-      _$QrLoginCreatedDtoFromJson(json);
-
+  
+  factory QrLoginCreatedDto.fromJson(Map<String, Object?> json) => _$QrLoginCreatedDtoFromJson(json);
+  
   /// Public id in the QR code (single use).
   final String qrId;
 

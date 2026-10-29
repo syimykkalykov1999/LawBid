@@ -8,11 +8,13 @@ part 'public_practice_dto.g.dart';
 
 @JsonSerializable()
 class PublicPracticeDto {
-  const PublicPracticeDto({required this.code, required this.name});
-
-  factory PublicPracticeDto.fromJson(Map<String, Object?> json) =>
-      _$PublicPracticeDtoFromJson(json);
-
+  const PublicPracticeDto({
+    required this.code,
+    required this.name,
+  });
+  
+  factory PublicPracticeDto.fromJson(Map<String, Object?> json) => _$PublicPracticeDtoFromJson(json);
+  
   final String code;
   final String name;
 

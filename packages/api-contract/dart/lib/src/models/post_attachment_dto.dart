@@ -16,10 +16,9 @@ class PostAttachmentDto {
     required this.sizeBytes,
     required this.url,
   });
-
-  factory PostAttachmentDto.fromJson(Map<String, Object?> json) =>
-      _$PostAttachmentDtoFromJson(json);
-
+  
+  factory PostAttachmentDto.fromJson(Map<String, Object?> json) => _$PostAttachmentDtoFromJson(json);
+  
   final String fileId;
   final int position;
   final String fileName;

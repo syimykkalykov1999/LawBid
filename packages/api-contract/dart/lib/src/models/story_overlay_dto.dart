@@ -15,10 +15,9 @@ class StoryOverlayDto {
     required this.scale,
     required this.rotation,
   });
-
-  factory StoryOverlayDto.fromJson(Map<String, Object?> json) =>
-      _$StoryOverlayDtoFromJson(json);
-
+  
+  factory StoryOverlayDto.fromJson(Map<String, Object?> json) => _$StoryOverlayDtoFromJson(json);
+  
   final String emoji;
   final num x;
   final num y;

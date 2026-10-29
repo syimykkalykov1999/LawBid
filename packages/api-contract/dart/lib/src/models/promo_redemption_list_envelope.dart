@@ -11,11 +11,13 @@ part 'promo_redemption_list_envelope.g.dart';
 
 @JsonSerializable()
 class PromoRedemptionListEnvelope {
-  const PromoRedemptionListEnvelope({required this.data, this.meta});
-
-  factory PromoRedemptionListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PromoRedemptionListEnvelopeFromJson(json);
-
+  const PromoRedemptionListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PromoRedemptionListEnvelope.fromJson(Map<String, Object?> json) => _$PromoRedemptionListEnvelopeFromJson(json);
+  
   final List<PromoRedemptionDto> data;
   final ResponseMetaDto? meta;
 

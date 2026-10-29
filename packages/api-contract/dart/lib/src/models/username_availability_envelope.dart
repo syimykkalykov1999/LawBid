@@ -11,11 +11,13 @@ part 'username_availability_envelope.g.dart';
 
 @JsonSerializable()
 class UsernameAvailabilityEnvelope {
-  const UsernameAvailabilityEnvelope({required this.data, this.meta});
-
-  factory UsernameAvailabilityEnvelope.fromJson(Map<String, Object?> json) =>
-      _$UsernameAvailabilityEnvelopeFromJson(json);
-
+  const UsernameAvailabilityEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory UsernameAvailabilityEnvelope.fromJson(Map<String, Object?> json) => _$UsernameAvailabilityEnvelopeFromJson(json);
+  
   final UsernameAvailabilityDto data;
   final ResponseMetaDto? meta;
 

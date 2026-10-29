@@ -16,10 +16,9 @@ class UsernameAvailabilityDto {
     required this.reason,
     required this.suggestions,
   });
-
-  factory UsernameAvailabilityDto.fromJson(Map<String, Object?> json) =>
-      _$UsernameAvailabilityDtoFromJson(json);
-
+  
+  factory UsernameAvailabilityDto.fromJson(Map<String, Object?> json) => _$UsernameAvailabilityDtoFromJson(json);
+  
   final String username;
   final bool available;
 

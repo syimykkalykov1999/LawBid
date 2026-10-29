@@ -15,10 +15,9 @@ class SfuCloseResultDto {
     required this.type,
     required this.sdp,
   });
-
-  factory SfuCloseResultDto.fromJson(Map<String, Object?> json) =>
-      _$SfuCloseResultDtoFromJson(json);
-
+  
+  factory SfuCloseResultDto.fromJson(Map<String, Object?> json) => _$SfuCloseResultDtoFromJson(json);
+  
   /// The mids that were closed.
   final List<String> closed;
   final SfuCloseResultDtoType? type;

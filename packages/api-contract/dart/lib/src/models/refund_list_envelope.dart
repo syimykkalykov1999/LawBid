@@ -11,11 +11,13 @@ part 'refund_list_envelope.g.dart';
 
 @JsonSerializable()
 class RefundListEnvelope {
-  const RefundListEnvelope({required this.data, this.meta});
-
-  factory RefundListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$RefundListEnvelopeFromJson(json);
-
+  const RefundListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory RefundListEnvelope.fromJson(Map<String, Object?> json) => _$RefundListEnvelopeFromJson(json);
+  
   final List<RefundDto> data;
   final ResponseMetaDto? meta;
 

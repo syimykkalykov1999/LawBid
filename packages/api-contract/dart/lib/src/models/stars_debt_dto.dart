@@ -13,10 +13,9 @@ class StarsDebtDto {
     required this.debt,
     required this.balance,
   });
-
-  factory StarsDebtDto.fromJson(Map<String, Object?> json) =>
-      _$StarsDebtDtoFromJson(json);
-
+  
+  factory StarsDebtDto.fromJson(Map<String, Object?> json) => _$StarsDebtDtoFromJson(json);
+  
   final String userId;
 
   /// Stars still owed.

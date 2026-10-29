@@ -17,10 +17,9 @@ class RewardLeaderboardDto {
     required this.closed,
     required this.departments,
   });
-
-  factory RewardLeaderboardDto.fromJson(Map<String, Object?> json) =>
-      _$RewardLeaderboardDtoFromJson(json);
-
+  
+  factory RewardLeaderboardDto.fromJson(Map<String, Object?> json) => _$RewardLeaderboardDtoFromJson(json);
+  
   final String period;
   final DateTime from;
   final DateTime to;

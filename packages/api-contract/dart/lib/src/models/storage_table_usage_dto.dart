@@ -13,10 +13,9 @@ class StorageTableUsageDto {
     required this.rows,
     required this.bytes,
   });
-
-  factory StorageTableUsageDto.fromJson(Map<String, Object?> json) =>
-      _$StorageTableUsageDtoFromJson(json);
-
+  
+  factory StorageTableUsageDto.fromJson(Map<String, Object?> json) => _$StorageTableUsageDtoFromJson(json);
+  
   final String table;
   final num rows;
   final num bytes;

@@ -11,11 +11,13 @@ part 'review_report_envelope.g.dart';
 
 @JsonSerializable()
 class ReviewReportEnvelope {
-  const ReviewReportEnvelope({required this.data, this.meta});
-
-  factory ReviewReportEnvelope.fromJson(Map<String, Object?> json) =>
-      _$ReviewReportEnvelopeFromJson(json);
-
+  const ReviewReportEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory ReviewReportEnvelope.fromJson(Map<String, Object?> json) => _$ReviewReportEnvelopeFromJson(json);
+  
   final ReviewReportDto data;
   final ResponseMetaDto? meta;
 

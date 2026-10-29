@@ -13,10 +13,9 @@ class StoragePurposeUsageDto {
     required this.count,
     required this.bytes,
   });
-
-  factory StoragePurposeUsageDto.fromJson(Map<String, Object?> json) =>
-      _$StoragePurposeUsageDtoFromJson(json);
-
+  
+  factory StoragePurposeUsageDto.fromJson(Map<String, Object?> json) => _$StoragePurposeUsageDtoFromJson(json);
+  
   final String purpose;
   final num count;
   final num bytes;

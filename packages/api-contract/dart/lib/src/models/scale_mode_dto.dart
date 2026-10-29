@@ -11,11 +11,14 @@ part 'scale_mode_dto.g.dart';
 
 @JsonSerializable()
 class ScaleModeDto {
-  const ScaleModeDto({required this.mode, required this.by, required this.at});
-
-  factory ScaleModeDto.fromJson(Map<String, Object?> json) =>
-      _$ScaleModeDtoFromJson(json);
-
+  const ScaleModeDto({
+    required this.mode,
+    required this.by,
+    required this.at,
+  });
+  
+  factory ScaleModeDto.fromJson(Map<String, Object?> json) => _$ScaleModeDtoFromJson(json);
+  
   final ScaleModeDtoMode mode;
   final ScaleModeDtoBy by;
   final String at;

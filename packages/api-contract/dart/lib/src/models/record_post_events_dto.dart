@@ -10,11 +10,12 @@ part 'record_post_events_dto.g.dart';
 
 @JsonSerializable()
 class RecordPostEventsDto {
-  const RecordPostEventsDto({required this.events});
-
-  factory RecordPostEventsDto.fromJson(Map<String, Object?> json) =>
-      _$RecordPostEventsDtoFromJson(json);
-
+  const RecordPostEventsDto({
+    required this.events,
+  });
+  
+  factory RecordPostEventsDto.fromJson(Map<String, Object?> json) => _$RecordPostEventsDtoFromJson(json);
+  
   final List<PostEventItemDto> events;
 
   Map<String, Object?> toJson() => _$RecordPostEventsDtoToJson(this);

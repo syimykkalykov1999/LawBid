@@ -15,10 +15,9 @@ class ReauthDto {
     required this.identifier,
     required this.code,
   });
-
-  factory ReauthDto.fromJson(Map<String, Object?> json) =>
-      _$ReauthDtoFromJson(json);
-
+  
+  factory ReauthDto.fromJson(Map<String, Object?> json) => _$ReauthDtoFromJson(json);
+  
   final ReauthDtoMethod method;
   final String identifier;
   final String code;

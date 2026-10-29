@@ -11,11 +11,13 @@ part 'read_result_envelope.g.dart';
 
 @JsonSerializable()
 class ReadResultEnvelope {
-  const ReadResultEnvelope({required this.data, this.meta});
-
-  factory ReadResultEnvelope.fromJson(Map<String, Object?> json) =>
-      _$ReadResultEnvelopeFromJson(json);
-
+  const ReadResultEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory ReadResultEnvelope.fromJson(Map<String, Object?> json) => _$ReadResultEnvelopeFromJson(json);
+  
   final ReadResultDto data;
   final ResponseMetaDto? meta;
 

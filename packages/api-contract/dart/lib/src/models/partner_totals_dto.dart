@@ -16,10 +16,9 @@ class PartnerTotalsDto {
     required this.referredCount,
     required this.qualifiedCount,
   });
-
-  factory PartnerTotalsDto.fromJson(Map<String, Object?> json) =>
-      _$PartnerTotalsDtoFromJson(json);
-
+  
+  factory PartnerTotalsDto.fromJson(Map<String, Object?> json) => _$PartnerTotalsDtoFromJson(json);
+  
   /// Held (in the check), cents.
   final int heldCents;
 

@@ -27,10 +27,9 @@ class PlanFieldsDto {
     this.note,
     this.applyNow,
   });
-
-  factory PlanFieldsDto.fromJson(Map<String, Object?> json) =>
-      _$PlanFieldsDtoFromJson(json);
-
+  
+  factory PlanFieldsDto.fromJson(Map<String, Object?> json) => _$PlanFieldsDtoFromJson(json);
+  
   final LocalizedTextInputDto? name;
   final LocalizedTextInputDto? tagline;
   final LongLocalizedTextInputDto? description;

@@ -13,10 +13,9 @@ class UpdateNewCaseAlertsDto {
     this.practiceAreaIds,
     this.urgentOnly,
   });
-
-  factory UpdateNewCaseAlertsDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateNewCaseAlertsDtoFromJson(json);
-
+  
+  factory UpdateNewCaseAlertsDto.fromJson(Map<String, Object?> json) => _$UpdateNewCaseAlertsDtoFromJson(json);
+  
   final bool useProfile;
   final List<String>? practiceAreaIds;
 

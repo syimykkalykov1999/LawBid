@@ -21,10 +21,9 @@ class SupportMacroDto {
     this.bodyRu,
     this.category,
   });
-
-  factory SupportMacroDto.fromJson(Map<String, Object?> json) =>
-      _$SupportMacroDtoFromJson(json);
-
+  
+  factory SupportMacroDto.fromJson(Map<String, Object?> json) => _$SupportMacroDtoFromJson(json);
+  
   final String id;
   final String title;
 

@@ -8,11 +8,12 @@ part 'react_message_dto.g.dart';
 
 @JsonSerializable()
 class ReactMessageDto {
-  const ReactMessageDto({this.emoji});
-
-  factory ReactMessageDto.fromJson(Map<String, Object?> json) =>
-      _$ReactMessageDtoFromJson(json);
-
+  const ReactMessageDto({
+    this.emoji,
+  });
+  
+  factory ReactMessageDto.fromJson(Map<String, Object?> json) => _$ReactMessageDtoFromJson(json);
+  
   /// One emoji; null removes the reaction.
   final String? emoji;
 

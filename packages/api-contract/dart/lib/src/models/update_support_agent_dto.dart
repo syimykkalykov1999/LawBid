@@ -8,11 +8,13 @@ part 'update_support_agent_dto.g.dart';
 
 @JsonSerializable()
 class UpdateSupportAgentDto {
-  const UpdateSupportAgentDto({this.onShift, this.maxOpen});
-
-  factory UpdateSupportAgentDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateSupportAgentDtoFromJson(json);
-
+  const UpdateSupportAgentDto({
+    this.onShift,
+    this.maxOpen,
+  });
+  
+  factory UpdateSupportAgentDto.fromJson(Map<String, Object?> json) => _$UpdateSupportAgentDtoFromJson(json);
+  
   final bool? onShift;
   final num? maxOpen;
 

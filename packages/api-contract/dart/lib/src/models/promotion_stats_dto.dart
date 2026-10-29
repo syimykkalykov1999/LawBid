@@ -16,10 +16,9 @@ class PromotionStatsDto {
     required this.days,
     required this.spentCents,
   });
-
-  factory PromotionStatsDto.fromJson(Map<String, Object?> json) =>
-      _$PromotionStatsDtoFromJson(json);
-
+  
+  factory PromotionStatsDto.fromJson(Map<String, Object?> json) => _$PromotionStatsDtoFromJson(json);
+  
   final MyPromotionDto promotion;
   final List<PromotionDayDto> days;
 

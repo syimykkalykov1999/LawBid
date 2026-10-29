@@ -8,11 +8,13 @@ part 'rating_bucket_dto.g.dart';
 
 @JsonSerializable()
 class RatingBucketDto {
-  const RatingBucketDto({required this.stars, required this.count});
-
-  factory RatingBucketDto.fromJson(Map<String, Object?> json) =>
-      _$RatingBucketDtoFromJson(json);
-
+  const RatingBucketDto({
+    required this.stars,
+    required this.count,
+  });
+  
+  factory RatingBucketDto.fromJson(Map<String, Object?> json) => _$RatingBucketDtoFromJson(json);
+  
   final int stars;
   final int count;
 

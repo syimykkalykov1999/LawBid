@@ -8,11 +8,13 @@ part 'referral_count_dto.g.dart';
 
 @JsonSerializable()
 class ReferralCountDto {
-  const ReferralCountDto({required this.key, required this.count});
-
-  factory ReferralCountDto.fromJson(Map<String, Object?> json) =>
-      _$ReferralCountDtoFromJson(json);
-
+  const ReferralCountDto({
+    required this.key,
+    required this.count,
+  });
+  
+  factory ReferralCountDto.fromJson(Map<String, Object?> json) => _$ReferralCountDtoFromJson(json);
+  
   final String key;
   final int count;
 

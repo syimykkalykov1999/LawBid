@@ -47,10 +47,9 @@ class OutreachLeadDetailDto {
     required this.emailBlocked,
     required this.phoneHidden,
   });
-
-  factory OutreachLeadDetailDto.fromJson(Map<String, Object?> json) =>
-      _$OutreachLeadDetailDtoFromJson(json);
-
+  
+  factory OutreachLeadDetailDto.fromJson(Map<String, Object?> json) => _$OutreachLeadDetailDtoFromJson(json);
+  
   final String id;
   final OutreachLeadKind kind;
   final String? firstName;

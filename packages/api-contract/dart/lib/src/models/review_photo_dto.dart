@@ -13,10 +13,9 @@ class ReviewPhotoDto {
     required this.url,
     required this.previewUrl,
   });
-
-  factory ReviewPhotoDto.fromJson(Map<String, Object?> json) =>
-      _$ReviewPhotoDtoFromJson(json);
-
+  
+  factory ReviewPhotoDto.fromJson(Map<String, Object?> json) => _$ReviewPhotoDtoFromJson(json);
+  
   final String fileId;
   final String url;
   final String previewUrl;

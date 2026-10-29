@@ -11,11 +11,13 @@ part 'payroll_payout_list_envelope.g.dart';
 
 @JsonSerializable()
 class PayrollPayoutListEnvelope {
-  const PayrollPayoutListEnvelope({required this.data, this.meta});
-
-  factory PayrollPayoutListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PayrollPayoutListEnvelopeFromJson(json);
-
+  const PayrollPayoutListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PayrollPayoutListEnvelope.fromJson(Map<String, Object?> json) => _$PayrollPayoutListEnvelopeFromJson(json);
+  
   final List<PayrollPayoutDto> data;
   final ResponseMetaDto? meta;
 

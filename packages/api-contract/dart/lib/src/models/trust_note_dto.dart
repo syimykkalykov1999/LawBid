@@ -8,11 +8,12 @@ part 'trust_note_dto.g.dart';
 
 @JsonSerializable()
 class TrustNoteDto {
-  const TrustNoteDto({this.note});
-
-  factory TrustNoteDto.fromJson(Map<String, Object?> json) =>
-      _$TrustNoteDtoFromJson(json);
-
+  const TrustNoteDto({
+    this.note,
+  });
+  
+  factory TrustNoteDto.fromJson(Map<String, Object?> json) => _$TrustNoteDtoFromJson(json);
+  
   final String? note;
 
   Map<String, Object?> toJson() => _$TrustNoteDtoToJson(this);

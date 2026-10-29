@@ -8,11 +8,12 @@ part 'reject_seat_limit_dto.g.dart';
 
 @JsonSerializable()
 class RejectSeatLimitDto {
-  const RejectSeatLimitDto({this.note});
-
-  factory RejectSeatLimitDto.fromJson(Map<String, Object?> json) =>
-      _$RejectSeatLimitDtoFromJson(json);
-
+  const RejectSeatLimitDto({
+    this.note,
+  });
+  
+  factory RejectSeatLimitDto.fromJson(Map<String, Object?> json) => _$RejectSeatLimitDtoFromJson(json);
+  
   final String? note;
 
   Map<String, Object?> toJson() => _$RejectSeatLimitDtoToJson(this);

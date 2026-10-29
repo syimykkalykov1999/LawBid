@@ -24,10 +24,9 @@ class PayoutAccountDto {
     required this.processingFeePayerIsDefault,
     required this.updatedAt,
   });
-
-  factory PayoutAccountDto.fromJson(Map<String, Object?> json) =>
-      _$PayoutAccountDtoFromJson(json);
-
+  
+  factory PayoutAccountDto.fromJson(Map<String, Object?> json) => _$PayoutAccountDtoFromJson(json);
+  
   /// none = the attorney has not started.
   final PayoutAccountStatus status;
 

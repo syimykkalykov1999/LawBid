@@ -22,10 +22,9 @@ class StickerPackDto {
     required this.priceStars,
     required this.stickers,
   });
-
-  factory StickerPackDto.fromJson(Map<String, Object?> json) =>
-      _$StickerPackDtoFromJson(json);
-
+  
+  factory StickerPackDto.fromJson(Map<String, Object?> json) => _$StickerPackDtoFromJson(json);
+  
   final String id;
   final String title;
 

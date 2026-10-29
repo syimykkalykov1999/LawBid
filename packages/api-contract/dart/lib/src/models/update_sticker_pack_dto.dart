@@ -8,11 +8,12 @@ part 'update_sticker_pack_dto.g.dart';
 
 @JsonSerializable()
 class UpdateStickerPackDto {
-  const UpdateStickerPackDto({required this.title});
-
-  factory UpdateStickerPackDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateStickerPackDtoFromJson(json);
-
+  const UpdateStickerPackDto({
+    required this.title,
+  });
+  
+  factory UpdateStickerPackDto.fromJson(Map<String, Object?> json) => _$UpdateStickerPackDtoFromJson(json);
+  
   final String title;
 
   Map<String, Object?> toJson() => _$UpdateStickerPackDtoToJson(this);

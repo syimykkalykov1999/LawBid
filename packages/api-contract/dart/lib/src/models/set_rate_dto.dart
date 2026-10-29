@@ -8,11 +8,12 @@ part 'set_rate_dto.g.dart';
 
 @JsonSerializable()
 class SetRateDto {
-  const SetRateDto({required this.hourlyRateCents});
-
-  factory SetRateDto.fromJson(Map<String, Object?> json) =>
-      _$SetRateDtoFromJson(json);
-
+  const SetRateDto({
+    required this.hourlyRateCents,
+  });
+  
+  factory SetRateDto.fromJson(Map<String, Object?> json) => _$SetRateDtoFromJson(json);
+  
   /// Cents per hour
   final num hourlyRateCents;
 

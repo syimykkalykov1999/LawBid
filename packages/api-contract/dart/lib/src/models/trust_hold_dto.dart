@@ -8,11 +8,14 @@ part 'trust_hold_dto.g.dart';
 
 @JsonSerializable()
 class TrustHoldDto {
-  const TrustHoldDto({required this.payments, required this.bids, this.note});
-
-  factory TrustHoldDto.fromJson(Map<String, Object?> json) =>
-      _$TrustHoldDtoFromJson(json);
-
+  const TrustHoldDto({
+    required this.payments,
+    required this.bids,
+    this.note,
+  });
+  
+  factory TrustHoldDto.fromJson(Map<String, Object?> json) => _$TrustHoldDtoFromJson(json);
+  
   final String? note;
 
   /// Pause / resume receiving payments.

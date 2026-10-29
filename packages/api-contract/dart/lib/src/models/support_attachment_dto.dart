@@ -20,10 +20,9 @@ class SupportAttachmentDto {
     this.width,
     this.height,
   });
-
-  factory SupportAttachmentDto.fromJson(Map<String, Object?> json) =>
-      _$SupportAttachmentDtoFromJson(json);
-
+  
+  factory SupportAttachmentDto.fromJson(Map<String, Object?> json) => _$SupportAttachmentDtoFromJson(json);
+  
   /// The file id.
   final String id;
   final String name;

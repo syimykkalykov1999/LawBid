@@ -8,11 +8,12 @@ part 'reorder_integration_slots_dto.g.dart';
 
 @JsonSerializable()
 class ReorderIntegrationSlotsDto {
-  const ReorderIntegrationSlotsDto({required this.slots});
-
-  factory ReorderIntegrationSlotsDto.fromJson(Map<String, Object?> json) =>
-      _$ReorderIntegrationSlotsDtoFromJson(json);
-
+  const ReorderIntegrationSlotsDto({
+    required this.slots,
+  });
+  
+  factory ReorderIntegrationSlotsDto.fromJson(Map<String, Object?> json) => _$ReorderIntegrationSlotsDtoFromJson(json);
+  
   /// Key sets in the order the API tries them.
   final List<String> slots;
 

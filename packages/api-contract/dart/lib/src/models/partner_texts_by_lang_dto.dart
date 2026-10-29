@@ -10,11 +10,13 @@ part 'partner_texts_by_lang_dto.g.dart';
 
 @JsonSerializable()
 class PartnerTextsByLangDto {
-  const PartnerTextsByLangDto({required this.en, required this.ru});
-
-  factory PartnerTextsByLangDto.fromJson(Map<String, Object?> json) =>
-      _$PartnerTextsByLangDtoFromJson(json);
-
+  const PartnerTextsByLangDto({
+    required this.en,
+    required this.ru,
+  });
+  
+  factory PartnerTextsByLangDto.fromJson(Map<String, Object?> json) => _$PartnerTextsByLangDtoFromJson(json);
+  
   final PartnerTextsDto en;
   final PartnerTextsDto ru;
 

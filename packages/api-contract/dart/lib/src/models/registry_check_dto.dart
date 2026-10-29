@@ -16,10 +16,9 @@ class RegistryCheckDto {
     required this.result,
     required this.details,
   });
-
-  factory RegistryCheckDto.fromJson(Map<String, Object?> json) =>
-      _$RegistryCheckDtoFromJson(json);
-
+  
+  factory RegistryCheckDto.fromJson(Map<String, Object?> json) => _$RegistryCheckDtoFromJson(json);
+  
   final AdminLicenseDto license;
   final CheckResult result;
   final dynamic details;

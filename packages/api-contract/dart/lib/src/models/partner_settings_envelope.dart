@@ -11,11 +11,13 @@ part 'partner_settings_envelope.g.dart';
 
 @JsonSerializable()
 class PartnerSettingsEnvelope {
-  const PartnerSettingsEnvelope({required this.data, this.meta});
-
-  factory PartnerSettingsEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PartnerSettingsEnvelopeFromJson(json);
-
+  const PartnerSettingsEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PartnerSettingsEnvelope.fromJson(Map<String, Object?> json) => _$PartnerSettingsEnvelopeFromJson(json);
+  
   final PartnerSettingsDto data;
   final ResponseMetaDto? meta;
 

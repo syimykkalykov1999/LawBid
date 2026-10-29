@@ -21,10 +21,9 @@ class PostVideoDto {
     this.trimStartMs,
     this.trimEndMs,
   });
-
-  factory PostVideoDto.fromJson(Map<String, Object?> json) =>
-      _$PostVideoDtoFromJson(json);
-
+  
+  factory PostVideoDto.fromJson(Map<String, Object?> json) => _$PostVideoDtoFromJson(json);
+  
   final VideoAssetStatus status;
   final String? playbackUrl;
 

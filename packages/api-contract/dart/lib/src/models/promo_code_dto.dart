@@ -34,10 +34,9 @@ class PromoCodeDto {
     required this.createdBy,
     required this.createdAt,
   });
-
-  factory PromoCodeDto.fromJson(Map<String, Object?> json) =>
-      _$PromoCodeDtoFromJson(json);
-
+  
+  factory PromoCodeDto.fromJson(Map<String, Object?> json) => _$PromoCodeDtoFromJson(json);
+  
   final String id;
   final String code;
   final String? description;

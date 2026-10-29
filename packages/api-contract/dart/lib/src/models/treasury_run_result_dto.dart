@@ -16,10 +16,9 @@ class TreasuryRunResultDto {
     required this.profitCents,
     required this.shortfallCents,
   });
-
-  factory TreasuryRunResultDto.fromJson(Map<String, Object?> json) =>
-      _$TreasuryRunResultDtoFromJson(json);
-
+  
+  factory TreasuryRunResultDto.fromJson(Map<String, Object?> json) => _$TreasuryRunResultDtoFromJson(json);
+  
   /// Why nothing was sent (null: the split ran).
   final TreasuryRunResultDtoSkipped? skipped;
   final int expensesCents;

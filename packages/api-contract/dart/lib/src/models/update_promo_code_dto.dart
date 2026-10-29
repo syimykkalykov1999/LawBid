@@ -14,10 +14,9 @@ class UpdatePromoCodeDto {
     this.maxRedemptions,
     this.expiresAt,
   });
-
-  factory UpdatePromoCodeDto.fromJson(Map<String, Object?> json) =>
-      _$UpdatePromoCodeDtoFromJson(json);
-
+  
+  factory UpdatePromoCodeDto.fromJson(Map<String, Object?> json) => _$UpdatePromoCodeDtoFromJson(json);
+  
   final String? description;
   final bool? active;
 

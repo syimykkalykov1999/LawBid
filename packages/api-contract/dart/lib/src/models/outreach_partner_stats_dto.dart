@@ -21,10 +21,9 @@ class OutreachPartnerStatsDto {
     required this.commissionCents,
     required this.lastActivityAt,
   });
-
-  factory OutreachPartnerStatsDto.fromJson(Map<String, Object?> json) =>
-      _$OutreachPartnerStatsDtoFromJson(json);
-
+  
+  factory OutreachPartnerStatsDto.fromJson(Map<String, Object?> json) => _$OutreachPartnerStatsDtoFromJson(json);
+  
   /// null = unassigned leads.
   final OutreachPartnerDto? partner;
 

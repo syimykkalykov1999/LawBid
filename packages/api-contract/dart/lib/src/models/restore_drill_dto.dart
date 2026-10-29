@@ -8,11 +8,12 @@ part 'restore_drill_dto.g.dart';
 
 @JsonSerializable()
 class RestoreDrillDto {
-  const RestoreDrillDto({this.note});
-
-  factory RestoreDrillDto.fromJson(Map<String, Object?> json) =>
-      _$RestoreDrillDtoFromJson(json);
-
+  const RestoreDrillDto({
+    this.note,
+  });
+  
+  factory RestoreDrillDto.fromJson(Map<String, Object?> json) => _$RestoreDrillDtoFromJson(json);
+  
   /// Free note, e.g. the RTO the script printed.
   final String? note;
 

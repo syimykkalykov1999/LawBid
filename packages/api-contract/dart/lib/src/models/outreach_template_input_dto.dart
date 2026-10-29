@@ -17,10 +17,9 @@ class OutreachTemplateInputDto {
     this.kind = OutreachTemplateKind.any,
     this.active = true,
   });
-
-  factory OutreachTemplateInputDto.fromJson(Map<String, Object?> json) =>
-      _$OutreachTemplateInputDtoFromJson(json);
-
+  
+  factory OutreachTemplateInputDto.fromJson(Map<String, Object?> json) => _$OutreachTemplateInputDtoFromJson(json);
+  
   final String name;
   final OutreachTemplateKind kind;
   final String subject;

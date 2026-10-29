@@ -25,10 +25,9 @@ class VerificationRequestDto {
     required this.licenses,
     required this.documents,
   });
-
-  factory VerificationRequestDto.fromJson(Map<String, Object?> json) =>
-      _$VerificationRequestDtoFromJson(json);
-
+  
+  factory VerificationRequestDto.fromJson(Map<String, Object?> json) => _$VerificationRequestDtoFromJson(json);
+  
   final String id;
   final VerificationRequestStatus status;
   final String? applicantComment;

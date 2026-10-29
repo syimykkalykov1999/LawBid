@@ -8,7 +8,6 @@ import 'package:json_annotation/json_annotation.dart';
 enum SearchIndexStatusDtoProgressEntity {
   @JsonValue('person')
   person('person'),
-
   /// The name has been replaced because it contains a keyword. Original name: `case`.
   @JsonValue('case')
   valueCase('case'),
@@ -18,31 +17,28 @@ enum SearchIndexStatusDtoProgressEntity {
   question('question'),
   @JsonValue('tag')
   tag('tag'),
-
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 
   const SearchIndexStatusDtoProgressEntity(this.json);
 
-  factory SearchIndexStatusDtoProgressEntity.fromJson(String json) =>
-      values.firstWhere((e) => e.json == json, orElse: () => $unknown);
+  factory SearchIndexStatusDtoProgressEntity.fromJson(String json) => values.firstWhere(
+        (e) => e.json == json,
+        orElse: () => $unknown,
+      );
 
   final String? json;
   String toJson() {
     final value = json;
     if (value == null) {
-      throw StateError(
-        'Cannot convert enum value with null JSON representation to String. '
-        'This usually happens for \$unknown or @JsonValue(null) entries.',
-      );
+      throw StateError('Cannot convert enum value with null JSON representation to String. '
+          'This usually happens for \$unknown or @JsonValue(null) entries.');
     }
     return value as String;
   }
 
   @override
   String toString() => json?.toString() ?? super.toString();
-
   /// Returns all defined enum values excluding the $unknown value.
-  static List<SearchIndexStatusDtoProgressEntity> get $valuesDefined =>
-      values.where((value) => value != $unknown).toList();
+  static List<SearchIndexStatusDtoProgressEntity> get $valuesDefined => values.where((value) => value != $unknown).toList();
 }

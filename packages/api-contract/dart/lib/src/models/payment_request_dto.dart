@@ -41,10 +41,9 @@ class PaymentRequestDto {
     required this.client,
     required this.attorney,
   });
-
-  factory PaymentRequestDto.fromJson(Map<String, Object?> json) =>
-      _$PaymentRequestDtoFromJson(json);
-
+  
+  factory PaymentRequestDto.fromJson(Map<String, Object?> json) => _$PaymentRequestDtoFromJson(json);
+  
   final String id;
   final String caseId;
   final String? caseTitle;

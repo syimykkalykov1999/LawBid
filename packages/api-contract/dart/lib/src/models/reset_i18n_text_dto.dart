@@ -8,11 +8,13 @@ part 'reset_i18n_text_dto.g.dart';
 
 @JsonSerializable()
 class ResetI18nTextDto {
-  const ResetI18nTextDto({required this.key, this.lang});
-
-  factory ResetI18nTextDto.fromJson(Map<String, Object?> json) =>
-      _$ResetI18nTextDtoFromJson(json);
-
+  const ResetI18nTextDto({
+    required this.key,
+    this.lang,
+  });
+  
+  factory ResetI18nTextDto.fromJson(Map<String, Object?> json) => _$ResetI18nTextDtoFromJson(json);
+  
   final String key;
 
   /// Omit for every language.

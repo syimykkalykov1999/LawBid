@@ -8,11 +8,12 @@ part 'warn_user_dto.g.dart';
 
 @JsonSerializable()
 class WarnUserDto {
-  const WarnUserDto({this.reason = ''});
-
-  factory WarnUserDto.fromJson(Map<String, Object?> json) =>
-      _$WarnUserDtoFromJson(json);
-
+  const WarnUserDto({
+    this.reason = '',
+  });
+  
+  factory WarnUserDto.fromJson(Map<String, Object?> json) => _$WarnUserDtoFromJson(json);
+  
   /// Internal reason (audit + moderation_actions); the user gets the moderation_notice template.
   final String reason;
 

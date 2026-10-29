@@ -17,10 +17,9 @@ class UpdateSupportMacroDto {
     this.category,
     this.active,
   });
-
-  factory UpdateSupportMacroDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateSupportMacroDtoFromJson(json);
-
+  
+  factory UpdateSupportMacroDto.fromJson(Map<String, Object?> json) => _$UpdateSupportMacroDtoFromJson(json);
+  
   final String? title;
   final String? body;
 

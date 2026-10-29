@@ -20,10 +20,9 @@ class PostInsightsDto {
     required this.reachNonFollowers,
     required this.days,
   });
-
-  factory PostInsightsDto.fromJson(Map<String, Object?> json) =>
-      _$PostInsightsDtoFromJson(json);
-
+  
+  factory PostInsightsDto.fromJson(Map<String, Object?> json) => _$PostInsightsDtoFromJson(json);
+  
   final String postId;
   final DateTime publishedAt;
 

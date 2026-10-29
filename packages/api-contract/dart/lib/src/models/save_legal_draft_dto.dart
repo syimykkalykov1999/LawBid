@@ -8,11 +8,13 @@ part 'save_legal_draft_dto.g.dart';
 
 @JsonSerializable()
 class SaveLegalDraftDto {
-  const SaveLegalDraftDto({required this.contentMd, this.changeNote});
-
-  factory SaveLegalDraftDto.fromJson(Map<String, Object?> json) =>
-      _$SaveLegalDraftDtoFromJson(json);
-
+  const SaveLegalDraftDto({
+    required this.contentMd,
+    this.changeNote,
+  });
+  
+  factory SaveLegalDraftDto.fromJson(Map<String, Object?> json) => _$SaveLegalDraftDtoFromJson(json);
+  
   /// Markdown.
   final String contentMd;
   final String? changeNote;

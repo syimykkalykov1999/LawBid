@@ -11,11 +11,13 @@ part 'pins_envelope.g.dart';
 
 @JsonSerializable()
 class PinsEnvelope {
-  const PinsEnvelope({required this.data, this.meta});
-
-  factory PinsEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PinsEnvelopeFromJson(json);
-
+  const PinsEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PinsEnvelope.fromJson(Map<String, Object?> json) => _$PinsEnvelopeFromJson(json);
+  
   final PinsDto data;
   final ResponseMetaDto? meta;
 

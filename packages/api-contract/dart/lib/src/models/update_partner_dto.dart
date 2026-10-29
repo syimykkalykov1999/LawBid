@@ -26,10 +26,9 @@ class UpdatePartnerDto {
     this.externalName,
     this.externalContact,
   });
-
-  factory UpdatePartnerDto.fromJson(Map<String, Object?> json) =>
-      _$UpdatePartnerDtoFromJson(json);
-
+  
+  factory UpdatePartnerDto.fromJson(Map<String, Object?> json) => _$UpdatePartnerDtoFromJson(json);
+  
   final String? label;
   final String? note;
 

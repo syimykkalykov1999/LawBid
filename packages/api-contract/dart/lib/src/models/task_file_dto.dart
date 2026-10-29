@@ -8,11 +8,14 @@ part 'task_file_dto.g.dart';
 
 @JsonSerializable()
 class TaskFileDto {
-  const TaskFileDto({required this.fileId, this.url, this.mime});
-
-  factory TaskFileDto.fromJson(Map<String, Object?> json) =>
-      _$TaskFileDtoFromJson(json);
-
+  const TaskFileDto({
+    required this.fileId,
+    this.url,
+    this.mime,
+  });
+  
+  factory TaskFileDto.fromJson(Map<String, Object?> json) => _$TaskFileDtoFromJson(json);
+  
   final String fileId;
   final String? url;
   final String? mime;

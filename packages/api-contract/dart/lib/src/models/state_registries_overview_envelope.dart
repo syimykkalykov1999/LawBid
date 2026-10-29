@@ -11,14 +11,15 @@ part 'state_registries_overview_envelope.g.dart';
 
 @JsonSerializable()
 class StateRegistriesOverviewEnvelope {
-  const StateRegistriesOverviewEnvelope({required this.data, this.meta});
-
-  factory StateRegistriesOverviewEnvelope.fromJson(Map<String, Object?> json) =>
-      _$StateRegistriesOverviewEnvelopeFromJson(json);
-
+  const StateRegistriesOverviewEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory StateRegistriesOverviewEnvelope.fromJson(Map<String, Object?> json) => _$StateRegistriesOverviewEnvelopeFromJson(json);
+  
   final StateRegistriesOverviewDto data;
   final ResponseMetaDto? meta;
 
-  Map<String, Object?> toJson() =>
-      _$StateRegistriesOverviewEnvelopeToJson(this);
+  Map<String, Object?> toJson() => _$StateRegistriesOverviewEnvelopeToJson(this);
 }

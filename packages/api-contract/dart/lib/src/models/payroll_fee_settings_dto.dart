@@ -13,10 +13,9 @@ class PayrollFeeSettingsDto {
     required this.fixedCents,
     required this.monthlyCents,
   });
-
-  factory PayrollFeeSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$PayrollFeeSettingsDtoFromJson(json);
-
+  
+  factory PayrollFeeSettingsDto.fromJson(Map<String, Object?> json) => _$PayrollFeeSettingsDtoFromJson(json);
+  
   /// Percent of each payout.
   final num percent;
   final int fixedCents;

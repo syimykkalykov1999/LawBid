@@ -25,10 +25,9 @@ class RewardAwardDto {
     required this.auto,
     required this.createdAt,
   });
-
-  factory RewardAwardDto.fromJson(Map<String, Object?> json) =>
-      _$RewardAwardDtoFromJson(json);
-
+  
+  factory RewardAwardDto.fromJson(Map<String, Object?> json) => _$RewardAwardDtoFromJson(json);
+  
   final String id;
   final String period;
   final RewardAwardDtoDepartment department;

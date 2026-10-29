@@ -13,11 +13,9 @@ class OutreachSuppressionsAddResultDto {
     required this.leadsMarked,
     required this.invalid,
   });
-
-  factory OutreachSuppressionsAddResultDto.fromJson(
-    Map<String, Object?> json,
-  ) => _$OutreachSuppressionsAddResultDtoFromJson(json);
-
+  
+  factory OutreachSuppressionsAddResultDto.fromJson(Map<String, Object?> json) => _$OutreachSuppressionsAddResultDtoFromJson(json);
+  
   /// New stop-list entries.
   final num added;
 
@@ -27,6 +25,5 @@ class OutreachSuppressionsAddResultDto {
   /// Values that are neither a phone nor an email.
   final num invalid;
 
-  Map<String, Object?> toJson() =>
-      _$OutreachSuppressionsAddResultDtoToJson(this);
+  Map<String, Object?> toJson() => _$OutreachSuppressionsAddResultDtoToJson(this);
 }

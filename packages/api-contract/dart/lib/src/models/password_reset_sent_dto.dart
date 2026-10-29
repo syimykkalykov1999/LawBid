@@ -10,11 +10,13 @@ part 'password_reset_sent_dto.g.dart';
 
 @JsonSerializable()
 class PasswordResetSentDto {
-  const PasswordResetSentDto({required this.sent, required this.channel});
-
-  factory PasswordResetSentDto.fromJson(Map<String, Object?> json) =>
-      _$PasswordResetSentDtoFromJson(json);
-
+  const PasswordResetSentDto({
+    required this.sent,
+    required this.channel,
+  });
+  
+  factory PasswordResetSentDto.fromJson(Map<String, Object?> json) => _$PasswordResetSentDtoFromJson(json);
+  
   final bool sent;
 
   /// Where the code went: the verified e-mail when there is one, else SMS.

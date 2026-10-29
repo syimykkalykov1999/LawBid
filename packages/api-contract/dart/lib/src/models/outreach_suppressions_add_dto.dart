@@ -8,11 +8,13 @@ part 'outreach_suppressions_add_dto.g.dart';
 
 @JsonSerializable()
 class OutreachSuppressionsAddDto {
-  const OutreachSuppressionsAddDto({required this.values, this.note});
-
-  factory OutreachSuppressionsAddDto.fromJson(Map<String, Object?> json) =>
-      _$OutreachSuppressionsAddDtoFromJson(json);
-
+  const OutreachSuppressionsAddDto({
+    required this.values,
+    this.note,
+  });
+  
+  factory OutreachSuppressionsAddDto.fromJson(Map<String, Object?> json) => _$OutreachSuppressionsAddDtoFromJson(json);
+  
   /// Phones or e-mails, one per item (normalized server-side).
   final List<String> values;
   final String? note;

@@ -14,10 +14,9 @@ class VoiceNoteDto {
     required this.listened,
     this.url,
   });
-
-  factory VoiceNoteDto.fromJson(Map<String, Object?> json) =>
-      _$VoiceNoteDtoFromJson(json);
-
+  
+  factory VoiceNoteDto.fromJson(Map<String, Object?> json) => _$VoiceNoteDtoFromJson(json);
+  
   /// Short signed link; null in chat-list previews.
   final String? url;
   final int durationMs;

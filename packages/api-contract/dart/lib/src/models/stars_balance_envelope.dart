@@ -11,11 +11,13 @@ part 'stars_balance_envelope.g.dart';
 
 @JsonSerializable()
 class StarsBalanceEnvelope {
-  const StarsBalanceEnvelope({required this.data, this.meta});
-
-  factory StarsBalanceEnvelope.fromJson(Map<String, Object?> json) =>
-      _$StarsBalanceEnvelopeFromJson(json);
-
+  const StarsBalanceEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory StarsBalanceEnvelope.fromJson(Map<String, Object?> json) => _$StarsBalanceEnvelopeFromJson(json);
+  
   final StarsBalanceDto data;
   final ResponseMetaDto? meta;
 

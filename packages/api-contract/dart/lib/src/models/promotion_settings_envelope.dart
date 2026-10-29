@@ -11,11 +11,13 @@ part 'promotion_settings_envelope.g.dart';
 
 @JsonSerializable()
 class PromotionSettingsEnvelope {
-  const PromotionSettingsEnvelope({required this.data, this.meta});
-
-  factory PromotionSettingsEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PromotionSettingsEnvelopeFromJson(json);
-
+  const PromotionSettingsEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PromotionSettingsEnvelope.fromJson(Map<String, Object?> json) => _$PromotionSettingsEnvelopeFromJson(json);
+  
   final PromotionSettingsDto data;
   final ResponseMetaDto? meta;
 

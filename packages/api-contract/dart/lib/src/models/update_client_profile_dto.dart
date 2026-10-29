@@ -20,10 +20,9 @@ class UpdateClientProfileDto {
     this.contactNote,
     this.username,
   });
-
-  factory UpdateClientProfileDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateClientProfileDtoFromJson(json);
-
+  
+  factory UpdateClientProfileDto.fromJson(Map<String, Object?> json) => _$UpdateClientProfileDtoFromJson(json);
+  
   final String? firstName;
   final String? lastName;
 

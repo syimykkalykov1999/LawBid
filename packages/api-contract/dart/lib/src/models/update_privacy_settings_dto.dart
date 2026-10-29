@@ -19,10 +19,9 @@ class UpdatePrivacySettingsDto {
     this.groupAddFrom,
     this.doNotSell,
   });
-
-  factory UpdatePrivacySettingsDto.fromJson(Map<String, Object?> json) =>
-      _$UpdatePrivacySettingsDtoFromJson(json);
-
+  
+  factory UpdatePrivacySettingsDto.fromJson(Map<String, Object?> json) => _$UpdatePrivacySettingsDtoFromJson(json);
+  
   final PrivacyAudience? lastSeen;
   final PrivacyAudience? messageFrom;
   final PrivacyAudience? callFrom;

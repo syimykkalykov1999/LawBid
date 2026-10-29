@@ -31,10 +31,9 @@ class WorkItemDto {
     this.closedAt,
     this.coverUrl,
   });
-
-  factory WorkItemDto.fromJson(Map<String, Object?> json) =>
-      _$WorkItemDtoFromJson(json);
-
+  
+  factory WorkItemDto.fromJson(Map<String, Object?> json) => _$WorkItemDtoFromJson(json);
+  
   final String caseId;
   final String bidId;
   final String title;

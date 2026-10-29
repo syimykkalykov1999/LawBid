@@ -11,11 +11,13 @@ part 'post_insights_envelope.g.dart';
 
 @JsonSerializable()
 class PostInsightsEnvelope {
-  const PostInsightsEnvelope({required this.data, this.meta});
-
-  factory PostInsightsEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PostInsightsEnvelopeFromJson(json);
-
+  const PostInsightsEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PostInsightsEnvelope.fromJson(Map<String, Object?> json) => _$PostInsightsEnvelopeFromJson(json);
+  
   final PostInsightsDto data;
   final ResponseMetaDto? meta;
 

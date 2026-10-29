@@ -8,11 +8,12 @@ part 'post_comments_setting_dto.g.dart';
 
 @JsonSerializable()
 class PostCommentsSettingDto {
-  const PostCommentsSettingDto({required this.enabled});
-
-  factory PostCommentsSettingDto.fromJson(Map<String, Object?> json) =>
-      _$PostCommentsSettingDtoFromJson(json);
-
+  const PostCommentsSettingDto({
+    required this.enabled,
+  });
+  
+  factory PostCommentsSettingDto.fromJson(Map<String, Object?> json) => _$PostCommentsSettingDtoFromJson(json);
+  
   final bool enabled;
 
   Map<String, Object?> toJson() => _$PostCommentsSettingDtoToJson(this);

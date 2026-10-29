@@ -8,11 +8,12 @@ part 'set_country_partner_share_dto.g.dart';
 
 @JsonSerializable()
 class SetCountryPartnerShareDto {
-  const SetCountryPartnerShareDto({required this.sharePercent});
-
-  factory SetCountryPartnerShareDto.fromJson(Map<String, Object?> json) =>
-      _$SetCountryPartnerShareDtoFromJson(json);
-
+  const SetCountryPartnerShareDto({
+    required this.sharePercent,
+  });
+  
+  factory SetCountryPartnerShareDto.fromJson(Map<String, Object?> json) => _$SetCountryPartnerShareDtoFromJson(json);
+  
   /// Percent (0.01–90).
   final num sharePercent;
 

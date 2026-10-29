@@ -10,11 +10,13 @@ part 'sfu_session_dto.g.dart';
 
 @JsonSerializable()
 class SfuSessionDto {
-  const SfuSessionDto({required this.sessionId, required this.iceServers});
-
-  factory SfuSessionDto.fromJson(Map<String, Object?> json) =>
-      _$SfuSessionDtoFromJson(json);
-
+  const SfuSessionDto({
+    required this.sessionId,
+    required this.iceServers,
+  });
+  
+  factory SfuSessionDto.fromJson(Map<String, Object?> json) => _$SfuSessionDtoFromJson(json);
+  
   /// Our handle for your Cloudflare session. Informational: every later call finds your session from your login, never from this value.
   final String sessionId;
 

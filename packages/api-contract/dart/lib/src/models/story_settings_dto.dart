@@ -15,10 +15,9 @@ class StorySettingsDto {
     required this.allowReplies,
     required this.hiddenCount,
   });
-
-  factory StorySettingsDto.fromJson(Map<String, Object?> json) =>
-      _$StorySettingsDtoFromJson(json);
-
+  
+  factory StorySettingsDto.fromJson(Map<String, Object?> json) => _$StorySettingsDtoFromJson(json);
+  
   final StoryAudience audience;
   final bool allowReplies;
 

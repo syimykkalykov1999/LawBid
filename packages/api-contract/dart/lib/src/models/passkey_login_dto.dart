@@ -15,10 +15,9 @@ class PasskeyLoginDto {
     required this.response,
     this.deviceInfo,
   });
-
-  factory PasskeyLoginDto.fromJson(Map<String, Object?> json) =>
-      _$PasskeyLoginDtoFromJson(json);
-
+  
+  factory PasskeyLoginDto.fromJson(Map<String, Object?> json) => _$PasskeyLoginDtoFromJson(json);
+  
   final String challengeId;
 
   /// AuthenticationResponseJSON from the authenticator.

@@ -11,11 +11,13 @@ part 'promo_delete_result_envelope.g.dart';
 
 @JsonSerializable()
 class PromoDeleteResultEnvelope {
-  const PromoDeleteResultEnvelope({required this.data, this.meta});
-
-  factory PromoDeleteResultEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PromoDeleteResultEnvelopeFromJson(json);
-
+  const PromoDeleteResultEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PromoDeleteResultEnvelope.fromJson(Map<String, Object?> json) => _$PromoDeleteResultEnvelopeFromJson(json);
+  
   final PromoDeleteResultDto data;
   final ResponseMetaDto? meta;
 

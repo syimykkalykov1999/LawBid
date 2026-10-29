@@ -57,10 +57,9 @@ class PostDto {
     this.promotionId,
     this.video,
   });
-
-  factory PostDto.fromJson(Map<String, Object?> json) =>
-      _$PostDtoFromJson(json);
-
+  
+  factory PostDto.fromJson(Map<String, Object?> json) => _$PostDtoFromJson(json);
+  
   final String id;
   final PostLocationDto? location;
   final bool commentsEnabled;

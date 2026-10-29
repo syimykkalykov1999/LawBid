@@ -11,11 +11,13 @@ part 'phone_changed_envelope.g.dart';
 
 @JsonSerializable()
 class PhoneChangedEnvelope {
-  const PhoneChangedEnvelope({required this.data, this.meta});
-
-  factory PhoneChangedEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PhoneChangedEnvelopeFromJson(json);
-
+  const PhoneChangedEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PhoneChangedEnvelope.fromJson(Map<String, Object?> json) => _$PhoneChangedEnvelopeFromJson(json);
+  
   final PhoneChangedDto data;
   final ResponseMetaDto? meta;
 

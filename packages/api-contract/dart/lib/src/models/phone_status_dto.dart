@@ -8,11 +8,12 @@ part 'phone_status_dto.g.dart';
 
 @JsonSerializable()
 class PhoneStatusDto {
-  const PhoneStatusDto({required this.identifier});
-
-  factory PhoneStatusDto.fromJson(Map<String, Object?> json) =>
-      _$PhoneStatusDtoFromJson(json);
-
+  const PhoneStatusDto({
+    required this.identifier,
+  });
+  
+  factory PhoneStatusDto.fromJson(Map<String, Object?> json) => _$PhoneStatusDtoFromJson(json);
+  
   /// E.164 phone number.
   final String identifier;
 

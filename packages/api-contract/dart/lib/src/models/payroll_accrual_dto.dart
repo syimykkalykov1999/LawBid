@@ -25,10 +25,9 @@ class PayrollAccrualDto {
     this.note,
     this.payoutId,
   });
-
-  factory PayrollAccrualDto.fromJson(Map<String, Object?> json) =>
-      _$PayrollAccrualDtoFromJson(json);
-
+  
+  factory PayrollAccrualDto.fromJson(Map<String, Object?> json) => _$PayrollAccrualDtoFromJson(json);
+  
   final String id;
   final String employeeId;
   final String source;

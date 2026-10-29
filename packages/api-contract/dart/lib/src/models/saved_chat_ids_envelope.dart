@@ -11,11 +11,13 @@ part 'saved_chat_ids_envelope.g.dart';
 
 @JsonSerializable()
 class SavedChatIdsEnvelope {
-  const SavedChatIdsEnvelope({required this.data, this.meta});
-
-  factory SavedChatIdsEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SavedChatIdsEnvelopeFromJson(json);
-
+  const SavedChatIdsEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SavedChatIdsEnvelope.fromJson(Map<String, Object?> json) => _$SavedChatIdsEnvelopeFromJson(json);
+  
   final SavedChatIdsDto data;
   final ResponseMetaDto? meta;
 

@@ -22,10 +22,9 @@ class UpdateSupportDeskSettingsDto {
     this.autoReply,
     this.autoCloseResolvedDays,
   });
-
-  factory UpdateSupportDeskSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateSupportDeskSettingsDtoFromJson(json);
-
+  
+  factory UpdateSupportDeskSettingsDto.fromJson(Map<String, Object?> json) => _$UpdateSupportDeskSettingsDtoFromJson(json);
+  
   final bool? autoAssign;
   final num? slaFirstResponseMinutes;
   final num? slaUrgentMinutes;

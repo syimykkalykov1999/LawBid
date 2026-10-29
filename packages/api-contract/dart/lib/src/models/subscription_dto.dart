@@ -25,10 +25,9 @@ class SubscriptionDto {
     required this.graceEndsAt,
     required this.createdAt,
   });
-
-  factory SubscriptionDto.fromJson(Map<String, Object?> json) =>
-      _$SubscriptionDtoFromJson(json);
-
+  
+  factory SubscriptionDto.fromJson(Map<String, Object?> json) => _$SubscriptionDtoFromJson(json);
+  
   final String id;
   final SubscriptionDtoStatus status;
 

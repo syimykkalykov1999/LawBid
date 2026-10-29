@@ -8,11 +8,12 @@ part 'partition_pause_dto.g.dart';
 
 @JsonSerializable()
 class PartitionPauseDto {
-  const PartitionPauseDto({required this.paused});
-
-  factory PartitionPauseDto.fromJson(Map<String, Object?> json) =>
-      _$PartitionPauseDtoFromJson(json);
-
+  const PartitionPauseDto({
+    required this.paused,
+  });
+  
+  factory PartitionPauseDto.fromJson(Map<String, Object?> json) => _$PartitionPauseDtoFromJson(json);
+  
   final bool paused;
 
   Map<String, Object?> toJson() => _$PartitionPauseDtoToJson(this);

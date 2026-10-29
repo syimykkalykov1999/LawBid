@@ -8,11 +8,12 @@ part 'update_verification_request_dto.g.dart';
 
 @JsonSerializable()
 class UpdateVerificationRequestDto {
-  const UpdateVerificationRequestDto({required this.applicantComment});
-
-  factory UpdateVerificationRequestDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateVerificationRequestDtoFromJson(json);
-
+  const UpdateVerificationRequestDto({
+    required this.applicantComment,
+  });
+  
+  factory UpdateVerificationRequestDto.fromJson(Map<String, Object?> json) => _$UpdateVerificationRequestDtoFromJson(json);
+  
   final String applicantComment;
 
   Map<String, Object?> toJson() => _$UpdateVerificationRequestDtoToJson(this);

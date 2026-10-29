@@ -11,14 +11,15 @@ part 'start_subscription_result_envelope.g.dart';
 
 @JsonSerializable()
 class StartSubscriptionResultEnvelope {
-  const StartSubscriptionResultEnvelope({required this.data, this.meta});
-
-  factory StartSubscriptionResultEnvelope.fromJson(Map<String, Object?> json) =>
-      _$StartSubscriptionResultEnvelopeFromJson(json);
-
+  const StartSubscriptionResultEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory StartSubscriptionResultEnvelope.fromJson(Map<String, Object?> json) => _$StartSubscriptionResultEnvelopeFromJson(json);
+  
   final StartSubscriptionResultDto data;
   final ResponseMetaDto? meta;
 
-  Map<String, Object?> toJson() =>
-      _$StartSubscriptionResultEnvelopeToJson(this);
+  Map<String, Object?> toJson() => _$StartSubscriptionResultEnvelopeToJson(this);
 }

@@ -8,11 +8,12 @@ part 'suspend_user_dto.g.dart';
 
 @JsonSerializable()
 class SuspendUserDto {
-  const SuspendUserDto({this.reason = ''});
-
-  factory SuspendUserDto.fromJson(Map<String, Object?> json) =>
-      _$SuspendUserDtoFromJson(json);
-
+  const SuspendUserDto({
+    this.reason = '',
+  });
+  
+  factory SuspendUserDto.fromJson(Map<String, Object?> json) => _$SuspendUserDtoFromJson(json);
+  
   final String reason;
 
   Map<String, Object?> toJson() => _$SuspendUserDtoToJson(this);

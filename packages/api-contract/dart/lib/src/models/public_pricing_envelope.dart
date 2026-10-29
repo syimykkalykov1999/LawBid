@@ -11,11 +11,13 @@ part 'public_pricing_envelope.g.dart';
 
 @JsonSerializable()
 class PublicPricingEnvelope {
-  const PublicPricingEnvelope({required this.data, this.meta});
-
-  factory PublicPricingEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PublicPricingEnvelopeFromJson(json);
-
+  const PublicPricingEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PublicPricingEnvelope.fromJson(Map<String, Object?> json) => _$PublicPricingEnvelopeFromJson(json);
+  
   final PublicPricingDto data;
   final ResponseMetaDto? meta;
 

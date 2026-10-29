@@ -10,11 +10,12 @@ part 'payout_preferences_dto.g.dart';
 
 @JsonSerializable()
 class PayoutPreferencesDto {
-  const PayoutPreferencesDto({required this.processingFeePayer});
-
-  factory PayoutPreferencesDto.fromJson(Map<String, Object?> json) =>
-      _$PayoutPreferencesDtoFromJson(json);
-
+  const PayoutPreferencesDto({
+    required this.processingFeePayer,
+  });
+  
+  factory PayoutPreferencesDto.fromJson(Map<String, Object?> json) => _$PayoutPreferencesDtoFromJson(json);
+  
   /// Who covers Stripe's card fee on this attorney's invoices.
   final ProcessingFeePayer processingFeePayer;
 

@@ -11,15 +11,15 @@ part 'pending_legal_document_list_envelope.g.dart';
 
 @JsonSerializable()
 class PendingLegalDocumentListEnvelope {
-  const PendingLegalDocumentListEnvelope({required this.data, this.meta});
-
-  factory PendingLegalDocumentListEnvelope.fromJson(
-    Map<String, Object?> json,
-  ) => _$PendingLegalDocumentListEnvelopeFromJson(json);
-
+  const PendingLegalDocumentListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PendingLegalDocumentListEnvelope.fromJson(Map<String, Object?> json) => _$PendingLegalDocumentListEnvelopeFromJson(json);
+  
   final List<PendingLegalDocumentDto> data;
   final ResponseMetaDto? meta;
 
-  Map<String, Object?> toJson() =>
-      _$PendingLegalDocumentListEnvelopeToJson(this);
+  Map<String, Object?> toJson() => _$PendingLegalDocumentListEnvelopeToJson(this);
 }

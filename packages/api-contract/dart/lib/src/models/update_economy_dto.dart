@@ -22,10 +22,9 @@ class UpdateEconomyDto {
     this.awsFallbackUsd,
     this.guardEnabled,
   });
-
-  factory UpdateEconomyDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateEconomyDtoFromJson(json);
-
+  
+  factory UpdateEconomyDto.fromJson(Map<String, Object?> json) => _$UpdateEconomyDtoFromJson(json);
+  
   final num? percent;
   final num? thresholdUsd;
   final UpdateEconomyDtoCeilingMode? ceilingMode;

@@ -8,11 +8,12 @@ part 'read_result_dto.g.dart';
 
 @JsonSerializable()
 class ReadResultDto {
-  const ReadResultDto({this.lastReadMessageId});
-
-  factory ReadResultDto.fromJson(Map<String, Object?> json) =>
-      _$ReadResultDtoFromJson(json);
-
+  const ReadResultDto({
+    this.lastReadMessageId,
+  });
+  
+  factory ReadResultDto.fromJson(Map<String, Object?> json) => _$ReadResultDtoFromJson(json);
+  
   final String? lastReadMessageId;
 
   Map<String, Object?> toJson() => _$ReadResultDtoToJson(this);

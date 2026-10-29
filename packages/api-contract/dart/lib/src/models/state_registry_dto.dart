@@ -24,10 +24,9 @@ class StateRegistryDto {
     required this.updatedAt,
     required this.lookupUrl,
   });
-
-  factory StateRegistryDto.fromJson(Map<String, Object?> json) =>
-      _$StateRegistryDtoFromJson(json);
-
+  
+  factory StateRegistryDto.fromJson(Map<String, Object?> json) => _$StateRegistryDtoFromJson(json);
+  
   final String stateCode;
   final String stateName;
   final StateRegistryDtoAdapter adapter;

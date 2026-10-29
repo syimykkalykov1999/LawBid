@@ -11,11 +11,13 @@ part 'story_tray_item_list_envelope.g.dart';
 
 @JsonSerializable()
 class StoryTrayItemListEnvelope {
-  const StoryTrayItemListEnvelope({required this.data, this.meta});
-
-  factory StoryTrayItemListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$StoryTrayItemListEnvelopeFromJson(json);
-
+  const StoryTrayItemListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory StoryTrayItemListEnvelope.fromJson(Map<String, Object?> json) => _$StoryTrayItemListEnvelopeFromJson(json);
+  
   final List<StoryTrayItemDto> data;
   final ResponseMetaDto? meta;
 

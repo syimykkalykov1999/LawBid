@@ -11,11 +11,13 @@ part 'star_ledger_item_list_envelope.g.dart';
 
 @JsonSerializable()
 class StarLedgerItemListEnvelope {
-  const StarLedgerItemListEnvelope({required this.data, this.meta});
-
-  factory StarLedgerItemListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$StarLedgerItemListEnvelopeFromJson(json);
-
+  const StarLedgerItemListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory StarLedgerItemListEnvelope.fromJson(Map<String, Object?> json) => _$StarLedgerItemListEnvelopeFromJson(json);
+  
   final List<StarLedgerItemDto> data;
   final ResponseMetaDto? meta;
 

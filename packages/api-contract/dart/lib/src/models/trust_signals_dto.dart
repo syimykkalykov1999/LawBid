@@ -22,10 +22,9 @@ class TrustSignalsDto {
     required this.nameCheck,
     required this.firmLinkConfirmed,
   });
-
-  factory TrustSignalsDto.fromJson(Map<String, Object?> json) =>
-      _$TrustSignalsDtoFromJson(json);
-
+  
+  factory TrustSignalsDto.fromJson(Map<String, Object?> json) => _$TrustSignalsDtoFromJson(json);
+  
   /// Sworn statement accepted, licenses verified.
   final bool selfAttested;
 

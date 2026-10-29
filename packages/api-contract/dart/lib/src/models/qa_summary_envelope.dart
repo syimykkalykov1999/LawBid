@@ -11,11 +11,13 @@ part 'qa_summary_envelope.g.dart';
 
 @JsonSerializable()
 class QaSummaryEnvelope {
-  const QaSummaryEnvelope({required this.data, this.meta});
-
-  factory QaSummaryEnvelope.fromJson(Map<String, Object?> json) =>
-      _$QaSummaryEnvelopeFromJson(json);
-
+  const QaSummaryEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory QaSummaryEnvelope.fromJson(Map<String, Object?> json) => _$QaSummaryEnvelopeFromJson(json);
+  
   final QaSummaryDto data;
   final ResponseMetaDto? meta;
 

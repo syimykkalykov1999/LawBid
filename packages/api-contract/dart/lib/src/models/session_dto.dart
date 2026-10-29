@@ -18,10 +18,9 @@ class SessionDto {
     required this.createdAt,
     required this.isCurrent,
   });
-
-  factory SessionDto.fromJson(Map<String, Object?> json) =>
-      _$SessionDtoFromJson(json);
-
+  
+  factory SessionDto.fromJson(Map<String, Object?> json) => _$SessionDtoFromJson(json);
+  
   /// Session chain id (stable across refresh rotations) — the id DELETE /auth/sessions/{id} takes.
   final String sessionId;
   final String? deviceId;

@@ -35,10 +35,9 @@ class OwnAttorneyProfileDto {
     required this.rating,
     required this.counters,
   });
-
-  factory OwnAttorneyProfileDto.fromJson(Map<String, Object?> json) =>
-      _$OwnAttorneyProfileDtoFromJson(json);
-
+  
+  factory OwnAttorneyProfileDto.fromJson(Map<String, Object?> json) => _$OwnAttorneyProfileDtoFromJson(json);
+  
   final String id;
 
   /// Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION).

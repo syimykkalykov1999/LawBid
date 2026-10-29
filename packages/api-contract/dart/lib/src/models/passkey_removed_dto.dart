@@ -8,11 +8,12 @@ part 'passkey_removed_dto.g.dart';
 
 @JsonSerializable()
 class PasskeyRemovedDto {
-  const PasskeyRemovedDto({required this.removed});
-
-  factory PasskeyRemovedDto.fromJson(Map<String, Object?> json) =>
-      _$PasskeyRemovedDtoFromJson(json);
-
+  const PasskeyRemovedDto({
+    required this.removed,
+  });
+  
+  factory PasskeyRemovedDto.fromJson(Map<String, Object?> json) => _$PasskeyRemovedDtoFromJson(json);
+  
   final bool removed;
 
   Map<String, Object?> toJson() => _$PasskeyRemovedDtoToJson(this);

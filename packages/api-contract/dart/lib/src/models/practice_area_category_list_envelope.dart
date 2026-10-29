@@ -11,15 +11,15 @@ part 'practice_area_category_list_envelope.g.dart';
 
 @JsonSerializable()
 class PracticeAreaCategoryListEnvelope {
-  const PracticeAreaCategoryListEnvelope({required this.data, this.meta});
-
-  factory PracticeAreaCategoryListEnvelope.fromJson(
-    Map<String, Object?> json,
-  ) => _$PracticeAreaCategoryListEnvelopeFromJson(json);
-
+  const PracticeAreaCategoryListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PracticeAreaCategoryListEnvelope.fromJson(Map<String, Object?> json) => _$PracticeAreaCategoryListEnvelopeFromJson(json);
+  
   final List<PracticeAreaCategoryDto> data;
   final ResponseMetaDto? meta;
 
-  Map<String, Object?> toJson() =>
-      _$PracticeAreaCategoryListEnvelopeToJson(this);
+  Map<String, Object?> toJson() => _$PracticeAreaCategoryListEnvelopeToJson(this);
 }

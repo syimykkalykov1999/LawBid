@@ -13,10 +13,9 @@ class UpdateI18nTextDto {
     required this.lang,
     required this.value,
   });
-
-  factory UpdateI18nTextDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateI18nTextDtoFromJson(json);
-
+  
+  factory UpdateI18nTextDto.fromJson(Map<String, Object?> json) => _$UpdateI18nTextDtoFromJson(json);
+  
   final String key;
   final String lang;
   final String value;

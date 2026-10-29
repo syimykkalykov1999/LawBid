@@ -16,10 +16,9 @@ class PresignedUploadDto {
     this.method,
     this.headers,
   });
-
-  factory PresignedUploadDto.fromJson(Map<String, Object?> json) =>
-      _$PresignedUploadDtoFromJson(json);
-
+  
+  factory PresignedUploadDto.fromJson(Map<String, Object?> json) => _$PresignedUploadDtoFromJson(json);
+  
   /// Upload target. With method POST (default): multipart/form-data, send every field, then the file as the last field named "file". With method PUT: send the raw file as the body.
   final String url;
 

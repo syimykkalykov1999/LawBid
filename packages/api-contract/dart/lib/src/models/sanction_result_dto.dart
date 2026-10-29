@@ -15,10 +15,9 @@ class SanctionResultDto {
     required this.archivedCases,
     required this.withdrawnBids,
   });
-
-  factory SanctionResultDto.fromJson(Map<String, Object?> json) =>
-      _$SanctionResultDtoFromJson(json);
-
+  
+  factory SanctionResultDto.fromJson(Map<String, Object?> json) => _$SanctionResultDtoFromJson(json);
+  
   final String userId;
   final String status;
 

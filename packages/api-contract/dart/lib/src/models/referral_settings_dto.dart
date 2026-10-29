@@ -24,10 +24,9 @@ class ReferralSettingsDto {
     this.qualifyWindowDays = 90,
     this.clientQualifyOn = ReferralSettingsDtoClientQualifyOn.caseCompleted,
   });
-
-  factory ReferralSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$ReferralSettingsDtoFromJson(json);
-
+  
+  factory ReferralSettingsDto.fromJson(Map<String, Object?> json) => _$ReferralSettingsDtoFromJson(json);
+  
   final bool enabled;
 
   /// Attorney who invited (balance_cents).

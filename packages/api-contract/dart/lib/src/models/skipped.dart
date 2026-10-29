@@ -8,11 +8,13 @@ part 'skipped.g.dart';
 
 @JsonSerializable()
 class Skipped {
-  const Skipped({required this.id, required this.reason});
-
-  factory Skipped.fromJson(Map<String, Object?> json) =>
-      _$SkippedFromJson(json);
-
+  const Skipped({
+    required this.id,
+    required this.reason,
+  });
+  
+  factory Skipped.fromJson(Map<String, Object?> json) => _$SkippedFromJson(json);
+  
   final String id;
   final String reason;
 

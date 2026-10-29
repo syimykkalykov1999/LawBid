@@ -10,11 +10,12 @@ part 'passkey_list_dto.g.dart';
 
 @JsonSerializable()
 class PasskeyListDto {
-  const PasskeyListDto({required this.passkeys});
-
-  factory PasskeyListDto.fromJson(Map<String, Object?> json) =>
-      _$PasskeyListDtoFromJson(json);
-
+  const PasskeyListDto({
+    required this.passkeys,
+  });
+  
+  factory PasskeyListDto.fromJson(Map<String, Object?> json) => _$PasskeyListDtoFromJson(json);
+  
   final List<PasskeyDto> passkeys;
 
   Map<String, Object?> toJson() => _$PasskeyListDtoToJson(this);

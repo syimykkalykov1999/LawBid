@@ -10,11 +10,12 @@ part 'trust_preset_dto.g.dart';
 
 @JsonSerializable()
 class TrustPresetDto {
-  const TrustPresetDto({required this.preset});
-
-  factory TrustPresetDto.fromJson(Map<String, Object?> json) =>
-      _$TrustPresetDtoFromJson(json);
-
+  const TrustPresetDto({
+    required this.preset,
+  });
+  
+  factory TrustPresetDto.fromJson(Map<String, Object?> json) => _$TrustPresetDtoFromJson(json);
+  
   /// off = «Выключить всё»; soft / standard / strict; all = «Включить всё».
   final TrustPresetDtoPreset preset;
 

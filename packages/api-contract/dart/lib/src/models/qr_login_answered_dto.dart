@@ -8,11 +8,12 @@ part 'qr_login_answered_dto.g.dart';
 
 @JsonSerializable()
 class QrLoginAnsweredDto {
-  const QrLoginAnsweredDto({required this.ok});
-
-  factory QrLoginAnsweredDto.fromJson(Map<String, Object?> json) =>
-      _$QrLoginAnsweredDtoFromJson(json);
-
+  const QrLoginAnsweredDto({
+    required this.ok,
+  });
+  
+  factory QrLoginAnsweredDto.fromJson(Map<String, Object?> json) => _$QrLoginAnsweredDtoFromJson(json);
+  
   final bool ok;
 
   Map<String, Object?> toJson() => _$QrLoginAnsweredDtoToJson(this);

@@ -16,10 +16,9 @@ class OutreachSuppressionDto {
     required this.note,
     required this.createdAt,
   });
-
-  factory OutreachSuppressionDto.fromJson(Map<String, Object?> json) =>
-      _$OutreachSuppressionDtoFromJson(json);
-
+  
+  factory OutreachSuppressionDto.fromJson(Map<String, Object?> json) => _$OutreachSuppressionDtoFromJson(json);
+  
   final OutreachSuppressionKind kind;
 
   /// Masked except the last 4 characters.

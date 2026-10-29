@@ -10,11 +10,12 @@ part 'update_fixed_costs_dto.g.dart';
 
 @JsonSerializable()
 class UpdateFixedCostsDto {
-  const UpdateFixedCostsDto({required this.items});
-
-  factory UpdateFixedCostsDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateFixedCostsDtoFromJson(json);
-
+  const UpdateFixedCostsDto({
+    required this.items,
+  });
+  
+  factory UpdateFixedCostsDto.fromJson(Map<String, Object?> json) => _$UpdateFixedCostsDtoFromJson(json);
+  
   final List<FixedCostDto> items;
 
   Map<String, Object?> toJson() => _$UpdateFixedCostsDtoToJson(this);

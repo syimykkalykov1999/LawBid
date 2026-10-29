@@ -15,10 +15,9 @@ class TaskPersonInputDto {
     this.phone,
     this.email,
   });
-
-  factory TaskPersonInputDto.fromJson(Map<String, Object?> json) =>
-      _$TaskPersonInputDtoFromJson(json);
-
+  
+  factory TaskPersonInputDto.fromJson(Map<String, Object?> json) => _$TaskPersonInputDtoFromJson(json);
+  
   /// A person in the app.
   final String? userId;
 

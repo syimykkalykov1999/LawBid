@@ -11,11 +11,13 @@ part 'partition_card_list_envelope.g.dart';
 
 @JsonSerializable()
 class PartitionCardListEnvelope {
-  const PartitionCardListEnvelope({required this.data, this.meta});
-
-  factory PartitionCardListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PartitionCardListEnvelopeFromJson(json);
-
+  const PartitionCardListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PartitionCardListEnvelope.fromJson(Map<String, Object?> json) => _$PartitionCardListEnvelopeFromJson(json);
+  
   final List<PartitionCardDto> data;
   final ResponseMetaDto? meta;
 

@@ -37,10 +37,9 @@ class OwnTrustDto {
     required this.firmLink,
     required this.stripeBusinessType,
   });
-
-  factory OwnTrustDto.fromJson(Map<String, Object?> json) =>
-      _$OwnTrustDtoFromJson(json);
-
+  
+  factory OwnTrustDto.fromJson(Map<String, Object?> json) => _$OwnTrustDtoFromJson(json);
+  
   final String attorneyId;
   final int level;
 

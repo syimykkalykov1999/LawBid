@@ -32,10 +32,9 @@ class TreasuryOverviewDto {
     required this.ranThisPeriod,
     required this.payroll,
   });
-
-  factory TreasuryOverviewDto.fromJson(Map<String, Object?> json) =>
-      _$TreasuryOverviewDtoFromJson(json);
-
+  
+  factory TreasuryOverviewDto.fromJson(Map<String, Object?> json) => _$TreasuryOverviewDtoFromJson(json);
+  
   /// Stripe balance available for payout (null: no Stripe).
   final int? availableCents;
   final int? pendingCents;

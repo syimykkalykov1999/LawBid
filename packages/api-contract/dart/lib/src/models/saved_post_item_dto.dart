@@ -16,10 +16,9 @@ class SavedPostItemDto {
     required this.available,
     this.post,
   });
-
-  factory SavedPostItemDto.fromJson(Map<String, Object?> json) =>
-      _$SavedPostItemDtoFromJson(json);
-
+  
+  factory SavedPostItemDto.fromJson(Map<String, Object?> json) => _$SavedPostItemDtoFromJson(json);
+  
   final String postId;
   final String savedAt;
   final bool available;

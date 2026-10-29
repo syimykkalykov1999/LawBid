@@ -17,10 +17,9 @@ class ReplyPreviewDto {
     required this.revoked,
     this.senderId,
   });
-
-  factory ReplyPreviewDto.fromJson(Map<String, Object?> json) =>
-      _$ReplyPreviewDtoFromJson(json);
-
+  
+  factory ReplyPreviewDto.fromJson(Map<String, Object?> json) => _$ReplyPreviewDtoFromJson(json);
+  
   final String id;
   final String? senderId;
   final ReplyPreviewDtoType type;

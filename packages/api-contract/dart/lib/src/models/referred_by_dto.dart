@@ -11,11 +11,13 @@ part 'referred_by_dto.g.dart';
 
 @JsonSerializable()
 class ReferredByDto {
-  const ReferredByDto({required this.status, required this.reward});
-
-  factory ReferredByDto.fromJson(Map<String, Object?> json) =>
-      _$ReferredByDtoFromJson(json);
-
+  const ReferredByDto({
+    required this.status,
+    required this.reward,
+  });
+  
+  factory ReferredByDto.fromJson(Map<String, Object?> json) => _$ReferredByDtoFromJson(json);
+  
   final ReferralStatus status;
 
   /// Your reward.

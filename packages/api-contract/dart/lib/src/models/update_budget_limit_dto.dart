@@ -16,10 +16,9 @@ class UpdateBudgetLimitDto {
     this.ceiling,
     this.value,
   });
-
-  factory UpdateBudgetLimitDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateBudgetLimitDtoFromJson(json);
-
+  
+  factory UpdateBudgetLimitDto.fromJson(Map<String, Object?> json) => _$UpdateBudgetLimitDtoFromJson(json);
+  
   /// auto: the cap follows real usage hourly within [floor, ceiling]; manual: the cap is `value`.
   final UpdateBudgetLimitDtoMode mode;
 

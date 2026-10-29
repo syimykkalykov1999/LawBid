@@ -21,10 +21,9 @@ class UpdateDocumentTemplateDto {
     this.fileId,
     this.title,
   });
-
-  factory UpdateDocumentTemplateDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateDocumentTemplateDtoFromJson(json);
-
+  
+  factory UpdateDocumentTemplateDto.fromJson(Map<String, Object?> json) => _$UpdateDocumentTemplateDtoFromJson(json);
+  
   final String? description;
 
   /// Name the file is saved under, e.g. "lease.pdf".

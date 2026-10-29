@@ -11,11 +11,13 @@ part 'queue_retry_result_envelope.g.dart';
 
 @JsonSerializable()
 class QueueRetryResultEnvelope {
-  const QueueRetryResultEnvelope({required this.data, this.meta});
-
-  factory QueueRetryResultEnvelope.fromJson(Map<String, Object?> json) =>
-      _$QueueRetryResultEnvelopeFromJson(json);
-
+  const QueueRetryResultEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory QueueRetryResultEnvelope.fromJson(Map<String, Object?> json) => _$QueueRetryResultEnvelopeFromJson(json);
+  
   final QueueRetryResultDto data;
   final ResponseMetaDto? meta;
 

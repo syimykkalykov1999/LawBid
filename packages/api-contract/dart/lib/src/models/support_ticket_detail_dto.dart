@@ -24,10 +24,9 @@ class SupportTicketDetailDto {
     required this.messages,
     this.resolvedAt,
   });
-
-  factory SupportTicketDetailDto.fromJson(Map<String, Object?> json) =>
-      _$SupportTicketDetailDtoFromJson(json);
-
+  
+  factory SupportTicketDetailDto.fromJson(Map<String, Object?> json) => _$SupportTicketDetailDtoFromJson(json);
+  
   final String id;
   final String subject;
   final SupportTicketDetailDtoCategory category;

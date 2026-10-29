@@ -8,11 +8,12 @@ part 'pin_post_dto.g.dart';
 
 @JsonSerializable()
 class PinPostDto {
-  const PinPostDto({required this.slot});
-
-  factory PinPostDto.fromJson(Map<String, Object?> json) =>
-      _$PinPostDtoFromJson(json);
-
+  const PinPostDto({
+    required this.slot,
+  });
+  
+  factory PinPostDto.fromJson(Map<String, Object?> json) => _$PinPostDtoFromJson(json);
+  
   final int slot;
 
   Map<String, Object?> toJson() => _$PinPostDtoToJson(this);

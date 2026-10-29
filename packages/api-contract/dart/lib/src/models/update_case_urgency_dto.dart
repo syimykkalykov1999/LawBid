@@ -16,10 +16,9 @@ class UpdateCaseUrgencyDto {
     this.deadlineAt,
     this.deadlineKind,
   });
-
-  factory UpdateCaseUrgencyDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateCaseUrgencyDtoFromJson(json);
-
+  
+  factory UpdateCaseUrgencyDto.fromJson(Map<String, Object?> json) => _$UpdateCaseUrgencyDtoFromJson(json);
+  
   /// Owner 2026-10-04/05: how soon the client needs an attorney — a.
   /// level, or `by_date` with deadlineAt (a date alone means `by_date`).
   /// A level clears the date; null clears both.

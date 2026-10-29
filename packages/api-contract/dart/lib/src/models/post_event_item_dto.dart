@@ -10,11 +10,13 @@ part 'post_event_item_dto.g.dart';
 
 @JsonSerializable()
 class PostEventItemDto {
-  const PostEventItemDto({required this.postId, required this.kind});
-
-  factory PostEventItemDto.fromJson(Map<String, Object?> json) =>
-      _$PostEventItemDtoFromJson(json);
-
+  const PostEventItemDto({
+    required this.postId,
+    required this.kind,
+  });
+  
+  factory PostEventItemDto.fromJson(Map<String, Object?> json) => _$PostEventItemDtoFromJson(json);
+  
   final String postId;
   final PostEventItemDtoKind kind;
 

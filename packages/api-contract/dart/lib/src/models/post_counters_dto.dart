@@ -8,11 +8,13 @@ part 'post_counters_dto.g.dart';
 
 @JsonSerializable()
 class PostCountersDto {
-  const PostCountersDto({this.hideLikes, this.hideViews});
-
-  factory PostCountersDto.fromJson(Map<String, Object?> json) =>
-      _$PostCountersDtoFromJson(json);
-
+  const PostCountersDto({
+    this.hideLikes,
+    this.hideViews,
+  });
+  
+  factory PostCountersDto.fromJson(Map<String, Object?> json) => _$PostCountersDtoFromJson(json);
+  
   final bool? hideLikes;
   final bool? hideViews;
 

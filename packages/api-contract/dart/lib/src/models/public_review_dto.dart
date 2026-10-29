@@ -29,10 +29,9 @@ class PublicReviewDto {
     required this.authorAvatarUrl,
     required this.authorReviewCount,
   });
-
-  factory PublicReviewDto.fromJson(Map<String, Object?> json) =>
-      _$PublicReviewDtoFromJson(json);
-
+  
+  factory PublicReviewDto.fromJson(Map<String, Object?> json) => _$PublicReviewDtoFromJson(json);
+  
   final String id;
   final int rating;
   final String? body;

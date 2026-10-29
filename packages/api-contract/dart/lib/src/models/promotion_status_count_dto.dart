@@ -8,11 +8,13 @@ part 'promotion_status_count_dto.g.dart';
 
 @JsonSerializable()
 class PromotionStatusCountDto {
-  const PromotionStatusCountDto({required this.status, required this.count});
-
-  factory PromotionStatusCountDto.fromJson(Map<String, Object?> json) =>
-      _$PromotionStatusCountDtoFromJson(json);
-
+  const PromotionStatusCountDto({
+    required this.status,
+    required this.count,
+  });
+  
+  factory PromotionStatusCountDto.fromJson(Map<String, Object?> json) => _$PromotionStatusCountDtoFromJson(json);
+  
   final String status;
   final int count;
 

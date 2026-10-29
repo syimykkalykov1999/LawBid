@@ -16,10 +16,9 @@ class StorageCleanupResultDto {
     required this.objectsRemoved,
     required this.rowsRemoved,
   });
-
-  factory StorageCleanupResultDto.fromJson(Map<String, Object?> json) =>
-      _$StorageCleanupResultDtoFromJson(json);
-
+  
+  factory StorageCleanupResultDto.fromJson(Map<String, Object?> json) => _$StorageCleanupResultDtoFromJson(json);
+  
   final num pendingUploadsRemoved;
   final num orphansFound;
   final num deletedPostMedia;

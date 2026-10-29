@@ -41,10 +41,9 @@ class UpdateTaskDto {
     this.contactEmail,
     this.fileIds,
   });
-
-  factory UpdateTaskDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateTaskDtoFromJson(json);
-
+  
+  factory UpdateTaskDto.fromJson(Map<String, Object?> json) => _$UpdateTaskDtoFromJson(json);
+  
   final List<TaskPlaceInputDto>? places;
   final List<TaskPersonInputDto>? people;
   final TaskPriority? priority;

@@ -17,10 +17,9 @@ class PracticeAreaCategoryDto {
     required this.nameEn,
     required this.children,
   });
-
-  factory PracticeAreaCategoryDto.fromJson(Map<String, Object?> json) =>
-      _$PracticeAreaCategoryDtoFromJson(json);
-
+  
+  factory PracticeAreaCategoryDto.fromJson(Map<String, Object?> json) => _$PracticeAreaCategoryDtoFromJson(json);
+  
   final String id;
   final String code;
   final String i18nKey;

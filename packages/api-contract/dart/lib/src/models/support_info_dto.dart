@@ -14,10 +14,9 @@ class SupportInfoDto {
     required this.expectedReplyMinutes,
     this.opensAt,
   });
-
-  factory SupportInfoDto.fromJson(Map<String, Object?> json) =>
-      _$SupportInfoDtoFromJson(json);
-
+  
+  factory SupportInfoDto.fromJson(Map<String, Object?> json) => _$SupportInfoDtoFromJson(json);
+  
   /// The team works now.
   final bool open;
   final bool alwaysOpen;

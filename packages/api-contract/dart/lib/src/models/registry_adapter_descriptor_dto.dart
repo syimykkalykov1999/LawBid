@@ -20,10 +20,9 @@ class RegistryAdapterDescriptorDto {
     required this.secret,
     this.secretLabel,
   });
-
-  factory RegistryAdapterDescriptorDto.fromJson(Map<String, Object?> json) =>
-      _$RegistryAdapterDescriptorDtoFromJson(json);
-
+  
+  factory RegistryAdapterDescriptorDto.fromJson(Map<String, Object?> json) => _$RegistryAdapterDescriptorDtoFromJson(json);
+  
   final RegistryAdapterDescriptorDtoType type;
   final String label;
   final String description;

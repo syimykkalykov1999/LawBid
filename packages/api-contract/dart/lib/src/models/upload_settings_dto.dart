@@ -10,11 +10,12 @@ part 'upload_settings_dto.g.dart';
 
 @JsonSerializable()
 class UploadSettingsDto {
-  const UploadSettingsDto({required this.places});
-
-  factory UploadSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$UploadSettingsDtoFromJson(json);
-
+  const UploadSettingsDto({
+    required this.places,
+  });
+  
+  factory UploadSettingsDto.fromJson(Map<String, Object?> json) => _$UploadSettingsDtoFromJson(json);
+  
   final List<UploadPlaceDto> places;
 
   Map<String, Object?> toJson() => _$UploadSettingsDtoToJson(this);

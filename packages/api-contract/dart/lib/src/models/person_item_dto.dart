@@ -12,11 +12,14 @@ part 'person_item_dto.g.dart';
 
 @JsonSerializable()
 class PersonItemDto {
-  const PersonItemDto({required this.role, this.attorney, this.client});
-
-  factory PersonItemDto.fromJson(Map<String, Object?> json) =>
-      _$PersonItemDtoFromJson(json);
-
+  const PersonItemDto({
+    required this.role,
+    this.attorney,
+    this.client,
+  });
+  
+  factory PersonItemDto.fromJson(Map<String, Object?> json) => _$PersonItemDtoFromJson(json);
+  
   final PersonRole role;
   final AttorneyListItemDto? attorney;
   final ClientListItemDto? client;

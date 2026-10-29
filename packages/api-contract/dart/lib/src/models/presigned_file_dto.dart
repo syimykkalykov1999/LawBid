@@ -15,10 +15,9 @@ class PresignedFileDto {
     required this.upload,
     required this.expiresAt,
   });
-
-  factory PresignedFileDto.fromJson(Map<String, Object?> json) =>
-      _$PresignedFileDtoFromJson(json);
-
+  
+  factory PresignedFileDto.fromJson(Map<String, Object?> json) => _$PresignedFileDtoFromJson(json);
+  
   /// Id to pass to POST /files/{id}/confirm.
   final String fileId;
   final PresignedUploadDto upload;

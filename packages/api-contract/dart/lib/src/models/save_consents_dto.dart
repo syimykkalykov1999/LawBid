@@ -10,11 +10,12 @@ part 'save_consents_dto.g.dart';
 
 @JsonSerializable()
 class SaveConsentsDto {
-  const SaveConsentsDto({required this.consents});
-
-  factory SaveConsentsDto.fromJson(Map<String, Object?> json) =>
-      _$SaveConsentsDtoFromJson(json);
-
+  const SaveConsentsDto({
+    required this.consents,
+  });
+  
+  factory SaveConsentsDto.fromJson(Map<String, Object?> json) => _$SaveConsentsDtoFromJson(json);
+  
   final List<ConsentItemDto> consents;
 
   Map<String, Object?> toJson() => _$SaveConsentsDtoToJson(this);

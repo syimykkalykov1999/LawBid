@@ -19,10 +19,9 @@ class UploadPlaceLimitsDto {
     required this.totalMb,
     required this.formats,
   });
-
-  factory UploadPlaceLimitsDto.fromJson(Map<String, Object?> json) =>
-      _$UploadPlaceLimitsDtoFromJson(json);
-
+  
+  factory UploadPlaceLimitsDto.fromJson(Map<String, Object?> json) => _$UploadPlaceLimitsDtoFromJson(json);
+  
   final UploadPlace place;
   final num maxPhotos;
   final num maxFiles;

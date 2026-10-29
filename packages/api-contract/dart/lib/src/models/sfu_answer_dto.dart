@@ -8,11 +8,12 @@ part 'sfu_answer_dto.g.dart';
 
 @JsonSerializable()
 class SfuAnswerDto {
-  const SfuAnswerDto({required this.sdp});
-
-  factory SfuAnswerDto.fromJson(Map<String, Object?> json) =>
-      _$SfuAnswerDtoFromJson(json);
-
+  const SfuAnswerDto({
+    required this.sdp,
+  });
+  
+  factory SfuAnswerDto.fromJson(Map<String, Object?> json) => _$SfuAnswerDtoFromJson(json);
+  
   /// Your SDP answer to the SFU offer.
   final String sdp;
 

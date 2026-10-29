@@ -8,11 +8,12 @@ part 'sfu_ok_dto.g.dart';
 
 @JsonSerializable()
 class SfuOkDto {
-  const SfuOkDto({required this.ok});
-
-  factory SfuOkDto.fromJson(Map<String, Object?> json) =>
-      _$SfuOkDtoFromJson(json);
-
+  const SfuOkDto({
+    required this.ok,
+  });
+  
+  factory SfuOkDto.fromJson(Map<String, Object?> json) => _$SfuOkDtoFromJson(json);
+  
   final bool ok;
 
   Map<String, Object?> toJson() => _$SfuOkDtoToJson(this);

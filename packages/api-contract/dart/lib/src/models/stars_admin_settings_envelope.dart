@@ -11,11 +11,13 @@ part 'stars_admin_settings_envelope.g.dart';
 
 @JsonSerializable()
 class StarsAdminSettingsEnvelope {
-  const StarsAdminSettingsEnvelope({required this.data, this.meta});
-
-  factory StarsAdminSettingsEnvelope.fromJson(Map<String, Object?> json) =>
-      _$StarsAdminSettingsEnvelopeFromJson(json);
-
+  const StarsAdminSettingsEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory StarsAdminSettingsEnvelope.fromJson(Map<String, Object?> json) => _$StarsAdminSettingsEnvelopeFromJson(json);
+  
   final StarsAdminSettingsDto data;
   final ResponseMetaDto? meta;
 

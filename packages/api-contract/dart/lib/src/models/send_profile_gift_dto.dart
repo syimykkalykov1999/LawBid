@@ -13,10 +13,9 @@ class SendProfileGiftDto {
     this.note,
     this.anonymous,
   });
-
-  factory SendProfileGiftDto.fromJson(Map<String, Object?> json) =>
-      _$SendProfileGiftDtoFromJson(json);
-
+  
+  factory SendProfileGiftDto.fromJson(Map<String, Object?> json) => _$SendProfileGiftDtoFromJson(json);
+  
   final String recipientId;
   final String? note;
 

@@ -8,11 +8,12 @@ part 'request_info_dto.g.dart';
 
 @JsonSerializable()
 class RequestInfoDto {
-  const RequestInfoDto({required this.message});
-
-  factory RequestInfoDto.fromJson(Map<String, Object?> json) =>
-      _$RequestInfoDtoFromJson(json);
-
+  const RequestInfoDto({
+    required this.message,
+  });
+  
+  factory RequestInfoDto.fromJson(Map<String, Object?> json) => _$RequestInfoDtoFromJson(json);
+  
   final String message;
 
   Map<String, Object?> toJson() => _$RequestInfoDtoToJson(this);

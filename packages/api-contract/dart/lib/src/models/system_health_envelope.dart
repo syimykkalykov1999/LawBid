@@ -11,11 +11,13 @@ part 'system_health_envelope.g.dart';
 
 @JsonSerializable()
 class SystemHealthEnvelope {
-  const SystemHealthEnvelope({required this.data, this.meta});
-
-  factory SystemHealthEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SystemHealthEnvelopeFromJson(json);
-
+  const SystemHealthEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SystemHealthEnvelope.fromJson(Map<String, Object?> json) => _$SystemHealthEnvelopeFromJson(json);
+  
   final SystemHealthDto data;
   final ResponseMetaDto? meta;
 

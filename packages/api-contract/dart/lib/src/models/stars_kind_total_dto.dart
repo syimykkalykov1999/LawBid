@@ -13,10 +13,9 @@ class StarsKindTotalDto {
     required this.stars,
     required this.count,
   });
-
-  factory StarsKindTotalDto.fromJson(Map<String, Object?> json) =>
-      _$StarsKindTotalDtoFromJson(json);
-
+  
+  factory StarsKindTotalDto.fromJson(Map<String, Object?> json) => _$StarsKindTotalDtoFromJson(json);
+  
   final String kind;
   final int stars;
   final int count;

@@ -8,11 +8,14 @@ part 'reward_metric_dto.g.dart';
 
 @JsonSerializable()
 class RewardMetricDto {
-  const RewardMetricDto({required this.key, required this.label, this.value});
-
-  factory RewardMetricDto.fromJson(Map<String, Object?> json) =>
-      _$RewardMetricDtoFromJson(json);
-
+  const RewardMetricDto({
+    required this.key,
+    required this.label,
+    this.value,
+  });
+  
+  factory RewardMetricDto.fromJson(Map<String, Object?> json) => _$RewardMetricDtoFromJson(json);
+  
   final String key;
   final String label;
   final num? value;

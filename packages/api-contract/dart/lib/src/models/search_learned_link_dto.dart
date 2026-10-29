@@ -13,10 +13,9 @@ class SearchLearnedLinkDto {
     required this.practiceCode,
     required this.score,
   });
-
-  factory SearchLearnedLinkDto.fromJson(Map<String, Object?> json) =>
-      _$SearchLearnedLinkDtoFromJson(json);
-
+  
+  factory SearchLearnedLinkDto.fromJson(Map<String, Object?> json) => _$SearchLearnedLinkDtoFromJson(json);
+  
   final String q;
   final String practiceCode;
 

@@ -17,10 +17,9 @@ class UpdateChannelDto {
     this.commentsEnabled,
     this.protectContent,
   });
-
-  factory UpdateChannelDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateChannelDtoFromJson(json);
-
+  
+  factory UpdateChannelDto.fromJson(Map<String, Object?> json) => _$UpdateChannelDtoFromJson(json);
+  
   final String? title;
 
   /// Owner only.

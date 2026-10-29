@@ -11,11 +11,13 @@ part 'support_message_envelope.g.dart';
 
 @JsonSerializable()
 class SupportMessageEnvelope {
-  const SupportMessageEnvelope({required this.data, this.meta});
-
-  factory SupportMessageEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SupportMessageEnvelopeFromJson(json);
-
+  const SupportMessageEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SupportMessageEnvelope.fromJson(Map<String, Object?> json) => _$SupportMessageEnvelopeFromJson(json);
+  
   final SupportMessageDto data;
   final ResponseMetaDto? meta;
 

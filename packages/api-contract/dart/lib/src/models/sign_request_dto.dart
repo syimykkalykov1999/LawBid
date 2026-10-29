@@ -31,10 +31,9 @@ class SignRequestDto {
     required this.declinedByRole,
     required this.declineReason,
   });
-
-  factory SignRequestDto.fromJson(Map<String, Object?> json) =>
-      _$SignRequestDtoFromJson(json);
-
+  
+  factory SignRequestDto.fromJson(Map<String, Object?> json) => _$SignRequestDtoFromJson(json);
+  
   final String id;
   final String title;
   final SignRequestDtoStatus status;

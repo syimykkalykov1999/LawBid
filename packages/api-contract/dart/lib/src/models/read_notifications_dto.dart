@@ -8,11 +8,13 @@ part 'read_notifications_dto.g.dart';
 
 @JsonSerializable()
 class ReadNotificationsDto {
-  const ReadNotificationsDto({this.ids, this.all});
-
-  factory ReadNotificationsDto.fromJson(Map<String, Object?> json) =>
-      _$ReadNotificationsDtoFromJson(json);
-
+  const ReadNotificationsDto({
+    this.ids,
+    this.all,
+  });
+  
+  factory ReadNotificationsDto.fromJson(Map<String, Object?> json) => _$ReadNotificationsDtoFromJson(json);
+  
   final List<String>? ids;
 
   /// "Отметить все как прочитанные".

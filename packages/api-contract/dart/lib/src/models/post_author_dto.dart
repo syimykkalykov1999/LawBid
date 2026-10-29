@@ -25,10 +25,9 @@ class PostAuthorDto {
     this.identityRejected,
     this.location,
   });
-
-  factory PostAuthorDto.fromJson(Map<String, Object?> json) =>
-      _$PostAuthorDtoFromJson(json);
-
+  
+  factory PostAuthorDto.fromJson(Map<String, Object?> json) => _$PostAuthorDtoFromJson(json);
+  
   final String id;
 
   /// OQ-038: clients publish posts too.

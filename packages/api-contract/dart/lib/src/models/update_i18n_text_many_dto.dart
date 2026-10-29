@@ -8,11 +8,13 @@ part 'update_i18n_text_many_dto.g.dart';
 
 @JsonSerializable()
 class UpdateI18nTextManyDto {
-  const UpdateI18nTextManyDto({required this.key, required this.values});
-
-  factory UpdateI18nTextManyDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateI18nTextManyDtoFromJson(json);
-
+  const UpdateI18nTextManyDto({
+    required this.key,
+    required this.values,
+  });
+  
+  factory UpdateI18nTextManyDto.fromJson(Map<String, Object?> json) => _$UpdateI18nTextManyDtoFromJson(json);
+  
   final String key;
   final Map<String, String> values;
 

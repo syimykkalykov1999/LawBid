@@ -20,10 +20,9 @@ class PartnerReferredUserDto {
     this.name,
     this.qualifiedAt,
   });
-
-  factory PartnerReferredUserDto.fromJson(Map<String, Object?> json) =>
-      _$PartnerReferredUserDtoFromJson(json);
-
+  
+  factory PartnerReferredUserDto.fromJson(Map<String, Object?> json) => _$PartnerReferredUserDtoFromJson(json);
+  
   final String id;
   final String? name;
   final PartnerReferredUserDtoRole role;

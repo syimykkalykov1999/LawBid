@@ -11,11 +11,13 @@ part 'storage_overview_envelope.g.dart';
 
 @JsonSerializable()
 class StorageOverviewEnvelope {
-  const StorageOverviewEnvelope({required this.data, this.meta});
-
-  factory StorageOverviewEnvelope.fromJson(Map<String, Object?> json) =>
-      _$StorageOverviewEnvelopeFromJson(json);
-
+  const StorageOverviewEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory StorageOverviewEnvelope.fromJson(Map<String, Object?> json) => _$StorageOverviewEnvelopeFromJson(json);
+  
   final StorageOverviewDto data;
   final ResponseMetaDto? meta;
 

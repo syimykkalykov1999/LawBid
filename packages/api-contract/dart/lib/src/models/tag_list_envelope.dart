@@ -11,11 +11,13 @@ part 'tag_list_envelope.g.dart';
 
 @JsonSerializable()
 class TagListEnvelope {
-  const TagListEnvelope({required this.data, this.meta});
-
-  factory TagListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$TagListEnvelopeFromJson(json);
-
+  const TagListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory TagListEnvelope.fromJson(Map<String, Object?> json) => _$TagListEnvelopeFromJson(json);
+  
   final List<TagDto> data;
   final ResponseMetaDto? meta;
 

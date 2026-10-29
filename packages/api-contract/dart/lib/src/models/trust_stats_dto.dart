@@ -25,10 +25,9 @@ class TrustStatsDto {
     required this.blockedBarNumbers,
     this.computedAt,
   });
-
-  factory TrustStatsDto.fromJson(Map<String, Object?> json) =>
-      _$TrustStatsDtoFromJson(json);
-
+  
+  factory TrustStatsDto.fromJson(Map<String, Object?> json) => _$TrustStatsDtoFromJson(json);
+  
   final List<TrustLevelCountDto> byLevel;
 
   /// When the numbers were counted (the worker recounts every few minutes).

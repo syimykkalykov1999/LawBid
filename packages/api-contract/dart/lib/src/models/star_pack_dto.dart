@@ -13,10 +13,9 @@ class StarPackDto {
     required this.stars,
     required this.priceCents,
   });
-
-  factory StarPackDto.fromJson(Map<String, Object?> json) =>
-      _$StarPackDtoFromJson(json);
-
+  
+  factory StarPackDto.fromJson(Map<String, Object?> json) => _$StarPackDtoFromJson(json);
+  
   final String id;
   final int stars;
 

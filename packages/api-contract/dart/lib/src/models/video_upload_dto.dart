@@ -17,10 +17,9 @@ class VideoUploadDto {
     required this.authorizationExpire,
     required this.maxDurationSec,
   });
-
-  factory VideoUploadDto.fromJson(Map<String, Object?> json) =>
-      _$VideoUploadDtoFromJson(json);
-
+  
+  factory VideoUploadDto.fromJson(Map<String, Object?> json) => _$VideoUploadDtoFromJson(json);
+  
   final String videoAssetId;
   final String tusEndpoint;
   final String libraryId;

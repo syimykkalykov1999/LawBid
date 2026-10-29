@@ -15,10 +15,9 @@ class UpdateGroupMeDto {
     this.hidden,
     this.archived,
   });
-
-  factory UpdateGroupMeDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateGroupMeDtoFromJson(json);
-
+  
+  factory UpdateGroupMeDto.fromJson(Map<String, Object?> json) => _$UpdateGroupMeDtoFromJson(json);
+  
   /// Mute until; null unmutes.
   final DateTime? mutedUntil;
 

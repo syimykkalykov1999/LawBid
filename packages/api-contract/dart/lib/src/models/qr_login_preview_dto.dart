@@ -16,10 +16,9 @@ class QrLoginPreviewDto {
     required this.createdAt,
     required this.expiresIn,
   });
-
-  factory QrLoginPreviewDto.fromJson(Map<String, Object?> json) =>
-      _$QrLoginPreviewDtoFromJson(json);
-
+  
+  factory QrLoginPreviewDto.fromJson(Map<String, Object?> json) => _$QrLoginPreviewDtoFromJson(json);
+  
   final String? deviceName;
   final String? platform;
   final String? userAgent;

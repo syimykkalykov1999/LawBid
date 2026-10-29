@@ -21,10 +21,9 @@ class PublicTrustDto {
     required this.canBid,
     required this.registryLinks,
   });
-
-  factory PublicTrustDto.fromJson(Map<String, Object?> json) =>
-      _$PublicTrustDtoFromJson(json);
-
+  
+  factory PublicTrustDto.fromJson(Map<String, Object?> json) => _$PublicTrustDtoFromJson(json);
+  
   final String attorneyId;
   final int level;
 

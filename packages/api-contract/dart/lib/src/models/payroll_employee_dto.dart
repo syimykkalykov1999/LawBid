@@ -25,10 +25,9 @@ class PayrollEmployeeDto {
     this.lastPaidPeriod,
     this.userId,
   });
-
-  factory PayrollEmployeeDto.fromJson(Map<String, Object?> json) =>
-      _$PayrollEmployeeDtoFromJson(json);
-
+  
+  factory PayrollEmployeeDto.fromJson(Map<String, Object?> json) => _$PayrollEmployeeDtoFromJson(json);
+  
   final String id;
   final String? adminUserId;
   final String name;

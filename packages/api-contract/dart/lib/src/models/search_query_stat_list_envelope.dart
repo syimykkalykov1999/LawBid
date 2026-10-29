@@ -11,11 +11,13 @@ part 'search_query_stat_list_envelope.g.dart';
 
 @JsonSerializable()
 class SearchQueryStatListEnvelope {
-  const SearchQueryStatListEnvelope({required this.data, this.meta});
-
-  factory SearchQueryStatListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SearchQueryStatListEnvelopeFromJson(json);
-
+  const SearchQueryStatListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SearchQueryStatListEnvelope.fromJson(Map<String, Object?> json) => _$SearchQueryStatListEnvelopeFromJson(json);
+  
   final List<SearchQueryStatDto> data;
   final ResponseMetaDto? meta;
 

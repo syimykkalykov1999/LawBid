@@ -8,11 +8,14 @@ part 'update_practice_area_dto.g.dart';
 
 @JsonSerializable()
 class UpdatePracticeAreaDto {
-  const UpdatePracticeAreaDto({this.nameEn, this.isActive, this.sort});
-
-  factory UpdatePracticeAreaDto.fromJson(Map<String, Object?> json) =>
-      _$UpdatePracticeAreaDtoFromJson(json);
-
+  const UpdatePracticeAreaDto({
+    this.nameEn,
+    this.isActive,
+    this.sort,
+  });
+  
+  factory UpdatePracticeAreaDto.fromJson(Map<String, Object?> json) => _$UpdatePracticeAreaDtoFromJson(json);
+  
   final String? nameEn;
   final bool? isActive;
   final int? sort;

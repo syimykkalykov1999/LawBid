@@ -16,10 +16,9 @@ class OutreachPartnerDto {
     required this.code,
     required this.status,
   });
-
-  factory OutreachPartnerDto.fromJson(Map<String, Object?> json) =>
-      _$OutreachPartnerDtoFromJson(json);
-
+  
+  factory OutreachPartnerDto.fromJson(Map<String, Object?> json) => _$OutreachPartnerDtoFromJson(json);
+  
   final String id;
   final String userId;
   final String? name;

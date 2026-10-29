@@ -8,11 +8,12 @@ part 'redeem_demo_invite_dto.g.dart';
 
 @JsonSerializable()
 class RedeemDemoInviteDto {
-  const RedeemDemoInviteDto({required this.code});
-
-  factory RedeemDemoInviteDto.fromJson(Map<String, Object?> json) =>
-      _$RedeemDemoInviteDtoFromJson(json);
-
+  const RedeemDemoInviteDto({
+    required this.code,
+  });
+  
+  factory RedeemDemoInviteDto.fromJson(Map<String, Object?> json) => _$RedeemDemoInviteDtoFromJson(json);
+  
   /// 8 letters/digits the admin handed out.
   final String code;
 

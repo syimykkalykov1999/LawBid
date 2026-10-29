@@ -11,11 +11,13 @@ part 'sfu_close_result_envelope.g.dart';
 
 @JsonSerializable()
 class SfuCloseResultEnvelope {
-  const SfuCloseResultEnvelope({required this.data, this.meta});
-
-  factory SfuCloseResultEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SfuCloseResultEnvelopeFromJson(json);
-
+  const SfuCloseResultEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SfuCloseResultEnvelope.fromJson(Map<String, Object?> json) => _$SfuCloseResultEnvelopeFromJson(json);
+  
   final SfuCloseResultDto data;
   final ResponseMetaDto? meta;
 

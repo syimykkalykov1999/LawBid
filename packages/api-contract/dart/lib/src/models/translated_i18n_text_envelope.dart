@@ -11,11 +11,13 @@ part 'translated_i18n_text_envelope.g.dart';
 
 @JsonSerializable()
 class TranslatedI18nTextEnvelope {
-  const TranslatedI18nTextEnvelope({required this.data, this.meta});
-
-  factory TranslatedI18nTextEnvelope.fromJson(Map<String, Object?> json) =>
-      _$TranslatedI18nTextEnvelopeFromJson(json);
-
+  const TranslatedI18nTextEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory TranslatedI18nTextEnvelope.fromJson(Map<String, Object?> json) => _$TranslatedI18nTextEnvelopeFromJson(json);
+  
   final TranslatedI18nTextDto data;
   final ResponseMetaDto? meta;
 

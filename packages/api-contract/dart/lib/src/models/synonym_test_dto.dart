@@ -8,11 +8,13 @@ part 'synonym_test_dto.g.dart';
 
 @JsonSerializable()
 class SynonymTestDto {
-  const SynonymTestDto({required this.groupKeys, required this.practiceCodes});
-
-  factory SynonymTestDto.fromJson(Map<String, Object?> json) =>
-      _$SynonymTestDtoFromJson(json);
-
+  const SynonymTestDto({
+    required this.groupKeys,
+    required this.practiceCodes,
+  });
+  
+  factory SynonymTestDto.fromJson(Map<String, Object?> json) => _$SynonymTestDtoFromJson(json);
+  
   final List<String> groupKeys;
   final List<String> practiceCodes;
 

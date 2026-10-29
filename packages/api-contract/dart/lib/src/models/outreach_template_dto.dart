@@ -19,10 +19,9 @@ class OutreachTemplateDto {
     required this.active,
     required this.updatedAt,
   });
-
-  factory OutreachTemplateDto.fromJson(Map<String, Object?> json) =>
-      _$OutreachTemplateDtoFromJson(json);
-
+  
+  factory OutreachTemplateDto.fromJson(Map<String, Object?> json) => _$OutreachTemplateDtoFromJson(json);
+  
   final String id;
   final String name;
   final OutreachTemplateKind kind;

@@ -13,10 +13,9 @@ class ReactionDto {
     required this.count,
     required this.mine,
   });
-
-  factory ReactionDto.fromJson(Map<String, Object?> json) =>
-      _$ReactionDtoFromJson(json);
-
+  
+  factory ReactionDto.fromJson(Map<String, Object?> json) => _$ReactionDtoFromJson(json);
+  
   final String emoji;
   final int count;
 

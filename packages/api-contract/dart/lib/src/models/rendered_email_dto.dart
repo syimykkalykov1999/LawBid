@@ -13,10 +13,9 @@ class RenderedEmailDto {
     required this.text,
     this.html,
   });
-
-  factory RenderedEmailDto.fromJson(Map<String, Object?> json) =>
-      _$RenderedEmailDtoFromJson(json);
-
+  
+  factory RenderedEmailDto.fromJson(Map<String, Object?> json) => _$RenderedEmailDtoFromJson(json);
+  
   final String subject;
   final String text;
   final String? html;

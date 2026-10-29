@@ -11,11 +11,13 @@ part 'trust_queue_item_list_envelope.g.dart';
 
 @JsonSerializable()
 class TrustQueueItemListEnvelope {
-  const TrustQueueItemListEnvelope({required this.data, this.meta});
-
-  factory TrustQueueItemListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$TrustQueueItemListEnvelopeFromJson(json);
-
+  const TrustQueueItemListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory TrustQueueItemListEnvelope.fromJson(Map<String, Object?> json) => _$TrustQueueItemListEnvelopeFromJson(json);
+  
   final List<TrustQueueItemDto> data;
   final ResponseMetaDto? meta;
 

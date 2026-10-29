@@ -19,10 +19,9 @@ class PasskeyDto {
     required this.createdAt,
     required this.lastUsedAt,
   });
-
-  factory PasskeyDto.fromJson(Map<String, Object?> json) =>
-      _$PasskeyDtoFromJson(json);
-
+  
+  factory PasskeyDto.fromJson(Map<String, Object?> json) => _$PasskeyDtoFromJson(json);
+  
   final String id;
 
   /// Label chosen at enrolment (or a default).

@@ -19,10 +19,9 @@ class SearchIndexVerifyDto {
     required this.ok,
     this.note,
   });
-
-  factory SearchIndexVerifyDto.fromJson(Map<String, Object?> json) =>
-      _$SearchIndexVerifyDtoFromJson(json);
-
+  
+  factory SearchIndexVerifyDto.fromJson(Map<String, Object?> json) => _$SearchIndexVerifyDtoFromJson(json);
+  
   final SearchIndexVerifyDtoEntity entity;
   final num live;
   final num next;

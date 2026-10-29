@@ -11,11 +11,13 @@ part 'payment_settings_public_envelope.g.dart';
 
 @JsonSerializable()
 class PaymentSettingsPublicEnvelope {
-  const PaymentSettingsPublicEnvelope({required this.data, this.meta});
-
-  factory PaymentSettingsPublicEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PaymentSettingsPublicEnvelopeFromJson(json);
-
+  const PaymentSettingsPublicEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PaymentSettingsPublicEnvelope.fromJson(Map<String, Object?> json) => _$PaymentSettingsPublicEnvelopeFromJson(json);
+  
   final PaymentSettingsPublicDto data;
   final ResponseMetaDto? meta;
 

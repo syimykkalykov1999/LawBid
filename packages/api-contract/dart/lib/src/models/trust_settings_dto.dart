@@ -26,10 +26,9 @@ class TrustSettingsDto {
     required this.blockOnReject,
     required this.blockContacts,
   });
-
-  factory TrustSettingsDto.fromJson(Map<String, Object?> json) =>
-      _$TrustSettingsDtoFromJson(json);
-
+  
+  factory TrustSettingsDto.fromJson(Map<String, Object?> json) => _$TrustSettingsDtoFromJson(json);
+  
   /// Master switch. Off = self-attested attorneys get the badge and payments at once; no holds, no queue.
   final bool enabled;
 

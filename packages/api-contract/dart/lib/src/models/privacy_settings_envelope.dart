@@ -11,11 +11,13 @@ part 'privacy_settings_envelope.g.dart';
 
 @JsonSerializable()
 class PrivacySettingsEnvelope {
-  const PrivacySettingsEnvelope({required this.data, this.meta});
-
-  factory PrivacySettingsEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PrivacySettingsEnvelopeFromJson(json);
-
+  const PrivacySettingsEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PrivacySettingsEnvelope.fromJson(Map<String, Object?> json) => _$PrivacySettingsEnvelopeFromJson(json);
+  
   final PrivacySettingsDto data;
   final ResponseMetaDto? meta;
 

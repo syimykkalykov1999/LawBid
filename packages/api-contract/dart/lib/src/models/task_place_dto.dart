@@ -8,11 +8,14 @@ part 'task_place_dto.g.dart';
 
 @JsonSerializable()
 class TaskPlaceDto {
-  const TaskPlaceDto({required this.id, required this.address, this.label});
-
-  factory TaskPlaceDto.fromJson(Map<String, Object?> json) =>
-      _$TaskPlaceDtoFromJson(json);
-
+  const TaskPlaceDto({
+    required this.id,
+    required this.address,
+    this.label,
+  });
+  
+  factory TaskPlaceDto.fromJson(Map<String, Object?> json) => _$TaskPlaceDtoFromJson(json);
+  
   final String id;
   final String? label;
   final String address;

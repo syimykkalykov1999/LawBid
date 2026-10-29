@@ -17,10 +17,9 @@ class UploadContactHashesDto {
     this.bookHash,
     this.matchesVersion,
   });
-
-  factory UploadContactHashesDto.fromJson(Map<String, Object?> json) =>
-      _$UploadContactHashesDtoFromJson(json);
-
+  
+  factory UploadContactHashesDto.fromJson(Map<String, Object?> json) => _$UploadContactHashesDtoFromJson(json);
+  
   /// Old builds: lowercase hex SHA-256 of each normalized E.164 number ("+14155552680"). Never raw numbers.
   final List<String>? hashes;
 

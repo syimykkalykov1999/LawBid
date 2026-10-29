@@ -19,10 +19,9 @@ class OwnLicenseDto {
     required this.expiresAt,
     required this.rejectionCode,
   });
-
-  factory OwnLicenseDto.fromJson(Map<String, Object?> json) =>
-      _$OwnLicenseDtoFromJson(json);
-
+  
+  factory OwnLicenseDto.fromJson(Map<String, Object?> json) => _$OwnLicenseDtoFromJson(json);
+  
   final String id;
   final StateRefDto state;
   final String barNumber;

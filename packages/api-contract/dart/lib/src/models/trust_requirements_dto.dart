@@ -13,10 +13,9 @@ class TrustRequirementsDto {
     required this.identity,
     required this.documents,
   });
-
-  factory TrustRequirementsDto.fromJson(Map<String, Object?> json) =>
-      _$TrustRequirementsDtoFromJson(json);
-
+  
+  factory TrustRequirementsDto.fromJson(Map<String, Object?> json) => _$TrustRequirementsDtoFromJson(json);
+  
   /// Bar number matched the state registry.
   final bool registry;
 

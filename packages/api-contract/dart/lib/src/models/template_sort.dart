@@ -8,35 +8,31 @@ import 'package:json_annotation/json_annotation.dart';
 enum TemplateSort {
   @JsonValue('popular')
   popular('popular'),
-
   /// The name has been replaced because it contains a keyword. Original name: `new`.
   @JsonValue('new')
   valueNew('new'),
-
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 
   const TemplateSort(this.json);
 
-  factory TemplateSort.fromJson(String json) =>
-      values.firstWhere((e) => e.json == json, orElse: () => $unknown);
+  factory TemplateSort.fromJson(String json) => values.firstWhere(
+        (e) => e.json == json,
+        orElse: () => $unknown,
+      );
 
   final String? json;
   String toJson() {
     final value = json;
     if (value == null) {
-      throw StateError(
-        'Cannot convert enum value with null JSON representation to String. '
-        'This usually happens for \$unknown or @JsonValue(null) entries.',
-      );
+      throw StateError('Cannot convert enum value with null JSON representation to String. '
+          'This usually happens for \$unknown or @JsonValue(null) entries.');
     }
     return value as String;
   }
 
   @override
   String toString() => json?.toString() ?? super.toString();
-
   /// Returns all defined enum values excluding the $unknown value.
-  static List<TemplateSort> get $valuesDefined =>
-      values.where((value) => value != $unknown).toList();
+  static List<TemplateSort> get $valuesDefined => values.where((value) => value != $unknown).toList();
 }

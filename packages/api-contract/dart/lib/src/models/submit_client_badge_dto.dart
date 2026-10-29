@@ -8,11 +8,13 @@ part 'submit_client_badge_dto.g.dart';
 
 @JsonSerializable()
 class SubmitClientBadgeDto {
-  const SubmitClientBadgeDto({required this.fileIds, this.note});
-
-  factory SubmitClientBadgeDto.fromJson(Map<String, Object?> json) =>
-      _$SubmitClientBadgeDtoFromJson(json);
-
+  const SubmitClientBadgeDto({
+    required this.fileIds,
+    this.note,
+  });
+  
+  factory SubmitClientBadgeDto.fromJson(Map<String, Object?> json) => _$SubmitClientBadgeDtoFromJson(json);
+  
   /// Uploaded verification_document / verification_selfie files.
   final List<String> fileIds;
   final String? note;

@@ -20,10 +20,9 @@ class TaskPersonSuggestionDto {
     this.phone,
     this.email,
   });
-
-  factory TaskPersonSuggestionDto.fromJson(Map<String, Object?> json) =>
-      _$TaskPersonSuggestionDtoFromJson(json);
-
+  
+  factory TaskPersonSuggestionDto.fromJson(Map<String, Object?> json) => _$TaskPersonSuggestionDtoFromJson(json);
+  
   final String? userId;
 
   /// An assistant of this team: the membership to assign.

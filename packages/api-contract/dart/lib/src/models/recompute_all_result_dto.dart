@@ -8,11 +8,13 @@ part 'recompute_all_result_dto.g.dart';
 
 @JsonSerializable()
 class RecomputeAllResultDto {
-  const RecomputeAllResultDto({required this.attorneys, required this.changed});
-
-  factory RecomputeAllResultDto.fromJson(Map<String, Object?> json) =>
-      _$RecomputeAllResultDtoFromJson(json);
-
+  const RecomputeAllResultDto({
+    required this.attorneys,
+    required this.changed,
+  });
+  
+  factory RecomputeAllResultDto.fromJson(Map<String, Object?> json) => _$RecomputeAllResultDtoFromJson(json);
+  
   final int attorneys;
   final int changed;
 

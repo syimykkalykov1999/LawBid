@@ -11,11 +11,13 @@ part 'public_attorney_list_envelope.g.dart';
 
 @JsonSerializable()
 class PublicAttorneyListEnvelope {
-  const PublicAttorneyListEnvelope({required this.data, this.meta});
-
-  factory PublicAttorneyListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PublicAttorneyListEnvelopeFromJson(json);
-
+  const PublicAttorneyListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PublicAttorneyListEnvelope.fromJson(Map<String, Object?> json) => _$PublicAttorneyListEnvelopeFromJson(json);
+  
   final List<PublicAttorneyDto> data;
   final ResponseMetaDto? meta;
 

@@ -21,10 +21,9 @@ class SupportClientContextInputDto {
     this.timezone,
     this.route,
   });
-
-  factory SupportClientContextInputDto.fromJson(Map<String, Object?> json) =>
-      _$SupportClientContextInputDtoFromJson(json);
-
+  
+  factory SupportClientContextInputDto.fromJson(Map<String, Object?> json) => _$SupportClientContextInputDtoFromJson(json);
+  
   final String? appVersion;
   final String? buildNumber;
   final SupportClientContextInputDtoPlatform? platform;

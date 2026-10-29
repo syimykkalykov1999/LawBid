@@ -10,11 +10,13 @@ part 'sfu_layer_dto.g.dart';
 
 @JsonSerializable()
 class SfuLayerDto {
-  const SfuLayerDto({required this.userId, required this.rid});
-
-  factory SfuLayerDto.fromJson(Map<String, Object?> json) =>
-      _$SfuLayerDtoFromJson(json);
-
+  const SfuLayerDto({
+    required this.userId,
+    required this.rid,
+  });
+  
+  factory SfuLayerDto.fromJson(Map<String, Object?> json) => _$SfuLayerDtoFromJson(json);
+  
   final String userId;
   final SfuLayerDtoRid rid;
 

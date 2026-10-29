@@ -18,10 +18,9 @@ class PriceDto {
     required this.sourceUrl,
     required this.checkedAt,
   });
-
-  factory PriceDto.fromJson(Map<String, Object?> json) =>
-      _$PriceDtoFromJson(json);
-
+  
+  factory PriceDto.fromJson(Map<String, Object?> json) => _$PriceDtoFromJson(json);
+  
   final String key;
   final String label;
   final String unit;

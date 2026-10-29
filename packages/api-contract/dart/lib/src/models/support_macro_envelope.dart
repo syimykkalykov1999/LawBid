@@ -11,11 +11,13 @@ part 'support_macro_envelope.g.dart';
 
 @JsonSerializable()
 class SupportMacroEnvelope {
-  const SupportMacroEnvelope({required this.data, this.meta});
-
-  factory SupportMacroEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SupportMacroEnvelopeFromJson(json);
-
+  const SupportMacroEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SupportMacroEnvelope.fromJson(Map<String, Object?> json) => _$SupportMacroEnvelopeFromJson(json);
+  
   final SupportMacroDto data;
   final ResponseMetaDto? meta;
 

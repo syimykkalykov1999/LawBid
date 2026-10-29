@@ -36,10 +36,9 @@ class SearchIndexStatusDto {
     required this.canRollback,
     required this.entities,
   });
-
-  factory SearchIndexStatusDto.fromJson(Map<String, Object?> json) =>
-      _$SearchIndexStatusDtoFromJson(json);
-
+  
+  factory SearchIndexStatusDto.fromJson(Map<String, Object?> json) => _$SearchIndexStatusDtoFromJson(json);
+  
   final bool engineConfigured;
 
   /// Mapping revision in the code.

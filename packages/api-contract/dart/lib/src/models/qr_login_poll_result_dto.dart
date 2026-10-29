@@ -16,10 +16,9 @@ class QrLoginPollResultDto {
     required this.refreshToken,
     required this.accessTokenExpiresIn,
   });
-
-  factory QrLoginPollResultDto.fromJson(Map<String, Object?> json) =>
-      _$QrLoginPollResultDtoFromJson(json);
-
+  
+  factory QrLoginPollResultDto.fromJson(Map<String, Object?> json) => _$QrLoginPollResultDtoFromJson(json);
+  
   /// pending: not scanned; scanned: the phone shows the confirm screen; approved: tokens below (once); rejected / expired: ask for a new code.
   final QrLoginPollResultDtoStatus status;
   final String? accessToken;

@@ -10,11 +10,13 @@ part 'post_attachments_allowed_dto.g.dart';
 
 @JsonSerializable()
 class PostAttachmentsAllowedDto {
-  const PostAttachmentsAllowedDto({required this.allowed, required this.mode});
-
-  factory PostAttachmentsAllowedDto.fromJson(Map<String, Object?> json) =>
-      _$PostAttachmentsAllowedDtoFromJson(json);
-
+  const PostAttachmentsAllowedDto({
+    required this.allowed,
+    required this.mode,
+  });
+  
+  factory PostAttachmentsAllowedDto.fromJson(Map<String, Object?> json) => _$PostAttachmentsAllowedDtoFromJson(json);
+  
   final bool allowed;
   final PostAttachmentsAllowedDtoMode mode;
 

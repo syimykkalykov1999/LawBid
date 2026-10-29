@@ -8,11 +8,12 @@ part 'portal_session_dto.g.dart';
 
 @JsonSerializable()
 class PortalSessionDto {
-  const PortalSessionDto({required this.url});
-
-  factory PortalSessionDto.fromJson(Map<String, Object?> json) =>
-      _$PortalSessionDtoFromJson(json);
-
+  const PortalSessionDto({
+    required this.url,
+  });
+  
+  factory PortalSessionDto.fromJson(Map<String, Object?> json) => _$PortalSessionDtoFromJson(json);
+  
   final String url;
 
   Map<String, Object?> toJson() => _$PortalSessionDtoToJson(this);

@@ -8,11 +8,12 @@ part 'payout_account_link_dto.g.dart';
 
 @JsonSerializable()
 class PayoutAccountLinkDto {
-  const PayoutAccountLinkDto({required this.url});
-
-  factory PayoutAccountLinkDto.fromJson(Map<String, Object?> json) =>
-      _$PayoutAccountLinkDtoFromJson(json);
-
+  const PayoutAccountLinkDto({
+    required this.url,
+  });
+  
+  factory PayoutAccountLinkDto.fromJson(Map<String, Object?> json) => _$PayoutAccountLinkDtoFromJson(json);
+  
   /// Short-lived Stripe URL to open in a browser.
   final String url;
 

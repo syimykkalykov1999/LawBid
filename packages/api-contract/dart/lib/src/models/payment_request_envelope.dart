@@ -11,11 +11,13 @@ part 'payment_request_envelope.g.dart';
 
 @JsonSerializable()
 class PaymentRequestEnvelope {
-  const PaymentRequestEnvelope({required this.data, this.meta});
-
-  factory PaymentRequestEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PaymentRequestEnvelopeFromJson(json);
-
+  const PaymentRequestEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PaymentRequestEnvelope.fromJson(Map<String, Object?> json) => _$PaymentRequestEnvelopeFromJson(json);
+  
   final PaymentRequestDto data;
   final ResponseMetaDto? meta;
 

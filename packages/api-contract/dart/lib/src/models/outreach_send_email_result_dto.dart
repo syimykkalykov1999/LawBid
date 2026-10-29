@@ -12,10 +12,9 @@ class OutreachSendEmailResultDto {
     required this.subject,
     required this.remainingToday,
   });
-
-  factory OutreachSendEmailResultDto.fromJson(Map<String, Object?> json) =>
-      _$OutreachSendEmailResultDtoFromJson(json);
-
+  
+  factory OutreachSendEmailResultDto.fromJson(Map<String, Object?> json) => _$OutreachSendEmailResultDtoFromJson(json);
+  
   final String subject;
 
   /// Emails left in this employee's daily budget.

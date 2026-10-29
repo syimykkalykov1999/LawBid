@@ -8,11 +8,13 @@ part 'profile_firm_dto.g.dart';
 
 @JsonSerializable()
 class ProfileFirmDto {
-  const ProfileFirmDto({required this.id, required this.name});
-
-  factory ProfileFirmDto.fromJson(Map<String, Object?> json) =>
-      _$ProfileFirmDtoFromJson(json);
-
+  const ProfileFirmDto({
+    required this.id,
+    required this.name,
+  });
+  
+  factory ProfileFirmDto.fromJson(Map<String, Object?> json) => _$ProfileFirmDtoFromJson(json);
+  
   final String id;
   final String name;
 

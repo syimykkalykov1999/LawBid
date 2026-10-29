@@ -21,10 +21,9 @@ class OutreachRegistryImportDto {
     this.admittedFrom,
     this.partnerId,
   });
-
-  factory OutreachRegistryImportDto.fromJson(Map<String, Object?> json) =>
-      _$OutreachRegistryImportDtoFromJson(json);
-
+  
+  factory OutreachRegistryImportDto.fromJson(Map<String, Object?> json) => _$OutreachRegistryImportDtoFromJson(json);
+  
   /// Only New York publishes a free registry so far.
   final OutreachRegistryState state;
 

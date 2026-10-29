@@ -10,11 +10,14 @@ part 'update_synonym_group_dto.g.dart';
 
 @JsonSerializable()
 class UpdateSynonymGroupDto {
-  const UpdateSynonymGroupDto({this.practiceCode, this.enabled, this.terms});
-
-  factory UpdateSynonymGroupDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateSynonymGroupDtoFromJson(json);
-
+  const UpdateSynonymGroupDto({
+    this.practiceCode,
+    this.enabled,
+    this.terms,
+  });
+  
+  factory UpdateSynonymGroupDto.fromJson(Map<String, Object?> json) => _$UpdateSynonymGroupDtoFromJson(json);
+  
   /// A practice code, or null to detach.
   final String? practiceCode;
   final bool? enabled;

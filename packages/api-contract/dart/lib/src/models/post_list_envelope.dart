@@ -11,11 +11,13 @@ part 'post_list_envelope.g.dart';
 
 @JsonSerializable()
 class PostListEnvelope {
-  const PostListEnvelope({required this.data, this.meta});
-
-  factory PostListEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PostListEnvelopeFromJson(json);
-
+  const PostListEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PostListEnvelope.fromJson(Map<String, Object?> json) => _$PostListEnvelopeFromJson(json);
+  
   final List<PostDto> data;
   final ResponseMetaDto? meta;
 

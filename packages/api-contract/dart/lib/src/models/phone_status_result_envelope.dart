@@ -11,11 +11,13 @@ part 'phone_status_result_envelope.g.dart';
 
 @JsonSerializable()
 class PhoneStatusResultEnvelope {
-  const PhoneStatusResultEnvelope({required this.data, this.meta});
-
-  factory PhoneStatusResultEnvelope.fromJson(Map<String, Object?> json) =>
-      _$PhoneStatusResultEnvelopeFromJson(json);
-
+  const PhoneStatusResultEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory PhoneStatusResultEnvelope.fromJson(Map<String, Object?> json) => _$PhoneStatusResultEnvelopeFromJson(json);
+  
   final PhoneStatusResultDto data;
   final ResponseMetaDto? meta;
 

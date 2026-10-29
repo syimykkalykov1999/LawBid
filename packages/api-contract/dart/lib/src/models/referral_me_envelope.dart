@@ -11,11 +11,13 @@ part 'referral_me_envelope.g.dart';
 
 @JsonSerializable()
 class ReferralMeEnvelope {
-  const ReferralMeEnvelope({required this.data, this.meta});
-
-  factory ReferralMeEnvelope.fromJson(Map<String, Object?> json) =>
-      _$ReferralMeEnvelopeFromJson(json);
-
+  const ReferralMeEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory ReferralMeEnvelope.fromJson(Map<String, Object?> json) => _$ReferralMeEnvelopeFromJson(json);
+  
   final ReferralMeDto data;
   final ResponseMetaDto? meta;
 

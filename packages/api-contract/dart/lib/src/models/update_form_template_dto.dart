@@ -19,10 +19,9 @@ class UpdateFormTemplateDto {
     this.position,
     this.published,
   });
-
-  factory UpdateFormTemplateDto.fromJson(Map<String, Object?> json) =>
-      _$UpdateFormTemplateDtoFromJson(json);
-
+  
+  factory UpdateFormTemplateDto.fromJson(Map<String, Object?> json) => _$UpdateFormTemplateDtoFromJson(json);
+  
   final Map<String, String>? title;
   final Map<String, String>? description;
   final Map<String, String>? body;

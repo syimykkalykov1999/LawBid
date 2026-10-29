@@ -11,11 +11,13 @@ part 'spend_report_envelope.g.dart';
 
 @JsonSerializable()
 class SpendReportEnvelope {
-  const SpendReportEnvelope({required this.data, this.meta});
-
-  factory SpendReportEnvelope.fromJson(Map<String, Object?> json) =>
-      _$SpendReportEnvelopeFromJson(json);
-
+  const SpendReportEnvelope({
+    required this.data,
+    this.meta,
+  });
+  
+  factory SpendReportEnvelope.fromJson(Map<String, Object?> json) => _$SpendReportEnvelopeFromJson(json);
+  
   final SpendReportDto data;
   final ResponseMetaDto? meta;
 

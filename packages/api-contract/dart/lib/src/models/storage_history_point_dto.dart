@@ -15,10 +15,9 @@ class StorageHistoryPointDto {
     required this.dbBytes,
     required this.filesCount,
   });
-
-  factory StorageHistoryPointDto.fromJson(Map<String, Object?> json) =>
-      _$StorageHistoryPointDtoFromJson(json);
-
+  
+  factory StorageHistoryPointDto.fromJson(Map<String, Object?> json) => _$StorageHistoryPointDtoFromJson(json);
+  
   final String day;
   final num filesBytes;
   final num storedBytes;

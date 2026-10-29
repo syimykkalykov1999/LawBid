@@ -14,10 +14,9 @@ class QaPersonDto {
     this.username,
     this.avatarUrl,
   });
-
-  factory QaPersonDto.fromJson(Map<String, Object?> json) =>
-      _$QaPersonDtoFromJson(json);
-
+  
+  factory QaPersonDto.fromJson(Map<String, Object?> json) => _$QaPersonDtoFromJson(json);
+  
   final String id;
   final String displayName;
   final String? username;
