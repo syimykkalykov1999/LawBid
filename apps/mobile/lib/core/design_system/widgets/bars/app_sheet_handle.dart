@@ -62,8 +62,8 @@ Future<T?> showAppBottomSheet<T>({
       surface: colors.sheet,
       radius: const BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
       child: closeByHandleOnly
-            ? builder(ctx)
-            : PullDownToClose(child: builder(ctx)),
+          ? builder(ctx)
+          : PullDownToClose(child: builder(ctx)),
     ),
   );
 }

@@ -96,8 +96,7 @@ Future<String?> runTurnstile(String siteKey) async {
       ..['error-callback'] = ((JSAny? _) => finish(null)).toJS
       ..['expired-callback'] = (() => finish(null)).toJS
       ..['timeout-callback'] = (() => finish(null)).toJS
-      ..['before-interactive-callback'] =
-          (() => arm(_interactiveTimeout)).toJS;
+      ..['before-interactive-callback'] = (() => arm(_interactiveTimeout)).toJS;
     widgetId = _turnstile!.render(host, params);
     return await result.future;
   } on Object catch (e) {
