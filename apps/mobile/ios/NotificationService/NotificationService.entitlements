@@ -1,12 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict>
-	<!-- Owner 2026-10-26: the sender's photo on a chat banner
-	     (Communication Notifications). The App Group for phone-book names
-	     (group.<app bundle id>) is added together with its registration in
-	     Apple Developer — docs/runbooks/IOS_CHAT_NOTIFICATIONS.md. -->
-	<key>com.apple.developer.usernotifications.communication</key>
-	<true/>
-</dict>
+<dict/>
 </plist>
