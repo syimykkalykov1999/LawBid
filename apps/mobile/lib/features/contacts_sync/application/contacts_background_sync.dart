@@ -98,18 +98,12 @@ class ContactsBackgroundSync with WidgetsBindingObserver {
       final status = await _ref.read(contactsSyncStatusProvider.future);
       if (!status.enabled) return;
       final kv = _ref.read(localKvStoreProvider);
-      await kv.setString(
-        _key(_notifyKey, me),
-        status.notifyJoined ? '1' : '0',
-      );
+      await kv.setString(_key(_notifyKey, me), status.notifyJoined ? '1' : '0');
       final data = await _ref.refresh(phoneContactsProvider.future);
       // A pass whose request failed is tried again at the next start.
       if (data.denied || data.matchFailed) return;
       // Only after a pass that worked: a failed one is tried again soon.
-      await kv.setString(
-        _key(_lastKey, me),
-        DateTime.now().toIso8601String(),
-      );
+      await kv.setString(_key(_lastKey, me), DateTime.now().toIso8601String());
     } on Object {
       // Offline, rate-limited, permission taken away: try at the next start.
     } finally {

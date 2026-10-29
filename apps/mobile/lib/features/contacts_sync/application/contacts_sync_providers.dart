@@ -16,9 +16,9 @@ final contactsSyncRepositoryProvider = Provider<ContactsSyncRepository>(
 
 final contactsSyncStatusProvider =
     FutureProvider.autoDispose<ContactsSyncStatus>(
-  (ref) => ref.watch(contactsSyncRepositoryProvider).status(),
-  retry: _noRetry,
-);
+      (ref) => ref.watch(contactsSyncRepositoryProvider).status(),
+      retry: _noRetry,
+    );
 
 /// The raw numbers of the phone book, or null when the user did not
 /// allow access. Replaceable in tests.
@@ -60,7 +60,9 @@ class ContactsSyncActions {
     if (numbers == null) return false;
     final status = await _ref.read(contactsSyncStatusProvider.future);
     // Owner 2026-10-22: hash-checked, only changes (ContactsBookSync).
-    await _ref.read(contactsBookSyncProvider).sync(
+    await _ref
+        .read(contactsBookSyncProvider)
+        .sync(
           contactHashes(numbers, region: status.phoneRegion),
           region: status.phoneRegion,
         );

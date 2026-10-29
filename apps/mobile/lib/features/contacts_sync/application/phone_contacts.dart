@@ -36,16 +36,14 @@ Future<List<PhoneBookEntry>?> readPhoneBookEntries() async {
   ];
 }
 
-final phoneBookEntriesReaderProvider =
-    Provider<PhoneBookEntriesReader>((_) => readPhoneBookEntries);
+final phoneBookEntriesReaderProvider = Provider<PhoneBookEntriesReader>(
+  (_) => readPhoneBookEntries,
+);
 
 /// A phone-book person who has a LawBid account. Owner 2026-10-20 (like
 /// WhatsApp): shown under the name saved in the phone.
 class LawBidContact {
-  const LawBidContact({
-    required this.person,
-    required this.phoneName,
-  });
+  const LawBidContact({required this.person, required this.phoneName});
 
   final ContactPerson person;
 
@@ -104,8 +102,9 @@ class ContactsConsent extends Notifier<bool> {
   void grant() => state = true;
 }
 
-final contactsConsentProvider =
-    NotifierProvider<ContactsConsent, bool>(ContactsConsent.new);
+final contactsConsentProvider = NotifierProvider<ContactsConsent, bool>(
+  ContactsConsent.new,
+);
 
 /// What can be shown while the book is being matched: the phone book with
 /// the people known so far (from the device cache, then from each answer).
@@ -235,10 +234,10 @@ final phoneContactsProvider = FutureProvider<PhoneContacts>((ref) async {
   // Allowed on this install: the daily background sync may run from now on.
   await actions.markAsked();
   final region = status?.phoneRegion ?? saved?.region;
-  final byHash = await compute(
-    hashPhoneBook,
-    (numbers: [for (final e in entries) e.numbers], region: region),
-  );
+  final byHash = await compute(hashPhoneBook, (
+    numbers: [for (final e in entries) e.numbers],
+    region: region,
+  ));
   // Known before this pass: on screen at once, replaced by the answer.
   final known = saved != null && saved.region == region
       ? saved.people

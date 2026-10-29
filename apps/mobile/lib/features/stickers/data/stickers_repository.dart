@@ -13,8 +13,8 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 /// name, my own packs and their images.
 class StickersRepository {
   StickersRepository({required Dio apiDio, required Dio storageDio})
-      : _stickers = api.StickersClient(apiDio),
-        _uploader = StorageUploader.dio(apiDio, storageDio);
+    : _stickers = api.StickersClient(apiDio),
+      _uploader = StorageUploader.dio(apiDio, storageDio);
 
   final api.StickersClient _stickers;
   final StorageUploader _uploader;
@@ -27,8 +27,7 @@ class StickersRepository {
       () => _stickers.getStickerLibrary(
         extras: cacheFor(const Duration(hours: 1)),
       ),
-    ))
-        .data;
+    )).data;
     return StickerLibrary(
       recent: d.recent.map(sticker).toList(),
       packs: d.packs.map(pack).toList(),
@@ -36,59 +35,53 @@ class StickersRepository {
   }
 
   Future<List<StickerPack>> featured() async => (await guardApiCall(
-        () => _stickers.listFeaturedStickerPacks(
-          extras: cacheFor(const Duration(hours: 24)),
-        ),
-      ))
-          .data
-          .map(pack)
-          .toList();
+    () => _stickers.listFeaturedStickerPacks(
+      extras: cacheFor(const Duration(hours: 24)),
+    ),
+  )).data.map(pack).toList();
 
   Future<StickerPack> get(String ref) async => pack(
-        (await guardApiCall(
-          () => _stickers.getStickerPack(
-            ref: ref,
-            extras: cacheFor(const Duration(hours: 24)),
-          ),
-        ))
-            .data,
-      );
+    (await guardApiCall(
+      () => _stickers.getStickerPack(
+        ref: ref,
+        extras: cacheFor(const Duration(hours: 24)),
+      ),
+    )).data,
+  );
 
   Future<StickerPack> create(String title) async => pack(
-        (await guardApiCall(
-          () => _stickers.createStickerPack(
-            body: api.CreateStickerPackDto(title: title),
-            extras: const {RequestFlags.createsResource: true},
-          ),
-        ))
-            .data,
-      );
+    (await guardApiCall(
+      () => _stickers.createStickerPack(
+        body: api.CreateStickerPackDto(title: title),
+        extras: const {RequestFlags.createsResource: true},
+      ),
+    )).data,
+  );
 
   Future<StickerPack> rename(String ref, String title) async => pack(
-        (await guardApiCall(
-          () => _stickers.renameStickerPack(
-            ref: ref,
-            body: api.UpdateStickerPackDto(title: title),
-          ),
-        ))
-            .data,
-      );
+    (await guardApiCall(
+      () => _stickers.renameStickerPack(
+        ref: ref,
+        body: api.UpdateStickerPackDto(title: title),
+      ),
+    )).data,
+  );
 
   Future<void> delete(String ref) =>
       guardApiCall(() => _stickers.deleteStickerPack(ref: ref));
 
   Future<StickerPack> install(String ref) async => pack(
-        (await guardApiCall(() => _stickers.installStickerPack(ref: ref))).data,
-      );
+    (await guardApiCall(() => _stickers.installStickerPack(ref: ref))).data,
+  );
 
   Future<void> uninstall(String ref) =>
       guardApiCall(() => _stickers.uninstallStickerPack(ref: ref));
 
   Future<void> reorder(List<String> packIds) => guardApiCall(
-        () => _stickers.reorderStickerPacks(
-          body: api.ReorderStickerPacksDto(packIds: packIds),
-        ),
-      );
+    () => _stickers.reorderStickerPacks(
+      body: api.ReorderStickerPacksDto(packIds: packIds),
+    ),
+  );
 
   Future<void> deleteSticker(String id) =>
       guardApiCall(() => _stickers.deleteSticker(id: id));
@@ -119,8 +112,7 @@ class StickersRepository {
           ref: packRef,
           body: api.AddStickerDto(fileId: fileId, emoji: emoji ?? '🙂'),
         ),
-      ))
-          .data,
+      )).data,
     );
   }
 
@@ -128,14 +120,14 @@ class StickersRepository {
       ChatSticker(id: d.id, packId: d.packId, emoji: d.emoji, url: d.url);
 
   static StickerPack pack(api.StickerPackDto d) => StickerPack(
-        id: d.id,
-        title: d.title,
-        shortName: d.shortName,
-        isOfficial: d.isOfficial,
-        isMine: d.isMine,
-        installed: d.installed,
-        installCount: d.installCount,
-        stickers: d.stickers.map(sticker).toList(),
-        priceStars: d.priceStars,
-      );
+    id: d.id,
+    title: d.title,
+    shortName: d.shortName,
+    isOfficial: d.isOfficial,
+    isMine: d.isMine,
+    installed: d.installed,
+    installCount: d.installCount,
+    stickers: d.stickers.map(sticker).toList(),
+    priceStars: d.priceStars,
+  );
 }

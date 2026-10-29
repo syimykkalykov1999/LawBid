@@ -88,7 +88,7 @@ const kEmojiGroups = <(String, List<String>)>[
       '🤬',
       '😈',
       '💀',
-    ]
+    ],
   ),
   (
     '👍',
@@ -139,7 +139,7 @@ const kEmojiGroups = <(String, List<String>)>[
       '👨‍👩‍👧',
       '👪',
       '💑',
-    ]
+    ],
   ),
   (
     '❤️',
@@ -180,7 +180,7 @@ const kEmojiGroups = <(String, List<String>)>[
       '🥇',
       '💡',
       '📌',
-    ]
+    ],
   ),
   (
     '⚖️',
@@ -221,7 +221,7 @@ const kEmojiGroups = <(String, List<String>)>[
       '🏥',
       '🏫',
       '🏢',
-    ]
+    ],
   ),
   (
     '🐶',
@@ -274,6 +274,6 @@ const kEmojiGroups = <(String, List<String>)>[
       '🍺',
       '🥂',
       '🍾',
-    ]
+    ],
   ),
 ];

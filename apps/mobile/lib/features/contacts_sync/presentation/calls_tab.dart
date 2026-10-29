@@ -302,18 +302,18 @@ class CallHistoryRow extends ConsumerWidget {
       trailing: e.isGroup || picking
           ? null
           : e.video && video
-              ? ContactActionButton(
-                  key: const ValueKey('call-back-video'),
-                  icon: AppIcons.videoCameraOutlined,
-                  label: t.t('call.videoButton'),
-                  onPressed: () => _callBack(context, ref, e, video: true),
-                )
-              : ContactActionButton(
-                  key: const ValueKey('call-back-audio'),
-                  icon: AppIcons.callOutlined,
-                  label: t.t('call.button'),
-                  onPressed: () => _callBack(context, ref, e, video: false),
-                ),
+          ? ContactActionButton(
+              key: const ValueKey('call-back-video'),
+              icon: AppIcons.videoCameraOutlined,
+              label: t.t('call.videoButton'),
+              onPressed: () => _callBack(context, ref, e, video: true),
+            )
+          : ContactActionButton(
+              key: const ValueKey('call-back-audio'),
+              icon: AppIcons.callOutlined,
+              label: t.t('call.button'),
+              onPressed: () => _callBack(context, ref, e, video: false),
+            ),
     );
   }
 
@@ -480,8 +480,9 @@ class CallLogSelectionBar extends ConsumerWidget
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final all = {
-      for (final e in ref.watch(callHistoryProvider).value?.items ??
-          const <CallHistoryEntry>[])
+      for (final e
+          in ref.watch(callHistoryProvider).value?.items ??
+              const <CallHistoryEntry>[])
         e.id,
     };
     final everything = all.isNotEmpty && picked.containsAll(all);

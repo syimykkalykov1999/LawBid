@@ -55,8 +55,9 @@ class ContactsScreen extends ConsumerStatefulWidget {
 
 class _ContactsScreenState extends ConsumerState<ContactsScreen> {
   /// 0 «Chats», 1 «Contacts», 2 «Calls».
-  late int _section =
-      widget.initialCalls ? 2 : (widget.initialContacts ? 1 : 0);
+  late int _section = widget.initialCalls
+      ? 2
+      : (widget.initialContacts ? 1 : 0);
   late final PageController _pages = PageController(initialPage: _section);
 
   @override
@@ -282,7 +283,12 @@ class _BodyState extends ConsumerState<_Body> {
                   itemCount: invite.length,
                   itemBuilder: (context, i) => InviteContactRow(
                     contact: invite[i],
-                    onInvite: () => inviteContact(context, ref, invite[i].name),
+                    onInvite: () => inviteContact(
+                      context,
+                      ref,
+                      invite[i].name,
+                      invite[i].number,
+                    ),
                   ),
                 ),
               ],

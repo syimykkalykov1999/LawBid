@@ -92,9 +92,18 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
   /// Owner 2026-10-01: the Emoji · Stickers panel in place of the keyboard.
   bool _stickers = false;
 
+  /// Last seen keyboard height: the panel takes the same, so nothing jumps.
+  double? _keyboardH;
+
+  /// Panel → keyboard: close the panel and ask for the focus again.
+  void _showKeyboard() {
+    setState(() => _stickers = false);
+    _focus.requestFocus();
+  }
+
   void _toggleStickers() {
     if (_stickers) {
-      setState(() => _stickers = false);
+      _showKeyboard();
       return;
     }
     FocusManager.instance.primaryFocus?.unfocus();
@@ -133,8 +142,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     WidgetsBinding.instance.addObserver(this);
     // Owner 2026-10-20: an unsent text comes back, and the chats list shows
     // it as a draft.
-    final draft =
-        ref.read(chatTextDraftsProvider.notifier).of(widget.conversationId);
+    final draft = ref
+        .read(chatTextDraftsProvider.notifier)
+        .of(widget.conversationId);
     if (draft != null) _text.text = draft;
     _text.addListener(_saveDraft);
   }
@@ -175,8 +185,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     final text = _text.text;
     if (text.trim().isEmpty) return;
     final compose = ref.read(chatComposeProvider(widget.conversationId));
-    final composeN =
-        ref.read(chatComposeProvider(widget.conversationId).notifier);
+    final composeN = ref.read(
+      chatComposeProvider(widget.conversationId).notifier,
+    );
     // ignore: unawaited_futures
     HapticFeedback.lightImpact();
     final editing = compose.editing;
@@ -220,7 +231,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       return;
     }
     HapticFeedback.mediumImpact();
-    ref.read(callControllerProvider.notifier).call(
+    ref
+        .read(callControllerProvider.notifier)
+        .call(
           c.id,
           peer: c.counterpart.id == null
               ? null
@@ -298,8 +311,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       maxHeight: reel.maxHeight <= 0 ? 720 : math.min(720, reel.maxHeight),
       frameRate: reel.frameRate,
     );
-    final out =
-        await ref.read(videoCompressorProvider).compress(video, limits: limits);
+    final out = await ref
+        .read(videoCompressorProvider)
+        .compress(video, limits: limits);
     return out == null
         ? video
         : XFile(out.path, name: 'video.mp4', mimeType: 'video/mp4');
@@ -363,7 +377,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                 label: t.t('tasks.fromChat'),
                 onTap: () {
                   Navigator.of(sheet).pop();
-                  final name = c.counterpart.displayName ??
+                  final name =
+                      c.counterpart.displayName ??
                       (c.counterpart.username == null
                           ? null
                           : atHandle(c.counterpart.username));
@@ -375,8 +390,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                       caseTitle: c.caseTitle,
                       personId: c.counterpart.id,
                       personName: name,
-                      personRole:
-                          c.counterpart.isAttorney ? 'attorney' : 'client',
+                      personRole: c.counterpart.isAttorney
+                          ? 'attorney'
+                          : 'client',
                     ),
                   );
                 },
@@ -394,14 +410,19 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final s = ref.watch(chatThreadProvider(widget.conversationId));
     final c = s.conversation;
+    final kb = MediaQuery.viewInsetsOf(context).bottom;
+    if (kb > 120 && !_stickers) {
+      _keyboardH = kb - MediaQuery.viewPaddingOf(context).bottom;
+    }
     ref.listen(
       chatThreadProvider(widget.conversationId)
           .select((x) => x.messages.firstOrNull?.id),
       (_, __) => _markRead(),
     );
     final compose = ref.watch(chatComposeProvider(widget.conversationId));
-    final selecting =
-        ref.watch(chatMsgSelectionProvider(widget.conversationId)).isNotEmpty;
+    final selecting = ref
+        .watch(chatMsgSelectionProvider(widget.conversationId))
+        .isNotEmpty;
     // An edit loads the message into the field; closing it clears the field.
     ref.listen(chatComposeProvider(widget.conversationId), (prev, next) {
       // A reply or an edit starts: the keyboard opens on the field.
@@ -422,8 +443,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       }
     });
     final attorney = ref.watch(actsAsAttorneyProvider);
-    final subscriptionGate =
-        ref.watch(outboxSenderProvider).subscriptionRequired;
+    final subscriptionGate = ref
+        .watch(outboxSenderProvider)
+        .subscriptionRequired;
 
     return Scaffold(
       // Owner 2026-10-17: the chat's own wallpaper (WhatsApp-like).
@@ -452,10 +474,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                 // Audit 2026-10-04: nor in a case chat before acceptance.
                 if (c != null && chatAudioCallAllowed(ref, c))
                   AppIconButton(
-                    icon: AppIcon(
-                      AppIcons.callOutlined,
-                      color: colors.text,
-                    ),
+                    icon: AppIcon(AppIcons.callOutlined, color: colors.text),
                     semanticLabel: t.t('call.button'),
                     onPressed: () => _call(c),
                   ),
@@ -486,8 +505,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                   ),
                 if (c != null)
                   AppIconButton(
-                    icon:
-                        AppIcon(AppIcons.moreHorizRounded, color: colors.text),
+                    icon: AppIcon(
+                      AppIcons.moreHorizRounded,
+                      color: colors.text,
+                    ),
                     semanticLabel: t.t('chat.menu'),
                     onPressed: () => _menu(s),
                   ),
@@ -496,151 +517,144 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       body: s.loading && c == null
           ? const CasesListSkeleton()
           : s.error != null && c == null
-              ? CasesErrorView(error: s.error!, t: t, onRetry: _thread.load)
-              : Column(
-                  children: [
-                    if (c != null && c.closed)
-                      _Banner(
-                        icon: AppIcons.lockOutlineRounded,
-                        text: t.t('chat.closed'),
-                      ),
-                    PinnedBanner(
-                      state: s,
-                      conversationId: widget.conversationId,
-                    ),
-                    Expanded(
-                      child: _MessageList(
-                        key: _listKey,
-                        state: s,
-                        onMore: _thread.loadMore,
-                      ),
-                    ),
-                    AnimatedSwitcher(
-                      duration: context.reduceMotion
-                          ? Duration.zero
-                          : AppMotion.stateChange,
-                      child: s.typing
-                          ? Align(
-                              key: ValueKey(
-                                s.typingVoice ? 'typing-voice' : 'typing',
-                              ),
-                              alignment: AlignmentDirectional.centerStart,
-                              child: _TypingDots(voice: s.typingVoice),
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                    // OQ-043: a request sent to me — accept / delete /
-                    // block before anything else.
-                    if (c != null && c.awaitingMyAnswer)
-                      _RequestPanel(conversation: c, thread: _thread)
-                    else if (c != null && c.blockedHere && !c.closed)
-                      _Banner(
-                        key: const ValueKey('chat-blocked-banner'),
-                        icon: AppIcons.blockRounded,
-                        text: t.t('chat.blockedBanner'),
-                      )
-                    else if (c != null && c.myRequestDeclined)
-                      _Banner(
-                        icon: AppIcons.blockRounded,
-                        text: t.t('chat.requests.declinedForYou'),
-                      )
-                    else if (c != null && !c.closed)
-                      ValueListenableBuilder<bool>(
-                        valueListenable: subscriptionGate,
-                        builder: (context, gated, _) => gated && attorney
-                            ? _SubscriptionGate(t: t)
-                            : Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (c.myRequestPending)
-                                    _Banner(
-                                      icon: AppIcons.scheduleSendOutlined,
-                                      text: t.t('chat.requests.sentNote'),
-                                    )
-                                  else if (!c.contactsUnlocked)
-                                    const _MaskingHint(),
-                                  // Owner 2026-10-05: pay / invoice from
-                                  // the chat in two taps.
-                                  if (c.caseId != null && c.contactsUnlocked)
-                                    ChatPaymentBar(caseId: c.caseId!),
-                                  if (compose.replyTo != null)
-                                    ReplyQuote(
-                                      key: const ValueKey('reply-bar'),
-                                      bar: true,
-                                      mine: false,
-                                      preview: ReplyPreview.of(
-                                        compose.replyTo!,
-                                      ),
-                                      conversation: c,
-                                      onClose: ref
-                                          .read(
-                                            chatComposeProvider(
-                                              widget.conversationId,
-                                            ).notifier,
-                                          )
-                                          .clear,
-                                    ),
-                                  if (compose.editing != null)
-                                    EditBar(
-                                      message: compose.editing!,
-                                      onClose: ref
-                                          .read(
-                                            chatComposeProvider(
-                                              widget.conversationId,
-                                            ).notifier,
-                                          )
-                                          .clear,
-                                    ),
-                                  _Composer(
-                                    draftKey: widget.conversationId,
-                                    controller: _text,
-                                    focusNode: _focus,
-                                    onSend: _send,
-                                    stickersOpen: _stickers,
-                                    onStickers: _toggleStickers,
-                                    onFieldTap: () {
-                                      if (_stickers) {
-                                        setState(() => _stickers = false);
-                                      }
-                                    },
-                                    onTyping: _thread.typing,
-                                    // OQ-048: assistants need "files".
-                                    onAttach: c.contactsUnlocked &&
-                                            ref.watch(
-                                              canDoProvider(
-                                                AssistantDuty.files,
-                                              ),
-                                            )
-                                        ? _attach
-                                        : null,
-                                    onCamera: c.contactsUnlocked &&
-                                            ref.watch(
-                                              canDoProvider(
-                                                AssistantDuty.files,
-                                              ),
-                                            )
-                                        ? () => unawaited(_attach(camera: true))
-                                        : null,
-                                    onVoice: (r) => _thread.sendVoice(
-                                      path: r.path,
-                                      durationMs: r.durationMs,
-                                      waveform: r.waveform,
-                                    ),
-                                  ),
-                                  if (_stickers)
-                                    StickerPanel(
-                                      onSticker: _thread.sendSticker,
-                                      onEmoji: _insertEmoji,
-                                      onGift: ref.watch(starsEnabledProvider) &&
-                                              !ref.watch(isAssistantProvider)
-                                          ? _giveGift
-                                          : null,
-                                    ),
-                                ],
-                              ),
-                      ),
-                  ],
+          ? CasesErrorView(error: s.error!, t: t, onRetry: _thread.load)
+          : Column(
+              children: [
+                if (c != null && c.closed)
+                  _Banner(
+                    icon: AppIcons.lockOutlineRounded,
+                    text: t.t('chat.closed'),
+                  ),
+                PinnedBanner(state: s, conversationId: widget.conversationId),
+                Expanded(
+                  child: _MessageList(
+                    key: _listKey,
+                    state: s,
+                    onMore: _thread.loadMore,
+                  ),
                 ),
+                AnimatedSwitcher(
+                  duration: context.reduceMotion
+                      ? Duration.zero
+                      : AppMotion.stateChange,
+                  child: s.typing
+                      ? Align(
+                          key: ValueKey(
+                            s.typingVoice ? 'typing-voice' : 'typing',
+                          ),
+                          alignment: AlignmentDirectional.centerStart,
+                          child: _TypingDots(voice: s.typingVoice),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+                // OQ-043: a request sent to me — accept / delete /
+                // block before anything else.
+                if (c != null && c.awaitingMyAnswer)
+                  _RequestPanel(conversation: c, thread: _thread)
+                else if (c != null && c.blockedHere && !c.closed)
+                  _Banner(
+                    key: const ValueKey('chat-blocked-banner'),
+                    icon: AppIcons.blockRounded,
+                    text: t.t('chat.blockedBanner'),
+                  )
+                else if (c != null && c.myRequestDeclined)
+                  _Banner(
+                    icon: AppIcons.blockRounded,
+                    text: t.t('chat.requests.declinedForYou'),
+                  )
+                else if (c != null && !c.closed)
+                  ValueListenableBuilder<bool>(
+                    valueListenable: subscriptionGate,
+                    builder: (context, gated, _) => gated && attorney
+                        ? _SubscriptionGate(t: t)
+                        : Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (c.myRequestPending)
+                                _Banner(
+                                  icon: AppIcons.scheduleSendOutlined,
+                                  text: t.t('chat.requests.sentNote'),
+                                )
+                              else if (!c.contactsUnlocked)
+                                const _MaskingHint(),
+                              // Owner 2026-10-05: pay / invoice from
+                              // the chat in two taps.
+                              if (c.caseId != null && c.contactsUnlocked)
+                                ChatPaymentBar(caseId: c.caseId!),
+                              if (compose.replyTo != null)
+                                ReplyQuote(
+                                  key: const ValueKey('reply-bar'),
+                                  bar: true,
+                                  mine: false,
+                                  preview: ReplyPreview.of(compose.replyTo!),
+                                  conversation: c,
+                                  onClose: ref
+                                      .read(
+                                        chatComposeProvider(
+                                          widget.conversationId,
+                                        ).notifier,
+                                      )
+                                      .clear,
+                                ),
+                              if (compose.editing != null)
+                                EditBar(
+                                  message: compose.editing!,
+                                  onClose: ref
+                                      .read(
+                                        chatComposeProvider(
+                                          widget.conversationId,
+                                        ).notifier,
+                                      )
+                                      .clear,
+                                ),
+                              _Composer(
+                                draftKey: widget.conversationId,
+                                controller: _text,
+                                focusNode: _focus,
+                                onSend: _send,
+                                stickersOpen: _stickers,
+                                onStickers: _toggleStickers,
+                                onFieldTap: () {
+                                  if (_stickers) _showKeyboard();
+                                },
+                                onTyping: _thread.typing,
+                                // OQ-048: assistants need "files".
+                                onAttach:
+                                    c.contactsUnlocked &&
+                                        ref.watch(
+                                          canDoProvider(AssistantDuty.files),
+                                        )
+                                    ? _attach
+                                    : null,
+                                onCamera:
+                                    c.contactsUnlocked &&
+                                        ref.watch(
+                                          canDoProvider(AssistantDuty.files),
+                                        )
+                                    ? () => unawaited(_attach(camera: true))
+                                    : null,
+                                onVoice: (r) => _thread.sendVoice(
+                                  path: r.path,
+                                  durationMs: r.durationMs,
+                                  waveform: r.waveform,
+                                ),
+                              ),
+                              if (_stickers)
+                                StickerPanel(
+                                  panelHeight: _keyboardH,
+                                  onSticker: _thread.sendSticker,
+                                  onEmoji: _insertEmoji,
+                                  onGift:
+                                      ref.watch(starsEnabledProvider) &&
+                                          !ref.watch(isAssistantProvider)
+                                      ? _giveGift
+                                      : null,
+                                ),
+                            ],
+                          ),
+                  ),
+              ],
+            ),
     );
   }
 }
@@ -870,8 +884,9 @@ class _MessageListState extends ConsumerState<_MessageList> {
     }
     // The newest own message the other side has read (§8.2 "Seen").
     final lastRead = state.conversation?.counterpartLastReadId;
-    final seenIndex =
-        lastRead == null ? -1 : items.indexWhere((m) => m.id == lastRead);
+    final seenIndex = lastRead == null
+        ? -1
+        : items.indexWhere((m) => m.id == lastRead);
     final newestOwnSeen = seenIndex < 0
         ? null
         : items.skip(seenIndex).where((m) => m.senderId == me).firstOrNull?.id;
@@ -934,7 +949,8 @@ class _MessageListState extends ConsumerState<_MessageList> {
           final entry = entries[i];
           final m = entry.newest;
           final older = i + 1 < entries.length ? entries[i + 1].newest : null;
-          final newDay = older == null ||
+          final newDay =
+              older == null ||
               !DateUtils.isSameDay(
                 older.createdAt.toLocal(),
                 entry.oldest.createdAt.toLocal(),
@@ -965,8 +981,8 @@ class _MessageListState extends ConsumerState<_MessageList> {
                           name: m.senderId == me
                               ? t.t('chat.you')
                               : (state.conversation?.counterpart.displayName ??
-                                  state.conversation?.counterpart.username ??
-                                  ''),
+                                    state.conversation?.counterpart.username ??
+                                    ''),
                         )
                       : systemLineText(t, m.body, formats: f),
                   // Owner 2026-10-19: a tap opens what the line is about.
@@ -989,8 +1005,9 @@ class _MessageListState extends ConsumerState<_MessageList> {
                   mine: m.senderId == me,
                   seen: seen,
                   delivered: deliveredIds.contains(m.id) && m.senderId == me,
-                  showSeenLabel:
-                      entry.messages.any((x) => x.id == newestOwnSeen),
+                  showSeenLabel: entry.messages.any(
+                    (x) => x.id == newestOwnSeen,
+                  ),
                   threadId: state.conversation?.id ?? m.conversationId,
                   // Owner 2026-10-01: the client sees "Assistant of <the
                   // attorney>", not the assistant's own account.
@@ -1098,8 +1115,7 @@ String? _systemTarget(
     'payment_fee_countered' ||
     'payment_fee_agreed' =>
       attorney ? AppRoutes.workCase(caseId) : AppRoutes.myCase(caseId),
-    'no_agreement' ||
-    'accepted_by_other' =>
+    'no_agreement' || 'accepted_by_other' =>
       attorney ? AppRoutes.caseDetail(caseId) : AppRoutes.myCase(caseId),
     _ => attorney ? AppRoutes.caseDetail(caseId) : AppRoutes.myCase(caseId),
   };
@@ -1229,10 +1245,10 @@ class _Bubble extends ConsumerWidget {
     if (mine) {
       final me = ref.watch(currentUserControllerProvider).user;
       url = me?.avatarUrl;
-      name = [me?.firstName, me?.lastName]
-          .whereType<String>()
-          .where((x) => x.trim().isNotEmpty)
-          .join(' ');
+      name = [
+        me?.firstName,
+        me?.lastName,
+      ].whereType<String>().where((x) => x.trim().isNotEmpty).join(' ');
     } else {
       final c = ref.watch(
         chatThreadProvider(threadId).select((s) => s.conversation),
@@ -1288,11 +1304,11 @@ class _Bubble extends ConsumerWidget {
         if (x.delivery == DeliveryState.failed) x,
     ];
     Widget ticks(Color plain) => ChatTicks(
-          delivery: m.delivery,
-          seen: seen,
-          delivered: delivered,
-          color: plain,
-        );
+      delivery: m.delivery,
+      seen: seen,
+      delivered: delivered,
+      color: plain,
+    );
 
     // Hidden contacts shown as a localized inline marker (§8.3).
     final parts = m.body.split(kContactMask);
@@ -1332,19 +1348,14 @@ class _Bubble extends ConsumerWidget {
           ),
           const SizedBox(width: 4),
         ],
-        Text(
-          f.time(m.createdAt),
-          style: type.caption.copyWith(color: meta),
-        ),
-        if (showTicks) ...[
-          const SizedBox(width: 4),
-          ticks(meta),
-        ],
+        Text(f.time(m.createdAt), style: type.caption.copyWith(color: meta)),
+        if (showTicks) ...[const SizedBox(width: 4), ticks(meta)],
       ],
     );
     // Owner 2026-10-22 (WhatsApp): on a plain text message the time sits
     // at the end of the last line instead of under the text.
-    final inlineMeta = !m.revoked &&
+    final inlineMeta =
+        !m.revoked &&
         !(m.unreadable && m.body.isEmpty) &&
         (m.kind == MessageKind.text) &&
         firstUrlIn(m.body) == null;
@@ -1365,8 +1376,9 @@ class _Bubble extends ConsumerWidget {
     final sticker = m.kind == MessageKind.sticker ? m.sticker : null;
     final bubble = sticker != null
         ? Column(
-            crossAxisAlignment:
-                mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            crossAxisAlignment: mine
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               StickerMessageBody(sticker: sticker),
@@ -1579,7 +1591,8 @@ class _Bubble extends ConsumerWidget {
           if (mine) t.t(_deliveryKey(m.delivery, seen)),
         ].join('. '),
         // Voice bubbles keep their play/speed buttons reachable.
-        excludeSemantics: m.kind != MessageKind.voice &&
+        excludeSemantics:
+            m.kind != MessageKind.voice &&
             m.kind != MessageKind.attachment &&
             m.kind != MessageKind.contact &&
             m.kind != MessageKind.place &&
@@ -1592,13 +1605,13 @@ class _Bubble extends ConsumerWidget {
         ? GestureDetector(
             onLongPress: selecting
                 ? () => ref
-                    .read(chatMsgSelectionProvider(threadId).notifier)
-                    .toggle(m.id)
+                      .read(chatMsgSelectionProvider(threadId).notifier)
+                      .toggle(m.id)
                 : menu,
             onTap: selecting
                 ? () => ref
-                    .read(chatMsgSelectionProvider(threadId).notifier)
-                    .toggle(m.id)
+                      .read(chatMsgSelectionProvider(threadId).notifier)
+                      .toggle(m.id)
                 : null,
             behavior: HitTestBehavior.deferToChild,
             child: selecting || m.revoked
@@ -1615,8 +1628,9 @@ class _Bubble extends ConsumerWidget {
     final column = Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Column(
-        crossAxisAlignment:
-            mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: mine
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           // OQ-048: "Assistant · Sam" over an assistant's message.
           if (m.sentByAssistant != null)
@@ -1701,8 +1715,9 @@ class _Bubble extends ConsumerWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: interactive
-          ? () =>
-              ref.read(chatMsgSelectionProvider(threadId).notifier).toggle(m.id)
+          ? () => ref
+                .read(chatMsgSelectionProvider(threadId).notifier)
+                .toggle(m.id)
           : null,
       child: Container(
         color: selected ? colors.gold.withValues(alpha: 0.16) : null,
@@ -1727,10 +1742,10 @@ class _Bubble extends ConsumerWidget {
   }
 
   static String _deliveryKey(DeliveryState d, bool seen) => switch (d) {
-        DeliveryState.sending => 'chat.state.sending',
-        DeliveryState.failed => 'chat.notSent',
-        DeliveryState.sent => seen ? 'chat.seen' : 'chat.state.sent',
-      };
+    DeliveryState.sending => 'chat.state.sending',
+    DeliveryState.failed => 'chat.notSent',
+    DeliveryState.sent => seen ? 'chat.seen' : 'chat.state.sent',
+  };
 }
 
 /// Three dots bouncing in turn (§8.2 "печатает…").
@@ -1764,15 +1779,16 @@ class _MessageText extends ConsumerWidget {
     return FullTextScale(
       child: meta != null
           ? ChatTextWithMeta(
-              spans:
-                  translation == null ? spans : [TextSpan(text: translation)],
+              spans: translation == null
+                  ? spans
+                  : [TextSpan(text: translation)],
               style: style,
               meta: meta!,
               metaWidth: metaWidth,
             )
           : translation == null
-              ? Text.rich(TextSpan(children: spans), style: style)
-              : Text(translation, style: style),
+          ? Text.rich(TextSpan(children: spans), style: style)
+          : Text(translation, style: style),
     );
   }
 }
@@ -1851,12 +1867,14 @@ class _TypingDotsState extends State<_TypingDots>
                         context.reduceMotion
                             ? 0
                             : -4 *
-                                math.max(
-                                  0,
-                                  math.sin(
-                                    ((_c.value - i * 0.18) % 1.0) * 2 * math.pi,
+                                  math.max(
+                                    0,
+                                    math.sin(
+                                      ((_c.value - i * 0.18) % 1.0) *
+                                          2 *
+                                          math.pi,
+                                    ),
                                   ),
-                                ),
                       ),
                       child: Container(
                         width: 7,
@@ -1900,8 +1918,10 @@ class _Banner extends StatelessWidget {
           AppIcon(icon, size: AppSizes.iconSm, color: colors.iconTint),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child:
-                Text(text, style: type.bodySmall.copyWith(color: colors.text)),
+            child: Text(
+              text,
+              style: type.bodySmall.copyWith(color: colors.text),
+            ),
           ),
         ],
       ),
@@ -2022,8 +2042,10 @@ class _RequestPanelState extends ConsumerState<_RequestPanel> {
               Text(
                 t.t('chat.requests.wants', {'name': name}),
                 textAlign: TextAlign.center,
-                style: type.body
-                    .copyWith(color: colors.text, fontWeight: FontWeight.w600),
+                style: type.body.copyWith(
+                  color: colors.text,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
@@ -2545,28 +2567,26 @@ class _ComposerState extends ConsumerState<_Composer> {
       required bool on,
       required String label,
       double scale = 1,
-    }) =>
-        AnimatedScale(
-          scale: scale,
+    }) => AnimatedScale(
+      scale: scale,
+      duration: motion,
+      curve: Curves.easeOutBack,
+      child: Semantics(
+        button: true,
+        label: label,
+        excludeSemantics: true,
+        child: AnimatedContainer(
           duration: motion,
-          curve: Curves.easeOutBack,
-          child: Semantics(
-            button: true,
-            label: label,
-            excludeSemantics: true,
-            child: AnimatedContainer(
-              duration: motion,
-              width: AppSizes.touchTarget + 4,
-              height: AppSizes.touchTarget + 4,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: on ? colors.gold : colors.border,
-              ),
-              child:
-                  AppIcon(icon, color: on ? colors.navy : colors.textSecondary),
-            ),
+          width: AppSizes.touchTarget + 4,
+          height: AppSizes.touchTarget + 4,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: on ? colors.gold : colors.border,
           ),
-        );
+          child: AppIcon(icon, color: on ? colors.navy : colors.textSecondary),
+        ),
+      ),
+    );
 
     // The composer (send, attach, mic) keeps the keyboard; taps outside
     // it hide the keyboard.
@@ -2646,8 +2666,9 @@ class _ComposerState extends ConsumerState<_Composer> {
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   color: colors.surface,
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadii.pill),
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadii.pill,
+                                  ),
                                   border: Border.all(color: colors.border),
                                 ),
                                 child: AppIcon(

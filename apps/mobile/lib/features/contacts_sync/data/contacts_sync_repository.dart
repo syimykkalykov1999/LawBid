@@ -228,11 +228,11 @@ class ApiContactsSyncRepository implements ContactsSyncRepository {
     final people = <ContactPerson>[];
     final uploaded = <String>{};
     ContactsUploadResult soFar({bool limited = false}) => ContactsUploadResult(
-          matched: matched,
-          people: List.unmodifiable(people),
-          uploaded: Set.unmodifiable(uploaded),
-          limited: limited,
-        );
+      matched: matched,
+      people: List.unmodifiable(people),
+      uploaded: Set.unmodifiable(uploaded),
+      limited: limited,
+    );
     var size = _smallParts ? fallbackChunkSize : maxPerRequest;
     var i = 0;
     while (i < all.length) {
@@ -287,17 +287,17 @@ class ApiContactsSyncRepository implements ContactsSyncRepository {
 
   @override
   Future<void> setFindByPhone({required bool enabled}) => guardApiCall(
-        () => _dio.put<void>(
-          '/contacts/sync/find-by-phone',
-          data: {'enabled': enabled},
-        ),
-      );
+    () => _dio.put<void>(
+      '/contacts/sync/find-by-phone',
+      data: {'enabled': enabled},
+    ),
+  );
 
   @override
   Future<void> setNotifyJoined({required bool enabled}) => guardApiCall(
-        () => _dio.put<void>(
-          '/contacts/sync/notify-joined',
-          data: {'enabled': enabled},
-        ),
-      );
+    () => _dio.put<void>(
+      '/contacts/sync/notify-joined',
+      data: {'enabled': enabled},
+    ),
+  );
 }

@@ -15,14 +15,13 @@ Future<List<LawBidContact>?> showContactPicker(
   BuildContext context, {
   Set<String> excludeUserIds = const {},
   String? title,
-}) =>
-    showAppBottomSheet<List<LawBidContact>>(
-      context: context,
-      isScrollControlled: true,
-      closeByHandleOnly: true,
-      builder: (_) =>
-          ContactPickerSheet(excludeUserIds: excludeUserIds, title: title),
-    );
+}) => showAppBottomSheet<List<LawBidContact>>(
+  context: context,
+  isScrollControlled: true,
+  closeByHandleOnly: true,
+  builder: (_) =>
+      ContactPickerSheet(excludeUserIds: excludeUserIds, title: title),
+);
 
 class ContactPickerSheet extends ConsumerStatefulWidget {
   const ContactPickerSheet({
@@ -43,8 +42,8 @@ class _ContactPickerSheetState extends ConsumerState<ContactPickerSheet> {
   final _picked = <LawBidContact>[];
 
   void _toggle(LawBidContact c) => setState(() {
-        if (!_picked.remove(c)) _picked.add(c);
-      });
+    if (!_picked.remove(c)) _picked.add(c);
+  });
 
   @override
   Widget build(BuildContext context) {
