@@ -168,11 +168,16 @@ jobs:
         env:
           DART_DEFINES_JSON: ${{ secrets.MOBILE_DART_DEFINES_JSON }}
         run: printf '%s' "$DART_DEFINES_JSON" > "config/${FLAVOR}.json"
+      - name: CocoaPods for the active Ruby
+        # The runner's preinstalled CocoaPods belongs to another Ruby, so after
+        # setup-ruby `pod` is "installed but broken" and flutter skips pod install.
+        run: gem install cocoapods --no-document && pod --version
       - name: Signing (certificate + profile from secrets)
         env:
           IOS_CERT_P12_BASE64: ${{ secrets.IOS_CERT_P12_BASE64 }}
           IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
           IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+          IOS_PROFILE_NSE_BASE64: ${{ secrets.IOS_PROFILE_NSE_BASE64 }}
           REQUIRE_SIGNING: ${{ (startsWith(github.ref, 'refs/tags/') || inputs.upload == true) && 'true' || 'false' }}
         run: |
           if [ -z "$IOS_CERT_P12_BASE64" ]; then
@@ -192,6 +197,9 @@ jobs:
           security list-keychain -d user -s "$KEYCHAIN"
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           echo "$IOS_PROFILE_BASE64" | base64 -d > ~/Library/MobileDevice/Provisioning\ Profiles/lawbid.mobileprovision
+          if [ -n "${IOS_PROFILE_NSE_BASE64:-}" ]; then
+            echo "$IOS_PROFILE_NSE_BASE64" | base64 -d > ~/Library/MobileDevice/Provisioning\ Profiles/lawbid-nse.mobileprovision
+          fi
       - run: flutter pub get && dart run build_runner build --delete-conflicting-outputs
         if: env.SKIP_IOS != '1'
         working-directory: apps/mobile
