@@ -350,7 +350,7 @@ describe('Who-can settings by followers / following (e2e, owner 2026-10-28)', ()
     const sql = readFileSync(
       join(
         __dirname,
-        '../prisma/migrations/20261108200000_privacy_follow_audiences/migration.sql',
+        '../prisma/migrations/20261109120000_privacy_follow_audiences/migration.sql',
       ),
       'utf8',
     );
