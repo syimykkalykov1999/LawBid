@@ -32,7 +32,7 @@ dependencies:
 
   # Local key-value persistence (theme mode now; auth/session/feature-flags in later stages,
   # all behind the same repository-interface pattern — see LocalKvStore)
-  shared_preferences: ^2.3.3
+  shared_preferences: ^2.5.6
 
   # Networking (real backend wiring pass, docs/CHANGELOG.md): dio for the
   # HTTP client + interceptors (headers/auth/refresh), flutter_secure_storage
@@ -44,7 +44,7 @@ dependencies:
   native_dio_adapter: ^1.8.0
   http: ^1.5.0
   # Browser file save (core/platform/web_download_web.dart).
-  web: ^1.1.0
+  web: ^1.1.2
   flutter_secure_storage: ^9.2.4
 
   crypto: ^3.0.6
@@ -64,11 +64,11 @@ dependencies:
   # sqlite3_flutter_libs under the hood, web via wasm) connection opener
   # for a Flutter app — no separate sqlite3_flutter_libs/path_provider
   # dependency needed, drift_flutter pulls those in itself.
-  drift: ^2.23.0
+  drift: ^2.35.3
   drift_flutter: ^0.3.1
   # The web build's in-tab fallback database (core/persistence/
   # drift_memory_web.dart); the same version drift already uses.
-  sqlite3: ^3.5.2
+  sqlite3: ^3.8.0
 
   # CLDR plural rules + date/number/currency formatting per interface
   # language (file 01 §9.2/§9.4 — core/l10n/plural_rules.dart,
@@ -81,7 +81,7 @@ dependencies:
   # OTP autofill (file 01 §10.2 D).
   package_info_plus: ^9.0.1
   app_links: ^7.2.2
-  url_launcher: ^6.3.2
+  url_launcher: ^6.3.3
   smart_auth: ^3.2.0
   # Connectivity (docs/01 §8.3 "Offline (баннер сверху, показ кэша)",
   # p12 leaf-1.6): the OS network-interface signal behind
@@ -96,7 +96,7 @@ dependencies:
     path: ../../packages/api-contract/dart
   # docs/03 §4.1 profile photo (stage 3.9, OQ-012): gallery/camera pick,
   # downscaled to 1024 px before the presign → S3 POST → confirm upload.
-  image_picker: ^1.2.3
+  image_picker: ^1.2.4
   camera: ^0.12.1
   file_picker: ^11.0.3
   share_plus: ^12.0.2
@@ -110,11 +110,11 @@ dependencies:
   firebase_messaging: ^16.7.0
   # Owner 2026-10-22: native crashes / ANRs in Sentry (prod release only,
   # core/diagnostics/sentry_native.dart).
-  sentry_flutter: ^10.1.0
+  sentry_flutter: ^10.2.0
   app_badge_plus: ^1.3.5
-  flutter_timezone: ^5.1.0
-  flutter_stripe: ^14.1.0
-  record: ^7.1.1
+  flutter_timezone: ^5.1.1
+  flutter_stripe: ^14.2.0
+  record: ^7.1.2
   just_audio: ^0.10.6
   path_provider: ^2.1.6
   flutter_webrtc: ^1.6.2+hotfix.3
@@ -127,7 +127,7 @@ dependencies:
   android_play_install_referrer: ^0.4.0
   flutter_callkit_incoming: ^3.1.6
   font_awesome_flutter: ^11.0.0
-  video_player: ^2.14.0
+  video_player: ^2.14.1
   visibility_detector: ^0.4.0+2
   audio_session: ^0.2.4
   # Voice notes held to the ear (WhatsApp): near the face the sound moves to
@@ -170,7 +170,7 @@ dependencies:
   # the request comes from our app (core/security/app_check.dart,
   # docs/runbooks/APP_CHECK.md). Official FlutterFire; the version pairs
   # with the pinned firebase_core.
-  firebase_app_check: ^0.4.8
+  firebase_app_check: ^0.4.9
   passkeys: ^2.23.1
   # Its availability query (features/auth/data/passkey_authenticator.dart).
   passkeys_platform_interface: ^2.10.0
@@ -185,17 +185,17 @@ dev_dependencies:
   # 2026-10-23: the full suite integration_test/perf/ (vm_service = Dart heap).
   integration_test:
     sdk: flutter
-  vm_service: ^15.0.0
+  vm_service: ^15.4.0
   flutter_driver:
     sdk: flutter
   riverpod_generator: ^4.0.9
-  build_runner: ^2.16.1
-  freezed: ^4.0.2
-  json_serializable: ^6.14.1
+  build_runner: ^2.16.2
+  freezed: ^4.0.3
+  json_serializable: ^6.15.2
   # Codegen for the `@DriftDatabase` table classes in
   # core/l10n/l10n_database.dart — same `dart run build_runner build` pass
   # as riverpod_generator/freezed/json_serializable above.
-  drift_dev: ^2.23.0
+  drift_dev: ^2.35.2
   # custom_lint / riverpod_lint: TEMPORARILY REMOVED — 2026-09-22, UPDATE 2026-09-22.
   # Original reason: custom_lint ^0.7.x pulled analyzer_plugin ~0.12.0, which broke against
   # the analyzer version resolved elsewhere in the graph (Element -> Element2 migration),
