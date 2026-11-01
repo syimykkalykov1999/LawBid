@@ -112,6 +112,9 @@ export class StoriesService {
     const follows = await this.prisma.follow.findMany({
       where: { follower_id: me },
       select: { followee_id: true },
+      // Audit A-8: a stable window (newest follows first, served by
+      // follows_follower_created_followee_idx) instead of an arbitrary set.
+      orderBy: [{ created_at: 'desc' }, { followee_id: 'desc' }],
       take: TRAY_AUTHORS,
     });
     // Owner 2026-10-20 (WhatsApp / Telegram): people I follow, people in my
