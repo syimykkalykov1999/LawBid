@@ -116,6 +116,14 @@ export interface SignedAttachment {
   height: number | null;
 }
 
+/** Links of one post photo; `blurhash` is the loading placeholder. */
+export interface PostImageLinks {
+  url: string;
+  previewUrl: string;
+  mediumUrl: string;
+  blurhash: string | null;
+}
+
 @Injectable()
 export class FilesService {
   constructor(
@@ -546,15 +554,8 @@ export class FilesService {
    * Signing is local (no S3 round trip); one DB read for the batch. With
    * MEDIA_CDN_BASE_URL set the links are CloudFront URLs (docs/06 §6.1).
    */
-  async postImageUrls(
-    fileIds: string[],
-  ): Promise<
-    Map<string, { url: string; previewUrl: string; mediumUrl: string }>
-  > {
-    const out = new Map<
-      string,
-      { url: string; previewUrl: string; mediumUrl: string }
-    >();
+  async postImageUrls(fileIds: string[]): Promise<Map<string, PostImageLinks>> {
+    const out = new Map<string, PostImageLinks>();
     if (fileIds.length === 0) return out;
     const files = await this.prisma.file.findMany({
       // Owner 2026-10-01: review photos share the post-photo variants.
@@ -571,6 +572,7 @@ export class FilesService {
         url,
         previewUrl: await sign(320),
         mediumUrl: await sign(1080),
+        blurhash: file.blurhash,
       });
     }
     return out;

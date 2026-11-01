@@ -438,6 +438,13 @@ export class PostMediaDto {
 
   @ApiProperty({ description: '1080 px medium.' })
   mediumUrl!: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'BlurHash (4x3) placeholder shown while the photo loads.',
+  })
+  blurhash?: string | null;
 }
 
 /** Owner 2026-10-05: a document of a post with a signed download link. */

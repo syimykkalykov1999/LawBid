@@ -62,6 +62,7 @@ erDiagram
     String source_sha256 "nullable"
     Int width "nullable"
     Int height "nullable"
+    String blurhash "nullable"
     enum_ScanStatus scan_status
     Boolean is_public
     DateTime deleted_at "nullable"

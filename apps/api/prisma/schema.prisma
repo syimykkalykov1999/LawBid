@@ -1049,6 +1049,9 @@ model File {
   source_sha256      String?
   width              Int?
   height             Int?
+  /// BlurHash (4x3) of a clean image, drawn by the app as a placeholder
+  /// while the picture loads. Null for non-images / not yet computed.
+  blurhash           String?            @db.VarChar(40)
   scan_status        ScanStatus         @default(pending)
   is_public          Boolean            @default(false)
   deleted_at         DateTime?          @db.Timestamptz
