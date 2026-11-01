@@ -19,6 +19,11 @@ on:
     - cron: "30 3 * * *"
   workflow_dispatch:
 
+# A newer push replaces a scan still waiting or running (CI audit 2026-11-01).
+concurrency:
+  group: container-scan-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   security-events: write
