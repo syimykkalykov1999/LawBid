@@ -68,4 +68,5 @@
 ## 7. Журнал шагов (одна строка на влитый шаг: что — PR/SHA — состояние)
 Правило владельца 01.11: после каждого влитого шага дописывать строку сюда на main. Мастер-аудит: [`MASTER_AUDIT_2026-11-01.md`](MASTER_AUDIT_2026-11-01.md).
 - 01.11 Мастер-аудит кода + 4 файла находок (`audit-2026-11-01/`) — PR аудита — в ревью.
+- 01.11 Докачка загрузки: S3 multipart (флаг `files_multipart`, выкл) + клиент `putResumable`, дизайн в `docs/dev/UPLOAD_PIPELINE.md`; сжатие фото/видео и Bunny TUS уже были — PR докачки — в ревью. Владельцу: S3 CORS PUT через Terraform apply.
 - 01.11 Аудит красного CI: watchdog без ложных тревог, audit-гейт не красит чужие PR, `Repo guards` + `CI gate`, ночной детектор бомб времени — PR ветки claude/project-thread-vlopum — в ревью. `docs/dev/CI_FAILURES_AUDIT_2026-11-01.md`.
