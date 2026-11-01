@@ -21,16 +21,9 @@ on:
 permissions:
   contents: read
 
+# Unit tests need no secrets or services (they pass with NODE_ENV=test only).
 env:
   NODE_ENV: test
-  PORT: "3000"
-  DATABASE_URL: "postgresql://root:lawbid@localhost:5432/lawbid_ci?schema=public"
-  REDIS_URL: "redis://localhost:6379"
-  JWT_KEYS: "ci1:ci_secret_at_least_32_characters_long_aaaa"
-  JWT_ACTIVE_KID: "ci1"
-  OTP_CODE_SECRET: "ci_otp_code_secret_at_least_32_chars_bbbb"
-  OTP_KEY_PEPPER: "ci_otp_key_pepper_at_least_32_chars_cccc"
-  AUTH_EVENT_PEPPER: "ci_auth_event_pepper_at_least_32_chars_dddd"
 
 jobs:
   shifted-unit:
