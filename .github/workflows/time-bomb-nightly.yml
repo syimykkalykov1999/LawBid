@@ -1,0 +1,74 @@
+# CI audit 2026-11-01 (docs/dev/CI_FAILURES_AUDIT_2026-11-01.md).
+#
+# Time bombs: a unit test with a fixed calendar date (`new Date('2026-10-22')`
+# compared with "now", a month-boundary budget key) is green for weeks and then
+# turns main and every open PR red on the same day (01.11: notifications and
+# groups sync specs, budget key). This job runs the whole unit suite with the
+# clock moved TIME_SHIFT_DAYS days into the future (apps/api/test/time-shift.setup.js),
+# so such a spec fails here, nightly, a month BEFORE it hurts a PR.
+# A red run = fix the spec (relative dates, or jest fake timers with an explicit now).
+name: Time-bomb check (nightly)
+
+on:
+  schedule:
+    - cron: "52 2 * * *"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "How many days into the future"
+        default: "45"
+
+permissions:
+  contents: read
+
+env:
+  NODE_ENV: test
+  PORT: "3000"
+  DATABASE_URL: "postgresql://root:lawbid@localhost:5432/lawbid_ci?schema=public"
+  REDIS_URL: "redis://localhost:6379"
+  JWT_KEYS: "ci1:ci_secret_at_least_32_characters_long_aaaa"
+  JWT_ACTIVE_KID: "ci1"
+  OTP_CODE_SECRET: "ci_otp_code_secret_at_least_32_chars_bbbb"
+  OTP_KEY_PEPPER: "ci_otp_key_pepper_at_least_32_chars_cccc"
+  AUTH_EVENT_PEPPER: "ci_auth_event_pepper_at_least_32_chars_dddd"
+
+jobs:
+  shifted-unit:
+    name: Unit tests with the clock moved forward
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.23.4"
+          cache: "npm"
+      - run: npm ci --no-audit --no-fund
+      - run: npx prisma generate
+        working-directory: apps/api
+      - name: Unit tests, clock +${{ inputs.days || '45' }} days
+        working-directory: apps/api
+        env:
+          TIME_SHIFT_DAYS: ${{ inputs.days || '45' }}
+          NODE_OPTIONS: --max-old-space-size=6144
+        # Specs that install jest fake timers pin their own clock (the fake
+        # clock restarts from the REAL time, so the shift would only give false
+        # reds, e.g. pay-page.service.spec); they are skipped here.
+        run: |
+          IGN=$(grep -rl useFakeTimers src --include='*.spec.ts' | sed 's#\.#\\.#g' | paste -sd'|')
+          npx jest --setupFiles '<rootDir>/../test/time-shift.setup.js' --testPathIgnorePatterns "$IGN" --maxWorkers=4 --silent
+
+  notify:
+    name: Notify the owner
+    needs: [shifted-unit]
+    if: ${{ always() && contains(needs.*.result, 'failure') && github.event_name == 'schedule' }}
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: "A unit test breaks when the date moves forward (time bomb): fix it before it turns main red"
+      kind: time-bomb
+      remind_after_minutes: 1440
+    secrets: inherit

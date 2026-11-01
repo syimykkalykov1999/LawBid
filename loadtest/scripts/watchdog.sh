@@ -17,6 +17,27 @@ cleaned=0; problems=0; young=0; unknown_n=0
 say() { echo "$*"; echo "$*" >>"$summary"; }
 
 json="$(aws resourcegroupstaggingapi get-resources --region "$region" --tag-filters Key=Project,Values=lawbid-loadtest --output json)"
+# CI audit 2026-11-01: the tagging index keeps listing things AWS never removes
+# (inactive task-definition revisions, KMS keys waiting for deletion, deleted
+# ECS clusters). verify-clean.sh already ignores them; the watchdog did not,
+# so it "destroyed" the same 4 leftovers of run 40088605442-1 every hour for a
+# week and turned red 21 times with nothing to clean. Same filter here.
+ignorable=()
+while read -r arn; do
+  [ -z "$arn" ] && continue
+  case "$arn" in
+    *:task-definition/*) ignorable+=("$arn");;
+    arn:aws:ecs:*:cluster/*)
+      st="$(aws ecs describe-clusters --region "$region" --clusters "$arn" --query 'clusters[0].status' --output text 2>/dev/null || echo Gone)"
+      case "$st" in INACTIVE|None|Gone) ignorable+=("$arn");; esac;;
+    arn:aws:kms:*:key/*)
+      st="$(aws kms describe-key --region "$region" --key-id "$arn" --query KeyMetadata.KeyState --output text 2>/dev/null || echo Gone)"
+      case "$st" in PendingDeletion|Gone|PendingReplicaDeletion) ignorable+=("$arn");; esac;;
+  esac
+done < <(jq -r '.ResourceTagMappingList[].ResourceARN' <<<"$json")
+if [ "${#ignorable[@]}" -gt 0 ]; then
+  json="$(jq --argjson skip "$(printf '%s\n' "${ignorable[@]}" | jq -R . | jq -s .)" '.ResourceTagMappingList |= map(select(.ResourceARN as $a | $skip | index($a) | not))' <<<"$json")"
+fi
 # one line per run: "<RunId> <CreatedAt> <count>"; resources without a RunId tag are grouped as "unknown"
 runs="$(jq -r '[.ResourceTagMappingList[] | {run: ((.Tags[]|select(.Key=="RunId")|.Value) // "unknown"), at: ((.Tags[]|select(.Key=="CreatedAt")|.Value) // "unknown")}]
   | group_by(.run) | .[] | "\(.[0].run) \(.[0].at) \(length)"' <<<"$json")"

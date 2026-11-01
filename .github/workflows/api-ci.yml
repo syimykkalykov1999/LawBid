@@ -335,7 +335,28 @@ jobs:
         # blocks the merge unless it is in .github/npm-audit-allowlist.json
         # with a reason and an expiry date (how to add one: the header of
         # scripts/ci/npm-audit-gate.mjs).
-        run: node scripts/ci/npm-audit-gate.mjs --workspace apps/api
+        #
+        # CI audit 2026-11-01: a NEW advisory appears on npm any day, and it
+        # used to turn EVERY open PR red although none of them touched a
+        # dependency (follow-redirects, systeminformation: 01.11). On a pull
+        # request that does not touch package.json / package-lock.json / the
+        # allowlist, a finding is now a loud warning, not a block; the gate
+        # stays blocking on push to main (the deploy reads that), on the merge
+        # queue and on every PR that changes dependencies.
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -u
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ -n "$BASE" ] \
+             && git cat-file -e "$BASE^{commit}" 2>/dev/null \
+             && [ -z "$(git diff --name-only "$BASE" HEAD -- package.json package-lock.json 'apps/*/package.json' .github/npm-audit-allowlist.json scripts/ci/npm-audit-gate.mjs)" ]; then
+            node scripts/ci/npm-audit-gate.mjs --workspace apps/api || {
+              echo "::warning title=Dependency audit::a new advisory exists, but this PR changes no dependency, so it is not blocked here. Fix it in its own PR (npm audit fix) or add it to .github/npm-audit-allowlist.json."
+              exit 0
+            }
+          else
+            node scripts/ci/npm-audit-gate.mjs --workspace apps/api
+          fi
 
   e2e:
     name: API e2e (${{ matrix.shard }}/3)

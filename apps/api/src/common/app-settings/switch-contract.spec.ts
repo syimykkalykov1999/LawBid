@@ -149,6 +149,10 @@ describe('chat.link_preview_enabled (off | on | auto)', () => {
       config: { get: () => 'test' },
       inflight: new Map(),
       denylist: jest.fn().mockResolvedValue([]),
+      // CI audit 2026-11-01: this spec really fetches https://example.com/.
+      // Without internet (offline precheck, a runner network blip) the failure
+      // path calls this.log; an object built from the prototype has none.
+      log: { debug: jest.fn(), warn: jest.fn() },
     }) as LinkPreviewService;
     return { svc, redis, limiter };
   };
