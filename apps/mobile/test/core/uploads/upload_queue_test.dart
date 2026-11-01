@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -24,10 +25,12 @@ class _Handler extends UploadJobHandler {
   final delays = <String, Duration>{};
   Object? Function(UploadJob job)? prepareError;
   Object? Function(UploadJob job)? commitError;
+  void Function(CancelToken token)? tokenSink;
 
   @override
   Future<void> prepare(UploadJob job, UploadJobScope scope) async {
     if (job.fileId != null) return;
+    tokenSink?.call(scope.cancelToken);
     final d = delays[job.id];
     if (d != null) await Future<void>.delayed(d);
     final e = prepareError?.call(job);
@@ -166,6 +169,25 @@ void main() {
     expect(await db.pending('me'), isEmpty);
     expect(dir.listSync(recursive: true).whereType<File>(), isEmpty);
     expect(h.removedIds, [('a', false)]);
+  });
+
+  test('Delete during an upload cancels it and never refuses the job',
+      () async {
+    final h = _Handler('test')
+      ..delays['a'] = const Duration(milliseconds: 200)
+      ..prepareError = (_) => _refused;
+    CancelToken? token;
+    h.tokenSink = (t) => token = t;
+    final q = queue(h);
+    await add(q, 'a');
+    final run = q.drain();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await q.discard('a');
+    await run;
+    expect(await db.pending('me'), isEmpty);
+    expect(h.refusals, isEmpty);
+    expect(h.committed, isEmpty);
+    expect(token?.isCancelled, isTrue);
   });
 
   test('after a restart an uploaded file is not uploaded again', () async {
