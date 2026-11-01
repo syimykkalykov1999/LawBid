@@ -23,6 +23,9 @@ const savedCardsRu = <String, String>{
   'card.mine': 'Мой профиль',
   'card.find': 'Найти адвоката',
   'card.place': 'Место',
+  'card.location.mine': 'Моё местоположение',
+  'card.location.failed':
+      'Не удалось определить местоположение. Проверьте, что геолокация включена и разрешена',
   'card.address': 'Адрес',
   'card.map': 'Открыть на карте',
   'card.map.failed': 'Карта не открылась',
@@ -47,6 +50,9 @@ const savedCardsEn = <String, String>{
   'card.mine': 'My profile',
   'card.find': 'Find an attorney',
   'card.place': 'Place',
+  'card.location.mine': 'My location',
+  'card.location.failed':
+      "Couldn't find your location. Check that location is on and allowed",
   'card.address': 'Address',
   'card.map': 'Open in maps',
   'card.map.failed': "Couldn't open maps",
