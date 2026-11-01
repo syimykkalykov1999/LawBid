@@ -280,9 +280,15 @@ class StorageUploader {
       for (final part in current.parts) {
         final start = (part.partNumber.toInt() - 1) * partSize;
         final end = (start + partSize).clamp(0, total);
-        await _putPart(storage, part.url, body, start, end,
-            cancel: cancel,
-            onBytes: (n) => onProgress?.call(((sent + n) / total).clamp(0, 1)));
+        await _putPart(
+          storage,
+          part.url,
+          body,
+          start,
+          end,
+          cancel: cancel,
+          onBytes: (n) => onProgress?.call(((sent + n) / total).clamp(0, 1)),
+        );
         sent += end - start;
         onProgress?.call((sent / total).clamp(0, 1));
       }

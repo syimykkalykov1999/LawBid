@@ -292,7 +292,7 @@ void main() {
         }
         if (o.path == '/files/file-1/multipart/complete') {
           return jsonBody({
-            'data': {'sizeBytes': 20 * mib}
+            'data': {'sizeBytes': 20 * mib},
           });
         }
         return inner(o);
@@ -304,13 +304,21 @@ void main() {
         onProgress: progress.add,
       );
       expect(ok, isTrue);
-      expect(storage.requests.map((r) => r.path),
-          ['https://s3.test/p1', 'https://s3.test/p2', 'https://s3.test/p3']);
-      expect(storage.requests.map((r) => r.headers['content-length']),
-          [8 * mib, 8 * mib, 4 * mib]);
+      expect(storage.requests.map((r) => r.path), [
+        'https://s3.test/p1',
+        'https://s3.test/p2',
+        'https://s3.test/p3',
+      ]);
+      expect(storage.requests.map((r) => r.headers['content-length']), [
+        8 * mib,
+        8 * mib,
+        4 * mib,
+      ]);
       expect(progress.last, 1.0);
-      expect(apiAdapter.requests.map((r) => r.path).last,
-          '/files/file-1/multipart/complete');
+      expect(
+        apiAdapter.requests.map((r) => r.path).last,
+        '/files/file-1/multipart/complete',
+      );
     });
 
     test('a resume sends only the parts storage lacks', () async {
@@ -318,10 +326,12 @@ void main() {
       apiAdapter.handler = (o) async {
         if (o.path == '/files/file-1/multipart') {
           plans++;
-          return jsonBody(plans == 1 ? plan([1, 3], [2]) : plan([1, 2, 3], []));
+          return jsonBody(
+            plans == 1 ? plan([1, 3], [2]) : plan([1, 2, 3], []),
+          );
         }
         return jsonBody({
-          'data': {'sizeBytes': 20 * mib}
+          'data': {'sizeBytes': 20 * mib},
         });
       };
       await resumable().putResumable('file-1', big);
@@ -333,10 +343,12 @@ void main() {
       apiAdapter.handler = (o) async {
         if (o.path == '/files/file-1/multipart') {
           plans++;
-          return jsonBody(plans == 1 ? plan([1, 3], [2]) : plan([1, 2, 3], []));
+          return jsonBody(
+            plans == 1 ? plan([1, 3], [2]) : plan([1, 2, 3], []),
+          );
         }
         return jsonBody({
-          'data': {'sizeBytes': 20 * mib}
+          'data': {'sizeBytes': 20 * mib},
         });
       };
       var calls = 0;
@@ -350,9 +362,12 @@ void main() {
     });
 
     test('flag off or a small file: false, nothing sent to storage', () async {
-      apiAdapter.handler = (o) async => jsonBody({
-            'error': {'code': 'FEATURE_DISABLED', 'message': 'off'},
-          }, 403);
+      apiAdapter.handler = (o) async => jsonBody(
+            {
+              'error': {'code': 'FEATURE_DISABLED', 'message': 'off'},
+            },
+            403,
+          );
       expect(await resumable().putResumable('file-1', big), isFalse);
       expect(
         await resumable()

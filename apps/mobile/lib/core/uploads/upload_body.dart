@@ -60,7 +60,12 @@ final class BytesUploadBody extends UploadBody {
 
   @override
   Stream<List<int>> openRange(int start, int end) => Stream.value(
-      Uint8List.sublistView(bytes, start, end.clamp(0, bytes.length)));
+        Uint8List.sublistView(
+          bytes,
+          start,
+          end.clamp(0, bytes.length),
+        ),
+      );
 }
 
 final class FileUploadBody extends UploadBody {
