@@ -38,7 +38,7 @@ class MyContactsScreen extends ConsumerWidget {
       final sections = <Widget>[
         if (user.isClient) const _ContactPreferencesSection(),
       ];
-      body = RefreshIndicator(
+      body = AppRefreshIndicator(
         color: colors.gold,
         onRefresh: () async {
           ref.invalidate(clientProfileProvider);

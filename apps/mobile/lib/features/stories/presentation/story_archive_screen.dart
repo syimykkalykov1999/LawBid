@@ -88,7 +88,7 @@ class _StoryArchiveScreenState extends ConsumerState<StoryArchiveScreen> {
               );
             }
             final formats = ref.watch(l10nFormatsProvider);
-            return RefreshIndicator(
+            return AppRefreshIndicator(
               onRefresh: () =>
                   ref.read(storyArchiveProvider.notifier).refresh(),
               child: GridView.builder(

@@ -215,7 +215,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   }
 
   /// The player under a pull-to-refresh (white on the dark video).
-  Widget _refreshable(Widget child) => RefreshIndicator(
+  Widget _refreshable(Widget child) => AppRefreshIndicator(
         color: Colors.white,
         backgroundColor: Colors.black54,
         edgeOffset: MediaQuery.paddingOf(context).top + 48,

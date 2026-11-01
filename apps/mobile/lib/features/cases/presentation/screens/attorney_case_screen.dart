@@ -177,7 +177,7 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
         value: value,
         t: t,
         onRetry: () => ref.invalidate(attorneyCaseProvider(widget.caseId)),
-        builder: (c) => RefreshIndicator(
+        builder: (c) => AppRefreshIndicator(
           color: colors.gold,
           backgroundColor: colors.sheet,
           onRefresh: () async {

@@ -239,6 +239,12 @@ class AttorneyPostsNotifier extends PagedNotifier<Post> {
 
   final String attorneyId;
 
+  // Owner 2026-10-28 (Instagram): the grid opens at once on what was shown
+  // last time, no skeleton flash; kept for 5 minutes after the screen
+  // leaves (see PagedNotifier.keepAliveFor), no extra server calls.
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
+
   @override
   Future<CursorPage<Post>> fetch(String? cursor) => ref
       .read(socialRepositoryProvider)
@@ -332,6 +338,12 @@ class UserRepostsNotifier extends PagedNotifier<Post> {
   UserRepostsNotifier(this.userId);
 
   final String userId;
+
+  // Owner 2026-10-28 (Instagram): the grid opens at once on what was shown
+  // last time, no skeleton flash; kept for 5 minutes after the screen
+  // leaves (see PagedNotifier.keepAliveFor), no extra server calls.
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
 
   @override
   Future<CursorPage<Post>> fetch(String? cursor) =>
@@ -540,6 +552,12 @@ final filteredPostsProvider = AsyncNotifierProvider.autoDispose
 );
 
 class SavedPostsNotifier extends PagedNotifier<SavedPost> {
+  // Owner 2026-10-28 (Instagram): the grid opens at once on what was shown
+  // last time, no skeleton flash; kept for 5 minutes after the screen
+  // leaves (see PagedNotifier.keepAliveFor), no extra server calls.
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
+
   @override
   Future<CursorPage<SavedPost>> fetch(String? cursor) =>
       ref.read(socialRepositoryProvider).savedPosts(cursor: cursor);
@@ -935,6 +953,10 @@ class SocialActions {
         } on Object {
           _ref.read(postOverridesProvider.notifier).put(before);
           rethrow;
+        }
+        // A newly saved post joins the kept «Сохранённое» grid.
+        if (saved && _ref.exists(savedPostsProvider)) {
+          unawaited(_ref.read(savedPostsProvider.notifier).refresh());
         }
         // Owner 2026-10-27 (app indexing): iPhone Spotlight finds saved posts.
         spotlightPostSaved(_ref, before, saved: saved);

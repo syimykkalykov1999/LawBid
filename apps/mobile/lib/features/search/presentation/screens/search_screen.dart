@@ -846,7 +846,7 @@ class _BeforeTyping extends ConsumerWidget {
         ],
     };
 
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       color: colors.gold,
       onRefresh: () async {
         // What this screen shows: the explore grids, topics, suggested

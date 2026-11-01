@@ -77,7 +77,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             onRetry: retry,
           );
         },
-        data: (items) => RefreshIndicator(
+        data: (items) => AppRefreshIndicator(
           color: colors.gold,
           onRefresh: retry,
           child: _AccountBody(
