@@ -17,6 +17,29 @@ import {
 
 const NOW = new Date('2026-10-27T04:00:00Z'); // the run covers 2026-10-26
 const Y = new Date('2026-10-26T12:00:00Z');
+
+// The client/budget path reads the real clock while runNightly(NOW) uses NOW:
+// on a month change the two Redis keys differ (red on 2026-11-01). Pin Date only.
+beforeAll(() => {
+  jest.useFakeTimers({
+    now: NOW,
+    doNotFake: [
+      'nextTick',
+      'setImmediate',
+      'clearImmediate',
+      'setTimeout',
+      'clearTimeout',
+      'setInterval',
+      'clearInterval',
+      'queueMicrotask',
+      'performance',
+      'hrtime',
+    ],
+  });
+});
+afterAll(() => {
+  jest.useRealTimers();
+});
 const A = '00000000-0000-4000-8000-00000000000a';
 const B = '00000000-0000-4000-8000-00000000000b';
 const C = '00000000-0000-4000-8000-00000000000c';

@@ -3,7 +3,8 @@ import { CATCH_UP_MAX, GroupsService } from './groups.service';
 /** Owner 2026-10-22 (client economy plan, package B): group list deltas,
  * `afterId` catch-up, the card inside `group:update`. */
 describe('GroupsService deltas', () => {
-  const since = new Date('2026-10-22T10:00:00Z');
+  // Relative to now: a fixed date ages past the 7-day sync window and turns main red.
+  const since = new Date(Date.now() - 60 * 60_000);
   const t = (m: number) => new Date(since.getTime() + m * 60_000);
   const group = (id: string, over: Record<string, unknown> = {}) => ({
     id,
