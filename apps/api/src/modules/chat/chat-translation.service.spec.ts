@@ -10,6 +10,7 @@ import {
   TranslationService,
 } from '../translation/translation.service';
 import { ChatTranslationService } from './chat-translation.service';
+import { withEvalIncr } from '../../redis/incr-with-ttl.test-support';
 
 const user = { sub: 'u1', role: 'client' } as unknown as RequestUser;
 
@@ -20,7 +21,7 @@ function setup(opts: {
   config?: Record<string, unknown>;
 }) {
   const store = new Map<string, string>();
-  const redis = {
+  const redis = withEvalIncr({
     get: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
     set: jest.fn((k: string, v: string) => {
       store.set(k, v);
@@ -32,7 +33,7 @@ function setup(opts: {
       return Promise.resolve(n);
     }),
     expire: jest.fn(() => Promise.resolve(1)),
-  };
+  });
   const prisma = {
     message: {
       findFirst: jest

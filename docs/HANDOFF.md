@@ -63,6 +63,8 @@ Another Claude account may pick this up. Read ALL of this before doing anything.
 - RDS Multi-AZ is pending for the Sunday window.
 - The first AWS Backup job was started manually on 2026-10-24.
 
+- **Checklist reconciliation (2026-11-01):** every «Частично»/«Нет» item re-verified against main, with owner steps and open items: `docs/perf/SYSTEMS_CHECKLIST_2026-11-01.md`. SECURITY.md + security.txt added.
+
 ## 4. Queue — do ALL, in order (the owner wants everything, nothing skipped)
 1. **Batch C** (P0_AND_COST_PLAN): SES and Stripe circuit breakers; a separate allkeys-lru cache Redis; Cache-Control on anonymous public GETs (careful: no personalized data through the CDN) and hot search cache 30-60 s; Cloudflare TURN usage via GraphQL `callsTurnUsageAdaptiveGroups`, alert at 700/1000 GB; Bunny `/statistics` polling and alerts.
 2. **Batch D (after B):** the Flutter WEB Turnstile widget (web only), the honest wording fixes, and the admin «Масштаб» page: all ceilings, buttons, and alarm cards "what happened / what was done automatically / button", in the existing admin style.

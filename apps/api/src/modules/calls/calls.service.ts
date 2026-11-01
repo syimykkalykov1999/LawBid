@@ -94,6 +94,7 @@ import {
   videoCallAvailability,
   type VideoCallProvider,
 } from './video-call-provider';
+import { incrWithTtl } from '../../redis/incr-with-ttl';
 
 /** Unanswered after this → missed (the phones ring CALL_RING_SECONDS, like
  * WhatsApp; common/calls/ring.ts). Re-exported for the existing imports. */
@@ -261,8 +262,7 @@ export class CallsService {
     if (this.redis && this.redis.status === 'ready') {
       try {
         const key = `call:seq:${callId}`;
-        seq = await this.redis.incr(key);
-        if (seq === 1) await this.redis.expire(key, 86_400);
+        seq = await incrWithTtl(this.redis, key, 86_400);
       } catch {
         seq = 0;
       }

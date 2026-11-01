@@ -11,7 +11,7 @@ FULL=0; [ "${1:-}" = "--full" ] && FULL=1
 cd "$(git rev-parse --show-toplevel)"
 BASE="${PRECHECK_BASE:-origin/main}"
 git rev-parse --verify -q "$BASE" >/dev/null || { echo "precheck: $BASE not found (git fetch origin main)"; exit 0; }
-CH=$(git diff --name-only "$BASE"...HEAD)
+CH=$(git diff --name-only --diff-filter=d "$BASE"...HEAD)
 [ -z "$CH" ] && { echo "precheck: no changes against $BASE"; exit 0; }
 FAIL=0
 bad() { echo "✖ $*"; FAIL=1; }

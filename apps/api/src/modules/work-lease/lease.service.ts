@@ -27,6 +27,7 @@ import {
   type PresenceReading,
 } from './staff-presence.service';
 import { StaffEventsPublisher } from './staff-events.publisher';
+import { incrWithTtl } from '../../redis/incr-with-ttl';
 
 const log = new Logger('WorkLease');
 
@@ -540,8 +541,7 @@ export class LeaseService implements LeasePort {
       exclude: true,
     });
     if (ok) {
-      const n = await this.redis.incr(skipsKey(adminId));
-      if (n === 1) await this.redis.expire(skipsKey(adminId), 3600);
+      await incrWithTtl(this.redis, skipsKey(adminId), 3600);
     }
     return { ok, limited: false };
   }
