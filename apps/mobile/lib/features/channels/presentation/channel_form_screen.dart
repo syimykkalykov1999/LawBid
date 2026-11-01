@@ -323,6 +323,7 @@ class _FormState extends ConsumerState<_Form> {
                                     _avatarBytes!,
                                     width: 64,
                                     height: 64,
+                                    cacheWidth: 192,
                                     fit: BoxFit.cover,
                                   ),
                                 )

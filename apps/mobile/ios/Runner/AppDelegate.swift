@@ -391,6 +391,9 @@ import flutter_callkit_incoming
     // the push instead of leaving iOS waiting (only if even the stand-in
     // engine could not start).
     guard let callkit = callkitPlugin() else {
+      // No plugin = no provider to report to; the project allows exactly
+      // one CallKit provider (callkit_single_subscription_test), so a
+      // second one is not created here.
       completion()
       return
     }
@@ -410,7 +413,10 @@ import flutter_callkit_incoming
       (item["id"] as? String)?.caseInsensitiveCompare(callId) == .orderedSame
     }
     if shown {
-      completion()
+      // M1 (calls audit): iOS counts every VoIP push that is not reported
+      // and, after a few, stops delivering them. This push has nothing new
+      // to ring, so report a throw-away call and end it at once.
+      reportThrowaway(callkit, completion: completion)
       return
     }
     let name = (p["callerName"] as? String) ?? "LawBid"
@@ -428,7 +434,7 @@ import flutter_callkit_incoming
       type: video ? 1 : 0
     )
     data.appName = "LawBid"
-    data.duration = 45000
+    data.duration = 60000
     // Owner 2026-10-26: the caller's photo (CallKit itself shows only the
     // name; the app's call screen takes the photo from here).
     let avatar = (p["avatarUrl"] as? String) ?? ""
@@ -477,17 +483,32 @@ import flutter_callkit_incoming
     if let uuid = uuid, let ringing = live.first(where: { $0.uuid == uuid }) {
       if !ringing.hasConnected && !ringing.isOutgoing {
         callController.request(CXTransaction(action: CXEndCallAction(call: uuid))) { _ in }
+        // M1: ending is not a report; this push still needs one.
+        reportThrowaway(callkit, completion: completion)
+      } else {
+        // The call is answered / ours: this push still needs a report (M1).
+        reportThrowaway(callkit, completion: completion)
       }
-      completion()
       return
     }
     // Another call is on (answered here): leave it alone — the app holds a
     // call, nothing new is shown over it.
     if !live.isEmpty || uuid == nil {
-      completion()
+      // M1: still has to be reported to iOS (see above).
+      reportThrowaway(callkit, completion: completion)
       return
     }
     reportThenEnd(callkit, callId: callId, name: "LawBid", completion: completion)
+  }
+
+  /// M1: a VoIP push with nothing to ring still has to be reported to iOS
+  /// (an error from CallKit, e.g. a second call refused, still counts as
+  /// the report). A random id: Dart's server decline for it just gets 404.
+  private func reportThrowaway(
+    _ callkit: SwiftFlutterCallkitIncomingPlugin,
+    completion: @escaping () -> Void
+  ) {
+    reportThenEnd(callkit, callId: UUID().uuidString, name: "LawBid", completion: completion)
   }
 
   /// Report a call (silent) and end it straight away — what iOS accepts

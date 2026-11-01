@@ -28,7 +28,12 @@ class ChatVideoTile extends StatefulWidget {
     super.key,
     this.fill = false,
     this.box,
+    this.onCancel,
   });
+
+  /// While sending: tapping the progress ring stops the upload and drops
+  /// the message (Telegram / WhatsApp). Null: the ring is not tappable.
+  final VoidCallback? onCancel;
 
   /// A square cell of the media grid: fills its box, small play badge,
   /// no rounded corners of its own.
@@ -172,12 +177,27 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
                                 shape: BoxShape.circle,
                               ),
                               alignment: Alignment.center,
-                              child: SizedBox.square(
-                                dimension: 28,
-                                child: CircularProgressIndicator(
-                                  value: pct,
-                                  strokeWidth: 3,
-                                  color: Colors.white,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: widget.onCancel,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    SizedBox.square(
+                                      dimension: 28,
+                                      child: CircularProgressIndicator(
+                                        value: pct,
+                                        strokeWidth: 3,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    if (widget.onCancel != null)
+                                      const AppIcon(
+                                        AppIcons.closeRounded,
+                                        size: 14,
+                                        color: Colors.white,
+                                      ),
+                                  ],
                                 ),
                               ),
                             )

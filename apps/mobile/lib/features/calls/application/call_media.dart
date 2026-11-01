@@ -414,11 +414,32 @@ class WebRtcCallMedia implements CallMedia {
     if (_links.length < 2) return;
     _levelTimer ??= Timer.periodic(
       const Duration(milliseconds: 500),
-      (_) => unawaited(_pollLevels()),
+      (_) {
+        // getStats() on every link is heavy: with 4+ links poll every
+        // 1 s (6+: 1.5 s), and never start a poll before the last ended.
+        _levelTick++;
+        final every = _links.length >= 6 ? 3 : (_links.length >= 4 ? 2 : 1);
+        if (_levelPolling || _levelTick % every != 0) return;
+        unawaited(_pollLevels());
+      },
     );
   }
 
+  int _levelTick = 0;
+  bool _levelPolling = false;
+
   Future<void> _pollLevels() async {
+    _levelPolling = true;
+    try {
+      await _pollLevelsOnce().timeout(const Duration(seconds: 3));
+    } on TimeoutException {
+      // A stuck getStats(): the next tick tries again.
+    } finally {
+      _levelPolling = false;
+    }
+  }
+
+  Future<void> _pollLevelsOnce() async {
     final now = <String>{};
     var self = 0.0;
     for (final link in _links.values.toList()) {

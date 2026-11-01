@@ -1,6 +1,7 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart'
+    show ErrorDescription, FlutterError, FlutterErrorDetails, debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/refresh_coordinator.dart';
@@ -207,7 +208,18 @@ class SessionController extends _$SessionController {
         // Keep it: the next cold start / exit attempt can still succeed.
         try {
           await store.writeRealRefreshToken(real);
-        } catch (_) {}
+        } catch (e, st) {
+          // The real session token could not be put back: the owner would
+          // be logged out silently, so it goes to the crash sink.
+          FlutterError.reportError(
+            FlutterErrorDetails(
+              exception: e,
+              stack: st,
+              library: 'session',
+              context: ErrorDescription('restoring the real refresh token'),
+            ),
+          );
+        }
       }
       return false;
     } catch (_) {

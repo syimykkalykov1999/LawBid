@@ -1,4 +1,5 @@
 // ignore_for_file: lines_longer_than_80_chars
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -13,6 +14,7 @@ import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/text/byte_size.dart';
+import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
@@ -274,6 +276,14 @@ class AttachmentMessageBody extends ConsumerWidget {
     final chat = ChatColors.of(context);
     final fg = mine ? chat.onMine : chat.onTheirs;
     final pct = a.progress > 0 && a.progress < 1 ? a.progress : null;
+    // Tap the ring while it uploads: the send stops and the message goes.
+    final cancel = sending && mine
+        ? () => unawaited(
+              ref
+                  .read(chatThreadProvider(message.conversationId).notifier)
+                  .discard(message),
+            )
+        : null;
 
     final Widget content;
     var captionWidth = 240.0;
@@ -285,6 +295,7 @@ class AttachmentMessageBody extends ConsumerWidget {
         sending: sending,
         playLabel: t.t('chat.attach.videoPlay'),
         box: box,
+        onCancel: cancel,
       );
       captionWidth = box.width;
     } else if (a.isImage) {
@@ -314,12 +325,26 @@ class AttachmentMessageBody extends ConsumerWidget {
                     ColoredBox(
                       color: Colors.black26,
                       child: Center(
-                        child: SizedBox.square(
-                          dimension: 32,
-                          child: CircularProgressIndicator(
-                            value: pct,
-                            strokeWidth: 3,
-                            color: Colors.white,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: cancel,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              SizedBox.square(
+                                dimension: 32,
+                                child: CircularProgressIndicator(
+                                  value: pct,
+                                  strokeWidth: 3,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const AppIcon(
+                                AppIcons.closeRounded,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                            ],
                           ),
                         ),
                       ),
