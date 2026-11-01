@@ -130,6 +130,9 @@ class ReelVideo extends StatefulWidget {
 
 class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
   VideoPlayerController? _c;
+
+  /// The MP4 of a short clip did not start: the HLS playlist is used.
+  bool _hlsOnly = false;
   late final PlayedViewGate _viewGate =
       PlayedViewGate(() => widget.onViewed?.call());
   bool _ready = false;
@@ -271,7 +274,10 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     // re-opens the player (that restart was heard), and every player uses
     // the same audio mode, so the phone's audio session is set once and
     // never switched while another reel plays — only the volume changes.
-    if (widget.video.playbackUrl != old.video.playbackUrl) _close();
+    if (widget.video.playbackUrl != old.video.playbackUrl) {
+      _hlsOnly = false;
+      _close();
+    }
     // The player was opened mixing (it was muted) and the audio mode of a
     // running player cannot change: a voice note playing underneath must be
     // paused by hand, or the reel plays over it without taking the focus.
@@ -294,13 +300,14 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
 
   /// There is a stream to play.
   bool get _playable =>
-      widget.video.ready && widget.video.playerUrl(web: kIsWeb) != null;
+      widget.video.ready &&
+      widget.video.playerUrl(web: kIsWeb, hlsOnly: _hlsOnly) != null;
 
   @override
   void didChangePlaybackVisibility({required bool visible}) => _apply();
 
   Future<void> _open() async {
-    final url = widget.video.playerUrl(web: kIsWeb);
+    final url = widget.video.playerUrl(web: kIsWeb, hlsOnly: _hlsOnly);
     if (url == null) return;
     // One audio mode for every reel (see didUpdateWidget): with sound a
     // reel takes the audio focus, like Instagram. A silent one (a feed
@@ -310,7 +317,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     final c = debugReelPlayerFactory?.call(Uri.parse(url), options) ??
         VideoPlayerController.networkUrl(
           Uri.parse(VideoCache.resolve(url)),
-          formatHint: widget.video.usesMp4(web: kIsWeb)
+          formatHint: widget.video.usesMp4(web: kIsWeb, hlsOnly: _hlsOnly)
               ? VideoFormat.other
               : VideoFormat.hls,
           videoPlayerOptions: options,
@@ -342,7 +349,16 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
       setState(() => _ready = true);
       _apply();
     } on Object {
-      if (mounted && _c == c) setState(() => _failed = true);
+      if (!mounted || _c != c) return;
+      // The MP4 of a short clip would not start (the library may lack the
+      // copy): once, the HLS playlist instead of a dead reel.
+      if (!_hlsOnly && widget.video.usesMp4(web: kIsWeb)) {
+        _hlsOnly = true;
+        _close();
+        unawaited(_open());
+        return;
+      }
+      setState(() => _failed = true);
     }
   }
 
@@ -382,7 +398,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     final looped = pos + const Duration(milliseconds: 500) < _lastPos;
     _lastPos = pos;
     if (c.value.isPlaying) {
-      final url = widget.video.playerUrl(web: kIsWeb);
+      final url = widget.video.playerUrl(web: kIsWeb, hlsOnly: _hlsOnly);
       if (url != null) _lastSpot[url] = (at: pos, when: DateTime.now());
     }
     if (looped && _endFaded) {
