@@ -8,6 +8,7 @@ import type { PresenceService } from '../presence/presence.service';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { RealtimeGateway } from './realtime.gateway';
+import { withEvalIncr } from '../../redis/incr-with-ttl.test-support';
 
 /** Owner 2026-10-25: per-user socket cap and per-address connect rate. */
 function fakeSocket(id: string, ip = '5.5.5.5') {
@@ -25,14 +26,14 @@ function fakeSocket(id: string, ip = '5.5.5.5') {
 
 function setup(limits: { perUser: number; perIp: number }) {
   const counts = new Map<string, number>();
-  const redis = {
+  const redis = withEvalIncr({
     srem: jest.fn(),
     incr: jest.fn((k: string) => {
       counts.set(k, (counts.get(k) ?? 0) + 1);
       return Promise.resolve(counts.get(k));
     }),
     expire: jest.fn().mockResolvedValue(1),
-  };
+  });
   const log = { setContext: jest.fn(), info: jest.fn(), warn: jest.fn() };
   const settings = {
     number: jest.fn((key: string) =>
@@ -66,6 +67,7 @@ function setup(limits: { perUser: number; perIp: number }) {
     { resolve: jest.fn() } as unknown as AssistantContextService,
     {
       touch: jest.fn().mockResolvedValue(false),
+      refresh: jest.fn().mockResolvedValue(undefined),
       leave: jest.fn().mockResolvedValue(false),
       visible: jest.fn().mockResolvedValue(false),
     } as unknown as PresenceService,

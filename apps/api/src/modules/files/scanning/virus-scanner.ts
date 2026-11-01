@@ -69,7 +69,23 @@ export class ClamdScanner implements VirusScanner {
       socket.setTimeout(this.timeoutMs, () =>
         done(() => reject(new Error('clamd timeout'))),
       );
-      socket.on('error', (err) => done(() => reject(err)));
+      socket.on('error', (err) =>
+        done(() => {
+          // clamd answers "size limit exceeded" and hangs up while we are
+          // still writing: the write fails (EPIPE/ECONNRESET) but its reply
+          // is already here — report that, not the transport error.
+          if (replies.length > 0) {
+            try {
+              resolve(parseClamdReply(Buffer.concat(replies).toString('utf8')));
+              return;
+            } catch (parsed) {
+              reject(parsed instanceof Error ? parsed : err);
+              return;
+            }
+          }
+          reject(err);
+        }),
+      );
       socket.on('data', (chunk: Buffer) => replies.push(chunk));
       socket.on('end', () =>
         done(() => {
@@ -95,11 +111,18 @@ export class ClamdScanner implements VirusScanner {
   }
 }
 
+/** clamd refused the stream as over its StreamMaxLength: permanent, a retry
+ * can only give the same answer (audit B-2, 2026-11-01). */
+export class ClamdTooLargeError extends Error {}
+
 export function parseClamdReply(raw: string): ScanVerdict {
   const reply = raw.replace(/\0/g, '').trim();
   if (/^stream: OK$/.test(reply)) return { infected: false };
   const found = /^stream: (.+) FOUND$/.exec(reply);
   if (found) return { infected: true, signature: found[1] };
+  if (/size limit exceeded/i.test(reply)) {
+    throw new ClamdTooLargeError(`clamd error: ${reply.slice(0, 200)}`);
+  }
   throw new Error(`clamd error: ${reply.slice(0, 200)}`);
 }
 
