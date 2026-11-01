@@ -2752,6 +2752,8 @@ enum SavedChatKind {
 
 model Conversation {
   id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Counter behind messages.seq (trigger messages_assign_seq_trg).
+  last_seq          Int                  @default(0)
   // Nullable since 2026-09-28 (migration applied, then the owner kept
   // chats case-only per docs/04 §9 — no code writes NULL today; partial UQ
   // (attorney_id, client_id) WHERE case_id IS NULL is raw SQL).
@@ -3038,8 +3040,13 @@ model Message {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
+  /// Per-chat message number 1, 2, 3, ... (trigger messages_assign_seq_trg,
+  /// counter conversations.last_seq; raw SQL, see migration 20261109090000).
+  seq Int?
+
   @@id([id, conversation_id])
   @@unique([conversation_id, sender_id, client_message_id])
+  @@unique([conversation_id, seq])
   @@index([file_id])
   @@index([sticker_id])
   @@index([gift_send_id])
