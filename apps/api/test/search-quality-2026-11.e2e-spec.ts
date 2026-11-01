@@ -200,6 +200,8 @@ describe('Search quality audit 2026-11-01 (e2e)', () => {
   it('Chinese and Japanese are found inside a sentence without spaces', async () => {
     expect(await titles('移民')).toEqual(['我们提供移民咨询服务']);
     expect(await titles('咨询')).toEqual(['我们提供移民咨询服务']);
+    // 3+ characters take the trigram index (posts_text_trgm_idx).
+    expect(await titles('移民咨询')).toEqual(['我们提供移民咨询服务']);
     expect(await titles('离婚')).toEqual([]);
     expect(await titles('手続き')).toEqual(['離婚の手続き']);
   });

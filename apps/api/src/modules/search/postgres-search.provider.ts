@@ -52,6 +52,10 @@ const CASE_CANDIDATES = 1500;
 const SEARCH_BUDGET_MS = 700;
 /** Hashtags ranked per type-ahead call (by name first, then by use). */
 const TAG_CANDIDATES = 300;
+/** Posts text the CJK substring search runs on (= posts_text_trgm_idx). */
+const POST_TEXT_SQL = "(coalesce(p.title, '') || ' ' || p.body)";
+/** A one/two-letter CJK query looks only through this many newest posts. */
+const CJK_SHORT_WINDOW = 100_000;
 /** A typed word shorter than this names a topic only as a whole word. */
 const SHORT_TOPIC_WORD = 4;
 /** More topics than this named by one word: it is a generic word ("law"),
@@ -627,8 +631,16 @@ export class PostgresSearchProvider implements SearchProvider {
     // Audit 2026-11-01: CJK has no spaces — "移民" is inside the sentence.
     if (hasCjk(q)) {
       const like = `%${escapeLike(parsed.plain)}%`;
+      // Trigram index (posts_text_trgm_idx) from 3 characters; a shorter
+      // query scans only the newest posts so it stays inside the budget.
+      const recent =
+        [...parsed.plain].length < 3
+          ? Prisma.sql`AND p.created_at >= COALESCE((SELECT min(r.created_at)
+              FROM (SELECT created_at FROM posts ORDER BY created_at DESC
+                    LIMIT ${CJK_SHORT_WINDOW}) r), '-infinity')`
+          : Prisma.empty;
       const inside = await this.budget(SEARCH_BUDGET_MS, () =>
-        run(Prisma.sql`(p.title ILIKE ${like} OR p.body ILIKE ${like})`),
+        run(Prisma.sql`${Prisma.raw(POST_TEXT_SQL)} ILIKE ${like} ${recent}`),
       );
       if (inside.length > 0) return inside.map((r) => r.id);
     }
