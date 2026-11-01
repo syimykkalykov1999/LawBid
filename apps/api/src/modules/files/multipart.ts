@@ -35,7 +35,10 @@ export interface UploadedPart {
 }
 
 /** Part numbers (1-based) the app still has to send. */
-export function missingParts(plan: PartPlan, uploaded: UploadedPart[]): number[] {
+export function missingParts(
+  plan: PartPlan,
+  uploaded: UploadedPart[],
+): number[] {
   const done = new Set(uploaded.map((p) => p.partNumber));
   const out: number[] = [];
   for (let n = 1; n <= plan.partCount; n += 1) if (!done.has(n)) out.push(n);

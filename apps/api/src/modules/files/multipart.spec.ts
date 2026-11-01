@@ -52,8 +52,6 @@ describe('multipart plan', () => {
     expect(
       partsComplete(plan, size, [ok[0], ok[1], { ...ok[2], size: 5 * MIB }]),
     ).toBe(false);
-    expect(
-      partsComplete(plan, size, [ok[1], ok[0], ok[2]]),
-    ).toBe(false);
+    expect(partsComplete(plan, size, [ok[1], ok[0], ok[2]])).toBe(false);
   });
 });

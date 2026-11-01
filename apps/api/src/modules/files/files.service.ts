@@ -369,7 +369,7 @@ export class FilesService {
         url: await this.storage.presignPart({
           bucket: intent.bucket,
           key: intent.key,
-          uploadId: uploadId as string,
+          uploadId: uploadId,
           partNumber,
           expiresSec: PART_URL_TTL_SEC,
         }),

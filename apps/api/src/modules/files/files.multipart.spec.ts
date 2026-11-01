@@ -5,7 +5,9 @@ import { MIB } from './multipart';
 
 const SIZE = 20 * MIB; // 3 parts: 8 + 8 + 4 MiB
 
-function make(opts: { flag?: boolean; uploaded?: number[]; size?: number } = {}) {
+function make(
+  opts: { flag?: boolean; uploaded?: number[]; size?: number } = {},
+) {
   const store = new Map<string, string>();
   const size = opts.size ?? SIZE;
   store.set(
@@ -130,7 +132,8 @@ describe('FilesService resumable (multipart) uploads', () => {
     let reads = 0;
     const real = redis.get.getMockImplementation()!;
     redis.get.mockImplementation((k: string) => {
-      if (k === multipartKey('f1') && reads++ === 0) return Promise.resolve(null);
+      if (k === multipartKey('f1') && reads++ === 0)
+        return Promise.resolve(null);
       return real(k);
     });
     store.set(multipartKey('f1'), 'WINNER');
