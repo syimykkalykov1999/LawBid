@@ -7,7 +7,6 @@
  */
 export function installProcessGuards(): void {
   process.on('unhandledRejection', (reason) => {
-    // eslint-disable-next-line no-console
     console.error(
       JSON.stringify({
         level: 50,
