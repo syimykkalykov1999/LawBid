@@ -1275,14 +1275,23 @@ export class AuthService {
     user: RequestUser,
     meta?: RequestMeta,
   ): Promise<{ reauthToken: string }> {
+    // Validation requires both for `otp`; the password path never gets here.
+    const identifier = dto.identifier ?? '';
+    const code = dto.code ?? '';
+    if (!identifier || !code) {
+      throw new UnauthorizedException({
+        code: ErrorCode.REAUTH_INVALID,
+        message: 'identifier and code are required.',
+      });
+    }
     const account = await this.prisma.user.findUniqueOrThrow({
       where: withDeleted({ id: user.sub }),
     });
     const channel: 'phone' | 'email' | null =
-      account.phone_verified_at && account.phone_e164 === dto.identifier
+      account.phone_verified_at && account.phone_e164 === identifier
         ? 'phone'
         : account.email_verified_at &&
-            account.email?.toLowerCase() === dto.identifier.toLowerCase()
+            account.email?.toLowerCase() === identifier.toLowerCase()
           ? 'email'
           : null;
 
@@ -1294,7 +1303,7 @@ export class AuthService {
         userId: user.sub,
         eventType: AUTH_EVENT_TYPES.REAUTH_FAILED,
         success: false,
-        identifier: dto.identifier,
+        identifier,
       });
       throw new UnauthorizedException({
         code: ErrorCode.REAUTH_INVALID,
@@ -1307,8 +1316,8 @@ export class AuthService {
     // accepted while `security.otp_legacy_purpose_fallback` is on.
     const result = await this.verifyScopedCode(
       channel,
-      dto.identifier,
-      dto.code,
+      identifier,
+      code,
       'reauth',
       user.sid,
       meta?.ip,
@@ -1318,7 +1327,7 @@ export class AuthService {
         userId: user.sub,
         eventType: AUTH_EVENT_TYPES.REAUTH_FAILED,
         success: false,
-        identifier: dto.identifier,
+        identifier,
         meta: { reason: result },
       });
       throw new UnauthorizedException({
@@ -1335,7 +1344,7 @@ export class AuthService {
       userId: user.sub,
       eventType: AUTH_EVENT_TYPES.REAUTH_SUCCESS,
       success: true,
-      identifier: dto.identifier,
+      identifier,
     });
     return { reauthToken };
   }

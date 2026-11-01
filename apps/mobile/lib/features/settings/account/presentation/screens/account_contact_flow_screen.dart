@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/auth/presentation/screens/email_screen.dart';
+import 'package:lawbid/features/auth/presentation/widgets/password_step_up.dart';
 import 'package:lawbid/features/auth/presentation/widgets/us_phone_input.dart';
 import 'package:lawbid/features/onboarding/application/contact_verification_controller.dart';
 import 'package:lawbid/features/onboarding/application/countries_providers.dart';
@@ -72,10 +73,18 @@ class _AccountContactFlowScreenState
   ContactVerificationState _watch() =>
       ref.watch(contactVerificationProvider(widget.type));
 
-  Future<void> _sendCode(String value) =>
-      ref.read(contactVerificationProvider(widget.type).notifier).sendCode(
-            value,
-          );
+  // Owner 2026-10-28: «it's me» with the account password, not an SMS.
+  Future<void> _sendCode(String value) => ref
+      .read(contactVerificationProvider(widget.type).notifier)
+      .sendCode(value, passwordFirst: true);
+
+  Future<void> _confirmWithToken(String token) => ref
+      .read(contactVerificationProvider(widget.type).notifier)
+      .confirmWithToken(token);
+
+  Future<void> _useSmsCode() => ref
+      .read(contactVerificationProvider(widget.type).notifier)
+      .useSmsCode();
 
   Future<void> _submitCode(ContactVerificationState state, String code) {
     final notifier =
@@ -243,6 +252,50 @@ class _AccountContactFlowScreenState
             label: t.t('account.flow.sendCode'),
             isLoading: state.busy,
             onPressed: () => _send(t),
+          ),
+        );
+      case ContactVerificationStage.confirmIdentity when state.passwordIdentity:
+        // Owner 2026-10-28: the account password instead of an SMS code.
+        return _StageLayout(
+          content: [
+            const AppIconMedallion(
+              icon: AppIcons.verifiedUserOutlined,
+              size: AppSizes.stateMedallion,
+              iconSize: AppSizes.stateIcon,
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            Semantics(
+              header: true,
+              child: Text(
+                t.t('account.flow.identity.title'),
+                style: typography.titleLarge.copyWith(color: colors.text),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              t.t('stepUp.password.body'),
+              style: typography.body.copyWith(color: colors.textSecondary),
+            ),
+            if (error != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                error,
+                style: typography.bodySmall.copyWith(color: colors.dangerText),
+              ),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+            PasswordStepUp(
+              key: ValueKey('password-${state.attempt}'),
+              onToken: _confirmWithToken,
+              onUseCode: _useSmsCode,
+            ),
+          ],
+          action: AppButton(
+            label: t.t('account.flow.editValue'),
+            variant: AppButtonVariant.secondary,
+            height: AppSizes.touchTarget,
+            isEnabled: !state.busy,
+            onPressed: state.busy ? null : _edit,
           ),
         );
       case ContactVerificationStage.confirmIdentity:

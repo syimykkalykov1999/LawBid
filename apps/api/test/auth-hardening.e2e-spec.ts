@@ -646,6 +646,81 @@ describe('Auth hardening (e2e)', () => {
       }
     });
 
+    it('owner 2026-10-28: step-up with the account password (no SMS)', async () => {
+      const phone = '+12025558704';
+      const tokens = await otpLogin('phone', phone, 'reauth-pwd-dev');
+      const bearer = { Authorization: `Bearer ${tokens.accessToken}` };
+      // No password yet: the app is told to use the code instead.
+      const none = await api()
+        .post('/api/v1/auth/reauth')
+        .set(bearer)
+        .set('X-Forwarded-For', ipOf(80))
+        .send({ method: 'password', password: 'whatever-1' });
+      expect(none.status).toBe(401);
+      expect(none.body.error.code).toBe('REAUTH_INVALID');
+      expect(none.body.error.details.reason).toBe('no_password');
+      // Fresh sign-in: the password can be set without a code.
+      await api()
+        .post('/api/v1/auth/password')
+        .set(bearer)
+        .send({ password: 'Lawbid-e2e-Step-up-77' })
+        .expect(200);
+      // A wrong password.
+      const wrong = await api()
+        .post('/api/v1/auth/reauth')
+        .set(bearer)
+        .set('X-Forwarded-For', ipOf(80))
+        .send({ method: 'password', password: 'not-my-password' });
+      expect(wrong.status).toBe(401);
+      expect(wrong.body.error.code).toBe('REAUTH_INVALID');
+      expect(wrong.body.error.details.reason).toBe('wrong_password');
+      // The right one: the usual single-use token of this session.
+      const ok = await api()
+        .post('/api/v1/auth/reauth')
+        .set(bearer)
+        .set('X-Forwarded-For', ipOf(80))
+        .send({ method: 'password', password: 'Lawbid-e2e-Step-up-77' })
+        .expect(201);
+      const reauthToken = ok.body.data.reauthToken as string;
+      expect(reauthToken).toEqual(expect.any(String));
+      const claims = JSON.parse(
+        Buffer.from(reauthToken.split('.')[1], 'base64url').toString(),
+      ) as { sub: string; sid: string };
+      expect(claims.sid).toEqual(expect.any(String));
+      // The code path still works with the old body shape (older apps)...
+      const old = await api()
+        .post('/api/v1/auth/reauth')
+        .set(bearer)
+        .send({ method: 'otp', identifier: phone });
+      expect(old.status).toBe(400);
+      // ...and a password body without a password is refused.
+      const empty = await api()
+        .post('/api/v1/auth/reauth')
+        .set(bearer)
+        .send({ method: 'password' });
+      expect(empty.status).toBe(400);
+      // Five wrong passwords lock the step-up, even for the right one.
+      for (let i = 0; i < 5; i += 1) {
+        await api()
+          .post('/api/v1/auth/reauth')
+          .set(bearer)
+          .set('X-Forwarded-For', ipOf(81))
+          .send({ method: 'password', password: `wrong-${i}` });
+      }
+      const locked = await api()
+        .post('/api/v1/auth/reauth')
+        .set(bearer)
+        .set('X-Forwarded-For', ipOf(81))
+        .send({ method: 'password', password: 'Lawbid-e2e-Step-up-77' });
+      expect(locked.status).toBe(429);
+      expect(locked.body.error.code).toBe('RATE_LIMITED');
+      expect(locked.body.error.details.reason).toBe('locked');
+      const events = await prisma.authEvent.count({
+        where: { event_type: 'reauth_failed' },
+      });
+      expect(events).toBeGreaterThan(0);
+    });
+
     it('S14-10: the session list says where from (masked address, country, browser)', async () => {
       const phone = '+12025558703';
       await api()
