@@ -309,143 +309,205 @@ export class BidsService {
 
     try {
       const eventTickets: Array<DomainEventTicket | null | undefined> = [];
-      const bid = await withTxRetry(this.prisma, async (tx) => {
-        eventTickets.length = 0;
-        const kase = await tx.case.findUnique({
-          where: { id: caseId },
-          select: { client_id: true, status: true, deleted_at: true },
-        });
-        if (!kase || kase.deleted_at) throw notFoundCase();
-        if (kase.status !== 'open') {
-          throw new ConflictException({
-            code: ErrorCode.CASE_INVALID_STATE,
-            message: 'This case is no longer accepting bids.',
-            details: { status: kase.status },
-          });
-        }
-        const now = new Date();
-        const fresh = {
-          status: 'active',
-          fee_type: dto.feeType,
-          amount_cents: amountCents,
-          percent_bps: percentBps,
-          message: dto.message,
-          payment_terms: paymentTerms ?? Prisma.JsonNull,
-          start_availability: dto.startAvailability,
-          start_date: dto.startDate ? new Date(dto.startDate) : null,
-          estimated_duration_days: dto.estimatedDurationDays ?? null,
-          round_count: 0,
-          turn: 'client',
-          outside_practice: outsidePractice,
-          outside_licensed_states: outsideLicensedStates,
-        } satisfies Prisma.BidUncheckedUpdateInput;
-        const previous = await tx.bid.findUnique({
-          where: {
-            case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
-          },
-          select: { id: true, status: true },
-        });
-        let created: Bid;
-        if (previous) {
-          if (!(await reusableBid(tx, caseId, user.sub, previous))) {
-            throw bidAlreadyExists();
+      const bid = await withTxRetry(
+        this.prisma,
+        async (tx) => {
+          eventTickets.length = 0;
+          // Audit A-2: the plan limits above are read outside this transaction,
+          // so parallel requests of one attorney all pass them. Serialise the
+          // attorney's bids on an advisory lock and re-check the two counters
+          // that can be raced (open offers, offers this month).
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`bid-limits:${user.sub}`}, 0))`;
+          if (maxActive && maxActive > 0) {
+            const open = await tx.bid.count({
+              where: { attorney_id: user.sub, status: 'active' },
+            });
+            if (open >= maxActive) {
+              throw new ConflictException({
+                code: ErrorCode.BID_LIMIT_REACHED,
+                message: 'Your plan allows no more open offers at once.',
+                details: { limit: maxActive, open },
+              });
+            }
           }
-          // The system ended the old bid (case archived then restored, or
-          // a subscription lapse): it becomes a brand-new bid. Its old
-          // rounds go — the journal keeps that history — so round_no
-          // restarts at 0 (§6.1 invariant round_no = round_count).
-          await tx.bidOffer.deleteMany({ where: { bid_id: previous.id } });
-          created = await tx.bid.update({
-            where: { id: previous.id },
-            data: {
-              ...fresh,
-              decided_at: null,
-              created_at: now,
-              ...BUMP_VERSION,
-            },
+          if (perMonth && perMonth > 0 && !spent) {
+            const sent = await tx.bid.findUnique({
+              where: {
+                case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
+              },
+              select: { id: true },
+            });
+            if (!sent) {
+              const t = new Date();
+              const used = await tx.bid.count({
+                where: {
+                  attorney_id: user.sub,
+                  created_at: {
+                    gte: new Date(
+                      Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), 1),
+                    ),
+                  },
+                },
+              });
+              if (used >= perMonth) {
+                throw new ConflictException({
+                  code: ErrorCode.BID_MONTHLY_LIMIT_REACHED,
+                  message:
+                    'You have used all offers of this month on your plan.',
+                  details: {
+                    limit: perMonth,
+                    used,
+                    resetsAt: new Date(
+                      Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 1),
+                    ).toISOString(),
+                  },
+                });
+              }
+            }
+          }
+          const kase = await tx.case.findUnique({
+            where: { id: caseId },
+            select: { client_id: true, status: true, deleted_at: true },
           });
-        } else {
-          created = await tx.bid.create({
-            data: { case_id: caseId, attorney_id: user.sub, ...fresh },
-          });
-        }
-        const offer = await tx.bidOffer.create({
-          data: {
-            bid_id: created.id,
-            round_no: 0,
-            from_role: 'attorney',
+          if (!kase || kase.deleted_at) throw notFoundCase();
+          if (kase.status !== 'open') {
+            throw new ConflictException({
+              code: ErrorCode.CASE_INVALID_STATE,
+              message: 'This case is no longer accepting bids.',
+              details: { status: kase.status },
+            });
+          }
+          const now = new Date();
+          const fresh = {
+            status: 'active',
             fee_type: dto.feeType,
             amount_cents: amountCents,
             percent_bps: percentBps,
             message: dto.message,
             payment_terms: paymentTerms ?? Prisma.JsonNull,
-            status: 'pending',
-            created_at: now,
-          },
-        });
-        await tx.case.update({
-          where: { id: caseId },
-          data: {
-            // bids_count counts bid rows; a reused row is already counted.
-            ...(previous ? {} : { bids_count: { increment: 1 } }),
-            last_activity_at: now,
-          },
-        });
-        // Owner 2026-10-05: a bid answers the client's pending invite.
-        await tx.caseInvite.updateMany({
-          where: { case_id: caseId, attorney_id: user.sub, status: 'pending' },
-          data: { status: 'accepted', bid_id: created.id, decided_at: now },
-        });
-        await this.journal.append(tx, {
-          caseId,
-          clientId: kase.client_id,
-          actor: { userId: user.sub, role: 'attorney' },
-          attorneyId: user.sub,
-          event: 'bid_placed',
-          payload: {
-            bidId: created.id,
-            feeType: created.fee_type,
-            amountCents: created.amount_cents,
-            percentBps: created.percent_bps,
-          },
-        });
-        await this.notifications.emit(
-          {
-            type: 'bid_received',
-            recipientId: kase.client_id,
+            start_availability: dto.startAvailability,
+            start_date: dto.startDate ? new Date(dto.startDate) : null,
+            estimated_duration_days: dto.estimatedDurationDays ?? null,
+            round_count: 0,
+            turn: 'client',
+            outside_practice: outsidePractice,
+            outside_licensed_states: outsideLicensedStates,
+          } satisfies Prisma.BidUncheckedUpdateInput;
+          const previous = await tx.bid.findUnique({
+            where: {
+              case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
+            },
+            select: { id: true, status: true },
+          });
+          let created: Bid;
+          if (previous) {
+            if (!(await reusableBid(tx, caseId, user.sub, previous))) {
+              throw bidAlreadyExists();
+            }
+            // The system ended the old bid (case archived then restored, or
+            // a subscription lapse): it becomes a brand-new bid. Its old
+            // rounds go — the journal keeps that history — so round_no
+            // restarts at 0 (§6.1 invariant round_no = round_count).
+            await tx.bidOffer.deleteMany({ where: { bid_id: previous.id } });
+            created = await tx.bid.update({
+              where: { id: previous.id },
+              data: {
+                ...fresh,
+                decided_at: null,
+                created_at: now,
+                ...BUMP_VERSION,
+              },
+            });
+          } else {
+            created = await tx.bid.create({
+              data: { case_id: caseId, attorney_id: user.sub, ...fresh },
+            });
+          }
+          const offer = await tx.bidOffer.create({
+            data: {
+              bid_id: created.id,
+              round_no: 0,
+              from_role: 'attorney',
+              fee_type: dto.feeType,
+              amount_cents: amountCents,
+              percent_bps: percentBps,
+              message: dto.message,
+              payment_terms: paymentTerms ?? Prisma.JsonNull,
+              status: 'pending',
+              created_at: now,
+            },
+          });
+          await tx.case.update({
+            where: { id: caseId },
+            data: {
+              // bids_count counts bid rows; a reused row is already counted.
+              ...(previous ? {} : { bids_count: { increment: 1 } }),
+              last_activity_at: now,
+            },
+          });
+          // Owner 2026-10-05: a bid answers the client's pending invite.
+          await tx.caseInvite.updateMany({
+            where: {
+              case_id: caseId,
+              attorney_id: user.sub,
+              status: 'pending',
+            },
+            data: { status: 'accepted', bid_id: created.id, decided_at: now },
+          });
+          await this.journal.append(tx, {
+            caseId,
+            clientId: kase.client_id,
+            actor: { userId: user.sub, role: 'attorney' },
+            attorneyId: user.sub,
+            event: 'bid_placed',
             payload: {
-              caseId,
               bidId: created.id,
-              attorneyId: user.sub,
-              // Delta audit D-P4: the realtime event patches the bid row.
-              ...(created.amount_cents !== null
-                ? { amountCents: created.amount_cents }
-                : {}),
-              ...(created.percent_bps !== null
-                ? { percentBps: created.percent_bps }
-                : {}),
-            },
-          },
-          tx,
-        );
-        eventTickets.push(
-          await this.events?.emit(
-            tx,
-            'bid.placed',
-            {
-              bidId: created.id,
-              caseId,
-              attorneyId: user.sub,
               feeType: created.fee_type,
+              amountCents: created.amount_cents,
+              percentBps: created.percent_bps,
             },
+          });
+          await this.notifications.emit(
             {
-              actorId: user.sub,
-              key: `bid.placed:${created.id}:${now.getTime()}`,
+              type: 'bid_received',
+              recipientId: kase.client_id,
+              payload: {
+                caseId,
+                bidId: created.id,
+                attorneyId: user.sub,
+                // Delta audit D-P4: the realtime event patches the bid row.
+                ...(created.amount_cents !== null
+                  ? { amountCents: created.amount_cents }
+                  : {}),
+                ...(created.percent_bps !== null
+                  ? { percentBps: created.percent_bps }
+                  : {}),
+              },
             },
-          ),
-        );
-        return { ...created, offers: [offer] };
-      });
+            tx,
+          );
+          eventTickets.push(
+            await this.events?.emit(
+              tx,
+              'bid.placed',
+              {
+                bidId: created.id,
+                caseId,
+                attorneyId: user.sub,
+                feeType: created.fee_type,
+              },
+              {
+                actorId: user.sub,
+                key: `bid.placed:${created.id}:${now.getTime()}`,
+              },
+            ),
+          );
+          return { ...created, offers: [offer] };
+          // Read committed: the advisory lock above is the serialiser, and each
+          // statement must see what the previous holder committed.
+        },
+        { isolation: 'readCommitted', op: 'bids.create' },
+      );
       await this.events?.flush(eventTickets);
       // OQ-048: the assistant's draft for this case is used up.
       await this.prisma.bidDraft
