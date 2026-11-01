@@ -4,6 +4,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart'
+    show blurhashStandIn;
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
@@ -119,8 +121,10 @@ class PostGridTile extends StatelessWidget {
                   // frame (a warmed one is found in memory), no fade.
                   fadeInDuration: Duration.zero,
                   fadeOutDuration: Duration.zero,
-                  placeholder: (_, __) =>
-                      ColoredBox(color: colors.skeletonBase),
+                  placeholder: (_, __) => blurhashStandIn(
+                    p.media.isEmpty ? null : p.media.first.blurhash,
+                    colors.skeletonBase,
+                  ),
                   errorWidget: (_, __, ___) => cover(),
                 ),
                 if (p.media.length > 1 || p.video != null)
