@@ -26,6 +26,9 @@ sealed class UploadBody {
   /// reuse a consumed stream).
   Stream<List<int>> open();
 
+  /// A fresh stream of bytes [start, end) (one resumable-upload part).
+  Stream<List<int>> openRange(int start, int end);
+
   /// The multipart file part of an S3 POST.
   Future<MultipartFile> multipart({
     required String filename,
@@ -54,6 +57,10 @@ final class BytesUploadBody extends UploadBody {
 
   @override
   Stream<List<int>> open() => Stream.value(bytes);
+
+  @override
+  Stream<List<int>> openRange(int start, int end) => Stream.value(
+      Uint8List.sublistView(bytes, start, end.clamp(0, bytes.length)));
 }
 
 final class FileUploadBody extends UploadBody {
@@ -71,6 +78,9 @@ final class FileUploadBody extends UploadBody {
 
   @override
   Stream<List<int>> open() => _file.openRead();
+
+  @override
+  Stream<List<int>> openRange(int start, int end) => _file.openRead(start, end);
 }
 
 /// Lowercase hex SHA-256 of [bytes] (the presign requires it).
