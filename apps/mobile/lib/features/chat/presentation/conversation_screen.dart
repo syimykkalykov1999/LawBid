@@ -850,6 +850,7 @@ class _MessageListState extends ConsumerState<_MessageList> {
 
   /// Row key → index, built on first use after the rows change.
   Map<Key, int>? _indexByKey;
+  bool _prefetchQueued = false;
 
   final _listKey = GlobalKey();
   ChatListLayout? _layout;
@@ -1092,8 +1093,13 @@ class _MessageListState extends ConsumerState<_MessageList> {
             if (i >= entries.length - 8 &&
                 state.nextCursor != null &&
                 !state.loadingMore &&
-                !state.loadMoreFailed) {
-              WidgetsBinding.instance.addPostFrameCallback((_) => onMore());
+                !state.loadMoreFailed &&
+                !_prefetchQueued) {
+              _prefetchQueued = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _prefetchQueued = false;
+                unawaited(onMore());
+              });
             }
             final entry = entries[i];
             final m = entry.newest;

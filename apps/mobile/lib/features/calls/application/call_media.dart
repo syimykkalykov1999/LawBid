@@ -431,7 +431,9 @@ class WebRtcCallMedia implements CallMedia {
   Future<void> _pollLevels() async {
     _levelPolling = true;
     try {
-      await _pollLevelsOnce();
+      await _pollLevelsOnce().timeout(const Duration(seconds: 3));
+    } on TimeoutException {
+      // A stuck getStats(): the next tick tries again.
     } finally {
       _levelPolling = false;
     }

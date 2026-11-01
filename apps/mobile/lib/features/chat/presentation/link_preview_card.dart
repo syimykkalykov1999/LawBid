@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,7 +67,7 @@ class LinkPreviewCard extends ConsumerWidget {
                       cacheManager: AppImageCaches.chatMedia,
                       fit: BoxFit.cover,
                       memCacheWidth: decodeWidthFor(
-                        MediaQuery.sizeOf(context).width,
+                        math.min(240, MediaQuery.sizeOf(context).width),
                       ),
                       placeholder: (ctx, _) => ColoredBox(
                         color: Theme.of(ctx)

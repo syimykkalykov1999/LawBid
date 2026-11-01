@@ -1077,10 +1077,16 @@ class ProfilePostsGrid extends ConsumerWidget {
       // A new key per loaded count re-arms it for the following page.
       final more = !page.hasMore
           ? null
-          : page.loadMoreError != null
+          : page.loadMoreError != null || !asSliver
               ? TextButton(
                   onPressed: () => ref.read(_provider.notifier).loadMore(),
-                  child: Text(t.t('error.retry')),
+                  child: Text(
+                    t.t(
+                      page.loadMoreError != null
+                          ? 'error.retry'
+                          : 'pagination.loadingMore',
+                    ),
+                  ),
                 )
               : _AutoLoadMore(
                   key: ValueKey('more-${page.items.length}'),

@@ -444,6 +444,8 @@ class ChannelPostsNotifier extends AsyncNotifier<PaginatedList<ChannelPost>> {
     final prev = _reactChain[post.id] ?? Future<void>.value();
     final run = prev.catchError((Object _) {}).then((_) async {
       try {
+        // Each tap sends its own target, so an earlier failure cannot turn
+        // a later «set» into a «remove».
         final saved = remove
             ? await _repo.unreact(channelId, post.id)
             : await _repo.react(channelId, post.id, emoji);
@@ -477,22 +479,8 @@ class ChannelPostsNotifier extends AsyncNotifier<PaginatedList<ChannelPost>> {
       await _repo.removePost(channelId, post.id);
       if (ref.mounted) ref.invalidate(channelProvider);
     } on Object {
-      if (ref.mounted && before != null) {
-        final now = state.value;
-        if (now != null && !now.items.any((p) => p.id == post.id)) {
-          state = AsyncData(
-            PaginatedList(
-              items: [
-                ...before.items.where((p) => p.id == post.id),
-                ...now.items,
-              ]..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
-              nextCursor: now.nextCursor,
-              isLoadingMore: now.isLoadingMore,
-              loadMoreError: now.loadMoreError,
-            ),
-          );
-        }
-      }
+      // The server kept the post: reload the list (one source of truth).
+      if (ref.mounted) ref.invalidateSelf();
       rethrow;
     }
   }
