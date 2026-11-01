@@ -3,7 +3,8 @@ import { NotificationsApiService } from './notifications-api.service';
 /** Owner 2026-10-22 (client economy plan, package F): the bell's list as
  * a delta, and «mark read» naming the rows it flipped. */
 describe('NotificationsApiService deltas', () => {
-  const since = new Date('2026-10-22T10:00:00Z');
+  // Relative to now: a fixed date ages past the 7-day sync window and turns main red.
+  const since = new Date(Date.now() - 60 * 60_000);
   const t = (m: number) => new Date(since.getTime() + m * 60_000);
   const row = (id: string, m: number) => ({
     id,
