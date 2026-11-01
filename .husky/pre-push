@@ -1,0 +1,4 @@
+#!/bin/sh
+# Cheap CI gates before every push (docs/dev/CI_CHECKLIST.md). Skip once: SKIP_PRECHECK=1 git push
+[ -n "$SKIP_PRECHECK" ] && exit 0
+bash scripts/dev/precheck.sh
