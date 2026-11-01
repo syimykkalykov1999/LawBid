@@ -1,15 +1,22 @@
 import { FILE_SCAN_BASE_PRIORITY, FileScanRunner } from './file-scan.runner';
 
 jest.mock('bullmq', () => {
-  const redis = {
+  const redis: { incr: jest.Mock; expire: jest.Mock; eval: jest.Mock } = {
     incr: jest.fn(),
     expire: jest.fn(() => Promise.resolve(1)),
     // incrWithTtl's Lua: INCR, then EXPIRE on the first hit.
-    eval: jest.fn(async (_l: string, _n: number, key: string, ttl: string) => {
-      const n = Number(await redis.incr(key));
-      if (n === 1) await redis.expire(key, Number(ttl));
-      return n;
-    }),
+    eval: jest.fn(
+      async (
+        _l: string,
+        _n: number,
+        key: string,
+        ttl: string,
+      ): Promise<number> => {
+        const n: number = Number(await redis.incr(key));
+        if (n === 1) await redis.expire(key, Number(ttl));
+        return n;
+      },
+    ),
   };
   const queue = {
     getJob: jest.fn(),

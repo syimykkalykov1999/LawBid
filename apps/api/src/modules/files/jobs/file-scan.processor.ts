@@ -100,6 +100,12 @@ export class FileScanProcessor {
         { fileId, err },
         'File scan failed on the last attempt',
       );
+      // Too big for clamd: never scanned, so do not keep the object either.
+      if (err instanceof ClamdTooLargeError) {
+        await this.storage
+          .remove(file.s3_bucket, [file.s3_key])
+          .catch(() => undefined);
+      }
       await this.setStatus(fileId, 'failed');
       return 'failed';
     }

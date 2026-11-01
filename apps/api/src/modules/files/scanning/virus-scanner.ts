@@ -69,7 +69,23 @@ export class ClamdScanner implements VirusScanner {
       socket.setTimeout(this.timeoutMs, () =>
         done(() => reject(new Error('clamd timeout'))),
       );
-      socket.on('error', (err) => done(() => reject(err)));
+      socket.on('error', (err) =>
+        done(() => {
+          // clamd answers "size limit exceeded" and hangs up while we are
+          // still writing: the write fails (EPIPE/ECONNRESET) but its reply
+          // is already here — report that, not the transport error.
+          if (replies.length > 0) {
+            try {
+              resolve(parseClamdReply(Buffer.concat(replies).toString('utf8')));
+              return;
+            } catch (parsed) {
+              reject(parsed instanceof Error ? parsed : err);
+              return;
+            }
+          }
+          reject(err);
+        }),
+      );
       socket.on('data', (chunk: Buffer) => replies.push(chunk));
       socket.on('end', () =>
         done(() => {

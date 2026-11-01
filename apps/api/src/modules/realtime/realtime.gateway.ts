@@ -42,6 +42,7 @@ import {
   socketAdapterMode,
   userRoom,
   viewingKey,
+  VIEWING_TTL_MS,
 } from './realtime-publisher.service';
 import { demoContext } from '../../common/demo/demo-context';
 import {
@@ -60,9 +61,6 @@ import {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Presence entries outlive a crashed instance by at most this. */
-// B-1 (audit 2026-11-01): short TTL, renewed by the heartbeat while the
-// socket lives — a killed task no longer mutes pushes for an hour.
-const VIEW_TTL_SEC = 120;
 /** At most one typing event per socket per this window. */
 const TYPING_MIN_GAP_MS = 1000;
 /** S1-7: `call:signal` budget (own bucket) and how long a call's members
@@ -84,12 +82,12 @@ interface SignalCall {
 const SIGNAL_MAX_BYTES = 64 * 1024;
 /** Sockets of one person per API instance (setting `realtime.max_sockets_per_user`). */
 const DEFAULT_MAX_SOCKETS_PER_USER = 10;
-// B-5: CGNAT / office / campus put hundreds of users behind one address;
-// a deploy reconnect storm must not lock them out (client backs off anyway).
 /** B-9: ceilings per socket — a buggy or hostile client cannot pile up
  * rooms / "chat open" keys without bound. */
 const MAX_VIEWING_PER_SOCKET = 50;
 const MAX_ROOMS_PER_SOCKET = 400;
+/** B-5: CGNAT / office / campus put hundreds of users behind one address;
+ * a deploy reconnect storm must not lock them out (client backs off). */
 const DEFAULT_CONNECTS_PER_IP_PER_MINUTE = 600;
 /** How often a live socket refreshes its presence (and an assistant's
  * socket re-checks its duties). Owner 2026-10-22 (server load audit,
@@ -669,11 +667,12 @@ export class RealtimeGateway
       }
       // B-1: keep the "chat open" keys of this live socket fresh.
       if (state(socket).viewing.size > 0) {
-        const pipe = this.redis.pipeline();
+        // One command per key: the keys sit in different cluster slots.
         for (const id of state(socket).viewing) {
-          pipe.expire(viewingKey(state(socket).user.sub, id), VIEW_TTL_SEC);
+          void this.touchViewing(state(socket).user.sub, id, socket.id).catch(
+            () => undefined,
+          );
         }
-        void pipe.exec().catch(() => undefined);
       }
       // Owner 2026-10-01: presence heartbeat (own connections only).
       if (!state(socket).selfId) {
@@ -875,7 +874,7 @@ export class RealtimeGateway
     }
     try {
       for (const id of s.viewing) {
-        await this.redis.srem(viewingKey(s.user.sub, id), socket.id);
+        await this.redis.zrem(viewingKey(s.user.sub, id), socket.id);
       }
     } catch {
       // Shutting down (Redis already closed): the entries expire anyway.
@@ -948,6 +947,29 @@ export class RealtimeGateway
     }
   }
 
+  /** B-9: true when joining [room] would pass the per-socket ceiling (a
+   * room the socket already holds never counts: re-joins stay idempotent). */
+  private roomsFull(socket: Socket, room: string): boolean {
+    const rooms = socket.rooms;
+    return !!rooms && !rooms.has(room) && rooms.size >= MAX_ROOMS_PER_SOCKET;
+  }
+
+  /** B-1: (re)stamp this socket's "chat open" expiry; the heartbeat repeats
+   * it while the socket lives, so a killed task's entry ages out in 2 min. */
+  private async touchViewing(
+    userId: string,
+    conversationId: string,
+    socketId: string,
+  ): Promise<void> {
+    const key = viewingKey(userId, conversationId);
+    await this.redis
+      .multi()
+      .zremrangebyscore(key, 0, Date.now())
+      .zadd(key, Date.now() + VIEWING_TTL_MS, socketId)
+      .pexpire(key, VIEWING_TTL_MS)
+      .exec();
+  }
+
   @SubscribeMessage('conversation:join')
   async join(
     @ConnectedSocket() socket: Socket,
@@ -960,7 +982,7 @@ export class RealtimeGateway
     if (
       !mine.viewing.has(id) &&
       (mine.viewing.size >= MAX_VIEWING_PER_SOCKET ||
-        (socket.rooms?.size ?? 0) >= MAX_ROOMS_PER_SOCKET)
+        this.roomsFull(socket, conversationRoom(id)))
     ) {
       return { ok: false };
     }
@@ -989,11 +1011,7 @@ export class RealtimeGateway
       id,
       others.map((o) => o.user_id),
     );
-    await this.redis
-      .multi()
-      .sadd(viewingKey(uid, id), socket.id)
-      .expire(viewingKey(uid, id), VIEW_TTL_SEC)
-      .exec();
+    await this.touchViewing(uid, id, socket.id);
     return { ok: true };
   }
 
@@ -1006,7 +1024,7 @@ export class RealtimeGateway
     if (!id) return { ok: false };
     await socket.leave(conversationRoom(id));
     state(socket).viewing.delete(id);
-    await this.redis.srem(viewingKey(state(socket).user.sub, id), socket.id);
+    await this.redis.zrem(viewingKey(state(socket).user.sub, id), socket.id);
     return { ok: true };
   }
 
@@ -1032,7 +1050,7 @@ export class RealtimeGateway
         select: { user_id: true },
       }));
     if (!reader) return { ok: false };
-    if ((socket.rooms?.size ?? 0) >= MAX_ROOMS_PER_SOCKET) return { ok: false };
+    if (this.roomsFull(socket, channelRoom(id))) return { ok: false };
     await socket.join(channelRoom(id));
     return { ok: true };
   }
@@ -1053,7 +1071,7 @@ export class RealtimeGateway
       select: { id: true },
     });
     if (!post) return { ok: false };
-    if ((socket.rooms?.size ?? 0) >= MAX_ROOMS_PER_SOCKET) return { ok: false };
+    if (this.roomsFull(socket, postRoom(id))) return { ok: false };
     await socket.join(postRoom(id));
     return { ok: true };
   }
@@ -1098,7 +1116,7 @@ export class RealtimeGateway
     if (!me || !/^[0-9a-f-]{36}$/i.test(other) || other === me) {
       return { ok: false };
     }
-    if ((socket.rooms?.size ?? 0) >= MAX_ROOMS_PER_SOCKET) return { ok: false };
+    if (this.roomsFull(socket, presenceRoom(other))) return { ok: false };
     const shared = await this.prisma.conversationParticipant.findFirst({
       where: {
         user_id: me,

@@ -167,6 +167,9 @@ export function costCounterKey(
   return `budget:{${provider}}:${COST_WINDOW_CONFIG[window].keyTag}:${stamp}`;
 }
 
+/** Redis (or its reply) unusable: the guard cannot decide. */
+export class CostGuardUnavailableError extends HttpException {}
+
 /**
  * Global spend brake for every paid third-party call (owner-approved
  * spec extension 2026-09-27, docs/OPEN_QUESTIONS.md; operator guide in
@@ -185,9 +188,6 @@ export function costCounterKey(
  * back to BUDGET_<PROVIDER>_* env values (env.schema.ts defaults). A cap
  * of 0 disables the provider entirely.
  */
-/** Redis (or its reply) unusable: the guard cannot decide. */
-export class CostGuardUnavailableError extends HttpException {}
-
 @Injectable()
 export class CostGuardService {
   constructor(
