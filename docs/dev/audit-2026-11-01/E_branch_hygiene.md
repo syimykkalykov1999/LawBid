@@ -48,3 +48,34 @@
 - #525 r8-mlkit-dontwarn — правило proguard совпадает в #535 байт в байт → закрыт, ветка оставлена.
 - #527 rescue/wt-agent-ad7821003a1445008 — снимок 6735 файлов, красный gitleaks → закрыт, ветка оставлена.
 - #511 remove-brand-names — уникальное содержимое (юридические правки брендов), в main/#535 нет → в ветку влит main чисто, precheck OK, push; PR остаётся открытым, ждёт зелёного CI.
+
+## Удаление 24 веток worktree-agent-* (одобрено владельцем 01.11 «Удаляй тогда»)
+Состояние: НЕ выполнено — git-прокси облачной сессии отвечает HTTP 403 на любое удаление ветки (разрешён пуш только в ветку сессии). Содержимое каждой ветки лежит в оставшихся ветках (не в main), main на момент проверки 3d3a32661. Команда для Mac:
+```
+cd ~/Desktop/LawBid && git push origin --delete \
+  worktree-agent-a025d551d4b77144a \
+  worktree-agent-a1012e5616a8fffc9 \
+  worktree-agent-a20681b544533ec9b \
+  worktree-agent-a246f948f0137f763 \
+  worktree-agent-a33a10de8c4fe364b \
+  worktree-agent-a387c3de63cec1680 \
+  worktree-agent-a3bfdababa0956bf0 \
+  worktree-agent-a40f92199cf4e01e3 \
+  worktree-agent-a470f92e638146ab5 \
+  worktree-agent-a586832c6f21eb673 \
+  worktree-agent-a5b359266f21b6cfb \
+  worktree-agent-a5c9c084cf5eba691 \
+  worktree-agent-a6055c97d7e006405 \
+  worktree-agent-a77d3d0067d316f26 \
+  worktree-agent-a833546c0ed4c25fc \
+  worktree-agent-a9902344967ab32b0 \
+  worktree-agent-a9e18c12bf2fc70b1 \
+  worktree-agent-aa90a7d8e6acaea4b \
+  worktree-agent-ab77a43464b8d5b00 \
+  worktree-agent-ab96bb1bcbf0f644d \
+  worktree-agent-abc3d25ea71b85f43 \
+  worktree-agent-ac7176048e8dd2fe7 \
+  worktree-agent-ada12f76b379b43c7 \
+  worktree-agent-aecc87cbe0d73422b \
+  && echo done
+```
