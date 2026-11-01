@@ -73,6 +73,7 @@ import {
   callPollKey,
   signCallPoll,
 } from '../../../common/calls/call-poll-token';
+import { CALL_RING_SECONDS } from '../../../common/calls/ring';
 import { actorPushData, CHAT_CATEGORY } from './actor-push';
 import {
   closeWorker,
@@ -506,6 +507,8 @@ export class PushDispatcher
           ...(avatarUrl ? { avatarUrl } : {}),
           ...(silent ? { silent: '1' } : {}),
           ...(call.video ? { video: '1' } : {}),
+          // M2: how long the phone rings (one number for every side).
+          ringSeconds: String(CALL_RING_SECONDS),
           // Owner 2026-10-28: a locked Android phone asks the call's state
           // with this while it rings (older apps ignore it).
           ...this.pollToken(data.recipientId, data.callId),

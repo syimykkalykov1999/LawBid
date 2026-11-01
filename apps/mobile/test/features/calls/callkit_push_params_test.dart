@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 
 /// Owner 2026-10-26: «incoming calls arrive without the avatar». The ring
@@ -116,6 +119,45 @@ void main() {
       expect(p.avatar, photo);
       expect(p.nameCaller, 'Ann Lee');
       expect(p.id, 'call-9');
+    });
+  });
+
+  group('M2: one ring length everywhere (2026-10-28)', () {
+    test("the server's ringSeconds is how long the phone rings", () {
+      final ring = incomingCallFromPush({
+        'type': 'incoming_call',
+        'callId': 'call-r',
+        'ringSeconds': '60',
+      })!;
+      expect(ring.ring, const Duration(seconds: 60));
+      final p = lawbidIncomingParams(
+        callId: ring.callId,
+        callerName: ring.callerName,
+        ring: ring.ring,
+        platform: TargetPlatform.android,
+      );
+      expect(p.duration, 60000);
+    });
+
+    test('an older server (no ringSeconds) or a wild value: the app 60 s', () {
+      expect(ringLengthOf(const {}), kCallRingTimeout);
+      expect(ringLengthOf(const {'ringSeconds': 'x'}), kCallRingTimeout);
+      expect(ringLengthOf(const {'ringSeconds': '3'}), kCallRingTimeout);
+      expect(ringLengthOf(const {'ringSeconds': '999'}), kCallRingTimeout);
+      expect(kCallRingTimeout, const Duration(seconds: 60));
+    });
+
+    test('the iPhone rings 60 s, Android reads the same key', () {
+      final swift = File('ios/Runner/AppDelegate.swift').readAsStringSync();
+      expect(swift, contains('data.duration = 60000'));
+      expect(swift, isNot(contains('data.duration = 45000')));
+      // M1: a push for a call already shown still reports it (no early
+      // return without a CallKit report).
+      expect(swift, isNot(contains('if shown {')));
+      final kt = File(
+        'android/app/src/main/kotlin/com/lawbid/lawbid/CallRinging.kt',
+      ).readAsStringSync();
+      expect(kt, contains('"ringSeconds"'));
     });
   });
 }
