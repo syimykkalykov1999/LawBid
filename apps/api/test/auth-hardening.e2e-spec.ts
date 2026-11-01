@@ -647,7 +647,7 @@ describe('Auth hardening (e2e)', () => {
     });
 
     it('owner 2026-10-28: step-up with the account password (no SMS)', async () => {
-      const phone = '+12025558704';
+      const phone = '+12025558706';
       const tokens = await otpLogin('phone', phone, 'reauth-pwd-dev');
       const bearer = { Authorization: `Bearer ${tokens.accessToken}` };
       // No password yet: the app is told to use the code instead.

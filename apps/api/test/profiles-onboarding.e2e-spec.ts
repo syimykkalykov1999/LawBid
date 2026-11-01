@@ -633,6 +633,10 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
     // Already-linked identifiers keep signing in with the switch off, so
     // an account linked before the switch was turned off is not locked out.
     await setSwitch('auth.additional_identifiers_enabled', true);
+    await api()
+      .post('/api/v1/auth/otp/request')
+      .send({ channel: 'phone', identifier: newPhone })
+      .expect(200);
     const again2 = await api()
       .post('/api/v1/auth/reauth')
       .set(auth)
