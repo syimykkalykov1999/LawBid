@@ -90,6 +90,7 @@ import { CalendarModule } from './modules/calendar/calendar.module';
 import { ConsultationsModule } from './modules/consultations/consultations.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { GroupsModule } from './modules/groups/groups.module';
+import { PostFanoutModule } from './modules/notifications/post-fanout.worker';
 import { CaseFanoutModule } from './modules/notifications/case-fanout/case-fanout.worker';
 import { GroupFanoutModule } from './modules/groups/group-fanout.module';
 import { ForwardModule } from './modules/forward/forward.module';
@@ -458,6 +459,7 @@ const isDev =
     // jobs, consumed here while JOBS_ENABLED.
     GroupFanoutModule.register({ mode: 'api' }),
     CaseFanoutModule.register({ mode: 'api' }),
+    PostFanoutModule.register({ mode: 'api' }),
     // Owner 2026-10-21 (Telegram «Переслать»): one forward into many chats.
     ForwardModule,
     // Owner 2026-10-20: time, expenses, invoice, e-signature, document forms.
