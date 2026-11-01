@@ -146,6 +146,30 @@ describe('custom ids', () => {
 });
 
 describe('StaffAiQaService: submit (night 1)', () => {
+  // Pin only the wall clock: the fixtures are dated, and the 7-day sync
+  // window / the monthly AI budget key are measured against `Date.now()`.
+  beforeAll(() => {
+    jest.useFakeTimers({
+      now: NOW,
+      doNotFake: [
+        'hrtime',
+        'nextTick',
+        'performance',
+        'queueMicrotask',
+        'requestAnimationFrame',
+        'cancelAnimationFrame',
+        'requestIdleCallback',
+        'cancelIdleCallback',
+        'setImmediate',
+        'clearImmediate',
+        'setInterval',
+        'clearInterval',
+        'setTimeout',
+        'clearTimeout',
+      ],
+    });
+  });
+  afterAll(() => jest.useRealTimers());
   it('takes T5-sampled cases, builds ONE batch with a cached rubric per kind and records it', async () => {
     const t = setup(
       {},
@@ -264,6 +288,30 @@ describe('StaffAiQaService: submit (night 1)', () => {
 });
 
 describe('StaffAiQaService: collect (night 2)', () => {
+  // Pin only the wall clock: the fixtures are dated, and the 7-day sync
+  // window / the monthly AI budget key are measured against `Date.now()`.
+  beforeAll(() => {
+    jest.useFakeTimers({
+      now: NOW,
+      doNotFake: [
+        'hrtime',
+        'nextTick',
+        'performance',
+        'queueMicrotask',
+        'requestAnimationFrame',
+        'cancelAnimationFrame',
+        'requestIdleCallback',
+        'cancelIdleCallback',
+        'setImmediate',
+        'clearImmediate',
+        'setInterval',
+        'clearInterval',
+        'setTimeout',
+        'clearTimeout',
+      ],
+    });
+  });
+  afterAll(() => jest.useRealTimers());
   const verdict = (v: string, conf: number) => ({
     verdict: v,
     confidence: conf,
@@ -348,7 +396,8 @@ describe('StaffAiQaService: collect (night 2)', () => {
     // the reservation was replaced by the real batch price (2 x 1000in+100out ... 3 rows)
     expect(await t.kit.budget.spent(NOW)).toBeLessThan(500 + 1);
     const log = t.kit.db.rows.get(BATCH_LOG_KEY) as
-      Array<{ batchId: string; status: string }> | undefined;
+      | Array<{ batchId: string; status: string }>
+      | undefined;
     expect(log?.find((e) => e.batchId === 'b1')?.status ?? 'collected').toBe(
       'collected',
     );

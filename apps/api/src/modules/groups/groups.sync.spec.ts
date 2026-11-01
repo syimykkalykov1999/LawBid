@@ -3,6 +3,30 @@ import { CATCH_UP_MAX, GroupsService } from './groups.service';
 /** Owner 2026-10-22 (client economy plan, package B): group list deltas,
  * `afterId` catch-up, the card inside `group:update`. */
 describe('GroupsService deltas', () => {
+  // Pin only the wall clock: the fixtures are dated, and the 7-day sync
+  // window / the monthly AI budget key are measured against `Date.now()`.
+  beforeAll(() => {
+    jest.useFakeTimers({
+      now: new Date('2026-10-22T11:00:00Z'),
+      doNotFake: [
+        'hrtime',
+        'nextTick',
+        'performance',
+        'queueMicrotask',
+        'requestAnimationFrame',
+        'cancelAnimationFrame',
+        'requestIdleCallback',
+        'cancelIdleCallback',
+        'setImmediate',
+        'clearImmediate',
+        'setInterval',
+        'clearInterval',
+        'setTimeout',
+        'clearTimeout',
+      ],
+    });
+  });
+  afterAll(() => jest.useRealTimers());
   const since = new Date('2026-10-22T10:00:00Z');
   const t = (m: number) => new Date(since.getTime() + m * 60_000);
   const group = (id: string, over: Record<string, unknown> = {}) => ({
