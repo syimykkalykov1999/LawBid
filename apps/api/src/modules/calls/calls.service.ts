@@ -93,6 +93,7 @@ import {
   videoCallAvailability,
   type VideoCallProvider,
 } from './video-call-provider';
+import { incrWithTtl } from '../../redis/incr-with-ttl';
 
 /** Unanswered after this → missed (the app gives up at 60 s, like WhatsApp). */
 export const CALL_RING_TIMEOUT_MS = 65_000;
@@ -259,8 +260,7 @@ export class CallsService {
     if (this.redis && this.redis.status === 'ready') {
       try {
         const key = `call:seq:${callId}`;
-        seq = await this.redis.incr(key);
-        if (seq === 1) await this.redis.expire(key, 86_400);
+        seq = await incrWithTtl(this.redis, key, 86_400);
       } catch {
         seq = 0;
       }
