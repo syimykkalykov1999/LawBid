@@ -391,7 +391,7 @@ import flutter_callkit_incoming
     // the push instead of leaving iOS waiting (only if even the stand-in
     // engine could not start).
     guard let callkit = callkitPlugin() else {
-      completion()
+      reportWithoutPlugin(completion: completion)
       return
     }
     let p = payload.dictionaryPayload
@@ -410,7 +410,11 @@ import flutter_callkit_incoming
       (item["id"] as? String)?.caseInsensitiveCompare(callId) == .orderedSame
     }
     if shown {
-      completion()
+      // M1 (calls audit): iOS counts every VoIP push that is not reported
+      // and, after a few, stops delivering them. This push has nothing new
+      // to ring, so report a throw-away call and end it at once.
+      reportThenEnd(
+        callkit, callId: UUID().uuidString, name: "LawBid", completion: completion)
       return
     }
     let name = (p["callerName"] as? String) ?? "LawBid"
@@ -428,7 +432,7 @@ import flutter_callkit_incoming
       type: video ? 1 : 0
     )
     data.appName = "LawBid"
-    data.duration = 45000
+    data.duration = 60000
     // Owner 2026-10-26: the caller's photo (CallKit itself shows only the
     // name; the app's call screen takes the photo from here).
     let avatar = (p["avatarUrl"] as? String) ?? ""
@@ -477,14 +481,20 @@ import flutter_callkit_incoming
     if let uuid = uuid, let ringing = live.first(where: { $0.uuid == uuid }) {
       if !ringing.hasConnected && !ringing.isOutgoing {
         callController.request(CXTransaction(action: CXEndCallAction(call: uuid))) { _ in }
+        completion()
+      } else {
+        // The call is answered / ours: this push still needs a report (M1).
+        reportThenEnd(
+          callkit, callId: UUID().uuidString, name: "LawBid", completion: completion)
       }
-      completion()
       return
     }
     // Another call is on (answered here): leave it alone — the app holds a
     // call, nothing new is shown over it.
     if !live.isEmpty || uuid == nil {
-      completion()
+      // M1: still has to be reported to iOS (see above).
+      reportThenEnd(
+        callkit, callId: UUID().uuidString, name: "LawBid", completion: completion)
       return
     }
     reportThenEnd(callkit, callId: callId, name: "LawBid", completion: completion)
@@ -518,6 +528,34 @@ import flutter_callkit_incoming
         ) { _ in }
       }
       completion()
+    }
+  }
+
+  /// M1 last resort: not even the stand-in engine could start, so the
+  /// plugin's provider does not exist. Apple's rule is the same (report
+  /// every VoIP push), so a short-lived provider reports a call and ends
+  /// it at once. Only used when there is no plugin provider — never two
+  /// live handlers at the same time.
+  private var fallbackProvider: CXProvider?
+
+  private func reportWithoutPlugin(completion: @escaping () -> Void) {
+    let config = CXProviderConfiguration()
+    config.maximumCallGroups = 1
+    config.maximumCallsPerCallGroup = 1
+    config.ringtoneSound = nil
+    let provider = CXProvider(configuration: config)
+    fallbackProvider = provider
+    let uuid = UUID()
+    let update = CXCallUpdate()
+    update.remoteHandle = CXHandle(type: .generic, value: "LawBid")
+    update.localizedCallerName = "LawBid"
+    provider.reportNewIncomingCall(with: uuid, update: update) { [weak self] _ in
+      provider.reportCall(with: uuid, endedAt: Date(), reason: .failed)
+      completion()
+      DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+        provider.invalidate()
+        self?.fallbackProvider = nil
+      }
     }
   }
 
