@@ -1029,7 +1029,7 @@ export class GroupsService {
         row.inviter_id,
         'added',
       );
-      await this.broadcast(row.group_id, line);
+      if (line) await this.broadcast(row.group_id, line);
       await this.groupChanged(row.group_id, 'members');
     }
     await this.prisma.chatGroupInvite.update({
@@ -1383,8 +1383,10 @@ export class GroupsService {
       return { status: 'pending', groupId: g.id, group: null };
     }
     const row = await this.admit(g.id, user.sub, null, 'joined');
-    await this.broadcast(g.id, row);
-    await this.groupChanged(g.id, 'members');
+    if (row) {
+      await this.broadcast(g.id, row);
+      await this.groupChanged(g.id, 'members');
+    }
     return {
       status: 'joined',
       groupId: g.id,
@@ -1425,9 +1427,15 @@ export class GroupsService {
     if (!req) throw notFound();
     if (approve) {
       const row = await this.admit(id, userId, user.sub, 'added');
-      await this.broadcast(id, row);
-      await this.notifyAdded(id, row, [userId]);
-      await this.groupChanged(id, 'members');
+      if (row) {
+        await this.broadcast(id, row);
+        await this.notifyAdded(id, row, [userId]);
+        await this.groupChanged(id, 'members');
+      } else {
+        // Someone else admitted them first: the request is gone for the
+        // other admins too.
+        await this.adminsChanged(id, 'requests');
+      }
     } else {
       await this.prisma.chatGroupJoinRequest.delete({
         where: { group_id_user_id: { group_id: id, user_id: userId } },
@@ -1448,9 +1456,22 @@ export class GroupsService {
     userId: string,
     actorId: string | null,
     kind: 'joined' | 'added',
-  ): Promise<ChatGroupMessage> {
+  ): Promise<ChatGroupMessage | null> {
     return withTxRetry(this.prisma, async (tx) => {
       await tx.$queryRaw`SELECT id FROM chat_groups WHERE id = ${groupId}::UUID FOR UPDATE`;
+      // Audit A-5: the membership check lives AFTER the lock — a double tap
+      // or two admins approving at once must not demote an admin, re-stamp
+      // joined_at or bump member_count a second time.
+      const already = await tx.chatGroupMember.findUnique({
+        where: { group_id_user_id: { group_id: groupId, user_id: userId } },
+        select: { left_at: true },
+      });
+      if (already && already.left_at === null) {
+        await tx.chatGroupJoinRequest.deleteMany({
+          where: { group_id: groupId, user_id: userId },
+        });
+        return null;
+      }
       const count = await tx.chatGroupMember.count({
         where: { group_id: groupId, left_at: null },
       });
