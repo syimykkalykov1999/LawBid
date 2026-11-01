@@ -167,6 +167,9 @@ export function costCounterKey(
   return `budget:{${provider}}:${COST_WINDOW_CONFIG[window].keyTag}:${stamp}`;
 }
 
+/** Redis (or its reply) unusable: the guard cannot decide. */
+export class CostGuardUnavailableError extends HttpException {}
+
 /**
  * Global spend brake for every paid third-party call (owner-approved
  * spec extension 2026-09-27, docs/OPEN_QUESTIONS.md; operator guide in
@@ -200,6 +203,28 @@ export class CostGuardService {
     provider: CostProvider,
     units = 1,
     opts: CostOptions = {},
+  ): Promise<void> {
+    try {
+      await this.consumeChecked(provider, units, opts);
+    } catch (err) {
+      // B-11 (audit 2026-11-01): storage costs next to nothing — a Redis
+      // failover must not stop every upload for 30-60 s. Paid providers
+      // (sms, email, id_check, video, ...) stay fail-closed.
+      if (provider === 'storage' && err instanceof CostGuardUnavailableError) {
+        this.logger.warn(
+          { provider, alert: 'cost_guard_unavailable_open' },
+          'Cost guard cannot reach Redis — storage allowed (fail open)',
+        );
+        return;
+      }
+      throw err;
+    }
+  }
+
+  private async consumeChecked(
+    provider: CostProvider,
+    units: number,
+    opts: CostOptions,
   ): Promise<void> {
     if (!Number.isInteger(units) || units < 1) {
       throw new Error(`CostGuardService.consume: invalid units ${units}`);
@@ -635,7 +660,7 @@ export class CostGuardService {
   }
 
   private unavailable(): HttpException {
-    return new HttpException(
+    return new CostGuardUnavailableError(
       {
         code: ErrorCode.PROVIDER_BUDGET_EXCEEDED,
         message: 'This service is temporarily unavailable. Try again later.',
