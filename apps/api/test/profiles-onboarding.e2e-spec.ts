@@ -657,7 +657,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
     expect((viaExtra.body as { data: { id: string } }).data.id).toBe(userId);
     const withExtra = await api()
       .get('/api/v1/users/me/identifiers')
-      .set(auth)
+      .set(extraAuth) // logging in again replaced the first session
       .expect(200);
     expect(withExtra.body.data).toEqual([
       expect.objectContaining({ value: newPhone, isPrimaryContact: true }),
