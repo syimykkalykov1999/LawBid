@@ -1,3 +1,7 @@
+import {
+  communityQuery,
+  rankCommunities,
+} from '../../common/search/community-search';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { UsernamePolicyService } from '../usernames/username-policy.service';
@@ -1265,19 +1269,32 @@ export class GroupsService {
     user: RequestUser,
     q: string,
   ): Promise<GroupInvitePreviewDto[]> {
-    const text = q.trim().replace(/^@/, '');
-    const rows = await this.prisma.chatGroup.findMany({
+    const query = communityQuery(q);
+    if (!query) return [];
+    const found = await this.prisma.chatGroup.findMany({
       where: {
         group_type: 'public',
         deleted_at: null,
-        OR: [
-          { title: { contains: text, mode: 'insensitive' } },
-          { username_lower: { contains: text.toLowerCase() } },
-        ],
+        AND: query.words.map((w) => ({
+          OR: [
+            { title: { contains: w, mode: 'insensitive' as const } },
+            { username_lower: { contains: w } },
+          ],
+        })),
       },
       orderBy: [{ member_count: 'desc' }, { created_at: 'desc' }],
-      take: 20,
+      take: 200,
     });
+    const rows = rankCommunities(
+      found,
+      query,
+      (g) => ({
+        title: g.title,
+        username: g.username_lower,
+        size: g.member_count,
+      }),
+      20,
+    );
     return this.previews(rows, user.sub);
   }
 
