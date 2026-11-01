@@ -12,7 +12,6 @@ import 'package:lawbid/features/onboarding/application/contact_verification_cont
 import 'package:lawbid/features/onboarding/application/countries_providers.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/domain/contact_type.dart';
-import 'package:lawbid/features/settings/account/application/account_providers.dart';
 
 /// What the flow does with the phone/email.
 enum AccountContactMode {
@@ -20,11 +19,12 @@ enum AccountContactMode {
   /// first one, or replacing a verified one — reauth (code to the current
   /// verified contact, `POST /auth/reauth`) + code on the new contact
   /// (docs/01 §11 3A). Reuses the onboarding ContactVerificationController.
+  ///
+  /// Owner 2026-10-28: the former `link` mode (an ADDITIONAL sign-in
+  /// phone/email via `POST /auth/identifiers`) was removed: it cost SMS
+  /// money and is not needed. Old deep links with `?mode=link` fall back to
+  /// this mode.
   primary,
-
-  /// Links an ADDITIONAL sign-in phone/email via `POST /auth/identifiers`
-  /// (docs/01 §10.3).
-  link,
 }
 
 /// Settings → Account → change / add / link a phone or email: enter the
@@ -52,8 +52,7 @@ class _AccountContactFlowScreenState
 
   /// Captured once: after a successful change the reloaded user is
   /// "verified", which must not flip the title mid-flow.
-  late final bool _replacing =
-      widget.mode == AccountContactMode.primary && _currentlyVerified();
+  late final bool _replacing = _currentlyVerified();
 
   bool get _isPhone => widget.type == ContactType.phone;
 
@@ -70,25 +69,15 @@ class _AccountContactFlowScreenState
     super.dispose();
   }
 
-  ContactVerificationState _watch() => widget.mode == AccountContactMode.link
-      ? ref.watch(identifierLinkProvider(widget.type))
-      : ref.watch(contactVerificationProvider(widget.type));
+  ContactVerificationState _watch() =>
+      ref.watch(contactVerificationProvider(widget.type));
 
-  Future<void> _sendCode(String value) => widget.mode == AccountContactMode.link
-      ? ref.read(identifierLinkProvider(widget.type).notifier).sendCode(value)
-      : ref
-          .read(contactVerificationProvider(widget.type).notifier)
-          .sendCode(value);
+  Future<void> _sendCode(String value) =>
+      ref.read(contactVerificationProvider(widget.type).notifier).sendCode(
+            value,
+          );
 
   Future<void> _submitCode(ContactVerificationState state, String code) {
-    if (widget.mode == AccountContactMode.link) {
-      // Owner 2026-10-22 (security audit #3): "it's me" first, then the
-      // new contact's code.
-      final link = ref.read(identifierLinkProvider(widget.type).notifier);
-      return state.stage == ContactVerificationStage.confirmIdentity
-          ? link.confirmIdentity(code)
-          : link.verify(code);
-    }
     final notifier =
         ref.read(contactVerificationProvider(widget.type).notifier);
     return state.stage == ContactVerificationStage.confirmIdentity
@@ -96,13 +85,11 @@ class _AccountContactFlowScreenState
         : notifier.verify(code);
   }
 
-  Future<void> _resend() => widget.mode == AccountContactMode.link
-      ? ref.read(identifierLinkProvider(widget.type).notifier).resend()
-      : ref.read(contactVerificationProvider(widget.type).notifier).resend();
+  Future<void> _resend() =>
+      ref.read(contactVerificationProvider(widget.type).notifier).resend();
 
-  void _edit() => widget.mode == AccountContactMode.link
-      ? ref.read(identifierLinkProvider(widget.type).notifier).edit()
-      : ref.read(contactVerificationProvider(widget.type).notifier).edit();
+  void _edit() =>
+      ref.read(contactVerificationProvider(widget.type).notifier).edit();
 
   void _send(Translator t) {
     final raw = _controller.text;
@@ -130,12 +117,9 @@ class _AccountContactFlowScreenState
 
   String _titleKey() {
     final kind = _isPhone ? 'phone' : 'email';
-    return switch (widget.mode) {
-      AccountContactMode.link => 'account.flow.link.$kind.title',
-      AccountContactMode.primary when _replacing =>
-        'account.flow.change.$kind.title',
-      AccountContactMode.primary => 'account.flow.add.$kind.title',
-    };
+    return _replacing
+        ? 'account.flow.change.$kind.title'
+        : 'account.flow.add.$kind.title';
   }
 
   @override
@@ -143,7 +127,7 @@ class _AccountContactFlowScreenState
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final t = ref.watch(translatorProvider);
     final state = _watch();
-    final total = _replacing || widget.mode == AccountContactMode.link ? 3 : 2;
+    final total = _replacing ? 3 : 2;
     final current = switch (state.stage) {
       ContactVerificationStage.editing => 1,
       ContactVerificationStage.confirmIdentity => 2,
@@ -321,6 +305,7 @@ class _AccountContactFlowScreenState
                   label: t.t('auth.otp.resend'),
                   variant: AppButtonVariant.secondary,
                   height: AppSizes.touchTarget,
+                  fitLabel: true,
                   isEnabled: !state.busy,
                   onPressed: state.busy ? null : _resend,
                 ),
@@ -331,6 +316,7 @@ class _AccountContactFlowScreenState
                   label: t.t('account.flow.editValue'),
                   variant: AppButtonVariant.secondary,
                   height: AppSizes.touchTarget,
+                  fitLabel: true,
                   isEnabled: !state.busy,
                   onPressed: state.busy ? null : _edit,
                 ),
@@ -357,12 +343,7 @@ class _AccountContactFlowScreenState
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              widget.mode == AccountContactMode.link
-                  ? t.t(
-                      'account.flow.done.linked',
-                      {'value': display(state.value ?? '')},
-                    )
-                  : t.t('account.flow.done.$kind'),
+              t.t('account.flow.done.$kind'),
               style: typography.body.copyWith(color: colors.textSecondary),
             ),
           ],

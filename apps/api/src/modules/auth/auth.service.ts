@@ -1348,6 +1348,17 @@ export class AuthService {
     user: RequestUser,
     meta?: RequestMeta,
   ): Promise<void> {
+    // Owner 2026-10-28: extra sign-in methods are off (SMS cost). The route
+    // stays for older apps; sign-in with already linked ones is untouched.
+    if (!(
+      (await this.settings?.boolean('auth.additional_identifiers_enabled')) ??
+      false
+    )) {
+      throw new ForbiddenException({
+        code: ErrorCode.FEATURE_DISABLED,
+        message: 'Adding another sign-in method is not available.',
+      });
+    }
     let providerUid: string;
 
     if (dto.provider === 'phone' || dto.provider === 'email') {

@@ -54,6 +54,7 @@ describe('switch contract: defaults (a)', () => {
     ['seo.generator_mode', 'off'],
     ['deal_record.enabled', false],
     ['bids.rich_terms_enabled', false],
+    ['auth.additional_identifiers_enabled', false],
     ['today.sentry_enabled', false],
     ['scale.db_split_enabled', false],
   ];
