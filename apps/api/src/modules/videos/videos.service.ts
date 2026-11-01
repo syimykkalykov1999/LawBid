@@ -292,13 +292,13 @@ export class VideosService {
    * without Redis; auto-expires in 20 s). */
   private async lockUploadStart(userId: string): Promise<() => Promise<void>> {
     const redis = this.redis;
-    if (!redis) return async () => undefined;
+    if (!redis) return () => Promise.resolve();
     const key = `video:init:${userId}`;
     let got: string | null = null;
     try {
       got = await redis.set(key, '1', 'EX', 20, 'NX');
     } catch {
-      return async () => undefined;
+      return () => Promise.resolve();
     }
     if (got !== 'OK') {
       throw new ConflictException({
