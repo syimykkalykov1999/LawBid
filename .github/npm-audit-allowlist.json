@@ -6,18 +6,6 @@
       "package": "deepmerge-ts (via prisma -> @prisma/config)",
       "reason": "Only in the Prisma CLI (migrations/generate at build time), never in the API at runtime; the fix is the Prisma 7 major upgrade.",
       "expires": "2027-01-31"
-    },
-    {
-      "id": "GHSA-mrwp-f3q8-3g9p",
-      "package": "follow-redirects (via axios)",
-      "reason": "Published 2026-11-01; no patched release exists yet (1.16.2 is the latest). Needs a redirect that crosses realms while carrying custom credentials; to be re-checked and upgraded as soon as a fix ships.",
-      "expires": "2026-12-01"
-    },
-    {
-      "id": "GHSA-3f7j-7jwc-fxfj",
-      "package": "systeminformation (via @opentelemetry/instrumentation-host-metrics)",
-      "reason": "Published 2026-11-01; no patched release exists yet (5.33.19 is the latest). The flaw is in the Windows-only services() call; our containers run Linux. To be upgraded as soon as a fix ships.",
-      "expires": "2026-12-01"
     }
   ]
 }
