@@ -311,6 +311,51 @@ export class BidsService {
       const eventTickets: Array<DomainEventTicket | null | undefined> = [];
       const bid = await withTxRetry(this.prisma, async (tx) => {
         eventTickets.length = 0;
+        // Audit A-2: the plan limits above are read outside this transaction,
+        // so parallel requests of one attorney all pass them. Serialise the
+        // attorney's bids on an advisory lock and re-check the two counters
+        // that can be raced (open offers, offers this month).
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`bid-limits:${user.sub}`}, 0))`;
+        if (maxActive && maxActive > 0) {
+          const open = await tx.bid.count({
+            where: { attorney_id: user.sub, status: 'active' },
+          });
+          if (open >= maxActive) {
+            throw new ConflictException({
+              code: ErrorCode.BID_LIMIT_REACHED,
+              message: 'Your plan allows no more open offers at once.',
+              details: { limit: maxActive, open },
+            });
+          }
+        }
+        if (perMonth && perMonth > 0 && !spent) {
+          const sent = await tx.bid.findUnique({
+            where: {
+              case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
+            },
+            select: { id: true },
+          });
+          if (!sent) {
+            const t = new Date();
+            const used = await tx.bid.count({
+              where: {
+                attorney_id: user.sub,
+                created_at: {
+                  gte: new Date(
+                    Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), 1),
+                  ),
+                },
+              },
+            });
+            if (used >= perMonth) {
+              throw new ConflictException({
+                code: ErrorCode.BID_MONTHLY_LIMIT_REACHED,
+                message: 'You have used all offers of this month on your plan.',
+                details: { limit: perMonth, used },
+              });
+            }
+          }
+        }
         const kase = await tx.case.findUnique({
           where: { id: caseId },
           select: { client_id: true, status: true, deleted_at: true },

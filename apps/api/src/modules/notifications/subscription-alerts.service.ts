@@ -5,8 +5,11 @@ import { readsAreSplit } from '../../sharding/split-reads';
 import { NotificationsService } from './notifications.service';
 
 /** One post alerts at most this many people (a later stage can
- * fan out through a queue). */
-export const ALERT_FANOUT_MAX = 5000;
+ * fan out through a queue). Audit A-1: raised from 5000 now that the
+ * audience is read by keyset and written in batches. */
+export const ALERT_FANOUT_MAX = 100_000;
+/** Recipients per INSERT / push enqueue. */
+export const ALERT_BATCH = 500;
 
 /**
  * Owner 2026-09-30, opt-in alerts (categories off by default):
@@ -32,9 +35,34 @@ export class SubscriptionAlertsService {
     postId: string,
     brief = false,
   ): Promise<number> {
-    const rows = readsAreSplit(this.prisma)
-      ? await this.followersSplit(authorId)
-      : await this.prisma.$queryRaw<{ id: string }[]>`
+    // Audit A-1: batches of ALERT_BATCH through emitMany (one INSERT, one
+    // badge drop, one push enqueue per batch instead of ~6 round trips per
+    // follower) with a keyset cursor, so a big audience is no longer cut at
+    // the first rows. The row carries a dedupe key: a retry or a republish of
+    // the same post alerts nobody twice.
+    const payload = {
+      postId,
+      actorId: authorId,
+      ...(brief ? { kind: 'brief' } : {}),
+    };
+    const send = (ids: string[]) =>
+      this.notifications.emitMany({
+        type: 'followed_post',
+        recipientIds: ids,
+        payload,
+        dedupeKey: `followed_post:${postId}`,
+      });
+    let total = 0;
+    if (readsAreSplit(this.prisma)) {
+      const rows = await this.followersSplit(authorId);
+      for (let i = 0; i < rows.length; i += ALERT_BATCH) {
+        total += await send(rows.slice(i, i + ALERT_BATCH).map((r) => r.id));
+      }
+      return total;
+    }
+    let cursor = '00000000-0000-0000-0000-000000000000';
+    for (let sent = 0; sent < ALERT_FANOUT_MAX;) {
+      const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       SELECT f.follower_id::TEXT AS id
       FROM follows f
       JOIN notification_settings s
@@ -43,23 +71,20 @@ export class SubscriptionAlertsService {
       JOIN users u ON u.id = f.follower_id
        AND u.status = 'active' AND u.deleted_at IS NULL
       WHERE f.followee_id = ${authorId}::UUID
+        AND f.follower_id > ${cursor}::UUID
         AND NOT EXISTS (
           SELECT 1 FROM user_blocks b
           WHERE (b.blocker_id = f.follower_id AND b.blocked_id = ${authorId}::UUID)
              OR (b.blocker_id = ${authorId}::UUID AND b.blocked_id = f.follower_id))
-      LIMIT ${ALERT_FANOUT_MAX}`;
-    for (const r of rows) {
-      await this.notifications.emit({
-        type: 'followed_post',
-        recipientId: r.id,
-        payload: {
-          postId,
-          actorId: authorId,
-          ...(brief ? { kind: 'brief' } : {}),
-        },
-      });
+      ORDER BY f.follower_id
+      LIMIT ${ALERT_BATCH}`;
+      if (rows.length === 0) break;
+      total += await send(rows.map((r) => r.id));
+      sent += rows.length;
+      cursor = rows[rows.length - 1].id;
+      if (rows.length < ALERT_BATCH) break;
     }
-    return rows.length;
+    return total;
   }
 
   /**

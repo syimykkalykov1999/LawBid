@@ -1095,23 +1095,31 @@ export class ChannelsService {
     await this.assertEnabled();
     const ch = await this.findReadable(user.sub, id);
     const comment = await this.prisma.channelComment.findFirst({
-      where: { id: commentId, post_id: postId, post: { channel_id: ch.id } },
+      where: {
+        id: commentId,
+        post_id: postId,
+        deleted_at: null,
+        post: { channel_id: ch.id },
+      },
     });
     if (!comment) throw notFound('Comment');
     const role = await this.roleOf(user.sub, ch.id);
     if (!role && comment.author_id !== user.sub) {
       throw forbidden('Not your comment.');
     }
-    await this.prisma.$transaction([
-      this.prisma.channelComment.update({
-        where: { id: commentId },
+    // Audit A-4: the counter moves only for the request that actually
+    // deleted the row (a retry / double tap must not decrement twice).
+    await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.channelComment.updateMany({
+        where: { id: commentId, deleted_at: null },
         data: { deleted_at: new Date() },
-      }),
-      this.prisma.channelPost.update({
+      });
+      if (claimed.count === 0) return;
+      await tx.channelPost.update({
         where: { id: postId },
         data: { comment_count: { decrement: 1 } },
-      }),
-    ]);
+      });
+    });
   }
 
   // ── helpers ──────────────────────────────────────────────────────────
