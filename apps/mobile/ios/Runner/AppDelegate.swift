@@ -413,8 +413,7 @@ import flutter_callkit_incoming
       // M1 (calls audit): iOS counts every VoIP push that is not reported
       // and, after a few, stops delivering them. This push has nothing new
       // to ring, so report a throw-away call and end it at once.
-      reportThenEnd(
-        callkit, callId: UUID().uuidString, name: "LawBid", completion: completion)
+      reportThrowaway(callkit, completion: completion)
       return
     }
     let name = (p["callerName"] as? String) ?? "LawBid"
@@ -481,11 +480,11 @@ import flutter_callkit_incoming
     if let uuid = uuid, let ringing = live.first(where: { $0.uuid == uuid }) {
       if !ringing.hasConnected && !ringing.isOutgoing {
         callController.request(CXTransaction(action: CXEndCallAction(call: uuid))) { _ in }
-        completion()
+        // M1: ending is not a report; this push still needs one.
+        reportThrowaway(callkit, completion: completion)
       } else {
         // The call is answered / ours: this push still needs a report (M1).
-        reportThenEnd(
-          callkit, callId: UUID().uuidString, name: "LawBid", completion: completion)
+        reportThrowaway(callkit, completion: completion)
       }
       return
     }
@@ -493,11 +492,20 @@ import flutter_callkit_incoming
     // call, nothing new is shown over it.
     if !live.isEmpty || uuid == nil {
       // M1: still has to be reported to iOS (see above).
-      reportThenEnd(
-        callkit, callId: UUID().uuidString, name: "LawBid", completion: completion)
+      reportThrowaway(callkit, completion: completion)
       return
     }
     reportThenEnd(callkit, callId: callId, name: "LawBid", completion: completion)
+  }
+
+  /// M1: a VoIP push with nothing to ring still has to be reported to iOS
+  /// (an error from CallKit, e.g. a second call refused, still counts as
+  /// the report). A random id: Dart's server decline for it just gets 404.
+  private func reportThrowaway(
+    _ callkit: SwiftFlutterCallkitIncomingPlugin,
+    completion: @escaping () -> Void
+  ) {
+    reportThenEnd(callkit, callId: UUID().uuidString, name: "LawBid", completion: completion)
   }
 
   /// Report a call (silent) and end it straight away — what iOS accepts
@@ -543,6 +551,8 @@ import flutter_callkit_incoming
     config.maximumCallGroups = 1
     config.maximumCallsPerCallGroup = 1
     config.ringtoneSound = nil
+    config.supportedHandleTypes = [.generic]
+    fallbackProvider?.invalidate()
     let provider = CXProvider(configuration: config)
     fallbackProvider = provider
     let uuid = UUID()
