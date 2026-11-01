@@ -50,3 +50,14 @@
 - «CI gate» — единственный required check. Новые проверки без path-фильтра кладём в `repo-guards.yml`.
 - Дата в тесте — только относительная; `TIME_SHIFT_DAYS=45 npx jest --setupFiles '<rootDir>/../test/time-shift.setup.js' <spec>` покажет бомбу сразу.
 - Находка `npm audit` вне PR с зависимостями — warning; чинить отдельным PR `npm audit fix`.
+
+## Очередь раннеров: Mobile CI на macOS (второй проход, 01.11 21:10)
+
+Замер (шаги упавших/успешных прогонов): на macOS `flutter test` 30–43 мин из 43–115 мин всего (490 тест-файлов, но golden-сравнение только в 7); analyze 2 мин, codegen 2 мин, установка Flutter 1,5 мин, iOS-сборка 13–16 мин. Пул macOS у GitHub мал, 3 мобильных PR одновременно ставили в очередь всё остальное. API CI при этом 16–17 мин и очередь не создаёт (метка «queued» у «All API jobs passed» — это итоговый job, ждущий остальные).
+
+Сделано (`mobile-ci.yml`): analyze + unit/widget (483 файла, без golden) на **ubuntu**; macOS остаётся только для `Golden tests` (7 файлов) и iOS-сборки, и только если PR меняет `apps/mobile/**` (job `changes`; PR только с `packages/api-contract/**` macOS не занимает); `cache: true` у flutter-action; таймауты: API static 45, mobile ubuntu 45, golden macOS 45, iOS 25, остальные job-ы без таймаута получили 20–60; watchdog раз в 3 часа вместо часа.
+
+**Следующий шаг (для следующего ИИ):**
+1. Измерить новый прогон: цель — macOS-часть < 25 мин (golden 7 файлов + iOS). Если `flutter test` на ubuntu красный из-за разницы ОС (шрифты/метрики), чинить тест, а не возвращать на macOS целиком.
+2. «CI gate» сейчас опрашивает API и держит 1 ubuntu-раннер до 90 мин. Заменить на `workflow_run`-workflow (срабатывает на завершение API CI / Mobile CI / admin-ci / Repo guards, ставит commit status «CI gate») или на короткий job с `gh api` — `workflow_run` работает только из `main`, поэтому проверять после слияния.
+3. Если iOS-сборка останется самой долгой — кеш CocoaPods (`~/.cocoapods`, `ios/Pods`) по хешу `Podfile.lock`.
