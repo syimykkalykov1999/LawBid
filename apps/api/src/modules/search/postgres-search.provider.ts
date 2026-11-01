@@ -99,6 +99,44 @@ export function casePlaceMatch(norm: string): Prisma.Sql {
     OR lower(c.city) LIKE ${`% ${escapeLike(norm)}%`})`;
 }
 
+/** Little words that name nothing on their own («in», «в»): a word of a
+ * mixed case query must not have to be a state code like IN. */
+const CASE_QUERY_STOPWORDS = new Set([
+  'in',
+  'at',
+  'on',
+  'of',
+  'for',
+  'the',
+  'and',
+  'or',
+  'a',
+  'an',
+  'to',
+  'в',
+  'во',
+  'на',
+  'и',
+  'или',
+  'по',
+  'с',
+  'со',
+  'за',
+  'для',
+  'из',
+  'у',
+  'о',
+]);
+
+/** The words of a case query that each must match (at most 4). */
+export function caseQueryWords(plain: string): string[] {
+  return plain
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length >= 2 && !CASE_QUERY_STOPWORDS.has(w))
+    .slice(0, 4);
+}
+
 /**
  * docs/05 §7.6 PostgresSearchProvider on the docs/02 §5.3 indexes:
  * trigram GIN on attorney_profiles.username_lower and
@@ -939,6 +977,26 @@ export class PostgresSearchProvider implements SearchProvider {
       }),
     );
     rows = [...new Map([...rows, ...place].map((r) => [r.id, r])).values()];
+    // Owner 2026-10-28 («развод бруклин», «dui texas»): each word may name
+    // the text, the topic or the place — every word must match one of them.
+    const mixedWords = caseQueryWords(parsed.plain);
+    if (mixedWords.length >= 2) {
+      const perWord = await Promise.all(
+        mixedWords.map(
+          async (word) =>
+            Prisma.sql`(${ftsMatch('c', word, true, await this.practiceIdsFor(word))}
+              OR ${casePlaceMatch(word)})`,
+        ),
+      );
+      const mixed = await this.budget(SEARCH_BUDGET_MS, () =>
+        this.searchCases('', {
+          ...p,
+          limit: CASE_CANDIDATES,
+          extraSql: Prisma.sql`${p.extraSql ?? Prisma.empty} AND ${Prisma.join(perWord, ' AND ')}`,
+        }),
+      );
+      rows = [...new Map([...rows, ...mixed].map((r) => [r.id, r])).values()];
+    }
     const ids = rows.map((r) => r.id);
     if (ids.length > 0) {
       const ranked = await this.db.$queryRaw<{ id: string }[]>`

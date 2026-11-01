@@ -22,6 +22,8 @@ import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart'
     show topicName;
 import 'package:lawbid/features/legal_qa/presentation/qa_search_button.dart';
 import 'package:lawbid/features/practice/practice_matches.dart';
+import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
 import 'package:lawbid/features/search/application/search_providers.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
 import 'package:lawbid/features/search/presentation/widgets/search_filters_sheet.dart';
@@ -451,6 +453,12 @@ class _Results extends ConsumerWidget {
         );
       case SearchTab.cases when !attorney:
         return _MyCasesGrid(query: query, filters: filters, empty: nothing);
+      // Owner 2026-10-28: an attorney not verified yet gets no cases from
+      // the server — say why instead of «nothing found».
+      case SearchTab.cases when ref.watch(attorneyNeedsVerificationProvider):
+        return const VerificationRequiredView(
+          reason: VerificationGateReason.cases,
+        );
       case SearchTab.cases:
         final n = ref.read(caseSearchProvider(key).notifier);
         return PagedTileGrid<FeedCase>(
@@ -738,6 +746,15 @@ class _BeforeTyping extends ConsumerWidget {
           rows<CaseSummary>(
             _myCases(ref, '', filters),
             (c) => SearchMyCaseTile(item: c),
+          ),
+        ],
+      // Owner 2026-10-28: not verified yet — say why the list is empty.
+      SearchTab.cases when ref.watch(attorneyNeedsVerificationProvider) => [
+          // AppEmptyState measures itself (LayoutBuilder): fill the rest.
+          const SliverFillRemaining(
+            child: VerificationRequiredView(
+              reason: VerificationGateReason.cases,
+            ),
           ),
         ],
       // Audit 2026-10-01: explore grids filtered on the server (every
