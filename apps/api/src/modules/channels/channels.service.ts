@@ -1098,11 +1098,12 @@ export class ChannelsService {
       where: {
         id: commentId,
         post_id: postId,
-        deleted_at: null,
         post: { channel_id: ch.id },
       },
     });
     if (!comment) throw notFound('Comment');
+    // A retry / double tap of a delete that already went through is a no-op.
+    if (comment.deleted_at) return;
     const role = await this.roleOf(user.sub, ch.id);
     if (!role && comment.author_id !== user.sub) {
       throw forbidden('Not your comment.');

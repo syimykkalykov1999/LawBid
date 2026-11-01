@@ -8,6 +8,8 @@ import { NotificationsService } from './notifications.service';
  * fan out through a queue). Audit A-1: raised from 5000 now that the
  * audience is read by keyset and written in batches. */
 export const ALERT_FANOUT_MAX = 100_000;
+/** The split-reads path still loads the audience in one read: kept small. */
+export const SPLIT_FANOUT_MAX = 5000;
 /** Recipients per INSERT / push enqueue. */
 export const ALERT_BATCH = 500;
 
@@ -156,7 +158,7 @@ export class SubscriptionAlertsService {
     );
     return ids
       .filter((id) => pushOn.has(id) && active.has(id) && !blocked.has(id))
-      .slice(0, ALERT_FANOUT_MAX)
+      .slice(0, SPLIT_FANOUT_MAX)
       .map((id) => ({ id }));
   }
   /**

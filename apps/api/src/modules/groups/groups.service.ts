@@ -1431,6 +1431,10 @@ export class GroupsService {
         await this.broadcast(id, row);
         await this.notifyAdded(id, row, [userId]);
         await this.groupChanged(id, 'members');
+      } else {
+        // Someone else admitted them first: the request is gone for the
+        // other admins too.
+        await this.adminsChanged(id, 'requests');
       }
     } else {
       await this.prisma.chatGroupJoinRequest.delete({
