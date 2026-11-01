@@ -10,6 +10,9 @@
 # iOS signing: Xcode cloud-managed signing through the App Store Connect API key
 # (-allowProvisioningUpdates) - no .p12 and no profile, nothing is exported from
 # a Mac. Store promotion (closed / production) stays in mobile-release.yml.
+# CI audit 2026-11-01: OFF until the repository variable MOBILE_TESTERS_ENABLED is 'true'
+# (set it once the secrets exist); without it the jobs are skipped instead of failing main
+# on empty secrets and occupying macOS runners on every mobile merge.
 # Setup: docs/runbooks/mobile-testers-ci.md. Secrets live in the `release` environment.
 name: Mobile testers
 
@@ -36,7 +39,7 @@ concurrency:
 jobs:
   android:
     name: Android -> Play Internal testing
-    if: ${{ inputs.platform != 'ios' }}
+    if: ${{ vars.MOBILE_TESTERS_ENABLED == 'true' && inputs.platform != 'ios' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: release
@@ -97,7 +100,7 @@ jobs:
 
   ios:
     name: iOS -> TestFlight
-    if: ${{ inputs.platform != 'android' }}
+    if: ${{ vars.MOBILE_TESTERS_ENABLED == 'true' && inputs.platform != 'android' }}
     runs-on: macos-latest
     timeout-minutes: 90
     environment: release
