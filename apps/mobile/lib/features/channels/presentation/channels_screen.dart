@@ -476,54 +476,60 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
         : 0;
     final archivedChannels =
         archivable ? ref.watch(archivedChannelsProvider).value?.length ?? 0 : 0;
-    Widget list(_Kind kind, List<Widget> rows) => RefreshIndicator(
-          color: colors.gold,
-          backgroundColor: colors.sheet,
-          onRefresh: refresh,
-          child: NotificationListener<ScrollNotification>(
-            onNotification: more,
-            child: ListView(
-              key: ValueKey('channels-list-${kind.name}'),
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-              children: [
-                if (kind == _Kind.groups && archivedGroups > 0)
-                  SectionArchiveRow(
-                    count: archivedGroups,
-                    route: GroupRoutes.archive,
-                  ),
-                if (kind == _Kind.channels && archivedChannels > 0)
-                  SectionArchiveRow(
-                    count: archivedChannels,
-                    route: ChannelsRoutes.archive,
-                  ),
-                if (recommended && rows.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsetsDirectional.fromSTEB(
-                      AppSpacing.screenSide,
-                      AppSpacing.xs,
-                      AppSpacing.screenSide,
-                      AppSpacing.xs,
-                    ),
-                    child: Text(
-                      t.t('reco.title'),
-                      key: const ValueKey('channels-reco-title'),
-                      style: caption,
-                    ),
-                  ),
-                if (rows.isEmpty)
-                  SizedBox(
-                    height: 320,
-                    child: kind == _Kind.channels
-                        ? empty
-                        : ChannelsEmpty(message: t.t('channel.empty.groups')),
-                  )
-                else
-                  ...rows,
-              ],
+    Widget list(_Kind kind, List<Widget> rows) {
+      // Lazy: only the rows near the viewport are built (hundreds of
+      // groups/channels no longer jank on open/refresh).
+      final items = <Widget>[
+        if (kind == _Kind.groups && archivedGroups > 0)
+          SectionArchiveRow(
+            count: archivedGroups,
+            route: GroupRoutes.archive,
+          ),
+        if (kind == _Kind.channels && archivedChannels > 0)
+          SectionArchiveRow(
+            count: archivedChannels,
+            route: ChannelsRoutes.archive,
+          ),
+        if (recommended && rows.isNotEmpty)
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              AppSpacing.screenSide,
+              AppSpacing.xs,
+              AppSpacing.screenSide,
+              AppSpacing.xs,
+            ),
+            child: Text(
+              t.t('reco.title'),
+              key: const ValueKey('channels-reco-title'),
+              style: caption,
             ),
           ),
-        );
+        if (rows.isEmpty)
+          SizedBox(
+            height: 320,
+            child: kind == _Kind.channels
+                ? empty
+                : ChannelsEmpty(message: t.t('channel.empty.groups')),
+          )
+        else
+          ...rows,
+      ];
+      return RefreshIndicator(
+        color: colors.gold,
+        backgroundColor: colors.sheet,
+        onRefresh: refresh,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: more,
+          child: ListView.builder(
+            key: ValueKey('channels-list-${kind.name}'),
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+            itemCount: items.length,
+            itemBuilder: (_, i) => items[i],
+          ),
+        ),
+      );
+    }
 
     return Column(
       children: [

@@ -427,6 +427,9 @@ class UploadQueue with WidgetsBindingObserver {
     debugPrint('upload queue: ${job.kind} ${job.id}: $e');
     // Stopped mid-way (signed out, the app closing): untouched, next run.
     if (_disposed) return true;
+    // «Удалить» / cancel while it uploaded: the job is gone, so nothing
+    // is retried and no «failed» message comes back.
+    if (await db.byId(job.id) == null) return false;
     final again = temporary(e);
     final code = again ? null : (e is ApiException ? e.code : 'UPLOAD_FAILED');
     await db.attempted(job.id, failedCode: code);

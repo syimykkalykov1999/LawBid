@@ -442,12 +442,12 @@ class _ReelsTabState extends ConsumerState<_ReelsTab> {
   Widget build(BuildContext context) {
     final legalOnly =
         ref.watch(feedContentModeProvider) == FeedContentMode.legalOnly;
-    final media = MediaQuery.of(context);
+    final topInset = MediaQuery.paddingOf(context).top;
     if (_webReelsLayout(context)) {
       return Scaffold(
         body: Column(
           children: [
-            SizedBox(height: media.padding.top),
+            SizedBox(height: topInset),
             MediaQuery.removePadding(
               context: context,
               removeTop: true,
@@ -509,7 +509,7 @@ class _ReelsTabState extends ConsumerState<_ReelsTab> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // Same status-bar band and header as the other tabs.
-                      SizedBox(height: media.padding.top),
+                      SizedBox(height: topInset),
                       MediaQuery.removePadding(
                         context: context,
                         removeTop: true,
