@@ -47,11 +47,18 @@ if has '^apps/mobile/lib/'; then
   python3 apps/mobile/tool/ci/hardcoded_check.py >/tmp/precheck-hc.log 2>&1 && ok "hardcoded strings/colours" || { bad "hardcoded_check.py"; tail -8 /tmp/precheck-hc.log; }
 fi
 
+# 7. Deep links: AASA / assetlinks generator vs AndroidManifest.xml (CI: "Repo guards").
+if has '^(scripts/seo/|apps/mobile/android/app/src/main/AndroidManifest\.xml|docs/deeplinks/)'; then
+  node --test scripts/seo/test/*.test.mjs >/tmp/precheck-seo.log 2>&1 && ok "SEO / deep-link generator tests" || { bad "scripts/seo tests (AndroidManifest paths must match scripts/seo/well-known.mjs APP_PATHS)"; grep -E "^not ok|error:" /tmp/precheck-seo.log | head -8; }
+fi
+
 if [ "$FULL" = 1 ]; then
   if has '^apps/api/'; then
     ( cd apps/api && npx tsc --noEmit -p tsconfig.json ) >/tmp/precheck-tsc.log 2>&1 && ok "api typecheck" || { bad "api typecheck"; tail -10 /tmp/precheck-tsc.log; }
     SPECS=$(echo "$CH" | grep -E '^apps/api/src/.*\.ts$' | sed 's|^apps/api/||' | tr '\n' ' ')
     [ -n "$SPECS" ] && ( cd apps/api && npx jest --findRelatedTests $SPECS ) >/tmp/precheck-jest.log 2>&1 && ok "unit tests related to changed files" || { [ -n "$SPECS" ] && { bad "related unit tests"; tail -25 /tmp/precheck-jest.log; }; }
+    # Time bombs: the same specs with the clock 45 days ahead (CI: "Time-bomb check (nightly)").
+    [ -n "$SPECS" ] && { ( cd apps/api && IGN=$(grep -rl useFakeTimers src --include='*.spec.ts' | sed 's#\.#\\.#g' | paste -sd'|'); TIME_SHIFT_DAYS=45 npx jest --setupFiles '<rootDir>/../test/time-shift.setup.js' --testPathIgnorePatterns "$IGN" --findRelatedTests $SPECS ) >/tmp/precheck-jest45.log 2>&1 && ok "related unit tests, clock +45 days" || { bad "a related spec breaks when the date moves forward (fixed calendar date?)"; grep -E "●.*›|FAIL " /tmp/precheck-jest45.log | head -8; }; }
   fi
   if has '^apps/api/prisma/schema\.prisma$'; then
     npm run db:erd --workspace apps/api >/dev/null 2>&1; git diff --quiet -- docs/db/ERD.md && ok "ERD up to date" || bad "docs/db/ERD.md changed — commit it"
