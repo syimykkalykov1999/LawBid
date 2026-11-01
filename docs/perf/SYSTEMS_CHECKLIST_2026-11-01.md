@@ -38,14 +38,14 @@
 9. **App Check → enforce.** После выхода сборки с заголовком: `security.app_check.mode = enforce` (откат — `monitor`), `docs/runbooks/APP_CHECK.md`.
 10. **Алерты на телефон и статус-страница.** `status_page_enabled = true` + DNS по `docs/runbooks/STATUS_PAGE.md`; пейджер — `docs/runbooks/paging.md`.
 11. **IP-список админки.** Админка → Настройки: `admin.ip_allowlist` = ваши адреса, затем `admin.ip_allowlist_enabled` = вкл. Сначала добавить адрес, потом включать, иначе запрёте себя (есть `ADMIN_IP_ALLOWLIST_BYPASS`).
-12. **Защита main.** GitHub → Settings → Branches → Add rule `main`: Require status checks (API CI, admin-ci, Mobile CI), Require PR. `npm run precheck` из PR #536 — перед каждым пушем.
+12. **Web Push (код уже полностью есть** — сервис-воркер, платформа `web` в токенах API, `WebPushConfig`, шаги в `web-deploy.yml`; нет только ключей). Firebase console → Project settings → Your apps → Web app (создать, если нет) → скопировать конфиг; Cloud Messaging → Web Push certificates → Generate key pair. В GitHub → Settings → Secrets → Actions добавить `FIREBASE_WEB_API_KEY`, `FIREBASE_WEB_APP_ID`, `FIREBASE_WEB_SENDER_ID`, `FIREBASE_WEB_PROJECT_ID`, `FIREBASE_WEB_AUTH_DOMAIN`, `FIREBASE_WEB_VAPID_KEY`; затем Actions → `web-deploy` → Run.
+13. **Защита main.** GitHub → Settings → Branches → Add rule `main`: Require status checks (API CI, admin-ci, Mobile CI), Require PR. `npm run precheck` из PR #536 — перед каждым пушем.
 
 ## D. Не решено (с причиной)
 
 | Пункт | Почему не закрыт сейчас |
 |---|---|
 | Pinning сертификатов / root-jailbreak | Нужен Flutter и телефон для проверки; в облачной среде их нет. Pinning без запасного ключа может навсегда отрезать приложение при смене сертификата Cloudflare/ACM, поэтому сначала решение владельца: делаем ли pinning вообще. |
-| Web Push | Нужны проект Firebase Web + VAPID-ключ (консоль Firebase). Код сервис-воркера есть (`apps/mobile/web/firebase-messaging-sw.js`). |
 | Модерация видео целиком | Сейчас проверяется обложка. Покадровая проверка требует ffmpeg в образе воркера и права Rekognition; без прод-проверки Bunny-кадров делать вслепую нельзя. |
 | Докачка загрузок (tus) / seq у чатов | Нужны миграция БД и прогон на Postgres (в этой среде базы нет). Клиентская очередь с повтором и курсор `afterId` работают; это улучшение, не дыра. |
 | Админка на нескольких языках | Крупная работа по переводам в `apps/admin`, не блокер запуска. |
