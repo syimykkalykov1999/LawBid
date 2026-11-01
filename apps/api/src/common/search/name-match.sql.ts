@@ -30,9 +30,20 @@ export const NAME_MATCH = {
   wholeSimMin: 0.45,
 } as const;
 
-/** Letters and digits in [s] (spaces, @, dots and dashes do not count). */
+/**
+ * Letters and digits in [s] (spaces, @, dots and dashes do not count). One
+ * Han / kana / Hangul character carries a whole syllable or word, so it
+ * counts 1.5: a two-character term («离婚») is searchable, while the typo
+ * arms still need three.
+ */
 export function letterCount(s: string): number {
-  return s.replace(/[^\p{L}\p{N}]/gu, '').length;
+  const clean = s.replace(/[^\p{L}\p{N}]/gu, '');
+  const wide = (
+    clean.match(
+      /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu,
+    ) ?? []
+  ).length;
+  return clean.length + Math.floor(wide / 2);
 }
 
 /** Spelling keys of a typed text, computed once per search (not per row). */

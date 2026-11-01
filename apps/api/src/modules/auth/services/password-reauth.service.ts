@@ -115,12 +115,28 @@ export class PasswordReauthService {
       });
     }
 
+    // The attempt is reserved BEFORE the (slow) check, so parallel guesses
+    // cannot all pass the read above; success clears it again.
+    const count = await this.redis.incr(lockKey);
+    if (count === 1 || (await this.redis.ttl(lockKey)) < 0) {
+      await this.redis.expire(lockKey, REAUTH_PASSWORD_LOCK_SECONDS);
+    }
+    if (count > REAUTH_PASSWORD_LOCK_AFTER) {
+      await this.fail(user, meta, 'locked');
+      throw new HttpException(
+        {
+          code: ErrorCode.RATE_LIMITED,
+          message: 'Too many wrong passwords. Try again later.',
+          details: {
+            retryAfterSeconds: REAUTH_PASSWORD_LOCK_SECONDS,
+            reason: 'locked',
+          },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
     const ok = await this.passwords.verify(password, passwordHash);
     if (!ok) {
-      const count = await this.redis.incr(lockKey);
-      if (count === 1) {
-        await this.redis.expire(lockKey, REAUTH_PASSWORD_LOCK_SECONDS);
-      }
       await this.fail(user, meta, 'wrong_password');
       throw new UnauthorizedException({
         code: ErrorCode.REAUTH_INVALID,

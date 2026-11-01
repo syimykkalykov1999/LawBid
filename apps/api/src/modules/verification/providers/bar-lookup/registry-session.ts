@@ -198,7 +198,16 @@ export class RegistrySession {
 }
 
 async function readCapped(res: Response): Promise<string> {
-  const text = await res.text();
+  let timer: NodeJS.Timeout | undefined;
+  const text = await Promise.race([
+    res.text(),
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error('The registry stopped sending its answer')),
+        REGISTRY_TIMEOUT_MS,
+      );
+    }),
+  ]).finally(() => clearTimeout(timer));
   if (text.length > MAX_PAGE_BYTES) {
     throw new Error('The registry answer is too large');
   }

@@ -101,7 +101,9 @@ export class RegistryGuard {
     try {
       const out = await call();
       this.succeeded(state);
-      this.remember(key, out);
+      // Only a clean answer is remembered: a fail/manual verdict must not
+      // stick for a day after the registry fixes itself.
+      if (out.result === 'pass') this.remember(key, out);
       return out;
     } catch (e) {
       this.failed(state, e);

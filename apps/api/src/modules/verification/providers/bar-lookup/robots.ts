@@ -37,7 +37,11 @@ export async function assertRobotsAllowed(
   const origin = url.origin;
   let entry = cache.get(origin);
   if (!entry || now - entry.at > TTL_MS) {
-    entry = { at: now, rules: await load(origin, agent, fetchImpl) };
+    const rules = await load(origin, agent, fetchImpl);
+    // RFC 9309: a robots.txt that cannot be read (5xx, redirect, network)
+    // means «assume disallowed» - for this call only, never cached.
+    if (rules === null) throw new RobotsDisallowedError(url.toString());
+    entry = { at: now, rules };
     cache.set(origin, entry);
   }
   if (!allowed(entry.rules, url.pathname + url.search)) {
@@ -49,20 +53,23 @@ async function load(
   origin: string,
   agent: { token: string; userAgent: string },
   fetchImpl: typeof fetch,
-): Promise<Rule[]> {
+): Promise<Rule[] | null> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
     const res = await fetchImpl(new URL('/robots.txt', origin), {
       headers: { 'User-Agent': agent.userAgent },
       signal: ctrl.signal,
-      redirect: 'follow',
+      // Not followed: a redirect could point at an internal address.
+      redirect: 'manual',
     });
+    if (res.status >= 300 && res.status < 400) return null;
+    if (res.status >= 500) return null;
     if (!res.ok) return [];
     const text = (await res.text()).slice(0, MAX_BYTES);
     return parseRobots(text, agent.token);
   } catch {
-    return [];
+    return null;
   } finally {
     clearTimeout(timer);
   }
