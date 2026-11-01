@@ -18,6 +18,8 @@ export interface RetentionResult {
   assistantActivity: number;
   snapshots: number;
   postViews: number;
+  /** Audit A-10: one row per (channel post x reader). */
+  channelPostViews: number;
   appEvents: number;
   /** Scale audit 2026-10-23: one row per impression / view of a post. */
   postViewEvents: number;
@@ -80,6 +82,7 @@ export class DataRetentionService implements OnModuleDestroy {
       activityDays,
       snapshotDays,
       viewsDays,
+      channelViewsDays,
       eventsDays,
       viewEventsDays,
       activeDaysDays,
@@ -90,6 +93,7 @@ export class DataRetentionService implements OnModuleDestroy {
       this.settings.number('storage.retention_assistant_activity_days'),
       this.settings.number('storage.retention_snapshots_days'),
       this.settings.number('storage.retention_post_views_days'),
+      this.settings.number('storage.retention_channel_post_views_days'),
       this.settings.number('storage.retention_app_events_days'),
       this.settings.number('storage.retention_post_view_events_days'),
       this.settings.number('storage.retention_user_activity_days'),
@@ -133,6 +137,20 @@ export class DataRetentionService implements OnModuleDestroy {
                   WHERE created_at < ${before(viewsDays)}
                     AND ${ok('user_id')}
                   ORDER BY created_at LIMIT ${limit})`,
+              ),
+            )
+          : 0,
+      channelPostViews:
+        channelViewsDays > 0
+          ? await this.onEveryDatabase(() =>
+              this.batched(
+                (limit) => this.prisma.$executeRaw`
+                DELETE FROM channel_post_views
+                WHERE ctid IN (
+                  SELECT ctid FROM channel_post_views
+                  WHERE viewed_at < ${before(channelViewsDays)}
+                    AND ${ok('user_id')}
+                  ORDER BY viewed_at LIMIT ${limit})`,
               ),
             )
           : 0,
