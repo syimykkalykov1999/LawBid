@@ -396,8 +396,7 @@ describe('StaffAiQaService: collect (night 2)', () => {
     // the reservation was replaced by the real batch price (2 x 1000in+100out ... 3 rows)
     expect(await t.kit.budget.spent(NOW)).toBeLessThan(500 + 1);
     const log = t.kit.db.rows.get(BATCH_LOG_KEY) as
-      | Array<{ batchId: string; status: string }>
-      | undefined;
+      Array<{ batchId: string; status: string }> | undefined;
     expect(log?.find((e) => e.batchId === 'b1')?.status ?? 'collected').toBe(
       'collected',
     );
