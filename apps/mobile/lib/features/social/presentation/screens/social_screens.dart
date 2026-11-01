@@ -1072,12 +1072,20 @@ class ProfilePostsGrid extends ConsumerWidget {
       required IndexedWidgetBuilder tile,
       Key? gridKey,
     }) {
-      final more = page.canLoadMore
-          ? TextButton(
-              onPressed: () => ref.read(_provider.notifier).loadMore(),
-              child: Text(t.t('pagination.loadingMore')),
-            )
-          : null;
+      // Infinite scroll (Instagram/TikTok profile): the footer is built
+      // lazily when the user nears the end, and loads the next page itself.
+      // A new key per loaded count re-arms it for the following page.
+      final more = !page.hasMore
+          ? null
+          : page.loadMoreError != null
+              ? TextButton(
+                  onPressed: () => ref.read(_provider.notifier).loadMore(),
+                  child: Text(t.t('error.retry')),
+                )
+              : _AutoLoadMore(
+                  key: ValueKey('more-${page.items.length}'),
+                  onLoad: () => ref.read(_provider.notifier).loadMore(),
+                );
       if (asSliver) {
         return SliverMinExtent(
           minExtent: minExtent,
@@ -1122,8 +1130,7 @@ class ProfilePostsGrid extends ConsumerWidget {
           physics: const NeverScrollableScrollPhysics(),
           mainAxisSpacing: 2,
           crossAxisSpacing: 2,
-          children:
-              List.generate(6, (_) => const AppSkeleton(borderRadius: 0)),
+          children: List.generate(6, (_) => const AppSkeleton(borderRadius: 0)),
         ),
       ),
       error: (_, __) => boxed(
@@ -1322,4 +1329,37 @@ class _ThreadDetailState extends ConsumerState<_ThreadDetail> {
       ],
     );
   }
+}
+
+/// Footer of a paginated grid: fires [onLoad] once when first built (i.e. when
+/// it scrolls into the lazy viewport range) and shows a small spinner.
+class _AutoLoadMore extends StatefulWidget {
+  const _AutoLoadMore({required this.onLoad, super.key});
+
+  final VoidCallback onLoad;
+
+  @override
+  State<_AutoLoadMore> createState() => _AutoLoadMoreState();
+}
+
+class _AutoLoadMoreState extends State<_AutoLoadMore> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onLoad();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
 }
