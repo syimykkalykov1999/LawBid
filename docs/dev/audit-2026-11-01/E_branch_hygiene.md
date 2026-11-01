@@ -38,3 +38,6 @@
 - `rescue/partition-messages-local` — только описание: 20 уникальных коммитов партиционирования messages; содержится в `rescue/wt-train-358`. Не сливать.
 - `claude/calls-variant-a` — не сливать (по указанию).
 - `claude/mac-rescue-2026-10-29`, `handoff/mac-2026-11-01` — хранят запросы владельца и карту проекта, не трогать.
+
+## claude/badge-toggle-29 (разобрано, не слито)
+Кончик — WIP «badge switch + per-kind settings (unfinished)» от 21.10 на старой линии. Те же файлы (`notif_prefs_strings.dart`, тест `notification_settings_topics_test.dart`, `iconBadgeOn`/`notif_topics` в badges.service) уже есть в main в более новом виде; обратное применение WIP к main не проходит. Вывод: устарела, сливать нельзя (затрёт новое). Ветка остаётся до решения владельца об удалении; параллельный тред старого чата её не ведёт.
