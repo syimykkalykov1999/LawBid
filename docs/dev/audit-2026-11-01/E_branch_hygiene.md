@@ -41,3 +41,10 @@
 
 ## claude/badge-toggle-29 (разобрано, не слито)
 Кончик — WIP «badge switch + per-kind settings (unfinished)» от 21.10 на старой линии. Те же файлы (`notif_prefs_strings.dart`, тест `notification_settings_topics_test.dart`, `iconBadgeOn`/`notif_topics` в badges.service) уже есть в main в более новом виде; обратное применение WIP к main не проходит. Вывод: устарела, сливать нельзя (затрёт новое). Ветка остаётся до решения владельца об удалении; параллельный тред старого чата её не ведёт.
+
+## Устаревшие красные PR (01.11, вечер)
+Проверка: уникальный коммит PR применён к main и к ветке #535 (прямое/обратное применение).
+- #517 hide-counts, #515 people-search-relevance, #516 state-bar-registries-all — содержимое уже в #535 → PR закрыты, ветки оставлены.
+- #525 r8-mlkit-dontwarn — правило proguard совпадает в #535 байт в байт → закрыт, ветка оставлена.
+- #527 rescue/wt-agent-ad7821003a1445008 — снимок 6735 файлов, красный gitleaks → закрыт, ветка оставлена.
+- #511 remove-brand-names — уникальное содержимое (юридические правки брендов), в main/#535 нет → в ветку влит main чисто, precheck OK, push; PR остаётся открытым, ждёт зелёного CI.
