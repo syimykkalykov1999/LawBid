@@ -12,6 +12,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
+import 'package:lawbid/core/media/video_prefetch.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/stories/application/stories_providers.dart';
 import 'package:lawbid/features/stories/application/story_playback.dart';
@@ -430,10 +431,50 @@ class _StoryPlaybackViewState extends ConsumerState<StoryPlaybackView>
     }
   }
 
+  // ── warm-up ────────────────────────────────────────────────────────
+
+  int _warmedFor = -1;
+
+  /// The next two stories load while the current one plays, so a tap
+  /// «forward» shows them at once (Instagram / WhatsApp Status).
+  void _warmNext(int at) {
+    if (!mounted) return;
+    for (var i = at + 1; i <= at + 2 && i < _stories.length; i++) {
+      final s = _stories[i];
+      switch (s.kind) {
+        case StoryKind.photo:
+          final url = s.mediaUrl;
+          if (url != null) {
+            unawaited(
+              precacheImage(appNetworkImage(url, 1080), context)
+                  .catchError((Object _) {}),
+            );
+          }
+        case StoryKind.video:
+          final cover = s.video?.thumbnailUrl;
+          if (cover != null) {
+            unawaited(
+              precacheImage(appNetworkImage(cover, 720), context)
+                  .catchError((Object _) {}),
+            );
+          }
+          final stream = s.video?.playbackUrl;
+          if (stream != null) HlsPrefetcher.instance.prefetch(stream);
+        case StoryKind.text:
+          break;
+      }
+    }
+  }
+
   // ── build ──────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    if (_warmedFor != _pb.index) {
+      _warmedFor = _pb.index;
+      final at = _pb.index;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _warmNext(at));
+    }
     _shownIndex = _pb.index;
     _shownPaused = _pb.paused;
     _shownRestarts = _pb.restarts;

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
@@ -1043,6 +1044,7 @@ class _MessageListState extends ConsumerState<_MessageList> {
           key: _listKey,
           controller: _c.scroll,
           reverse: true,
+          scrollCacheExtent: const ScrollCacheExtent.viewport(1),
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.screenSide,
             vertical: AppSpacing.md,
@@ -1085,6 +1087,14 @@ class _MessageListState extends ConsumerState<_MessageList> {
               );
             }
             BuildCounter.hit('chat.row');
+            // Prefetch the older page ~8 rows before the top, so history
+            // is already there when the user scrolls up (Telegram-style).
+            if (i >= entries.length - 8 &&
+                state.nextCursor != null &&
+                !state.loadingMore &&
+                !state.loadMoreFailed) {
+              WidgetsBinding.instance.addPostFrameCallback((_) => onMore());
+            }
             final entry = entries[i];
             final m = entry.newest;
             final older = i + 1 < entries.length ? entries[i + 1].newest : null;
