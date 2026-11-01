@@ -135,3 +135,78 @@ bool _withinOne(String a, String b) {
   }
   return edits + (la - i) + (lb - j) <= 1;
 }
+
+/// Owner 2026-10-28 («sima kalykov» listed two «Syimyk Kalykov» chats next
+/// to «Sima Kalykov»): how a person matches what was typed, best first —
+/// the same tiers as the server's people search (PERSON_TIER in
+/// apps/api/src/common/search/name-match.sql.ts):
+/// 0 exact, 1 prefix (name, a name word, @username), 2 every word starts a
+/// word (any order), 3 inside the name (3+ letters), 4 every word starts a
+/// word in another alphabet / spelling (3+ letters), 5 a typo (4+ letters, one edit per
+/// word). Null = no match. A list keeps typo matches only when nothing
+/// matched better ([rankByName]).
+int? nameTier(String query, String name, [String username = '']) {
+  final q = searchFold(query).replaceFirst(RegExp('^[@#]+'), '');
+  final words = searchWords(query);
+  if (q.isEmpty || words.isEmpty) return null;
+  final n = searchFold(name);
+  final u = searchFold(username).replaceFirst(RegExp('^@+'), '');
+  final nameWords = n.split(' ').where((w) => w.isNotEmpty).toList();
+  final handleWords = u.split(RegExp('[._-]')).where((w) => w.isNotEmpty);
+  final allWords = [...nameWords, ...handleWords];
+  final letters = q.replaceAll(RegExp(r'[^\p{L}\p{N}]', unicode: true), '');
+  if (n == q || (u.isNotEmpty && u == q)) return 0;
+  if (n.startsWith(q) ||
+      (u.isNotEmpty && u.startsWith(q)) ||
+      n.contains(' $q')) {
+    return 1;
+  }
+  bool startsAWord(String w, Iterable<String> of) =>
+      of.any((h) => h.startsWith(w));
+  if (words.every((w) => startsAWord(w, allWords))) return 2;
+  if (letters.length >= 3 && (n.contains(q) || u.contains(q))) return 3;
+  final skelWords = nameSkeleton(n).split(' ');
+  if (letters.length >= 3 &&
+      words.every((w) {
+        final s = nameSkeleton(w);
+        return s.isNotEmpty && startsAWord(s, skelWords);
+      })) {
+    return 4;
+  }
+  if (letters.length >= 4 &&
+      words.every((w) {
+        final s = nameSkeleton(w);
+        if (s.isNotEmpty && startsAWord(s, skelWords)) return true;
+        if (w.length < 4) return false;
+        return nameWords.any((h) {
+          final head = h.length > w.length ? h.substring(0, w.length) : h;
+          return _withinOne(w, head) || _withinOne(w, h);
+        });
+      })) {
+    return 5;
+  }
+  return null;
+}
+
+/// [items] matching [query] by [nameTier], best tier first (stable inside a
+/// tier); typo matches (tier 5) only when nothing matched better. A blank
+/// [query] returns [items] as they are.
+List<T> rankByName<T>(
+  List<T> items,
+  String query,
+  String Function(T) name, [
+  String Function(T)? username,
+]) {
+  if (searchWords(query).isEmpty) return items;
+  final scored = <(int, int, T)>[];
+  for (final (i, it) in items.indexed) {
+    final t = nameTier(query, name(it), username?.call(it) ?? '');
+    if (t != null) scored.add((t, i, it));
+  }
+  final strong = scored.any((s) => s.$1 < 5);
+  return [
+    for (final s
+        in (scored..sort((a, b) => a.$1 != b.$1 ? a.$1 - b.$1 : a.$2 - b.$2)))
+      if (!strong || s.$1 < 5) s.$3,
+  ];
+}

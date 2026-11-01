@@ -20,8 +20,14 @@ import {
 import { parseSearchQuery } from '../../common/search/search-query';
 import {
   escapeLike,
+  letterCount,
+  NAME_MATCH,
   nameKeys,
   nameMatchSql,
+  PERSON_TIER,
+  personTierSql,
+  startsAWord,
+  wordStartSql,
 } from '../../common/search/name-match.sql';
 import { SearchSynonymsService } from './search-synonyms.service';
 import { urgencyFilterSql } from '../cases/domain/case-urgency';
@@ -214,7 +220,7 @@ export class PostgresSearchProvider implements SearchProvider {
   async practicesNamed(q: string): Promise<string[]> {
     const out: string[] = [];
     for (const [id, names] of await this.practiceAreaNames()) {
-      if (names.some((n) => n.includes(q))) out.push(id);
+      if (names.some((n) => startsAWord(n, q))) out.push(id);
     }
     return out;
   }
@@ -241,9 +247,17 @@ export class PostgresSearchProvider implements SearchProvider {
 
   /**
    * Attorneys (docs/05 §7.3 branches: @username, name, practice name,
-   * state) and — OQ-026, when [withClients] — clients (@username, name),
-   * ranked together: exact handle, handle prefix, trigram similarity,
-   * attorneys before clients, verified first, rating.
+   * state) and — OQ-026, when [withClients] — clients (@username, name).
+   *
+   * Owner 2026-10-28 (Instagram / Telegram order; «jah» found an unrelated
+   * «Syimyk Kalykov» through the Indonesian practice name «Kejahatan»):
+   * every row gets a tier ([PERSON_TIER], personTierSql) — exact, prefix,
+   * word start, contains (3+ letters), other alphabet, typo (4+ letters),
+   * topic/state — and a row of no tier is dropped, also for the engine's
+   * candidates ([among]). Inside a tier: typo closeness, the paid "higher
+   * in search", verified, rating (admin weights), followers, attorneys
+   * first; SearchService then moves close neighbours by the viewer's own
+   * interactions (reorderWithinTiers).
    */
   private async people(
     q: string,
@@ -253,31 +267,65 @@ export class PostgresSearchProvider implements SearchProvider {
     among?: string[],
   ): Promise<{ id: string; role: PersonRole; tier: PersonTier }[]> {
     const w = await this.weights();
+    const letters = letterCount(q);
     const prefix = `${escapeLike(q)}%`;
     const contains = `%${escapeLike(q)}%`;
     const keys = await nameKeys(this.db, q);
     const byName = nameMatchSql(keys);
+    // Topics and places only from 3 letters, at a word start: «jah» is not
+    // «Kejahatan» (criminal law, Indonesian), «ka» is not Kansas.
+    const topical = letters >= NAME_MATCH.containsMinLetters;
     // Owner 2026-10-15: "развод" / "муж бьёт" → attorneys of that topic.
     const synPractices = (await this.synonyms?.resolve(q))?.practiceIds ?? [];
-    const bySynonym = synPractices.length
-      ? Prisma.sql`UNION
-        (SELECT ap.attorney_id FROM attorney_practice_areas ap
-          WHERE ap.practice_area_id = ANY(${synPractices}::UUID[])
-          LIMIT ${BRANCH_CAP})`
-      : Prisma.empty;
     // Owner 2026-10-13: a practice by its name in ANY language ("развод",
     // "तलाक"): the translations of its i18n key (matched in memory).
-    const needle = q;
     const namedPractices: string[] = [];
-    for (const [id, names] of await this.practiceAreaNames()) {
-      if (names.some((n) => n.includes(needle))) namedPractices.push(id);
+    if (topical) {
+      for (const [id, names] of await this.practiceAreaNames()) {
+        if (names.some((n) => startsAWord(n, q))) namedPractices.push(id);
+      }
     }
-    const byTranslation = namedPractices.length
+    const topicPractices = [...new Set([...synPractices, ...namedPractices])];
+    const practiceByEnglish = topical
+      ? wordStartSql(Prisma.sql`lower(pa.name_en)`, escapeLike(q))
+      : Prisma.sql`FALSE`;
+    const stateMatch = Prisma.sql`(lower(s.code) = ${q}${
+      topical ? Prisma.sql` OR lower(s.name) LIKE ${prefix}` : Prisma.empty
+    })`;
+    // Is the attorney [u] one of the typed topic / state (tier "topic")?
+    const topic = Prisma.sql`(EXISTS (SELECT 1 FROM attorney_practice_areas tp
+        WHERE tp.attorney_id = u.id
+          AND (tp.practice_area_id = ANY(${topicPractices}::UUID[])
+               OR tp.practice_area_id IN (SELECT pa.id FROM practice_areas pa
+                                           WHERE ${practiceByEnglish})))
+      OR EXISTS (SELECT 1 FROM attorney_licenses tl
+        JOIN states s ON s.code = tl.state_code
+        WHERE tl.attorney_id = u.id AND tl.license_status = 'verified'
+          AND ${stateMatch}))`;
+    const byTopic = topicPractices.length
       ? Prisma.sql`UNION
         (SELECT ap.attorney_id FROM attorney_practice_areas ap
-          WHERE ap.practice_area_id = ANY(${namedPractices}::UUID[])
+          WHERE ap.practice_area_id = ANY(${topicPractices}::UUID[])
           LIMIT ${BRANCH_CAP})`
       : Prisma.empty;
+    const byEnglish = topical
+      ? Prisma.sql`UNION
+        (SELECT ap.attorney_id FROM practice_areas pa
+          JOIN attorney_practice_areas ap ON ap.practice_area_id = pa.id
+          WHERE ${practiceByEnglish}
+          LIMIT ${BRANCH_CAP})`
+      : Prisma.empty;
+    // Candidate handles: prefix; inside from 3 letters; close from 4.
+    const handleMatch = (col: Prisma.Sql) =>
+      Prisma.sql`(${col} LIKE ${
+        letters >= NAME_MATCH.containsMinLetters ? contains : prefix
+      }${keys.fuzzy ? Prisma.sql` OR ${col} % ${q}` : Prisma.empty})`;
+    // Candidate names: a word start; inside from 3 letters. Other
+    // alphabets, word order and typos come from [byName].
+    const fullNameMatch =
+      letters >= NAME_MATCH.containsMinLetters
+        ? Prisma.sql`full_name_lower LIKE ${contains}`
+        : wordStartSql(Prisma.sql`full_name_lower`, escapeLike(q));
     const filters = Prisma.sql`
       ${
         f.practiceAreaId
@@ -307,22 +355,24 @@ export class PostgresSearchProvider implements SearchProvider {
     const clients = withClients
       ? Prisma.sql`
         UNION ALL
-        SELECT u.id, 'client' AS role, c.username_lower AS uname,
-               u.full_name_lower AS fname, u.name_skel AS fskel,
+        SELECT u.id, 'client' AS role, u.full_name_lower AS fname,
+               u.name_skel AS fskel,
+               ${personTierSql(q, keys, Prisma.sql`c.username_lower`, 'u', Prisma.sql`FALSE`)} AS tier,
                FALSE AS verified,
-               0::DECIMAL AS rating, FALSE AS priority
+               0::DECIMAL AS rating, FALSE AS priority,
+               c.followers_count AS followers
         FROM (${
           among
             ? Prisma.sql`SELECT unnest(${among}::UUID[]) AS user_id`
             : Prisma.sql`
           (SELECT user_id FROM client_profiles
             WHERE username_lower IS NOT NULL
-              AND (username_lower LIKE ${prefix} OR username_lower % ${q})
+              AND ${handleMatch(Prisma.sql`username_lower`)}
             LIMIT ${BRANCH_CAP})
           UNION
           (SELECT id AS user_id FROM users
             WHERE full_name_lower IS NOT NULL AND role = 'client'
-              AND (full_name_lower % ${q} OR full_name_lower LIKE ${contains})
+              AND ${fullNameMatch}
             LIMIT ${BRANCH_CAP})
           UNION
           (SELECT id AS user_id FROM users
@@ -344,39 +394,36 @@ export class PostgresSearchProvider implements SearchProvider {
           : Prisma.sql`
         (SELECT user_id AS id FROM attorney_profiles
           WHERE username_lower IS NOT NULL
-            AND (username_lower LIKE ${prefix} OR username_lower % ${q})
+            AND ${handleMatch(Prisma.sql`username_lower`)}
           LIMIT ${BRANCH_CAP})
         UNION
         (SELECT id FROM users
           WHERE full_name_lower IS NOT NULL AND role = 'attorney'
-            AND (full_name_lower % ${q} OR full_name_lower LIKE ${contains})
+            AND ${fullNameMatch}
           LIMIT ${BRANCH_CAP})
         UNION
         (SELECT id FROM users
           WHERE full_name_lower IS NOT NULL AND role = 'attorney' AND ${byName}
           LIMIT ${BRANCH_CAP})
-        UNION
-        (SELECT ap.attorney_id FROM practice_areas pa
-          JOIN attorney_practice_areas ap ON ap.practice_area_id = pa.id
-          WHERE lower(pa.name_en) LIKE ${contains}
-          LIMIT ${BRANCH_CAP})
-        ${byTranslation}
+        ${byEnglish}
+        ${byTopic}
         UNION
         (SELECT l.attorney_id FROM states s
           JOIN attorney_licenses l ON l.state_code = s.code
             AND l.license_status = 'verified'
-          WHERE lower(s.name) LIKE ${prefix} OR lower(s.code) = ${q}
-          LIMIT ${BRANCH_CAP})
-        ${bySynonym}`
+          WHERE ${stateMatch}
+          LIMIT ${BRANCH_CAP})`
       }
       ),
       people AS (
-        SELECT u.id, 'attorney' AS role, a.username_lower AS uname,
+        SELECT u.id, 'attorney' AS role,
                u.full_name_lower AS fname, u.name_skel AS fskel,
+               ${personTierSql(q, keys, Prisma.sql`a.username_lower`, 'u', topic)} AS tier,
                (a.verification_status = 'verified') AS verified,
                a.rating_avg AS rating,
                -- Owner 2026-10-05 (plan builder): "higher in search".
-               ${attorneysWithEntitlementSql('priority_search', Prisma.sql`u.id`)} AS priority
+               ${attorneysWithEntitlementSql('priority_search', Prisma.sql`u.id`)} AS priority,
+               a.followers_count AS followers
         FROM cand
         JOIN users u ON u.id = cand.id AND u.role = 'attorney'
           AND u.status = 'active' AND u.deleted_at IS NULL
@@ -385,22 +432,24 @@ export class PostgresSearchProvider implements SearchProvider {
         WHERE TRUE ${filters}
         ${clients}
       )
-      SELECT id::TEXT AS id, role,
-             (CASE WHEN uname = ${q} THEN 0
-                   WHEN uname LIKE ${prefix} THEN 1 ELSE 2 END)::INT AS tier
-      FROM people
+      SELECT id::TEXT AS id, role, tier
+      FROM (SELECT *,
+                   bool_or(tier < ${PERSON_TIER.fuzzy}) OVER () AS has_strong
+            FROM people WHERE tier < ${PERSON_TIER.none}) p
+      -- Owner 2026-10-28 («sima kalykov» also listed «Syimyk Kalykov»):
+      -- typo matches only when no name matched strongly.
+      WHERE tier <> ${PERSON_TIER.fuzzy} OR NOT has_strong
       ORDER BY
-        (uname = ${q}) DESC,
-        (uname LIKE ${prefix}) DESC,
-        GREATEST(similarity(uname, ${q}),
-                 similarity(COALESCE(fname, ''), ${q}),
-                 -- = word_similarity(f_name_skel(q), f_name_skel(fname)),
-                 -- both keys precomputed (load test 2026-10-28).
-                 word_similarity(${keys.whole}::TEXT,
-                                 COALESCE(fskel, public.f_name_skel(COALESCE(fname, ''))))) DESC,
-        (role = 'attorney') DESC,
+        tier,
+        -- A typo: the closer spelling first (both keys precomputed).
+        (CASE WHEN tier = ${PERSON_TIER.fuzzy}
+              THEN word_similarity(${keys.whole}::TEXT, COALESCE(fskel, ''))
+              ELSE 0 END) DESC,
         (priority::INT * ${w.priority}::FLOAT8 + verified::INT * ${w.verified}::FLOAT8
           + rating::FLOAT8 * ${w.rating}::FLOAT8) DESC,
+        followers DESC,
+        (role = 'attorney') DESC,
+        length(COALESCE(fname, '')),
         id
       LIMIT ${max}`;
     return rows.map((r) => ({
