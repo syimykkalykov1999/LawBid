@@ -87,3 +87,20 @@ Another Claude account may pick this up. Read ALL of this before doing anything.
 
 ## 6. VERY LAST TASK (the owner's "everything is done" signal)
 ONLY after every item above is finished: the verified checkmark badges (attorney green, client badge) look greyish in some themes. Fix ONLY their colors per theme (Day, Night, Blue, Green) so each is clearly visible; keep the icon shape and size. If anything else is unfinished, do NOT do this, because the owner uses it to know all work is complete.
+
+---
+
+## СТАТУС ПРАВОК (01.11, ветка `claude/project-thread-v0m4cp`, PR в main)
+Полный список «просил/сделано/не сделано» — `docs/HANDOFF_MAC_2026-10-29.md`; слова владельца — `docs/dev/owner-requests/`.
+Статусы: сделано SHA / в работе / не решено после 4 попыток.
+
+| Пункт | Статус |
+|---|---|
+| Слиты в рабочую ветку: #525 R8, #526 правила, #522 VoIP→CallKit, #523 план звонков, #517 скрытие счётчиков, `reels-freeze`, `pull-refresh`, `archive-reauth`, `no-extra-phone`, `privacy-follow`, #515, #520 поиск, #516 реестры | слито (конфликты решены; xlsx переводов объединён по ключам); проверка — CI этого PR |
+| Ветка `claude/mac-rescue-2026-10-29` целиком | не слита: конфликты ios pbxproj/entitlements, контакты, чат; в рабочую ветку взяты только документы |
+| Звонки: лаги (п. 4) | не начато: нужен замер на телефоне |
+| Загрузка кусками, местоположение, поиск постов/тем, уведомления (п. 34–36, 30), плавность | не начато |
+
+## Решения для владельца
+- «Чаты» в Сохранённом (п. 19): оставлено как есть, ответа не было.
+- Ветка mac-rescue не слита целиком: там снимок несохранённой работы Mac (контакты, стикеры, iOS-проект) — конфликтует с main; брать частями по команде.
