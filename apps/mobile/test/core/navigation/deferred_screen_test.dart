@@ -13,6 +13,7 @@ import 'fixtures/deferred_fixture_screen.dart' deferred as d_second;
 
 var _cachedLoads = 0;
 Future<void> _cachedLoad() async => _cachedLoads++;
+Future<void> _otherLoad() async {}
 Widget _cachedBuilder(BuildContext _) => const Text('cached');
 
 Widget _host(Widget child) => ProviderScope(
@@ -61,7 +62,9 @@ void main() {
 
   testWidgets('the same id with ANOTHER loader is not trusted from the cache',
       (tester) async {
-    await DeferredScreen.prefetch('test_same_id', _cachedLoad);
+    await tester.runAsync(
+      () => DeferredScreen.prefetch('test_same_id', _otherLoad),
+    );
     var loads = 0;
     await tester.pumpWidget(
       _host(

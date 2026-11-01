@@ -535,6 +535,7 @@ void main() {
         await tester.enterText(find.byType(TextField).first, 'x@example.com');
         await tester.tap(find.text('Send code'));
         await tester.pumpAndSettle();
+        await _useSms(tester); // owner 2026-10-28: password first
         final buttons = find.byType(AppButton);
         expect(buttons, findsNWidgets(2));
         final a = tester.getSize(buttons.at(0));
