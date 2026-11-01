@@ -391,7 +391,10 @@ import flutter_callkit_incoming
     // the push instead of leaving iOS waiting (only if even the stand-in
     // engine could not start).
     guard let callkit = callkitPlugin() else {
-      reportWithoutPlugin(completion: completion)
+      // No plugin = no provider to report to; the project allows exactly
+      // one CallKit provider (callkit_single_subscription_test), so a
+      // second one is not created here.
+      completion()
       return
     }
     let p = payload.dictionaryPayload
@@ -536,36 +539,6 @@ import flutter_callkit_incoming
         ) { _ in }
       }
       completion()
-    }
-  }
-
-  /// M1 last resort: not even the stand-in engine could start, so the
-  /// plugin's provider does not exist. Apple's rule is the same (report
-  /// every VoIP push), so a short-lived provider reports a call and ends
-  /// it at once. Only used when there is no plugin provider — never two
-  /// live handlers at the same time.
-  private var fallbackProvider: CXProvider?
-
-  private func reportWithoutPlugin(completion: @escaping () -> Void) {
-    let config = CXProviderConfiguration()
-    config.maximumCallGroups = 1
-    config.maximumCallsPerCallGroup = 1
-    config.ringtoneSound = nil
-    config.supportedHandleTypes = [.generic]
-    fallbackProvider?.invalidate()
-    let provider = CXProvider(configuration: config)
-    fallbackProvider = provider
-    let uuid = UUID()
-    let update = CXCallUpdate()
-    update.remoteHandle = CXHandle(type: .generic, value: "LawBid")
-    update.localizedCallerName = "LawBid"
-    provider.reportNewIncomingCall(with: uuid, update: update) { [weak self] _ in
-      provider.reportCall(with: uuid, endedAt: Date(), reason: .failed)
-      completion()
-      DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-        provider.invalidate()
-        self?.fallbackProvider = nil
-      }
     }
   }
 
