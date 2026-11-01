@@ -3,6 +3,10 @@ import { startTelemetry } from './telemetry/otel';
 
 startTelemetry('worker');
 
+import { installProcessGuards } from './common/process-guards';
+
+installProcessGuards();
+
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { captureKeyEnv, scrubKeyEnv } from './common/secrets/key-holder';
