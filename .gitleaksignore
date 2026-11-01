@@ -56,3 +56,5 @@ aa2454bc6d4843a3af822f3add4ce6d2a1315bdb:apps/api/test/owner-subscription-alerts
 # ('tok-1-abcdefghijklmnop'), renamed to 'test-capture-token-1' in the next
 # commit; the earlier commit stays in history (no force-push). Not a secret.
 2fbbc04b04fe66b6afc3f95d3ca95c0ee9011078:apps/mobile/test/features/verification/verification_acceptance_test.dart:generic-api-key:122
+# CI audit 2026-11-01: CI-only dummy pepper copied into time-bomb-nightly.yml in 3109c388; removed in the next commit (no force-push). Not a secret.
+3109c388daa97afc7d43669729c573e3a979b68a:.github/workflows/time-bomb-nightly.yml:generic-api-key:32

@@ -37,6 +37,7 @@ export const APP_PATHS = [
   ['/g/*', 'Group invitation'],
   ['/c/*', 'Channel (lawbid.dev/c/<username>)'],
   ['/auth/email-code', 'Email magic sign-in link'],
+  ['/verification/wizard', 'Continue verification on the phone (ID selfie), owner 2026-10-28'],
 ];
 
 export function appleAppSiteAssociation() {
