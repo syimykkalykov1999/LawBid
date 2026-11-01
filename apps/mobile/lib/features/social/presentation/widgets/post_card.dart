@@ -103,7 +103,7 @@ class PostVideoCaption extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final text = line.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final text = line.replaceAll(_wsRun, ' ').trim();
     if (text.isEmpty) return const SizedBox.shrink();
     final lead =
         author == null || author!.isEmpty ? '' : '${ltrIsolate(author!)} ';
@@ -666,11 +666,7 @@ class PostCard extends ConsumerWidget {
     final m = _trailingTags.firstMatch(trimmed);
     if (m == null) return (trimmed, const []);
     final tags = [
-      for (final x in RegExp(
-        r'#[\p{L}\p{N}_]+',
-        unicode: true,
-      ).allMatches(m.group(0)!))
-        x.group(0)!,
+      for (final x in _hashTag.allMatches(m.group(0)!)) x.group(0)!,
     ];
     return (trimmed.substring(0, m.start).trim(), tags);
   }
@@ -2194,7 +2190,7 @@ class _PostBodyTextState extends ConsumerState<PostBodyText> {
         );
       } else {
         // "@anna." at the end of a sentence: the dot is not the name.
-        final trimmed = token.replaceFirst(RegExp(r'\.+$'), '');
+        final trimmed = token.replaceFirst(_trailingDots, '');
         final tail = token.substring(trimmed.length);
         final handle = trimmed.substring(1).toLowerCase();
         final who =
@@ -3790,3 +3786,8 @@ class _FeedFillState extends State<_FeedFill> {
     return fill ? SizedBox(height: widget.height, child: body) : body;
   }
 }
+
+// Compiled once: these run per card build/token while scrolling the feed.
+final RegExp _wsRun = RegExp(r'\s+');
+final RegExp _trailingDots = RegExp(r'\.+$');
+final RegExp _hashTag = RegExp(r'#[\p{L}\p{N}_]+', unicode: true);
