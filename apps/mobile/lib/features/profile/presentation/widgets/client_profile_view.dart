@@ -105,8 +105,7 @@ class _OwnSocial extends ConsumerWidget {
           try {
             await ref.read(publicClientProfileProvider(username).future);
           } catch (_) {
-            // Pull-to-refresh only: a failed load is shown by the screen's own
-            // error state (the provider keeps the AsyncError), so no second report.
+            // Refresh only: the screen's own error state shows a failed load.
           }
         },
       ),
