@@ -4,6 +4,7 @@ import { UsageHardStopService } from '../../common/ops/usage/usage-hard-stop.ser
 import {
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -17,7 +18,9 @@ import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
 import { EntitlementsService } from '../plans/entitlements.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
+import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { roundedExpiry, signedCdnUrl, tusSignature } from './bunny-signing';
 import { BunnyStreamClient, type BunnyVideo } from './bunny-stream.client';
@@ -103,6 +106,7 @@ export class VideosService {
     @Optional() private readonly moderation?: MediaModerationQueue,
     // Cost registry V7: pause new uploads at Bunny's urgent traffic level.
     @Optional() private readonly hardStop?: UsageHardStopService,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
 
   /** The flag is on and every Bunny key is set. */
@@ -218,60 +222,92 @@ export class VideosService {
       }
       coverFileId = dto.coverFileId;
     }
-    const pending = await this.prisma.videoAsset.count({
-      where: {
-        owner_user_id: userId,
-        status: { in: ['awaiting_upload', 'processing'] },
-        post: null,
-      },
-    });
-    if (pending >= (await this.settings.number('video.max_pending_per_user'))) {
+    // B-13: count -> create is not atomic; a short per-person lock stops
+    // parallel requests from slipping past video.max_pending_per_user.
+    const unlock = await this.lockUploadStart(userId);
+    try {
+      const pending = await this.prisma.videoAsset.count({
+        where: {
+          owner_user_id: userId,
+          status: { in: ['awaiting_upload', 'processing'] },
+          post: null,
+        },
+      });
+      if (
+        pending >= (await this.settings.number('video.max_pending_per_user'))
+      ) {
+        throw new ConflictException({
+          code: ErrorCode.VIDEO_NOT_READY,
+          message: 'Finish or cancel your other video uploads first.',
+        });
+      }
+      await this.limits.consume('video_upload', userId);
+      // Owner 2026-10-22 (audit #4 §6): priced per minute of video.
+      await this.costGuard.consume('video', 1, {
+        userId,
+        seconds: dto.durationSec,
+      });
+      const keys = (await this.bunny.keys())!;
+      const guid = await this.bunny.createVideo(
+        dto.title?.trim() || 'LawBid',
+        coverMs,
+      );
+      const ttlMin = await this.settings.number('video.upload_ttl_min');
+      const expire = Math.floor(Date.now() / 1000) + ttlMin * 60;
+      const asset = await this.prisma.videoAsset.create({
+        data: {
+          owner_user_id: userId,
+          library_id: keys.libraryId,
+          external_id: guid,
+          upload_expires_at: new Date(expire * 1000),
+          trim_start_ms: trim?.startMs ?? null,
+          trim_end_ms: trim?.endMs ?? null,
+          // The declared length: the check against Bunny's real length
+          // (refresh) picks the reel or the post limit by it.
+          duration_sec: dto.durationSec,
+          cover_time_ms: coverMs,
+          cover_file_id: coverFileId,
+        },
+      });
+      return {
+        videoAssetId: asset.id,
+        tusEndpoint: this.bunny.tusEndpoint(),
+        libraryId: keys.libraryId,
+        videoId: guid,
+        authorizationSignature: tusSignature(
+          keys.libraryId,
+          keys.apiKey,
+          expire,
+          guid,
+        ),
+        authorizationExpire: expire,
+        maxDurationSec: maxSec,
+      };
+    } finally {
+      await unlock();
+    }
+  }
+
+  /** Per-person lock around "count pending -> create asset" (fails open
+   * without Redis; auto-expires in 20 s). */
+  private async lockUploadStart(userId: string): Promise<() => Promise<void>> {
+    const redis = this.redis;
+    if (!redis) return async () => undefined;
+    const key = `video:init:${userId}`;
+    let got: string | null = null;
+    try {
+      got = await redis.set(key, '1', 'EX', 20, 'NX');
+    } catch {
+      return async () => undefined;
+    }
+    if (got !== 'OK') {
       throw new ConflictException({
         code: ErrorCode.VIDEO_NOT_READY,
-        message: 'Finish or cancel your other video uploads first.',
+        message: 'Another video upload is being prepared. Try again.',
       });
     }
-    await this.limits.consume('video_upload', userId);
-    // Owner 2026-10-22 (audit #4 §6): priced per minute of video.
-    await this.costGuard.consume('video', 1, {
-      userId,
-      seconds: dto.durationSec,
-    });
-    const keys = (await this.bunny.keys())!;
-    const guid = await this.bunny.createVideo(
-      dto.title?.trim() || 'LawBid',
-      coverMs,
-    );
-    const ttlMin = await this.settings.number('video.upload_ttl_min');
-    const expire = Math.floor(Date.now() / 1000) + ttlMin * 60;
-    const asset = await this.prisma.videoAsset.create({
-      data: {
-        owner_user_id: userId,
-        library_id: keys.libraryId,
-        external_id: guid,
-        upload_expires_at: new Date(expire * 1000),
-        trim_start_ms: trim?.startMs ?? null,
-        trim_end_ms: trim?.endMs ?? null,
-        // The declared length: the check against Bunny's real length
-        // (refresh) picks the reel or the post limit by it.
-        duration_sec: dto.durationSec,
-        cover_time_ms: coverMs,
-        cover_file_id: coverFileId,
-      },
-    });
-    return {
-      videoAssetId: asset.id,
-      tusEndpoint: this.bunny.tusEndpoint(),
-      libraryId: keys.libraryId,
-      videoId: guid,
-      authorizationSignature: tusSignature(
-        keys.libraryId,
-        keys.apiKey,
-        expire,
-        guid,
-      ),
-      authorizationExpire: expire,
-      maxDurationSec: maxSec,
+    return async () => {
+      await redis.del(key).catch(() => undefined);
     };
   }
 
