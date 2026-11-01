@@ -50857,6 +50857,121 @@
         ]
       }
     },
+    "/admin/billing/duplicate-subscriptions": {
+      "get": {
+        "operationId": "listDuplicateSubscriptionFixes",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/DuplicateSubscriptionFixStatus"
+            }
+          },
+          {
+            "name": "userId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDuplicateFixListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Duplicate subscriptions cancelled / refunded automatically or held for a person (algo audit M-4, cursor)",
+        "tags": [
+          "admin-billing"
+        ]
+      }
+    },
     "/admin/billing/refunds": {
       "get": {
         "operationId": "listBillingRefunds",
@@ -158532,6 +158647,126 @@
           "data"
         ]
       },
+      "DuplicateSubscriptionFixStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "canceled",
+          "refunding",
+          "refunded",
+          "no_refund",
+          "review",
+          "blocked"
+        ]
+      },
+      "AdminDuplicateFixDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminBillingUserDto"
+              }
+            ]
+          },
+          "keptSubscriptionId": {
+            "type": "string",
+            "description": "The Stripe subscription that stays."
+          },
+          "duplicateSubscriptionId": {
+            "type": "string",
+            "description": "The duplicate (cancelled unless blocked)."
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "app_order",
+              "webhook",
+              "grace_resubscribe"
+            ]
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DuplicateSubscriptionFixStatus"
+              }
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Why there is no automatic refund (no_charge, period_over, dispute, fraud_review, daily_cap, nth_duplicate, switch_off, refund_failed …)."
+          },
+          "chargedCents": {
+            "type": "integer",
+            "description": "What the duplicate's last invoice charged."
+          },
+          "refundCents": {
+            "type": "integer",
+            "description": "Refunded (or proposed, when held for a person)."
+          },
+          "currency": {
+            "type": "string"
+          },
+          "refundId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "canceledAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "user",
+          "keptSubscriptionId",
+          "duplicateSubscriptionId",
+          "trigger",
+          "status",
+          "reason",
+          "chargedCents",
+          "refundCents",
+          "currency",
+          "refundId",
+          "canceledAt",
+          "createdAt"
+        ]
+      },
+      "AdminDuplicateFixListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminDuplicateFixDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "RefundDto": {
         "type": "object",
         "properties": {
@@ -185375,7 +185610,8 @@
           "early_fraud_warning",
           "account_deauthorized",
           "capability_disabled",
-          "reconcile_drift"
+          "reconcile_drift",
+          "duplicate_subscription"
         ]
       },
       "StripeReviewItemDto": {

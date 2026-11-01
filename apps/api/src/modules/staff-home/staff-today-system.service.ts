@@ -110,6 +110,7 @@ export class StaffTodaySystemService {
       probes,
       incidents,
       rotation,
+      billingDuplicates,
     ] = await Promise.all([
       safe(() => this.launch.report(now), null),
       safe(() => this.ops.cost(), null),
@@ -129,6 +130,7 @@ export class StaffTodaySystemService {
       this.rotation?.enabled
         ? safe(() => this.rotation!.rows(now), [])
         : Promise.resolve([]),
+      safe(() => this.ops.billingDuplicates(now), null),
     ]);
     const backupAge =
       backup && Number.isFinite(Date.parse(backup.at))
@@ -191,6 +193,7 @@ export class StaffTodaySystemService {
       backup: backup ? { ageHours: backupAge, maxHours: backupMaxHours } : null,
       bloatOver: bloat?.over ?? [],
       rotation: rotation.map((r) => ({ name: r.name, state: r.state })),
+      billingDuplicates,
     };
     const items = buildSystemItems(signals, now);
     return {

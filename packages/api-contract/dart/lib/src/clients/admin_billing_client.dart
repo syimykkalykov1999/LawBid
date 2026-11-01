@@ -7,6 +7,7 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/admin_billing_reason_dto.dart';
 import '../models/admin_billing_subscription_row_list_envelope.dart';
+import '../models/admin_duplicate_fix_list_envelope.dart';
 import '../models/admin_payment_list_envelope.dart';
 import '../models/admin_plan_prices_envelope.dart';
 import '../models/admin_plan_result_envelope.dart';
@@ -26,6 +27,7 @@ import '../models/create_contract_grant_dto.dart';
 import '../models/create_plan_dto.dart';
 import '../models/create_promo_code_dto.dart';
 import '../models/create_refund_dto.dart';
+import '../models/duplicate_subscription_fix_status.dart';
 import '../models/extend_contract_grant_dto.dart';
 import '../models/move_plan_subscribers_dto.dart';
 import '../models/move_plan_subscribers_result_envelope.dart';
@@ -222,6 +224,17 @@ abstract class AdminBillingClient {
   Future<AdminSeatChangeListEnvelope> listSeatChanges({
     @Query('cursor') String? cursor,
     @Query('status') AssistantSeatChangeStatus? status,
+    @Query('userId') String? userId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Duplicate subscriptions cancelled / refunded automatically or held for a person (algo audit M-4, cursor).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/admin/billing/duplicate-subscriptions')
+  Future<AdminDuplicateFixListEnvelope> listDuplicateSubscriptionFixes({
+    @Query('cursor') String? cursor,
+    @Query('status') DuplicateSubscriptionFixStatus? status,
     @Query('userId') String? userId,
     @Extras() Map<String, dynamic>? extras,
   });

@@ -145,7 +145,7 @@ class _CardAction extends StatelessWidget {
 }
 
 /// An attorney's card in a bubble: photo, name with the blue check, the
-/// role and practice, and «Open» / «Message» / a vCard.
+/// role and practice, and «Profile» / «Message» / «Save» (a vCard).
 class ContactCardBody extends ConsumerWidget {
   const ContactCardBody({required this.card, required this.mine, super.key});
 
@@ -219,38 +219,134 @@ class ContactCardBody extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
-          Row(
-            children: [
-              Expanded(
-                child: _CardAction(
-                  label: t.t('cases.files.openBtn'),
-                  icon: AppIcons.person,
-                  fg: fg,
-                  onTap: () => context.push(AppRoutes.lawyer(card.username)),
-                ),
+          ContactActionsRow(
+            fg: fg,
+            actions: [
+              ContactActionSpec(
+                id: 'profile',
+                label: t.t('contact.profile'),
+                icon: AppIcons.person,
+                onTap: () => context.push(AppRoutes.lawyer(card.username)),
               ),
               if (card.userId != me)
-                Expanded(
-                  child: _CardAction(
-                    label: t.t('profile.action.message'),
-                    icon: AppIcons.chatBubbleOutlineRounded,
-                    fg: fg,
-                    onTap: () => unawaited(
-                      openDirectChat(context, ref, card.userId),
-                    ),
-                  ),
+                ContactActionSpec(
+                  id: 'message',
+                  label: t.t('phoneContacts.message'),
+                  icon: AppIcons.chatBubbleOutlineRounded,
+                  onTap: () =>
+                      unawaited(openDirectChat(context, ref, card.userId)),
                 ),
-              Expanded(
-                child: _CardAction(
-                  label: t.t('card.vcf'),
-                  icon: AppIcons.iosShareRounded,
-                  fg: fg,
-                  onTap: () => unawaited(shareContactVCard(context, ref, card)),
-                ),
+              ContactActionSpec(
+                id: 'save',
+                label: t.t('common.save'),
+                icon: AppIcons.iosShareRounded,
+                onTap: () => unawaited(shareContactVCard(context, ref, card)),
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One action of [ContactActionsRow].
+class ContactActionSpec {
+  const ContactActionSpec({
+    required this.id,
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String id;
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+}
+
+/// Owner 2026-10-28 (WhatsApp / Telegram contact card): equal-width actions
+/// under a thin top line, thin dividers between them, one text style, the
+/// icon above the label, each segment at least 44 dp tall with ink feedback.
+/// A long label shrinks to its segment (the design system's FitText rule),
+/// it is never clipped.
+class ContactActionsRow extends StatelessWidget {
+  const ContactActionsRow({required this.actions, required this.fg, super.key});
+
+  final List<ContactActionSpec> actions;
+  final Color fg;
+
+  @override
+  Widget build(BuildContext context) {
+    final line = fg.withValues(alpha: 0.14);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(height: 1, color: line),
+        Material(
+          type: MaterialType.transparency,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < actions.length; i++) ...[
+                  if (i > 0) Container(width: 1, color: line),
+                  Expanded(
+                    child: _ContactAction(spec: actions[i], fg: fg),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ContactAction extends StatelessWidget {
+  const _ContactAction({required this.spec, required this.fg});
+
+  final ContactActionSpec spec;
+  final Color fg;
+
+  @override
+  Widget build(BuildContext context) {
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Semantics(
+      button: true,
+      label: spec.label,
+      excludeSemantics: true,
+      child: InkWell(
+        key: ValueKey('contact-action-${spec.id}'),
+        onTap: spec.onTap,
+        splashColor: fg.withValues(alpha: 0.12),
+        highlightColor: fg.withValues(alpha: 0.08),
+        hoverColor: fg.withValues(alpha: 0.06),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xs,
+              vertical: AppSpacing.xs,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AppIcon(spec.icon, size: 20, color: fg),
+                const SizedBox(height: 2),
+                FitText(
+                  spec.label,
+                  style: type.caption.copyWith(
+                    color: fg,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -18,6 +18,7 @@ const savedCardsRu = <String, String>{
   'saved.chats.empty': 'Сохранённых сообщений пока нет',
   'saved.copied': 'Скопировано',
   'card.contact': 'Контакт',
+  'common.save': 'Сохранить',
   'card.share': 'Поделиться',
   'card.mine': 'Мой профиль',
   'card.find': 'Найти адвоката',
@@ -25,7 +26,6 @@ const savedCardsRu = <String, String>{
   'card.address': 'Адрес',
   'card.map': 'Открыть на карте',
   'card.map.failed': 'Карта не открылась',
-  'card.vcf': 'vCard',
 };
 
 const savedCardsEn = <String, String>{
@@ -50,5 +50,4 @@ const savedCardsEn = <String, String>{
   'card.address': 'Address',
   'card.map': 'Open in maps',
   'card.map.failed': "Couldn't open maps",
-  'card.vcf': 'vCard',
 };

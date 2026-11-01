@@ -1121,7 +1121,6 @@ class _ThreadsPost extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = post;
-    final a = p.author;
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
@@ -1181,96 +1180,6 @@ class _ThreadsPost extends ConsumerWidget {
         );
 
     final repostedBy = p.repostedBy;
-    final menuButton = AppIconButton(
-      icon: AppIcon(
-        AppIcons.moreHorizRounded,
-        size: 20,
-        color: colors.textSecondary,
-      ),
-      semanticLabel: t.t('post.menu'),
-      onPressed: () => showPostMenu(context, ref, p),
-    );
-    Widget nameRow({bool compact = false}) => Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: GestureDetector(
-                          onTap: () => openAuthorProfile(context, ref, a),
-                          child: Text(
-                            // Owner 2026-10-15: like every other post — the
-                            // name on top, the role line below.
-                            a.displayName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: type.bodySmall.copyWith(
-                              color: colors.text,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (a.verified) ...[
-                        const SizedBox(width: AppSpacing.xs),
-                        VerifiedCheck(
-                          label: t.t('post.verified'),
-                          size: 14,
-                          gold: a.isClient,
-                        ),
-                      ],
-                    ],
-                  ),
-                  // Owner 2026-10-18 (final): in content no «Клиент» and no
-                  // @username (they stay in profiles and search).
-                  if (promotionId != null || (!a.isClient && a.verified))
-                    Text(
-                      promotionId != null
-                          ? t.t('promote.sponsored')
-                          : t.t('post.licensedAttorney'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.caption.copyWith(color: colors.textSecondary),
-                    ),
-                ],
-              ),
-            ),
-            // Owner 2026-10-15: Follow on someone else's brief too, the same
-            // small pill as on photo and video posts, right of the name.
-            if (!p.isMine) ...[
-              const SizedBox(width: AppSpacing.sm),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 120),
-                child: FollowButton(
-                  attorneyId: a.id,
-                  initial: a.isFollowing,
-                  outlined: true,
-                ),
-              ),
-            ],
-            // Owner 2026-10-14: on my own post Boost sits here, right of the
-            // username (where Follow sits on someone else's).
-            if (p.isMine && !ref.watch(isAssistantProvider)) ...[
-              BoostButton(postId: p.id),
-              const SizedBox(width: AppSpacing.xs),
-            ],
-            // With a "reposted" line under the name the row is only as tall
-            // as the name, so that line sits right under it.
-            if (compact)
-              SizedBox(
-                width: 48,
-                height: 28,
-                child: OverflowBox(maxHeight: 48, child: menuButton),
-              )
-            else
-              menuButton,
-          ],
-        );
-
     // Owner 2026-10-13: "name reposted" in small grey under the author's
     // name, before the text; no icon.
     Widget repostLine() {
@@ -1312,19 +1221,6 @@ class _ThreadsPost extends ConsumerWidget {
         ),
       );
     }
-
-    final avatar = GestureDetector(
-      onTap: () => openAuthorProfile(context, ref, a),
-      child: IdentityAvatar(
-        id: a.id,
-        url: a.avatarUrl,
-        initials: a.initials,
-        size: 36,
-        ring: a.verified,
-        trustLevel: a.isClient ? 0 : a.trustLevel,
-        rejected: !a.isClient && a.identityRejected,
-      ),
-    );
 
     final textBlock = text.isNotEmpty && inDetail
         ? TranslatableText(
@@ -1448,31 +1344,31 @@ class _ThreadsPost extends ConsumerWidget {
     if (inDetail) {
       // The open thread: avatar + name on one line, the text under it on the
       // full width, then the actions (Threads).
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md,
-          AppSpacing.md,
-          AppSpacing.md,
-          AppSpacing.xs,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Owner 2026-10-28: the one post header (AuthorHeader) in briefs too.
+          _AuthorRow(post: p, sponsored: promotionId != null),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              0,
+              AppSpacing.md,
+              AppSpacing.xs,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                avatar,
-                const SizedBox(width: AppSpacing.md),
-                Expanded(child: nameRow()),
+                if (repostedBy != null) repostLine(),
+                const SizedBox(height: AppSpacing.sm),
+                textBlock,
+                PostPracticeChips(post: p, inset: 0),
+                const SizedBox(height: AppSpacing.xs),
+                actionRow,
               ],
             ),
-            if (repostedBy != null) repostLine(),
-            const SizedBox(height: AppSpacing.sm),
-            textBlock,
-            PostPracticeChips(post: p, inset: 0),
-            const SizedBox(height: AppSpacing.xs),
-            actionRow,
-          ],
-        ),
+          ),
+        ],
       );
     }
 
@@ -1480,39 +1376,43 @@ class _ThreadsPost extends ConsumerWidget {
     // long text opens in a sheet by «ещё», the replies in the comments sheet.
     final card = AppPressable(
       onTap: null,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md,
-          AppSpacing.md,
-          AppSpacing.md,
-          AppSpacing.xs,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Owner 2026-10-28: the same header widget as every other post; the
+          // text below starts on the name's left edge.
+          _AuthorRow(
+            post: p,
+            sponsored: promotionId != null,
+            compact: true,
+          ),
+          Padding(
+            padding: const EdgeInsetsDirectional.only(
+              // Header: md inset + 32 avatar + 10 gap (the feed post's).
+              start: AppSpacing.md + 32 + 10,
+              end: AppSpacing.md,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                avatar,
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      nameRow(compact: repostedBy != null),
-                      if (repostedBy != null) repostLine(),
-                      textBlock,
-                      PostPracticeChips(post: p, inset: 0),
-                    ],
-                  ),
-                ),
+                if (repostedBy != null) repostLine(),
+                textBlock,
+                PostPracticeChips(post: p, inset: 0),
               ],
             ),
-            // Owner 2026-10-13: the actions start on the avatar's line, so
-            // big counts still fit before the time and Save.
-            actionRow,
-          ],
-        ),
+          ),
+          // Owner 2026-10-13: the actions start on the avatar's line, so big
+          // counts still fit before the time and Save.
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              AppSpacing.md,
+              0,
+              AppSpacing.md,
+              AppSpacing.xs,
+            ),
+            child: actionRow,
+          ),
+        ],
       ),
     );
     return card;
@@ -1923,6 +1823,11 @@ class AuthorHeader extends ConsumerWidget {
             child: AppPressable(
               onTap: () => openAuthorProfile(context, ref, a),
               child: Row(
+                // Owner 2026-10-28: the name block sits at the avatar's top
+                // (a little above its centre), in posts and briefs alike.
+                crossAxisAlignment: subtitle.isNotEmpty
+                    ? CrossAxisAlignment.start
+                    : CrossAxisAlignment.center,
                 children: [
                   IdentityAvatar(
                     id: a.id,

@@ -20,6 +20,8 @@ enum StripeReviewKind {
   capabilityDisabled('capability_disabled'),
   @JsonValue('reconcile_drift')
   reconcileDrift('reconcile_drift'),
+  @JsonValue('duplicate_subscription')
+  duplicateSubscription('duplicate_subscription'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

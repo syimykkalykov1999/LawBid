@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/navigation/shell/content_column_frame.dart';
+import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 
 /// Drag handle at the top of modal bottom sheets (decorative).
 class AppSheetHandle extends StatelessWidget {
@@ -12,6 +13,10 @@ class AppSheetHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Desktop: the sheet is a window in the middle — nothing to drag.
+    if (DesktopSheetDialog.of(context)) {
+      return const SizedBox(height: AppSpacing.sm);
+    }
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return ExcludeSemantics(
       child: Center(
@@ -41,6 +46,14 @@ Future<T?> showAppBottomSheet<T>({
   bool closeByHandleOnly = false,
 }) {
   final colors = Theme.of(context).extension<AppColorTokens>()!;
+  // Desktop web plan 2026-10-28 §5.5: on a desktop window a sheet from the
+  // bottom is a window in the middle (Esc or a click outside closes it).
+  if (isDesktopWindow(context)) {
+    return showDialog<T>(
+      context: context,
+      builder: (ctx) => DesktopSheetDialog(child: builder(ctx)),
+    );
+  }
   return showModalBottomSheet<T>(
     context: context,
     // Owner 2026-10-15: every sheet opens over the floating nav bar, never
@@ -62,8 +75,8 @@ Future<T?> showAppBottomSheet<T>({
       surface: colors.sheet,
       radius: const BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
       child: closeByHandleOnly
-            ? builder(ctx)
-            : PullDownToClose(child: builder(ctx)),
+          ? builder(ctx)
+          : PullDownToClose(child: builder(ctx)),
     ),
   );
 }
@@ -122,4 +135,49 @@ class _PullDownToCloseState extends State<PullDownToClose> {
         onNotification: _onScroll,
         child: widget.child,
       );
+}
+
+/// Desktop web plan §5.5: what a bottom sheet becomes on a desktop window —
+/// a dialog at most [maxWidth] wide and 85 % of the window high, with the
+/// sheet's colour and corners.
+class DesktopSheetDialog extends StatelessWidget {
+  const DesktopSheetDialog({required this.child, super.key});
+
+  final Widget child;
+
+  static const double maxWidth = 560;
+
+  /// Whether [context] is inside one (the drag handle hides itself).
+  static bool of(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_InSheetDialog>() != null;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final height = MediaQuery.sizeOf(context).height;
+    return Dialog(
+      backgroundColor: colors.sheet,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.sheet),
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: maxWidth,
+          maxHeight: height * 0.85,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.sm),
+          child: _InSheetDialog(child: child),
+        ),
+      ),
+    );
+  }
+}
+
+class _InSheetDialog extends InheritedWidget {
+  const _InSheetDialog({required super.child});
+
+  @override
+  bool updateShouldNotify(_InSheetDialog oldWidget) => false;
 }

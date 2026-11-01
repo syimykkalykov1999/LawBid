@@ -27,6 +27,7 @@ import { SecretsService } from '../../common/secrets/secrets.service';
 import { StripeWebhookController } from './stripe-webhook.controller';
 import { StripeWebhookIntakeService } from './stripe-webhook.intake';
 import { SubscriptionSyncService } from './subscription-sync.service';
+import { DuplicateSubscriptionsService } from './duplicate-subscriptions.service';
 import { SubscriptionsController } from './subscriptions.controller';
 import { PayPageController } from './pay-page.controller';
 import { PayLinkModule } from './pay-link.module';
@@ -77,9 +78,12 @@ export class BillingModule {
         LedgerModule,
         // Stripe robustness 2026-10-27: the review queue.
         StripeOpsCoreModule,
-        // Only the controllers need the auth guards and the admin audit log;
-        // the worker must stay bootable without AppModule's global modules.
-        ...(options.mode === 'api' ? [AdminAccessModule, AuthModule] : []),
+        // Algo audit M-4: the duplicate-subscription auto-fix writes audit
+        // rows from the worker too (the module is just the audit writer).
+        AdminAccessModule,
+        // Only the controllers need the auth guards; the worker must stay
+        // bootable without AppModule's global modules.
+        ...(options.mode === 'api' ? [AuthModule] : []),
       ],
       controllers:
         options.mode === 'api'
@@ -118,6 +122,8 @@ export class BillingModule {
             ).asProvider(),
         },
         SubscriptionSyncService,
+        // Algo audit M-4 (owner 2026-10-28): duplicate subscriptions.
+        DuplicateSubscriptionsService,
         PricingService,
         SubscriptionsService,
         // Owner 2026-10-22: seats charged now / removed at the period end.
@@ -132,6 +138,7 @@ export class BillingModule {
         PricingService,
         SubscriptionsService,
         SubscriptionSyncService,
+        DuplicateSubscriptionsService,
         ClientPlansService,
         BillingRunner,
       ],

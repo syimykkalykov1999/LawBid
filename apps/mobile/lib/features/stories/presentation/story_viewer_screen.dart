@@ -672,7 +672,6 @@ class _TopChrome extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
     final url = story.author.avatarUrl;
     return Align(
       alignment: Alignment.topCenter,
@@ -749,10 +748,10 @@ class _TopChrome extends ConsumerWidget {
                           ),
                           if (story.author.verified) ...[
                             const SizedBox(width: AppSpacing.xs),
-                            Icon(
+                            const Icon(
                               AppIcons.verifiedRounded,
                               size: AppSizes.iconSm - 4,
-                              color: colors.goldLight,
+                              color: AppMediaOverlay.verified,
                             ),
                           ],
                           const SizedBox(width: AppSpacing.sm),

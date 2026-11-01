@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowCounterClockwise, Receipt } from '@phosphor-icons/react';
+import { ArrowCounterClockwise, Copy as CopyIcon, Receipt } from '@phosphor-icons/react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { RefundDialog } from '@/components/billing/refund-dialog';
@@ -26,7 +26,7 @@ import { PAYMENT_STATUS, StatusPill, usd } from '@/lib/labels';
 import { Reason } from '@/lib/reasons';
 import { formatDateTime } from '@/lib/utils';
 
-type Tab = 'payments' | 'refunds';
+type Tab = 'payments' | 'refunds' | 'duplicates';
 type PayStatus = '' | 'pending' | 'succeeded' | 'failed' | 'refunded';
 
 /** Payments and refunds. */
@@ -47,10 +47,11 @@ export default function PaymentsPage() {
           items={[
             { value: 'payments', label: 'Платежи' },
             { value: 'refunds', label: 'Возвраты' },
+            { value: 'duplicates', label: 'Двойные подписки' },
           ]}
         />
       </div>
-      {tab === 'payments' ? <Payments /> : <Refunds />}
+      {tab === 'payments' ? <Payments /> : tab === 'refunds' ? <Refunds /> : <Duplicates />}
     </>
   );
 }
@@ -218,6 +219,108 @@ function Refunds() {
                   <Td className="max-w-80 text-muted">{r.reason}</Td>
                   <Td className="font-mono text-xs text-faint" title={r.adminId ?? 'система'}>
                     {r.adminId ? r.adminId.slice(0, 8) : 'система'}
+                  </Td>
+                  <Td className="whitespace-nowrap text-muted">{formatDateTime(r.createdAt)}</Td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </Table>
+      )}
+      <LoadMore q={list} />
+    </>
+  );
+}
+
+/** Algo audit M-4 (owner 2026-10-28): what the duplicate-subscription auto-fix did. */
+const DUPLICATE_STATUS: Record<string, string> = {
+  pending: 'в работе',
+  canceled: 'отменена, возврат ждёт',
+  refunding: 'возврат отправляется',
+  refunded: 'отменена, деньги возвращены',
+  no_refund: 'отменена, возвращать нечего',
+  review: 'ждёт человека',
+  blocked: 'не трогали (3-й дубль за 90 дней)',
+};
+
+const DUPLICATE_TRIGGER: Record<string, string> = {
+  app_order: 'вторая покупка',
+  webhook: 'событие Stripe',
+  grace_resubscribe: 'оформил заново после льготы',
+};
+
+const DUPLICATE_REASON: Record<string, string> = {
+  no_charge: 'эта подписка ничего не списала',
+  period_over: 'оплаченный период уже закончился',
+  no_overlap: 'оплаченный период не пересекается с оставленной',
+  already_refunded: 'уже возвращено раньше',
+  dispute: 'спор по платежу / chargeback',
+  fraud_review: 'аккаунт на проверке',
+  cross_account: 'платёж другого аккаунта',
+  over_charge: 'больше, чем было списано',
+  daily_cap: 'дневной лимит возвратов',
+  nth_duplicate: '3-й дубль за 90 дней',
+  switch_off: 'автоисправление выключено',
+  keeper_not_live: 'оставляемая подписка уже не активна',
+  refund_failed: 'Stripe отказал в возврате',
+  refund_unknown: 'результат возврата неизвестен',
+  refund_unavailable: 'возвраты недоступны',
+  payment_not_recorded: 'платёж ещё не записан',
+};
+
+function Duplicates() {
+  const { canOpenUsers } = useBillingRole();
+  const list = useInfiniteQuery({
+    queryKey: ['billing-duplicate-subscriptions'],
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) =>
+      (await api.GET('/admin/billing/duplicate-subscriptions', { params: { query: { cursor: pageParam } } })).data!,
+    getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
+  });
+  const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
+  return (
+    <>
+      <p className="mb-3 text-sm text-muted">
+        Если у адвоката оказались две живые подписки, система оставляет самую свежую оплаченную, вторую отменяет и возвращает только
+        неиспользованную часть её последнего счёта. Случаи «ждёт человека» — в «Проверки Stripe».
+      </p>
+      <ErrorNote text={list.error ? errorText(list.error) : null} />
+      {!list.isPending && !list.error && rows.length === 0 ? (
+        <EmptyState icon={CopyIcon} title="Двойных подписок не было" />
+      ) : (
+        <Table>
+          <thead>
+            <tr>
+              <Th>Пользователь</Th>
+              <Th>Статус</Th>
+              <Th className="text-right">Списано / возвращено</Th>
+              <Th>Почему</Th>
+              <Th>Подписки (оставлена / отменена)</Th>
+              <Th>Когда</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.isPending ? (
+              <TableEmpty colSpan={6} loading />
+            ) : (
+              rows.map((r) => (
+                <tr key={r.id}>
+                  <Td>
+                    <UserCell user={r.user} userId={r.userId} link={canOpenUsers} />
+                  </Td>
+                  <Td>
+                    <StatusPill map={DUPLICATE_STATUS} value={r.status} />
+                    <span className="mt-1 block text-xs text-faint">{DUPLICATE_TRIGGER[r.trigger] ?? r.trigger}</span>
+                  </Td>
+                  <Td className="text-right whitespace-nowrap tabular-nums">
+                    <span className="text-ink">{usd(r.chargedCents, 2)}</span>
+                    <span className="text-faint"> / </span>
+                    <span className={r.refundCents ? 'text-danger' : 'text-faint'}>{usd(r.refundCents, 2)}</span>
+                  </Td>
+                  <Td className="max-w-72 text-muted">{r.reason ? (DUPLICATE_REASON[r.reason] ?? r.reason) : '—'}</Td>
+                  <Td className="font-mono text-xs text-faint">
+                    <span className="block">{r.keptSubscriptionId}</span>
+                    <span className="block line-through">{r.duplicateSubscriptionId}</span>
                   </Td>
                   <Td className="whitespace-nowrap text-muted">{formatDateTime(r.createdAt)}</Td>
                 </tr>

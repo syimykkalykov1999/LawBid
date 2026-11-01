@@ -15,6 +15,7 @@ import { ContractGrantsService } from './contract-grants.service';
 import { PromoCodesService } from './promo-codes.service';
 import { RefundsService } from './refunds.service';
 import { SeatChangesAdminService } from './seat-changes-admin.service';
+import { DuplicateFixesAdminService } from './duplicate-fixes-admin.service';
 import {
   AdminSeatLimitRequestsController,
   SeatLimitRequestsController,
@@ -54,6 +55,8 @@ import { LedgerModule } from '../ledger/ledger.public';
     RefundsService,
     // Owner 2026-10-22: «Покупки мест».
     SeatChangesAdminService,
+    // Algo audit M-4: «Двойные подписки».
+    DuplicateFixesAdminService,
     BillingOverviewService,
     AdminPricingService,
     AdminPlansService,

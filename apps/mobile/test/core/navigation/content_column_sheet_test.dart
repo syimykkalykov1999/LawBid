@@ -16,9 +16,11 @@ void main() {
     expect(contentColumnBounds(1400, adaptive: false).maxWidth, isNull);
   });
 
+  // Desktop web plan 2026-10-28: from 1024 a sheet is a window in the
+  // middle (desktop_foundation_test); a 1000 window keeps the sheet.
   testWidgets('a sheet opens over the content column on a wide window',
       (t) async {
-    t.view.physicalSize = const Size(1400, 900);
+    t.view.physicalSize = const Size(1000, 900);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
     adaptiveShellOverride = true;
@@ -33,7 +35,7 @@ void main() {
           },
         ),
         theme: AppTheme.dark(),
-        size: const Size(1400, 900),
+        size: const Size(1000, 900),
         overrides: uxOverrides(),
       ),
     );
@@ -49,8 +51,8 @@ void main() {
     );
     await t.pumpAndSettle();
     final r = t.getRect(find.byKey(const Key('sheet-body')));
-    // Column: 220 + (1180 - 680) / 2 = 470 .. 1150.
-    expect(r.left, closeTo(470, 1));
-    expect(r.right, closeTo(1150, 1));
+    // Column: 220 + (780 - 680) / 2 = 270 .. 950.
+    expect(r.left, closeTo(270, 1));
+    expect(r.right, closeTo(950, 1));
   });
 }

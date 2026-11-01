@@ -141,13 +141,20 @@ export class RefundsService {
    * booking as a staff refund, with no staff member behind it (admin_id
    * null, no audit row: the refund row itself is the record).
    */
-  refundBySystem(dto: CreateRefundDto): Promise<RefundDto> {
-    return this.refund(null, dto);
+  refundBySystem(
+    dto: CreateRefundDto,
+    opts: { idempotencyKey?: string } = {},
+  ): Promise<RefundDto> {
+    return this.refund(null, dto, opts.idempotencyKey);
   }
 
+  /** [idempotencyKey]: the Stripe key of a system refund that must be sent
+   * at most once per business action (algo audit M-4: per duplicate
+   * subscription); default `refund:<row id>`. */
   async refund(
     admin: AdminActor | null,
     dto: CreateRefundDto,
+    idempotencyKey?: string,
   ): Promise<RefundDto> {
     const payment = await this.prisma.payment.findUnique({
       where: { id: dto.paymentId },
@@ -206,7 +213,7 @@ export class RefundsService {
       r = await this.provider.refund({
         paymentIntentId: intentId,
         amountCents: dto.amountCents,
-        idempotencyKey: `refund:${row.id}`,
+        idempotencyKey: idempotencyKey ?? `refund:${row.id}`,
         metadata: { refundId: row.id, paymentId: payment.id },
       });
     } catch (e) {

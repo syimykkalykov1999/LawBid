@@ -90,6 +90,9 @@ const ASYNC_METHODS = new Set([
   'retrieveSubscription',
   'setCancelAtPeriodEnd',
   'cancelNow',
+  // Algo audit M-4 (owner 2026-10-28): duplicate subscriptions.
+  'listCustomerSubscriptions',
+  'paymentIntentDisputed',
   'extendUntil',
   'endTrialNow',
   'createPortalSession',

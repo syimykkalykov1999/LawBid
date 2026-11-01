@@ -75,6 +75,19 @@ jobs:
     timeout-minutes: 70
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The PR's merge commit and its base, for the phone-golden guard.
+          fetch-depth: 2
+
+      # Desktop web plan 2026-10-28 §9: the desktop web work never changes
+      # the phone — an existing golden outside test/desktop/ may not change
+      # (new ones may be added). Owner-approved phone change: PR label
+      # "phone-goldens-approved".
+      - name: Phone goldens unchanged (blocking)
+        if: github.event_name == 'pull_request'
+        env:
+          ALLOW_PHONE_GOLDEN_CHANGE: ${{ contains(github.event.pull_request.labels.*.name, 'phone-goldens-approved') && '1' || '0' }}
+        run: scripts/ci/check-web-phone-goldens.sh
 
       - name: Flutter version (apps/mobile/.fvmrc is the single pin)
         id: fv

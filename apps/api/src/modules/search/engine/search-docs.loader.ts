@@ -153,8 +153,9 @@ export class SearchDocsLoader {
       SELECT u.id::TEXT AS id, u.role::TEXT AS role,
              a.username_lower AS a_uname, c.username_lower AS c_uname,
              u.full_name_lower AS fname,
-             public.f_name_skel(u.full_name_lower) AS skel,
-             public.f_name_cons(u.full_name_lower) AS cons,
+             -- Stored keys (trigger, load test 2026-10-28); same values.
+             COALESCE(u.name_skel, public.f_name_skel(u.full_name_lower)) AS skel,
+             COALESCE(u.name_cons, public.f_name_cons(u.full_name_lower)) AS cons,
              (a.verification_status = 'verified') AS verified,
              a.rating_avg::FLOAT8 AS rating, a.languages,
              c.state_code AS client_state,

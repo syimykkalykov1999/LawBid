@@ -1,5 +1,9 @@
 import { Prisma, type UserRole } from '@prisma/client';
-import { escapeLike, nameMatchSql } from '../../common/search/name-match.sql';
+import {
+  escapeLike,
+  nameKeys,
+  nameMatchSql,
+} from '../../common/search/name-match.sql';
 import {
   Inject,
   Injectable,
@@ -491,13 +495,14 @@ export class FollowsService {
       ownSide === 'followee_id'
         ? Prisma.sql`SELECT f.follower_id AS id FROM follows f WHERE f.followee_id = ${userId}::UUID`
         : Prisma.sql`SELECT f.followee_id AS id FROM follows f WHERE f.follower_id = ${userId}::UUID`;
+    const keys = await nameKeys(this.prisma, q);
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       SELECT u.id::TEXT AS id
       FROM users u
       LEFT JOIN attorney_profiles ap ON ap.user_id = u.id
       LEFT JOIN client_profiles cp ON cp.user_id = u.id
       WHERE u.id IN (${edge})
-        AND (${nameMatchSql(q, Prisma.sql`u.full_name_lower`)}
+        AND (${nameMatchSql(keys, 'u')}
              OR coalesce(ap.username_lower, cp.username_lower) LIKE ${handle})
       LIMIT 5000`;
     return rows.map((r) => r.id);

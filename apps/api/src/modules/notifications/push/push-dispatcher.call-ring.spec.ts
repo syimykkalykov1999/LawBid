@@ -1,3 +1,7 @@
+import {
+  callPollKey,
+  verifyCallPoll,
+} from '../../../common/calls/call-poll-token';
 import { voipRequest, type VoipCallPayload } from './apns-voip.sender';
 import { PushDispatcher } from './push-dispatcher';
 import type { PushMessage } from './push.constants';
@@ -12,7 +16,11 @@ import type { PushMessage } from './push.constants';
 describe('incoming call ring push', () => {
   const PHOTO = 'https://cdn.example.com/avatars/a1_256.jpg';
 
-  function build(opts: { avatar?: boolean; video?: boolean } = {}) {
+  const PEPPER = 'test-call-poll-pepper-at-least-32-chars-x';
+
+  function build(
+    opts: { avatar?: boolean; video?: boolean; pepper?: string } = {},
+  ) {
     const sent: PushMessage[] = [];
     const voipCalls: VoipCallPayload[] = [];
     const prisma = {
@@ -62,9 +70,15 @@ describe('incoming call ring push', () => {
         ),
       ),
     };
+    const config = opts.pepper
+      ? {
+          get: (k: string) =>
+            k === 'AUTH_EVENT_PEPPER' ? opts.pepper : undefined,
+        }
+      : {};
     const d = new PushDispatcher(
       { mode: 'worker' },
-      {} as never,
+      config as never,
       prisma as never,
       {} as never,
       sender,
@@ -111,6 +125,27 @@ describe('incoming call ring push', () => {
       avatarUrl: PHOTO,
     });
     expect(sent[0].data?.video).toBeUndefined();
+  });
+
+  it('gives Android a poll ticket for this call and this person only', async () => {
+    const { d, sent, voipCalls } = build({ pepper: PEPPER });
+    await d.dispatch(job, 'j');
+    const t = sent[0].data?.pollToken ?? '';
+    expect(t).not.toBe('');
+    const key = callPollKey(PEPPER);
+    expect(verifyCallPoll(key, t, 'call-1')).toMatchObject({
+      c: 'call-1',
+      u: 'u1',
+    });
+    expect(verifyCallPoll(key, t, 'call-2')).toBeNull();
+    // The iPhone's VoIP push is unchanged (iOS ends the ring by itself).
+    expect(voipCalls[0]).not.toHaveProperty('pollToken');
+  });
+
+  it('sends no ticket without the pepper (older setups keep working)', async () => {
+    const { d, sent } = build();
+    await d.dispatch(job, 'j');
+    expect(sent[0].data?.pollToken).toBeUndefined();
   });
 
   it('rings without a photo when the caller has none', async () => {

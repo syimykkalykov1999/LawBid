@@ -33,6 +33,13 @@ class CasePhotosPicker extends ConsumerWidget {
     final maxFiles = upload.maxFiles;
     final photoCount = photos.where((p) => !p.isDocument).length;
     final fileCount = photos.length - photoCount;
+    final showPhotos = maxPhotos > 0;
+    final showFiles = maxFiles > 0;
+    // Owner 2026-10-28: nothing to add (both limits 0) and nothing already
+    // attached = no block at all.
+    if (!showPhotos && !showFiles && photos.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     // Owner 2026-10-19: one gallery for photos and videos (videos are
     // compressed on the phone and count with the photos).
@@ -98,50 +105,54 @@ class CasePhotosPicker extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
-        Text(
-          t.t(
+        // Owner 2026-10-28: the caption names both kinds only when both are
+        // allowed; with one kind the counter under its button says it all.
+        if (showPhotos && showFiles)
+          Text(
+            t.t(
               upload.allowsVideo
                   ? 'cases.photos.privacyMedia'
                   : 'cases.photos.privacySplit',
-              {
-                'photos': '$maxPhotos',
-                'files': '$maxFiles',
-              }),
-          style: type.caption.copyWith(color: colors.textSecondary),
-        ),
+              {'photos': '$maxPhotos', 'files': '$maxFiles'},
+            ),
+            style: type.caption.copyWith(color: colors.textSecondary),
+          ),
         const SizedBox(height: AppSpacing.sm),
         // Owner 2026-10-19: the two add buttons stand still in their own
         // row (greyed at the limit, never moving); the attachments below
         // go three a row across the full width.
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: _AddButton(
-                icon: AppIcons.addPhotoAlternateOutlined,
-                label: t.t(
-                  upload.allowsVideo
-                      ? 'cases.photos.tileMedia'
-                      : 'cases.photos.tilePhoto',
+            if (showPhotos)
+              Expanded(
+                child: _AddButton(
+                  icon: AppIcons.addPhotoAlternateOutlined,
+                  label: t.t(
+                    upload.allowsVideo
+                        ? 'cases.photos.tileMedia'
+                        : 'cases.photos.tilePhoto',
+                  ),
+                  semantic: t.t('cases.photos.add'),
+                  count: photoCount < maxPhotos
+                      ? ltrIsolate('$photoCount / $maxPhotos')
+                      : t.t('cases.photos.limitReached', {'max': '$maxPhotos'}),
+                  onTap: photoCount < maxPhotos ? pick : null,
                 ),
-                semantic: t.t('cases.photos.add'),
-                count: photoCount < maxPhotos
-                    ? ltrIsolate('$photoCount / $maxPhotos')
-                    : t.t('cases.photos.limitReached', {'max': '$maxPhotos'}),
-                onTap: photoCount < maxPhotos ? pick : null,
               ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _AddButton(
-                icon: AppIcons.noteAddOutlined,
-                label: t.t('cases.photos.tileFile'),
-                semantic: t.t('cases.files.add'),
-                count: fileCount < maxFiles
-                    ? ltrIsolate('$fileCount / $maxFiles')
-                    : t.t('cases.photos.limitReached', {'max': '$maxFiles'}),
-                onTap: fileCount < maxFiles ? pickFiles : null,
+            if (showPhotos && showFiles) const SizedBox(width: AppSpacing.sm),
+            if (showFiles)
+              Expanded(
+                child: _AddButton(
+                  icon: AppIcons.noteAddOutlined,
+                  label: t.t('cases.photos.tileFile'),
+                  semantic: t.t('cases.files.add'),
+                  count: fileCount < maxFiles
+                      ? ltrIsolate('$fileCount / $maxFiles')
+                      : t.t('cases.photos.limitReached', {'max': '$maxFiles'}),
+                  onTap: fileCount < maxFiles ? pickFiles : null,
+                ),
               ),
-            ),
           ],
         ),
         if (photos.isNotEmpty) const SizedBox(height: AppSpacing.sm),
@@ -285,7 +296,10 @@ class _AddButton extends StatelessWidget {
             child: AppPressable(
               onTap: onTap,
               child: Container(
-                height: 48,
+                constraints: const BoxConstraints(minHeight: 48),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                ),
                 // Owner 2026-10-18: the theme's own tile (no gold fill).
                 decoration: BoxDecoration(
                   color: colors.chip,
@@ -297,9 +311,13 @@ class _AddButton extends StatelessWidget {
                   children: [
                     AppIcon(icon, color: colors.textSecondary),
                     const SizedBox(width: AppSpacing.sm),
-                    Text(
-                      label,
-                      style: type.body.copyWith(color: colors.textSecondary),
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: type.body.copyWith(color: colors.textSecondary),
+                      ),
                     ),
                   ],
                 ),

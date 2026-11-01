@@ -42,7 +42,25 @@ export const OPS_KEYS = {
   dbBloat: 'ops:db-bloat',
   /** JSON ChatSearchBackfillState (jobs/handlers/chat-search-backfill.job.ts). */
   chatSearchBackfill: 'ops:chat-search-backfill',
+  /** JSON BillingDuplicatesDay: what the duplicate-subscription auto-fix did
+   * today (algo audit M-4) — read by «Сегодня», kept 3 days. */
+  billingDuplicates: 'ops:billing-duplicates',
 } as const;
+
+/** Algo audit M-4: one UTC day of duplicate-subscription auto-fixes. */
+export interface BillingDuplicatesDay {
+  /** UTC date, YYYY-MM-DD. */
+  day: string;
+  /** Duplicates cancelled automatically. */
+  fixed: number;
+  /** Cents refunded automatically. */
+  refundedCents: number;
+  /** Waiting for a person (cap, dispute, fraud review, switch off …). */
+  needsReview: number;
+  /** Nth duplicate in 90 days: nothing was done automatically. */
+  blocked: number;
+  lastAt: string;
+}
 
 /** Result of the nightly bloat job (jobs/handlers/db-bloat.job.ts). */
 export interface BloatSnapshot {

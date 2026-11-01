@@ -297,8 +297,39 @@ export class StripePaymentProvider implements PaymentProvider {
     );
   }
 
-  async cancelNow(id: string): Promise<ProviderSubscription> {
-    return mapSubscription(await this.stripe.subscriptions.cancel(id));
+  async cancelNow(
+    id: string,
+    opts: { idempotencyKey?: string } = {},
+  ): Promise<ProviderSubscription> {
+    return mapSubscription(
+      await this.stripe.subscriptions.cancel(
+        id,
+        {},
+        opts.idempotencyKey ? { idempotencyKey: opts.idempotencyKey } : {},
+      ),
+    );
+  }
+
+  /** Algo audit M-4: the customer's subscriptions, newest first. */
+  async listCustomerSubscriptions(
+    customerId: string,
+    limit = 20,
+  ): Promise<ProviderSubscription[]> {
+    const page = await this.stripe.subscriptions.list({
+      customer: customerId,
+      status: 'all',
+      limit: Math.max(1, Math.min(100, limit)),
+    });
+    return page.data.map(mapSubscription);
+  }
+
+  /** Algo audit M-4: a chargeback on any charge of the PaymentIntent. */
+  async paymentIntentDisputed(paymentIntentId: string): Promise<boolean> {
+    const disputes = await this.stripe.disputes.list({
+      payment_intent: paymentIntentId,
+      limit: 1,
+    });
+    return disputes.data.length > 0;
   }
 
   async extendUntil(
@@ -1439,6 +1470,7 @@ function mapSubscription(sub: Stripe.Subscription): ProviderSubscription {
       unitAmountCents: i.price.unit_amount ?? null,
     })),
     pendingUpdateExpiresAt: sub.pending_update?.expires_at ?? null,
+    created: sub.created ?? null,
     latestInvoiceId:
       sub.latest_invoice == null
         ? null

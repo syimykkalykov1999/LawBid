@@ -52,7 +52,8 @@ final class ChatColors extends ThemeExtension<ChatColors> {
         onTheirs: c.text,
         theirsMeta: c.textSecondary,
         tick: c.textSecondary,
-        tickRead: const Color(0xFF53BDEB),
+        // 2026-10-28: the light blue read tick, 3:1 on the blue bubble.
+        tickRead: const Color(0xFFA8E4FF),
       );
     }
     if (brightness == Brightness.light) {
@@ -61,7 +62,7 @@ final class ChatColors extends ThemeExtension<ChatColors> {
         pattern: c.accent.withValues(alpha: 0.05),
         mine: const Color(0xFFDCE6F8),
         onMine: c.text,
-        mineMeta: c.textSecondary,
+        mineMeta: const Color(0xFF50607F),
         theirs: c.surface,
         theirsBorder: c.border,
         onTheirs: c.text,

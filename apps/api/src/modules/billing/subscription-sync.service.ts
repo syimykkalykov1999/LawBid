@@ -78,6 +78,24 @@ export class SubscriptionSyncService {
     @Optional() private readonly slo?: SloMetricsService,
   ) {}
 
+  /**
+   * Algo audit M-4 (owner 2026-10-28): called with (attorney, subscription)
+   * when an event or a paid invoice belongs to a subscription of the
+   * attorney's Stripe customer that is NOT the subscription on their row —
+   * a duplicate (second device) or a stale one left behind by a
+   * re-subscription. Set by DuplicateSubscriptionsService (no import cycle).
+   */
+  private foreignHook?: (
+    userId: string,
+    subscriptionId: string,
+  ) => Promise<unknown>;
+
+  setForeignSubscriptionHook(
+    hook: (userId: string, subscriptionId: string) => Promise<unknown>,
+  ): void {
+    this.foreignHook = hook;
+  }
+
   async handleEvent(event: ProviderEvent): Promise<void> {
     const o = event.object;
     // Owner 2026-10-05: anything that happened on an attorney's connected
@@ -220,7 +238,9 @@ export class SubscriptionSyncService {
     let transition: 'lost' | 'gained' | null = null;
     let statusChanged = false;
     let previousStatus: string | null = null;
+    let foreignOf: string | null = null;
     const row = await withTxRetry(this.prisma, async (tx) => {
+      foreignOf = null;
       const local =
         (await tx.subscription.findUnique({
           where: { stripe_subscription_id: remote.id },
@@ -233,6 +253,7 @@ export class SubscriptionSyncService {
         local.stripe_subscription_id !== remote.id &&
         SubscriptionAccessService.rowIsActive(local)
       ) {
+        foreignOf = local.user_id;
         return null;
       }
       // Algo audit 2026-10-27 (MONEY M-7): "paid at least once" means a
@@ -289,7 +310,13 @@ export class SubscriptionSyncService {
             : null;
       return updated;
     });
-    if (!row) return null;
+    if (!row) {
+      // Algo audit M-4: a live duplicate of the attorney's subscription.
+      if (foreignOf && this.foreignHook) {
+        await this.foreignHook(foreignOf, remote.id);
+      }
+      return null;
+    }
     if (statusChanged || transition) await this.access.invalidate(row.user_id);
     if (transition === 'lost') {
       // §1.5 "активна → неактивна": bids withdrawn, contacts closed by the gate.
@@ -362,13 +389,32 @@ export class SubscriptionSyncService {
   private async onInvoice(invoiceId: string, type: string): Promise<void> {
     const invoice = await this.provider.retrieveInvoice(invoiceId);
     if (!invoice) return;
-    const sub = invoice.subscriptionId
+    let sub = invoice.subscriptionId
       ? await this.prisma.subscription.findUnique({
           where: { stripe_subscription_id: invoice.subscriptionId },
         })
       : invoice.customerId
         ? await this.byCustomer(this.prisma, invoice.customerId)
         : null;
+    // Algo audit M-4: the paid invoice of a DUPLICATE subscription (its id
+    // is not on any row, but the customer's attorney has a live one) is
+    // booked for that attorney and resolved below — it used to be retried
+    // until the DLQ as "no local row yet".
+    if (
+      !sub &&
+      invoice.subscriptionId &&
+      invoice.customerId &&
+      (await this.settings.boolean('billing.duplicate_subscription_autofix'))
+    ) {
+      const owner = await this.byCustomer(this.prisma, invoice.customerId);
+      if (
+        owner?.stripe_subscription_id &&
+        owner.stripe_subscription_id !== invoice.subscriptionId &&
+        SubscriptionAccessService.rowIsActive(owner)
+      ) {
+        sub = owner;
+      }
+    }
     if (!sub) {
       await this.onInvoiceWithoutSubscription(invoice, type);
       return;
@@ -378,6 +424,14 @@ export class SubscriptionSyncService {
     // card that then went through) must never turn a paid invoice into a
     // failed payment and a past_due subscription.
     const paid = invoice.status === 'paid' || type === 'invoice.paid';
+    // Algo audit M-4: an invoice of ANOTHER subscription of this attorney's
+    // customer (a duplicate) while their own one is live.
+    const foreign =
+      !!invoice.subscriptionId &&
+      !!sub.stripe_subscription_id &&
+      invoice.subscriptionId !== sub.stripe_subscription_id &&
+      SubscriptionAccessService.rowIsActive(sub) &&
+      (await this.settings.boolean('billing.duplicate_subscription_autofix'));
     if (!paid) {
       const existing = await this.prisma.payment.findUnique({
         where: { stripe_invoice_id: invoice.id },
@@ -449,6 +503,18 @@ export class SubscriptionSyncService {
       }
     });
     this.slo?.count(paid ? 'payOk' : 'payFail');
+    if (foreign && invoice.subscriptionId) {
+      // The duplicate's own card trouble never puts the attorney's live
+      // subscription into past_due; the duplicate is resolved instead.
+      if (!paid) {
+        this.logger.warn(
+          { invoiceId: invoice.id, subscriptionId: invoice.subscriptionId },
+          'failed invoice of a duplicate subscription: live row left as is',
+        );
+      }
+      await this.foreignHook?.(sub.user_id, invoice.subscriptionId);
+      return;
+    }
     if (!paid) {
       // docs/06 §8 "всплеск неуспешных платежей": metric filter on this line.
       this.logger.warn(

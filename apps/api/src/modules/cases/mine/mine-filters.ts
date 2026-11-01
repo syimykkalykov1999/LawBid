@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Prisma } from '@prisma/client';
-import { nameMatchSql } from '../../../common/search/name-match.sql';
+import { nameKeys, nameMatchSql } from '../../../common/search/name-match.sql';
 import { Transform } from 'class-transformer';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import {
@@ -171,7 +171,7 @@ export async function workWordHits(
     if (!w) continue;
     const like = Prisma.sql`'%' || public.f_unaccent(${escapeLike(w.toLowerCase().replace(/ё/g, 'е'))}) || '%'`;
     const client = withClient
-      ? Prisma.sql`OR ${nameMatchSql(w, Prisma.sql`u.full_name_lower`)}
+      ? Prisma.sql`OR ${nameMatchSql(await nameKeys(prisma, w), 'u')}
           OR coalesce(cp.username_lower, '') LIKE ${`${escapeLike(w.toLowerCase())}%`}`
       : Prisma.empty;
     const rows = await prisma.$queryRaw<{ id: string }[]>`

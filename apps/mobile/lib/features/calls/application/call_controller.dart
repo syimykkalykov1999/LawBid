@@ -373,6 +373,12 @@ const kCallAloneGrace = Duration(seconds: 3);
 /// How long the "Call ended" screen stays.
 const kCallEndedLinger = Duration(milliseconds: 1600);
 
+/// Owner 2026-10-28 («the slide-down stops halfway»): the second, safety
+/// sweep of the system call after an end runs once the call screen has
+/// slid away (it closes at 1.5 s, the slide takes ~0.4 s) — its native
+/// calls run on the platform's UI thread and must not land mid-animation.
+const kCallLateSweep = Duration(milliseconds: 3000);
+
 /// Who the call is with: the other person, or for a group the first two
 /// names and a count.
 String callLabel(CallSession s, String? me) {
@@ -2608,7 +2614,7 @@ class CallController extends Notifier<CallSession> {
     _fgKey = null;
     unawaited(fg.stop());
     unawaited(
-      Future<void>.delayed(const Duration(seconds: 2), () async {
+      Future<void>.delayed(kCallLateSweep, () async {
         if (ref.mounted && !state.busy) {
           await fg.stop();
           await ui.endAll();

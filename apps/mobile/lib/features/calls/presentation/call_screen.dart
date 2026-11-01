@@ -315,9 +315,21 @@ class _CallScreenState extends ConsumerState<CallScreen>
       });
   }
 
+  /// The last call this screen showed. Owner 2026-10-28 («the slide-down
+  /// stops halfway and the screen just disappears»): the controller goes
+  /// idle while the closing animation runs — the screen keeps drawing the
+  /// ended call until it is gone, instead of an empty frame mid-slide.
+  CallSession? _lastShown;
+
   @override
   Widget build(BuildContext context) {
-    final s = ref.watch(callControllerProvider);
+    final live = ref.watch(callControllerProvider);
+    final s = shownWhileClosing(
+      live: live,
+      last: _lastShown,
+      closing: _closing,
+    );
+    if (live.phase != CallPhase.idle) _lastShown = live;
     final c = ref.read(callControllerProvider.notifier);
     _listen(c);
     final media = c.media;
@@ -1228,3 +1240,13 @@ class _RingsPainter extends CustomPainter {
   bool shouldRepaint(_RingsPainter old) =>
       on != old.on || (on && progress != old.progress);
 }
+
+/// What a closing call screen draws: the call it showed last, once the
+/// controller is idle (the call is over and the route is sliding away).
+@visibleForTesting
+CallSession shownWhileClosing({
+  required CallSession live,
+  required CallSession? last,
+  required bool closing,
+}) =>
+    closing && live.phase == CallPhase.idle && last != null ? last : live;

@@ -9,6 +9,7 @@ import {
   OPS_KEYS,
   parseJson,
   type BackupSnapshot,
+  type BillingDuplicatesDay,
   type BloatSnapshot,
   type CapacityReading,
   type CeilingSnapshot,
@@ -227,6 +228,43 @@ export class OpsStateService implements OnModuleDestroy {
         ttlSec,
         'NX',
       )) === 'OK'
+    );
+  }
+
+  /** Algo audit M-4: today's duplicate-subscription auto-fixes (null = none). */
+  async billingDuplicates(
+    now: Date = new Date(),
+  ): Promise<BillingDuplicatesDay | null> {
+    const d = parseJson<BillingDuplicatesDay>(
+      await this.redis.get(OPS_KEYS.billingDuplicates),
+    );
+    return d && d.day === now.toISOString().slice(0, 10) ? d : null;
+  }
+
+  /** Adds one outcome to today's counters (read-modify-write; a lost
+   * increment under a race only under-counts a notice, never money). */
+  async noteBillingDuplicate(
+    outcome: 'fixed' | 'needsReview' | 'blocked',
+    refundedCents = 0,
+    now: Date = new Date(),
+  ): Promise<void> {
+    const day = now.toISOString().slice(0, 10);
+    const cur = (await this.billingDuplicates(now)) ?? {
+      day,
+      fixed: 0,
+      refundedCents: 0,
+      needsReview: 0,
+      blocked: 0,
+      lastAt: now.toISOString(),
+    };
+    cur[outcome] += 1;
+    cur.refundedCents += Math.max(0, refundedCents);
+    cur.lastAt = now.toISOString();
+    await this.redis.set(
+      OPS_KEYS.billingDuplicates,
+      JSON.stringify(cur),
+      'EX',
+      3 * 86400,
     );
   }
 

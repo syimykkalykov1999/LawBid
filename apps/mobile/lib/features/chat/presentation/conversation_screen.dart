@@ -17,6 +17,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/shell/desktop_input.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/perf/build_counter.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
@@ -50,6 +51,7 @@ import 'package:lawbid/features/chat/presentation/chat_list_layout.dart';
 import 'package:lawbid/features/chat/presentation/chat_post_card.dart';
 import 'package:lawbid/features/chat/presentation/chat_translation.dart';
 import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
+import 'package:lawbid/features/chat/presentation/desktop_chats.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/chat/presentation/link_preview_card.dart';
 import 'package:lawbid/features/chat/presentation/media_preview_screen.dart';
@@ -461,7 +463,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
           : AppTopBar(
               leading: AppBackButton(
                 semanticLabel: t.t('common.back'),
-                onPressed: () => Navigator.of(context).maybePop(),
+                // Desktop web plan 2026-10-28: next to the chats list the
+                // arrow empties the right pane (a phone pops as before).
+                onPressed: () => closeChat(context),
               ),
               title: c == null
                   ? null
@@ -635,6 +639,22 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                     controller: _text,
                                     focusNode: _focus,
                                     onSend: _send,
+                                    onEscape: () {
+                                      final n = ref.read(
+                                        chatComposeProvider(
+                                          widget.conversationId,
+                                        ).notifier,
+                                      );
+                                      final now = ref.read(
+                                        chatComposeProvider(
+                                          widget.conversationId,
+                                        ),
+                                      );
+                                      final open = now.replyTo != null ||
+                                          now.editing != null;
+                                      if (open) n.clear();
+                                      return open;
+                                    },
                                     stickersOpen: _stickers,
                                     onStickers: _toggleStickers,
                                     onFieldTap: () {
@@ -2278,8 +2298,12 @@ class _Composer extends ConsumerStatefulWidget {
     this.onCamera,
     this.onStickers,
     this.onFieldTap,
+    this.onEscape,
     this.stickersOpen = false,
   });
+
+  /// Desktop: Esc in the field (true = it closed the reply / edit bar).
+  final bool Function()? onEscape;
 
   /// Owner 2026-10-01: the Emoji · Stickers button in the field.
   final VoidCallback? onStickers;
@@ -2609,53 +2633,61 @@ class _ComposerState extends ConsumerState<_Composer> {
           controller: widget.controller,
           max: maxChars,
           showFrom: counterFrom,
-          child: TextField(
-            onTapOutside: hideKeyboardOnTapOutside,
+          // Desktop web plan 2026-10-28: Enter sends, Shift+Enter is a new
+          // line, Esc closes the reply bar (a phone keeps its keyboard's
+          // own keys).
+          child: DesktopSendOnEnter(
+            onSend: widget.onSend,
             controller: widget.controller,
-            focusNode: widget.focusNode,
-            minLines: 1,
-            maxLines: 5,
-            maxLength: maxChars,
-            buildCounter: noFieldCounter,
-            textCapitalization: TextCapitalization.sentences,
-            onChanged: (v) => widget.onTyping(v.isNotEmpty),
-            onTap: widget.onFieldTap,
-            style: type.body.copyWith(color: colors.text),
-            decoration: InputDecoration(
-              hintText: t.t('chat.hint'),
-              suffixIcon: widget.onStickers == null
-                  ? null
-                  : IconButton(
-                      tooltip: t.t('stickers.button'),
-                      onPressed: widget.onStickers,
-                      icon: AppIcon(
-                        widget.stickersOpen
-                            ? AppIcons.keyboardRounded
-                            : AppIcons.smileyStickerOutlined,
-                        color: widget.stickersOpen
-                            ? colors.iconTint
-                            : colors.textSecondary,
+            onEscape: widget.onEscape,
+            child: TextField(
+              onTapOutside: hideKeyboardOnTapOutside,
+              controller: widget.controller,
+              focusNode: widget.focusNode,
+              minLines: 1,
+              maxLines: 5,
+              maxLength: maxChars,
+              buildCounter: noFieldCounter,
+              textCapitalization: TextCapitalization.sentences,
+              onChanged: (v) => widget.onTyping(v.isNotEmpty),
+              onTap: widget.onFieldTap,
+              style: type.body.copyWith(color: colors.text),
+              decoration: InputDecoration(
+                hintText: t.t('chat.hint'),
+                suffixIcon: widget.onStickers == null
+                    ? null
+                    : IconButton(
+                        tooltip: t.t('stickers.button'),
+                        onPressed: widget.onStickers,
+                        icon: AppIcon(
+                          widget.stickersOpen
+                              ? AppIcons.keyboardRounded
+                              : AppIcons.smileyStickerOutlined,
+                          color: widget.stickersOpen
+                              ? colors.iconTint
+                              : colors.textSecondary,
+                        ),
                       ),
-                    ),
-              filled: true,
-              fillColor: colors.bg,
-              contentPadding: EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.md + (near ? kInsideCounterRoom : 0),
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(24),
-                borderSide: BorderSide(color: colors.border),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(24),
-                borderSide: BorderSide(color: colors.border),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(24),
-                borderSide: BorderSide(color: colors.gold),
+                filled: true,
+                fillColor: colors.bg,
+                contentPadding: EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.md + (near ? kInsideCounterRoom : 0),
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide(color: colors.gold),
+                ),
               ),
             ),
           ),

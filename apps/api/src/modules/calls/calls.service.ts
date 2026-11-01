@@ -10,6 +10,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Inject } from '@nestjs/common';
@@ -27,6 +28,10 @@ import { UsageLimitsService } from '../../common/usage-limits/usage-limits.servi
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CALL_SILENT_MS } from '../../common/calls/ongoing-call';
+import {
+  callPollKey,
+  verifyCallPoll,
+} from '../../common/calls/call-poll-token';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
 import { caseWorkOngoing } from '../blocks/block-guard';
@@ -955,6 +960,49 @@ export class CallsService {
       dropped ? 'link_lost' : undefined,
       user.sid,
     );
+  }
+
+  private pollKey?: Buffer | null;
+
+  /**
+   * GET /calls/:id/status?t= — owner 2026-10-28 (a locked Samsung rang on
+   * after the caller hung up; its wake path had no session and got 401).
+   * The ringing phone asks with the ring push's ticket (call-poll-token.ts)
+   * and learns only whether the call still rings. Read-only: a ring past
+   * the server's timeout already counts as over (the sweep writes it).
+   */
+  async ringStatus(
+    id: string,
+    token: string,
+  ): Promise<{ state: 'ringing' | 'active' | 'ended' }> {
+    if (this.pollKey === undefined) {
+      let pepper: string | undefined;
+      try {
+        pepper = this.config.get<string>('AUTH_EVENT_PEPPER');
+      } catch {
+        pepper = undefined;
+      }
+      this.pollKey = pepper ? callPollKey(pepper) : null;
+    }
+    if (!this.pollKey || !verifyCallPoll(this.pollKey, token, id)) {
+      throw new UnauthorizedException({
+        code: ErrorCode.UNAUTHORIZED,
+        message: 'Invalid or expired ticket.',
+      });
+    }
+    const call = await this.prisma.call.findUnique({
+      where: { id },
+      select: { status: true, created_at: true },
+    });
+    if (!call) throw notFound();
+    if (call.status === 'active') return { state: 'active' };
+    if (
+      call.status === 'ringing' &&
+      call.created_at.getTime() > Date.now() - CALL_RING_TIMEOUT_MS
+    ) {
+      return { state: 'ringing' };
+    }
+    return { state: 'ended' };
   }
 
   async get(user: RequestUser, id: string): Promise<CallDto> {

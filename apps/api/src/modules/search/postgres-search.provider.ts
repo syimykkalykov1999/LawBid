@@ -18,7 +18,11 @@ import {
   typoMatch,
 } from '../../common/search/fts-sql';
 import { parseSearchQuery } from '../../common/search/search-query';
-import { escapeLike, nameMatchSql } from '../../common/search/name-match.sql';
+import {
+  escapeLike,
+  nameKeys,
+  nameMatchSql,
+} from '../../common/search/name-match.sql';
 import { SearchSynonymsService } from './search-synonyms.service';
 import { urgencyFilterSql } from '../cases/domain/case-urgency';
 import { budgetFilterSql } from '../cases/cases.public';
@@ -251,7 +255,8 @@ export class PostgresSearchProvider implements SearchProvider {
     const w = await this.weights();
     const prefix = `${escapeLike(q)}%`;
     const contains = `%${escapeLike(q)}%`;
-    const byName = nameMatchSql(q);
+    const keys = await nameKeys(this.db, q);
+    const byName = nameMatchSql(keys);
     // Owner 2026-10-15: "развод" / "муж бьёт" → attorneys of that topic.
     const synPractices = (await this.synonyms?.resolve(q))?.practiceIds ?? [];
     const bySynonym = synPractices.length
@@ -303,7 +308,8 @@ export class PostgresSearchProvider implements SearchProvider {
       ? Prisma.sql`
         UNION ALL
         SELECT u.id, 'client' AS role, c.username_lower AS uname,
-               u.full_name_lower AS fname, FALSE AS verified,
+               u.full_name_lower AS fname, u.name_skel AS fskel,
+               FALSE AS verified,
                0::DECIMAL AS rating, FALSE AS priority
         FROM (${
           among
@@ -366,7 +372,7 @@ export class PostgresSearchProvider implements SearchProvider {
       ),
       people AS (
         SELECT u.id, 'attorney' AS role, a.username_lower AS uname,
-               u.full_name_lower AS fname,
+               u.full_name_lower AS fname, u.name_skel AS fskel,
                (a.verification_status = 'verified') AS verified,
                a.rating_avg AS rating,
                -- Owner 2026-10-05 (plan builder): "higher in search".
@@ -388,8 +394,10 @@ export class PostgresSearchProvider implements SearchProvider {
         (uname LIKE ${prefix}) DESC,
         GREATEST(similarity(uname, ${q}),
                  similarity(COALESCE(fname, ''), ${q}),
-                 word_similarity(public.f_name_skel(${q}),
-                                 public.f_name_skel(COALESCE(fname, '')))) DESC,
+                 -- = word_similarity(f_name_skel(q), f_name_skel(fname)),
+                 -- both keys precomputed (load test 2026-10-28).
+                 word_similarity(${keys.whole}::TEXT,
+                                 COALESCE(fskel, public.f_name_skel(COALESCE(fname, ''))))) DESC,
         (role = 'attorney') DESC,
         (priority::INT * ${w.priority}::FLOAT8 + verified::INT * ${w.verified}::FLOAT8
           + rating::FLOAT8 * ${w.rating}::FLOAT8) DESC,

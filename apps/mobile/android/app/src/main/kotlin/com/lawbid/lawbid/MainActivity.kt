@@ -246,10 +246,24 @@ class MainActivity : FlutterFragmentActivity() {
                         } catch (e: Exception) {
                         }
                         clearCallNotifications()
+                        // Owner 2026-10-28 (Samsung: a call in progress was
+                        // still shown after the end): nothing of the call
+                        // plugin stays either (its ongoing-call service).
+                        CallRinging.endAll(this, emptyList())
+                        leavePictureInPicture()
                         result.success(null)
                     }
                     "clear" -> {
                         clearCallNotifications()
+                        CallRinging.endAll(this, emptyList())
+                        result.success(null)
+                    }
+                    // Owner 2026-10-28: one call's system side ends — its
+                    // Telecom call (Samsung's «call in progress»), the
+                    // plugin's call service and its ringing screen.
+                    "endCall" -> {
+                        val id = call.argument<String>("id")
+                        CallRinging.endAll(this, listOfNotNull(id))
                         result.success(null)
                     }
                     "pendingAction" -> {
@@ -397,6 +411,18 @@ class MainActivity : FlutterFragmentActivity() {
             }
         } catch (e: Exception) {
             // listing not allowed: nothing to clear
+        }
+    }
+
+    /** The call is over: a floating video window of it must not stay
+     * frozen on the last frame (WhatsApp closes it with the call). */
+    private fun leavePictureInPicture() {
+        pipActive = false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
+        try {
+            if (isInPictureInPictureMode) moveTaskToBack(false)
+        } catch (e: Exception) {
+            // Not in a window mode we can leave: nothing to do.
         }
     }
 

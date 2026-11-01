@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/tokens/app_colors.dart';
 
 void main() {
   group('AppColorTokens', () {
@@ -32,9 +33,14 @@ void main() {
       for (final tokens in [AppColorTokens.light(), AppColorTokens.dark()]) {
         expect(tokens.danger, const Color(0xFFD64545));
         expect(tokens.success, const Color(0xFF1F9D67));
-        expect(tokens.warning, const Color(0xFFD98A00));
         expect(tokens.info, const Color(0xFF2F80ED));
       }
+    });
+
+    test('warning: spec amber on Night, deeper amber on Day (AA, 2026-10-28)',
+        () {
+      expect(AppColorTokens.dark().warning, const Color(0xFFD98A00));
+      expect(AppColorTokens.light().warning, AppColorsLight.warning);
     });
 
     test('status tints derive from the spec status hues', () {

@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/route_observer.dart';
 import 'package:lawbid/core/navigation/shell/bottom_nav_config.dart';
+import 'package:lawbid/core/navigation/shell/desktop_side_nav.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
@@ -187,14 +188,26 @@ class _MainShellState extends ConsumerState<MainShell> {
       body: side
           ? Row(
               children: [
-                AppSideNav(
-                  tabs: tabs,
-                  currentIndex: navigationShell.currentIndex,
-                  onTabSelected: _onTabSelected,
-                  onCreatePressed: () => _create(context),
-                  extended: layout == ShellLayout.extendedRail,
-                  createLabel: translator.t('nav.create'),
-                ),
+                // Desktop web plan 2026-10-28 (owner Q1): Messages and
+                // Notifications with their counts on a desktop window.
+                if (windowClassOf(context).isDesktop)
+                  DesktopSideNav(
+                    tabs: tabs,
+                    currentIndex: navigationShell.currentIndex,
+                    onTabSelected: _onTabSelected,
+                    onCreatePressed: () => _create(context),
+                    extended: layout == ShellLayout.extendedRail,
+                    createLabel: translator.t('nav.create'),
+                  )
+                else
+                  AppSideNav(
+                    tabs: tabs,
+                    currentIndex: navigationShell.currentIndex,
+                    onTabSelected: _onTabSelected,
+                    onCreatePressed: () => _create(context),
+                    extended: layout == ShellLayout.extendedRail,
+                    createLabel: translator.t('nav.create'),
+                  ),
                 Expanded(
                   child: ContentColumn(
                     maxWidth: layout == ShellLayout.extendedRail

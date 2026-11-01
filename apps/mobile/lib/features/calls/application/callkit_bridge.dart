@@ -46,6 +46,7 @@ class CallkitSystemUi implements SystemCallUi {
     } on Object {
       // No plugin / already gone.
     }
+    await endAndroidSystemCall(callId);
   }
 
   @override
@@ -239,6 +240,9 @@ Future<void> showLawbidIncoming({
   // which «end» closed one and the other stayed as a ghost. One claim per
   // call id, shared by both isolates.
   if (!await _claimRing(callId)) return;
+  // Owner 2026-10-28: the call stopped ringing before this (late) ring got
+  // here — the native side marked it (CallRinging.kt): never show it.
+  if (await ringEndedAlready(callId)) return;
   try {
     // Already on screen (iOS: PushKit reported it before the socket did):
     // a second report would replace the call and end the one being answered.
@@ -344,6 +348,40 @@ IncomingCallPush? incomingCallFromPush(Map<String, dynamic> d) {
   );
 }
 
+/// Owner 2026-10-28 (a locked Samsung rang on after the caller hung up):
+/// the native stop (CallRinging.kt) marks the call in the shared
+/// preferences; a ring that comes after it is not shown.
+const ringEndedPrefix = 'call.ended.';
+
+@visibleForTesting
+Future<bool> ringEndedAlready(String callId) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final at = prefs.getInt('$ringEndedPrefix$callId');
+    return at != null &&
+        DateTime.now().millisecondsSinceEpoch - at <
+            const Duration(minutes: 5).inMilliseconds;
+  } on Object {
+    return false;
+  }
+}
+
+/// Owner 2026-10-28 (Samsung: the phone still showed a call in progress
+/// after the end, and the locked phone's ringing screen stayed): Android's
+/// own side of ending [callId] — its self-managed Telecom call, the call
+/// plugin's ongoing-call service and its full-screen ringing screen
+/// (MainActivity → CallRinging.endAll). Nothing on other platforms.
+Future<void> endAndroidSystemCall(String callId) async {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+  try {
+    await const MethodChannel('lawbid/call_service')
+        .invokeMethod<void>('endCall', {'id': callId});
+  } on Object {
+    // No host (the push isolate, tests): the plugin's own end has run.
+  }
+}
+
 /// Push 2026-10-19 (`call_ended` push): the caller hung up, the call was
 /// missed or answered elsewhere — the system ringing screen goes away,
 /// unless this phone is the one that answered it.
@@ -414,6 +452,27 @@ Future<void> lawbidBackgroundMessage(RemoteMessage message) async {
   );
 }
 
+/// Owner 2026-10-28: a cold start (the app woken by a call) restores the
+/// session a moment after the call events arrive. Waits until signed in,
+/// at most [limit]; the server then answers instead of a 401.
+@visibleForTesting
+Future<void> whenSignedIn(
+  Ref ref, {
+  Duration limit = const Duration(seconds: 20),
+  Duration step = const Duration(milliseconds: 250),
+}) async {
+  final until = DateTime.now().add(limit);
+  try {
+    while (ref.mounted &&
+        ref.read(callMyIdProvider) == null &&
+        DateTime.now().isBefore(until)) {
+      await Future<void>.delayed(step);
+    }
+  } on Object {
+    // Disposed meanwhile: the caller's own guards take it from here.
+  }
+}
+
 /// Answers / declines made on the system UI reach the call controller.
 /// Kept alive by `CallHost`.
 final callkitEventsProvider = Provider<void>((ref) {
@@ -431,6 +490,10 @@ final callkitEventsProvider = Provider<void>((ref) {
         switch (event) {
           case CallEventActionCallAccept(:final callKitParams):
             callTrace('callkit accept ${callKitParams.id}');
+            // Answered on the lock screen of a closed app: the session is
+            // still being restored — asking the call now went out with no
+            // token (401) and took the answered call down.
+            await whenSignedIn(ref);
             await controller.ringFromPush(callKitParams.id, accept: true);
           case CallEventActionCallEnded(:final callKitParams):
             // iOS: "End" on the system call UI (the green pill / lock
@@ -476,6 +539,9 @@ final callkitEventsProvider = Provider<void>((ref) {
   // A call accepted on the lock screen before the app started.
   unawaited(() async {
     try {
+      // Owner 2026-10-28 (prod log: GET /calls/:id → 401 «Missing bearer
+      // token» from a waking phone): not before the session is back.
+      await whenSignedIn(ref);
       final calls = await FlutterCallkitIncoming.activeCalls();
       for (final c in calls) {
         // Accepted: carry on. Not accepted: still ringing, or a ghost of a

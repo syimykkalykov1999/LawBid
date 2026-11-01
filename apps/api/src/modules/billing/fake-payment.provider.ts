@@ -590,6 +590,7 @@ export class FakePaymentProvider implements PaymentProvider {
       canceledAt: null,
       defaultPaymentMethodId: input.paymentMethodId,
       metadata: input.metadata,
+      created: now,
       _version: 0,
     };
     this.subscriptions.set(sub.id, sub);
@@ -599,6 +600,25 @@ export class FakePaymentProvider implements PaymentProvider {
   retrieveSubscription(id: string): Promise<ProviderSubscription | null> {
     const s = this.subscriptions.get(id);
     return Promise.resolve(s ? strip(s) : null);
+  }
+
+  /** Algo audit M-4: PaymentIntents a test marked as charged back. */
+  readonly disputedIntents = new Set<string>();
+
+  listCustomerSubscriptions(
+    customerId: string,
+    limit = 20,
+  ): Promise<ProviderSubscription[]> {
+    const all = [...this.subscriptions.values()]
+      .filter((s) => s.customerId === customerId)
+      .sort((a, b) => (b.created ?? 0) - (a.created ?? 0))
+      .slice(0, limit)
+      .map((s) => strip(s));
+    return Promise.resolve(all);
+  }
+
+  paymentIntentDisputed(paymentIntentId: string): Promise<boolean> {
+    return Promise.resolve(this.disputedIntents.has(paymentIntentId));
   }
 
   setCancelAtPeriodEnd(
@@ -1063,6 +1083,12 @@ export class FakePaymentProvider implements PaymentProvider {
           null,
         metadata:
           (object.metadata as Record<string, string>) ?? cur?.metadata ?? {},
+        // Algo audit M-4: what the event does not say stays as it was.
+        items: cur?.items,
+        latestInvoiceId:
+          (object.latest_invoice as string | null | undefined) ??
+          cur?.latestInvoiceId,
+        created: (object.created as number | undefined) ?? cur?.created,
         _version: version,
       });
     } else if (object.object === 'invoice') {

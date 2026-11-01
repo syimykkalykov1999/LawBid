@@ -265,10 +265,13 @@ export class CommentsService {
     }
     const now = new Date();
     const removedReplies = await withTxRetry(this.prisma, async (tx) => {
-      await tx.comment.update({
-        where: { id: c.id },
+      // Audit A-4: guard on deleted_at — a parallel / retried DELETE must not
+      // decrement the counters a second time.
+      const claimed = await tx.comment.updateMany({
+        where: { id: c.id, deleted_at: null },
         data: { deleted_at: now },
       });
+      if (claimed.count === 0) return null;
       if (c.parent_comment_id) return 0;
       // Audit 2026-10-01: every reply goes with its comment — held ones
       // too (a later "publish" would count an orphan); only the published
@@ -282,6 +285,7 @@ export class CommentsService {
       });
       return counted;
     });
+    if (removedReplies === null) return { deleted: true };
     const gone = (c.status === 'published' ? 1 : 0) + removedReplies;
     if (gone > 0) {
       await this.counters.bump('post', c.post_id, 'comment_count', -gone);
