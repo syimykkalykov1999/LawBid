@@ -675,6 +675,22 @@ class _BeforeTyping extends ConsumerWidget {
           itemCount: items.length,
           itemBuilder: (context, i) => build(items[i]),
         );
+    // Owner 2026-11-01 (start view «lost its grids»): while the first page
+    // loads the grid shows placeholders, not a blank screen.
+    Widget gridSkeleton() => SliverGrid.builder(
+          gridDelegate: kSearchPostGridDelegate,
+          itemCount: 12,
+          itemBuilder: (_, __) => const AppSkeleton(borderRadius: 0),
+        );
+    Widget rowsSkeleton() => SliverPadding(
+          padding: kSearchRowsPadding,
+          sliver: SliverList.separated(
+            itemCount: 6,
+            separatorBuilder: (_, __) => const SizedBox(height: kSearchRowGap),
+            itemBuilder: (_, __) =>
+                const AppSkeleton(height: 86, borderRadius: AppRadii.card),
+          ),
+        );
     Widget rows<T>(List<T> items, Widget Function(T) build) => SliverPadding(
           padding: kSearchRowsPadding,
           sliver: SliverList.separated(
@@ -761,11 +777,19 @@ class _BeforeTyping extends ConsumerWidget {
       // filter, every page), with "Show more".
       SearchTab.cases => [
           SliverToBoxAdapter(child: title(t.t('search.section.cases'))),
-          rows<FeedCase>(
-            ref.watch(exploreCasesProvider(_casesKey(filters))).value?.items ??
-                const <FeedCase>[],
-            (c) => SearchCaseTile(item: c),
-          ),
+          if (ref.watch(exploreCasesProvider(_casesKey(filters))).value ==
+                  null &&
+              ref.watch(exploreCasesProvider(_casesKey(filters))).isLoading)
+            rowsSkeleton()
+          else
+            rows<FeedCase>(
+              ref
+                      .watch(exploreCasesProvider(_casesKey(filters)))
+                      .value
+                      ?.items ??
+                  const <FeedCase>[],
+              (c) => SearchCaseTile(item: c),
+            ),
           more(
             hasMore: ref
                     .watch(exploreCasesProvider(_casesKey(filters)))
@@ -778,17 +802,25 @@ class _BeforeTyping extends ConsumerWidget {
           ),
         ],
       SearchTab.posts => [
-          grid<Post>(
-            ref.watch(explorePostsProvider(_postsKey(filters))).value?.items ??
-                const <Post>[],
-            (p) => SearchPostTile(
-              post: p,
-              feed: ref
-                  .read(explorePostsProvider(_postsKey(filters)))
-                  .value
-                  ?.items,
+          if (ref.watch(explorePostsProvider(_postsKey(filters))).value ==
+                  null &&
+              ref.watch(explorePostsProvider(_postsKey(filters))).isLoading)
+            gridSkeleton()
+          else
+            grid<Post>(
+              ref
+                      .watch(explorePostsProvider(_postsKey(filters)))
+                      .value
+                      ?.items ??
+                  const <Post>[],
+              (p) => SearchPostTile(
+                post: p,
+                feed: ref
+                    .read(explorePostsProvider(_postsKey(filters)))
+                    .value
+                    ?.items,
+              ),
             ),
-          ),
           more(
             hasMore: ref
                     .watch(explorePostsProvider(_postsKey(filters)))
