@@ -4,6 +4,12 @@ jest.mock('bullmq', () => {
   const redis = {
     incr: jest.fn(),
     expire: jest.fn(() => Promise.resolve(1)),
+    // incrWithTtl's Lua: INCR, then EXPIRE on the first hit.
+    eval: jest.fn(async (_l: string, _n: number, key: string, ttl: string) => {
+      const n = Number(await redis.incr(key));
+      if (n === 1) await redis.expire(key, Number(ttl));
+      return n;
+    }),
   };
   const queue = {
     getJob: jest.fn(),

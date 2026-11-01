@@ -15,6 +15,7 @@ import {
 } from '@nestjs/websockets';
 import { createAdapter, createShardedAdapter } from '@socket.io/redis-adapter';
 import type Redis from 'ioredis';
+import { incrWithTtl } from '../../redis/incr-with-ttl';
 import { PinoLogger } from 'nestjs-pino';
 import { socketClientIp } from './socket-ip';
 import type { Namespace, Socket } from 'socket.io';
@@ -59,7 +60,9 @@ import {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Presence entries outlive a crashed instance by at most this. */
-const VIEW_TTL_SEC = 3600;
+// B-1 (audit 2026-11-01): short TTL, renewed by the heartbeat while the
+// socket lives — a killed task no longer mutes pushes for an hour.
+const VIEW_TTL_SEC = 120;
 /** At most one typing event per socket per this window. */
 const TYPING_MIN_GAP_MS = 1000;
 /** S1-7: `call:signal` budget (own bucket) and how long a call's members
@@ -81,7 +84,13 @@ interface SignalCall {
 const SIGNAL_MAX_BYTES = 64 * 1024;
 /** Sockets of one person per API instance (setting `realtime.max_sockets_per_user`). */
 const DEFAULT_MAX_SOCKETS_PER_USER = 10;
-const DEFAULT_CONNECTS_PER_IP_PER_MINUTE = 120;
+// B-5: CGNAT / office / campus put hundreds of users behind one address;
+// a deploy reconnect storm must not lock them out (client backs off anyway).
+/** B-9: ceilings per socket — a buggy or hostile client cannot pile up
+ * rooms / "chat open" keys without bound. */
+const MAX_VIEWING_PER_SOCKET = 50;
+const MAX_ROOMS_PER_SOCKET = 400;
+const DEFAULT_CONNECTS_PER_IP_PER_MINUTE = 600;
 /** How often a live socket refreshes its presence (and an assistant's
  * socket re-checks its duties). Owner 2026-10-22 (server load audit,
  * finding 5): no longer the session blacklist — a revoked session's
@@ -513,8 +522,7 @@ export class RealtimeGateway
       );
       if (!ip) return false;
       const key = `ws:connect:${ip}`;
-      const n = await this.redis.incr(key);
-      if (n === 1) await this.redis.expire(key, 60);
+      const n = await incrWithTtl(this.redis, key, 60);
       if (n <= max) return false;
       this.logger.warn({ metric: 'ws_ip_limited', ip }, 'ws connect limit');
       return true;
@@ -659,10 +667,18 @@ export class RealtimeGateway
           })
           .catch(() => undefined);
       }
+      // B-1: keep the "chat open" keys of this live socket fresh.
+      if (state(socket).viewing.size > 0) {
+        const pipe = this.redis.pipeline();
+        for (const id of state(socket).viewing) {
+          pipe.expire(viewingKey(state(socket).user.sub, id), VIEW_TTL_SEC);
+        }
+        void pipe.exec().catch(() => undefined);
+      }
       // Owner 2026-10-01: presence heartbeat (own connections only).
       if (!state(socket).selfId) {
         void this.presence
-          .touch(state(socket).user.sub, socket.id)
+          .refresh(state(socket).user.sub, socket.id)
           .catch(() => undefined);
       }
     }, HEARTBEAT_MS);
@@ -940,6 +956,14 @@ export class RealtimeGateway
     const id = this.conversationIdOf(body);
     const uid = state(socket)?.user?.sub;
     if (!id || !uid) return { ok: false };
+    const mine = state(socket);
+    if (
+      !mine.viewing.has(id) &&
+      (mine.viewing.size >= MAX_VIEWING_PER_SOCKET ||
+        (socket.rooms?.size ?? 0) >= MAX_ROOMS_PER_SOCKET)
+    ) {
+      return { ok: false };
+    }
     const member = await this.prisma.conversationParticipant.findUnique({
       where: { conversation_id_user_id: { conversation_id: id, user_id: uid } },
       select: { user_id: true },
@@ -1008,6 +1032,7 @@ export class RealtimeGateway
         select: { user_id: true },
       }));
     if (!reader) return { ok: false };
+    if ((socket.rooms?.size ?? 0) >= MAX_ROOMS_PER_SOCKET) return { ok: false };
     await socket.join(channelRoom(id));
     return { ok: true };
   }
@@ -1028,6 +1053,7 @@ export class RealtimeGateway
       select: { id: true },
     });
     if (!post) return { ok: false };
+    if ((socket.rooms?.size ?? 0) >= MAX_ROOMS_PER_SOCKET) return { ok: false };
     await socket.join(postRoom(id));
     return { ok: true };
   }
@@ -1072,6 +1098,7 @@ export class RealtimeGateway
     if (!me || !/^[0-9a-f-]{36}$/i.test(other) || other === me) {
       return { ok: false };
     }
+    if ((socket.rooms?.size ?? 0) >= MAX_ROOMS_PER_SOCKET) return { ok: false };
     const shared = await this.prisma.conversationParticipant.findFirst({
       where: {
         user_id: me,

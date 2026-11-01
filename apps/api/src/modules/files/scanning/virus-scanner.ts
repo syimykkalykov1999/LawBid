@@ -95,11 +95,18 @@ export class ClamdScanner implements VirusScanner {
   }
 }
 
+/** clamd refused the stream as over its StreamMaxLength: permanent, a retry
+ * can only give the same answer (audit B-2, 2026-11-01). */
+export class ClamdTooLargeError extends Error {}
+
 export function parseClamdReply(raw: string): ScanVerdict {
   const reply = raw.replace(/\0/g, '').trim();
   if (/^stream: OK$/.test(reply)) return { infected: false };
   const found = /^stream: (.+) FOUND$/.exec(reply);
   if (found) return { infected: true, signature: found[1] };
+  if (/size limit exceeded/i.test(reply)) {
+    throw new ClamdTooLargeError(`clamd error: ${reply.slice(0, 200)}`);
+  }
   throw new Error(`clamd error: ${reply.slice(0, 200)}`);
 }
 
