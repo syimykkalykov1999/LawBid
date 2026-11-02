@@ -167,26 +167,36 @@ export const NAME_SCAN_CAP = 20_000;
  * the WHOLE users table when the word is rare: 0.2-2.5 s per search on 1M
  * users. A MATERIALIZED CTE is planned on its own, so the trigram indexes are
  * used; the cap [NAME_SCAN_CAP] keeps a very common word bounded, and the
- * branch LIMIT (BRANCH_CAP) applies to the CTE result. One CTE per role
- * (`att_by_name`, `cli_by_name`); a role that cannot be returned
+ * branch LIMIT (BRANCH_CAP) applies to the CTE result. One pair of CTEs per role
+ * (`att_exact` / `att_loose` and `cli_exact` / `cli_loose`); a role that cannot be returned
  * ([attorneys] / [clients] false) gets an empty one and costs nothing.
  */
 export function nameCandidateCtes(
-  match: Prisma.Sql,
+  precise: Prisma.Sql,
+  loose: Prisma.Sql,
   attorneys: boolean,
   clients: boolean,
 ): Prisma.Sql {
-  const cte = (name: string, role: string, on: boolean) =>
+  // The role is a literal on purpose: a bound parameter lets Postgres pick a
+  // generic plan after a few runs, which loses the rare-word estimate (see
+  // name-match.sql.ts). Two CTEs per role keep the old per-arm quota: a
+  // precise match is never crowded out by loose typo matches.
+  const cte = (
+    name: string,
+    role: 'attorney' | 'client',
+    arm: Prisma.Sql,
+    on: boolean,
+  ) =>
     on
       ? Prisma.sql`${Prisma.raw(name)} AS MATERIALIZED (
           SELECT id FROM users
-          WHERE full_name_lower IS NOT NULL AND role = ${role}::user_role
-            AND ${match}
+          WHERE full_name_lower IS NOT NULL AND role = ${Prisma.raw(`'${role}'`)}
+            AND ${arm}
           LIMIT ${NAME_SCAN_CAP}),
         `
       : Prisma.sql`${Prisma.raw(name)} AS MATERIALIZED (SELECT NULL::UUID AS id WHERE FALSE),
         `;
-  return Prisma.sql`${cte('att_by_name', 'attorney', attorneys)}${cte('cli_by_name', 'client', clients)}`;
+  return Prisma.sql`${cte('att_exact', 'attorney', precise, attorneys)}${cte('att_loose', 'attorney', loose, attorneys)}${cte('cli_exact', 'client', precise, clients)}${cte('cli_loose', 'client', loose, clients)}`;
 }
 
 /**
@@ -460,7 +470,9 @@ export class PostgresSearchProvider implements SearchProvider {
               AND ${handleMatch(Prisma.sql`username_lower`)}
             LIMIT ${BRANCH_CAP})
           UNION
-          (SELECT id AS user_id FROM cli_by_name LIMIT ${BRANCH_CAP})`
+          (SELECT id AS user_id FROM cli_exact LIMIT ${BRANCH_CAP})
+          UNION
+          (SELECT id AS user_id FROM cli_loose LIMIT ${BRANCH_CAP})`
         }) cc
         JOIN users u ON u.id = cc.user_id AND u.role = 'client'
           AND u.status = 'active' AND u.deleted_at IS NULL
@@ -471,7 +483,8 @@ export class PostgresSearchProvider implements SearchProvider {
     const nameCtes = among
       ? Prisma.empty
       : nameCandidateCtes(
-          Prisma.sql`(${fullNameMatch} OR ${byName})`,
+          fullNameMatch,
+          byName,
           f.role !== 'client',
           withClients,
         );
@@ -487,7 +500,9 @@ export class PostgresSearchProvider implements SearchProvider {
             AND ${handleMatch(Prisma.sql`username_lower`)}
           LIMIT ${BRANCH_CAP})
         UNION
-        (SELECT id FROM att_by_name LIMIT ${BRANCH_CAP})
+        (SELECT id FROM att_exact LIMIT ${BRANCH_CAP})
+        UNION
+        (SELECT id FROM att_loose LIMIT ${BRANCH_CAP})
         ${byEnglish}
         ${byTopic}
         UNION
