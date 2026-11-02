@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -143,16 +144,26 @@ class FakeChannelsRepository implements ChannelsRepository {
         () => CursorPage(items: listed),
       );
 
+  /// How many times a list asked for the phone's HTTP copy.
+  int phoneReads = 0;
+
+  Future<List<Channel>> _noPhoneCopy() {
+    phoneReads++;
+    return Future.error(StateError(kNoPhoneCopy));
+  }
+
   @override
   Future<List<Channel>> list(
     ChannelScope scope, {
     String? q,
     bool archived = false,
   }) =>
-      _run(
-        'list:${scope.name}:${q ?? ''}${archived ? ':archived' : ''}',
-        () => archived ? archivedListed : listed,
-      );
+      readingFromPhoneOnly
+          ? _noPhoneCopy()
+          : _run(
+              'list:${scope.name}:${q ?? ''}${archived ? ':archived' : ''}',
+              () => archived ? archivedListed : listed,
+            );
 
   /// What an `updatedSince` answer carries (delta audit D-P2).
   List<Channel> changedRows = [];
