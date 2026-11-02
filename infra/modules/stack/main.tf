@@ -502,7 +502,7 @@ variable "api_cpu" {
 variable "api_uv_threadpool_size" {
   type        = number
   default     = 4
-  description = "S8-7: UV_THREADPOOL_SIZE of the API task (4 = Node default / unset). Raise to 8 after the load test shows ThreadPoolLagMs > 5 ms."
+  description = "S8-7: UV_THREADPOOL_SIZE of the API task (4 = Node default / unset). Raise to 8 after the load test shows ThreadPoolLagMs > 5 ms (log field in CloudWatch Logs Insights, not a metric)."
 }
 variable "api_memory" {
   type    = number
@@ -1248,6 +1248,8 @@ resource "aws_db_instance" "existing" {
       delete_automated_backups, apply_immediately, tags, tags_all, snapshot_identifier,
       replicate_source_db, character_set_name, license_model, ca_cert_identifier, network_type,
       monitoring_interval, monitoring_role_arn, iam_database_authentication_enabled, port, availability_zone,
+      # Multi-AZ comes and goes by itself (apps/api ha-auto, docs/runbooks/ha-auto.md): apply must not undo it.
+      multi_az,
     ]
   }
 }
@@ -1303,11 +1305,17 @@ module "backup" {
   vault_lock_cooling_off_days = var.backup_vault_lock_cooling_off_days
 }
 
+variable "partition_role_enabled" {
+  type        = bool
+  default     = false
+  description = "Give the WORKER (never the api) the secret PARTITION_DATABASE_URL, role lawbid_partition, so that partition.*_mode = auto can convert messages / chat_group_messages / notifications online at partition.auto_rows. Turn on only after scripts/deploy/prod-db-setup.sh has put its value (ECS refuses to start a task whose secret is empty). docs/runbooks/table-partitioning.md."
+}
+
 module "secrets" {
   source      = "../secrets"
   name        = local.name
   kms_key_arn = module.kms.key_arn
-  names       = concat(local.secret_names, ["MIGRATOR_DATABASE_URL"], var.secret_rotation.db_enabled ? ["DB_APP_CREDENTIALS"] : [])
+  names       = concat(local.secret_names, ["MIGRATOR_DATABASE_URL", "PARTITION_DATABASE_URL"], var.secret_rotation.db_enabled ? ["DB_APP_CREDENTIALS"] : [])
   tags        = local.tags
 
   recovery_window_in_days = var.ephemeral ? 0 : 30
@@ -1486,7 +1494,10 @@ locals {
   # (db_autoscale_min_class); the check below asks only that the LARGEST size
   # (db_autoscale_max_class) can carry the task ceiling at all.
   db_autoscale_on    = var.db_autoscale_enabled && local.db_identifier != ""
-  redis_autoscale_on = var.redis_autoscale_enabled && var.redis_replicas > 0 && !local.redis_cluster_on
+  # Created even with no standby node yet: the Lambda itself refuses to resize a
+  # one-node group (guard no_failover, e-mails) and starts once the API's
+  # ha-auto service has added the node.
+  redis_autoscale_on = var.redis_autoscale_enabled && !local.redis_cluster_on
   autoscale_ssm_params = concat(
     local.db_autoscale_on ? ["/${local.name}/db-autoscale/mode", "/${local.name}/db-autoscale/max-class"] : [],
     local.redis_autoscale_on ? ["/${local.name}/redis-autoscale/mode", "/${local.name}/redis-autoscale/max-class"] : [],
@@ -1879,6 +1890,8 @@ module "ecs" {
   }
   secret_arns                      = local.app_secret_arns
   migrator_database_url_secret_arn = module.secrets.arns["MIGRATOR_DATABASE_URL"]
+  # Worker only; empty until scripts/deploy/prod-db-setup.sh has filled it.
+  partition_database_url_secret_arn = var.partition_role_enabled ? module.secrets.arns["PARTITION_DATABASE_URL"] : ""
   alb_resource_label               = "${module.alb.arn_suffix}/${module.alb.api_target_group_arn_suffix}"
   api_max_tasks                    = var.api_max_tasks
   worker_max_tasks                 = var.worker_max_tasks
@@ -2155,6 +2168,17 @@ data "aws_iam_policy_document" "ops" {
     actions   = ["elasticache:DescribeReplicationGroups", "elasticache:ModifyReplicationGroup"]
     resources = ["arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:replicationgroup:${local.name}-redis"]
   }
+  # ha-auto (2026-11-02): add / remove the Redis standby node with the load.
+  # AWS checks the node, subnet group and parameter group of the group too.
+  statement {
+    actions = ["elasticache:IncreaseReplicaCount", "elasticache:DecreaseReplicaCount"]
+    resources = [
+      "arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:replicationgroup:${local.name}-redis",
+      "arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:cluster:${local.name}-redis-*",
+      "arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:subnetgroup:*",
+      "arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parametergroup:*",
+    ]
+  }
 }
 
 # --- admin button: read copy of the database (owner 2026-10-24) -------------------
@@ -2387,7 +2411,7 @@ module "redis_autoscale" {
   source               = "../redis-autoscale"
   name                 = local.name
   replication_group_id = "${local.name}-redis"
-  replicas             = var.redis_replicas
+  replicas             = max(var.redis_replicas, 1) # price shown for the HA size
   cluster_name         = module.ecs.cluster_name
   service_names        = [module.ecs.api_service_name, module.ecs.worker_service_name]
   alerts_topic_arn     = module.monitoring.alerts_topic_arn
@@ -2419,13 +2443,6 @@ module "endpoints_autoscale" {
   tuning            = var.endpoints_autoscale_tuning
   controls_bucket   = module.s3.documents_bucket
   tags              = local.tags
-}
-
-check "redis_autoscale_needs_replica" {
-  assert {
-    condition     = !var.redis_autoscale_enabled || var.redis_replicas > 0
-    error_message = "redis_autoscale_enabled needs redis_replicas >= 1: a single Redis node is replaced with minutes of downtime on every resize, so the autoscaler is not created."
-  }
 }
 
 # A read replica must keep max_connections >= its primary's, so the primary

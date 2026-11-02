@@ -1,0 +1,17 @@
+name: npm cache (restore only)
+description: >
+  Self-hosted runners only: read the npm cache that GitHub-hosted runs saved
+  (setup-node key family), never save it (the upload took 17 min in "Post
+  setup-node" on the loaded laptop). ~/.npm also survives in a per-runner
+  volume (scripts/ci/self-hosted-runner.sh).
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      if: runner.environment == 'self-hosted'
+      with:
+        path: ~/.npm
+        # setup-node writes node-cache-<RUNNER_OS>-<os.arch()>-npm-<hash>: arch is x64 / arm64.
+        key: node-cache-${{ runner.os }}-${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}-npm-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          node-cache-${{ runner.os }}-${{ runner.arch == 'ARM64' && 'arm64' || 'x64' }}-npm-
