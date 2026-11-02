@@ -56,10 +56,7 @@ class MyPerson {
 
   /// [query] (already normalised by [peopleSuggestQuery], lower case) is in
   /// the name or the @username.
-  bool matches(String query) =>
-      query.isEmpty ||
-      name.toLowerCase().contains(query) ||
-      username.toLowerCase().contains(query);
+  bool matches(String query) => textMatches(query, [name, username]);
 
   @override
   bool operator ==(Object other) => other is MyPerson && other.id == id;

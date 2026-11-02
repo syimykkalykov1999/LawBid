@@ -190,9 +190,12 @@ void main() {
         'fileIds': ['f1'],
       }),
     );
-    await Future<void>.delayed(
-      FileViewsNotifier.eventDelay + const Duration(milliseconds: 100),
-    );
+    await Future<void>.delayed(FileViewsNotifier.eventDelay);
+    // The catch-up reads the phone's copy first: on a loaded machine that
+    // takes longer than a fixed 100 ms, so wait for the request itself.
+    for (var i = 0; i < 100 && remote.calls.isEmpty; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
     expect(remote.calls, hasLength(1));
     expect(
       remote.calls.single.since!.toUtc(),
