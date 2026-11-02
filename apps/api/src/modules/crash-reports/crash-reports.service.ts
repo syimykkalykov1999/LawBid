@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
-import { RateLimitService } from '../auth/services/rate-limit.service';
+import { RateLimitService } from '../auth/auth.public';
 import type {
   CrashDetailDto,
   CrashGroupDto,
@@ -13,8 +13,17 @@ import type {
 const KEEP_DAYS = 30;
 
 /** Security audit 2026-11-02: the intake has no sign-in, so one address may
- * store at most this many batches (<= 10 reports each) a day. */
-const BATCHES_PER_IP_PER_DAY = 100;
+ * send at most this many batches a day (each stores <= 10 reports; room for
+ * a carrier NAT or an office behind one address). */
+const BATCHES_PER_IP_PER_DAY = 200;
+
+/** One budget per IPv4 address or per IPv6 /64 (a single customer owns a
+ * whole /64, so rotating inside it must not give new budgets). */
+export function intakeKey(ip: string): string {
+  if (!ip.includes(':')) return ip;
+  const groups = ip.split(':');
+  return groups.slice(0, 4).join(':');
+}
 
 /** The same crash from different phones gets the same fingerprint: the
  * error's type and its first stack lines with numbers (lines, addresses,
@@ -47,8 +56,8 @@ export function crashFingerprint(message: string, stack: string): string {
 export class CrashReportsService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly rateLimit: RateLimitService,
     @Optional() private readonly flags?: FeatureFlagsService,
-    @Optional() private readonly rateLimit?: RateLimitService,
   ) {}
 
   async ingest(
@@ -64,13 +73,18 @@ export class CrashReportsService {
     // Over the daily cap the batch is accepted and dropped (like the kill
     // switch above): the phone clears its queue, the table cannot be filled
     // from one address.
-    if (ip && this.rateLimit) {
-      const day = await this.rateLimit.consumeFixedWindow(
-        ['crash-intake', 'ip', ip],
-        BATCHES_PER_IP_PER_DAY,
-        86_400,
-      );
-      if (!day.allowed) return 0;
+    if (ip) {
+      try {
+        const day = await this.rateLimit.consumeFixedWindow(
+          ['crash-intake', 'ip', intakeKey(ip)],
+          BATCHES_PER_IP_PER_DAY,
+          86_400,
+        );
+        if (!day.allowed) return 0;
+      } catch {
+        // Redis down: crashes are most likely exactly now, keep storing
+        // them (the cap is a best-effort abuse guard, not a gate).
+      }
     }
     const rows = reports.slice(0, 10).map((r) => ({
       fingerprint: crashFingerprint(r.message, r.stack),

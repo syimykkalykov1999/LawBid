@@ -1,4 +1,4 @@
-import { CrashReportsService } from './crash-reports.service';
+import { CrashReportsService, intakeKey } from './crash-reports.service';
 import type { CrashReportInDto } from './crash-reports.dto';
 
 const report = (n: number): CrashReportInDto => ({
@@ -16,9 +16,12 @@ function build(allowed: boolean) {
   const createMany = jest.fn().mockResolvedValue({ count: 2 });
   const prisma = { crashReport: { createMany } };
   const consume = jest.fn().mockResolvedValue({ allowed });
-  const svc = new CrashReportsService(prisma as never, undefined, {
-    consumeFixedWindow: consume,
-  } as never);
+  const svc = new CrashReportsService(
+    prisma as never,
+    {
+      consumeFixedWindow: consume,
+    } as never,
+  );
   return { svc, createMany, consume };
 }
 
@@ -30,7 +33,7 @@ describe('CrashReportsService.ingest daily cap', () => {
     ).resolves.toBe(2);
     expect(consume).toHaveBeenCalledWith(
       ['crash-intake', 'ip', '1.2.3.4'],
-      100,
+      200,
       86_400,
     );
     expect(createMany).toHaveBeenCalledTimes(1);
@@ -46,5 +49,26 @@ describe('CrashReportsService.ingest daily cap', () => {
     const { svc, consume } = build(false);
     await svc.ingest([report(1)], 'k', null);
     expect(consume).not.toHaveBeenCalled();
+  });
+});
+
+describe('intakeKey', () => {
+  it('keeps IPv4 and shares one budget per IPv6 /64', () => {
+    expect(intakeKey('1.2.3.4')).toBe('1.2.3.4');
+    expect(intakeKey('2001:db8:1:2:aaaa:bbbb:cccc:dddd')).toBe('2001:db8:1:2');
+    expect(intakeKey('2001:db8:1:2:1::9')).toBe('2001:db8:1:2');
+  });
+});
+
+describe('CrashReportsService.ingest when Redis fails', () => {
+  it('still stores the batch', async () => {
+    const createMany = jest.fn().mockResolvedValue({ count: 1 });
+    const svc = new CrashReportsService(
+      { crashReport: { createMany } } as never,
+      {
+        consumeFixedWindow: jest.fn().mockRejectedValue(new Error('down')),
+      } as never,
+    );
+    await expect(svc.ingest([report(1)], 'k', '1.2.3.4')).resolves.toBe(1);
   });
 });

@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
-import { RateLimitService } from '../auth/services/rate-limit.service';
+import { RateLimitService } from '../auth/auth.public';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import {
   AdminCrashesController,

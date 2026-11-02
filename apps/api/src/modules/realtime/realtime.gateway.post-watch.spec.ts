@@ -37,11 +37,13 @@ describe('RealtimeGateway post:watch', () => {
     expect((await t.watch()).ok).toBe(true);
     expect(t.join).toHaveBeenCalledWith(`post:${postId}`);
     const where = t.findPost.mock.calls[0][0].where;
-    expect(where).toMatchObject({
-      archived_at: null,
-      comments_enabled: true,
-      deleted_at: null,
-    });
+    expect(where).toMatchObject({ deleted_at: null, status: 'published' });
+    const stranger = JSON.stringify(where.OR[1]);
+    expect(stranger).toContain('"archived_at":null');
+    expect(stranger).toContain('"comments_enabled":true');
+    expect(stranger).toContain('suspended');
+    // the author's own branch has no archive / comments-off rule
+    expect(where.OR[0]).toEqual({ author_id: 'viewer' });
   });
 
   it('refuses a post that is not visible (archived, comments off, ...)', async () => {

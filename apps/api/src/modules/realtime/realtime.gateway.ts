@@ -1068,17 +1068,34 @@ export class RealtimeGateway
     if (!uid || !UUID_RE.test(id)) return { ok: false };
     // Same rules as the REST comment list (VISIBLE_POST_WHERE, kept inline
     // so the gateway does not import the posts module): not archived, author
-    // active, comments on, and no block between the watcher and the author.
-    // Security audit 2026-11-02: an archived post, a post with comments off
-    // or an author who blocked the watcher must not stream `comment:new`.
+    // active and not a suspended attorney, comments on; the author may also
+    // follow an own archived post. A block between the watcher and the author
+    // is refused. Security audit 2026-11-02: an archived post, comments off,
+    // a suspended attorney or an author who blocked the watcher must not
+    // stream `comment:new` to a stranger.
     const post = await this.prisma.post.findFirst({
       where: {
         id,
         deleted_at: null,
-        archived_at: null,
         status: 'published',
-        comments_enabled: true,
-        author: { status: 'active' },
+        OR: [
+          { author_id: uid },
+          {
+            archived_at: null,
+            comments_enabled: true,
+            author: {
+              status: 'active',
+              OR: [
+                { role: 'client' },
+                {
+                  attorney_profile: {
+                    verification_status: { not: 'suspended' },
+                  },
+                },
+              ],
+            },
+          },
+        ],
       },
       select: { author_id: true },
     });
