@@ -1638,7 +1638,7 @@ export class GroupsService {
       {
         code: ErrorCode.RATE_LIMITED,
         message: 'Slow mode is on in this group.',
-        details: { kind: 'group_slow_mode', retryAfterS: left },
+        details: { kind: 'group_slow_mode', retryAfterSeconds: left },
       },
       HttpStatus.TOO_MANY_REQUESTS,
     );
@@ -1772,17 +1772,14 @@ export class GroupsService {
         return created;
       });
     } catch (error) {
+      await giveSlotBack();
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
         const again = await this.findOwn(id, user.sub, dto.clientMessageId);
-        if (again) {
-          await giveSlotBack();
-          return this.one(again, user.sub);
-        }
+        if (again) return this.one(again, user.sub);
       }
-      await giveSlotBack();
       throw error;
     }
     await this.fanOut(id, row, { push: opts.push });

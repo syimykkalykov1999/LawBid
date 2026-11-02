@@ -808,7 +808,7 @@ class GroupThread extends Notifier<GroupThreadState> {
     } on ApiException catch (e) {
       if (!ref.mounted) return;
       final slow = e.details?['kind'] == 'group_slow_mode'
-          ? (e.details?['retryAfterS'] as num?)?.toInt()
+          ? (e.details?['retryAfterSeconds'] as num?)?.toInt()
           : null;
       state = state.copyWith(
         pending: [

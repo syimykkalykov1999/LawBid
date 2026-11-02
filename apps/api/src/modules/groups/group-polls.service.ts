@@ -108,6 +108,7 @@ export class GroupPollsService {
         return msg;
       });
     } catch (error) {
+      await giveSlotBack();
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
@@ -122,12 +123,8 @@ export class GroupPollsService {
             },
           },
         });
-        if (again) {
-          await giveSlotBack();
-          return (await this.presenter.messages([again], user.sub))[0];
-        }
+        if (again) return (await this.presenter.messages([again], user.sub))[0];
       }
-      await giveSlotBack();
       throw error;
     }
     await this.groups.fanOut(groupId, row);
