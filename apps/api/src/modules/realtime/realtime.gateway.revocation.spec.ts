@@ -165,6 +165,9 @@ describe('RealtimeGateway session revocation (finding 5)', () => {
   });
 
   it('listens on the session:revoked channel', () => {
+    // afterInit starts 30 s intervals; fake ones die with the test (the real
+    // ones fired into a neighbouring suite and failed API static on main).
+    jest.useFakeTimers();
     const handlers: Record<string, (c: string, m: string) => void> = {};
     const sub = {
       on: jest.fn((ev: string, fn: (c: string, m: string) => void) => {
@@ -185,7 +188,11 @@ describe('RealtimeGateway session revocation (finding 5)', () => {
       {} as SessionRevocationService,
       {} as PrismaService,
       redis as unknown as Redis,
-      { setContext: jest.fn(), info: jest.fn(), warn: jest.fn() } as unknown as PinoLogger,
+      {
+        setContext: jest.fn(),
+        info: jest.fn(),
+        warn: jest.fn(),
+      } as unknown as PinoLogger,
       {} as AssistantContextService,
       {} as PresenceService,
     );
