@@ -307,3 +307,36 @@ Realtime TURN или Twilio Network Traversal Service) в список серв�
 API-токен остаётся на сервере, в приложение уходят только временные логин и
 пароль на 24 часа (на одного пользователя они кэшируются на 30 минут). Чтобы
 выключить Cloudflare, очистите ключи в карточке.
+
+
+## On-demand own coturn (owner 2026-11-02)
+
+The owner does not pay for an idle relay. The EC2 box stands **stopped** (only its disk is paid for,
+about $0.5-0.8 a month for 8 GB; no Elastic IP, which would cost about $3.6 a month while unattached,
+so the public address is new at every start).
+
+- Code: `apps/api/src/modules/calls/turn-on-demand.ts` (state machine, tests in
+  `turn-on-demand.spec.ts`), `turn-instance.gateway.ts` (EC2 Describe / Start / Stop, SDK loaded on
+  first use), wiring in `calls.service.ts` (`turnOnDemand`, `iceServers`, `sweep`).
+- It is on only when the API has `TURN_ONDEMAND_INSTANCE_ID` (Terraform passes it). Without it nothing
+  changes.
+- **Needed** = a Cloudflare breaker is open (TURN or SFU), or `calls.transport=own` with no fixed own TURN.
+- **Start**: needed and stopped -> StartInstances. Woken by the breaker opening, by a call asking for ice
+  servers (at most every 20 s per API task) and by the minute `calls.sweep` cron.
+- **Register**: the box runs with a public IP and UDP 3478 answers a STUN Binding -> `turn:<ip>:3478`
+  is kept in Redis (`calls:turn:ondemand:addr`) and offered by `GET /calls/ice-servers`. The login secret
+  is the one in Admin -> Integrations -> TURN `secret` (the box reads the same from SSM); leave `urls`
+  empty there so the live address is used.
+- **Stop**: not needed for 30 minutes (`TURN_IDLE_MS`) and no call ringing or active -> StopInstances.
+  A breaker that reopens restarts the 30 minutes.
+- **Honest gap**: from start to the first STUN answer (about 1-2 minutes) NEW calls get STUN only. That
+  works on Wi-Fi and easy mobile networks, not behind a strict (symmetric) NAT. Running calls keep
+  their path.
+- Cloudflare's own TURN cannot be the fallback of Cloudflare: it fails with it. A hosted relay from
+  another vendor (Twilio Network Traversal, per GB, no idle fee, no boot gap) was offered as the
+  alternative; the owner chose the own box.
+- IAM (Terraform, API task role): `ec2:DescribeInstances` (no resource-level support), and
+  `ec2:StartInstances` / `ec2:StopInstances` on this one instance ARN only.
+- Terraform still to do (Mac): `turn_on_demand` in `infra/modules/turn` (no `aws_eip`; on every boot the
+  public address is read from the instance metadata into `external-ip`), the IAM statement and
+  `TURN_ONDEMAND_INSTANCE_ID` on the API task; stop the instance after the apply.
