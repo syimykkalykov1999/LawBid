@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
+import { BadgesService } from '../src/modules/notifications/badges.service';
 import { PushDispatcher } from '../src/modules/notifications/push/push-dispatcher';
 import { PUSH_SENDER } from '../src/modules/notifications/push/push.constants';
 import { NotificationsRetentionJob } from '../src/jobs/handlers/notifications-retention.job';
@@ -312,8 +313,11 @@ describe('Notifications, push, badges (e2e, docs/05 §9-§10, stage 5.8)', () =>
         key,
       );
     };
-    const set = (category: string, on: boolean) =>
-      prisma.notificationSetting.upsert({
+    // Written straight to the table; the app writes through
+    // NotificationsApiService, which drops the cached switches
+    // (BadgesService.settingsChanged, load test round 2).
+    const set = async (category: string, on: boolean) => {
+      await prisma.notificationSetting.upsert({
         where: {
           user_id_category: { user_id: u.id, category: category as never },
         },
@@ -324,6 +328,8 @@ describe('Notifications, push, badges (e2e, docs/05 §9-§10, stage 5.8)', () =>
         },
         update: { push_enabled: on },
       });
+      await app.get(BadgesService).dropPrefs(u.id);
+    };
     // Everything on: all three are pushed.
     for (const [c] of cases) await set(c, true);
     for (const [c, type] of cases)

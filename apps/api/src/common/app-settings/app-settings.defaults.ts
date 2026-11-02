@@ -1288,6 +1288,11 @@ export const OWNER_OPS_SETTINGS = {
    * Lambda (S3 object ops/scale-controls.json). */
   'scale.endpoints.mode': 'auto',
   'scale.endpoints.ceiling': 4,
+  /** Own coturn box (owner 2026-11-02): auto = the API starts it only while
+   * Cloudflare is down and stops it after 30 quiet minutes; on = always
+   * running; off = never (stopped at once when no call runs). Only counts
+   * when the box exists (TURN_ONDEMAND_INSTANCE_ID). */
+  'calls.own_turn.mode': 'auto',
   /** This month's AWS bill when AWS Budgets cannot be read (≈ $150 for
    * the launch size). */
   'economy.aws_fallback_usd': 150,
