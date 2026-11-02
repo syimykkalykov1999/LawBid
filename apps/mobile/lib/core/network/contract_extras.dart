@@ -3,7 +3,7 @@
 
 /// Fields the server sends (from the 2026-10-22 API branch) that the
 /// generated contract of this build may not declare yet.
-enum ContractExtra { advertisingLabel, publicUrl, analyticsConsent }
+enum ContractExtra { advertisingLabel, publicUrl, analyticsConsent, blurhash }
 
 /// Owner 2026-10-22: reads [field] of a generated `package:lawbid_api` DTO
 /// although this build's contract may not have it yet (the API adds it in
@@ -17,6 +17,7 @@ T? contractField<T>(Object dto, ContractExtra field) {
       ContractExtra.advertisingLabel => d.advertisingLabel,
       ContractExtra.publicUrl => d.publicUrl,
       ContractExtra.analyticsConsent => d.analyticsConsent,
+      ContractExtra.blurhash => d.blurhash,
     };
     return v is T ? v : null;
   } on NoSuchMethodError {

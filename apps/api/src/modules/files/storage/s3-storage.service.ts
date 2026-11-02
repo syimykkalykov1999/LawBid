@@ -11,14 +11,19 @@ import { SecretsService } from '../../../common/secrets/secrets.service';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { createHash } from 'node:crypto';
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
   CreateBucketCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  ListPartsCommand,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
@@ -452,6 +457,131 @@ export class S3StorageService implements OnModuleDestroy {
         'Cache-Control': IMMUTABLE_CACHE_CONTROL,
       },
     };
+  }
+
+  // --- resumable (multipart) uploads --------------------------------------
+  // Checklist reconciliation 2026-11-01: a 300 MB video on a bad network used
+  // to restart from byte 0. The app now sends 8 MiB parts to presigned
+  // UploadPart links, asks which parts S3 already has after an interruption
+  // (ListParts) and sends only the missing ones. The finished object is
+  // confirmed exactly like a single-request upload (size, SHA-256, content
+  // type, scan), so the integrity rules do not change.
+
+  /** Starts a multipart upload for [key]; returns S3's upload id. */
+  async startMultipart(input: {
+    bucket: string;
+    key: string;
+    contentType: string;
+  }): Promise<string> {
+    await this.refresh();
+    const out = await this.clientFor(input.bucket).send(
+      new CreateMultipartUploadCommand({
+        Bucket: input.bucket,
+        Key: input.key,
+        ContentType: input.contentType,
+        CacheControl: this.cacheControlFor(input.bucket),
+      }),
+    );
+    if (!out.UploadId) throw new Error('S3 returned no multipart upload id');
+    return out.UploadId;
+  }
+
+  /** A presigned PUT link for one part (1-based). The length is not signed:
+   * the last part is shorter; the total is checked at completion. */
+  async presignPart(input: {
+    bucket: string;
+    key: string;
+    uploadId: string;
+    partNumber: number;
+    expiresSec: number;
+  }): Promise<string> {
+    await this.refresh();
+    return getSignedUrl(
+      this.clientFor(input.bucket),
+      new UploadPartCommand({
+        Bucket: input.bucket,
+        Key: input.key,
+        UploadId: input.uploadId,
+        PartNumber: input.partNumber,
+      }),
+      { expiresIn: input.expiresSec },
+    );
+  }
+
+  /** Parts S3 already holds for the upload, ascending by number. */
+  async listParts(
+    bucket: string,
+    key: string,
+    uploadId: string,
+  ): Promise<{ partNumber: number; size: number; etag: string }[]> {
+    await this.refresh();
+    const client = this.clientFor(bucket);
+    const parts: { partNumber: number; size: number; etag: string }[] = [];
+    let marker: string | undefined;
+    for (let page = 0; page < 20; page += 1) {
+      const out = await client.send(
+        new ListPartsCommand({
+          Bucket: bucket,
+          Key: key,
+          UploadId: uploadId,
+          PartNumberMarker: marker,
+          MaxParts: 1000,
+        }),
+      );
+      for (const p of out.Parts ?? []) {
+        if (p.PartNumber && p.ETag) {
+          parts.push({
+            partNumber: p.PartNumber,
+            size: Number(p.Size ?? 0),
+            etag: p.ETag,
+          });
+        }
+      }
+      if (!out.IsTruncated || !out.NextPartNumberMarker) break;
+      marker = String(out.NextPartNumberMarker);
+    }
+    return parts.sort((a, b) => a.partNumber - b.partNumber);
+  }
+
+  async completeMultipart(
+    bucket: string,
+    key: string,
+    uploadId: string,
+    parts: { partNumber: number; etag: string }[],
+  ): Promise<void> {
+    await this.refresh();
+    await this.clientFor(bucket).send(
+      new CompleteMultipartUploadCommand({
+        Bucket: bucket,
+        Key: key,
+        UploadId: uploadId,
+        MultipartUpload: {
+          Parts: parts.map((p) => ({ PartNumber: p.partNumber, ETag: p.etag })),
+        },
+      }),
+    );
+  }
+
+  /** Throws away the uploaded parts (an abandoned upload). Never throws for
+   * an upload S3 no longer knows. */
+  async abortMultipart(
+    bucket: string,
+    key: string,
+    uploadId: string,
+  ): Promise<void> {
+    await this.refresh();
+    try {
+      await this.clientFor(bucket).send(
+        new AbortMultipartUploadCommand({
+          Bucket: bucket,
+          Key: key,
+          UploadId: uploadId,
+        }),
+      );
+    } catch (err) {
+      if ((err as { name?: string }).name === 'NoSuchUpload') return;
+      throw err;
+    }
   }
 
   async head(bucket: string, key: string): Promise<ObjectHead | null> {

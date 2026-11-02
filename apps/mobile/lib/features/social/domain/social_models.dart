@@ -78,6 +78,7 @@ class PostMedia {
     required this.mediumUrl,
     this.width,
     this.height,
+    this.blurhash,
   });
 
   final String fileId;
@@ -86,6 +87,10 @@ class PostMedia {
   final String mediumUrl;
   final int? width;
   final int? height;
+
+  /// BlurHash of the picture (the API's `files.blurhash`; null for older
+  /// files): a soft stand-in drawn before any network byte arrives.
+  final String? blurhash;
 
   double get aspectRatio {
     final w = width;
@@ -396,6 +401,8 @@ class Post {
     bool? repostedByMe,
     int? pinSlot,
     bool unpin = false,
+    bool? likesHidden,
+    bool? viewsHidden,
   }) =>
       Post(
         id: id,
@@ -420,8 +427,8 @@ class Post {
         video: video,
         locationName: locationName,
         commentsEnabled: commentsEnabled,
-        likesHidden: likesHidden,
-        viewsHidden: viewsHidden,
+        likesHidden: likesHidden ?? this.likesHidden,
+        viewsHidden: viewsHidden ?? this.viewsHidden,
         attachments: attachments,
         isGeneral: isGeneral,
         promotionId: promotionId,

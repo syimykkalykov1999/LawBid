@@ -36,7 +36,7 @@ function abortThresholds() {
 // Per-endpoint numbers for the report: these thresholds are always true; they
 // exist so that k6 exports a sub-metric (count, error share, latency) per
 // endpoint name in summary.json.
-const ENDPOINTS = ['session', 'bootstrap', 'i18n', 'feed', 'feed_p2', 'reels', 'attorney_profile', 'post', 'search_attorneys', 'search_people', 'search_suggest', 'chat_list', 'chat_messages', 'chat_send', 'chat_send_ws', 'notifications', 'badges', 'cases_feed', 'my_cases', 'case_bids', 'admin_users', 'admin_search', 'admin_disputes', 'admin_export', 'static', 'call_start', 'call_accept', 'call_end'];
+const ENDPOINTS = ['session', 'bootstrap', 'i18n', 'feed', 'feed_p2', 'reels', 'attorney_profile', 'post', 'search_attorneys', 'search_people', 'search_suggest', 'chat_list', 'chat_messages', 'chat_send', 'chat_send_ws', 'notifications', 'badges', 'cases_feed', 'my_cases', 'case_bids', 'admin_users', 'admin_search', 'admin_disputes', 'admin_export', 'post_create', 'static', 'call_start', 'call_accept', 'call_end'];
 function perEndpoint() {
   const t = {};
   for (const n of ENDPOINTS) {

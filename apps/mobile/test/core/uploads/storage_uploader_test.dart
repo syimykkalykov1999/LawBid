@@ -252,4 +252,129 @@ void main() {
     );
     expect(storage.requests, hasLength(1));
   });
+
+  group('resumable (multipart) upload', () {
+    const mib = 1024 * 1024;
+    final big = UploadBody.bytes(Uint8List(20 * mib)); // 8 + 8 + 4 MiB
+
+    Map<String, Object?> plan(List<int> uploaded, List<int> todo) => {
+          'data': {
+            'partSizeBytes': 8 * mib,
+            'partCount': 3,
+            'uploadedParts': uploaded,
+            'parts': [
+              for (final n in todo)
+                {'partNumber': n, 'url': 'https://s3.test/p$n'},
+            ],
+            'expiresAt': '2026-11-01T12:00:00.000Z',
+          },
+        };
+
+    StorageUploader resumable() => StorageUploader(
+          apiDio: apiDio,
+          transport:
+              DioStorageTransport(storageDio, backoff: (_) => Duration.zero),
+          scanPoll: Duration.zero,
+          scanMaxPolls: 3,
+          storageDio: storageDio,
+          partBackoff: (_) => Duration.zero,
+        );
+
+    test('sends the parts with exact ranges, then completes', () async {
+      var plans = 0;
+      final inner = apiAdapter.handler;
+      apiAdapter.handler = (o) async {
+        if (o.path == '/files/file-1/multipart') {
+          plans++;
+          return jsonBody(
+            plans == 1 ? plan([], [1, 2, 3]) : plan([1, 2, 3], []),
+          );
+        }
+        if (o.path == '/files/file-1/multipart/complete') {
+          return jsonBody({
+            'data': {'sizeBytes': 20 * mib},
+          });
+        }
+        return inner(o);
+      };
+      final progress = <double>[];
+      final ok = await resumable().putResumable(
+        'file-1',
+        big,
+        onProgress: progress.add,
+      );
+      expect(ok, isTrue);
+      expect(storage.requests.map((r) => r.path), [
+        'https://s3.test/p1',
+        'https://s3.test/p2',
+        'https://s3.test/p3',
+      ]);
+      expect(storage.requests.map((r) => r.headers['content-length']), [
+        8 * mib,
+        8 * mib,
+        4 * mib,
+      ]);
+      expect(progress.last, 1.0);
+      expect(
+        apiAdapter.requests.map((r) => r.path).last,
+        '/files/file-1/multipart/complete',
+      );
+    });
+
+    test('a resume sends only the parts storage lacks', () async {
+      var plans = 0;
+      apiAdapter.handler = (o) async {
+        if (o.path == '/files/file-1/multipart') {
+          plans++;
+          return jsonBody(
+            plans == 1 ? plan([1, 3], [2]) : plan([1, 2, 3], []),
+          );
+        }
+        return jsonBody({
+          'data': {'sizeBytes': 20 * mib},
+        });
+      };
+      await resumable().putResumable('file-1', big);
+      expect(storage.requests.map((r) => r.path), ['https://s3.test/p2']);
+    });
+
+    test('a lost connection retries only that part', () async {
+      var plans = 0;
+      apiAdapter.handler = (o) async {
+        if (o.path == '/files/file-1/multipart') {
+          plans++;
+          return jsonBody(
+            plans == 1 ? plan([1, 3], [2]) : plan([1, 2, 3], []),
+          );
+        }
+        return jsonBody({
+          'data': {'sizeBytes': 20 * mib},
+        });
+      };
+      var calls = 0;
+      storage.handler = (o) async {
+        calls++;
+        if (calls == 1) throwConnectionError(o);
+        return ResponseBody.fromString('', 200);
+      };
+      await resumable().putResumable('file-1', big);
+      expect(calls, 2);
+    });
+
+    test('flag off or a small file: false, nothing sent to storage', () async {
+      apiAdapter.handler = (o) async => jsonBody(
+            {
+              'error': {'code': 'FEATURE_DISABLED', 'message': 'off'},
+            },
+            403,
+          );
+      expect(await resumable().putResumable('file-1', big), isFalse);
+      expect(
+        await resumable()
+            .putResumable('file-1', UploadBody.bytes(Uint8List(3))),
+        isFalse,
+      );
+      expect(storage.requests, isEmpty);
+    });
+  });
 }

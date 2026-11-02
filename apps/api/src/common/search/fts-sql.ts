@@ -53,9 +53,16 @@ function num(x: number): number {
   return Number.isFinite(x) && x >= 0 ? Math.min(x, 1) : 0;
 }
 
+export const MIN_TYPO_LETTERS = 4;
+
 /** Typo-tolerant match on a lower-cased title (trigram word similarity). */
 export function typoMatch(titleExpr: string, q: string): Prisma.Sql {
   const { plain } = parseSearchQuery(q);
+  // Audit 2026-11-01: at 3 letters every word is a "typo" of a dozen others
+  // ("cat" found "card"); a typo is only forgiven from 4 letters.
+  if ([...plain.replace(/\s+/g, '')].length < MIN_TYPO_LETTERS) {
+    return Prisma.sql`FALSE`;
+  }
   return Prisma.sql`${plain} <% lower(${Prisma.raw(titleExpr)})`;
 }
 

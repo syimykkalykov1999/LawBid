@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/addresses/address_field.dart';
+import 'package:lawbid/core/addresses/current_location.dart';
 import 'package:lawbid/core/addresses/open_in_maps.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -543,6 +544,20 @@ class _PlaceSheetState extends ConsumerState<_PlaceSheet> {
     super.dispose();
   }
 
+  Future<void> _useCurrentLocation() async {
+    final found = await ref.read(locationSourceProvider).current();
+    if (!mounted) return;
+    switch (found) {
+      case LocationFound(:final text):
+        Navigator.of(context).pop(text);
+      case LocationUnavailable():
+        showAppSnackBar(
+          context,
+          ref.read(translatorProvider).t('card.location.failed'),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
@@ -558,6 +573,14 @@ class _PlaceSheetState extends ConsumerState<_PlaceSheet> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const AppSheetHandle(),
+            // Owner 2026-11-01 (WhatsApp): the phone's own position, one tap.
+            AppListRow(
+              key: const ValueKey('place-mine'),
+              icon: AppIcons.locationOnOutlined,
+              label: t.t('card.location.mine'),
+              showChevron: false,
+              onTap: _useCurrentLocation,
+            ),
             // Owner 2026-10-28: US address suggestions while typing.
             AddressField(
               key: const ValueKey('place-address'),

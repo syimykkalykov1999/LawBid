@@ -11,6 +11,14 @@ locals {
   second = var.secondary_subnet_id != null
 }
 
+# On-demand is a single relay without DNS (its address changes at every start).
+check "on_demand_single_relay" {
+  assert {
+    condition     = !var.on_demand || (var.secondary_subnet_id == null && var.hosted_zone_id == null && !var.health_checks && !var.alarms_enabled)
+    error_message = "turn on_demand needs: no secondary relay, no hosted_zone_id, health_checks = false, alarms_enabled = false (a stopped box would alarm all day)."
+  }
+}
+
 resource "aws_eip" "second" {
   count  = local.second ? 1 : 0
   domain = "vpc"
@@ -38,6 +46,7 @@ resource "aws_instance" "second" {
   user_data = templatefile("${path.module}/user-data.sh.tftpl", {
     realm        = var.realm
     external_ip  = aws_eip.second[0].public_ip
+    on_demand    = false
     secret_param = aws_ssm_parameter.secret.name
     region       = data.aws_region.current.name
     denied       = var.denied_peer_cidrs
@@ -54,7 +63,7 @@ resource "aws_eip_association" "second" {
 
 locals {
   relays = merge(
-    { primary = { instance_id = aws_instance.this.id, ip = aws_eip.this.public_ip } },
+    { primary = { instance_id = aws_instance.this.id, ip = local.primary_ip } },
     local.second ? { second = { instance_id = aws_instance.second[0].id, ip = aws_eip.second[0].public_ip } } : {},
   )
   alarms_on = var.alarms_enabled
