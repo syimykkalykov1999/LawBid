@@ -28,6 +28,8 @@ export const NAME_MATCH = {
   consSimMin: 0.3,
   /** similarity(whole typed skeleton, whole name skeleton). */
   wholeSimMin: 0.45,
+  /** One typed word keeps the whole-text typo arm from this many letters. */
+  wholeSingleWordMinLetters: 6,
 } as const;
 
 /**
@@ -216,10 +218,11 @@ function nameSql(
   // A long single word (6+ letters, 8+ trigrams) is selective, so it keeps
   // the arm and its typo tolerance (similarity 0.45-0.6 that word_similarity
   // at 0.6 would miss).
+  const singleShortWord =
+    keys.words.length === 1 &&
+    keys.words[0].letters < NAME_MATCH.wholeSingleWordMinLetters;
   const whole =
-    loose &&
-    keys.fuzzy &&
-    (keys.words.length > 1 || (keys.words[0]?.letters ?? 0) >= 6)
+    loose && keys.fuzzy && !singleShortWord
       ? Prisma.sql`
     OR (${keys.whole}::TEXT % ${skel}
         AND similarity(${keys.whole}::TEXT, ${skel}) >= ${NAME_MATCH.wholeSimMin}::FLOAT8)`

@@ -8,8 +8,7 @@ describe('nameCandidateCtes (load test 2026-11-02)', () => {
     const q = nameCandidateCtes(m, true, true);
     expect(q.sql).toMatch(/att_by_name AS MATERIALIZED \(/);
     expect(q.sql).toMatch(/cli_by_name AS MATERIALIZED \(/);
-    expect(q.sql).toContain("role = 'attorney'");
-    expect(q.sql).toContain("role = 'client'");
+    expect(q.values).toEqual(expect.arrayContaining(['attorney', 'client']));
     expect(q.sql.match(/LIMIT \?/g)).toHaveLength(2);
     expect(q.values.filter((v) => v === NAME_SCAN_CAP)).toHaveLength(2);
     // the caller writes `WITH <ctes>cand AS (...)`: every CTE ends with ", "

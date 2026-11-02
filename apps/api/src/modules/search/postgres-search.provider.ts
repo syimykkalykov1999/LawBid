@@ -180,7 +180,7 @@ export function nameCandidateCtes(
     on
       ? Prisma.sql`${Prisma.raw(name)} AS MATERIALIZED (
           SELECT id FROM users
-          WHERE full_name_lower IS NOT NULL AND role = ${Prisma.raw(`'${role}'`)}
+          WHERE full_name_lower IS NOT NULL AND role = ${role}::user_role
             AND ${match}
           LIMIT ${NAME_SCAN_CAP}),
         `
