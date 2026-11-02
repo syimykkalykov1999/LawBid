@@ -35,8 +35,6 @@ import '../helpers/overflow_harness.dart';
 void main() {
   setUpAll(initializeDateFormatting);
 
-  setUp(setUpOverflowPrefs);
-
   final locales = overflowLocales();
 
   final screens = <String, Widget Function()>{

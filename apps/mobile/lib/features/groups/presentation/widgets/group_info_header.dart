@@ -186,7 +186,7 @@ class GroupInfoHeader extends ConsumerWidget {
                     child: Text(
                       kind,
                       key: const ValueKey('group-info-type'),
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: type.bodySmall.copyWith(
                         color: colors.goldDark,

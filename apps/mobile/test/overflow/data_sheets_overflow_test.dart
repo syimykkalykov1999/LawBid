@@ -23,8 +23,6 @@ import '../helpers/overflow_harness.dart';
 void main() {
   setUpAll(initializeDateFormatting);
 
-  setUp(setUpOverflowPrefs);
-
   final locales = overflowLocales();
 
   const longLabel =
@@ -109,7 +107,6 @@ void main() {
               scale: scale,
               act: (tester) async {
                 await tester.tap(find.byKey(const Key('open')));
-                await tester.pump();
                 await tester.pump(const Duration(milliseconds: 600));
                 expect(find.byType(BottomSheet), findsOneWidget);
               },

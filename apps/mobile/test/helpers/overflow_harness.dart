@@ -17,10 +17,11 @@ import 'onboarding_harness.dart' show FixedUserController;
 import 'referral_overrides.dart';
 import 'ux_harness.dart';
 
-/// Shared setup of the overflow tests (owner 2026-11-02): one list of
+/// Shared setup of the newer overflow tests (owner 2026-11-02): one list of
 /// languages, one signed-in attorney, one way to put a screen on a 360 dp
 /// phone at a given text scale. New overflow tests use this instead of
-/// copying the setup.
+/// copying the setup. (The older overflow tests keep their own copies;
+/// moving them over is a mechanical follow-up.)
 
 /// The worst cases the owner named: the longest text of every key, the same
 /// right-to-left, and Nepali, German, Marathi, Arabic and Russian.
@@ -37,8 +38,8 @@ Map<String, (Translator, TextDirection)> overflowLocales() => {
       ),
     };
 
-/// Text scales: normal, and the app shell's cap (`DeviceTextScale.shellMax`).
-const overflowScales = [1.0, 1.3];
+/// Text scales: normal, and the app shell's cap.
+const overflowScales = [1.0, DeviceTextScale.shellMax];
 
 /// A signed-in, verified attorney.
 class AttorneySession extends SessionController {
@@ -52,14 +53,6 @@ class AttorneySession extends SessionController {
         subscriptionStatus: 'none',
         accessTokenExpiresAt: DateTime.utc(2030),
       );
-}
-
-/// Mock preferences for the whole test file; call in `main()`.
-late SharedPreferences _prefs;
-
-Future<void> setUpOverflowPrefs() async {
-  SharedPreferences.setMockInitialValues({});
-  _prefs = await SharedPreferences.getInstance();
 }
 
 /// Puts [home] on a 360 dp phone with a signed-in attorney, in [t]'s
@@ -76,11 +69,13 @@ Future<void> pumpOverflowApp(
   Future<void> Function(WidgetTester tester)? act,
 }) async {
   useNarrowPhone(tester);
+  SharedPreferences.setMockInitialValues({});
+  final prefs = await SharedPreferences.getInstance();
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         ...uxOverrides(translator: t),
-        sharedPreferencesProvider.overrideWithValue(_prefs),
+        sharedPreferencesProvider.overrideWithValue(prefs),
         referralOffOverride,
         partnerOffOverride,
         templatesOffOverride,

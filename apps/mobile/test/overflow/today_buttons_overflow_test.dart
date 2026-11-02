@@ -118,7 +118,10 @@ void main() {
           tester.getSize(find.byKey(const ValueKey('preview'))).height,
           tester.getSize(find.byKey(const ValueKey('questions'))).height,
         );
-        // No button label wraps to a second line, in any language.
+        // One line of label, in any language; two at the shell's largest
+        // font (it may wrap there, but never overflow: checked above).
+        final maxLabelHeight = 24 * scale * (scale > 1.1 ? 2 : 1);
+        // No button label wraps to a second line at normal text size.
         for (final k in [
           'cases.preview.button',
           'cases.comments.button',
@@ -130,7 +133,7 @@ void main() {
               tester.getSize(f.first).height,
               // At the shell's largest font (1.3) a long label may take
               // a second line; it must never overflow (checked above).
-              lessThan(24 * scale * (scale > 1.1 ? 2 : 1)),
+              lessThan(maxLabelHeight),
               reason: '$k wrapped',
             );
           }
@@ -141,7 +144,7 @@ void main() {
             final h = tester.getSize(find.text(label)).height;
             expect(
               h,
-              lessThan(24 * (scale > 1.1 ? 2 * scale : 1)),
+              lessThan(maxLabelHeight),
               reason: '$label wrapped',
             );
           }
