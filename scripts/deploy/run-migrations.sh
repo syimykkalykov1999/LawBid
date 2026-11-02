@@ -48,9 +48,11 @@ SG=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=${CLUSTE
 # --family wants the family WITHOUT ":<revision>" (TASK_DEF is an ARN
 # .../task-definition/<family>:<rev>; with the revision the list was always empty).
 FAMILY="${TASK_DEF##*/}"; FAMILY="${FAMILY%%:*}"
-if ! RUNNING=$(aws ecs list-tasks --cluster "$CLUSTER" --family "$FAMILY" --desired-status RUNNING --query 'taskArns' --output text 2>/tmp/list-tasks.err); then
-  echo "::warning::could not check for a running migrate task (the guard is off this run): $(tr '\n' ' ' </tmp/list-tasks.err)" >&2
-  RUNNING=""
+# Fail closed: the deploy role has ecs:ListTasks (infra/bootstrap), so an error
+# here is real (throttling, network) and a second concurrent migration is worse.
+if ! RUNNING=$(aws ecs list-tasks --cluster "$CLUSTER" --family "$FAMILY" --desired-status RUNNING --query 'taskArns' --output text 2>&1); then
+  echo "::error::could not check for a running migrate task, not migrating blind: $(printf '%s' "$RUNNING" | tr '\n' ' ')" >&2
+  exit 1
 fi
 RUNNING=$(printf '%s' "${RUNNING:-}" | sed 's/^None$//')
 if [ -n "$RUNNING" ]; then

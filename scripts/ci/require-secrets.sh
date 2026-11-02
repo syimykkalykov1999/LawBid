@@ -11,10 +11,11 @@
 # the first. The values are never printed. Exit 1 when a required one is empty.
 set -u
 [ "$#" -ge 1 ] || { echo "usage: require-secrets.sh NAME... [?OPTIONAL...]" >&2; exit 2; }
-bad=0
+bad=0; req=0
 for n in "$@"; do
   opt=0; case "$n" in \?*) opt=1; n="${n#\?}" ;; esac
   case "$n" in *[!A-Za-z0-9_]*|"") echo "::error::bad name '$n'"; exit 2 ;; esac
+  [ "$opt" = 1 ] || req=$((req + 1))
   v="${!n-}"
   v="${v//[[:space:]]/}"
   if [ -n "$v" ]; then continue; fi
@@ -22,5 +23,5 @@ for n in "$@"; do
   echo "::error::$n is empty or not set. Add it under Settings -> Secrets and variables -> Actions (names and meaning: docs/runbooks/DEPLOY_PROD.md, .github/workflows/README.md)."
   bad=1
 done
-[ "$bad" = 0 ] && echo "ok   ${#} required inputs present"
+[ "$bad" = 0 ] && echo "ok   $req required inputs present"
 exit "$bad"
