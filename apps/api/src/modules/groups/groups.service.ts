@@ -10,6 +10,9 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
+  Inject,
   Injectable,
   Optional,
   NotFoundException,
@@ -23,7 +26,9 @@ import type {
   ChatGroupMessage,
   ChatGroupTopic,
 } from '@prisma/client';
+import type Redis from 'ioredis';
 import { Subject } from 'rxjs';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -173,6 +178,7 @@ export class GroupsService {
     // are admin settings again.
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() private readonly limits?: UsageLimitsService,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
 
   /** `groups.max_members` (admin), never above the hard ceiling. */
@@ -595,7 +601,8 @@ export class GroupsService {
       dto.username !== undefined ||
       dto.joinApproval !== undefined ||
       dto.topicsEnabled !== undefined ||
-      dto.protectContent !== undefined;
+      dto.protectContent !== undefined ||
+      dto.slowModeS !== undefined;
     const info =
       dto.title !== undefined ||
       dto.description !== undefined ||
@@ -649,6 +656,8 @@ export class GroupsService {
           : { connect: { id: dto.avatarFileId } };
     }
     if (disappearing) data.disappear_after_s = dto.disappearAfterS || null;
+    // Owner 2026-11-02 (Telegram «Медленный режим»): 0 / null = off.
+    if (dto.slowModeS !== undefined) data.slow_mode_s = dto.slowModeS || null;
     if (dto.whoCanPost) data.who_can_post = dto.whoCanPost;
     if (dto.whoCanAdd) data.who_can_add = dto.whoCanAdd;
     if (dto.whoCanEditInfo) data.who_can_edit_info = dto.whoCanEditInfo;
@@ -1583,6 +1592,40 @@ export class GroupsService {
     );
   }
 
+  /**
+   * Owner 2026-11-02 (Telegram «Медленный режим»): a member who is not an
+   * admin sends one message per `slow_mode_s` seconds. One Redis key per
+   * (group, person) with that TTL, taken with SET NX, so the check costs one
+   * round trip, only in groups that switched it on. A retry of an already
+   * stored message (same clientMessageId) never gets here. Redis down = the
+   * message goes through (slow mode is a courtesy, not a security fence).
+   */
+  private async takeSlowModeSlot(
+    m: { admin: boolean; group: { id: string; slow_mode_s: number | null } },
+    userId: string,
+  ): Promise<void> {
+    const wait = m.group.slow_mode_s;
+    if (m.admin || !wait || !this.redis) return;
+    const key = `group:slow:${m.group.id}:${userId}`;
+    let taken: 'OK' | null;
+    let left = wait;
+    try {
+      taken = await this.redis.set(key, '1', 'EX', wait, 'NX');
+      if (!taken) left = Math.max(1, await this.redis.ttl(key));
+    } catch {
+      return;
+    }
+    if (taken) return;
+    throw new HttpException(
+      {
+        code: ErrorCode.RATE_LIMITED,
+        message: 'Slow mode is on in this group.',
+        details: { kind: 'group_slow_mode', retryAfterS: left },
+      },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
+  }
+
   /** 409 GROUP_USERNAME_TAKEN for the unique-@username violation. */
   private usernameTaken(error: unknown): ConflictException | null {
     if (
@@ -1672,6 +1715,8 @@ export class GroupsService {
           })
         ).map((r) => r.user_id)
       : [];
+    // After every check: a refused message must not burn the member's slot.
+    await this.takeSlowModeSlot(m, user.sub);
     let row: ChatGroupMessage;
     try {
       row = await withTxRetry(this.prisma, async (tx) => {
@@ -2600,6 +2645,7 @@ export class GroupsService {
       showServiceMessages: g.show_service_messages,
       disappearAfterS: g.disappear_after_s,
       protectContent: g.protect_content,
+      slowModeS: g.slow_mode_s,
       lastMessageAt: g.last_message_at,
       updatedAt: g.updated_at,
     };

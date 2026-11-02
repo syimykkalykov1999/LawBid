@@ -432,11 +432,15 @@ class PendingGroupMessage {
     this.replyToId,
     this.mentionIds = const [],
     this.fileName,
+    this.slowWaitS,
   });
 
   final String clientMessageId;
   final String body;
   final bool failed;
+
+  /// Owner 2026-11-02 (slow mode): the server refused for now; seconds left.
+  final int? slowWaitS;
   final String? replyToId;
   final List<String> mentionIds;
   final String? fileName;
@@ -801,8 +805,11 @@ class GroupThread extends Notifier<GroupThreadState> {
     try {
       final m = await _repo.send(key.groupId, dto);
       if (ref.mounted) _upsert(m);
-    } on ApiException {
+    } on ApiException catch (e) {
       if (!ref.mounted) return;
+      final slow = e.details?['kind'] == 'group_slow_mode'
+          ? (e.details?['retryAfterS'] as num?)?.toInt()
+          : null;
       state = state.copyWith(
         pending: [
           for (final p in state.pending)
@@ -811,6 +818,7 @@ class GroupThread extends Notifier<GroupThreadState> {
                 clientMessageId: p.clientMessageId,
                 body: p.body,
                 failed: true,
+                slowWaitS: slow,
                 replyToId: p.replyToId,
                 mentionIds: p.mentionIds,
                 fileName: p.fileName,
