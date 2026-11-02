@@ -50,11 +50,21 @@ class _LinkPreviewCardState extends ConsumerState<LinkPreviewCard> {
       (_, next) {
         final image = next.value?.imageUrl;
         if (image != null) {
-          unawaited(ref.read(chatMediaIndexProvider).note(chatId, [image]));
+          unawaited(_noteImage(chatId, image));
         }
       },
       fireImmediately: true,
     );
+  }
+
+  /// Remembers which chat shows the picture (for «Данные и память»). Never
+  /// throws: a card must draw even when the index cannot be written.
+  Future<void> _noteImage(String chatId, String image) async {
+    try {
+      await ref.read(chatMediaIndexProvider).note(chatId, [image]);
+    } on Object catch (e) {
+      debugPrint('chat media index: $e');
+    }
   }
 
   @override
