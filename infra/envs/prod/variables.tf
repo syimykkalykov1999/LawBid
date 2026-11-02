@@ -127,13 +127,13 @@ variable "admin_tasks" {
 }
 variable "admin_cpu" {
   type        = number
-  default     = 512
-  description = "Fargate CPU units of one admin task. Owner 2026-11-02: at 256 (0.25 vCPU) the one Next.js task rendered every page (all routes are dynamic: per-request CSP nonce) AND proxied every API call, and hung under a normal page load. 512 doubles the CPU for ~9 USD/month per task."
+  default     = 256
+  description = "Fargate CPU units of one admin task. 2026-11-02 prod metrics (3 h): CPU avg 1.8 %, max 28.8 %, memory 22 % - the size is enough; raise only if CPUUtilization stays high."
 }
 variable "admin_memory" {
   type        = number
-  default     = 1024
-  description = "MiB of one admin task (valid pair with admin_cpu = 512: 1024-4096). Node heap limit is 70 % of this."
+  default     = 512
+  description = "MiB of one admin task (Fargate pair for 256 CPU: 512-2048). Node heap limit is 70 % of this."
 }
 variable "api_cpu" {
   type    = number
