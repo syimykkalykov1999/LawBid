@@ -44,7 +44,12 @@ start_one() {
   i="$1"
   docker rm -f "lawbid-ci-dind-$i" "lawbid-ci-run-$i" >/dev/null 2>&1 || true
   docker volume create "lawbid-ci-npm-$i" >/dev/null
-  docker run --rm --user root -v "lawbid-ci-npm-$i:/d" "$IMG" chown -R runner:runner /d >/dev/null 2>&1 || true
+  # The volume is created root-owned; hand it to the runner user once, and fail loudly if that does not work.
+  owner=$(docker run --rm --user root -v "lawbid-ci-npm-$i:/d" "$IMG" stat -c %U /d)
+  if [ "$owner" != "runner" ]; then
+    docker run --rm --user root -v "lawbid-ci-npm-$i:/d" "$IMG" chown -R runner:runner /d \
+      || { echo "cannot give volume lawbid-ci-npm-$i to the runner user" >&2; exit 1; }
+  fi
   docker run -d --name "lawbid-ci-dind-$i" --privileged --network "$NET" --restart unless-stopped \
     -e DOCKER_TLS_CERTDIR= docker:27-dind >/dev/null
   (

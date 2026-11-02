@@ -156,13 +156,7 @@ jobs:
           # restore-only step below + the per-runner ~/.npm volume replace it.
           cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
       - name: Restore the npm cache (self-hosted, read-only)
-        if: runner.environment == 'self-hosted'
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: ~/.npm
-          key: node-cache-${{ runner.os }}-${{ runner.arch }}-npm-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            node-cache-${{ runner.os }}-${{ runner.arch }}-npm-
+        uses: ./.github/actions/npm-cache-restore
 
       - name: Install dependencies (root workspace, hoisted)
         run: npm ci
@@ -426,13 +420,7 @@ jobs:
           # restore-only step below + the per-runner ~/.npm volume replace it.
           cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
       - name: Restore the npm cache (self-hosted, read-only)
-        if: runner.environment == 'self-hosted'
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: ~/.npm
-          key: node-cache-${{ runner.os }}-${{ runner.arch }}-npm-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            node-cache-${{ runner.os }}-${{ runner.arch }}-npm-
+        uses: ./.github/actions/npm-cache-restore
 
       - name: Install dependencies (root workspace, hoisted)
         run: npm ci
@@ -445,21 +433,31 @@ jobs:
       # its source at a pinned release (RELEASE.2025-10-15T17-29-55Z) and
       # cached. A real MinIO, not moto: the file suites check that S3 itself
       # enforces the presigned POST policy, private buckets and link expiry.
+      # GitHub-hosted: restore + save. Self-hosted: restore only (no slow post-job upload).
       - name: Cache the MinIO build
         id: minio-cache
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: /tmp/minio-bin
           key: minio-9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
 
+      - name: Restore the MinIO build (self-hosted, read-only)
+        id: minio-cache-sh
+        if: runner.environment == 'self-hosted'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /tmp/minio-bin
+          key: minio-9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
+
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
-        if: steps.minio-cache.outputs.cache-hit != 'true'
+        if: steps.minio-cache.outputs.cache-hit != 'true' && steps.minio-cache-sh.outputs.cache-hit != 'true'
         with:
           go-version: "1.24"
           cache: false
 
       - name: Build MinIO
-        if: steps.minio-cache.outputs.cache-hit != 'true'
+        if: steps.minio-cache.outputs.cache-hit != 'true' && steps.minio-cache-sh.outputs.cache-hit != 'true'
         run: GOBIN=/tmp/minio-bin go install github.com/minio/minio@9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
 
       - name: Start MinIO for the file / voice e2e suites
@@ -548,13 +546,7 @@ jobs:
           # restore-only step below + the per-runner ~/.npm volume replace it.
           cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
       - name: Restore the npm cache (self-hosted, read-only)
-        if: runner.environment == 'self-hosted'
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: ~/.npm
-          key: node-cache-${{ runner.os }}-${{ runner.arch }}-npm-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            node-cache-${{ runner.os }}-${{ runner.arch }}-npm-
+        uses: ./.github/actions/npm-cache-restore
 
       - name: Install dependencies (root workspace, hoisted)
         run: npm ci
@@ -567,21 +559,31 @@ jobs:
       # its source at a pinned release (RELEASE.2025-10-15T17-29-55Z) and
       # cached. A real MinIO, not moto: the file suites check that S3 itself
       # enforces the presigned POST policy, private buckets and link expiry.
+      # GitHub-hosted: restore + save. Self-hosted: restore only (no slow post-job upload).
       - name: Cache the MinIO build
         id: minio-cache
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: /tmp/minio-bin
           key: minio-9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
 
+      - name: Restore the MinIO build (self-hosted, read-only)
+        id: minio-cache-sh
+        if: runner.environment == 'self-hosted'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /tmp/minio-bin
+          key: minio-9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
+
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
-        if: steps.minio-cache.outputs.cache-hit != 'true'
+        if: steps.minio-cache.outputs.cache-hit != 'true' && steps.minio-cache-sh.outputs.cache-hit != 'true'
         with:
           go-version: "1.24"
           cache: false
 
       - name: Build MinIO
-        if: steps.minio-cache.outputs.cache-hit != 'true'
+        if: steps.minio-cache.outputs.cache-hit != 'true' && steps.minio-cache-sh.outputs.cache-hit != 'true'
         run: GOBIN=/tmp/minio-bin go install github.com/minio/minio@9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
 
       - name: Start MinIO for the file / voice e2e suites
@@ -676,13 +678,8 @@ jobs:
           # restore-only step below + the per-runner ~/.npm volume replace it.
           cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
       - name: Restore the npm cache (self-hosted, read-only)
-        if: runner.environment == 'self-hosted'
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: ~/.npm
-          key: node-cache-${{ runner.os }}-${{ runner.arch }}-npm-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            node-cache-${{ runner.os }}-${{ runner.arch }}-npm-
+        if: steps.mig.outputs.changed == 'true'
+        uses: ./.github/actions/npm-cache-restore
 
       - name: The previous release (checked out beside this one)
         if: steps.mig.outputs.changed == 'true'
@@ -702,22 +699,31 @@ jobs:
       # its source at a pinned release (RELEASE.2025-10-15T17-29-55Z) and
       # cached. A real MinIO, not moto: the file suites check that S3 itself
       # enforces the presigned POST policy, private buckets and link expiry.
+      # GitHub-hosted: restore + save. Self-hosted: restore only (no slow post-job upload).
       - name: Cache the MinIO build
         id: minio-cache
-        if: steps.mig.outputs.changed == 'true'
+        if: steps.mig.outputs.changed == 'true' && runner.environment == 'github-hosted'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: /tmp/minio-bin
           key: minio-9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
 
+      - name: Restore the MinIO build (self-hosted, read-only)
+        id: minio-cache-sh
+        if: steps.mig.outputs.changed == 'true' && runner.environment == 'self-hosted'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /tmp/minio-bin
+          key: minio-9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
+
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
-        if: steps.mig.outputs.changed == 'true' && steps.minio-cache.outputs.cache-hit != 'true'
+        if: steps.mig.outputs.changed == 'true' && steps.minio-cache.outputs.cache-hit != 'true' && steps.minio-cache-sh.outputs.cache-hit != 'true'
         with:
           go-version: "1.24"
           cache: false
 
       - name: Build MinIO
-        if: steps.mig.outputs.changed == 'true' && steps.minio-cache.outputs.cache-hit != 'true'
+        if: steps.mig.outputs.changed == 'true' && steps.minio-cache.outputs.cache-hit != 'true' && steps.minio-cache-sh.outputs.cache-hit != 'true'
         run: GOBIN=/tmp/minio-bin go install github.com/minio/minio@9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
 
       - name: Start MinIO for the file / voice e2e suites
