@@ -69,19 +69,7 @@ class MediaCacheDir {
       debugPrint('media cache scan $key: $e');
       return 0;
     }
-    if (total <= limitBytes) return 0;
-    files.sort((a, b) => a.$2.compareTo(b.$2));
-    var freed = 0;
-    for (final (file, _, size) in files) {
-      if (total - freed <= limitBytes) break;
-      try {
-        await file.delete();
-        freed += size;
-      } on Object {
-        // Busy or gone: the next pass tries again.
-      }
-    }
-    return freed;
+    return _trimOldest(files, total, limitBytes);
   }
 
   /// Deletes files older than [maxAge] (the «Хранить медиа» rule applied
@@ -187,19 +175,7 @@ class PrefixedTempFiles {
         // Gone meanwhile.
       }
     }
-    if (total <= limitBytes) return 0;
-    files.sort((a, b) => a.$2.compareTo(b.$2));
-    var freed = 0;
-    for (final (file, _, size) in files) {
-      if (total - freed <= limitBytes) break;
-      try {
-        await file.delete();
-        freed += size;
-      } on Object {
-        // Busy or gone: the next pass tries again.
-      }
-    }
-    return freed;
+    return _trimOldest(files, total, limitBytes);
   }
 
   Future<int> dropOlderThan(Duration maxAge) async {
@@ -228,4 +204,26 @@ class PrefixedTempFiles {
       }
     }
   }
+}
+
+/// Deletes the least recently changed of [files] (file, modified, bytes)
+/// until the [total] fits [limitBytes]; answers how many bytes went.
+Future<int> _trimOldest(
+  List<(File, DateTime, int)> files,
+  int total,
+  int limitBytes,
+) async {
+  if (total <= limitBytes) return 0;
+  files.sort((a, b) => a.$2.compareTo(b.$2));
+  var freed = 0;
+  for (final (file, _, size) in files) {
+    if (total - freed <= limitBytes) break;
+    try {
+      await file.delete();
+      freed += size;
+    } on Object {
+      // Busy or gone: the next pass tries again.
+    }
+  }
+  return freed;
 }
