@@ -163,25 +163,25 @@ class CacheMaintenance {
     // One pass at a time (start, daily timer and the write burst may meet).
     if (_enforcing) return;
     _enforcing = true;
-    final l = _limits();
     try {
+      final l = _limits();
       await _images.trimTo(l.limitBytes(CacheStore.images));
-      // Pictures and voice notes are one store («Медиа чатов»): the notes
-      // get what the pictures leave of its limit, not a second full limit.
-      final chatLimit = l.limitBytes(CacheStore.chatMedia);
-      await _chatMedia.trimTo(chatLimit);
-      final room = chatLimit - await _chatMedia.size();
-      await _voiceNotes.trimTo(room < 0 ? 0 : room);
-      // The video proxy trims itself while it runs; the user's lower limit
-      // is handed to it, and a folder nobody writes to is trimmed here.
-      VideoCache.limitTo(l.limitBytes(CacheStore.video));
-      if (!VideoCache.running) {
-        await _video.trimTo(l.limitBytes(CacheStore.video));
-      }
+      // Pictures and voice notes are one store («Медиа чатов»): one limit,
+      // the least recently changed file goes first whichever it is.
+      await trimPoolTo(
+        [_chatMedia, _voiceNotes],
+        l.limitBytes(CacheStore.chatMedia),
+      );
       if (l.keepMediaDays > 0) {
         await _chatMedia.dropOlderThan(Duration(days: l.keepMediaDays));
         await _voiceNotes.dropOlderThan(Duration(days: l.keepMediaDays));
       }
+      // The video proxy trims itself while it runs (the user's lower limit
+      // is handed to it); a folder nobody writes to is trimmed here, after a
+      // proxy that is still starting is up.
+      VideoCache.limitTo(l.userLimitBytes(CacheStore.video));
+      await VideoCache.settled();
+      if (!VideoCache.running) await _video.trimTo(VideoCache.maxBytes);
       await _db.trimHttp(l.limitBytes(CacheStore.http));
       await _db.trimMessages(l.limitBytes(CacheStore.messages));
       // Owner 2026-10-24: the view lists of case documents live in «Прочее»

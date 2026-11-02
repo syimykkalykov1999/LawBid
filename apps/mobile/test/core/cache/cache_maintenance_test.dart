@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/drift.dart' show driftRuntimeOptions;
@@ -7,6 +8,7 @@ import 'package:lawbid/core/cache/cache_database.dart';
 import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_maintenance.dart';
 import 'package:lawbid/core/cache/media_cache_dir.dart';
+import 'package:lawbid/core/media/video_cache/video_cache.dart';
 
 const _mib = 1024 * 1024;
 
@@ -20,6 +22,7 @@ void main() {
     root = await Directory.systemTemp.createTemp('cache_maintenance_test');
   });
   tearDown(() async {
+    VideoCache.debugStarting = null;
     await db.close();
     if (root.existsSync()) await root.delete(recursive: true);
   });
@@ -34,11 +37,14 @@ void main() {
     return f;
   }
 
-  CacheMaintenance maintenance(Map<CacheStore, int> userMb) =>
+  CacheMaintenance maintenance(
+    Map<CacheStore, int> userMb, {
+    CacheLimits Function()? limits,
+  }) =>
       CacheMaintenance(
         db: db,
         pages: null,
-        limits: () => CacheLimits(userMb: userMb),
+        limits: limits ?? () => CacheLimits(userMb: userMb),
         images: MediaCacheDir('images', root: () async => root),
         chatMedia: MediaCacheDir('chat', root: () async => root),
         video: MediaCacheDir('video', root: () async => root),
@@ -58,13 +64,25 @@ void main() {
     expect(r.of(CacheStore.video), 70);
   });
 
-  test('enforce: pictures and voice notes share one limit, not two', () async {
-    write('chat/a', (_mib * 0.6).round(), age: const Duration(hours: 1));
+  test('enforce: pictures and voice notes are one pool', () async {
+    final picture = write(
+      'chat/a',
+      (_mib * 0.6).round(),
+      age: const Duration(hours: 1),
+    );
     final note = write('voice_cache_1.m4a', (_mib * 0.6).round());
     await maintenance({CacheStore.chatMedia: 1}).enforce();
+    expect(picture.existsSync(), isFalse);
+    expect(note.existsSync(), isTrue);
     final left = await maintenance({}).measure();
     expect(left.of(CacheStore.chatMedia), lessThanOrEqualTo(_mib));
-    expect(note.existsSync(), isFalse);
+  });
+
+  test('enforce: full pictures never wipe a fresh voice note', () async {
+    write('chat/a', _mib, age: const Duration(hours: 2));
+    final note = write('voice_cache_1.m4a', 100);
+    await maintenance({CacheStore.chatMedia: 1}).enforce();
+    expect(note.existsSync(), isTrue);
   });
 
   test('enforce: a note being downloaded (.part) is never swept', () async {
@@ -101,5 +119,38 @@ void main() {
     expect(await m.clear(CacheStore.chatMedia), isTrue);
     expect((await m.measure()).of(CacheStore.chatMedia), 0);
     expect(part.existsSync(), isTrue);
+  });
+
+  test('enforce waits for a starting video proxy before trimming', () async {
+    final starting = Completer<void>();
+    VideoCache.debugStarting = starting.future;
+    final old = write(
+      'video/a',
+      (_mib * 0.6).round(),
+      age: const Duration(hours: 2),
+    );
+    write('video/b', (_mib * 0.6).round());
+    final done = maintenance({CacheStore.video: 1}).enforce();
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(old.existsSync(), isTrue);
+    starting.complete();
+    await done;
+    expect(old.existsSync(), isFalse);
+  });
+
+  test('a throwing limits() does not lock enforce for good', () async {
+    var calls = 0;
+    final m = maintenance(
+      {},
+      limits: () {
+        calls++;
+        if (calls == 1) throw StateError('limits');
+        return const CacheLimits(userMb: {CacheStore.chatMedia: 1});
+      },
+    );
+    await m.enforce(); // the failure is logged, not thrown
+    write('chat/a', 2 * _mib);
+    await m.enforce();
+    expect((await m.measure()).of(CacheStore.chatMedia), 0);
   });
 }

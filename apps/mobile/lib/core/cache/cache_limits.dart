@@ -89,6 +89,13 @@ class CacheLimits {
 
   int limitBytes(CacheStore s) => limitMb(s) * 1024 * 1024;
 
+  /// Only what the user chose on «Данные и память» (null = nothing chosen);
+  /// for a store whose ceiling is somebody else's setting.
+  int? userLimitBytes(CacheStore s) {
+    final mb = userMb[s];
+    return mb == null ? null : mb * 1024 * 1024;
+  }
+
   /// Days to keep chat media; 0 = always. The user cannot keep longer than
   /// the admin allows (an admin «always» leaves every choice open).
   int get keepMediaDays {

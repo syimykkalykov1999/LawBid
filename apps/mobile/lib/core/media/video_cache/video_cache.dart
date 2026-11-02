@@ -37,28 +37,37 @@ abstract final class VideoCache {
   static bool _failed = false;
   static int _sentMaxBytes = -1;
 
-  /// The user's lower limit from «Данные и память» (null = none set).
+  /// The user's lower limit from «Данные и память» (null = none chosen).
   static int? _userMaxBytes;
 
-  /// The proxy's byte limit: the administrator's tuning, lowered by the
-  /// user's choice.
-  static int get _maxBytes {
+  /// The proxy's byte limit: the administrator's tuning, lowered (never
+  /// raised) by the user's choice.
+  static int get maxBytes {
     final tuned = ClientTuning.videoCacheMb * 1024 * 1024;
     final user = _userMaxBytes;
     return user == null || user >= tuned ? tuned : user;
   }
 
-  /// Applies the user's limit for «Видео» (also to a running proxy).
-  static void limitTo(int bytes) {
-    _userMaxBytes = bytes;
-    if (_commands != null && _maxBytes != _sentMaxBytes) {
-      _sentMaxBytes = _maxBytes;
-      _commands?.send(('max', _maxBytes));
-    }
+  /// Applies the user's own limit for «Видео» (null = none) to a running
+  /// proxy too.
+  static void limitTo(int? userBytes) {
+    _userMaxBytes = userBytes;
+    _syncMax();
+  }
+
+  static void _syncMax() {
+    final commands = _commands;
+    if (commands == null || maxBytes == _sentMaxBytes) return;
+    _sentMaxBytes = maxBytes;
+    commands.send(('max', maxBytes));
   }
 
   /// Completes once a proxy that is starting is up (or failed to start).
   static Future<void> settled() async => await _starting;
+
+  /// Test hook: pretend a proxy is starting.
+  @visibleForTesting
+  static set debugStarting(Future<void>? starting) => _starting = starting;
 
   static bool get enabled =>
       !kIsWeb && ClientTuning.videoCacheMb > 0 && !_failed;
@@ -72,11 +81,7 @@ abstract final class VideoCache {
       unawaited(_ensureStarted());
       return url;
     }
-    final max = _maxBytes;
-    if (max != _sentMaxBytes) {
-      _sentMaxBytes = max;
-      _commands?.send(('max', max));
-    }
+    _syncMax();
     final u = Uri.parse(url);
     return VideoCacheProxy.wrapUrl(
       port: port,
@@ -90,7 +95,7 @@ abstract final class VideoCache {
         try {
           final base = await getTemporaryDirectory();
           final ready = ReceivePort();
-          final maxBytes = _maxBytes;
+          final maxBytes = VideoCache.maxBytes;
           await Isolate.spawn<_ProxyStart>(
             _proxyMain,
             _ProxyStart(
@@ -104,8 +109,12 @@ abstract final class VideoCache {
             debugName: 'video-cache-proxy',
             errorsAreFatal: false,
           );
-          final msg = await ready.first.timeout(const Duration(seconds: 10));
-          ready.close();
+          final Object? msg;
+          try {
+            msg = await ready.first.timeout(const Duration(seconds: 10));
+          } finally {
+            ready.close();
+          }
           if (msg is! (SendPort, int, String)) throw StateError('proxy');
           _sentMaxBytes = maxBytes;
           _commands = msg.$1;
