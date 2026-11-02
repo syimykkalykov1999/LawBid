@@ -526,7 +526,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['ops.route_metrics.mode'] = {
     ...out['ops.route_metrics.mode'],
     description:
-      'Per-route request / error / latency metrics for about 15 key routes (CloudWatch LawBid/Routes, about $13.5 a month when all routes report): off | on (always) | auto (default: a route reports only while it has 5xx answers or p95 above 1 s).',
+      'Per-route request / error / latency metrics for about 15 key routes (CloudWatch LawBid/Routes, about $13.5 a month when all routes report): off (default) | on (always) | auto (a route reports only while it has 5xx answers or p95 above 1 s; every route with one bad minute is billed).',
     pattern: /^(off|on|auto)$/,
   };
   // Legal-grade protection of client documents (2026-10-24).

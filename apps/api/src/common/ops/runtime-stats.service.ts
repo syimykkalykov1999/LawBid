@@ -57,13 +57,13 @@ export function emfLine(
           Namespace: 'LawBid/Runtime',
           Dimensions: [['Service']],
           Metrics: [
-            unit('EventLoopP50Ms', 'Milliseconds'),
+            // Only what an alarm, the dashboard or a scaling policy reads is a
+            // billed custom metric (about $0.30 each a month). P50, max, RSS
+            // and thread-pool lag stay on the line as plain fields, so they
+            // can still be queried in CloudWatch Logs Insights for free.
             unit('EventLoopP99Ms', 'Milliseconds'),
-            unit('EventLoopMaxMs', 'Milliseconds'),
             unit('HeapUsedMb', 'Megabytes'),
             unit('HeapLimitMb', 'Megabytes'),
-            unit('RssMb', 'Megabytes'),
-            unit('ThreadPoolLagMs', 'Milliseconds'),
             ...(s.OpenSockets === undefined
               ? []
               : [unit('OpenSockets', 'Count')]),

@@ -39,6 +39,13 @@ describe('runtime stats', () => {
     }
     expect(line.Service).toBe('api');
     expect(line.EventLoopP99Ms).toBe(12.5);
+    // Only the metrics something reads are billed; the rest stay plain fields.
+    expect(m.Metrics.map((x) => x.Name)).toEqual([
+      'EventLoopP99Ms',
+      'HeapUsedMb',
+      'HeapLimitMb',
+    ]);
+    expect((line as unknown as { RssMb: number }).RssMb).toBe(600);
   });
 
   it('measures a blocked event loop', async () => {

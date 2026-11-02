@@ -1625,12 +1625,16 @@ export const OWNER_COMPLIANCE_SETTINGS = {
  * metrics for ~15 journey routes, written as CloudWatch EMF lines
  * (namespace LawBid/Routes, dimension Route). 3 metrics x 15 routes = 45
  * custom metrics = about $13.5 a month once every route has data.
- * `off` — nothing written; `on` — every minute for every route; `auto`
- * (default) — a route writes a minute only while it has 5xx answers or a
- * slow 95th percentile (> 1 s), so a healthy system costs nothing and a
- * sick route is visible at once. RED dashboard in infra/modules/monitoring. */
+ * `off` (default since 2026-11-02) — nothing written; `on` — every minute for
+ * every route; `auto` — a route writes a minute only while it has 5xx answers
+ * or a slow 95th percentile (> 1 s). Why off: no alarm and no dashboard in
+ * infra/ reads LawBid/Routes, and Cost Explorer shows custom metrics
+ * (MetricMonitorUsage) as the biggest CloudWatch line; in `auto` every route
+ * that had one bad minute in the month is billed for all 3 metrics. The
+ * journey SLI counters (login, chat send, feed) do not depend on this switch.
+ * Turn it back on in admin → Настройки when you want to look at one route. */
 export const OWNER_OBSERVABILITY_SETTINGS = {
-  'ops.route_metrics.mode': 'auto',
+  'ops.route_metrics.mode': 'off',
 };
 
 /**
