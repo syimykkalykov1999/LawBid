@@ -153,7 +153,9 @@ class ClientPublicProfileScreen extends ConsumerWidget {
                 ref.invalidate(publicClientProfileProvider(username));
                 try {
                   await ref.read(publicClientProfileProvider(username).future);
-                } catch (_) {}
+                } catch (_) {
+                  // Refresh only; the error state shows a failed load.
+                }
               },
             ),
           ),

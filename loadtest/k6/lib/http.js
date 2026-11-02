@@ -61,6 +61,17 @@ export function post(path, body, token, name, extra, expected) {
   return res;
 }
 
+// PUT / DELETE for the full mix (lib/mix-full.js)
+function send(method, path, body, token, name, expected) {
+  const params = { headers: baseHeaders(token), tags: { name, kind: 'api' } };
+  if (expected) params.responseCallback = http.expectedStatuses({ min: 200, max: 399 }, ...expected);
+  const res = http.request(method, API_URL + path, body === undefined ? null : JSON.stringify(body), params);
+  track(res, name, expected);
+  return res;
+}
+export const put = (path, body, token, name, expected) => send('PUT', path, body, token, name, expected);
+export const del = (path, token, name, expected) => send('DELETE', path, undefined, token, name, expected);
+
 export function asset(path) {
   if (!CDN_URL) return null;
   const res = http.get(CDN_URL + path, { tags: { name: 'static', kind: 'cdn' } });

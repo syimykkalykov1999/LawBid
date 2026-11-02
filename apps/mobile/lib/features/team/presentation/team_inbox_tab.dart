@@ -62,7 +62,7 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
         // activity moved to the bell (one place for everything).
         const SizedBox(height: AppSpacing.sm),
         Expanded(
-          child: RefreshIndicator(
+          child: AppRefreshIndicator(
             color: colors.gold,
             backgroundColor: colors.sheet,
             onRefresh: () => ref.read(teamRequestsProvider.notifier).refresh(),

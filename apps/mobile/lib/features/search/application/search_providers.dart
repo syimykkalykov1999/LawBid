@@ -37,6 +37,21 @@ bool isSearchable(String raw, {bool tagPrefix = false}) {
   return bare.length >= kSearchMinChars;
 }
 
+final _cjk = RegExp(r'[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]');
+final _notWord = RegExp(r'[^\p{L}\p{N}]+', unicode: true);
+
+/// Audit 2026-11-01: [query] starts a word of [hay] ("law" finds "Family
+/// law", "ion" no longer finds "Immigration"). Chinese / Japanese / Korean
+/// have no spaces, so there the query may sit anywhere.
+bool startsAWord(String hay, String query) {
+  final h = hay.toLowerCase();
+  final q = query.toLowerCase().trim();
+  if (q.isEmpty) return false;
+  if (_cjk.hasMatch(q)) return h.contains(q);
+  return ' ${h.replaceAll(_notWord, ' ')}'
+      .contains(' ${q.replaceAll(_notWord, ' ')}');
+}
+
 /// Audit 2026-10-18: the Topics tab's practice rows for [query] (no '#'):
 /// a category whose name in the app language, its English name or its tag
 /// contains the text — or that the server names for it in ANY language
@@ -54,9 +69,9 @@ List<String> matchingPracticeCategories({
   if (q.isEmpty) return const [];
   return [
     for (final c in codes)
-      if (localName(c).toLowerCase().contains(q) ||
-          englishName(c).toLowerCase().contains(q) ||
-          tag(c).contains(q) ||
+      if (startsAWord(localName(c), q) ||
+          startsAWord(englishName(c), q) ||
+          tag(c).startsWith(q) ||
           remoteCategories.contains(c))
         c,
   ];
@@ -64,8 +79,8 @@ List<String> matchingPracticeCategories({
 
 /// Audit 2026-10-18: a client's own case matches [query] by title or by the
 /// topic's names (any of [names]: app language, English, category) —
-/// case-insensitive, every typed word must appear somewhere ("развод", "family
-/// law", "divorce nyc"). Empty query matches everything.
+/// case-insensitive, every typed word must start a word somewhere
+/// ("развод", "family law", "divorce nyc"). Empty query matches everything.
 bool myCaseMatches(String title, List<String> names, String query) {
   final words = query
       .toLowerCase()
@@ -74,7 +89,7 @@ bool myCaseMatches(String title, List<String> names, String query) {
       .toList();
   if (words.isEmpty) return true;
   final hay = '${title.toLowerCase()} ${names.join(' ').toLowerCase()}';
-  return words.every(hay.contains);
+  return words.every((w) => startsAWord(hay, w));
 }
 
 typedef SearchKey = ({String q, SearchFilters filters});

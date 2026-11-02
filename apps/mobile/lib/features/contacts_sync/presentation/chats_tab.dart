@@ -72,7 +72,7 @@ class _ChatsTabState extends ConsumerState<ChatsTab> {
       data: (all) {
         final shown = filterMyPeople(all, _query);
         final bottom = AppSpacing.xxl + MediaQuery.paddingOf(context).bottom;
-        return RefreshIndicator(
+        return AppRefreshIndicator(
           onRefresh: () async {
             ref.invalidate(myChatPeopleProvider);
             await ref.read(myChatPeopleProvider.future);

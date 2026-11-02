@@ -214,16 +214,32 @@ describe('ApnsVoipSender', () => {
       expect(posted.map((p) => p.headers[':path'])).toEqual(['/3/device/b']);
     });
 
-    it("after the phone's own 45 s ring is over, no stop (it is quiet already)", async () => {
+    it("after the phone's own ring (CALL_RING_SECONDS) is over, no stop (it is quiet already)", async () => {
       const redis = new MemRedis();
       const { sender, posted } = make(redis);
       const t0 = Date.now();
       const now = jest.spyOn(Date, 'now').mockReturnValue(t0);
       try {
         await sender.ringCall('u', call);
-        now.mockReturnValue(t0 + 60_000);
+        now.mockReturnValue(t0 + 60_500);
         await expect(sender.endCall('u', call.callId)).resolves.toBe(0);
         expect(posted).toEqual([]);
+      } finally {
+        now.mockRestore();
+      }
+    });
+
+    it('M2: at 50 s the phone still rings (60 s now, was 45 s) — the stop goes', async () => {
+      const redis = new MemRedis();
+      const { sender } = make(redis);
+      const t0 = Date.now();
+      const now = jest.spyOn(Date, 'now').mockReturnValue(t0);
+      try {
+        await sender.ringCall('u', call);
+        now.mockReturnValue(t0 + 50_000);
+        await expect(sender.endCall('u', call.callId)).resolves.toBeGreaterThan(
+          0,
+        );
       } finally {
         now.mockRestore();
       }

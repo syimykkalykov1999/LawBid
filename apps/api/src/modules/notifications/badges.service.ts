@@ -32,6 +32,21 @@ const NOTIFS_CAP = 1000;
 /** The hash expires daily, so every user's counters are re-read from the
  * DB at least once a day (§10 "раз в сутки сверяются с БД"). */
 const TTL_SEC = 24 * 3600;
+/** Load test round 2 (docs/perf/LOCAL_LOAD_TEST_2026-10-28.md): the
+ * person's notification switches (category rows, topic switches, icon
+ * switch) were read from the database on every message, read mark and
+ * badge push — the most frequent query of the whole app. One cached copy
+ * per person, dropped by [settingsChanged] (every writer of these
+ * switches calls it); the TTL only bounds a server one version older that
+ * writes without dropping it. */
+const prefsKey = (userId: string) => `nprefs:${userId}`;
+const PREFS_TTL_SEC = 300;
+interface NotifPrefs {
+  /** category → push_enabled, only the rows the person has */
+  cats: Record<string, boolean>;
+  topics: unknown;
+  icon: boolean;
+}
 
 /**
  * docs/05 §10 badges: Redis counters per user (`chats`, `notifs`). Events
@@ -78,11 +93,52 @@ export class BadgesService {
   /** Owner 2026-10-21 (inbox 29): the «Счётчик на иконке в меню» switch
    * (default on). */
   async iconBadgeOn(userId: string): Promise<boolean> {
-    const u = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { notif_icon_badge: true },
-    });
-    return u?.notif_icon_badge ?? true;
+    return (await this.prefs(userId)).icon;
+  }
+
+  /** Drops the cached switches; a dead cache keeps them ≤ PREFS_TTL_SEC. */
+  async dropPrefs(userId: string): Promise<void> {
+    try {
+      await this.redis.del(prefsKey(userId));
+    } catch {
+      // cache down: the TTL bounds it
+    }
+  }
+
+  /** The cached switches ([prefsKey]); a dead cache reads the database. */
+  private async prefs(userId: string): Promise<NotifPrefs> {
+    try {
+      const hit = await this.redis.get(prefsKey(userId));
+      if (hit) return JSON.parse(hit) as NotifPrefs;
+    } catch {
+      // cache down: read below
+    }
+    const [rows, u] = await Promise.all([
+      this.prisma.notificationSetting.findMany({
+        where: { user_id: userId },
+        select: { category: true, push_enabled: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { notif_topics: true, notif_icon_badge: true },
+      }),
+    ]);
+    const prefs: NotifPrefs = {
+      cats: Object.fromEntries(rows.map((r) => [r.category, r.push_enabled])),
+      topics: u?.notif_topics ?? null,
+      icon: u?.notif_icon_badge ?? true,
+    };
+    try {
+      await this.redis.set(
+        prefsKey(userId),
+        JSON.stringify(prefs),
+        'EX',
+        PREFS_TTL_SEC,
+      );
+    } catch {
+      // cache down: nothing kept
+    }
+    return prefs;
   }
 
   /** The number a push puts on the app icon: the total, or 0 while the
@@ -198,11 +254,12 @@ export class BadgesService {
    * §9.5 defaults; `system` can't be switched off.
    */
   async mutedCategories(userId: string): Promise<Set<NotificationCategory>> {
-    const rows = await this.prisma.notificationSetting.findMany({
-      where: { user_id: userId },
-      select: { category: true, push_enabled: true },
-    });
-    const set = new Map(rows.map((r) => [r.category, r.push_enabled]));
+    const set = new Map(
+      Object.entries((await this.prefs(userId)).cats) as [
+        NotificationCategory,
+        boolean,
+      ][],
+    );
     const muted = new Set<NotificationCategory>();
     for (const c of Object.keys(DEFAULT_PUSH) as NotificationCategory[]) {
       if (LOCKED_CATEGORIES.has(c)) continue;
@@ -222,20 +279,13 @@ export class BadgesService {
     own: (topic: string) => boolean;
     raw: Record<string, boolean>;
   }> {
-    const [rows, u] = await Promise.all([
-      this.prisma.notificationSetting.findMany({
-        where: { user_id: userId },
-        select: { category: true, push_enabled: true },
-      }),
-      this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { notif_topics: true },
-      }),
-    ]);
-    const set = new Map(rows.map((r) => [r.category, r.push_enabled]));
+    const p = await this.prefs(userId);
+    const set = new Map(
+      Object.entries(p.cats) as [NotificationCategory, boolean][],
+    );
     const categoryOn = (c: NotificationCategory) =>
       LOCKED_CATEGORIES.has(c) || (set.get(c) ?? DEFAULT_PUSH[c]);
-    const raw = readTopics(u?.notif_topics);
+    const raw = readTopics(p.topics);
     return {
       on: (t) => topicOn(t, raw, categoryOn),
       own: (t) => topicOn(t, raw, categoryOn, true),
@@ -253,6 +303,7 @@ export class BadgesService {
 
   /** Settings → Notifications changed: recount both badges. */
   async settingsChanged(userId: string): Promise<void> {
+    await this.dropPrefs(userId);
     await this.rebuild(userId);
     await this.publish(userId);
   }
