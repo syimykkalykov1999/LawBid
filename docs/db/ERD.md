@@ -969,6 +969,7 @@ erDiagram
     Boolean show_service_messages
     Int disappear_after_s "nullable"
     Boolean protect_content
+    Int slow_mode_s "nullable"
     enum_GroupWho who_can_media
     enum_GroupWho who_can_poll
     enum_GroupWho who_can_pin

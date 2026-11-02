@@ -16,4 +16,4 @@ until docker exec "$NAME" pg_isready -U postgres -d t >/dev/null 2>&1; do
 done
 sleep 2
 cd "$(dirname "$0")/../../apps/api"
-PARTITION_TEST_URL="postgresql://postgres:pw@localhost:$PORT/t" npx jest src/partitioning
+PARTITION_TEST_URL="postgresql://postgres:pw@localhost:$PORT/t" npx jest src/partitioning --runInBand

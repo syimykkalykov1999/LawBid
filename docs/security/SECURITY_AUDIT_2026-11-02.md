@@ -52,6 +52,15 @@
 | Секреты | всё дерево и вся история (3994 коммитов, все ветки) | поиск по шаблонам ключей AWS, Stripe, GitHub, Slack, Google, приватных ключей |
 | Проверка своих правок | оба PR | `/code-review high`, `/security-review`, `npm run precheck` |
 
+## Повторное сканирование зависимостей (02.11, вечер, после #567 и #608)
+
+Факт (запущено в облаке):
+- **API, только продакшен-зависимости** (`npm audit --omit=dev --workspace apps/api`): critical 0, high 3 (`prisma`, `@prisma/config`, `deepmerge-ts`; это один совет GHSA-ggr8-5vv4-36mx, только в CLI Prisma при миграциях, не в работающем API; в списке исключений до 2027-01-31, лечится мажором Prisma 7), moderate 17. Все moderate лежат в цепочках, где npm предлагает только мажорное обновление (`archiver`/`exceljs`/`uuid`/`minimatch`/`glob`, `@sentry/nestjs`, `@nestjs/swagger` → `js-yaml`) или сидят во вложенных копиях (`gaxios`, `gcp-metadata`, `google-gax`, `rimraf`, `zip-stream`). `npm audit fix` без `--force` ничего безопасного не меняет, обходить правило «пакет моложе 7 дней» не стали.
+- **Админка**: после #608 high и critical нет (`npm-audit-gate --workspace apps/admin`: 0). Остаются moderate в `minimatch` линтера и тестов.
+- **CI**: раньше гейт стоял только у API. Теперь тот же гейт (с тем же списком исключений) стоит и в `admin-ci.yml`, поэтому новые high/critical в админке сломают сборку, а не пролежат незамеченными.
+
+Не проверено (честно): зависимости Flutter. `api.osv.dev` из облака недоступен, SDK Dart/Flutter в облаке нет, поэтому `pubspec.lock` не сканировали. Эту работу уже делает CI: блокирующий шаг `Dependency audit (OSV, blocking)` в `mobile-ci.yml` (OSV-Scanner по `pubspec.lock` + `pub-audit-gate`, исключения в `.github/pub-audit-allowlist.json`). Его последний результат смотреть там, а не в этом отчёте.
+
 ## Не проверено (честно)
 
 - Прод: настройки в админке, правила WAF (не трогаем по решению владельца), реальные права IAM в AWS, открытые порты на живом аккаунте.

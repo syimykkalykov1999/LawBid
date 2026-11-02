@@ -438,6 +438,7 @@ export class GroupPresenter {
         showServiceMessages: g.show_service_messages,
         disappearAfterS: g.disappear_after_s,
         protectContent: g.protect_content,
+        slowModeS: g.slow_mode_s,
         whoCanMedia: g.who_can_media,
         whoCanPoll: g.who_can_poll,
         whoCanPin: g.who_can_pin,
