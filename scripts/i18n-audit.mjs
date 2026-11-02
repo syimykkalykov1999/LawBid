@@ -3,8 +3,9 @@
 // for, and reports per language: empty cells, text identical to English that
 // should not be (non-brand), Latin text in a non-Latin language (untranslated),
 // placeholder mismatches ({name}), and keys used in code but missing from the
-// workbook. `--ci` fails on empty cells, placeholder mismatches and missing
-// keys; "same as English" is a warning unless the language is listed in
+// workbook. `--ci` fails on empty cells, placeholder mismatches, missing keys
+// and sentences (2+ words) identical to English in 10+ languages (PHRASE_LANGS);
+// "same as English" is a warning unless the language is listed in
 // scripts/i18n-audit.allow.json (words that are legitimately the same).
 import ExcelJS from 'exceljs';
 import fs from 'node:fs';
@@ -83,6 +84,23 @@ walk(path.join(ROOT, 'apps/mobile/lib'), ['.dart'], (p) => {
 // Keys built from a prefix (t.t('post.menu.${x}')) are skipped.
 for (const k of usedKeys) if (!have.has(k) && !have.has(k + '.other') && !/^(topic|practice|state|time)\./.test(k)) report.missingInCode.push(k);
 
+// 2026-11-02: a new sentence copied into every language as English must fail CI
+// (owner saw untranslated Q&A texts in ~50 languages). Phrases of 2+ words that
+// stay English in 10+ languages and are not in the allow list are errors.
+const PHRASE_LANGS = 10;
+const wordCount = (s) => (s.replace(/\{[^}]+\}/g, '').match(/\p{L}+/gu) ?? []).length;
+const enByKey = Object.fromEntries(rows.map((r) => [r.key, r.cells.en]));
+// Counted straight from the cells (not from sameAsEnglish) so that sentences starting with
+// LawBid/PDF/ID... are not exempted by brandish().
+const phraseCount = {};
+for (const r of rows) {
+  if (wordCount(r.cells.en) < 2 || allow.sameAsEnglishKeys.includes(r.key) || allow.sameAsEnglishPrefixes.some((p) => r.key.startsWith(p))) continue;
+  for (const l of langs) if (l !== 'en' && r.cells[l] === r.cells.en && !(allow.perLanguage[l] ?? []).includes(r.key)) phraseCount[r.key] = (phraseCount[r.key] ?? 0) + 1;
+}
+report.untranslatedPhrases = Object.entries(phraseCount)
+  .filter(([, n]) => n >= PHRASE_LANGS)
+  .map(([k, n]) => `${k} (${n} languages): ${enByKey[k]}`);
+
 const summary = {
   languages: langs.length,
   keys: rows.length,
@@ -90,6 +108,7 @@ const summary = {
   placeholderMismatches: report.placeholder.length,
   sameAsEnglish: Object.fromEntries(Object.entries(report.sameAsEnglish).map(([l, k]) => [l, k.length])),
   latinInNonLatin: Object.fromEntries(Object.entries(report.latinInNonLatin).map(([l, k]) => [l, new Set(k).size])),
+  untranslatedPhrases: report.untranslatedPhrases.length,
   keysUsedButMissing: report.missingInCode.length,
   hardcodedStrings: report.hardcoded.length,
 };
@@ -99,6 +118,7 @@ else {
   const show = (title, list) => list.length && console.log(`\n${title} (${list.length}):\n  ` + list.slice(0, 25).map((x) => (Array.isArray(x) ? x.join(' / ') : x)).join('\n  '));
   show('empty cells', report.empty);
   show('placeholder mismatches', report.placeholder);
+  show('sentences left in English in many languages (translate them or add to scripts/i18n-audit.allow.json)', report.untranslatedPhrases);
   show('keys used in code but missing from the workbook', report.missingInCode);
   show('strings written into widgets (not translated)', report.hardcoded);
 }
@@ -113,4 +133,4 @@ else {
     report.missingInCode.push(...noKw.map((k) => k + '.kw'));
   }
 }
-if (ci && (report.empty.length || report.placeholder.length || report.missingInCode.length)) process.exit(1);
+if (ci && (report.empty.length || report.placeholder.length || report.missingInCode.length || report.untranslatedPhrases.length)) process.exit(1);

@@ -7,7 +7,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { readSwitchMode } from '../../common/app-settings/switch-mode';
-import type { MediaModerationCheck, Prisma } from '@prisma/client';
+import type { MediaModerationCheck, Prisma, VideoAsset } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { PinoLogger } from 'nestjs-pino';
 import sharp from 'sharp';
@@ -22,7 +22,12 @@ import {
   ModerationService,
   type ContentAction,
 } from '../moderation/moderation.service';
-import { VideosService } from '../videos/videos.service';
+import { playedSec, VideosService } from '../videos/videos.service';
+import {
+  extractFrame,
+  FfmpegMissingError,
+  frameTimesSec,
+} from './video-frames';
 import { AutoHoldService } from '../moderation/auto-hold.service';
 import {
   CSAM_HASH_MATCHER,
@@ -180,7 +185,75 @@ export class MediaModerationService {
     )?.thumbnailUrl;
     if (!url)
       return this.finish(check.id, 'skipped', { skip_reason: 'format' });
-    return this.run(check, null, () => fetchBytes(url));
+    const cover = await this.run(check, null, () => fetchBytes(url));
+    // A clean cover says nothing about the rest of the clip.
+    return cover === 'clean' ? this.checkFrames(check, asset) : cover;
+  }
+
+  /**
+   * Owner 2026-11-02: frame-by-frame check of a video whose cover is clean.
+   * Off by default (`moderation.video.frames_enabled`, every frame is one
+   * paid `image_moderation` unit inside the daily cap). Evenly spaced frames,
+   * one per `moderation.video.frame_every_sec`, at most
+   * `moderation.video.frames_max`; the first unsafe (or unscannable) frame
+   * ends the check and its verdict stands. No ffmpeg in the image → the
+   * cover verdict stays, nothing breaks.
+   */
+  private async checkFrames(
+    check: MediaModerationCheck,
+    asset: VideoAsset,
+  ): Promise<CheckStatus> {
+    if (!(await this.settings.boolean('moderation.video.frames_enabled'))) {
+      return 'clean';
+    }
+    const [everySec, max] = await Promise.all([
+      this.settings.number('moderation.video.frame_every_sec'),
+      this.settings.number('moderation.video.frames_max'),
+    ]);
+    // Only the part viewers see (the trim), as seconds into the file.
+    const start = (asset.trim_start_ms ?? 0) / 1000;
+    const times = frameTimesSec(playedSec(asset) ?? 0, everySec, max).map(
+      (t) => Math.round((start + t) * 100) / 100,
+    );
+    const url = (await this.videos?.present([asset]))?.get(
+      asset.id,
+    )?.fallbackUrl;
+    if (times.length === 0 || !url) {
+      this.logger.warn(
+        { checkId: check.id },
+        'video frames: no duration or no MP4 url, cover verdict kept',
+      );
+      return 'clean';
+    }
+    for (const at of times) {
+      // The frame is grabbed here, not inside run(): run() turns any loader
+      // error into a "skipped / format" verdict and would overwrite the
+      // clean cover verdict.
+      let frame: Buffer;
+      try {
+        frame = await extractFrame(url, at);
+      } catch (err) {
+        if (err instanceof FfmpegMissingError) {
+          this.logger.warn('video frames: ffmpeg missing, cover verdict kept');
+          return 'clean';
+        }
+        this.logger.warn(
+          { checkId: check.id, at, err: String(err).replace(url, '<url>') },
+          'video frames: a frame could not be grabbed, skipped',
+        );
+        continue;
+      }
+      const status = await this.run(check, null, () => Promise.resolve(frame));
+      if (status === 'skipped') {
+        // Daily cap used up (or switched off mid-run): the cover and the
+        // frames before were clean, so that verdict stands. A cheap retry
+        // of the whole video would pay for the cover again.
+        await this.finish(check.id, 'clean');
+        return 'clean';
+      }
+      if (status !== 'clean') return status;
+    }
+    return 'clean';
   }
 
   /** A hidden verdict applied again (content posted after the check). */

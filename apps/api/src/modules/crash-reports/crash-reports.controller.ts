@@ -9,7 +9,9 @@ import {
   Param,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
@@ -46,9 +48,10 @@ export class CrashReportsController {
   })
   async reportCrashes(
     @Body() dto: CrashBatchDto,
+    @Req() req: Request,
     @Headers('x-device-key') deviceKey?: string,
   ): Promise<void> {
-    await this.crashes.ingest(dto.reports, deviceKey ?? null);
+    await this.crashes.ingest(dto.reports, deviceKey ?? null, req.ip ?? null);
   }
 }
 
