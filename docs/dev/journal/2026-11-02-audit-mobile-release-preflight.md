@@ -7,3 +7,5 @@
 Не сделано (требует решения/магазинов, отложено владельцем): ручная подпись двух таргетов iOS, targetSdk, SCHEDULE_EXACT_ALARM, version из тега.
 
 Дополнение (по запросу треда «Релиз в магазины»): iOS в `mobile-release.yml` переведён на ту же схему, что «Mobile testers» (ключ App Store Connect + облачная подпись Xcode, `flutter build ios --no-codesign` → `xcodebuild archive/export` → `upload_to_testflight`), старые секреты `IOS_CERT_P12_BASE64` / `IOS_PROFILE_BASE64` / `IOS_CERT_PASSWORD` больше не нужны. `scripts/ci/select-xcode.sh 26` в обоих iOS-джобах: падает за секунды, если на раннере нет Xcode 26+.
+
+По /simplify: шаги Firebase перенесены до `flutter pub get`/build_runner, а проверка Xcode в iOS-job стала сразу после checkout (падать за секунды, не после установки тулчейна). Не делаем (отдельные шаги): общий composite action для подписи/ASC и dart-defines (копия из mobile-testers), одна сборка вместо `flutter build ios` + `xcodebuild archive`, проверка dart-defines в mobile-testers, удаление lane `build` в Fastfile.

@@ -128,8 +128,6 @@ jobs:
           else
             echo "::warning::ANDROID_KEYSTORE_BASE64 not set — debug-signed build (never uploaded)"
           fi
-      - run: flutter pub get && dart run build_runner build --delete-conflicting-outputs
-        working-directory: apps/mobile
       - name: Firebase config (prod flavor only)
         if: ${{ (inputs.flavor || 'prod') == 'prod' }}
         working-directory: apps/mobile
@@ -149,6 +147,8 @@ jobs:
           else
             echo "::warning::GOOGLE_SERVICES_JSON_BASE64 not set: push is off in this build (never uploaded)"
           fi
+      - run: flutter pub get && dart run build_runner build --delete-conflicting-outputs
+        working-directory: apps/mobile
       - name: fastlane build
         working-directory: apps/mobile/android
         env:
@@ -180,6 +180,8 @@ jobs:
     environment: release
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Xcode with the current iOS SDK (fail now, not at the store upload)
+        run: bash scripts/ci/select-xcode.sh
       - name: Flutter version (apps/mobile/.fvmrc is the single pin)
         id: fv
         run: echo "v=$(jq -r .flutter apps/mobile/.fvmrc)" >> "$GITHUB_OUTPUT"
@@ -200,8 +202,6 @@ jobs:
       # Same scheme as "Mobile testers": Xcode cloud-managed signing through the
       # App Store Connect API key (no p12 / provisioning-profile secrets, which
       # do not exist). Docs: docs/runbooks/mobile-testers-ci.md.
-      - name: Xcode with the current iOS SDK (fail now, not at the store upload)
-        run: bash scripts/ci/select-xcode.sh
       - name: App Store Connect key (signing + upload)
         working-directory: apps/mobile
         env:
@@ -224,9 +224,6 @@ jobs:
           sed -i "" "s/REPLACE_TEAM_ID/$APPLE_TEAM_ID/" ios/ExportOptions.plist
           # Key file for fastlane (pilot) in its api_key_path format.
           ruby -rjson -e 'puts JSON.generate(key_id: ENV["ASC_KEY_ID"], issuer_id: ENV["ASC_ISSUER_ID"], key: File.read("#{ENV["RUNNER_TEMP"]}/AuthKey_#{ENV["ASC_KEY_ID"]}.p8"), in_house: false)' > "$RUNNER_TEMP/asc.json"
-      - run: flutter pub get && dart run build_runner build --delete-conflicting-outputs
-        if: env.SKIP_IOS != '1'
-        working-directory: apps/mobile
       - name: Firebase config (prod flavor only)
         if: ${{ env.SKIP_IOS != '1' && (inputs.flavor || 'prod') == 'prod' }}
         working-directory: apps/mobile
@@ -243,6 +240,9 @@ jobs:
           else
             echo "::warning::GOOGLE_SERVICE_INFO_PLIST_BASE64 not set: push is off in this build (never uploaded)"
           fi
+      - run: flutter pub get && dart run build_runner build --delete-conflicting-outputs
+        if: env.SKIP_IOS != '1'
+        working-directory: apps/mobile
       - name: Flutter build (no signing; installs pods, obfuscated)
         if: env.SKIP_IOS != '1'
         working-directory: apps/mobile
