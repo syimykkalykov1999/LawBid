@@ -4,10 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/features/auth/presentation/widgets/password_step_up.dart';
 import 'package:lawbid/features/cases/application/case_history_controller.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 
-/// Re-authentication gate (docs/04 §12, docs/06 §5.2): a code to the
-/// verified phone → `POST /auth/reauth`; the resulting token lives in
+/// Re-authentication gate (docs/04 §12, docs/06 §5.2). Owner 2026-10-28:
+/// the ACCOUNT PASSWORD first ([PasswordStepUp]); a code to the verified
+/// phone only after «Забыли пароль?» or for an account without a password
+/// → `POST /auth/reauth`; the resulting token lives in
 /// [historyAccessProvider] for five minutes and unlocks every
 /// reauth-guarded settings screen (case history, data export).
 class ReauthGateView extends ConsumerWidget {
@@ -32,6 +36,12 @@ class ReauthGateView extends ConsumerWidget {
     final phone = c.phone;
     // Owner 2026-10-08: no code can reach a demo session — one tap instead.
     final demo = ref.watch(isDemoSessionProvider);
+    // Owner 2026-10-28: the account password instead of a paid SMS code.
+    final noPassword = ref.watch(
+      currentUserControllerProvider
+          .select((s) => s.user?.passwordRequired ?? false),
+    );
+    final password = !demo && !access.useCode && !noPassword;
     final error = switch (access.error) {
       'invalid' => t.t('history.reauth.invalid'),
       'rateLimited' => t.t('history.reauth.rateLimited'),
@@ -70,9 +80,11 @@ class ReauthGateView extends ConsumerWidget {
           child: Text(
             demo
                 ? t.t('demo.reauth.message')
-                : phone == null
-                    ? t.t('history.reauth.noPhone')
-                    : t.t('history.reauth.message', {'phone': phone}),
+                : password
+                    ? t.t('stepUp.password.body')
+                    : phone == null
+                        ? t.t('history.reauth.noPhone')
+                        : t.t('history.reauth.message', {'phone': phone}),
             textAlign: TextAlign.center,
             style: typography.body.copyWith(color: colors.textSecondary),
           ),
@@ -93,7 +105,13 @@ class ReauthGateView extends ConsumerWidget {
             isLoading: access.busy,
             onPressed: c.continueDemo,
           ),
-        ] else if (access.codeSent)
+        ] else if (password)
+          PasswordStepUp(
+            key: const ValueKey('reauth-password'),
+            onToken: (token) async => c.acceptToken(token),
+            onUseCode: c.useCode,
+          )
+        else if (access.codeSent)
           AppOtpField(
             semanticLabel: t.t('history.reauth.code'),
             errorText: error,
@@ -105,14 +123,14 @@ class ReauthGateView extends ConsumerWidget {
             textAlign: TextAlign.center,
             style: typography.bodySmall.copyWith(color: colors.dangerText),
           ),
-        if (!demo) const SizedBox(height: AppSpacing.xl),
-        if (!demo && !access.codeSent && phone != null)
+        if (!demo && !password) const SizedBox(height: AppSpacing.xl),
+        if (!demo && !password && !access.codeSent && phone != null)
           AppButton(
             label: t.t('history.reauth.send'),
             isLoading: access.busy,
             onPressed: c.sendCode,
           ),
-        if (!demo && access.codeSent)
+        if (!demo && !password && access.codeSent)
           AppButton(
             label: t.t('history.reauth.resend'),
             variant: AppButtonVariant.secondary,

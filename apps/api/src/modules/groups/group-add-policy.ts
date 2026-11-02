@@ -14,4 +14,9 @@ export class GroupAddPolicy {
   allows(by: string, target: string): Promise<boolean> {
     return this.privacy.allows(by, target, 'group');
   }
+
+  /** Of [targets], those [by] may add (a few queries for the whole list). */
+  allowsMany(by: string, targets: string[]): Promise<Set<string>> {
+    return this.privacy.allowsMany(by, targets, 'group');
+  }
 }

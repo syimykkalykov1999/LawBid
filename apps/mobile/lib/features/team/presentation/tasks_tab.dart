@@ -598,7 +598,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
     required bool canAdd,
     required bool assistant,
   }) {
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       color: colors.gold,
       backgroundColor: colors.sheet,
       onRefresh: () async {

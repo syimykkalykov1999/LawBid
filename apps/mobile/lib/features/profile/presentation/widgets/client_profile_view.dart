@@ -62,7 +62,7 @@ class ClientProfileView extends ConsumerWidget {
                 key: const ValueKey('data'),
                 username: p.username,
               )
-            : RefreshIndicator(
+            : AppRefreshIndicator(
                 key: const ValueKey('data'),
                 color: Theme.of(context).extension<AppColorTokens>()!.gold,
                 onRefresh: () async {
@@ -104,7 +104,9 @@ class _OwnSocial extends ConsumerWidget {
             ..invalidate(clientProfileProvider);
           try {
             await ref.read(publicClientProfileProvider(username).future);
-          } catch (_) {}
+          } catch (_) {
+            // Refresh only; the error state shows a failed load.
+          }
         },
       ),
     );

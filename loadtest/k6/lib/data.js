@@ -26,6 +26,11 @@ export const USERNAMES = load('FIXTURES_FILE', 'usernames');
 export const ATTORNEY_IDS = load('FIXTURES_FILE', 'attorneyIds');
 export const ASSETS = load('FIXTURES_FILE', 'assets');
 export const LANGS = load('FIXTURES_FILE', 'langs');
+// full mix (lib/mix-full.js): practice area ids + state codes for a new case,
+// cases with an accepted offer ({ id, t } = owner's token) for the deal record
+export const PRACTICES = load('FIXTURES_FILE', 'practices');
+export const STATES = load('FIXTURES_FILE', 'states');
+export const DEALS = load('FIXTURES_FILE', 'deals');
 
 // A generator uses every SHARDS-th item starting at SHARD, so two generators
 // never push the same person over the API's per-user limit (100 / minute).

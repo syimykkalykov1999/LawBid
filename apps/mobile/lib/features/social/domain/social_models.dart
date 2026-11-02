@@ -199,13 +199,29 @@ class PostVideo {
         '/thumbnail.jpg$query';
   }
 
-  /// What the player opens: in a browser the MP4 when there is one (Chrome
-  /// and Firefox cannot play HLS by themselves), else the HLS playlist.
-  String? playerUrl({required bool web}) =>
-      web ? (fallbackUrl ?? playbackUrl) : playbackUrl;
+  /// Short clips use the plain MP4 on phones too (owner 2026-11-01: a
+  /// 5-second reel took long to start). HLS needs three round trips before
+  /// the first frame (master playlist, variant playlist, first segment) and
+  /// a short clip never gains from adaptive quality; the MP4 is one request.
+  static const mp4MaxSeconds = 30;
+
+  /// True when the MP4 is the better stream: always in a browser (it cannot
+  /// play HLS by itself), on a phone only for a clip up to [mp4MaxSeconds].
+  bool prefersMp4({required bool web}) {
+    if (fallbackUrl == null) return false;
+    if (web) return true;
+    final d = durationSec;
+    return d != null && d <= mp4MaxSeconds;
+  }
+
+  /// What the player opens. [hlsOnly] is the retry after the MP4 failed to
+  /// start (not every library has the copy at that quality): the playlist.
+  String? playerUrl({required bool web, bool hlsOnly = false}) =>
+      !hlsOnly && prefersMp4(web: web) ? fallbackUrl : playbackUrl;
 
   /// True when [playerUrl] is the MP4 copy, not the HLS playlist.
-  bool usesMp4({required bool web}) => web && fallbackUrl != null;
+  bool usesMp4({required bool web, bool hlsOnly = false}) =>
+      !hlsOnly && prefersMp4(web: web);
 
   /// Width / height; reels default to 9:16.
   double get aspectRatio => (width != null && height != null && height! > 0)
@@ -401,6 +417,8 @@ class Post {
     bool? repostedByMe,
     int? pinSlot,
     bool unpin = false,
+    bool? likesHidden,
+    bool? viewsHidden,
   }) =>
       Post(
         id: id,
@@ -425,8 +443,8 @@ class Post {
         video: video,
         locationName: locationName,
         commentsEnabled: commentsEnabled,
-        likesHidden: likesHidden,
-        viewsHidden: viewsHidden,
+        likesHidden: likesHidden ?? this.likesHidden,
+        viewsHidden: viewsHidden ?? this.viewsHidden,
         attachments: attachments,
         isGeneral: isGeneral,
         promotionId: promotionId,
