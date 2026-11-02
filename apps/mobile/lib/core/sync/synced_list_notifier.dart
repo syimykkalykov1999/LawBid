@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show debugPrint, protected;
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -88,6 +89,8 @@ abstract class SyncedListNotifier<T> extends PagedNotifier<T> {
 
   @override
   Future<PaginatedList<T>> build() {
+    _rebuilding = _built;
+    _built = true;
     _syncedAt = null;
     _pullSince = null;
     ref.onDispose(() => _pullTimer?.cancel());
@@ -100,6 +103,18 @@ abstract class SyncedListNotifier<T> extends PagedNotifier<T> {
   /// instead of asking for changes since a time the copy may be older than.
   @protected
   bool get savedCopyIsFirstPage => false;
+
+  bool _built = false;
+  bool _rebuilding = false;
+
+  /// The saved copy of the first page from the phone's HTTP copy, for a
+  /// list's `cachedFirstPage` — only on the first build of this list: a
+  /// rebuild (`invalidate` after an edit, a retry after an error) must not
+  /// put the old copy back over what the user just changed. [read] calls
+  /// the repository only (see `readFromPhoneOnly`).
+  @protected
+  Future<CursorPage<T>?> phoneCopy(Future<CursorPage<T>> Function() read) =>
+      _rebuilding ? Future.value() : readFromPhoneOnly(read);
 
   /// A saved copy is on screen: catch up with one `updatedSince` instead
   /// of reading the first page again.

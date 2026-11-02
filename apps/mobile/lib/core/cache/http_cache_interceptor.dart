@@ -39,9 +39,12 @@ const _phoneOnlyZoneKey = #lawbidReadFromPhoneOnly;
 /// network. The caller shows what it got and reads the live answer next
 /// (a 304 when nothing changed). A zone value, so no repository signature
 /// has to change.
+///
+/// [read] must only call the repository: resolve providers **before** (a
+/// provider built inside would keep the zone for every timer it starts).
+/// The result is `Future<T?>` (awaited here) so it fits a nullable
+/// `cachedFirstPage`; a miss throws, it is never a quiet null.
 Future<T?> readFromPhoneOnly<T>(Future<T> Function() read) async =>
-    // Awaited here so the caller gets a `Future<T?>` of its own (a miss is
-    // an error, never a quiet null).
     await runZoned(read, zoneValues: {_phoneOnlyZoneKey: true});
 
 /// Whether the code running now is inside [readFromPhoneOnly] (a test
@@ -152,6 +155,11 @@ class HttpCacheInterceptor extends Interceptor {
   ) async {
     if (options.method.toUpperCase() != 'GET' ||
         options.responseType != ResponseType.json) {
+      if (readingFromPhoneOnly) {
+        // Only a JSON GET has a copy; anything else must not go out here.
+        handler.reject(_noCopy(options));
+        return;
+      }
       handler.next(options);
       return;
     }
@@ -171,15 +179,8 @@ class HttpCacheInterceptor extends Interceptor {
     }
     if (readingFromPhoneOnly) {
       if (hit == null) {
-        handler.reject(
-          DioException(
-            requestOptions: options,
-            type: DioExceptionType.cancel,
-            error: kNoPhoneCopy,
-          ),
-        );
+        handler.reject(_noCopy(options));
       } else {
-        _usage?.servedLocally();
         handler.resolve(
           Response<dynamic>(
             requestOptions: options,
@@ -219,6 +220,12 @@ class HttpCacheInterceptor extends Interceptor {
     if (await _followOrLead(options, key, handler)) return;
     handler.next(options);
   }
+
+  static DioException _noCopy(RequestOptions options) => DioException(
+        requestOptions: options,
+        type: DioExceptionType.cancel,
+        error: kNoPhoneCopy,
+      );
 
   /// S15-12: two widgets asking the same URL at the same moment sent two
   /// requests. The first one (the leader) goes out; an identical GET that

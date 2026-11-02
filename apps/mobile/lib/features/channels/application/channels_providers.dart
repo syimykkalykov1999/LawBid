@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/sync/synced_list_notifier.dart';
@@ -108,7 +107,12 @@ class ChannelListNotifier extends SyncedListNotifier<Channel> {
     if (key.scope == ChannelScope.discover || key.query.trim().isNotEmpty) {
       return Future.value();
     }
-    return readFromPhoneOnly(() => fetchPage(null));
+    final repo = ref.read(channelsRepositoryProvider);
+    return phoneCopy(
+      () async => CursorPage(
+        items: await repo.list(key.scope, archived: key.archived),
+      ),
+    );
   }
 
   @override

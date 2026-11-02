@@ -144,6 +144,14 @@ class FakeChannelsRepository implements ChannelsRepository {
         () => CursorPage(items: listed),
       );
 
+  /// How many times a list asked for the phone's HTTP copy.
+  int phoneReads = 0;
+
+  Future<List<Channel>> _noPhoneCopy() {
+    phoneReads++;
+    return Future.error(StateError(kNoPhoneCopy));
+  }
+
   @override
   Future<List<Channel>> list(
     ChannelScope scope, {
@@ -151,7 +159,7 @@ class FakeChannelsRepository implements ChannelsRepository {
     bool archived = false,
   }) =>
       readingFromPhoneOnly
-          ? Future.error(StateError(kNoPhoneCopy))
+          ? _noPhoneCopy()
           : _run(
               'list:${scope.name}:${q ?? ''}${archived ? ':archived' : ''}',
               () => archived ? archivedListed : listed,

@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/cache/cache_providers.dart';
-import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/startup/app_session.dart';
 import 'package:lawbid/core/sync/synced_list_notifier.dart';
@@ -216,11 +215,9 @@ class NotificationsNotifier extends SyncedListNotifier<AppNotification> {
     if (ref.read(notificationQueryProvider).nullIfEmpty != null) {
       return Future.value();
     }
-    return readFromPhoneOnly(
-      () => ref.read(notificationsRepositoryProvider).list(
-            group: ref.read(notificationGroupProvider),
-          ),
-    );
+    final repo = ref.read(notificationsRepositoryProvider);
+    final group = ref.read(notificationGroupProvider);
+    return phoneCopy(() => repo.list(group: group));
   }
 
   @override

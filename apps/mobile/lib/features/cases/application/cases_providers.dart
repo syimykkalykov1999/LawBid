@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
-import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/platform/review_prompter.dart';
@@ -141,9 +140,10 @@ class MyCasesNotifier extends SyncedListNotifier<CaseSummary>
   bool get savedCopyIsFirstPage => true;
 
   @override
-  Future<CursorPage<CaseSummary>?> cachedFirstPage() => readFromPhoneOnly(
-        () => ref.read(casesRepositoryProvider).myCases(filter),
-      );
+  Future<CursorPage<CaseSummary>?> cachedFirstPage() {
+    final repo = ref.read(casesRepositoryProvider);
+    return phoneCopy(() => repo.myCases(filter));
+  }
 
   @override
   Future<CursorPage<CaseSummary>> fetchPage(String? cursor) =>

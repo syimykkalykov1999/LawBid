@@ -135,6 +135,20 @@ void main() {
             'be older than would leave stale rows');
   });
 
+  test('a rebuild (invalidate after an edit) never shows the old copy',
+      () async {
+    final repo = _SyncFake([_case('a')])..phoneCopy = [_case('old')];
+    final c = make(repo);
+    final sub = c.listen(myCasesProvider(MyCasesFilter.active), (_, __) {});
+    addTearDown(sub.close);
+    await c.read(myCasesProvider(MyCasesFilter.active).future);
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+
+    c.invalidate(myCasesProvider(MyCasesFilter.active));
+    final again = await c.read(myCasesProvider(MyCasesFilter.active).future);
+    expect(again.items.map((x) => x.id), ['a']);
+  });
+
   test('case:update is one updatedSince: rows merge, deleted leave', () async {
     final repo = _SyncFake([_case('a'), _case('b')]);
     final c = make(repo);
