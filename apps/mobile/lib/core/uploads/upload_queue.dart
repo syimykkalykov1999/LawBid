@@ -202,6 +202,9 @@ class UploadQueue with WidgetsBindingObserver {
   final _again = <String>{};
   final _retries = <String, Timer>{};
   final _failures = <String, int>{};
+
+  /// The server's `Retry-After` seen on a target's last failed pass.
+  final _serverWait = <String, Duration>{};
   bool _disposed = false;
 
   /// The account whose jobs run now (null signed out).
@@ -361,7 +364,10 @@ class UploadQueue with WidgetsBindingObserver {
       final n = (_failures[target] ?? 0) + 1;
       _failures[target] = n;
       _retries[target]?.cancel();
-      _retries[target] = Timer(backoff(n), () => unawaited(drain()));
+      _retries[target] = Timer(
+        ClientTuning.outboxDelay(n, retryAfter: _serverWait.remove(target)),
+        () => unawaited(drain()),
+      );
     } else {
       _failures.remove(target);
       _retries.remove(target)?.cancel();
@@ -442,6 +448,12 @@ class UploadQueue with WidgetsBindingObserver {
     // is retried and no «failed» message comes back.
     if (await db.byId(job.id) == null) return false;
     final again = temporary(e);
+    if (again && e is ApiException && e.retryAfter != null) {
+      final known = _serverWait[job.target];
+      if (known == null || e.retryAfter! > known) {
+        _serverWait[job.target] = e.retryAfter!;
+      }
+    }
     final code = again ? null : (e is ApiException ? e.code : 'UPLOAD_FAILED');
     await db.attempted(job.id, failedCode: code);
     if (code != null) _handlers[job.kind]?.refused(job, code);

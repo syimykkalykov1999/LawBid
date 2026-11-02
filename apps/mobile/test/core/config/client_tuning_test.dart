@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 
@@ -73,5 +75,41 @@ void main() {
     expect(ClientTuning.eventsFlush, const Duration(seconds: 15));
     expect(ClientTuning.qrPoll, const Duration(seconds: 60));
     expect(ClientTuning.chatPhotoMaxPx, 4096);
+  });
+
+  test('outboxDelay: jitter up to 30%, Retry-After wins and is capped', () {
+    ClientTuning.reset();
+    for (var seed = 0; seed < 20; seed++) {
+      final d = ClientTuning.outboxDelay(3, random: Random(seed));
+      expect(d, greaterThanOrEqualTo(const Duration(seconds: 4)));
+      expect(d, lessThanOrEqualTo(const Duration(milliseconds: 5200)));
+    }
+    final r = Random(1);
+    expect(
+      ClientTuning.outboxDelay(
+        1,
+        retryAfter: const Duration(seconds: 12),
+        random: r,
+      ),
+      const Duration(seconds: 12),
+    );
+    // Asked for more than the outbox ever waits: capped at 30 s.
+    expect(
+      ClientTuning.outboxDelay(
+        1,
+        retryAfter: const Duration(minutes: 5),
+        random: r,
+      ),
+      const Duration(seconds: 30),
+    );
+    // A shorter ask than our own wait does not shorten it.
+    expect(
+      ClientTuning.outboxDelay(
+        4,
+        retryAfter: const Duration(seconds: 1),
+        random: r,
+      ),
+      greaterThanOrEqualTo(const Duration(seconds: 8)),
+    );
   });
 }
