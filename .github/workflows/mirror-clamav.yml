@@ -58,11 +58,12 @@ jobs:
           SOURCE: ${{ inputs.source }}
           TARGET_TAG: ${{ inputs.target_tag }}
         run: |
-          if aws ecr describe-images --repository-name lawbid-clamav --image-ids imageTag="$TARGET_TAG" >/dev/null 2>&1; then
-            echo "::notice::lawbid-clamav:$TARGET_TAG already in ECR (tags are immutable), nothing to do"
-          else
-            docker buildx imagetools create -t "$ECR_REGISTRY/lawbid-clamav:$TARGET_TAG" "$SOURCE"
-          fi
+          rc=0; scripts/ci/require-ecr.sh --probe "lawbid-clamav:$TARGET_TAG" || rc=$?
+          case "$rc" in
+            0) echo "::notice::lawbid-clamav:$TARGET_TAG already in ECR (tags are immutable), nothing to do" ;;
+            1) docker buildx imagetools create -t "$ECR_REGISTRY/lawbid-clamav:$TARGET_TAG" "$SOURCE" ;;
+            *) exit 1 ;;
+          esac
       - name: Proof - the copy has arm64
         env:
           TARGET_TAG: ${{ inputs.target_tag }}

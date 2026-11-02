@@ -76,12 +76,13 @@ jobs:
         env:
           TAG: ${{ inputs.tag }}
         run: |
-          if aws ecr describe-images --repository-name lawbid-pgbouncer --image-ids imageTag="$TAG" >/dev/null 2>&1; then
-            echo "::notice::lawbid-pgbouncer:$TAG already in ECR (tags are immutable), nothing to do"
-            echo "found=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "found=false" >>"$GITHUB_OUTPUT"
-          fi
+          # 0 = found, 1 = tag absent -> build, 2 = anything else -> stop (not "absent")
+          rc=0; scripts/ci/require-ecr.sh --probe "lawbid-pgbouncer:$TAG" || rc=$?
+          case "$rc" in
+            0) echo "::notice::lawbid-pgbouncer:$TAG already in ECR (tags are immutable), nothing to do"; echo "found=true" >>"$GITHUB_OUTPUT" ;;
+            1) echo "found=false" >>"$GITHUB_OUTPUT" ;;
+            *) exit 1 ;;
+          esac
       - name: Build amd64 + arm64 and push
         if: steps.exists.outputs.found == 'false'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2

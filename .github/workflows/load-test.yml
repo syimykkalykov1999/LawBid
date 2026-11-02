@@ -175,12 +175,16 @@ jobs:
           fi
           # All four images the stack pulls, checked TOGETHER and BEFORE any
           # money is spent (audit 2026-11-02: two smoke runs died here, and a
-          # third would have died later in ECS on lawbid-clamav:1.4, a tag no
-          # workflow ever pushes - Mirror ClamAV pushes 1.4-debian). Our own
+          # third would have died later in ECS on a ClamAV tag nobody pushed:
+          # Mirror ClamAV pushes 1.4-debian, prod-images.sh also 1.4). Our own
           # PgBouncer (docs/architecture/DB_POOLER.md): the test runs THROUGH
           # it. Missing repository/tag -> the error names the exact fix.
           CLAMAV_TAG=1.4-debian
           PGBOUNCER_TAG=1.24.0-1
+          # The test stack is x86_64, so the older amd64-only copy
+          # (scripts/deploy/prod-images.sh pushes it as 1.4) also works.
+          rc=0; scripts/ci/require-ecr.sh --probe "lawbid-clamav:$CLAMAV_TAG" >/dev/null 2>&1 || rc=$?
+          if [ "$rc" = 1 ]; then CLAMAV_TAG=1.4; fi
           scripts/ci/require-ecr.sh "lawbid-api:$tag" "lawbid-admin:$tag" "lawbid-clamav:$CLAMAV_TAG" "lawbid-pgbouncer:$PGBOUNCER_TAG"
           echo "api_image=$ECR_REGISTRY/lawbid-api:$tag" >>"$GITHUB_OUTPUT"
           echo "admin_image=$ECR_REGISTRY/lawbid-admin:$tag" >>"$GITHUB_OUTPUT"

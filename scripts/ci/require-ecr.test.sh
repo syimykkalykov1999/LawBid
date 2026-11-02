@@ -24,11 +24,16 @@ run() { # name want-exit want-text args...
 run "repo + tag present" 0 "ok   ECR lawbid-api:1.0" lawbid-api:1.0
 run "repo only present" 0 "ok   ECR lawbid-api" --repo lawbid-api
 run "missing repository names bootstrap" 1 "does not exist. Workflow roles cannot create" lawbid-missing:1.0
-run "missing repo in --repo mode" 1 "RepositoryNotFound\|does not exist" --repo lawbid-missing
+run "missing repo in --repo mode" 1 "repository 'lawbid-missing' does not exist" --repo lawbid-missing
 run "missing tag names the workflow" 1 'Build PgBouncer' lawbid-pgbouncer:9.9
 run "clamav tag names Mirror ClamAV" 1 'Mirror ClamAV' lawbid-clamav:1.4
-run "unexpected error is shown" 1 "AccessDeniedException" lawbid-denied:1.0
+run "unexpected error is shown" 2 "AccessDeniedException" lawbid-denied:1.0
 run "reports every problem, not the first" 1 "lawbid-clamav:1.4" lawbid-missing:1.0 lawbid-clamav:1.4
+run "--repo rejects a :tag" 2 "takes repository names only" --repo lawbid-api:1.0
+run "denied is exit 2 with the hint" 2 "added to infra/bootstrap" lawbid-denied:1.0
+run "probe: found" 0 "ok   ECR" --probe lawbid-api:1.0
+run "probe: tag absent is exit 1" 1 "not there yet" --probe lawbid-api:9.9
+run "probe: missing repository is exit 2, not 'absent'" 2 "does not exist" --probe lawbid-missing:1.0
 run "tag required without --repo" 2 "has no :tag" lawbid-api
 run "no args is usage" 2 "usage"
 
@@ -36,8 +41,8 @@ run "no args is usage" 2 "usage"
 # default (audit 2026-11-02: load-test asked for lawbid-clamav:1.4, Mirror
 # ClamAV pushes 1.4-debian).
 R="$D/../.."
-pick() { sed -n "s/.*$1=\([0-9A-Za-z._-]*\).*/\1/p" "$R/.github/workflows/load-test.yml" | head -1; }
-dflt() { awk -v k="$2" '$0 ~ k":" {f=1} f && /default:/ {gsub(/[" ]/,"",$2); print $2; exit}' "$R/.github/workflows/$1"; }
+pick() { sed -n "s/^ *$1=\([0-9A-Za-z._-]*\) *$/\1/p" "$R/.github/workflows/load-test.yml" | head -1; }
+dflt() { awk -v k="$2" '$0 ~ "^ *"k":" {f=1} f && /default:/ {gsub(/[" ]/,"",$2); print $2; exit}' "$R/.github/workflows/$1"; }
 chk() { if [ -z "$2" ] || [ "$2" != "$3" ]; then echo "FAIL $1: load-test has '$2', workflow default '$3'"; fail=1; else echo "ok   $1 ($2)"; fi; }
 chk "pgbouncer tag matches Build PgBouncer" "$(pick PGBOUNCER_TAG)" "$(dflt build-pgbouncer.yml tag)"
 chk "clamav tag matches Mirror ClamAV" "$(pick CLAMAV_TAG)" "$(dflt mirror-clamav.yml target_tag)"
