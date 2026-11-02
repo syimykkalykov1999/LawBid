@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
@@ -112,8 +113,7 @@ class _ForwardTargetSheetState extends ConsumerState<ForwardTargetSheet> {
       c.counterpart.displayName ?? c.counterpart.username ?? c.caseTitle ?? '?';
 
   bool _matches(String title) {
-    final q = _query.text.trim().toLowerCase();
-    return q.isEmpty || title.toLowerCase().contains(q);
+    return textMatches(_query.text, [title]);
   }
 
   int get _count => _picked.length + _people.length;

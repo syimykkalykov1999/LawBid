@@ -31,7 +31,7 @@ void main() {
     ),
   };
   for (final id in AppThemeId.values) {
-    for (final scale in [1.0, 1.1]) {
+    for (final scale in [1.0, 1.1, 1.3]) {
       for (final e in locales.entries) {
         testWidgets('mute and gift rows: ${id.name} ${e.key} x$scale',
             (t) async {

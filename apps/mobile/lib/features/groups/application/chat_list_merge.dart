@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
@@ -75,7 +76,7 @@ List<ChatListEntry> mergeChatList(
   return [
     for (final c in chats) DirectChatEntry(c),
     for (final g in groups)
-      if (q.isEmpty || g.title.toLowerCase().contains(q)) GroupChatEntry(g),
+      if (textMatches(q, [g.title])) GroupChatEntry(g),
   ]..sort(compareChatEntries);
 }
 

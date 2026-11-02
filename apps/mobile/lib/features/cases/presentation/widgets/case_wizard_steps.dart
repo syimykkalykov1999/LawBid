@@ -389,7 +389,7 @@ class _CategoryTile extends StatelessWidget {
               ),
             ),
             AnimatedSize(
-              duration: motion,
+              duration: context.sizeChangeDuration,
               curve: AppMotion.enterCurve,
               alignment: Alignment.topCenter,
               child: open

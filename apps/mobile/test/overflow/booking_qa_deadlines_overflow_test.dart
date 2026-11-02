@@ -358,7 +358,7 @@ void main() {
         ? AppThemeId.values
         : [AppThemeId.values.first];
     for (final theme in themes) {
-      for (final scale in [1.0, 1.1]) {
+      for (final scale in [1.0, 1.1, 1.3]) {
         for (final attorney in [false, true]) {
           group(
               '$name / ${theme.name} / x$scale / '
