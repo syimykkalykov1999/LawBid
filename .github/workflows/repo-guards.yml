@@ -36,15 +36,20 @@ jobs:
         with:
           node-version: "22.23.4"
 
-      # The audit needs only exceljs (version of package-lock.json), not the
-      # whole monorepo install.
-      - name: Install exceljs only
+      # The audits need only exceljs and fontkit (versions of package-lock.json),
+      # not the whole monorepo install.
+      - name: Install exceljs and fontkit only
         run: |
           V=$(node -p "require('./package-lock.json').packages['node_modules/exceljs'].version")
-          npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund "exceljs@$V"
+          F=$(node -p "require('./package-lock.json').packages['node_modules/fontkit'].version")
+          npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund "exceljs@$V" "fontkit@$F"
 
       - name: Translations are complete in every language
         run: node scripts/i18n-audit.mjs --ci
+
+      # Owner 2026-11-02: languages once showed squares/crosses instead of text.
+      - name: Every language has glyphs on every surface
+        run: node scripts/i18n-glyph-audit.mjs --ci
 
       - name: SEO generator tests (deep links vs the Android manifest)
         run: node --test scripts/seo/test/*.test.mjs

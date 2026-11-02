@@ -1,0 +1,141 @@
+{
+  "_comment": "Scripts Inter/Source Serif 4 do not draw. Each entry lists the surfaces that provide a fallback font: android = system Noto, ios = system fonts (CoreText cascade), web = Flutter engine loads Noto from fonts.gstatic.com (CSP allows it, infra/modules/web/main.tf). A language whose text needs a script not listed here fails CI.",
+  "fallback": {
+    "Han": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Katakana": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Hiragana": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Hangul": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Thai": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Devanagari": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Bengali": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Arabic": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Tamil": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Telugu": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Gujarati": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Kannada": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Malayalam": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Gurmukhi": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Hebrew": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Armenian": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Ethiopic": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Khmer": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Georgian": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Myanmar": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Lao": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Sinhala": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Tibetan": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Thaana": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Mongolian": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Syriac": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "Tifinagh": [
+      "android",
+      "ios",
+      "web"
+    ]
+  },
+  "pdf": "Server PDFs (apps/api/src/modules/**.pdf.ts) embed only Inter: Latin, Cyrillic and Greek. Names or text in any other script print as empty boxes until Noto fonts are added to apps/api/assets/fonts."
+}
