@@ -207,7 +207,7 @@ resource "aws_s3_bucket_cors_configuration" "documents" {
   bucket = aws_s3_bucket.documents.id
   cors_rule {
     allowed_origins = var.cors_allowed_origins
-    allowed_methods = ["POST", "GET", "HEAD"]
+    allowed_methods = ["POST", "PUT", "GET", "HEAD"]
     allowed_headers = ["*"]
     expose_headers  = ["ETag"]
     max_age_seconds = 3000
@@ -394,7 +394,7 @@ resource "aws_s3_bucket_cors_configuration" "media" {
   bucket = aws_s3_bucket.media.id
   cors_rule {
     allowed_origins = var.cors_allowed_origins
-    allowed_methods = ["POST", "GET", "HEAD"]
+    allowed_methods = ["POST", "PUT", "GET", "HEAD"]
     allowed_headers = ["*"]
     expose_headers  = ["ETag"]
     max_age_seconds = 3000

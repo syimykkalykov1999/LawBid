@@ -81,6 +81,7 @@ module "stack" {
   worker_spot                     = var.worker_spot
   api_spot                        = var.api_spot
   turn_enabled                    = var.turn_enabled
+  turn_on_demand                  = var.turn_on_demand
   turn_second_enabled             = var.turn_second_enabled
   turn_traffic_alarm_gb_per_day   = var.turn_traffic_alarm_gb_per_day
   turn_instance_type              = var.turn_instance_type

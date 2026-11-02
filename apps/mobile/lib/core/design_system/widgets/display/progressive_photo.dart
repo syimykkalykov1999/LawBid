@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 
@@ -17,6 +18,7 @@ class ProgressivePhoto extends StatelessWidget {
     this.fit = BoxFit.cover,
     this.decodeWidth = 1080,
     this.fadeIn,
+    this.blurhash,
     super.key,
   });
 
@@ -26,6 +28,9 @@ class ProgressivePhoto extends StatelessWidget {
   final BoxFit fit;
   final int decodeWidth;
   final Duration? fadeIn;
+
+  /// The API's BlurHash of the picture; drawn first, before the 320 px copy.
+  final String? blurhash;
 
   /// The widget key of the soft stand-in (tests look for it).
   static const previewKey = ValueKey('progressive-photo-preview');
@@ -50,8 +55,9 @@ class ProgressivePhoto extends StatelessWidget {
         memCacheWidth: 320,
         fit: fit,
         fadeInDuration: Duration.zero,
-        placeholder: (_, __) => ColoredBox(color: colors.skeletonBase),
-        errorWidget: (_, __, ___) => ColoredBox(color: colors.skeletonBase),
+        placeholder: (_, __) => blurhashStandIn(blurhash, colors.skeletonBase),
+        errorWidget: (_, __, ___) =>
+            blurhashStandIn(blurhash, colors.skeletonBase),
       ),
       errorWidget: (_, __, ___) => ColoredBox(
         color: colors.skeletonBase,
@@ -62,4 +68,16 @@ class ProgressivePhoto extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The picture's BlurHash as a soft stand-in; the flat skeleton colour when
+/// the file has none (older uploads) or the hash is malformed.
+Widget blurhashStandIn(String? hash, Color fallback) {
+  if (hash == null || hash.length < 6) return ColoredBox(color: fallback);
+  return BlurHash(
+    hash: hash,
+    color: fallback,
+    duration: Duration.zero,
+    errorBuilder: (_, __, ___) => ColoredBox(color: fallback),
+  );
 }
