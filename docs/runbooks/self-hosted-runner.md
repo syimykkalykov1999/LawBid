@@ -25,3 +25,28 @@ scripts/ci/self-hosted-runner.sh status
 - Контейнер раннера исполняет код PR из репозитория: любой, у кого есть запись в репозиторий, исполняет код на ноуте. Docker-in-Docker привилегированный. Лучше запускать в отдельной ВМ или на ноуте без личных данных и не держать на нём `gh` с лишними правами.
 - Секреты репозитория доступны job так же, как на GitHub.
 - Пока идёт нагрузочный тест, ноут не трогаем: `up` не запускать.
+
+## Вариант попроще: один раннер службой systemd (без скрипта и gh)
+Для начала хватает одного раннера (он берёт job по очереди, на 32 ядрах API CI идёт параллельно по job только если раннеров несколько: повторите шаги 3–4 в каталогах runner2, runner3, runner4).
+
+1. В браузере: GitHub → репозиторий → Settings → Actions → Runners → **New self-hosted runner** → Linux x64. Страница покажет токен (живёт 1 час, никому не отправлять) и актуальную ссылку на архив.
+2. Отдельный пользователь без sudo и без личных файлов:
+```
+sudo useradd -m -s /bin/bash ghrunner
+sudo usermod -aG docker ghrunner     # нужен для Postgres/Redis service-контейнеров
+sudo -iu ghrunner
+```
+3. Скачать и настроить (команды curl/tar скопировать со страницы из п.1, затем):
+```
+./config.sh --url https://github.com/syimykkalykov1999/LawBid --token <ТОКЕН_СО_СТРАНИЦЫ> --labels lawbid-ci --name laptop-1 --unattended
+```
+4. Служба (из под обычного пользователя с sudo, не ghrunner):
+```
+cd /home/ghrunner/actions-runner
+sudo ./svc.sh install ghrunner && sudo ./svc.sh start && sudo ./svc.sh status
+```
+5. Settings → Actions → Runners: раннер `laptop-1` должен быть **Idle**.
+6. Включить: Settings → Secrets and variables → Actions → **Variables** → New repository variable `CI_RUNNER` = `self`. Выключить: значение `github` (или удалить переменную).
+7. Проверка, что внешние PR сюда не попадают: (а) Settings → Actions → General → Fork pull request workflows → «Require approval for all outside collaborators»; (б) в `api-ci.yml` условие `github.event.pull_request.head.repo.full_name == github.repository` пускает на раннер только PR из этого репозитория; PR из форка идёт на `ubuntu-latest`; (в) открыть тестовый PR и в логе job строка «Runner name» должна быть `laptop-1`.
+
+Docker-вариант со скриптом `self-hosted-runner.sh` безопаснее (раннер уничтожается после каждого job), но требует `gh` на ноуте.
