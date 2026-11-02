@@ -84,7 +84,7 @@ class _QuickRepliesSheetState extends ConsumerState<QuickRepliesSheet> {
                       ),
                     ),
                     IconButton(
-                      tooltip: t.t('quick.add'),
+                      tooltip: t.t('channel.admins.addButton'),
                       onPressed: () => _editor(null),
                       icon: AppIcon(
                         AppIcons.addRounded,
@@ -139,7 +139,7 @@ class _QuickRepliesSheetState extends ConsumerState<QuickRepliesSheet> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
-                                  tooltip: t.t('quick.edit'),
+                                  tooltip: t.t('reviews.reply.edit'),
                                   onPressed: () => _editor(r),
                                   icon: AppIcon(
                                     AppIcons.editOutlined,
@@ -147,7 +147,7 @@ class _QuickRepliesSheetState extends ConsumerState<QuickRepliesSheet> {
                                   ),
                                 ),
                                 IconButton(
-                                  tooltip: t.t('quick.delete'),
+                                  tooltip: t.t('common.delete'),
                                   onPressed: () => _delete(r),
                                   icon: AppIcon(
                                     AppIcons.deleteOutlineRounded,
@@ -237,7 +237,7 @@ class _QuickReplyEditorState extends ConsumerState<_QuickReplyEditor> {
               maxLength: 60,
               textCapitalization: TextCapitalization.sentences,
               onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(labelText: t.t('quick.name')),
+              decoration: InputDecoration(labelText: t.t('cases.field.title')),
             ),
             TextField(
               controller: _body,
@@ -246,7 +246,7 @@ class _QuickReplyEditorState extends ConsumerState<_QuickReplyEditor> {
               maxLines: 6,
               textCapitalization: TextCapitalization.sentences,
               onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(labelText: t.t('quick.text')),
+              decoration: InputDecoration(labelText: t.t('chat.hint')),
             ),
             if (_error != null)
               Padding(
@@ -255,7 +255,7 @@ class _QuickReplyEditorState extends ConsumerState<_QuickReplyEditor> {
                     Text(_error!, style: TextStyle(color: colors.dangerText)),
               ),
             AppButton(
-              label: t.t('quick.save'),
+              label: t.t('common.save'),
               isLoading: _busy,
               isEnabled: _valid,
               onPressed: _busy ? null : _save,
