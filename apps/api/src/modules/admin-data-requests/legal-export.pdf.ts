@@ -7,6 +7,8 @@ export interface LegalReportInput {
   requestType: string;
   scope: string;
   exportId: string;
+  /** Document language (BCP-47), picks the Han font. */
+  lang?: string;
   requestedBy: string;
   generatedAt: Date;
   subject: {
@@ -31,7 +33,7 @@ export function renderLegalReportPdf(input: LegalReportInput): Promise<Buffer> {
     doc.on('data', (c: Buffer) => chunks.push(c));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
-    applyPdfFonts(doc);
+    applyPdfFonts(doc, { lang: input.lang });
     doc.fillColor('#0B1B3F').fontSize(18).text('LawBid — Records disclosure');
     doc.moveDown(0.4).fillColor('#000').fontSize(10);
     const head: [string, string][] = [

@@ -408,9 +408,18 @@ export function applyPdfFonts(
     const startX = doc.x;
     const y = hasPos ? (b as number | undefined) : undefined;
 
-    // An RTL paragraph sits against the right edge: measure the pieces and
-    // start so the line ends at the right margin, when it fits in one line.
-    if (rtlParagraph && (opts?.align === undefined || opts.align === 'left')) {
+    // pdfkit cannot align a line drawn as several continued fragments, so a
+    // line that fits is placed by measuring: an RTL paragraph sits against the
+    // right edge unless told otherwise, center and right work for every script.
+    let placed = false;
+    const requested = opts?.align as string | undefined;
+    const align =
+      requested === undefined || requested === 'left' || requested === 'justify'
+        ? rtlParagraph
+          ? 'right'
+          : 'left'
+        : requested;
+    if (align !== 'left') {
       const x0 = x ?? doc.x;
       const box =
         (opts?.width as number | undefined) ??
@@ -420,7 +429,10 @@ export function applyPdfFonts(
         doc.font(fontFor(f.font));
         total += doc.widthOfString(f.text);
       }
-      if (total <= box) x = x0 + box - total;
+      if (total <= box) {
+        x = align === 'center' ? x0 + (box - total) / 2 : x0 + box - total;
+        placed = true;
+      }
     }
 
     fragments.forEach((f, i) => {
@@ -428,6 +440,8 @@ export function applyPdfFonts(
       const last = i === fragments.length - 1;
       const o = {
         ...(opts ?? {}),
+        // placed by hand: the fragment must not be aligned a second time
+        ...(placed ? { align: 'left', width: undefined } : {}),
         continued: last ? opts?.continued === true : true,
       };
       if (i === 0 && x !== undefined) original(f.text, x, y ?? doc.y, o);

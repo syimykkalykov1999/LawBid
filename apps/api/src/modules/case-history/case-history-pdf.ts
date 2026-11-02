@@ -21,6 +21,7 @@ function date(iso: string | null): string {
 
 /** docs/04 §12 "Скачать PDF": list of cases + their timelines. */
 export function renderCaseHistoryPdf(input: {
+  lang?: string;
   generatedAt: Date;
   cases: CaseHistoryDetailDto[];
   truncated: boolean;
@@ -32,7 +33,7 @@ export function renderCaseHistoryPdf(input: {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    applyPdfFonts(doc);
+    applyPdfFonts(doc, { lang: input.lang });
 
     doc.fillColor(NAVY).fontSize(20).text('LawBid — Case history');
     doc

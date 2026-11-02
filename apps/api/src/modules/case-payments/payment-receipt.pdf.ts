@@ -15,6 +15,8 @@ const money = (cents: number) =>
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : '—');
 
 export interface ReceiptInput {
+  /** Document language (BCP-47), picks the Han font. */
+  lang?: string;
   payment: CasePaymentDto;
   quote: PaymentQuote;
   clientEmail: string | null;
@@ -40,7 +42,7 @@ export function renderPaymentReceiptPdf(input: ReceiptInput): Promise<Buffer> {
     doc.on('data', (c: Buffer) => chunks.push(c));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
-    applyPdfFonts(doc);
+    applyPdfFonts(doc, { lang: input.lang });
     const p = input.payment;
     const q = input.quote;
     const left = doc.page.margins.left;

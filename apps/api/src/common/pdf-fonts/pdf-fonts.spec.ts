@@ -56,6 +56,26 @@ describe('PDF fonts: script fallback', () => {
     expect(layoutLine('Client: محمد').rtlParagraph).toBe(false);
   });
 
+  it('places RTL and mixed-script lines for every alignment and keeps the next line at the margin', async () => {
+    const doc = new PDFDocument();
+    const chunks: Buffer[] = [];
+    doc.on('data', (c: Buffer) => chunks.push(c));
+    const done = new Promise<void>((r) => doc.on('end', () => r()));
+    applyPdfFonts(doc, { lang: 'ar' });
+    const margin = doc.x;
+    const xs: number[] = [];
+    for (const align of ['left', 'center', 'right', 'justify'] as const) {
+      doc.text('المبلغ: 1500 USD', { align });
+      xs.push(doc.x);
+    }
+    doc.text('ไทย สมชาย', { align: 'center' });
+    xs.push(doc.x);
+    doc.end();
+    await done;
+    expect(xs.every((x) => x === margin)).toBe(true);
+    expect(Buffer.concat(chunks).length).toBeGreaterThan(1000);
+  });
+
   it('picks the Han font by document locale', () => {
     const font = (t: string, lang?: string) => splitRuns(t, lang)[0].font;
     expect(font('漢字', 'ja')).toBe('Noto-NotoSansCJKjp');

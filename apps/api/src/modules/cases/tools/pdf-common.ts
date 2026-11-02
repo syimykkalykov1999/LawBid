@@ -14,6 +14,8 @@ export function startPdf(info: {
   bufferPages?: boolean;
   bottomMargin?: number;
   creationDate?: Date;
+  /** Document language (BCP-47), picks the Han font for CJK text. */
+  lang?: string;
 }): {
   doc: PDFKit.PDFDocument;
   done: Promise<Buffer>;
@@ -40,7 +42,7 @@ export function startPdf(info: {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
   });
-  applyPdfFonts(doc);
+  applyPdfFonts(doc, { lang: info.lang });
   return { doc, done };
 }
 
