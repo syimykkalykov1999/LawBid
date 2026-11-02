@@ -12,8 +12,10 @@ import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_stats_screen.dart';
 import 'package:lawbid/features/profile/presentation/widgets/client_profile_view.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_text_sheet.dart';
+import 'package:lawbid/shared/domain/cursor_page.dart';
 
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -36,7 +38,39 @@ typedef _Case = (
   bool client,
   List<Override> extra,
   FakeCasesRepository? cases,
+  FakeSocialRepository? social,
 );
+
+/// A post whose comments have a long author name and a long text.
+class LongCommentsSocial extends FakeSocialRepository {
+  @override
+  Future<CursorPage<Comment>> comments(
+    String postId, {
+    String? cursor,
+  }) async =>
+      CursorPage(
+        items: [
+          for (var i = 0; i < 2; i++)
+            Comment(
+              id: 'c$i',
+              postId: postId,
+              author: const CommentAuthor(
+                isAttorney: true,
+                displayName: 'Bartholomew-Alexander-Maximilian Wolfeschlegel',
+                verified: true,
+                username: 'a_very_long_username_of_thirty_chars',
+              ),
+              body: '$longText $longText',
+              likeCount: 1234567,
+              replyCount: 9999,
+              likedByMe: true,
+              canDelete: true,
+              isMine: false,
+              createdAt: DateTime(2026, 10, 30),
+            ),
+        ],
+      );
+}
 
 void main() {
   setUpAll(initializeDateFormatting);
@@ -60,12 +94,28 @@ void main() {
         expect(what, findsWidgets);
       };
 
+  /// The stats tiles are on screen: no spinner, no retry button, and a
+  /// label with a value for each of the four numbers.
+  Future<void> statsShown(WidgetTester tester) async {
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byType(AppButton), findsNothing);
+    expect(find.byType(Text), findsAtLeastNWidgets(9));
+  }
+
   Future<void> tapOpen(WidgetTester tester) async {
     await tester.tap(find.byKey(const Key('open')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
     expect(find.byType(BottomSheet), findsOneWidget);
   }
+
+  Future<void> Function(WidgetTester) openAndShow(Finder what) =>
+      (tester) async {
+        await tapOpen(tester);
+        await tester.pump(const Duration(seconds: 1));
+        expect(what, findsWidgets);
+      };
 
   const longBody = '$longText $longText';
   final longChannelPost = ch.fakePost(
@@ -119,17 +169,19 @@ void main() {
           true,
           profileExtra,
           null,
+          null,
         ),
         'attorney cases tab': (
           () => const AttorneyCasesTab(),
           shows(find.textContaining('Disputed commercial')),
           false,
           profileExtra,
-          LongCasesRepository(),
+          LongFeedCasesRepository(),
+          null,
         ),
         'attorney stats': (
           () => const AttorneyStatsScreen(),
-          shows(find.byType(Container)),
+          statsShown,
           false,
           [
             attorneyStatsProvider.overrideWith(
@@ -141,6 +193,7 @@ void main() {
               ),
             ),
           ],
+          null,
           null,
         ),
         'channel post card': (
@@ -161,6 +214,7 @@ void main() {
             currentUserIdProvider.overrideWithValue('me'),
           ],
           null,
+          null,
         ),
         'comments sheet': (
           () => opener(
@@ -170,10 +224,11 @@ void main() {
                   commentsEnabled: true,
                 ),
               ),
-          tapOpen,
+          openAndShow(find.textContaining('Bartholomew')),
           false,
           [],
           null,
+          LongCommentsSocial(),
         ),
         'post text sheet': (
           () => opener(
@@ -182,9 +237,10 @@ void main() {
                   fakePost('p1').copyWith(body: longBody),
                 ),
               ),
-          tapOpen,
+          openAndShow(find.textContaining('The landlord')),
           false,
           [],
+          null,
           null,
         ),
       };
@@ -195,7 +251,7 @@ void main() {
       group('batch 2: no overflow at 360 dp ($name, x$scale)', () {
         for (final MapEntry(
               key: label,
-              value: (build, act, client, extra, repo),
+              value: (build, act, client, extra, repo, social),
             ) in cases().entries) {
           testWidgets(label, (tester) async {
             await pumpOverflowApp(
@@ -207,6 +263,7 @@ void main() {
               client: client,
               extra: extra,
               cases: repo,
+              social: social,
               act: act,
             );
           });
@@ -218,7 +275,7 @@ void main() {
     group('batch 2: themes (${themeId.name}, longest, x1.3)', () {
       for (final MapEntry(
             key: label,
-            value: (build, act, client, extra, repo),
+            value: (build, act, client, extra, repo, social),
           ) in cases().entries) {
         testWidgets(label, (tester) async {
           await pumpOverflowApp(
@@ -231,6 +288,7 @@ void main() {
             client: client,
             extra: extra,
             cases: repo,
+            social: social,
             act: act,
           );
         });

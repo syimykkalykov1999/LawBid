@@ -6,10 +6,6 @@
 Маршрут дела (адвокат и клиент), правка дела, дело в работе, юридический документ, папки чатов, шторки: создание, «поделиться», запросы в группу. Правка и маршрут дела клиента идут с длинным делом (название, описание, город, бюджет 999 999 999,99, закрытые детали, 4 штата).
 Дело в работе (`WorkCaseScreen`) пока в состоянии по умолчанию: нужен фикстурный `attorneyCase`.
 
-## Пачка 2 (`test/overflow/batch2_overflow_test.dart`)
-Профиль клиента (длинные имя и ник), вкладка дел адвоката (два длинных дела), статистика адвоката (числа в десятки миллионов), пост канала (длинный текст, миллионы просмотров и комментариев, длинное имя канала), шторки «комментарии» и «текст поста». 7 языков × масштаб 1 и 1,3 и 4 темы на самом длинном тексте, 108 проверок. Каждая проверка убеждается, что на экране настоящие данные, а не «офлайн» или загрузка (сначала три экрана рисовали «офлайн», это найдено и исправлено подстановкой данных). Наездов не найдено, код экранов не менялся.
-Пока без теста из этой пачки: `case_payments_card`, `payment_request_sheet` (нужна фикстура `CasePaymentsState`), остальные из списка ниже.
-
 ## Осталось (файлы без теста)
-- Данные и шторки: `post_attachments_sheet`, `story_viewer_sheets`, `story_publish_sheet`, `sections_archive`, `case_payments_card`, `payment_request_sheet`, `chat_video`, `contacts_states`, `demo_section`, `app_paginated_list_view`.
+- Данные и шторки: `comments_sheet`, `post_text_sheet`, `post_attachments_sheet`, `story_viewer_sheets`, `story_publish_sheet`, `channel_post_card`, `sections_archive`, `case_payments_card`, `payment_request_sheet`, `client_profile_view`, `attorney_cases_tab`, `attorney_stats_screen`, `chat_video`, `contacts_states`, `demo_section`, `app_paginated_list_view`.
 - Камера (нельзя отрисовать в тесте, проверять на телефоне): `id_selfie_capture_screen`, `camera_capture_screen`, `story_camera_view`; `secure_screen` (платформенный).

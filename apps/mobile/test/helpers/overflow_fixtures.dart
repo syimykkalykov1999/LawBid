@@ -41,12 +41,14 @@ OwnerCase longOwnerCase() => OwnerCase(
       privateDetails: longText,
     );
 
-/// A cases repository whose `ownerCase` is [longOwnerCase] and whose feed is
-/// two [longFeedCase]s.
+/// A cases repository whose `ownerCase` is [longOwnerCase].
 class LongCasesRepository extends FakeCasesRepository {
   @override
   Future<OwnerCase> ownerCase(String caseId) async => longOwnerCase();
+}
 
+/// [LongCasesRepository] whose feed is two [longFeedCase]s.
+class LongFeedCasesRepository extends LongCasesRepository {
   @override
   Future<CursorPage<FeedCase>> feed({
     String? cursor,

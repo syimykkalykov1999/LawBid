@@ -49,11 +49,15 @@ const overflowScales = [1.0, DeviceTextScale.shellMax];
 
 /// A signed-in, verified attorney (or, with `client: true`, a client).
 class AttorneySession extends SessionController {
+  AttorneySession({this.role = 'attorney'});
+
+  final String role;
+
   @override
   SessionState? build() => SessionState(
         accessToken: 'at',
         sub: 'user-1',
-        role: 'attorney',
+        role: role,
         sid: 's1',
         verified: true,
         subscriptionStatus: 'none',
@@ -95,7 +99,9 @@ Future<void> pumpOverflowApp(
         referralOffOverride,
         partnerOffOverride,
         templatesOffOverride,
-        sessionControllerProvider.overrideWith(AttorneySession.new),
+        sessionControllerProvider.overrideWith(
+          () => AttorneySession(role: client ? 'client' : 'attorney'),
+        ),
         currentUserControllerProvider.overrideWith(
           () => FixedUserController(
             CurrentUserState.ready(client ? clientMe() : attorneyMe()),
