@@ -4,13 +4,13 @@ import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/cache/chat_media_providers.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart'
     show decodeWidthFor;
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/features/chat/application/link_preview_providers.dart';
-import 'package:lawbid/features/settings/storage/application/storage_providers.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Owner 2026-10-22 (checklist, link previews): the card under a message

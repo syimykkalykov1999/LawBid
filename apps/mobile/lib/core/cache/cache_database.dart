@@ -144,9 +144,6 @@ class FileViewsSync extends Table {
   Set<Column> get primaryKey => {owner, fileId};
 }
 
-/// The cache database (`lawbid_cache`). On the web build it lives only in
-/// the tab's memory (plan §5: a shared or private computer keeps nothing
-/// of the account on disk); on phones it is a file the OS protects.
 /// Owner 2026-11-02 («Данные и память» по чатам, как у Telegram): which
 /// chat a cached chat picture came from. The picture cache is keyed by URL,
 /// so without this the phone cannot tell whose pictures take the space.
@@ -162,6 +159,9 @@ class ChatMediaFiles extends Table {
   Set<Column> get primaryKey => {url};
 }
 
+/// The cache database (`lawbid_cache`). On the web build it lives only in
+/// the tab's memory (plan §5: a shared or private computer keeps nothing
+/// of the account on disk); on phones it is a file the OS protects.
 @DriftDatabase(
   tables: [
     HttpCache,
