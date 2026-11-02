@@ -2,6 +2,7 @@ import { CircuitOpenError } from './resilience';
 import { outageProof } from '../queues/queue-hardening';
 import {
   isTransientInfraError,
+  isDatabaseOutageError,
   isUnreachableBeforeSend,
   retryTransient,
 } from './transient-errors';
@@ -36,7 +37,11 @@ describe('isTransientInfraError', () => {
   ])('does not retry %p', (e) => expect(isTransientInfraError(e)).toBe(false));
 
   it('a write is repeated only when it never left the process', () => {
-    expect(isUnreachableBeforeSend(prismaErr('P1001'))).toBe(true);
+    expect(isUnreachableBeforeSend(new Error('connect ECONNREFUSED'))).toBe(
+      true,
+    );
+    // P1001 may also mean a connection that dropped mid-query.
+    expect(isUnreachableBeforeSend(prismaErr('P1001'))).toBe(false);
     expect(isUnreachableBeforeSend(prismaErr('P1017'))).toBe(false);
     expect(isUnreachableBeforeSend(prismaErr('P1002'))).toBe(false);
   });
@@ -48,18 +53,21 @@ function flakyDb(downMs: number, clock: { t: number }) {
   let calls = 0;
   return {
     calls: () => calls,
-    query: async () => {
+    query: () => {
       calls += 1;
       if (clock.t < upAt)
-        throw prismaErr('P1001', "Can't reach database server");
-      return 'ok';
+        return Promise.reject(
+          prismaErr('P1001', "Can't reach database server"),
+        );
+      return Promise.resolve('ok');
     },
   };
 }
 
 describe('outage simulation: database away for 40 s', () => {
-  const clockSleep = (clock: { t: number }) => async (ms: number) => {
+  const clockSleep = (clock: { t: number }) => (ms: number) => {
     clock.t += ms;
+    return Promise.resolve();
   };
 
   it('retryTransient rides it out without a restart', async () => {
@@ -93,7 +101,7 @@ describe('outage simulation: database away for 40 s', () => {
   it('does not repeat a real error', async () => {
     const fn = jest.fn().mockRejectedValue(prismaErr('P2002'));
     await expect(
-      retryTransient(fn, { sleep: async () => undefined }),
+      retryTransient(fn, { sleep: () => Promise.resolve() }),
     ).rejects.toMatchObject({ code: 'P2002' });
     expect(fn).toHaveBeenCalledTimes(1);
   });
@@ -102,15 +110,45 @@ describe('outage simulation: database away for 40 s', () => {
     jest.useFakeTimers();
     try {
       const upAt = Date.now() + 40_000;
-      const process = jest.fn(async (id: string) => {
-        if (Date.now() < upAt) throw new Error('read ECONNRESET');
-        return `done ${id}`;
+      const process = jest.fn((id: string) => {
+        if (Date.now() < upAt) return Promise.reject(prismaErr('P1017'));
+        return Promise.resolve(`done ${id}`);
       });
       const run = outageProof(process)('job-1');
       await jest.advanceTimersByTimeAsync(60_000);
       await expect(run).resolves.toBe('done job-1');
+      // A partner call timing out is NOT repeated (its side effect may exist).
+      const push = jest.fn().mockRejectedValue(new Error('read ECONNRESET'));
+      await expect(outageProof(push)()).rejects.toThrow('ECONNRESET');
+      expect(push).toHaveBeenCalledTimes(1);
     } finally {
       jest.useRealTimers();
     }
   });
+});
+
+describe('isDatabaseOutageError (whole-job retries)', () => {
+  it('matches a database outage only', () => {
+    expect(isDatabaseOutageError(prismaErr('P1017'))).toBe(true);
+    expect(isDatabaseOutageError(prismaErr('57P01'))).toBe(true);
+    expect(
+      isDatabaseOutageError(
+        Object.assign(new Error('x'), {
+          name: 'CircuitOpenError',
+          service: 'database#1',
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    new Error('read ECONNRESET'), // FCM / Stripe / SES call: side effect unknown
+    new Error('Connection is closed.'), // Redis: the job lock goes with it
+    new Error('Command timed out'),
+    Object.assign(new Error('x'), {
+      name: 'CircuitOpenError',
+      service: 'stripe',
+    }),
+    prismaErr('P2002'),
+  ])('does not match %p', (e) => expect(isDatabaseOutageError(e)).toBe(false));
 });

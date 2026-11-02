@@ -15,11 +15,6 @@ const PRISMA_CONNECTION = new Set([
   'P1017', // server closed the connection
   'P2024', // connection pool timeout
 ]);
-/** Prisma codes where the request provably never left this process: no
- * connection was made. (P1002 «reached but timed out» is NOT here: the
- * server may have executed the statement.) */
-const PRISMA_NEVER_SENT = new Set(['P1001']);
-
 /** SQLSTATE classes/codes of a restarting or failing-over server. */
 const PG_TRANSIENT_STATES = new Set([
   '57P01', // admin_shutdown (terminating connection due to administrator command)
@@ -68,13 +63,12 @@ export function isTransientInfraError(error: unknown, depth = 0): boolean {
 export function isUnreachableBeforeSend(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const e = error as ErrorLike;
-  const code = codeOf(e);
-  if (code && PRISMA_NEVER_SENT.has(code)) return true;
+  // Only the OS-level «no connection could be made» errors. Prisma's P1001
+  // is NOT trusted: the engine can also raise it for a connection that
+  // dropped mid-query, and repeating a write that may have run doubles it.
   return (
     typeof e.message === 'string' &&
-    /ECONNREFUSED|ENOTFOUND|EAI_AGAIN|can't reach database server/i.test(
-      e.message,
-    )
+    /ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(e.message)
   );
 }
 
@@ -131,4 +125,32 @@ export async function retryTransient<T>(
       await sleep(wait);
     }
   }
+}
+
+/** The DATABASE was briefly away (Prisma connection codes, PostgreSQL
+ * shutdown/failover states, a paused `database#…` circuit). Narrower than
+ * [isTransientInfraError] on purpose: used to repeat a whole job body, so
+ * it must not match a timeout of a partner HTTP call (FCM, Stripe, SES…)
+ * whose side effect may already have happened, nor a Redis outage (the
+ * job's lock is lost with it and another worker takes the job over). */
+export function isDatabaseOutageError(error: unknown, depth = 0): boolean {
+  if (!error || typeof error !== 'object' || depth > 3) return false;
+  const e = error as ErrorLike & { name?: unknown; service?: unknown };
+  if (e.name === 'CircuitOpenError') {
+    return typeof e.service === 'string' && e.service.startsWith('database');
+  }
+  const code = codeOf(e);
+  if (code && (PRISMA_CONNECTION.has(code) || PG_TRANSIENT_STATES.has(code))) {
+    return true;
+  }
+  if (code && /^08/.test(code)) return true;
+  if (
+    typeof e.message === 'string' &&
+    /terminating connection|server closed the connection|can't reach database server|read-only transaction|the database system is (?:starting up|shutting down)|Timed out fetching a new connection/i.test(
+      e.message,
+    )
+  ) {
+    return true;
+  }
+  return e.cause ? isDatabaseOutageError(e.cause, depth + 1) : false;
 }

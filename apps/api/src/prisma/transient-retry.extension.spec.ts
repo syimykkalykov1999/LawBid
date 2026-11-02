@@ -44,3 +44,27 @@ describe('database circuit breaker', () => {
     expect(b.isOpen).toBe(false);
   });
 });
+
+describe('half-open trial', () => {
+  it('a trial that never settles does not shut the circuit for good', async () => {
+    const clock = { t: 0 };
+    const b = new CircuitBreaker('db-trial', {
+      threshold: 1,
+      openMs: 1_000,
+      now: () => clock.t,
+    });
+    await expect(
+      b.run(
+        () => Promise.reject(new Error('x')),
+        () => true,
+      ),
+    ).rejects.toThrow('x');
+    clock.t = 2_000; // pause over: one trial call goes through ...
+    void b.run(() => new Promise(() => undefined)); // ... and hangs
+    await expect(b.run(() => Promise.resolve(1))).rejects.toBeInstanceOf(
+      CircuitOpenError,
+    );
+    clock.t = 2_000 + 31_000; // deadline passed: the next call is the trial
+    await expect(b.run(() => Promise.resolve('up'))).resolves.toBe('up');
+  });
+});
