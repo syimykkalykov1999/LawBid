@@ -3,7 +3,7 @@ import { startTelemetry } from './telemetry/otel';
 
 startTelemetry('api');
 
-import { installProcessGuards } from './common/process-guards';
+import { installProcessGuards, runEntrypoint } from './common/process-guards';
 
 installProcessGuards();
 
@@ -59,4 +59,4 @@ async function bootstrap(): Promise<void> {
   server.headersTimeout = server.keepAliveTimeout + 1_000; // 311 s
 }
 
-void bootstrap();
+void runEntrypoint('api', bootstrap);

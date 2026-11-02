@@ -3,7 +3,7 @@ import { startTelemetry } from './telemetry/otel';
 
 startTelemetry('worker');
 
-import { installProcessGuards } from './common/process-guards';
+import { installProcessGuards, runEntrypoint } from './common/process-guards';
 
 installProcessGuards();
 
@@ -42,4 +42,4 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 }
 
-void bootstrap();
+void runEntrypoint('worker', bootstrap);
