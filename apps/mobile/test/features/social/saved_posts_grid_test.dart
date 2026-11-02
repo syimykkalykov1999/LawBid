@@ -87,7 +87,8 @@ void main() {
     );
   });
 
-  test('overrideIdsWhere: only the shown ids, sorted, empty when none', () {
+  test('overrideIdsWhere: only the shown ids, in list order, empty when none',
+      () {
     final saved = post('a');
     final unsaved = post('b').copyWith(savedByMe: false);
     final map = {'a': saved, 'b': unsaved, 'z': unsaved};
@@ -96,7 +97,10 @@ void main() {
     expect(overrideIdsWhere(map, ['a'], notSaved), '');
     expect(overrideIdsWhere(const {}, ['a'], notSaved), '');
     expect(overrideIdSet(''), isEmpty);
-    expect(overrideIdSet('b,c'), {'b', 'c'});
+    expect(
+      overrideIdSet(overrideIdsWhere(map, ['z', 'b', 'a,c'], notSaved)),
+      {'z', 'b'},
+    );
   });
 
   testWidgets('a like elsewhere does not rebuild the grid; an unsave does',

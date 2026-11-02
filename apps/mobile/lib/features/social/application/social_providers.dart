@@ -119,11 +119,11 @@ final postOverridesProvider =
     NotifierProvider<PostOverrides, Map<String, Post>>(PostOverrides.new);
 
 /// Of the post [ids] a list shows, those whose override (if any) passes
-/// [test], as one sorted string. A list that only needs «which of my posts
-/// were undone here» watches
+/// [test], as one string in the list's order. A list that only needs
+/// «which of my posts were undone here» watches
 /// `postOverridesProvider.select((m) => overrideIdsWhere(m, ids, …))` and so
 /// rebuilds when that answer changes, not on every like in the app (a `Set`
-/// has no value equality, a `String` does; post ids are UUIDs, no commas).
+/// has no value equality, a `String` does).
 /// Scanning only the shown [ids] keeps it cheap and ignores posts the list
 /// does not show. Read it back with [overrideIdSet].
 String overrideIdsWhere(
@@ -132,16 +132,18 @@ String overrideIdsWhere(
   bool Function(Post) test,
 ) {
   if (overrides.isEmpty) return '';
-  final hit = <String>[
+  return [
     for (final id in ids)
       if (overrides[id] case final p? when test(p)) id,
-  ]..sort();
-  return hit.join(',');
+  ].join(_idSep);
 }
 
 /// The ids of an [overrideIdsWhere] string.
 Set<String> overrideIdSet(String ids) =>
-    ids.isEmpty ? const {} : ids.split(',').toSet();
+    ids.isEmpty ? const {} : ids.split(_idSep).toSet();
+
+/// Cannot appear in an id.
+const _idSep = '\u0001';
 
 /// Posts gone from every public list in this session: deleted, or (owner
 /// 2026-10-18) archived — an archived one comes back with [remove] when the
