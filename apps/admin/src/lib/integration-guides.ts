@@ -6,7 +6,7 @@
  * id / field name from the API (provider-registry); a service without a
  * guide (custom ones) simply shows none.
  */
-import type { KeyFileSpec } from './key-file';
+import { pemKeyFile, type KeyFileSpec } from './key-file';
 
 export interface FieldGuide {
   /** Where to find it: site → menu → button. One or two sentences. */
@@ -312,12 +312,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
         url: 'https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app',
       },
     ],
-    keyFile: {
-      button: 'Загрузить файл .pem',
-      accept: '.pem',
-      field: 'privateKey',
-      marker: '-----BEGIN (RSA )?PRIVATE KEY-----[\\s\\S]+-----END (RSA )?PRIVATE KEY-----',
-    },
+    keyFile: pemKeyFile('privateKey'),
     enable: [
       'Заполните четыре поля → «Сохранить» (код 2FA) → «Включить».',
       'Сначала включён пробный режим (Настройки → infra.dry_run): облако только планируется. Выключите его, когда посмотрели первый план.',
@@ -505,12 +500,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Меняйте поля только при переезде (новые бакеты, регион, CDN). Три поля CloudFront заполняйте все сразу или ни одного.',
       'Вставьте значения → «Добавить ключи» → «Сохранить» → «Проверить» → «Включить».',
     ],
-    keyFile: {
-      button: 'Загрузить файл .pem',
-      accept: '.pem',
-      field: 'privateCdnPrivateKey',
-      marker: '-----BEGIN (RSA )?PRIVATE KEY-----[\\s\\S]+-----END (RSA )?PRIVATE KEY-----',
-    },
+    keyFile: pemKeyFile('privateCdnPrivateKey'),
     fields: {
       region: { how: 'Регион бакетов.', example: 'us-east-1' },
       bucketDocuments: { how: 'Имя бакета документов в S3.' },
@@ -632,8 +622,8 @@ export const GUIDES: Record<string, ProviderGuide> = {
       button: 'Загрузить файл .p8',
       accept: '.p8',
       field: 'privateKey',
-      marker: '-----BEGIN PRIVATE KEY-----[\\s\\S]+-----END PRIVATE KEY-----',
-      idFromName: { pattern: '^AuthKey_([A-Z0-9]{10})(?: \\(\\d+\\))?\\.p8$', field: 'keyId' },
+      marker: /-----BEGIN PRIVATE KEY-----[\s\S]+-----END PRIVATE KEY-----/,
+      idFromName: { pattern: /^AuthKey_([A-Z0-9]{10})(?: \(\d+\))?\.p8$/, field: 'keyId' },
     },
     enable: [
       'Заполните APNS_KEY_ID, APNS_TEAM_ID и APNS_PRIVATE_KEY → «Сохранить» → «Проверить» → «Включить».',

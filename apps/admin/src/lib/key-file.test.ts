@@ -6,8 +6,8 @@ const p8: KeyFileSpec = {
   button: 'x',
   accept: '.p8',
   field: 'privateKey',
-  marker: '-----BEGIN PRIVATE KEY-----[\\s\\S]+-----END PRIVATE KEY-----',
-  idFromName: { pattern: '^AuthKey_([A-Z0-9]{10})(?: \\(\\d+\\))?\\.p8$', field: 'keyId' },
+  marker: /-----BEGIN PRIVATE KEY-----[\s\S]+-----END PRIVATE KEY-----/,
+  idFromName: { pattern: /^AuthKey_([A-Z0-9]{10})(?: \(\d+\))?\.p8$/, field: 'keyId' },
 };
 const PEM = '-----BEGIN PRIVATE KEY-----\r\nMIGTAgEA\r\n-----END PRIVATE KEY-----\r\n';
 

@@ -12,10 +12,10 @@ export interface KeyFileSpec {
   accept: string;
   /** Field that receives the file text. */
   field: string;
-  /** Regex source a valid file matches, e.g. a whole PEM block. */
-  marker: string;
+  /** A valid file matches this, e.g. a whole PEM block. */
+  marker: RegExp;
   /** Field filled from the file name: `pattern` has one capture group. */
-  idFromName?: { pattern: string; field: string };
+  idFromName?: { pattern: RegExp; field: string };
 }
 
 /** A key file is a few KB; anything bigger is the wrong file. */
@@ -27,15 +27,25 @@ export type KeyFileResult =
 
 export function fillFromKeyFile(spec: KeyFileSpec, fileName: string, text: string): KeyFileResult {
   const body = text.replace(/\r\n?/g, '\n').trim();
-  if (body.length === 0 || body.length > KEY_FILE_MAX_BYTES || !new RegExp(spec.marker).test(body)) {
+  if (body.length === 0 || body.length > KEY_FILE_MAX_BYTES || !spec.marker.test(body)) {
     return { ok: false, reason: 'Это не тот файл. Выберите скачанный файл ключа целиком, не открывая его.' };
   }
   const filled: Record<string, string> = { [spec.field]: body };
   const missing: string[] = [];
   if (spec.idFromName) {
-    const m = new RegExp(spec.idFromName.pattern).exec(fileName);
+    const m = spec.idFromName.pattern.exec(fileName);
     if (m?.[1]) filled[spec.idFromName.field] = m[1];
     else missing.push(spec.idFromName.field);
   }
   return { ok: true, filled, missing };
+}
+
+/** The «.pem» key file (GitHub App, CloudFront): the text fills [field]. */
+export function pemKeyFile(field: string): KeyFileSpec {
+  return {
+    button: 'Загрузить файл .pem',
+    accept: '.pem',
+    field,
+    marker: /-----BEGIN (RSA )?PRIVATE KEY-----[\s\S]+-----END (RSA )?PRIVATE KEY-----/,
+  };
 }
