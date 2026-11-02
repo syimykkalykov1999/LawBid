@@ -92,9 +92,6 @@ class ConsultationsNotifier extends SyncedListNotifier<Consultation> {
 
   // Owner 2026-11-02: opens on the phone's copy of the first page.
   @override
-  bool get savedCopyIsFirstPage => true;
-
-  @override
   Future<CursorPage<Consultation>?> cachedFirstPage() {
     final repo = ref.read(consultationsRepositoryProvider);
     return phoneCopy(() => repo.list(view));

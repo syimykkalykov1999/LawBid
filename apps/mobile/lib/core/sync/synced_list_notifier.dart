@@ -91,21 +91,21 @@ abstract class SyncedListNotifier<T> extends PagedNotifier<T> {
   Future<PaginatedList<T>> build() {
     _rebuilding = _built;
     _built = true;
+    _copyIsFirstPage = false;
     _syncedAt = null;
     _pullSince = null;
     ref.onDispose(() => _pullTimer?.cancel());
     return super.build();
   }
 
-  /// True for a list whose saved copy is the phone's HTTP copy of its first
-  /// page (`readFromPhoneOnly`): that copy only moves when the first page is
-  /// read, so a cold start reads it (one GET, a 304 when nothing changed)
-  /// instead of asking for changes since a time the copy may be older than.
-  @protected
-  bool get savedCopyIsFirstPage => false;
-
   bool _built = false;
   bool _rebuilding = false;
+
+  /// The copy on screen is the phone's HTTP copy of the first page: it only
+  /// moves when the first page is read, so a cold start reads that page
+  /// (one GET, a 304 when nothing changed) instead of asking for changes
+  /// since a time the copy may be older than.
+  bool _copyIsFirstPage = false;
 
   /// The saved copy of the first page from the phone's HTTP copy, for a
   /// list's `cachedFirstPage` — only on the first build of this list: a
@@ -113,14 +113,20 @@ abstract class SyncedListNotifier<T> extends PagedNotifier<T> {
   /// put the old copy back over what the user just changed. [read] calls
   /// the repository only (see `readFromPhoneOnly`).
   @protected
-  Future<CursorPage<T>?> phoneCopy(Future<CursorPage<T>> Function() read) =>
-      _rebuilding ? Future.value() : readFromPhoneOnly(read);
+  Future<CursorPage<T>?> phoneCopy(
+    Future<CursorPage<T>> Function() read,
+  ) async {
+    if (_rebuilding) return null;
+    final page = await readFromPhoneOnly(read);
+    _copyIsFirstPage = page != null;
+    return page;
+  }
 
   /// A saved copy is on screen: catch up with one `updatedSince` instead
   /// of reading the first page again.
   @override
   Future<void> revalidateSaved(CursorPage<T> saved) async {
-    if (savedCopyIsFirstPage) {
+    if (_copyIsFirstPage) {
       await super.revalidateSaved(saved);
       return;
     }

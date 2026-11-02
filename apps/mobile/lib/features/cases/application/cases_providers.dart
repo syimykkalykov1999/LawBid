@@ -137,9 +137,6 @@ class MyCasesNotifier extends SyncedListNotifier<CaseSummary>
   // Owner 2026-11-02: opens on the phone's copy of the first page at once
   // (cold start, offline), the live page replaces it.
   @override
-  bool get savedCopyIsFirstPage => true;
-
-  @override
   Future<CursorPage<CaseSummary>?> cachedFirstPage() {
     final repo = ref.read(casesRepositoryProvider);
     return phoneCopy(() => repo.myCases(filter));

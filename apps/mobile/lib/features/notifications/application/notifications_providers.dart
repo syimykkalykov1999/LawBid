@@ -208,9 +208,6 @@ class NotificationsNotifier extends SyncedListNotifier<AppNotification> {
 
   // Owner 2026-11-02: the bell opens on the phone's copy of the first page.
   @override
-  bool get savedCopyIsFirstPage => true;
-
-  @override
   Future<CursorPage<AppNotification>?> cachedFirstPage() {
     if (ref.read(notificationQueryProvider).nullIfEmpty != null) {
       return Future.value();
