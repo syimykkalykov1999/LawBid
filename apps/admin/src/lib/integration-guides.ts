@@ -132,7 +132,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
     enable: [
       'Загрузите .json или вставьте три значения (FCM_PROJECT_ID, FCM_CLIENT_EMAIL, FCM_PRIVATE_KEY) → «Сохранить» → «Проверить» → «Включить».',
-      'Пуши на сайте: заполните ещё четыре обязательных поля «Сайт: …» (apiKey, appId, messagingSenderId и VAPID-ключ); authDomain можно пропустить. Нужен и project_id из файла выше: без него сайт ключей не получит. Эти значения сайт берёт при старте, пересборка для них не нужна. Но App Check в браузере и фоновый обработчик пушей настраиваются сборкой: без секретов GitHub FIREBASE_WEB_* App Check на сайте выключен, а обработчик показывает пуши сам, без Firebase SDK.',
+      'Пуши на сайте: заполните ещё четыре поля «Сайт: …» (apiKey, appId, messagingSenderId и VAPID-ключ), все четыре нужны вместе, иначе сайт пуши не включит; authDomain можно пропустить. Нужен и project_id из файла выше: без него сайт ключей не получит. Эти значения сайт берёт при старте, пересборка для них не нужна. Но App Check в браузере и фоновый обработчик пушей настраиваются сборкой: без секретов GitHub FIREBASE_WEB_* App Check на сайте выключен, а обработчик показывает пуши сам, без Firebase SDK.',
       'В приложении пуши включаются сами. Для iPhone ещё загрузите ключ APNs в Firebase: Project settings → Cloud Messaging → Apple app configuration → APNs Authentication Key.',
     ],
     fields: {

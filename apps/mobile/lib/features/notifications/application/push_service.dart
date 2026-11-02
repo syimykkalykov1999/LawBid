@@ -466,8 +466,6 @@ final sessionServicesProvider = Provider<void>((ref) {
     ref.read(pushServiceProvider).forgetSession();
     return;
   }
-  // Owner 2026-10-20: the phone's time zone and the planner's reminder
-  // alarms follow the session.
   // Web: the admin's push keys arrive with the bootstrap, maybe after the
   // sign-in; the start runs again once they are here.
   // Only the push start runs again for it, not this provider (the outbox
@@ -484,6 +482,8 @@ final sessionServicesProvider = Provider<void>((ref) {
       },
     );
   }
+  // Owner 2026-10-20: the phone's time zone and the planner's reminder
+  // alarms follow the session.
   ref
     ..watch(timezoneSyncProvider)
     ..watch(taskReminderSyncProvider);

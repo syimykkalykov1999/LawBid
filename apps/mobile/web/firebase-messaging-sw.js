@@ -47,7 +47,7 @@ function showFor(payload) {
   return self.registration.showNotification(title, {
     body: n.body || data.body || '',
     data: { ...data, link },
-    tag: data.callId || data.type || 'lawbid',
+    tag: data.callId || undefined,
     requireInteraction: data.type === 'incoming_call',
   });
 }
@@ -63,6 +63,8 @@ if (!config.apiKey.startsWith('__')) {
   // to an open, visible page itself.)
   messaging.onBackgroundMessage((payload) => {
     if (payload.notification) return;
+    // Data-only without a title stays silent here, as before.
+    if (!(payload.data && payload.data.title)) return;
     return showFor(payload);
   });
 } else {
@@ -102,7 +104,11 @@ self.addEventListener('notificationclick', (event) => {
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       for (const c of list) {
         if (link && 'navigate' in c) {
-          return c.navigate(link).then((moved) => (moved || c).focus());
+          // A page this worker does not control refuses navigate(): focus it.
+          return c
+            .navigate(link)
+            .then((moved) => (moved || c).focus())
+            .catch(() => c.focus());
         }
         if ('focus' in c) return c.focus();
       }
