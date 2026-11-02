@@ -283,7 +283,7 @@ export class AdminOpsController {
   @ApiOperation({ summary: 'Traffic lights of every part of the system' })
   @ApiEnvelopeResponse(SystemHealthDto)
   getSystemHealth(): Promise<SystemHealthDto> {
-    return this.health.report();
+    return this.health.cachedReport();
   }
 
   @Get('scale')

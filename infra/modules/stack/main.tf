@@ -481,6 +481,20 @@ variable "admin_tasks" {
   type    = number
   default = 2
 }
+variable "admin_cpu" {
+  type        = number
+  default     = 256
+  description = "Fargate CPU units of one admin task. 2026-11-02 prod metrics (3 h): CPU avg 1.8 %, max 28.8 %, memory 22 % - the size is enough; raise only if CPUUtilization stays high."
+}
+variable "admin_memory" {
+  type        = number
+  default     = 512
+  description = "MiB of one admin task (Fargate pair for 256 CPU: 512-2048). Node heap limit is 70 % of this."
+  validation {
+    condition     = (var.admin_cpu == 256 && var.admin_memory >= 512 && var.admin_memory <= 2048) || (var.admin_cpu == 512 && var.admin_memory >= 1024 && var.admin_memory <= 4096) || (var.admin_cpu >= 1024 && var.admin_memory >= 2048)
+    error_message = "admin_cpu/admin_memory is not a valid Fargate pair (256: 512-2048, 512: 1024-4096, 1024+: 2048+)."
+  }
+}
 variable "api_cpu" {
   type    = number
   default = 1024
@@ -1884,6 +1898,8 @@ module "ecs" {
   min_tasks                        = var.min_tasks
   api_min_tasks                    = var.api_min_tasks
   admin_tasks                      = var.admin_tasks
+  admin_cpu                        = var.admin_cpu
+  admin_memory                     = var.admin_memory
   api_cpu                          = var.api_cpu
   api_memory                       = var.api_memory
   api_uv_threadpool_size           = var.api_uv_threadpool_size

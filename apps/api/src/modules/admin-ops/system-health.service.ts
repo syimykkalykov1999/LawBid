@@ -5,6 +5,7 @@ import type Redis from 'ioredis';
 import { IncidentsService } from '../../common/ops/status/incidents.service';
 import { StatusProbesService } from '../../common/ops/status/status-probes.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { AwsOpsService } from '../../common/ops/aws-ops.service';
 import { OpsStateService } from '../../common/ops/ops-state.service';
 import { SecretRotationService } from '../../common/ops/secret-rotation.service';
@@ -32,6 +33,16 @@ import type {
 import { bullOptions } from '../../redis/redis-connection';
 
 const PROBE_TIMEOUT_MS = 3_000;
+/** Owner 2026-11-02: the board took 4-5 s on every open (the slowest probe
+ * sets the pace). The finished report is a shared admin summary
+ * (AdminSummaryService: Redis, one refresher across all tasks): younger than
+ * FRESH it is served as is; up to MAX_STALE it is served at once while one
+ * refresh runs; older than that, an outage board must not show old lights,
+ * so the request waits for a new one. */
+const REPORT_KEY = 'ops:system-health';
+const REPORT_FRESH_MS = 15_000;
+const REPORT_MAX_STALE_MS = 120_000;
+
 const DLQ = 'stripe-webhooks-dlq';
 
 function withTimeout<T>(p: Promise<T>, ms = PROBE_TIMEOUT_MS): Promise<T> {
@@ -82,9 +93,33 @@ export class SystemHealthService implements OnModuleDestroy {
     @Optional() private readonly partitions?: PartitionService,
     // Owner 2026-10-25: last / next rotation per rotated secret.
     @Optional() private readonly rotation?: SecretRotationService,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
+  /** GET path: the shared summary (see REPORT_* above). */
+  async cachedReport(): Promise<SystemHealthDto> {
+    if (!this.summary) return this.build(new Date());
+    const compute = () => this.build(new Date());
+    const hit = await this.summary.peek<SystemHealthDto>(REPORT_KEY);
+    const age = hit ? Date.now() - Date.parse(hit.computedAt) : Infinity;
+    if (hit?.data?.items && age < REPORT_MAX_STALE_MS) {
+      if (age > REPORT_FRESH_MS) {
+        void this.summary.refresh(REPORT_KEY, compute).catch(() => undefined);
+      }
+      return hit.data;
+    }
+    return (await this.summary.refresh(REPORT_KEY, compute, true)).data;
+  }
+
+  /** Always computed now (the action buttons); the result also replaces the
+   * shared copy so the next GET shows the state the owner just set. */
   async report(now: Date = new Date()): Promise<SystemHealthDto> {
+    const report = await this.build(now);
+    await this.summary?.put(REPORT_KEY, report);
+    return report;
+  }
+
+  private async build(now: Date): Promise<SystemHealthDto> {
     const items = await Promise.all([
       Promise.resolve(this.api()),
       this.safe('worker', () => this.worker(now)),
