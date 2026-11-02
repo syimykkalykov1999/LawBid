@@ -149,11 +149,12 @@ class _ProfileTabPagesState extends State<ProfileTabPages> {
     final onRefresh = widget.onRefresh;
     if (onRefresh == null) return child;
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       color: colors.gold,
       backgroundColor: colors.sheet,
-      // The pages' own vertical lists pull to refresh too.
-      notificationPredicate: (n) => n.metrics.axis == Axis.vertical,
+      // The pages' lists deliver the pull; it counts only with the header
+      // back at the top, and the spinner sits at the top edge.
+      notificationPredicate: nestedScrollNotificationPredicate,
       onRefresh: onRefresh,
       child: child,
     );

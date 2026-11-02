@@ -195,7 +195,7 @@ class ChannelsArchiveScreen extends ConsumerWidget {
             )
           : value.isLoading && !value.hasValue
               ? const CasesListSkeleton()
-              : RefreshIndicator(
+              : AppRefreshIndicator(
                   onRefresh: () => ref
                       .read(
                         channelListSyncProvider(archivedChannelsKey).notifier,

@@ -435,7 +435,7 @@ function SettingsCard({
       <CardContent className="space-y-4 text-sm">
         <Toggle
           label="Одинаковые файлы храним один раз"
-          hint="Как в Telegram: тот же файл у разных людей занимает место один раз."
+          hint="Тот же файл у разных людей занимает место один раз."
           checked={settings.dedup}
           disabled={disabled}
           onChange={(v) => onSave({ dedup: v })}

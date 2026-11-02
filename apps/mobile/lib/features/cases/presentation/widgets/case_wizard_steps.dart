@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -70,8 +68,6 @@ class PracticeStep extends ConsumerStatefulWidget {
 class _PracticeStepState extends ConsumerState<PracticeStep> {
   final _search = TextEditingController();
   String _query = '';
-  String _remoteQuery = '';
-  Timer? _debounce;
   // Owner 2026-10-15: every group opens and closes on its own arrow; the
   // group of a chosen topic starts open.
   final Set<String> _open = {};
@@ -84,19 +80,12 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
 
   @override
   void dispose() {
-    _debounce?.cancel();
     _search.dispose();
     super.dispose();
   }
 
-  void _onQuery(String v) {
-    setState(() => _query = v);
-    _debounce?.cancel();
-    _debounce = Timer(
-      const Duration(milliseconds: 300),
-      () => mounted ? setState(() => _remoteQuery = v) : null,
-    );
-  }
+  // Local matcher: no debounce needed (owner 2026-10-28).
+  void _onQuery(String v) => setState(() => _query = v);
 
   bool _isChosen(String id) =>
       widget.draft.practiceAreaId == id ||
@@ -183,25 +172,35 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
             for (final l in c.children)
               if (l.i18nKey.endsWith('not_sure_or_other')) l,
         ].firstOrNull;
-        // Any-language search (owner 2026-10-15): the server says which
-        // practices a word in ANY language names; they join the matches.
-        final remote = q.isEmpty
-            ? const <String, String?>{}
-            : (ref.watch(practiceMatchesProvider(_remoteQuery)).value ??
-                const <String, String?>{});
-        bool byRemote(PracticeCategory c, PracticeLeaf l) =>
-            (l.code != null && remote.containsKey(l.code)) ||
-            remote.containsKey(practiceCodeOf(c.i18nKey));
-        final matches = q.isEmpty
-            ? const <(PracticeCategory, PracticeLeaf)>[]
-            : [
-                for (final c in categories)
-                  for (final l in c.children)
-                    if (name(l.i18nKey, l.nameEn).toLowerCase().contains(q) ||
-                        name(c.i18nKey, c.nameEn).toLowerCase().contains(q) ||
-                        byRemote(c, l))
-                      (c, l),
-              ];
+        // Owner 2026-10-28: one local matcher (practice_search.dart) — the
+        // name in the app's language or English, everyday words («развод»,
+        // «ДТП», «DUI»), one typo — best first; a category's hit lists its
+        // sub-areas. No server call.
+        final ranked = q.isEmpty
+            ? null
+            : ref.watch(practiceMatchesProvider(_query.trim()));
+        final leafByCode = {
+          for (final c in categories)
+            for (final l in c.children)
+              (l.code ?? practiceCodeOf(l.i18nKey)): (c, l),
+        };
+        final categoryByCode = {
+          for (final c in categories) practiceCodeOf(c.i18nKey): c,
+        };
+        final matches = <(PracticeCategory, PracticeLeaf)>[];
+        final seen = <String>{};
+        for (final code in ranked?.value?.keys ?? const <String>[]) {
+          final leaf = leafByCode[code];
+          if (leaf != null) {
+            if (seen.add(leaf.$2.id)) matches.add(leaf);
+            continue;
+          }
+          final c = categoryByCode[code];
+          for (final l in c?.children ?? const <PracticeLeaf>[]) {
+            if (seen.add(l.id)) matches.add((c!, l));
+          }
+        }
+        final searching = ranked != null && !ranked.hasValue;
         return ListView(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.screenSide,
@@ -252,7 +251,7 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
             ],
             // Owner 2026-10-19: the icon above the text, both centred (the
             // full-screen empty state overlapped them inside this list).
-            if (q.isNotEmpty && matches.isEmpty)
+            if (q.isNotEmpty && matches.isEmpty && !searching)
               Padding(
                 key: const ValueKey('practice-no-match'),
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
@@ -287,9 +286,8 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                   child: _LeafTile(
                     label: name(l.i18nKey, l.nameEn),
-                    caption: remote[l.code] ??
-                        remote[practiceCodeOf(c.i18nKey)] ??
-                        name(c.i18nKey, c.nameEn),
+                    // The sub-area under its group (owner 2026-10-28).
+                    caption: name(c.i18nKey, c.nameEn),
                     selected: _isChosen(l.id),
                     onTap: () => _toggle(l),
                   ),

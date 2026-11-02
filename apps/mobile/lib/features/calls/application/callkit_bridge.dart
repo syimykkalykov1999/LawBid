@@ -234,6 +234,8 @@ Future<void> showLawbidIncoming({
   bool silent = false,
   // Owner 2026-10-05: the system screen says "video call".
   bool video = false,
+  // M2: how long it rings (the server's `ringSeconds`).
+  Duration ring = kCallRingTimeout,
 }) async {
   // Device test 2026-10-21: the push (background isolate) and the socket
   // (app isolate) rang the same call 54 ms apart — two Telecom calls, of
@@ -259,6 +261,7 @@ Future<void> showLawbidIncoming({
         avatarUrl: avatarUrl,
         silent: silent,
         video: video,
+        ring: ring,
       ),
     );
   } on Object catch (e) {
@@ -277,6 +280,7 @@ CallKitParams lawbidIncomingParams({
   String? avatarUrl,
   bool silent = false,
   bool video = false,
+  Duration ring = kCallRingTimeout,
   TargetPlatform? platform,
 }) {
   final android = (platform ?? defaultTargetPlatform) == TargetPlatform.android;
@@ -291,7 +295,8 @@ CallKitParams lawbidIncomingParams({
     // 0 = audio call, 1 = video call. Android always rings as audio: the
     // call service has no camera foreground-service type (video calls off).
     type: video && !android ? 1 : 0,
-    duration: 60000,
+    // M2: one ring length everywhere (the server's `ringSeconds`).
+    duration: ring.inMilliseconds,
     extra: {'callId': callId},
     missedCallNotification: const NotificationParams(
       showNotification: false,
@@ -330,7 +335,17 @@ typedef IncomingCallPush = ({
   String? avatarUrl,
   bool silent,
   bool video,
+  Duration ring,
 });
+
+/// M2 (2026-10-28): how long a pushed call rings — the server's
+/// `ringSeconds` (one number for every side), else [kCallRingTimeout].
+@visibleForTesting
+Duration ringLengthOf(Map<String, dynamic> d) {
+  final s = int.tryParse('${d['ringSeconds'] ?? ''}');
+  if (s == null || s < 10 || s > 120) return kCallRingTimeout;
+  return Duration(seconds: s);
+}
 
 @visibleForTesting
 IncomingCallPush? incomingCallFromPush(Map<String, dynamic> d) {
@@ -345,6 +360,7 @@ IncomingCallPush? incomingCallFromPush(Map<String, dynamic> d) {
     avatarUrl: avatar is String && avatar.isNotEmpty ? avatar : null,
     silent: d['silent'] == '1',
     video: d['video'] == '1',
+    ring: ringLengthOf(d),
   );
 }
 
@@ -449,6 +465,7 @@ Future<void> lawbidBackgroundMessage(RemoteMessage message) async {
     avatarUrl: ring.avatarUrl,
     silent: ring.silent,
     video: ring.video,
+    ring: ring.ring,
   );
 }
 

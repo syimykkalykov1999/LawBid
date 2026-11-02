@@ -184,14 +184,7 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
     },
     impact: 'Без перерыва.',
   },
-  {
-    id: 'aws.turn_own',
-    values: {
-      off: { turn_enabled: false, turn_second_enabled: false },
-      on: { turn_enabled: true },
-    },
-    impact: 'Идущие звонки могут переподключиться.',
-  },
+  // aws.turn_own is an app-setting now (calls.own_turn.mode, owner 2026-11-02).
   {
     id: 'aws.livekit',
     values: { off: { livekit_enabled: false }, on: { livekit_enabled: true } },

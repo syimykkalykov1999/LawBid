@@ -47,6 +47,13 @@ void main() {
     test('empty query lists nothing', () {
       expect(run('#'), isEmpty);
     });
+
+    test('a word start, not any letters inside a name', () {
+      expect(run('law'), ['family_law']);
+      expect(run('ion'), isEmpty);
+      expect(run('мигра'), isEmpty);
+      expect(run('иммиг'), ['immigration']);
+    });
   });
 
   group('myCaseMatches ("My cases" search)', () {
@@ -58,6 +65,12 @@ void main() {
       expect(myCaseMatches('Spouse left', names, 'spouse divorce'), isTrue);
       expect(myCaseMatches('Spouse left', names, 'spouse dui'), isFalse);
       expect(myCaseMatches('Spouse left', names, ''), isTrue);
+    });
+
+    test('a word start, not letters inside a word; CJK anywhere', () {
+      expect(myCaseMatches('Spouse left', names, 'pouse'), isFalse);
+      expect(myCaseMatches('Spouse left', names, 'le'), isTrue);
+      expect(myCaseMatches('我们提供移民咨询服务', const [], '咨询'), isTrue);
     });
   });
 }

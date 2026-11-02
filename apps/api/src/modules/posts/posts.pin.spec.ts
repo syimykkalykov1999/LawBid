@@ -1,6 +1,9 @@
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
+import { MAX_PIN_SLOT, PinPostDto } from './dto/posts.dto';
 import { PostsService } from './posts.service';
 
-// Owner 2026-10-12: pinning takes slot 1..3 of the post's own list; a taken
+// Owner 2026-10-12: pinning takes slot 1..6 (1..3 until 2026-10-28) of the post's own list; a taken
 // slot is handed over (swap) or freed, never refused.
 type Row = { id: string; pin_slot: number | null; pin_group: string | null };
 
@@ -92,5 +95,29 @@ describe('PostsService.pin', () => {
     await service(rows, false).pin(user, 'a', 3);
     expect(rows[0]).toMatchObject({ pin_slot: 3 });
     expect(rows[1]).toMatchObject({ pin_slot: 1 });
+  });
+
+  it('owner 2026-10-28: slots 4..6 work in both groups', async () => {
+    const grid: Row[] = [{ id: 'a', pin_slot: null, pin_group: null }];
+    await service(grid, false).pin(user, 'a', 6);
+    expect(grid[0]).toMatchObject({ pin_slot: 6, pin_group: 'grid' });
+    const brief: Row[] = [
+      { id: 'a', pin_slot: 2, pin_group: 'brief' },
+      { id: 'b', pin_slot: 5, pin_group: 'brief' },
+    ];
+    await service(brief, true).pin(user, 'a', 5);
+    expect(brief[0]).toMatchObject({ pin_slot: 5, pin_group: 'brief' });
+    expect(brief[1]).toMatchObject({ pin_slot: 2, pin_group: 'brief' });
+  });
+});
+
+describe('PinPostDto', () => {
+  const check = (slot: unknown) =>
+    validateSync(plainToInstance(PinPostDto, { slot })).length;
+  it('accepts 1..6, refuses 0 and 7', () => {
+    for (const s of [1, 2, 3, 4, 5, 6]) expect(check(s)).toBe(0);
+    expect(check(0)).toBeGreaterThan(0);
+    expect(check(7)).toBeGreaterThan(0);
+    expect(MAX_PIN_SLOT).toBe(6);
   });
 });

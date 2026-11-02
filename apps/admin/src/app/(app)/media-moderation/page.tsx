@@ -67,9 +67,9 @@ export default function MediaModerationPage() {
           params: { query: { status: filter, cursor: pageParam } },
         })
       ).data!.data,
-    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    getNextPageParam: (last) => last?.nextCursor ?? undefined,
   });
-  const rows = q.data?.pages.flatMap((p) => p.items) ?? [];
+  const rows = q.data?.pages.flatMap((p) => p?.items ?? []) ?? [];
   const refresh = () => void qc.invalidateQueries({ queryKey: ['media-moderation'] });
 
   const decide = useMutation({
