@@ -4,7 +4,11 @@ import type { PrismaService } from '../../prisma/prisma.service';
 import { demoContext } from '../demo/demo-context';
 import { SecretEnvelope } from './secret-envelope';
 import { SecretsService } from './secrets.service';
-import { fakeSubscriber } from '../../redis/subscribe-in-background.spec';
+import {
+  brokenRedis,
+  fakeSubscriber,
+  redisWithSubscriber,
+} from '../../redis/subscribe-in-background.test-support';
 
 const KEYS = 'k1:0123456789abcdef0123456789abcdef';
 
@@ -111,35 +115,25 @@ describe('SecretsService.reencryptStores', () => {
   });
 });
 
-describe('SecretsService without Redis (load test 2026-11-02)', () => {
-  it('onModuleInit returns while SUBSCRIBE still waits for a connection, the handler is wired, shutdown does not hang', async () => {
-    const { sub, handlers } = fakeSubscriber(
-      () => new Promise(() => undefined),
-    );
-    const redis = { duplicate: jest.fn(() => sub) } as unknown as Redis;
-    const service = new SecretsService(
+describe('SecretsService without Redis', () => {
+  const make = (redis: Redis) =>
+    new SecretsService(
       { integrationCredential: {} } as unknown as PrismaService,
       { get: () => undefined } as unknown as ConfigService,
       redis,
     );
-    service.onModuleInit(); // synchronous by type: nothing to await
+
+  it('onModuleInit returns while SUBSCRIBE still waits; the handler is wired; shutdown drops the client', async () => {
+    const { sub, handlers } = fakeSubscriber();
+    const service = make(redisWithSubscriber(sub));
+    service.onModuleInit(); // synchronous by type
     expect(sub.subscribe).toHaveBeenCalledWith(expect.any(String));
     expect(handlers).toHaveLength(1);
     await service.onModuleDestroy();
-    expect(sub.disconnect).toHaveBeenCalled(); // not ready → dropped, no queued QUIT
+    expect(sub.disconnect).toHaveBeenCalled();
   });
 
   it('a duplicate() that throws degrades to «pub/sub unavailable», never a failed boot', () => {
-    const redis = {
-      duplicate: jest.fn(() => {
-        throw new Error('no duplicate');
-      }),
-    } as unknown as Redis;
-    const service = new SecretsService(
-      { integrationCredential: {} } as unknown as PrismaService,
-      { get: () => undefined } as unknown as ConfigService,
-      redis,
-    );
-    expect(() => service.onModuleInit()).not.toThrow();
+    expect(() => make(brokenRedis()).onModuleInit()).not.toThrow();
   });
 });

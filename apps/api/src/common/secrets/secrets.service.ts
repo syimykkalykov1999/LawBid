@@ -17,10 +17,9 @@ import { ErrorCode } from '../errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
-import { pubSubClient } from '../../redis/redis-connection';
 import {
-  closeSubscriber,
-  subscribeInBackground,
+  BackgroundSubscriber,
+  backgroundSubscriber,
 } from '../../redis/subscribe-in-background';
 import {
   cleanPasted,
@@ -90,7 +89,7 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
   private readonly cooldown = new Map<string, number>();
   private custom: { at: number; defs: Map<string, ProviderDefinition> } | null =
     null;
-  private sub?: Redis;
+  private sub?: BackgroundSubscriber;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -109,19 +108,10 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     return this.envelope !== null;
   }
 
-  /** Cache invalidation over pub/sub. Never awaited: with Redis away at
-   * boot the SUBSCRIBE waits in the client's offline queue and is sent once
-   * the connection exists (redis/subscribe-in-background.ts). */
+  /** Cache invalidation over pub/sub; not awaited — see redis/subscribe-in-background.ts. */
   onModuleInit(): void {
-    if (typeof this.redis.duplicate !== 'function') return;
-    try {
-      this.sub = pubSubClient(this.redis);
-    } catch (e) {
-      this.logger.warn(`secrets pub/sub unavailable: ${String(e)}`);
-      return;
-    }
-    subscribeInBackground(
-      this.sub,
+    this.sub = backgroundSubscriber(
+      this.redis,
       CHANNEL,
       (_channel, provider) => {
         if (provider === CUSTOM_CHANNEL_KEY) this.custom = null;
@@ -132,7 +122,7 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    if (this.sub) await closeSubscriber(this.sub);
+    await this.sub?.close();
   }
 
   // --- runtime ---------------------------------------------------------------

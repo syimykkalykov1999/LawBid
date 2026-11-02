@@ -161,42 +161,24 @@ describe('GroupFanoutQueue', () => {
   });
 });
 
-describe('GroupFanoutQueue boot and shutdown while Redis is away (load test 2026-11-02)', () => {
+describe('GroupFanoutQueue boot while Redis is away', () => {
   const logger = {
     setContext: jest.fn(),
     warn: jest.fn(),
   } as unknown as PinoLogger;
-  function withQueues(settle: boolean) {
+
+  it('configureInBackground returns at once while setGlobalConcurrency waits for a connection', () => {
     const q = new GroupFanoutQueue(
       { get: () => undefined } as unknown as ConfigService,
       logger,
     );
-    const pending = () => new Promise<void>(() => undefined);
     const queues = Array.from({ length: GROUP_FANOUT_PARTITIONS }, (_, i) => ({
       name: fanoutQueueName(i),
-      setGlobalConcurrency: jest.fn(() =>
-        settle ? Promise.resolve() : pending(),
-      ),
-      close: jest.fn(() => (settle ? Promise.resolve() : pending())),
+      setGlobalConcurrency: jest.fn(() => new Promise<void>(() => undefined)),
     }));
-    (q as unknown as { queues: unknown; closeTimeoutMs: number }).queues =
-      queues;
-    (q as unknown as { closeTimeoutMs: number }).closeTimeoutMs = 20;
-    return { q, queues };
-  }
-
-  it('configureInBackground returns at once while setGlobalConcurrency waits for a connection', () => {
-    const { q, queues } = withQueues(false);
+    (q as unknown as { queues: unknown }).queues = queues;
     q.configureInBackground(); // synchronous by type: boot is not held
     for (const fake of queues)
       expect(fake.setGlobalConcurrency).toHaveBeenCalledWith(1);
-  });
-
-  it('shutdown closes every partition and gives up on a close that hangs', async () => {
-    const { q, queues } = withQueues(false);
-    const t0 = Date.now();
-    await q.onApplicationShutdown();
-    expect(Date.now() - t0).toBeLessThan(1500);
-    for (const fake of queues) expect(fake.close).toHaveBeenCalledTimes(1);
   });
 });

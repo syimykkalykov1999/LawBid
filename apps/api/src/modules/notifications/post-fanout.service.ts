@@ -12,7 +12,6 @@ import {
   ALERT_FANOUT_MAX,
   SubscriptionAlertsService,
 } from './subscription-alerts.service';
-import { closeQueueBounded } from '../../common/queues/close-queue';
 
 export const POST_FANOUT_QUEUE = 'post-fanout';
 const JOB_OPTS = {
@@ -66,7 +65,7 @@ export class PostFanoutService
   }
 
   async onApplicationShutdown(): Promise<void> {
-    await closeQueueBounded(this.queue);
+    await this.queue?.close();
   }
 
   /** Queues the first batch, or runs every batch right here without Redis.

@@ -8,10 +8,9 @@ import {
 } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../redis/redis.constants';
-import { pubSubClient } from '../redis/redis-connection';
 import {
-  closeSubscriber,
-  subscribeInBackground,
+  BackgroundSubscriber,
+  backgroundSubscriber,
 } from '../redis/subscribe-in-background';
 import { PrismaService, routingOf } from '../prisma/prisma.service';
 import { SHARD_MAP_CHANNEL } from './shard-router';
@@ -26,28 +25,17 @@ import { SHARD_MAP_CHANNEL } from './shard-router';
 @Injectable()
 export class ShardMapSync implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger(ShardMapSync.name);
-  private sub?: Redis;
+  private sub?: BackgroundSubscriber;
 
   constructor(
     private readonly prisma: PrismaService,
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
 
-  /** Never awaited: with Redis away at boot the SUBSCRIBE waits in the
-   * client's offline queue and is sent once the connection exists
-   * (redis/subscribe-in-background.ts); the TTL refresh covers the gap. */
+  /** Not awaited — see redis/subscribe-in-background.ts; the TTL refresh covers the gap. */
   onModuleInit(): void {
-    if (!this.redis || typeof this.redis.duplicate !== 'function') return;
-    try {
-      this.sub = pubSubClient(this.redis);
-    } catch (e) {
-      this.log.warn(
-        `shard_map pub/sub unavailable (TTL refresh only): ${String(e)}`,
-      );
-      return;
-    }
-    subscribeInBackground(
-      this.sub,
+    this.sub = backgroundSubscriber(
+      this.redis,
       SHARD_MAP_CHANNEL,
       () => void routingOf(this.prisma)?.router.refresh(),
       (m) =>
@@ -56,7 +44,7 @@ export class ShardMapSync implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    if (this.sub) await closeSubscriber(this.sub);
+    await this.sub?.close();
   }
 
   /** Reload here now and tell every other process to reload. */
