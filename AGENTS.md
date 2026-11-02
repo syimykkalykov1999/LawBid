@@ -36,3 +36,5 @@ Every feature must not heat, crash or drain user phones. It must keep server loa
 Before any change, PR or deploy, read [`docs/dev/KNOWN_ERRORS.md`](docs/dev/KNOWN_ERRORS.md). Append every new cause of a red PR, failed deploy or prod outage there in the same hour.
 
 Put these rules in every subagent / helper prompt.
+
+**Журнал шагов:** после каждого влитого шага добавь файл `docs/dev/journal/YYYY-MM-DD-prNNN-кратко.md` (дата, PR, SHA, что сделано). Строки в таблицу PROJECT_MAP.md не дописывай: параллельные PR конфликтуют на ней.
