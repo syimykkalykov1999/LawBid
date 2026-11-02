@@ -52,6 +52,7 @@ import {
 } from '../../common/logging/ws-log-sampling';
 import { triMode, type TriMode } from '../../common/ops/tri-mode';
 import { shardContext } from '../../sharding/shard-context';
+import { pubSubClient } from '../../redis/redis-connection';
 import { RealtimeEventLog } from './realtime-event-log';
 import {
   newSocketEventBucket,
@@ -350,8 +351,8 @@ export class RealtimeGateway
     // Test doubles of REDIS_CLIENT can't pub/sub: stay on the in-memory
     // adapter (a single instance) then.
     if (typeof this.redis.duplicate !== 'function') return;
-    this.pub = this.redis.duplicate();
-    this.sub = this.redis.duplicate();
+    this.pub = pubSubClient(this.redis);
+    this.sub = pubSubClient(this.redis);
     // Owner 2026-10-22 (server load audit, finding 5): Redis 7 sharded
     // pub/sub (infra/modules/redis: engine 7.1). An event for `user:X`
     // reaches only the instances that hold that room, instead of every
@@ -365,7 +366,7 @@ export class RealtimeGateway
           })
         : createAdapter(this.pub, this.sub),
     );
-    this.revocations = this.redis.duplicate();
+    this.revocations = pubSubClient(this.redis);
     this.revocations.on('message', (channel: string, raw: string) => {
       if (channel === SESSION_REVOKED_CHANNEL) this.onSessionRevoked(raw);
     });
