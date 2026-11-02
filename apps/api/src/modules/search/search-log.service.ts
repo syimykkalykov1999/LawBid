@@ -72,6 +72,21 @@ export class SearchLogService {
     targetType: ClickTarget,
     targetId: string,
   ): Promise<void> {
+    // Stability sweep 2026-11-02: three 500s on POST /search/clicks in a
+    // week. A click is analytics; it must never fail the app's request.
+    try {
+      await this.writeClick(userId, rawQuery, targetType, targetId);
+    } catch (e: unknown) {
+      this.logger.warn({ err: String(e) }, 'search click log skipped');
+    }
+  }
+
+  private async writeClick(
+    userId: string,
+    rawQuery: string,
+    targetType: ClickTarget,
+    targetId: string,
+  ): Promise<void> {
     const q = normalizeTerm(rawQuery).slice(0, 100);
     if (q.length < 3) return;
     const fresh = await this.redis.set(
