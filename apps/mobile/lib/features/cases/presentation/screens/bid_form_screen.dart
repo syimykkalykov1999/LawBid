@@ -317,8 +317,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
             }),
           ),
           AnimatedSize(
-            duration:
-                context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+            duration: context.sizeChangeDuration,
             curve: AppMotion.enterCurve,
             child: free
                 ? const SizedBox(width: double.infinity)

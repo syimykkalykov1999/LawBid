@@ -30,11 +30,13 @@ void main() {
       TextDirection.ltr,
     ),
     'ne': (ShippedTranslator('ne'), TextDirection.ltr),
+    'de': (ShippedTranslator('de'), TextDirection.ltr),
+    'mr': (ShippedTranslator('mr'), TextDirection.ltr),
     'ar': (ShippedTranslator('ar'), TextDirection.rtl),
   };
 
   for (final theme in AppThemeId.values) {
-    for (final scale in [1.0, 1.1]) {
+    for (final scale in [1.0, 1.1, 1.3]) {
       for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
         testWidgets(
             'channels selection fits 360 dp: ${theme.name} $name '

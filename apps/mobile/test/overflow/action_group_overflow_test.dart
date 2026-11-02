@@ -19,7 +19,7 @@ void main() {
     'ar': (ShippedTranslator('ar'), TextDirection.rtl),
     'mr': (ShippedTranslator('mr'), TextDirection.ltr),
   };
-  for (final scale in [1.0, 1.1]) {
+  for (final scale in [1.0, 1.1, 1.3]) {
     for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
       testWidgets('task card buttons at 360 dp ($name, x$scale)',
           (tester) async {
