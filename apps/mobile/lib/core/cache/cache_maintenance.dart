@@ -145,16 +145,21 @@ class CacheMaintenance {
   /// «Очистить кэш» — everything except the outbox and the settings.
   /// False when some store could not be emptied.
   Future<bool> clearAll() async {
-    var all = true;
-    for (final s in CacheStore.values) {
+    // The video store may wait for a starting proxy (up to 10 s): it runs
+    // alongside the others instead of in front of them.
+    Future<bool> one(CacheStore s) async {
       try {
-        all = await clear(s) && all;
+        return await clear(s);
       } on Object catch (e) {
-        all = false;
         debugPrint('cache clear ${s.name}: $e');
+        return false;
       }
     }
-    return all;
+
+    final results = await Future.wait([
+      for (final s in CacheStore.values) one(s),
+    ]);
+    return !results.contains(false);
   }
 
   /// Applies the limits and «Хранить медиа» (run once a day and when the
