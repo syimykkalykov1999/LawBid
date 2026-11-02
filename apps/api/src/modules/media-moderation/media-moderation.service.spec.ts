@@ -514,9 +514,9 @@ describe('MediaModerationService frame-by-frame video check (owner 2026-11-02)',
       videos as never,
     );
     const run = jest.fn(
-      async (_c: unknown, _s: unknown, load: () => Promise<Buffer>) => {
+      (_c: unknown, _s: unknown, load: () => Promise<Buffer>) => {
         void load;
-        return runs.shift() ?? 'clean';
+        return Promise.resolve(runs.shift() ?? 'clean');
       },
     );
     (svc as unknown as { run: typeof run }).run = run;
