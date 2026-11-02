@@ -30,7 +30,7 @@ on:
 # S11-1: only a superseded PR run is cancelled; a push to main must always finish
 # (its result is what the deploy gate reads) and a merge-queue run is never cancelled.
 concurrency:
-  group: admin-ci-${{ github.ref }}
+  group: admin-ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:

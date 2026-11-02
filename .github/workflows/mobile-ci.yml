@@ -45,7 +45,7 @@ on:
 # S11-1: only a superseded PR run is cancelled; a push to main must always finish
 # (its result is what the deploy gate reads) and a merge-queue run is never cancelled.
 concurrency:
-  group: mobile-ci-${{ github.ref }}
+  group: mobile-ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Security research #5 (2026-10-22), A2: least privilege — the job only reads

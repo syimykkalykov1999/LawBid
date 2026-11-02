@@ -19,7 +19,7 @@ on:
     branches: [main, master]
 
 concurrency:
-  group: repo-guards-${{ github.ref }}
+  group: repo-guards-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
