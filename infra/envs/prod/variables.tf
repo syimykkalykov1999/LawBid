@@ -125,6 +125,16 @@ variable "admin_tasks" {
   type    = number
   default = 2
 }
+variable "admin_cpu" {
+  type        = number
+  default     = 256
+  description = "Fargate CPU units of one admin task. 2026-11-02 prod metrics (3 h): CPU avg 1.8 %, max 28.8 %, memory 22 % - the size is enough; raise only if CPUUtilization stays high."
+}
+variable "admin_memory" {
+  type        = number
+  default     = 512
+  description = "MiB of one admin task (Fargate pair for 256 CPU: 512-2048). Node heap limit is 70 % of this."
+}
 variable "api_cpu" {
   type    = number
   default = 1024
