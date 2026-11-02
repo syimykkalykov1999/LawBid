@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
@@ -202,7 +203,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             : [
                 for (final g in ref.watch(groupsProvider).value?.items ??
                     const <api.GroupDto>[])
-                  if (q.isEmpty || g.title.toLowerCase().contains(q)) g,
+                  if (textMatches(q, [g.title])) g,
               ],
         channels: const <Channel>[],
       );
@@ -410,7 +411,7 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
       final q = query.toLowerCase();
       final mine = [
         for (final g in myGroups.value?.items ?? const <api.GroupDto>[])
-          if (g.title.toLowerCase().contains(q)) g,
+          if (textMatches(q, [g.title])) g,
       ];
       final found = ref.watch(groupSearchProvider(query)).value ?? const [];
       groupRows = [

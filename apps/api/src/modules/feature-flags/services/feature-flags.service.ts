@@ -4,6 +4,9 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { jitterTtl, singleFlight } from '../../../common/cache/single-flight';
 import { L1Cache } from '../../../common/cache/l1-cache';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { failSoftRedis } from '../../../redis/fail-soft-redis';
+import { throttledWarn } from '../../../common/logging/throttled-warn';
+import { CircuitBreaker } from '../../../common/resilience/resilience';
 import { FLAG_CATALOG } from '../flag-catalog';
 import { lockFlags } from '../../../common/feature-flags/locked-flags';
 import { bumpConfigVersion } from './config-version';
@@ -47,11 +50,32 @@ export class FeatureFlagsService implements OnModuleInit {
    * clears it at once on this instance; another instance within the TTL
    * (`CACHE_L1_TTL_SEC`, default 5, 0 = off). */
   private readonly l1 = new L1Cache<Record<string, boolean>>('flags');
+  /** The main client wrapped fail-soft (see constructor). */
+  private readonly redis: Redis;
+  private readonly warnRedis = throttledWarn(
+    new Logger(FeatureFlagsService.name),
+  );
 
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
-  ) {}
+    @Inject(REDIS_CLIENT) redis: Redis,
+  ) {
+    // Load test 2026-11-02 (PR #606): the flag / rollout copies are caches
+    // of the feature_flags table — a lost Redis is a miss, never an error
+    // (the same class as AppConfigService, fixed in the same place).
+    this.redis = failSoftRedis(
+      redis,
+      (command, err) =>
+        this.warnRedis(
+          { err, command, alert: 'feature_flags_redis_down' },
+          'feature flags cache: Redis unavailable, reading the table',
+        ),
+      new CircuitBreaker('redis_feature_flags', {
+        threshold: 3,
+        openMs: 10_000,
+      }),
+    );
+  }
 
   /** A flag added to FLAG_CATALOG appears in the database on the next boot
    * with its starter value; a value an admin chose is never touched. The
