@@ -1527,17 +1527,17 @@ check "db_connection_budget" {
 locals {
   admin_audit_export_on = var.admin_audit_export_enabled && var.audit_logs_enabled && !var.ephemeral
   api_env = {
-    NODE_ENV            = "production"
-    DB_POOL_SIZE        = tostring(local.db_pool_size)
-    TRUST_PROXY_HOPS    = "1"
-    APP_LINK_BASE_URL   = var.app_link_base_url
-    ADMIN_ORIGINS       = "https://${var.admin_host}"
-    ADMIN_PANEL_URL     = "https://${var.admin_host}"
-    S3_REGION           = data.aws_region.current.name
+    NODE_ENV          = "production"
+    DB_POOL_SIZE      = tostring(local.db_pool_size)
+    TRUST_PROXY_HOPS  = "1"
+    APP_LINK_BASE_URL = var.app_link_base_url
+    ADMIN_ORIGINS     = "https://${var.admin_host}"
+    ADMIN_PANEL_URL   = "https://${var.admin_host}"
+    S3_REGION         = data.aws_region.current.name
     # Empty = no on-demand coturn (calls/turn-instance.gateway.ts).
     TURN_ONDEMAND_INSTANCE_ID = var.turn_enabled && var.turn_on_demand ? module.turn[0].instance_id : ""
-    S3_BUCKET_DOCUMENTS = module.s3.documents_bucket
-    S3_BUCKET_MEDIA     = module.s3.media_bucket
+    S3_BUCKET_DOCUMENTS       = module.s3.documents_bucket
+    S3_BUCKET_MEDIA           = module.s3.media_bucket
     # Owner 2026-10-28: empty = no daily export of the admin audit log.
     ADMIN_AUDIT_EXPORT_BUCKET = local.admin_audit_export_on ? module.audit_logs[0].bucket : ""
     MEDIA_CDN_BASE_URL        = local.media_cdn_base_url # growth.cdn_images_provider (modules/stack/growth.tf)
