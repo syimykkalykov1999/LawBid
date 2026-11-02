@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -9,20 +10,55 @@ import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/features/chat/application/link_preview_providers.dart';
+import 'package:lawbid/features/settings/storage/application/storage_providers.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Owner 2026-10-22 (checklist, link previews): the card under a message
 /// that carries a web address — picture, site, title, a line of text
 /// (WhatsApp / Telegram). Nothing is drawn until the server answered with
 /// something to show; nothing at all while the Privacy switch is off.
-class LinkPreviewCard extends ConsumerWidget {
-  const LinkPreviewCard({required this.url, required this.mine, super.key});
+class LinkPreviewCard extends ConsumerStatefulWidget {
+  const LinkPreviewCard({
+    required this.url,
+    required this.mine,
+    this.conversationId,
+    super.key,
+  });
 
   final String url;
   final bool mine;
 
+  /// The chat the message is in: the card's picture is counted under it in
+  /// «Данные и память → По чатам» instead of «Прочее».
+  final String? conversationId;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LinkPreviewCard> createState() => _LinkPreviewCardState();
+}
+
+class _LinkPreviewCardState extends ConsumerState<LinkPreviewCard> {
+  String get url => widget.url;
+  bool get mine => widget.mine;
+
+  @override
+  void initState() {
+    super.initState();
+    final chatId = widget.conversationId;
+    if (chatId == null) return;
+    ref.listenManual<AsyncValue<LinkPreview?>>(
+      linkPreviewProvider(url),
+      (_, next) {
+        final image = next.value?.imageUrl;
+        if (image != null) {
+          unawaited(ref.read(chatMediaIndexProvider).note(chatId, [image]));
+        }
+      },
+      fireImmediately: true,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     if (!ref.watch(linkPreviewsEnabledProvider)) {
       return const SizedBox.shrink();
     }
