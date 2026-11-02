@@ -16,9 +16,9 @@
 redis_replicas          = 0
 redis_autoscale_enabled = false
 
-# 2) База: Terraform существующий RDS не меняет (он создан вручную), значение только
-#    убирает предупреждение «база не Multi-AZ» в terraform plan.
-#    Саму базу переключает команда из docs/runbooks/pre-release-cost-mode.md.
+# 2) База: на проде create_database=true, значит Terraform сам применит Multi-AZ → Single-AZ.
+#    Если нужно раньше полного apply, то же делает команда из
+#    docs/runbooks/pre-release-cost-mode.md (затем Terraform только выравнивает состояние).
 database_multi_az = false
 
 # ---- ПЕРЕД РЕЛИЗОМ (вернуть) ------------------------------------------------
