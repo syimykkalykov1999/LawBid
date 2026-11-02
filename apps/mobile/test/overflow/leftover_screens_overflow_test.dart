@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
@@ -10,6 +12,13 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/session/session_state.dart';
 import 'package:lawbid/features/auth/presentation/widgets/country_waitlist_sheet.dart';
+import 'package:lawbid/features/cases/presentation/screens/bid_form_screen.dart';
+import 'package:lawbid/features/cases/presentation/screens/case_history_screens.dart';
+import 'package:lawbid/features/create/presentation/screens/create_screen.dart';
+import 'package:lawbid/features/onboarding/presentation/screens/finish_onboarding_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/client_profile_edit_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/client_public_profile_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/profile_by_username_screen.dart';
 import 'package:lawbid/features/blocks/presentation/blocked_users_screen.dart';
 import 'package:lawbid/features/case_payments/presentation/payout_account_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/invites_screen.dart';
@@ -54,6 +63,12 @@ class _Session extends SessionController {
 void main() {
   setUpAll(initializeDateFormatting);
 
+  late SharedPreferences prefs;
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    prefs = await SharedPreferences.getInstance();
+  });
+
   final locales = <String, (Translator, TextDirection)>{
     'longest of all languages': (LongestTranslator(), TextDirection.ltr),
     'longest, right-to-left': (LongestTranslator(), TextDirection.rtl),
@@ -83,6 +98,21 @@ void main() {
     'invites': () => const InvitesScreen(),
     'client badge': () => const ClientBadgeScreen(),
     'payout account': () => const PayoutAccountScreen(),
+    'bid form': () => const BidFormScreen(
+          caseId: 'c1',
+          initialAmountCents: 99999999999,
+        ),
+    'case history': () => const CaseHistoryScreen(),
+    'create (attorney)': () => const CreateScreen(),
+    'create case': () => const CreateScreen(startWithCase: true),
+    'finish onboarding': () => const FinishOnboardingScreen(),
+    'client profile edit': () => const ClientProfileEditScreen(),
+    'client public profile': () => const ClientPublicProfileScreen(
+          username: 'a_really_long_username_number_1',
+        ),
+    'profile by username': () => const ProfileByUsernameScreen(
+          username: 'a_really_long_username_number_1',
+        ),
     'country waitlist': () =>
         const Scaffold(body: CountryWaitlistSheet(countryCode: 'DE')),
   };
@@ -95,6 +125,7 @@ void main() {
             useNarrowPhone(tester);
             final overrides = <Override>[
               ...uxOverrides(translator: t),
+              sharedPreferencesProvider.overrideWithValue(prefs),
               referralOffOverride,
               partnerOffOverride,
               templatesOffOverride,
@@ -116,7 +147,7 @@ void main() {
                     child: MediaQuery(
                       data: MediaQuery.of(context).copyWith(
                         textScaler: TextScaler.linear(scale),
-                        disableAnimations: true,
+                        disableAnimations: false,
                       ),
                       child: child!,
                     ),
@@ -127,15 +158,9 @@ void main() {
             );
             await tester.pump();
             await tester.pump(const Duration(milliseconds: 500));
-            final e = tester.takeException();
-            expect(
-              e == null || !'$e'.contains('overflow'),
-              isTrue,
-              reason: '$e',
-            );
+            expect(tester.takeException(), isNull);
             await tester.pumpWidget(const SizedBox());
             await tester.pump(const Duration(minutes: 5));
-            tester.takeException();
           });
         }
       });
