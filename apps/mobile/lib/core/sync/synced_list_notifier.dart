@@ -98,6 +98,10 @@ abstract class SyncedListNotifier<T> extends PagedNotifier<T> {
   /// of reading the first page again.
   @override
   Future<void> revalidateSaved(CursorPage<T> saved) async {
+    if (copyIsFirstPage) {
+      await super.revalidateSaved(saved);
+      return;
+    }
     final since =
         catchesUp ? (await _storedSince() ?? _sinceOf(saved.items)) : null;
     if (since == null) {
