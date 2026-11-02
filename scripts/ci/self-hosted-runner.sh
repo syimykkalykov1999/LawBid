@@ -58,6 +58,8 @@ build_image() {
 FROM docker:27-cli AS cli
 FROM ghcr.io/actions/actions-runner:latest
 COPY --from=cli /usr/local/bin/docker /usr/local/bin/docker
+# lawbid.keep: the host's hourly cleanup (docker image prune --filter label!=lawbid.keep) must not drop this image
+LABEL lawbid.keep=1
 USER root
 RUN mkdir -p /home/runner/_work && chown runner:runner /home/runner/_work
 USER runner
