@@ -9,12 +9,10 @@
 //   VUS    people at the top          THINK_MIN/THINK_MAX  seconds between actions (1 / 3)
 //   RAMP   time to reach VUS          WS     held Socket.IO connections (0 = none)
 //   HOLD   time at VUS                WS_HOLD_SECONDS      life of one held connection
-//   MIX    short (lib/mix.js, default) | full (lib/mix-full.js: every endpoint family + admin)
 import { sleep } from 'k6';
 import { assertSafeTarget } from './lib/env.js';
 import { LIMITS } from './lib/profiles.js';
 import { runOne } from './lib/mix.js';
-import { runOneFull, ENDPOINTS_FULL } from './lib/mix-full.js';
 import { counts, clientToken, rnd } from './lib/data.js';
 import { holdSocket } from './lib/realtime.js';
 import { get } from './lib/http.js';
@@ -48,13 +46,12 @@ if (WS > 0) {
 }
 
 const abort = (threshold) => (__ENV.NO_K6_ABORT === '1' ? [threshold] : [{ threshold, abortOnFail: true, delayAbortEval: `${LIMITS.abort_window_seconds}s` }]);
-const FULL = __ENV.MIX === 'full';
-const ENDPOINTS_SHORT = ['session', 'bootstrap', 'i18n', 'feed', 'feed_p2', 'reels', 'attorney_profile', 'post', 'search_attorneys', 'search_people', 'search_suggest', 'chat_list', 'chat_messages', 'chat_send', 'chat_send_ws', 'notifications', 'badges', 'cases_feed', 'my_cases', 'case_bids', 'admin_users', 'admin_search', 'admin_disputes', 'admin_export'];
-const ENDPOINTS = FULL ? ENDPOINTS_FULL : ENDPOINTS_SHORT;
+const ENDPOINTS = ['session', 'bootstrap', 'i18n', 'feed', 'feed_p2', 'reels', 'attorney_profile', 'post', 'search_attorneys', 'search_people', 'search_suggest', 'chat_list', 'chat_messages', 'chat_send', 'chat_send_ws', 'notifications', 'badges', 'cases_feed', 'my_cases', 'case_bids', 'admin_users', 'admin_search', 'admin_disputes', 'admin_export', 'post_create'];
 const t = {
   http_req_failed: abort(`rate<${LIMITS.abort_error_rate}`),
   http_req_duration: abort(`p(95)<${LIMITS.abort_p95_ms}`),
 };
+if (__ENV.WRITES === '1') t.post_created = ['rate>0.5']; // posts really written, not just answered
 for (const n of ENDPOINTS) {
   t[`http_req_duration{name:${n}}`] = ['max>=0'];
   t[`http_req_failed{name:${n}}`] = ['rate>=0'];
@@ -79,7 +76,6 @@ export function setup() {
 }
 
 export function person() {
-  if (FULL) runOneFull();
-  else runOne();
+  runOne();
   sleep(TMIN + Math.random() * (TMAX - TMIN));
 }

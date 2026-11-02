@@ -7,6 +7,8 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/file_envelope.dart';
 import '../models/file_view_list_envelope.dart';
+import '../models/multipart_complete_envelope.dart';
+import '../models/multipart_plan_envelope.dart';
 import '../models/presign_file_dto.dart';
 import '../models/presigned_file_envelope.dart';
 
@@ -19,6 +21,22 @@ abstract class FilesClient {
   @POST('/files/presign')
   Future<PresignedFileEnvelope> presign({
     @Body() required PresignFileDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Resumable upload of a big file (flag `files_multipart`): after `presign`.
+  /// the app asks for the part links here, PUTs each part, and asks again.
+  /// after an interruption to learn which parts S3 already has.
+  @POST('/files/{id}/multipart')
+  Future<MultipartPlanEnvelope> multipartPlan({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Assembles the uploaded parts; then call `confirm` as usual. Safe to retry.
+  @POST('/files/{id}/multipart/complete')
+  Future<MultipartCompleteEnvelope> multipartComplete({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 
