@@ -6,8 +6,8 @@ PR и SHA слияния: допишутся после слияния.
 
 Стало:
 - `apps/api/src/modules/chat/chat-send-bookkeeping.ts`: «последнее сообщение» чата, возврат скрытого чата обоим и «своё сообщение прочитано» — одним SQL (CTE на `conversations` + один UPDATE `conversation_participants`; два CTE на одну строку участника Postgres бы не применил оба). Под блокировкой чата теперь `FOR UPDATE` → `INSERT messages` → токены поиска → один UPDATE (было ещё 3 обращения).
-- `apps/api/src/prisma/db-busy-error.ts` + `AllExceptionsFilter`: Prisma `P2028`/`P2024` (пул/слот транзакции занят) отвечает `503 SERVER_BUSY` + `Retry-After: 5`, как уже отвечают Redis (#615) и внешние сервисы. Транзакция откатана, у сообщения есть `clientMessageId`, повтор клиента не дублирует.
+- `apps/api/src/prisma/db-busy-error.ts` + `AllExceptionsFilter`: Prisma `P2024` и `P2028` «Unable to start a transaction» (пул/слот транзакции занят, ничего не выполнялось) отвечает `503 SERVER_BUSY` + `Retry-After: 5`, как уже отвечают Redis (#615) и внешние сервисы. Транзакция откатана, у сообщения есть `clientMessageId`, повтор клиента не дублирует.
 
-Тесты: `test/chat-send-bookkeeping.e2e-spec.ts` (настоящий PostgreSQL: последнее сообщение, оба участника открыты, прочитано только у отправителя, чужие чаты и `updated_at` непрочитанной стороны не тронуты), `all-exceptions.filter.spec.ts` (P2028/P2024 → 503, прочие Prisma-ошибки остаются 500), существующие `owner-direct-chats`, `owner-chat-actions`, `message-seq` e2e зелёные.
+Тесты: `test/chat-send-bookkeeping.e2e-spec.ts` (настоящий PostgreSQL: последнее сообщение, оба участника открыты, прочитано только у отправителя, чужие чаты и `updated_at` непрочитанной стороны не тронуты), `all-exceptions.filter.spec.ts` (P2028-«не удалось начать»/P2024 → 503; P2028 «транзакция истекла» и прочие Prisma-ошибки остаются 500), sender без строки участника откатывает отправку, существующие `owner-direct-chats`, `owner-chat-actions`, `message-seq` e2e зелёные.
 
 Не проверено: поведение под нагрузкой (облачный прогон/ноутбук), порог пула на проде другой.
