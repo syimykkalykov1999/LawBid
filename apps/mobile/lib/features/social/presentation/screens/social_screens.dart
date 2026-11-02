@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/perf/build_counter.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
@@ -772,7 +773,15 @@ class ProfileBriefsAndReposts extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final deleted = ref.watch(deletedPostsProvider);
-    final overrides = ref.watch(postOverridesProvider);
+    // Only «undone from here» matters: a like elsewhere must not rebuild
+    // the whole profile list.
+    final unreposted = overrideIdSet(
+      ref.watch(
+        postOverridesProvider
+            .select((m) => overrideIdsWhere(m, (p) => !p.repostedByMe)),
+      ),
+    );
+    BuildCounter.hit('profile.posts');
     final postsValue = ref.watch(attorneyPostsProvider(attorneyId));
     final repostsValue = ref.watch(userRepostsProvider(attorneyId));
     final posts = postsValue.value;
@@ -843,9 +852,7 @@ class ProfileBriefsAndReposts extends ConsumerWidget {
     bool visible(Post p, int source) =>
         !deleted.contains(p.id) &&
         // Undone from here (or from the post's own ↻): gone at once.
-        !(source == _reposts &&
-            isSelf &&
-            overrides[p.id]?.repostedByMe == false);
+        !(source == _reposts && isSelf && unreposted.contains(p.id));
     final pinnedShown = [
       for (final p in pinned)
         if (visible(p, _briefs)) p,
@@ -937,11 +944,17 @@ class SavedPostsList extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final value = ref.watch(savedPostsProvider);
     final notifier = ref.read(savedPostsProvider.notifier);
-    final overrides = ref.watch(postOverridesProvider);
-    final filtered = value.whenData(
-      (v) => v.without(
-        (s) => s.post != null && overrides[s.postId]?.savedByMe == false,
+    // Only «unsaved here» matters: a like elsewhere must not rebuild the
+    // grid.
+    final unsaved = overrideIdSet(
+      ref.watch(
+        postOverridesProvider
+            .select((m) => overrideIdsWhere(m, (p) => !p.savedByMe)),
       ),
+    );
+    BuildCounter.hit('saved.posts');
+    final filtered = value.whenData(
+      (v) => v.without((s) => s.post != null && unsaved.contains(s.postId)),
     );
     // Owner 2026-10-28: the saved posts are the profile's grid (covers only,
     // no autoplay); a tap opens the posts viewer from that item. Posts that

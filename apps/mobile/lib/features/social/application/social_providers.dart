@@ -118,6 +118,24 @@ class PostOverrides extends Notifier<Map<String, Post>> {
 final postOverridesProvider =
     NotifierProvider<PostOverrides, Map<String, Post>>(PostOverrides.new);
 
+/// The ids in [overrides] whose post passes [test], as one sorted string.
+/// A list that only needs «which posts were undone here» watches
+/// `postOverridesProvider.select((m) => overrideIdsWhere(m, …))` and so
+/// rebuilds when that answer changes, not on every like in the app (a
+/// `Set` has no value equality, a `String` does). Read it back with
+/// [overrideIdSet].
+String overrideIdsWhere(Map<String, Post> overrides, bool Function(Post) test) {
+  final ids = [
+    for (final e in overrides.entries)
+      if (test(e.value)) e.key,
+  ]..sort();
+  return ids.join(',');
+}
+
+/// The ids of an [overrideIdsWhere] string.
+Set<String> overrideIdSet(String ids) =>
+    ids.isEmpty ? const {} : ids.split(',').toSet();
+
 /// Posts gone from every public list in this session: deleted, or (owner
 /// 2026-10-18) archived — an archived one comes back with [remove] when the
 /// author shows it in the profile again.
