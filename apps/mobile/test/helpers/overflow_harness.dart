@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
@@ -13,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../features/cases/cases_fakes.dart';
 import '../features/profile/profile_fakes.dart';
+import '../features/social/social_fakes.dart';
 import 'long_locale.dart';
 import 'onboarding_harness.dart' show FixedUserController;
 import 'referral_overrides.dart';
@@ -47,11 +49,15 @@ const overflowScales = [1.0, DeviceTextScale.shellMax];
 
 /// A signed-in, verified attorney (or, with `client: true`, a client).
 class AttorneySession extends SessionController {
+  AttorneySession({this.role = 'attorney'});
+
+  final String role;
+
   @override
   SessionState? build() => SessionState(
         accessToken: 'at',
         sub: 'user-1',
-        role: 'attorney',
+        role: role,
         sid: 's1',
         verified: true,
         subscriptionStatus: 'none',
@@ -73,6 +79,8 @@ Future<void> pumpOverflowApp(
   AppThemeId theme = AppThemeId.day,
   bool client = false,
   FakeCasesRepository? cases,
+  FakeSocialRepository? social,
+  List<Override> extra = const [],
   Future<void> Function(WidgetTester tester)? act,
 }) async {
   useNarrowPhone(tester);
@@ -81,12 +89,19 @@ Future<void> pumpOverflowApp(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        ...uxOverrides(translator: t, cases: cases),
+        ...uxOverrides(
+          translator: t,
+          cases: cases,
+          social: social,
+          extra: extra,
+        ),
         sharedPreferencesProvider.overrideWithValue(prefs),
         referralOffOverride,
         partnerOffOverride,
         templatesOffOverride,
-        sessionControllerProvider.overrideWith(AttorneySession.new),
+        sessionControllerProvider.overrideWith(
+          () => AttorneySession(role: client ? 'client' : 'attorney'),
+        ),
         currentUserControllerProvider.overrideWith(
           () => FixedUserController(
             CurrentUserState.ready(client ? clientMe() : attorneyMe()),
