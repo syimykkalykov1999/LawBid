@@ -77,8 +77,9 @@ permissions:
 env:
   NODE_ENV: test
   PORT: "3000"
-  DATABASE_URL: "postgresql://root:lawbid@localhost:5432/lawbid_ci?schema=public"
-  REDIS_URL: "redis://localhost:6379"
+  # DATABASE_URL, REDIS_URL, SMTP_PORT, S3_ENDPOINT are set per job by
+  # scripts/ci/service-env.sh and start-minio.sh (random host ports); no
+  # fixed defaults here, so a job without that step fails loudly.
   SUBSCRIPTION_PAST_DUE_GRACE_DAYS: "3"
   JWT_KEYS: "ci1:ci_secret_at_least_32_characters_long_aaaa"
   JWT_ACTIVE_KID: "ci1"
@@ -102,7 +103,6 @@ env:
   SMS_PROVIDER: "mock"
   EMAIL_PROVIDER: "mock"
   SMTP_HOST: "localhost"
-  SMTP_PORT: "1025"
   GOOGLE_CLIENT_IDS: ""
   APPLE_BUNDLE_IDS: ""
 
@@ -484,6 +484,10 @@ jobs:
         if: failure()
         run: tail -n 60 "$RUNNER_TEMP/minio/minio.log" || true; curl -s -o /dev/null -w "minio http %{http_code}\n" "http://127.0.0.1:${MINIO_PORT:-0}/minio/health/live" || echo "MinIO is down"
 
+      - name: Stop MinIO
+        if: always()
+        run: scripts/ci/stop-minio.sh
+
   two-db:
     name: API e2e (two databases)
     runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
@@ -583,6 +587,10 @@ jobs:
       - name: MinIO log (only when e2e failed)
         if: failure()
         run: tail -n 60 "$RUNNER_TEMP/minio/minio.log" || true; curl -s -o /dev/null -w "minio http %{http_code}\n" "http://127.0.0.1:${MINIO_PORT:-0}/minio/health/live" || echo "MinIO is down"
+
+      - name: Stop MinIO
+        if: always()
+        run: scripts/ci/stop-minio.sh
 
   n1:
     name: API N-1 (previous release's suites on the new schema)
@@ -702,6 +710,11 @@ jobs:
         run: node scripts/ci/n1-compat.mjs "$PREV_DIR"
 
   # One stable required check for the ruleset / merge queue.
+
+      - name: Stop MinIO
+        if: always()
+        run: scripts/ci/stop-minio.sh
+
   api-ci:
     name: API CI
     if: ${{ always() }}
