@@ -48,7 +48,7 @@ jobs:
         run: node scripts/i18n-audit.mjs --ci
 
       # Owner 2026-11-02: languages once showed squares/crosses instead of text.
-      - name: Every language has glyphs on every surface
+      - name: Fonts cover every language (UI only; server PDFs are a known gap)
         run: node scripts/i18n-glyph-audit.mjs --ci
 
       - name: SEO generator tests (deep links vs the Android manifest)

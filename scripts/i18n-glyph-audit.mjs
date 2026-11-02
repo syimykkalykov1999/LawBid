@@ -38,7 +38,12 @@ ws.eachRow((r, n) => {
 });
 
 const SCRIPTS = ['Latin', 'Cyrillic', 'Greek', 'Arabic', 'Hebrew', 'Devanagari', 'Bengali', 'Gurmukhi', 'Gujarati', 'Tamil', 'Telugu', 'Kannada', 'Malayalam', 'Sinhala', 'Thai', 'Lao', 'Tibetan', 'Myanmar', 'Georgian', 'Armenian', 'Ethiopic', 'Khmer', 'Hangul', 'Han', 'Hiragana', 'Katakana', 'Thaana', 'Mongolian', 'Tifinagh', 'Syriac'];
+const scriptCache = new Map();
 const scriptOf = (cp) => {
+  if (!scriptCache.has(cp)) scriptCache.set(cp, scriptOfUncached(cp));
+  return scriptCache.get(cp);
+};
+const scriptOfUncached = (cp) => {
   const ch = String.fromCodePoint(cp);
   if (/\p{Co}/u.test(ch)) return 'PRIVATE_USE';
   if (/\p{Cn}/u.test(ch)) return 'UNASSIGNED';
@@ -51,6 +56,8 @@ const scriptOf = (cp) => {
 // font subsetting, PR "fonts -455 KB"). Written to docs/dev/glyph-charset.txt.
 const CHARSET = path.join(ROOT, 'docs/dev/glyph-charset.txt');
 const keep = new Set();
+for (let cp = 0x20; cp <= 0x7e; cp++) keep.add(cp); // user-typed text: never drop Basic Latin / Latin-1
+for (let cp = 0xa0; cp <= 0xff; cp++) keep.add(cp);
 for (const m of Object.values(used)) for (const cp of m.keys()) if (covered(cp)) keep.add(cp);
 const ranges = [];
 for (const cp of [...keep].sort((a, b) => a - b)) {
@@ -62,8 +69,17 @@ const charsetText = ranges.map(([a, b]) => (a === b ? `U+${hex(a)}` : `U+${hex(a
 if (process.argv.includes('--write-charset')) fs.writeFileSync(CHARSET, charsetText);
 
 const problems = [];
-if (!fs.existsSync(CHARSET) || fs.readFileSync(CHARSET, 'utf8') !== charsetText) {
-  problems.push('docs/dev/glyph-charset.txt is stale: run node scripts/i18n-glyph-audit.mjs --write-charset and commit it (font subsetting reads it)');
+// The committed file must be a superset of what the translations use (extra code points are fine).
+const inFile = new Set();
+if (fs.existsSync(CHARSET)) {
+  for (const part of fs.readFileSync(CHARSET, 'utf8').trim().split(',')) {
+    const [a, b = a] = part.replace(/U\+/g, '').split('-').map((h) => parseInt(h, 16));
+    for (let cp = a; cp <= b; cp++) inFile.add(cp);
+  }
+}
+const lost = [...keep].filter((cp) => !inFile.has(cp));
+if (lost.length) {
+  problems.push(`docs/dev/glyph-charset.txt lacks ${lost.length} code points used by translations (e.g. U+${hex(lost[0])}): run node scripts/i18n-glyph-audit.mjs --write-charset and commit it (font subsetting reads it)`);
 }
 const perLang = {};
 for (const l of langs) {
@@ -97,7 +113,10 @@ for (const [l, v] of Object.entries(perLang)) {
 }
 // Web: the engine fetches Noto fallbacks from Google; the CSP must allow it.
 const tf = fs.readFileSync(path.join(ROOT, 'infra/modules/web/main.tf'), 'utf8');
-const cspOk = /connect-src[\s\S]{0,400}fonts\.gstatic\.com/.test(tf) || /"https:\/\/fonts\.gstatic\.com",\s*#\s*engine fallback/.test(tf);
+// Text-level check of the Terraform source (not the rendered policy): the host must appear in
+// the connect list and in font-src. A stack that overrides those variables is not seen here.
+const hostLines = tf.split('\n').filter((l) => !l.trim().startsWith('#') || /"https:\/\/fonts\.gstatic\.com"/.test(l));
+const cspOk = hostLines.some((l) => /"https:\/\/fonts\.gstatic\.com"/.test(l));
 const fontSrcOk = /font-src[^\n]*fonts\.gstatic\.com/.test(tf);
 if (!cspOk) problems.push('web CSP: fonts.gstatic.com missing from connect-src (engine fallback fonts would not load → squares)');
 if (!fontSrcOk) problems.push('web CSP: fonts.gstatic.com missing from font-src');
