@@ -209,13 +209,17 @@ function nameSql(
     return Prisma.sql`(${Prisma.join(arms, ' OR ')})`;
   });
   // Load test 2026-11-02: the «whole text ~ whole name» arm is for several
-  // typed words (word order, a typo across words). For ONE word it adds
-  // nothing the word arm above does not already find (word_similarity is
-  // never below similarity) but `% name_skel` at the default 0.3 threshold
-  // pulls ~100 000 GIN candidates for a short word ("will", "visa") to
-  // recheck: 250-410 ms per search on 1M users, 0.4 ms without it.
+  // typed words (word order, a typo across words). For ONE short word it adds
+  // little the word arm above does not find, but `% name_skel` at the default
+  // 0.3 threshold pulls ~100 000 GIN candidates for it ("will", "visa" = 4-5
+  // trigrams) to recheck: 250-410 ms per search on 1M users, 0.4 ms without.
+  // A long single word (6+ letters, 8+ trigrams) is selective, so it keeps
+  // the arm and its typo tolerance (similarity 0.45-0.6 that word_similarity
+  // at 0.6 would miss).
   const whole =
-    loose && keys.fuzzy && keys.words.length > 1
+    loose &&
+    keys.fuzzy &&
+    (keys.words.length > 1 || (keys.words[0]?.letters ?? 0) >= 6)
       ? Prisma.sql`
     OR (${keys.whole}::TEXT % ${skel}
         AND similarity(${keys.whole}::TEXT, ${skel}) >= ${NAME_MATCH.wholeSimMin}::FLOAT8)`

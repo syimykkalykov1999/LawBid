@@ -114,10 +114,15 @@ describe('nameMatchSql / nameKeys', () => {
     expect(sql.sql).toContain('similarity(');
   });
 
-  it('load test 2026-11-02: one typed word has no whole-text arm (its GIN lookup returns ~100k rows); several words keep it', () => {
-    const one = nameMatchSql(keysOf('will', word('uil', 'will')), 'u');
-    expect(one.sql).toContain('word_similarity(');
-    expect(one.sql).not.toMatch(/ % u\.name_skel/);
+  it('load test 2026-11-02: one SHORT word has no whole-text arm (its GIN lookup returns ~100k rows); long words and several words keep it', () => {
+    const short = nameMatchSql(keysOf('will', word('uil', 'will')), 'u');
+    expect(short.sql).toContain('word_similarity(');
+    expect(short.sql).not.toMatch(/ % u\.name_skel/);
+    const long = nameMatchSql(
+      keysOf('kalikov', word('kalikov', 'kalykov')),
+      'u',
+    );
+    expect(long.sql).toMatch(/ % u\.name_skel/);
     const two = nameMatchSql(
       keysOf(
         'emili braun',

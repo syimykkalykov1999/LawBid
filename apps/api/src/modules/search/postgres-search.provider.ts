@@ -155,6 +155,40 @@ export function caseQueryWords(plain: string): string[] {
     .slice(0, 4);
 }
 
+/** Most rows one name CTE keeps (memory and heap reads stay bounded for a
+ * 2-letter type-ahead that matches a tenth of the users). */
+export const NAME_SCAN_CAP = 20_000;
+
+/**
+ * Load test 2026-11-02: the name branches were `SELECT id FROM users WHERE
+ * role = X AND <name matches> LIMIT 1000`. With that LIMIT in the same query
+ * the planner assumes the first 1000 matches turn up after a short scan (it
+ * multiplies the role share by a flat trigram guess of ~20 000 rows) and reads
+ * the WHOLE users table when the word is rare: 0.2-2.5 s per search on 1M
+ * users. A MATERIALIZED CTE is planned on its own, so the trigram indexes are
+ * used; the cap [NAME_SCAN_CAP] keeps a very common word bounded, and the
+ * branch LIMIT (BRANCH_CAP) applies to the CTE result. One CTE per role
+ * (`att_by_name`, `cli_by_name`); a role that cannot be returned
+ * ([attorneys] / [clients] false) gets an empty one and costs nothing.
+ */
+export function nameCandidateCtes(
+  match: Prisma.Sql,
+  attorneys: boolean,
+  clients: boolean,
+): Prisma.Sql {
+  const cte = (name: string, role: string, on: boolean) =>
+    on
+      ? Prisma.sql`${Prisma.raw(name)} AS MATERIALIZED (
+          SELECT id FROM users
+          WHERE full_name_lower IS NOT NULL AND role = ${Prisma.raw(`'${role}'`)}
+            AND ${match}
+          LIMIT ${NAME_SCAN_CAP}),
+        `
+      : Prisma.sql`${Prisma.raw(name)} AS MATERIALIZED (SELECT NULL::UUID AS id WHERE FALSE),
+        `;
+  return Prisma.sql`${cte('att_by_name', 'attorney', attorneys)}${cte('cli_by_name', 'client', clients)}`;
+}
+
 /**
  * docs/05 §7.6 PostgresSearchProvider on the docs/02 §5.3 indexes:
  * trigram GIN on attorney_profiles.username_lower and
@@ -426,9 +460,7 @@ export class PostgresSearchProvider implements SearchProvider {
               AND ${handleMatch(Prisma.sql`username_lower`)}
             LIMIT ${BRANCH_CAP})
           UNION
-          (SELECT id AS user_id FROM cli_by_name LIMIT ${BRANCH_CAP})
-          UNION
-          (SELECT id AS user_id FROM cli_by_keys LIMIT ${BRANCH_CAP})`
+          (SELECT id AS user_id FROM cli_by_name LIMIT ${BRANCH_CAP})`
         }) cc
         JOIN users u ON u.id = cc.user_id AND u.role = 'client'
           AND u.status = 'active' AND u.deleted_at IS NULL
@@ -436,35 +468,13 @@ export class PostgresSearchProvider implements SearchProvider {
           AND c.username_lower IS NOT NULL
         WHERE TRUE ${clientFilters}`
       : Prisma.empty;
-    // Load test 2026-11-02: the name branches were `SELECT ... WHERE role = X
-    // AND <name matches> LIMIT 1000`. With the LIMIT inside the same query the
-    // planner assumes the first 1000 matches turn up after a short scan (it
-    // multiplies the role share by a flat trigram guess of ~20 000 rows) and
-    // reads the WHOLE users table when they do not: 0.2-2.5 s per search on
-    // 1M users for a word that nobody has. A MATERIALIZED CTE is planned
-    // without the LIMIT, so the trigram indexes are used; the LIMIT applies
-    // to its result. The cost is bounded by the number of real matches.
     const nameCtes = among
       ? Prisma.empty
-      : Prisma.sql`att_by_name AS MATERIALIZED (
-          SELECT id FROM users
-          WHERE full_name_lower IS NOT NULL AND role = 'attorney'
-            AND ${fullNameMatch}),
-        att_by_keys AS MATERIALIZED (
-          SELECT id FROM users
-          WHERE full_name_lower IS NOT NULL AND role = 'attorney' AND ${byName}),
-        ${
-          withClients
-            ? Prisma.sql`cli_by_name AS MATERIALIZED (
-          SELECT id FROM users
-          WHERE full_name_lower IS NOT NULL AND role = 'client'
-            AND ${fullNameMatch}),
-        cli_by_keys AS MATERIALIZED (
-          SELECT id FROM users
-          WHERE full_name_lower IS NOT NULL AND role = 'client' AND ${byName}),
-        `
-            : Prisma.empty
-        }`;
+      : nameCandidateCtes(
+          Prisma.sql`(${fullNameMatch} OR ${byName})`,
+          f.role !== 'client',
+          withClients,
+        );
     const rows = await this.db.$queryRaw<
       { id: string; role: PersonRole; tier: number }[]
     >`
@@ -478,8 +488,6 @@ export class PostgresSearchProvider implements SearchProvider {
           LIMIT ${BRANCH_CAP})
         UNION
         (SELECT id FROM att_by_name LIMIT ${BRANCH_CAP})
-        UNION
-        (SELECT id FROM att_by_keys LIMIT ${BRANCH_CAP})
         ${byEnglish}
         ${byTopic}
         UNION
