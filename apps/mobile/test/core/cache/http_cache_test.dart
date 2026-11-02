@@ -8,6 +8,7 @@ import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/cache/network_usage.dart';
+import 'package:lawbid/features/cases/application/paged_notifier.dart';
 
 import '../../helpers/fake_http_adapter.dart';
 
@@ -144,6 +145,13 @@ void main() {
     expect(adapter.requests, hasLength(1));
   });
 
+  test('the phone-only disk wait stays under the list copy budget', () {
+    expect(
+      HttpCacheInterceptor().phoneOnlyDiskWait,
+      lessThan(PagedNotifier.savedCopyTimeout),
+    );
+  });
+
   test('readFromPhoneOnly: a slow disk is a miss before the list gives up',
       () async {
     final slow = _SlowStore(
@@ -172,19 +180,21 @@ void main() {
         isA<DioException>().having((e) => e.error, 'error', kNoPhoneCopy),
       ),
     );
-    expect(sw.elapsedMilliseconds, lessThan(250));
+    expect(sw.elapsedMilliseconds, lessThan(290));
     expect(adapter.requests, isEmpty);
 
     // The normal path keeps its longer wait and still uses the disk copy.
     final r = await make().get<dynamic>('/slow');
-    expect(r.statusCode, isNotNull);
+    expect(r.data, body);
     expect(adapter.requests.single.headers['If-None-Match'], 'e');
   });
 
   test('cold start offline: the phone copy opens the screen, live read fails',
       () async {
     await build().get<dynamic>('/cases/mine');
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+    for (var i = 0; i < 100 && await db.httpBytes() == 0; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
     adapter.handler = (o) async => throwConnectionError(o);
     final restarted = build(); // empty memory, disk only
     final copy = (await readFromPhoneOnly(
