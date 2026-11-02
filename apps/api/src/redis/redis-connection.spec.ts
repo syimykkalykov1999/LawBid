@@ -1,4 +1,5 @@
 import Redis, { Cluster } from 'ioredis';
+import { isRedisInfraError } from './redis-errors';
 import {
   attachAuthRefresh,
   bullOptions,
@@ -394,7 +395,7 @@ describe('request-path client options (load test 2026-11-02, PR #606)', () => {
 
 describe('pubSubClient', () => {
   it('overrides the fail-fast options so (s)subscribe queues until ready', () => {
-    const duplicate = jest.fn().mockReturnValue({});
+    const duplicate = jest.fn().mockReturnValue({ on: jest.fn() });
     pubSubClient({ duplicate } as never);
     expect(duplicate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -404,5 +405,45 @@ describe('pubSubClient', () => {
         socketTimeout: undefined,
       }),
     );
+  });
+});
+
+describe('pubSubClient / fail-fast in cluster mode (no Redis needed)', () => {
+  it('Cluster clone: cluster-level offline queue on, node options queue too, refresh attached', () => {
+    const cluster = createRedisClient(
+      'redis://127.0.0.1:1',
+      requestPathOptions(1000),
+      { REDIS_CLUSTER: 'true' },
+    ) as unknown as Cluster;
+    expect(cluster.options.enableOfflineQueue).toBe(false);
+    const clone = pubSubClient(cluster as never) as unknown as Cluster;
+    expect(clone).toBeInstanceOf(Cluster);
+    expect(clone.options.enableOfflineQueue).toBe(true);
+    expect(
+      (clone.options.redisOptions as { enableOfflineQueue?: boolean })
+        .enableOfflineQueue,
+    ).toBe(true);
+    expect(clone.options.redisOptions?.commandTimeout).toBeUndefined();
+    expect(clone.options.redisOptions?.maxRetriesPerRequest).toBeNull();
+    expect(clone.listenerCount('error')).toBeGreaterThan(0);
+    clone.disconnect();
+    cluster.disconnect();
+  });
+
+  it('unreachable cluster: a request-path command is refused at once and counts as «Redis down»', async () => {
+    const cluster = createRedisClient(
+      'redis://127.0.0.1:1',
+      requestPathOptions(1000),
+      { REDIS_CLUSTER: 'true' },
+    );
+    cluster.on('error', () => undefined);
+    const started = Date.now();
+    const err = await cluster.get('k').then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(isRedisInfraError(err)).toBe(true);
+    expect(Date.now() - started).toBeLessThan(500);
+    cluster.disconnect();
   });
 });

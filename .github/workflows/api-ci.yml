@@ -62,7 +62,7 @@ on:
       - "infra/modules/ecs/main.tf"
 
 concurrency:
-  group: api-ci-${{ github.ref }}
+  group: api-ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Security research #5 (2026-10-22), A2: least privilege — the jobs only read

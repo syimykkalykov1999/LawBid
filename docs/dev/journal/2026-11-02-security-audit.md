@@ -1,0 +1,3 @@
+# 2026-11-02 · аудит безопасности и лечение
+
+Отчёт: docs/security/SECURITY_AUDIT_2026-11-02.md (код читали, прод не трогали). Исправлено в одном PR: зависимости (follow-redirects, systeminformation, nodemailer 10.2.1, qs, fast-uri, gaxios, gcp-metadata, google-gax, zip-stream, rimraf; гейт `npm-audit-gate --workspace apps/api` снова зелёный, на main был красный), сокет `post:watch` (те же правила видимости, что у REST, плюс блокировки), суточный лимит публичного приёма крэшей (100 пачек на IP). Лист ожидания: по решению владельца писем нет, форма только записывает. Остаётся: postcss/vitest в админке (нужны major-обновления), проверка прод-настроек и WAF.
