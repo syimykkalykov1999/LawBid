@@ -43,6 +43,7 @@ MessageDto _$MessageDtoFromJson(Map<String, dynamic> json) => MessageDto(
       ? null
       : CallLogDto.fromJson(json['call'] as Map<String, dynamic>),
   clientMessageId: json['clientMessageId'] as String?,
+  seq: json['seq'] as num?,
   expiresAt: json['expiresAt'] == null
       ? null
       : DateTime.parse(json['expiresAt'] as String),
@@ -72,6 +73,7 @@ Map<String, dynamic> _$MessageDtoToJson(MessageDto instance) =>
       'body': instance.body,
       'contactMasked': instance.contactMasked,
       'clientMessageId': ?instance.clientMessageId,
+      'seq': ?instance.seq,
       'createdAt': instance.createdAt.toIso8601String(),
       'expiresAt': ?instance.expiresAt?.toIso8601String(),
       'editedAt': ?instance.editedAt?.toIso8601String(),
