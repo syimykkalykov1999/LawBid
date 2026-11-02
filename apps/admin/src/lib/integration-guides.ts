@@ -6,6 +6,7 @@
  * id / field name from the API (provider-registry); a service without a
  * guide (custom ones) simply shows none.
  */
+import type { KeyFileSpec } from './key-file';
 
 export interface FieldGuide {
   /** Where to find it: site → menu → button. One or two sentences. */
@@ -30,6 +31,8 @@ export interface ProviderGuide {
   fields: Record<string, FieldGuide>;
   /** «Загрузить файл .json»: JSON key → field name (filled in the browser). */
   jsonFile?: { button: string; map: Record<string, string> };
+  /** «Загрузить файл ключа» (.p8 / .pem): the file text fills one field (key-file.ts). */
+  keyFile?: KeyFileSpec;
   /** Webhook path on the API to paste at the vendor ({field} = that value). */
   webhookPath?: string;
 }
@@ -309,6 +312,12 @@ export const GUIDES: Record<string, ProviderGuide> = {
         url: 'https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app',
       },
     ],
+    keyFile: {
+      button: 'Загрузить файл .pem',
+      accept: '.pem',
+      field: 'privateKey',
+      marker: 'PRIVATE KEY-----',
+    },
     enable: [
       'Заполните четыре поля → «Сохранить» (код 2FA) → «Включить».',
       'Сначала включён пробный режим (Настройки → infra.dry_run): облако только планируется. Выключите его, когда посмотрели первый план.',
@@ -496,6 +505,12 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Меняйте поля только при переезде (новые бакеты, регион, CDN). Три поля CloudFront заполняйте все сразу или ни одного.',
       'Вставьте значения → «Добавить ключи» → «Сохранить» → «Проверить» → «Включить».',
     ],
+    keyFile: {
+      button: 'Загрузить файл .pem',
+      accept: '.pem',
+      field: 'privateCdnPrivateKey',
+      marker: 'PRIVATE KEY-----',
+    },
     fields: {
       region: { how: 'Регион бакетов.', example: 'us-east-1' },
       bucketDocuments: { how: 'Имя бакета документов в S3.' },
@@ -610,9 +625,16 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Назовите ключ, отметьте «Apple Push Notifications service (APNs)» → Continue → Register.',
       'Нажмите Download: скачается файл AuthKey_XXXXXXXXXX.p8 (скачать можно только один раз — сохраните его).',
       'Key ID — 10 символов на странице ключа (и в имени файла). Team ID — Account → Membership details.',
-      'Откройте .p8 в любом текстовом редакторе и вставьте всё содержимое в последнее поле.',
+      'Здесь нажмите «Загрузить файл .p8» и выберите его: ключ и Key ID заполнятся сами (Team ID впишите вручную). Или откройте .p8 в текстовом редакторе и вставьте всё содержимое в последнее поле.',
     ],
     links: [{ label: 'Apple Developer: Keys', url: 'https://developer.apple.com/account/resources/authkeys/list' }],
+    keyFile: {
+      button: 'Загрузить файл .p8',
+      accept: '.p8',
+      field: 'privateKey',
+      marker: '-----BEGIN PRIVATE KEY-----',
+      idFromName: { pattern: '^AuthKey_([A-Z0-9]{10})\\.p8$', field: 'keyId' },
+    },
     enable: [
       'Заполните APNS_KEY_ID, APNS_TEAM_ID и APNS_PRIVATE_KEY → «Сохранить» → «Проверить» → «Включить».',
       'В приложении ничего включать не нужно: входящий звонок начнёт звонить на закрытом iPhone сам.',
