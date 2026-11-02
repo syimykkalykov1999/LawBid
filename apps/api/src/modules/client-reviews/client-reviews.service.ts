@@ -16,6 +16,7 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaReadService } from '../../prisma/prisma-read.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { assertNoContactInfo } from '../cases/domain/contact-detector';
@@ -77,6 +78,8 @@ export class ClientReviewsService {
     // Optional: the worker wires this service without the moderation module.
     @Optional() private readonly moderation?: ModerationService,
     @Optional() private readonly settings?: AppSettingsService,
+    // Replica seam: the public summary may be a few seconds old.
+    @Optional() private readonly read?: PrismaReadService,
   ) {}
 
   async upsert(
@@ -740,7 +743,9 @@ export class ClientReviewsService {
     clientId: string,
   ): Promise<ReviewSummaryDto> {
     await this.assertCanSee(user, clientId);
-    const groups = await this.prisma.clientReview.groupBy({
+    const groups = await (
+      this.read?.readDb({ maxStalenessMs: 5000 }) ?? this.prisma
+    ).clientReview.groupBy({
       by: ['rating'],
       where: { client_id: clientId, status: 'published' },
       _count: { _all: true },
