@@ -5,7 +5,11 @@ import { createHash } from 'node:crypto';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { S3StorageService } from '../storage/s3-storage.service';
-import { VIRUS_SCANNER, type VirusScanner } from '../scanning/virus-scanner';
+import {
+  ClamdTooLargeError,
+  VIRUS_SCANNER,
+  type VirusScanner,
+} from '../scanning/virus-scanner';
 import { ImageProcessor } from '../processing/image-processor';
 import { detectMime } from '../magic-bytes';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
@@ -91,11 +95,17 @@ export class FileScanProcessor {
         return 'infected';
       }
     } catch (err) {
-      if (!finalAttempt) throw err;
+      if (!finalAttempt && !(err instanceof ClamdTooLargeError)) throw err;
       this.logger.error(
         { fileId, err },
         'File scan failed on the last attempt',
       );
+      // Too big for clamd: never scanned, so do not keep the object either.
+      if (err instanceof ClamdTooLargeError) {
+        await this.storage
+          .remove(file.s3_bucket, [file.s3_key])
+          .catch(() => undefined);
+      }
       await this.setStatus(fileId, 'failed');
       return 'failed';
     }

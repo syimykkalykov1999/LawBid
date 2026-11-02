@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
@@ -849,6 +850,7 @@ class _MessageListState extends ConsumerState<_MessageList> {
 
   /// Row key → index, built on first use after the rows change.
   Map<Key, int>? _indexByKey;
+  bool _prefetchQueued = false;
 
   final _listKey = GlobalKey();
   ChatListLayout? _layout;
@@ -1043,6 +1045,7 @@ class _MessageListState extends ConsumerState<_MessageList> {
           key: _listKey,
           controller: _c.scroll,
           reverse: true,
+          scrollCacheExtent: const ScrollCacheExtent.viewport(1),
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.screenSide,
             vertical: AppSpacing.md,
@@ -1085,6 +1088,19 @@ class _MessageListState extends ConsumerState<_MessageList> {
               );
             }
             BuildCounter.hit('chat.row');
+            // Prefetch the older page ~8 rows before the top, so history
+            // is already there when the user scrolls up (Telegram-style).
+            if (i >= entries.length - 8 &&
+                state.nextCursor != null &&
+                !state.loadingMore &&
+                !state.loadMoreFailed &&
+                !_prefetchQueued) {
+              _prefetchQueued = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _prefetchQueued = false;
+                unawaited(onMore());
+              });
+            }
             final entry = entries[i];
             final m = entry.newest;
             final older = i + 1 < entries.length ? entries[i + 1].newest : null;

@@ -1157,6 +1157,9 @@ export const OWNER_STORAGE_SETTINGS = {
   'storage.retention_assistant_activity_days': 365,
   'storage.retention_snapshots_days': 730,
   'storage.retention_post_views_days': 365,
+  // Audit A-10 (2026-11-01): who-opened-a-channel-post rows (one per reader
+  // and post) grow without end; the view counter itself stays.
+  'storage.retention_channel_post_views_days': 365,
   'storage.retention_app_events_days': 90,
   // Scale audit 2026-10-23: the two fastest-growing statistics tables.
   'storage.retention_post_view_events_days': 730,
