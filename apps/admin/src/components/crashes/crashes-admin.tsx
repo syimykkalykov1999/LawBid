@@ -177,7 +177,16 @@ function CrashDialog({ fingerprint, canWrite, onClose }: { fingerprint: string; 
                       `${c.at} ${c.platform} ${c.deviceModel} ${c.osVersion} v${c.appVersion} (${c.flavor})${c.route ? ` ${c.route}` : ''}${c.fatal ? ' fatal' : ''}`,
                   ),
                 ].join('\n');
-                void navigator.clipboard?.writeText(text).then(() => toast.success('Скопировано'));
+                // No clipboard (insecure origin) or a refusal: say so, never throw.
+                const write = navigator.clipboard?.writeText(text);
+                if (!write) {
+                  toast.error('Не удалось скопировать');
+                  return;
+                }
+                write.then(
+                  () => toast.success('Скопировано'),
+                  () => toast.error('Не удалось скопировать'),
+                );
               }}
             >
               <Copy size={16} /> Копировать
