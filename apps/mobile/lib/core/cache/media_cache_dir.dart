@@ -4,12 +4,22 @@ import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:lawbid/core/persistence/drift_web.dart' show isFlutterTest;
 import 'package:path_provider/path_provider.dart';
 
+/// One cached file: where it is, when it last changed, how big.
+typedef CachedFile = (File file, DateTime modified, int bytes);
+
+/// A place with cached files, so one limit can be kept across several of
+/// them (chat pictures and voice notes are one store).
+// ignore: one_member_abstracts
+abstract interface class CachedFiles {
+  Future<List<CachedFile>> entries();
+}
+
 /// Owner 2026-10-22 (client economy plan §5.1): the byte side of a
 /// flutter_cache_manager cache (the package itself only counts files).
 /// The cache's folder lives under the temporary directory, named by its
 /// key; this measures it, trims the oldest files past a limit and empties
 /// it. On the web the browser keeps media itself (nothing to measure).
-class MediaCacheDir {
+class MediaCacheDir implements CachedFiles {
   const MediaCacheDir(this.key, {this.root});
 
   final String key;
@@ -51,26 +61,26 @@ class MediaCacheDir {
     return total;
   }
 
-  /// Deletes the least recently changed files until the folder fits
-  /// [limitBytes]; answers how many bytes went.
-  Future<int> trimTo(int limitBytes) async {
+  @override
+  Future<List<CachedFile>> entries() async {
     final dir = await _dir();
-    if (dir == null) return 0;
-    final files = <(File, DateTime, int)>[];
-    var total = 0;
+    if (dir == null) return const [];
+    final files = <CachedFile>[];
     try {
       await for (final e in dir.list(recursive: true, followLinks: false)) {
         if (e is! File) continue;
         final stat = e.statSync();
         files.add((e, stat.modified, stat.size));
-        total += stat.size;
       }
     } on Object catch (e) {
       debugPrint('media cache scan $key: $e');
-      return 0;
     }
-    return _trimOldest(files, total, limitBytes);
+    return files;
   }
+
+  /// Deletes the least recently changed files until the folder fits
+  /// [limitBytes]; answers how many bytes went.
+  Future<int> trimTo(int limitBytes) => trimPoolTo([this], limitBytes);
 
   /// Deletes files older than [maxAge] (the «Хранить медиа» rule applied
   /// at once, not only on the next lookup).
@@ -128,7 +138,7 @@ class MediaCacheDir {
 /// suffix keeps a half-downloaded `….m4a.part` out of the sweep). They are
 /// chat media too, but live outside a cache folder, so «Данные и память»
 /// never counted or swept them. Measured, aged out and emptied like [MediaCacheDir].
-class PrefixedTempFiles {
+class PrefixedTempFiles implements CachedFiles {
   const PrefixedTempFiles(this.prefix, {this.suffix = '', this.root});
 
   final String prefix;
@@ -167,21 +177,22 @@ class PrefixedTempFiles {
     return total;
   }
 
-  /// Deletes the oldest files until the rest fits [limitBytes].
-  Future<int> trimTo(int limitBytes) async {
-    final files = <(File, DateTime, int)>[];
-    var total = 0;
+  @override
+  Future<List<CachedFile>> entries() async {
+    final files = <CachedFile>[];
     for (final f in await _files()) {
       try {
         final st = f.statSync();
         files.add((f, st.modified, st.size));
-        total += st.size;
       } on Object {
         // Gone meanwhile.
       }
     }
-    return _trimOldest(files, total, limitBytes);
+    return files;
   }
+
+  /// Deletes the oldest files until the rest fits [limitBytes].
+  Future<int> trimTo(int limitBytes) => trimPoolTo([this], limitBytes);
 
   Future<int> dropOlderThan(Duration maxAge) async {
     final cutoff = DateTime.now().subtract(maxAge);
@@ -211,13 +222,14 @@ class PrefixedTempFiles {
   }
 }
 
-/// Deletes the least recently changed of [files] (file, modified, bytes)
-/// until the [total] fits [limitBytes]; answers how many bytes went.
-Future<int> _trimOldest(
-  List<(File, DateTime, int)> files,
-  int total,
-  int limitBytes,
-) async {
+/// Keeps the files of all [pools] together within [limitBytes]: the least
+/// recently changed go first, whichever pool they are in (an LRU over one
+/// store, as Telegram keeps its chat media). Answers how many bytes went.
+Future<int> trimPoolTo(Iterable<CachedFiles> pools, int limitBytes) async {
+  final files = <CachedFile>[
+    for (final p in pools) ...await p.entries(),
+  ];
+  var total = files.fold(0, (a, f) => a + f.$3);
   if (total <= limitBytes) return 0;
   files.sort((a, b) => a.$2.compareTo(b.$2));
   var freed = 0;
