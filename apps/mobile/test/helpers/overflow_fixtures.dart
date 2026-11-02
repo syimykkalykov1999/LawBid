@@ -35,7 +35,7 @@ OwnerCase longOwnerCase() => OwnerCase(
       viewCount: 1234567,
       bidsCount: 9999,
       createdAt: DateTime(2026, 9, 2),
-      lastActivityAt: DateTime(2026, 11, 1),
+      lastActivityAt: DateTime(2026, 11),
       privateDetails: longText,
     );
 
