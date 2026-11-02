@@ -3218,6 +3218,9 @@ model ChatGroup {
   /// Owner 2026-10-21 (Telegram «Запретить копирование»): no forwarding,
   /// copying or saving of the group's messages; sharing sends the link.
   protect_content       Boolean   @default(false)
+  /// Owner 2026-11-02 (Telegram «Медленный режим»): seconds a non-admin must
+  /// wait between two own messages; null = off.
+  slow_mode_s           Int?
   /// Telegram's member permissions beyond post / add / edit-info / call.
   who_can_media         GroupWho  @default(all)
   who_can_poll          GroupWho  @default(all)
@@ -4488,6 +4491,7 @@ model PostViewEvent {
   @@index([post_id, viewer_id, kind, created_at(sort: Desc)])
   @@index([post_id, kind, created_at(sort: Desc)])
   @@index([viewer_id], map: "post_view_events_viewer_id_idx")
+  @@index([created_at], map: "post_view_events_created_idx")
   @@map("post_view_events")
 }
 
