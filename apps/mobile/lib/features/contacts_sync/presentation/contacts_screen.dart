@@ -26,6 +26,7 @@ import 'package:lawbid/features/contacts_sync/presentation/invite_contact.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/people/people_suggest_list.dart';
+import 'package:lawbid/shared/text/word_match.dart';
 
 /// Owner 2026-10-20: "Contacts" like WhatsApp — the phone-book people who
 /// are on LawBid (with message / call / video) and the rest to invite.
@@ -180,9 +181,7 @@ class _BodyState extends ConsumerState<_Body> {
         if (data.needsConsent) return const ContactsConsentView();
         if (data.denied) return const ContactsDeniedView();
         bool hit(String name, [String? handle]) =>
-            _query.isEmpty ||
-            name.toLowerCase().contains(_query) ||
-            (handle ?? '').toLowerCase().contains(_query);
+            matchesWords(_query, [name, handle]);
         final onLawBid = [
           for (final c in data.onLawBid)
             if (hit(c.title, c.person.username)) c,

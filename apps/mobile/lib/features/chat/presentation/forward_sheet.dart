@@ -15,6 +15,7 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/shared/people/people_suggest_list.dart';
+import 'package:lawbid/shared/text/word_match.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-21 (Telegram / WhatsApp «Переслать»): «Forward to…» for
@@ -112,8 +113,7 @@ class _ForwardTargetSheetState extends ConsumerState<ForwardTargetSheet> {
       c.counterpart.displayName ?? c.counterpart.username ?? c.caseTitle ?? '?';
 
   bool _matches(String title) {
-    final q = _query.text.trim().toLowerCase();
-    return q.isEmpty || title.toLowerCase().contains(q);
+    return matchesWords(_query.text, [title]);
   }
 
   int get _count => _picked.length + _people.length;

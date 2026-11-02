@@ -9,6 +9,7 @@ import 'package:lawbid/features/groups/presentation/group_message_text.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_mention_picker.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_style.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/shared/text/word_match.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// The message field of a group chat: multi-line text, «+» (photo, file,
@@ -129,9 +130,7 @@ class _GroupComposerState extends ConsumerState<GroupComposer> {
     return [
       for (final m in widget.members)
         if (m.userId != me &&
-            (q.isEmpty ||
-                groupMemberName(t, m).toLowerCase().contains(q) ||
-                (m.username ?? '').toLowerCase().contains(q)))
+            matchesWords(q, [groupMemberName(t, m), m.username]))
           m,
     ].take(40).toList();
   }

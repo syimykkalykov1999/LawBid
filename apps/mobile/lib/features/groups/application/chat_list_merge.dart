@@ -4,6 +4,7 @@ import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid/shared/text/word_match.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// One row of the Chats list: a direct chat or a group.
@@ -75,7 +76,7 @@ List<ChatListEntry> mergeChatList(
   return [
     for (final c in chats) DirectChatEntry(c),
     for (final g in groups)
-      if (q.isEmpty || g.title.toLowerCase().contains(q)) GroupChatEntry(g),
+      if (matchesWords(q, [g.title])) GroupChatEntry(g),
   ]..sort(compareChatEntries);
 }
 

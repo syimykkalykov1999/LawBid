@@ -8,6 +8,7 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/people/people_suggest.dart';
+import 'package:lawbid/shared/text/word_match.dart';
 
 /// Owner 2026-10-22 (WhatsApp «Add participant»): the people I may call in
 /// from a running call — never strangers. Three groups, in this order:
@@ -55,10 +56,7 @@ class MyPerson {
 
   /// [query] (already normalised by [peopleSuggestQuery], lower case) is in
   /// the name or the @username.
-  bool matches(String query) =>
-      query.isEmpty ||
-      name.toLowerCase().contains(query) ||
-      username.toLowerCase().contains(query);
+  bool matches(String query) => matchesWords(query, [name, username]);
 
   @override
   bool operator ==(Object other) => other is MyPerson && other.id == id;

@@ -20,6 +20,7 @@ import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
 import 'package:lawbid/shared/presentation/list_search_field.dart';
+import 'package:lawbid/shared/text/word_match.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-20: the channels screen — the ones I run, the ones I
@@ -202,7 +203,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             : [
                 for (final g in ref.watch(groupsProvider).value?.items ??
                     const <api.GroupDto>[])
-                  if (q.isEmpty || g.title.toLowerCase().contains(q)) g,
+                  if (matchesWords(q, [g.title])) g,
               ],
         channels: const <Channel>[],
       );
@@ -410,7 +411,7 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
       final q = query.toLowerCase();
       final mine = [
         for (final g in myGroups.value?.items ?? const <api.GroupDto>[])
-          if (g.title.toLowerCase().contains(q)) g,
+          if (matchesWords(q, [g.title])) g,
       ];
       final found = ref.watch(groupSearchProvider(query)).value ?? const [];
       groupRows = [

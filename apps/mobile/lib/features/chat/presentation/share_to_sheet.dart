@@ -26,6 +26,7 @@ import 'package:lawbid/features/stories/presentation/story_navigation.dart';
 import 'package:lawbid/shared/people/people_suggest_list.dart';
 import 'package:lawbid/shared/presentation/list_search_field.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
+import 'package:lawbid/shared/text/word_match.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-21 (Instagram «Поделиться», inbox 17): the share sheet of
@@ -395,7 +396,7 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
     final q = _q.toLowerCase();
     final items = [
       for (final g in list.value?.items ?? const <api.GroupDto>[])
-        if (g.canPost && (q.isEmpty || g.title.toLowerCase().contains(q))) g,
+        if (g.canPost && matchesWords(q, [g.title])) g,
     ];
     for (final g in items) {
       _groups[g.id] = g;
