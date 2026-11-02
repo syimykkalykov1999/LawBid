@@ -129,6 +129,18 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   /// reels); the same suggestions as every address field.
   final _place = TextEditingController();
 
+  /// The server's limit for a post's place (`PostLocationDto`).
+  static const _maxPlaceChars = 120;
+
+  /// The place to publish: trimmed, cut to the server's limit (a tapped
+  /// suggestion is set programmatically and skips the field's own limit),
+  /// null when empty.
+  String? get _placeName {
+    final text = _place.text.trim();
+    if (text.isEmpty) return null;
+    return String.fromCharCodes(text.runes.take(_maxPlaceChars)).trimRight();
+  }
+
   /// The typed (title, caption) as they are published: never a title.
   (String, String) get _parts => ('', postBodyOf(_body.text));
 
@@ -563,7 +575,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                 cover: v.coverBytes ?? v.frame,
                 title: _parts.$1,
                 text: _parts.$2,
-                place: _place.text.trim(),
+                place: _placeName ?? '',
                 commentsEnabled: true,
                 photoIds: const [],
                 attachments: _docs.refs,
@@ -586,6 +598,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             'kind': _news ? 'news' : 'post',
             if (_markedLegal) 'contentClass': 'legal',
             'mediaFileIds': [for (final p in _photos) p.fileId!],
+            if (_placeName != null) 'location': {'name': _placeName},
             if (_docs.items.isNotEmpty)
               'attachments': [
                 for (final d in _docs.refs)
@@ -613,7 +626,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           markedLegal: _markedLegal,
           mediaFileIds: [for (final p in _photos) p.fileId!],
           attachments: _docs.refs,
-          locationName: _place.text.trim().isEmpty ? null : _place.text.trim(),
+          locationName: _placeName,
         ),
         thumbnail: _photos.firstOrNull?.bytes,
         onPublished: (post) {
@@ -920,19 +933,23 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                           )
                         : const SizedBox.shrink(),
                   ),
+                  // OQ-042: "@…" suggests people to mention.
+                  MentionSuggestions(controller: _body),
+                  // The place of a new post or reel. Never autofilled: the
+                  // phone would put the person's home address into a public
+                  // post.
                   if (!_editing) ...[
                     const SizedBox(height: AppSpacing.md),
                     AddressField(
                       key: const ValueKey('post-place-field'),
                       controller: _place,
-                      hintText: t.t('tasks.steps.placeHint'),
-                      semanticLabel: t.t('tasks.steps.placeHint'),
+                      hintText: t.t('post.create.placeHint'),
+                      semanticLabel: t.t('post.create.placeHint'),
                       leading: const AppIcon(AppIcons.placeOutlined, size: 18),
-                      maxLength: 120,
+                      maxLength: _maxPlaceChars,
+                      autofillHints: const [],
                     ),
                   ],
-                  // OQ-042: "@…" suggests people to mention.
-                  MentionSuggestions(controller: _body),
                   const SizedBox(height: AppSpacing.lg),
                   const SizedBox(height: AppSpacing.xl),
                   if (_showDisclaimer) const PostDisclaimer(),
