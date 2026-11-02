@@ -198,7 +198,9 @@ class StorageScreen extends ConsumerWidget {
     if (!context.mounted) return;
     // Not emptied (the video proxy did not answer): say so, never «done».
     showAppSnackBar(
-        context, t.t(cleared ? 'storage.clear.done' : 'common.retry'));
+      context,
+      t.t(cleared ? 'storage.clear.done' : 'common.retry'),
+    );
   }
 
   static Future<void> _pickKeepMedia(

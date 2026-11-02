@@ -17,8 +17,9 @@ void main() {
     final f = File('${root.path}/$rel')
       ..createSync(recursive: true)
       ..writeAsBytesSync(List.filled(bytes, 1));
-    if (age > Duration.zero)
+    if (age > Duration.zero) {
       f.setLastModifiedSync(DateTime.now().subtract(age));
+    }
     return f;
   }
 
