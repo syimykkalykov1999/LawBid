@@ -118,18 +118,25 @@ class PostOverrides extends Notifier<Map<String, Post>> {
 final postOverridesProvider =
     NotifierProvider<PostOverrides, Map<String, Post>>(PostOverrides.new);
 
-/// The ids in [overrides] whose post passes [test], as one sorted string.
-/// A list that only needs «which posts were undone here» watches
-/// `postOverridesProvider.select((m) => overrideIdsWhere(m, …))` and so
-/// rebuilds when that answer changes, not on every like in the app (a
-/// `Set` has no value equality, a `String` does). Read it back with
-/// [overrideIdSet].
-String overrideIdsWhere(Map<String, Post> overrides, bool Function(Post) test) {
-  final ids = [
-    for (final e in overrides.entries)
-      if (test(e.value)) e.key,
+/// Of the post [ids] a list shows, those whose override (if any) passes
+/// [test], as one sorted string. A list that only needs «which of my posts
+/// were undone here» watches
+/// `postOverridesProvider.select((m) => overrideIdsWhere(m, ids, …))` and so
+/// rebuilds when that answer changes, not on every like in the app (a `Set`
+/// has no value equality, a `String` does; post ids are UUIDs, no commas).
+/// Scanning only the shown [ids] keeps it cheap and ignores posts the list
+/// does not show. Read it back with [overrideIdSet].
+String overrideIdsWhere(
+  Map<String, Post> overrides,
+  Iterable<String> ids,
+  bool Function(Post) test,
+) {
+  if (overrides.isEmpty) return '';
+  final hit = <String>[
+    for (final id in ids)
+      if (overrides[id] case final p? when test(p)) id,
   ]..sort();
-  return ids.join(',');
+  return hit.join(',');
 }
 
 /// The ids of an [overrideIdsWhere] string.

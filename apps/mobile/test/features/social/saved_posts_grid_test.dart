@@ -87,6 +87,18 @@ void main() {
     );
   });
 
+  test('overrideIdsWhere: only the shown ids, sorted, empty when none', () {
+    final saved = post('a');
+    final unsaved = post('b').copyWith(savedByMe: false);
+    final map = {'a': saved, 'b': unsaved, 'z': unsaved};
+    bool notSaved(Post p) => !p.savedByMe;
+    expect(overrideIdsWhere(map, ['b', 'a'], notSaved), 'b');
+    expect(overrideIdsWhere(map, ['a'], notSaved), '');
+    expect(overrideIdsWhere(const {}, ['a'], notSaved), '');
+    expect(overrideIdSet(''), isEmpty);
+    expect(overrideIdSet('b,c'), {'b', 'c'});
+  });
+
   testWidgets('a like elsewhere does not rebuild the grid; an unsave does',
       (t) async {
     final repo = _SavedRepo([
@@ -118,11 +130,21 @@ void main() {
     ).read(postOverridesProvider.notifier);
     BuildCounter.reset();
 
-    // A like on some other post, many times: not one rebuild.
+    // A like on some other (unsaved) post, many times: not one rebuild.
     for (var i = 0; i < 5; i++) {
-      overrides.put(post('other$i').copyWith(likedByMe: true, likeCount: i));
+      overrides.put(
+        post('other$i').copyWith(
+          likedByMe: true,
+          savedByMe: false,
+          likeCount: i,
+        ),
+      );
       await t.pump();
     }
+    expect(BuildCounter.of('saved.posts'), 0);
+    // A like on a shown post that stays saved: not a rebuild either.
+    overrides.put(post('s2').copyWith(likedByMe: true));
+    await t.pump();
     expect(BuildCounter.of('saved.posts'), 0);
 
     // Unsaving a shown post takes it out at once.

@@ -773,19 +773,24 @@ class ProfileBriefsAndReposts extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final deleted = ref.watch(deletedPostsProvider);
-    // Only «undone from here» matters: a like elsewhere must not rebuild
-    // the whole profile list.
-    final unreposted = overrideIdSet(
-      ref.watch(
-        postOverridesProvider
-            .select((m) => overrideIdsWhere(m, (p) => !p.repostedByMe)),
-      ),
-    );
-    BuildCounter.hit('profile.posts');
     final postsValue = ref.watch(attorneyPostsProvider(attorneyId));
     final repostsValue = ref.watch(userRepostsProvider(attorneyId));
     final posts = postsValue.value;
     final reposts = repostsValue.value;
+    // Only «undone from here» matters, and only for the reposts shown: a
+    // like elsewhere must not rebuild the whole profile list.
+    final repostIds = [
+      if (isSelf)
+        for (final p in reposts?.items ?? const <Post>[]) p.id,
+    ];
+    final unreposted = overrideIdSet(
+      ref.watch(
+        postOverridesProvider.select(
+          (m) => overrideIdsWhere(m, repostIds, (p) => !p.repostedByMe),
+        ),
+      ),
+    );
+    BuildCounter.hit('profile.posts');
 
     if (posts == null || reposts == null) {
       final failed = (posts == null && postsValue.hasError) ||
@@ -944,12 +949,17 @@ class SavedPostsList extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final value = ref.watch(savedPostsProvider);
     final notifier = ref.read(savedPostsProvider.notifier);
-    // Only «unsaved here» matters: a like elsewhere must not rebuild the
-    // grid.
+    // Only «unsaved here» matters, and only for the posts shown: a like
+    // elsewhere must not rebuild the grid.
+    final shownIds = [
+      for (final s in value.value?.items ?? const <SavedPost>[])
+        if (s.post != null) s.postId,
+    ];
     final unsaved = overrideIdSet(
       ref.watch(
-        postOverridesProvider
-            .select((m) => overrideIdsWhere(m, (p) => !p.savedByMe)),
+        postOverridesProvider.select(
+          (m) => overrideIdsWhere(m, shownIds, (p) => !p.savedByMe),
+        ),
       ),
     );
     BuildCounter.hit('saved.posts');
