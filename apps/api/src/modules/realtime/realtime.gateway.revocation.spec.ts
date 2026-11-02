@@ -185,7 +185,7 @@ describe('RealtimeGateway session revocation (finding 5)', () => {
       {} as SessionRevocationService,
       {} as PrismaService,
       redis as unknown as Redis,
-      { setContext: jest.fn(), warn: jest.fn() } as unknown as PinoLogger,
+      { setContext: jest.fn(), info: jest.fn(), warn: jest.fn() } as unknown as PinoLogger,
       {} as AssistantContextService,
       {} as PresenceService,
     );
