@@ -2,6 +2,7 @@ import { AttorneyAdvertisingService } from './attorney-advertising.service';
 import { Global, Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { AuthModule } from '../auth/auth.module';
+import { RateLimitService } from '../auth/auth.public';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { AdminCountriesController } from './admin-countries.controller';
 import { AdminCountriesService } from './admin-countries.service';
@@ -30,6 +31,6 @@ export class CountriesCoreModule {}
     FeatureFlagsModule,
   ],
   controllers: [CountriesController, AdminCountriesController],
-  providers: [AdminCountriesService],
+  providers: [AdminCountriesService, RateLimitService],
 })
 export class CountriesModule {}

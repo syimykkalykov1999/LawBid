@@ -194569,6 +194569,7 @@
           },
           "email": {
             "type": "string",
+            "description": "Optional. Without it the request only counts that people want this country.",
             "maxLength": 254,
             "format": "email"
           },
@@ -194579,8 +194580,7 @@
           }
         },
         "required": [
-          "countryCode",
-          "email"
+          "countryCode"
         ]
       },
       "CountryWaitlistResultEnvelope": {

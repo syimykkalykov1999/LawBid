@@ -1579,7 +1579,9 @@ model CountryWaitlist {
   id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   country_code String    @db.Char(2)
   country      Country   @relation(fields: [country_code], references: [code], onDelete: Cascade)
-  email        String
+  /// Optional (owner 2026-11-02: no mail is required, a country is enough);
+  /// rows without an address only count demand and are never mailed.
+  email        String?
   locale       String    @default("en")
   created_at   DateTime  @default(now()) @db.Timestamptz
   notified_at  DateTime? @db.Timestamptz
