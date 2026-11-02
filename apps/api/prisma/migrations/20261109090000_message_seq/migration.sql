@@ -33,7 +33,10 @@ UPDATE "conversations" c SET "last_seq" = s.mx
 FROM (SELECT "conversation_id", max("seq") AS mx FROM "messages" GROUP BY "conversation_id") s
 WHERE c."id" = s."conversation_id";
 
-CREATE UNIQUE INDEX "messages_conversation_id_seq_key" ON "messages"("conversation_id", "seq");
+-- The unique index (conversation_id, seq) is built CONCURRENTLY by
+-- prisma/concurrent/20261109090100_messages_conversation_seq_key.sql right after
+-- this migration (docs/architecture/ONLINE_DDL.md §2); the trigger below already
+-- guarantees the numbers are unique, the index is the safety net and the lookup.
 
 CREATE FUNCTION messages_assign_seq() RETURNS trigger AS $$
 BEGIN
