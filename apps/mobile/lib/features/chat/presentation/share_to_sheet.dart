@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
@@ -395,7 +396,7 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
     final q = _q.toLowerCase();
     final items = [
       for (final g in list.value?.items ?? const <api.GroupDto>[])
-        if (g.canPost && (q.isEmpty || g.title.toLowerCase().contains(q))) g,
+        if (g.canPost && textMatches(q, [g.title])) g,
     ];
     for (final g in items) {
       _groups[g.id] = g;

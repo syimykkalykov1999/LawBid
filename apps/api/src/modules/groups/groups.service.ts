@@ -30,6 +30,7 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaReadService } from '../../prisma/prisma-read.service';
 import {
   parseUpdatedSince,
   syncedAt,
@@ -173,6 +174,8 @@ export class GroupsService {
     // are admin settings again.
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() private readonly limits?: UsageLimitsService,
+    // Replica seam: the discover rows come from a cached snapshot anyway.
+    @Optional() private readonly replica?: PrismaReadService,
   ) {}
 
   /** `groups.max_members` (admin), never above the hard ceiling. */
@@ -1314,7 +1317,11 @@ export class GroupsService {
     const next =
       start + limit < ranked.length ? encodeOffset(start + limit) : null;
     if (slice.length === 0) return { items: [], nextCursor: next };
-    const rows = await this.prisma.chatGroup.findMany({
+    // Rows of a cached ranked snapshot: a few seconds of lag is invisible.
+    // My memberships / join requests (read-your-writes) stay on the primary.
+    const rows = await (
+      this.replica?.readDb({ maxStalenessMs: 5000 }) ?? this.prisma
+    ).chatGroup.findMany({
       where: {
         id: { in: slice.map((r) => r.id) },
         group_type: 'public',

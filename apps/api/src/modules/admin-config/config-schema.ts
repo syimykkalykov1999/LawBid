@@ -540,8 +540,24 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['ops.route_metrics.mode'] = {
     ...out['ops.route_metrics.mode'],
     description:
-      'Per-route request / error / latency metrics for about 15 key routes (CloudWatch LawBid/Routes, about $13.5 a month when all routes report): off | on (always) | auto (default: a route reports only while it has 5xx answers or p95 above 1 s).',
+      'Per-route request / error / latency metrics for about 15 key routes (CloudWatch LawBid/Routes, about $13.5 a month when all routes report): off (default) | on (always) | auto (a route reports only while it has 5xx answers or p95 above 1 s; every route with one bad minute is billed).',
     pattern: /^(off|on|auto)$/,
+  };
+  // 2026-11-02: HA copies and the replica auto-create (typos must not act).
+  out['ha.mode'] = { ...out['ha.mode'], pattern: /^(off|on|auto)$/ };
+  out['db.replica_provision'] = {
+    ...out['db.replica_provision'],
+    pattern: /^(off|auto)$/,
+  };
+  out['ha.provision_online_users'] = {
+    ...out['ha.provision_online_users'],
+    min: 0,
+    max: 1_000_000,
+  };
+  out['ha.release_days'] = {
+    ...out['ha.release_days'],
+    min: 1,
+    max: 30,
   };
   // Legal-grade protection of client documents (2026-10-24).
   out['security.attorney_strong_auth'] = {
@@ -1222,7 +1238,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   for (const t of ['messages', 'chat_group_messages', 'notifications']) {
     out[`partition.${t}_mode`] = {
       ...out[`partition.${t}_mode`],
-      description: `Hash partitioning of ${t}: off = plain table (default, faster while small), on = the online runner converts now, auto = converts at partition.auto_rows.`,
+      description: `Hash partitioning of ${t}: auto = converts by itself at partition.auto_rows (default; nothing happens while small), on = the online runner converts now, off = never.`,
       pattern: /^(off|on|auto)$/,
     };
   }

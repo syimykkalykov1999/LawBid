@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../redis/redis.constants';
+import { pubSubClient } from '../redis/redis-connection';
 import { PrismaService, routingOf } from '../prisma/prisma.service';
 import { SHARD_MAP_CHANNEL } from './shard-router';
 
@@ -31,7 +32,7 @@ export class ShardMapSync implements OnModuleInit, OnModuleDestroy {
   async onModuleInit(): Promise<void> {
     if (!this.redis || typeof this.redis.duplicate !== 'function') return;
     try {
-      this.sub = this.redis.duplicate();
+      this.sub = pubSubClient(this.redis);
       await this.sub.subscribe(SHARD_MAP_CHANNEL);
       this.sub.on('message', () => {
         void routingOf(this.prisma)?.router.refresh();
