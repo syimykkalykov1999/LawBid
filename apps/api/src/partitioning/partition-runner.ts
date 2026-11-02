@@ -413,7 +413,19 @@ export class PartitionRunner {
     );
     if (seq.length > 0) reasons.push('есть счётчики (serial/identity)');
     // The table's own triggers (shard_fill, ...) are not a reason to refuse:
-    // the swap re-creates them on the new table (see swap()).
+    // the swap re-creates them on the new table (see swap()). A trigger that
+    // is not in the default enabled state would come back enabled, so those
+    // are refused.
+    const offTrg = await this.db.rows<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pg_trigger
+        WHERE tgrelid = to_regclass($1) AND NOT tgisinternal AND tgenabled <> 'O'`,
+      q(t),
+    );
+    if ((offTrg[0]?.n ?? 0) > 0) {
+      reasons.push(
+        'есть выключенный или особый триггер (перенос включил бы его)',
+      );
+    }
     const idx = await this.db.rows<{ n: number }>(
       `SELECT count(*)::int AS n FROM pg_index i
         WHERE i.indrelid = to_regclass($1) AND i.indkey[0] = (

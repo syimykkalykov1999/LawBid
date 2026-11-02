@@ -170,7 +170,8 @@ export class DataRetentionService implements OnModuleDestroy {
               this.batched(
                 (limit) => this.prisma.$executeRaw`
                 DELETE FROM post_view_events
-                WHERE (id, created_at) IN (
+                WHERE created_at < ${before(viewEventsDays)}
+                  AND (id, created_at) IN (
                   SELECT id, created_at FROM post_view_events
                   WHERE created_at < ${before(viewEventsDays)}
                     AND ${ok('viewer_id')}
