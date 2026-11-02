@@ -1259,6 +1259,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       pattern: /^(off|on|auto)$/,
     };
   }
+  out['partition.post_view_events_mode'] = {
+    ...out['partition.post_view_events_mode'],
+    description:
+      'Monthly partitioning of post_view_events: auto = converts by itself at partition.auto_rows (default), on = the online runner converts now, off = never.',
+    pattern: /^(off|on|auto)$/,
+  };
   out['partition.auto_rows'] = {
     ...out['partition.auto_rows'],
     description:
