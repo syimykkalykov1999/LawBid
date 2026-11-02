@@ -9,15 +9,26 @@ import { ErrorCode } from '../errors/error-code.enum';
 import { CallTimeoutError, CircuitOpenError } from '../resilience/resilience';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 
-function run(exception: unknown): { status: number; body: unknown } {
+function run(exception: unknown): {
+  status: number;
+  body: unknown;
+  headers: Record<string, string>;
+} {
   const logger = {
     setContext: jest.fn(),
     error: jest.fn(),
     warn: jest.fn(),
   } as unknown as PinoLogger;
   const filter = new AllExceptionsFilter(logger);
-  const out: { status: number; body: unknown } = { status: 0, body: null };
+  const out: {
+    status: number;
+    body: unknown;
+    headers: Record<string, string>;
+  } = { status: 0, body: null, headers: {} };
   const response = {
+    setHeader(k: string, v: string) {
+      out.headers[k] = v;
+    },
     status(code: number) {
       out.status = code;
       return this;
@@ -144,6 +155,21 @@ describe('AllExceptionsFilter (docs/01 §7 error envelope)', () => {
       type: 'StripeCardError',
     });
     expect(run(err).status).toBe(500);
+  });
+
+  it('maps an unavailable Redis (refused while disconnected, timeout, closed) to 503 SERVER_BUSY with Retry-After', () => {
+    for (const e of [
+      new Error(
+        "Stream isn't writeable and enableOfflineQueue options is false",
+      ),
+      new Error('Command timed out'),
+      new Error('Connection is closed.'),
+    ]) {
+      const { status, body, headers } = run(e);
+      expect(status).toBe(503);
+      expect(body).toMatchObject({ error: { code: 'SERVER_BUSY' } });
+      expect(headers['Retry-After']).toBe('5');
+    }
   });
 
   it('maps a paused or timed-out partner service to 503 SERVER_BUSY', () => {

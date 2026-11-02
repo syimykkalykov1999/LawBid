@@ -1,5 +1,5 @@
-import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
@@ -22,7 +22,7 @@ void main() {
     root = await Directory.systemTemp.createTemp('cache_maintenance_test');
   });
   tearDown(() async {
-    VideoCache.debugStarting = null;
+    VideoCache.debugReset();
     await db.close();
     if (root.existsSync()) await root.delete(recursive: true);
   });
@@ -91,7 +91,7 @@ void main() {
     expect(part.existsSync(), isTrue);
   });
 
-  test('enforce applies the user limit to the video cache', () async {
+  test('enforce never deletes video files (the proxy owns them)', () async {
     final old = write(
       'video/a',
       (_mib * 0.6).round(),
@@ -99,8 +99,32 @@ void main() {
     );
     final fresh = write('video/b', (_mib * 0.6).round());
     await maintenance({CacheStore.video: 1}).enforce();
-    expect(old.existsSync(), isFalse);
+    expect(old.existsSync(), isTrue);
     expect(fresh.existsSync(), isTrue);
+  });
+
+  test('enforce hands the video limit to a running proxy', () async {
+    final port = ReceivePort();
+    addTearDown(port.close);
+    VideoCache.debugAttach(port.sendPort, sentMaxBytes: -1);
+    await maintenance({CacheStore.video: 1}).enforce();
+    expect(
+      await port.first.timeout(const Duration(seconds: 5)),
+      ('max', _mib),
+    );
+  });
+
+  test('a limit set with no proxy is sent once one is attached', () async {
+    await maintenance({CacheStore.video: 1}).enforce();
+    final port = ReceivePort();
+    addTearDown(port.close);
+    // The proxy came up with the old limit (as if started meanwhile).
+    VideoCache.debugAttach(port.sendPort, sentMaxBytes: 100 * _mib);
+    await maintenance({CacheStore.video: 1}).enforce();
+    expect(
+      await port.first.timeout(const Duration(seconds: 5)),
+      ('max', _mib),
+    );
   });
 
   test('clear(video) empties the folder and answers true', () async {
@@ -119,23 +143,6 @@ void main() {
     expect(await m.clear(CacheStore.chatMedia), isTrue);
     expect((await m.measure()).of(CacheStore.chatMedia), 0);
     expect(part.existsSync(), isTrue);
-  });
-
-  test('enforce waits for a starting video proxy before trimming', () async {
-    final starting = Completer<void>();
-    VideoCache.debugStarting = starting.future;
-    final old = write(
-      'video/a',
-      (_mib * 0.6).round(),
-      age: const Duration(hours: 2),
-    );
-    write('video/b', (_mib * 0.6).round());
-    final done = maintenance({CacheStore.video: 1}).enforce();
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-    expect(old.existsSync(), isTrue);
-    starting.complete();
-    await done;
-    expect(old.existsSync(), isFalse);
   });
 
   test('a throwing limits() does not lock enforce for good', () async {

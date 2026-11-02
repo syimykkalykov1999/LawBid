@@ -37,21 +37,22 @@ abstract final class VideoCache {
   static bool _failed = false;
   static int _sentMaxBytes = -1;
 
-  /// The user's lower limit from «Данные и память» (null = none chosen).
-  static int? _userMaxBytes;
+  /// The «Данные и память» limit for «Видео» (null = none handed over yet).
+  static int? _storeLimitBytes;
 
   /// The proxy's byte limit: the administrator's tuning, lowered (never
-  /// raised) by the user's choice.
+  /// raised) by the store limit (itself the admin ceiling or the user's
+  /// lower choice).
   static int get maxBytes {
     final tuned = ClientTuning.videoCacheMb * 1024 * 1024;
-    final user = _userMaxBytes;
-    return user == null || user >= tuned ? tuned : user;
+    final store = _storeLimitBytes;
+    return store == null || store >= tuned ? tuned : store;
   }
 
-  /// Applies the user's own limit for «Видео» (null = none) to a running
-  /// proxy too.
-  static void limitTo(int? userBytes) {
-    _userMaxBytes = userBytes;
+  /// Hands the store limit to the proxy, which evicts to it itself: at
+  /// once when it runs, right after it is up when it is still starting.
+  static void limitTo(int bytes) {
+    _storeLimitBytes = bytes;
     _syncMax();
   }
 
@@ -65,12 +66,24 @@ abstract final class VideoCache {
   /// Completes once a proxy that is starting is up (or failed to start).
   static Future<void> settled() async => await _starting;
 
-  /// Test hook: pretend a proxy is starting.
+  /// Test hook: forget the proxy and the limit.
   @visibleForTesting
-  static Future<void>? get debugStarting => _starting;
+  static void debugReset() {
+    _commands = null;
+    _port = null;
+    _secret = null;
+    _starting = null;
+    _failed = false;
+    _sentMaxBytes = -1;
+    _storeLimitBytes = null;
+  }
 
+  /// Test hook: pretend a proxy is up, started with [sentMaxBytes].
   @visibleForTesting
-  static set debugStarting(Future<void>? starting) => _starting = starting;
+  static void debugAttach(SendPort commands, {required int sentMaxBytes}) {
+    _sentMaxBytes = sentMaxBytes;
+    _commands = commands;
+  }
 
   static bool get enabled =>
       !kIsWeb && ClientTuning.videoCacheMb > 0 && !_failed;
@@ -98,13 +111,13 @@ abstract final class VideoCache {
         try {
           final base = await getTemporaryDirectory();
           final ready = ReceivePort();
-          final maxBytes = VideoCache.maxBytes;
-          await Isolate.spawn<_ProxyStart>(
+          final startMax = maxBytes;
+          final isolate = await Isolate.spawn<_ProxyStart>(
             _proxyMain,
             _ProxyStart(
               reply: ready.sendPort,
               dir: '${base.path}/$folderName',
-              maxBytes: maxBytes,
+              maxBytes: startMax,
               headBytes:
                   headBytesFor(seconds: ClientTuning.videoCacheChunkSeconds),
               hlsSeconds: ClientTuning.videoCacheChunkSeconds,
@@ -115,14 +128,23 @@ abstract final class VideoCache {
           final Object? msg;
           try {
             msg = await ready.first.timeout(const Duration(seconds: 10));
+          } on Object {
+            // No answer: do not leave a proxy running that nobody uses.
+            isolate.kill(priority: Isolate.immediate);
+            rethrow;
           } finally {
             ready.close();
           }
-          if (msg is! (SendPort, int, String)) throw StateError('proxy');
-          _sentMaxBytes = maxBytes;
+          if (msg is! (SendPort, int, String)) {
+            isolate.kill(priority: Isolate.immediate);
+            throw StateError('proxy');
+          }
+          _sentMaxBytes = startMax;
           _commands = msg.$1;
           _secret = msg.$3;
           _port = msg.$2;
+          // A limit handed over while the proxy was starting.
+          _syncMax();
         } on Object {
           _failed = true;
         }
