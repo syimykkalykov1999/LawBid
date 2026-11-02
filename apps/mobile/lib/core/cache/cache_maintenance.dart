@@ -50,7 +50,8 @@ class CacheMaintenance {
         _chatMedia =
             chatMedia ?? const MediaCacheDir(AppImageCaches.chatMediaKey),
         _video = video ?? const MediaCacheDir(VideoCache.folderName),
-        _voiceNotes = voiceNotes ?? const PrefixedTempFiles('voice_cache_', suffix: '.m4a');
+        _voiceNotes = voiceNotes ??
+            const PrefixedTempFiles('voice_cache_', suffix: '.m4a');
 
   final CacheDatabase _db;
   final SavedPageStore? _pages;
