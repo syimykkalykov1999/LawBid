@@ -1723,7 +1723,7 @@ class _Bubble extends ConsumerWidget {
                         LinkPreviewCard(
                           url: firstUrlIn(m.body)!,
                           mine: mine,
-                          conversationId: widget.conversationId,
+                          conversationId: m.conversationId,
                         ),
                       if (!inlineMeta) ...[
                         const SizedBox(height: 2),
