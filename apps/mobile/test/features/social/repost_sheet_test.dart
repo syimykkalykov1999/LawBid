@@ -87,8 +87,7 @@ void main() {
     await settle(t);
   });
 
-  testWidgets('Briefs & reposts tab lists reposts as grid tiles',
-      (t) async {
+  testWidgets('Briefs & reposts tab lists reposts as grid tiles', (t) async {
     final repo = FakeSocialRepository()
       ..reposts = [
         other(reposted: true, count: 3).copyWith(),

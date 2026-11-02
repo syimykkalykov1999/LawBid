@@ -266,3 +266,73 @@ describe('SystemHealthService', () => {
     });
   });
 });
+
+describe('SystemHealthService.cachedReport', () => {
+  function svc(entry: { age: number; data: unknown } | null) {
+    const summary = {
+      peek: jest.fn(() =>
+        Promise.resolve(
+          entry
+            ? {
+                data: entry.data,
+                computedAt: new Date(Date.now() - entry.age).toISOString(),
+              }
+            : null,
+        ),
+      ),
+      refresh: jest.fn((_k: string, compute: () => Promise<unknown>) =>
+        compute().then((data) => ({ data, computedAt: 'now' })),
+      ),
+      put: jest.fn(() => Promise.resolve()),
+    };
+    const build = jest.fn(() =>
+      Promise.resolve({ overall: 'green', generatedAt: 'x', items: [] }),
+    );
+    const s = Object.assign(
+      Object.create(SystemHealthService.prototype) as object,
+      { summary, build },
+    ) as unknown as SystemHealthService;
+    return { s, summary, build };
+  }
+  const old = (overall: string) => ({ overall, items: [] });
+
+  it('waits for the first computation on a cold cache', async () => {
+    const { s, build } = svc(null);
+    expect((await s.cachedReport()).overall).toBe('green');
+    expect(build).toHaveBeenCalledTimes(1);
+  });
+
+  it('serves a fresh entry without computing', async () => {
+    const { s, build, summary } = svc({ age: 1_000, data: old('red') });
+    expect((await s.cachedReport()).overall).toBe('red');
+    expect(build).not.toHaveBeenCalled();
+    expect(summary.refresh).not.toHaveBeenCalled();
+  });
+
+  it('serves a slightly stale entry at once and refreshes in the background', async () => {
+    const { s, summary } = svc({ age: 60_000, data: old('yellow') });
+    expect((await s.cachedReport()).overall).toBe('yellow');
+    expect(summary.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not show old lights: an entry older than 2 minutes waits for a new report', async () => {
+    const { s, build } = svc({ age: 5 * 60_000, data: old('red') });
+    expect((await s.cachedReport()).overall).toBe('green');
+    expect(build).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a malformed entry as a miss', async () => {
+    const { s, build } = svc({ age: 1_000, data: {} });
+    expect((await s.cachedReport()).overall).toBe('green');
+    expect(build).toHaveBeenCalledTimes(1);
+  });
+
+  it('report() computes now and stores the result for the next GET', async () => {
+    const { s, summary } = svc(null);
+    await s.report();
+    expect(summary.put).toHaveBeenCalledWith(
+      'ops:system-health',
+      expect.objectContaining({ overall: 'green' }),
+    );
+  });
+});

@@ -109,7 +109,7 @@ env:
 jobs:
   static:
     name: API static (lint, types, unit, migrations, contract)
-    runs-on: ubuntu-latest
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
     # Two full PostgreSQL migration runs (clean DB + upgrade from the
     # previous release) at ~10 min each, plus the e2e database.
     timeout-minutes: 75
@@ -290,7 +290,11 @@ jobs:
       - name: OpenAPI has no breaking changes against the base branch (docs/06 §7.2)
         if: github.event_name == 'pull_request'
         run: |
-          git show "origin/${{ github.base_ref }}:packages/api-contract/openapi.json" > /tmp/openapi.base.json
+          # Base = the main commit this PR was built on (merge-base), NOT the tip of
+          # main now: while the PR waited for runners main gained new endpoints and
+          # the tip looked like "endpoints removed" (false breaking, CI audit 02.11).
+          BASE=$(git merge-base HEAD "origin/${{ github.base_ref }}")
+          git show "$BASE:packages/api-contract/openapi.json" > /tmp/openapi.base.json
           docker run --rm -v /tmp/openapi.base.json:/base.json -v "$PWD/packages/api-contract/openapi.json:/head.json" \
             -v "$PWD/packages/api-contract/oasdiff-err-ignore.txt:/err-ignore.txt" \
             tufin/oasdiff@sha256:3e5346a0615610adda11ef9cbdab330d00e8b9619103be0f7ef4942ae8d78cef breaking --fail-on ERR --err-ignore /err-ignore.txt /base.json /head.json
@@ -360,7 +364,7 @@ jobs:
 
   e2e:
     name: API e2e (${{ matrix.shard }}/3)
-    runs-on: ubuntu-latest
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -475,7 +479,7 @@ jobs:
 
   two-db:
     name: API e2e (two databases)
-    runs-on: ubuntu-latest
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 45
     services:
       # Owner 2026-10-14: the whole project runs on PostgreSQL 16. Images are
@@ -574,7 +578,7 @@ jobs:
 
   n1:
     name: API N-1 (previous release's suites on the new schema)
-    runs-on: ubuntu-latest
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 45
     services:
       # Owner 2026-10-14: the whole project runs on PostgreSQL 16. Images are
