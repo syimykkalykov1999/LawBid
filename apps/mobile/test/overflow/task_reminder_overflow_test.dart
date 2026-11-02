@@ -14,6 +14,8 @@ void main() {
     'longest': (LongestTranslator(), TextDirection.ltr),
     'longest, right-to-left': (LongestTranslator(), TextDirection.rtl),
     'ne': (ShippedTranslator('ne'), TextDirection.ltr),
+    'de': (ShippedTranslator('de'), TextDirection.ltr),
+    'mr': (ShippedTranslator('mr'), TextDirection.ltr),
     'ar': (ShippedTranslator('ar'), TextDirection.rtl),
   };
 

@@ -23,6 +23,7 @@ import {
   rankedAfter,
 } from '../../common/pagination/ranked-cursor';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaReadService } from '../../prisma/prisma-read.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -93,6 +94,8 @@ export class ReviewsService {
     // Shard-ready step 7: the attorney's rating average is a global-family
     // row derived from sharded reviews, so it is an outbox event.
     @Optional() private readonly outbox?: CrossFamilyOutbox,
+    // Replica seam: the public summary may be a few seconds old.
+    @Optional() private readonly read?: PrismaReadService,
   ) {}
 
   /**
@@ -433,7 +436,9 @@ export class ReviewsService {
   /** GET /attorneys/:id/reviews/summary (§7.4). */
   async summary(attorneyId: string): Promise<ReviewSummaryDto> {
     await this.assertVisibleAttorney(attorneyId);
-    const groups = await this.prisma.review.groupBy({
+    const groups = await (
+      this.read?.readDb({ maxStalenessMs: 5000 }) ?? this.prisma
+    ).review.groupBy({
       by: ['rating'],
       where: { attorney_id: attorneyId, status: 'published' },
       _count: { _all: true },

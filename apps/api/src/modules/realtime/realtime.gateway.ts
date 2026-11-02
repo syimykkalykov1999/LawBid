@@ -22,6 +22,7 @@ import type { Namespace, Socket } from 'socket.io';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { RealtimeStatsService } from '../../common/ops/realtime-stats.service';
+import { RuntimeStatsService } from '../../common/ops/runtime-stats.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import {
@@ -51,6 +52,7 @@ import {
 } from '../../common/logging/ws-log-sampling';
 import { triMode, type TriMode } from '../../common/ops/tri-mode';
 import { shardContext } from '../../sharding/shard-context';
+import { pubSubClient } from '../../redis/redis-connection';
 import { RealtimeEventLog } from './realtime-event-log';
 import {
   newSocketEventBucket,
@@ -216,6 +218,7 @@ export class RealtimeGateway
     @Optional() private readonly stats?: RealtimeStatsService,
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() private readonly eventLog?: RealtimeEventLog,
+    @Optional() private readonly runtime?: RuntimeStatsService,
   ) {
     this.logger.setContext(RealtimeGateway.name);
   }
@@ -340,6 +343,8 @@ export class RealtimeGateway
 
   afterInit(nsp: Namespace): void {
     this.nsp = nsp;
+    // One number a minute for the ECS socket-count scaling policy.
+    this.runtime?.registerSocketGauge(() => this.nsp?.sockets.size ?? 0);
     void this.loadTiming();
     this.timingTimer = setInterval(() => void this.loadTiming(), 30_000);
     this.timingTimer.unref();
@@ -350,8 +355,8 @@ export class RealtimeGateway
     // Test doubles of REDIS_CLIENT can't pub/sub: stay on the in-memory
     // adapter (a single instance) then.
     if (typeof this.redis.duplicate !== 'function') return;
-    this.pub = this.redis.duplicate();
-    this.sub = this.redis.duplicate();
+    this.pub = pubSubClient(this.redis);
+    this.sub = pubSubClient(this.redis);
     // Owner 2026-10-22 (server load audit, finding 5): Redis 7 sharded
     // pub/sub (infra/modules/redis: engine 7.1). An event for `user:X`
     // reaches only the instances that hold that room, instead of every
@@ -365,7 +370,7 @@ export class RealtimeGateway
           })
         : createAdapter(this.pub, this.sub),
     );
-    this.revocations = this.redis.duplicate();
+    this.revocations = pubSubClient(this.redis);
     this.revocations.on('message', (channel: string, raw: string) => {
       if (channel === SESSION_REVOKED_CHANNEL) this.onSessionRevoked(raw);
     });
