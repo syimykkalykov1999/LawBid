@@ -19,7 +19,7 @@ git clone https://github.com/syimykkalykov1999/LawBid && cd LawBid
 scripts/ci/self-hosted-runner.sh up
 scripts/ci/self-hosted-runner.sh status
 ```
-Кэш npm: у каждого раннера свой именованный том `lawbid-ci-npm-N` на `~/.npm` (переживает job, `down` его не удаляет; чистка: `docker volume rm lawbid-ci-npm-1 …`, после этого первый job скачает всё заново). В GitHub-кэш с self-hosted ничего не выгружается (шаг «Post setup-node» занимал 17 мин под нагрузкой), только читается кэш, сохранённый GitHub-раннерами.
+Кэш npm: у каждого раннера свой именованный том `lawbid-ci-npm-N` на `~/.npm` (переживает job, `down` его не удаляет; чистка: сначала `scripts/ci/self-hosted-runner.sh down`, потом `docker volume rm lawbid-ci-npm-1 …`, потом `up` (том занят работающим контейнером, пока раннер поднят); первый job после этого скачает всё заново). В GitHub-кэш с self-hosted ничего не выгружается (шаг «Post setup-node» занимал 17 мин под нагрузкой), только читается кэш, сохранённый GitHub-раннерами.
 
 Остановка: `scripts/ci/self-hosted-runner.sh down`. Размер: `RUNNERS=6 RUNNER_CPUS=5 scripts/ci/self-hosted-runner.sh up`.
 

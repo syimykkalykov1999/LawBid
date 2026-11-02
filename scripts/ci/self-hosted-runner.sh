@@ -44,11 +44,13 @@ start_one() {
   i="$1"
   docker rm -f "lawbid-ci-dind-$i" "lawbid-ci-run-$i" >/dev/null 2>&1 || true
   docker volume create "lawbid-ci-npm-$i" >/dev/null
-  # The volume is created root-owned; hand it to the runner user once, and fail loudly if that does not work.
-  owner=$(docker run --rm --user root -v "lawbid-ci-npm-$i:/d" "$IMG" stat -c %U /d)
-  if [ "$owner" != "runner" ]; then
-    docker run --rm --user root -v "lawbid-ci-npm-$i:/d" "$IMG" chown -R runner:runner /d \
-      || { echo "cannot give volume lawbid-ci-npm-$i to the runner user" >&2; exit 1; }
+  # The volume is created root-owned; hand it to the runner user once. If that fails this runner
+  # starts WITHOUT the cache volume (slower npm ci) instead of aborting the whole `up`.
+  NPMVOL=(-v "lawbid-ci-npm-$i:/home/runner/.npm")
+  owner=$(docker run --rm --user root -v "lawbid-ci-npm-$i:/d" "$IMG" stat -c %U /d 2>/dev/null || echo unknown)
+  if [ "$owner" != "runner" ] && ! docker run --rm --user root -v "lawbid-ci-npm-$i:/d" "$IMG" chown -R runner:runner /d; then
+    echo "WARNING: cannot give volume lawbid-ci-npm-$i to the runner user: runner $i starts without the npm cache volume" >&2
+    NPMVOL=()
   fi
   docker run -d --name "lawbid-ci-dind-$i" --privileged --network "$NET" --restart unless-stopped \
     -e DOCKER_TLS_CERTDIR= docker:27-dind >/dev/null
@@ -56,7 +58,7 @@ start_one() {
     while [ -f "/tmp/lawbid-ci-up" ]; do
       tok=$(gh api -X POST "repos/$REPO/actions/runners/registration-token" --jq .token)
       docker run --rm --name "lawbid-ci-run-$i" --network "$NET" --cpus "$CPUS" --memory "$MEM" \
-        -v "lawbid-ci-npm-$i:/home/runner/.npm" \
+        ${NPMVOL[@]+"${NPMVOL[@]}"} \
         -e DOCKER_HOST="tcp://lawbid-ci-dind-$i:2375" -e RTOK="$tok" -e REPO="$REPO" -e LABELS="$LABELS" -e N="$i" \
         "$IMG" bash -c './config.sh --unattended --ephemeral --url "https://github.com/$REPO" --token "$RTOK" --labels "$LABELS" --name "laptop-$N-$(hostname)" && ./run.sh' || sleep 10
     done
