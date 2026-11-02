@@ -125,6 +125,7 @@ class _Social extends FakeSocialRepository {
 
 api.GroupDto _group(String id, String title, {required bool canPost}) =>
     api.GroupDto(
+      slowModeS: null,
       id: id,
       title: title,
       memberCount: 12,

@@ -19,8 +19,8 @@ import { SloMetricsService } from './slo-metrics.service';
  * COST: 3 metrics x [ROUTES.length] routes = at most 45 custom metrics, about
  * $13.5 a month at any scale (CloudWatch bills per metric, not per sample).
  * Switch `ops.route_metrics.mode` (admin → Настройки): `off` | `on` | `auto`
- * (default: a route writes its minute only while it has 5xx answers or a
- * slow p95, so a healthy system emits nothing). `ROUTE_METRICS=off` in the
+ * (since 2026-11-02 the default is `off`; `auto`: a route writes its minute
+ * only while it has 5xx answers or a slow p95). `ROUTE_METRICS=off` in the
  * environment is a hard kill switch.
  *
  * The same pass feeds the journey SLIs of monitoring/slo.tf (feed open,
@@ -89,7 +89,7 @@ const SLOW_BUCKET_MS = 1_000;
 export type RouteMetricsMode = 'off' | 'on' | 'auto';
 
 export function parseMode(raw: unknown): RouteMetricsMode {
-  return raw === 'off' || raw === 'on' || raw === 'auto' ? raw : 'auto';
+  return raw === 'off' || raw === 'on' || raw === 'auto' ? raw : 'off';
 }
 
 /** The allow-list entry of a request, or null (everything else is ignored). */
@@ -169,7 +169,7 @@ export class RouteMetricsService
 {
   private pending = new Map<string, Bucket>();
   private timer?: NodeJS.Timeout;
-  private mode: RouteMetricsMode = 'auto';
+  private mode: RouteMetricsMode = 'off';
 
   constructor(
     @Optional() private readonly settings?: AppSettingsService,

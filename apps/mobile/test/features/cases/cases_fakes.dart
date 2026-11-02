@@ -1,6 +1,7 @@
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/misc.dart';
 
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/data/cases_local_database.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart';
@@ -18,6 +19,15 @@ class FakeCasesRepository implements CasesRepository {
   final List<CaseSummary> myCasesItems;
   final List<String> calls = [];
 
+  /// What the phone's HTTP copy of the first page holds (null = no copy).
+  List<CaseSummary>? phoneCopy;
+
+  /// The same for «Мои работы» (null = no copy).
+  List<WorkItem>? workPhoneCopy;
+
+  /// The same for the saved cases (null = no copy).
+  List<SavedCase>? savedPhoneCopy;
+
   CursorPage<T> _empty<T>() => CursorPage<T>(items: const []);
 
   @override
@@ -26,6 +36,11 @@ class FakeCasesRepository implements CasesRepository {
     String? cursor,
     MineSearch search = const MineSearch(),
   }) async {
+    if (readingFromPhoneOnly) {
+      final copy = phoneCopy;
+      if (copy == null) throw StateError(kNoPhoneCopy);
+      return CursorPage(items: copy);
+    }
     calls.add('myCases:${filter.name}');
     return CursorPage(
       items: filter == MyCasesFilter.active || filter == MyCasesFilter.open
@@ -73,23 +88,37 @@ class FakeCasesRepository implements CasesRepository {
     MyBidsFilter filter, {
     String? cursor,
     MineSearch search = const MineSearch(),
-  }) async =>
-      _empty();
+  }) async {
+    if (readingFromPhoneOnly) throw StateError(kNoPhoneCopy);
+    return _empty();
+  }
 
   @override
   Future<CursorPage<WorkItem>> myWork(
     WorkFilter filter, {
     String? cursor,
     MineSearch search = const MineSearch(),
-  }) async =>
-      _empty();
+  }) async {
+    if (readingFromPhoneOnly) {
+      final copy = workPhoneCopy;
+      if (copy == null) throw StateError(kNoPhoneCopy);
+      return CursorPage(items: copy);
+    }
+    return _empty();
+  }
 
   @override
   Future<CursorPage<SavedCase>> savedCases({
     String? cursor,
     MineSearch search = const MineSearch(),
-  }) async =>
-      _empty();
+  }) async {
+    if (readingFromPhoneOnly) {
+      final copy = savedPhoneCopy;
+      if (copy == null) throw StateError(kNoPhoneCopy);
+      return CursorPage(items: copy);
+    }
+    return _empty();
+  }
 
   @override
   Future<CursorPage<HistoryCase>> history(

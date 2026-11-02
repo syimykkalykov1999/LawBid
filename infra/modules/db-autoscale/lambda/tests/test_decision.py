@@ -73,8 +73,19 @@ class UpTests(unittest.TestCase):
         self.assertEqual((r.action, r.target), ("up", "db.t4g.medium"))
         self.assertEqual(r.facts["triggers"]["cpu"], 77.7)
 
-    def test_cpu_spike_of_10_minutes_is_ignored(self):
-        m = replace(calm(), cpu=(20.0, 20.0, 90.0, 95.0))
+    def test_cpu_spike_of_10_minutes_below_the_fast_lane_is_ignored(self):
+        m = replace(calm(), cpu=(20.0, 20.0, 85.0, 88.0))
+        self.assertEqual(self.go(m).action, "none")
+
+    def test_saturated_cpu_for_10_minutes_goes_up_without_waiting_15(self):
+        m = replace(calm(), cpu=(20.0, 20.0, 93.0, 97.0))
+        r = self.go(m)
+        self.assertEqual((r.action, r.target), ("up", "db.t4g.medium"))
+        self.assertEqual(r.facts["triggers"]["cpu_fast"], 95.0)
+        self.assertIn("быстрая полоса", d.explain_triggers(r.facts["triggers"]))
+
+    def test_one_saturated_point_is_not_enough(self):
+        m = replace(calm(), cpu=(20.0, 20.0, 40.0, 99.0))
         self.assertEqual(self.go(m).action, "none")
 
     def test_low_memory_for_15_minutes(self):

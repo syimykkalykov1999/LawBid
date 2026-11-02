@@ -45,7 +45,7 @@ void main() {
       'ru'
     ),
   };
-  for (final scale in [1.0, 1.1]) {
+  for (final scale in [1.0, 1.1, 1.3]) {
     for (final MapEntry(key: name, value: (t, dir, code)) in locales.entries) {
       testWidgets("today's buttons at 360 dp ($name, x$scale)", (tester) async {
         useNarrowPhone(tester);
@@ -118,7 +118,10 @@ void main() {
           tester.getSize(find.byKey(const ValueKey('preview'))).height,
           tester.getSize(find.byKey(const ValueKey('questions'))).height,
         );
-        // No button label wraps to a second line, in any language.
+        // One line of label, in any language; two at the shell's largest
+        // font (it may wrap there, but never overflow: checked above).
+        final maxLabelHeight = 24 * scale * (scale > 1.1 ? 2 : 1);
+        // No button label wraps to a second line at normal text size.
         for (final k in [
           'cases.preview.button',
           'cases.comments.button',
@@ -128,7 +131,9 @@ void main() {
           if (f.evaluate().isNotEmpty) {
             expect(
               tester.getSize(f.first).height,
-              lessThan(24 * scale),
+              // At the shell's largest font (1.3) a long label may take
+              // a second line; it must never overflow (checked above).
+              lessThan(maxLabelHeight),
               reason: '$k wrapped',
             );
           }
@@ -137,7 +142,11 @@ void main() {
           // «Просмотр кейса» and «Вопросы по кейсу» on one line each.
           for (final label in ['Просмотр кейса', 'Вопросы']) {
             final h = tester.getSize(find.text(label)).height;
-            expect(h, lessThan(24), reason: '$label wrapped');
+            expect(
+              h,
+              lessThan(maxLabelHeight),
+              reason: '$label wrapped',
+            );
           }
         }
       });
