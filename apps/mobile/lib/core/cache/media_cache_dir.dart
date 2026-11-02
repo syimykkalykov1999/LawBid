@@ -10,11 +10,20 @@ import 'package:path_provider/path_provider.dart';
 /// key; this measures it, trims the oldest files past a limit and empties
 /// it. On the web the browser keeps media itself (nothing to measure).
 class MediaCacheDir {
-  const MediaCacheDir(this.key);
+  const MediaCacheDir(this.key, {this.root});
 
   final String key;
 
+  /// Where the folders live; the temporary directory unless a test gives
+  /// its own.
+  final Future<Directory> Function()? root;
+
   Future<Directory?> _dir() async {
+    final custom = root;
+    if (custom != null) {
+      final dir = Directory('${(await custom()).path}/$key');
+      return dir.existsSync() ? dir : null;
+    }
     // The web keeps media in the browser; a widget test has no temporary
     // directory (and its platform channel never answers).
     if (kIsWeb || isFlutterTest) return null;
@@ -131,14 +140,18 @@ class MediaCacheDir {
 /// too, but live outside a cache folder, so «Данные и память» never counted
 /// or swept them. Measured, aged out and emptied like [MediaCacheDir].
 class PrefixedTempFiles {
-  const PrefixedTempFiles(this.prefix);
+  const PrefixedTempFiles(this.prefix, {this.root});
 
   final String prefix;
 
+  /// The directory to look in; the temporary directory unless a test gives
+  /// its own.
+  final Future<Directory> Function()? root;
+
   Future<List<File>> _files() async {
-    if (kIsWeb || isFlutterTest) return const [];
+    if (root == null && (kIsWeb || isFlutterTest)) return const [];
     try {
-      final tmp = await getTemporaryDirectory();
+      final tmp = await (root ?? getTemporaryDirectory)();
       return [
         await for (final e in tmp.list(followLinks: false))
           if (e is File && e.uri.pathSegments.last.startsWith(prefix)) e,

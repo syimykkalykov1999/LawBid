@@ -193,8 +193,12 @@ class StorageScreen extends ConsumerWidget {
     );
     if (ok != true || !context.mounted) return;
     final notifier = ref.read(cacheReportProvider.notifier);
-    await (store == null ? notifier.clearAll() : notifier.clear(store));
-    if (context.mounted) showAppSnackBar(context, t.t('storage.clear.done'));
+    final cleared =
+        await (store == null ? notifier.clearAll() : notifier.clear(store));
+    if (!context.mounted) return;
+    // Not emptied (the video proxy did not answer): say so, never «done».
+    showAppSnackBar(
+        context, t.t(cleared ? 'storage.clear.done' : 'common.retry'));
   }
 
   static Future<void> _pickKeepMedia(

@@ -96,16 +96,18 @@ abstract final class VideoCache {
   /// Whether the proxy isolate is up (it then owns the folder).
   static bool get running => _commands != null;
 
-  /// «Очистить кэш»: drops every cached chunk.
-  static Future<void> clear() async {
+  /// «Очистить кэш»: drops every cached chunk. False when the proxy did not
+  /// answer in time (the chunks are then still on disk).
+  static Future<bool> clear() async {
     final c = _commands;
-    if (c == null) return;
+    if (c == null) return true;
     final done = ReceivePort();
     c.send(('clear', done.sendPort));
     try {
       await done.first.timeout(const Duration(seconds: 30));
+      return true;
     } on TimeoutException {
-      // The chunks go on their own (LRU).
+      return false;
     } finally {
       done.close();
     }

@@ -103,7 +103,9 @@ class CacheMaintenance {
 
   /// Empties one store («Очистить» on its row). What is gone is fetched
   /// again when it is needed.
-  Future<void> clear(CacheStore store) async {
+  /// False when a store could not be emptied (the video proxy did not
+  /// answer): the caller must not show it as cleared.
+  Future<bool> clear(CacheStore store) async {
     switch (store) {
       case CacheStore.http:
         // The memory level and the table (the interceptor's disk level is
@@ -122,31 +124,33 @@ class CacheMaintenance {
         await _voiceNotes.clear();
         if (!isFlutterTest) await AppImageCaches.chatMedia.emptyCache();
       case CacheStore.video:
-        // The video chunk cache (reels and chat videos).
-        // A running proxy owns the folder and empties it itself; without
-        // one the folder is deleted here.
-        if (VideoCache.running) {
-          await VideoCache.clear();
-        } else {
-          await _video.clearContents();
-        }
+        // The video chunk cache (reels and chat videos). A running proxy
+        // owns the folder and empties it itself; without one its files
+        // are removed here (the folder stays).
+        if (VideoCache.running) return VideoCache.clear();
+        await _video.clearContents();
       case CacheStore.other:
         await _db.clearOther();
       case CacheStore.files:
         // No cache of their own on the phone yet.
         break;
     }
+    return true;
   }
 
   /// «Очистить кэш» — everything except the outbox and the settings.
-  Future<void> clearAll() async {
+  /// False when some store could not be emptied.
+  Future<bool> clearAll() async {
+    var all = true;
     for (final s in CacheStore.values) {
       try {
-        await clear(s);
+        all = await clear(s) && all;
       } on Object catch (e) {
+        all = false;
         debugPrint('cache clear ${s.name}: $e');
       }
     }
+    return all;
   }
 
   /// Applies the limits and «Хранить медиа» (run once a day and when the
