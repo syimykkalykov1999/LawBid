@@ -77,7 +77,11 @@ class CacheMaintenance {
       guard(_db.messagesBytes),
       guard(() => _pages?.pagesBytes() ?? Future.value(0)),
       guard(_images.size),
-      guard(() async => await _chatMedia.size() + await _voiceNotes.size()),
+      guard(() async {
+        final sizes =
+            await Future.wait([_chatMedia.size(), _voiceNotes.size()]);
+        return sizes[0] + sizes[1];
+      }),
       guard(
         () async => await _db.translationsBytes() + await _db.fileViewsBytes(),
       ),
@@ -118,14 +122,13 @@ class CacheMaintenance {
         await _voiceNotes.clear();
         if (!isFlutterTest) await AppImageCaches.chatMedia.emptyCache();
       case CacheStore.video:
-        // The video chunk cache (reels and chat videos), 2026-11-02: it was
-        // never measured here, so «Очистить» left up to its whole limit.
+        // The video chunk cache (reels and chat videos).
         // A running proxy owns the folder and empties it itself; without
         // one the folder is deleted here.
         if (VideoCache.running) {
           await VideoCache.clear();
         } else {
-          await _video.clear();
+          await _video.clearContents();
         }
       case CacheStore.other:
         await _db.clearOther();
@@ -156,6 +159,7 @@ class CacheMaintenance {
     try {
       await _images.trimTo(l.limitBytes(CacheStore.images));
       await _chatMedia.trimTo(l.limitBytes(CacheStore.chatMedia));
+      await _voiceNotes.trimTo(l.limitBytes(CacheStore.chatMedia));
       if (l.keepMediaDays > 0) {
         await _chatMedia.dropOlderThan(Duration(days: l.keepMediaDays));
         await _voiceNotes.dropOlderThan(Duration(days: l.keepMediaDays));

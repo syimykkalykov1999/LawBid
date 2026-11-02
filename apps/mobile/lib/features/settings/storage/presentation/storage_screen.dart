@@ -280,6 +280,7 @@ class _UsageHeader extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final text = Theme.of(context).textTheme;
     final total = report?.total ?? 0;
+    final shown = StorageScreen._shown(report);
     final palette = [
       colors.accent,
       colors.gold,
@@ -313,11 +314,10 @@ class _UsageHeader extends StatelessWidget {
               height: 10,
               child: Row(
                 children: [
-                  for (var i = 0; i < StorageScreen._shown(report).length; i++)
-                    if (total > 0 &&
-                        (report?.of(StorageScreen._shown(report)[i]) ?? 0) > 0)
+                  for (var i = 0; i < shown.length; i++)
+                    if (total > 0 && (report?.of(shown[i]) ?? 0) > 0)
                       Expanded(
-                        flex: report!.of(StorageScreen._shown(report)[i]),
+                        flex: report!.of(shown[i]),
                         child: ColoredBox(color: palette[i]),
                       ),
                   if (total == 0)
