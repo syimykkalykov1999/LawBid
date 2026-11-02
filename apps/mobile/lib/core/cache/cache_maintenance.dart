@@ -50,7 +50,7 @@ class CacheMaintenance {
         _chatMedia =
             chatMedia ?? const MediaCacheDir(AppImageCaches.chatMediaKey),
         _video = video ?? const MediaCacheDir(VideoCache.folderName),
-        _voiceNotes = voiceNotes ?? const PrefixedTempFiles('voice_cache_');
+        _voiceNotes = voiceNotes ?? const PrefixedTempFiles('voice_cache_', suffix: '.m4a');
 
   final CacheDatabase _db;
   final SavedPageStore? _pages;
@@ -127,6 +127,9 @@ class CacheMaintenance {
         // The video chunk cache (reels and chat videos). A running proxy
         // owns the folder and empties it itself; without one its files
         // are removed here (the folder stays).
+        // A proxy that is still starting must come up first, or the files
+        // would go out from under its first write.
+        await VideoCache.settled();
         if (VideoCache.running) return VideoCache.clear();
         await _video.clearContents();
       case CacheStore.other:
@@ -162,8 +165,18 @@ class CacheMaintenance {
     final l = _limits();
     try {
       await _images.trimTo(l.limitBytes(CacheStore.images));
-      await _chatMedia.trimTo(l.limitBytes(CacheStore.chatMedia));
-      await _voiceNotes.trimTo(l.limitBytes(CacheStore.chatMedia));
+      // Pictures and voice notes are one store («Медиа чатов»): the notes
+      // get what the pictures leave of its limit, not a second full limit.
+      final chatLimit = l.limitBytes(CacheStore.chatMedia);
+      await _chatMedia.trimTo(chatLimit);
+      final room = chatLimit - await _chatMedia.size();
+      await _voiceNotes.trimTo(room < 0 ? 0 : room);
+      // The video proxy trims itself while it runs; the user's lower limit
+      // is handed to it, and a folder nobody writes to is trimmed here.
+      VideoCache.limitTo(l.limitBytes(CacheStore.video));
+      if (!VideoCache.running) {
+        await _video.trimTo(l.limitBytes(CacheStore.video));
+      }
       if (l.keepMediaDays > 0) {
         await _chatMedia.dropOlderThan(Duration(days: l.keepMediaDays));
         await _voiceNotes.dropOlderThan(Duration(days: l.keepMediaDays));

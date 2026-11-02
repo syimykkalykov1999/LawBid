@@ -124,17 +124,22 @@ class MediaCacheDir {
 }
 
 /// 2026-11-02: loose files in the temporary directory that carry one name
-/// prefix (voice notes: `voice_cache_<messageId>.m4a`). They are chat media
+/// prefix and suffix (voice notes: `voice_cache_<messageId>.m4a`; the
+/// suffix keeps a half-downloaded `….m4a.part` out of the sweep). They are chat media
 /// too, but live outside a cache folder, so «Данные и память» never counted
 /// or swept them. Measured, aged out and emptied like [MediaCacheDir].
 class PrefixedTempFiles {
-  const PrefixedTempFiles(this.prefix, {this.root});
+  const PrefixedTempFiles(this.prefix, {this.suffix = '', this.root});
 
   final String prefix;
+  final String suffix;
 
   /// The directory to look in; the temporary directory unless a test gives
   /// its own.
   final Future<Directory> Function()? root;
+
+  bool _matches(String name) =>
+      name.startsWith(prefix) && name.endsWith(suffix);
 
   Future<List<File>> _files() async {
     if (root == null && (kIsWeb || isFlutterTest)) return const [];
@@ -142,7 +147,7 @@ class PrefixedTempFiles {
       final tmp = await (root ?? getTemporaryDirectory)();
       return [
         await for (final e in tmp.list(followLinks: false))
-          if (e is File && e.uri.pathSegments.last.startsWith(prefix)) e,
+          if (e is File && _matches(e.uri.pathSegments.last)) e,
       ];
     } on Object catch (e) {
       debugPrint('temp files $prefix: $e');
