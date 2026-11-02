@@ -118,7 +118,9 @@ void main() {
     expect(find.text('second'), findsOneWidget);
   });
 
-  testWidgets('a failed load offers a retry that loads again', (tester) async {
+  testWidgets(
+      'a failed load retries once silently, then offers a retry that loads again',
+      (tester) async {
     var calls = 0;
     await tester.pumpWidget(
       _host(
@@ -126,7 +128,7 @@ void main() {
           id: 'test_retry',
           load: () async {
             calls++;
-            if (calls == 1) throw StateError('offline');
+            if (calls <= 2) throw StateError('offline');
           },
           builder: (_) => const Text('back online'),
         ),
@@ -134,12 +136,16 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
+    // The first failure is retried silently after a short pause: no error yet.
+    expect(find.byType(AppButton), findsNothing);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
     expect(find.byType(AppButton), findsOneWidget);
     await tester.tap(find.byType(AppButton));
     await tester.pump();
     await tester.pump();
     expect(find.text('back online'), findsOneWidget);
-    expect(calls, 2);
+    expect(calls, 3);
   });
 
   for (final dark in [false, true]) {
