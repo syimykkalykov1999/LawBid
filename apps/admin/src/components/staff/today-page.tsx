@@ -11,6 +11,7 @@ import { Badge, Card } from '@/components/ui/card';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import { countsQuery, livePoll } from '@/lib/live';
 import { useMe } from '@/lib/hooks';
 import { dayLabel, APPEAL_KIND, STATUS_LABEL } from '@/lib/staff-labels';
 import { useDigest, useToday, useTodaySystem, isOwner, staffPost, TODAY_SYSTEM_KEY, type DigestWeek, type Today, type TodayPerson } from '@/lib/staff-data';
@@ -41,6 +42,44 @@ function Block({ icon: I, title, href, children, testId }: { icon: typeof Bell; 
       </div>
       {children}
     </Card>
+  );
+}
+
+const WAITING: { key: 'verificationQueue' | 'openReports' | 'supportUnread' | 'trustQueue'; label: string; href: string }[] = [
+  { key: 'verificationQueue', label: 'Проверка документов', href: '/verification' },
+  { key: 'trustQueue', label: 'Очередь доверия', href: '/verification/trust' },
+  { key: 'openReports', label: 'Жалобы пользователей', href: '/moderation' },
+  { key: 'supportUnread', label: 'Поддержка', href: '/support' },
+];
+
+/**
+ * «Ждёт разбора»: what is waiting in the queues right now. Reuses the shell's
+ * ONE cached GET /admin/counts (four indexed counts, 304 when unchanged), so
+ * it costs no extra request or query, and it shows while the «Сегодня»
+ * switch is still off.
+ */
+function WaitingBlock() {
+  const q = useQuery({ ...countsQuery, refetchInterval: livePoll() });
+  const c = q.data;
+  if (!c) return null;
+  const rows = WAITING.filter((w) => c[w.key] > 0);
+  return (
+    <Block icon={Bell} title="Ждёт разбора" testId="today-waiting">
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted">Очереди пусты.</p>
+      ) : (
+        <ul className="space-y-2 text-sm">
+          {rows.map((w) => (
+            <li key={w.key} className="flex items-center justify-between gap-3">
+              <Link href={w.href} className="text-ink hover:underline">
+                {w.label}
+              </Link>
+              <Badge tone="gold">{c[w.key]}</Badge>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Block>
   );
 }
 
@@ -242,6 +281,9 @@ export function TodayPage() {
         subtitle={t ? <>Данные на {formatDateTime(t.computedAt)}. Только то, что нужно решить, без длинных журналов.</> : 'Короткий список: что решить сегодня.'}
       />
       <ErrorNote text={q.error ? errorText(q.error) : null} />
+      <div className="mb-4">
+        <WaitingBlock />
+      </div>
       {q.isPending ? (
         <div className="grid gap-4 lg:grid-cols-2">
           <Skeleton className="h-40 w-full" />
