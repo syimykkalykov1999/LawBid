@@ -316,7 +316,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
       button: 'Загрузить файл .pem',
       accept: '.pem',
       field: 'privateKey',
-      marker: 'PRIVATE KEY-----',
+      marker: '-----BEGIN (RSA )?PRIVATE KEY-----[\\s\\S]+-----END (RSA )?PRIVATE KEY-----',
     },
     enable: [
       'Заполните четыре поля → «Сохранить» (код 2FA) → «Включить».',
@@ -326,7 +326,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
       repo: { how: 'Адрес репозитория на GitHub без https://github.com/', example: 'syimykkalykov1999/LawBid' },
       appId: { how: 'Число «App ID» со страницы GitHub-приложения (General).', example: '1234567' },
       installationId: { how: 'Число в конце адреса страницы установки приложения (…/installations/55555555).', example: '55555555' },
-      privateKey: { how: 'Всё содержимое скачанного файла .pem, включая строки BEGIN и END.' },
+      privateKey: { how: 'Всё содержимое скачанного файла .pem, включая строки BEGIN и END.', multiline: true },
     },
   },
 
@@ -509,7 +509,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
       button: 'Загрузить файл .pem',
       accept: '.pem',
       field: 'privateCdnPrivateKey',
-      marker: 'PRIVATE KEY-----',
+      marker: '-----BEGIN (RSA )?PRIVATE KEY-----[\\s\\S]+-----END (RSA )?PRIVATE KEY-----',
     },
     fields: {
       region: { how: 'Регион бакетов.', example: 'us-east-1' },
@@ -520,7 +520,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
       cdnBaseUrl: { how: 'Адрес CDN для фото и видео. Можно оставить пустым.', example: 'https://media.lawbid.dev' },
       privateCdnDomain: { how: 'Домен CloudFront для приватных файлов (фото и голосовые в чатах, файлы дел, документы). Заполняйте все три поля сразу или ни одного — тогда ссылки подписывает сам S3. Домен и ID ключа показывает `terraform output` (documents_cdn_domain, documents_cdn_key_pair_id).', example: 'd1234abcd.cloudfront.net' },
       privateCdnKeyId: { how: 'ID публичного ключа CloudFront из группы ключей.', example: 'K2JCJMDEHXQW5F' },
-      privateCdnPrivateKey: { how: 'Закрытый ключ пары (PEM целиком). Его же можно положить в Secrets Manager как CLOUDFRONT_PRIVATE_KEY_PEM — см. docs/runbooks/DEPLOY_PROD.md.' },
+      privateCdnPrivateKey: { how: 'Закрытый ключ пары (PEM целиком). Его же можно положить в Secrets Manager как CLOUDFRONT_PRIVATE_KEY_PEM — см. docs/runbooks/DEPLOY_PROD.md.', multiline: true },
     },
   },
 
@@ -632,8 +632,8 @@ export const GUIDES: Record<string, ProviderGuide> = {
       button: 'Загрузить файл .p8',
       accept: '.p8',
       field: 'privateKey',
-      marker: '-----BEGIN PRIVATE KEY-----',
-      idFromName: { pattern: '^AuthKey_([A-Z0-9]{10})\\.p8$', field: 'keyId' },
+      marker: '-----BEGIN PRIVATE KEY-----[\\s\\S]+-----END PRIVATE KEY-----',
+      idFromName: { pattern: '^AuthKey_([A-Z0-9]{10})(?: \\(\\d+\\))?\\.p8$', field: 'keyId' },
     },
     enable: [
       'Заполните APNS_KEY_ID, APNS_TEAM_ID и APNS_PRIVATE_KEY → «Сохранить» → «Проверить» → «Включить».',

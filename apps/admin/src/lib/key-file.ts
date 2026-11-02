@@ -12,7 +12,7 @@ export interface KeyFileSpec {
   accept: string;
   /** Field that receives the file text. */
   field: string;
-  /** Text every valid file contains, e.g. a PEM header. */
+  /** Regex source a valid file matches, e.g. a whole PEM block. */
   marker: string;
   /** Field filled from the file name: `pattern` has one capture group. */
   idFromName?: { pattern: string; field: string };
@@ -22,18 +22,20 @@ export interface KeyFileSpec {
 export const KEY_FILE_MAX_BYTES = 16_384;
 
 export type KeyFileResult =
-  | { ok: true; filled: Record<string, string> }
+  | { ok: true; filled: Record<string, string>; missing: string[] }
   | { ok: false; reason: string };
 
 export function fillFromKeyFile(spec: KeyFileSpec, fileName: string, text: string): KeyFileResult {
   const body = text.replace(/\r\n?/g, '\n').trim();
-  if (body.length === 0 || body.length > KEY_FILE_MAX_BYTES || !body.includes(spec.marker)) {
+  if (body.length === 0 || body.length > KEY_FILE_MAX_BYTES || !new RegExp(spec.marker).test(body)) {
     return { ok: false, reason: 'Это не тот файл. Выберите скачанный файл ключа целиком, не открывая его.' };
   }
   const filled: Record<string, string> = { [spec.field]: body };
+  const missing: string[] = [];
   if (spec.idFromName) {
     const m = new RegExp(spec.idFromName.pattern).exec(fileName);
     if (m?.[1]) filled[spec.idFromName.field] = m[1];
+    else missing.push(spec.idFromName.field);
   }
-  return { ok: true, filled };
+  return { ok: true, filled, missing };
 }

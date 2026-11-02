@@ -28,7 +28,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/toast';
 import { api, ApiError, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
-import { fillFromKeyFile } from '@/lib/key-file';
+import { fillFromKeyFile, KEY_FILE_MAX_BYTES } from '@/lib/key-file';
 import { generated, guideFor, rejectText, webhookUrl, type ProviderGuide } from '@/lib/integration-guides';
 import { formatDateTime } from '@/lib/utils';
 import { TranslateZones } from './translate-zones';
@@ -548,6 +548,11 @@ function KeyForm({
   const loadKeyFile = async (picked: File | undefined) => {
     const spec = guide?.keyFile;
     if (!picked || !spec) return;
+    if (picked.size > KEY_FILE_MAX_BYTES) {
+      toast.error('Это не тот файл: ключ занимает пару килобайт. Выберите скачанный файл ключа.');
+      if (keyFileInput.current) keyFileInput.current.value = '';
+      return;
+    }
     try {
       const r = fillFromKeyFile(spec, picked.name, await picked.text());
       if (!r.ok) {
@@ -556,7 +561,12 @@ function KeyForm({
       }
       setValues((prev) => ({ ...prev, ...r.filled }));
       setErrors({});
-      toast.success('Поля заполнены из файла. Нажмите «Сохранить».');
+      if (r.missing.length > 0) {
+        const names = r.missing.map((n) => it.fields.find((f) => f.name === n)?.label ?? n).join(', ');
+        toast.success(`Ключ заполнен из файла. Впишите вручную: ${names}. Затем нажмите «Сохранить».`);
+      } else {
+        toast.success('Поля заполнены из файла. Нажмите «Сохранить».');
+      }
     } catch {
       toast.error('Не удалось прочитать файл. Выберите его ещё раз.');
     } finally {
