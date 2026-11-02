@@ -25,7 +25,7 @@ function make(values: Record<string, string | number>) {
   return { svc, writes };
 }
 
-describe('PartitionService modes (hash tables are opt-in)', () => {
+describe('PartitionService modes (hash tables and post_view_events)', () => {
   it('everything is «off» by default and for unknown values', async () => {
     const { svc } = make({ 'partition.notifications_mode': 'sometimes' });
     expect(await svc.mode('messages')).toBe('off');
@@ -44,7 +44,7 @@ describe('PartitionService modes (hash tables are opt-in)', () => {
     expect(await svc.autoRows()).toBe(20_000_000);
   });
 
-  it('setMode writes one audited setting, only for hash tables', async () => {
+  it('setMode writes one audited setting, only for switchable tables', async () => {
     const { svc, writes } = make({});
     await svc.setMode('messages', 'auto', 'admin-1');
     expect(writes).toEqual([
@@ -116,6 +116,34 @@ describe('PartitionService modes (hash tables are opt-in)', () => {
       const big = build(values, 1000);
       expect(await big.svc.autoStart()).toEqual(['post_view_events']);
       expect(big.started).toEqual(['post_view_events']);
+    });
+
+    it('a table that is already partitioned or has an active job is skipped', async () => {
+      const values = { 'partition.post_view_events_mode': 'on' };
+      const { svc, started } = build(values, 5);
+      const rw = (
+        svc as unknown as { runnerRw: () => Record<string, unknown> }
+      ).runnerRw();
+      rw.activeJobs = () => Promise.resolve([{ tbl: 'messages' }]);
+      expect(await svc.autoStart()).toEqual([]);
+      expect(started).toEqual([]);
+      rw.activeJobs = () => Promise.resolve([]);
+      rw.stats = () =>
+        Promise.resolve({ exists: true, partitioned: true, rows: 9e9 });
+      expect(await svc.autoStart()).toEqual([]);
+    });
+
+    it('a failing precheck is skipped, not started', async () => {
+      const { svc, started } = build(
+        { 'partition.post_view_events_mode': 'on' },
+        5,
+      );
+      const rw = (
+        svc as unknown as { runnerRw: () => Record<string, unknown> }
+      ).runnerRw();
+      rw.precheck = () => Promise.resolve({ ok: false, reasons: ['x'] });
+      expect(await svc.autoStart()).toEqual([]);
+      expect(started).toEqual([]);
     });
 
     it('«off» never starts, «on» starts at any size, an undone job is not repeated', async () => {

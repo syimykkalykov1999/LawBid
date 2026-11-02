@@ -161,9 +161,10 @@ export class PartitionService implements OnModuleDestroy {
       if (mode === 'off') continue;
       const st = await run.stats(spec.table);
       if (!st.exists || st.partitioned) continue;
+      // Cheap check first: a small table in «auto» costs no job query.
+      if (mode === 'auto' && st.rows < limit) continue;
       const job = await run.job(spec.table);
       if (job && job.phase !== 'done') continue;
-      if (mode === 'auto' && st.rows < limit) continue;
       const pre = await run.precheck(spec);
       if (!pre.ok) {
         this.log.warn(`auto ${spec.table}: ${pre.reasons.join('; ')}`);
