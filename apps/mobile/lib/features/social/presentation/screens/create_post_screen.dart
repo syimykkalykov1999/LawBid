@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:lawbid/core/addresses/address_field.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
@@ -124,6 +125,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   late final _body = TextEditingController(text: _initial);
   final _bodyFocus = FocusNode();
 
+  /// Owner 2026-11-02: where the post was made (optional, new posts and
+  /// reels); the same suggestions as every address field.
+  final _place = TextEditingController();
+
   /// The typed (title, caption) as they are published: never a title.
   (String, String) get _parts => ('', postBodyOf(_body.text));
 
@@ -176,6 +181,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     _docs.dispose();
     _body.dispose();
     _bodyFocus.dispose();
+    _place.dispose();
     super.dispose();
   }
 
@@ -557,7 +563,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                 cover: v.coverBytes ?? v.frame,
                 title: _parts.$1,
                 text: _parts.$2,
-                place: '',
+                place: _place.text.trim(),
                 commentsEnabled: true,
                 photoIds: const [],
                 attachments: _docs.refs,
@@ -607,6 +613,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           markedLegal: _markedLegal,
           mediaFileIds: [for (final p in _photos) p.fileId!],
           attachments: _docs.refs,
+          locationName: _place.text.trim().isEmpty ? null : _place.text.trim(),
         ),
         thumbnail: _photos.firstOrNull?.bytes,
         onPublished: (post) {
@@ -913,6 +920,17 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                           )
                         : const SizedBox.shrink(),
                   ),
+                  if (!_editing) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    AddressField(
+                      key: const ValueKey('post-place-field'),
+                      controller: _place,
+                      hintText: t.t('post.create.placeHint'),
+                      semanticLabel: t.t('post.create.placeHint'),
+                      leading: const AppIcon(AppIcons.placeOutlined, size: 18),
+                      maxLength: 120,
+                    ),
+                  ],
                   // OQ-042: "@…" suggests people to mention.
                   MentionSuggestions(controller: _body),
                   const SizedBox(height: AppSpacing.lg),
