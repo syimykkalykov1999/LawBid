@@ -910,6 +910,10 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
   /** Owner 2026-10-25: new socket connections per minute from one address
    * (CGNAT / offices carry many people: generous). 0 = no limit. */
   'realtime.max_connects_per_ip_per_minute': 120,
+  /** New socket connections per minute from one signed-in person (the
+   * identity that is counted; the address only guards sockets with no
+   * account). 0 = no limit. */
+  'realtime.max_connects_per_user_per_minute': 60,
   /** Owner 2026-10-25: password screening (NIST SP 800-63B-4 §3.1.1.2). */
   'security.password_breach_check_enabled': true,
   /** Milliseconds to wait for the breached-password service; later = skip. */

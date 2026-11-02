@@ -20,7 +20,9 @@ import { PinoLogger } from 'nestjs-pino';
 import { socketClientIp } from './socket-ip';
 import type { Namespace, Socket } from 'socket.io';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
+import { isIP } from 'node:net';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import type { AppSettingKey } from '../../common/app-settings/app-settings.defaults';
 import { RealtimeStatsService } from '../../common/ops/realtime-stats.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -89,6 +91,12 @@ const MAX_ROOMS_PER_SOCKET = 400;
 /** B-5: CGNAT / office / campus put hundreds of users behind one address;
  * a deploy reconnect storm must not lock them out (client backs off). */
 const DEFAULT_CONNECTS_PER_IP_PER_MINUTE = 600;
+/** One signed-in person: a healthy app reconnects a few times a minute at
+ * most; a loop (bad client) is cut here instead of hitting the shared address. */
+const DEFAULT_CONNECTS_PER_USER_PER_MINUTE = 60;
+/** Signed-in sockets share the address safety net: this many times the
+ * anonymous address limit (carrier / office addresses carry thousands). */
+const SIGNED_IN_IP_FACTOR = 10;
 /** How often a live socket refreshes its presence (and an assistant's
  * socket re-checks its duties). Owner 2026-10-22 (server load audit,
  * finding 5): no longer the session blacklist — a revoked session's
@@ -501,32 +509,85 @@ export class RealtimeGateway
     );
   }
 
-  /** Owner 2026-10-25: new connections per minute from one address
-   * (`realtime.max_connects_per_ip_per_minute`, 0 = off). Fails open: a
-   * Redis or settings hiccup never blocks a connection. Metric line:
-   * `ws_ip_limited`. */
-  private async overIpConnectLimit(socket: Socket): Promise<boolean> {
+  /** New connections per minute, counted per `who` and capped at `max`
+   * (0 = off). Fails open: a Redis or settings hiccup never blocks a
+   * connection. */
+  private async overConnectLimit(
+    who: string,
+    max: number,
+    metric: string,
+  ): Promise<boolean> {
+    if (max === 0) return false;
     try {
-      let max = DEFAULT_CONNECTS_PER_IP_PER_MINUTE;
-      const v = await this.settings?.number(
-        'realtime.max_connects_per_ip_per_minute',
-      );
-      if (v !== undefined && Number.isFinite(v) && v >= 0) max = Math.round(v);
-      if (max === 0) return false;
-      const ip = socketClientIp(
-        socket.handshake.headers,
-        socket.handshake.address,
-        Number(process.env.TRUST_PROXY_HOPS ?? 0) || 0,
-      );
-      if (!ip) return false;
-      const key = `ws:connect:${ip}`;
-      const n = await incrWithTtl(this.redis, key, 60);
+      const n = await incrWithTtl(this.redis, `ws:connect:${who}`, 60);
       if (n <= max) return false;
-      this.logger.warn({ metric: 'ws_ip_limited', ip }, 'ws connect limit');
+      this.logger.warn({ metric, who }, 'ws connect limit');
       return true;
     } catch {
       return false;
     }
+  }
+
+  private async connectLimit(
+    key: AppSettingKey,
+    fallback: number,
+  ): Promise<number> {
+    try {
+      const v = await this.settings?.number(key);
+      if (v !== undefined && Number.isFinite(v) && v >= 0) return Math.round(v);
+    } catch {
+      // settings hiccup: the default stands
+    }
+    return fallback;
+  }
+
+  /** Who is counted (how Telegram / WhatsApp / Instagram do it: the account
+   * and device are the identity, the address only guards what has no
+   * account). A signed-in person is counted per user
+   * (`realtime.max_connects_per_user_per_minute`, metric `ws_user_limited`),
+   * so one office or mobile-carrier address with thousands of people never
+   * blocks them; the address is then only a wide safety net (10x the address
+   * limit, `ws_ip_limited`). A socket with no valid token is counted per
+   * address (`realtime.max_connects_per_ip_per_minute`). 0 = off. */
+  private async overConnectLimits(
+    socket: Socket,
+    sub: string | undefined,
+  ): Promise<boolean> {
+    // Only a real address becomes a key: a forged X-Forwarded-For entry
+    // (hops set higher than the real proxy count) must not pick the key.
+    const rawIp = socketClientIp(
+      socket.handshake.headers,
+      socket.handshake.address,
+      Number(process.env.TRUST_PROXY_HOPS ?? 0) || 0,
+    );
+    const ip = rawIp && isIP(rawIp) ? rawIp : undefined;
+    // Both settings are read together (one round trip, not two).
+    const [perIp, perUser] = await Promise.all([
+      this.connectLimit(
+        'realtime.max_connects_per_ip_per_minute',
+        DEFAULT_CONNECTS_PER_IP_PER_MINUTE,
+      ),
+      this.connectLimit(
+        'realtime.max_connects_per_user_per_minute',
+        DEFAULT_CONNECTS_PER_USER_PER_MINUTE,
+      ),
+    ]);
+    if (sub === undefined) {
+      return ip
+        ? this.overConnectLimit(`ip:${ip}`, perIp, 'ws_ip_limited')
+        : false;
+    }
+    const [byUser, byIp] = await Promise.all([
+      this.overConnectLimit(`u:${sub}`, perUser, 'ws_user_limited'),
+      ip
+        ? this.overConnectLimit(
+            `ip:${ip}`,
+            perIp * SIGNED_IN_IP_FACTOR,
+            'ws_ip_limited',
+          )
+        : false,
+    ]);
+    return byUser || byIp;
   }
 
   async handleConnection(socket: Socket): Promise<void> {
@@ -537,10 +598,6 @@ export class RealtimeGateway
       socket.disconnect(true);
       return;
     }
-    // Runs alongside the token check below (not before it): a socket is
-    // usable the moment it connects, so a serial extra round trip here would
-    // widen the window where a first packet arrives before `socket.data`.
-    const ipLimited = this.overIpConnectLimit(socket);
     const auth = socket.handshake.auth as { token?: unknown } | undefined;
     const header = socket.handshake.headers.authorization;
     const token =
@@ -552,7 +609,9 @@ export class RealtimeGateway
     const claims = token ? await this.verify(token) : null;
     // Never awaited: the limit check adds no latency to the handshake; an
     // over-limit socket is closed as soon as the answer arrives.
-    void ipLimited.then((limited) => {
+    // A demo session's person is shared by every visitor: counted by address.
+    const who = claims && claims.demo !== true ? claims.sub : undefined;
+    void this.overConnectLimits(socket, who).then((limited) => {
       if (!limited) return;
       socket.emit('auth:error', { code: 'RATE_LIMITED' });
       socket.disconnect(true);

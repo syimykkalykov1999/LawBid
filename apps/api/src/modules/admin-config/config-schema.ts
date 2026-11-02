@@ -426,6 +426,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 100000,
   };
+  out['realtime.max_connects_per_user_per_minute'] = {
+    ...out['realtime.max_connects_per_user_per_minute'],
+    description:
+      'New live connections per minute from one signed-in person (0 = no limit). A signed-in person is counted by account, not by address.',
+    min: 0,
+    max: 100000,
+  };
   out['security.password_hash_concurrency'] = {
     ...out['security.password_hash_concurrency'],
     description:
