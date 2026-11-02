@@ -229,6 +229,13 @@ export const FILE_06_SETTINGS = {
   /** Algo audit 2026-10-27 (CONTENT M-1): checks skipped for the budget or
    * failed four times are run again hourly (20 a run, last 3 days). */
   'moderation.image.recheck_enabled': true,
+  /** Owner 2026-11-02: frame-by-frame video check (needs ffmpeg in the
+   * image). OFF: each frame is one paid `image_moderation` unit. */
+  'moderation.video.frames_enabled': false,
+  /** One frame per this many seconds of the clip (10–60 s clips: 1–6). */
+  'moderation.video.frame_every_sec': 10,
+  /** At most this many frames per video. */
+  'moderation.video.frames_max': 6,
   // Owner 2026-10-22 (audit #4 §5): image moderation (AWS Rekognition).
   // Confidence 0–100: at `hide` the photo / reel is hidden at once and
   // queued; at `review` it stays up and is queued; below that it is clean.
