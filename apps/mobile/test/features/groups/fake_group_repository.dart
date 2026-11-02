@@ -440,6 +440,7 @@ api.GroupDetailDto groupDetail({
 }) {
   final canPost = !readOnly;
   return api.GroupDetailDto(
+    slowModeS: null,
     callsMuted: false,
     id: id,
     title: _longTitle,
@@ -572,6 +573,7 @@ api.GroupDto listGroup(
   api.OngoingCallDto? ongoingCall,
 }) =>
     api.GroupDto(
+      slowModeS: null,
       id: id,
       title: _longTitle,
       description: _longDescription,

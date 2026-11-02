@@ -120,6 +120,21 @@ ONLY after every item above is finished: the verified checkmark badges (attorney
 | Certificate pinning | этап телефонных сборок: проверка на Samsung и iPhone, запасной ключ (primary+backup), kill-switch; без устройства не включать |
 | VoiceOver / TalkBack | этап телефонных сборок: пройти экраны экранным диктором на устройстве; в коде метки есть, на телефоне не проверено |
 | Покадровая проверка видео (#597) | флаг выключен. Rekognition и Bunny sandbox/mock в репозитории нет, настоящий прогон возможен только на проде с дневным лимитом. Включение: `gh workflow run container-scan.yml -f with_ffmpeg=true` → зелёный → `gh variable set WITH_FFMPEG --body 1` → деплой → в админке `moderation.video.frames_enabled` |
+| Списки из копии телефона (#635, 32b20e1b3) | этап телефонных сборок: холодный старт без сети, режим «в самолёте», 304 на медленной сети, ощущение скорости на Samsung и iPhone. Без устройства проверены только тесты: копия отдаётся без запроса, медленный диск = промах быстрее 1 с, офлайн-старт отдаёт копию |
+
+### Тест на наезд текста: что покрыто и что осталось (02.11)
+Покрыто пачками 1–6 (`apps/mobile/test/overflow/batch1..6_overflow_test.dart`, общий каркас `test/helpers/overflow_harness.dart`, журнал `docs/dev/journal/*overflow*`): #609, #622, #627, #630, #637, #640. Каждая проверка идёт на 360 dp, 7 языков (самый длинный, RTL, ne, de, mr, ar, ru), масштаб 1 и 1,3, темы на самом длинном тексте, и убеждается, что на экране настоящее содержимое.
+
+| Пункт | Что нужно |
+|---|---|
+| Шторка зрителей истории (`story_viewer_sheets`, `_ViewersSheet`) | фейк `storyViewersProvider`, пачка 7 |
+| Экраны архива групп и каналов (`GroupsArchiveScreen`, `ChannelsArchiveScreen`) | фейки `archivedGroupsProvider`, `archivedChannelsProvider` |
+| `chat_video` | тест виджетов видео в чате, нужны фейки плеера |
+| `AppPaginatedListView` со строками | подвал уже покрыт, сам список с длинными строками нет |
+| `WorkCaseScreen` | фикстура `attorneyCase` |
+| Камерные экраны (`id_selfie_capture_screen`, `camera_capture_screen`, `story_camera_view`) и `secure_screen` | только на телефоне, в финальном раунде |
+| Всё сделанное | на телефоне не проверено; голдены только на macOS |
+Попутно: общие `overflowOpener`/`overflowShows` стоит применить в `batch1_overflow_test.dart`, `data_sheets_overflow_test.dart`, `groups_overflow_test.dart` (там локальные копии); корень дефекта «`AppButton` растягивается на всю ширину и в `Row` требует ограничения» не менялся (в `chat_payment_bar.dart` стоит `maxWidth: 148`).
 
 ---
 
@@ -139,7 +154,7 @@ ONLY after every item above is finished: the verified checkmark badges (attorney
 ### 2. Слияния в main
 - **Один диспетчер-поток** (тред «Вылечить CI») сливает в main **по одному** после зелёного CI.
 - **Авторы PR сами не сливают.** Красное в PR чинит автор; механику CI (перезапуск, merge main, схемы переключателей) правит диспетчер.
-- **Merge queue не включать.** Единственный required check: «CI gate».
+- **Merge queue не включать.** Required check пока не включён (`ci-gate.yml` удалён 01.11, см. docs/dev/CI_FAILURES_AUDIT_2026-11-01.md): если владелец включит правило, требовать `Repo guards` и `API CI`.
 - Стек PR: после слияния A сразу `base` B → `main`. Ветка не живёт дольше суток без merge main. Force-push на чужую ветку нельзя.
 - Постоянное разрешение владельца: зелёное сливать и деплоить без вопросов. Approve деплоя нажимает владелец (см. п. 5).
 

@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-298 tables.
+299 tables.
 
 ```mermaid
 erDiagram
@@ -969,6 +969,7 @@ erDiagram
     Boolean show_service_messages
     Int disappear_after_s "nullable"
     Boolean protect_content
+    Int slow_mode_s "nullable"
     enum_GroupWho who_can_media
     enum_GroupWho who_can_poll
     enum_GroupWho who_can_pin
@@ -3816,6 +3817,16 @@ erDiagram
     Json payload
     DateTime created_at
   }
+  quick_replies {
+    String id PK
+    String user_id FK
+    String title
+    String body
+    Int position
+    DateTime created_at
+    DateTime updated_at
+    Int shard_id
+  }
   users }o--o| files : "avatar_file_id"
   users }o--|| countries : "country_code"
   files }o--|| users : "owner_user_id"
@@ -4127,4 +4138,5 @@ erDiagram
   csam_reports }o--|| media_moderation_checks : "check_id"
   experiment_exposures }o--|| experiments : "experiment_id"
   experiment_results }o--|| experiments : "experiment_id"
+  quick_replies }o--|| users : "user_id"
 ```

@@ -74,6 +74,8 @@ export class GroupPollsService {
     if (existing) {
       return (await this.presenter.messages([existing], user.sub))[0];
     }
+    // Owner 2026-11-02: a poll counts as the member's message in slow mode.
+    const giveSlotBack = await this.groups.takeSlowModeSlot(m, user.sub);
     let row: ChatGroupMessage;
     try {
       row = await withTxRetry(this.prisma, async (tx) => {
@@ -106,6 +108,7 @@ export class GroupPollsService {
         return msg;
       });
     } catch (error) {
+      await giveSlotBack();
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
@@ -120,9 +123,7 @@ export class GroupPollsService {
             },
           },
         });
-        if (again) {
-          return (await this.presenter.messages([again], user.sub))[0];
-        }
+        if (again) return (await this.presenter.messages([again], user.sub))[0];
       }
       throw error;
     }
