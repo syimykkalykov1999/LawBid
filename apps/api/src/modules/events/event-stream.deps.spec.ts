@@ -1,24 +1,33 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * The publisher loads the Kinesis client by a computed name
- * (`import(pkg)`), so neither tsc nor the bundler notices a missing
- * dependency. Terraform sets EVENTS_STREAM_NAME when
- * growth.events_stream_enabled = true; without the package every publish
- * would then fail at run time (audit 2026-11-02).
+ * Every `@aws-sdk/*` package the API source loads by name (import / dynamic
+ * import / require) must be a declared dependency. A computed name used to
+ * hide a missing package from tsc until the feature was switched on in
+ * production (audit 2026-11-02: client-kinesis).
  */
-describe('event stream publisher dependency', () => {
-  it('declares @aws-sdk/client-kinesis in package.json', () => {
-    const src = readFileSync(
-      join(__dirname, 'event-stream.publisher.ts'),
-      'utf8',
-    );
-    const name = /const pkg = '([^']+)'/.exec(src)?.[1];
-    expect(name).toBe('@aws-sdk/client-kinesis');
+function sources(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) return sources(p);
+    return /\.ts$/.test(name) && !/\.spec\.ts$/.test(name) ? [p] : [];
+  });
+}
+
+describe('@aws-sdk packages used by the API are declared', () => {
+  it('has every literal @aws-sdk specifier in package.json', () => {
+    const root = join(__dirname, '../..');
     const pkg = JSON.parse(
-      readFileSync(join(__dirname, '../../../package.json'), 'utf8'),
+      readFileSync(join(root, '../package.json'), 'utf8'),
     ) as { dependencies: Record<string, string> };
-    expect(pkg.dependencies[name as string]).toBeDefined();
+    const used = new Set<string>();
+    for (const f of sources(root)) {
+      const re = /['"](@aws-sdk\/[a-z0-9-]+)['"]/g;
+      for (const m of readFileSync(f, 'utf8').matchAll(re)) used.add(m[1]);
+    }
+    expect([...used]).toContain('@aws-sdk/client-kinesis');
+    const missing = [...used].filter((n) => !pkg.dependencies[n]);
+    expect(missing).toEqual([]);
   });
 });
