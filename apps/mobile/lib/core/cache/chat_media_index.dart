@@ -10,9 +10,7 @@ class ChatMediaUsage {
     required this.files,
   });
 
-  /// Null for pictures that belong to no known chat (link previews, chats
-  /// whose history was trimmed).
-  final String? conversationId;
+  final String conversationId;
   final int bytes;
   final int files;
 }
@@ -28,6 +26,8 @@ class ChatMediaUsage {
 class ChatMediaIndex {
   ChatMediaIndex(this._db, {required this.sizeOf, required this.remove});
 
+  static const _staleAfter = Duration(days: 30);
+
   final CacheDatabase _db;
 
   /// Bytes of the cached file under `key`, null when it is not cached.
@@ -42,17 +42,20 @@ class ChatMediaIndex {
     await _db.noteChatMedia(conversationId, keys.toSet(), DateTime.now());
   }
 
-  /// Per chat, biggest first. Entries whose file is gone from the cache are
-  /// dropped from the index here, so it never outgrows the cache.
+  /// Per chat, biggest first. A file not in the cache yet (the message is
+  /// stored before its picture is fetched) is skipped, not forgotten; only
+  /// entries unseen for [_staleAfter] are dropped, so the index cannot
+  /// outgrow the cache.
   Future<List<ChatMediaUsage>> usage() async {
     final rows = await _db.chatMediaRows();
     final bytes = <String, int>{};
     final files = <String, int>{};
     final gone = <String>[];
+    final now = DateTime.now();
     for (final r in rows) {
       final size = await sizeOf(r.url);
       if (size == null) {
-        gone.add(r.url);
+        if (now.difference(r.notedAt) > _staleAfter) gone.add(r.url);
         continue;
       }
       bytes.update(r.conversationId, (v) => v + size, ifAbsent: () => size);
@@ -70,18 +73,16 @@ class ChatMediaIndex {
   }
 
   /// Empties the pictures of [conversationIds] from the cache; answers how
-  /// many bytes went.
+  /// many bytes went. The index rows stay: when the chat is opened again
+  /// and the pictures are fetched, they are counted under it again.
   Future<int> clear(Iterable<String> conversationIds) async {
     final ids = conversationIds.toSet();
     var freed = 0;
-    final keys = <String>[];
     for (final r in await _db.chatMediaRows()) {
       if (!ids.contains(r.conversationId)) continue;
       freed += await sizeOf(r.url) ?? 0;
       await remove(r.url);
-      keys.add(r.url);
     }
-    await _db.forgetChatMedia(keys);
     return freed;
   }
 

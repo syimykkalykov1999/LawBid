@@ -41,7 +41,12 @@ class ChatMediaScreen extends ConsumerWidget {
       ),
       body: usage.when(
         loading: () => Center(child: Text(t.t('storage.measuring'))),
-        error: (_, __) => Center(child: Text(t.t('common.retry'))),
+        error: (_, __) => Center(
+          child: TextButton(
+            onPressed: () => ref.invalidate(chatMediaUsageProvider),
+            child: Text(t.t('common.retry')),
+          ),
+        ),
         data: (rows) {
           // A chat the list does not hold (older than the loaded pages) has
           // no name to show: those go into one «Прочее» row.
@@ -62,21 +67,53 @@ class ChatMediaScreen extends ConsumerWidget {
                   key: ValueKey('chat-media-${r.conversationId}'),
                   label: titles[r.conversationId]!,
                   bytes: r.bytes,
-                  onClear: () => _clear(ref, [r.conversationId!]),
+                  onClear: () =>
+                      _confirmClear(context, ref, [r.conversationId]),
                 ),
               if (others.isNotEmpty)
                 _Row(
                   key: const ValueKey('chat-media-other'),
                   label: t.t('storage.cat.other'),
                   bytes: otherBytes,
-                  onClear: () =>
-                      _clear(ref, [for (final r in others) r.conversationId!]),
+                  onClear: () => _confirmClear(
+                    context,
+                    ref,
+                    [for (final r in others) r.conversationId],
+                  ),
                 ),
             ],
           );
         },
       ),
     );
+  }
+
+  static Future<void> _confirmClear(
+    BuildContext context,
+    WidgetRef ref,
+    List<String> ids,
+  ) async {
+    final t = ref.read(translatorProvider);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AppAlertDialog(
+        title: Text(t.t('storage.clear.confirm.title')),
+        content: Text(t.t('storage.clear.confirm.body')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(false),
+            child: Text(t.t('common.cancel')),
+          ),
+          TextButton(
+            key: const ValueKey('chat-media-clear-confirm'),
+            onPressed: () => Navigator.of(dialog).pop(true),
+            child: Text(t.t('storage.clear.row')),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await _clear(ref, ids);
   }
 
   static Future<void> _clear(WidgetRef ref, List<String> ids) async {

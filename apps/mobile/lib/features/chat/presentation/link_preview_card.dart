@@ -40,21 +40,18 @@ class _LinkPreviewCardState extends ConsumerState<LinkPreviewCard> {
   String get url => widget.url;
   bool get mine => widget.mine;
 
-  @override
-  void initState() {
-    super.initState();
+  /// The chat and picture last noted, so a rebuild notes nothing twice.
+  String? _noted;
+
+  /// Counts the picture under its chat, once it is on screen (so nothing is
+  /// asked of the server while the Privacy switch is off).
+  void _noteOnce(String? image) {
     final chatId = widget.conversationId;
-    if (chatId == null) return;
-    ref.listenManual<AsyncValue<LinkPreview?>>(
-      linkPreviewProvider(url),
-      (_, next) {
-        final image = next.value?.imageUrl;
-        if (image != null) {
-          unawaited(_noteImage(chatId, image));
-        }
-      },
-      fireImmediately: true,
-    );
+    if (chatId == null || image == null) return;
+    final key = '$chatId|$image';
+    if (_noted == key) return;
+    _noted = key;
+    unawaited(_noteImage(chatId, image));
   }
 
   /// Remembers which chat shows the picture (for «Данные и память»). Never
@@ -74,6 +71,7 @@ class _LinkPreviewCardState extends ConsumerState<LinkPreviewCard> {
     }
     final preview = ref.watch(linkPreviewProvider(url)).value;
     if (preview == null) return const SizedBox.shrink();
+    _noteOnce(preview.imageUrl);
     final t = ref.watch(translatorProvider);
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final chat = ChatColors.of(context);

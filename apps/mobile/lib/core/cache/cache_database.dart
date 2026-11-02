@@ -231,8 +231,14 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
   Future<List<ChatMediaFileRow>> chatMediaRows() =>
       select(chatMediaFiles).get();
 
-  Future<void> forgetChatMedia(Iterable<String> keys) =>
-      (delete(chatMediaFiles)..where((r) => r.url.isIn(keys))).go();
+  /// In chunks: SQLite caps the variables of one statement.
+  Future<void> forgetChatMedia(Iterable<String> keys) async {
+    final all = keys.toList();
+    for (var i = 0; i < all.length; i += 500) {
+      final chunk = all.sublist(i, i + 500 > all.length ? all.length : i + 500);
+      await (delete(chatMediaFiles)..where((r) => r.url.isIn(chunk))).go();
+    }
+  }
 
   Future<void> forgetAllChatMedia() => delete(chatMediaFiles).go();
 
@@ -570,6 +576,8 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
   Future<void> clearMessages() async {
     await delete(cachedMessages).go();
     await delete(conversationSync).go();
+    // The chat → picture index goes with the history it came from.
+    await delete(chatMediaFiles).go();
   }
 
   // --- translations (package K) -----------------------------------------

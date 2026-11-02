@@ -38,11 +38,29 @@ void main() {
     expect(usage.single.conversationId, 'chat-2');
   });
 
-  test('files gone from the cache leave the index', () async {
+  test('a picture not fetched yet stays in the index', () async {
     disk['/a'] = 10;
-    await index.note('chat-1', ['/a', '/gone']);
+    await index.note('chat-1', ['/a', '/later']);
     expect((await index.usage()).single.files, 1);
-    expect(await db.chatMediaRows(), hasLength(1));
+    expect(await db.chatMediaRows(), hasLength(2));
+    disk['/later'] = 5;
+    expect((await index.usage()).single.files, 2);
+  });
+
+  test('entries unseen for a long time leave the index', () async {
+    await db.noteChatMedia(
+      'chat-1',
+      ['/old'],
+      DateTime.now().subtract(const Duration(days: 40)),
+    );
+    await index.usage();
+    expect(await db.chatMediaRows(), isEmpty);
+  });
+
+  test('clearing the history empties the index', () async {
+    await index.note('chat-1', ['/a']);
+    await db.clearMessages();
+    expect(await db.chatMediaRows(), isEmpty);
   });
 
   test('clear removes the chat files and nothing else', () async {
@@ -52,6 +70,12 @@ void main() {
     expect(await index.clear(['chat-1']), 150);
     expect(disk.keys, ['/c']);
     expect((await index.usage()).single.conversationId, 'chat-2');
+    // The chat's pictures are fetched again: counted under it again.
+    disk['/a'] = 100;
+    expect(
+      (await index.usage()).map((u) => u.conversationId),
+      ['chat-2', 'chat-1'],
+    );
   });
 
   test('forgetAll empties the index', () async {
