@@ -103,6 +103,7 @@ class HttpCacheInterceptor extends Interceptor {
     this.staleOnError = const Duration(hours: 8),
     this.followerWait = const Duration(seconds: 8),
     this.diskReadWait = const Duration(milliseconds: 1500),
+    this.phoneOnlyDiskWait = const Duration(milliseconds: 800),
     DateTime Function()? now,
   })  : _disk = disk,
         _usage = usage,
@@ -141,6 +142,12 @@ class HttpCacheInterceptor extends Interceptor {
 
   /// The longest the saved copy is looked for on disk.
   final Duration diskReadWait;
+
+  /// A phone-only read ([readFromPhoneOnly]) is a list's first-screen copy,
+  /// which the list gives only 1 s (`PagedNotifier.savedCopyTimeout`): the
+  /// disk must answer sooner than that or the copy arrives after the list
+  /// stopped waiting and the read is wasted.
+  final Duration phoneOnlyDiskWait;
 
   final _entries = <String, HttpCacheEntry>{};
   int _bytes = 0;
@@ -418,7 +425,10 @@ class HttpCacheInterceptor extends Interceptor {
     try {
       // Owner 2026-10-28 (app freeze): a stuck disk read must never hold a
       // request back — then it is simply a miss and the server is asked.
-      return await disk.read(key).timeout(diskReadWait, onTimeout: () => null);
+      return await disk.read(key).timeout(
+            readingFromPhoneOnly ? phoneOnlyDiskWait : diskReadWait,
+            onTimeout: () => null,
+          );
     } on Object catch (e) {
       debugPrint('http cache read: $e');
       return null;
