@@ -46,7 +46,7 @@
       "upstream": "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/Japanese/NotoSansCJKjp-Regular.otf",
       "s3": "s3://lawbid-prod-web/fonts/noto/NotoSansCJKjp-Regular.otf",
       "cdn": "https://d28wq9t218p67x.cloudfront.net/fonts/noto/NotoSansCJKjp-Regular.otf",
-      "uploaded": false
+      "uploaded": true
     },
     "NotoSansCJKkr-Regular.otf": {
       "sha256": "6bcb2a0703aa137e874fc2dffa85f6c21ba9a67fa329e81b8c801663af7e992a",
@@ -54,7 +54,7 @@
       "upstream": "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/Korean/NotoSansCJKkr-Regular.otf",
       "s3": "s3://lawbid-prod-web/fonts/noto/NotoSansCJKkr-Regular.otf",
       "cdn": "https://d28wq9t218p67x.cloudfront.net/fonts/noto/NotoSansCJKkr-Regular.otf",
-      "uploaded": false
+      "uploaded": true
     },
     "NotoSansCJKsc-Regular.otf": {
       "sha256": "2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b",
@@ -62,7 +62,7 @@
       "upstream": "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf",
       "s3": "s3://lawbid-prod-web/fonts/noto/NotoSansCJKsc-Regular.otf",
       "cdn": "https://d28wq9t218p67x.cloudfront.net/fonts/noto/NotoSansCJKsc-Regular.otf",
-      "uploaded": false
+      "uploaded": true
     }
   }
 }
