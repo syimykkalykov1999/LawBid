@@ -9,6 +9,7 @@ import {
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../redis/redis.constants';
 import { pubSubClient } from '../redis/redis-connection';
+import { subscribeInBackground } from '../redis/subscribe-in-background';
 import { PrismaService, routingOf } from '../prisma/prisma.service';
 import { SHARD_MAP_CHANNEL } from './shard-router';
 
@@ -29,19 +30,19 @@ export class ShardMapSync implements OnModuleInit, OnModuleDestroy {
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
 
-  async onModuleInit(): Promise<void> {
+  /** Never awaited: with Redis away at boot the SUBSCRIBE waits in the
+   * client's offline queue and is sent once the connection exists
+   * (redis/subscribe-in-background.ts); the TTL refresh covers the gap. */
+  onModuleInit(): void {
     if (!this.redis || typeof this.redis.duplicate !== 'function') return;
-    try {
-      this.sub = pubSubClient(this.redis);
-      await this.sub.subscribe(SHARD_MAP_CHANNEL);
-      this.sub.on('message', () => {
-        void routingOf(this.prisma)?.router.refresh();
-      });
-    } catch (e) {
-      this.log.warn(
-        `shard_map pub/sub unavailable (TTL refresh only): ${String(e)}`,
-      );
-    }
+    this.sub = pubSubClient(this.redis);
+    subscribeInBackground(
+      this.sub,
+      SHARD_MAP_CHANNEL,
+      () => void routingOf(this.prisma)?.router.refresh(),
+      (m) =>
+        this.log.warn(`shard_map pub/sub unavailable (TTL refresh only): ${m}`),
+    );
   }
 
   async onModuleDestroy(): Promise<void> {

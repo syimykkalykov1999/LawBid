@@ -18,6 +18,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { pubSubClient } from '../../redis/redis-connection';
+import { subscribeInBackground } from '../../redis/subscribe-in-background';
 import {
   cleanPasted,
   PROVIDERS,
@@ -105,18 +106,21 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     return this.envelope !== null;
   }
 
-  async onModuleInit(): Promise<void> {
+  /** Cache invalidation over pub/sub. Never awaited: with Redis away at
+   * boot the SUBSCRIBE waits in the client's offline queue and is sent once
+   * the connection exists (redis/subscribe-in-background.ts). */
+  onModuleInit(): void {
     if (typeof this.redis.duplicate !== 'function') return;
-    try {
-      this.sub = pubSubClient(this.redis);
-      await this.sub.subscribe(CHANNEL);
-      this.sub.on('message', (_channel: string, provider: string) => {
+    this.sub = pubSubClient(this.redis);
+    subscribeInBackground(
+      this.sub,
+      CHANNEL,
+      (_channel, provider) => {
         if (provider === CUSTOM_CHANNEL_KEY) this.custom = null;
         this.cache.delete(provider);
-      });
-    } catch (e) {
-      this.logger.warn(`secrets pub/sub unavailable: ${String(e)}`);
-    }
+      },
+      (m) => this.logger.warn(`secrets pub/sub unavailable: ${m}`),
+    );
   }
 
   async onModuleDestroy(): Promise<void> {

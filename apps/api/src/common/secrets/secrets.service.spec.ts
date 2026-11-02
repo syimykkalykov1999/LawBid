@@ -109,3 +109,27 @@ describe('SecretsService.reencryptStores', () => {
     expect((wheres[1] as { id: { gt: string } }).id.gt).toBe(rows[199].id);
   });
 });
+
+describe('SecretsService.onModuleInit without Redis (load test 2026-11-02)', () => {
+  it('returns at once while SUBSCRIBE is still waiting for a connection, and reacts to messages later', () => {
+    const handlers: ((c: string, m: string) => void)[] = [];
+    const sub = {
+      on: jest.fn((e: string, fn: (c: string, m: string) => void) => {
+        if (e === 'message') handlers.push(fn);
+      }),
+      subscribe: jest.fn(() => new Promise(() => undefined)),
+      quit: jest.fn(),
+    };
+    const redis = { duplicate: jest.fn(() => sub) } as unknown as Redis;
+    const service = new SecretsService(
+      { integrationCredential: {} } as unknown as PrismaService,
+      { get: () => undefined } as unknown as ConfigService,
+      redis,
+    );
+    const started = Date.now();
+    service.onModuleInit();
+    expect(Date.now() - started).toBeLessThan(100);
+    expect(sub.subscribe).toHaveBeenCalledWith(expect.any(String));
+    expect(handlers).toHaveLength(1);
+  });
+});
