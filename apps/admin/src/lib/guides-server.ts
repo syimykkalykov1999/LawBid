@@ -4,7 +4,7 @@ import { parseGuide, type Guide } from '@/lib/guides';
 
 /** apps/admin/content/guides (the standalone image runs from apps/admin and
  * next.config.ts traces this folder into the bundle). */
-export const GUIDES_DIR = path.join(process.cwd(), 'content', 'guides');
+export const GUIDES_DIR = path.join(/*turbopackIgnore: true*/ process.cwd(), 'content', 'guides');
 
 export async function loadGuides(dir: string = GUIDES_DIR): Promise<Guide[]> {
   const files = (await readdir(dir)).filter((f) => f.endsWith('.md')).sort();

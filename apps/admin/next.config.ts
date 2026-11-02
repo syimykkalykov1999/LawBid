@@ -29,7 +29,7 @@ const nextConfig: NextConfig = {
   // server bundle (apps/admin/Dockerfile).
   output: 'standalone',
   // Owner 2026-11-02 (slow-link audit): every page is dynamic (per-request
-  // CSP nonce), and Next 15 does not reuse a dynamic page's payload when the
+  // CSP nonce), and Next does not reuse a dynamic page's payload when the
   // admin clicks back to it, so every click was a round trip to the admin
   // task before anything moved. The pages are client components that load
   // their data through the proxy (not from the payload), so a short reuse

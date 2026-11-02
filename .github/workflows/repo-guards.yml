@@ -42,7 +42,12 @@ jobs:
         run: |
           V=$(node -p "require('./package-lock.json').packages['node_modules/exceljs'].version")
           F=$(node -p "require('./package-lock.json').packages['node_modules/fontkit'].version")
-          npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund "exceljs@$V" "fontkit@$F"
+          # Installed beside the repo, not in it: npm 10 cannot re-resolve the
+          # whole workspace tree without the lock file (vitest 4 peers crash
+          # arborist), and this job needs only exceljs and fontkit.
+          mkdir "$RUNNER_TEMP/audit-deps"
+          npm install --prefix "$RUNNER_TEMP/audit-deps" --no-save --no-package-lock --ignore-scripts --no-audit --no-fund "exceljs@$V" "fontkit@$F"
+          ln -s "$RUNNER_TEMP/audit-deps/node_modules" node_modules
 
       - name: Translations are complete in every language
         run: node scripts/i18n-audit.mjs --ci
