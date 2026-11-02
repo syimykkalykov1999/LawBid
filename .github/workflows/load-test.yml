@@ -169,16 +169,23 @@ jobs:
         run: |
           tag="$TAG_IN"
           if [ -z "$tag" ]; then
-            tag="$(aws ecr describe-images --repository-name lawbid-api --query 'sort_by(imageDetails,&imagePushedAt)[-1].imageTags[0]' --output text)"
+            scripts/ci/require-ecr.sh --repo lawbid-api
+            tag="$(aws ecr describe-images --repository-name lawbid-api --query 'sort_by(imageDetails[?imageTags],&imagePushedAt)[-1].imageTags[0]' --output text)"
+            case "$tag" in ""|None|null) echo "::error::lawbid-api has no tagged image yet - the Deploy workflow pushes one for every commit on main"; exit 1;; esac
           fi
-          for r in lawbid-api lawbid-admin; do aws ecr describe-images --repository-name "$r" --image-ids imageTag="$tag" >/dev/null || { echo "::error::$r:$tag not in ECR"; exit 1; }; done
+          # All four images the stack pulls, checked TOGETHER and BEFORE any
+          # money is spent (audit 2026-11-02: two smoke runs died here, and a
+          # third would have died later in ECS on lawbid-clamav:1.4, a tag no
+          # workflow ever pushes - Mirror ClamAV pushes 1.4-debian). Our own
+          # PgBouncer (docs/architecture/DB_POOLER.md): the test runs THROUGH
+          # it. Missing repository/tag -> the error names the exact fix.
+          CLAMAV_TAG=1.4-debian
+          PGBOUNCER_TAG=1.24.0-1
+          scripts/ci/require-ecr.sh "lawbid-api:$tag" "lawbid-admin:$tag" "lawbid-clamav:$CLAMAV_TAG" "lawbid-pgbouncer:$PGBOUNCER_TAG"
           echo "api_image=$ECR_REGISTRY/lawbid-api:$tag" >>"$GITHUB_OUTPUT"
           echo "admin_image=$ECR_REGISTRY/lawbid-admin:$tag" >>"$GITHUB_OUTPUT"
-          echo "clamav_image=$ECR_REGISTRY/lawbid-clamav:1.4" >>"$GITHUB_OUTPUT"
-          # Our own PgBouncer (docs/architecture/DB_POOLER.md): the load test runs
-          # THROUGH it. Build it first: Actions -> "Build PgBouncer".
-          aws ecr describe-images --repository-name lawbid-pgbouncer --image-ids imageTag=1.24.0-1 >/dev/null || { echo "::error::lawbid-pgbouncer:1.24.0-1 not in ECR - run the Build PgBouncer workflow first"; exit 1; }
-          echo "pgbouncer_image=$ECR_REGISTRY/lawbid-pgbouncer:1.24.0-1" >>"$GITHUB_OUTPUT"
+          echo "clamav_image=$ECR_REGISTRY/lawbid-clamav:$CLAMAV_TAG" >>"$GITHUB_OUTPUT"
+          echo "pgbouncer_image=$ECR_REGISTRY/lawbid-pgbouncer:$PGBOUNCER_TAG" >>"$GITHUB_OUTPUT"
           echo "Testing image tag \`$tag\`" >>"$GITHUB_STEP_SUMMARY"
 
       # ---- everything from here on is cleaned up by the always() steps at the end ----
