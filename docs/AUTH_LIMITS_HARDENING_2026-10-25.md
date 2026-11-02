@@ -22,7 +22,7 @@ All values are admin settings (app_config) with safe defaults; no app look chang
    `password_hash_queue {running, queued}`, `password_hash_rejected`.
 3. **Realtime.** The per-user cap already existed (`realtime.max_sockets_per_user`, 10; oldest gets
    `auth:error TOO_MANY_CONNECTIONS` and a clean disconnect); metric `ws_user_cap_evicted` added.
-   New: `realtime.max_connects_per_ip_per_minute` (120, 0 = off), address taken from
+   New: `realtime.max_connects_per_ip_per_minute` (120, 0 = off; 600 since 2026-11-02, owner after the laptop load test), address taken from
    X-Forwarded-For with `TRUST_PROXY_HOPS` like HTTP; over it the socket gets
    `auth:error RATE_LIMITED`; metric `ws_ip_limited`. Fails open if Redis is unreachable.
 4. **Per-action limits** (`UsageLimitsService`, same path as `message`): `bid_create` 200/day,
