@@ -134,6 +134,7 @@ const COMPONENT_TITLE: Record<string, string> = {
   cloudflare_usage: 'Трафик Cloudflare',
   bunny_usage: 'Трафик и хранилище Bunny',
   table_growth: 'Рост таблиц',
+  shard_growth: 'Рост базы данных',
 };
 
 export const componentTitle = (key: string): string =>

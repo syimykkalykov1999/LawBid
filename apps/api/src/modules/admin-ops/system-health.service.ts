@@ -133,6 +133,7 @@ export class SystemHealthService implements OnModuleDestroy {
       this.safe('message_keys', () => this.messageKeys()),
       this.safe('restore_drill', () => this.restoreDrill(now)),
       this.safe('table_growth', () => this.tableGrowth()),
+      this.safe('shard_growth', () => this.shardGrowth()),
     ]);
     if (this.rotation?.enabled) {
       items.push(
@@ -354,6 +355,22 @@ export class SystemHealthService implements OnModuleDestroy {
         status: g.over.length > 0 ? 'yellow' : 'green',
         detail: { over: g.over, top: g.top, thresholdRows: 50_000_000 },
       };
+    } catch {
+      return { status: 'grey', detail: {} };
+    }
+  }
+
+  /**
+   * Owner 2026-11-02: «time to prepare a second database». Yellow from 80% of
+   * the size / rows threshold (growth.shard_db_gb, growth.shard_rows), red at
+   * 100%, with the ready split plan in the detail. Three catalog reads; it
+   * never moves anything (a move is the owner's button, step-up).
+   */
+  private async shardGrowth(): Promise<Omit<HealthItemDto, 'key'>> {
+    if (!this.partitions) return { status: 'grey', detail: {} };
+    try {
+      const g = await this.partitions.shardSignal();
+      return { status: g.status, detail: { ...g } };
     } catch {
       return { status: 'grey', detail: {} };
     }

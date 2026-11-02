@@ -37,6 +37,7 @@ const LIVE_TITLE: Record<string, string> = {
   message_keys: 'Ключи шифрования сообщений',
   secret_rotation: 'Смена паролей и ключей',
   table_growth: 'Рост таблиц',
+  shard_growth: 'Рост базы данных',
 };
 
 const n = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);

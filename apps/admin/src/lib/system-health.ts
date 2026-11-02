@@ -238,6 +238,35 @@ export function word(item: HealthItem): Worded {
         runbook: "table-partitioning.md",
       };
     }
+    case "shard_growth": {
+      const sizeGb = n(d.sizeGb);
+      const thrGb = n(d.thresholdGb);
+      const rows = n(d.rows);
+      const thrRows = n(d.thresholdRows);
+      const ratio = n(d.ratio) ?? 0;
+      const ready = d.targetReady === true;
+      const plan = d.plan as
+        | { shards: number; rows: number; estimatedSeconds: number }
+        | null
+        | undefined;
+      const mln = (r: number) => `${(r / 1e6).toFixed(r >= 1e7 ? 0 : 1)} млн`;
+      return {
+        title: "Пора ли готовить вторую базу",
+        line:
+          s === "grey"
+            ? "Размер базы недоступен."
+            : `База ${sizeGb ?? "?"} ГБ из ${thrGb ?? "?"} (порог), строк в больших таблицах ${rows !== null ? mln(rows) : "?"} из ${thrRows !== null ? mln(thrRows) : "?"}. Заполнено ${Math.round(ratio * 100)} % порога.`,
+        todo:
+          s === "green" || s === "grey"
+            ? undefined
+            : ready && !plan
+              ? "Вторая база подключена, но на основной остался один логический кусок: переносить нечего. Нужен другой способ разгрузки."
+              : ready
+                ? `Вторая база подключена. Готовый план: перенести ${plan?.shards ?? "?"} логических частей, около ${plan?.rows !== undefined ? mln(plan.rows) : "?"} строк, примерно ${plan ? Math.ceil(plan.estimatedSeconds / 60) : "?"} мин. Перенос сам не запускается: откройте «Шарды» и нажмите перенос (нужно подтверждение).`
+                : "Второй базы ещё нет. Создайте её (Terraform, DATABASE_URL_SHARDS), потом здесь появится готовый план переноса. Сам перенос не запускается без вашей кнопки.",
+        runbook: "shard-move.md",
+      };
+    }
     case "secret_rotation": {
       type Row = {
         name: string;

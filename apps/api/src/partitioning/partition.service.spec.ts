@@ -167,3 +167,88 @@ describe('PartitionService modes (hash tables and post_view_events)', () => {
     });
   });
 });
+
+describe('PartitionService.shardSignal (cheap catalog reads only)', () => {
+  const GB = 1024 ** 3;
+  function withDb(opts: {
+    bytes: number;
+    rows: number;
+    map: { physical_db: string; n: number }[];
+    shardsEnv?: string;
+  }) {
+    const sql: string[] = [];
+    const prisma = {
+      $queryRawUnsafe: (q: string) => {
+        sql.push(q);
+        if (q.includes('pg_database_size'))
+          return Promise.resolve([{ bytes: opts.bytes }]);
+        if (q.includes('shard_map')) return Promise.resolve(opts.map);
+        return Promise.resolve([{ rows: opts.rows }]);
+      },
+    } as unknown as PrismaService;
+    const settings = {
+      string: () => Promise.resolve('off'),
+      number: (k: string) =>
+        Promise.resolve(
+          k === 'growth.shard_db_gb'
+            ? 400
+            : k === 'growth.shard_rows'
+              ? 1_000_000_000
+              : 50_000_000,
+        ),
+    } as unknown as AppSettingsService;
+    const svc = new PartitionService(
+      prisma,
+      {
+        get: (k: string) =>
+          k === 'DATABASE_URL_SHARDS' ? opts.shardsEnv : undefined,
+      } as unknown as ConfigService,
+      settings,
+    );
+    return { svc, sql };
+  }
+
+  it('green and no COUNT(*): only pg_database_size, pg_class and shard_map', async () => {
+    const { svc, sql } = withDb({
+      bytes: 20 * GB,
+      rows: 10_000_000,
+      map: [{ physical_db: 'primary', n: 256 }],
+    });
+    const g = await svc.shardSignal();
+    expect(g.status).toBe('green');
+    expect(g.targetReady).toBe(false);
+    expect(g.autoMove).toBe(false);
+    expect(sql).toHaveLength(3);
+    // The only count(*) allowed is the GROUP BY over the 256-row shard_map.
+    expect(sql.filter((q) => /count\s*\(/i.test(q))).toHaveLength(1);
+    expect(sql.find((q) => /count\s*\(/i.test(q))).toMatch(/FROM shard_map/);
+    expect(sql.join(' ')).toMatch(/pg_database_size|reltuples|shard_map/);
+  });
+
+  it('yellow with a ready plan and a configured second database', async () => {
+    const { svc } = withDb({
+      bytes: 340 * GB,
+      rows: 400_000_000,
+      map: [{ physical_db: 'primary', n: 256 }],
+      shardsEnv: '{"db1":"postgresql://u@h/d"}',
+    });
+    const g = await svc.shardSignal();
+    expect(g.status).toBe('yellow');
+    expect(g.targets).toEqual(['db1']);
+    expect(g.plan?.shards).toBe(128);
+  });
+
+  it('shards already moved: the plan covers only what is left on the primary', async () => {
+    const { svc } = withDb({
+      bytes: 450 * GB,
+      rows: 2_000_000_000,
+      map: [
+        { physical_db: 'primary', n: 128 },
+        { physical_db: 'db1', n: 128 },
+      ],
+    });
+    const g = await svc.shardSignal();
+    expect(g.status).toBe('red');
+    expect(g.plan?.shards).toBe(64);
+  });
+});
