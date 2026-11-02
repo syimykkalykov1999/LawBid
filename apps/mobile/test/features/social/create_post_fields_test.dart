@@ -15,9 +15,6 @@ import '../../helpers/long_locale.dart';
 import '../../helpers/ux_harness.dart';
 import 'social_fakes.dart';
 
-/// Owner 2026-10-19: one caption field, as in Instagram, for clients and
-/// attorneys; photos (or a video, or files) alone can be published, an empty
-/// post cannot. Posts go out without a title.
 class _CreatingRepo extends FakeSocialRepository {
   final drafts = <PostDraft>[];
 
@@ -28,6 +25,9 @@ class _CreatingRepo extends FakeSocialRepository {
   }
 }
 
+/// Owner 2026-10-19: one caption field, as in Instagram, for clients and
+/// attorneys; photos (or a video, or files) alone can be published, an empty
+/// post cannot. Posts go out without a title.
 void main() {
   setUpAll(initializeDateFormatting);
 
@@ -112,6 +112,7 @@ void main() {
       final repo = _CreatingRepo();
       await open(tester, social: repo);
       await tester.enterText(bodyField, 'Caption');
+      await tester.pump();
       await tester.tap(find.byType(AppButton).last);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
