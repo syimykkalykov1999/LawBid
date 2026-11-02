@@ -4,6 +4,7 @@ import { NotificationsService } from './notifications.service';
 import { PushQueueService } from './push/push-queue.service';
 import { CaseAudienceService } from './case-fanout/case-audience.service';
 import { CaseFanoutService } from './case-fanout/case-fanout.service';
+import { PostFanoutService } from './post-fanout.service';
 import { SubscriptionAlertsService } from './subscription-alerts.service';
 
 /** docs/05 §9.3 NotificationsService.emit, the `push` queue producer and
@@ -17,6 +18,7 @@ import { SubscriptionAlertsService } from './subscription-alerts.service';
     SubscriptionAlertsService,
     CaseAudienceService,
     CaseFanoutService,
+    PostFanoutService,
   ],
   exports: [
     NotificationsService,
@@ -24,6 +26,7 @@ import { SubscriptionAlertsService } from './subscription-alerts.service';
     BadgesService,
     SubscriptionAlertsService,
     CaseFanoutService,
+    PostFanoutService,
   ],
 })
 export class NotificationsModule {}
