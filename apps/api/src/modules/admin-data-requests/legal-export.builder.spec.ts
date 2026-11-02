@@ -33,6 +33,7 @@ function build(selection: object) {
       findMany: jest.fn().mockResolvedValue([]),
     },
     user: {
+      findUnique: jest.fn().mockResolvedValue({ ui_language: 'ja' }),
       findUniqueOrThrow: jest.fn().mockResolvedValue({
         id: USER,
         first_name: 'Ann',
