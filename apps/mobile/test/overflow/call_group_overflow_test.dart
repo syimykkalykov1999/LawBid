@@ -86,6 +86,8 @@ void main() {
     'longest of all languages': (LongestTranslator(), TextDirection.ltr),
     'longest, right-to-left': (LongestTranslator(), TextDirection.rtl),
     'ne': (ShippedTranslator('ne'), TextDirection.ltr),
+    'de': (ShippedTranslator('de'), TextDirection.ltr),
+    'mr': (ShippedTranslator('mr'), TextDirection.ltr),
     'ar': (ShippedTranslator('ar'), TextDirection.rtl),
     'ru': (
       L10nTranslator(language: AppLanguage.ru, cache: const {}),
@@ -93,7 +95,7 @@ void main() {
     ),
   };
 
-  for (final scale in [1.0, 1.1]) {
+  for (final scale in [1.0, 1.1, 1.3]) {
     for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
       group('group call: no overflow at 360 dp ($name, text x$scale)', () {
         Future<void> pump(

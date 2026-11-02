@@ -68,7 +68,7 @@ void main() {
   };
 
   for (final theme in AppThemeId.values) {
-    for (final scale in [1.0, 1.1]) {
+    for (final scale in [1.0, 1.1, 1.3]) {
       for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
         group('group / channel call: 360 dp, ${theme.name}, $name, x$scale',
             () {
