@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
+import { RateLimitService } from '../auth/auth.public';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import {
   AdminCrashesController,
@@ -11,7 +12,7 @@ import { CrashReportsService } from './crash-reports.service';
 @Module({
   imports: [AdminAccessModule, FeatureFlagsModule],
   controllers: [CrashReportsController, AdminCrashesController],
-  providers: [CrashReportsService],
+  providers: [CrashReportsService, RateLimitService],
   exports: [CrashReportsService],
 })
 export class CrashReportsModule {}

@@ -31,18 +31,22 @@ class CacheReportNotifier extends AsyncNotifier<CacheReport> {
   @override
   Future<CacheReport> build() => ref.watch(cacheMaintenanceProvider).measure();
 
-  Future<void> clear(CacheStore store) async {
+  /// False when the store was not emptied: the sizes are measured again
+  /// at once instead of staying at the optimistic zero.
+  Future<bool> clear(CacheStore store) async {
     final before = state.value;
     if (before != null) state = AsyncData(before.zeroed([store]));
-    await ref.read(cacheMaintenanceProvider).clear(store);
+    final ok = await ref.read(cacheMaintenanceProvider).clear(store);
     unawaited(_remeasure());
+    return ok;
   }
 
-  Future<void> clearAll() async {
+  Future<bool> clearAll() async {
     final before = state.value;
     if (before != null) state = AsyncData(before.zeroed(CacheStore.values));
-    await ref.read(cacheMaintenanceProvider).clearAll();
+    final ok = await ref.read(cacheMaintenanceProvider).clearAll();
     unawaited(_remeasure());
+    return ok;
   }
 
   Future<void> _remeasure() async {
