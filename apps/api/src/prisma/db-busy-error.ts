@@ -16,9 +16,9 @@ import { Prisma } from '@prisma/client';
  */
 export function isDbBusyError(error: unknown): boolean {
   if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
-  if (error.code === 'P2024') return true;
   return (
-    error.code === 'P2028' &&
-    error.message.includes('Unable to start a transaction')
+    error.code === 'P2024' ||
+    (error.code === 'P2028' &&
+      error.message.includes('Unable to start a transaction'))
   );
 }
