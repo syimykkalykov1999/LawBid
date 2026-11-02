@@ -56,11 +56,22 @@ import {
 } from './files.policy';
 import type {
   FileDto,
+  MultipartCompleteDto,
+  MultipartPlanDto,
   PresignFileDto,
   PresignedFileDto,
 } from './dto/files.dto';
 import {
+  MIN_MULTIPART_BYTES,
+  MULTIPART_TTL_SEC,
+  PART_URL_TTL_SEC,
+  missingParts,
+  partsComplete,
+  planParts,
+} from './multipart';
+import {
   PENDING_UPLOADS_KEY,
+  multipartKey,
   pendingUploadMember,
 } from './storage/pending-uploads';
 
@@ -87,6 +98,7 @@ interface UploadIntent {
 }
 
 const intentKey = (fileId: string): string => `files:upload:${fileId}`;
+export { multipartKey };
 
 /**
  * Direct-to-S3 uploads (docs/03 §2.2, §11 stage 3.2):
@@ -258,6 +270,157 @@ export class FilesService {
       upload,
       expiresAt: new Date(Date.now() + PRESIGN_TTL_SEC * 1000).toISOString(),
     };
+  }
+
+  private async multipartIntent(
+    userId: string,
+    fileId: string,
+  ): Promise<UploadIntent> {
+    if (!(await this.flags.isEnabled('files_multipart', false))) {
+      throw new ForbiddenException({
+        code: ErrorCode.FEATURE_DISABLED,
+        message: 'Resumable uploads are not available yet.',
+      });
+    }
+    const raw = await this.redis.get(intentKey(fileId));
+    const intent = raw ? (JSON.parse(raw) as UploadIntent) : null;
+    if (!intent || intent.userId !== userId) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'File not found.',
+      });
+    }
+    return intent;
+  }
+
+  /**
+   * Resumable upload, step 1 (and every resume): the part links still to be
+   * sent. The first call starts the S3 multipart upload and keeps the upload
+   * alive for 24 h instead of 1 h; later calls list what S3 already has.
+   */
+  async multipartPlan(
+    userId: string,
+    fileId: string,
+  ): Promise<MultipartPlanDto> {
+    const intent = await this.multipartIntent(userId, fileId);
+    if (intent.size < MIN_MULTIPART_BYTES) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'This file is small enough for a single upload.',
+      });
+    }
+    const limit = await this.rateLimit.consumeFixedWindow(
+      ['files-multipart', 'user', userId],
+      600,
+      3600,
+    );
+    if (!limit.allowed) {
+      throw new HttpException(
+        {
+          code: ErrorCode.RATE_LIMITED,
+          message: 'Too many requests. Try again later.',
+          details: { retryAfterSeconds: limit.retryAfterSeconds },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    const plan = planParts(intent.size);
+    let uploadId = await this.redis.get(multipartKey(fileId));
+    if (!uploadId) {
+      const started = await this.storage.startMultipart({
+        bucket: intent.bucket,
+        key: intent.key,
+        contentType: intent.mime,
+      });
+      const won = await this.redis.set(
+        multipartKey(fileId),
+        started,
+        'EX',
+        MULTIPART_TTL_SEC,
+        'NX',
+      );
+      uploadId = started;
+      if (won !== 'OK') {
+        // A parallel request started one first: use that, drop ours.
+        const theirs = await this.redis.get(multipartKey(fileId));
+        if (theirs && theirs !== started) {
+          await this.storage.abortMultipart(intent.bucket, intent.key, started);
+          uploadId = theirs;
+        }
+      }
+    }
+    // Keep the upload (and its cleanup record) alive for the longer window.
+    await this.redis.expire(intentKey(fileId), MULTIPART_TTL_SEC);
+    await this.redis.expire(multipartKey(fileId), MULTIPART_TTL_SEC);
+    await this.redis.zadd(
+      PENDING_UPLOADS_KEY,
+      Date.now() + (MULTIPART_TTL_SEC + 600) * 1000,
+      pendingUploadMember(fileId, intent.bucket, intent.key),
+    );
+    const uploaded = await this.storage.listParts(
+      intent.bucket,
+      intent.key,
+      uploadId,
+    );
+    const todo = missingParts(plan, uploaded);
+    const parts = await Promise.all(
+      todo.map(async (partNumber) => ({
+        partNumber,
+        url: await this.storage.presignPart({
+          bucket: intent.bucket,
+          key: intent.key,
+          uploadId: uploadId,
+          partNumber,
+          expiresSec: PART_URL_TTL_SEC,
+        }),
+      })),
+    );
+    return {
+      partSizeBytes: plan.partSizeBytes,
+      partCount: plan.partCount,
+      uploadedParts: uploaded.map((p) => p.partNumber),
+      parts,
+      expiresAt: new Date(Date.now() + PART_URL_TTL_SEC * 1000).toISOString(),
+    };
+  }
+
+  /** Resumable upload, last step: assemble the parts (then `confirm`). */
+  async multipartComplete(
+    userId: string,
+    fileId: string,
+  ): Promise<MultipartCompleteDto> {
+    const intent = await this.multipartIntent(userId, fileId);
+    const uploadId = await this.redis.get(multipartKey(fileId));
+    if (!uploadId) {
+      // A retry after a successful completion: the object is there.
+      const head = await this.storage.head(intent.bucket, intent.key);
+      if (head && head.size === intent.size) return { sizeBytes: head.size };
+      throw new ConflictException({
+        code: ErrorCode.FILE_NOT_UPLOADED,
+        message: 'Start the resumable upload first.',
+      });
+    }
+    const plan = planParts(intent.size);
+    const uploaded = await this.storage.listParts(
+      intent.bucket,
+      intent.key,
+      uploadId,
+    );
+    if (!partsComplete(plan, intent.size, uploaded)) {
+      throw new ConflictException({
+        code: ErrorCode.FILE_NOT_UPLOADED,
+        message: 'Some parts are missing or have a wrong size.',
+        details: { missingParts: missingParts(plan, uploaded) },
+      });
+    }
+    await this.storage.completeMultipart(
+      intent.bucket,
+      intent.key,
+      uploadId,
+      uploaded,
+    );
+    await this.redis.del(multipartKey(fileId));
+    return { sizeBytes: intent.size };
   }
 
   async confirm(userId: string, fileId: string): Promise<FileDto> {

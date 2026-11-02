@@ -1,7 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart'
+    show decodeWidthFor;
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/features/chat/application/link_preview_providers.dart';
@@ -62,6 +66,14 @@ class LinkPreviewCard extends ConsumerWidget {
                       imageUrl: preview.imageUrl!,
                       cacheManager: AppImageCaches.chatMedia,
                       fit: BoxFit.cover,
+                      memCacheWidth: decodeWidthFor(
+                        math.min(240, MediaQuery.sizeOf(context).width),
+                      ),
+                      placeholder: (ctx, _) => ColoredBox(
+                        color: Theme.of(ctx)
+                            .extension<AppColorTokens>()!
+                            .skeletonBase,
+                      ),
                       fadeInDuration: Duration.zero,
                       errorWidget: (_, __, ___) => const SizedBox.shrink(),
                     ),

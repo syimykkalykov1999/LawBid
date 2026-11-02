@@ -56,6 +56,18 @@ export class PresenceService {
     return Number(res?.[1]?.[1] ?? 0);
   }
 
+  /** Heartbeat only (audit B-17): extend this socket's expiry — 2 commands
+   * instead of the 4 of [touchCount], whose purge and count matter only at
+   * connect. Stale members are purged by the next connect / leave. */
+  async refresh(userId: string, socketId: string): Promise<void> {
+    const k = key(userId);
+    await this.redis
+      .multi()
+      .zadd(k, Date.now() + PRESENCE_TTL_MS, socketId)
+      .pexpire(k, PRESENCE_TTL_MS)
+      .exec();
+  }
+
   /** Disconnect. True when it was the user's last connection.
    * [writeLastSeen] false: the caller holds the offline announcement back
    * (S1-4, [holdOffline] / [settleOffline]) and writes the time itself. */

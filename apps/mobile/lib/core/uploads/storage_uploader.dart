@@ -154,8 +154,12 @@ class StorageUploader {
     required StorageTransport transport,
     this.scanPoll = const Duration(milliseconds: 700),
     this.scanMaxPolls = 40,
+    Dio? storageDio,
+    Duration Function(int failures)? partBackoff,
   })  : _files = api.FilesClient(apiDio),
-        _transport = transport;
+        _transport = transport,
+        _storageDio = storageDio,
+        _partBackoff = partBackoff ?? DioStorageTransport.defaultBackoff;
 
   /// The usual pair: the API's Dio and the plain storage Dio.
   factory StorageUploader.dio(
@@ -169,10 +173,18 @@ class StorageUploader {
         transport: DioStorageTransport(storageDio),
         scanPoll: scanPoll,
         scanMaxPolls: scanMaxPolls,
+        storageDio: storageDio,
       );
 
   final api.FilesClient _files;
   final StorageTransport _transport;
+  final Dio? _storageDio;
+  final Duration Function(int failures) _partBackoff;
+
+  /// Files at least this big go in parts that can be continued after an
+  /// interruption (server flag `files_multipart`; mirrors the server's
+  /// MIN_MULTIPART_BYTES).
+  static const resumableThresholdBytes = 16 * 1024 * 1024;
   final Duration scanPoll;
   final int scanMaxPolls;
 
@@ -227,6 +239,98 @@ class StorageUploader {
         taskId: taskId,
       );
 
+  /// Resumable step 2 for a big file (checklist reconciliation 2026-11-01):
+  /// the file goes to storage in parts, each to its own link. After a lost
+  /// connection the plan is asked for again and only the parts storage does
+  /// not have yet are sent, so a 300 MB video never restarts from byte 0.
+  ///
+  /// Returns false when the server does not offer it (flag off, file too
+  /// small, no storage client): the caller then uses [put]. The caller still
+  /// calls [confirm] afterwards, exactly as for a single-request upload.
+  Future<bool> putResumable(
+    String fileId,
+    UploadBody body, {
+    void Function(double progress)? onProgress,
+    CancelToken? cancel,
+  }) async {
+    final storage = _storageDio;
+    if (storage == null) return false;
+    final total = await body.length();
+    if (total < resumableThresholdBytes) return false;
+
+    Future<api.MultipartPlanDto> plan() async =>
+        (await guardApiCall(() => _files.multipartPlan(id: fileId))).data;
+
+    api.MultipartPlanDto current;
+    try {
+      current = await plan();
+    } on ApiException catch (e) {
+      if (e.code == ApiErrorCodes.featureDisabled ||
+          e.code == ApiErrorCodes.validationError ||
+          e.statusCode == 404) {
+        return false;
+      }
+      rethrow;
+    }
+
+    // Three rounds: an expired part link is fixed by asking for a new plan.
+    for (var round = 0; round < 3 && current.parts.isNotEmpty; round++) {
+      final partSize = current.partSizeBytes.toInt();
+      var sent = current.uploadedParts.length * partSize;
+      for (final part in current.parts) {
+        final start = (part.partNumber.toInt() - 1) * partSize;
+        final end = (start + partSize).clamp(0, total);
+        await _putPart(
+          storage,
+          part.url,
+          body,
+          start,
+          end,
+          cancel: cancel,
+          onBytes: (n) => onProgress?.call(((sent + n) / total).clamp(0, 1)),
+        );
+        sent += end - start;
+        onProgress?.call((sent / total).clamp(0, 1));
+      }
+      current = await plan();
+    }
+    await guardApiCall(() => _files.multipartComplete(id: fileId));
+    return true;
+  }
+
+  /// One part: the raw bytes to its link, retried on a lost connection or a
+  /// busy storage (a 4xx such as an expired link is not retried).
+  Future<void> _putPart(
+    Dio storage,
+    String url,
+    UploadBody body,
+    int start,
+    int end, {
+    CancelToken? cancel,
+    void Function(int sent)? onBytes,
+    int attempts = 4,
+  }) async {
+    for (var failures = 0;; failures++) {
+      try {
+        await storage.put<void>(
+          url,
+          data: body.openRange(start, end),
+          options: Options(headers: {Headers.contentLengthHeader: end - start}),
+          cancelToken: cancel,
+          onSendProgress: (sent, _) => onBytes?.call(sent),
+        );
+        return;
+      } on DioException catch (e) {
+        if (CancelToken.isCancel(e)) rethrow;
+        final c = e.response?.statusCode;
+        final temporary = c == null || c == 408 || c == 429 || c >= 500;
+        if (!temporary || failures + 1 >= attempts) throw storageError(e);
+        await Future<void>.delayed(_partBackoff(failures + 1));
+        if (cancel?.isCancelled ?? false) rethrow;
+      }
+    }
+  }
+
   /// Step 3: storage has it — the server starts the scan.
   Future<api.ScanStatus> confirm(String fileId) async =>
       (await guardApiCall(() => _files.confirm(id: fileId))).data.scanStatus;
@@ -274,16 +378,27 @@ class StorageUploader {
       sizeBytes: await body.length(),
       sha256: await body.sha256Hex(),
     );
-    await put(
-      target,
-      body,
-      mime: mime,
-      filename: filename,
-      onProgress: onProgress,
-      cancel: cancel,
-      transport: transport,
-      taskId: taskId,
-    );
+    // A big file goes in resumable parts when the server offers it (and the
+    // caller did not pick its own transport, e.g. the background queue).
+    final resumed = transport == null &&
+        await putResumable(
+          target.fileId,
+          body,
+          onProgress: onProgress,
+          cancel: cancel,
+        );
+    if (!resumed) {
+      await put(
+        target,
+        body,
+        mime: mime,
+        filename: filename,
+        onProgress: onProgress,
+        cancel: cancel,
+        transport: transport,
+        taskId: taskId,
+      );
+    }
     await waitClean(
       target.fileId,
       status: await confirm(target.fileId),

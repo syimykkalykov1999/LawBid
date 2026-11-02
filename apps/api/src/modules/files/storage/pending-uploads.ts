@@ -10,3 +10,7 @@ export function pendingUploadMember(
 ): string {
   return `${fileId}|${bucket}|${key}`;
 }
+
+/** The S3 multipart upload id of a pending (resumable) upload; the sweep
+ * aborts it so the stored parts do not linger and cost money. */
+export const multipartKey = (fileId: string): string => `files:mpu:${fileId}`;

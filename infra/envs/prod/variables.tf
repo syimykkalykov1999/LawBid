@@ -125,6 +125,16 @@ variable "admin_tasks" {
   type    = number
   default = 2
 }
+variable "admin_cpu" {
+  type        = number
+  default     = 256
+  description = "Fargate CPU units of one admin task. 2026-11-02 prod metrics (3 h): CPU avg 1.8 %, max 28.8 %, memory 22 % - the size is enough; raise only if CPUUtilization stays high."
+}
+variable "admin_memory" {
+  type        = number
+  default     = 512
+  description = "MiB of one admin task (Fargate pair for 256 CPU: 512-2048). Node heap limit is 70 % of this."
+}
 variable "api_cpu" {
   type    = number
   default = 1024
@@ -485,6 +495,11 @@ variable "turn_enabled" {
   type        = bool
   default     = false
   description = "coturn relay for calls (modules/turn); docs/runbooks/TURN.md."
+}
+variable "turn_on_demand" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-11-02: coturn stands stopped, no Elastic IP; the API starts it only while Cloudflare is down (about $0.6/month for the disk). Needs turn_enabled; not with turn_second_enabled."
 }
 variable "turn_second_enabled" {
   type        = bool

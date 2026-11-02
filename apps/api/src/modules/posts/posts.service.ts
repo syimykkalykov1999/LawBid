@@ -46,6 +46,7 @@ import {
   type PostPage,
   type PostMediaFilter,
 } from './dto/posts.dto';
+import { PostFanoutService } from '../notifications/post-fanout.service';
 import { SubscriptionAlertsService } from '../notifications/subscription-alerts.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { VideosService } from '../videos/videos.service';
@@ -133,6 +134,7 @@ export class PostsService {
     // Caching round 2 (S2-2): block set + feed version are per-user caches.
     @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
     @Optional() private readonly alerts?: SubscriptionAlertsService,
+    @Optional() private readonly postFanout?: PostFanoutService,
     @Optional() private readonly promoDelivery?: PromotionDeliveryService,
     @Optional() private readonly flags?: FeatureFlagsService,
     // Owner 2026-10-28: attorney ad-text checker + archive (off by default).
@@ -419,7 +421,12 @@ export class PostsService {
       !post.video_asset_id &&
       post._count.media === 0 &&
       post._count.attachments === 0;
-    alerts?.later(() => alerts.followersOfPost(post.author_id, post.id, brief));
+    const postFanout = this.postFanout;
+    alerts?.later(() =>
+      postFanout
+        ? postFanout.start(post.author_id, post.id, brief)
+        : alerts.followersOfPost(post.author_id, post.id, brief),
+    );
     await this.events?.record(
       'post.published',
       { postId: post.id, authorId: post.author_id },
@@ -710,7 +717,7 @@ export class PostsService {
     return { deleted: true };
   }
 
-  /** Owner 2026-10-12: pins an own post to slot 1..3 of its list (posts
+  /** Owner 2026-10-12: pins an own post to slot 1..6 of its list (posts
    * with files, or text-only briefs). A taken slot is not refused: the post
    * that held it takes the pinned post's old slot, or loses its pin. */
   async pin(user: RequestUser, id: string, slot: number): Promise<PostDto> {

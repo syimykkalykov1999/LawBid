@@ -17,11 +17,17 @@ import {
   TYPO_THRESHOLD,
   typoMatch,
 } from '../../common/search/fts-sql';
-import { parseSearchQuery } from '../../common/search/search-query';
+import { hasCjk, parseSearchQuery } from '../../common/search/search-query';
 import {
   escapeLike,
+  letterCount,
+  NAME_MATCH,
   nameKeys,
   nameMatchSql,
+  PERSON_TIER,
+  personTierSql,
+  startsAWord,
+  wordStartSql,
 } from '../../common/search/name-match.sql';
 import { SearchSynonymsService } from './search-synonyms.service';
 import { urgencyFilterSql } from '../cases/domain/case-urgency';
@@ -50,6 +56,17 @@ const POST_CANDIDATES = 1000;
 const CASE_CANDIDATES = 1500;
 /** A candidate query gets this much database time (ms). */
 const SEARCH_BUDGET_MS = 700;
+/** Hashtags ranked per type-ahead call (by name first, then by use). */
+const TAG_CANDIDATES = 300;
+/** Posts text the CJK substring search runs on (= posts_text_trgm_idx). */
+const POST_TEXT_SQL = "(coalesce(p.title, '') || ' ' || p.body)";
+/** A one/two-letter CJK query looks only through this many newest posts. */
+const CJK_SHORT_WINDOW = 100_000;
+/** A typed word shorter than this names a topic only as a whole word. */
+const SHORT_TOPIC_WORD = 4;
+/** More topics than this named by one word: it is a generic word ("law"),
+ * not a topic, and widens nothing. */
+const MAX_TOPIC_ROOTS = 2;
 /** Fewer whole-word matches than this: try the prefix too. */
 const MIN_EXACT = 3;
 
@@ -68,11 +85,18 @@ export function attorneyOnly(f: AttorneySearchFilters): boolean {
  * translated practice name or of its keywords" (accents and commas
  * ignored) — "штраф гибдд", "visa", "ажырашуу" all work.
  */
-function practiceWordsMatch(norm: string): Prisma.Sql {
+function practiceWordsMatch(norm: string, wholeShort = false): Prisma.Sql {
   const words = norm.split(/\s+/).filter((w) => w.length > 0);
+  // Audit 2026-11-01 ([wholeShort], used where a hit widens a text search): a
+  // word of fewer than 4 letters must be a whole word of the name, not the
+  // start of one — in 85 languages some name begins with any three letters.
   const conds = words.map(
     (w) =>
-      Prisma.sql`public.f_unaccent(' ' || replace(lower(t.value), ',', ' ')) LIKE ${`% ${escapeLike(w)}%`}`,
+      Prisma.sql`public.f_unaccent(' ' || replace(lower(t.value), ',', ' ') || ' ') LIKE ${
+        wholeShort && w.length < SHORT_TOPIC_WORD
+          ? `% ${escapeLike(w)} %`
+          : `% ${escapeLike(w)}%`
+      }`,
   );
   return conds.length ? Prisma.join(conds, ' AND ') : Prisma.sql`FALSE`;
 }
@@ -91,6 +115,44 @@ export function casePlaceMatch(norm: string): Prisma.Sql {
                AND lower(s.name) LIKE ${like})
     OR lower(c.city) LIKE ${like}
     OR lower(c.city) LIKE ${`% ${escapeLike(norm)}%`})`;
+}
+
+/** Little words that name nothing on their own («in», «в»): a word of a
+ * mixed case query must not have to be a state code like IN. */
+const CASE_QUERY_STOPWORDS = new Set([
+  'in',
+  'at',
+  'on',
+  'of',
+  'for',
+  'the',
+  'and',
+  'or',
+  'a',
+  'an',
+  'to',
+  'в',
+  'во',
+  'на',
+  'и',
+  'или',
+  'по',
+  'с',
+  'со',
+  'за',
+  'для',
+  'из',
+  'у',
+  'о',
+]);
+
+/** The words of a case query that each must match (at most 4). */
+export function caseQueryWords(plain: string): string[] {
+  return plain
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length >= 2 && !CASE_QUERY_STOPWORDS.has(w))
+    .slice(0, 4);
 }
 
 /**
@@ -214,7 +276,7 @@ export class PostgresSearchProvider implements SearchProvider {
   async practicesNamed(q: string): Promise<string[]> {
     const out: string[] = [];
     for (const [id, names] of await this.practiceAreaNames()) {
-      if (names.some((n) => n.includes(q))) out.push(id);
+      if (names.some((n) => startsAWord(n, q))) out.push(id);
     }
     return out;
   }
@@ -241,9 +303,17 @@ export class PostgresSearchProvider implements SearchProvider {
 
   /**
    * Attorneys (docs/05 §7.3 branches: @username, name, practice name,
-   * state) and — OQ-026, when [withClients] — clients (@username, name),
-   * ranked together: exact handle, handle prefix, trigram similarity,
-   * attorneys before clients, verified first, rating.
+   * state) and — OQ-026, when [withClients] — clients (@username, name).
+   *
+   * Owner 2026-10-28 (Instagram / Telegram order; «jah» found an unrelated
+   * «Syimyk Kalykov» through the Indonesian practice name «Kejahatan»):
+   * every row gets a tier ([PERSON_TIER], personTierSql) — exact, prefix,
+   * word start, contains (3+ letters), other alphabet, typo (4+ letters),
+   * topic/state — and a row of no tier is dropped, also for the engine's
+   * candidates ([among]). Inside a tier: typo closeness, the paid "higher
+   * in search", verified, rating (admin weights), followers, attorneys
+   * first; SearchService then moves close neighbours by the viewer's own
+   * interactions (reorderWithinTiers).
    */
   private async people(
     q: string,
@@ -253,31 +323,65 @@ export class PostgresSearchProvider implements SearchProvider {
     among?: string[],
   ): Promise<{ id: string; role: PersonRole; tier: PersonTier }[]> {
     const w = await this.weights();
+    const letters = letterCount(q);
     const prefix = `${escapeLike(q)}%`;
     const contains = `%${escapeLike(q)}%`;
     const keys = await nameKeys(this.db, q);
     const byName = nameMatchSql(keys);
+    // Topics and places only from 3 letters, at a word start: «jah» is not
+    // «Kejahatan» (criminal law, Indonesian), «ka» is not Kansas.
+    const topical = letters >= NAME_MATCH.containsMinLetters;
     // Owner 2026-10-15: "развод" / "муж бьёт" → attorneys of that topic.
     const synPractices = (await this.synonyms?.resolve(q))?.practiceIds ?? [];
-    const bySynonym = synPractices.length
-      ? Prisma.sql`UNION
-        (SELECT ap.attorney_id FROM attorney_practice_areas ap
-          WHERE ap.practice_area_id = ANY(${synPractices}::UUID[])
-          LIMIT ${BRANCH_CAP})`
-      : Prisma.empty;
     // Owner 2026-10-13: a practice by its name in ANY language ("развод",
     // "तलाक"): the translations of its i18n key (matched in memory).
-    const needle = q;
     const namedPractices: string[] = [];
-    for (const [id, names] of await this.practiceAreaNames()) {
-      if (names.some((n) => n.includes(needle))) namedPractices.push(id);
+    if (topical) {
+      for (const [id, names] of await this.practiceAreaNames()) {
+        if (names.some((n) => startsAWord(n, q))) namedPractices.push(id);
+      }
     }
-    const byTranslation = namedPractices.length
+    const topicPractices = [...new Set([...synPractices, ...namedPractices])];
+    const practiceByEnglish = topical
+      ? wordStartSql(Prisma.sql`lower(pa.name_en)`, escapeLike(q))
+      : Prisma.sql`FALSE`;
+    const stateMatch = Prisma.sql`(lower(s.code) = ${q}${
+      topical ? Prisma.sql` OR lower(s.name) LIKE ${prefix}` : Prisma.empty
+    })`;
+    // Is the attorney [u] one of the typed topic / state (tier "topic")?
+    const topic = Prisma.sql`(EXISTS (SELECT 1 FROM attorney_practice_areas tp
+        WHERE tp.attorney_id = u.id
+          AND (tp.practice_area_id = ANY(${topicPractices}::UUID[])
+               OR tp.practice_area_id IN (SELECT pa.id FROM practice_areas pa
+                                           WHERE ${practiceByEnglish})))
+      OR EXISTS (SELECT 1 FROM attorney_licenses tl
+        JOIN states s ON s.code = tl.state_code
+        WHERE tl.attorney_id = u.id AND tl.license_status = 'verified'
+          AND ${stateMatch}))`;
+    const byTopic = topicPractices.length
       ? Prisma.sql`UNION
         (SELECT ap.attorney_id FROM attorney_practice_areas ap
-          WHERE ap.practice_area_id = ANY(${namedPractices}::UUID[])
+          WHERE ap.practice_area_id = ANY(${topicPractices}::UUID[])
           LIMIT ${BRANCH_CAP})`
       : Prisma.empty;
+    const byEnglish = topical
+      ? Prisma.sql`UNION
+        (SELECT ap.attorney_id FROM practice_areas pa
+          JOIN attorney_practice_areas ap ON ap.practice_area_id = pa.id
+          WHERE ${practiceByEnglish}
+          LIMIT ${BRANCH_CAP})`
+      : Prisma.empty;
+    // Candidate handles: prefix; inside from 3 letters; close from 4.
+    const handleMatch = (col: Prisma.Sql) =>
+      Prisma.sql`(${col} LIKE ${
+        letters >= NAME_MATCH.containsMinLetters ? contains : prefix
+      }${keys.fuzzy ? Prisma.sql` OR ${col} % ${q}` : Prisma.empty})`;
+    // Candidate names: a word start; inside from 3 letters. Other
+    // alphabets, word order and typos come from [byName].
+    const fullNameMatch =
+      letters >= NAME_MATCH.containsMinLetters
+        ? Prisma.sql`full_name_lower LIKE ${contains}`
+        : wordStartSql(Prisma.sql`full_name_lower`, escapeLike(q));
     const filters = Prisma.sql`
       ${
         f.practiceAreaId
@@ -307,22 +411,24 @@ export class PostgresSearchProvider implements SearchProvider {
     const clients = withClients
       ? Prisma.sql`
         UNION ALL
-        SELECT u.id, 'client' AS role, c.username_lower AS uname,
-               u.full_name_lower AS fname, u.name_skel AS fskel,
+        SELECT u.id, 'client' AS role, u.full_name_lower AS fname,
+               u.name_skel AS fskel,
+               ${personTierSql(q, keys, Prisma.sql`c.username_lower`, 'u', Prisma.sql`FALSE`)} AS tier,
                FALSE AS verified,
-               0::DECIMAL AS rating, FALSE AS priority
+               0::DECIMAL AS rating, FALSE AS priority,
+               c.followers_count AS followers
         FROM (${
           among
             ? Prisma.sql`SELECT unnest(${among}::UUID[]) AS user_id`
             : Prisma.sql`
           (SELECT user_id FROM client_profiles
             WHERE username_lower IS NOT NULL
-              AND (username_lower LIKE ${prefix} OR username_lower % ${q})
+              AND ${handleMatch(Prisma.sql`username_lower`)}
             LIMIT ${BRANCH_CAP})
           UNION
           (SELECT id AS user_id FROM users
             WHERE full_name_lower IS NOT NULL AND role = 'client'
-              AND (full_name_lower % ${q} OR full_name_lower LIKE ${contains})
+              AND ${fullNameMatch}
             LIMIT ${BRANCH_CAP})
           UNION
           (SELECT id AS user_id FROM users
@@ -344,39 +450,36 @@ export class PostgresSearchProvider implements SearchProvider {
           : Prisma.sql`
         (SELECT user_id AS id FROM attorney_profiles
           WHERE username_lower IS NOT NULL
-            AND (username_lower LIKE ${prefix} OR username_lower % ${q})
+            AND ${handleMatch(Prisma.sql`username_lower`)}
           LIMIT ${BRANCH_CAP})
         UNION
         (SELECT id FROM users
           WHERE full_name_lower IS NOT NULL AND role = 'attorney'
-            AND (full_name_lower % ${q} OR full_name_lower LIKE ${contains})
+            AND ${fullNameMatch}
           LIMIT ${BRANCH_CAP})
         UNION
         (SELECT id FROM users
           WHERE full_name_lower IS NOT NULL AND role = 'attorney' AND ${byName}
           LIMIT ${BRANCH_CAP})
-        UNION
-        (SELECT ap.attorney_id FROM practice_areas pa
-          JOIN attorney_practice_areas ap ON ap.practice_area_id = pa.id
-          WHERE lower(pa.name_en) LIKE ${contains}
-          LIMIT ${BRANCH_CAP})
-        ${byTranslation}
+        ${byEnglish}
+        ${byTopic}
         UNION
         (SELECT l.attorney_id FROM states s
           JOIN attorney_licenses l ON l.state_code = s.code
             AND l.license_status = 'verified'
-          WHERE lower(s.name) LIKE ${prefix} OR lower(s.code) = ${q}
-          LIMIT ${BRANCH_CAP})
-        ${bySynonym}`
+          WHERE ${stateMatch}
+          LIMIT ${BRANCH_CAP})`
       }
       ),
       people AS (
-        SELECT u.id, 'attorney' AS role, a.username_lower AS uname,
+        SELECT u.id, 'attorney' AS role,
                u.full_name_lower AS fname, u.name_skel AS fskel,
+               ${personTierSql(q, keys, Prisma.sql`a.username_lower`, 'u', topic)} AS tier,
                (a.verification_status = 'verified') AS verified,
                a.rating_avg AS rating,
                -- Owner 2026-10-05 (plan builder): "higher in search".
-               ${attorneysWithEntitlementSql('priority_search', Prisma.sql`u.id`)} AS priority
+               ${attorneysWithEntitlementSql('priority_search', Prisma.sql`u.id`)} AS priority,
+               a.followers_count AS followers
         FROM cand
         JOIN users u ON u.id = cand.id AND u.role = 'attorney'
           AND u.status = 'active' AND u.deleted_at IS NULL
@@ -385,22 +488,24 @@ export class PostgresSearchProvider implements SearchProvider {
         WHERE TRUE ${filters}
         ${clients}
       )
-      SELECT id::TEXT AS id, role,
-             (CASE WHEN uname = ${q} THEN 0
-                   WHEN uname LIKE ${prefix} THEN 1 ELSE 2 END)::INT AS tier
-      FROM people
+      SELECT id::TEXT AS id, role, tier
+      FROM (SELECT *,
+                   bool_or(tier < ${PERSON_TIER.fuzzy}) OVER () AS has_strong
+            FROM people WHERE tier < ${PERSON_TIER.none}) p
+      -- Owner 2026-10-28 («sima kalykov» also listed «Syimyk Kalykov»):
+      -- typo matches only when no name matched strongly.
+      WHERE tier <> ${PERSON_TIER.fuzzy} OR NOT has_strong
       ORDER BY
-        (uname = ${q}) DESC,
-        (uname LIKE ${prefix}) DESC,
-        GREATEST(similarity(uname, ${q}),
-                 similarity(COALESCE(fname, ''), ${q}),
-                 -- = word_similarity(f_name_skel(q), f_name_skel(fname)),
-                 -- both keys precomputed (load test 2026-10-28).
-                 word_similarity(${keys.whole}::TEXT,
-                                 COALESCE(fskel, public.f_name_skel(COALESCE(fname, ''))))) DESC,
-        (role = 'attorney') DESC,
+        tier,
+        -- A typo: the closer spelling first (both keys precomputed).
+        (CASE WHEN tier = ${PERSON_TIER.fuzzy}
+              THEN word_similarity(${keys.whole}::TEXT, COALESCE(fskel, ''))
+              ELSE 0 END) DESC,
         (priority::INT * ${w.priority}::FLOAT8 + verified::INT * ${w.verified}::FLOAT8
           + rating::FLOAT8 * ${w.rating}::FLOAT8) DESC,
+        followers DESC,
+        (role = 'attorney') DESC,
+        length(COALESCE(fname, '')),
         id
       LIMIT ${max}`;
     return rows.map((r) => ({
@@ -610,6 +715,36 @@ export class PostgresSearchProvider implements SearchProvider {
     );
     const merged = [...new Map([...exact, ...prefix].map((r) => [r.id, r]))];
     if (merged.length > 0) return merged.map(([id]) => id);
+    // Audit 2026-11-01: CJK has no spaces — "移民" is inside the sentence.
+    if (hasCjk(q)) {
+      const like = `%${escapeLike(parsed.plain)}%`;
+      // Trigram index (posts_text_trgm_idx) from 3 characters; a shorter
+      // query scans only the newest posts so it stays inside the budget.
+      const recent =
+        [...parsed.plain].length < 3
+          ? Prisma.sql`AND p.created_at >= COALESCE((SELECT min(r.created_at)
+              FROM (SELECT created_at FROM posts ORDER BY created_at DESC
+                    LIMIT ${CJK_SHORT_WINDOW}) r), '-infinity')`
+          : Prisma.empty;
+      const inside = await this.budget(SEARCH_BUDGET_MS, () =>
+        run(Prisma.sql`${Prisma.raw(POST_TEXT_SQL)} ILIKE ${like} ${recent}`),
+      );
+      if (inside.length > 0) return inside.map((r) => r.id);
+    }
+    // Audit 2026-11-01 ("immigration visa"): every word may name the text or
+    // the topic — each must match one of them, like the cases search.
+    if (parsed.tokens.length >= 2) {
+      const perWord = await Promise.all(
+        parsed.tokens.map(
+          async (w) =>
+            Prisma.sql`${ftsMatch('p', w, true, await this.practiceIdsFor(w))}`,
+        ),
+      );
+      const mixed = await this.budget(SEARCH_BUDGET_MS, () =>
+        run(Prisma.sql`(${Prisma.join(perWord, ' AND ')})`),
+      );
+      if (mixed.length > 0) return mixed.map((r) => r.id);
+    }
     // Owner 2026-10-15: nothing matched, maybe a typo ("gren card"): the
     // trigram index on the titles finds the close ones.
     const typo = await this.budget(
@@ -768,20 +903,24 @@ export class PostgresSearchProvider implements SearchProvider {
     if (norm.length < 3) return [];
     const hit = this.practiceCache.get(norm);
     if (hit && Date.now() - hit.at < 600_000) return hit.ids;
-    const rows = await this.db.$queryRaw<{ id: string }[]>`
+    const rows = await this.db.$queryRaw<{ id: string; root: string }[]>`
       WITH hits AS (
         SELECT DISTINCT pa.id, pa.parent_id
         FROM practice_areas pa
         JOIN i18n_keys k ON k.key IN (pa.i18n_key, pa.i18n_key || '.kw')
         JOIN i18n_translations t ON t.key_id = k.id
-        WHERE pa.is_active AND (${practiceWordsMatch(norm)})
+        WHERE pa.is_active AND (${practiceWordsMatch(norm, true)})
         LIMIT 12
       )
-      SELECT id::TEXT AS id FROM hits
+      SELECT id::TEXT AS id, COALESCE(parent_id, id)::TEXT AS root FROM hits
       UNION
-      SELECT c.id::TEXT FROM practice_areas c
+      SELECT c.id::TEXT, COALESCE(h.parent_id, h.id)::TEXT FROM practice_areas c
         JOIN hits h ON c.parent_id = h.id`;
-    const ids = rows.map((r) => r.id);
+    // Audit 2026-11-01: "law" is a word of Family law, Criminal law, … —
+    // naming many topics it names none, and used to return every post of
+    // all of them.
+    const generic = new Set(rows.map((r) => r.root)).size > MAX_TOPIC_ROOTS;
+    const ids = generic ? [] : rows.map((r) => r.id);
     this.practiceCache.set(norm, { at: Date.now(), ids });
     if (this.practiceCache.size > 2000) this.practiceCache.clear();
     return ids;
@@ -890,6 +1029,26 @@ export class PostgresSearchProvider implements SearchProvider {
       }),
     );
     rows = [...new Map([...rows, ...place].map((r) => [r.id, r])).values()];
+    // Owner 2026-10-28 («развод бруклин», «dui texas»): each word may name
+    // the text, the topic or the place — every word must match one of them.
+    const mixedWords = caseQueryWords(parsed.plain);
+    if (mixedWords.length >= 2) {
+      const perWord = await Promise.all(
+        mixedWords.map(
+          async (word) =>
+            Prisma.sql`(${ftsMatch('c', word, true, await this.practiceIdsFor(word))}
+              OR ${casePlaceMatch(word)})`,
+        ),
+      );
+      const mixed = await this.budget(SEARCH_BUDGET_MS, () =>
+        this.searchCases('', {
+          ...p,
+          limit: CASE_CANDIDATES,
+          extraSql: Prisma.sql`${p.extraSql ?? Prisma.empty} AND ${Prisma.join(perWord, ' AND ')}`,
+        }),
+      );
+      rows = [...new Map([...rows, ...mixed].map((r) => [r.id, r])).values()];
+    }
     const ids = rows.map((r) => r.id);
     if (ids.length > 0) {
       const ranked = await this.db.$queryRaw<{ id: string }[]>`
@@ -941,16 +1100,30 @@ export class PostgresSearchProvider implements SearchProvider {
     ];
   }
 
+  /**
+   * Hashtags starting with [prefix], the most used first. Audit 2026-11-01:
+   * they used to come alphabetically (the first 20 of "a" were "aaa", "abc"
+   * … with no post) and only then were counted, so the popular ones never
+   * showed. Now the first [TAG_CANDIDATES] by name are ranked by their
+   * published posts, so a short prefix is still one cheap index range.
+   */
   async searchTags(prefix: string, limit: number): Promise<string[]> {
-    const rows = await this.db.tag.findMany({
-      where: {
-        tag_lower: { startsWith: prefix },
-        NOT: { tag_lower: { startsWith: HIDDEN_TAG_PREFIX } },
-      },
-      orderBy: { tag_lower: 'asc' },
-      take: limit,
-      select: { tag_lower: true },
-    });
+    const like = `${escapeLike(prefix)}%`;
+    const rows = await this.db.$queryRaw<{ tag_lower: string }[]>`
+      SELECT c.tag_lower FROM (
+        SELECT t.id, t.tag_lower FROM tags t
+        WHERE t.tag_lower LIKE ${like}
+          AND t.tag_lower NOT LIKE ${`${escapeLike(HIDDEN_TAG_PREFIX)}%`}
+        ORDER BY t.tag_lower
+        LIMIT ${TAG_CANDIDATES}) c
+      ORDER BY (
+        SELECT count(*) FROM (
+          SELECT 1 FROM post_tags pt JOIN posts p ON p.id = pt.post_id
+          WHERE pt.tag_id = c.id AND p.status = 'published'
+            AND p.deleted_at IS NULL AND p.archived_at IS NULL
+          LIMIT 1000) n) DESC,
+        c.tag_lower
+      LIMIT ${limit}`;
     return rows.map((r) => r.tag_lower);
   }
 }

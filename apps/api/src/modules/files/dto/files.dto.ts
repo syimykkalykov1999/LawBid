@@ -109,6 +109,51 @@ export class PresignedFileDto {
   expiresAt!: string;
 }
 
+export class MultipartPartDto {
+  @ApiProperty({ minimum: 1, description: '1-based part number.' })
+  partNumber!: number;
+
+  @ApiProperty({
+    description:
+      'Presigned link: PUT the raw bytes of this part (no extra headers).',
+  })
+  url!: string;
+}
+
+export class MultipartPlanDto {
+  @ApiProperty({
+    description:
+      'Size of every part except the last one (the last is the remainder).',
+  })
+  partSizeBytes!: number;
+
+  @ApiProperty() partCount!: number;
+
+  @ApiProperty({
+    type: [Number],
+    description:
+      'Part numbers S3 already holds (an interrupted upload continues from here).',
+  })
+  uploadedParts!: number[];
+
+  @ApiProperty({
+    type: [MultipartPartDto],
+    description: 'Links for the parts still to send, ascending.',
+  })
+  parts!: MultipartPartDto[];
+
+  @ApiProperty({
+    format: 'date-time',
+    description: 'The part links expire at; ask for the plan again after.',
+  })
+  expiresAt!: string;
+}
+
+export class MultipartCompleteDto {
+  @ApiProperty({ description: 'Size of the assembled object in bytes.' })
+  sizeBytes!: number;
+}
+
 export class FileDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;

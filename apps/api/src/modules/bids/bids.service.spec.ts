@@ -105,6 +105,8 @@ describe('BidsService.create over an earlier bid row', () => {
 
   function setup(previous: { id: string; status: string } | null) {
     const tx = {
+      // Audit A-2: the per-attorney advisory lock taken before the re-check.
+      $executeRaw: jest.fn(() => Promise.resolve(1)),
       case: {
         findUnique: jest.fn(() =>
           Promise.resolve({

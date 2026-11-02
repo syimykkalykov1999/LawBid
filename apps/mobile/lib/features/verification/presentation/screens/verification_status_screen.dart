@@ -74,7 +74,7 @@ class VerificationStatusScreen extends ConsumerWidget {
         child: switch (async) {
           AsyncData(:final value) => KeyedSubtree(
               key: ValueKey('status-${viewOf(value).name}'),
-              child: RefreshIndicator(
+              child: AppRefreshIndicator(
                 color: colors.gold,
                 onRefresh: () async {
                   ref.invalidate(myTrustProvider);

@@ -13,6 +13,8 @@
     "api:start": "npm run start:dev --workspace apps/api",
     "api:lint": "npm run lint --workspace apps/api",
     "api:test": "npm run test --workspace apps/api",
+    "precheck": "bash scripts/dev/precheck.sh",
+    "precheck:full": "bash scripts/dev/precheck.sh --full",
     "heavy": "bash scripts/dev/heavy.sh --",
     "smoke:local": "bash scripts/dev/smoke-local.sh",
     "prisma:generate:fast": "bash scripts/dev/skip-if-unchanged.sh prisma-client apps/api/prisma/schema.prisma package-lock.json -- node_modules/.prisma/client/index.js -- npx --prefix apps/api prisma generate --schema apps/api/prisma/schema.prisma",

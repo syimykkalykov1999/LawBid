@@ -1,4 +1,8 @@
 import {
+  communityQuery,
+  rankCommunities,
+} from '../../common/search/community-search';
+import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -208,25 +212,34 @@ export class ChannelsService {
       rows = adm.map((a) => a.channel);
       rows.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
     } else {
-      const term = (q ?? '').trim().replace(/^@/, '');
-      if (!term) return this.recommended(me, cursor);
+      const query = communityQuery(q ?? '');
+      // One letter is not a search yet: the recommended list stays.
+      if (!query) return this.recommended(me, cursor);
       const hidden = await this.blocks.hiddenIds(me);
-      rows = await this.prisma.channel.findMany({
+      const found = await this.prisma.channel.findMany({
         where: {
           status: 'active',
           owner_id: { notIn: [...hidden] },
-          ...(term
-            ? {
-                OR: [
-                  { title: { contains: term, mode: 'insensitive' } },
-                  { username: { contains: term.toLowerCase() } },
-                ],
-              }
-            : { post_count: { gt: 0 } }),
+          AND: query.words.map((w) => ({
+            OR: [
+              { title: { contains: w, mode: 'insensitive' as const } },
+              { username: { contains: w } },
+            ],
+          })),
         },
         orderBy: [{ subscriber_count: 'desc' }, { created_at: 'desc' }],
-        take: 30,
+        take: 200,
       });
+      rows = rankCommunities(
+        found,
+        query,
+        (c) => ({
+          title: c.title,
+          username: c.username,
+          size: c.subscriber_count,
+        }),
+        30,
+      );
     }
     const items = await this.presentChannels(rows, me);
     if (scope === 'discover') return { items, nextCursor: null };
@@ -1095,23 +1108,32 @@ export class ChannelsService {
     await this.assertEnabled();
     const ch = await this.findReadable(user.sub, id);
     const comment = await this.prisma.channelComment.findFirst({
-      where: { id: commentId, post_id: postId, post: { channel_id: ch.id } },
+      where: {
+        id: commentId,
+        post_id: postId,
+        post: { channel_id: ch.id },
+      },
     });
     if (!comment) throw notFound('Comment');
+    // A retry / double tap of a delete that already went through is a no-op.
+    if (comment.deleted_at) return;
     const role = await this.roleOf(user.sub, ch.id);
     if (!role && comment.author_id !== user.sub) {
       throw forbidden('Not your comment.');
     }
-    await this.prisma.$transaction([
-      this.prisma.channelComment.update({
-        where: { id: commentId },
+    // Audit A-4: the counter moves only for the request that actually
+    // deleted the row (a retry / double tap must not decrement twice).
+    await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.channelComment.updateMany({
+        where: { id: commentId, deleted_at: null },
         data: { deleted_at: new Date() },
-      }),
-      this.prisma.channelPost.update({
+      });
+      if (claimed.count === 0) return;
+      await tx.channelPost.update({
         where: { id: postId },
         data: { comment_count: { decrement: 1 } },
-      }),
-    ]);
+      });
+    });
   }
 
   // ── helpers ──────────────────────────────────────────────────────────
