@@ -908,10 +908,22 @@ module "turn" {
   health_checks = !var.turn_on_demand && data.aws_region.current.name == "us-east-1"
 }
 
-# Owner 2026-11-02: the API (task role) may start / stop this ONE box and look
-# at instance states; nothing else on EC2.
+# Owner 2026-11-02: the API may start / stop this ONE box and look at instance
+# states; nothing else on EC2. With ops_role_split the same rights sit on the
+# `<name>-ops` role (data.aws_iam_policy_document.ops) and not on the task role
+# of the process that serves the internet.
+resource "terraform_data" "turn_on_demand_guard" {
+  count = var.turn_on_demand ? 1 : 0
+  lifecycle {
+    precondition {
+      condition     = var.turn_enabled && !var.turn_second_enabled
+      error_message = "turn_on_demand needs turn_enabled = true and turn_second_enabled = false (a second always-on relay with its own address defeats it)."
+    }
+  }
+}
+
 resource "aws_iam_role_policy" "turn_on_demand" {
-  count = var.turn_enabled && var.turn_on_demand ? 1 : 0
+  count = var.turn_enabled && var.turn_on_demand && !var.ops_role_split ? 1 : 0
   name  = "turn-on-demand"
   role  = module.ecs.task_role_name
   policy = jsonencode({
@@ -2023,6 +2035,21 @@ data "aws_iam_policy_document" "task" {
 # and set backup retention to 0, so this must not sit on the role of the
 # process that serves the internet.
 data "aws_iam_policy_document" "ops" {
+  # On-demand coturn (calls/turn-instance.gateway.ts): start / stop this one box.
+  dynamic "statement" {
+    for_each = var.turn_enabled && var.turn_on_demand ? [1] : []
+    content {
+      actions   = ["ec2:StartInstances", "ec2:StopInstances"]
+      resources = [module.turn[0].instance_arn]
+    }
+  }
+  dynamic "statement" {
+    for_each = var.turn_enabled && var.turn_on_demand ? [1] : []
+    content {
+      actions   = ["ec2:DescribeInstances"]
+      resources = ["*"]
+    }
+  }
   # Zero maintenance: restart the worker, cap / restore autoscaling, read
   # this month's spend. Only these two services and this one budget.
   statement {
