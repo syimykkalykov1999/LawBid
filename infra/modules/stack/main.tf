@@ -150,6 +150,11 @@ variable "turn_enabled" {
   default     = false
   description = "coturn relay for calls on a small EC2 (modules/turn, ≈ $7–8/month); docs/runbooks/TURN.md."
 }
+variable "turn_on_demand" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-11-02: with turn_enabled the coturn box has no Elastic IP and the API starts / stops it itself (apps/api calls/turn-on-demand.ts) only while Cloudflare is down. Needs turn_second_enabled = false. docs/runbooks/TURN.md."
+}
 variable "turn_second_enabled" {
   type        = bool
   default     = false
@@ -879,13 +884,37 @@ module "turn" {
   # Second relay in the next Availability Zone, health checks, alarms.
   secondary_subnet_id      = var.turn_second_enabled ? module.network.public_subnet_ids[1] : null
   alerts_topic_arn         = module.monitoring.alerts_topic_arn
-  alarms_enabled           = true
+  on_demand                = var.turn_on_demand
+  alarms_enabled           = !var.turn_on_demand # a stopped box would alarm all day
   traffic_alarm_gb_per_day = var.turn_traffic_alarm_gb_per_day
   instance_type            = var.turn_instance_type
   turn_total_quota         = var.turn_total_quota
-  hosted_zone_id           = var.hosted_zone_id
+  hosted_zone_id           = var.turn_on_demand ? null : var.hosted_zone_id # the address changes at every start
   # Route 53 health-check metrics exist in us-east-1 only.
-  health_checks = data.aws_region.current.name == "us-east-1"
+  health_checks = !var.turn_on_demand && data.aws_region.current.name == "us-east-1"
+}
+
+# Owner 2026-11-02: the API (task role) may start / stop this ONE box and look
+# at instance states; nothing else on EC2.
+resource "aws_iam_role_policy" "turn_on_demand" {
+  count = var.turn_enabled && var.turn_on_demand ? 1 : 0
+  name  = "turn-on-demand"
+  role  = module.ecs.task_role_name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["ec2:DescribeInstances"]
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ec2:StartInstances", "ec2:StopInstances"]
+        Resource = module.turn[0].instance_arn
+      },
+    ]
+  })
 }
 
 # Owner 2026-10-22: self-hosted LiveKit SFU (off until livekit_enabled).
@@ -1505,6 +1534,8 @@ locals {
     ADMIN_ORIGINS       = "https://${var.admin_host}"
     ADMIN_PANEL_URL     = "https://${var.admin_host}"
     S3_REGION           = data.aws_region.current.name
+    # Empty = no on-demand coturn (calls/turn-instance.gateway.ts).
+    TURN_ONDEMAND_INSTANCE_ID = var.turn_enabled && var.turn_on_demand ? module.turn[0].instance_id : ""
     S3_BUCKET_DOCUMENTS = module.s3.documents_bucket
     S3_BUCKET_MEDIA     = module.s3.media_bucket
     # Owner 2026-10-28: empty = no daily export of the admin audit log.
