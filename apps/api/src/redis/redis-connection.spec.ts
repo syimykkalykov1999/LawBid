@@ -11,8 +11,11 @@ import {
   PRODUCER_OPTIONS,
   reconnectOnReadonly,
   redisOptions,
+  requestPathOptions,
   setRedisUrlProvider,
   sharedProducer,
+  waitForReady,
+  pubSubClient,
 } from './redis-connection';
 import { EventEmitter } from 'node:events';
 import { ck, delSafe, keySlot, mgetSafe, pipeline } from './redis-cluster-safe';
@@ -353,5 +356,53 @@ describe('WRONGPASS / NOAUTH token re-read (S6-9)', () => {
     t += 6000;
     expect(await handle(new Error('WRONGPASS'))).toBe(true);
     c.emit('error', new Error('WRONGPASS'));
+  });
+});
+
+describe('request-path client options (load test 2026-11-02, PR #606)', () => {
+  it('fails fast: no offline queue, one retry, command and socket timeouts', () => {
+    expect(requestPathOptions(1000)).toEqual({
+      enableOfflineQueue: false,
+      maxRetriesPerRequest: 1,
+      commandTimeout: 1000,
+      socketTimeout: 1000,
+    });
+    const c = createRedisClient(
+      'redis://localhost:6379',
+      { ...requestPathOptions(700), enableAutoPipelining: false },
+      { ...OFF, REDIS_CLUSTER: 'false' },
+    );
+    expect(c.options.enableOfflineQueue).toBe(false);
+    expect(c.options.socketTimeout).toBe(700);
+    expect(c.options.commandTimeout).toBe(700);
+    c.disconnect();
+  });
+
+  it('waitForReady resolves on ready, or after the bound when Redis is away', async () => {
+    const em = new EventEmitter() as unknown as Redis;
+    (em as unknown as { status: string }).status = 'connecting';
+    const p = waitForReady(em, 5000);
+    (em as unknown as EventEmitter).emit('ready');
+    await expect(p).resolves.toBeUndefined();
+    const t0 = Date.now();
+    await waitForReady(em, 30);
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(25);
+    (em as unknown as { status: string }).status = 'ready';
+    await expect(waitForReady(em, 5000)).resolves.toBeUndefined();
+  });
+});
+
+describe('pubSubClient', () => {
+  it('overrides the fail-fast options so (s)subscribe queues until ready', () => {
+    const duplicate = jest.fn().mockReturnValue({});
+    pubSubClient({ duplicate } as never);
+    expect(duplicate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enableOfflineQueue: true,
+        maxRetriesPerRequest: null,
+        commandTimeout: undefined,
+        socketTimeout: undefined,
+      }),
+    );
   });
 });

@@ -40,6 +40,8 @@ void main() {
     'longest of all languages': (LongestTranslator(), TextDirection.ltr),
     'longest, right-to-left': (LongestTranslator(), TextDirection.rtl),
     'ne': (ShippedTranslator('ne'), TextDirection.ltr),
+    'de': (ShippedTranslator('de'), TextDirection.ltr),
+    'mr': (ShippedTranslator('mr'), TextDirection.ltr),
     'ar': (ShippedTranslator('ar'), TextDirection.rtl),
     'ru': (
       L10nTranslator(language: AppLanguage.ru, cache: const {}),
@@ -49,7 +51,7 @@ void main() {
   const longName =
       'Agreement_between_the_parties_final_version_signed_2026_10_21.pdf';
 
-  for (final scale in [1.0, 1.1]) {
+  for (final scale in [1.0, 1.1, 1.3]) {
     for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
       for (final tab in ChatFilesTab.values) {
         testWidgets('group files, $tab: no overflow ($name, text x$scale)',

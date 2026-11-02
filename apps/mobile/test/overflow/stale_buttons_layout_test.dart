@@ -28,7 +28,7 @@ void main() {
   };
 
   for (final theme in AppThemeId.values) {
-    for (final scale in [1.0, 1.1]) {
+    for (final scale in [1.0, 1.1, 1.3]) {
       for (final MapEntry(key: code, value: (t, dir)) in locales.entries) {
         testWidgets('stale buttons, $code ${theme.name} x$scale', (
           tester,
