@@ -1,13 +1,14 @@
 // Finds real ids in the seeded load-test database THROUGH THE API (the way
 // apps/api/bench/workload.mjs does), so the k6 mix only asks for things that
-// exist. Writes the fixtures file k6 reads (FIXTURES_FILE).
+// exist. Writes the fixtures file k6 reads (FIXTURES_FILE) and
+// <fixtures>.sessions.txt (the sessions of the tokens inside, seed-sessions.sh).
 //
 //   API_URL=https://<alb>/api/v1 [HOST_HEADER=api.loadtest.example] \
 //   JWT_SECRET=... node discover.mjs <fixtures.json> <conversations> [assets]
 // Needs NODE_TLS_REJECT_UNAUTHORIZED=0 when the ALB is addressed by its AWS
 // name (set by the callers; it is our own throw-away stack).
 import { writeFileSync } from 'node:fs';
-import { access, accessFor } from './jwt.mjs';
+import { access, accessFor, writeSessions } from './jwt.mjs';
 
 const [out, wantConvs = '300', nAssets = '0'] = process.argv.slice(2);
 const base = (process.env.API_URL || '').replace(/\/$/, '');
@@ -136,6 +137,7 @@ if (process.env.DEALS_FILE) {
 for (let i = 0; i < Number(nAssets); i++) fx.assets.push(`/assets/a-${i}.bin`);
 
 writeFileSync(out, JSON.stringify(fx));
+writeSessions(out);
 console.error(
   `fixtures: ${fx.conversations.length} chats, ${fx.posts.length} posts, ${fx.usernames.length} usernames, ${fx.attorneyIds.length} attorneys, ${fx.cases.length} cases, ${fx.practices.length} practices, ${fx.deals.length} deals, ${fx.assets.length} assets -> ${out}`,
 );

@@ -8,6 +8,7 @@ import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/cache/network_usage.dart';
+import 'package:lawbid/features/cases/application/paged_notifier.dart';
 
 import '../../helpers/fake_http_adapter.dart';
 
@@ -142,6 +143,68 @@ void main() {
     // Outside the helper the same GET goes out as before.
     await dio.get<dynamic>('/never/seen');
     expect(adapter.requests, hasLength(1));
+  });
+
+  test('the phone-only disk wait stays under the list copy budget', () {
+    expect(
+      HttpCacheInterceptor().phoneOnlyDiskWait,
+      lessThan(PagedNotifier.savedCopyTimeout),
+    );
+  });
+
+  test('readFromPhoneOnly: a slow disk is a miss before the list gives up',
+      () async {
+    final slow = _SlowStore(
+      const Duration(milliseconds: 300),
+      HttpCacheEntry(
+        etag: 'e',
+        data: body,
+        bytes: 10,
+        fetchedAt: now,
+      ),
+    );
+    Dio make() => Dio(BaseOptions(baseUrl: 'https://api.test'))
+      ..httpClientAdapter = adapter
+      ..interceptors.add(
+        HttpCacheInterceptor(
+          disk: slow,
+          phoneOnlyDiskWait: const Duration(milliseconds: 50),
+          now: () => now,
+        ),
+      );
+
+    final sw = Stopwatch()..start();
+    await expectLater(
+      readFromPhoneOnly(() => make().get<dynamic>('/slow')),
+      throwsA(
+        isA<DioException>().having((e) => e.error, 'error', kNoPhoneCopy),
+      ),
+    );
+    expect(sw.elapsedMilliseconds, lessThan(290));
+    expect(adapter.requests, isEmpty);
+
+    // The normal path keeps its longer wait and still uses the disk copy.
+    final r = await make().get<dynamic>('/slow');
+    expect(r.data, body);
+    expect(adapter.requests.single.headers['If-None-Match'], 'e');
+  });
+
+  test('cold start offline: the phone copy opens the screen, live read fails',
+      () async {
+    await build().get<dynamic>('/cases/mine');
+    for (var i = 0; i < 100 && await db.httpBytes() == 0; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    adapter.handler = (o) async => throwConnectionError(o);
+    final restarted = build(); // empty memory, disk only
+    final copy = (await readFromPhoneOnly(
+      () => restarted.get<Map<String, dynamic>>('/cases/mine'),
+    ))!;
+    expect(copy.data, body);
+    // The refresh that follows is served stale-if-error, never an empty list.
+    final live = await restarted.get<dynamic>('/cases/mine');
+    expect(live.data, body);
+    expect(live.extra[kStaleExtra], true);
   });
 
   test('stale-if-error: a dead network or 502-504 serves the copy', () async {
@@ -280,4 +343,30 @@ void main() {
       KeepMedia.always,
     );
   });
+}
+
+/// A disk that answers [delay] late (a busy phone).
+class _SlowStore implements HttpCacheStore {
+  _SlowStore(this.delay, this.entry);
+  final Duration delay;
+  final HttpCacheEntry entry;
+
+  @override
+  Future<HttpCacheEntry?> read(String key) async {
+    await Future<void>.delayed(delay);
+    return entry;
+  }
+
+  @override
+  Future<void> write(String key, HttpCacheEntry entry, String json) async {}
+
+  @override
+  Future<void> touch(
+    String key,
+    DateTime now, {
+    required bool confirmed,
+  }) async {}
+
+  @override
+  Future<void> clear() async {}
 }
