@@ -182,12 +182,16 @@ class GroupInfoHeader extends ConsumerWidget {
                 children: [
                   AppIcon(kindIcon, size: 16, color: colors.iconTint),
                   const SizedBox(width: AppSpacing.xs),
-                  Text(
-                    kind,
-                    key: const ValueKey('group-info-type'),
-                    style: type.bodySmall.copyWith(
-                      color: colors.goldDark,
-                      fontWeight: FontWeight.w600,
+                  Flexible(
+                    child: Text(
+                      kind,
+                      key: const ValueKey('group-info-type'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.bodySmall.copyWith(
+                        color: colors.goldDark,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
