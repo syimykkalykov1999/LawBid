@@ -57,6 +57,7 @@ import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/chat/presentation/link_preview_card.dart';
 import 'package:lawbid/features/chat/presentation/media_preview_screen.dart';
 import 'package:lawbid/features/chat/presentation/message_actions.dart';
+import 'package:lawbid/features/chat/presentation/quick_replies_sheet.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
 import 'package:lawbid/features/consultations/presentation/consultation_chat_card.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -71,6 +72,7 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/features/templates/presentation/templates_screen.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// docs/05 §8.2: 2000 characters, text only.
 int get kMessageMaxChars => TextLimits.of(TextLimit.chatMessage);
@@ -2348,6 +2350,18 @@ class _Composer extends ConsumerStatefulWidget {
 }
 
 class _ComposerState extends ConsumerState<_Composer> {
+  /// Opens the quick replies; the chosen text replaces the «/» (the field is
+  /// left as it was when nothing is chosen).
+  Future<void> _pickQuickReply() async {
+    final text = await showQuickRepliesSheet(context);
+    if (!mounted) return;
+    final c = widget.controller
+      ..text = text ?? ''
+      ..selection = TextSelection.collapsed(offset: (text ?? '').length);
+    widget.onTyping(c.text.isNotEmpty);
+    widget.focusNode.requestFocus();
+  }
+
   bool _recording = false;
   bool _locked = false;
 
@@ -2665,7 +2679,16 @@ class _ComposerState extends ConsumerState<_Composer> {
               maxLength: maxChars,
               buildCounter: noFieldCounter,
               textCapitalization: TextCapitalization.sentences,
-              onChanged: (v) => widget.onTyping(v.isNotEmpty),
+              onChanged: (v) {
+                // Owner 2026-11-02 (WhatsApp Business): «/» alone in the
+                // empty field opens the attorney's quick replies.
+                if (v == '/' &&
+                    ref.read(currentUserRoleProvider) == UserRole.attorney) {
+                  unawaited(_pickQuickReply());
+                  return;
+                }
+                widget.onTyping(v.isNotEmpty);
+              },
               onTap: widget.onFieldTap,
               style: type.body.copyWith(color: colors.text),
               decoration: InputDecoration(

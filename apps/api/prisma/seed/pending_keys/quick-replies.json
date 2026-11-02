@@ -1,0 +1,42 @@
+{
+ "quick.title": {
+  "en": "Quick replies",
+  "ru": "Быстрые ответы"
+ },
+ "quick.button": {
+  "en": "Quick replies",
+  "ru": "Быстрые ответы"
+ },
+ "quick.empty": {
+  "en": "No quick replies yet. Add the first one.",
+  "ru": "Пока нет быстрых ответов. Добавьте первый."
+ },
+ "quick.add": {
+  "en": "Add a reply",
+  "ru": "Добавить ответ"
+ },
+ "quick.edit": {
+  "en": "Edit reply",
+  "ru": "Изменить ответ"
+ },
+ "quick.name": {
+  "en": "Name",
+  "ru": "Название"
+ },
+ "quick.text": {
+  "en": "Reply text",
+  "ru": "Текст ответа"
+ },
+ "quick.delete": {
+  "en": "Delete",
+  "ru": "Удалить"
+ },
+ "quick.save": {
+  "en": "Save",
+  "ru": "Сохранить"
+ },
+ "quick.failed": {
+  "en": "Could not save. Try again.",
+  "ru": "Не удалось сохранить. Попробуйте ещё раз."
+ }
+}

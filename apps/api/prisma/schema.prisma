@@ -928,6 +928,7 @@ model User {
   blocked_by                  UserBlock[]                    @relation("Blocked")
   saved_items                 SavedItem[]
   saved_chat_messages         SavedChatMessage[]
+  quick_replies               QuickReply[]
   conversations_attorney      Conversation[]                 @relation("ConversationAttorney")
   conversations_client        Conversation[]                 @relation("ConversationClient")
   conversation_memberships    ConversationParticipant[]
@@ -8945,4 +8946,23 @@ model StaffDigest {
   created_at DateTime @default(now()) @db.Timestamptz
 
   @@map("staff_digests")
+}
+
+/// Owner 2026-11-02: quick replies (WhatsApp Business): ready-made answers an
+/// attorney inserts into a chat from the composer. Private to the owner;
+/// at most QUICK_REPLIES_MAX per person (the API counts, no trigger).
+model QuickReply {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  /// Short name shown in the picker and matched by "/" search.
+  title      String   @db.VarChar(60)
+  body       String   @db.VarChar(1000)
+  /// Order in the list (ascending); new ones go last.
+  position   Int      @default(0)
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  @@index([user_id, position, created_at])
+  @@map("quick_replies")
 }
