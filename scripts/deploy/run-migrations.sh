@@ -50,10 +50,13 @@ SG=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=${CLUSTE
 FAMILY="${TASK_DEF##*/}"; FAMILY="${FAMILY%%:*}"
 # Fail closed: the deploy role has ecs:ListTasks (infra/bootstrap), so an error
 # here is real (throttling, network) and a second concurrent migration is worse.
-if ! RUNNING=$(aws ecs list-tasks --cluster "$CLUSTER" --family "$FAMILY" --desired-status RUNNING --query 'taskArns' --output text 2>&1); then
-  echo "::error::could not check for a running migrate task, not migrating blind: $(printf '%s' "$RUNNING" | tr '\n' ' ')" >&2
+LT_ERR=$(mktemp)
+if ! RUNNING=$(aws ecs list-tasks --cluster "$CLUSTER" --family "$FAMILY" --desired-status RUNNING --query 'taskArns' --output text 2>"$LT_ERR"); then
+  echo "::error::could not check for a running migrate task, not migrating blind: $(tr '\n' ' ' <"$LT_ERR")" >&2
+  rm -f "$LT_ERR"
   exit 1
 fi
+rm -f "$LT_ERR"  # stderr of a successful call (CLI warnings) is not a running task
 RUNNING=$(printf '%s' "${RUNNING:-}" | sed 's/^None$//')
 if [ -n "$RUNNING" ]; then
   echo "::error::a migrate task is still running ($RUNNING). Wait for it or stop it (docs/runbooks/migrate-resolve.md)." >&2

@@ -5,3 +5,5 @@
 Что сделали: `scripts/ci/require-secrets.sh` (+ тест, в «Repo guards») первым шагом в load-test, web-deploy, rollback; правка семейства в `run-migrations.sh` (проверка недоступна → стоп, не миграция вслепую); web-rollback тоже проверяет секреты; `current-tag.sh` падает на пустом/None.
 
 Не сделано: проверка образа при ручном Deploy с `image_tag` (deploy.yml, отдельный деплойный PR); `terraform validate` в CI; lock-файлы провайдеров для bootstrap/loadtest.
+
+Дополнение по code-review: stderr успешного `list-tasks` не считается запущенной миграцией (отдельный файл); rollback проверяет `PROD_API_URL`/`PROD_ADMIN_URL` до смены прод-сервисов; web-deploy предупреждает о пустых Firebase web-значениях; необязательные имена в `require-secrets.sh` берутся в кавычки (glob); `current-tag.sh` проверяет вид `<registry>/<repo>:<tag>` + тест `scripts/deploy/current-tag.test.sh` в Repo guards. Не покрыто тестом: `run-migrations.sh` (нужен стенд ECS).
