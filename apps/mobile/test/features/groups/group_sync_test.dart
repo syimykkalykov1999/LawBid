@@ -145,6 +145,32 @@ void main() {
     );
   });
 
+  test('after a catch-up the saved copy follows (the next cold start)',
+      () async {
+    final sub = c.listen(groupsProvider, (_, __) {});
+    addTearDown(sub.close);
+    await c.read(groupsProvider.future);
+    repo.changed = SyncedPage(
+      items: [listGroup('g3'), listGroup('g1', unread: 4)],
+      deletedIds: const ['g2'],
+      syncedAt: DateTime.utc(2026, 10, 22, 12),
+    );
+    events.add(const RealtimeEvent(RealtimeEvent.reconnected, null));
+    await Future<void>.delayed(
+      SyncedListNotifier.catchUpDelay + const Duration(milliseconds: 400),
+    );
+    // The copy is written without being awaited: poll instead of sleeping.
+    var saved = await c.read(groupListCacheProvider).read();
+    for (var i = 0;
+        i < 50 && saved?.items.any((g) => g.id == 'g3') != true;
+        i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      saved = await c.read(groupListCacheProvider).read();
+    }
+    expect(saved!.items.map((g) => g.id).toSet(), {'g1', 'g3'});
+    expect(saved.items.firstWhere((g) => g.id == 'g1').unreadCount, 4);
+  });
+
   test('a message in a group this list does not hold asks once', () async {
     final sub = c.listen(groupsProvider, (_, __) {});
     addTearDown(sub.close);

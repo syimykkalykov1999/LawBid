@@ -134,6 +134,18 @@ class GroupsNotifier extends SyncedListNotifier<api.GroupDto> {
     return page;
   }
 
+  /// How many rows a copy re-saved after a catch-up keeps (a first page).
+  static const _copyRows = 50;
+
+  // The copy follows «caught up to»: without this the next cold start shows
+  // the page of the last full read and asks only for changes since a later
+  // time, so a group changed in between stayed old on screen.
+  @override
+  void didMerge(List<api.GroupDto> items) {
+    if (archived) return;
+    ref.read(groupListCacheProvider).save(items.take(_copyRows).toList());
+  }
+
   @override
   Future<SyncedPage<api.GroupDto>> fetchChanged(DateTime since) => ref
       .read(groupRepositoryProvider)

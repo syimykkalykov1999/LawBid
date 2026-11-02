@@ -95,16 +95,20 @@ describe('email flows switch', () => {
     expect(costGuard.consume).not.toHaveBeenCalled();
   });
 
-  it('the country waiting list is refused when off', async () => {
-    const countries = { joinWaitlist: jest.fn() };
-    const ctrl = new CountriesController(countries as never, flagsWith(false));
-    await expectEmailOff(
+  it('the country waiting list only records, whatever the e-mail switch says', async () => {
+    const countries = {
+      joinWaitlist: jest
+        .fn()
+        .mockResolvedValue({ countryCode: 'DE', available: false }),
+    };
+    const ctrl = new CountriesController(countries as never);
+    await expect(
       ctrl.joinCountryWaitlist({
         countryCode: 'DE',
         email: 'a@example.com',
         locale: 'en',
       }),
-    );
-    expect(countries.joinWaitlist).not.toHaveBeenCalled();
+    ).resolves.toEqual({ countryCode: 'DE', available: false });
+    expect(countries.joinWaitlist).toHaveBeenCalledTimes(1);
   });
 });
