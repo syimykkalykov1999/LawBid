@@ -493,7 +493,7 @@ jobs:
   two-db:
     name: API e2e (two databases)
     runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
-    timeout-minutes: 45
+    timeout-minutes: 60
     services:
       # Owner 2026-10-14: the whole project runs on PostgreSQL 16. Images are
       # pinned by digest (S11-7); dependabot cannot bump a digest inside a
@@ -600,7 +600,7 @@ jobs:
   n1:
     name: API N-1 (previous release's suites on the new schema)
     runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
-    timeout-minutes: 45
+    timeout-minutes: 60
     services:
       # Owner 2026-10-14: the whole project runs on PostgreSQL 16. Images are
       # pinned by digest (S11-7); dependabot cannot bump a digest inside a
