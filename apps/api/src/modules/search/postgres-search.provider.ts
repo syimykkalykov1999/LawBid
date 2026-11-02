@@ -426,14 +426,9 @@ export class PostgresSearchProvider implements SearchProvider {
               AND ${handleMatch(Prisma.sql`username_lower`)}
             LIMIT ${BRANCH_CAP})
           UNION
-          (SELECT id AS user_id FROM users
-            WHERE full_name_lower IS NOT NULL AND role = 'client'
-              AND ${fullNameMatch}
-            LIMIT ${BRANCH_CAP})
+          (SELECT id AS user_id FROM cli_by_name LIMIT ${BRANCH_CAP})
           UNION
-          (SELECT id AS user_id FROM users
-            WHERE full_name_lower IS NOT NULL AND role = 'client' AND ${byName}
-            LIMIT ${BRANCH_CAP})`
+          (SELECT id AS user_id FROM cli_by_keys LIMIT ${BRANCH_CAP})`
         }) cc
         JOIN users u ON u.id = cc.user_id AND u.role = 'client'
           AND u.status = 'active' AND u.deleted_at IS NULL
@@ -441,10 +436,39 @@ export class PostgresSearchProvider implements SearchProvider {
           AND c.username_lower IS NOT NULL
         WHERE TRUE ${clientFilters}`
       : Prisma.empty;
+    // Load test 2026-11-02: the name branches were `SELECT ... WHERE role = X
+    // AND <name matches> LIMIT 1000`. With the LIMIT inside the same query the
+    // planner assumes the first 1000 matches turn up after a short scan (it
+    // multiplies the role share by a flat trigram guess of ~20 000 rows) and
+    // reads the WHOLE users table when they do not: 0.2-2.5 s per search on
+    // 1M users for a word that nobody has. A MATERIALIZED CTE is planned
+    // without the LIMIT, so the trigram indexes are used; the LIMIT applies
+    // to its result. The cost is bounded by the number of real matches.
+    const nameCtes = among
+      ? Prisma.empty
+      : Prisma.sql`att_by_name AS MATERIALIZED (
+          SELECT id FROM users
+          WHERE full_name_lower IS NOT NULL AND role = 'attorney'
+            AND ${fullNameMatch}),
+        att_by_keys AS MATERIALIZED (
+          SELECT id FROM users
+          WHERE full_name_lower IS NOT NULL AND role = 'attorney' AND ${byName}),
+        ${
+          withClients
+            ? Prisma.sql`cli_by_name AS MATERIALIZED (
+          SELECT id FROM users
+          WHERE full_name_lower IS NOT NULL AND role = 'client'
+            AND ${fullNameMatch}),
+        cli_by_keys AS MATERIALIZED (
+          SELECT id FROM users
+          WHERE full_name_lower IS NOT NULL AND role = 'client' AND ${byName}),
+        `
+            : Prisma.empty
+        }`;
     const rows = await this.db.$queryRaw<
       { id: string; role: PersonRole; tier: number }[]
     >`
-      WITH cand AS (${
+      WITH ${nameCtes}cand AS (${
         among
           ? Prisma.sql`SELECT unnest(${among}::UUID[]) AS id`
           : Prisma.sql`
@@ -453,14 +477,9 @@ export class PostgresSearchProvider implements SearchProvider {
             AND ${handleMatch(Prisma.sql`username_lower`)}
           LIMIT ${BRANCH_CAP})
         UNION
-        (SELECT id FROM users
-          WHERE full_name_lower IS NOT NULL AND role = 'attorney'
-            AND ${fullNameMatch}
-          LIMIT ${BRANCH_CAP})
+        (SELECT id FROM att_by_name LIMIT ${BRANCH_CAP})
         UNION
-        (SELECT id FROM users
-          WHERE full_name_lower IS NOT NULL AND role = 'attorney' AND ${byName}
-          LIMIT ${BRANCH_CAP})
+        (SELECT id FROM att_by_keys LIMIT ${BRANCH_CAP})
         ${byEnglish}
         ${byTopic}
         UNION

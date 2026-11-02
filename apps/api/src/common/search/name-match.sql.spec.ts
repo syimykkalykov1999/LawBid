@@ -114,6 +114,21 @@ describe('nameMatchSql / nameKeys', () => {
     expect(sql.sql).toContain('similarity(');
   });
 
+  it('load test 2026-11-02: one typed word has no whole-text arm (its GIN lookup returns ~100k rows); several words keep it', () => {
+    const one = nameMatchSql(keysOf('will', word('uil', 'will')), 'u');
+    expect(one.sql).toContain('word_similarity(');
+    expect(one.sql).not.toMatch(/ % u\.name_skel/);
+    const two = nameMatchSql(
+      keysOf(
+        'emili braun',
+        word('emili', 'emili'),
+        word('braun', 'braun', 'brn'),
+      ),
+      'u',
+    );
+    expect(two.sql).toMatch(/ % u\.name_skel/);
+  });
+
   it('owner 2026-10-28: «jah» (3 letters) never goes through a loose arm', async () => {
     const db = {
       $queryRaw: jest.fn().mockResolvedValue([
