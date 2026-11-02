@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -126,6 +127,11 @@ class UploadJobScope {
     );
   }
 
+  /// Cancelled when the user discards the job: pass it to the upload so
+  /// the bytes stop (the OS transfer is stopped by the queue itself).
+  CancelToken get cancelToken =>
+      _queue._cancelTokens.putIfAbsent(job.id, CancelToken.new);
+
   /// 0…1 of the current transfer, for the bubble / card.
   void reportProgress(double value) {
     if (!_queue._progress.isClosed) {
@@ -192,6 +198,7 @@ class UploadQueue with WidgetsBindingObserver {
   /// The pass running for each target, and the targets asked again
   /// while theirs runs.
   final _running = <String, Future<void>>{};
+  final _cancelTokens = <String, CancelToken>{};
   final _again = <String>{};
   final _retries = <String, Timer>{};
   final _failures = <String, int>{};
@@ -249,12 +256,16 @@ class UploadQueue with WidgetsBindingObserver {
 
   /// «Удалить»: the job and its file go.
   Future<void> discard(String id) async {
+    // Stop the bytes in flight first (Dio token; the OS service by id).
+    _cancelTokens.remove(id)?.cancel('discarded');
+    unawaited(cancelBackgroundUpload(id));
     final row = await db.byId(id);
     if (row == null) return;
     await _remove(UploadJob.fromRow(row), sent: false);
   }
 
   Future<void> _remove(UploadJob job, {required bool sent}) async {
+    _cancelTokens.remove(job.id);
     await db.remove(job.id);
     try {
       // First the handler (it may keep the file, e.g. as a voice cache).
