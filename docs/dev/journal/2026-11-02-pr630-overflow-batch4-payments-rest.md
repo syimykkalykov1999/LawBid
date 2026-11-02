@@ -1,6 +1,6 @@
 # 2026-11-02 — пачка 4 в тесте на наезд текста: остаток платежей и найденный дефект
 
-Продолжение `2026-11-02-overflow-batch3-payments.md`.
+Продолжение `2026-11-02-pr627-overflow-batch3-payments.md`.
 
 Покрыто (`test/overflow/batch4_overflow_test.dart`): шторка встречного по комиссии (`FeePayerSheet`), шторка возврата (`RefundSheet`), платёжная панель в чате (`ChatPaymentBar`, клиент и адвокат), история платежей (`CasePaymentsHistoryList`, клиент и адвокат). 7 языков × масштаб 1 и 1,3 и 4 темы на самом длинном тексте, 108 проверок. Данные и фейк репозитория вынесены из пачки 3 в `test/helpers/overflow_payments_fixtures.dart` (их используют обе пачки).
 
