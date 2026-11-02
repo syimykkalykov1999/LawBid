@@ -611,7 +611,20 @@ export class ChannelsService {
     await this.assertEnabled();
     const ch = await this.findReadable(user.sub, id);
     const c = cursor ? decodeCursor(cursor) : null;
-    const rows = await this.prisma.channelPost.findMany({
+    // Replica seam: only OLDER pages (a cursor) of a reader's list come from
+    // the replica. The first page holds the newest posts (a push says "new
+    // post", the reader taps it: it must be there) and stays on the primary,
+    // as does the owner's and the admins' list (they just posted, edited or
+    // deleted: read-your-writes).
+    const staff =
+      !!c &&
+      (ch.owner_id === user.sub ||
+        (!isGuestId(user.sub) && !!(await this.roleOf(user.sub, ch.id))));
+    const rows = await (
+      c && !staff
+        ? (this.read?.readDb({ maxStalenessMs: 5000 }) ?? this.prisma)
+        : this.prisma
+    ).channelPost.findMany({
       where: {
         channel_id: ch.id,
         status: 'active',
