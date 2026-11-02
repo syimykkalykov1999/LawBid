@@ -11,6 +11,7 @@ import 'package:lawbid/core/session/session_state.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../features/cases/cases_fakes.dart';
 import '../features/profile/profile_fakes.dart';
 import 'long_locale.dart';
 import 'onboarding_harness.dart' show FixedUserController;
@@ -38,10 +39,13 @@ Map<String, (Translator, TextDirection)> overflowLocales() => {
       ),
     };
 
+/// The four app themes (day, night, blue, green).
+const overflowThemes = AppThemeId.values;
+
 /// Text scales: normal, and the app shell's cap.
 const overflowScales = [1.0, DeviceTextScale.shellMax];
 
-/// A signed-in, verified attorney.
+/// A signed-in, verified attorney (or, with `client: true`, a client).
 class AttorneySession extends SessionController {
   @override
   SessionState? build() => SessionState(
@@ -66,6 +70,9 @@ Future<void> pumpOverflowApp(
   required TextDirection dir,
   required double scale,
   bool reduceMotion = true,
+  AppThemeId theme = AppThemeId.day,
+  bool client = false,
+  FakeCasesRepository? cases,
   Future<void> Function(WidgetTester tester)? act,
 }) async {
   useNarrowPhone(tester);
@@ -74,19 +81,21 @@ Future<void> pumpOverflowApp(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        ...uxOverrides(translator: t),
+        ...uxOverrides(translator: t, cases: cases),
         sharedPreferencesProvider.overrideWithValue(prefs),
         referralOffOverride,
         partnerOffOverride,
         templatesOffOverride,
         sessionControllerProvider.overrideWith(AttorneySession.new),
         currentUserControllerProvider.overrideWith(
-          () => FixedUserController(CurrentUserState.ready(attorneyMe())),
+          () => FixedUserController(
+            CurrentUserState.ready(client ? clientMe() : attorneyMe()),
+          ),
         ),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.light(),
+        theme: AppTheme.of(theme),
         builder: (context, child) => Directionality(
           textDirection: dir,
           child: MediaQuery(
