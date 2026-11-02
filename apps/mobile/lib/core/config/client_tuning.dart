@@ -23,6 +23,10 @@ abstract final class ClientTuning {
   static int _videoPrefetchAhead = 3;
   static int _videoPrefetchCellular = 1;
   static int _videoCacheMb = 100;
+
+  /// Whether a bootstrap answer (or [reset]) has set the numbers yet.
+  static bool applied = false;
+
   static int _videoCacheChunkS = 4;
 
   /// Set by the connectivity monitor: true while the only way online is
@@ -100,6 +104,7 @@ abstract final class ClientTuning {
 
   /// Called with the `app_config` of every bootstrap answer.
   static void apply(Map<String, String> config) {
+    applied = true;
     int pick(String key, int fallback, int min, int max) {
       final v = num.tryParse(config[key] ?? '')?.toInt();
       return (v ?? fallback).clamp(min, max);

@@ -75,7 +75,7 @@ void main() {
     ),
   };
   for (final id in AppThemeId.values) {
-    for (final scale in [1.0, 1.1]) {
+    for (final scale in [1.0, 1.1, 1.3]) {
       for (final e in locales.entries) {
         testWidgets('calls tab: ${id.name} ${e.key} x$scale', (t) async {
           useNarrowPhone(t);

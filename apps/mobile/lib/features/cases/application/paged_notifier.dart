@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show protected;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 /// Shared cursor-pagination behaviour of every docs/04 list (docs/01
@@ -37,11 +38,51 @@ abstract class PagedNotifier<T> extends AsyncNotifier<PaginatedList<T>> {
   /// on the phone by the last visit, or null (the default: nothing saved).
   /// When it exists the list opens on it at once and the real first page is
   /// read in the background and swapped in ([build]); a failed read keeps
-  /// what is shown. Must not throw: a broken copy is just "no copy".
+  /// what is shown. A broken copy is just "no copy": any error is swallowed.
   Future<CursorPage<T>?> cachedFirstPage() async => null;
+
+  bool _built = false;
+  bool _rebuilding = false;
+  int _builds = 0;
+  bool _copyIsFirstPage = false;
+
+  /// The copy on screen is the phone's HTTP copy of the first page
+  /// ([phoneCopy]): it only moves when the first page is read, so a cold
+  /// start reads that page (one GET, a 304 when nothing changed) instead of
+  /// asking for changes since a time the copy may be older than.
+  @protected
+  bool get copyIsFirstPage => _copyIsFirstPage;
+
+  /// For a list's [cachedFirstPage]: the first page from the phone's HTTP
+  /// copy (`readFromPhoneOnly`), no request, any age. Only on the first
+  /// build of this list: a rebuild (`invalidate` after an edit, a retry
+  /// after an error) must not put the old copy back over what the user just
+  /// changed. [read] calls the repository only (resolve providers before).
+  ///
+  /// [when] false (a search or a filter is on) means no copy. A miss throws
+  /// (`kNoPhoneCopy`); [_savedFirstPage] treats any error as "no copy".
+  @protected
+  Future<CursorPage<T>?> phoneCopy(
+    Future<CursorPage<T>> Function() read, {
+    bool when = true,
+  }) async {
+    if (_rebuilding || !when) return null;
+    final build = _builds;
+    final page = await readFromPhoneOnly(read);
+    // Only a page that is really shown (not an empty one, not one that came
+    // after a newer build started) makes the cold start read the first page.
+    if (build == _builds) {
+      _copyIsFirstPage = page != null && page.items.isNotEmpty;
+    }
+    return page;
+  }
 
   @override
   Future<PaginatedList<T>> build() async {
+    _rebuilding = _built;
+    _built = true;
+    _builds++;
+    _copyIsFirstPage = false;
     _extended = false;
     _cacheFor();
     final saved = await _savedFirstPage();

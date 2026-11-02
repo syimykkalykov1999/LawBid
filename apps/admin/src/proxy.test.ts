@@ -1,14 +1,14 @@
 // @vitest-environment node
 import { NextRequest } from 'next/server';
 import { describe, expect, it } from 'vitest';
-import { middleware } from './middleware';
+import { proxy } from './proxy';
 
 const at = (path: string, cookie?: string) =>
-  middleware(
+  proxy(
     new NextRequest(`http://admin.test${path}`, cookie ? { headers: { cookie } } : undefined),
   );
 
-describe('admin middleware (S18-12)', () => {
+describe('admin proxy (S18-12)', () => {
   it('sends a visitor without a session to /login and remembers the page', () => {
     const res = at('/users');
     expect(res.status).toBe(307);

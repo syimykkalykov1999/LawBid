@@ -81,7 +81,7 @@ void main() {
     for (final id in AppThemeId.values) id.name: AppTheme.of(id),
   };
 
-  for (final scale in [1.0, 1.1]) {
+  for (final scale in [1.0, 1.1, 1.3]) {
     for (final MapEntry(key: lang, value: (t, dir)) in locales.entries) {
       for (final MapEntry(key: themeName, value: theme) in themes.entries) {
         final tag = '$lang, $themeName, x$scale';

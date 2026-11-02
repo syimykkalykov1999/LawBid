@@ -277,8 +277,7 @@ class _ContactVerificationCardState
           ],
           const SizedBox(height: AppSpacing.md),
           AnimatedSize(
-            duration:
-                context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+            duration: context.sizeChangeDuration,
             curve: AppMotion.enterCurve,
             alignment: Alignment.topCenter,
             child: Column(

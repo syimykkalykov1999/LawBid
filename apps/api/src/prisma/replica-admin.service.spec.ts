@@ -3,6 +3,7 @@ import {
   LAG_STOP_S,
   ReplicaAdminService,
   decideReplica,
+  decideReplicaAuto,
 } from './replica-admin.service';
 import { replicaLive } from './replica-live';
 import { resolveReplicaUrl } from './replica-url';
@@ -81,5 +82,36 @@ describe('replica host reaches the Prisma read client', () => {
     expect(svc.available).toBe(false);
     expect((await svc.status()).state).toBe('unavailable');
     expect(replicaLive.get()).toBeNull();
+  });
+});
+
+describe('decideReplicaAuto', () => {
+  const busy = Array.from({ length: 12 }, () => 80);
+  const base = { mode: 'auto', exists: false, coolingDown: false, cpu: busy };
+
+  it('creates the replica after 3 busy hours', () => {
+    expect(decideReplicaAuto(base)).toBe('create');
+  });
+
+  it('tolerates one missing quarter-hour, not two', () => {
+    expect(decideReplicaAuto({ ...base, cpu: busy.slice(1) })).toBe('create');
+    expect(decideReplicaAuto({ ...base, cpu: busy.slice(2) })).toBe('none');
+  });
+
+  it('does nothing when one quarter-hour was calm', () => {
+    const cpu = [...busy];
+    cpu[5] = 40;
+    expect(decideReplicaAuto({ ...base, cpu })).toBe('none');
+  });
+
+  it('does nothing when off, when it exists, or within the 24 h cooldown', () => {
+    expect(decideReplicaAuto({ ...base, mode: 'off' })).toBe('none');
+    expect(decideReplicaAuto({ ...base, exists: true })).toBe('none');
+    expect(decideReplicaAuto({ ...base, coolingDown: true })).toBe('none');
+  });
+
+  it('autoCheck is inert without the Terraform switch', async () => {
+    const svc = new ReplicaAdminService({ get: () => undefined } as never);
+    await expect(svc.autoCheck()).resolves.toBe('none');
   });
 });
