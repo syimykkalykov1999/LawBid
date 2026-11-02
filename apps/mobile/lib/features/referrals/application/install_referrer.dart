@@ -63,7 +63,9 @@ String? parseReferralCodeFromReferrer(String? referrer) {
   var decoded = referrer;
   try {
     decoded = Uri.decodeComponent(referrer);
-  } catch (_) {}
+  } on FormatException {
+    // Malformed %-escapes: fall back to matching the raw string below.
+  }
   final m = _refPattern.firstMatch(decoded) ?? _refPattern.firstMatch(referrer);
   return m?.group(1)?.toUpperCase();
 }

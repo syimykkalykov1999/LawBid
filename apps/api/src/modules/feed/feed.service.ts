@@ -561,9 +561,9 @@ export class FeedService implements FeedProvider {
     // were never shown to them.
     const depth = await this.num('feed.reco_scan_max', RECO_SCAN, 5000);
     const ids: string[] = [];
-    const picked: Post[] = [];
+    const pickedIds: string[] = [];
     const pickedIdx: number[] = [];
-    while (picked.length < need && ids.length < depth) {
+    while (pickedIds.length < need && ids.length < depth) {
       const from = offset + ids.length;
       const chunk = await this.redis.zrevrange(
         recoKey(version),
@@ -580,19 +580,41 @@ export class FeedService implements FeedProvider {
         .catch(() => chunk.map(() => null));
       const fresh = chunk.filter((_, i) => scores?.[i] == null);
       if (fresh.length === 0) continue;
+      // Load test round 2 (docs/perf/LOCAL_LOAD_TEST_2026-10-28.md): the
+      // filter needs only id + author; full rows are read below for the
+      // ≤ `need` posts actually picked, not for the whole chunk of 200
+      // (was the top query by database time and most of the feed's API CPU).
       const rows = await this.prisma.post.findMany({
         where: { ...VISIBLE_POST_WHERE, ...only, id: { in: fresh } },
+        select: { id: true, author_id: true },
       });
-      const byId = new Map(rows.map((p) => [p.id, p]));
+      const authorOf = new Map(rows.map((p) => [p.id, p.author_id]));
       chunk.forEach((id, i) => {
-        const p = byId.get(id);
-        if (p && !exclude.has(p.author_id) && picked.length < need) {
-          picked.push(p);
+        const author = authorOf.get(id);
+        if (
+          author !== undefined &&
+          !exclude.has(author) &&
+          pickedIds.length < need
+        ) {
+          pickedIds.push(id);
           pickedIdx.push(base + i);
         }
       });
     }
     if (ids.length === 0) return { posts: [], next: () => offset, version };
+    const full = pickedIds.length
+      ? await this.prisma.post.findMany({ where: { id: { in: pickedIds } } })
+      : [];
+    const fullById = new Map(full.map((p) => [p.id, p]));
+    const picked: Post[] = [];
+    // A post hard-deleted between the two reads drops out with its rank.
+    for (let i = pickedIds.length - 1; i >= 0; i -= 1) {
+      if (!fullById.has(pickedIds[i])) pickedIdx.splice(i, 1);
+    }
+    for (const id of pickedIds) {
+      const p = fullById.get(id);
+      if (p) picked.push(p);
+    }
     return {
       posts: picked,
       version,
