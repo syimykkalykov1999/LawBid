@@ -13,7 +13,7 @@
 
 ## Что владелец вводит сам (по одному)
 
-1. Сайт/лендинг компании (URL). Нужен рабочий публичный адрес; если лендинга нет, подойдёт профиль (LinkedIn/Crunchbase) или https://lawbid.dev.
+1. Сайт: https://lawbid.dev (подтверждено владельцем 02.11). Нужно, чтобы по адресу открывалась публичная страница с описанием продукта. По репозиторию (docs/runbooks/WEB_LAUNCH.md) веб и страница /about ещё не опубликованы: AWS+DNS для lawbid.dev делаются на Маке. Пока страница не открывается, в заявке указать профиль компании (LinkedIn/Crunchbase) или дождаться публикации.
 2. E-mail для заявки (лучше на домене lawbid.dev, если есть).
 3. Страна и юрлицо (название, год основания; если юрлица нет — указать «sole proprietor / pre-incorporation», как позволит форма).
 4. Подтвердить, что аккаунт на платном плане (Billing → Account → план).
@@ -22,7 +22,7 @@
 
 **Company name:** LawBid
 
-**Website:** (подставить URL)
+**Website:** https://lawbid.dev
 
 **One-line description (≤ 150 chars):**
 LawBid is a mobile marketplace where clients find and hire verified attorneys, with in-app chat, calls, case tracking and a social feed.
