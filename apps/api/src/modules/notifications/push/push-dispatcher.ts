@@ -29,7 +29,6 @@ import { RealtimePublisher } from '../../realtime/realtime-publisher.service';
 import { BadgesService } from '../badges.service';
 import {
   ALWAYS_PUSH,
-  DEFAULT_PUSH,
   EMAIL_TYPES,
   LOCKED_CATEGORIES,
   quietHoursApply,
