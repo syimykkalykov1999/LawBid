@@ -1,3 +1,4 @@
+import { CircuitOpenError } from './resilience';
 import { outageProof } from '../queues/queue-hardening';
 import {
   isTransientInfraError,
@@ -18,6 +19,7 @@ describe('isTransientInfraError', () => {
     prismaErr('25006'),
     new Error('read ECONNRESET'),
     new Error('Command timed out'),
+    new CircuitOpenError('database'),
     new Error('terminating connection due to administrator command'),
     Object.assign(new Error('wrapper'), {
       cause: new Error('connect ECONNREFUSED'),

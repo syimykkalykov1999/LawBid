@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { CircuitBreaker } from '../common/resilience/resilience';
 import {
   isTransientInfraError,
   isUnreachableBeforeSend,
@@ -30,6 +31,10 @@ const READS = new Set([
  */
 export function transientRetryExtension(
   attempts: number = transientRetryAttempts(),
+  breaker: CircuitBreaker = new CircuitBreaker(`database#${++breakers}`, {
+    threshold: 10,
+    openMs: 3_000,
+  }),
 ) {
   return Prisma.defineExtension({
     name: 'transient-retry',
@@ -37,17 +42,30 @@ export function transientRetryExtension(
       async $allOperations({ operation, args, query }) {
         if (attempts <= 1) return (await query(args)) as unknown;
         const isRead = READS.has(operation);
-        return (await retryTransient(() => query(args), {
-          maxAttempts: attempts,
-          baseDelayMs: 150,
-          maxDelayMs: 600,
-          windowMs: 2_500,
-          retriable: isRead ? isTransientInfraError : isUnreachableBeforeSend,
-        })) as unknown;
+        // Circuit breaker (as at the big services): while the database is
+        // away every call used to hold a pool slot for its whole timeout
+        // and the API drowned in waiting requests. After 10 transient
+        // failures in a row calls fail at once for 3 s (503 with
+        // Retry-After via CircuitOpenError), then one trial call probes.
+        return (await breaker.run(
+          () =>
+            retryTransient(() => query(args), {
+              maxAttempts: attempts,
+              baseDelayMs: 150,
+              maxDelayMs: 600,
+              windowMs: 2_500,
+              retriable: isRead
+                ? isTransientInfraError
+                : isUnreachableBeforeSend,
+            }),
+          isTransientInfraError,
+        )) as unknown;
       },
     },
   });
 }
+
+let breakers = 0;
 
 /** `DB_TRANSIENT_RETRIES` (default 3 attempts; 0 or 1 = off). */
 export function transientRetryAttempts(

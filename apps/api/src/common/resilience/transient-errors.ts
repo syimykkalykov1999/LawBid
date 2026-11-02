@@ -50,6 +50,8 @@ function codeOf(e: ErrorLike): string | undefined {
  * validation, constraint or logic error. */
 export function isTransientInfraError(error: unknown, depth = 0): boolean {
   if (!error || typeof error !== 'object' || depth > 3) return false;
+  // A paused circuit (database or partner service) heals by itself.
+  if ((error as { name?: unknown }).name === 'CircuitOpenError') return true;
   const e = error as ErrorLike;
   const code = codeOf(e);
   if (code && (PRISMA_CONNECTION.has(code) || PG_TRANSIENT_STATES.has(code))) {
