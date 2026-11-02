@@ -17,6 +17,7 @@ import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PostEngagementService } from '../../posts/post-engagement.service';
 import { CounterAggregator } from '../../counters/counter-aggregator.service';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaReadService } from '../../../prisma/prisma-read.service';
 import { BoostActions } from '../../promotions/boost-actions.service';
 import {
   CaseDetailForAttorneyDto,
@@ -112,6 +113,8 @@ export class CasesFeedService {
     @Optional() private readonly cipher?: MessageBodyCipher,
     // Owner 2026-10-27: a save counts for a boost paid per action.
     @Optional() private readonly boostActions?: BoostActions,
+    // Replica seam: the browse id list may be a few seconds old.
+    @Optional() private readonly read?: PrismaReadService,
   ) {}
 
   /** GET /cases (docs/04 §4.2). Empty page, not an error, for a caller
@@ -228,7 +231,12 @@ export class CasesFeedService {
           });
       return split
         ? scatterFeed(this.prisma, sql, take)
-        : this.prisma.$queryRaw<{ id: string; created_at: Date }[]>(sql);
+        : // Replica seam: the id list of a browse page may be a few seconds
+          // old (a new case shows up a moment later). Hydration, access
+          // checks and the viewer's own reads below stay on the primary.
+          (
+            this.read?.readDb({ maxStalenessMs: 5000 }) ?? this.prisma
+          ).$queryRaw<{ id: string; created_at: Date }[]>(sql);
     };
     // Owner 2026-10-02 (paid case promotion): up to PROMOTED_FEED_SLOTS
     // active promoted cases this attorney may see (same filters) go on top

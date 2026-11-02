@@ -158,6 +158,34 @@ describe('CasesFeedService', () => {
       expect(page.nextCursor).toBeNull();
     });
 
+    it('reads the id list from the replica seam; hydration and own reads stay on the primary', async () => {
+      const now = new Date();
+      const { prisma, access, viewTracking, posts } = fakeDeps({
+        cases: [caseRow({ id: 'case-r', created_at: now })],
+      });
+      const replica = {
+        $queryRaw: jest
+          .fn()
+          .mockResolvedValue([{ id: 'case-r', created_at: now }]),
+      };
+      const readDb = jest.fn().mockReturnValue(replica);
+      const service = new CasesFeedService(
+        prisma as never,
+        access as never,
+        viewTracking as never,
+        posts as never,
+        ...(Array(9).fill(undefined) as []),
+        { readDb } as never,
+      );
+      const page = await service.listFeed(attorney, {});
+      expect(readDb).toHaveBeenCalledWith({ maxStalenessMs: 5000 });
+      expect(replica.$queryRaw).toHaveBeenCalled();
+      expect(page.items.map((i) => i.id)).toEqual(['case-r']);
+      // verification check and hydration are primary reads
+      expect(prisma.attorneyProfile.findUnique).toHaveBeenCalled();
+      expect(prisma.case.findMany).toHaveBeenCalled();
+    });
+
     describe('sort=for_you (owner 2026-10-13)', () => {
       function withRanking(rankedIds: string[]) {
         const rows = ['c1', 'c2', 'c3'].map((id) => caseRow({ id }));
