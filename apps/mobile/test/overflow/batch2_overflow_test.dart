@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -75,25 +74,6 @@ class LongCommentsSocial extends FakeSocialRepository {
 void main() {
   setUpAll(initializeDateFormatting);
 
-  Widget opener(void Function(BuildContext, WidgetRef) open) => Consumer(
-        builder: (context, ref, _) => Scaffold(
-          body: Center(
-            child: TextButton(
-              key: const Key('open'),
-              onPressed: () => open(context, ref),
-              child: const Text('open'),
-            ),
-          ),
-        ),
-      );
-
-  /// The real content is on screen (not a loading, offline or empty state).
-  Future<void> Function(WidgetTester) shows(Finder what) => (tester) async {
-        await tester.pump(const Duration(seconds: 2));
-        await tester.pump(const Duration(seconds: 2));
-        expect(what, findsWidgets);
-      };
-
   /// The stats tiles are on screen: no spinner, no retry button, and a
   /// label with a value for each of the four numbers.
   Future<void> statsShown(WidgetTester tester) async {
@@ -102,20 +82,6 @@ void main() {
     expect(find.byType(AppButton), findsNothing);
     expect(find.byType(Text), findsAtLeastNWidgets(9));
   }
-
-  Future<void> tapOpen(WidgetTester tester) async {
-    await tester.tap(find.byKey(const Key('open')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 600));
-    expect(find.byType(BottomSheet), findsOneWidget);
-  }
-
-  Future<void> Function(WidgetTester) openAndShow(Finder what) =>
-      (tester) async {
-        await tapOpen(tester);
-        await tester.pump(const Duration(seconds: 1));
-        expect(what, findsWidgets);
-      };
 
   const longBody = '$longText $longText';
   final longChannelPost = ch.fakePost(
@@ -165,7 +131,7 @@ void main() {
   Map<String, _Case> cases() => {
         'client profile': (
           () => const ClientProfileView(),
-          shows(find.textContaining('Bartholomew')),
+          overflowShows(find.textContaining('Bartholomew')),
           true,
           profileExtra,
           null,
@@ -173,7 +139,7 @@ void main() {
         ),
         'attorney cases tab': (
           () => const AttorneyCasesTab(),
-          shows(find.textContaining('Disputed commercial')),
+          overflowShows(find.textContaining('Disputed commercial')),
           false,
           profileExtra,
           LongFeedCasesRepository(),
@@ -205,7 +171,7 @@ void main() {
                   ),
                 ),
               ),
-          shows(find.textContaining('The landlord')),
+          overflowShows(find.textContaining('The landlord')),
           false,
           [
             channelsComingSoonProvider.overrideWithValue(false),
@@ -217,27 +183,27 @@ void main() {
           null,
         ),
         'comments sheet': (
-          () => opener(
+          () => overflowOpener(
                 (c, ref) => showCommentsSheet(
                   c,
                   postId: 'p1',
                   commentsEnabled: true,
                 ),
               ),
-          openAndShow(find.textContaining('Bartholomew')),
+          overflowShows(find.textContaining('Bartholomew'), sheet: true),
           false,
           [],
           null,
           LongCommentsSocial(),
         ),
         'post text sheet': (
-          () => opener(
+          () => overflowOpener(
                 (c, ref) => showPostTextSheet(
                   c,
                   fakePost('p1').copyWith(body: longBody),
                 ),
               ),
-          openAndShow(find.textContaining('The landlord')),
+          overflowShows(find.textContaining('The landlord'), sheet: true),
           false,
           [],
           null,
