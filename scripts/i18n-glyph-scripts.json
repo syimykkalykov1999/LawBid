@@ -137,5 +137,5 @@
       "web"
     ]
   },
-  "pdf": "Server PDFs (apps/api/src/modules/**.pdf.ts) embed only Inter: Latin, Cyrillic and Greek. Names or text in any other script print as empty boxes until Noto fonts are added to apps/api/assets/fonts."
+  "pdf": "Server PDFs draw Inter for Latin, Cyrillic and Greek; every other script goes through the per-script Noto fallback in apps/api/src/common/pdf-fonts (fonts in apps/api/assets/fonts/noto, CJK from the CDN). Without that module (before it is merged) such text prints as empty boxes."
 }
