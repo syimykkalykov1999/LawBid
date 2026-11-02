@@ -7,6 +7,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/auth/presentation/widgets/password_step_up.dart';
 import 'package:lawbid/features/profile/application/delete_account_controller.dart';
 import 'package:lawbid/features/profile/domain/delete_account_step.dart';
 
@@ -102,6 +103,8 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                     key: ValueKey<DeleteAccountStep>(state.step),
                     child: switch (state.step) {
                       DeleteAccountStep.warning => _WarningStep(t: t),
+                      DeleteAccountStep.reauthPassword =>
+                        _ReauthPasswordStep(t: t),
                       DeleteAccountStep.reauthPhone => _ReauthPhoneStep(
                           t: t,
                           controller: _phoneController,
@@ -132,7 +135,10 @@ const _totalSteps = 3;
 /// once the flow is finished (no indicator on the success screen).
 int? _progressFor(DeleteAccountStep step) => switch (step) {
       DeleteAccountStep.warning => 1,
-      DeleteAccountStep.reauthPhone || DeleteAccountStep.reauthCode => 2,
+      DeleteAccountStep.reauthPassword ||
+      DeleteAccountStep.reauthPhone ||
+      DeleteAccountStep.reauthCode =>
+        2,
       DeleteAccountStep.confirmPhrase || DeleteAccountStep.submitting => 3,
       DeleteAccountStep.done => null,
     };
@@ -212,6 +218,52 @@ class _WarningStep extends ConsumerWidget {
         onPressed: () => ref
             .read(deleteAccountControllerProvider.notifier)
             .acknowledgeWarning(),
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-28: «Подтвердите, что это вы» with the account password.
+class _ReauthPasswordStep extends ConsumerWidget {
+  const _ReauthPasswordStep({required this.t});
+
+  final Translator t;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final state = ref.watch(deleteAccountControllerProvider);
+    final notifier = ref.read(deleteAccountControllerProvider.notifier);
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            t.t('deleteAccount.reauth.title'),
+            style: typography.titleLarge.copyWith(color: colors.text),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            t.t('stepUp.password.body'),
+            style: typography.body.copyWith(color: colors.textSecondary),
+          ),
+          if (state.errorMessage != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              state.errorMessage == 'network'
+                  ? t.t('deleteAccount.reauth.error.network')
+                  : t.t('deleteAccount.reauth.error.expired'),
+              style: typography.bodySmall.copyWith(color: colors.dangerText),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.lg),
+          PasswordStepUp(
+            key: const ValueKey('delete-account-password'),
+            onToken: (token) async => notifier.acceptToken(token),
+            onUseCode: notifier.useCode,
+          ),
+        ],
       ),
     );
   }

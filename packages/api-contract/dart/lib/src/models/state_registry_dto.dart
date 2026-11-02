@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'state_registry_dto_adapter.dart';
+import 'state_registry_dto_support.dart';
 
 part 'state_registry_dto.g.dart';
 
@@ -23,6 +24,10 @@ class StateRegistryDto {
     required this.lastTestResult,
     required this.updatedAt,
     required this.lookupUrl,
+    required this.support,
+    required this.supportNote,
+    required this.presetAvailable,
+    required this.pausedUntil,
   });
 
   factory StateRegistryDto.fromJson(Map<String, Object?> json) =>
@@ -46,6 +51,18 @@ class StateRegistryDto {
 
   /// The state's own public lookup page (a link for the verifier).
   final String? lookupUrl;
+
+  /// Owner 2026-10-28: whether the state registry can be checked automatically at all.
+  final StateRegistryDtoSupport support;
+
+  /// Russian note: which registry is read, or why the state stays manual.
+  final String supportNote;
+
+  /// A ready-made adapter (state_preset) exists for the state.
+  final bool presetAvailable;
+
+  /// Lookups to this state are paused by the circuit breaker until then.
+  final DateTime? pausedUntil;
 
   Map<String, Object?> toJson() => _$StateRegistryDtoToJson(this);
 }

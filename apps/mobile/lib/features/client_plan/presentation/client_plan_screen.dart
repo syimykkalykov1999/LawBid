@@ -188,7 +188,7 @@ class _ClientPlanScreenState extends ConsumerState<ClientPlanScreen>
         value: overview,
         t: t,
         onRetry: () => ref.invalidate(clientPlanProvider),
-        builder: (o) => RefreshIndicator(
+        builder: (o) => AppRefreshIndicator(
           color: colors.gold,
           backgroundColor: colors.sheet,
           onRefresh: _refresh,

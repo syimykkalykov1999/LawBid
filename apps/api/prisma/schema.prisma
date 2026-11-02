@@ -2340,7 +2340,7 @@ model Post {
   views                PostView[]
   view_events          PostViewEvent[]
   // Owner 2026-10-12: pinned to the top of the author's profile list, slot
-  // 1..3 inside pin_group 'grid' (posts) or 'brief' (text-only). A partial
+  // 1..6 (owner 2026-10-28; was 1..3) inside pin_group 'grid' (posts) or 'brief' (text-only). A partial
   // unique index (author, group, slot) is in the migration.
   pin_slot             Int?                     @db.SmallInt
   pin_group            String?
@@ -2755,6 +2755,8 @@ enum SavedChatKind {
 
 model Conversation {
   id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Counter behind messages.seq (trigger messages_assign_seq_trg).
+  last_seq          Int                  @default(0)
   // Nullable since 2026-09-28 (migration applied, then the owner kept
   // chats case-only per docs/04 §9 — no code writes NULL today; partial UQ
   // (attorney_id, client_id) WHERE case_id IS NULL is raw SQL).
@@ -3040,6 +3042,10 @@ model Message {
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
+
+  /// Per-chat message number 1, 2, 3, ... (trigger messages_assign_seq_trg,
+  /// counter conversations.last_seq; raw SQL, see migration 20261109090000).
+  seq Int?
 
   @@id([id, conversation_id])
   @@unique([conversation_id, sender_id, client_message_id])
@@ -3938,6 +3944,16 @@ model UserPrivacySettings {
   photo_from     PrivacyAudience @default(everyone)
   about_from     PrivacyAudience @default(everyone)
   group_add_from PrivacyAudience @default(everyone)
+  /// Owner 2026-10-28: the same settings as sets (bitmask: 1 = my contacts,
+  /// 2 = my followers, 4 = people I follow, 8 = everyone, 0 = nobody).
+  /// NULL = not set yet: the enum column above decides (its «contacts» =
+  /// 1|4). The enum columns stay written for the release one version older.
+  last_seen_mask      Int?            @db.SmallInt
+  message_from_mask   Int?            @db.SmallInt
+  call_from_mask      Int?            @db.SmallInt
+  photo_from_mask     Int?            @db.SmallInt
+  about_from_mask     Int?            @db.SmallInt
+  group_add_from_mask Int?            @db.SmallInt
   updated_at     DateTime        @updatedAt @db.Timestamptz
 
   @@map("user_privacy_settings")

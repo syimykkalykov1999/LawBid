@@ -678,6 +678,14 @@ export class MessageDto {
   })
   clientMessageId!: string | null;
 
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description:
+      'Per-chat sequence number 1, 2, 3, ... (no holes): a client that has 41, 42, 44 knows 43 is missing and fetches it. Null for messages from before numbering that were not backfilled.',
+  })
+  seq!: number | null;
+
   @ApiProperty()
   createdAt!: Date;
 

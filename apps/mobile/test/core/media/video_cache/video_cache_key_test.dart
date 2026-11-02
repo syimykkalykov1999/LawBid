@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/media/video_cache/video_cache_proxy.dart';
 
@@ -30,5 +32,23 @@ void main() {
       expect(id('$base/a.mp4?v=1'), isNot(id('$base/a.mp4?v=2')));
       expect(id('$base/a.mp4?b=2&a=1&Signature=x'), id('$base/a.mp4?a=1&b=2'));
     });
+  });
+
+  // Owner 2026-10-28: the proxy runs in a background isolate; the root
+  // isolate builds the player's URL from its port and secret alone.
+  test('wrapUrl: loopback, secret, kind, the upstream encoded', () {
+    final up = Uri.parse('https://cdn.example.com/r/master.m3u8');
+    final url = VideoCacheProxy.wrapUrl(
+      port: 5123,
+      secret: 'test-secret',
+      upstream: up,
+      isPlaylist: true,
+    );
+    final u = Uri.parse(url);
+    expect(u.host, '127.0.0.1');
+    expect(u.port, 5123);
+    expect(u.pathSegments.take(2), ['test-secret', 'p']);
+    final back = utf8.decode(base64Url.decode(u.pathSegments[2]));
+    expect(back, up.toString());
   });
 }

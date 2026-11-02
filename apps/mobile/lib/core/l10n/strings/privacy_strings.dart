@@ -16,13 +16,10 @@ const privacyRu = <String, String>{
   'privacy.groupAddFrom': 'Добавлять меня в группы',
   'privacy.audience.everyone': 'Все',
   'privacy.audience.contacts': 'Мои контакты',
+  'privacy.audience.followers': 'Мои подписчики',
+  'privacy.audience.following': 'Мои подписки',
   'privacy.audience.nobody': 'Никто',
-  'privacy.hint.lastSeen':
-      'Если вы скрываете свой статус, вы не видите и чужой.',
-  'privacy.hint.contacts':
-      'Мои контакты: люди из вашей телефонной книги, которые есть в LawBid, и те, на кого вы подписаны.',
-  'privacy.hint.case':
-      'Участники ваших дел всегда могут вам писать и звонить. Уже начатые чаты не закрываются.',
+  'privacy.hint.who': 'Участники ваших дел всегда могут писать и звонить.',
   'privacy.myReports': 'Мои жалобы',
   'privacy.notices': 'Решения по моему контенту',
   'reports.mine.empty': 'Вы ещё ни на что не жаловались.',
@@ -69,13 +66,10 @@ const privacyEn = <String, String>{
   'privacy.groupAddFrom': 'Add me to groups',
   'privacy.audience.everyone': 'Everyone',
   'privacy.audience.contacts': 'My contacts',
+  'privacy.audience.followers': 'My followers',
+  'privacy.audience.following': 'Following',
   'privacy.audience.nobody': 'Nobody',
-  'privacy.hint.lastSeen':
-      "If you hide your own status, you do not see other people's either.",
-  'privacy.hint.contacts':
-      'My contacts are people from your phone book who use LawBid and people you follow.',
-  'privacy.hint.case':
-      'People you work with on a case can always write and call you. Chats already started stay open.',
+  'privacy.hint.who': 'People on your cases can always write and call you.',
   'privacy.myReports': 'My reports',
   'privacy.notices': 'Decisions on my content',
   'reports.mine.empty': 'You have not reported anything.',

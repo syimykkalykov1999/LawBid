@@ -70,7 +70,11 @@ class _ReelPublishCardState extends ConsumerState<ReelPublishCard> {
     final topText = busy ? t.t('reels.keepOpen') : label;
     final waiting = s.phase == ReelPublishPhase.posting ||
         s.phase == ReelPublishPhase.processing;
-    return Container(
+    // Owner 2026-10-28: once the video is uploaded (processing / done) the
+    // banner leaves with a short fade; a failed one stays with «Retry».
+    final hidden = done || s.phase == ReelPublishPhase.processing;
+    final card = Container(
+      key: const ValueKey('reel-publish-card'),
       margin: const EdgeInsets.only(top: AppSpacing.xs, bottom: AppSpacing.xs),
       decoration: BoxDecoration(
         color: colors.surface,
@@ -145,25 +149,20 @@ class _ReelPublishCardState extends ConsumerState<ReelPublishCard> {
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(2),
                               // Smooth: the line glides to each new value.
-                              child: waiting
-                                  ? LinearProgressIndicator(
-                                      minHeight: 4,
-                                      color: colors.gold,
-                                      backgroundColor: colors.border,
-                                    )
-                                  : TweenAnimationBuilder<double>(
-                                      tween: Tween(end: overall),
-                                      duration:
-                                          const Duration(milliseconds: 300),
-                                      curve: Curves.easeOut,
-                                      builder: (_, v, __) =>
-                                          LinearProgressIndicator(
-                                        value: v,
-                                        minHeight: 4,
-                                        color: colors.gold,
-                                        backgroundColor: colors.border,
-                                      ),
-                                    ),
+                              // Owner 2026-10-28: always determinate and
+                              // anchored to the left, so the fill and the
+                              // percent tell the same number.
+                              child: TweenAnimationBuilder<double>(
+                                tween: Tween(end: waiting ? 1.0 : overall),
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeOut,
+                                builder: (_, v, __) => LinearProgressIndicator(
+                                  value: v,
+                                  minHeight: 4,
+                                  color: colors.gold,
+                                  backgroundColor: colors.border,
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(width: AppSpacing.sm),
@@ -210,6 +209,14 @@ class _ReelPublishCardState extends ConsumerState<ReelPublishCard> {
           ),
         ),
       ),
+    );
+    return AnimatedSwitcher(
+      duration: context.reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 250),
+      child: hidden
+          ? const SizedBox.shrink(key: ValueKey('reel-publish-hidden'))
+          : card,
     );
   }
 }

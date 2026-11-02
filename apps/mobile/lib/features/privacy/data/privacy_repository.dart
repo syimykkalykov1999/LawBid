@@ -3,21 +3,39 @@ import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
-/// Who may see or do something: `privacy_audience`.
-enum Audience { everyone, contacts, nobody }
+/// Who may see or do something. Owner 2026-10-28: each setting is a set
+/// (`<field>Audiences` on the server); the sheet lists them in this order.
+enum Audience { everyone, followers, following, contacts, nobody }
 
-Audience _audience(api.PrivacyAudience a) => switch (a) {
-      api.PrivacyAudience.everyone => Audience.everyone,
-      api.PrivacyAudience.contacts => Audience.contacts,
-      api.PrivacyAudience.nobody => Audience.nobody,
-      // A value from a newer server: show the stricter of the known ones.
-      _ => Audience.contacts,
+/// The three a server before 2026-10-28 knows.
+const legacyAudiences = [Audience.everyone, Audience.contacts, Audience.nobody];
+
+/// One setting from the raw answer: the set when the server sends it, else
+/// the old single value (an unknown one shows as the stricter «contacts»).
+Set<Audience> _audiences(Map<String, Object?> json, String field) {
+  final set = json['${field}Audiences'];
+  if (set is List) {
+    final out = <Audience>{
+      for (final v in set)
+        for (final a in Audience.values)
+          if (a.name == v) a,
     };
+    if (out.isNotEmpty) return out;
+  }
+  return {
+    switch (json[field]) {
+      'everyone' || null => Audience.everyone,
+      'nobody' => Audience.nobody,
+      _ => Audience.contacts,
+    },
+  };
+}
 
-api.PrivacyAudience _wire(Audience a) => switch (a) {
-      Audience.everyone => api.PrivacyAudience.everyone,
-      Audience.contacts => api.PrivacyAudience.contacts,
-      Audience.nobody => api.PrivacyAudience.nobody,
+/// The closest old value, for a server before 2026-10-28.
+String _legacy(Audience a) => switch (a) {
+      Audience.everyone => 'everyone',
+      Audience.nobody => 'nobody',
+      _ => 'contacts',
     };
 
 /// `GET /users/me/privacy` (owner 2026-10-20).
@@ -27,44 +45,63 @@ class PrivacySettings {
     required this.lastSeen,
     required this.messageFrom,
     required this.callFrom,
-    this.photoFrom = Audience.everyone,
-    this.aboutFrom = Audience.everyone,
-    this.groupAddFrom = Audience.everyone,
+    this.photoFrom = const {Audience.everyone},
+    this.aboutFrom = const {Audience.everyone},
+    this.groupAddFrom = const {Audience.everyone},
     this.doNotSell = false,
+    this.followAudiences = false,
   });
 
-  final Audience lastSeen;
-  final Audience messageFrom;
-  final Audience callFrom;
-  final Audience photoFrom;
-  final Audience aboutFrom;
-  final Audience groupAddFrom;
+  final Set<Audience> lastSeen;
+  final Set<Audience> messageFrom;
+  final Set<Audience> callFrom;
+  final Set<Audience> photoFrom;
+  final Set<Audience> aboutFrom;
+  final Set<Audience> groupAddFrom;
 
   /// Owner 2026-10-22 (CCPA): «Do not sell or share my personal
   /// information» — `PATCH /users/me/privacy { doNotSell }`.
   final bool doNotSell;
 
-  PrivacySettings copyWith({
-    Audience? lastSeen,
-    Audience? messageFrom,
-    Audience? callFrom,
-    Audience? photoFrom,
-    Audience? aboutFrom,
-    Audience? groupAddFrom,
-    bool? doNotSell,
-  }) =>
+  /// The server knows followers / following (sends `<field>Audiences`).
+  /// False on a server one version older: only the old three are offered.
+  final bool followAudiences;
+
+  Set<Audience> of(PrivacyField field) => switch (field) {
+        PrivacyField.lastSeen => lastSeen,
+        PrivacyField.messageFrom => messageFrom,
+        PrivacyField.callFrom => callFrom,
+        PrivacyField.photoFrom => photoFrom,
+        PrivacyField.aboutFrom => aboutFrom,
+        PrivacyField.groupAddFrom => groupAddFrom,
+      };
+
+  /// [field] set to [value].
+  PrivacySettings withField(PrivacyField field, Set<Audience> value) =>
       PrivacySettings(
-        lastSeen: lastSeen ?? this.lastSeen,
-        messageFrom: messageFrom ?? this.messageFrom,
-        callFrom: callFrom ?? this.callFrom,
-        photoFrom: photoFrom ?? this.photoFrom,
-        aboutFrom: aboutFrom ?? this.aboutFrom,
-        groupAddFrom: groupAddFrom ?? this.groupAddFrom,
+        lastSeen: field == PrivacyField.lastSeen ? value : lastSeen,
+        messageFrom: field == PrivacyField.messageFrom ? value : messageFrom,
+        callFrom: field == PrivacyField.callFrom ? value : callFrom,
+        photoFrom: field == PrivacyField.photoFrom ? value : photoFrom,
+        aboutFrom: field == PrivacyField.aboutFrom ? value : aboutFrom,
+        groupAddFrom: field == PrivacyField.groupAddFrom ? value : groupAddFrom,
+        doNotSell: doNotSell,
+        followAudiences: followAudiences,
+      );
+
+  PrivacySettings copyWith({bool? doNotSell}) => PrivacySettings(
+        lastSeen: lastSeen,
+        messageFrom: messageFrom,
+        callFrom: callFrom,
+        photoFrom: photoFrom,
+        aboutFrom: aboutFrom,
+        groupAddFrom: groupAddFrom,
         doNotSell: doNotSell ?? this.doNotSell,
+        followAudiences: followAudiences,
       );
 }
 
-/// Which of the three settings a change touches.
+/// Which setting a change touches (named as on the server).
 enum PrivacyField {
   lastSeen,
   messageFrom,
@@ -129,15 +166,20 @@ class MyReport {
 }
 
 /// snake_case → camelCase (`self_harm` → `selfHarm`).
-String _camel(String s) => s.replaceAllMapped(
-      RegExp('_([a-z])'),
-      (m) => m.group(1)!.toUpperCase(),
-    );
+String _camel(String s) =>
+    s.replaceAllMapped(RegExp('_([a-z])'), (m) => m.group(1)!.toUpperCase());
 
 /// Throws [ApiException].
 abstract interface class PrivacyRepository {
   Future<PrivacySettings> settings();
-  Future<PrivacySettings> change(PrivacyField field, Audience value);
+
+  /// [followAudiences]: the server takes `<field>Audiences` (else the old
+  /// single value is sent).
+  Future<PrivacySettings> change(
+    PrivacyField field,
+    Audience value, {
+    required bool followAudiences,
+  });
 
   /// Owner 2026-10-22 (CCPA): `PATCH /users/me/privacy { doNotSell }`.
   Future<PrivacySettings> setDoNotSell({required bool value});
@@ -149,31 +191,15 @@ abstract interface class PrivacyRepository {
 class ApiPrivacyRepository implements PrivacyRepository {
   ApiPrivacyRepository(Dio dio)
       : _dio = dio,
-        _privacy = api.PrivacyClient(dio),
         _moderation = api.ModerationClient(dio),
         _reports = api.ReportsClient(dio);
 
   final Dio _dio;
-  final api.PrivacyClient _privacy;
   final api.ModerationClient _moderation;
   final api.ReportsClient _reports;
 
-  PrivacySettings _settings(
-    api.PrivacySettingsDto d, {
-    bool doNotSell = false,
-  }) =>
-      PrivacySettings(
-        lastSeen: _audience(d.lastSeen),
-        messageFrom: _audience(d.messageFrom),
-        callFrom: _audience(d.callFrom),
-        photoFrom: _audience(d.photoFrom),
-        aboutFrom: _audience(d.aboutFrom),
-        groupAddFrom: _audience(d.groupAddFrom),
-        doNotSell: doNotSell,
-      );
-
-  /// The generated DTO predates `doNotSell` (worker A adds it to the API,
-  /// 2026-10-22): the raw body carries the typed fields and the switch.
+  /// The raw body (`{data: {...}}`): read by hand so a field the generated
+  /// DTO does not know yet, or no longer requires, never fails the screen.
   PrivacySettings _fromBody(Object? body) {
     final map = body is Map ? Map<String, Object?>.from(body) : null;
     final data = map?['data'];
@@ -181,9 +207,16 @@ class ApiPrivacyRepository implements PrivacyRepository {
       throw const FormatException('privacy settings: no data');
     }
     final json = Map<String, Object?>.from(data);
-    return _settings(
-      api.PrivacySettingsDto.fromJson(json),
+    Set<Audience> f(PrivacyField p) => _audiences(json, p.name);
+    return PrivacySettings(
+      lastSeen: f(PrivacyField.lastSeen),
+      messageFrom: f(PrivacyField.messageFrom),
+      callFrom: f(PrivacyField.callFrom),
+      photoFrom: f(PrivacyField.photoFrom),
+      aboutFrom: f(PrivacyField.aboutFrom),
+      groupAddFrom: f(PrivacyField.groupAddFrom),
       doNotSell: json['doNotSell'] == true,
+      followAudiences: json['lastSeenAudiences'] is List,
     );
   }
 
@@ -209,26 +242,22 @@ class ApiPrivacyRepository implements PrivacyRepository {
       });
 
   @override
-  Future<PrivacySettings> change(PrivacyField field, Audience value) async {
-    final body = switch (field) {
-      PrivacyField.lastSeen =>
-        api.UpdatePrivacySettingsDto(lastSeen: _wire(value)),
-      PrivacyField.messageFrom =>
-        api.UpdatePrivacySettingsDto(messageFrom: _wire(value)),
-      PrivacyField.callFrom =>
-        api.UpdatePrivacySettingsDto(callFrom: _wire(value)),
-      PrivacyField.photoFrom =>
-        api.UpdatePrivacySettingsDto(photoFrom: _wire(value)),
-      PrivacyField.aboutFrom =>
-        api.UpdatePrivacySettingsDto(aboutFrom: _wire(value)),
-      PrivacyField.groupAddFrom =>
-        api.UpdatePrivacySettingsDto(groupAddFrom: _wire(value)),
-    };
-    return _settings(
-      (await guardApiCall(() => _privacy.updatePrivacySettings(body: body)))
-          .data,
-    );
-  }
+  Future<PrivacySettings> change(
+    PrivacyField field,
+    Audience value, {
+    required bool followAudiences,
+  }) =>
+      guardApiCall(() async {
+        final r = await _dio.patch<Object?>(
+          '/users/me/privacy',
+          data: followAudiences
+              ? {
+                  '${field.name}Audiences': [value.name],
+                }
+              : {field.name: _legacy(value)},
+        );
+        return _fromBody(r.data);
+      });
 
   ModerationNotice _notice(api.ModerationNoticeDto d) => ModerationNotice(
         actionId: d.actionId,
