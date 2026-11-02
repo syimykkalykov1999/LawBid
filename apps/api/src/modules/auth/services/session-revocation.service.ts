@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type Redis from 'ioredis';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
@@ -45,9 +45,21 @@ export type RevokeReason =
  * token stays valid for up to its remaining TTL (<=15 min) instead of a
  * half-committed transaction. Documented trade-off, not an oversight.
  */
+/** How long a database verdict stands in for the blacklist (ms). */
+const DB_MEMO_MS = 5000;
+/** Memo cap: cleared wholesale when reached (an outage, not steady state). */
+const DB_MEMO_MAX = 20_000;
+
 @Injectable()
 export class SessionRevocationService {
   private readonly blacklistTtlSeconds: number;
+  private readonly logger = new Logger(SessionRevocationService.name);
+  /** Database answers while Redis is away: chain id -> verdict. */
+  private readonly dbMemo = new Map<
+    string,
+    { at: number; value: string | null }
+  >();
+  private lastRedisWarn = 0;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -159,13 +171,58 @@ export class SessionRevocationService {
   }
 
   async isBlacklisted(sessionChainId: string): Promise<boolean> {
-    const value = await this.redis.get(this.blacklistKey(sessionChainId));
-    return value !== null;
+    return (await this.blacklistReason(sessionChainId)) !== null;
   }
 
   /** Why a blacklisted chain ended ('1' for older entries), or null. */
   async blacklistReason(sessionChainId: string): Promise<string | null> {
-    return this.redis.get(this.blacklistKey(sessionChainId));
+    try {
+      return await this.redis.get(this.blacklistKey(sessionChainId));
+    } catch (error) {
+      return this.reasonFromDatabase(sessionChainId, error);
+    }
+  }
+
+  /**
+   * Load test 2026-11-02 (LOAD_RESILIENCE §2): with Redis away the guard's
+   * one blacklist read failed every authenticated request. The database
+   * row is the source of truth (revoked_at / revoked_reason are written
+   * BEFORE the blacklist, see revokeChain), so a lost cache degrades to one
+   * small indexed read per session chain, memoised for DB_MEMO_MS so an
+   * outage at 500 req/s costs the database tens of reads a second, not
+   * hundreds. The newest generation of the chain decides: rotation
+   * revokes the older rows with reason 'rotated' while the chain lives on.
+   */
+  private async reasonFromDatabase(
+    sessionChainId: string,
+    cause: unknown,
+  ): Promise<string | null> {
+    const now = Date.now();
+    const hit = this.dbMemo.get(sessionChainId);
+    if (hit && now - hit.at < DB_MEMO_MS) return hit.value;
+    if (now - this.lastRedisWarn > 60_000) {
+      this.lastRedisWarn = now;
+      this.logger.warn(
+        { err: cause, alert: 'session_blacklist_redis_down' },
+        'Session blacklist: Redis unavailable, reading sessions from the database',
+      );
+    }
+    const newest = await this.prisma.session.findFirst({
+      where: { session_chain_id: sessionChainId },
+      orderBy: { created_at: 'desc' },
+      select: { revoked_at: true, revoked_reason: true },
+    });
+    // No row at all: the chain never existed here (a foreign or deleted
+    // session) — refuse like a blacklisted one.
+    const value =
+      newest === null
+        ? '1'
+        : newest.revoked_at === null
+          ? null
+          : (newest.revoked_reason ?? '1');
+    if (this.dbMemo.size >= DB_MEMO_MAX) this.dbMemo.clear();
+    this.dbMemo.set(sessionChainId, { at: now, value });
+    return value;
   }
 
   private async blacklist(

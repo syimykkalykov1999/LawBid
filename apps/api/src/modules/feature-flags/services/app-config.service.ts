@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { jitterTtl, singleFlight } from '../../../common/cache/single-flight';
@@ -43,6 +43,8 @@ export async function dropAppConfigCache(redis: Redis): Promise<void> {
  */
 @Injectable()
 export class AppConfigService {
+  private readonly logger = new Logger(AppConfigService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
@@ -62,8 +64,19 @@ export class AppConfigService {
     return value;
   }
 
+  /**
+   * Load test 2026-11-02 (LOAD_RESILIENCE §2): the Redis copy is a cache of
+   * the `app_config` table; while Redis is away it is a miss (the table is
+   * read, the in-process memo above bounds that to one read per task per
+   * APP_CONFIG_MEMO_TTL_MS) and the write-back is skipped — never an error.
+   */
   private async loadConfig(): Promise<Record<string, unknown>> {
-    const cached = await this.redis.get(APP_CONFIG_CACHE_KEY);
+    let cached: string | null = null;
+    try {
+      cached = await this.redis.get(APP_CONFIG_CACHE_KEY);
+    } catch (error) {
+      this.warnRedis(error);
+    }
     if (cached !== null) return JSON.parse(cached) as Record<string, unknown>;
 
     return singleFlight(APP_CONFIG_CACHE_KEY, async () => {
@@ -73,14 +86,29 @@ export class AppConfigService {
       const config: Record<string, unknown> = {};
       for (const row of rows) config[row.key] = row.value;
 
-      await this.redis.set(
-        APP_CONFIG_CACHE_KEY,
-        JSON.stringify(config),
-        'EX',
-        jitterTtl(APP_CONFIG_CACHE_TTL_SECONDS),
-      );
+      try {
+        await this.redis.set(
+          APP_CONFIG_CACHE_KEY,
+          JSON.stringify(config),
+          'EX',
+          jitterTtl(APP_CONFIG_CACHE_TTL_SECONDS),
+        );
+      } catch (error) {
+        this.warnRedis(error);
+      }
       return config;
     });
+  }
+
+  private lastRedisWarn = 0;
+  private warnRedis(error: unknown): void {
+    const now = Date.now();
+    if (now - this.lastRedisWarn < 60_000) return;
+    this.lastRedisWarn = now;
+    this.logger.warn(
+      { err: error, alert: 'app_config_redis_down' },
+      'app_config cache: Redis unavailable, reading the table',
+    );
   }
 
   /** Convenience read for [AppVersionGuard]: the min app version for one

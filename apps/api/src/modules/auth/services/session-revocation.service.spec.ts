@@ -24,6 +24,7 @@ function setup(chains: string[] = ['c1', 'c2']) {
       findMany: jest
         .fn()
         .mockResolvedValue(chains.map((id) => ({ session_chain_id: id }))),
+      findFirst: jest.fn().mockResolvedValue(null),
     },
   };
   const service = new SessionRevocationService(
@@ -138,5 +139,50 @@ describe('parseSessionRevoked', () => {
     expect(parseSessionRevoked('{"sessionId":""}')).toBeNull();
     expect(parseSessionRevoked('null')).toBeNull();
     expect(parseSessionRevoked('{')).toBeNull();
+  });
+});
+
+describe('SessionRevocationService.blacklistReason without Redis (load test 2026-11-02)', () => {
+  const down = () => Promise.reject(new Error('Command timed out'));
+
+  it('reads the newest row of the chain from the database: live chain → null, revoked → its reason, unknown → refused', async () => {
+    const { service, redis, prisma } = setup();
+    redis.get.mockImplementation(down);
+    prisma.session.findFirst
+      .mockResolvedValueOnce({ revoked_at: null, revoked_reason: null })
+      .mockResolvedValueOnce({
+        revoked_at: new Date(),
+        revoked_reason: 'signed_in_elsewhere',
+      })
+      .mockResolvedValueOnce(null);
+    await expect(service.blacklistReason('live')).resolves.toBeNull();
+    await expect(service.blacklistReason('gone')).resolves.toBe(
+      'signed_in_elsewhere',
+    );
+    await expect(service.blacklistReason('never')).resolves.toBe('1');
+    expect(prisma.session.findFirst).toHaveBeenCalledWith({
+      where: { session_chain_id: 'live' },
+      orderBy: { created_at: 'desc' },
+      select: { revoked_at: true, revoked_reason: true },
+    });
+    await expect(service.isBlacklisted('live')).resolves.toBe(false);
+  });
+
+  it('memoises the database verdict per chain for a few seconds', async () => {
+    const { service, redis, prisma } = setup();
+    redis.get.mockImplementation(down);
+    prisma.session.findFirst.mockResolvedValue({
+      revoked_at: null,
+      revoked_reason: null,
+    });
+    for (let i = 0; i < 50; i += 1) await service.blacklistReason('c1');
+    expect(prisma.session.findFirst).toHaveBeenCalledTimes(1);
+  });
+
+  it('with Redis healthy the database is never consulted', async () => {
+    const { service, redis, prisma } = setup();
+    redis.get.mockResolvedValue('logout');
+    await expect(service.blacklistReason('c1')).resolves.toBe('logout');
+    expect(prisma.session.findFirst).not.toHaveBeenCalled();
   });
 });

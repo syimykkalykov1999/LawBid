@@ -11,6 +11,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../errors/error-code.enum';
 import { getRequestId } from '../middleware/request-id.middleware';
 import { CallTimeoutError, CircuitOpenError } from '../resilience/resilience';
+import { isRedisInfraError } from '../../redis/fail-fast-redis';
 import type { ApiErrorBody } from '../dto/api-response.dto';
 
 /**
@@ -153,6 +154,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
         code: 'SERVER_BUSY',
         message: 'A partner service is slow right now. Try again shortly.',
         retryAfterSec: 10,
+      };
+    }
+
+    // Load test 2026-11-02 (LOAD_RESILIENCE §2): Redis away or hung. The
+    // callers with a fallback never get here; for the rest this is the
+    // same honest «try again shortly» as a paused partner, not a 500 —
+    // the apps retry a 503 with Retry-After, they do not retry a 500.
+    if (isRedisInfraError(exception)) {
+      return {
+        status: HttpStatus.SERVICE_UNAVAILABLE,
+        code: 'SERVER_BUSY',
+        message: 'The server is busy right now. Try again shortly.',
+        retryAfterSec: 5,
       };
     }
 
