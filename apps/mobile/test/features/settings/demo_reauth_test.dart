@@ -217,11 +217,18 @@ void main() {
       expect(state.errorMessage, 'reauthExpired');
     });
 
-    test('real session: still phone → code, no demo call', () async {
+    test('real session: the account password first, no demo call', () async {
       final repo = _Repo();
       final c = container(repo, demo: false);
       final ctrl = c.read(deleteAccountControllerProvider.notifier);
       await ctrl.acknowledgeWarning();
+      // Owner 2026-10-28: the account password instead of an SMS code;
+      // «Забыли пароль?» goes on to the phone → code path.
+      expect(
+        c.read(deleteAccountControllerProvider).step,
+        DeleteAccountStep.reauthPassword,
+      );
+      ctrl.useCode();
       expect(
         c.read(deleteAccountControllerProvider).step,
         DeleteAccountStep.reauthPhone,

@@ -12,16 +12,24 @@ part 'reauth_dto.g.dart';
 class ReauthDto {
   const ReauthDto({
     required this.method,
-    required this.identifier,
-    required this.code,
+    this.identifier,
+    this.code,
+    this.password,
   });
 
   factory ReauthDto.fromJson(Map<String, Object?> json) =>
       _$ReauthDtoFromJson(json);
 
   final ReauthDtoMethod method;
-  final String identifier;
-  final String code;
+
+  /// Required for `otp`: the verified phone / e-mail the code went to.
+  final String? identifier;
+
+  /// Required for `otp`: the 6-digit code.
+  final String? code;
+
+  /// Required for `password`: the account password.
+  final String? password;
 
   Map<String, Object?> toJson() => _$ReauthDtoToJson(this);
 }

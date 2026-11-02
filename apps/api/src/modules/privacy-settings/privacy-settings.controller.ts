@@ -6,7 +6,15 @@ import {
   ApiPropertyOptional,
   ApiTags,
 } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsIn,
+  IsOptional,
+} from 'class-validator';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -17,10 +25,41 @@ import {
   CurrentUser,
   type RequestUser,
 } from '../auth/decorators/current-user.decorator';
+import {
+  AUDIENCE_OPTIONS,
+  type AudienceOption,
+  LEGACY_AUDIENCES as AUDIENCES,
+} from './privacy-audience';
 import { PrivacySettingsService } from './privacy-settings.service';
 
-const AUDIENCES = ['everyone', 'contacts', 'nobody'] as const;
 type Audience = (typeof AUDIENCES)[number];
+
+const SET_DOC =
+  'Owner 2026-10-28: who exactly — ["everyone"], ["nobody"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).';
+
+/** An audience set in a response (absent on servers before 2026-10-28). */
+const SetOut = () =>
+  ApiPropertyOptional({
+    enum: AUDIENCE_OPTIONS,
+    enumName: 'PrivacyAudienceOption',
+    isArray: true,
+    description: SET_DOC,
+  });
+
+/** An audience set in a change; wins over the single old value. */
+const SetIn = (): PropertyDecorator => (target, key) => {
+  ApiPropertyOptional({
+    enum: AUDIENCE_OPTIONS,
+    enumName: 'PrivacyAudienceOption',
+    isArray: true,
+    description: `${SET_DOC} Wins over the single old value.`,
+  })(target, key);
+  IsOptional()(target, key);
+  IsArray()(target, key);
+  ArrayMinSize(1)(target, key);
+  ArrayMaxSize(AUDIENCE_OPTIONS.length)(target, key);
+  IsIn(AUDIENCE_OPTIONS, { each: true })(target, key);
+};
 
 export class PrivacySettingsDto {
   @ApiProperty({ enum: AUDIENCES, enumName: 'PrivacyAudience' })
@@ -40,6 +79,24 @@ export class PrivacySettingsDto {
 
   @ApiProperty({ enum: AUDIENCES, enumName: 'PrivacyAudience' })
   groupAddFrom!: Audience;
+
+  @SetOut()
+  lastSeenAudiences?: AudienceOption[];
+
+  @SetOut()
+  messageFromAudiences?: AudienceOption[];
+
+  @SetOut()
+  callFromAudiences?: AudienceOption[];
+
+  @SetOut()
+  photoFromAudiences?: AudienceOption[];
+
+  @SetOut()
+  aboutFromAudiences?: AudienceOption[];
+
+  @SetOut()
+  groupAddFromAudiences?: AudienceOption[];
 
   @ApiPropertyOptional({
     description:
@@ -79,6 +136,24 @@ export class UpdatePrivacySettingsDto {
   @IsEnum(AUDIENCES)
   groupAddFrom?: Audience;
 
+  @SetIn()
+  lastSeenAudiences?: AudienceOption[];
+
+  @SetIn()
+  messageFromAudiences?: AudienceOption[];
+
+  @SetIn()
+  callFromAudiences?: AudienceOption[];
+
+  @SetIn()
+  photoFromAudiences?: AudienceOption[];
+
+  @SetIn()
+  aboutFromAudiences?: AudienceOption[];
+
+  @SetIn()
+  groupAddFromAudiences?: AudienceOption[];
+
   @ApiPropertyOptional({
     description:
       'CCPA/CPRA «Do not sell or share my personal information»: true = opt out, false = allow again.',
@@ -88,7 +163,8 @@ export class UpdatePrivacySettingsDto {
   doNotSell?: boolean;
 }
 
-/** Owner 2026-10-20: Settings → Privacy (who sees last seen, writes, calls). */
+/** Owner 2026-10-20: Settings → Privacy (who sees last seen, writes, calls).
+ * Owner 2026-10-28: each also as a set incl. followers / following. */
 @ApiTags('privacy')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)

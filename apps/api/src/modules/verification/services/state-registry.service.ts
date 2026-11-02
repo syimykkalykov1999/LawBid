@@ -21,15 +21,24 @@ import type {
   CheckOutcome,
 } from '../providers/verification-providers';
 import { assertRegistryUrl } from '../providers/bar-lookup/registry-http';
+import { RegistryGuard } from '../providers/bar-lookup/registry-guard';
 import {
   adapterDescriptor,
+  DEFAULT_RATE_PER_MIN,
   fillTemplate,
+  GUARDED_ADAPTERS,
+  NO_BULK_RECHECK,
   REGISTRY_ADAPTERS,
   STATE_BAR_ADAPTERS,
   type RegistryAdapterType,
   type ResolvedRegistry,
   type StateBarAdapter,
 } from '../providers/bar-lookup/state-bar-adapter';
+import { ratePerMinute } from '../providers/bar-lookup/state-preset.adapter';
+import {
+  registrySupport,
+  STATE_PRESETS,
+} from '../providers/bar-lookup/state-presets';
 
 /** Runtime settings are re-read at most this often per process. */
 const CACHE_MS = 30_000;
@@ -84,6 +93,7 @@ export class StateRegistryService {
     config: ConfigService,
     @Inject(STATE_BAR_ADAPTERS)
     private readonly adapters: readonly StateBarAdapter[],
+    private readonly guard: RegistryGuard = new RegistryGuard(),
   ) {
     const keys = readKey('SECRETS_MASTER_KEYS', () =>
       config.get<string>('SECRETS_MASTER_KEYS'),
@@ -106,17 +116,29 @@ export class StateRegistryService {
     return this.resolved(row);
   }
 
-  /** States checked automatically right now. */
-  async enabledStates(): Promise<string[]> {
+  /** States checked automatically right now. [bulk]: only those the
+   * monthly re-check may sweep (owner 2026-10-28: public web pages are
+   * asked once per new license and on an admin's re-check, never in bulk). */
+  async enabledStates(opts: { bulk?: boolean } = {}): Promise<string[]> {
     return [...(await this.rows()).values()]
       .filter((r) => r.enabled && r.adapter !== 'manual')
+      .filter(
+        (r) =>
+          !opts.bulk || !NO_BULK_RECHECK.has(r.adapter as RegistryAdapterType),
+      )
       .map((r) => r.state_code);
   }
 
-  /** One lookup with [registry]'s adapter. Errors propagate. */
+  /**
+   * One lookup with [registry]'s adapter. Errors propagate. Web pages and
+   * third-party APIs go through the per-state guard (owner 2026-10-28:
+   * 24 h cache, rate limit, circuit breaker); [fresh] (the admin's
+   * «Проверить») skips the cache and an open breaker.
+   */
   lookup(
     input: BarLookupInput,
     registry: ResolvedRegistry,
+    opts: { fresh?: boolean } = {},
   ): Promise<CheckOutcome> {
     const adapter = this.adapters.find((a) => a.type === registry.adapter);
     if (!adapter) {
@@ -124,7 +146,18 @@ export class StateRegistryService {
         new Error(`No adapter of type ${registry.adapter}`),
       );
     }
-    return adapter.lookup(input, registry);
+    if (!GUARDED_ADAPTERS.has(registry.adapter)) {
+      return adapter.lookup(input, registry);
+    }
+    return this.guard.run(
+      registry.stateCode,
+      RegistryGuard.key(registry.stateCode, registry.adapter, input),
+      {
+        ratePerMin: ratePerMinute(registry, DEFAULT_RATE_PER_MIN),
+        fresh: opts.fresh,
+      },
+      () => adapter.lookup(input, registry),
+    );
   }
 
   invalidate(): void {
@@ -236,6 +269,19 @@ export class StateRegistryService {
       ) {
         throw bad('Enter the API key.', 'secret');
       }
+      if (desc.type === 'state_preset' && !STATE_PRESETS[state.code]) {
+        throw bad(
+          `${state.name} has no ready-made registry: its site cannot be checked automatically.`,
+          'adapter',
+        );
+      }
+      if (
+        desc.type === 'html_page' &&
+        !config.nameSelector &&
+        !config.lastNameSelector
+      ) {
+        throw bad('Set the name selector.', 'nameSelector');
+      }
       if (
         desc.type === 'generic_rest' &&
         !config.lastNamePath &&
@@ -265,6 +311,7 @@ export class StateRegistryService {
       update: data,
     });
     this.invalidate();
+    this.guard.reset(state.code);
     return this.dto(state.code, state.name, row);
   }
 
@@ -280,7 +327,10 @@ export class StateRegistryService {
         ? this.envelope.decrypt(src.secret_enc, aad(src.state_code))
         : null;
     const codes = [...new Set(to.map((c) => c.toUpperCase()))].filter(
-      (c) => c !== src.state_code,
+      (c) =>
+        c !== src.state_code &&
+        // Owner 2026-10-28: a ready-made preset exists only for some states.
+        (src.adapter !== 'state_preset' || Boolean(STATE_PRESETS[c])),
     );
     const targets = await this.prisma.state.findMany({
       where: { code: { in: codes } },
@@ -331,6 +381,7 @@ export class StateRegistryService {
           lastName: input.lastName ?? '',
         },
         this.resolved(row),
+        { fresh: true },
       );
       out = {
         result: outcome.result,
@@ -366,9 +417,31 @@ export class StateRegistryService {
       firstName: 'A',
       lastName: 'B',
     };
+    if (c.ratePerMin) {
+      const n = Number(c.ratePerMin);
+      if (!Number.isInteger(n) || n < 1 || n > 60) {
+        throw bad(
+          'Requests per minute: a whole number from 1 to 60.',
+          'ratePerMin',
+        );
+      }
+    }
+    if (c.headers) {
+      try {
+        const h: unknown = JSON.parse(c.headers);
+        if (!h || typeof h !== 'object' || Array.isArray(h)) throw new Error();
+      } catch {
+        throw bad('Extra headers must be a JSON object.', 'headers');
+      }
+    }
     try {
-      if (type === 'generic_rest' && c.urlTemplate) {
+      if ((type === 'generic_rest' || type === 'html_page') && c.urlTemplate) {
         assertRegistryUrl(fillTemplate(c.urlTemplate, sample), this.allowLocal);
+      }
+      for (const f of ['bootstrapUrl', 'referer'] as const) {
+        if (c[f]) {
+          assertRegistryUrl(fillTemplate(c[f], sample), this.allowLocal);
+        }
       }
       if (type === 'socrata' && c.domain) {
         assertRegistryUrl(`https://${c.domain}/`, this.allowLocal);
@@ -420,6 +493,8 @@ export class StateRegistryService {
         (row?.last_test_result as Record<string, unknown> | null) ?? null,
       updatedAt: row?.updated_at.toISOString() ?? null,
       lookupUrl: stateBarLookupUrl(code, ''),
+      ...supportDto(code),
+      pausedUntil: this.guard.status(code).pausedUntil,
     };
   }
 }
@@ -432,4 +507,20 @@ function stringConfig(raw: Prisma.JsonValue): Record<string, string> {
     }
   }
   return out;
+}
+
+/** Owner 2026-10-28: can the state be checked automatically, and why not. */
+function supportDto(code: string): {
+  support: 'automatic' | 'manual';
+  supportNote: string;
+  presetAvailable: boolean;
+} {
+  const s = registrySupport(code);
+  return s.mode === 'automatic'
+    ? {
+        support: 'automatic',
+        supportNote: s.note,
+        presetAvailable: s.adapter === 'state_preset',
+      }
+    : { support: 'manual', supportNote: s.reason, presetAvailable: false };
 }

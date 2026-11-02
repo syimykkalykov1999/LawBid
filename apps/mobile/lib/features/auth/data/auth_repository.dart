@@ -2,6 +2,7 @@ import 'package:lawbid/features/auth/data/auth_dtos.dart' show DeviceSession;
 import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
 import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
 import 'package:lawbid/features/auth/domain/password_auth_result.dart';
+import 'package:lawbid/features/auth/domain/password_reauth_outcome.dart';
 import 'package:lawbid/features/auth/domain/reauth_result.dart';
 
 /// Auth operations needed by the onboarding screens (file 01 §10/11) plus
@@ -92,6 +93,12 @@ abstract interface class AuthRepository {
     required String identifier,
     required String code,
   });
+
+  /// Owner 2026-10-28: `POST /auth/reauth` with the account password
+  /// instead of an SMS code. Never throws; [PasswordReauthUseCode] sends
+  /// the person to the code path (no password, passkey-only account, or an
+  /// older server that only knows the code).
+  Future<PasswordReauthOutcome> reauthWithPassword(String password);
 
   /// `POST /auth/reauth/demo` (owner 2026-10-08): demo sessions only — the
   /// same single-use `reauthToken` as [reauthWithOtp] but without the code
