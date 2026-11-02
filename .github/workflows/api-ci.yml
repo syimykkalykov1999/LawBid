@@ -221,6 +221,7 @@ jobs:
         run: |
           node --test scripts/sort-lists.test.mjs
           node --test ../../scripts/dev/lint-staged-config.test.mjs
+          node --test ../../scripts/ci/web-push-worker.test.mjs
           node scripts/sort-lists.mjs --check
 
       - name: Online DDL rules and the concurrent-migration folder
