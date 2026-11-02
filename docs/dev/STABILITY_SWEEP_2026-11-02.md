@@ -4,7 +4,7 @@
 
 ## Что сделано (код)
 
-**Smoke-тест всех страниц админки** — `apps/admin/src/app/pages-smoke.test.tsx` + `src/test-utils/openapi-sample.ts`.
+**Smoke-тест всех страниц админки** — `apps/admin/src/app/pages-contract-smoke.test.tsx` + `src/test-utils/openapi-sample.ts`.
 Тест открывает каждую клиентскую страницу `apps/admin/src/app/**/page.tsx` (109 файлов; серверные async-страницы и чистый redirect пропускаются) против ответов, которые строятся из `packages/api-contract/openapi.json` для каждого запроса:
 
 1. только обязательные поля, пустые списки, числа 0, строки пустые;
