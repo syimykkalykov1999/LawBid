@@ -16,10 +16,11 @@ interface KinesisModule {
 }
 
 /**
- * Kinesis adapter. The SDK package is loaded lazily so the API builds and
- * runs without it while `events_stream_enabled=false`; if the stream is
- * configured but the package is missing, publishing fails loudly and rows
- * simply stay unpublished (the table keeps them, nothing is lost).
+ * Kinesis adapter. `@aws-sdk/client-kinesis` is a hard dependency of the API
+ * (package.json; guarded by event-stream.deps.spec.ts). It is loaded lazily
+ * only to keep it out of the cold start while `events_stream_enabled=false`.
+ * A failed publish leaves the rows unpublished (the table keeps them, nothing
+ * is lost).
  */
 @Injectable()
 export class KinesisEventStreamPublisher extends EventStreamPublisher {
@@ -39,10 +40,11 @@ export class KinesisEventStreamPublisher extends EventStreamPublisher {
     if (events.length === 0) return;
     if (!this.mod) {
       const pkg = '@aws-sdk/client-kinesis';
-      this.mod = (await import(pkg)) as KinesisModule;
-      this.client = new this.mod.KinesisClient({
-        region: process.env.AWS_REGION,
-      });
+      const mod = (await import(pkg)) as KinesisModule;
+      // Assign only after the client exists: a throwing constructor must be
+      // retried on the next publish, not leave `mod` set with no client.
+      this.client = new mod.KinesisClient({ region: process.env.AWS_REGION });
+      this.mod = mod;
     }
     const res = await this.client!.send(
       new this.mod.PutRecordsCommand({
