@@ -334,7 +334,7 @@ export class RealtimeGateway
   /** docs/06 §8 "число активных WebSocket-соединений": a gauge line every 30 s on this instance (CloudWatch metric filter sums
    * the instances). */
   private gauge(): void {
-    const count = this.nsp?.sockets.size ?? 0;
+    const count = this.nsp?.sockets?.size ?? 0;
     this.logger.info({ metric: 'ws_connections', count }, 'ws connections');
   }
 
@@ -475,7 +475,7 @@ export class RealtimeGateway
   private async waitForDrain(): Promise<void> {
     const budget = drainBudgetMs();
     const deadline = Date.now() + budget;
-    while (Date.now() < deadline && (this.nsp?.sockets.size ?? 0) > 0) {
+    while (Date.now() < deadline && (this.nsp?.sockets?.size ?? 0) > 0) {
       await new Promise((r) => setTimeout(r, 250));
     }
     await this.stats?.flush();
