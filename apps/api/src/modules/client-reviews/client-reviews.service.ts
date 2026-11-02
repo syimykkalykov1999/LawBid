@@ -15,6 +15,11 @@ import {
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
+import {
+  decodeRankedCursor,
+  encodeRankedCursor,
+  rankedAfter,
+} from '../../common/pagination/ranked-cursor';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -655,14 +660,20 @@ export class ClientReviewsService {
   ): Promise<ClientReviewPage> {
     await this.assertCanSee(user, clientId);
     const sort = query.sort ?? 'newest';
-    // Owner 2026-10-01 (Google-style): rating / helpful orders by offset.
+    // Owner 2026-10-01 (Google-style): rating / helpful orders. A keyset
+    // cursor (no rows read and thrown away); a plain number from an older
+    // app still means an offset.
     if (sort !== 'newest' && sort !== 'oldest') {
-      const offset = query.cursor ? Number(query.cursor) || 0 : 0;
+      const key = query.cursor ? decodeRankedCursor(query.cursor) : undefined;
+      const offset = query.cursor && !key ? Number(query.cursor) || 0 : 0;
+      const field = sort === 'helpful' ? 'helpful_count' : 'rating';
+      const dir = sort === 'lowest' ? 'asc' : 'desc';
       const rows = await this.prisma.clientReview.findMany({
         where: {
           client_id: clientId,
           status: 'published',
           ...(query.rating !== undefined ? { rating: query.rating } : {}),
+          ...(key ? rankedAfter(field, dir, key) : {}),
         },
         orderBy:
           sort === 'highest'
@@ -674,17 +685,31 @@ export class ClientReviewsService {
                   { created_at: 'desc' },
                   { id: 'desc' },
                 ],
-        skip: offset,
+        ...(offset > 0 ? { skip: offset } : {}),
         take: PAGE + 1,
-        select: { id: true },
+        select: {
+          id: true,
+          rating: true,
+          helpful_count: true,
+          created_at: true,
+        },
       });
       const page = rows.slice(0, PAGE);
+      const last = page[page.length - 1];
       return {
         items: await this.present(
           page.map((r) => r.id),
           user.sub,
         ),
-        nextCursor: rows.length > PAGE ? String(offset + PAGE) : null,
+        nextCursor:
+          rows.length > PAGE && last
+            ? encodeRankedCursor({
+                rank:
+                  field === 'helpful_count' ? last.helpful_count : last.rating,
+                createdAt: last.created_at,
+                id: last.id,
+              })
+            : null,
       };
     }
     const c = query.cursor ? decodeCursor(query.cursor) : undefined;
