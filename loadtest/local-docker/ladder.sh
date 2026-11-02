@@ -3,7 +3,7 @@
 # growing size, one after another, stops at the first rung that fails.
 #
 #   ladder.sh <fixtures dir> <rung> [<rung> ...]
-#   rungs: r100  r1k  r3k  s10k  auth  (r1k+writes: r1kw)
+#   rungs: r100  r1k  r3k  s10k  auth  (r1k+writes: r1kw)  q500 q1k q2k q5k (fixed req/s, open model)
 #
 #   r100  100 people            2 API   (does the whole chain work at all)
 #   r1k   1 000 people + 200 sockets    8 API    (last measured: passed, 513 req/s)
@@ -69,6 +69,12 @@ for rung in "$@"; do
     r1k)   scale_api 8  && "$here/run.sh" "$name" "$fx" VUS=1000 WS=200  HOLD=4m RAMP=1m ;;
     r1kw)  scale_api 8  && "$here/run.sh" "$name" "$fx" VUS=1000 WS=200  HOLD=4m RAMP=1m WRITES=1 ;;
     r3k)   scale_api 16 && "$here/run.sh" "$name" "$fx" VUS=3000 WS=1000 HOLD=5m RAMP=3m ;;
+    # open model (docs/perf/LOAD_STEPS_2026-11-02.md): fixed requests per second, few "people"
+    # (VUS = worker pool). Same mix as m1/m10. The first rung that misses stops the ladder = the ceiling.
+    q500)  scale_api 8  && "$here/run.sh" "$name" "$fx" RPS=500  VUS=600  WS=1000 HOLD=4m RAMP=1m ;;
+    q1k)   scale_api 16 && "$here/run.sh" "$name" "$fx" RPS=1000 VUS=1200 WS=2000 HOLD=4m RAMP=2m ;;
+    q2k)   scale_api 16 && "$here/run.sh" "$name" "$fx" RPS=2000 VUS=2400 WS=4000 HOLD=4m RAMP=2m ;;
+    q5k)   scale_api 16 && "$here/run.sh" "$name" "$fx" RPS=5000 VUS=6000 WS=8000 HOLD=4m RAMP=3m ;;
     s10k)  scale_api 16 && "$here/run.sh" "$name" "$fx" VUS=2000 WS=10000 HOLD=5m RAMP=4m WS_HOLD_SECONDS=600 ;;
     auth)
       [ -f "$here/api-auth.env" ] || { echo "no api-auth.env: run  AUTH_TEST=1 ./make-env.sh"; exit 2; }
