@@ -54,25 +54,18 @@ permissions:
   contents: read
 
 jobs:
+  # CI audit 2026-11-01: the macOS runner pool is small and this workflow held
+  # it for 43-115 minutes per push (flutter test alone 30-43 min), so every
+  # mobile PR queued behind the others. Only the ~27 test files that match
+  # `golden_toolkit|matchesGoldenFile|screenMatchesGolden` compare golden PNGs
+  # (generated on macOS, real fonts); everything else is platform-independent
+  # and now runs here on ubuntu. The goldens and the iOS
+  # build stay on macOS (jobs `golden-tests`, `build-ios`) and run only when
+  # the app itself changed, not for a packages/api-contract-only PR.
   analyze-and-test:
-    name: Analyze, lint checks, unit/widget/golden tests
-    # Runs on macOS, not the usual ubuntu-latest, specifically because the
-    # golden-test PNGs under apps/mobile/test/**/goldens/ were generated on
-    # a macOS dev machine, and this repo's golden tests render real
-    # embedded fonts via golden_toolkit's loadAppFonts() (see
-    # test/flutter_test_config.dart) rather than a placeholder font — text
-    # rasterization for those real fonts is known to differ subtly between
-    # macOS and Linux, which risks false-positive golden failures on
-    # ubuntu-latest that have nothing to do with an actual regression. This
-    # was a judgment call (spec is silent on runner OS) — see docs/
-    # CHANGELOG.md's CI-pipeline entry. If goldens still fail here on a
-    # real PR with no visual regression, they need regenerating on macOS
-    # via `flutter test --update-goldens` and committing the new PNGs, not
-    # silencing this job.
-    runs-on: macos-latest
-    # 40 minutes cut `flutter test` short on busy macOS runners (2026-10-26,
-    # #419, #384): the suite itself had not failed.
-    timeout-minutes: 70
+    name: Analyze, lint checks, unit/widget tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -96,6 +89,7 @@ jobs:
         with:
           flutter-version: ${{ steps.fv.outputs.v }}
           channel: "stable"
+          cache: true
 
       - name: flutter pub get
         working-directory: apps/mobile
@@ -118,9 +112,69 @@ jobs:
         working-directory: apps/mobile
         run: python3 tool/ci/hardcoded_check.py
 
-      - name: flutter test (unit, widget, golden)
+      - name: flutter test (unit, widget; the golden files run on macOS, job golden-tests)
         working-directory: apps/mobile
-        run: flutter test
+        run: |
+          FILES=$(grep -rLE 'golden_toolkit|matchesGoldenFile|screenMatchesGolden' test --include='*_test.dart' | sort)
+          test -n "$FILES" || { echo "::error::no non-golden test files found"; exit 1; }
+          echo "$(echo "$FILES" | wc -l) test files"
+          flutter test $FILES
+
+  # Does this PR touch the app itself? (a packages/api-contract-only change
+  # is covered by the ubuntu job: analyze + tests compile against the client)
+  changes:
+    name: Does the app itself change?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mac: ${{ steps.d.outputs.mac }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - id: d
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ] || [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "mac=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ -n "$(git diff --name-only "$BASE" HEAD -- apps/mobile .github/workflows/mobile-ci.yml scripts/ci/check-web-phone-goldens.sh)" ]; then
+            echo "mac=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "mac=false" >> "$GITHUB_OUTPUT"; echo "no change under apps/mobile: macOS jobs skipped"
+          fi
+
+  # The golden test files, rendered on macOS like the PNGs under test/**/goldens/.
+  golden-tests:
+    name: Golden tests (macOS)
+    needs: [changes]
+    if: ${{ needs.changes.outputs.mac == 'true' }}
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Flutter version (apps/mobile/.fvmrc is the single pin)
+        id: fv
+        run: echo "v=$(jq -r .flutter apps/mobile/.fvmrc)" >> "$GITHUB_OUTPUT"
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ steps.fv.outputs.v }}
+          channel: "stable"
+          cache: true
+
+      - name: flutter pub get
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Generate code (freezed/riverpod/json_serializable/drift)
+        working-directory: apps/mobile
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: flutter test (golden files only)
+        working-directory: apps/mobile
+        run: flutter test $(grep -rlE 'golden_toolkit|matchesGoldenFile|screenMatchesGolden' test --include='*_test.dart' | sort)
 
   # Mobile dependency audit (2026-10-22), docs/06 §4.4. Separate Ubuntu job:
   # the OSV-Scanner action is a Docker action (not available on macOS
@@ -141,6 +195,7 @@ jobs:
         with:
           flutter-version: ${{ steps.fv.outputs.v }}
           channel: "stable"
+          cache: true
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -195,6 +250,7 @@ jobs:
         with:
           flutter-version: ${{ steps.fv.outputs.v }}
           channel: "stable"
+          cache: true
 
       - name: flutter pub get
         working-directory: apps/mobile
@@ -223,6 +279,7 @@ jobs:
         with:
           flutter-version: ${{ steps.fv.outputs.v }}
           channel: "stable"
+          cache: true
 
       - name: flutter pub get
         working-directory: apps/mobile
@@ -255,7 +312,8 @@ jobs:
 
   build-ios:
     name: Build check — iOS (debug, unsigned)
-    needs: analyze-and-test
+    needs: [analyze-and-test, changes]
+    if: ${{ needs.changes.outputs.mac == 'true' }}
     runs-on: macos-latest
     timeout-minutes: 25
     steps:
@@ -268,6 +326,7 @@ jobs:
         with:
           flutter-version: ${{ steps.fv.outputs.v }}
           channel: "stable"
+          cache: true
 
       - name: flutter pub get
         working-directory: apps/mobile
@@ -284,7 +343,7 @@ jobs:
   # S11-6: a failure on main / on a schedule reaches the owner (notify-failure.yml).
   notify:
     name: Notify the owner
-    needs: [analyze-and-test, dependency-audit, build-android, build-web, build-ios]
+    needs: [analyze-and-test, golden-tests, dependency-audit, build-android, build-web, build-ios]
     if: ${{ always() && contains(needs.*.result, 'failure') && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: read
