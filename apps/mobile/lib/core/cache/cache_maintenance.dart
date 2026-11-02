@@ -6,6 +6,7 @@ import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/cache/media_cache_dir.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
+import 'package:lawbid/core/media/video_cache/video_cache.dart';
 import 'package:lawbid/core/persistence/drift_web.dart' show isFlutterTest;
 import 'package:lawbid/core/persistence/saved_json.dart';
 import 'package:lawbid/core/persistence/storage_compaction.dart';
@@ -39,13 +40,17 @@ class CacheMaintenance {
     HttpCacheInterceptor? http,
     MediaCacheDir? images,
     MediaCacheDir? chatMedia,
+    MediaCacheDir? video,
+    PrefixedTempFiles? voiceNotes,
   })  : _db = db,
         _pages = pages,
         _limits = limits,
         _http = http,
         _images = images ?? const MediaCacheDir(AppImageCaches.feedKey),
         _chatMedia =
-            chatMedia ?? const MediaCacheDir(AppImageCaches.chatMediaKey);
+            chatMedia ?? const MediaCacheDir(AppImageCaches.chatMediaKey),
+        _video = video ?? const MediaCacheDir(VideoCache.folderName),
+        _voiceNotes = voiceNotes ?? const PrefixedTempFiles('voice_cache_');
 
   final CacheDatabase _db;
   final SavedPageStore? _pages;
@@ -53,6 +58,8 @@ class CacheMaintenance {
   final HttpCacheInterceptor? _http;
   final MediaCacheDir _images;
   final MediaCacheDir _chatMedia;
+  final MediaCacheDir _video;
+  final PrefixedTempFiles _voiceNotes;
 
   /// Every store's size; a store that cannot be measured counts as 0.
   Future<CacheReport> measure() async {
@@ -70,10 +77,11 @@ class CacheMaintenance {
       guard(_db.messagesBytes),
       guard(() => _pages?.pagesBytes() ?? Future.value(0)),
       guard(_images.size),
-      guard(_chatMedia.size),
+      guard(() async => await _chatMedia.size() + await _voiceNotes.size()),
       guard(
         () async => await _db.translationsBytes() + await _db.fileViewsBytes(),
       ),
+      guard(_video.size),
     ]);
     return CacheReport(
       bytes: {
@@ -83,6 +91,7 @@ class CacheMaintenance {
         CacheStore.images: results[3],
         CacheStore.chatMedia: results[4],
         CacheStore.other: results[5],
+        CacheStore.video: results[6],
       },
       measuredAt: DateTime.now(),
     );
@@ -106,11 +115,16 @@ class CacheMaintenance {
         if (!isFlutterTest) await AppImageCaches.feed.emptyCache();
       case CacheStore.chatMedia:
         await _chatMedia.clear();
+        await _voiceNotes.clear();
         if (!isFlutterTest) await AppImageCaches.chatMedia.emptyCache();
+      case CacheStore.video:
+        // The video chunk cache (reels and chat videos), 2026-11-02: it was
+        // never measured here, so «Очистить» left up to its whole limit.
+        await VideoCache.clear();
+        await _video.clear();
       case CacheStore.other:
         await _db.clearOther();
       case CacheStore.files:
-      case CacheStore.video:
         // No cache of their own on the phone yet.
         break;
     }
@@ -139,6 +153,7 @@ class CacheMaintenance {
       await _chatMedia.trimTo(l.limitBytes(CacheStore.chatMedia));
       if (l.keepMediaDays > 0) {
         await _chatMedia.dropOlderThan(Duration(days: l.keepMediaDays));
+        await _voiceNotes.dropOlderThan(Duration(days: l.keepMediaDays));
       }
       await _db.trimHttp(l.limitBytes(CacheStore.http));
       await _db.trimMessages(l.limitBytes(CacheStore.messages));

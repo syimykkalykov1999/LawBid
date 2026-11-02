@@ -25,6 +25,13 @@ class StorageScreen extends ConsumerWidget {
     CacheStore.other,
   ];
 
+  /// The rows: the fixed ones, plus «Видео» once the video chunk cache
+  /// holds something (hidden while empty, so a fresh install stays short).
+  static List<CacheStore> _shown(CacheReport? r) => [
+        ...categories,
+        if (r != null && r.of(CacheStore.video) > 0) CacheStore.video,
+      ];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
@@ -48,7 +55,7 @@ class StorageScreen extends ConsumerWidget {
           AppListSection(
             title: t.t('storage.section.onPhone'),
             children: [
-              for (final s in categories)
+              for (final s in _shown(report.value))
                 AppListRow(
                   key: ValueKey('storage-${s.configKey}'),
                   icon: _iconOf(s),
@@ -280,6 +287,7 @@ class _UsageHeader extends StatelessWidget {
       colors.success,
       colors.warning,
       colors.textSecondary,
+      colors.danger,
     ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -305,11 +313,11 @@ class _UsageHeader extends StatelessWidget {
               height: 10,
               child: Row(
                 children: [
-                  for (var i = 0; i < StorageScreen.categories.length; i++)
+                  for (var i = 0; i < StorageScreen._shown(report).length; i++)
                     if (total > 0 &&
-                        (report?.of(StorageScreen.categories[i]) ?? 0) > 0)
+                        (report?.of(StorageScreen._shown(report)[i]) ?? 0) > 0)
                       Expanded(
-                        flex: report!.of(StorageScreen.categories[i]),
+                        flex: report!.of(StorageScreen._shown(report)[i]),
                         child: ColoredBox(color: palette[i]),
                       ),
                   if (total == 0)

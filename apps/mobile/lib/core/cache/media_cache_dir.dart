@@ -107,3 +107,66 @@ class MediaCacheDir {
     }
   }
 }
+
+/// 2026-11-02: loose files in the temporary directory that carry one name
+/// prefix (voice notes: `voice_cache_<messageId>.m4a`). They are chat media
+/// too, but live outside a cache folder, so «Данные и память» never counted
+/// or swept them. Measured, aged out and emptied like [MediaCacheDir].
+class PrefixedTempFiles {
+  const PrefixedTempFiles(this.prefix);
+
+  final String prefix;
+
+  Future<List<File>> _files() async {
+    if (kIsWeb || isFlutterTest) return const [];
+    try {
+      final tmp = await getTemporaryDirectory();
+      return [
+        await for (final e in tmp.list(followLinks: false))
+          if (e is File && e.uri.pathSegments.last.startsWith(prefix)) e,
+      ];
+    } on Object catch (e) {
+      debugPrint('temp files $prefix: $e');
+      return const [];
+    }
+  }
+
+  Future<int> size() async {
+    var total = 0;
+    for (final f in await _files()) {
+      try {
+        total += await f.length();
+      } on Object {
+        // Gone meanwhile.
+      }
+    }
+    return total;
+  }
+
+  Future<int> dropOlderThan(Duration maxAge) async {
+    final cutoff = DateTime.now().subtract(maxAge);
+    var freed = 0;
+    for (final f in await _files()) {
+      try {
+        final stat = f.statSync();
+        if (stat.modified.isBefore(cutoff)) {
+          await f.delete();
+          freed += stat.size;
+        }
+      } on Object {
+        // Busy or gone: the next pass tries again.
+      }
+    }
+    return freed;
+  }
+
+  Future<void> clear() async {
+    for (final f in await _files()) {
+      try {
+        await f.delete();
+      } on Object {
+        // Already gone.
+      }
+    }
+  }
+}

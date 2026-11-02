@@ -15,6 +15,9 @@ import 'package:path_provider/path_provider.dart';
 /// Size and head length come from the server (`client.video_cache_mb`,
 /// `client.video_cache_chunk_s`; 0 MB = off).
 abstract final class VideoCache {
+  /// The chunks' folder under the temporary directory.
+  static const folderName = 'video_chunks';
+
   static VideoCacheProxy? _proxy;
   static ChunkCache? _cache;
   static Future<void>? _starting;
@@ -40,7 +43,7 @@ abstract final class VideoCache {
         try {
           final base = await getTemporaryDirectory();
           final cache = ChunkCache(
-            Directory('${base.path}/video_chunks'),
+            Directory('${base.path}/$folderName'),
             maxBytes: ClientTuning.videoCacheMb * 1024 * 1024,
           );
           final proxy = VideoCacheProxy(
