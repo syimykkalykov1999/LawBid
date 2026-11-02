@@ -91,7 +91,7 @@ describe('runtime stats', () => {
     ).toBe(1234);
   });
 
-  it('samples the registered socket gauge', async () => {
+  it('samples the registered socket gauge', () => {
     const prev = process.env.NODE_ENV;
     process.env.NODE_ENV = 'development';
     const s = new RuntimeStatsService();
