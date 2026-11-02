@@ -12,6 +12,9 @@ import 'package:lawbid/core/media/video_cache/video_cache.dart';
 
 const _mib = 1024 * 1024;
 
+/// What a proxy starts with while the server's number is unknown.
+const _ceiling = 1000 * _mib;
+
 void main() {
   late Directory root;
   late CacheDatabase db;
@@ -106,7 +109,7 @@ void main() {
   test('enforce hands the video limit to a running proxy', () async {
     final port = ReceivePort();
     addTearDown(port.close);
-    VideoCache.debugAttach(port.sendPort, sentMaxBytes: -1);
+    VideoCache.debugAttach(port.sendPort, sentMaxBytes: _ceiling);
     await maintenance({CacheStore.video: 1}).enforce();
     expect(
       await port.first.timeout(const Duration(seconds: 5)),
@@ -114,17 +117,50 @@ void main() {
     );
   });
 
-  test('a limit set with no proxy is sent once one is attached', () async {
-    await maintenance({CacheStore.video: 1}).enforce();
+  test('a limit set during the start reaches the proxy', () async {
+    VideoCache.limitTo(_mib);
     final port = ReceivePort();
     addTearDown(port.close);
-    // The proxy came up with the old limit (as if started meanwhile).
-    VideoCache.debugAttach(port.sendPort, sentMaxBytes: 100 * _mib);
-    await maintenance({CacheStore.video: 1}).enforce();
+    // The proxy came up with the ceiling (the server's number unknown).
+    VideoCache.debugAttach(port.sendPort, sentMaxBytes: _ceiling);
     expect(
       await port.first.timeout(const Duration(seconds: 5)),
       ('max', _mib),
     );
+  });
+
+  test('a zero limit never empties a running proxy', () async {
+    final port = ReceivePort();
+    addTearDown(port.close);
+    final seen = <Object?>[];
+    port.listen(seen.add);
+    VideoCache.debugAttach(port.sendPort, sentMaxBytes: _ceiling);
+    VideoCache.limitTo(0);
+    VideoCache.limitTo(-5);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(seen, isEmpty);
+  });
+
+  test('clear(video) asks a running proxy and answers its reply', () async {
+    final port = ReceivePort();
+    addTearDown(port.close);
+    port.listen((Object? m) {
+      if (m is (String, SendPort) && m.$1 == 'clear') m.$2.send(true);
+    });
+    VideoCache.debugAttach(port.sendPort, sentMaxBytes: _mib);
+    final f = write('video/a', 100);
+    expect(await maintenance({}).clear(CacheStore.video), isTrue);
+    expect(f.existsSync(), isTrue); // the proxy, not this code, deletes
+  });
+
+  test('clearAll empties every store', () async {
+    write('chat/a', 100);
+    write('video/a', 100);
+    final m = maintenance({});
+    expect(await m.clearAll(), isTrue);
+    final r = await m.measure();
+    expect(r.of(CacheStore.chatMedia), 0);
+    expect(r.of(CacheStore.video), 0);
   });
 
   test('clear(video) empties the folder and answers true', () async {

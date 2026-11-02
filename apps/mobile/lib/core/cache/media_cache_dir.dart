@@ -224,8 +224,9 @@ class PrefixedTempFiles implements CachedFiles {
 }
 
 /// Keeps the files of all [pools] together within [limitBytes]: the least
-/// recently changed go first, whichever pool they are in (an LRU over one
-/// store, as Telegram keeps its chat media). Answers how many bytes went.
+/// recently changed go first, whichever pool they are in (by the file's
+/// modification time: writing counts, playing does not). Answers how many
+/// bytes went.
 Future<int> trimPoolTo(Iterable<CachedFiles> pools, int limitBytes) async {
   final files = <CachedFile>[
     for (final p in pools) ...await p.entries(),
