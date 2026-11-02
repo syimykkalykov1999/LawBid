@@ -398,7 +398,7 @@ variable "db_autoscale_initial_ceiling_class" {
 }
 variable "db_autoscale_mode" {
   type        = string
-  default     = "on"
+  default     = "dry-run"
   description = "Start value of the switch: on | dry-run (e-mails what it would do, changes nothing) | off. Later changes are made in SSM, not here."
   validation {
     condition     = contains(["on", "dry-run", "off"], var.db_autoscale_mode)

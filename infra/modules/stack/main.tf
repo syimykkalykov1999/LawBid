@@ -1335,7 +1335,7 @@ variable "db_autoscale_initial_ceiling_class" {
 }
 variable "db_autoscale_mode" {
   type        = string
-  default     = "on"
+  default     = "dry-run"
   description = "Start value of the switch: on | dry-run | off. Later changes are made in SSM (docs/runbooks/db-autoscale.md)."
 }
 variable "db_autoscale_ladder" {
