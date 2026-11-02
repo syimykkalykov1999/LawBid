@@ -132,3 +132,35 @@ Future<void> pumpOverflowApp(
   await tester.pumpWidget(const SizedBox());
   await tester.pump(const Duration(minutes: 5));
 }
+
+/// A screen with one button (`Key('open')`) that runs [open], for sheets.
+Widget overflowOpener(void Function(BuildContext, WidgetRef) open) => Consumer(
+      builder: (context, ref, _) => Scaffold(
+        body: Center(
+          child: TextButton(
+            key: const Key('open'),
+            onPressed: () => open(context, ref),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+
+/// After the first frame (and a tap on the opener when [sheet]): waits for
+/// the data and expects [what] on screen, so a test never passes on a
+/// loading, offline or empty state.
+Future<void> Function(WidgetTester) overflowShows(
+  Finder what, {
+  bool sheet = false,
+}) =>
+    (tester) async {
+      if (sheet) {
+        await tester.tap(find.byKey(const Key('open')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(find.byType(BottomSheet), findsOneWidget);
+      }
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(const Duration(seconds: 2));
+      expect(what, findsWidgets);
+    };
