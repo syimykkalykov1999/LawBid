@@ -125,7 +125,8 @@ class PostDto {
   /// "Изменено" (§3.3).
   final String? editedAt;
 
-  /// Owner 2026-10-12: 1..3 when pinned to the top of the author's list.
+  /// Owner 2026-10-12: 1..6 (was 1..3 until 2026-10-28) when pinned to the.
+  /// top of the author's list.
   final int? pinSlot;
 
   /// Owner 2026-10-05: set on a paid promoted post in the feed — the app.

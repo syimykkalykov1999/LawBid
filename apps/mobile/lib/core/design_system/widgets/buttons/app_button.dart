@@ -55,6 +55,7 @@ class AppButton extends StatefulWidget {
     this.onTapDown,
     this.dimWhenDisabled = true,
     this.disabledHint,
+    this.fitLabel = false,
   });
 
   final String label;
@@ -73,6 +74,11 @@ class AppButton extends StatefulWidget {
   /// Owner 2026-10-07: what to do first (e.g. «Выберите видео»), shown
   /// when the inactive button is tapped. Null = the tap does nothing.
   final String? disabledHint;
+
+  /// Keep the label on ONE line and shrink it to fit the button width
+  /// (side-by-side button pairs that must stay equal in height at any text
+  /// scale / language). Off by default: labels wrap as before.
+  final bool fitLabel;
 
   @override
   State<AppButton> createState() => _AppButtonState();
@@ -137,12 +143,23 @@ class _AppButtonState extends State<AppButton> {
             children: [
               // Owner 2026-10-13: no icon inside buttons — text only.
               Flexible(
-                child: Text(
-                  widget.label,
-                  style: typography.button.copyWith(color: foreground),
-                  textAlign: TextAlign.center,
-                  softWrap: true,
-                ),
+                child: widget.fitLabel
+                    ? FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          widget.label,
+                          style: typography.button.copyWith(color: foreground),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
+                      )
+                    : Text(
+                        widget.label,
+                        style: typography.button.copyWith(color: foreground),
+                        textAlign: TextAlign.center,
+                        softWrap: true,
+                      ),
               ),
             ],
           );

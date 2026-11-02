@@ -22,6 +22,8 @@ import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart'
     show topicName;
 import 'package:lawbid/features/legal_qa/presentation/qa_search_button.dart';
 import 'package:lawbid/features/practice/practice_matches.dart';
+import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
 import 'package:lawbid/features/search/application/search_providers.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
 import 'package:lawbid/features/search/presentation/widgets/search_filters_sheet.dart';
@@ -451,6 +453,12 @@ class _Results extends ConsumerWidget {
         );
       case SearchTab.cases when !attorney:
         return _MyCasesGrid(query: query, filters: filters, empty: nothing);
+      // Owner 2026-10-28: an attorney not verified yet gets no cases from
+      // the server — say why instead of «nothing found».
+      case SearchTab.cases when ref.watch(attorneyNeedsVerificationProvider):
+        return const VerificationRequiredView(
+          reason: VerificationGateReason.cases,
+        );
       case SearchTab.cases:
         final n = ref.read(caseSearchProvider(key).notifier);
         return PagedTileGrid<FeedCase>(
@@ -592,9 +600,10 @@ class _TagTopicRow extends ConsumerWidget {
   }
 }
 
-/// Owner 2026-09-30: before typing, every tab shows the recent searches,
-/// "Based on your search «…»" (this tab's results for the latest one) and
-/// its own explore content — people, a grid of cases or posts, topics.
+/// Owner 2026-09-30: before typing, every tab shows the recent searches
+/// and its own explore content — people, a grid of cases or posts, topics.
+/// Owner 2026-10-28: the recent searches are a chip row only; no results
+/// of an old query here.
 class _BeforeTyping extends ConsumerWidget {
   const _BeforeTyping({
     required this.tab,
@@ -618,12 +627,11 @@ class _BeforeTyping extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     // Owner 2026-10-13: the Posts tab is only the grid — no recent searches,
-    // no "based on" rows, no section titles.
+    // no section titles.
     final postsTab = tab == SearchTab.posts;
     final recent = postsTab
         ? const <String>[]
         : ref.watch(recentSearchesProvider(tab.name)).value ?? const [];
-    final last = recent.isEmpty ? null : recent.first;
     final attorney = ref.watch(actsAsAttorneyProvider);
 
     Widget title(String text, {Widget? trailing, bool small = false}) =>
@@ -667,6 +675,22 @@ class _BeforeTyping extends ConsumerWidget {
           itemCount: items.length,
           itemBuilder: (context, i) => build(items[i]),
         );
+    // Owner 2026-11-01 (start view «lost its grids»): while the first page
+    // loads the grid shows placeholders, not a blank screen.
+    Widget gridSkeleton() => SliverGrid.builder(
+          gridDelegate: kSearchPostGridDelegate,
+          itemCount: 12,
+          itemBuilder: (_, __) => const AppSkeleton(borderRadius: 0),
+        );
+    Widget rowsSkeleton() => SliverPadding(
+          padding: kSearchRowsPadding,
+          sliver: SliverList.separated(
+            itemCount: 6,
+            separatorBuilder: (_, __) => const SizedBox(height: kSearchRowGap),
+            itemBuilder: (_, __) =>
+                const AppSkeleton(height: 86, borderRadius: AppRadii.card),
+          ),
+        );
     Widget rows<T>(List<T> items, Widget Function(T) build) => SliverPadding(
           padding: kSearchRowsPadding,
           sliver: SliverList.separated(
@@ -676,10 +700,6 @@ class _BeforeTyping extends ConsumerWidget {
           ),
         );
 
-    final lastKey = last == null ? null : (q: last, filters: filters);
-
-    // "Based on your search" for this tab.
-    // ignore: omit_local_variable_types
     // Owner 2026-10-14: no "Show more" button — the next page loads by
     // itself when the list is scrolled near its end.
     final loaders = <VoidCallback>[];
@@ -701,50 +721,36 @@ class _BeforeTyping extends ConsumerWidget {
       );
     }
 
-    // ignore: omit_local_variable_types
-    final List<Widget> basedOn = switch (tab) {
-      _ when last == null => const [],
-      SearchTab.attorneys => [
-          for (final r
-              in (ref.watch(peopleSearchProvider(lastKey!)).value?.items ??
-                      const <PersonRow>[])
-                  .take(10))
-            SliverToBoxAdapter(child: PersonTile(row: r)),
-        ],
-      SearchTab.cases when !attorney => [
-          rows<CaseSummary>(
-            _myCases(ref, last, filters).take(4).toList(),
-            (c) => SearchMyCaseTile(item: c),
-          ),
-        ],
-      SearchTab.cases => [
-          rows<FeedCase>(
-            (ref.watch(caseSearchProvider(lastKey!)).value?.items ??
-                    const <FeedCase>[])
-                .take(4)
-                .toList(),
-            (c) => SearchCaseTile(item: c),
-          ),
-        ],
-      SearchTab.posts => [
-          grid<Post>(
-            (ref.watch(postSearchProvider(lastKey!)).value?.items ??
-                    const <Post>[])
-                .take(6)
-                .toList(),
-            (p) => SearchPostTile(
-              post: p,
-              feed: ref.read(postSearchProvider(lastKey)).value?.items,
+    // Owner 2026-10-28: an empty field is the start view (its grids and
+    // recommendations); the last searches are only a small «Недавние» row
+    // of chips — never the old results («По вашему поиску «jah»» showed a
+    // stale list in place of the start view).
+    final recentRow = recent.isEmpty
+        ? const <Widget>[]
+        : <Widget>[
+            SliverToBoxAdapter(
+              child: title(t.t('search.recent'), small: true),
             ),
-          ),
-        ],
-      SearchTab.tags => [
-          for (final tag
-              in (ref.watch(tagSearchProvider(last)).value ?? const <TagInfo>[])
-                  .take(3))
-            SliverToBoxAdapter(child: _TagTopicRow(tag: tag)),
-        ],
-    };
+            SliverToBoxAdapter(
+              child: SizedBox(
+                key: const ValueKey('search-recent-chips'),
+                height: 32,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screenSide,
+                  ),
+                  itemCount: recent.length,
+                  separatorBuilder: (_, __) =>
+                      const SizedBox(width: AppSpacing.xs),
+                  itemBuilder: (context, i) => AppChip(
+                    label: recent[i],
+                    onTap: () => onRecent(recent[i]),
+                  ),
+                ),
+              ),
+            ),
+          ];
 
     // ignore: omit_local_variable_types
     final List<Widget> explore = switch (tab) {
@@ -758,15 +764,32 @@ class _BeforeTyping extends ConsumerWidget {
             (c) => SearchMyCaseTile(item: c),
           ),
         ],
+      // Owner 2026-10-28: not verified yet — say why the list is empty.
+      SearchTab.cases when ref.watch(attorneyNeedsVerificationProvider) => [
+          // AppEmptyState measures itself (LayoutBuilder): fill the rest.
+          const SliverFillRemaining(
+            child: VerificationRequiredView(
+              reason: VerificationGateReason.cases,
+            ),
+          ),
+        ],
       // Audit 2026-10-01: explore grids filtered on the server (every
       // filter, every page), with "Show more".
       SearchTab.cases => [
           SliverToBoxAdapter(child: title(t.t('search.section.cases'))),
-          rows<FeedCase>(
-            ref.watch(exploreCasesProvider(_casesKey(filters))).value?.items ??
-                const <FeedCase>[],
-            (c) => SearchCaseTile(item: c),
-          ),
+          if (ref.watch(exploreCasesProvider(_casesKey(filters))).value ==
+                  null &&
+              ref.watch(exploreCasesProvider(_casesKey(filters))).isLoading)
+            rowsSkeleton()
+          else
+            rows<FeedCase>(
+              ref
+                      .watch(exploreCasesProvider(_casesKey(filters)))
+                      .value
+                      ?.items ??
+                  const <FeedCase>[],
+              (c) => SearchCaseTile(item: c),
+            ),
           more(
             hasMore: ref
                     .watch(exploreCasesProvider(_casesKey(filters)))
@@ -779,17 +802,25 @@ class _BeforeTyping extends ConsumerWidget {
           ),
         ],
       SearchTab.posts => [
-          grid<Post>(
-            ref.watch(explorePostsProvider(_postsKey(filters))).value?.items ??
-                const <Post>[],
-            (p) => SearchPostTile(
-              post: p,
-              feed: ref
-                  .read(explorePostsProvider(_postsKey(filters)))
-                  .value
-                  ?.items,
+          if (ref.watch(explorePostsProvider(_postsKey(filters))).value ==
+                  null &&
+              ref.watch(explorePostsProvider(_postsKey(filters))).isLoading)
+            gridSkeleton()
+          else
+            grid<Post>(
+              ref
+                      .watch(explorePostsProvider(_postsKey(filters)))
+                      .value
+                      ?.items ??
+                  const <Post>[],
+              (p) => SearchPostTile(
+                post: p,
+                feed: ref
+                    .read(explorePostsProvider(_postsKey(filters)))
+                    .value
+                    ?.items,
+              ),
             ),
-          ),
           more(
             hasMore: ref
                     .watch(explorePostsProvider(_postsKey(filters)))
@@ -846,11 +877,11 @@ class _BeforeTyping extends ConsumerWidget {
         ],
     };
 
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       color: colors.gold,
       onRefresh: () async {
         // What this screen shows: the explore grids, topics, suggested
-        // lawyers, my cases and the "based on your last search" rows.
+        // lawyers and my cases.
         ref
           ..invalidate(trendingTagsProvider)
           ..invalidate(exploreCasesProvider)
@@ -873,16 +904,8 @@ class _BeforeTyping extends ConsumerWidget {
         },
         child: CustomScrollView(
           slivers: [
+            ...recentRow,
             ...explore,
-            if (basedOn.isNotEmpty) ...[
-              SliverToBoxAdapter(
-                child: title(
-                  t.t('search.section.basedOn', {'q': last!}),
-                  small: true,
-                ),
-              ),
-              ...basedOn,
-            ],
             const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xxl)),
           ],
         ),

@@ -58,6 +58,8 @@
 	<string>LawBid compares your contacts with registered people on this device to suggest people you know. Only anonymous hashes of phone numbers are sent, never names or numbers, and you can turn it off and delete them at any time.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>LawBid uses Face ID to confirm it's you before deleting your account or other sensitive actions.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>LawBid uses your location only when you tap “My location” in a chat, to send it to the person you are talking to. It is never collected in the background.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>LawBid uses the microphone to record voice messages and for calls in the app.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

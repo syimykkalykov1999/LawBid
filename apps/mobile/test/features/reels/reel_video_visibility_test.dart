@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -236,10 +235,11 @@ void main() {
   });
 
   testWidgets(
-      'a playable reel never draws the cover: real frames from the stream',
+      'a loading reel shows its cover until the stream draws real frames',
       (tester) async {
-    // Owner 2026-10-27: the cover is for the profile grid only. The stream
-    // is slow (initialize never completes) — still no cover, no spinner.
+    // Owner 2026-10-28 (replaces 2026-10-27): never a black box while a reel
+    // loads — the cover shows until the video's frames move, then goes. The
+    // stream is slow (initialize waits): the cover, no spinner yet.
     final gate = Completer<void>();
     debugReelPlayerFactory = (_, __) {
       final p = _SlowPlayer(gate.future);
@@ -252,17 +252,14 @@ void main() {
         home: const ReelVideo(video: _video, active: true),
       ),
     );
-    expect(find.byKey(const ValueKey('reel-poster')), findsNothing);
-    expect(find.byType(CachedNetworkImage), findsNothing);
+    expect(find.byKey(const ValueKey('reel-poster')), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
 
     gate.complete();
     await tester.pump();
     await tester.pump();
-    // Initialized: the video is drawn at once, with no cover over it.
+    // Initialized: the video is under the cover until its frames move.
     expect(find.byType(VideoPlayer), findsOneWidget);
-    expect(find.byKey(const ValueKey('reel-poster')), findsNothing);
-    expect(find.byType(CachedNetworkImage), findsNothing);
 
     _player.value = _player.value.copyWith(
       position: const Duration(milliseconds: 80),

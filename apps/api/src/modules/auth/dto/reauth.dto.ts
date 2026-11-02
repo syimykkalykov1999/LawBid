@@ -1,4 +1,11 @@
-import { IsIn, IsString, Matches } from 'class-validator';
+import {
+  IsIn,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
 import { IsPhoneOrEmailIdentifier } from './validators';
 
 /**
@@ -16,17 +23,30 @@ import { IsPhoneOrEmailIdentifier } from './validators';
  * a server can't verify an on-device Face ID/Touch ID assertion without
  * platform key attestation (App Attest / Play Integrity), which the API
  * does not have.
- * Only 'otp' reauth is implemented this stage.
+ * Owner 2026-10-28: `{method: "password", password}` — the account
+ * password instead of an SMS code (PasswordReauthService). The code path
+ * stays for accounts without a password, «Забыли пароль?» and older apps.
  */
 export class ReauthDto {
-  @IsIn(['otp'])
-  method!: 'otp';
+  @IsIn(['otp', 'password'])
+  method!: 'otp' | 'password';
 
+  /** Required for `otp`: the verified phone / e-mail the code went to. */
+  @ValidateIf((o: ReauthDto) => o.method === 'otp')
   @IsString()
   @IsPhoneOrEmailIdentifier()
-  identifier!: string;
+  identifier?: string;
 
+  /** Required for `otp`: the 6-digit code. */
+  @ValidateIf((o: ReauthDto) => o.method === 'otp')
   @IsString()
   @Matches(/^\d{6}$/, { message: 'code must be exactly 6 digits' })
-  code!: string;
+  code?: string;
+
+  /** Required for `password`: the account password. */
+  @ValidateIf((o: ReauthDto) => o.method === 'password')
+  @IsString()
+  @MinLength(1)
+  @MaxLength(256)
+  password?: string;
 }

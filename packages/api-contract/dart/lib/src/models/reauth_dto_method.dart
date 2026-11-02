@@ -8,6 +8,8 @@ import 'package:json_annotation/json_annotation.dart';
 enum ReauthDtoMethod {
   @JsonValue('otp')
   otp('otp'),
+  @JsonValue('password')
+  password('password'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
