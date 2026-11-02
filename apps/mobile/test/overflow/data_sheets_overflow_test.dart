@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lawbid/core/persistence/persistence_providers.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/session/session_state.dart';
 import 'package:lawbid/features/cases/domain/case_urgency.dart';
@@ -19,10 +18,11 @@ import 'package:lawbid/features/legal_qa/presentation/qa_filter_sheet.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 import 'package:lawbid/features/promotions/presentation/pending_payment_sheet.dart';
-import 'package:lawbid/features/verification/presentation/widgets/license_sheet.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
 import 'package:lawbid/features/search/presentation/widgets/search_filters_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/recommended_sheet.dart';
+import 'package:lawbid/features/verification/presentation/widgets/license_sheet.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../features/profile/profile_fakes.dart';
 import '../helpers/long_locale.dart';
@@ -111,7 +111,7 @@ void main() {
     'case urgency': (c) => showCaseUrgencySheet(
           c,
           caseId: 'c1',
-          current: const CaseUrgencyInfo(),
+          current: CaseUrgencyInfo.none,
         ),
     'recommended': showRecommendedSheet,
     'add license': (c) => AddLicenseSheet.show(c, {'MA', 'NY'}),
