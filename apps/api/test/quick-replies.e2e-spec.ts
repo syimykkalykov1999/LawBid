@@ -128,6 +128,41 @@ describe('Quick replies (e2e)', () => {
     expect(still.body.data.items).toHaveLength(1);
   });
 
+  it('is for attorneys only', async () => {
+    const c = await prisma.user.create({
+      data: { role: 'client', first_name: 'Cl', last_name: 'Quick' },
+    });
+    const auth = bearer(c.id, 'client');
+    await api().get('/api/v1/quick-replies').set(auth).expect(403);
+    await api()
+      .post('/api/v1/quick-replies')
+      .set(auth)
+      .send({ title: 't', body: 'b' })
+      .expect(403);
+  });
+
+  it('two parallel adds never pass the cap', async () => {
+    const a = await lawyer('Qe');
+    await prisma.quickReply.createMany({
+      data: Array.from({ length: QUICK_REPLIES_MAX - 1 }, (_, i) => ({
+        user_id: a.id,
+        title: `t${i}`,
+        body: 'b',
+        position: i,
+      })),
+    });
+    const post = () =>
+      api()
+        .post('/api/v1/quick-replies')
+        .set(a.auth)
+        .send({ title: 'x', body: 'y' });
+    const codes = (await Promise.all([post(), post()])).map((r) => r.status);
+    expect(codes.sort()).toEqual([201, 400]);
+    expect(await prisma.quickReply.count({ where: { user_id: a.id } })).toBe(
+      QUICK_REPLIES_MAX,
+    );
+  });
+
   it('rejects empty and over-long text and stops at the cap', async () => {
     const a = await lawyer('Qd');
     await api()

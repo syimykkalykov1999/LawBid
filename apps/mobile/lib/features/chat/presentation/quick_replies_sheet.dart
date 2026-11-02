@@ -51,9 +51,13 @@ class _QuickRepliesSheetState extends ConsumerState<QuickRepliesSheet> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final list = ref.watch(quickRepliesProvider);
+    final all = list.value ?? const <QuickReply>[];
+    // The search field is shown with many replies only; a query typed
+    // before the list shrank must not keep hiding rows.
+    final searchable = all.length > 5;
     final rows = [
-      for (final r in list.value ?? const <QuickReply>[])
-        if (r.matches(_query)) r,
+      for (final r in all)
+        if (!searchable || r.matches(_query)) r,
     ];
     return SafeArea(
       child: Padding(
@@ -94,7 +98,7 @@ class _QuickRepliesSheetState extends ConsumerState<QuickRepliesSheet> {
                   ],
                 ),
               ),
-              if ((list.value?.length ?? 0) > 5)
+              if (searchable)
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.lg,
@@ -112,7 +116,13 @@ class _QuickRepliesSheetState extends ConsumerState<QuickRepliesSheet> {
                     ? Padding(
                         padding: const EdgeInsets.all(AppSpacing.xl),
                         child: Text(
-                          list.isLoading ? '' : t.t('quick.empty'),
+                          list.isLoading
+                              ? ''
+                              : list.hasError
+                                  ? errorText(t, list.error!)
+                                  : all.isEmpty
+                                      ? t.t('quick.empty')
+                                      : '',
                           style: type.body.copyWith(
                             color: colors.textSecondary,
                           ),

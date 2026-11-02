@@ -2350,15 +2350,26 @@ class _Composer extends ConsumerStatefulWidget {
 }
 
 class _ComposerState extends ConsumerState<_Composer> {
-  /// Opens the quick replies; the chosen text replaces the «/» (the field is
-  /// left as it was when nothing is chosen).
+  /// The field's text before the last change (a fresh «/» is told from a
+  /// backspace that leaves one).
+  String _lastText = '';
+
+  /// Opens the quick replies; the chosen text replaces the «/». Closing the
+  /// sheet without a choice leaves the «/» in the field.
   Future<void> _pickQuickReply() async {
     final text = await showQuickRepliesSheet(context);
     if (!mounted) return;
-    final c = widget.controller
-      ..text = text ?? ''
-      ..selection = TextSelection.collapsed(offset: (text ?? '').length);
-    widget.onTyping(c.text.isNotEmpty);
+    final c = widget.controller;
+    if (text != null && c.text == '/') {
+      c
+        ..text = text
+        ..selection = TextSelection.collapsed(offset: text.length);
+      _lastText = text;
+      widget.onTyping(true);
+    } else {
+      _lastText = c.text;
+      widget.onTyping(c.text.isNotEmpty);
+    }
     widget.focusNode.requestFocus();
   }
 
@@ -2409,10 +2420,25 @@ class _ComposerState extends ConsumerState<_Composer> {
       _paused = true;
       _elapsed = Duration(milliseconds: draft.durationMs);
     }
+    _lastText = widget.controller.text;
+    widget.controller.addListener(_watchSlash);
+  }
+
+  /// Owner 2026-11-02 (WhatsApp Business): a «/» typed into an empty field
+  /// opens the attorney's quick replies (a backspace that leaves a «/» does
+  /// not).
+  void _watchSlash() {
+    final text = widget.controller.text;
+    final fresh = text == '/' && _lastText.isEmpty;
+    _lastText = text;
+    if (fresh && ref.read(currentUserRoleProvider) == UserRole.attorney) {
+      unawaited(_pickQuickReply());
+    }
   }
 
   @override
   void dispose() {
+    widget.controller.removeListener(_watchSlash);
     _tick?.cancel();
     unawaited(_player.stopDraft());
     unawaited(_saveDraft());
@@ -2679,16 +2705,7 @@ class _ComposerState extends ConsumerState<_Composer> {
               maxLength: maxChars,
               buildCounter: noFieldCounter,
               textCapitalization: TextCapitalization.sentences,
-              onChanged: (v) {
-                // Owner 2026-11-02 (WhatsApp Business): «/» alone in the
-                // empty field opens the attorney's quick replies.
-                if (v == '/' &&
-                    ref.read(currentUserRoleProvider) == UserRole.attorney) {
-                  unawaited(_pickQuickReply());
-                  return;
-                }
-                widget.onTyping(v.isNotEmpty);
-              },
+              onChanged: (v) => widget.onTyping(v.isNotEmpty),
               onTap: widget.onFieldTap,
               style: type.body.copyWith(color: colors.text),
               decoration: InputDecoration(

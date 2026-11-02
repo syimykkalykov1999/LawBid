@@ -7,16 +7,20 @@ import 'package:lawbid/features/chat/data/quick_replies_repository.dart';
 /// Owner 2026-11-02: the attorney's quick replies are changed in place; a
 /// refused delete puts the row back.
 class _FakeRepo extends QuickRepliesRepository {
-  _FakeRepo({this.failDelete = false}) : super(Dio());
+  _FakeRepo({this.failDelete = false, this.failList = false}) : super(Dio());
 
   final bool failDelete;
+  final bool failList;
   final rows = <QuickReply>[
     const QuickReply(id: '1', title: 'Hello', body: 'Hi, how can I help?'),
     const QuickReply(id: '2', title: 'Fee', body: 'My fee is fixed.'),
   ];
 
   @override
-  Future<List<QuickReply>> list() async => [...rows];
+  Future<List<QuickReply>> list() async {
+    if (failList) throw StateError('offline');
+    return [...rows];
+  }
 
   @override
   Future<QuickReply> create(String title, String body) async =>
@@ -68,5 +72,16 @@ void main() {
       throwsStateError,
     );
     expect(c.read(quickRepliesProvider).value!.map((r) => r.id), ['1', '2']);
+  });
+
+  test('adding while the list failed to load does not hide the server rows',
+      () async {
+    final c = _container(_FakeRepo(failList: true));
+    addTearDown(c.dispose);
+    await expectLater(
+      c.read(quickRepliesProvider.notifier).add('New', 'text'),
+      throwsStateError,
+    );
+    expect(c.read(quickRepliesProvider).hasError, isTrue);
   });
 }

@@ -12,14 +12,18 @@ class QuickRepliesNotifier extends AsyncNotifier<List<QuickReply>> {
 
   /// Adds a reply; the error (limit, network) goes on to the caller.
   Future<void> add(String title, String body) async {
+    // The list must be loaded first: adding to a list that failed to load
+    // would hide the replies already on the server.
+    final before = await future;
     final made = await _repo.create(title, body);
-    state = AsyncData([...?state.value, made]);
+    state = AsyncData([...before, made]);
   }
 
   Future<void> edit(String id, String title, String body) async {
+    final before = await future;
     final made = await _repo.update(id, title, body);
     state = AsyncData([
-      for (final r in state.value ?? const <QuickReply>[])
+      for (final r in before)
         if (r.id == id) made else r,
     ]);
   }
