@@ -1176,6 +1176,11 @@ export const OWNER_STORAGE_SETTINGS = {
   'db.replica_reads': 'auto',
   // The ceiling of «auto»: max replica lag in ms (also per call via readDb).
   'db.replica_max_lag_ms': 5000,
+  // Owner 2026-11-02: db.replica_provision: auto = the read replica is created
+  // by itself after 3 h of primary CPU >= 75 % (once a day at most, only when
+  // Terraform gave the API the right to: db_replica_toggle); off = only the
+  // admin button creates it. Never deletes by itself.
+  'db.replica_provision': 'auto',
   'db.health_table_size_gb': 20,
   'db.health_dead_ratio_percent': 20,
   'storage.growth_alert_percent': 20,
