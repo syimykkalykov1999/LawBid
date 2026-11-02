@@ -9,6 +9,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { demoContext } from '../../common/demo/demo-context';
 import { shardCarry } from '../../sharding/shard-context';
 import { bullOptions } from '../../redis/redis-connection';
+import { closeQueueBounded } from '../../common/queues/close-queue';
 
 /**
  * Owner 2026-10-22 (server load audit, finding 7): a group message used to
@@ -78,6 +79,8 @@ export function fanoutQueueName(partition: number): string {
 export class GroupFanoutQueue
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
+  /** Shutdown bound for each queue's close (shorter in specs). */
+  protected closeTimeoutMs = 2000;
   private queues?: Queue<GroupFanoutJob>[];
 
   constructor(
@@ -87,7 +90,7 @@ export class GroupFanoutQueue
     this.logger.setContext(GroupFanoutQueue.name);
   }
 
-  async onApplicationBootstrap(): Promise<void> {
+  onApplicationBootstrap(): void {
     const url = this.config.get<string>('REDIS_URL');
     if (!url) return;
     this.queues = Array.from(
@@ -98,23 +101,34 @@ export class GroupFanoutQueue
           bullOptions(fanoutQueueName(i), url),
         ),
     );
-    // One job at a time per partition, whichever process runs it.
-    await Promise.all(
-      this.queues.map((q) =>
-        q
-          .setGlobalConcurrency(1)
-          .catch((error: unknown) =>
-            this.logger.warn(
-              { queue: q.name, err: errMsg(error) },
-              'group fan-out concurrency not set',
-            ),
+    this.configureInBackground();
+  }
+
+  /**
+   * One job at a time per partition, whichever process runs it. BullMQ
+   * answers only once its connection is ready, so this must not hold the
+   * boot: with Redis away at start the API never opened its port (load test
+   * 2026-11-02, PR #606 «проверка Redis»). The setting is idempotent and
+   * lands as soon as Redis is reachable; until then the workers run with
+   * the default concurrency.
+   */
+  configureInBackground(): void {
+    for (const q of this.queues ?? []) {
+      void q
+        .setGlobalConcurrency(1)
+        .catch((error: unknown) =>
+          this.logger.warn(
+            { queue: q.name, err: errMsg(error) },
+            'group fan-out concurrency not set',
           ),
-      ),
-    );
+        );
+    }
   }
 
   async onApplicationShutdown(): Promise<void> {
-    await Promise.all((this.queues ?? []).map((q) => q.close()));
+    await Promise.all(
+      (this.queues ?? []).map((q) => closeQueueBounded(q, this.closeTimeoutMs)),
+    );
   }
 
   /** Queues [job] (jobId [jobId]: a retried request queues nothing new)

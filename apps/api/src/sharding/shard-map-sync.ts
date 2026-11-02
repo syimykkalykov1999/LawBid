@@ -9,7 +9,10 @@ import {
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../redis/redis.constants';
 import { pubSubClient } from '../redis/redis-connection';
-import { subscribeInBackground } from '../redis/subscribe-in-background';
+import {
+  closeSubscriber,
+  subscribeInBackground,
+} from '../redis/subscribe-in-background';
 import { PrismaService, routingOf } from '../prisma/prisma.service';
 import { SHARD_MAP_CHANNEL } from './shard-router';
 
@@ -35,7 +38,14 @@ export class ShardMapSync implements OnModuleInit, OnModuleDestroy {
    * (redis/subscribe-in-background.ts); the TTL refresh covers the gap. */
   onModuleInit(): void {
     if (!this.redis || typeof this.redis.duplicate !== 'function') return;
-    this.sub = pubSubClient(this.redis);
+    try {
+      this.sub = pubSubClient(this.redis);
+    } catch (e) {
+      this.log.warn(
+        `shard_map pub/sub unavailable (TTL refresh only): ${String(e)}`,
+      );
+      return;
+    }
     subscribeInBackground(
       this.sub,
       SHARD_MAP_CHANNEL,
@@ -46,11 +56,7 @@ export class ShardMapSync implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    try {
-      await this.sub?.quit();
-    } catch {
-      this.sub?.disconnect();
-    }
+    if (this.sub) await closeSubscriber(this.sub);
   }
 
   /** Reload here now and tell every other process to reload. */

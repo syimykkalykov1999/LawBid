@@ -18,7 +18,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { pubSubClient } from '../../redis/redis-connection';
-import { subscribeInBackground } from '../../redis/subscribe-in-background';
+import {
+  closeSubscriber,
+  subscribeInBackground,
+} from '../../redis/subscribe-in-background';
 import {
   cleanPasted,
   PROVIDERS,
@@ -111,7 +114,12 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
    * the connection exists (redis/subscribe-in-background.ts). */
   onModuleInit(): void {
     if (typeof this.redis.duplicate !== 'function') return;
-    this.sub = pubSubClient(this.redis);
+    try {
+      this.sub = pubSubClient(this.redis);
+    } catch (e) {
+      this.logger.warn(`secrets pub/sub unavailable: ${String(e)}`);
+      return;
+    }
     subscribeInBackground(
       this.sub,
       CHANNEL,
@@ -124,11 +132,7 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    try {
-      await this.sub?.quit();
-    } catch {
-      this.sub?.disconnect();
-    }
+    if (this.sub) await closeSubscriber(this.sub);
   }
 
   // --- runtime ---------------------------------------------------------------

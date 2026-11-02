@@ -18,6 +18,7 @@ import {
 } from './push.constants';
 import { demoContext } from '../../../common/demo/demo-context';
 import { bullOptions } from '../../../redis/redis-connection';
+import { closeQueueBounded } from '../../../common/queues/close-queue';
 
 /** Chat messages are committed before they're queued: no delay. */
 const MESSAGE_JOB_OPTS = {
@@ -305,7 +306,7 @@ export class PushQueueService
   }
 
   async onApplicationShutdown(): Promise<void> {
-    await this.queue?.close();
+    await closeQueueBounded(this.queue);
   }
 }
 

@@ -4,6 +4,7 @@ import type { PrismaService } from '../../prisma/prisma.service';
 import { demoContext } from '../demo/demo-context';
 import { SecretEnvelope } from './secret-envelope';
 import { SecretsService } from './secrets.service';
+import { fakeSubscriber } from '../../redis/subscribe-in-background.spec';
 
 const KEYS = 'k1:0123456789abcdef0123456789abcdef';
 
@@ -110,26 +111,35 @@ describe('SecretsService.reencryptStores', () => {
   });
 });
 
-describe('SecretsService.onModuleInit without Redis (load test 2026-11-02)', () => {
-  it('returns at once while SUBSCRIBE is still waiting for a connection, and reacts to messages later', () => {
-    const handlers: ((c: string, m: string) => void)[] = [];
-    const sub = {
-      on: jest.fn((e: string, fn: (c: string, m: string) => void) => {
-        if (e === 'message') handlers.push(fn);
-      }),
-      subscribe: jest.fn(() => new Promise(() => undefined)),
-      quit: jest.fn(),
-    };
+describe('SecretsService without Redis (load test 2026-11-02)', () => {
+  it('onModuleInit returns while SUBSCRIBE still waits for a connection, the handler is wired, shutdown does not hang', async () => {
+    const { sub, handlers } = fakeSubscriber(
+      () => new Promise(() => undefined),
+    );
     const redis = { duplicate: jest.fn(() => sub) } as unknown as Redis;
     const service = new SecretsService(
       { integrationCredential: {} } as unknown as PrismaService,
       { get: () => undefined } as unknown as ConfigService,
       redis,
     );
-    const started = Date.now();
-    service.onModuleInit();
-    expect(Date.now() - started).toBeLessThan(100);
+    service.onModuleInit(); // synchronous by type: nothing to await
     expect(sub.subscribe).toHaveBeenCalledWith(expect.any(String));
     expect(handlers).toHaveLength(1);
+    await service.onModuleDestroy();
+    expect(sub.disconnect).toHaveBeenCalled(); // not ready → dropped, no queued QUIT
+  });
+
+  it('a duplicate() that throws degrades to «pub/sub unavailable», never a failed boot', () => {
+    const redis = {
+      duplicate: jest.fn(() => {
+        throw new Error('no duplicate');
+      }),
+    } as unknown as Redis;
+    const service = new SecretsService(
+      { integrationCredential: {} } as unknown as PrismaService,
+      { get: () => undefined } as unknown as ConfigService,
+      redis,
+    );
+    expect(() => service.onModuleInit()).not.toThrow();
   });
 });

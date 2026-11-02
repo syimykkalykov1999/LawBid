@@ -27,6 +27,7 @@ import {
   type FanoutSettings,
   type FraudAction,
 } from './case-fanout.settings';
+import { closeQueueBounded } from '../../../common/queues/close-queue';
 
 export const CASE_FANOUT_QUEUE = 'case-fanout';
 export const CASE_FANOUT_JOB = 'case.fanout.wave';
@@ -139,7 +140,7 @@ export class CaseFanoutService
   }
 
   async onApplicationShutdown(): Promise<void> {
-    await this.queue?.close();
+    await closeQueueBounded(this.queue);
   }
 
   /** The dedupe key of a case's alert rows. Generation 0 (the first
