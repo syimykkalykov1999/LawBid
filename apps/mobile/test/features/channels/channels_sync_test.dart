@@ -43,14 +43,27 @@ void main() {
           .map((x) => x.id)
           .toList();
 
+  test('only «my» lists open on the phone copy: discover and a search are live',
+      () async {
+    for (final key in [
+      mine,
+      (scope: ChannelScope.discover, query: ''),
+      (scope: ChannelScope.subscribed, query: 'tax'),
+    ]) {
+      final sub = c.listen(channelListProvider(key), (_, __) {});
+      addTearDown(sub.close);
+      await c.read(channelListProvider(key).future);
+    }
+    expect(repo.phoneReads, 1, reason: 'one list asked for a copy: «my»');
+  });
+
   test('my follow / unfollow is applied to the rows, 0 requests', () async {
     final sub = c.listen(channelListProvider(mine), (_, __) {});
     addTearDown(sub.close);
     expect(await ids(), ['a', 'b']);
     expect(fulls(), 1);
 
-    final hub = c.read(channelListHubProvider)
-      ..apply(fakeChannel(id: 'a'));
+    final hub = c.read(channelListHubProvider)..apply(fakeChannel(id: 'a'));
     await Future<void>.delayed(Duration.zero);
     expect(await ids(), ['b']);
 

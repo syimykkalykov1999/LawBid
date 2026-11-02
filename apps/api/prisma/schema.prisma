@@ -4490,6 +4490,7 @@ model PostViewEvent {
   @@index([post_id, viewer_id, kind, created_at(sort: Desc)])
   @@index([post_id, kind, created_at(sort: Desc)])
   @@index([viewer_id], map: "post_view_events_viewer_id_idx")
+  @@index([created_at], map: "post_view_events_created_idx")
   @@map("post_view_events")
 }
 
