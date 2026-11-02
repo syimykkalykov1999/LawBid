@@ -9,7 +9,7 @@
 2. **Генераторы — ПОСЛЕ мерджа main:** схема Prisma → `npm run db:erd --workspace apps/api`; контроллеры/DTO → `sh packages/api-contract/generate.sh`; новые строки UI → `node scripts/i18n-add.mjs …` + `node scripts/i18n-audit.mjs --ci`; новый кросс-модульный импорт → `UPDATE_BOUNDARIES=1 npx jest architecture/module-boundaries`; путь в `AndroidManifest.xml` → тот же в `scripts/seo/well-known.mjs` APP_PATHS. Закоммитить результат.
 3. **Красный шаг:** открыть лог (`gh api repos/…/actions/jobs/<id>/logs`), найти `FAIL … ›` / `##[error]`, чинить причину. Перезапуск — один раз и только при сетевом сбое (cocoapods/DNS/Trivy-зеркало). «Флак» не причина.
 4. **Тесты:** даты только относительные (от `Date.now()`); проверка `TIME_SHIFT_DAYS=45 npx jest --setupFiles '<rootDir>/../test/time-shift.setup.js' <spec>`. Тест не ходит в интернет. e2e-флак → в `apps/api/test/quarantine.json` с датой и причиной (максимум 3 дня), чинить; тест не отключать и не удалять ради зелёного.
-5. **Защита main:** required check — «Repo guards» (всегда есть; «CI gate» временно убран, держал раннеры) (включает владелец: Settings → Rules). Новые проверки без path-фильтра класть в `.github/workflows/repo-guards.yml`.
+5. **Защита main:** required check — **«Repo guards»** (идёт на каждом PR; «CI gate» удалён: опрашивающий job держал раннеры). Правило включает владелец: Settings → Rules. Новые проверки без path-фильтра класть в `.github/workflows/repo-guards.yml`.
 6. **Стек PR:** после слития A сразу `base` B → `main`. Ветка живёт ≤ суток без мерджа main. Своя ветка: новый коммит поверх, не force-push.
 7. **Никогда:** пустой коммит или закрыть/открыть PR ради CI; `--no-verify`; чужой/Dependabot PR не чинить без команды владельца; секрет-подобные фейки в файлах (`test-…-token`, иначе gitleaks); `graphify-out/` в коммит; слияние красного PR; сборки на телефон не по делу.
 8. Нашёл новую причину красного — строка в `KNOWN_ERRORS.md` в тот же час.
@@ -65,10 +65,5 @@
 
 **Правило для следующего чата:** после каждого действия обновлять этот раздел (что сделано / что нет) и `docs/dev/KNOWN_ERRORS.md`; правки с телефонов, присланные скриншотами, записывать текстом, сами скриншоты в публичный репозиторий не класть.
 
-## 7. Журнал шагов (одна строка на влитый шаг: что — PR/SHA — состояние)
-Правило владельца 01.11: после каждого влитого шага дописывать строку сюда на main. Мастер-аудит: [`MASTER_AUDIT_2026-11-01.md`](MASTER_AUDIT_2026-11-01.md).
-- 01.11 Мастер-аудит кода + 4 файла находок (`audit-2026-11-01/`) — PR аудита — в ревью.
-- 01.11 Область 2, шаг 1 (B-1,2,3,4,5,9,11,12,14,17): ключ «чат открыт» TTL 120 с с продлением; clamd 55M + «слишком большой» без ретраев; мёртвые FCM-токены; атомарный incrWithTtl; WS/IP 600; лимит комнат; unhandledRejection; storage fail-open — PR область 2 — в CI. Осталось: B-6,7,8,10,13,15,16(не мы),18.
-- 01.11 Звонки по образцу Сима Такси: iOS отчитывается о каждом VoIP-пуше (M1), ring 60 с (M2), сверка (Такси = Twilio, не переносим) — PR #538, ee289c8c — влито; ждёт тестов на телефонах (сценарий в `CALLS_REFERENCE_2026-10-28.md`), лаг-замер getStats не сделан.
-- 01.11 Аудит красного CI: watchdog без ложных тревог, audit-гейт не красит чужие PR, `Repo guards`, ночной детектор бомб времени — PR ветки claude/project-thread-vlopum — в ревью. `docs/dev/CI_FAILURES_AUDIT_2026-11-01.md`.
-- 01.11 Очередь CI: CodeQL и Container scan не на каждый push, concurrency, гейты деплоя не ждут чужие macOS/API-проверки — PR #551, a7c8254a — влито. Автосборки TestFlight/Play (`mobile-testers.yml`) выключены без `vars.MOBILE_TESTERS_ENABLED` — PR #534, 81cefe53 — влито.
+## 7. Журнал шагов
+Журнал ведётся в [`docs/dev/journal/`](journal/): один файл на шаг, имя `YYYY-MM-DD-prNNN-кратко.md` (дата, PR, SHA, что сделано, состояние). В эту таблицу строки больше не дописывать: параллельные PR конфликтовали на ней. См. AGENTS.md.
