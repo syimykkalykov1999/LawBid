@@ -1,4 +1,8 @@
 import {
+  communityQuery,
+  rankCommunities,
+} from '../../common/search/community-search';
+import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -17,6 +21,7 @@ import {
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaReadService } from '../../prisma/prisma-read.service';
 import { parseUpdatedSince, syncedAt } from '../../common/sync/sync.util';
 import {
   RealtimePublisher,
@@ -119,6 +124,8 @@ export class ChannelsService {
     // Owner 2026-10-22 (client economy plan, package F): `channel:post` to
     // the sockets that have the channel open.
     @Optional() private readonly realtime?: RealtimePublisher,
+    // Replica seam: the discover rows come from a cached snapshot anyway.
+    @Optional() private readonly read?: PrismaReadService,
   ) {}
 
   async assertEnabled(): Promise<void> {
@@ -208,25 +215,34 @@ export class ChannelsService {
       rows = adm.map((a) => a.channel);
       rows.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
     } else {
-      const term = (q ?? '').trim().replace(/^@/, '');
-      if (!term) return this.recommended(me, cursor);
+      const query = communityQuery(q ?? '');
+      // One letter is not a search yet: the recommended list stays.
+      if (!query) return this.recommended(me, cursor);
       const hidden = await this.blocks.hiddenIds(me);
-      rows = await this.prisma.channel.findMany({
+      const found = await this.prisma.channel.findMany({
         where: {
           status: 'active',
           owner_id: { notIn: [...hidden] },
-          ...(term
-            ? {
-                OR: [
-                  { title: { contains: term, mode: 'insensitive' } },
-                  { username: { contains: term.toLowerCase() } },
-                ],
-              }
-            : { post_count: { gt: 0 } }),
+          AND: query.words.map((w) => ({
+            OR: [
+              { title: { contains: w, mode: 'insensitive' as const } },
+              { username: { contains: w } },
+            ],
+          })),
         },
         orderBy: [{ subscriber_count: 'desc' }, { created_at: 'desc' }],
-        take: 30,
+        take: 200,
       });
+      rows = rankCommunities(
+        found,
+        query,
+        (c) => ({
+          title: c.title,
+          username: c.username,
+          size: c.subscriber_count,
+        }),
+        30,
+      );
     }
     const items = await this.presentChannels(rows, me);
     if (scope === 'discover') return { items, nextCursor: null };
@@ -251,7 +267,11 @@ export class ChannelsService {
     const nextCursor =
       start + 30 < ranked.length ? encodeOffset(start + 30) : null;
     if (ids.length === 0) return { items: [], nextCursor };
-    const found = await this.prisma.channel.findMany({
+    // Rows of a cached ranked snapshot: a few seconds of lag is invisible.
+    // My subscriptions (read-your-writes) stay on the primary below.
+    const found = await (
+      this.read?.readDb({ maxStalenessMs: 5000 }) ?? this.prisma
+    ).channel.findMany({
       where: { id: { in: ids }, status: 'active' },
     });
     const byId = new Map(found.map((c) => [c.id, c]));
@@ -591,7 +611,20 @@ export class ChannelsService {
     await this.assertEnabled();
     const ch = await this.findReadable(user.sub, id);
     const c = cursor ? decodeCursor(cursor) : null;
-    const rows = await this.prisma.channelPost.findMany({
+    // Replica seam: only OLDER pages (a cursor) of a reader's list come from
+    // the replica. The first page holds the newest posts (a push says "new
+    // post", the reader taps it: it must be there) and stays on the primary,
+    // as does the owner's and the admins' list (they just posted, edited or
+    // deleted: read-your-writes).
+    const staff =
+      !!c &&
+      (ch.owner_id === user.sub ||
+        (!isGuestId(user.sub) && !!(await this.roleOf(user.sub, ch.id))));
+    const rows = await (
+      c && !staff
+        ? (this.read?.readDb({ maxStalenessMs: 5000 }) ?? this.prisma)
+        : this.prisma
+    ).channelPost.findMany({
       where: {
         channel_id: ch.id,
         status: 'active',

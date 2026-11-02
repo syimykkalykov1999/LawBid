@@ -47,7 +47,7 @@ class GroupTopicList extends ConsumerWidget {
                       icon: AppIcons.forumOutlined,
                       message: t.t('group.topic.empty'),
                     )
-                  : RefreshIndicator(
+                  : AppRefreshIndicator(
                       onRefresh: () async {
                         ref.invalidate(groupTopicsProvider(id));
                         await ref.read(groupTopicsProvider(id).future);

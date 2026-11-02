@@ -55,6 +55,21 @@ export class AdminSummaryService {
     return this.refresh(key, compute, true);
   }
 
+  /** Stores a value computed elsewhere (an action that just rebuilt it). */
+  async put<T>(key: string, data: T): Promise<void> {
+    const summary: Summary<T> = { data, computedAt: new Date().toISOString() };
+    try {
+      await this.redis.set(
+        PREFIX + key,
+        JSON.stringify(summary),
+        'EX',
+        HARD_TTL_SECONDS,
+      );
+    } catch {
+      /* not shared, still right */
+    }
+  }
+
   /** What is stored now, or null. Never computes. */
   async peek<T>(key: string): Promise<Summary<T> | null> {
     let raw: string | null = null;

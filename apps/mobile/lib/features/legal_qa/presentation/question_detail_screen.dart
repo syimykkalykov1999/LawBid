@@ -232,7 +232,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
           data: (q) => Column(
             children: [
               Expanded(
-                child: RefreshIndicator(
+                child: AppRefreshIndicator(
                   color: colors.gold,
                   onRefresh: () async {
                     try {

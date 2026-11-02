@@ -77,7 +77,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             onRetry: retry,
           );
         },
-        data: (items) => RefreshIndicator(
+        data: (items) => AppRefreshIndicator(
           color: colors.gold,
           onRefresh: retry,
           child: _AccountBody(
@@ -213,32 +213,6 @@ class _AccountBody extends StatelessWidget {
                 for (final i in identifiers)
                   _IdentifierTile(t: t, identifier: i),
               ],
-      ),
-      AppListSection(
-        title: t.t('account.section.link'),
-        children: [
-          AccountTile(
-            icon: AppIcons.addCall,
-            title: t.t('account.link.phone'),
-            onTap: () => onContact(
-              ContactType.phone,
-              phoneVerified
-                  ? AccountContactMode.link
-                  : AccountContactMode.primary,
-            ),
-          ),
-          if (emailFlows)
-            AccountTile(
-              icon: AppIcons.markEmailUnreadOutlined,
-              title: t.t('account.link.email'),
-              onTap: () => onContact(
-                ContactType.email,
-                emailVerified
-                    ? AccountContactMode.link
-                    : AccountContactMode.primary,
-              ),
-            ),
-        ],
       ),
     ];
 

@@ -338,6 +338,17 @@ describe('Search text audit (e2e)', () => {
       expect(await search(q)).toContain(c.id);
     }
     expect(await search('yxplughnomatchzz')).toEqual([]);
+    // Owner 2026-10-28: each word may name the text, the topic or the
+    // place («развод бруклин», «dui texas»); every word must match one.
+    for (const q of [
+      `${tok}fence new jersey`,
+      `${topicEn} nj`,
+      `${topicRu} в ${city}`,
+      `${tok}hedge ${city}`,
+    ]) {
+      expect(await search(q)).toContain(c.id);
+    }
+    expect(await search(`${topicEn} yxplughnomatchzz`)).toEqual([]);
   });
 
   it('"My cases": description, city, state, topic RU/EN; the segment is respected', async () => {

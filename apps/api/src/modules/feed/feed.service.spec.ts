@@ -131,6 +131,38 @@ describe('FeedService recommendations depth (CONTENT H-3)', () => {
   });
 });
 
+describe('FeedService recommendation reads (load test round 2)', () => {
+  it('filters the chunk by id + author only and reads full rows for the picked posts', async () => {
+    const redis = fakeRedis({ snapshot: ids(1000), seen: new Set(ids(5)) });
+    const { svc, prisma } = build({ redis });
+    const page = await svc.page(viewer, undefined, 10);
+    expect(page.items.map((p) => p.id)).toEqual(ids(10, 5));
+    const calls = prisma.post.findMany.mock.calls.map(
+      (c) => c[0] as { where: { id?: { in: string[] } }; select?: unknown },
+    );
+    const chunk = calls.find((c) => c.select);
+    expect(chunk?.select).toEqual({ id: true, author_id: true });
+    expect(chunk?.where.id?.in).toHaveLength(195);
+    const full = calls.filter((c) => !c.select && c.where.id?.in);
+    expect(full[0].where.id?.in).toEqual(ids(10, 5));
+  });
+
+  it('a post gone between the two reads drops out with its snapshot rank', async () => {
+    const redis = fakeRedis({ snapshot: ids(1000) });
+    const { svc, prisma } = build({ redis });
+    prisma.post.findMany.mockImplementation(
+      (args: { where: { id?: { in: string[] } }; select?: unknown }) =>
+        Promise.resolve(
+          (args.where.id?.in ?? [])
+            .filter((id) => args.select || id !== 'p1')
+            .map((id) => postOf(id)),
+        ),
+    );
+    const first = await svc.page(viewer, undefined, 3);
+    expect(first.items.map((p) => p.id)).toEqual(['p0', 'p2']);
+  });
+});
+
 describe('FeedService cached first page (CONTENT M-3)', () => {
   it('re-checks the block set: a blocked author drops out of a cached page', async () => {
     const redis = fakeRedis({

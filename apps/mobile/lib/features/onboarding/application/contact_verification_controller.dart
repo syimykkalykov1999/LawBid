@@ -33,6 +33,7 @@ class ContactVerificationState {
     this.busy = false,
     this.error,
     this.attempt = 0,
+    this.passwordIdentity = false,
   });
 
   final ContactVerificationStage stage;
@@ -49,6 +50,10 @@ class ContactVerificationState {
   /// and resend countdown on it.
   final int attempt;
 
+  /// Owner 2026-10-28: [ContactVerificationStage.confirmIdentity] asks for
+  /// the account password (no SMS sent); false = the code path.
+  final bool passwordIdentity;
+
   ContactVerificationState copyWith({
     ContactVerificationStage? stage,
     String? value,
@@ -57,6 +62,7 @@ class ContactVerificationState {
     Object? error,
     bool clearError = false,
     int? attempt,
+    bool? passwordIdentity,
   }) =>
       ContactVerificationState(
         stage: stage ?? this.stage,
@@ -65,6 +71,7 @@ class ContactVerificationState {
         busy: busy ?? this.busy,
         error: clearError ? null : (error ?? this.error),
         attempt: attempt ?? this.attempt,
+        passwordIdentity: passwordIdentity ?? this.passwordIdentity,
       );
 }
 
@@ -109,7 +116,12 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
   /// identity confirmed for a first contact too, unless this session signed
   /// in minutes ago (onboarding stays one code long). Its
   /// `REAUTH_REQUIRED` answer moves on to the identity step here.
-  Future<void> sendCode(String value) => _guard(() async {
+  ///
+  /// Owner 2026-10-28: with [passwordFirst] (Settings → Account) the
+  /// identity is confirmed with the account password — no SMS — unless the
+  /// account has none; [useSmsCode] is «Забыли пароль?».
+  Future<void> sendCode(String value, {bool passwordFirst = false}) =>
+      _guard(() async {
         final me = ref.read(currentUserControllerProvider).user;
         final alreadyVerified = type == ContactType.phone
             ? (me?.phoneVerified ?? false)
@@ -135,24 +147,70 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
             }
           }
         }
-        final target = me?.reauthIdentifier;
-        if (target == null) {
-          throw const ApiException(
-            code: kNoReauthContactCode,
-            message: 'No verified contact',
+        if (passwordFirst && !(me?.passwordRequired ?? false)) {
+          state = state.copyWith(
+            stage: ContactVerificationStage.confirmIdentity,
+            value: value,
+            passwordIdentity: true,
+            attempt: state.attempt + 1,
           );
+          return;
         }
-        await ref.read(onboardingRepositoryProvider).requestReauthCode(
-              channel: target.channel,
-              identifier: target.identifier,
-            );
-        state = state.copyWith(
-          stage: ContactVerificationStage.confirmIdentity,
-          value: value,
-          reauthTarget: target.identifier,
-          attempt: state.attempt + 1,
-        );
+        await _sendIdentityCode(value);
       });
+
+  Future<void> _sendIdentityCode(String value) async {
+    final target =
+        ref.read(currentUserControllerProvider).user?.reauthIdentifier;
+    if (target == null) {
+      throw const ApiException(
+        code: kNoReauthContactCode,
+        message: 'No verified contact',
+      );
+    }
+    await ref.read(onboardingRepositoryProvider).requestReauthCode(
+          channel: target.channel,
+          identifier: target.identifier,
+        );
+    state = state.copyWith(
+      stage: ContactVerificationStage.confirmIdentity,
+      value: value,
+      reauthTarget: target.identifier,
+      passwordIdentity: false,
+      attempt: state.attempt + 1,
+    );
+  }
+
+  /// «Забыли пароль? Получить код по SMS» on the password identity step.
+  Future<void> useSmsCode() => _guard(() async {
+        final value = state.value;
+        if (value != null) await _sendIdentityCode(value);
+      });
+
+  /// The account password gave the reauth token: the code goes to the
+  /// new contact (same as [confirmIdentity] after the SMS code).
+  Future<void> confirmWithToken(String token) => _guard(() async {
+        final value = state.value;
+        if (value == null) return;
+        await _requestWithToken(value, token);
+      });
+
+  Future<void> _requestWithToken(String value, String token) async {
+    try {
+      await ref.read(onboardingRepositoryProvider).requestContactCode(
+            type: type,
+            value: value,
+            reauthToken: token,
+          );
+    } on ApiException {
+      state = state.copyWith(stage: ContactVerificationStage.editing);
+      rethrow;
+    }
+    state = state.copyWith(
+      stage: ContactVerificationStage.codeSent,
+      attempt: state.attempt + 1,
+    );
+  }
 
   /// Step 2: exchanges the identity code for a reauth token and sends the
   /// code to the new contact. A rejected contact (blocked domain, already
@@ -163,20 +221,7 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
         if (value == null || target == null) return;
         final repo = ref.read(onboardingRepositoryProvider);
         final token = await repo.reauth(identifier: target, code: code);
-        try {
-          await repo.requestContactCode(
-            type: type,
-            value: value,
-            reauthToken: token,
-          );
-        } on ApiException {
-          state = state.copyWith(stage: ContactVerificationStage.editing);
-          rethrow;
-        }
-        state = state.copyWith(
-          stage: ContactVerificationStage.codeSent,
-          attempt: state.attempt + 1,
-        );
+        await _requestWithToken(value, token);
       });
 
   /// Step 3: verifies the new contact, then refreshes `GET /users/me`.
@@ -194,7 +239,9 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
   /// Resend = a new identity confirmation (single-use reauth token).
   Future<void> resend() async {
     final value = state.value;
-    if (value != null) await sendCode(value);
+    if (value != null) {
+      await sendCode(value, passwordFirst: state.passwordIdentity);
+    }
   }
 
   /// Back to editing (change the number/address).

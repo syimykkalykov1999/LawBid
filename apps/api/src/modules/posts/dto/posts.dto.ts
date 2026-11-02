@@ -267,13 +267,16 @@ export class PostIdParamDto {
   id!: string;
 }
 
-/** Owner 2026-10-12: where to pin a post — slot 1, 2 or 3. */
+/** Owner 2026-10-12: where to pin a post — slot 1..3; owner 2026-10-28:
+ * 1..6 (two rows of three in the app). */
+export const MAX_PIN_SLOT = 6;
+
 export class PinPostDto {
-  @ApiProperty({ type: 'integer', minimum: 1, maximum: 3 })
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: MAX_PIN_SLOT })
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(3)
+  @Max(MAX_PIN_SLOT)
   slot!: number;
 }
 
@@ -606,7 +609,8 @@ export class PostDto {
   })
   editedAt!: string | null;
 
-  /** Owner 2026-10-12: 1..3 when pinned to the top of the author's list. */
+  /** Owner 2026-10-12: 1..6 (was 1..3 until 2026-10-28) when pinned to the
+   * top of the author's list. */
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   pinSlot?: number | null;
 

@@ -89,3 +89,34 @@ Another Claude account may pick this up. Read ALL of this before doing anything.
 
 ## 6. VERY LAST TASK (the owner's "everything is done" signal)
 ONLY after every item above is finished: the verified checkmark badges (attorney green, client badge) look greyish in some themes. Fix ONLY their colors per theme (Day, Night, Blue, Green) so each is clearly visible; keep the icon shape and size. If anything else is unfinished, do NOT do this, because the owner uses it to know all work is complete.
+
+---
+
+## СТАТУС ПРАВОК (01.11, ветка `claude/project-thread-v0m4cp`, PR в main)
+Полный список «просил/сделано/не сделано» — `docs/HANDOFF_MAC_2026-10-29.md`; слова владельца — `docs/dev/owner-requests/`.
+Статусы: сделано SHA / в работе / не решено после 4 попыток.
+
+| Пункт | Статус |
+|---|---|
+| Слиты в рабочую ветку: #525 R8, #526 правила, #522 VoIP→CallKit, #523 план звонков, #517 скрытие счётчиков, `reels-freeze`, `pull-refresh`, `archive-reauth`, `no-extra-phone`, `privacy-follow`, #515, #520 поиск, #516 реестры | слито (конфликты решены; xlsx переводов объединён по ключам); проверка — CI этого PR |
+| Ветка `claude/mac-rescue-2026-10-29` целиком | не слита: конфликты ios pbxproj/entitlements, контакты, чат; в рабочую ветку взяты только документы |
+| Звонки: лаги (п. 4) | не начато: нужен замер на телефоне |
+| Местоположение в чате (п. 36) | сделано в #535 (кнопка «Моё местоположение», GPS бесплатно, 85 языков); нужна декларация Data safety (геолокация) в Play Console |
+| Поиск (п. 29–33) | людей/дел/мастера дела — в #535; стартовый экран — плейсхолдеры вместо пустоты; CJK от 2 знаков; посты/темы — индексы FTS+trigram уже есть, не проверено на телефоне |
+| Уведомления кейсов (п. 34) | код проверен: 13 типов отправляются, темы и переходы есть; если не приходят на телефоне — FCM/настройки, проверка на устройстве |
+| Загрузка кусками, сжатие, плавность (п. 35, 37) | тред «Закрыть все пункты сверки» (#537) и тред «Ускорить мобилку» |
+| Очередь после слияния #535 | п.8, 11 (проверить), 15, 16, 17, 20, 21, 10, 13, 14, 9, плеер рилсов |
+
+## Экономный режим до релиза (2026-11-02)
+Убрать Multi-AZ базы и второй узел Redis до релиза (≈ $1,6/сутки), вернуть перед запуском. Команды и чек-лист «вернуть перед релизом»: `docs/runbooks/pre-release-cost-mode.md`, профиль `infra/envs/prod/pre-release.tfvars.example`. Apply только с Мака, с одобрения владельца.
+
+## Решения для владельца
+- «Чаты» в Сохранённом (п. 19): оставлено как есть, ответа не было.
+- Ветка mac-rescue не слита целиком: там снимок несохранённой работы Mac (контакты, стикеры, iOS-проект) — конфликтует с main; брать частями по команде.
+
+## Ждёт устройства или решения (02.11)
+| Пункт | Что нужно |
+|---|---|
+| Certificate pinning | этап телефонных сборок: проверка на Samsung и iPhone, запасной ключ (primary+backup), kill-switch; без устройства не включать |
+| VoiceOver / TalkBack | этап телефонных сборок: пройти экраны экранным диктором на устройстве; в коде метки есть, на телефоне не проверено |
+| Покадровая проверка видео (#597) | флаг выключен. Rekognition и Bunny sandbox/mock в репозитории нет, настоящий прогон возможен только на проде с дневным лимитом. Включение: `gh workflow run container-scan.yml -f with_ffmpeg=true` → зелёный → `gh variable set WITH_FFMPEG --body 1` → деплой → в админке `moderation.video.frames_enabled` |

@@ -63,6 +63,8 @@ export class VersionEtagService {
         share_count: number;
         view_count: number;
         repost_count: number;
+        hide_likes: boolean;
+        hide_views: boolean;
         author_updated_at: Date;
         liked: boolean;
         reposted: boolean;
@@ -72,6 +74,7 @@ export class VersionEtagService {
     >`
       SELECT p.updated_at, p.status::TEXT AS status, p.like_count,
              p.comment_count, p.save_count, p.share_count, p.view_count,
+             p.hide_likes, p.hide_views,
              (SELECT COUNT(*)::INT FROM post_reposts rc
                WHERE rc.post_id = p.id) AS repost_count,
              u.updated_at AS author_updated_at,
@@ -105,6 +108,10 @@ export class VersionEtagService {
       r.share_count,
       r.view_count,
       r.repost_count,
+      // Owner 2026-10-28: a counter the author hides / shows changes the
+      // answer for others at once (not only through updated_at).
+      r.hide_likes ? 1 : 0,
+      r.hide_views ? 1 : 0,
       r.author_updated_at,
       r.liked ? 1 : 0,
       r.reposted ? 1 : 0,

@@ -202,7 +202,7 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
         value: value,
         t: t,
         onRetry: () => ref.invalidate(bidProvider(widget.bidId)),
-        builder: (b) => RefreshIndicator(
+        builder: (b) => AppRefreshIndicator(
           color: colors.gold,
           backgroundColor: colors.sheet,
           onRefresh: () async {
