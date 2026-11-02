@@ -51,6 +51,7 @@ const t = {
   http_req_failed: abort(`rate<${LIMITS.abort_error_rate}`),
   http_req_duration: abort(`p(95)<${LIMITS.abort_p95_ms}`),
 };
+if (__ENV.WRITES === '1') t.post_created = ['rate>0.5']; // posts really written, not just answered
 for (const n of ENDPOINTS) {
   t[`http_req_duration{name:${n}}`] = ['max>=0'];
   t[`http_req_failed{name:${n}}`] = ['rate>=0'];

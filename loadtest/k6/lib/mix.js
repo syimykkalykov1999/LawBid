@@ -11,7 +11,11 @@
 //   notifications, cases + bids, one post
 //   admin ~5 %  : lists, search, and ONE csv export in ~300 admin actions
 //   static ~10 %: web assets through CloudFront (CDN_URL), if set
+import { Rate } from 'k6/metrics';
 import { get, post, asset, json } from './http.js';
+
+// share of post_create calls that really created a post (201); a gate in vus.js when WRITES=1
+export const postCreated = new Rate('post_created');
 import {
   clientToken, attorneyToken, conversation, pick, rnd,
   POSTS, CASES, USERNAMES, ASSETS, ADM, LANGS,
@@ -86,9 +90,10 @@ const actions = [
     if (c) get(`/cases/${c.id}/bids`, c.t, 'case_bids');
   }],
   // WRITES=1 only (weight 0 otherwise = never drawn): an attorney publishes a post
-  // (docs/perf/LOAD_LADDER_2026-11-02.md). 429/403/422 = a limit or rule answered, counted by api_429, not a failure here.
+  // (docs/perf/LOAD_LADDER_2026-11-02.md). 429/403/422 = a limit or rule answered: not an HTTP failure, but post_created must stay > 50 %.
   ['post_create', __ENV.WRITES === '1' ? 3 : 0, 1, () => {
-    post('/posts', { title: `load ${Date.now()}`, body: `load test post ${uuid()}` }, attorneyToken(rnd), 'post_create', { 'Idempotency-Key': uuid() }, [403, 422, 429]);
+    const r = post('/posts', { title: `load ${Date.now()}`, body: `load test post ${uuid()}` }, attorneyToken(rnd), 'post_create', { 'Idempotency-Key': uuid() }, [403, 422, 429]);
+    postCreated.add(r.status === 201);
   }],
   ['admin', 5, 1.2, () => {
     const t = pick(ADM);
