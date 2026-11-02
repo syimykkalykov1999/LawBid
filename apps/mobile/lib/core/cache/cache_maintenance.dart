@@ -120,8 +120,13 @@ class CacheMaintenance {
       case CacheStore.video:
         // The video chunk cache (reels and chat videos), 2026-11-02: it was
         // never measured here, so «Очистить» left up to its whole limit.
-        await VideoCache.clear();
-        await _video.clear();
+        // A running proxy owns the folder and empties it itself; without
+        // one the folder is deleted here.
+        if (VideoCache.running) {
+          await VideoCache.clear();
+        } else {
+          await _video.clear();
+        }
       case CacheStore.other:
         await _db.clearOther();
       case CacheStore.files:
