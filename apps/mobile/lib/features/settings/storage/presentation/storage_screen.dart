@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/text/byte_size.dart';
 import 'package:lawbid/features/settings/storage/application/storage_providers.dart';
+import 'package:lawbid/features/settings/storage/presentation/chat_media_screen.dart';
 
 /// Owner 2026-10-22 (client economy plan §5.2, Telegram «Данные и
 /// память»): what the app keeps on the phone, by category, with
@@ -69,6 +70,22 @@ class StorageScreen extends ConsumerWidget {
                 ),
             ],
           ),
+          // Owner 2026-11-02: the chat pictures by chat, once there are any.
+          if ((report.value?.of(CacheStore.chatMedia) ?? 0) > 0)
+            AppListSection(
+              children: [
+                AppListRow(
+                  key: const ValueKey('storage-by-chat'),
+                  icon: AppIcons.chatBubbleOutlineRounded,
+                  label: t.t('storage.cat.chat_media'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const ChatMediaScreen(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           AppListSection(
             title: t.t('storage.section.rules'),
             children: [

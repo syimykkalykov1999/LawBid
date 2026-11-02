@@ -147,6 +147,21 @@ class FileViewsSync extends Table {
 /// The cache database (`lawbid_cache`). On the web build it lives only in
 /// the tab's memory (plan §5: a shared or private computer keeps nothing
 /// of the account on disk); on phones it is a file the OS protects.
+/// Owner 2026-11-02 («Данные и память» по чатам, как у Telegram): which
+/// chat a cached chat picture came from. The picture cache is keyed by URL,
+/// so without this the phone cannot tell whose pictures take the space.
+/// Sizes are not stored: they are read from the cache's own files when the
+/// screen is measured.
+@DataClassName('ChatMediaFileRow')
+class ChatMediaFiles extends Table {
+  TextColumn get url => text()();
+  TextColumn get conversationId => text()();
+  DateTimeColumn get notedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {url};
+}
+
 @DriftDatabase(
   tables: [
     HttpCache,
@@ -158,6 +173,7 @@ class FileViewsSync extends Table {
     CachedTranslations,
     CachedFileViews,
     FileViewsSync,
+    ChatMediaFiles,
   ],
 )
 class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
@@ -165,10 +181,11 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
       : super(executor ?? appDriftCacheDatabase('lawbid_cache'));
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   // v2 (owner 2026-10-24): the view lists of case documents - two new
   // tables; nothing existing changes.
+  // v3 (owner 2026-11-02): chat picture -> chat, one new table.
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
@@ -177,8 +194,47 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
             await m.createTable(cachedFileViews);
             await m.createTable(fileViewsSync);
           }
+          if (from < 3) {
+            await m.createTable(chatMediaFiles);
+          }
         },
       );
+
+  // --- chat media index ---------------------------------------------------
+
+  /// Remembers that these cache [keys] were shown in [conversationId] (the
+  /// newest chat wins when the same picture is in two).
+  Future<void> noteChatMedia(
+    String conversationId,
+    Iterable<String> keys,
+    DateTime now,
+  ) =>
+      batch((b) {
+        for (final key in keys) {
+          b.insert(
+            chatMediaFiles,
+            ChatMediaFilesCompanion.insert(
+              url: key,
+              conversationId: conversationId,
+              notedAt: now,
+            ),
+            onConflict: DoUpdate(
+              (_) => ChatMediaFilesCompanion(
+                conversationId: Value(conversationId),
+                notedAt: Value(now),
+              ),
+            ),
+          );
+        }
+      });
+
+  Future<List<ChatMediaFileRow>> chatMediaRows() =>
+      select(chatMediaFiles).get();
+
+  Future<void> forgetChatMedia(Iterable<String> keys) =>
+      (delete(chatMediaFiles)..where((r) => r.url.isIn(keys))).go();
+
+  Future<void> forgetAllChatMedia() => delete(chatMediaFiles).go();
 
   // --- http cache -------------------------------------------------------
 
