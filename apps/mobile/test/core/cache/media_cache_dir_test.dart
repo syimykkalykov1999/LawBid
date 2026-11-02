@@ -35,6 +35,21 @@ void main() {
       expect(await files().size(), 15);
     });
 
+    test('a suffix keeps a half-downloaded .part file out', () async {
+      write('voice_cache_a.m4a', 10);
+      final part = write('voice_cache_b.m4a.part', 50);
+      final f = PrefixedTempFiles(
+        'voice_cache_',
+        suffix: '.m4a',
+        root: () async => root,
+      );
+      expect(await f.size(), 10);
+      await f.clear();
+      await f.trimTo(0);
+      await f.dropOlderThan(Duration.zero);
+      expect(part.existsSync(), isTrue);
+    });
+
     test('clear removes them and leaves everything else', () async {
       write('voice_cache_a.m4a', 10);
       final other = write('other.bin', 100);

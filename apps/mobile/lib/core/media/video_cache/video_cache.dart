@@ -37,6 +37,29 @@ abstract final class VideoCache {
   static bool _failed = false;
   static int _sentMaxBytes = -1;
 
+  /// The user's lower limit from «Данные и память» (null = none set).
+  static int? _userMaxBytes;
+
+  /// The proxy's byte limit: the administrator's tuning, lowered by the
+  /// user's choice.
+  static int get _maxBytes {
+    final tuned = ClientTuning.videoCacheMb * 1024 * 1024;
+    final user = _userMaxBytes;
+    return user == null || user >= tuned ? tuned : user;
+  }
+
+  /// Applies the user's limit for «Видео» (also to a running proxy).
+  static void limitTo(int bytes) {
+    _userMaxBytes = bytes;
+    if (_commands != null && _maxBytes != _sentMaxBytes) {
+      _sentMaxBytes = _maxBytes;
+      _commands?.send(('max', _maxBytes));
+    }
+  }
+
+  /// Completes once a proxy that is starting is up (or failed to start).
+  static Future<void> settled() async => await _starting;
+
   static bool get enabled =>
       !kIsWeb && ClientTuning.videoCacheMb > 0 && !_failed;
 
@@ -49,7 +72,7 @@ abstract final class VideoCache {
       unawaited(_ensureStarted());
       return url;
     }
-    final max = ClientTuning.videoCacheMb * 1024 * 1024;
+    final max = _maxBytes;
     if (max != _sentMaxBytes) {
       _sentMaxBytes = max;
       _commands?.send(('max', max));
@@ -67,7 +90,7 @@ abstract final class VideoCache {
         try {
           final base = await getTemporaryDirectory();
           final ready = ReceivePort();
-          final maxBytes = ClientTuning.videoCacheMb * 1024 * 1024;
+          final maxBytes = _maxBytes;
           await Isolate.spawn<_ProxyStart>(
             _proxyMain,
             _ProxyStart(
