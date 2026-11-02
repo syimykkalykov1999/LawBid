@@ -103,7 +103,7 @@ class _MentionSuggestionsState extends ConsumerState<MentionSuggestions> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return AnimatedSize(
-      duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+      duration: context.sizeChangeDuration,
       alignment: Alignment.topCenter,
       child: _people.isEmpty
           ? const SizedBox(width: double.infinity)

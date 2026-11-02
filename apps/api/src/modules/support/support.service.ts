@@ -122,50 +122,54 @@ export class SupportService {
     );
     await this.attachments.assertAttachable(userId, dto.attachments);
     const now = new Date();
-    const { ticket, messages } = await withTxRetry(this.prisma, async (tx) => {
-      // Owner 2026-10-05: the ticket belongs to the asker's country, so
-      // staff assigned to that country see it.
-      const asker = await tx.user.findUnique({
-        where: { id: userId },
-        select: { country_code: true, role: true },
-      });
-      const t = await tx.supportTicket.create({
-        data: {
-          user_id: userId,
-          country_code: asker?.country_code ?? 'US',
-          subject: dto.subject,
-          category: dto.category,
-          status: 'open',
-          unread_by_admin: true,
-          unread_by_user: false,
-          last_message_at: now,
-          client_context:
-            buildClientContext(dto.context, {
-              id: userId,
-              role: asker?.role ?? null,
-            }) ?? undefined,
-        },
-      });
-      const m = await tx.supportMessage.create({
-        data: { ticket_id: t.id, author_user_id: userId, body: dto.body },
-      });
-      await this.attachments.attach(tx, m.id, dto.attachments);
-      // Owner 2026-10-05: SLA clock, an agent on shift, after-hours answer.
-      const lang = await tx.user.findUnique({
-        where: { id: userId },
-        select: { ui_language: true },
-      });
-      const autoId = await this.desk.onCreated(
-        tx,
-        t,
-        lang?.ui_language ?? 'en',
-        now,
-      );
-      const auto = autoId
-        ? await tx.supportMessage.findUnique({ where: { id: autoId } })
-        : null;
-      return { ticket: t, messages: auto ? [m, auto] : [m] };
-    });
+    const { ticket, messages } = await withTxRetry(
+      this.prisma,
+      async (tx) => {
+        // Owner 2026-10-05: the ticket belongs to the asker's country, so
+        // staff assigned to that country see it.
+        const asker = await tx.user.findUnique({
+          where: { id: userId },
+          select: { country_code: true, role: true },
+        });
+        const t = await tx.supportTicket.create({
+          data: {
+            user_id: userId,
+            country_code: asker?.country_code ?? 'US',
+            subject: dto.subject,
+            category: dto.category,
+            status: 'open',
+            unread_by_admin: true,
+            unread_by_user: false,
+            last_message_at: now,
+            client_context:
+              buildClientContext(dto.context, {
+                id: userId,
+                role: asker?.role ?? null,
+              }) ?? undefined,
+          },
+        });
+        const m = await tx.supportMessage.create({
+          data: { ticket_id: t.id, author_user_id: userId, body: dto.body },
+        });
+        await this.attachments.attach(tx, m.id, dto.attachments);
+        // Owner 2026-10-05: SLA clock, an agent on shift, after-hours answer.
+        const lang = await tx.user.findUnique({
+          where: { id: userId },
+          select: { ui_language: true },
+        });
+        const autoId = await this.desk.onCreated(
+          tx,
+          t,
+          lang?.ui_language ?? 'en',
+          now,
+        );
+        const auto = autoId
+          ? await tx.supportMessage.findUnique({ where: { id: autoId } })
+          : null;
+        return { ticket: t, messages: auto ? [m, auto] : [m] };
+      },
+      { isolation: 'readCommitted', op: 'support.create' },
+    );
     const files = await this.attachments.forMessages(messages.map((m) => m.id));
     return {
       ...presentTicket(ticket),

@@ -175,7 +175,7 @@ describe('RealtimeGateway session revocation (finding 5)', () => {
     const redis = {
       duplicate: jest
         .fn()
-        .mockReturnValueOnce({ spublish: jest.fn() })
+        .mockReturnValueOnce({ spublish: jest.fn(), on: jest.fn() })
         .mockReturnValueOnce({ ssubscribe: jest.fn(), on: jest.fn() })
         .mockReturnValueOnce(sub),
       srem: jest.fn(),

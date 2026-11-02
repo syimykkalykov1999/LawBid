@@ -2,7 +2,7 @@
 
 Цель владельца: сломать и починить всё **до** живых пользователей, чтобы первые люди не получили плохой отзыв. Интернет владельца 1,3–2 Мбит/с, поэтому нагрузка идёт **не по сети на прод**, а целиком на ноутбуке: весь сервер (API, воркер, Postgres, Redis, PgBouncer) в Docker и генератор k6 там же. Прод в этом не участвует (k6 сам отказывается идти на боевые адреса).
 
-Состояние: **сценарии и скрипт написаны, но на ноутбуке ещё не запускались.** Всё, что ниже названо «проверено», относится к прогону 28.10 (`LOCAL_LOAD_TEST_2026-10-28.md`); новое помечено «не прогонялось».
+Состояние: ступени `r100`, `r1k`, `r3k`, `s10k` **прогнаны 2 ноября** — результаты и находки в `LOAD_TEST_2026-11-02.md` (`r1k` остановилась по правилу: база 2 CPU и поиск людей по имени; `r1kw` и `auth` ещё не гонялись). Ниже — исходная инструкция. Всё, что ниже названо «проверено», относится к прогону 28.10 (`LOCAL_LOAD_TEST_2026-10-28.md`); новое помечено «не прогонялось».
 
 ## Что уже было (не переписывали)
 
@@ -56,7 +56,11 @@
 ```sh
 # 1. собрать образы и поднять стенд (команды docker build — в шапке compose.yml)
 ./make-env.sh && AUTH_TEST=1 ./make-env.sh && docker compose up -d   # make-env.sh не затирает готовый api.env (FORCE=1 — затереть, тогда заново prepare.sh)
-# 2. залить данные (если том lawbid-lt-pgdata уже есть — пропустить); ~10 мин
+# 1а. база с нуля (если тома lawbid-lt-pgdata нет): создать, прогнать миграции образом API, пароль роли, статистика запросов, демо-база
+docker exec -i lawbid-lt-postgres-1 psql -U root -d postgres -c "CREATE DATABASE lawbid_lt" -c "CREATE DATABASE lawbid_lt_demo"
+docker run --rm --network lawbid-lt_default -e DATABASE_URL=postgresql://root:lawbid@postgres:5432/lawbid_lt lawbid-lt-api-dev:local sh -c "npx prisma migrate deploy && node prisma/run-concurrent.mjs"
+docker exec -i lawbid-lt-postgres-1 psql -U root -d lawbid_lt -c "ALTER ROLE lawbid_app WITH LOGIN PASSWORD 'lawbid_app_lt'" -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements" -c "ALTER DATABASE lawbid_lt_demo OWNER TO lawbid_app"
+# 2. залить данные (если том lawbid-lt-pgdata уже есть — пропустить); ~10–22 мин (на время засева базе можно дать 8 CPU: docker update --cpus 8 lawbid-lt-postgres-1, после — вернуть 2)
 ./seed.sh 10 lawbid_lt 8 && docker exec -i lawbid-lt-postgres-1 psql -U root -d lawbid_lt < licenses.sql
 # 3. завести тестовые аккаунты (больше, чем людей: у каждого лимит 100 запросов в минуту)
 ./prepare.sh ~/loadtest/results/fx-1m 12000 3000 0
@@ -67,6 +71,8 @@ systemd-run --user --unit=lt-watch -E WATCH_PG=1 bash watch.sh
 ./ladder.sh ~/loadtest/results/fx-1m r1kw r3k s10k
 ./ladder.sh ~/loadtest/results/fx-1m auth
 ```
+
+**Если Docker — это Docker Desktop (виртуальная машина), а не нативный Docker Engine:** дать VM память (`~/.docker/desktop/settings-store.json`: `"MemoryMiB": 45056`, `"Cpus": 32`, затем `systemctl --user restart docker-desktop`) и гонять ступени с `API_CPUS=2 ./ladder.sh …` — в VM cgroup-квота в 1 CPU режет задачу API втрое, с квотой 2 CPU задача равна задаче 28.10 (замер и разбор: `LOAD_TEST_2026-11-02.md`, «Стенд»). После перезапуска Desktop поднимаются только `api`/`worker`, остальное — `docker compose up -d` заново.
 
 **Куда смотреть.** После каждой ступени скрипт печатает таблицу (запросов/с, ошибки %, p50/p95/p99, самые медленные места). Сырое — `~/loadtest/results/<дата-ступень>/`: `summary.json`, `k6.log`, `pgss_top.txt` (самые тяжёлые запросы к базе), `stats.log` (процессор и память контейнеров), `temp.log`. «Зелёное» — по таблице выше; красное — строка `rung … FAILED`, там же путь к результатам.
 

@@ -9,7 +9,7 @@ const SESSION_COOKIE = 'lawbid_admin';
  * Audit #8: every page response also gets a per-request nonce CSP
  * (lib/csp.ts). The nonce reaches the app as the `x-nonce` request header;
  * Next.js puts it on its own scripts, the root layout on the theme script. */
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const nonce = newNonce();
   const csp = buildCsp({
     nonce,
