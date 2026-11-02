@@ -30,7 +30,10 @@ temps = []
 
 def run(sql):
     t = time.time()
-    p = subprocess.run(['docker', 'exec', '-i', '-e', 'PGOPTIONS=-c synchronous_commit=off -c statement_timeout=0',
+    # SEED_PGOPTIONS: extra server settings for the load (the 10M run uses
+    # `-c enable_hashjoin=off -c work_mem=256MB`: at that scale the planner
+    # hashed all 31M posts for a 3M-row update instead of 3M index probes).
+    p = subprocess.run(['docker', 'exec', '-i', '-e', 'PGOPTIONS=-c synchronous_commit=off -c statement_timeout=0 ' + os.environ.get('SEED_PGOPTIONS', ''),
                         PG, 'psql', '-U', 'root', '-d', db, '-v', 'ON_ERROR_STOP=1', '-q', '-X'],
                        input=sql + ';\n', text=True, capture_output=True)
     if p.returncode != 0:
@@ -39,7 +42,9 @@ def run(sql):
 
 def chunks(s):
     m = re.search(r'generate_series\(1,(\d+)\) g\b', s)
-    if s.upper().startswith('INSERT') and m and int(m.group(1)) >= BIG:
+    # INSERT ... generate_series and (10M run) WITH x AS (generate_series) UPDATE:
+    # residue split keeps each worker on its own rows, so no deadlocks.
+    if s.upper().startswith(('INSERT', 'WITH', 'UPDATE')) and m and int(m.group(1)) >= BIG:
         n = m.group(1)
         return [s.replace(m.group(0), f'(SELECT x AS g FROM generate_series(1,{n}) x WHERE x % {K} = {i}) g', 1) for i in range(K)]
     m = re.search(r'FROM nums WHERE g <= (\d+)', s)
