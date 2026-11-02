@@ -9,8 +9,10 @@ prorated by time. At 80 % of the limit it warns; at 100 % it cancels the GitHub
 run: the workflow's `always()` steps then DESTROY the stack (same path as any
 failed run), and the hourly watchdog is the next net.
 
-If it cannot read AWS 3 times in a row it falls back to the profile's estimated
-hourly burn x 1.5 (pessimistic) - it never goes blind and quiet.
+If it cannot read AWS (any single failure) it falls back to the profile's estimated
+hourly burn x 1.5 (pessimistic) - it never goes blind and quiet. A reading that
+succeeds but is below 40 % of the profile's average burn is treated as incomplete
+(an unpriced or not-yet-tagged resource) and raised to that floor.
 
 usage: cost-guard.py <limit-usd> <profile> [--once]   (--once: print the burn and exit)
 env:   RUN_ID (tag RunId), AWS_REGION, GITHUB_RUN_ID + GH_TOKEN (to cancel), POLL=60
@@ -26,6 +28,9 @@ ROOT = os.path.dirname(HERE)
 PRICES = json.load(open(os.path.join(ROOT, "prices.json")))
 HOURS_MONTH = 730
 PER_USE_PREFIXES = ("CloudFront", "WAF", "Data transfer")
+UNKNOWN_RDS_HOUR = 6.0  # a class missing from prices.json: about a 4xlarge, never free
+UNKNOWN_REDIS_NODE_HOUR = 1.0
+FLOOR_SHARE = 0.4  # a reading below this share of the profile's average burn is treated as incomplete
 
 
 def burn_per_hour(inv, p=PRICES):
@@ -36,9 +41,9 @@ def burn_per_hour(inv, p=PRICES):
     for t in inv.get("fargate", []):  # on-demand price: Spot is cheaper, never undercount
         usd += t["count"] * (t["vcpu"] * p["fargate_vcpu_hour"] + t["gb"] * p["fargate_gb_hour"])
     for cls in inv.get("rds", []):
-        usd += p["rds"].get(cls, max(p["rds"].values()) * 2)  # unknown class: assume twice the biggest known
+        usd += p["rds"].get(cls, UNKNOWN_RDS_HOUR)  # unknown class: fixed pessimistic price, not a function of the biggest row
     for r in inv.get("redis", []):
-        usd += r["nodes"] * p["redis"].get(r["type"], max(p["redis"].values()) * 2)
+        usd += r["nodes"] * p["redis"].get(r["type"], UNKNOWN_REDIS_NODE_HOUR)
     for e in inv.get("ec2", []):
         price = p["ec2"].get(e["type"], 0.30)
         usd += price * (p["spot_factor"] if e.get("spot") else 1)
@@ -113,12 +118,17 @@ def cancel_run():
     run = os.environ.get("GITHUB_RUN_ID")
     if not run:
         return
-    for attempt in range(1, 11):
-        r = subprocess.run(["gh", "run", "cancel", run], capture_output=True, text=True)
+    cmd = ["gh", "run", "cancel", run]
+    if os.environ.get("GITHUB_REPOSITORY"):
+        cmd += ["--repo", os.environ["GITHUB_REPOSITORY"]]  # do not rely on git remote inference
+    attempt = 0
+    while True:
+        attempt += 1
+        r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode == 0:
             print("cost-guard: run cancelled", flush=True)
             return
-        print(f"::error::cost-guard: cancel failed ({attempt}/10): {r.stderr.strip()[:200]}", flush=True)
+        print(f"::error::cost-guard: cancel failed ({attempt}): {r.stderr.strip()[:200]}", flush=True)
         time.sleep(15)
 
 
@@ -128,7 +138,8 @@ def main():
     run_id = os.environ.get("RUN_ID", "")
     poll = float(os.environ.get("POLL", "60"))
     est_total, est_hours, per_use = estimate(profile)
-    fallback_burn = (est_total - per_use) / est_hours * 1.5
+    floor_burn = (est_total - per_use) / est_hours
+    fallback_burn = floor_burn * 1.5
     started = time.time()
     last = started
     spent = 0.0
@@ -142,7 +153,7 @@ def main():
         time.sleep(poll)
         now = time.time()
         try:
-            burn = burn_per_hour(inventory(run_id))
+            burn = max(burn_per_hour(inventory(run_id)), FLOOR_SHARE * floor_burn)
             last_burn = burn
             fails = 0
         except Exception as ex:  # noqa: BLE001 - never go quiet
@@ -159,7 +170,6 @@ def main():
         if total >= limit:
             msg = f"cost-guard: LIMIT ${limit:.0f} reached (about ${total:.2f}): cancelling the run, the stack is destroyed by the always() steps"
             print(f"::error::{msg}", flush=True)
-            open(os.path.join(os.environ.get("RUNNER_TEMP", "/tmp"), "cost-abort.txt"), "w").write(msg + "\n")
             cancel_run()
             return 4
 

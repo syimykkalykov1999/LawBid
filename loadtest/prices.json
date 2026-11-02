@@ -39,6 +39,5 @@
   "_comment": "AWS list prices, USD, us-east-1, as known 2026-10. ESTIMATE +-30 %. Read by scripts/estimate-cost.mjs and scripts/cost-guard.py (one place). Items marked derived are not from the price list.",
   "_derived": [
     "rds db.r7g.4xlarge/8xlarge/16xlarge = linear from 2xlarge (derived)"
-  ],
-  "fargate_spot_factor": 0.3
+  ]
 }

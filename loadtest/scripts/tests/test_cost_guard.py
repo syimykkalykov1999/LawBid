@@ -31,10 +31,28 @@ class Burn(unittest.TestCase):
 
     def test_big_databases_priced_for_the_cloud_ladder(self):
         self.assertAlmostEqual(cg.PRICES["rds"]["db.r7g.8xlarge"], 4.416)
-
-
     def test_other_services_are_not_free(self):
         self.assertGreater(cg.burn_per_hour({"other": 1}), 2.0)
+
+    def test_unknown_class_price_does_not_grow_with_the_price_table(self):
+        self.assertAlmostEqual(cg.burn_per_hour({"rds": ["db.x99.huge"]}), cg.UNKNOWN_RDS_HOUR * 1.1 + cg.burn_per_hour({}) - 0, places=1)
+
+
+class Cancel(unittest.TestCase):
+    def test_cancel_retries_until_it_works_and_names_the_repo(self):
+        from unittest import mock
+
+        calls = []
+
+        def fake_run(cmd, **kw):
+            calls.append(cmd)
+            return mock.Mock(returncode=0 if len(calls) >= 12 else 1, stderr="boom")
+
+        env = {"GITHUB_RUN_ID": "7", "GITHUB_REPOSITORY": "o/r"}
+        with mock.patch.dict(os.environ, env), mock.patch.object(cg.subprocess, "run", fake_run), mock.patch.object(cg.time, "sleep", lambda s: None):
+            cg.cancel_run()
+        self.assertEqual(len(calls), 12)  # past the old limit of 10
+        self.assertEqual(calls[0], ["gh", "run", "cancel", "7", "--repo", "o/r"])
 
 
 if __name__ == "__main__":

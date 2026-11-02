@@ -345,6 +345,7 @@ jobs:
           bash scripts/ci/require-green.test.sh
           python3 -m unittest discover -s infra/modules/signing-guard/lambda/tests
           python3 -m unittest discover -s loadtest/local-docker -p 'test_*.py'
+          python3 -m unittest discover -s loadtest/scripts/tests
 
       - name: Dependency audit (high and critical block)
         # docs/06 §4.4; audit #15 (2026-10-22): a high or critical advisory
