@@ -15,3 +15,5 @@ packages/api-contract/oasdiff-err-ignore.txt merge=union
 packages/api-contract/openapi.json linguist-generated=true
 packages/api-contract/dart/lib/** linguist-generated=true
 docs/db/ERD.md linguist-generated=true
+
+docs/dev/PROJECT_MAP.md merge=union
