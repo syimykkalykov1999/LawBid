@@ -111,6 +111,39 @@ void main() {
     expect(adapter.requests.length, 2);
   });
 
+  test('readFromPhoneOnly: the copy is served with no request, any age',
+      () async {
+    final dio = build();
+    await dio.get<dynamic>('/cases/mine');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    final before = adapter.requests.length;
+    now = now.add(const Duration(days: 3));
+
+    // A new process (empty memory): the disk copy answers.
+    final restarted = build();
+    final r = (await readFromPhoneOnly(
+      () => restarted.get<Map<String, dynamic>>('/cases/mine'),
+    ))!;
+    expect(r.data, body);
+    expect(r.extra[kFromCacheExtra], true);
+    expect(adapter.requests.length, before, reason: 'no request at all');
+  });
+
+  test('readFromPhoneOnly: no copy fails without touching the network',
+      () async {
+    final dio = build();
+    await expectLater(
+      readFromPhoneOnly(() => dio.get<dynamic>('/never/seen')),
+      throwsA(
+        isA<DioException>().having((e) => e.error, 'error', kNoPhoneCopy),
+      ),
+    );
+    expect(adapter.requests, isEmpty);
+    // Outside the helper the same GET goes out as before.
+    await dio.get<dynamic>('/never/seen');
+    expect(adapter.requests, hasLength(1));
+  });
+
   test('stale-if-error: a dead network or 502-504 serves the copy', () async {
     final dio = build();
     final ok1 = await dio.get<dynamic>('/plans');

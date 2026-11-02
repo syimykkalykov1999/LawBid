@@ -1,4 +1,6 @@
+import 'package:lawbid/features/cases/data/cases_repository.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/shared/domain/cursor_page.dart';
 
 import '../features/cases/cases_fakes.dart';
 
@@ -44,3 +46,45 @@ class LongCasesRepository extends FakeCasesRepository {
   @override
   Future<OwnerCase> ownerCase(String caseId) async => longOwnerCase();
 }
+
+/// [LongCasesRepository] whose feed is two [longFeedCase]s.
+class LongFeedCasesRepository extends LongCasesRepository {
+  @override
+  Future<CursorPage<FeedCase>> feed({
+    String? cursor,
+    String? practiceAreaId,
+    String? practiceCategory,
+    String? state,
+    CaseFeedExtras extras = const CaseFeedExtras(),
+    bool mineOnly = true,
+    List<String> states = const [],
+  }) async =>
+      CursorPage(items: [longFeedCase('f1'), longFeedCase('f2')]);
+}
+
+/// An open case in the attorney's feed with every text field long.
+FeedCase longFeedCase(String id) => FeedCase(
+      id: id,
+      title: longTitle,
+      practice: const PracticeRef(
+        id: 'leaf-1',
+        code: 'landlord_tenant',
+        i18nKey: 'practice.traffic',
+        nameEn: 'Commercial Landlord and Tenant Disputes',
+        categoryNameEn: 'Real Estate and Property',
+      ),
+      primaryStateCode: 'NJ',
+      additionalStateCodes: const ['NY', 'PA', 'CT'],
+      city: longPlace,
+      status: CaseStatus.open,
+      budget: const CaseBudget(
+        mode: BudgetMode.amount,
+        amountCents: 99999999999,
+      ),
+      viewCount: 1234567,
+      bidsCount: 9999,
+      createdAt: DateTime(2026, 10, 4),
+      isNew: true,
+      hasOwnBid: true,
+      description: longText,
+    );

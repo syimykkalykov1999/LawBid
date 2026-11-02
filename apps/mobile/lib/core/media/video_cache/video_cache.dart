@@ -27,15 +27,95 @@ import 'package:path_provider/path_provider.dart';
 /// reports of 2026-10-28). In a background isolate the proxy answers while
 /// the main thread waits.
 abstract final class VideoCache {
+  /// The chunks' folder under the temporary directory.
+  static const folderName = 'video_chunks';
+
   static SendPort? _commands;
   static int? _port;
   static String? _secret;
   static Future<void>? _starting;
-  static bool _failed = false;
+  static DateTime? _failedAt;
   static int _sentMaxBytes = -1;
 
+  /// After a failed start the cache stays off this long, then the next
+  /// video tries again (a slow first start must not cost the whole session).
+  static const _retryAfter = Duration(minutes: 1);
+
+  /// The upper bound `client.video_cache_mb` can take: the limit a proxy
+  /// starts with while the server's own number is not known yet.
+  static const _ceilingMb = 1000;
+
+  /// The «Данные и память» limit for «Видео» (null = none handed over yet).
+  static int? _storeLimitBytes;
+
+  /// The proxy's byte limit: the administrator's tuning, lowered (never
+  /// raised) by the store limit (itself the admin ceiling or the user's
+  /// lower choice). Before the first bootstrap answer the tuning is not
+  /// known: the proxy then starts with the ceiling, so its start-up
+  /// eviction cannot drop chunks that the server's number would keep.
+  static int get maxBytes {
+    final tunedMb =
+        ClientTuning.applied ? ClientTuning.videoCacheMb : _ceilingMb;
+    final tuned = tunedMb * 1024 * 1024;
+    final store = _storeLimitBytes;
+    return store == null || store >= tuned ? tuned : store;
+  }
+
+  /// Hands the store limit to the proxy, which evicts to it itself: at
+  /// once when it runs, right after it is up when it is still starting.
+  /// A zero or negative limit is ignored (it would empty the cache).
+  static void limitTo(int bytes) {
+    if (bytes <= 0) return;
+    _storeLimitBytes = bytes;
+    _syncMax();
+  }
+
+  static void _syncMax() {
+    final commands = _commands;
+    final max = maxBytes;
+    if (commands == null || max <= 0 || max == _sentMaxBytes) return;
+    _sentMaxBytes = max;
+    commands.send(('max', max));
+  }
+
+  /// Completes once a proxy that is starting is up (or failed to start).
+  static Future<void> settled() async => await _starting;
+
+  /// Test hook: forget the proxy and the limit.
+  @visibleForTesting
+  static void debugReset() {
+    _commands = null;
+    _port = null;
+    _secret = null;
+    _starting = null;
+    _failedAt = null;
+    _sentMaxBytes = -1;
+    _storeLimitBytes = null;
+  }
+
+  /// Test hook: a proxy that came up with [sentMaxBytes] (the same step as
+  /// the end of a real start).
+  @visibleForTesting
+  static void debugAttach(SendPort commands, {required int sentMaxBytes}) =>
+      _attach(commands, 1, 'test', sentMaxBytes);
+
+  static void _attach(SendPort commands, int port, String secret, int sent) {
+    _failedAt = null;
+    _sentMaxBytes = sent;
+    _commands = commands;
+    _secret = secret;
+    _port = port;
+    // A limit handed over while the proxy was starting.
+    _syncMax();
+  }
+
+  static bool get _backedOff {
+    final at = _failedAt;
+    return at != null && DateTime.now().difference(at) < _retryAfter;
+  }
+
   static bool get enabled =>
-      !kIsWeb && ClientTuning.videoCacheMb > 0 && !_failed;
+      !kIsWeb && ClientTuning.videoCacheMb > 0 && !_backedOff;
 
   /// The URL for the player. Sync on purpose (called from `initState`).
   static String resolve(String url) {
@@ -46,11 +126,7 @@ abstract final class VideoCache {
       unawaited(_ensureStarted());
       return url;
     }
-    final max = ClientTuning.videoCacheMb * 1024 * 1024;
-    if (max != _sentMaxBytes) {
-      _sentMaxBytes = max;
-      _commands?.send(('max', max));
-    }
+    _syncMax();
     final u = Uri.parse(url);
     return VideoCacheProxy.wrapUrl(
       port: port,
@@ -61,16 +137,17 @@ abstract final class VideoCache {
   }
 
   static Future<void> _ensureStarted() => _starting ??= () async {
+        final ready = ReceivePort();
+        Isolate? isolate;
         try {
           final base = await getTemporaryDirectory();
-          final ready = ReceivePort();
-          final maxBytes = ClientTuning.videoCacheMb * 1024 * 1024;
-          await Isolate.spawn<_ProxyStart>(
+          final startMax = maxBytes;
+          isolate = await Isolate.spawn<_ProxyStart>(
             _proxyMain,
             _ProxyStart(
               reply: ready.sendPort,
-              dir: '${base.path}/video_chunks',
-              maxBytes: maxBytes,
+              dir: '${base.path}/$folderName',
+              maxBytes: startMax,
               headBytes:
                   headBytesFor(seconds: ClientTuning.videoCacheChunkSeconds),
               hlsSeconds: ClientTuning.videoCacheChunkSeconds,
@@ -79,27 +156,34 @@ abstract final class VideoCache {
             errorsAreFatal: false,
           );
           final msg = await ready.first.timeout(const Duration(seconds: 10));
-          ready.close();
           if (msg is! (SendPort, int, String)) throw StateError('proxy');
-          _sentMaxBytes = maxBytes;
-          _commands = msg.$1;
-          _secret = msg.$3;
-          _port = msg.$2;
+          _attach(msg.$1, msg.$2, msg.$3, startMax);
         } on Object {
-          _failed = true;
+          // No (usable) answer: do not leave a proxy running that nobody
+          // uses, and let a later video try again after a pause.
+          isolate?.kill(priority: Isolate.immediate);
+          _failedAt = DateTime.now();
+          _starting = null;
+        } finally {
+          ready.close();
         }
       }();
 
-  /// «Очистить кэш»: drops every cached chunk.
-  static Future<void> clear() async {
+  /// Whether the proxy isolate is up (it then owns the folder).
+  static bool get running => _commands != null;
+
+  /// «Очистить кэш»: drops every cached chunk. False when the proxy did not
+  /// answer in time (the chunks are then still on disk).
+  static Future<bool> clear() async {
     final c = _commands;
-    if (c == null) return;
+    if (c == null) return true;
     final done = ReceivePort();
     c.send(('clear', done.sendPort));
     try {
       await done.first.timeout(const Duration(seconds: 30));
+      return true;
     } on TimeoutException {
-      // The chunks go on their own (LRU).
+      return false;
     } finally {
       done.close();
     }

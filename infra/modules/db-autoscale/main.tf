@@ -67,7 +67,7 @@ variable "initial_ceiling" {
 }
 variable "mode" {
   type        = string
-  default     = "on"
+  default     = "dry-run"
   description = "Start value of the switch: on | dry-run (e-mails what it would do) | off. Changed later in SSM, not here (the value is ignored after creation, so a deploy never re-enables it)."
   validation {
     condition     = contains(["on", "dry-run", "off"], var.mode)
