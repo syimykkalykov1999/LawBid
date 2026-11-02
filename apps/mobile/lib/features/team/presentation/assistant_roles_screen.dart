@@ -108,7 +108,7 @@ class _AssistantRolesScreenState extends ConsumerState<AssistantRolesScreen> {
         value: team,
         t: t,
         onRetry: () => ref.invalidate(teamProvider),
-        builder: (info) => RefreshIndicator(
+        builder: (info) => AppRefreshIndicator(
           color: colors.gold,
           backgroundColor: colors.sheet,
           onRefresh: () => ref.read(teamProvider.notifier).refresh(),

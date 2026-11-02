@@ -514,7 +514,7 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
         else
           ...rows,
       ];
-      return RefreshIndicator(
+      return AppRefreshIndicator(
         color: colors.gold,
         backgroundColor: colors.sheet,
         onRefresh: refresh,

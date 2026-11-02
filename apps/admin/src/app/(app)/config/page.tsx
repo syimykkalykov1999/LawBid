@@ -407,9 +407,9 @@ const KEY_TEXT: Record<string, string> = {
   "limits.support_message_chars": "Сообщение в поддержку: максимум знаков.",
   "limits.bio_chars": "«О себе» у адвоката: максимум знаков.",
   "post.max_chars_media":
-    "Пост с фото, видео или файлами: максимум знаков (2200 как в Instagram).",
+    "Пост с фото, видео или файлами: максимум знаков (2200 знаков).",
   "post.max_chars_brief":
-    "Бриф (только текст): максимум знаков (3000 как в LinkedIn).",
+    "Бриф (только текст): максимум знаков (3000 знаков).",
   "media.photo_max_px":
     "Фото (посты, рилсы, дела, отзывы): длинная сторона после сжатия на телефоне, px",
   "media.photo_quality":
@@ -867,7 +867,7 @@ const KEY_TEXT: Record<string, string> = {
   "client.qr_poll_s":
     "Как часто сайт спрашивает «подтвердили ли вход по QR на телефоне», секунды. Ключ: client.qr_poll_s.",
   "client.guest_browse_app_enabled":
-    "Просмотр без входа в приложениях iOS и Android (ссылка «Посмотреть без входа» на первом экране и лента без аккаунта). По умолчанию выключено, как в Instagram, WhatsApp и Telegram. Работает только пока включён главный выключатель «guest.browsing_enabled». Ключ: client.guest_browse_app_enabled.",
+    "Просмотр без входа в приложениях iOS и Android (ссылка «Посмотреть без входа» на первом экране и лента без аккаунта). По умолчанию выключено. Работает только пока включён главный выключатель «guest.browsing_enabled». Ключ: client.guest_browse_app_enabled.",
   "client.guest_browse_web_enabled":
     "То же для сайта: посетитель может осмотреться до входа. По умолчанию включено. Работает только пока включён главный выключатель «guest.browsing_enabled». Ключ: client.guest_browse_web_enabled.",
   "client.resume_refresh_min_away_s":
@@ -1040,7 +1040,7 @@ const KEY_TEXT: Record<string, string> = {
   "rate_limit.group_create_per_day":
     "Сколько групп один человек может создать за сутки (50).",
   "groups.max_members":
-    "Сколько человек в одной группе (от 2 до 5000; 1024, как в WhatsApp).",
+    "Сколько человек в одной группе (от 2 до 5000; 1024 по умолчанию).",
   "rate_limit.post_create_per_hour":
     "Сколько постов один человек может опубликовать за час (30).",
   "rate_limit.channel_post_per_hour":

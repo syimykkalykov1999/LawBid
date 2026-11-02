@@ -1,24 +1,72 @@
 import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
-import type { Prisma, PrismaClient, PrivacyAudience } from '@prisma/client';
+import type { PrivacyAudience } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AnalyticsConsentService } from '../analytics/analytics-consent.service';
+import {
+  AUDIENCE_BITS,
+  type AudienceOption,
+  effectiveMask,
+  type LegacyAudience,
+  legacyFromMask,
+  maskFromLegacy,
+  maskFromOptions,
+  optionsFromMask,
+} from './privacy-audience';
 
-type Db = Prisma.TransactionClient | PrismaClient;
+export const PRIVACY_FIELDS = [
+  'lastSeen',
+  'messageFrom',
+  'callFrom',
+  'photoFrom',
+  'aboutFrom',
+  'groupAddFrom',
+] as const;
+export type PrivacyField = (typeof PRIVACY_FIELDS)[number];
+
+/** API field → DB column (the old enum; its mask is `<column>_mask`). */
+const COLUMN = {
+  lastSeen: 'last_seen',
+  messageFrom: 'message_from',
+  callFrom: 'call_from',
+  photoFrom: 'photo_from',
+  aboutFrom: 'about_from',
+  groupAddFrom: 'group_add_from',
+} as const satisfies Record<PrivacyField, string>;
+type Column = (typeof COLUMN)[PrivacyField];
+type MaskColumn = `${Column}_mask`;
 
 export interface PrivacySettings {
-  lastSeen: PrivacyAudience;
-  messageFrom: PrivacyAudience;
-  callFrom: PrivacyAudience;
-  photoFrom: PrivacyAudience;
-  aboutFrom: PrivacyAudience;
-  groupAddFrom: PrivacyAudience;
+  /** The closest old value (old app builds read these). */
+  lastSeen: LegacyAudience;
+  messageFrom: LegacyAudience;
+  callFrom: LegacyAudience;
+  photoFrom: LegacyAudience;
+  aboutFrom: LegacyAudience;
+  groupAddFrom: LegacyAudience;
+  /** Owner 2026-10-28: the real sets (contacts / followers / following). */
+  lastSeenAudiences: AudienceOption[];
+  messageFromAudiences: AudienceOption[];
+  callFromAudiences: AudienceOption[];
+  photoFromAudiences: AudienceOption[];
+  aboutFromAudiences: AudienceOption[];
+  groupAddFromAudiences: AudienceOption[];
   /** Owner 2026-10-22 (CCPA/CPRA «Do not sell or share my personal
    * information»): true = opted out. Stored as an append-only
    * `do_not_sell` consent row (latest wins), so the choice is in the data
    * export and the journal. */
   doNotSell: boolean;
 }
+
+/** A partial change: the old single value or the new set, per field. */
+export type PrivacyPatch = Partial<
+  Record<PrivacyField, LegacyAudience> &
+    Record<`${PrivacyField}Audiences`, AudienceOption[]> & {
+      doNotSell: boolean;
+    }
+>;
+
+const everyone = (): AudienceOption[] => ['everyone'];
 
 export const DEFAULT_PRIVACY: PrivacySettings = {
   lastSeen: 'everyone',
@@ -27,6 +75,12 @@ export const DEFAULT_PRIVACY: PrivacySettings = {
   photoFrom: 'everyone',
   aboutFrom: 'everyone',
   groupAddFrom: 'everyone',
+  lastSeenAudiences: everyone(),
+  messageFromAudiences: everyone(),
+  callFromAudiences: everyone(),
+  photoFromAudiences: everyone(),
+  aboutFromAudiences: everyone(),
+  groupAddFromAudiences: everyone(),
   doNotSell: false,
 };
 
@@ -34,11 +88,28 @@ export interface PrivacyPatchMeta {
   ip?: string;
 }
 
+type PrivacyRow = Partial<
+  Record<Column, PrivacyAudience> & Record<MaskColumn, number | null>
+>;
+
+const maskOf = (row: PrivacyRow | undefined | null, field: PrivacyField) => {
+  const col = COLUMN[field];
+  return effectiveMask(row?.[`${col}_mask`], row?.[col]);
+};
+
+const ACTION_FIELD = {
+  message: 'messageFrom',
+  call: 'callFrom',
+  group: 'groupAddFrom',
+} as const;
+
 /**
- * Owner 2026-10-20: who may see my "last seen", write to me first and call
- * me. "Contacts" of a person are the people in their phone book who use
- * LawBid (contact_matches) and the people they follow. A case in work keeps
- * its chat and calls whatever the settings say (see caseWorkOngoing).
+ * Owner 2026-10-20: who may see my "last seen", photo, "about", write to me
+ * first, call me and add me to groups. Owner 2026-10-28: each is a set of
+ * everyone / my contacts (phone-book people in LawBid, contact_matches) /
+ * my followers / people I follow / nobody (privacy-audience.ts). A case in
+ * work keeps its chat and calls whatever the settings say (callers check
+ * caseWorkOngoing), and existing chats stay open.
  */
 @Injectable()
 export class PrivacySettingsService {
@@ -54,17 +125,13 @@ export class PrivacySettingsService {
       }),
       this.doNotSell(userId),
     ]);
-    return row
-      ? {
-          lastSeen: row.last_seen,
-          messageFrom: row.message_from,
-          callFrom: row.call_from,
-          photoFrom: row.photo_from,
-          aboutFrom: row.about_from,
-          groupAddFrom: row.group_add_from,
-          doNotSell,
-        }
-      : { ...DEFAULT_PRIVACY, doNotSell };
+    const out = { ...DEFAULT_PRIVACY, doNotSell };
+    for (const f of PRIVACY_FIELDS) {
+      const mask = maskOf(row, f);
+      out[f] = legacyFromMask(mask);
+      out[`${f}Audiences`] = optionsFromMask(mask);
+    }
+    return out;
   }
 
   /** The latest `do_not_sell` answer (false when never set). */
@@ -79,7 +146,7 @@ export class PrivacySettingsService {
 
   async update(
     userId: string,
-    patch: Partial<PrivacySettings>,
+    patch: PrivacyPatch,
     meta: PrivacyPatchMeta = {},
   ): Promise<PrivacySettings> {
     if (typeof patch.doNotSell === 'boolean') {
@@ -95,24 +162,31 @@ export class PrivacySettingsService {
       });
       await this.analyticsConsent?.invalidate(userId);
     }
-    const audience = { ...patch };
-    delete audience.doNotSell;
-    if (Object.keys(audience).length === 0) return this.get(userId);
-    return this.updateAudiences(userId, audience);
+    const masks = new Map<PrivacyField, number>();
+    for (const f of PRIVACY_FIELDS) {
+      // The new set wins; an old build's single value means what it meant
+      // (its «contacts» = phone book or people I follow).
+      const set = patch[`${f}Audiences`];
+      const one = patch[f];
+      if (set && set.length > 0) masks.set(f, maskFromOptions(set));
+      else if (one) masks.set(f, maskFromLegacy(one));
+    }
+    if (masks.size === 0) return this.get(userId);
+    return this.updateAudiences(userId, masks);
   }
 
   private async updateAudiences(
     userId: string,
-    patch: Partial<PrivacySettings>,
+    masks: Map<PrivacyField, number>,
   ): Promise<PrivacySettings> {
-    const data = {
-      ...(patch.lastSeen ? { last_seen: patch.lastSeen } : {}),
-      ...(patch.messageFrom ? { message_from: patch.messageFrom } : {}),
-      ...(patch.callFrom ? { call_from: patch.callFrom } : {}),
-      ...(patch.photoFrom ? { photo_from: patch.photoFrom } : {}),
-      ...(patch.aboutFrom ? { about_from: patch.aboutFrom } : {}),
-      ...(patch.groupAddFrom ? { group_add_from: patch.groupAddFrom } : {}),
-    };
+    const data: Record<string, unknown> = {};
+    for (const [f, mask] of masks) {
+      // Both columns: the old one keeps a release that is one version older
+      // (rolling deploy, rollback) close to the truth.
+      data[COLUMN[f]] = legacyFromMask(mask);
+      data[`${COLUMN[f]}_mask`] = mask;
+    }
+    const lastSeen = masks.get('lastSeen');
     await this.prisma.$transaction(async (tx) => {
       await tx.userPrivacySettings.upsert({
         where: { user_id: userId },
@@ -121,10 +195,10 @@ export class PrivacySettingsService {
       });
       // The old switch (Settings → activity status) stays in step: it is
       // what hides the viewer's own view of others (reciprocal).
-      if (patch.lastSeen) {
+      if (lastSeen !== undefined) {
         await tx.user.update({
           where: { id: userId },
-          data: { show_activity_status: patch.lastSeen !== 'nobody' },
+          data: { show_activity_status: lastSeen !== 0 },
         });
       }
     });
@@ -134,33 +208,6 @@ export class PrivacySettingsService {
   /** The old on/off switch maps to everyone / nobody. */
   async setActivityVisible(userId: string, show: boolean): Promise<void> {
     await this.update(userId, { lastSeen: show ? 'everyone' : 'nobody' });
-  }
-
-  /** Is [viewerId] one of [ownerId]'s contacts. */
-  async isContactOf(
-    ownerId: string,
-    viewerId: string,
-    db: Db = this.prisma,
-  ): Promise<boolean> {
-    if (ownerId === viewerId) return true;
-    const [book, follow] = await Promise.all([
-      db.contactMatch.findUnique({
-        where: {
-          owner_id_matched_id: { owner_id: ownerId, matched_id: viewerId },
-        },
-        select: { owner_id: true },
-      }),
-      db.follow.findUnique({
-        where: {
-          follower_id_followee_id: {
-            follower_id: ownerId,
-            followee_id: viewerId,
-          },
-        },
-        select: { follower_id: true },
-      }),
-    ]);
-    return book !== null || follow !== null;
   }
 
   /**
@@ -183,60 +230,125 @@ export class PrivacySettingsService {
     ownerIds: string[],
     field: 'last_seen' | 'photo_from' | 'about_from',
   ): Promise<Set<string>> {
-    return this.audienceAllows(viewerId, ownerIds, field);
+    const f: PrivacyField =
+      field === 'last_seen'
+        ? 'lastSeen'
+        : field === 'photo_from'
+          ? 'photoFrom'
+          : 'aboutFrom';
+    return this.audienceAllows(viewerId, ownerIds, f);
   }
 
+  /**
+   * Which of [ownerIds] let [viewerId] in for [field]. At most four
+   * indexed queries for any number of owners: the owners' settings, then
+   * only the relations their sets ask about (contact_matches PK,
+   * follows PK and follows(followee_id, follower_id)).
+   */
   private async audienceAllows(
     viewerId: string,
     ownerIds: string[],
-    field: 'last_seen' | 'photo_from' | 'about_from',
+    field: PrivacyField,
   ): Promise<Set<string>> {
-    if (ownerIds.length === 0) return new Set();
-    const rows = await this.prisma.userPrivacySettings.findMany({
-      where: { user_id: { in: ownerIds } },
-      select: {
-        user_id: true,
-        last_seen: true,
-        photo_from: true,
-        about_from: true,
-      },
+    const ids = [...new Set(ownerIds)];
+    if (ids.length === 0) return new Set();
+    const col = COLUMN[field];
+    const rows = (await this.prisma.userPrivacySettings.findMany({
+      where: { user_id: { in: ids } },
+      select: { user_id: true, [col]: true, [`${col}_mask`]: true },
+    })) as unknown as (PrivacyRow & { user_id: string })[];
+    const masks = new Map<string, number>(
+      rows.map((r) => [r.user_id, maskOf(r, field)]),
+    );
+    const maskFor = (id: string) => masks.get(id) ?? AUDIENCE_BITS.everyone;
+    const need = (bit: number) =>
+      ids.filter((id) => id !== viewerId && (maskFor(id) & bit) !== 0);
+    const rel = await this.relationsOf(viewerId, {
+      contacts: need(AUDIENCE_BITS.contacts),
+      followers: need(AUDIENCE_BITS.followers),
+      following: need(AUDIENCE_BITS.following),
     });
-    const audience = new Map<string, PrivacyAudience>(
-      rows.map((r) => [r.user_id, r[field]]),
-    );
-    const needContact = ownerIds.filter(
-      (id) => audience.get(id) === 'contacts',
-    );
-    const contacts = await this.contactsAmong(viewerId, needContact);
     return new Set(
-      ownerIds.filter((id) => {
+      ids.filter((id) => {
         if (id === viewerId) return true;
-        const a = audience.get(id) ?? 'everyone';
-        return a === 'everyone' || (a === 'contacts' && contacts.has(id));
+        const m = maskFor(id);
+        if (m & AUDIENCE_BITS.everyone) return true;
+        return (
+          ((m & AUDIENCE_BITS.contacts) !== 0 && rel.contacts.has(id)) ||
+          ((m & AUDIENCE_BITS.followers) !== 0 && rel.followers.has(id)) ||
+          ((m & AUDIENCE_BITS.following) !== 0 && rel.following.has(id))
+        );
       }),
     );
   }
 
-  /** Subset of [ownerIds] that have [viewerId] as a contact. */
-  private async contactsAmong(
+  /**
+   * For [viewerId] and some owners: which owners have the viewer in their
+   * phone book (contacts), are followed by the viewer (followers: the
+   * viewer follows the owner) and follow the viewer (following: the owner
+   * follows the viewer). Empty lists cost no query.
+   */
+  private async relationsOf(
     viewerId: string,
-    ownerIds: string[],
+    owners: { contacts: string[]; followers: string[]; following: string[] },
+  ): Promise<{
+    contacts: Set<string>;
+    followers: Set<string>;
+    following: Set<string>;
+  }> {
+    const none = Promise.resolve([] as string[]);
+    const [contacts, followers, following] = await Promise.all([
+      owners.contacts.length === 0
+        ? none
+        : this.prisma.contactMatch
+            .findMany({
+              where: {
+                matched_id: viewerId,
+                owner_id: { in: owners.contacts },
+              },
+              select: { owner_id: true },
+            })
+            .then((r) => r.map((x) => x.owner_id)),
+      owners.followers.length === 0
+        ? none
+        : this.prisma.follow
+            .findMany({
+              where: {
+                follower_id: viewerId,
+                followee_id: { in: owners.followers },
+              },
+              select: { followee_id: true },
+            })
+            .then((r) => r.map((x) => x.followee_id)),
+      owners.following.length === 0
+        ? none
+        : this.prisma.follow
+            .findMany({
+              where: {
+                followee_id: viewerId,
+                follower_id: { in: owners.following },
+              },
+              select: { follower_id: true },
+            })
+            .then((r) => r.map((x) => x.follower_id)),
+    ]);
+    return {
+      contacts: new Set(contacts),
+      followers: new Set(followers),
+      following: new Set(following),
+    };
+  }
+
+  /**
+   * Of [targetIds], the ones whose settings let [actorId] do [what]
+   * (batch [allows]: a few queries for the whole list, no N+1).
+   */
+  allowsMany(
+    actorId: string,
+    targetIds: string[],
+    what: 'message' | 'call' | 'group',
   ): Promise<Set<string>> {
-    if (ownerIds.length === 0) return new Set();
-    const [book, follows] = await Promise.all([
-      this.prisma.contactMatch.findMany({
-        where: { matched_id: viewerId, owner_id: { in: ownerIds } },
-        select: { owner_id: true },
-      }),
-      this.prisma.follow.findMany({
-        where: { followee_id: viewerId, follower_id: { in: ownerIds } },
-        select: { follower_id: true },
-      }),
-    ]);
-    return new Set([
-      ...book.map((r) => r.owner_id),
-      ...follows.map((r) => r.follower_id),
-    ]);
+    return this.audienceAllows(actorId, targetIds, ACTION_FIELD[what]);
   }
 
   /**
@@ -299,16 +411,12 @@ export class PrivacySettingsService {
     what: 'message' | 'call' | 'group',
   ): Promise<void> {
     if (actorId === targetId) return;
-    const s = await this.get(targetId);
-    const audience =
-      what === 'message'
-        ? s.messageFrom
-        : what === 'call'
-          ? s.callFrom
-          : s.groupAddFrom;
-    if (audience === 'everyone') return;
-    if (audience === 'contacts' && (await this.isContactOf(targetId, actorId)))
-      return;
+    const ok = await this.audienceAllows(
+      actorId,
+      [targetId],
+      ACTION_FIELD[what],
+    );
+    if (ok.has(targetId)) return;
     throw new ForbiddenException({
       code: ErrorCode.PRIVACY_RESTRICTED,
       message:

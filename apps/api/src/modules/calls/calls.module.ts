@@ -15,6 +15,7 @@ import { CallsController } from './calls.controller';
 import { LiveKitWebhookController } from './livekit-webhook.controller';
 import { CallsService } from './calls.service';
 import { SfuBrokerService } from './sfu-broker.service';
+import { TurnInstanceGateway } from './turn-instance.gateway';
 
 /** OQ-041: in-app audio calls; owner 2026-10-05: video calls. */
 @Module({
@@ -38,7 +39,12 @@ import { SfuBrokerService } from './sfu-broker.service';
     CallsController,
     LiveKitWebhookController,
   ],
-  providers: [CallsService, CallHistoryService, SfuBrokerService],
+  providers: [
+    CallsService,
+    CallHistoryService,
+    SfuBrokerService,
+    TurnInstanceGateway,
+  ],
   exports: [CallsService],
 })
 export class CallsModule {}

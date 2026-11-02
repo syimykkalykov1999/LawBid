@@ -259,6 +259,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'VPC interface endpoints (about $29 a month): auto = created / removed by NAT traffic, on = always kept, off = never.',
     pattern: /^(auto|on|off)$/,
   };
+  out['calls.own_turn.mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'Own coturn relay box: auto = started only while Cloudflare is down and stopped after 30 quiet minutes, on = always running, off = never.',
+    pattern: /^(auto|on|off)$/,
+  };
   out['scale.endpoints.ceiling'] = {
     type: 'integer',
     defaultValue: 4,

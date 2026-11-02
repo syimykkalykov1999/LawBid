@@ -205,4 +205,39 @@ describe('Chat list search (e2e, owner 2026-10-18)', () => {
       .expect(200);
     expect((res.body as { data: unknown[] }).data).toEqual([]);
   });
+
+  it('owner 2026-10-28: «sima kalykov» finds Sima only — a typo match («Syimyk») shows only when nothing matched strongly', async () => {
+    const att = await prisma.user.create({ data: { role: 'attorney' } });
+    const sima = await prisma.user.create({
+      data: { role: 'client', first_name: 'Sima', last_name: 'Kalykov' },
+    });
+    const syimyk1 = await prisma.user.create({
+      data: { role: 'client', first_name: 'Syimyk', last_name: 'Kalykov' },
+    });
+    const syimyk2 = await prisma.user.create({
+      data: { role: 'client', first_name: 'Syimyk', last_name: 'Kalykov' },
+    });
+    const cSima = await chat(att.id, sima.id, null, ['hi']);
+    const c1 = await chat(att.id, syimyk1.id, null, ['hello']);
+    const c2 = await chat(att.id, syimyk2.id, null, ['hey']);
+    const search = async (q: string) =>
+      (
+        (
+          await api()
+            .get('/api/v1/conversations')
+            .query({ q })
+            .set(bearer(att.id, 'attorney'))
+            .expect(200)
+        ).body as { data: { id: string }[] }
+      ).data.map((x) => x.id);
+
+    expect(await search('sima kalykov')).toEqual([cSima]);
+    expect(await search('sima')).toEqual([cSima]);
+    expect((await search('syimyk kalykov')).sort()).toEqual([c1, c2].sort());
+    // Every word by its start: «kal» finds all three, «sima kal» only Sima.
+    expect((await search('kal')).sort()).toEqual([cSima, c1, c2].sort());
+    expect(await search('sima kal')).toEqual([cSima]);
+    // Nothing strong: the typo match («syimyl» ~ «Syimyk») is the answer.
+    expect((await search('syimyl')).sort()).toEqual([c1, c2].sort());
+  });
 });

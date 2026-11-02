@@ -3,6 +3,7 @@ import {
   escapeLike,
   nameKeys,
   nameMatchSql,
+  nameStrictSql,
 } from '../../common/search/name-match.sql';
 import {
   Inject,
@@ -496,14 +497,22 @@ export class FollowsService {
         ? Prisma.sql`SELECT f.follower_id AS id FROM follows f WHERE f.followee_id = ${userId}::UUID`
         : Prisma.sql`SELECT f.followee_id AS id FROM follows f WHERE f.follower_id = ${userId}::UUID`;
     const keys = await nameKeys(this.prisma, q);
+    // Owner 2026-10-28: typo-only name matches only when nobody matched
+    // strongly (nameStrictSql).
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT u.id::TEXT AS id
-      FROM users u
-      LEFT JOIN attorney_profiles ap ON ap.user_id = u.id
-      LEFT JOIN client_profiles cp ON cp.user_id = u.id
-      WHERE u.id IN (${edge})
-        AND (${nameMatchSql(keys, 'u')}
-             OR coalesce(ap.username_lower, cp.username_lower) LIKE ${handle})
+      SELECT id FROM (
+      SELECT id, strong, bool_or(strong) OVER () AS any_strong FROM (
+        SELECT u.id::TEXT AS id,
+               COALESCE(${nameStrictSql(keys, 'u')}
+                OR coalesce(ap.username_lower, cp.username_lower) LIKE ${handle}, FALSE) AS strong
+        FROM users u
+        LEFT JOIN attorney_profiles ap ON ap.user_id = u.id
+        LEFT JOIN client_profiles cp ON cp.user_id = u.id
+        WHERE u.id IN (${edge})
+          AND (${nameMatchSql(keys, 'u')}
+               OR coalesce(ap.username_lower, cp.username_lower) LIKE ${handle})
+      ) m) w
+      WHERE strong OR NOT any_strong
       LIMIT 5000`;
     return rows.map((r) => r.id);
   }

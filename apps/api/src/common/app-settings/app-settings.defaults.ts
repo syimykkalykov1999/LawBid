@@ -977,6 +977,12 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * balancer; without it nothing fires. Costs an e-mail + a push per alert
    * (cost gate): OFF by default, at most one alert per account per 24 h. */
   'security.new_country_alert_enabled': false,
+  /** Owner 2026-10-28: linking an ADDITIONAL sign-in phone/email (or
+   * Apple/Google) to an account via `POST /auth/identifiers` costs SMS money
+   * and is not needed, so it is OFF: the endpoint stays for older apps and
+   * answers 403 FEATURE_DISABLED. Identifiers already linked keep working for
+   * sign-in; changing the account's one phone/email is a different route. */
+  'auth.additional_identifiers_enabled': false,
 };
 
 /** Owner 2026-10-05: storage like Telegram (Система → Хранилище). Every
@@ -1294,6 +1300,11 @@ export const OWNER_OPS_SETTINGS = {
    * Lambda (S3 object ops/scale-controls.json). */
   'scale.endpoints.mode': 'auto',
   'scale.endpoints.ceiling': 4,
+  /** Own coturn box (owner 2026-11-02): auto = the API starts it only while
+   * Cloudflare is down and stops it after 30 quiet minutes; on = always
+   * running; off = never (stopped at once when no call runs). Only counts
+   * when the box exists (TURN_ONDEMAND_INSTANCE_ID). */
+  'calls.own_turn.mode': 'auto',
   /** This month's AWS bill when AWS Budgets cannot be read (≈ $150 for
    * the launch size). */
   'economy.aws_fallback_usd': 150,
