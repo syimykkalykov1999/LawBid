@@ -882,15 +882,16 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     // messages.reencrypt since the S3-4 release).
     let after: string | null = null;
     for (;;) {
-      const rows = await this.prisma.assistantMembership.findMany({
-        where: {
-          ...(after === null ? {} : { id: { gt: after } }),
-          join_code_enc: { not: null },
-        },
-        select: { id: true, join_code_enc: true },
-        orderBy: { id: 'asc' },
-        take: page,
-      });
+      const rows: Array<{ id: string; join_code_enc: string | null }> =
+        await this.prisma.assistantMembership.findMany({
+          where: {
+            ...(after === null ? {} : { id: { gt: after } }),
+            join_code_enc: { not: null },
+          },
+          select: { id: true, join_code_enc: true },
+          orderBy: { id: 'asc' },
+          take: page,
+        });
       for (const r of rows) {
         after = r.id;
         const stored = r.join_code_enc;
