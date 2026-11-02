@@ -204,9 +204,8 @@ abstract class SyncedListNotifier<T> extends PagedNotifier<T> {
       final merged = merge(current.items, page);
       setItems(merged);
       if (page.items.isNotEmpty || page.deletedIds.isNotEmpty) {
-        // Asked first, so a copy at least as new as the stored time is
-        // already on its way when the time moves (two separate databases:
-        // no strict order; a kill in between costs one extra delta).
+        // The copy is written before the time moves. Two databases, no
+        // strict order: a kill in between costs one extra delta.
         try {
           didMerge(merged);
         } on Object catch (e) {
