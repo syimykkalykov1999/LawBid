@@ -36,6 +36,7 @@ describe('isTransientInfraError', () => {
   it('a write is repeated only when it never left the process', () => {
     expect(isUnreachableBeforeSend(prismaErr('P1001'))).toBe(true);
     expect(isUnreachableBeforeSend(prismaErr('P1017'))).toBe(false);
+    expect(isUnreachableBeforeSend(prismaErr('P1002'))).toBe(false);
   });
 });
 

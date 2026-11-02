@@ -14,8 +14,6 @@ const READS = new Set([
   'count',
   'aggregate',
   'groupBy',
-  '$queryRaw',
-  '$queryRawUnsafe',
 ]);
 
 /**
@@ -23,8 +21,9 @@ const READS = new Set([
  * connection is dead: the first query on each fails with "server closed the
  * connection" / ECONNRESET / 57P01 although the database is back. A read is
  * repeated on such an error (up to 3 attempts in about a second — the
- * request is waiting); a write only when it provably never left this
- * process (P1001/P1002/ECONNREFUSED), because repeating one that may have
+ * request is waiting). Raw SQL (`$queryRaw`) is treated as a write, since it
+ * may be `INSERT … RETURNING`. A write only when it provably never left this
+ * process (P1001/ECONNREFUSED/DNS), because repeating one that may have
  * been committed would double it. A long outage still fails the call fast;
  * jobs ride it out with `outageProof` (queue-hardening.ts), requests answer
  * 5xx and the next ones succeed. 0 attempts = off (`DB_TRANSIENT_RETRIES`).

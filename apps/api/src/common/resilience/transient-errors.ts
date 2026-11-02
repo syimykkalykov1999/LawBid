@@ -15,8 +15,10 @@ const PRISMA_CONNECTION = new Set([
   'P1017', // server closed the connection
   'P2024', // connection pool timeout
 ]);
-/** Prisma codes where the request provably never left this process. */
-const PRISMA_NEVER_SENT = new Set(['P1001', 'P1002']);
+/** Prisma codes where the request provably never left this process: no
+ * connection was made. (P1002 «reached but timed out» is NOT here: the
+ * server may have executed the statement.) */
+const PRISMA_NEVER_SENT = new Set(['P1001']);
 
 /** SQLSTATE classes/codes of a restarting or failing-over server. */
 const PG_TRANSIENT_STATES = new Set([
