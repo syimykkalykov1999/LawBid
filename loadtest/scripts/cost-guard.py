@@ -25,11 +25,15 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-PRICES = json.load(open(os.path.join(ROOT, "prices.json")))
+with open(os.path.join(ROOT, "prices.json")) as f:
+    PRICES = json.load(f)
 HOURS_MONTH = 730
 PER_USE_PREFIXES = ("CloudFront", "WAF", "Data transfer")
 UNKNOWN_RDS_HOUR = 6.0  # a class missing from prices.json: about a 4xlarge, never free
 UNKNOWN_REDIS_NODE_HOUR = 1.0
+UNKNOWN_EC2_HOUR = 0.30
+OTHER_HOUR = 2.0  # OpenSearch / Aurora: not priced item by item, assume this per resource (pessimistic)
+OVERHEAD = 1.10  # ALB LCU, NAT/endpoint data, storage, logs, public IPs are not counted item by item
 FLOOR_SHARE = 0.4  # a reading below this share of the profile's average burn is treated as incomplete
 
 
@@ -41,24 +45,36 @@ def burn_per_hour(inv, p=PRICES):
     for t in inv.get("fargate", []):  # on-demand price: Spot is cheaper, never undercount
         usd += t["count"] * (t["vcpu"] * p["fargate_vcpu_hour"] + t["gb"] * p["fargate_gb_hour"])
     for cls in inv.get("rds", []):
-        usd += p["rds"].get(cls, UNKNOWN_RDS_HOUR)  # unknown class: fixed pessimistic price, not a function of the biggest row
+        usd += p["rds"].get(cls, UNKNOWN_RDS_HOUR)
     for r in inv.get("redis", []):
         usd += r["nodes"] * p["redis"].get(r["type"], UNKNOWN_REDIS_NODE_HOUR)
     for e in inv.get("ec2", []):
-        price = p["ec2"].get(e["type"], 0.30)
+        price = p["ec2"].get(e["type"], UNKNOWN_EC2_HOUR)
         usd += price * (p["spot_factor"] if e.get("spot") else 1)
     usd += inv.get("alb", 0) * p["alb_hour"] + inv.get("nat", 0) * p["nat_hour"]
     usd += inv.get("endpoints", 0) * p["endpoint_hour"] + inv.get("ipv4", 0) * p["ipv4_hour"]
     usd += (3 * p["kms_key_month"] + 25 * p["secret_month"]) / HOURS_MONTH
-    usd += inv.get("other", 0) * 2.0  # OpenSearch / Aurora: not priced item by item, assume $2/h each (pessimistic)
-    return usd * 1.10  # +10 %: ALB LCU, NAT/endpoint data, storage, logs and the public IPs are not counted item by item
+    usd += inv.get("other", 0) * OTHER_HOUR
+    return usd * OVERHEAD
 
 
 def aws(*args):
-    out = subprocess.run(["aws", *args, "--output", "json"], capture_output=True, text=True, timeout=60)
+    region = os.environ.get("AWS_REGION")
+    extra = ["--region", region] if region else []
+    out = subprocess.run(["aws", *args, *extra, "--output", "json"], capture_output=True, text=True, timeout=60)
     if out.returncode != 0:
         raise RuntimeError(out.stderr.strip()[:300])
     return json.loads(out.stdout or "{}")
+
+
+_TASK_DEFS = {}  # a task-definition revision is immutable: look each one up once per run
+
+
+def task_size(arn):
+    if arn not in _TASK_DEFS:
+        td = aws("ecs", "describe-task-definition", "--task-definition", arn)["taskDefinition"]
+        _TASK_DEFS[arn] = (int(td["cpu"]) / 1024, int(td["memory"]) / 1024)
+    return _TASK_DEFS[arn]
 
 
 def inventory(run_id):
@@ -77,7 +93,7 @@ def inventory(run_id):
         elif ":elastic-ip/" in a:
             inv["ipv4"] += 1
         elif a.startswith(("arn:aws:aoss", "arn:aws:es:", "arn:aws:opensearch")) or (a.startswith("arn:aws:rds") and ":cluster:" in a):
-            inv["other"] = inv.get("other", 0) + 1  # priced flat and pessimistic, see burn_per_hour
+            inv["other"] = inv.get("other", 0) + 1
     for a in arns:
         if ":db:" in a and a.startswith("arn:aws:rds"):
             d = aws("rds", "describe-db-instances", "--db-instance-identifier", a.split(":db:")[1])
@@ -101,13 +117,13 @@ def inventory(run_id):
             for s in d.get("services", []):
                 n = s.get("runningCount", 0) + s.get("pendingCount", 0)
                 if n:
-                    td = aws("ecs", "describe-task-definition", "--task-definition", s["taskDefinition"])["taskDefinition"]
-                    inv["fargate"].append({"count": n, "vcpu": int(td["cpu"]) / 1024, "gb": int(td["memory"]) / 1024})
+                    vcpu, gb = task_size(s["taskDefinition"])
+                    inv["fargate"].append({"count": n, "vcpu": vcpu, "gb": gb})
     return inv
 
 
 def estimate(profile):
-    out = subprocess.run(["node", os.path.join(HERE, "estimate-cost.mjs"), profile, "--json"], capture_output=True, text=True)
+    out = subprocess.run(["node", os.path.join(HERE, "estimate-cost.mjs"), profile, "--json"], capture_output=True, text=True, timeout=60)
     e = json.loads(out.stdout)
     per_use = sum(r["usd"] for r in e["rows"] if r["what"].startswith(PER_USE_PREFIXES))
     return e["estimate_usd"], e["hours"], per_use
@@ -137,6 +153,9 @@ def main():
     profile = sys.argv[2]
     run_id = os.environ.get("RUN_ID", "")
     poll = float(os.environ.get("POLL", "60"))
+    if "--once" in sys.argv:
+        print(json.dumps({"burn_per_hour": burn_per_hour(inventory(run_id))}))
+        return 0
     est_total, est_hours, per_use = estimate(profile)
     floor_burn = (est_total - per_use) / est_hours
     fallback_burn = floor_burn * 1.5
@@ -144,21 +163,16 @@ def main():
     last = started
     spent = 0.0
     fails = 0
-    last_burn = 0.0
     warned = False
-    if "--once" in sys.argv:
-        print(json.dumps({"burn_per_hour": burn_per_hour(inventory(run_id))}))
-        return 0
     while True:
         time.sleep(poll)
         now = time.time()
         try:
             burn = max(burn_per_hour(inventory(run_id)), FLOOR_SHARE * floor_burn)
-            last_burn = burn
             fails = 0
         except Exception as ex:  # noqa: BLE001 - never go quiet
             fails += 1
-            burn = max(last_burn, fallback_burn)  # blind: never count it as free
+            burn = fallback_burn  # blind: never count it as free
             print(f"cost-guard: cannot read AWS ({fails}x): {ex}", flush=True)
         spent += burn * (now - last) / 3600
         last = now

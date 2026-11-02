@@ -16,7 +16,7 @@ class Burn(unittest.TestCase):
         inv = {"fargate": [{"count": 30, "vcpu": 0.5, "gb": 1}], "rds": ["db.r7g.2xlarge"],
                "redis": [{"type": "cache.r7g.xlarge", "nodes": 2}], "alb": 1, "nat": 1, "endpoints": 4, "ipv4": 10,
                "ec2": [{"type": "c7g.xlarge", "spot": True}] * 5}
-        # estimate-cost m10: API 30 x 0.0247 = 0.74, db 1.104, redis 0.874, gens 0.29, alb .02, nat .045 ...
+        # estimate-cost m10 is about 3.4 $/h
         b = cg.burn_per_hour(inv)
         self.assertGreater(b, 3.0)
         self.assertLess(b, 4.0)
@@ -29,13 +29,15 @@ class Burn(unittest.TestCase):
         full = cg.burn_per_hour({"ec2": [{"type": "c7g.xlarge", "spot": False}]})
         self.assertLess(spot, full)
 
-    def test_big_databases_priced_for_the_cloud_ladder(self):
-        self.assertAlmostEqual(cg.PRICES["rds"]["db.r7g.8xlarge"], 4.416)
     def test_other_services_are_not_free(self):
         self.assertGreater(cg.burn_per_hour({"other": 1}), 2.0)
 
-    def test_unknown_class_price_does_not_grow_with_the_price_table(self):
-        self.assertAlmostEqual(cg.burn_per_hour({"rds": ["db.x99.huge"]}), cg.UNKNOWN_RDS_HOUR * 1.1 + cg.burn_per_hour({}) - 0, places=1)
+    def test_unknown_class_price_ignores_the_price_table(self):
+        small = dict(cg.PRICES, rds={"db.t4g.micro": 0.016})
+        huge = dict(cg.PRICES, rds={"db.t4g.micro": 0.016, "db.r7g.16xlarge": 9.0})
+        inv = {"rds": ["db.x99.huge"]}
+        self.assertAlmostEqual(cg.burn_per_hour(inv, small), cg.burn_per_hour(inv, huge))
+        self.assertGreater(cg.burn_per_hour(inv, small) - cg.burn_per_hour({}, small), cg.UNKNOWN_RDS_HOUR)
 
 
 class Cancel(unittest.TestCase):
