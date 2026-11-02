@@ -19,6 +19,7 @@ import 'package:lawbid/features/chat/presentation/disappearing_sheet.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
+import 'package:lawbid/features/groups/domain/slow_mode.dart';
 import 'package:lawbid/features/groups/presentation/group_files_screen.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_admin_rights_sheet.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_avatar.dart';
@@ -32,6 +33,7 @@ import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.da
 import 'package:lawbid/features/groups/presentation/widgets/group_info_topics.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_invited_tile.dart';
 import 'package:lawbid/features/groups/presentation/widgets/people_picker.dart';
+import 'package:lawbid/features/groups/presentation/widgets/slow_mode_sheet.dart';
 import 'package:lawbid/features/notifications/application/call_mute.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -858,6 +860,41 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                           api.UpdateGroupDto(
                             disappearAfterS:
                                 api.UpdateGroupDtoDisappearAfterS.fromJson(
+                              picked,
+                            ),
+                          ),
+                        );
+                        if (error != null) _toast(error);
+                      }
+                    : null,
+              ),
+            ],
+          ),
+        ),
+        // Owner 2026-11-02 (Telegram «Медленный режим»): the people who may
+        // edit the group info set the pause between two messages of a member
+        // who is not an admin; the others just see it.
+        SliverToBoxAdapter(
+          child: GroupInfoSection(
+            children: [
+              AppListRow(
+                dense: true,
+                key: const ValueKey('group-slow-mode'),
+                icon: AppIcons.timerOutlined,
+                label: t.t('group.slow.title'),
+                trailingText: slowModeValue(t, d.slowModeS),
+                showChevron: false,
+                onTap: d.hasRight('info')
+                    ? () async {
+                        final picked = await pickSlowMode(
+                          context,
+                          t,
+                          current: d.slowModeS,
+                        );
+                        if (picked == null || !mounted) return;
+                        final error = await _update(
+                          api.UpdateGroupDto(
+                            slowModeS: api.UpdateGroupDtoSlowModeS.fromJson(
                               picked,
                             ),
                           ),

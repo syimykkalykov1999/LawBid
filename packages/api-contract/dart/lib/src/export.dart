@@ -3066,6 +3066,7 @@ export 'models/group_member_dto_kind.dart';
 export 'models/group_member_dto_rights.dart';
 export 'models/group_detail_dto_my_rights.dart';
 export 'models/group_join_result_dto_status.dart';
+export 'models/update_group_dto_slow_mode_s.dart';
 export 'models/update_group_dto_who_can_post.dart';
 export 'models/update_group_dto_who_can_add.dart';
 export 'models/update_group_dto_who_can_edit_info.dart';
