@@ -54,7 +54,7 @@ api = sum(v for k, v in avg.items() if "api" in k)
 total = sum(avg.values())
 held = dropped == 0 and reqs_rate >= 0.95 * target and fail < 0.01 and p95 < 800
 print(f"target {target:.0f} rps, delivered {reqs_rate:.0f} rps, errors {fail*100:.2f} %, p95 {p95:.0f} ms, dropped iterations {dropped}")
-print("cpu % (sum of containers): k6 %.0f, api %.0f, total %.0f of %d" % (k6, api, total, ncpu * 100))
+print("cpu %% (sum of containers): k6 %.0f, api %.0f, total %.0f of %d" % (k6, api, total, ncpu * 100))
 if held:
     sys.exit(0)
 if total >= 0.9 * ncpu * 100:
