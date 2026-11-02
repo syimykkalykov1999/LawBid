@@ -8,6 +8,7 @@ import {
   EventStreamPublisher,
   KinesisEventStreamPublisher,
 } from './event-stream.publisher';
+import { incrWithTtl } from '../../redis/incr-with-ttl';
 
 /**
  * Events pipeline (N-2). Global so any service can take `@Optional()
@@ -38,8 +39,7 @@ export class EventsModule implements OnModuleInit {
       handle: async () => {
         if (!this.redis) return;
         const key = dayCounterKey(new Date());
-        const n = await this.redis.incr(key);
-        if (n === 1) await this.redis.expire(key, 3 * 86_400);
+        await incrWithTtl(this.redis, key, 3 * 86_400);
       },
     });
   }
