@@ -226,7 +226,7 @@ class _DevicesList extends StatelessWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
 
     if (list.items.isEmpty && !list.hasMore) {
-      return RefreshIndicator(
+      return AppRefreshIndicator(
         color: colors.gold,
         backgroundColor: colors.sheet,
         onRefresh: onRefresh,

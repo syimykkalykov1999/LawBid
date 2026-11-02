@@ -14,6 +14,8 @@ import 'package:lawbid/core/l10n/language_catalog_provider.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
+import 'package:lawbid/features/auth/application/auth_providers.dart';
+import 'package:lawbid/features/auth/presentation/widgets/password_step_up.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_providers.dart';
 import 'package:lawbid/features/onboarding/domain/contact_type.dart';
@@ -31,38 +33,21 @@ import '../../helpers/email_flows_overrides.dart';
 import '../../helpers/fixtures.dart';
 import '../../helpers/onboarding_harness.dart';
 import '../../helpers/referral_overrides.dart';
+import '../../helpers/stub_auth_repository.dart';
 
 /// Settings → Account (docs/01 §10.3, §11 3A): identifier list with all
-/// screen states, linking phone/email, and changing the
+/// screen states, and changing the
 /// phone with reauth + code on the new contact.
 class FakeAccountRepository implements AccountRepository {
   FakeAccountRepository(this.onList);
 
   Future<List<AccountIdentifier>> Function() onList;
   final List<String> calls = [];
-  Object? linkError;
 
   @override
   Future<List<AccountIdentifier>> listIdentifiers() {
     calls.add('list');
     return onList();
-  }
-
-  @override
-  Future<void> requestLinkCode(ContactType type, String value) async {
-    calls.add('requestLinkCode:${type.name}:$value');
-  }
-
-  @override
-  Future<void> linkContact(
-    ContactType type,
-    String value,
-    String code, {
-    String? reauthToken,
-  }) async {
-    calls.add('linkContact:${type.name}:$value:$code:$reauthToken');
-    // ignore: only_throw_errors
-    if (linkError != null) throw linkError!;
   }
 }
 
@@ -105,6 +90,16 @@ Future<void> _enterOtp(WidgetTester tester, String code) async {
     matching: find.byType(EditableText),
   );
   await tester.enterText(field.first, code);
+  await tester.pumpAndSettle();
+}
+
+/// Owner 2026-10-28: «it's me» asks for the account password first; these
+/// tests take «Забыли пароль? Получить код по SMS» to the code path.
+Future<void> _useSms(WidgetTester tester) async {
+  final link = find.byKey(const ValueKey('step-up-use-code'));
+  await tester.ensureVisible(link);
+  await tester.pumpAndSettle();
+  await tester.tap(link);
   await tester.pumpAndSettle();
 }
 
@@ -192,11 +187,10 @@ void main() {
       // Only the phone can be changed; no "Add a sign-in email".
       expect(find.text('Change'), findsOneWidget);
       expect(find.text('Add a sign-in email'), findsNothing);
-      expect(find.text('Add a sign-in phone number'), findsOneWidget);
       await _tearDown(tester);
     });
 
-    testWidgets('empty: no identifiers explains it and still offers linking',
+    testWidgets('empty: no identifiers explains it and shows the empty state',
         (tester) async {
       _tallView(tester);
       final repo = FakeAccountRepository(() async => const []);
@@ -286,6 +280,7 @@ void main() {
       await tester.enterText(find.byType(TextField).first, '2025550199');
       await tester.tap(find.text('Send code'));
       await tester.pumpAndSettle();
+      await _useSms(tester); // owner 2026-10-28: password first
       // Reauth first: the code goes to the CURRENT verified phone.
       expect(onboarding.calls, ['requestReauthCode:+15551234567']);
       expect(find.text("Confirm it's you"), findsOneWidget);
@@ -307,6 +302,71 @@ void main() {
         find.text('Your phone number is verified and saved.'),
         findsOneWidget,
       );
+      await _tearDown(tester);
+    });
+
+    testWidgets(
+        'owner 2026-10-28: the account password (no SMS) confirms it is me',
+        (tester) async {
+      _tallView(tester);
+      final onboarding = FakeOnboardingRepository(_client);
+      final repo = FakeAccountRepository(() async => const [_phone]);
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: _client,
+        repo: onboarding,
+        extra: [
+          accountRepositoryProvider.overrideWithValue(repo),
+          authRepositoryProvider.overrideWithValue(const StubAuthRepository()),
+          stepUpPasskeyProvider.overrideWith((ref) async => false),
+          ...emailFlowsOnOverrides(),
+        ],
+      );
+      await tester.pumpWidget(
+        wrap(
+          const AccountContactFlowScreen(
+            type: ContactType.phone,
+            mode: AccountContactMode.primary,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, '2025550199');
+      await tester.tap(find.text('Send code'));
+      await tester.pumpAndSettle();
+      // No SMS: the password field instead of the code boxes.
+      expect(onboarding.calls, isEmpty);
+      expect(find.text("Confirm it's you"), findsOneWidget);
+      expect(find.text('Enter your account password.'), findsOneWidget);
+      expect(find.byType(AppOtpField), findsNothing);
+
+      // A wrong password stays here with the error.
+      await tester.enterText(
+        find.descendant(
+          of: find.byKey(const ValueKey('step-up-password')),
+          matching: find.byType(EditableText),
+        ),
+        'nope',
+      );
+      await tester.tap(find.byKey(const ValueKey('step-up-password-submit')));
+      await tester.pumpAndSettle();
+      expect(find.text('Incorrect password.'), findsOneWidget);
+      expect(onboarding.calls, isEmpty);
+
+      // The right one: the code goes to the NEW phone with the token.
+      await tester.enterText(
+        find.descendant(
+          of: find.byKey(const ValueKey('step-up-password')),
+          matching: find.byType(EditableText),
+        ),
+        'stub-password',
+      );
+      await tester.tap(find.byKey(const ValueKey('step-up-password-submit')));
+      await tester.pumpAndSettle();
+      expect(onboarding.calls, [
+        'requestContactCode:+12025550199:stub-reauth-token',
+      ]);
+      expect(find.text('Enter the code'), findsOneWidget);
       await _tearDown(tester);
     });
 
@@ -348,7 +408,7 @@ void main() {
       wrap(
         const AccountContactFlowScreen(
           type: ContactType.email,
-          mode: AccountContactMode.link,
+          mode: AccountContactMode.primary,
         ),
       ),
     );
@@ -357,6 +417,7 @@ void main() {
     await tester.enterText(find.byType(TextField).first, 'x@example.com');
     await tester.tap(find.text('Send code'));
     await tester.pumpAndSettle();
+    await _useSms(tester); // owner 2026-10-28: password first
     // Owner 2026-10-22 (audit #3): the "it's me" step comes first.
     expect(tester.takeException(), isNull);
     await _enterOtp(tester, '111111');
@@ -405,6 +466,7 @@ void main() {
     await tester.enterText(find.byType(TextField).first, 'ann@example.com');
     await tester.tap(find.text('Send code'));
     await tester.pumpAndSettle();
+    await _useSms(tester); // owner 2026-10-28: password first
     expect(onboarding.calls, [
       'requestContactCode:ann@example.com',
       'requestReauthCode:+15551234567',
@@ -420,76 +482,82 @@ void main() {
     await _tearDown(tester);
   });
 
-  group('link an additional email (POST /auth/identifiers)', () {
-    testWidgets(
-        'owner 2026-10-22 (audit #3): "it’s me" code first, then the new email → linked',
-        (tester) async {
+  group('owner 2026-10-28: no extra sign-in phone/email', () {
+    testWidgets('Account screen offers no link entries', (tester) async {
       _tallView(tester);
-      final repo = FakeAccountRepository(() async => const [_phone]);
-      final onboarding = FakeOnboardingRepository(_client);
-      final wrap = await _wrap(repo, onboarding: onboarding);
-      await tester.pumpWidget(
-        wrap(
-          const AccountContactFlowScreen(
-            type: ContactType.email,
-            mode: AccountContactMode.link,
-          ),
-        ),
+      final repo = FakeAccountRepository(
+        () async => const [_phone, _extraEmail],
       );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Sign-in email'), findsOneWidget);
-      await tester.enterText(
-        find.byType(TextField).first,
-        ' Work@Example.com ',
-      );
-      await tester.tap(find.text('Send code'));
-      await tester.pumpAndSettle();
-      // The identity code goes to a contact the account already has.
-      expect(onboarding.calls, ['requestReauthCode:+15551234567']);
-      expect(repo.calls, isEmpty);
-
-      await _enterOtp(tester, '111111');
-      expect(onboarding.calls.last, 'reauth');
-      expect(repo.calls, ['requestLinkCode:email:work@example.com']);
-
-      await _enterOtp(tester, '333333');
-      expect(repo.calls.last, 'linkContact:email:work@example.com:333333:rt');
-      expect(
-        find.text('You can now sign in with work@example.com.'),
-        findsOneWidget,
-      );
-      await _tearDown(tester);
-    });
-
-    testWidgets(
-        'a rejected code keeps the user on the code step with the error',
-        (tester) async {
-      _tallView(tester);
-      final repo = FakeAccountRepository(() async => const [])
-        ..linkError = const ApiException(
-          code: ApiErrorCodes.authOtpInvalid,
-          message: 'bad',
-        );
       final wrap = await _wrap(repo);
-      await tester.pumpWidget(
-        wrap(
-          const AccountContactFlowScreen(
-            type: ContactType.email,
-            mode: AccountContactMode.link,
-          ),
-        ),
-      );
+      await tester.pumpWidget(wrap(const AccountScreen()));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField).first, 'x@example.com');
-      await tester.tap(find.text('Send code'));
-      await tester.pumpAndSettle();
-      await _enterOtp(tester, '111111'); // "it's me"
-      await _enterOtp(tester, '000000');
-      expect(find.text('Enter the code'), findsOneWidget);
-      expect(find.text('All set'), findsNothing);
+      expect(find.text('Add a sign-in phone number'), findsNothing);
+      expect(find.text('Add a sign-in email'), findsNothing);
+      expect(find.text('ADD A SIGN-IN METHOD'), findsNothing);
+      // Existing linked identifiers are still listed; change stays.
+      expect(find.text('second@example.com'), findsOneWidget);
+      expect(find.text('Change'), findsNWidgets(2));
       await _tearDown(tester);
     });
+
+    testWidgets('an old ?mode=link deep link opens the plain change flow',
+        (tester) async {
+      _tallView(tester);
+      final router = GoRouter(
+        initialLocation: '/profile/settings/account/contact/email?mode=link',
+        routes: accountRoutes(),
+      );
+      addTearDown(router.dispose);
+      final repo = FakeAccountRepository(() async => const []);
+      final wrap = await _wrap(repo);
+      await tester.pumpWidget(wrap(Router.withConfig(config: router)));
+      await tester.pumpAndSettle();
+      expect(find.text('Sign-in email'), findsNothing);
+      expect(find.text('Change email'), findsOneWidget);
+      await _tearDown(tester);
+    });
+
+    for (final scale in [1.0, 1.6]) {
+      testWidgets('code step: Resend / Change buttons equal size at x$scale',
+          (tester) async {
+        _tallView(tester);
+        final repo = FakeAccountRepository(() async => const []);
+        final wrap = await _wrap(repo, textScale: scale);
+        await tester.pumpWidget(
+          wrap(
+            const AccountContactFlowScreen(
+              type: ContactType.email,
+              mode: AccountContactMode.primary,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField).first, 'x@example.com');
+        await tester.tap(find.text('Send code'));
+        await tester.pumpAndSettle();
+        await _useSms(tester); // owner 2026-10-28: password first
+        final buttons = find.byType(AppButton);
+        expect(buttons, findsNWidgets(2));
+        final a = tester.getSize(buttons.at(0));
+        final b = tester.getSize(buttons.at(1));
+        expect(a.width, b.width);
+        expect(a.height, b.height);
+        for (final label in ['Resend code', 'Use another']) {
+          final text = find.descendant(
+            of: buttons,
+            matching: find.text(label, skipOffstage: false),
+          );
+          if (text.evaluate().isNotEmpty) {
+            expect(
+              tester.renderObject<RenderBox>(text.first).size.height,
+              lessThan(a.height),
+            );
+          }
+        }
+        expect(tester.takeException(), isNull);
+        await _tearDown(tester);
+      });
+    }
   });
 
   testWidgets('Settings → Account row opens the Account screen',

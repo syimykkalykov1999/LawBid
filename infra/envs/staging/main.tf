@@ -57,6 +57,8 @@ module "stack" {
   worker_max_tasks    = var.worker_max_tasks
   min_tasks           = var.min_tasks
   admin_tasks         = var.admin_tasks
+  admin_cpu           = var.admin_cpu
+  admin_memory        = var.admin_memory
   api_cpu             = var.api_cpu
   api_memory          = var.api_memory
   worker_cpu          = var.worker_cpu

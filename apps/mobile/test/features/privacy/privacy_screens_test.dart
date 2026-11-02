@@ -25,14 +25,20 @@ import '../../helpers/long_locale.dart';
 import '../../helpers/ux_harness.dart';
 
 class _FakePrivacy implements PrivacyRepository {
+  _FakePrivacy({this.followAudiences = true});
+
   final appeals = <(String, String)>[];
 
-  PrivacySettings current = const PrivacySettings(
-    lastSeen: Audience.everyone,
-    messageFrom: Audience.everyone,
-    callFrom: Audience.contacts,
+  final bool followAudiences;
+
+  late PrivacySettings current = PrivacySettings(
+    lastSeen: const {Audience.everyone},
+    messageFrom: const {Audience.everyone},
+    callFrom: const {Audience.contacts, Audience.following},
+    followAudiences: followAudiences,
   );
   final changes = <(PrivacyField, Audience)>[];
+  final sentAsSet = <bool>[];
   final doNotSell = <bool>[];
 
   @override
@@ -45,16 +51,14 @@ class _FakePrivacy implements PrivacyRepository {
   }
 
   @override
-  Future<PrivacySettings> change(PrivacyField field, Audience value) async {
+  Future<PrivacySettings> change(
+    PrivacyField field,
+    Audience value, {
+    required bool followAudiences,
+  }) async {
     changes.add((field, value));
-    return current = switch (field) {
-      PrivacyField.lastSeen => current.copyWith(lastSeen: value),
-      PrivacyField.messageFrom => current.copyWith(messageFrom: value),
-      PrivacyField.callFrom => current.copyWith(callFrom: value),
-      PrivacyField.photoFrom => current.copyWith(photoFrom: value),
-      PrivacyField.aboutFrom => current.copyWith(aboutFrom: value),
-      PrivacyField.groupAddFrom => current.copyWith(groupAddFrom: value),
-    };
+    sentAsSet.add(followAudiences);
+    return current = current.withField(field, {value});
   }
 
   @override
@@ -164,6 +168,110 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  List<String> sheetOptions(WidgetTester tester) => [
+        for (final e
+            in tester.widgetList<AppPickerRow>(find.byType(AppPickerRow)))
+          (e.key! as ValueKey<String>).value,
+      ];
+
+  testWidgets(
+      'owner 2026-10-28: five short choices in order, one footnote; '
+      'followers is sent as a set', (tester) async {
+    final repo = _FakePrivacy();
+    await pump(
+      tester,
+      const PrivacyScreen(),
+      repo,
+      t: L10nTranslator(language: AppLanguage.ru, cache: const {}),
+    );
+    // One short footnote under the list.
+    expect(
+      find.text('Участники ваших дел всегда могут писать и звонить.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('privacy-message-from')));
+    await tester.pumpAndSettle();
+    expect(sheetOptions(tester), [
+      'audience-everyone',
+      'audience-followers',
+      'audience-following',
+      'audience-contacts',
+      'audience-nobody',
+    ]);
+    for (final label in [
+      'Все',
+      'Мои подписчики',
+      'Мои подписки',
+      'Мои контакты',
+      'Никто',
+    ]) {
+      expect(
+        find.descendant(
+          of: find.byType(AppPickerRow),
+          matching: find.text(label),
+        ),
+        findsOneWidget,
+      );
+    }
+    // No explanations in brackets anywhere on the sheet.
+    expect(find.textContaining('('), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('audience-followers')));
+    await tester.pumpAndSettle();
+    expect(repo.changes, [(PrivacyField.messageFrom, Audience.followers)]);
+    expect(repo.sentAsSet, [true]);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('privacy-message-from')),
+        matching: find.text('Мои подписчики'),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('an old «contacts» (contacts + following) shows both as chosen', (
+    tester,
+  ) async {
+    final repo = _FakePrivacy();
+    await pump(tester, const PrivacyScreen(), repo);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('privacy-call-from')),
+        matching: find.text('Following, My contacts'),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('privacy-call-from')));
+    await tester.pumpAndSettle();
+    bool chosen(String key) =>
+        tester.widget<AppPickerRow>(find.byKey(ValueKey(key))).selected;
+    expect(chosen('audience-following'), isTrue);
+    expect(chosen('audience-contacts'), isTrue);
+    expect(chosen('audience-followers'), isFalse);
+    expect(chosen('audience-everyone'), isFalse);
+    // Picking one of them narrows the set to it.
+    await tester.tap(find.byKey(const ValueKey('audience-contacts')));
+    await tester.pumpAndSettle();
+    expect(repo.changes, [(PrivacyField.callFrom, Audience.contacts)]);
+  });
+
+  testWidgets('a server one version older: only the old three choices', (
+    tester,
+  ) async {
+    final repo = _FakePrivacy(followAudiences: false);
+    await pump(tester, const PrivacyScreen(), repo);
+    await tester.tap(find.byKey(const ValueKey('privacy-group-add-from')));
+    await tester.pumpAndSettle();
+    expect(sheetOptions(tester), [
+      'audience-everyone',
+      'audience-contacts',
+      'audience-nobody',
+    ]);
+    await tester.tap(find.byKey(const ValueKey('audience-nobody')));
+    await tester.pumpAndSettle();
+    expect(repo.sentAsSet, [false]);
+  });
+
   testWidgets(
       'usage statistics: off until turned on; the answer goes to the server',
       (tester) async {
@@ -204,6 +312,8 @@ void main() {
     await tester.pumpAndSettle();
     final row = find.byKey(const ValueKey('privacy-do-not-sell'));
     await tester.scrollUntilVisible(row, 200);
+    await tester.ensureVisible(row);
+    await tester.pumpAndSettle();
     final toggle = find.descendant(of: row, matching: find.byType(Switch));
     expect(tester.widget<Switch>(toggle).value, isFalse);
     await tester.tap(row);

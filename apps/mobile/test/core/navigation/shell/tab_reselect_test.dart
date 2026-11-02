@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
 
 /// Owner 2026-10-06: a tap on the open tab scrolls it to the top and
 /// refreshes it (Instagram-style); hidden tabs / sub-tabs stay untouched.
 void main() {
-  Widget list(ScrollController c, VoidCallback onRefresh) => RefreshIndicator(
+  Widget list(ScrollController c, VoidCallback onRefresh) =>
+      AppRefreshIndicator(
         onRefresh: () async => onRefresh(),
         child: ListView.builder(
           controller: c,

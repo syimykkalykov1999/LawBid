@@ -1693,7 +1693,10 @@ class ChatThread extends Notifier<ChatThreadState> {
               !isCategoryMuted(ref, NotifCategory.messages)) {
             unawaited(ref.read(appSoundsProvider).messageIn());
           }
+          // A skipped number means a missed message: fetch what is missing.
+          final gap = hasSeqGap(state.messages, m);
           _merge([m]);
+          if (gap) unawaited(_catchUp());
           if (state.typing) state = state.copyWith(typing: false);
         }
       case 'message:updated':

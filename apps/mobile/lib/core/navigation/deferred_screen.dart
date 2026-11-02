@@ -13,8 +13,19 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 /// phones `loadLibrary` completes at once (everything is in the app), so
 /// nothing changes there.
 ///
-/// [id] names the library: once it has loaded, later opens build the
-/// screen on the very first frame (no spinner flash).
+/// Owner bug 2026-10-28 (Archive opened a grey screen): Dart loads a
+/// deferred library *per importing prefix*. The same screen file imported
+/// `deferred as x` in two places has two prefixes, and each must have its
+/// own `loadLibrary()` completed before its classes are touched. An earlier
+/// version cached "loaded" by [id], so after one prefix loaded the other
+/// route built at once and crashed in `_checkLoaded`.
+///
+/// Now the cache is keyed by the [load] function itself (`x.loadLibrary`
+/// of ONE prefix), the pattern of the official Flutter Gallery
+/// (flutter/gallery `lib/deferred_widget.dart`, BSD-3, commit d030f1e):
+/// a prefix that already loaded builds on the very first frame, any other
+/// prefix (or an unknown loader) is always awaited first. [id] is only a
+/// readable name (keys, tests), never a cache key.
 class DeferredScreen extends ConsumerStatefulWidget {
   const DeferredScreen({
     required this.id,
@@ -27,16 +38,32 @@ class DeferredScreen extends ConsumerStatefulWidget {
   final Future<void> Function() load;
   final WidgetBuilder builder;
 
-  /// Libraries that finished loading in this session.
-  static final Set<String> _loaded = <String>{};
+  /// One in-flight / finished load per loader (= per deferred prefix).
+  static final Map<Future<void> Function(), Future<void>> _loaders = {};
+
+  /// Loaders (prefixes) that finished loading in this session.
+  static final Set<Future<void> Function()> _loaded = {};
+
+  /// Whether this exact loader (prefix) has finished loading.
+  @visibleForTesting
+  static bool isLoaded(Future<void> Function() load) => _loaded.contains(load);
 
   /// Starts loading a library ahead of time (idle prefetch); safe to call
-  /// again and to ignore the result.
-  static Future<void> prefetch(String id, Future<void> Function() load) async {
-    if (_loaded.contains(id)) return;
-    await load();
-    _loaded.add(id);
-  }
+  /// again and to ignore the result. Only the SAME loader counts as loaded.
+  static Future<void> prefetch(String id, Future<void> Function() load) =>
+      _preload(load);
+
+  static Future<void> _preload(Future<void> Function() load) =>
+      _loaders.putIfAbsent(
+        load,
+        () => Future<void>.sync(load).then((_) {
+          _loaded.add(load);
+        }).catchError((Object e, StackTrace s) {
+          // A failed download may be retried later.
+          _loaders.remove(load);
+          Error.throwWithStackTrace(e, s);
+        }),
+      );
 
   @override
   ConsumerState<DeferredScreen> createState() => _DeferredScreenState();
@@ -47,12 +74,23 @@ class _DeferredScreenState extends ConsumerState<DeferredScreen> {
   bool _showSpinner = false;
   Timer? _spinnerTimer;
 
-  bool get _ready => DeferredScreen._loaded.contains(widget.id);
+  late bool _ready = DeferredScreen.isLoaded(widget.load);
 
   @override
   void initState() {
     super.initState();
     if (!_ready) _start();
+  }
+
+  @override
+  void didUpdateWidget(DeferredScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A different loader (another prefix) must be loaded on its own.
+    if (oldWidget.load != widget.load &&
+        !DeferredScreen.isLoaded(widget.load)) {
+      _ready = false;
+      _start();
+    }
   }
 
   void _start() {
@@ -64,8 +102,8 @@ class _DeferredScreenState extends ConsumerState<DeferredScreen> {
       if (mounted) setState(() => _showSpinner = true);
     });
     unawaited(
-      DeferredScreen.prefetch(widget.id, widget.load).then((_) {
-        if (mounted) setState(() {});
+      DeferredScreen._preload(widget.load).then((_) {
+        if (mounted) setState(() => _ready = true);
       }).catchError((Object _) {
         if (mounted) setState(() => _failed = true);
       }),
@@ -84,14 +122,20 @@ class _DeferredScreenState extends ConsumerState<DeferredScreen> {
       _spinnerTimer?.cancel();
       return widget.builder(context);
     }
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    // A fast load shows only the page colour (no flash of bars).
-    if (!_failed && !_showSpinner) return ColoredBox(color: colors.bg);
+    // A fast load shows only the theme's page colour (no flash of bars,
+    // never white in a dark theme — owner 2026-10-28).
+    final pageColor = Theme.of(context).scaffoldBackgroundColor;
+    if (!_failed && !_showSpinner) {
+      return ColoredBox(
+        key: const ValueKey('deferred-placeholder'),
+        color: pageColor,
+      );
+    }
     final t = ref.watch(translatorProvider);
     return Scaffold(
-      backgroundColor: colors.bg,
+      backgroundColor: pageColor,
       appBar: AppBar(
-        backgroundColor: colors.bg,
+        backgroundColor: pageColor,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: const BackButton(),

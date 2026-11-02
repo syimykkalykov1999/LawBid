@@ -1,10 +1,10 @@
 import 'dart:io';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/files/resumable_download.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -103,10 +103,9 @@ class CaseFileCache {
       }
       return file;
     }
-    final tmp = File('${file.path}.part');
-    await Dio().download(f.url, tmp.path);
-    await tmp.rename(file.path);
-    return file;
+    // Resumes a cut transfer from its `.part` file (Range) and shares one
+    // transfer between two taps.
+    return ResumableDownload.instance.fetch(f.url, file);
   }
 
   static Future<void> open(
