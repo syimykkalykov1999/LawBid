@@ -1,0 +1,5 @@
+# 2026-11-02 · админка: Next 16 и vitest 4 (хвост аудита безопасности)
+
+Закрывает два пункта аудита: postcss в Next 15 (high, четыре CVE; чинится только в Next ≥16, исправление в Next 15 не выходило) и tinypool через vitest 3 (critical, только в тестах). Обновлено: `next` ^16.4.3, `eslint-config-next` ^16.4.3, `vitest` ^4.0.0 (lock 4.1.12, Next 16.4.3 внутри тянет postcss 8.5.31). Конфиг линтера переведён на родной flat-формат, пять правил React Compiler (react-hooks v7) и `no-location-assign-relative-destination` выключены с комментарием, чтобы поведение админки не менялось. `tsconfig`: `jsx: react-jsx` (так Next 16 сам правит), в `vitest.config.ts` убран `esbuild.jsx` (vite 8 без esbuild).
+
+Проверено локально: `tsc`, `next build`, `eslint --max-warnings=0`, 683 теста, `npm ci` на npm 10, гейт аудита API зелёный. Остаётся: `middleware.ts` в Next 16 работает с предупреждением «переименовать в proxy» (CSP с nonce, не трогали); предупреждение Turbopack про `guides-server.ts`; смотреть админку на стейдже перед деплоем. Lock пересобран npm 11 (npm 10 падает на vitest 4 с ошибкой arborist).
