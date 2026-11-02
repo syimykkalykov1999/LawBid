@@ -158,6 +158,60 @@ describe('CasesFeedService', () => {
       expect(page.nextCursor).toBeNull();
     });
 
+    describe('replica seam', () => {
+      const OPT = 9; // optional constructor slots before `read`
+      function withReplica(
+        scan: { id: string; created_at: Date }[],
+        stillOpenOnPrimary: string[],
+      ) {
+        const deps = fakeDeps({
+          cases: scan.map((r) => caseRow({ id: r.id })),
+        });
+        const replica = { $queryRaw: jest.fn().mockResolvedValue(scan) };
+        const readDb = jest.fn().mockReturnValue(replica);
+        deps.prisma.$queryRaw.mockResolvedValue(
+          stillOpenOnPrimary.map((id) => ({ id })),
+        );
+        const service = new CasesFeedService(
+          deps.prisma as never,
+          deps.access as never,
+          deps.viewTracking as never,
+          deps.posts as never,
+          ...(Array(OPT).fill(undefined) as []),
+          { readDb } as never,
+        );
+        return { ...deps, service, replica, readDb };
+      }
+
+      it('scans on the replica, then confirms ids on the primary', async () => {
+        const now = new Date();
+        const { service, replica, readDb, prisma } = withReplica(
+          [{ id: 'case-r', created_at: now }],
+          ['case-r'],
+        );
+        const page = await service.listFeed(attorney, {});
+        expect(readDb).toHaveBeenCalledWith({ maxStalenessMs: 5000 });
+        expect(replica.$queryRaw).toHaveBeenCalled();
+        expect(page.items.map((i) => i.id)).toEqual(['case-r']);
+        // verification check, confirmation and hydration are primary reads
+        expect(prisma.attorneyProfile.findUnique).toHaveBeenCalled();
+        expect(prisma.case.findMany).toHaveBeenCalled();
+      });
+
+      it('drops a case that was closed/paused or blocked inside the lag window', async () => {
+        const now = new Date();
+        const { service } = withReplica(
+          [
+            { id: 'case-gone', created_at: now },
+            { id: 'case-ok', created_at: now },
+          ],
+          ['case-ok'],
+        );
+        const page = await service.listFeed(attorney, {});
+        expect(page.items.map((i) => i.id)).toEqual(['case-ok']);
+      });
+    });
+
     describe('sort=for_you (owner 2026-10-13)', () => {
       function withRanking(rankedIds: string[]) {
         const rows = ['c1', 'c2', 'c3'].map((id) => caseRow({ id }));

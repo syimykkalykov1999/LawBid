@@ -34,6 +34,13 @@ export interface RuntimeSample {
   RssMb: number;
   /** S8-7: time an async fs call waits for a libuv worker (queue lag). */
   ThreadPoolLagMs: number;
+  /**
+   * Open sockets of THIS api task (only the api registers the gauge). The
+   * ECS target-tracking policy `api-sockets` (infra/modules/ecs) keeps the
+   * average of it per task under a ceiling: CPU and request count do not see
+   * a task that holds many idle sockets.
+   */
+  OpenSockets?: number;
 }
 
 export function emfLine(
@@ -50,13 +57,16 @@ export function emfLine(
           Namespace: 'LawBid/Runtime',
           Dimensions: [['Service']],
           Metrics: [
-            unit('EventLoopP50Ms', 'Milliseconds'),
+            // Only what an alarm, the dashboard or a scaling policy reads is a
+            // billed custom metric (about $0.30 each a month). P50, max, RSS
+            // and thread-pool lag stay on the line as plain fields, so they
+            // can still be queried in CloudWatch Logs Insights for free.
             unit('EventLoopP99Ms', 'Milliseconds'),
-            unit('EventLoopMaxMs', 'Milliseconds'),
             unit('HeapUsedMb', 'Megabytes'),
             unit('HeapLimitMb', 'Megabytes'),
-            unit('RssMb', 'Megabytes'),
-            unit('ThreadPoolLagMs', 'Milliseconds'),
+            ...(s.OpenSockets === undefined
+              ? []
+              : [unit('OpenSockets', 'Count')]),
           ],
         },
       ],
@@ -75,6 +85,12 @@ export class RuntimeStatsService
   /** Worst thread-pool lag seen since the last emit (S8-7). */
   private poolLagMs = 0;
   private probe?: NodeJS.Timeout;
+  private socketGauge?: () => number;
+
+  /** The realtime gateway tells how many sockets this process holds. */
+  registerSocketGauge(fn: () => number): void {
+    this.socketGauge = fn;
+  }
 
   onApplicationBootstrap(): void {
     if (
@@ -120,6 +136,7 @@ export class RuntimeStatsService
       RssMb: Math.round(mem.rss / 1048576),
       ThreadPoolLagMs: Math.round(this.poolLagMs * 10) / 10,
     };
+    if (this.socketGauge) s.OpenSockets = Math.max(0, this.socketGauge());
     this.poolLagMs = 0;
     h.reset();
     return s;
