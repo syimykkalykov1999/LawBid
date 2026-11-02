@@ -55,10 +55,10 @@
 
 Замер (шаги упавших/успешных прогонов): на macOS `flutter test` 30–43 мин из 43–115 мин всего (490 тест-файлов, но golden-сравнение только в 7); analyze 2 мин, codegen 2 мин, установка Flutter 1,5 мин, iOS-сборка 13–16 мин. Пул macOS у GitHub мал, 3 мобильных PR одновременно ставили в очередь всё остальное. API CI при этом 16–17 мин и очередь не создаёт (метка «queued» у «All API jobs passed» — это итоговый job, ждущий остальные).
 
-Сделано (`mobile-ci.yml`): analyze + unit/widget (без файлов с golden_toolkit) на **ubuntu**; macOS остаётся только для `Golden tests` (≈26 файлов по grep golden_toolkit|matchesGoldenFile|screenMatchesGolden) и iOS-сборки, и только если PR меняет `apps/mobile/**` (job `changes`; PR только с `packages/api-contract/**` macOS не занимает); `cache: true` у flutter-action; таймауты: API static 60, mobile ubuntu 45, golden macOS 45, iOS 25, остальные job-ы без таймаута получили 20–60 (pgbouncer 45: QEMU arm64); watchdog остаётся раз в час (обещание «стек старше 4 ч» важнее очереди).
+Сделано (`mobile-ci.yml`): analyze + unit/widget (без файлов с golden_toolkit) на **ubuntu**; macOS остаётся только для `Golden tests` (~27 файлов по grep golden_toolkit|matchesGoldenFile|screenMatchesGolden) и iOS-сборки, и только если PR меняет `apps/mobile/**` (job `changes`; PR только с `packages/api-contract/**` macOS не занимает); `cache: true` у flutter-action; таймауты: API static 60, mobile ubuntu 45, golden macOS 45, iOS 25, остальные job-ы без таймаута получили 20–60 (pgbouncer 45: QEMU arm64); watchdog остаётся раз в час (обещание «стек старше 4 ч» важнее очереди).
 
 **Следующий шаг (для следующего ИИ):**
-1. Измерить новый прогон: цель — macOS-часть < 25 мин (golden 7 файлов + iOS). Если `flutter test` на ubuntu красный из-за разницы ОС (шрифты/метрики), чинить тест, а не возвращать на macOS целиком.
+1. Измерить новый прогон: цель — macOS-часть < 25 мин (golden ~27 файлов + iOS). Если `flutter test` на ubuntu красный из-за разницы ОС (шрифты/метрики), чинить тест, а не возвращать на macOS целиком.
 2. «CI gate» удалён (держал раннер). Вернуть на `workflow_run`-workflow (срабатывает на завершение API CI / Mobile CI / admin-ci / Repo guards, ставит commit status «CI gate») или на короткий job с `gh api` — `workflow_run` работает только из `main`, поэтому проверять после слияния.
 3. Если iOS-сборка останется самой долгой — кеш CocoaPods (`~/.cocoapods`, `ios/Pods`) по хешу `Podfile.lock`.
 
