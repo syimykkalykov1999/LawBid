@@ -35,7 +35,7 @@ import '../helpers/ux_harness.dart';
 
 /// Owner 2026-11-02: the screens no overflow test had covered yet, on a
 /// 360 dp phone in the longest translation of every key, right-to-left,
-/// Nepali, Arabic and Russian, at text scale 1 and 1.1 (lib/app.dart).
+/// Nepali, Arabic and Russian, at text scale 1 and 1.3, the shell's cap (DeviceTextScale.shellMax).
 /// Any overflow fails.
 class _Session extends SessionController {
   @override
@@ -58,6 +58,8 @@ void main() {
     'longest, right-to-left': (LongestTranslator(), TextDirection.rtl),
     'ne': (ShippedTranslator('ne'), TextDirection.ltr),
     'ar': (ShippedTranslator('ar'), TextDirection.rtl),
+    'de': (ShippedTranslator('de'), TextDirection.ltr),
+    'mr': (ShippedTranslator('mr'), TextDirection.ltr),
     'ru': (
       L10nTranslator(language: AppLanguage.ru, cache: const {}),
       TextDirection.ltr,
@@ -84,7 +86,7 @@ void main() {
         const Scaffold(body: CountryWaitlistSheet(countryCode: 'DE')),
   };
 
-  for (final scale in [1.0, 1.1]) {
+  for (final scale in [1.0, 1.3]) {
     for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
       group('leftover screens: no overflow at 360 dp ($name, x$scale)', () {
         for (final MapEntry(key: label, value: build) in screens.entries) {

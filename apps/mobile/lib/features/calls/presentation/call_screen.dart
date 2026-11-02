@@ -853,8 +853,10 @@ class _TopBar extends StatelessWidget {
         horizontal: AppSpacing.sm,
         vertical: AppSpacing.xs,
       ),
-      child: SizedBox(
-        height: 52,
+      // At least 52 dp; grows with the phone's font size (the name and the
+      // status are two lines of text).
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
         child: Row(
           children: [
             SizedBox(

@@ -45,7 +45,7 @@ void main() {
       'ru'
     ),
   };
-  for (final scale in [1.0, 1.1]) {
+  for (final scale in [1.0, 1.1, 1.3]) {
     for (final MapEntry(key: name, value: (t, dir, code)) in locales.entries) {
       testWidgets("today's buttons at 360 dp ($name, x$scale)", (tester) async {
         useNarrowPhone(tester);
@@ -128,7 +128,9 @@ void main() {
           if (f.evaluate().isNotEmpty) {
             expect(
               tester.getSize(f.first).height,
-              lessThan(24 * scale),
+              // At the shell's largest font (1.3) a long label may take
+              // a second line; it must never overflow (checked above).
+              lessThan(24 * scale * (scale > 1.1 ? 2 : 1)),
               reason: '$k wrapped',
             );
           }
@@ -137,7 +139,11 @@ void main() {
           // «Просмотр кейса» and «Вопросы по кейсу» on one line each.
           for (final label in ['Просмотр кейса', 'Вопросы']) {
             final h = tester.getSize(find.text(label)).height;
-            expect(h, lessThan(24), reason: '$label wrapped');
+            expect(
+              h,
+              lessThan(24 * (scale > 1.1 ? 2 * scale : 1)),
+              reason: '$label wrapped',
+            );
           }
         }
       });
