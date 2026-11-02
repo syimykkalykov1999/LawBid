@@ -38,6 +38,7 @@ ws.eachRow((r, n) => {
 });
 
 const SCRIPTS = ['Latin', 'Cyrillic', 'Greek', 'Arabic', 'Hebrew', 'Devanagari', 'Bengali', 'Gurmukhi', 'Gujarati', 'Tamil', 'Telugu', 'Kannada', 'Malayalam', 'Sinhala', 'Thai', 'Lao', 'Tibetan', 'Myanmar', 'Georgian', 'Armenian', 'Ethiopic', 'Khmer', 'Hangul', 'Han', 'Hiragana', 'Katakana', 'Thaana', 'Mongolian', 'Tifinagh', 'Syriac'];
+const SCRIPT_RES = SCRIPTS.map((sc) => [sc, new RegExp(`\\p{Script=${sc}}`, 'u')]);
 const scriptCache = new Map();
 const scriptOf = (cp) => {
   if (!scriptCache.has(cp)) scriptCache.set(cp, scriptOfUncached(cp));
@@ -48,7 +49,7 @@ const scriptOfUncached = (cp) => {
   if (/\p{Co}/u.test(ch)) return 'PRIVATE_USE';
   if (/\p{Cn}/u.test(ch)) return 'UNASSIGNED';
   if (/[\p{Z}\p{C}]/u.test(ch)) return 'Common';
-  for (const sc of SCRIPTS) if (new RegExp(`\\p{Script=${sc}}`, 'u').test(ch)) return sc;
+  for (const [sc, re] of SCRIPT_RES) if (re.test(ch)) return sc;
   return /\p{Script=Common}|\p{Script=Inherited}/u.test(ch) ? 'Common' : 'UNKNOWN';
 };
 
