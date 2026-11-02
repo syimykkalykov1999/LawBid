@@ -12,6 +12,7 @@ import {
   needsFallback,
   splitRuns,
   layoutLine,
+  wrapWords,
   warmCjkFonts,
 } from './pdf-fonts';
 
@@ -74,6 +75,40 @@ describe('PDF fonts: script fallback', () => {
     await done;
     expect(xs.every((x) => x === margin)).toBe(true);
     expect(Buffer.concat(chunks).length).toBeGreaterThan(1000);
+  });
+
+  it('wraps a long mixed RTL paragraph at spaces, keeping direction and the margin', async () => {
+    const doc = new PDFDocument();
+    const chunks: Buffer[] = [];
+    doc.on('data', (c: Buffer) => chunks.push(c));
+    const done = new Promise<void>((r) => doc.on('end', () => r()));
+    applyPdfFonts(doc);
+    const margin = doc.x;
+    const one = doc.y;
+    doc.text('المبلغ');
+    const lineHeight = doc.y - one;
+    const startY = doc.y;
+    const long = Array.from(
+      { length: 40 },
+      () => 'المبلغ المستحق USD 1500',
+    ).join(' ');
+    doc.text(long, { align: 'right' });
+    expect(doc.y - startY).toBeGreaterThan(lineHeight * 3);
+    expect(doc.x).toBe(margin);
+    doc.end();
+    await done;
+  });
+
+  it('wrapWords breaks at spaces by measured width and keeps a too-wide word whole', () => {
+    const w = (t: string) => t.length;
+    expect(wrapWords('aa bb cc dd', 5, w)).toEqual(['aa bb', 'cc dd']);
+    expect(wrapWords('abcdefgh ij', 4, w)).toEqual(['abcdefgh', 'ij']);
+    expect(wrapWords('', 4, w)).toEqual([]);
+  });
+
+  it('keeps the paragraph direction when a wrapped line has no RTL letters', () => {
+    const l = layoutLine('USD 1500', undefined, true);
+    expect(l.rtlParagraph).toBe(true);
   });
 
   it('picks the Han font by document locale', () => {

@@ -273,8 +273,9 @@ const mirrorReverse = (t: string): string =>
 export function layoutLine(
   text: string,
   lang?: string,
+  paragraphRtl?: boolean,
 ): { fragments: Fragment[]; rtlParagraph: boolean } {
-  if (!HAS_RTL.test(text)) {
+  if (!HAS_RTL.test(text) && paragraphRtl !== true) {
     return {
       fragments: spacesOnInter(
         splitRuns(text, lang).map(({ text: t, font }) => ({ text: t, font })),
@@ -282,7 +283,11 @@ export function layoutLine(
       rtlParagraph: false,
     };
   }
-  const { levels, paragraphs } = bidi.getEmbeddingLevels(text);
+  // A wrapped paragraph keeps the direction of its first line on every line.
+  const { levels, paragraphs } = bidi.getEmbeddingLevels(
+    text,
+    paragraphRtl === undefined ? undefined : paragraphRtl ? 'rtl' : 'ltr',
+  );
   const rtlParagraph = (paragraphs[0]?.level ?? 0) % 2 === 1;
   // Level runs (indices are UTF-16 units; both halves of a pair share a level).
   const runs: { text: string; level: number }[] = [];
@@ -387,10 +392,24 @@ export function applyPdfFonts(
   };
 
   const original = doc.text.bind(doc) as TextFn;
+  /** Set while a wrapped paragraph draws its lines (same direction on each). */
+  let forcedRtl: boolean | undefined;
+  const widthOf = (frs: Fragment[]): number => {
+    let total = 0;
+    for (const f of frs) {
+      doc.font(fontFor(f.font));
+      total += doc.widthOfString(f.text);
+    }
+    return total;
+  };
   const patched: TextFn = (...args) => {
     const [text, a, b, c] = args;
     if (typeof text !== 'string' || text === '') return original(...args);
-    const { fragments, rtlParagraph } = layoutLine(text, options.lang);
+    const { fragments, rtlParagraph } = layoutLine(
+      text,
+      options.lang,
+      forcedRtl,
+    );
     if (!rtlParagraph && fragments.every((f) => f.font === 'Inter')) {
       return original(...args);
     }
@@ -419,40 +438,87 @@ export function applyPdfFonts(
           ? 'right'
           : 'left'
         : requested;
-    if (align !== 'left') {
-      const x0 = x ?? doc.x;
-      const box =
-        (opts?.width as number | undefined) ??
-        doc.page.width - doc.page.margins.right - x0;
-      let total = 0;
-      for (const f of fragments) {
-        doc.font(fontFor(f.font));
-        total += doc.widthOfString(f.text);
+    const x0 = x ?? doc.x;
+    const box =
+      (opts?.width as number | undefined) ??
+      doc.page.width - doc.page.margins.right - x0;
+    const total = widthOf(fragments);
+    if (total > box && forcedRtl === undefined && opts?.continued !== true) {
+      // Too long for one line: break at spaces by measured width, then lay
+      // every line out on its own (the bidi order is per line, the paragraph
+      // direction is the one of the whole text).
+      const lines = wrapWords(text, box, (t) =>
+        widthOf(layoutLine(t, options.lang, rtlParagraph).fragments),
+      );
+      forcedRtl = rtlParagraph;
+      try {
+        lines.forEach((line, i) => {
+          const lineOpts = { ...(opts ?? {}), width: box };
+          if (i === 0 && hasPos) patched(line, a, b, lineOpts);
+          else patched(line, lineOpts);
+        });
+      } finally {
+        forcedRtl = undefined;
       }
-      if (total <= box) {
-        x = align === 'center' ? x0 + (box - total) / 2 : x0 + box - total;
-        placed = true;
-      }
+      if (!hasPos) doc.x = startX;
+      return doc;
+    }
+    if (align !== 'left' && total <= box) {
+      x = align === 'center' ? x0 + (box - total) / 2 : x0 + box - total;
+      placed = true;
     }
 
+    const lineTop = y ?? doc.y;
     fragments.forEach((f, i) => {
       doc.font(fontFor(f.font));
       const last = i === fragments.length - 1;
       const o = {
         ...(opts ?? {}),
         // placed by hand: the fragment must not be aligned a second time
-        ...(placed ? { align: 'left', width: undefined } : {}),
+        ...(placed ? { align: 'left', width: total + 4 } : {}),
         continued: last ? opts?.continued === true : true,
       };
       if (i === 0 && x !== undefined) original(f.text, x, y ?? doc.y, o);
       else original(f.text, o);
     });
+    // The line is as tall as its tallest face: the advance pdfkit made used the
+    // face of the last fragment only, so lines ended by Latin sat too close.
+    if (opts?.continued !== true && fragments.length > 1) {
+      let height = 0;
+      for (const f of fragments) {
+        doc.font(fontFor(f.font));
+        height = Math.max(height, doc.currentLineHeight(true));
+      }
+      const gap = typeof opts?.lineGap === 'number' ? opts.lineGap : 0;
+      doc.y = Math.max(doc.y, lineTop + height + gap);
+    }
     doc.font('Inter');
     // A shifted start (right-aligned RTL line) must not move the next line.
     if (!hasPos && opts?.continued !== true) doc.x = startX;
     return doc;
   };
   (doc as unknown as { text: TextFn }).text = patched;
+}
+
+/** Greedy word wrap by measured width; a word wider than the box stays whole. */
+export function wrapWords(
+  text: string,
+  box: number,
+  width: (line: string) => number,
+): string[] {
+  const lines: string[] = [];
+  let current = '';
+  for (const word of text.split(/(?<=\s)/u)) {
+    const candidate = current + word;
+    if (current !== '' && width(candidate.trimEnd()) > box) {
+      lines.push(current.trimEnd());
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current !== '') lines.push(current.trimEnd());
+  return lines;
 }
 
 // ---- CJK download -------------------------------------------------------
