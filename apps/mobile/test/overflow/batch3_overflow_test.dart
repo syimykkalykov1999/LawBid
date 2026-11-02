@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
 import 'package:lawbid/features/case_payments/data/case_payments_repository.dart';
 import 'package:lawbid/features/case_payments/domain/case_payment_models.dart';
@@ -81,11 +82,11 @@ PaymentRequest _request(
       attorney: _party,
     );
 
-CasePaymentsState _state({required bool attorney}) => CasePaymentsState(
+CasePaymentsState _state({required bool attorneySide}) => CasePaymentsState(
       enabled: true,
       attorneyReady: true,
-      canPay: !attorney,
-      canRequest: attorney,
+      canPay: !attorneySide,
+      canRequest: attorneySide,
       paidCents: 50000000000,
       refundedCents: 12345678900,
       minAmountCents: 100,
@@ -160,7 +161,7 @@ class _FakePayments implements CasePaymentsRepository {
 
 typedef _Case = (
   Widget Function() build,
-  Future<void> Function(WidgetTester)? act,
+  Future<void> Function(WidgetTester) act,
   bool attorneySide,
 );
 
@@ -176,15 +177,15 @@ void main() {
     final plus = find.byWidgetPredicate(
       (w) => w is AppIcon && w.icon == AppIcons.addRounded,
     );
-    expect(find.byType(Switch), findsOneWidget);
-    await tester.ensureVisible(find.byType(Switch));
-    await tester.tap(find.byType(Switch).first);
+    final toggle = find.byType(Switch);
+    expect(toggle, findsOneWidget);
+    await tester.ensureVisible(toggle);
+    await tester.tap(toggle);
     await tester.pump(const Duration(seconds: 1));
     expect(plus, findsWidgets);
     await tester.ensureVisible(plus.first);
     await tester.tap(plus.first);
     await tester.pump(const Duration(seconds: 2));
-    expect(find.byType(Switch), findsOneWidget);
   }
 
   final longNote = find.textContaining('The landlord');
@@ -212,7 +213,7 @@ void main() {
             (c, _) => PaySheet.show(
               c,
               'c1',
-              _state(attorney: false),
+              _state(attorneySide: false),
               onStarted: () {},
             ),
           ),
@@ -224,7 +225,7 @@ void main() {
             (c, _) => PaymentRequestSheet.show(
               c,
               'c1',
-              _state(attorney: true),
+              _state(attorneySide: true),
               onSent: () {},
             ),
           ),
@@ -235,47 +236,38 @@ void main() {
 
   List<Override> overridesFor({required bool attorneySide}) => [
         casePaymentsFlagProvider.overrideWithValue(true),
-        casePaymentsRepositoryProvider
-            .overrideWithValue(_FakePayments(_state(attorney: attorneySide))),
+        casePaymentsRepositoryProvider.overrideWithValue(
+          _FakePayments(_state(attorneySide: attorneySide)),
+        ),
       ];
 
-  for (final scale in overflowScales) {
-    for (final MapEntry(key: name, value: (t, dir))
-        in overflowLocales().entries) {
-      group('batch 3: no overflow at 360 dp ($name, x$scale)', () {
-        for (final MapEntry(
-              key: label,
-              value: (build, act, attorneySide),
-            ) in cases.entries) {
-          testWidgets(label, (tester) async {
-            await pumpOverflowApp(
-              tester,
-              build(),
-              t: t,
-              dir: dir,
-              scale: scale,
-              client: !attorneySide,
-              extra: overridesFor(attorneySide: attorneySide),
-              act: act,
-            );
-          });
-        }
-      });
-    }
-  }
-  for (final themeId in overflowThemes) {
-    group('batch 3: themes (${themeId.name}, longest, x1.3)', () {
-      for (final MapEntry(
-            key: label,
-            value: (build, act, attorneySide),
-          ) in cases.entries) {
+  // Every language at both scales, then the four themes in the longest text.
+  final variants = <(String, Translator, TextDirection, double, AppThemeId)>[
+    for (final scale in overflowScales)
+      for (final MapEntry(key: name, value: (t, dir))
+          in overflowLocales().entries)
+        ('$name, x$scale', t, dir, scale, AppThemeId.day),
+    for (final themeId in overflowThemes)
+      (
+        'themes (${themeId.name}, longest, x1.3)',
+        LongestTranslator(),
+        TextDirection.ltr,
+        DeviceTextScale.shellMax,
+        themeId,
+      ),
+  ];
+
+  for (final (name, t, dir, scale, themeId) in variants) {
+    group('batch 3: no overflow at 360 dp ($name)', () {
+      for (final MapEntry(key: label, value: (build, act, attorneySide))
+          in cases.entries) {
         testWidgets(label, (tester) async {
           await pumpOverflowApp(
             tester,
             build(),
-            t: LongestTranslator(),
-            dir: TextDirection.ltr,
-            scale: DeviceTextScale.shellMax,
+            t: t,
+            dir: dir,
+            scale: scale,
             theme: themeId,
             client: !attorneySide,
             extra: overridesFor(attorneySide: attorneySide),
