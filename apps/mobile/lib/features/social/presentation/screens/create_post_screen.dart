@@ -37,6 +37,7 @@ import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/post_text.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/photo_crop_screen.dart';
+import 'package:lawbid/features/social/presentation/widgets/caption_fit.dart' show prefixEnd;
 import 'package:lawbid/features/social/presentation/widgets/mention_suggestions.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
@@ -139,14 +140,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   String? get _placeName {
     final text = _place.text.trim();
     if (text.isEmpty) return null;
-    var end = text.length < _maxPlaceChars ? text.length : _maxPlaceChars;
-    if (end < text.length && _isHighSurrogate(text.codeUnitAt(end - 1))) {
-      end--;
-    }
-    return text.substring(0, end).trimRight();
+    return text.substring(0, prefixEnd(text, _maxPlaceChars)).trimRight();
   }
-
-  static bool _isHighSurrogate(int unit) => unit >= 0xD800 && unit <= 0xDBFF;
 
   /// The typed (title, caption) as they are published: never a title.
   (String, String) get _parts => ('', postBodyOf(_body.text));
