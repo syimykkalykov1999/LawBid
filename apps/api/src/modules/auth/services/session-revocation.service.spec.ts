@@ -24,6 +24,7 @@ function setup(chains: string[] = ['c1', 'c2']) {
       findMany: jest
         .fn()
         .mockResolvedValue(chains.map((id) => ({ session_chain_id: id }))),
+      findFirst: jest.fn().mockResolvedValue(null),
     },
   };
   const service = new SessionRevocationService(
@@ -144,29 +145,26 @@ describe('parseSessionRevoked', () => {
 describe('SessionRevocationService.blacklistReason without Redis (load test 2026-11-02)', () => {
   const down = () => Promise.reject(new Error('Command timed out'));
   const live = { revoked_at: null, revoked_reason: null };
-  const rotated = {
-    revoked_at: new Date('2026-01-01'),
-    revoked_reason: 'rotated',
-  };
   const gone = {
-    revoked_at: new Date('2026-02-01'),
+    revoked_at: new Date(),
     revoked_reason: 'signed_in_elsewhere',
   };
 
-  it('a chain is alive while any row is unrevoked; otherwise the latest reason; no rows → refused', async () => {
+  it('one indexed read decides: an unrevoked row → alive, else the latest reason, no row → refused', async () => {
     const { service, redis, prisma } = setup();
     redis.get.mockImplementation(down);
-    prisma.session.findMany
-      .mockResolvedValueOnce([rotated, live])
-      .mockResolvedValueOnce([rotated, gone])
-      .mockResolvedValueOnce([]);
+    prisma.session.findFirst
+      .mockResolvedValueOnce(live)
+      .mockResolvedValueOnce(gone)
+      .mockResolvedValueOnce(null);
     await expect(service.blacklistReason('alive')).resolves.toBeNull();
     await expect(service.blacklistReason('ended')).resolves.toBe(
       'signed_in_elsewhere',
     );
     await expect(service.blacklistReason('never')).resolves.toBe('1');
-    expect(prisma.session.findMany).toHaveBeenCalledWith({
+    expect(prisma.session.findFirst).toHaveBeenCalledWith({
       where: { session_chain_id: 'alive' },
+      orderBy: { revoked_at: { sort: 'desc', nulls: 'first' } },
       select: { revoked_at: true, revoked_reason: true },
     });
     await expect(service.isBlacklisted('alive')).resolves.toBe(false);
@@ -175,23 +173,22 @@ describe('SessionRevocationService.blacklistReason without Redis (load test 2026
   it('memoises and single-flights the database verdict per chain', async () => {
     const { service, redis, prisma } = setup();
     redis.get.mockImplementation(down);
-    prisma.session.findMany.mockResolvedValue([live]);
+    prisma.session.findFirst.mockResolvedValue(live);
     await Promise.all(
       Array.from({ length: 20 }, () => service.blacklistReason('c1')),
     );
     for (let i = 0; i < 30; i += 1) await service.blacklistReason('c1');
-    expect(prisma.session.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.session.findFirst).toHaveBeenCalledTimes(1);
   });
 
   it('revoking a chain drops its memoised verdict and succeeds without Redis', async () => {
     const { service, redis, prisma, published } = setup();
     redis.get.mockImplementation(down);
     redis.set.mockImplementation(down);
-    prisma.session.findMany
-      .mockResolvedValueOnce([live])
-      .mockResolvedValueOnce([
-        { revoked_at: new Date(), revoked_reason: 'logout' },
-      ]);
+    prisma.session.findFirst.mockResolvedValueOnce(live).mockResolvedValueOnce({
+      revoked_at: new Date(),
+      revoked_reason: 'logout',
+    });
     await expect(service.blacklistReason('c1')).resolves.toBeNull();
     await expect(service.revokeChain('c1', 'logout')).resolves.toBeUndefined();
     expect(prisma.session.updateMany).toHaveBeenCalled();
@@ -213,6 +210,6 @@ describe('SessionRevocationService.blacklistReason without Redis (load test 2026
     const { service, redis, prisma } = setup();
     redis.get.mockResolvedValue('logout');
     await expect(service.blacklistReason('c1')).resolves.toBe('logout');
-    expect(prisma.session.findMany).not.toHaveBeenCalled();
+    expect(prisma.session.findFirst).not.toHaveBeenCalled();
   });
 });

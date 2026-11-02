@@ -7,7 +7,6 @@ import {
 import type { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../errors/error-code.enum';
 import { CallTimeoutError, CircuitOpenError } from '../resilience/resilience';
-import { RedisUnavailableError } from '../../redis/fail-fast-redis';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 
 function run(exception: unknown): {
@@ -158,9 +157,11 @@ describe('AllExceptionsFilter (docs/01 §7 error envelope)', () => {
     expect(run(err).status).toBe(500);
   });
 
-  it('maps an unavailable Redis (gate, timeout, closed connection) to 503 SERVER_BUSY with Retry-After', () => {
+  it('maps an unavailable Redis (refused while disconnected, timeout, closed) to 503 SERVER_BUSY with Retry-After', () => {
     for (const e of [
-      new RedisUnavailableError('disconnected'),
+      new Error(
+        "Stream isn't writeable and enableOfflineQueue options is false",
+      ),
       new Error('Command timed out'),
       new Error('Connection is closed.'),
     ]) {

@@ -1,11 +1,18 @@
 import { Global, Inject, Module, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
-import { closeSharedProducers, createRedisClient } from './redis-connection';
+import {
+  closeSharedProducers,
+  createRedisClient,
+  requestPathOptions,
+  waitForReady,
+} from './redis-connection';
 import { REDIS_CACHE_CLIENT, REDIS_CLIENT } from './redis.constants';
 import { failSoftRedis } from './fail-soft-redis';
-import { attachFailFast } from './fail-fast-redis';
 import { CacheRedisModeService, switchableRedis } from './cache-redis-mode';
+
+const url = (config: ConfigService) =>
+  config.get<string>('REDIS_URL') as string;
 
 /** Cache connections this module opened (closed on shutdown). */
 const cacheOwn = new Set<Redis>();
@@ -16,25 +23,24 @@ const cacheOwn = new Set<Redis>();
     {
       provide: REDIS_CLIENT,
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        const url = config.get<string>('REDIS_URL');
-        // commandTimeout: a hung Redis fails a command in 1 s instead of
-        // stalling requests (throttler fails open, cost guard fails closed).
-        // Load test 2026-11-02 (PR #606): with 2 s and 3 retries a lost Redis made
-        // every request wait 4 s and answer 500; the fail-fast gate below
-        // refuses commands at once while the connection is lost
-        // (redis/fail-fast-redis.ts), so the timeout only covers a hung
-        // but connected node.
-        const client = createRedisClient(url as string, {
-          maxRetriesPerRequest: 1,
-          commandTimeout:
+      useFactory: async (config: ConfigService) => {
+        // Fail fast while Redis is away or hung (requestPathOptions): a
+        // lost connection refuses commands at once, a hung node is dropped
+        // after REDIS_COMMAND_TIMEOUT_MS (default 1 s). Load test
+        // 2026-11-02 (PR #606): 2 s x 3 retries made every request wait
+        // 4 s and answer 500.
+        const client = createRedisClient(url(config), {
+          ...requestPathOptions(
             config.get<number>('REDIS_COMMAND_TIMEOUT_MS') ?? 1000,
+          ),
           // Same-tick commands share one round trip (REDIS_AUTOPIPELINE,
           // default on; verify in the load test, turn off to roll back).
           enableAutoPipelining:
             config.get<boolean>('REDIS_AUTOPIPELINE') ?? false,
         });
-        attachFailFast(client);
+        // Module init sends commands right away; give the connection a
+        // moment (bounded) so a normal boot does not start with refusals.
+        await waitForReady(client, 10_000);
         return client;
       },
     },

@@ -11,7 +11,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../errors/error-code.enum';
 import { getRequestId } from '../middleware/request-id.middleware';
 import { CallTimeoutError, CircuitOpenError } from '../resilience/resilience';
-import { isRedisInfraError } from '../../redis/fail-fast-redis';
+import { isRedisInfraError } from '../../redis/redis-errors';
 import type { ApiErrorBody } from '../dto/api-response.dto';
 
 /**
@@ -143,8 +143,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     // Batch C item 6: an outside service (SES, Twilio, Bunny, Stripe) is
-    // paused by its circuit breaker or timed out: «try again shortly», the
-    // same answer the apps already retry for load shedding.
+    // paused by its circuit breaker or timed out, or — load test 2026-11-02
+    // (PR #606, LOAD_RESILIENCE §2) — Redis is away or hung and the caller
+    // had no fallback: «try again shortly», the same answer the apps
+    // already retry for load shedding (they retry a 503 with Retry-After,
+    // never a 500).
     if (
       exception instanceof CircuitOpenError ||
       exception instanceof CallTimeoutError
@@ -156,11 +159,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
         retryAfterSec: 10,
       };
     }
-
-    // Load test 2026-11-02 (PR #606, LOAD_RESILIENCE §2): Redis away or hung. The
-    // callers with a fallback never get here; for the rest this is the
-    // same honest «try again shortly» as a paused partner, not a 500 —
-    // the apps retry a 503 with Retry-After, they do not retry a 500.
     if (isRedisInfraError(exception)) {
       return {
         status: HttpStatus.SERVICE_UNAVAILABLE,

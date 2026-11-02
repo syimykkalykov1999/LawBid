@@ -5,11 +5,9 @@ import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { TokenService } from './token.service';
 import { publishSessionRevoked } from '../../../redis/session-revoked';
-import {
-  isRedisInfraError,
-  throttledWarn,
-} from '../../../redis/fail-fast-redis';
-import { singleFlight } from '../../../common/cache/single-flight';
+import { isRedisInfraError } from '../../../redis/redis-errors';
+import { throttledWarn } from '../../../common/logging/throttled-warn';
+import { L1Cache } from '../../../common/cache/l1-cache';
 
 export type RevokeReason =
   | 'logout'
@@ -50,21 +48,19 @@ export type RevokeReason =
  * token stays valid for up to its remaining TTL (<=15 min) instead of a
  * half-committed transaction. Documented trade-off, not an oversight.
  */
-/** How long a database verdict stands in for the blacklist (ms). */
-const DB_MEMO_MS = 5000;
-/** Memo cap: cleared wholesale when reached (an outage, not steady state). */
-const DB_MEMO_MAX = 20_000;
 
 @Injectable()
 export class SessionRevocationService {
   private readonly blacklistTtlSeconds: number;
   private readonly logger = new Logger(SessionRevocationService.name);
   private readonly warnRedis = throttledWarn(this.logger);
-  /** Database answers while Redis is away: chain id -> verdict. */
-  private readonly dbMemo = new Map<
-    string,
-    { at: number; value: string | null }
-  >();
+  /** Database verdicts while Redis is away (chain id -> reason | null),
+   * 5 s each, single-flighted; an outage path, hence per-chain keys. */
+  private readonly dbMemo = new L1Cache<string | null>('authbl-db', {
+    ttlMs: 5000,
+    maxEntries: 20_000,
+    enabled: true,
+  });
 
   constructor(
     private readonly prisma: PrismaService,
@@ -193,40 +189,30 @@ export class SessionRevocationService {
    * guard's one blacklist read failed every authenticated request. The
    * database rows are the source of truth (revoked_at / revoked_reason are
    * written BEFORE the blacklist, see revokeChain), so a lost cache degrades
-   * to one small indexed read per session chain, single-flighted and
-   * memoised for DB_MEMO_MS. A chain is alive while any of its rows is not
-   * revoked (rotation revokes the older generation with reason 'rotated'
-   * and inserts the next one in the same transaction); no row at all means
-   * the chain never existed here — refused like a blacklisted one.
+   * to one indexed single-row read per session chain per 5 s. A chain is
+   * alive while any of its rows is not revoked (rotation revokes the older
+   * generation with reason 'rotated' and inserts the next one in the same
+   * transaction), so the row with revoked_at NULL sorted first decides; no
+   * row at all means the chain never existed here — refused.
    */
-  private async reasonFromDatabase(
+  private reasonFromDatabase(
     sessionChainId: string,
     cause: unknown,
   ): Promise<string | null> {
-    const now = Date.now();
     const hit = this.dbMemo.get(sessionChainId);
-    if (hit && now - hit.at < DB_MEMO_MS) return hit.value;
+    if (hit !== undefined) return Promise.resolve(hit);
     this.warnRedis(
       { err: cause, alert: 'session_blacklist_redis_down' },
       'Session blacklist: Redis unavailable, reading sessions from the database',
     );
-    return singleFlight(`authbl-db:${sessionChainId}`, async () => {
-      const rows = await this.prisma.session.findMany({
+    return this.dbMemo.getOrLoad(sessionChainId, async () => {
+      const row = await this.prisma.session.findFirst({
         where: { session_chain_id: sessionChainId },
+        orderBy: { revoked_at: { sort: 'desc', nulls: 'first' } },
         select: { revoked_at: true, revoked_reason: true },
       });
-      let value: string | null;
-      if (rows.length === 0) value = '1';
-      else if (rows.some((r) => r.revoked_at === null)) value = null;
-      else {
-        const latest = rows.reduce((a, b) =>
-          (b.revoked_at as Date) > (a.revoked_at as Date) ? b : a,
-        );
-        value = latest.revoked_reason ?? '1';
-      }
-      if (this.dbMemo.size >= DB_MEMO_MAX) this.dbMemo.clear();
-      this.dbMemo.set(sessionChainId, { at: Date.now(), value });
-      return value;
+      if (!row) return '1';
+      return row.revoked_at === null ? null : (row.revoked_reason ?? '1');
     });
   }
 

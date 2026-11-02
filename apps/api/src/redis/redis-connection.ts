@@ -52,8 +52,12 @@ export interface RedisClientOptions {
   commandTimeout?: number;
   /** `null` for BullMQ workers (blocking commands). */
   maxRetriesPerRequest?: number | null;
-  /** `false` = fail fast while disconnected (BullMQ producers). */
+  /** `false` = fail fast while disconnected (BullMQ producers, the
+   * request-path client). */
   enableOfflineQueue?: boolean;
+  /** ms without any byte from Redis while commands are pending before the
+   * socket is dropped (a hung node becomes a reconnect). */
+  socketTimeout?: number;
   /** ioredis auto-pipelining (same-tick commands share one round trip). */
   enableAutoPipelining?: boolean;
   /** `false`: no WRONGPASS/NOAUTH token re-read (default on). */
@@ -194,6 +198,9 @@ export function createRedisClient(
   if (options.commandTimeout !== undefined) {
     base.commandTimeout = options.commandTimeout;
   }
+  if (options.socketTimeout !== undefined) {
+    base.socketTimeout = options.socketTimeout;
+  }
   if (!isRedisClusterMode(env)) {
     const c = new Redis(url, base);
     if (options.authRefresh !== false) attachAuthRefresh(c);
@@ -223,6 +230,58 @@ export function createRedisClient(
   const cluster = new Cluster([{ host: t.host, port: t.port }], clusterOptions);
   if (options.authRefresh !== false) attachAuthRefresh(cluster);
   return cluster as unknown as Redis;
+}
+
+/**
+ * The request-path client (REDIS_CLIENT). Load test 2026-11-02 (PR #606,
+ * docs/perf/LOAD_RESILIENCE_2026-11-02.md §2): with Redis away for 40 s every
+ * request that touched it waited ioredis' commandTimeout (2 s, twice per
+ * request) in the «offline queue» and then failed with a 500.
+ *
+ * The big look-aside caches do the opposite — Facebook's memcache clients
+ * («Scaling Memcache at Facebook», NSDI 2013) and Netflix's Hystrix («fail
+ * fast, fail silent, fallback») give up on an unreachable node at once and
+ * let the caller fall back, so a cache outage costs the latency of a miss,
+ * not of a timeout. ioredis has both halves built in:
+ *  - `enableOfflineQueue: false`: while the connection is lost a command is
+ *    refused synchronously («Stream isn't writeable …»); the reconnect
+ *    handshake still passes, and `retryStrategy` (jitteredBackoff) is the
+ *    cadence of the trial connections;
+ *  - `socketTimeout`: a connected node that stops answering while commands
+ *    are pending is dropped after [ms], which turns a hang into the same
+ *    fail-fast reconnect loop.
+ * Callers with a fallback (throttler, cost guard, badges, caches, session
+ * blacklist) get it in microseconds; the rest surface as 503 SERVER_BUSY
+ * + Retry-After through AllExceptionsFilter (redis-errors.ts).
+ */
+export function requestPathOptions(timeoutMs: number): RedisClientOptions {
+  return {
+    enableOfflineQueue: false,
+    maxRetriesPerRequest: 1,
+    commandTimeout: timeoutMs,
+    socketTimeout: timeoutMs,
+  };
+}
+
+/** Resolves when [client] is ready or after [maxMs] (a boot with Redis away
+ * starts fail-fast instead of hanging; health reports the state). Without
+ * the offline queue, module-init commands sent before `ready` would fail. */
+export function waitForReady(
+  client: Redis | Cluster,
+  maxMs: number,
+): Promise<void> {
+  if ((client as { status?: string }).status === 'ready') {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    const timer = setTimeout(done, maxMs);
+    function done() {
+      clearTimeout(timer);
+      client.off('ready', done);
+      resolve();
+    }
+    client.once('ready', done);
+  });
 }
 
 /** BullMQ producer (Queue) connection: fail fast while Redis is away
