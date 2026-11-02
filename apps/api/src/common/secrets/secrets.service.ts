@@ -878,14 +878,20 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     if (!env) return out;
     const page = 200;
     // Join codes ('plain:' rows are local-dev values and stay).
-    let after = '';
+    // Keyset cursor: null on the first page. Never '' — the id column is a
+    // uuid and Postgres/Prisma reject an empty string.
+    let after: string | null = null;
     for (;;) {
-      const rows = await this.prisma.assistantMembership.findMany({
-        where: { id: { gt: after }, join_code_enc: { not: null } },
-        select: { id: true, join_code_enc: true },
-        orderBy: { id: 'asc' },
-        take: page,
-      });
+      const rows: Array<{ id: string; join_code_enc: string | null }> =
+        await this.prisma.assistantMembership.findMany({
+          where: {
+            ...(after === null ? {} : { id: { gt: after } }),
+            join_code_enc: { not: null },
+          },
+          select: { id: true, join_code_enc: true },
+          orderBy: { id: 'asc' },
+          take: page,
+        });
       for (const r of rows) {
         after = r.id;
         const stored = r.join_code_enc;

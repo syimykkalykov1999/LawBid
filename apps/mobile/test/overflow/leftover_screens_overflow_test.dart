@@ -72,14 +72,6 @@ void main() {
         const Scaffold(body: CountryWaitlistSheet(countryCode: 'DE')),
   };
 
-  // Reduce-motion (the phone's «remove animations») is on for every screen
-  // but these: the bid form's `AnimatedSize(duration: Duration.zero)` asserts
-  // in debug under it (Flutter: RenderAnimatedSize mutated in performLayout;
-  // release builds do not assert). Same pattern: deal_record_screen,
-  // mention_suggestions, practices_screen, option_picker_sheet,
-  // contact_verification_card.
-  const animated = {'bid form'};
-
   for (final scale in overflowScales) {
     for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
       group('leftover screens: no overflow at 360 dp ($name, x$scale)', () {
@@ -91,7 +83,6 @@ void main() {
               t: t,
               dir: dir,
               scale: scale,
-              reduceMotion: !animated.contains(label),
             );
           });
         }
