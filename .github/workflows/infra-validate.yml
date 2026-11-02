@@ -21,8 +21,6 @@ concurrency:
 env:
   # Same as load-test.yml (the version that creates the test stacks).
   TF_VERSION: "1.9.8"
-  # One provider download for every root (the AWS provider is several hundred MB).
-  TF_PLUGIN_CACHE_DIR: ${{ runner.temp }}/tf-plugin-cache
 
 jobs:
   validate:
@@ -39,6 +37,9 @@ jobs:
         run: terraform fmt -check -recursive -diff infra
       - name: Validate every root module
         run: |
+          # One provider download for every root (the AWS provider is several hundred MB).
+          # Set here: the `runner` context is not available in workflow-level env.
+          export TF_PLUGIN_CACHE_DIR="$RUNNER_TEMP/tf-plugin-cache"
           mkdir -p "$TF_PLUGIN_CACHE_DIR"
           fail=0
           for d in infra/envs/*/ infra/bootstrap*/; do
