@@ -23,6 +23,8 @@ const postRow = {
   share_count: 0,
   view_count: 9,
   repost_count: 0,
+  hide_likes: false,
+  hide_views: false,
   author_updated_at: T,
   liked: false,
   reposted: false,
@@ -48,6 +50,18 @@ describe('VersionEtagService', () => {
       'p1',
     );
     expect(counted).not.toBe(a);
+    // Owner 2026-10-28: hiding a counter is a new answer for others.
+    const hidLikes = await make([{ ...postRow, hide_likes: true }]).svc.post(
+      'u1',
+      'p1',
+    );
+    expect(hidLikes).not.toBe(a);
+    const hidViews = await make([{ ...postRow, hide_views: true }]).svc.post(
+      'u1',
+      'p1',
+    );
+    expect(hidViews).not.toBe(a);
+    expect(hidViews).not.toBe(hidLikes);
   });
 
   it('the time bucket is the safety net', async () => {

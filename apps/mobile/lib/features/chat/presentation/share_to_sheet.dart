@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
@@ -26,7 +27,6 @@ import 'package:lawbid/features/stories/presentation/story_navigation.dart';
 import 'package:lawbid/shared/people/people_suggest_list.dart';
 import 'package:lawbid/shared/presentation/list_search_field.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
-import 'package:lawbid/shared/text/word_match.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-21 (Instagram «Поделиться», inbox 17): the share sheet of
@@ -396,7 +396,7 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
     final q = _q.toLowerCase();
     final items = [
       for (final g in list.value?.items ?? const <api.GroupDto>[])
-        if (g.canPost && matchesWords(q, [g.title])) g,
+        if (g.canPost && textMatches(q, [g.title])) g,
     ];
     for (final g in items) {
       _groups[g.id] = g;

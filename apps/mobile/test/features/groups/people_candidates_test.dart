@@ -80,8 +80,7 @@ void main() {
 
   test('filterPeople and withoutPeople', () {
     final all = [_p('1', 'Anna'), _p('2', 'Hanna'), _p('3', 'Bob')];
-    expect(filterPeople(all, ' ANN ').map((p) => p.userId), ['1']);
-    expect(filterPeople(all, 'han').map((p) => p.userId), ['2']);
+    expect(filterPeople(all, ' ANN ').map((p) => p.userId), ['1', '2']);
     expect(filterPeople(all, ''), all);
     expect(withoutPeople(all, {'2'}).map((p) => p.userId), ['1', '3']);
   });

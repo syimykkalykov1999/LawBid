@@ -8,6 +8,8 @@ import type { PushTokensService } from './push-tokens.service';
 describe('app icon badge switch', () => {
   function badges(on: boolean | null) {
     const prisma = {
+      // read together with the switch (cached per person, load test round 2)
+      notificationSetting: { findMany: jest.fn().mockResolvedValue([]) },
       user: {
         findUnique: jest
           .fn()

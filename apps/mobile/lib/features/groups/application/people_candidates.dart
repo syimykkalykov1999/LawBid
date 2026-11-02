@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
-import 'package:lawbid/shared/text/word_match.dart';
 
 /// A person that can be put into a group.
 class PickedPerson {
@@ -69,7 +69,7 @@ List<PickedPerson> withoutPeople(
 List<PickedPerson> filterPeople(List<PickedPerson> people, String query) {
   return [
     for (final p in people)
-      if (matchesWords(query, [p.name])) p,
+      if (textMatches(query, [p.name])) p,
   ];
 }
 

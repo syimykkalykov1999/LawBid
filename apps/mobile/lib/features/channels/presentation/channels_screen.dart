@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
@@ -20,7 +21,6 @@ import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
 import 'package:lawbid/shared/presentation/list_search_field.dart';
-import 'package:lawbid/shared/text/word_match.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-20: the channels screen — the ones I run, the ones I
@@ -203,7 +203,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             : [
                 for (final g in ref.watch(groupsProvider).value?.items ??
                     const <api.GroupDto>[])
-                  if (matchesWords(q, [g.title])) g,
+                  if (textMatches(q, [g.title])) g,
               ],
         channels: const <Channel>[],
       );
@@ -411,7 +411,7 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
       final q = query.toLowerCase();
       final mine = [
         for (final g in myGroups.value?.items ?? const <api.GroupDto>[])
-          if (matchesWords(q, [g.title])) g,
+          if (textMatches(q, [g.title])) g,
       ];
       final found = ref.watch(groupSearchProvider(query)).value ?? const [];
       groupRows = [
@@ -515,7 +515,7 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
         else
           ...rows,
       ];
-      return RefreshIndicator(
+      return AppRefreshIndicator(
         color: colors.gold,
         backgroundColor: colors.sheet,
         onRefresh: refresh,

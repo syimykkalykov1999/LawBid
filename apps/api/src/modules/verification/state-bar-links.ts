@@ -13,7 +13,7 @@ const SEARCH_PAGES: Readonly<Record<string, string>> = {
   AZ: 'https://www.azbar.org/for-legal-professionals/practice-tools-management/member-directory/',
   CA: 'https://apps.calbar.ca.gov/attorney/LicenseeSearch/QuickSearch',
   CO: 'https://www.coloradolegalregulation.com/attorney-search/',
-  CT: 'https://www.jud.ct.gov/attorneyfirminquiry/attorneyfirminquiry.aspx',
+  CT: 'https://lookup.jud.ct.gov/AttorneyFirm',
   DC: 'https://my.dcbar.org/memberdirectory',
   DE: 'https://rp470541.doelegal.com/vwPublicSearch/Show-VwPublicSearch-Table.aspx',
   FL: 'https://www.floridabar.org/directories/find-mbr/',
@@ -43,7 +43,7 @@ const SEARCH_PAGES: Readonly<Record<string, string>> = {
   NV: 'https://nvbar.org/for-the-public/find-a-lawyer/',
   NY: 'https://iapps.courts.state.ny.us/attorneyservices/search?0=',
   OH: 'https://www.supremecourt.ohio.gov/attorneysearch/',
-  OK: 'https://ams.okbar.org/eweb/startpage.aspx?site=OKMEMBVER&design=no',
+  OK: 'https://my.okbar.org/member-verification/',
   OR: 'https://www.osbar.org/members/membersearch_start.asp',
   PA: 'https://www.padisciplinaryboard.org/for-the-public/find-attorney',
   RI: 'https://rijrs.courts.ri.gov/rijrs/attorney.do',
@@ -70,6 +70,14 @@ const PROFILE_PAGES: Readonly<Record<string, (n: string) => string>> = {
     `https://www.coloradolegalregulation.com/attorney-search/attorney-information/?regnum=${n}`,
   ND: (n) => `https://www.ndcourts.gov/lawyers/${n.padStart(5, '0')}`,
   WI: (n) => `https://lawyerhistory.wicourts.gov/attorneys/${n}`,
+  // Owner 2026-10-28 (registry research, verified live): more direct pages.
+  CT: (n) =>
+    `https://lookup.jud.ct.gov/AttorneyFirm/JurisDetail?JurisNumber=${n}`,
+  OK: (n) => `https://my.okbar.org/member-verification/?keyword=${n}`,
+  PA: (n) =>
+    `https://www.padisciplinaryboard.org/for-the-public/find-attorney/attorney-detail/${n}`,
+  WA: (n) =>
+    `https://www.mywsba.org/PersonifyEbusiness/LegalDirectory/LegalProfile.aspx?Usr_ID=${n.padStart(12, '0')}`,
 };
 
 /** Every state has a lookup link (a state added later without one is caught

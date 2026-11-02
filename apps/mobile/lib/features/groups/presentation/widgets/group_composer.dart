@@ -5,11 +5,11 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_mention_picker.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_style.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
-import 'package:lawbid/shared/text/word_match.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// The message field of a group chat: multi-line text, «+» (photo, file,
@@ -130,7 +130,7 @@ class _GroupComposerState extends ConsumerState<GroupComposer> {
     return [
       for (final m in widget.members)
         if (m.userId != me &&
-            matchesWords(q, [groupMemberName(t, m), m.username]))
+            textMatches(q, [groupMemberName(t, m), m.username]))
           m,
     ].take(40).toList();
   }

@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/calls/application/call_history_providers.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_background_sync.dart';
@@ -26,7 +27,6 @@ import 'package:lawbid/features/contacts_sync/presentation/invite_contact.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/people/people_suggest_list.dart';
-import 'package:lawbid/shared/text/word_match.dart';
 
 /// Owner 2026-10-20: "Contacts" like WhatsApp — the phone-book people who
 /// are on LawBid (with message / call / video) and the rest to invite.
@@ -180,18 +180,18 @@ class _BodyState extends ConsumerState<_Body> {
       data: (data) {
         if (data.needsConsent) return const ContactsConsentView();
         if (data.denied) return const ContactsDeniedView();
-        bool hit(String name, [String? handle]) =>
-            matchesWords(_query, [name, handle]);
-        final onLawBid = [
-          for (final c in data.onLawBid)
-            if (hit(c.title, c.person.username)) c,
-        ];
-        final invite = [
-          for (final c in data.invite)
-            if (hit(c.name)) c,
-        ];
+        // Owner 2026-10-28: the same matcher as People and chat search —
+        // every word by its start, best match first, a typo only when
+        // nothing matched better.
+        final onLawBid = rankByName(
+          data.onLawBid,
+          _query,
+          (c) => c.title,
+          (c) => c.person.username ?? '',
+        );
+        final invite = rankByName(data.invite, _query, (c) => c.name);
         final bottom = AppSpacing.xxl + MediaQuery.paddingOf(context).bottom;
-        return RefreshIndicator(
+        return AppRefreshIndicator(
           onRefresh: () async {
             ref.invalidate(phoneContactsProvider);
             await ref.read(phoneContactsProvider.future);
