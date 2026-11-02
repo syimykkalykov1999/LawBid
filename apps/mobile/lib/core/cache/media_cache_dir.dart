@@ -137,7 +137,8 @@ class MediaCacheDir implements CachedFiles {
 /// prefix and suffix (voice notes: `voice_cache_<messageId>.m4a`; the
 /// suffix keeps a half-downloaded `….m4a.part` out of the sweep). They are
 /// chat media too, but live outside a cache folder, so «Данные и память»
-/// never counted or swept them. Measured, aged out and emptied like [MediaCacheDir].
+/// never counted or swept them. Measured, aged out and emptied like
+/// [MediaCacheDir].
 class PrefixedTempFiles implements CachedFiles {
   const PrefixedTempFiles(this.prefix, {this.suffix = '', this.root});
 
@@ -229,7 +230,7 @@ Future<int> trimPoolTo(Iterable<CachedFiles> pools, int limitBytes) async {
   final files = <CachedFile>[
     for (final p in pools) ...await p.entries(),
   ];
-  var total = files.fold(0, (a, f) => a + f.$3);
+  final total = files.fold(0, (a, f) => a + f.$3);
   if (total <= limitBytes) return 0;
   files.sort((a, b) => a.$2.compareTo(b.$2));
   var freed = 0;

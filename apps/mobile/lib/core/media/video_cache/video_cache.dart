@@ -67,7 +67,8 @@ abstract final class VideoCache {
 
   /// Test hook: pretend a proxy is starting.
   @visibleForTesting
-  static set debugStarting(Future<void>? starting) => _starting = starting;
+  static void debugSetStarting(Future<void>? starting) =>
+      _starting = starting;
 
   static bool get enabled =>
       !kIsWeb && ClientTuning.videoCacheMb > 0 && !_failed;
