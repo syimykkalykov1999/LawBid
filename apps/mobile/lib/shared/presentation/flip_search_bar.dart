@@ -280,7 +280,7 @@ class _FlipSearchBarState extends State<FlipSearchBar> {
       children: [
         Expanded(child: field),
         AnimatedSize(
-          duration: d,
+          duration: context.sizeChangeDuration,
           curve: AppMotion.enterCurve,
           child: focused || widget.keepCancel
               // Capped so a long translated "Cancel" can't squeeze the field.
