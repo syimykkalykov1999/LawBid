@@ -108,6 +108,22 @@ void main() {
       expect(repo.drafts.single.locationName, 'a' * 120);
     });
 
+    testWidgets('never cuts an emoji in half at the server limit', (
+      tester,
+    ) async {
+      final repo = _CreatingRepo();
+      await open(tester, social: repo);
+      await tester.enterText(bodyField, 'Caption');
+      // 119 letters, then an emoji (two UTF-16 units) crossing the limit.
+      tester.widget<AddressField>(placeField).controller.text =
+          '${'a' * 119}\u{1F600}';
+      await tester.pump();
+      await tester.tap(find.byType(AppButton).last);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(repo.drafts.single.locationName, 'a' * 119);
+    });
+
     testWidgets('left empty, no place is sent', (tester) async {
       final repo = _CreatingRepo();
       await open(tester, social: repo);

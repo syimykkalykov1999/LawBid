@@ -129,17 +129,24 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   /// reels); the same suggestions as every address field.
   final _place = TextEditingController();
 
-  /// The server's limit for a post's place (`PostLocationDto`).
+  /// The server's limit for a post's place (`PostLocationDto`, counted in
+  /// UTF-16 units like Dart's `String.length`).
   static const _maxPlaceChars = 120;
 
   /// The place to publish: trimmed, cut to the server's limit (a tapped
   /// suggestion is set programmatically and skips the field's own limit),
-  /// null when empty.
+  /// null when empty. Never cuts a surrogate pair in half.
   String? get _placeName {
     final text = _place.text.trim();
     if (text.isEmpty) return null;
-    return String.fromCharCodes(text.runes.take(_maxPlaceChars)).trimRight();
+    var end = text.length < _maxPlaceChars ? text.length : _maxPlaceChars;
+    if (end < text.length && _isHighSurrogate(text.codeUnitAt(end - 1))) {
+      end--;
+    }
+    return text.substring(0, end).trimRight();
   }
+
+  static bool _isHighSurrogate(int unit) => unit >= 0xD800 && unit <= 0xDBFF;
 
   /// The typed (title, caption) as they are published: never a title.
   (String, String) get _parts => ('', postBodyOf(_body.text));
@@ -598,7 +605,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             'kind': _news ? 'news' : 'post',
             if (_markedLegal) 'contentClass': 'legal',
             'mediaFileIds': [for (final p in _photos) p.fileId!],
-            if (_placeName != null) 'location': {'name': _placeName},
+            if (_placeName case final place?) 'location': {'name': place},
             if (_docs.items.isNotEmpty)
               'attachments': [
                 for (final d in _docs.refs)
