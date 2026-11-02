@@ -41,7 +41,12 @@ jobs:
       - name: Install exceljs only
         run: |
           V=$(node -p "require('./package-lock.json').packages['node_modules/exceljs'].version")
-          npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund "exceljs@$V"
+          # Installed beside the repo, not in it: npm 10 cannot re-resolve the
+          # whole workspace tree without the lock file (vitest 4 peers crash
+          # arborist), and this job needs only exceljs.
+          mkdir "$RUNNER_TEMP/exceljs"
+          npm install --prefix "$RUNNER_TEMP/exceljs" --no-save --no-package-lock --ignore-scripts --no-audit --no-fund "exceljs@$V"
+          ln -s "$RUNNER_TEMP/exceljs/node_modules" node_modules
 
       - name: Translations are complete in every language
         run: node scripts/i18n-audit.mjs --ci
