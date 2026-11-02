@@ -419,7 +419,10 @@ describe('pubSubClient / fail-fast in cluster mode (no Redis needed)', () => {
     const clone = pubSubClient(cluster as never) as unknown as Cluster;
     expect(clone).toBeInstanceOf(Cluster);
     expect(clone.options.enableOfflineQueue).toBe(true);
-    expect(clone.options.redisOptions?.enableOfflineQueue).toBe(true);
+    expect(
+      (clone.options.redisOptions as { enableOfflineQueue?: boolean })
+        .enableOfflineQueue,
+    ).toBe(true);
     expect(clone.options.redisOptions?.commandTimeout).toBeUndefined();
     expect(clone.options.redisOptions?.maxRetriesPerRequest).toBeNull();
     expect(clone.listenerCount('error')).toBeGreaterThan(0);
