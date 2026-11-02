@@ -10,6 +10,7 @@ describe('isRedisInfraError', () => {
       new Error(
         "Stream isn't writeable and enableOfflineQueue options is false",
       ),
+      new Error("Cluster isn't ready and enableOfflineQueue options is false"),
       new Error('Connection is closed.'),
     ]) {
       expect(isRedisInfraError(e)).toBe(true);

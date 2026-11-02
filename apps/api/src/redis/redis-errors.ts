@@ -12,6 +12,8 @@ export function isRedisInfraError(error: unknown): boolean {
     error.message === 'Command timed out' ||
     error.name === 'MaxRetriesPerRequestError' ||
     error.message.startsWith("Stream isn't writeable") ||
+    // Cluster mode: the same refusal worded by ioredis' Cluster class
+    error.message.startsWith("Cluster isn't ready") ||
     error.message === 'Connection is closed.'
   );
 }
