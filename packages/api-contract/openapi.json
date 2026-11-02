@@ -100764,6 +100764,333 @@
         ]
       }
     },
+    "/quick-replies": {
+      "get": {
+        "operationId": "listQuickReplies",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuickReplyListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My quick replies in my order",
+        "tags": [
+          "quick-replies"
+        ]
+      },
+      "post": {
+        "operationId": "createQuickReply",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuickReplyInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuickReplyEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add a quick reply (at most 50)",
+        "tags": [
+          "quick-replies"
+        ]
+      }
+    },
+    "/quick-replies/{id}": {
+      "patch": {
+        "operationId": "updateQuickReply",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuickReplyInputDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuickReplyEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Change a quick reply",
+        "tags": [
+          "quick-replies"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteQuickReply",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a quick reply; idempotent",
+        "tags": [
+          "quick-replies"
+        ]
+      }
+    },
     "/translations": {
       "post": {
         "operationId": "translate",
@@ -188251,6 +188578,89 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/SavedChatIdsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "QuickReplyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "body"
+        ]
+      },
+      "QuickReplyListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuickReplyDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "QuickReplyListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/QuickReplyListDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "QuickReplyInputDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "Short name in the picker."
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "description": "Text put into the composer."
+          }
+        },
+        "required": [
+          "title",
+          "body"
+        ]
+      },
+      "QuickReplyEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/QuickReplyDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
