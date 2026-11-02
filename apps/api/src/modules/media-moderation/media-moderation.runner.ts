@@ -16,7 +16,11 @@ import {
 import type { MediaCheckJobData } from './media-moderation.queue';
 import { MediaModerationService } from './media-moderation.service';
 import { bullOptions } from '../../redis/redis-connection';
-import { closeWorker, workerTuning } from '../../common/queues/queue-hardening';
+import {
+  closeWorker,
+  workerTuning,
+  outageProof,
+} from '../../common/queues/queue-hardening';
 
 /** Owner 2026-10-22: the consumer of the `media-moderation` queue (the
  * worker process; the API too while JOBS_ENABLED, like the other queues).
@@ -51,7 +55,7 @@ export class MediaModerationRunner
     if (!url || !this.workerEnabled) return;
     this.worker = new Worker<MediaCheckJobData>(
       MEDIA_MODERATION_QUEUE,
-      (job: Job<MediaCheckJobData>) => this.handle(job.data),
+      outageProof((job: Job<MediaCheckJobData>) => this.handle(job.data)),
       {
         ...bullOptions(MEDIA_MODERATION_QUEUE, url, { worker: true }),
         ...workerTuning(MEDIA_MODERATION_QUEUE),

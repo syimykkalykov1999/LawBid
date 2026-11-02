@@ -27,6 +27,7 @@ import {
   closeWorker,
   isStalledFailure,
   workerTuning,
+  outageProof,
 } from '../../common/queues/queue-hardening';
 
 export const HISTORY_EXPORT_QUEUE = 'case-history-export';
@@ -109,7 +110,7 @@ export class CaseHistoryExportRunner
     if (!this.workerEnabled) return;
     this.worker = new Worker(
       HISTORY_EXPORT_QUEUE,
-      (job: Job<ExportJob>) => this.process(job.data),
+      outageProof((job: Job<ExportJob>) => this.process(job.data)),
       {
         ...bullOptions(HISTORY_EXPORT_QUEUE, url, { worker: true }),
         ...workerTuning(HISTORY_EXPORT_QUEUE),
