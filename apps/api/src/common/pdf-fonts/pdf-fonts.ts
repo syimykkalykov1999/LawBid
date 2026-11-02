@@ -445,7 +445,6 @@ export function applyPdfFonts(
         continued: last ? opts?.continued === true : true,
       };
       if (i === 0 && x !== undefined) original(f.text, x, y ?? doc.y, o);
-      else if (i === 0 && hasPos) original(f.text, a, b, o);
       else original(f.text, o);
     });
     doc.font('Inter');
@@ -483,19 +482,19 @@ export async function warmCjkFonts(
       ) as { cjk?: Record<string, CjkEntry> });
     const cacheDir = cjkCacheDir();
     mkdirSync(cacheDir, { recursive: true });
-    for (const [file, e] of Object.entries(manifest.cjk ?? {})) {
-      if (!e.uploaded || !e.cdn.startsWith('https://')) continue;
+    const one = async (file: string, e: CjkEntry): Promise<void> => {
+      if (!e.uploaded || !e.cdn.startsWith('https://')) return;
       const target = join(cacheDir, file);
       if (existsSync(target) && sha256(readFileSync(target)) === e.sha256) {
         got.push(file);
-        continue;
+        return;
       }
       const res = await fetchFn(e.cdn, {
         signal: AbortSignal.timeout(120_000),
       });
       if (!res.ok) {
         warnOnce(file, `download of ${file} failed: HTTP ${res.status}`);
-        continue;
+        return;
       }
       const buf = Buffer.from(await res.arrayBuffer());
       if (sha256(buf) !== e.sha256) {
@@ -503,13 +502,17 @@ export async function warmCjkFonts(
           file,
           `${file} from the CDN does not match the manifest sha256, ignored`,
         );
-        continue;
+        return;
       }
       const tmp = `${target}.${process.pid}.tmp`;
       writeFileSync(tmp, buf);
       renameSync(tmp, target);
       got.push(file);
-    }
+    };
+    // independent files: download side by side, not one after the other
+    await Promise.all(
+      Object.entries(manifest.cjk ?? {}).map(([file, e]) => one(file, e)),
+    );
   } catch (err) {
     warnOnce('warm', `CJK font warm-up failed: ${String(err)}`);
   }

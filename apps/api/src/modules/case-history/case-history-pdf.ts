@@ -2,10 +2,6 @@ import PDFDocument from 'pdfkit';
 import { applyPdfFonts } from '../../common/pdf-fonts/pdf-fonts';
 import type { CaseHistoryDetailDto } from './dto/case-history.dto';
 
-/** Inter (same face as the app, docs/07), covers Latin + Cyrillic.
- * apps/api/assets/fonts: 3 levels up from src/modules/case-history, 4 from
- * dist/src/modules/case-history. */
-
 const NAVY = '#0B1B3F';
 const GOLD = '#B8860B';
 const MUTED = '#5B6475';
