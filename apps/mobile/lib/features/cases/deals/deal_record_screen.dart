@@ -331,7 +331,7 @@ class DealConfirmButton extends StatelessWidget {
       enabled: enabled,
       label: label,
       child: AnimatedContainer(
-        duration: context.sizeChangeDuration,
+        duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
         height: 50,
         decoration: BoxDecoration(
           color: bg,
@@ -481,7 +481,9 @@ class _DayGroup extends StatelessWidget {
                 const SizedBox(width: AppSpacing.xs),
                 AnimatedRotation(
                   turns: expanded ? 0.5 : 0,
-                  duration: context.sizeChangeDuration,
+                  duration: context.reduceMotion
+                      ? Duration.zero
+                      : AppMotion.stateChange,
                   child: AppIcon(
                     AppIcons.expandMoreRounded,
                     size: 18,

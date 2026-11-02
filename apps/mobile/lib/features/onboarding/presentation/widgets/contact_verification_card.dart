@@ -225,7 +225,7 @@ class _ContactVerificationCardState
     }
 
     return AnimatedContainer(
-      duration: context.sizeChangeDuration,
+      duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: colors.surface,

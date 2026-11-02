@@ -46,20 +46,33 @@ void main() {
     );
   });
 
-  test('no AnimatedSize takes Duration.zero (policy)', () {
+  test('every AnimatedSize takes sizeChangeDuration (policy)', () {
+    // Wrappers that skip AnimatedSize themselves when the duration is zero.
+    const guarded = {
+      'document_slot_card.dart',
+      'plan_picker.dart',
+    };
     final bad = <String>[];
+    var seen = 0;
     for (final f in Directory('lib')
         .listSync(recursive: true)
         .whereType<File>()
         .where((f) => f.path.endsWith('.dart'))) {
       final s = f.readAsStringSync();
-      for (final m in RegExp(r'AnimatedSize\(').allMatches(s)) {
-        final head = s.substring(m.end, (m.end + 200).clamp(0, s.length));
-        if (RegExp(r'duration:[^,]*Duration\.zero').hasMatch(head)) {
-          bad.add(f.path);
-        }
+      for (final m in RegExp(r'\bAnimatedSize\(').allMatches(s)) {
+        seen++;
+        final d = RegExp(r'duration:\s*([^,]+),')
+            .firstMatch(s.substring(m.end))
+            ?.group(1)
+            ?.trim();
+        final ok = d != null &&
+            (d == 'context.sizeChangeDuration' ||
+                d.startsWith('AppMotion.') ||
+                (d == 'duration' && guarded.any((g) => f.path.endsWith(g))));
+        if (!ok) bad.add('${f.path}: duration: $d');
       }
     }
+    expect(seen, greaterThan(5), reason: 'run from apps/mobile');
     expect(bad, isEmpty, reason: 'use context.sizeChangeDuration');
   });
 }
