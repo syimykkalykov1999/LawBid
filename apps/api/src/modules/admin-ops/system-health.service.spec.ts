@@ -266,3 +266,57 @@ describe('SystemHealthService', () => {
     });
   });
 });
+
+describe('SystemHealthService.cachedReport', () => {
+  function svc(store: { v: string | null }) {
+    const redis = {
+      get: jest.fn(() => Promise.resolve(store.v)),
+      set: jest.fn((_k: string, v: string) => {
+        store.v = v;
+        return Promise.resolve('OK');
+      }),
+    };
+    const build = jest.fn(() =>
+      Promise.resolve({ overall: 'green', generatedAt: 'x', items: [] }),
+    );
+    const s = Object.assign(
+      Object.create(SystemHealthService.prototype) as object,
+      {
+        redis,
+        build,
+      },
+    ) as unknown as SystemHealthService;
+    return { s, redis, build };
+  }
+
+  it('computes once on a cold cache and stores the result', async () => {
+    const store = { v: null as string | null };
+    const { s, build } = svc(store);
+    await s.cachedReport();
+    expect(build).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(store.v!).report.overall).toBe('green');
+  });
+
+  it('serves a fresh entry without computing', async () => {
+    const store = {
+      v: JSON.stringify({ at: Date.now(), report: { overall: 'red' } }),
+    };
+    const { s, build } = svc(store);
+    expect((await s.cachedReport()).overall).toBe('red');
+    expect(build).not.toHaveBeenCalled();
+  });
+
+  it('serves a stale entry at once and refreshes once in the background', async () => {
+    const store = {
+      v: JSON.stringify({
+        at: Date.now() - 60_000,
+        report: { overall: 'yellow' },
+      }),
+    };
+    const { s, build } = svc(store);
+    const [a, b] = await Promise.all([s.cachedReport(), s.cachedReport()]);
+    expect(a.overall).toBe('yellow');
+    expect(b.overall).toBe('yellow');
+    expect(build).toHaveBeenCalledTimes(1);
+  });
+});

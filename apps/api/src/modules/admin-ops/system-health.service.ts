@@ -32,6 +32,13 @@ import type {
 import { bullOptions } from '../../redis/redis-connection';
 
 const PROBE_TIMEOUT_MS = 3_000;
+/** Owner 2026-11-02: the board took 4-5 s on every open (the slowest probe
+ * sets the pace). The finished report is kept in Redis for all API tasks:
+ * younger than FRESH it is served as is; older (up to KEEP) it is served at
+ * once while ONE background refresh runs; only a cold start waits. */
+const REPORT_KEY = 'ops:system-health:report:v1';
+const REPORT_FRESH_MS = 15_000;
+const REPORT_KEEP_SEC = 600;
 const DLQ = 'stripe-webhooks-dlq';
 
 function withTimeout<T>(p: Promise<T>, ms = PROBE_TIMEOUT_MS): Promise<T> {
@@ -84,7 +91,53 @@ export class SystemHealthService implements OnModuleDestroy {
     @Optional() private readonly rotation?: SecretRotationService,
   ) {}
 
+  private refreshing?: Promise<SystemHealthDto>;
+
+  /** GET path: cached report, refreshed in the background when stale. */
+  async cachedReport(): Promise<SystemHealthDto> {
+    type Hit = { at: number; report: SystemHealthDto };
+    let hit = null as Hit | null;
+    try {
+      const raw = await withTimeout(this.redis.get(REPORT_KEY), 500);
+      hit = raw ? (JSON.parse(raw) as Hit) : null;
+    } catch {
+      hit = null;
+    }
+    if (hit && Date.now() - hit.at < REPORT_FRESH_MS) return hit.report;
+    const fresh = this.refresh();
+    if (hit) {
+      fresh.catch(() => undefined);
+      return hit.report;
+    }
+    return fresh;
+  }
+
+  /** One refresh at a time per task (report() stores the result). */
+  private refresh(): Promise<SystemHealthDto> {
+    this.refreshing ??= this.report().finally(() => {
+      this.refreshing = undefined;
+    });
+    return this.refreshing;
+  }
+
   async report(now: Date = new Date()): Promise<SystemHealthDto> {
+    const report = await this.build(now);
+    try {
+      void Promise.resolve(
+        this.redis.set(
+          REPORT_KEY,
+          JSON.stringify({ at: Date.now(), report }),
+          'EX',
+          REPORT_KEEP_SEC,
+        ),
+      ).catch(() => undefined);
+    } catch {
+      /* a cache that cannot be written is only slower */
+    }
+    return report;
+  }
+
+  private async build(now: Date): Promise<SystemHealthDto> {
     const items = await Promise.all([
       Promise.resolve(this.api()),
       this.safe('worker', () => this.worker(now)),
