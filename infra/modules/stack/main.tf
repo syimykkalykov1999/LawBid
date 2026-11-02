@@ -476,6 +476,16 @@ variable "admin_tasks" {
   type    = number
   default = 2
 }
+variable "admin_cpu" {
+  type        = number
+  default     = 512
+  description = "Fargate CPU units of one admin task. Owner 2026-11-02: at 256 (0.25 vCPU) the one Next.js task rendered every page (all routes are dynamic: per-request CSP nonce) AND proxied every API call, and hung under a normal page load. 512 doubles the CPU for ~9 USD/month per task."
+}
+variable "admin_memory" {
+  type        = number
+  default     = 1024
+  description = "MiB of one admin task (valid pair with admin_cpu = 512: 1024-4096). Node heap limit is 70 % of this."
+}
 variable "api_cpu" {
   type    = number
   default = 1024
@@ -1840,6 +1850,8 @@ module "ecs" {
   min_tasks                        = var.min_tasks
   api_min_tasks                    = var.api_min_tasks
   admin_tasks                      = var.admin_tasks
+  admin_cpu                        = var.admin_cpu
+  admin_memory                     = var.admin_memory
   api_cpu                          = var.api_cpu
   api_memory                       = var.api_memory
   api_uv_threadpool_size           = var.api_uv_threadpool_size
