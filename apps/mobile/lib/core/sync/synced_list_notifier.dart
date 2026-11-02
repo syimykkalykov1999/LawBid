@@ -198,12 +198,20 @@ abstract class SyncedListNotifier<T> extends PagedNotifier<T> {
       final page = await fetchChanged(since);
       if (!ref.mounted) return;
       final current = state.value;
-      if (current != null) {
-        final merged = merge(current.items, page);
-        setItems(merged);
-        // Before «caught up to» moves: a saved copy older than that time
-        // would lose the changes in between at the next cold start.
-        didMerge(merged);
+      // No rows on screen (a load or an error): nothing was merged, so
+      // «caught up to» stays where the saved copy is.
+      if (current == null) return;
+      final merged = merge(current.items, page);
+      setItems(merged);
+      if (page.items.isNotEmpty || page.deletedIds.isNotEmpty) {
+        // Asked first, so a copy at least as new as the stored time is
+        // already on its way when the time moves (two separate databases:
+        // no strict order; a kill in between costs one extra delta).
+        try {
+          didMerge(merged);
+        } on Object catch (e) {
+          debugPrint('$listKey copy: $e');
+        }
       }
       _remember(page.syncedAt ?? _sinceOf(page.items) ?? since);
     } on ApiException catch (e) {
@@ -223,7 +231,8 @@ abstract class SyncedListNotifier<T> extends PagedNotifier<T> {
 
   /// The list after a catch-up merged [items] into it. A list that keeps a
   /// saved first page rewrites it here (the stored «caught up to» moves on,
-  /// so the copy must move with it). Must not throw or wait on the disk.
+  /// so the copy must move with it). Called only when the delta changed
+  /// something; must not wait on the disk.
   @protected
   void didMerge(List<T> items) {}
 

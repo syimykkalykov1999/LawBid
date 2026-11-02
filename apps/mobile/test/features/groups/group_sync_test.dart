@@ -159,7 +159,14 @@ void main() {
     await Future<void>.delayed(
       SyncedListNotifier.catchUpDelay + const Duration(milliseconds: 400),
     );
-    final saved = await c.read(groupListCacheProvider).read();
+    // The copy is written without being awaited: poll instead of sleeping.
+    var saved = await c.read(groupListCacheProvider).read();
+    for (var i = 0;
+        i < 50 && saved?.items.any((g) => g.id == 'g3') != true;
+        i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      saved = await c.read(groupListCacheProvider).read();
+    }
     expect(saved!.items.map((g) => g.id).toSet(), {'g1', 'g3'});
     expect(saved.items.firstWhere((g) => g.id == 'g1').unreadCount, 4);
   });
