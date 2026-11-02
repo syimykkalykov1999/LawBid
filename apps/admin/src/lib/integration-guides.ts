@@ -132,6 +132,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
     enable: [
       'Загрузите .json или вставьте три значения (FCM_PROJECT_ID, FCM_CLIENT_EMAIL, FCM_PRIVATE_KEY) → «Сохранить» → «Проверить» → «Включить».',
+      'Пуши на сайте: заполните ещё пять полей «Сайт: …» (web-приложение Firebase и VAPID-ключ). Пересобирать сайт не нужно: приложение берёт их при старте.',
       'В приложении пуши включаются сами. Для iPhone ещё загрузите ключ APNs в Firebase: Project settings → Cloud Messaging → Apple app configuration → APNs Authentication Key.',
     ],
     fields: {
@@ -144,6 +145,17 @@ export const GUIDES: Record<string, ProviderGuide> = {
         how: 'Из файла .json: строка "private_key" целиком, от -----BEGIN до END-----. Подходят и переносы строк, и \\n.',
         example: '-----BEGIN PRIVATE KEY-----…',
         multiline: true,
+      },
+      webApiKey: {
+        how: 'Для пушей в браузере (необязательно). Project settings → General → Your apps → добавьте Web-приложение → блок firebaseConfig → apiKey. Это не секрет.',
+        example: 'AIzaSy…',
+      },
+      webAppId: { how: 'Там же, firebaseConfig → appId (содержит :web:).', example: '1:1234567890:web:abc123' },
+      webSenderId: { how: 'Там же, firebaseConfig → messagingSenderId (только цифры).', example: '1234567890' },
+      webAuthDomain: { how: 'Там же, firebaseConfig → authDomain. Можно оставить пустым.', example: 'lawbid-6e5ff.firebaseapp.com' },
+      webVapidKey: {
+        how: 'Project settings → Cloud Messaging → Web Push certificates → Generate key pair → скопируйте «Key pair» (публичный ключ).',
+        example: 'B…',
       },
     },
   },

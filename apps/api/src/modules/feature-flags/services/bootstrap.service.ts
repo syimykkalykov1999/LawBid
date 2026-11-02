@@ -225,6 +225,34 @@ export class BootstrapService {
     }
   }
 
+  /** Owner 2026-11-02: the browser's push needs the Firebase web app and a
+   * VAPID key. They are public by design and live in Admin → Integrations →
+   * FCM (fields «Сайт: …»); the web build reads them from here at start, so
+   * changing them needs no rebuild. Published only when every required one
+   * is saved. */
+  async fcmWebConfig(): Promise<Record<string, string>> {
+    try {
+      const f = (await this.secrets?.get('fcm'))?.fields ?? {};
+      const out = {
+        'fcm.web.api_key': f.webApiKey,
+        'fcm.web.app_id': f.webAppId,
+        'fcm.web.sender_id': f.webSenderId,
+        'fcm.web.project_id': f.projectId,
+        'fcm.web.vapid_key': f.webVapidKey,
+        'fcm.web.auth_domain': f.webAuthDomain,
+      };
+      const required = Object.entries(out).filter(
+        ([k]) => k !== 'fcm.web.auth_domain',
+      );
+      if (required.some(([, v]) => !v)) return {};
+      return Object.fromEntries(
+        Object.entries(out).filter(([, v]) => !!v),
+      ) as Record<string, string>;
+    } catch {
+      return {};
+    }
+  }
+
   /** Owner 2026-10-01: reels stay hidden from everyone until the owner
    * both turns `video_posts` on AND saves every Bunny key in Admin →
    * Integrations — the app reads only this combined value. */
@@ -363,6 +391,7 @@ export class BootstrapService {
         [UPLOAD_LIMITS_KEY]: sanitizeUploadLimits(appConfig[UPLOAD_LIMITS_KEY]),
         ...(await this.sentryDsns()),
         ...(await this.turnstileSiteKey()),
+        ...(await this.fcmWebConfig()),
         ...(await this.videoPrefetchPlan(appConfig)),
       },
       client: { timings: clientTimingsFrom(appConfig) },

@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/config/web_push_config.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
@@ -104,7 +105,13 @@ class PushService {
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       unawaited(_registerVoip());
     }
-    // Web: push only when the build carries the Firebase web app's keys.
+    // Web: push only when the build or the admin carries the Firebase web
+    // app's keys.
+    if (kIsWeb) {
+      WebPushConfig.applyRemote(
+        _ref.read(featureFlagsControllerProvider).appConfig,
+      );
+    }
     if (kIsWeb && !WebPushConfig.configured) {
       debugPrint('push: no web keys in this build');
       _startedFor = null;

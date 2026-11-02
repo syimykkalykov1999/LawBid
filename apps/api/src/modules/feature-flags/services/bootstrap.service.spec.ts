@@ -303,3 +303,36 @@ describe('BootstrapService.turnstileSiteKey', () => {
     expect(await make('enforce').turnstileSiteKey()).toEqual({});
   });
 });
+
+describe('BootstrapService.fcmWebConfig', () => {
+  const make = (fields?: Record<string, string>) =>
+    new BootstrapService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { get: jest.fn().mockResolvedValue(fields ? { fields } : null) } as never,
+    );
+  const full = {
+    projectId: 'lawbid-6e5ff',
+    webApiKey: 'AIzaSyAAAAAAAAAAAAAAAAAAAA',
+    webAppId: '1:123456:web:abc',
+    webSenderId: '123456',
+    webVapidKey: 'B'.repeat(80),
+  };
+
+  it('publishes the public web keys when all are saved', async () => {
+    expect(await make(full).fcmWebConfig()).toEqual({
+      'fcm.web.api_key': full.webApiKey,
+      'fcm.web.app_id': full.webAppId,
+      'fcm.web.sender_id': full.webSenderId,
+      'fcm.web.project_id': full.projectId,
+      'fcm.web.vapid_key': full.webVapidKey,
+    });
+  });
+
+  it('publishes nothing when one is missing or nothing is saved', async () => {
+    expect(await make({ ...full, webVapidKey: '' }).fcmWebConfig()).toEqual({});
+    expect(await make().fcmWebConfig()).toEqual({});
+  });
+});
