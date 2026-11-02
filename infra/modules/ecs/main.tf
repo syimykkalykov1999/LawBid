@@ -608,6 +608,14 @@ resource "aws_ecs_task_definition" "worker" {
     image             = var.clamav_image
     essential         = true
     memoryReservation = var.clamav_memory
+    # Default StreamMaxLength/MaxFileSize are 25M, but uploads go up to
+    # 50 MB: bigger files were answered "size limit exceeded" and ended
+    # "failed" (audit B-2). The official image maps CLAMD_CONF_<Option>.
+    environment = [
+      { name = "CLAMD_CONF_StreamMaxLength", value = "55M" },
+      { name = "CLAMD_CONF_MaxFileSize", value = "55M" },
+      { name = "CLAMD_CONF_MaxScanSize", value = "110M" },
+    ]
     healthCheck = {
       command     = ["CMD-SHELL", "clamdcheck.sh"]
       interval    = 30

@@ -17,6 +17,7 @@ import {
   fairPriority,
   workerTuning,
 } from '../../../common/queues/queue-hardening';
+import { incrWithTtl } from '../../../redis/incr-with-ttl';
 
 /** BullMQ queue of the upload pipeline (docs/06 §6 `worker` service). */
 export const FILES_QUEUE = 'files';
@@ -133,8 +134,7 @@ export class FileScanRunner
     if (!ownerId || !redis) return FILE_SCAN_BASE_PRIORITY;
     try {
       const key = `scan:fair:${ownerId}`;
-      const recent = await redis.incr(key);
-      if (recent === 1) await redis.expire(key, FILE_SCAN_FAIR_WINDOW_SEC);
+      const recent = await incrWithTtl(redis, key, FILE_SCAN_FAIR_WINDOW_SEC);
       return fairPriority(recent, FILE_SCAN_BASE_PRIORITY);
     } catch {
       return FILE_SCAN_BASE_PRIORITY;

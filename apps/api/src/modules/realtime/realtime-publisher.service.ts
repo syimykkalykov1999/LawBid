@@ -23,7 +23,11 @@ export const postRoom = (id: string) => `post:${id}`;
 /** Sockets of a user that have a conversation open (push suppression,
  * §8.4 "push получателю, если он не в этой беседе"). */
 export const viewingKey = (userId: string, conversationId: string) =>
-  `rt:view:${userId}:${conversationId}`;
+  `rt:viewz:${userId}:${conversationId}`;
+/** B-1: a ZSET socketId -> expiry (ms), so a socket that died with its task
+ * stops counting after VIEW_TTL even while the user's other device keeps
+ * the key alive. */
+export const VIEWING_TTL_MS = 120_000;
 
 export type SocketAdapterMode = 'sharded' | 'classic';
 
@@ -263,6 +267,12 @@ export class RealtimePublisher {
 
   /** True if the user has this conversation open on some device. */
   async isViewing(userId: string, conversationId: string): Promise<boolean> {
-    return (await this.redis.scard(viewingKey(userId, conversationId))) > 0;
+    return (
+      (await this.redis.zcount(
+        viewingKey(userId, conversationId),
+        Date.now(),
+        '+inf',
+      )) > 0
+    );
   }
 }

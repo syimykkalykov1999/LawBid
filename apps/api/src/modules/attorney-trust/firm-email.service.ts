@@ -16,6 +16,7 @@ import { EMAIL_PROVIDER } from '../auth/providers/provider.tokens';
 import { AttorneyTrustService } from './attorney-trust.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { assertEmailFlowsOn } from '../feature-flags/email-flows';
+import { incrWithTtl } from '../../redis/incr-with-ttl';
 
 const CODE_TTL_SEC = 15 * 60;
 const SEND_LIMIT_PER_DAY = 5;
@@ -89,9 +90,11 @@ export class FirmEmailService {
         details: { field: 'email', reason: 'public_domain' },
       });
     }
-    const sent = await this.redis.incr(this.sentKey(attorneyId));
-    if (sent === 1)
-      await this.redis.expire(this.sentKey(attorneyId), 24 * 3600);
+    const sent = await incrWithTtl(
+      this.redis,
+      this.sentKey(attorneyId),
+      24 * 3600,
+    );
     if (sent > SEND_LIMIT_PER_DAY) {
       throw new HttpException(
         {

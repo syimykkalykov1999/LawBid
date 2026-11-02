@@ -3,13 +3,17 @@
 name: CodeQL
 
 on:
-  # Runs once per merge into main and once a day (not on every PR): the PR checks that gate a merge are
-  # API CI, admin-ci, Mobile CI and Secret scan; CodeQL findings appear under Security → Code scanning.
-  push:
-    branches: [main, master]
+  # Once a day (CI audit 2026-11-01: it used to run on EVERY merge into main, up to 3 queued
+  # at once, each a 5-10 minute 4-core job in front of the PR checks). The PR checks that
+  # gate a merge are API CI, admin-ci, Mobile CI and Secret scan; CodeQL findings appear
+  # under Security → Code scanning.
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   actions: read

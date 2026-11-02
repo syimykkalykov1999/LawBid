@@ -356,7 +356,11 @@ export class FcmPushSender implements PushSender {
         return;
       }
       const body = (await res.json().catch(() => ({}))) as {
-        error?: { status?: string; details?: { errorCode?: string }[] };
+        error?: {
+          status?: string;
+          message?: string;
+          details?: { errorCode?: string }[];
+        };
       };
       const code =
         body.error?.details?.find((d) => d.errorCode)?.errorCode ??
@@ -364,7 +368,14 @@ export class FcmPushSender implements PushSender {
       // Only a token the platform no longer knows is dropped; a wrong
       // project id (404 for everyone) or a bad payload must not erase
       // every user's tokens (security review).
-      if (code === 'UNREGISTERED') {
+      // B-3 (audit 2026-11-01): a mangled token answers 400 INVALID_ARGUMENT
+      // "...not a valid FCM registration token" — as dead as UNREGISTERED and
+      // it must not retry the whole job. Any other INVALID_ARGUMENT (bad
+      // payload) still counts as temporary and keeps the token.
+      const badToken =
+        code === 'INVALID_ARGUMENT' &&
+        /registration token/i.test(body.error?.message ?? '');
+      if (code === 'UNREGISTERED' || badToken) {
         await this.tokens.remove(device);
         return;
       }
