@@ -253,7 +253,9 @@ export class BootstrapService {
           'fcm.web.sender_id': f.webSenderId,
           'fcm.web.project_id': f.projectId,
           'fcm.web.vapid_key': f.webVapidKey,
-          ...(f.webAuthDomain ? { 'fcm.web.auth_domain': f.webAuthDomain } : {}),
+          ...(f.webAuthDomain
+            ? { 'fcm.web.auth_domain': f.webAuthDomain }
+            : {}),
         };
       }
       return {};
