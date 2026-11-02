@@ -877,10 +877,16 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     if (!env) return out;
     const page = 200;
     // Join codes ('plain:' rows are local-dev values and stay).
-    let after = '';
+    // Keyset cursor: null on the first page. Never '' — the id column is a
+    // uuid and Postgres/Prisma reject an empty string (the hourly failure of
+    // messages.reencrypt since the S3-4 release).
+    let after: string | null = null;
     for (;;) {
       const rows = await this.prisma.assistantMembership.findMany({
-        where: { id: { gt: after }, join_code_enc: { not: null } },
+        where: {
+          ...(after === null ? {} : { id: { gt: after } }),
+          join_code_enc: { not: null },
+        },
         select: { id: true, join_code_enc: true },
         orderBy: { id: 'asc' },
         take: page,
