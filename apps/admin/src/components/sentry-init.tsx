@@ -12,7 +12,12 @@ import { useEffect } from 'react';
 export function SentryInit({ dsn }: { dsn: string | null }) {
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production' || !dsn) return;
-    void (async () => {
+    // Owner 2026-11-02 (slow-link audit): the Sentry SDK is the biggest
+    // script of the panel (130 KB gzipped). It used to start downloading
+    // right after hydration, in parallel with the page's own data; on a
+    // 1-2 Mbit/s link that doubled the wait. It now loads when the browser
+    // is idle (at the latest 4 s after the page opened).
+    const start = () => void (async () => {
       try {
         const [Sentry, { scrubEvent }] = await Promise.all([
           import('@sentry/browser'),
@@ -30,6 +35,12 @@ export function SentryInit({ dsn }: { dsn: string | null }) {
         // Reporting must never be the next error.
       }
     })();
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(start, { timeout: 4000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const t = setTimeout(start, 3000);
+    return () => clearTimeout(t);
   }, [dsn]);
   return null;
 }
