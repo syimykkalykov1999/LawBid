@@ -17,6 +17,7 @@ import { ErrorCode } from '../errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { pubSubClient } from '../../redis/redis-connection';
 import {
   cleanPasted,
   PROVIDERS,
@@ -107,7 +108,7 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
   async onModuleInit(): Promise<void> {
     if (typeof this.redis.duplicate !== 'function') return;
     try {
-      this.sub = this.redis.duplicate();
+      this.sub = pubSubClient(this.redis);
       await this.sub.subscribe(CHANNEL);
       this.sub.on('message', (_channel: string, provider: string) => {
         if (provider === CUSTOM_CHANNEL_KEY) this.custom = null;

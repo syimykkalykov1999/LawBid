@@ -15,6 +15,7 @@ import {
   setRedisUrlProvider,
   sharedProducer,
   waitForReady,
+  pubSubClient,
 } from './redis-connection';
 import { EventEmitter } from 'node:events';
 import { ck, delSafe, keySlot, mgetSafe, pipeline } from './redis-cluster-safe';
@@ -388,5 +389,20 @@ describe('request-path client options (load test 2026-11-02, PR #606)', () => {
     expect(Date.now() - t0).toBeGreaterThanOrEqual(25);
     (em as unknown as { status: string }).status = 'ready';
     await expect(waitForReady(em, 5000)).resolves.toBeUndefined();
+  });
+});
+
+describe('pubSubClient', () => {
+  it('overrides the fail-fast options so (s)subscribe queues until ready', () => {
+    const duplicate = jest.fn().mockReturnValue({});
+    pubSubClient({ duplicate } as never);
+    expect(duplicate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enableOfflineQueue: true,
+        maxRetriesPerRequest: null,
+        commandTimeout: undefined,
+        socketTimeout: undefined,
+      }),
+    );
   });
 });

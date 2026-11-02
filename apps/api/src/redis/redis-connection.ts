@@ -263,6 +263,20 @@ export function requestPathOptions(timeoutMs: number): RedisClientOptions {
   };
 }
 
+/** A subscriber/adapter connection cloned from the fail-fast request-path
+ * client. `duplicate()` inherits `enableOfflineQueue: false`, so a
+ * `(s)subscribe` sent before the connection is ready (the socket.io adapter
+ * at `afterInit`) would be refused; pub/sub clients are not on the request
+ * path, so they queue commands and wait. */
+export function pubSubClient(client: Redis): Redis {
+  return client.duplicate({
+    enableOfflineQueue: true,
+    maxRetriesPerRequest: null,
+    commandTimeout: undefined,
+    socketTimeout: undefined,
+  });
+}
+
 /** Resolves when [client] is ready or after [maxMs] (a boot with Redis away
  * starts fail-fast instead of hanging; health reports the state). Without
  * the offline queue, module-init commands sent before `ready` would fail. */
