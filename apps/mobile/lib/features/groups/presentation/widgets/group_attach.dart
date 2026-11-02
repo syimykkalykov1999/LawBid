@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
@@ -97,9 +98,9 @@ Future<List<PickedChatFile>> pickGroupFiles(
       return const [];
     case GroupAttachChoice.photos:
       final picked = await ImagePicker().pickMultiImage(
-        maxWidth: 2560,
-        maxHeight: 2560,
-        imageQuality: 90,
+        maxWidth: ClientTuning.chatPhotoMaxPx,
+        maxHeight: ClientTuning.chatPhotoMaxPx,
+        imageQuality: ClientTuning.chatPhotoQuality,
       );
       for (final f in picked) {
         if (await f.length() > maxBytes) {
@@ -111,9 +112,9 @@ Future<List<PickedChatFile>> pickGroupFiles(
     case GroupAttachChoice.camera:
       final f = await ImagePicker().pickImage(
         source: ImageSource.camera,
-        maxWidth: 2560,
-        maxHeight: 2560,
-        imageQuality: 90,
+        maxWidth: ClientTuning.chatPhotoMaxPx,
+        maxHeight: ClientTuning.chatPhotoMaxPx,
+        imageQuality: ClientTuning.chatPhotoQuality,
       );
       if (f != null) add(await f.readAsBytes(), f.name);
     case GroupAttachChoice.files:
