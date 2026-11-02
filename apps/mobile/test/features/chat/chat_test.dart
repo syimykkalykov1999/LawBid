@@ -189,6 +189,13 @@ void main() {
       c.read(chatThreadProvider('c1')).outbox.single.delivery,
       DeliveryState.sending,
     );
+    // Writing again (which also asks the outbox to drain) is no way round it.
+    await c.read(chatThreadProvider('c1').notifier).send('Hi again');
+    await _settle();
+    expect(chat.sends, isEmpty);
+    // After the 4 s it goes by itself, both messages, in order.
+    await Future<void>.delayed(const Duration(milliseconds: 2500));
+    expect(chat.sends, hasLength(2));
   });
 
   test('401 and 408 are waited out, not shown as "not sent"', () async {

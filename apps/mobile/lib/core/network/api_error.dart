@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 
 /// String constants for EVERY `ErrorCode` value
@@ -639,7 +640,7 @@ class ApiException implements Exception {
   factory ApiException.fromDioException(DioException e) {
     final guest = e.requestOptions.extra[RequestFlags.guest] == true;
     final retryAfter =
-        parseRetryAfter(e.response?.headers.value('retry-after'));
+        ClientTuning.parseRetryAfter(e.response?.headers['retry-after']);
     final data = e.response?.data;
     if (data is Map<String, dynamic>) {
       final error = data['error'];
@@ -673,13 +674,6 @@ class ApiException implements Exception {
       guest: guest,
       retryAfter: retryAfter,
     );
-  }
-
-  /// A `Retry-After` in seconds (an HTTP date is ignored); null when absent
-  /// or unparseable.
-  static Duration? parseRetryAfter(String? raw) {
-    final secs = raw == null ? null : int.tryParse(raw.trim());
-    return secs == null || secs < 0 ? null : Duration(seconds: secs);
   }
 
   /// Synthetic code for a failure that never reached the backend at all

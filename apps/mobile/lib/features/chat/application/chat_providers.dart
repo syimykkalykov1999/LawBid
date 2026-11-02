@@ -481,14 +481,21 @@ class OutboxSender with WidgetsBindingObserver {
     return ClientTuning.outboxBackoff(failures);
   }
 
+  /// Set while the server's `Retry-After` is being waited out: a pass asked
+  /// for by a new message, a reconnect or the app resuming must not go to
+  /// the server before it (the timer clears it and runs the pass itself).
+  DateTime? _notBefore;
+
   /// [serverWait]: the longest `Retry-After` of this pass (429 / 503).
   void _scheduleRetry([Duration? serverWait]) {
     _failures++;
     _retry?.cancel();
-    _retry = Timer(
-      ClientTuning.outboxDelay(_failures, retryAfter: serverWait),
-      () => unawaited(drain()),
-    );
+    final delay = ClientTuning.outboxDelay(_failures, retryAfter: serverWait);
+    _notBefore = serverWait == null ? null : DateTime.now().add(delay);
+    _retry = Timer(delay, () {
+      _notBefore = null;
+      unawaited(drain());
+    });
   }
 
   /// Whether [e] is worth repeating as it is: no connection, a server that
@@ -542,6 +549,8 @@ class OutboxSender with WidgetsBindingObserver {
   Future<void> _drain() async {
     final owner = _ref.read(currentUserIdProvider);
     if (owner == null) return;
+    final holdUntil = _notBefore;
+    if (holdUntil != null && DateTime.now().isBefore(holdUntil)) return;
     final db = _ref.read(socialLocalDatabaseProvider);
     final repo = _ref.read(chatRepositoryProvider);
     // A conversation whose message just failed temporarily keeps its order
@@ -591,6 +600,7 @@ class OutboxSender with WidgetsBindingObserver {
       _scheduleRetry(serverWait);
     } else {
       _failures = 0;
+      _notBefore = null;
       _retry?.cancel();
     }
   }

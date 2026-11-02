@@ -205,6 +205,11 @@ class UploadQueue with WidgetsBindingObserver {
 
   /// The server's `Retry-After` seen on a target's last failed pass.
   final _serverWait = <String, Duration>{};
+
+  /// While a target waits out its `Retry-After`, a pass asked for by anything
+  /// else (a new job, resume, reconnect) must not reach the server earlier;
+  /// the target's timer clears this and runs the pass itself.
+  final _notBefore = <String, DateTime>{};
   bool _disposed = false;
 
   /// The account whose jobs run now (null signed out).
@@ -254,6 +259,8 @@ class UploadQueue with WidgetsBindingObserver {
   Future<void> retry(String id) async {
     await db.clearFailure(id);
     _failures.clear();
+    _serverWait.clear();
+    _notBefore.clear();
     unawaited(drain());
   }
 
@@ -331,6 +338,10 @@ class UploadQueue with WidgetsBindingObserver {
   }
 
   Future<void> _drainTarget(String owner, String target) {
+    final holdUntil = _notBefore[target];
+    if (holdUntil != null && DateTime.now().isBefore(holdUntil)) {
+      return Future<void>.value();
+    }
     final running = _running[target];
     if (running != null) {
       _again.add(target);
@@ -358,18 +369,27 @@ class UploadQueue with WidgetsBindingObserver {
         debugPrint('upload queue: $e');
         temporaryFailure = true;
       }
-    } while (_again.contains(target) && !_disposed);
+      // A pass asked for while this one ran does not go round again once the
+      // server has said how long to wait.
+    } while (_again.contains(target) &&
+        !_disposed &&
+        !_serverWait.containsKey(target));
     if (_disposed) return;
     if (temporaryFailure) {
       final n = (_failures[target] ?? 0) + 1;
       _failures[target] = n;
       _retries[target]?.cancel();
-      _retries[target] = Timer(
-        ClientTuning.outboxDelay(n, retryAfter: _serverWait.remove(target)),
-        () => unawaited(drain()),
-      );
+      final asked = _serverWait.remove(target);
+      final delay = ClientTuning.outboxDelay(n, retryAfter: asked);
+      if (asked != null) _notBefore[target] = DateTime.now().add(delay);
+      _retries[target] = Timer(delay, () {
+        _notBefore.remove(target);
+        unawaited(drain());
+      });
     } else {
       _failures.remove(target);
+      _serverWait.remove(target);
+      _notBefore.remove(target);
       _retries.remove(target)?.cancel();
     }
   }
@@ -465,6 +485,8 @@ class UploadQueue with WidgetsBindingObserver {
     for (final t in _retries.values) {
       t.cancel();
     }
+    _serverWait.clear();
+    _notBefore.clear();
     if (_observing) WidgetsBinding.instance.removeObserver(this);
     unawaited(_progress.close());
   }

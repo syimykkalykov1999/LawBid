@@ -222,6 +222,40 @@ void main() {
     expect(await db.pending('me'), isNotEmpty);
   });
 
+  test("a busy server's Retry-After holds every pass for that target",
+      () async {
+    var calls = 0;
+    final h = _Handler('test')
+      ..prepareError = (j) {
+        calls++;
+        return const ApiException(
+          code: 'SERVER_BUSY',
+          message: 'busy',
+          statusCode: 503,
+          retryAfter: Duration(seconds: 20),
+        );
+      };
+    final q = queue(h);
+    await add(q, 'a');
+    await q.drain();
+    expect(calls, 1);
+    // A resume / reconnect / new job asks again at once: nothing goes out.
+    await q.drain();
+    await q.drain();
+    expect(calls, 1);
+    expect(h.committed, isEmpty);
+    // Another chat is not held by this one's wait.
+    h.prepareError = null;
+    await add(q, 'x', target: 'c2');
+    await q.drain();
+    expect(h.committed, ['x']);
+    // «Повторить» is the person's own call: the wait is over.
+    h.prepareError = (j) => null;
+    await q.retry('a');
+    await q.drain();
+    expect(h.committed, contains('a'));
+  });
+
   test('temporary failures are the network, 401, 408, 425, 429 and 5xx', () {
     expect(UploadQueue.temporary(_offline), isTrue);
     for (final c in [401, 408, 425, 429, 500, 503]) {

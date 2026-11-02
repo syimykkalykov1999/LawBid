@@ -112,4 +112,35 @@ void main() {
       greaterThanOrEqualTo(const Duration(seconds: 8)),
     );
   });
+
+  test('outboxDelay never exceeds the outbox ceiling, jitter included', () {
+    ClientTuning.reset();
+    for (var seed = 0; seed < 50; seed++) {
+      expect(
+        ClientTuning.outboxDelay(10, random: Random(seed)),
+        const Duration(seconds: 30),
+      );
+    }
+  });
+
+  test('parseRetryAfter: seconds only, first header wins, huge is clamped', () {
+    expect(ClientTuning.parseRetryAfter(['7']), const Duration(seconds: 7));
+    expect(ClientTuning.parseRetryAfter([' 3 ']), const Duration(seconds: 3));
+    // Two headers (a proxy added one): no throw, the first counts.
+    expect(
+      ClientTuning.parseRetryAfter(['5', '9']),
+      const Duration(seconds: 5),
+    );
+    expect(
+      ClientTuning.parseRetryAfter(['Wed, 21 Oct 2026 07:28:00 GMT']),
+      isNull,
+    );
+    expect(ClientTuning.parseRetryAfter(['-1']), isNull);
+    expect(ClientTuning.parseRetryAfter(const []), isNull);
+    expect(ClientTuning.parseRetryAfter(null), isNull);
+    expect(
+      ClientTuning.parseRetryAfter(['99999999999999999']),
+      const Duration(days: 1),
+    );
+  });
 }

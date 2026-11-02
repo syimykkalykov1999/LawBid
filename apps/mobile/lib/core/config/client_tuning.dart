@@ -104,23 +104,39 @@ abstract final class ClientTuning {
     return Duration(seconds: s > _outboxRetryMaxS ? _outboxRetryMaxS : s);
   }
 
+  /// [d] plus up to 30% random extra, so a fleet that failed together does
+  /// not come back together. One rule for [outboxDelay] and the inline
+  /// `RetryInterceptor` backoff.
+  static Duration withJitter(Duration d, [Random? random]) {
+    final extra =
+        (d.inMilliseconds * 0.3 * (random ?? _rng).nextDouble()).round();
+    return d + Duration(milliseconds: extra);
+  }
+
+  /// The server's `Retry-After` in whole seconds (an HTTP date is ignored)
+  /// from the raw header values (Dio keeps a list, a proxy may send two:
+  /// the first counts); null when absent or unparseable. Clamped to a day so
+  /// an absurd number cannot overflow a [Duration].
+  static Duration? parseRetryAfter(Iterable<String>? values) {
+    final raw = values == null || values.isEmpty ? null : values.first;
+    final secs = raw == null ? null : int.tryParse(raw.trim());
+    if (secs == null || secs < 0) return null;
+    return Duration(seconds: secs > 86400 ? 86400 : secs);
+  }
+
   /// The wait before retry number [failures] of the outbox / upload queue:
-  /// [outboxBackoff] plus up to 30% jitter (a fleet that failed together
-  /// does not come back together), and never sooner than the server's
-  /// `Retry-After` ([retryAfter], capped at [outboxRetryMaxS]).
+  /// [outboxBackoff] with jitter, and never sooner than the server's
+  /// `Retry-After` ([retryAfter]). Never longer than [outboxRetryMaxS]:
+  /// a queue in the background does not sleep for minutes on one header.
   static Duration outboxDelay(
     int failures, {
     Duration? retryAfter,
     Random? random,
   }) {
-    final base = outboxBackoff(failures);
-    final jitter =
-        (base.inMilliseconds * 0.3 * (random ?? _rng).nextDouble()).round();
-    final own = base + Duration(milliseconds: jitter);
-    if (retryAfter == null) return own;
     final cap = Duration(seconds: _outboxRetryMaxS);
-    final asked = retryAfter > cap ? cap : retryAfter;
-    return asked > own ? asked : own;
+    var d = withJitter(outboxBackoff(failures), random);
+    if (retryAfter != null && retryAfter > d) d = retryAfter;
+    return d > cap ? cap : d;
   }
 
   static final _rng = Random();
