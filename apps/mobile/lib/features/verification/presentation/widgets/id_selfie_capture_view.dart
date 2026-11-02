@@ -196,7 +196,7 @@ class _LiveControls extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.lg),
         AnimatedSize(
-          duration: fade,
+          duration: context.sizeChangeDuration,
           child: anyway
               ? Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.md),
