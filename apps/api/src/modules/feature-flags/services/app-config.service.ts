@@ -1,8 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { jitterTtl, singleFlight } from '../../../common/cache/single-flight';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { failSoftRedis } from '../../../redis/fail-soft-redis';
+import { throttledWarn } from '../../../common/logging/throttled-warn';
+import { CircuitBreaker } from '../../../common/resilience/resilience';
 import { bumpConfigVersion } from './config-version';
 
 /** Same TTL reasoning as FeatureFlagsService — see that file's doc
@@ -43,10 +46,31 @@ export async function dropAppConfigCache(redis: Redis): Promise<void> {
  */
 @Injectable()
 export class AppConfigService {
+  /**
+   * Load test 2026-11-02 (PR #606, LOAD_RESILIENCE §2): the Redis copy of
+   * `app_config` is a cache of the table; while Redis is away it must be a
+   * miss (the table is read, the in-process memo below bounds that) and the
+   * write-back skipped — never an error. failSoftRedis is the project's
+   * wrapper for exactly that (REDIS_CACHE_CLIENT is built from it); the
+   * main client stays, so dropAppConfigCache's `del` hits the same keys.
+   */
+  private readonly cache: Redis;
+
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
-  ) {}
+    @Inject(REDIS_CLIENT) redis: Redis,
+  ) {
+    const warn = throttledWarn(new Logger(AppConfigService.name));
+    this.cache = failSoftRedis(
+      redis,
+      (command, err) =>
+        warn(
+          { err, command, alert: 'app_config_redis_down' },
+          'app_config cache: Redis unavailable, reading the table',
+        ),
+      new CircuitBreaker('redis_app_config', { threshold: 3, openMs: 10_000 }),
+    );
+  }
 
   async getConfig(): Promise<Record<string, unknown>> {
     const memoOn = process.env.NODE_ENV !== 'test';
@@ -63,7 +87,7 @@ export class AppConfigService {
   }
 
   private async loadConfig(): Promise<Record<string, unknown>> {
-    const cached = await this.redis.get(APP_CONFIG_CACHE_KEY);
+    const cached = await this.cache.get(APP_CONFIG_CACHE_KEY);
     if (cached !== null) return JSON.parse(cached) as Record<string, unknown>;
 
     return singleFlight(APP_CONFIG_CACHE_KEY, async () => {
@@ -73,7 +97,7 @@ export class AppConfigService {
       const config: Record<string, unknown> = {};
       for (const row of rows) config[row.key] = row.value;
 
-      await this.redis.set(
+      await this.cache.set(
         APP_CONFIG_CACHE_KEY,
         JSON.stringify(config),
         'EX',
