@@ -27,7 +27,7 @@ class _QuickRepliesSheetState extends ConsumerState<QuickRepliesSheet> {
   String _query = '';
 
   Future<void> _editor(QuickReply? current) async {
-    await showAppBottomSheet<bool>(
+    await showAppBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (_) => _QuickReplyEditor(current: current),
@@ -216,7 +216,7 @@ class _QuickReplyEditorState extends ConsumerState<_QuickReplyEditor> {
       } else {
         await notifier.edit(c.id, _title.text.trim(), _body.text.trim());
       }
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) Navigator.of(context).pop();
     } on Object catch (e) {
       if (!mounted) return;
       setState(() {
