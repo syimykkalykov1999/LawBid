@@ -783,13 +783,7 @@ class ProfileBriefsAndReposts extends ConsumerWidget {
       if (isSelf)
         for (final p in reposts?.items ?? const <Post>[]) p.id,
     ];
-    final unreposted = overrideIdSet(
-      ref.watch(
-        postOverridesProvider.select(
-          (m) => overrideIdsWhere(m, repostIds, (p) => !p.repostedByMe),
-        ),
-      ),
-    );
+    final unreposted = watchOverrideIds(ref, repostIds, (p) => !p.repostedByMe);
     BuildCounter.hit('profile.posts');
 
     if (posts == null || reposts == null) {
@@ -955,13 +949,7 @@ class SavedPostsList extends ConsumerWidget {
       for (final s in value.value?.items ?? const <SavedPost>[])
         if (s.post != null) s.postId,
     ];
-    final unsaved = overrideIdSet(
-      ref.watch(
-        postOverridesProvider.select(
-          (m) => overrideIdsWhere(m, shownIds, (p) => !p.savedByMe),
-        ),
-      ),
-    );
+    final unsaved = watchOverrideIds(ref, shownIds, (p) => !p.savedByMe);
     BuildCounter.hit('saved.posts');
     final filtered = value.whenData(
       (v) => v.without((s) => s.post != null && unsaved.contains(s.postId)),

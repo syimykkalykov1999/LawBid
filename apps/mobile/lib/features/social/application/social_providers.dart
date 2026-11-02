@@ -142,6 +142,20 @@ String overrideIdsWhere(
 Set<String> overrideIdSet(String ids) =>
     ids.isEmpty ? const {} : ids.split(_idSep).toSet();
 
+/// Of the post [ids] a list shows, those whose override passes [test];
+/// the widget rebuilds only when this answer changes (see
+/// [overrideIdsWhere]).
+Set<String> watchOverrideIds(
+  WidgetRef ref,
+  Iterable<String> ids,
+  bool Function(Post) test,
+) =>
+    overrideIdSet(
+      ref.watch(
+        postOverridesProvider.select((m) => overrideIdsWhere(m, ids, test)),
+      ),
+    );
+
 /// Cannot appear in an id.
 const _idSep = '\u0001';
 
