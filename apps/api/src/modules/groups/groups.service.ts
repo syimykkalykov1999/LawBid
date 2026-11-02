@@ -1617,7 +1617,7 @@ export class GroupsService {
     userId: string,
   ): Promise<() => Promise<void>> {
     const wait = m.group.slow_mode_s;
-    const noop = async (): Promise<void> => undefined;
+    const noop = (): Promise<void> => Promise.resolve();
     if (m.admin || !wait || !this.redis) return noop;
     const redis = this.redis;
     const key = `group:slow:${m.group.id}:${userId}`;

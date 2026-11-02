@@ -121,7 +121,9 @@ describe('Group slow mode (e2e)', () => {
     expect(blocked.body.error.code).toBe('RATE_LIMITED');
     expect(blocked.body.error.details.kind).toBe('group_slow_mode');
     expect(blocked.body.error.details.retryAfterSeconds).toBeGreaterThan(0);
-    expect(blocked.body.error.details.retryAfterSeconds).toBeLessThanOrEqual(60);
+    expect(blocked.body.error.details.retryAfterSeconds).toBeLessThanOrEqual(
+      60,
+    );
     // The admin is never slowed.
     await say(gid, owner.id, 'one').expect(201);
     await say(gid, owner.id, 'two').expect(201);
