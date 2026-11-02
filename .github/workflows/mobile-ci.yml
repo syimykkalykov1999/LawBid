@@ -56,8 +56,8 @@ permissions:
 jobs:
   # CI audit 2026-11-01: the macOS runner pool is small and this workflow held
   # it for 43-115 minutes per push (flutter test alone 30-43 min), so every
-  # mobile PR queued behind the others. Only ~29 of 490 test files compare
-  # golden PNGs (golden_toolkit) (generated on macOS, real fonts); everything else is
+  # mobile PR queued behind the others. Only the ~26 test files that match
+  # `golden_toolkit|matchesGoldenFile|screenMatchesGolden` compare golden PNGs (golden_toolkit) (generated on macOS, real fonts); everything else is
   # platform-independent and now runs here on ubuntu. The goldens and the iOS
   # build stay on macOS (jobs `golden-tests`, `build-ios`) and run only when
   # the app itself changed, not for a packages/api-contract-only PR.
@@ -115,6 +115,7 @@ jobs:
         working-directory: apps/mobile
         run: |
           FILES=$(grep -rLE 'golden_toolkit|matchesGoldenFile|screenMatchesGolden' test --include='*_test.dart' | sort)
+          test -n "$FILES" || { echo "::error::no non-golden test files found"; exit 1; }
           echo "$(echo "$FILES" | wc -l) test files"
           flutter test $FILES
 

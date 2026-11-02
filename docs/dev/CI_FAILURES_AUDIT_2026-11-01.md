@@ -40,7 +40,7 @@
 
 ## Что осталось и может сделать только владелец
 
-1. **Защита `main`** (Settings → Rules → Rulesets → New branch ruleset → `main` → Require status checks): добавить check **`Repo guards`** (всегда есть) и по необходимости `API CI`/`Mobile CI`. До этого PR можно сливать и красными: правила нет. Включить после того, как `CI gate` один раз отработает на PR (чтобы имя появилось в списке).
+1. **Защита `main`** (Settings → Rules → Rulesets → New branch ruleset → `main` → Require status checks): добавить check **`Repo guards`** (всегда есть) и по необходимости `API CI`/`Mobile CI`. До этого PR можно сливать и красными: правила нет. Включить после того, как нужные проверки хотя бы раз отработали на PR (чтобы имена появились в списке).
 2. **Self-check (production)**: роли `lawbid-prod-github-deploy` не хватает `SNS:ListTopics`, в AWS нет бюджета `lawbid-prod-monthly` и ≥20 тревог CloudWatch → `terraform apply` в `infra/envs/prod` («ставь на AWS»). Пока не сделано — красный каждые сутки.
 3. **Mobile release**: секреты `ANDROID_KEYSTORE_BASE64` и подписи iOS пустые — красный на каждый `v*`-тег / ручной запуск, пока их нет.
 4. Dependabot-ветки красные сами по себе (prisma 8-rc, `@opentelemetry`, firebase SPM) — по правилу владельца не трогаем; закрывать/группировать решает владелец.
@@ -55,7 +55,7 @@
 
 Замер (шаги упавших/успешных прогонов): на macOS `flutter test` 30–43 мин из 43–115 мин всего (490 тест-файлов, но golden-сравнение только в 7); analyze 2 мин, codegen 2 мин, установка Flutter 1,5 мин, iOS-сборка 13–16 мин. Пул macOS у GitHub мал, 3 мобильных PR одновременно ставили в очередь всё остальное. API CI при этом 16–17 мин и очередь не создаёт (метка «queued» у «All API jobs passed» — это итоговый job, ждущий остальные).
 
-Сделано (`mobile-ci.yml`): analyze + unit/widget (без файлов с golden_toolkit) на **ubuntu**; macOS остаётся только для `Golden tests` (≈29 файлов с golden_toolkit) и iOS-сборки, и только если PR меняет `apps/mobile/**` (job `changes`; PR только с `packages/api-contract/**` macOS не занимает); `cache: true` у flutter-action; таймауты: API static 45, mobile ubuntu 45, golden macOS 45, iOS 25, остальные job-ы без таймаута получили 20–60; watchdog раз в 3 часа вместо часа.
+Сделано (`mobile-ci.yml`): analyze + unit/widget (без файлов с golden_toolkit) на **ubuntu**; macOS остаётся только для `Golden tests` (≈26 файлов по grep golden_toolkit|matchesGoldenFile|screenMatchesGolden) и iOS-сборки, и только если PR меняет `apps/mobile/**` (job `changes`; PR только с `packages/api-contract/**` macOS не занимает); `cache: true` у flutter-action; таймауты: API static 60, mobile ubuntu 45, golden macOS 45, iOS 25, остальные job-ы без таймаута получили 20–60 (pgbouncer 45: QEMU arm64); watchdog остаётся раз в час (обещание «стек старше 4 ч» важнее очереди).
 
 **Следующий шаг (для следующего ИИ):**
 1. Измерить новый прогон: цель — macOS-часть < 25 мин (golden 7 файлов + iOS). Если `flutter test` на ubuntu красный из-за разницы ОС (шрифты/метрики), чинить тест, а не возвращать на macOS целиком.
