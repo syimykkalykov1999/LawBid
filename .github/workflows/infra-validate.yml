@@ -1,9 +1,7 @@
-# Terraform format + validate on every PR that touches infra/ (audit
-# 2026-11-02: nothing checked .tf syntax before a paid load-test, the nightly
-# drift run or an admin-triggered apply - a broken file showed up there, late).
-# No AWS access and no state: `init -backend=false` only downloads providers.
-# Not a required check on purpose (provider download from the public registry
-# can flake); a red run is still a clear reason not to merge.
+# Terraform fmt + validate on PRs that touch infra/. No AWS access and no state
+# (`init -backend=false` only downloads providers). Not a required check on
+# purpose: the public provider registry can flake; a red run is still a reason
+# not to merge. apply / drift float on ">=1.9"; this pin is the minimum we support.
 name: Infra validate
 
 on:
@@ -21,9 +19,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Same pin as load-test.yml (the version that creates the test stacks).
+  # Same as load-test.yml (the version that creates the test stacks).
   TF_VERSION: "1.9.8"
-  # One provider download for all five roots (the AWS provider is several hundred MB).
+  # One provider download for every root (the AWS provider is several hundred MB).
   TF_PLUGIN_CACHE_DIR: ${{ runner.temp }}/tf-plugin-cache
 
 jobs:
@@ -33,21 +31,17 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - name: Install Terraform ${{ env.TF_VERSION }}
-        run: |
-          cd "$RUNNER_TEMP"
-          curl -fsSLO "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip"
-          curl -fsSLO "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_SHA256SUMS"
-          grep "linux_amd64.zip" "terraform_${TF_VERSION}_SHA256SUMS" | sha256sum -c -
-          unzip -qo "terraform_${TF_VERSION}_linux_amd64.zip" terraform && sudo install terraform /usr/local/bin/terraform
-          terraform version
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
       - name: Format (terraform fmt -check)
         run: terraform fmt -check -recursive -diff infra
       - name: Validate every root module
         run: |
           mkdir -p "$TF_PLUGIN_CACHE_DIR"
           fail=0
-          for d in infra/envs/prod infra/envs/staging infra/envs/loadtest infra/bootstrap infra/bootstrap-loadtest; do
+          for d in infra/envs/*/ infra/bootstrap*/; do
             echo "::group::validate $d"
             ( cd "$d" && terraform init -backend=false -input=false -no-color >/dev/null && terraform validate -no-color ) || { echo "::error::terraform validate failed in $d"; fail=1; }
             echo "::endgroup::"
