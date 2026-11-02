@@ -25,7 +25,6 @@ const storageScreenRu = <String, String>{
   'storage.clear.messages.body':
       'История чатов на этом телефоне будет стёрта и докачается при открытии чата.',
   'storage.clear.done': 'Кэш очищен',
-  'storage.clear.failed': 'Не удалось очистить, попробуйте ещё раз',
   'storage.keepMedia.title': 'Хранить медиа чатов',
   'storage.keepMedia.3d': '3 дня',
   'storage.keepMedia.1w': '1 неделя',
@@ -63,7 +62,6 @@ const storageScreenEn = <String, String>{
   'storage.clear.messages.body':
       'Chat history on this phone will be erased and fetched again when a chat is opened.',
   'storage.clear.done': 'Cache cleared',
-  'storage.clear.failed': 'Could not clear, please try again',
   'storage.keepMedia.title': 'Keep chat media',
   'storage.keepMedia.3d': '3 days',
   'storage.keepMedia.1w': '1 week',
