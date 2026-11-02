@@ -2450,6 +2450,7 @@ export class ChatService {
         : (this.cipher?.open(m.body_display, m.id) ?? m.body_display),
       contactMasked: m.contact_masked,
       clientMessageId: m.sender_id === viewerId ? m.client_message_id : null,
+      seq: m.seq,
       createdAt: m.created_at,
       expiresAt: m.expires_at,
     };
