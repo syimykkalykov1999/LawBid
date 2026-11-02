@@ -76,6 +76,9 @@ D
 supervise() {
   local i="$1" tok rc
   while [ -f "$FLAG" ]; do
+    # A previous container of this slot may still be finishing a job (rolling restart
+    # of the supervisor after a script update): let it finish, never kill a job.
+    while [ -n "$(docker ps -q --filter "name=^lawbid-ci-run-$i\$")" ]; do sleep 5; [ -f "$FLAG" ] || return 0; done
     tok=$(gh api -X POST "repos/$REPO/actions/runners/registration-token" --jq .token 2>&1) || tok=""
     if [ -z "$tok" ] || [[ "$tok" == *" "* ]]; then
       echo "$(date -Is) slot $i: no registration token (gh: ${tok:-empty}), retry in 30s"; sleep 30; continue
