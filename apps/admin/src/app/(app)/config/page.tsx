@@ -1429,4 +1429,3 @@ export default function ConfigPage() {
   }
   return <FullConfigPage />;
 }
-  'auth.additional_identifiers_enabled': 'Разрешить привязывать к аккаунту второй телефон/почту для входа (стоит денег за SMS; выключено). Уже привязанные продолжают работать для входа.',
