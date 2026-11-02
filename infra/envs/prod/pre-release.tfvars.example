@@ -1,0 +1,27 @@
+# Экономный режим ДО релиза (владелец 2026-11-02: «по ходу так и сделаем до релиза»).
+# Профиль обратим одним переключением: перед запуском поставьте значения
+# из раздела «ПЕРЕД РЕЛИЗОМ» ниже и сделайте terraform apply (чек-лист: docs/HANDOFF.md).
+# Не трогает: WAF, NAT, метрики CloudWatch, секреты (решение владельца).
+#
+# Экономия ≈ $1,6 в сутки (≈ $48 в месяц): запасная копия базы ≈ $1,3 + второй узел Redis ≈ $0,35.
+#
+# Применять: terraform apply -var-file=pre-release.tfvars (копия этого файла) с Мака.
+
+# 1) Redis: один узел вместо основного + запасного (+ ≈ $0,35/сутки).
+#    ВАЖНО: если автомасштаб Redis уже менял размер, сначала поставьте
+#    redis_node_type равным ТЕКУЩЕМУ типу узла (aws elasticache describe-replication-groups),
+#    иначе Terraform пересоздаст узел другого размера.
+#    Автомасштаб Redis без запасного узла не создаётся (проверка redis_autoscale_needs_replica),
+#    поэтому он выключен на это время.
+redis_replicas          = 0
+redis_autoscale_enabled = false
+
+# 2) База: Terraform существующий RDS не меняет (он создан вручную), значение только
+#    убирает предупреждение «база не Multi-AZ» в terraform plan.
+#    Саму базу переключает команда из docs/runbooks/pre-release-cost-mode.md.
+database_multi_az = false
+
+# ---- ПЕРЕД РЕЛИЗОМ (вернуть) ------------------------------------------------
+# redis_replicas          = 1
+# redis_autoscale_enabled = true
+# database_multi_az       = true   # и команда aws rds modify-db-instance --multi-az (runbook)
