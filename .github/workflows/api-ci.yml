@@ -709,11 +709,11 @@ jobs:
           PREV_DIR: ${{ runner.temp }}/prev
         run: node scripts/ci/n1-compat.mjs "$PREV_DIR"
 
-  # One stable required check for the ruleset / merge queue.
-
       - name: Stop MinIO
         if: always()
         run: scripts/ci/stop-minio.sh
+
+  # One stable required check for the ruleset / merge queue.
 
   api-ci:
     name: API CI
