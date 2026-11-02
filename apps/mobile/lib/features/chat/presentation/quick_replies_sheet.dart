@@ -73,7 +73,7 @@ class _QuickRepliesSheetState extends ConsumerState<QuickRepliesSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(
+                padding: const EdgeInsetsDirectional.fromSTEB(
                   AppSpacing.lg,
                   AppSpacing.sm,
                   AppSpacing.sm,
