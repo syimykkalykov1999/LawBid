@@ -10,6 +10,11 @@ on:
   schedule:
     - cron: "30 3 * * *"
   workflow_dispatch:
+    inputs:
+      with_ffmpeg:
+        description: "Build the image with ffmpeg (WITH_FFMPEG=1) for frame-by-frame video moderation, then scan it"
+        type: boolean
+        default: false
 
 # A newer push replaces a scan still waiting or running (CI audit 2026-11-01).
 concurrency:
@@ -28,7 +33,9 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Build image
-        run: docker build -f apps/api/Dockerfile -t lawbid-api:ci .
+        env:
+          WITH_FFMPEG: ${{ inputs.with_ffmpeg && '1' || '0' }}
+        run: docker build -f apps/api/Dockerfile --build-arg WITH_FFMPEG="$WITH_FFMPEG" -t lawbid-api:ci .
       # npm itself (the node image's own CLI, only used by the migrate task)
       # is skipped: its bundled packages are not reachable from requests.
       # The trivy-action tag 0.28.0 no longer resolves, so run the pinned

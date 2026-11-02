@@ -30,7 +30,7 @@ subset of §7.2's eventual PR-check list it covers today.
   `mobile-ci.yml` are **blocking** against a baseline of the findings that
   already existed (`apps/mobile/tool/ci/hardcoded_*.allow`). New ones fail;
   how to fix or allow one is in the header of `tool/ci/hardcoded_check.py`.
-- `npm audit` at high severity in `api-ci.yml` is **blocking** too. An
+- `npm audit` at high severity in `api-ci.yml` and `admin-ci.yml` is **blocking** too (a warning only on a PR that changes no dependency). An
   advisory that cannot be fixed yet goes in `.github/npm-audit-allowlist.json`
   with a GHSA id, a reason and an expiry date (an expired entry fails again).
   See the header of `scripts/ci/npm-audit-gate.mjs`.
