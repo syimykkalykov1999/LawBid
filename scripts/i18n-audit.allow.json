@@ -1,0 +1,13 @@
+{
+  "sameAsEnglishKeys": [
+    "auth.email.hint",
+    "auth.phone.waitlist.email",
+    "billing.hm",
+    "boost.cta.link",
+    "practice.education_law.title_ix",
+    "practice.immigration.green_card",
+    "trust.me.firm.form.emailHint"
+  ],
+  "sameAsEnglishPrefixes": [],
+  "perLanguage": {}
+}
