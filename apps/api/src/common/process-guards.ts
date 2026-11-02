@@ -1,3 +1,5 @@
+import { LOG_STACK_MAX_CHARS, scrubString } from '../telemetry/scrub';
+
 /**
  * B-12 (audit 2026-11-01): a forgotten `void promise` that rejects used to
  * kill the whole process on Node >= 15 — every socket of the task dropped at
@@ -11,23 +13,22 @@ export function installProcessGuards(): void {
   });
 }
 
-// scheme://user:pass@host -> scheme://***@host (DB / Redis URLs in client errors)
-const URL_CREDENTIALS = /([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi;
-
-function describe(reason: unknown): unknown {
-  if (!(reason instanceof Error)) return String(reason);
+/** Error -> plain object for one log line: client data and URL credentials
+ * are scrubbed (telemetry/scrub.ts), `cause` and AggregateError `errors` kept. */
+function serializeError(reason: unknown): unknown {
+  if (!(reason instanceof Error)) return scrubString(String(reason));
   const e = reason as Error & {
     code?: unknown;
     cause?: unknown;
     errors?: unknown[];
   };
   return {
-    message: e.message.replace(URL_CREDENTIALS, '$1***@'),
+    message: scrubString(e.message, 2000),
     // Node 20+ dual-stack ECONNREFUSED is an AggregateError with an empty message.
     code: e.code,
-    errors: Array.isArray(e.errors) ? e.errors.map(describe) : undefined,
-    cause: e.cause === undefined ? undefined : describe(e.cause),
-    stack: e.stack?.replace(URL_CREDENTIALS, '$1***@'),
+    errors: Array.isArray(e.errors) ? e.errors.map(serializeError) : undefined,
+    cause: e.cause === undefined ? undefined : serializeError(e.cause),
+    stack: e.stack ? scrubString(e.stack, LOG_STACK_MAX_CHARS) : undefined,
   };
 }
 
@@ -37,7 +38,9 @@ function logFatal(
   msg: string,
   reason: unknown,
 ): void {
-  console.error(JSON.stringify({ level, alert, msg, err: describe(reason) }));
+  console.error(
+    JSON.stringify({ level, alert, msg, err: serializeError(reason) }),
+  );
 }
 
 /**
@@ -48,15 +51,15 @@ function logFatal(
  * failed ALB health check. A start-up failure must end the process with a
  * readable line and exit code 1, so ECS stops the task and rolls the deploy back.
  */
-export function runEntrypoint(
+export async function runEntrypoint(
   name: string,
   main: () => Promise<void>,
   exit: (code: number) => void = (code) => process.exit(code),
 ): Promise<void> {
-  return Promise.resolve()
-    .then(main)
-    .catch((reason: unknown) => {
-      logFatal(60, 'startup_failed', `${name} failed to start`, reason);
-      exit(1);
-    });
+  try {
+    await main();
+  } catch (reason) {
+    logFatal(60, 'startup_failed', `${name} failed to start`, reason);
+    exit(1);
+  }
 }
