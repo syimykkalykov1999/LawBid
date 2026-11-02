@@ -19,7 +19,15 @@ BEGIN
     CREATE ROLE lawbid_partition WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
   END IF;
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'lawbid_migrator') THEN
-    GRANT lawbid_migrator TO lawbid_partition;
+    BEGIN
+      GRANT lawbid_migrator TO lawbid_partition;
+      -- Every session of this login runs AS lawbid_migrator, so the tables the
+      -- runner creates are owned by the migrator, not by lawbid_partition
+      -- (otherwise later Prisma migrations could not ALTER them).
+      ALTER ROLE lawbid_partition SET role = 'lawbid_migrator';
+    EXCEPTION WHEN insufficient_privilege THEN
+      RAISE NOTICE 'lawbid_partition not linked to lawbid_migrator (grant it by hand)';
+    END;
   END IF;
   ALTER ROLE lawbid_partition SET statement_timeout = '0';
   ALTER ROLE lawbid_partition SET lock_timeout = '5s';

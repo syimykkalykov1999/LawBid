@@ -1231,7 +1231,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   for (const t of ['messages', 'chat_group_messages', 'notifications']) {
     out[`partition.${t}_mode`] = {
       ...out[`partition.${t}_mode`],
-      description: `Hash partitioning of ${t}: off = plain table (default, faster while small), on = the online runner converts now, auto = converts at partition.auto_rows.`,
+      description: `Hash partitioning of ${t}: auto = converts by itself at partition.auto_rows (default; nothing happens while small), on = the online runner converts now, off = never.`,
       pattern: /^(off|on|auto)$/,
     };
   }
