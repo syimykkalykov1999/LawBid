@@ -125,9 +125,9 @@ class MediaCacheDir {
 
 /// 2026-11-02: loose files in the temporary directory that carry one name
 /// prefix and suffix (voice notes: `voice_cache_<messageId>.m4a`; the
-/// suffix keeps a half-downloaded `….m4a.part` out of the sweep). They are chat media
-/// too, but live outside a cache folder, so «Данные и память» never counted
-/// or swept them. Measured, aged out and emptied like [MediaCacheDir].
+/// suffix keeps a half-downloaded `….m4a.part` out of the sweep). They are
+/// chat media too, but live outside a cache folder, so «Данные и память»
+/// never counted or swept them. Measured, aged out and emptied like [MediaCacheDir].
 class PrefixedTempFiles {
   const PrefixedTempFiles(this.prefix, {this.suffix = '', this.root});
 
