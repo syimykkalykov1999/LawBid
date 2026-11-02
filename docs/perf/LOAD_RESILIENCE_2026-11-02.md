@@ -2,7 +2,7 @@
 
 Продолжение `LOAD_TEST_2026-11-02.md` на том же стенде: ноутбук, Docker Desktop (VM 32 vCPU / 44 ГБ), база 1M (`lawbid_lt`, 22 ГБ), Postgres **8 CPU** / 16 ГБ, PgBouncer (transaction pooling, пул 40), Redis без персистентности (`--save ""`), задачи API по квоте 2 CPU, worker, nginx. k6 в Docker на том же ноутбуке. Прод не участвовал, облако не использовалось, 0 $.
 
-Новая обвязка в этом PR: `loadtest/local-docker/resilience.sh` (прогон `vus.js` с расписанием отвала `OUT_SVC/OUT_AT/OUT_FOR`, сэмплер каждые 5 с: `docker stats`, соединения Postgres, клиенты/память Redis, `/health/ready` и `/health/live` с хоста) и `k6-series.py` (ряд по 10 с из потока `k6 --out json`: запросы, ошибки по статусам, p50/p95/p99, сокеты, доставка чата). Сырое — `~/loadtest/results/1102-*`.
+Новая обвязка в этом PR (после ревью влита в общий `loadtest/local-docker/run.sh`, а не отдельным скриптом): отвал сервиса по расписанию `OUT_SVC/OUT_AT/OUT_FOR` (через `docker compose stop/start`, отменяется, если k6 закончил раньше), сэмплер каждые `SAMPLE_EVERY` с (`docker stats`, соединения Postgres, клиенты/память Redis, `/health/ready` и `/health/live` с хоста; пробы идут параллельно, чтобы период не плыл), `k6-series.py` (ряд по 10 с из потока `k6 --out json`: запросы, ошибки по статусам, p50/p95/p99, сокеты, доставка чата; корзина пишется с задержкой в одну корзину, потому что k6 сбрасывает точки пачками не по порядку) и `soak-report.py` (тренд по сегментам, память контейнеров каждые 5 мин, соединения). Сырое — `~/loadtest/results/1102-*` (прогоны этого дня писались ещё прежней версией обвязки: `sample.log` вместо `pg.log`/`redis.log`/`health.log`).
 
 На время тестов в `app_config` стоял `realtime.max_connects_per_ip_per_minute = 0` (все сокеты k6 идут с одного адреса, см. находку 4 в `LOAD_TEST_2026-11-02.md`); после тестов ключ удалён.
 
@@ -142,7 +142,7 @@
 
 ## Проверка Redis на стенде после слияния #615 (правило владельца: все клиенты и пути)
 
-Образ из `main` после #615 (66c7b1a6d), изолированная пара API + worker + Redis рядом с идущим 10M-засевом, токены k6 со строками `sessions` (`fixture-sessions.sh`). Сырое: `~/loadtest/results/1102-redis-verify2`, `1102-boot-diag`, `1102-boot-fix*`.
+Образ из `main` после #615 (66c7b1a6d), изолированная пара API + worker + Redis рядом с идущим 10M-засевом, токены k6 со строками `sessions` (`loadtest/scripts/seed-sessions.sh`). Сырое: `~/loadtest/results/1102-redis-verify2`, `1102-boot-diag`, `1102-boot-fix*`.
 
 | Путь | Результат на `main` (#615) | Итог |
 |---|---|---|
@@ -160,7 +160,7 @@
 
 ### 1. Отвал Redis: зависание 4 с и 500 вместо быстрого отказа — PR #615
 
-Класс: ioredis держит команды в офлайн-очереди до `commandTimeout` (2 с × 2 команды на запрос), и несколько мест пути запроса читают Redis без запасного варианта (`JwtAuthGuard` → проверка отзыва сессии, кэш `app_config`). Правка (PR #615, прошла `/code-review high`, `/security-review`, `/simplify`): штатные опции ioredis `enableOfflineQueue: false` + `socketTimeout` на основном клиенте (команда отклоняется мгновенно, пока соединение потеряно; замолчавший узел сбрасывается через 1 с), `503 SERVER_BUSY` + `Retry-After: 5` вместо 500 для инфраструктурных ошибок Redis, проверка отзыва сессии по таблице `sessions` при недоступном Redis (одна строка, memo 5 с), кэши `app_config` и feature-флагов через существующий `failSoftRedis`. Как у Facebook memcache / Netflix Hystrix: отказ кэша стоит латентность промаха, а не таймаута. Проверка на стенде (изолированная пара API + Redis, 50 человек, Redis выключен на 30 с, одна и та же база): в окне отвала было 100 % × 500 с p50 4,0 с, стало 503 мгновенно (p50 13–29 мс), аутентифицированные запросы проходят через таблицу сессий, `/health/ready` через 2 с. Таблица — в описании PR #615. Побочная находка для стенда: `mint.mjs` выпускает токены без строк в `sessions`, и новый fallback такие токены честно отвергает — добавлен `loadtest/local-docker/fixture-sessions.sh` (строки сессий для всех токенов фикстур), запускать после `prepare.sh`.
+Класс: ioredis держит команды в офлайн-очереди до `commandTimeout` (2 с × 2 команды на запрос), и несколько мест пути запроса читают Redis без запасного варианта (`JwtAuthGuard` → проверка отзыва сессии, кэш `app_config`). Правка (PR #615, прошла `/code-review high`, `/security-review`, `/simplify`): штатные опции ioredis `enableOfflineQueue: false` + `socketTimeout` на основном клиенте (команда отклоняется мгновенно, пока соединение потеряно; замолчавший узел сбрасывается через 1 с), `503 SERVER_BUSY` + `Retry-After: 5` вместо 500 для инфраструктурных ошибок Redis, проверка отзыва сессии по таблице `sessions` при недоступном Redis (одна строка, memo 5 с), кэши `app_config` и feature-флагов через существующий `failSoftRedis`. Как у Facebook memcache / Netflix Hystrix: отказ кэша стоит латентность промаха, а не таймаута. Проверка на стенде (изолированная пара API + Redis, 50 человек, Redis выключен на 30 с, одна и та же база): в окне отвала было 100 % × 500 с p50 4,0 с, стало 503 мгновенно (p50 13–29 мс), аутентифицированные запросы проходят через таблицу сессий, `/health/ready` через 2 с. Таблица — в описании PR #615. Побочная находка для стенда: `mint.mjs` выпускает токены без строк в `sessions`, и новый fallback такие токены честно отвергает — теперь `jwt.mjs` записывает пары (пользователь, `sid`) каждого выпущенного токена в `<файл>.sessions.txt`, а `loadtest/scripts/seed-sessions.sh` (по образцу `seed-admin-sessions.sh`, параметр `PSQL`) вставляет строки `sessions`; `prepare.sh` вызывает его сам, отдельного шага нет.
 
 ### 2. Отправка сообщения держит блокировку строки чата через 5 сетевых обращений — застои и P2028
 
@@ -213,8 +213,10 @@
 cd loadtest/local-docker            # стенд поднят как в LOAD_TEST_2026-11-02.md, база 8 CPU
 docker exec -i lawbid-lt-postgres-1 psql -U root -d lawbid_lt -c "INSERT INTO app_config(key,value,updated_at) VALUES ('realtime.max_connects_per_ip_per_minute','0'::jsonb,now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value"
 API_CPUS=2 docker compose up -d --scale api=8 api worker && docker compose restart lb
-./resilience.sh fail-pg    ~/loadtest/results/fx-1m VUS=1000 WS=200 RAMP=1m HOLD=5m OUT_SVC=postgres OUT_AT=150 OUT_FOR=40 NO_K6_ABORT=1
-./resilience.sh fail-redis ~/loadtest/results/fx-1m VUS=1000 WS=200 RAMP=1m HOLD=5m OUT_SVC=redis    OUT_AT=150 OUT_FOR=40 NO_K6_ABORT=1
+./run.sh fail-pg    ~/loadtest/results/fx-1m VUS=1000 WS=200 RAMP=1m HOLD=5m OUT_SVC=postgres OUT_AT=150 OUT_FOR=40 NO_K6_ABORT=1 SAMPLE_EVERY=5
+./run.sh fail-redis ~/loadtest/results/fx-1m VUS=1000 WS=200 RAMP=1m HOLD=5m OUT_SVC=redis    OUT_AT=150 OUT_FOR=40 NO_K6_ABORT=1 SAMPLE_EVERY=5
 API_CPUS=2 docker compose up -d --scale api=12 api worker && docker compose restart lb
-./resilience.sh soak-1500  ~/loadtest/results/fx-1m VUS=1500 WS=300 RAMP=2m HOLD=2h WS_HOLD_SECONDS=600 NO_K6_ABORT=1
+./run.sh soak-1500  ~/loadtest/results/fx-1m VUS=1500 WS=300 RAMP=2m HOLD=2h WS_HOLD_SECONDS=600 NO_K6_ABORT=1 SAMPLE_EVERY=5
+python3 summarize.py ~/loadtest/results/soak-1500; python3 soak-report.py ~/loadtest/results/soak-1500   # итоги и тренд
 ```
+Обвязка проверена после ревью на мини-стенде (Postgres + Redis из `compose.yml`, заглушка API, настоящий k6 2.0.0): отвал Redis по расписанию и `READY_OK`, отмена отвала при раннем выходе k6, период сэмплера ровно 5 с, `series.csv`/`summarize.py`/`soak-report.py` на одном формате логов; `k6-series.py` — на живом потоке k6 и фаззинге перемешанных пачек (точки не теряются, корзины не дублируются); `seed-sessions.sh` — на отдельном Postgres (дубликаты в пачке, повторный запуск). Полные прогоны под нагрузкой новой версией не повторялись: стенд к этому моменту убран по правилу владельца.

@@ -7,11 +7,17 @@
   every session (PGOPTIONS).
 * TEMP tables become UNLOGGED tables (shared by the parallel sessions) and are
   dropped at the end of the file.
-* Big INSERTs (>= 500 000 rows from generate_series / nums, the 20-messages-per-
-  chat insert) are split by residue (g % K = i) into K statements run at the
-  same time. Residue split keeps rows with the same unique key (they come from
-  g values equal modulo the population, which K divides) in one worker, so the
-  ON CONFLICT DO NOTHING inserts never deadlock.
+* Big DML (INSERT / UPDATE / WITH ... UPDATE with >= 500 000 rows from
+  generate_series or nums, the 20-messages-per-chat insert) is split by residue
+  (g % K = i) into K statements run at the same time. CREATE TABLE AS ... nums
+  stays one statement. Residue split keeps rows with the same unique key (they
+  come from g values equal modulo the population, which K divides) in one
+  worker, so the ON CONFLICT DO NOTHING inserts never deadlock; for an UPDATE
+  the precondition is that each g addresses its own target row (the generators
+  key them as md5('p'||g*10)), otherwise two workers would wait on one row.
+* Every chunked INSERT is followed by ANALYZE of its table: the next statements
+  (the 10M run's 3M-row UPDATE over the fresh 31M posts) plan on real row counts.
+* SEED_PGOPTIONS adds server settings for the whole load (seed.sh header).
 * The audit-log hash-chain trigger (2 updates of ONE row per inserted row,
   quadratic inside one big transaction) is disabled for the seed insert only:
   seeded rows are "pre-chain" history with NULL seq/hash.
@@ -23,6 +29,7 @@ db, path = sys.argv[1], sys.argv[2]
 K = int(sys.argv[3]) if len(sys.argv) > 3 else 8
 PG = 'lawbid-lt-postgres-1'
 BIG = 500000
+DML = ('INSERT', 'UPDATE', 'WITH')  # what may be residue-split (not CREATE TABLE AS)
 
 src = '\n'.join(l for l in open(path).read().splitlines() if not l.lstrip().startswith(('\\', '--')))
 stmts = [s.strip() for s in re.split(r';\s*\n', src) if s.strip() and not re.fullmatch(r'(--[^\n]*\n?)+', s.strip() + '\n')]
@@ -30,9 +37,6 @@ temps = []
 
 def run(sql):
     t = time.time()
-    # SEED_PGOPTIONS: extra server settings for the load (the 10M run uses
-    # `-c enable_hashjoin=off -c work_mem=256MB`: at that scale the planner
-    # hashed all 31M posts for a 3M-row update instead of 3M index probes).
     p = subprocess.run(['docker', 'exec', '-i', '-e', 'PGOPTIONS=-c synchronous_commit=off -c statement_timeout=0 ' + os.environ.get('SEED_PGOPTIONS', ''),
                         PG, 'psql', '-U', 'root', '-d', db, '-v', 'ON_ERROR_STOP=1', '-q', '-X'],
                        input=sql + ';\n', text=True, capture_output=True)
@@ -42,9 +46,7 @@ def run(sql):
 
 def chunks(s):
     m = re.search(r'generate_series\(1,(\d+)\) g\b', s)
-    # INSERT ... generate_series and (10M run) WITH x AS (generate_series) UPDATE:
-    # residue split keeps each worker on its own rows, so no deadlocks.
-    if s.upper().startswith(('INSERT', 'WITH', 'UPDATE')) and m and int(m.group(1)) >= BIG:
+    if s.upper().startswith(DML) and m and int(m.group(1)) >= BIG:
         n = m.group(1)
         return [s.replace(m.group(0), f'(SELECT x AS g FROM generate_series(1,{n}) x WHERE x % {K} = {i}) g', 1) for i in range(K)]
     m = re.search(r'FROM nums WHERE g <= (\d+)', s)
@@ -72,6 +74,8 @@ for s in stmts:
         with ThreadPoolExecutor(K) as ex:
             ts = list(ex.map(lambda q: run(q)[0], parts))
         print(f'{max(ts):7.1f}s  x{K}  {label}', flush=True)
+        t = re.match(r'INSERT INTO (\w+)', s, re.I)
+        if t: run(f'ANALYZE {t.group(1)}')
     else:
         dt, out = run(s)
         print(f'{dt:7.1f}s      {label}', flush=True)
