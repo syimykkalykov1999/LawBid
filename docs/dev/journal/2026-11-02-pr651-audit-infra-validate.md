@@ -5,3 +5,5 @@
 Сделали: `terraform fmt -recursive` (только пробелы), workflow `infra-validate.yml` (fmt -check + `init -backend=false` + `validate` для 5 корневых модулей, на PR с `infra/**`). Не обязательная проверка: провайдеры качаются из публичного реестра.
 
 Не проверено в облаке: сам `validate` (реестр провайдеров недоступен из этой среды), проверит CI этого PR.
+
+PR #651. Доп. по code-review: общий кэш провайдеров, `apps/status-page/**` в paths, строка в README workflows. Не сделано: lock-файлы провайдеров для loadtest/bootstrap, динамический поиск корней (`infra/modules/org-guardrails` не корень).
