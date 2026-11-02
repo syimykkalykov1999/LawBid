@@ -3,6 +3,7 @@ import type Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { jitterTtl, singleFlight } from '../../../common/cache/single-flight';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { throttledWarn } from '../../../redis/fail-fast-redis';
 import { bumpConfigVersion } from './config-version';
 
 /** Same TTL reasoning as FeatureFlagsService — see that file's doc
@@ -100,12 +101,9 @@ export class AppConfigService {
     });
   }
 
-  private lastRedisWarn = 0;
+  private readonly warnThrottled = throttledWarn(this.logger);
   private warnRedis(error: unknown): void {
-    const now = Date.now();
-    if (now - this.lastRedisWarn < 60_000) return;
-    this.lastRedisWarn = now;
-    this.logger.warn(
+    this.warnThrottled(
       { err: error, alert: 'app_config_redis_down' },
       'app_config cache: Redis unavailable, reading the table',
     );

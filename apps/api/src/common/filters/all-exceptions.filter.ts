@@ -157,7 +157,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       };
     }
 
-    // Load test 2026-11-02 (LOAD_RESILIENCE §2): Redis away or hung. The
+    // Load test 2026-11-02 (PR #606, LOAD_RESILIENCE §2): Redis away or hung. The
     // callers with a fallback never get here; for the rest this is the
     // same honest «try again shortly» as a paused partner, not a 500 —
     // the apps retry a 503 with Retry-After, they do not retry a 500.

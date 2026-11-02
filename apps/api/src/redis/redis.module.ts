@@ -20,7 +20,7 @@ const cacheOwn = new Set<Redis>();
         const url = config.get<string>('REDIS_URL');
         // commandTimeout: a hung Redis fails a command in 1 s instead of
         // stalling requests (throttler fails open, cost guard fails closed).
-        // Load test 2026-11-02: with 2 s and 3 retries a lost Redis made
+        // Load test 2026-11-02 (PR #606): with 2 s and 3 retries a lost Redis made
         // every request wait 4 s and answer 500; the fail-fast gate below
         // refuses commands at once while the connection is lost
         // (redis/fail-fast-redis.ts), so the timeout only covers a hung

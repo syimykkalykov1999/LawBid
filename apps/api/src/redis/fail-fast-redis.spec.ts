@@ -2,14 +2,16 @@ import {
   RedisUnavailableError,
   attachFailFast,
   isRedisInfraError,
+  throttledWarn,
 } from './fail-fast-redis';
 
 /** A stand-in for ioredis: `status` + `sendCommand` that answers as told. */
-function fakeClient(answer: (cmd: FakeCommand) => void) {
+function fakeClient(answer: (cmd: FakeCommand) => void, status = 'ready') {
   const handlers: Record<string, () => void> = {};
   const client = {
-    status: 'ready',
-    sendCommand: jest.fn((cmd: FakeCommand) => {
+    status,
+    sendCommand: jest.fn((cmd: FakeCommand, stream?: unknown) => {
+      void stream;
       answer(cmd);
       return cmd.promise;
     }),
@@ -40,32 +42,45 @@ class FakeCommand {
   }
 }
 
+const timeout = () => new Error('Command timed out');
+const settle = () => new Promise((r) => setImmediate(r));
+
 describe('attachFailFast', () => {
-  it('refuses at once while the connection is lost, queues while booting', async () => {
+  it('after the client has been ready, a lost connection refuses at once; the handshake and the first boot still queue', async () => {
     const { client, original } = fakeClient((c) => c.resolve('ok'));
     const gate = attachFailFast(client as never);
-    for (const status of ['reconnecting', 'close', 'end']) {
+    for (const status of ['reconnecting', 'connecting', 'close', 'end']) {
       client.status = status;
-      const cmd = new FakeCommand();
-      await expect(client.sendCommand(cmd)).rejects.toBeInstanceOf(
-        RedisUnavailableError,
-      );
+      await expect(
+        client.sendCommand(new FakeCommand()),
+      ).rejects.toBeInstanceOf(RedisUnavailableError);
       expect(gate.refusing).toBe(true);
     }
     expect(original).not.toHaveBeenCalled();
-    for (const status of ['wait', 'connecting', 'connect', 'ready']) {
+    for (const status of ['connect', 'ready']) {
       client.status = status;
-      const cmd = new FakeCommand();
-      await expect(client.sendCommand(cmd)).resolves.toBe('ok');
+      await expect(client.sendCommand(new FakeCommand())).resolves.toBe('ok');
     }
-    expect(original).toHaveBeenCalledTimes(4);
+    expect(original).toHaveBeenCalledTimes(2);
     expect(gate.refusing).toBe(false);
+
+    // A client that was never ready (first boot) queues as before.
+    const boot = fakeClient((c) => c.resolve('ok'), 'connecting');
+    attachFailFast(boot.client as never);
+    await expect(boot.client.sendCommand(new FakeCommand())).resolves.toBe(
+      'ok',
+    );
+    boot.client.status = 'reconnecting';
+    await expect(boot.client.sendCommand(new FakeCommand())).resolves.toBe(
+      'ok',
+    );
+    expect(boot.original).toHaveBeenCalledTimes(2);
   });
 
-  it('pauses after N command timeouts in a row, lets one through after the pause, resets on ready', async () => {
+  it('N command timeouts in a row open the breaker; after the pause exactly one trial passes; ready resets', async () => {
     let t = 1_000_000;
     const { client, handlers, original } = fakeClient((c) =>
-      c.reject(new Error('Command timed out')),
+      c.reject(timeout()),
     );
     const gate = attachFailFast(client as never, {
       timeoutThreshold: 3,
@@ -78,37 +93,64 @@ describe('attachFailFast', () => {
       );
     }
     expect(gate.refusing).toBe(true);
-    const refused = new FakeCommand();
-    await expect(client.sendCommand(refused)).rejects.toMatchObject({
+    await expect(client.sendCommand(new FakeCommand())).rejects.toMatchObject({
       name: 'RedisUnavailableError',
       reason: 'timeouts',
     });
     expect(original).toHaveBeenCalledTimes(3);
-    t += 5001; // pause over: the next command reaches Redis again
-    await expect(client.sendCommand(new FakeCommand())).rejects.toThrow(
-      'Command timed out',
-    );
+    t += 5001; // pause over: ONE trial reaches Redis, a second concurrent command is refused
+    const trial = client.sendCommand(new FakeCommand());
+    const second = client.sendCommand(new FakeCommand());
+    await expect(second).rejects.toMatchObject({ reason: 'timeouts' });
+    await expect(trial).rejects.toThrow('Command timed out');
     expect(original).toHaveBeenCalledTimes(4);
-    // two more timeouts pause again; `ready` clears everything
-    await client.sendCommand(new FakeCommand()).catch(() => undefined);
-    await client.sendCommand(new FakeCommand()).catch(() => undefined);
-    expect(gate.refusing).toBe(true);
+    await settle();
+    expect(gate.refusing).toBe(true); // the trial failed: paused again
     handlers.ready();
     expect(gate.refusing).toBe(false);
   });
 
-  it('other errors and successes do not count towards the pause', async () => {
+  it('successes close the count; errors that are not timeouts are not failures', async () => {
     let n = 0;
     const { client } = fakeClient((c) => {
       n += 1;
-      if (n % 2) c.reject(new Error('Command timed out'));
-      else c.reject(new Error('ERR wrong number of arguments'));
+      if (n % 2) c.reject(timeout());
+      else c.resolve('ok');
     });
     const gate = attachFailFast(client as never, { timeoutThreshold: 2 });
     for (let i = 0; i < 6; i += 1) {
       await client.sendCommand(new FakeCommand()).catch(() => undefined);
     }
+    await settle();
     expect(gate.refusing).toBe(false);
+    const wrong = fakeClient((c) =>
+      c.reject(new Error('ERR wrong number of arguments')),
+    );
+    const gate2 = attachFailFast(wrong.client as never, {
+      timeoutThreshold: 2,
+    });
+    for (let i = 0; i < 6; i += 1) {
+      await wrong.client.sendCommand(new FakeCommand()).catch(() => undefined);
+    }
+    await settle();
+    expect(gate2.refusing).toBe(false);
+  });
+
+  it('a pipeline gets one verdict for all its commands', async () => {
+    const { client, original } = fakeClient((c) => c.resolve('ok'));
+    attachFailFast(client as never);
+    const stream = { isPipeline: true };
+    client.status = 'reconnecting';
+    const a = client.sendCommand(new FakeCommand(), stream);
+    client.status = 'ready'; // flips while the pipeline is still being handed over
+    const b = client.sendCommand(new FakeCommand(), stream);
+    await expect(a).rejects.toBeInstanceOf(RedisUnavailableError);
+    await expect(b).rejects.toBeInstanceOf(RedisUnavailableError);
+    expect(original).not.toHaveBeenCalled();
+    const next = { isPipeline: true };
+    await expect(
+      client.sendCommand(new FakeCommand(), next as never),
+    ).resolves.toBe('ok');
   });
 });
 
@@ -118,7 +160,7 @@ describe('isRedisInfraError', () => {
     retries.name = 'MaxRetriesPerRequestError';
     for (const e of [
       new RedisUnavailableError('disconnected'),
-      new Error('Command timed out'),
+      timeout(),
       retries,
       new Error(
         "Stream isn't writeable and enableOfflineQueue options is false",
@@ -129,5 +171,25 @@ describe('isRedisInfraError', () => {
     }
     expect(isRedisInfraError(new Error('ERR unknown command'))).toBe(false);
     expect(isRedisInfraError('Command timed out')).toBe(false);
+  });
+});
+
+describe('throttledWarn', () => {
+  it('logs at most once per window', () => {
+    let t = 0;
+    const logger = {
+      warn: jest.fn<void, [Record<string, unknown>, string]>(),
+    };
+    const warn = throttledWarn(logger, 1000, () => t);
+    warn({ a: 1 }, 'm');
+    warn({ a: 2 }, 'm');
+    t = 999;
+    warn({ a: 3 }, 'm');
+    t = 1000;
+    warn({ a: 4 }, 'm');
+    expect(logger.warn.mock.calls.map((c) => c[0])).toEqual([
+      { a: 1 },
+      { a: 4 },
+    ]);
   });
 });

@@ -5,6 +5,11 @@ import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { TokenService } from './token.service';
 import { publishSessionRevoked } from '../../../redis/session-revoked';
+import {
+  isRedisInfraError,
+  throttledWarn,
+} from '../../../redis/fail-fast-redis';
+import { singleFlight } from '../../../common/cache/single-flight';
 
 export type RevokeReason =
   | 'logout'
@@ -54,12 +59,12 @@ const DB_MEMO_MAX = 20_000;
 export class SessionRevocationService {
   private readonly blacklistTtlSeconds: number;
   private readonly logger = new Logger(SessionRevocationService.name);
+  private readonly warnRedis = throttledWarn(this.logger);
   /** Database answers while Redis is away: chain id -> verdict. */
   private readonly dbMemo = new Map<
     string,
     { at: number; value: string | null }
   >();
-  private lastRedisWarn = 0;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -184,14 +189,15 @@ export class SessionRevocationService {
   }
 
   /**
-   * Load test 2026-11-02 (LOAD_RESILIENCE §2): with Redis away the guard's
-   * one blacklist read failed every authenticated request. The database
-   * row is the source of truth (revoked_at / revoked_reason are written
-   * BEFORE the blacklist, see revokeChain), so a lost cache degrades to one
-   * small indexed read per session chain, memoised for DB_MEMO_MS so an
-   * outage at 500 req/s costs the database tens of reads a second, not
-   * hundreds. The newest generation of the chain decides: rotation
-   * revokes the older rows with reason 'rotated' while the chain lives on.
+   * Load test 2026-11-02 (PR #606, LOAD_RESILIENCE §2): with Redis away the
+   * guard's one blacklist read failed every authenticated request. The
+   * database rows are the source of truth (revoked_at / revoked_reason are
+   * written BEFORE the blacklist, see revokeChain), so a lost cache degrades
+   * to one small indexed read per session chain, single-flighted and
+   * memoised for DB_MEMO_MS. A chain is alive while any of its rows is not
+   * revoked (rotation revokes the older generation with reason 'rotated'
+   * and inserts the next one in the same transaction); no row at all means
+   * the chain never existed here — refused like a blacklisted one.
    */
   private async reasonFromDatabase(
     sessionChainId: string,
@@ -200,29 +206,28 @@ export class SessionRevocationService {
     const now = Date.now();
     const hit = this.dbMemo.get(sessionChainId);
     if (hit && now - hit.at < DB_MEMO_MS) return hit.value;
-    if (now - this.lastRedisWarn > 60_000) {
-      this.lastRedisWarn = now;
-      this.logger.warn(
-        { err: cause, alert: 'session_blacklist_redis_down' },
-        'Session blacklist: Redis unavailable, reading sessions from the database',
-      );
-    }
-    const newest = await this.prisma.session.findFirst({
-      where: { session_chain_id: sessionChainId },
-      orderBy: { created_at: 'desc' },
-      select: { revoked_at: true, revoked_reason: true },
+    this.warnRedis(
+      { err: cause, alert: 'session_blacklist_redis_down' },
+      'Session blacklist: Redis unavailable, reading sessions from the database',
+    );
+    return singleFlight(`authbl-db:${sessionChainId}`, async () => {
+      const rows = await this.prisma.session.findMany({
+        where: { session_chain_id: sessionChainId },
+        select: { revoked_at: true, revoked_reason: true },
+      });
+      let value: string | null;
+      if (rows.length === 0) value = '1';
+      else if (rows.some((r) => r.revoked_at === null)) value = null;
+      else {
+        const latest = rows.reduce((a, b) =>
+          (b.revoked_at as Date) > (a.revoked_at as Date) ? b : a,
+        );
+        value = latest.revoked_reason ?? '1';
+      }
+      if (this.dbMemo.size >= DB_MEMO_MAX) this.dbMemo.clear();
+      this.dbMemo.set(sessionChainId, { at: Date.now(), value });
+      return value;
     });
-    // No row at all: the chain never existed here (a foreign or deleted
-    // session) — refuse like a blacklisted one.
-    const value =
-      newest === null
-        ? '1'
-        : newest.revoked_at === null
-          ? null
-          : (newest.revoked_reason ?? '1');
-    if (this.dbMemo.size >= DB_MEMO_MAX) this.dbMemo.clear();
-    this.dbMemo.set(sessionChainId, { at: now, value });
-    return value;
   }
 
   private async blacklist(
@@ -230,19 +235,33 @@ export class SessionRevocationService {
     reason: string = '1',
     userId?: string,
   ): Promise<void> {
-    await this.redis.set(
-      this.blacklistKey(sessionChainId),
-      reason,
-      'EX',
-      this.blacklistTtlSeconds,
-    );
-    // Owner 2026-10-22 (server load audit, finding 5): live sockets of the
-    // session are dropped by this message on every API instance, instead
-    // of each socket polling the blacklist every 45 s.
-    await publishSessionRevoked(this.redis, {
-      sessionId: sessionChainId,
-      ...(userId ? { userId } : {}),
-    });
+    // A verdict memoised while Redis was away must not outlive the revocation.
+    this.dbMemo.delete(sessionChainId);
+    try {
+      await this.redis.set(
+        this.blacklistKey(sessionChainId),
+        reason,
+        'EX',
+        this.blacklistTtlSeconds,
+      );
+      // Owner 2026-10-22 (server load audit, finding 5): live sockets of the
+      // session are dropped by this message on every API instance, instead
+      // of each socket polling the blacklist every 45 s.
+      await publishSessionRevoked(this.redis, {
+        sessionId: sessionChainId,
+        ...(userId ? { userId } : {}),
+      });
+    } catch (error) {
+      // Redis away: the database row (already committed by the caller) is
+      // what the guard reads now, so the revocation holds; logging out
+      // must not answer 503 because the cache is down. Sockets of the
+      // chain fall back to their 45 s blacklist poll.
+      if (!isRedisInfraError(error)) throw error;
+      this.warnRedis(
+        { err: error, alert: 'session_blacklist_redis_down' },
+        'Session blacklist: Redis unavailable, revocation kept in the database only',
+      );
+    }
   }
 
   private blacklistKey(sessionChainId: string): string {
