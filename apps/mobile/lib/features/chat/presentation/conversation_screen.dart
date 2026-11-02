@@ -57,6 +57,7 @@ import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/chat/presentation/link_preview_card.dart';
 import 'package:lawbid/features/chat/presentation/media_preview_screen.dart';
 import 'package:lawbid/features/chat/presentation/message_actions.dart';
+import 'package:lawbid/features/chat/presentation/quick_replies_sheet.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
 import 'package:lawbid/features/consultations/presentation/consultation_chat_card.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -71,6 +72,7 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/features/templates/presentation/templates_screen.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// docs/05 §8.2: 2000 characters, text only.
 int get kMessageMaxChars => TextLimits.of(TextLimit.chatMessage);
@@ -2348,6 +2350,29 @@ class _Composer extends ConsumerStatefulWidget {
 }
 
 class _ComposerState extends ConsumerState<_Composer> {
+  /// The field's text before the last change (a fresh «/» is told from a
+  /// backspace that leaves one).
+  String _lastText = '';
+
+  /// Opens the quick replies; the chosen text replaces the «/». Closing the
+  /// sheet without a choice leaves the «/» in the field.
+  Future<void> _pickQuickReply() async {
+    final text = await showQuickRepliesSheet(context);
+    if (!mounted) return;
+    final c = widget.controller;
+    if (text != null && c.text == '/') {
+      c
+        ..text = text
+        ..selection = TextSelection.collapsed(offset: text.length);
+      _lastText = text;
+      widget.onTyping(true);
+    } else {
+      _lastText = c.text;
+      widget.onTyping(c.text.isNotEmpty);
+    }
+    widget.focusNode.requestFocus();
+  }
+
   bool _recording = false;
   bool _locked = false;
 
@@ -2395,10 +2420,25 @@ class _ComposerState extends ConsumerState<_Composer> {
       _paused = true;
       _elapsed = Duration(milliseconds: draft.durationMs);
     }
+    _lastText = widget.controller.text;
+    widget.controller.addListener(_watchSlash);
+  }
+
+  /// Owner 2026-11-02 (WhatsApp Business): a «/» typed into an empty field
+  /// opens the attorney's quick replies (a backspace that leaves a «/» does
+  /// not).
+  void _watchSlash() {
+    final text = widget.controller.text;
+    final fresh = text == '/' && _lastText.isEmpty;
+    _lastText = text;
+    if (fresh && ref.read(currentUserRoleProvider) == UserRole.attorney) {
+      unawaited(_pickQuickReply());
+    }
   }
 
   @override
   void dispose() {
+    widget.controller.removeListener(_watchSlash);
     _tick?.cancel();
     unawaited(_player.stopDraft());
     unawaited(_saveDraft());
