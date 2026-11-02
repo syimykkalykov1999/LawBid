@@ -174,7 +174,10 @@ jobs:
         run: |
           tag="$TAG_IN"
           if [ -z "$tag" ]; then
-            tag="$(aws ecr describe-images --repository-name lawbid-api --query 'sort_by(imageDetails,&imagePushedAt)[-1].imageTags[0]' --output text)"
+            # Newest image THAT HAS A TAG: an untagged manifest (a replaced or
+            # multi-arch child image) sorts newest and used to give "lawbid-api:None".
+            tag="$(aws ecr describe-images --repository-name lawbid-api --query 'sort_by(imageDetails[?imageTags!=`null`],&imagePushedAt)[-1].imageTags[0]' --output text)"
+            case "$tag" in ""|None|null) echo "::error::no tagged image in the lawbid-api ECR repository: pass image_tag explicitly"; exit 1;; esac
           fi
           for r in lawbid-api lawbid-admin; do aws ecr describe-images --repository-name "$r" --image-ids imageTag="$tag" >/dev/null || { echo "::error::$r:$tag not in ECR"; exit 1; }; done
           echo "api_image=$ECR_REGISTRY/lawbid-api:$tag" >>"$GITHUB_OUTPUT"
