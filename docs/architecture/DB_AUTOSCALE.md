@@ -148,13 +148,23 @@ Series of 5-minute points over the last 20 minutes:
 
 | Trigger | Rule |
 |---|---|
-| CPU | `CPUUtilization` average > 70 % in each of the last 3 points (15 min) |
+| CPU | `CPUUtilization` average > 70 % in each of the last 3 points (15 min), **or** > 90 % in each of the last 2 points (10 min, fast lane) |
 | Memory | `FreeableMemory` < 10 % of the class memory, last 3 points |
 | Connections | `DatabaseConnections` maximum > 80 % of `max_connections` in the last 2 points (10 min), or the last point > 92 % |
 | Credits (t4g only) | `CPUCreditBalance` < 20 in the last 3 points |
 
 Result: `ModifyDBInstance(DBInstanceClass=next, ApplyImmediately=True)`, one
 step, never above `max_class`. A missing data point never counts as a trigger.
+
+**Mode.** The default is `dry-run` (module, stack and prod variable; decision 2026-11-02): the Lambda e-mails what it WOULD do («ПРОБНЫЙ РЕЖИМ, ничего не изменено. Было бы: База увеличена … быстрая полоса: …») and changes nothing, so an `apply` never spends money by side effect. The fast lane obeys the mode like every trigger. To turn it on knowingly, one command (only the value ever changes; Terraform ignores it after creation):
+
+```
+aws ssm put-parameter --region us-east-1 --name /lawbid-prod/db-autoscale/mode --type String --overwrite --value on
+```
+
+Back to trial: same command with `dry-run`; off: `off`. The default only applies when the parameter is first created: if it already exists in prod with `on`, change it with the command above.
+
+**Sizing note (load test 2026-11-02, `docs/perf/LOAD_TEST_2026-11-02.md`).** On 1M users with the real request mix a 2-vCPU database (`db.r7g.large` class) holds about **450–500 people at once** (DB CPU 213 % of 200 %, p95 > 2 s); 8 vCPU held 1 000 people with room (310 % of 800). Rule of thumb for the ladder: **about 200–250 simultaneous people per vCPU** of the database. A launch spike reaches saturation in minutes, a resize takes several minutes more, so the 70 %/15 min rule alone reacts after people already see slow screens. Hence the fast lane (90 %/10 min; scale-UP only — scale-down stays the night rule below; every firing sends the owner e-mail «База увеличена … быстрая полоса: …» with the reason and the price) and the advice: **before a planned peak (launch day, a press mention) raise the class by hand one step ahead** (Admin -> Economy -> Increase), do not rely on the automatic reaction. Numbers are from a laptop stand (Docker VM, no Multi-AZ); RDS differs (Multi-AZ, EBS), so repeat on real hardware before trusting the figure.
 
 ### 2.2 Scale-down (mode night)
 
@@ -194,7 +204,7 @@ Then one step down, never below `min_class`.
   seen differs from the stored one, somebody changed it by hand (admin button,
   console): recorded as a change now (blocks a down for 72 h).
 - Switch `/<name>/db-autoscale/mode` = `on` | `dry-run` | `off`; Terraform sets
-  the first value and then ignores it (a deploy never re-enables a switch the
+  the first value (default `dry-run`) and then ignores it (a deploy never re-enables a switch the
   owner turned off).
 - E-mail through the existing alerts SNS topic (module.monitoring), e.g.
   «База увеличена: db.t4g.micro → db.t4g.small (нагрузка CPU 78 %). Цена ≈
