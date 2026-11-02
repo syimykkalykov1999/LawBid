@@ -16,6 +16,10 @@ import type Redis from 'ioredis';
  *  - STOP: not needed for [idleMs] (default 30 min) AND no call is running
  *    -> StopInstances, the address is forgotten.
  *
+ * The admin switch `calls.own_turn.mode` rules over this: `auto` = all of the
+ * above; `on` = the box is kept running always; `off` = never started, and
+ * stopped at once when no call is running (no address is offered).
+ *
  * Honest gap: from the start to the first STUN answer (about 1-2 minutes) new
  * calls get STUN only, which works on Wi-Fi and easy mobile networks but not
  * behind a strict (symmetric) NAT.
@@ -51,9 +55,17 @@ export interface TurnOnDemandStore {
   setLastNeeded(ms: number): Promise<void>;
 }
 
+/** Admin switch `calls.own_turn.mode` (Выкл / Вкл / Авто). */
+export type OwnTurnMode = 'auto' | 'on' | 'off';
+
+export function parseOwnTurnMode(v: unknown): OwnTurnMode {
+  return v === 'on' || v === 'off' ? v : 'auto';
+}
+
 export interface TurnOnDemandPorts {
   instance: TurnInstancePort;
   store: TurnOnDemandStore;
+  mode(): Promise<OwnTurnMode>;
   /** A Cloudflare breaker is open, or own is forced without a fixed TURN. */
   needed(): Promise<boolean>;
   /** Calls that are ringing or active right now. */
@@ -82,8 +94,10 @@ export class TurnOnDemand {
     private readonly idleMs: number = TURN_IDLE_MS,
   ) {}
 
-  /** The address to offer to phones now, or null (stopped / still booting). */
-  address(): Promise<string | null> {
+  /** The address to offer to phones now, or null (stopped / still booting /
+   * switched off in the admin). */
+  async address(): Promise<string | null> {
+    if ((await this.ports.mode()) === 'off') return null;
     return this.ports.store.getAddress();
   }
 
@@ -96,7 +110,10 @@ export class TurnOnDemand {
       await store.setAddress(null);
       return 'unavailable';
     }
-    const needed = await this.ports.needed();
+    const mode = await this.ports.mode();
+    if (mode === 'off') return this.tickOff(info);
+    // "on" = always needed (the box is kept running); "auto" = by the breaker.
+    const needed = mode === 'on' || (await this.ports.needed());
     if (needed) await store.setLastNeeded(now());
 
     if (info.state === 'stopped') {
@@ -136,9 +153,21 @@ export class TurnOnDemand {
     await store.setAddress(null);
     return 'stopped';
   }
+
+  /** Switched off: never start; stop at once when no call is running. */
+  private async tickOff(info: TurnInstanceInfo): Promise<TurnTickAction> {
+    const { instance, store } = this.ports;
+    await store.setAddress(null);
+    if (info.state === 'pending') return 'waiting'; // cannot be stopped yet
+    if (info.state !== 'running') return 'idle';
+    if ((await this.ports.activeCalls()) > 0) return 'kept';
+    await instance.stop();
+    return 'stopped';
+  }
 }
 
-const ADDR_KEY = 'calls:turn:ondemand:addr';
+export const TURN_ADDR_KEY = 'calls:turn:ondemand:addr';
+const ADDR_KEY = TURN_ADDR_KEY;
 const NEEDED_KEY = 'calls:turn:ondemand:needed';
 
 /** Redis (shared by all API tasks); in-process without a ready Redis. */

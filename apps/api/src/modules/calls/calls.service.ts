@@ -79,7 +79,11 @@ import {
 } from './cloudflare-relay-probe';
 import { checkRelay } from './relay-check';
 import { TurnInstanceGateway } from './turn-instance.gateway';
-import { RedisTurnStore, TurnOnDemand } from './turn-on-demand';
+import {
+  parseOwnTurnMode,
+  RedisTurnStore,
+  TurnOnDemand,
+} from './turn-on-demand';
 import { LiveKitVideoProvider, type LiveKitRole } from './livekit.provider';
 import {
   SfuBrokerService,
@@ -326,13 +330,17 @@ export class CallsService {
     return (this.turnOnDemandOwn ??= new TurnOnDemand({
       instance: box,
       store: new RedisTurnStore(this.redis),
+      mode: async () =>
+        parseOwnTurnMode(await this.settings?.string('calls.own_turn.mode')),
       needed: async () => {
+        // A fixed own TURN address wins: that server is always on, no box.
+        const keys = (await this.secrets?.get('turn'))?.fields ?? {};
+        if ((keys.urls ?? this.config.get<string>('TURN_URLS') ?? '').trim())
+          return false;
         const t = this.cfTransport;
         if ((await t.isOpen('turn')) || (await t.isOpen('sfu'))) return true;
-        // Own forced and no fixed own TURN: the box is the only relay.
-        if ((await t.mode()) !== 'own') return false;
-        const keys = (await this.secrets?.get('turn'))?.fields ?? {};
-        return !(keys.urls ?? this.config.get<string>('TURN_URLS') ?? '').trim();
+        // Own forced: the box is the only relay.
+        return (await t.mode()) === 'own';
       },
       activeCalls: () =>
         this.prisma.call.count({

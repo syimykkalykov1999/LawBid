@@ -1220,16 +1220,17 @@ export const COST_REGISTRY: readonly CostEntry[] = [
   },
   {
     id: 'aws.turn_own',
-    name: 'Свой сервер звонков (coturn, 2 штуки)',
+    name: 'Свой сервер звонков (coturn)',
     purpose:
-      'Свои «ретрансляторы» для звонков вместо Cloudflare. Сейчас звонки идут через Cloudflare, свой сервер убран.',
+      'Свой «ретранслятор» звонков — запаска, когда Cloudflare лёг. Авто: машина стоит выключенной (платим только за диск ≈ $0,6) и сама включается, пока Cloudflare не работает, потом гаснет. Вкл — работает всегда. Выкл — никогда. Нужен turn_enabled + turn_on_demand в Terraform.',
     kind: 'aws',
-    control: tf(['turn_enabled', 'turn_second_enabled'], {
-      off: 'turn_enabled = false\nturn_second_enabled = false',
-      on: 'turn_enabled = true',
-    }),
-    states: ['off', 'on'],
-    defaultState: 'off',
+    control: {
+      type: 'app-setting',
+      key: 'calls.own_turn.mode',
+      map: { off: 'off', on: 'on', auto: 'auto' },
+    },
+    states: ['off', 'on', 'auto'],
+    defaultState: 'auto',
     ceiling: null,
     price: price(
       'mixed',

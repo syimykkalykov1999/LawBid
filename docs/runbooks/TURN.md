@@ -340,3 +340,7 @@ so the public address is new at every start).
 - Terraform still to do (Mac): `turn_on_demand` in `infra/modules/turn` (no `aws_eip`; on every boot the
   public address is read from the instance metadata into `external-ip`), the IAM statement and
   `TURN_ONDEMAND_INSTANCE_ID` on the API task; stop the instance after the apply.
+
+### Переключатель в админке (Выкл / Вкл / Авто)
+
+Строка «Свой сервер звонков (coturn)» в Масштабе управляет настройкой `calls.own_turn.mode` (по умолчанию `auto`): **Авто** — машина стоит выключенной, API включает её, пока Cloudflare лёг, и гасит через 30 минут спокойной работы Cloudflare без звонков; **Вкл** — работает всегда; **Выкл** — не запускается и гасится сразу, если нет звонков. Если в Ключи и сервисы → TURN вписан постоянный `urls`, он главнее: в Авто машина не запускается. Тревога «TURN не отвечает» читает ТЕКУЩИЙ адрес машины (Redis `calls:turn:ondemand:addr`), пока машина остановлена, строка серая («выключен до нужды»), а после старта и ответа 3478 становится зелёной.

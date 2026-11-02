@@ -3,14 +3,22 @@ import {
   RedisTurnStore,
   TURN_IDLE_MS,
   TurnOnDemand,
+  parseOwnTurnMode,
   type Ec2State,
+  type OwnTurnMode,
   type TurnOnDemandPorts,
 } from './turn-on-demand';
 
 function setup(init: { state: Ec2State; ip?: string }) {
   const box = { state: init.state, ip: init.ip };
   const calls = { start: 0, stop: 0, check: 0 };
-  const flags = { needed: false, answers: true, active: 0, now: 1_000_000 };
+  const flags = {
+    needed: false,
+    answers: true,
+    active: 0,
+    now: 1_000_000,
+    mode: 'auto' as OwnTurnMode,
+  };
   const store = new RedisTurnStore();
   const ports: TurnOnDemandPorts = {
     instance: {
@@ -25,6 +33,7 @@ function setup(init: { state: Ec2State; ip?: string }) {
       },
     },
     store,
+    mode: async () => flags.mode,
     needed: async () => flags.needed,
     activeCalls: async () => flags.active,
     relayAnswers: async () => {
@@ -139,5 +148,54 @@ describe('on-demand coturn state machine', () => {
     const t = setup({ state: 'running', ip: '9.9.9.9' });
     t.flags.now = 10 * TURN_IDLE_MS;
     expect(await t.sut.tick()).toBe('stopped'); // never needed: lastNeeded = 0
+  });
+
+  it('mode on: started and kept with Cloudflare healthy; never stopped by idleness', async () => {
+    const t = setup({ state: 'stopped' });
+    t.flags.mode = 'on';
+    expect(await t.sut.tick()).toBe('started');
+    t.box.state = 'running';
+    t.box.ip = '5.6.7.8';
+    expect(await t.sut.tick()).toBe('registered');
+    t.flags.now += 10 * TURN_IDLE_MS;
+    expect(await t.sut.tick()).toBe('kept');
+    expect(t.calls.stop).toBe(0);
+    expect(await t.sut.address()).toBe('turn:5.6.7.8:3478');
+  });
+
+  it('mode off: never started even when Cloudflare is down', async () => {
+    const t = setup({ state: 'stopped' });
+    t.flags.mode = 'off';
+    t.flags.needed = true;
+    expect(await t.sut.tick()).toBe('idle');
+    expect(t.calls.start).toBe(0);
+  });
+
+  it('mode off: a running box is stopped at once, unless a call is on; no address offered', async () => {
+    const t = setup({ state: 'running', ip: '5.6.7.8' });
+    t.flags.needed = true;
+    await t.sut.tick(); // registered
+    t.flags.mode = 'off';
+    expect(await t.sut.address()).toBeNull();
+    t.flags.active = 1;
+    expect(await t.sut.tick()).toBe('kept');
+    expect(t.calls.stop).toBe(0);
+    t.flags.active = 0;
+    expect(await t.sut.tick()).toBe('stopped');
+    expect(t.calls.stop).toBe(1);
+  });
+
+  it('mode off while still booting: waits (a pending box cannot be stopped)', async () => {
+    const t = setup({ state: 'pending' });
+    t.flags.mode = 'off';
+    expect(await t.sut.tick()).toBe('waiting');
+    expect(t.calls.stop).toBe(0);
+  });
+
+  it('parseOwnTurnMode: unknown values mean auto', () => {
+    expect(parseOwnTurnMode('on')).toBe('on');
+    expect(parseOwnTurnMode('off')).toBe('off');
+    expect(parseOwnTurnMode('x')).toBe('auto');
+    expect(parseOwnTurnMode(undefined)).toBe('auto');
   });
 });
