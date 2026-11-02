@@ -7,12 +7,10 @@ class ChatMediaUsage {
   const ChatMediaUsage({
     required this.conversationId,
     required this.bytes,
-    required this.files,
   });
 
   final String conversationId;
   final int bytes;
-  final int files;
 }
 
 /// Owner 2026-11-02 («Данные и память» по чатам, как у Telegram): which
@@ -49,7 +47,6 @@ class ChatMediaIndex {
   Future<List<ChatMediaUsage>> usage() async {
     final rows = await _db.chatMediaRows();
     final bytes = <String, int>{};
-    final files = <String, int>{};
     final gone = <String>[];
     final now = DateTime.now();
     for (final r in rows) {
@@ -59,7 +56,6 @@ class ChatMediaIndex {
         continue;
       }
       bytes.update(r.conversationId, (v) => v + size, ifAbsent: () => size);
-      files.update(r.conversationId, (v) => v + 1, ifAbsent: () => 1);
     }
     if (gone.isNotEmpty) await _db.forgetChatMedia(gone);
     return [
@@ -67,7 +63,6 @@ class ChatMediaIndex {
         ChatMediaUsage(
           conversationId: id,
           bytes: bytes[id]!,
-          files: files[id]!,
         ),
     ]..sort((a, b) => b.bytes.compareTo(a.bytes));
   }
@@ -85,7 +80,4 @@ class ChatMediaIndex {
     }
     return freed;
   }
-
-  /// The whole picture cache was emptied.
-  Future<void> forgetAll() => _db.forgetAllChatMedia();
 }

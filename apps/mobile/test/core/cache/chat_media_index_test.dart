@@ -27,7 +27,6 @@ void main() {
     expect(usage.map((u) => u.conversationId), ['chat-2', 'chat-1']);
     expect(usage.first.bytes, 400);
     expect(usage.last.bytes, 150);
-    expect(usage.last.files, 2);
   });
 
   test('a picture shown in two chats counts for the newest only', () async {
@@ -41,10 +40,10 @@ void main() {
   test('a picture not fetched yet stays in the index', () async {
     disk['/a'] = 10;
     await index.note('chat-1', ['/a', '/later']);
-    expect((await index.usage()).single.files, 1);
+    expect((await index.usage()).single.bytes, 10);
     expect(await db.chatMediaRows(), hasLength(2));
     disk['/later'] = 5;
-    expect((await index.usage()).single.files, 2);
+    expect((await index.usage()).single.bytes, 15);
   });
 
   test('entries unseen for a long time leave the index', () async {
@@ -81,7 +80,7 @@ void main() {
   test('forgetAll empties the index', () async {
     disk['/a'] = 10;
     await index.note('chat-1', ['/a']);
-    await index.forgetAll();
+    await db.forgetAllChatMedia();
     expect(await index.usage(), isEmpty);
   });
 
