@@ -1,4 +1,5 @@
 // Tracing must be wired before any instrumented module is required.
+import { warmCjkFonts } from './common/pdf-fonts/pdf-fonts';
 import { startTelemetry } from './telemetry/otel';
 
 startTelemetry('api');
@@ -38,6 +39,8 @@ async function bootstrap(): Promise<void> {
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
+  // CJK PDF fonts (not in git): fetched in the background, sha256-checked.
+  void warmCjkFonts();
   // Every cipher has read its keys by now: drop them from the environment.
   scrubKeyEnv();
   // docs/06 §4.1 (stage 6.1): server-side request timeouts.

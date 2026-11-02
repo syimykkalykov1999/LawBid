@@ -1,20 +1,8 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import PDFDocument from 'pdfkit';
+import { applyPdfFonts } from '../../../common/pdf-fonts/pdf-fonts';
 
 /** Inter (the app's face), covers Latin + Cyrillic. 4 levels up from
  * src/modules/cases/tools, 5 from dist/src/modules/cases/tools. */
-const FONT_PATH = [4, 5]
-  .map((up) =>
-    join(
-      __dirname,
-      ...Array<string>(up).fill('..'),
-      'assets',
-      'fonts',
-      'Inter-Variable.ttf',
-    ),
-  )
-  .find((p) => existsSync(p));
 
 export const NAVY = '#0B1B3F';
 export const GOLD = '#B8860B';
@@ -55,10 +43,7 @@ export function startPdf(info: {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
   });
-  if (FONT_PATH) {
-    doc.registerFont('Inter', FONT_PATH);
-    doc.font('Inter');
-  }
+  applyPdfFonts(doc);
   return { doc, done };
 }
 
