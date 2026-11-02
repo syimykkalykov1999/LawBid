@@ -34,6 +34,23 @@ describe('AppConfigService.getConfig', () => {
     );
   });
 
+  it('with Redis away (load test 2026-11-02) reads the table and skips the write-back instead of failing', async () => {
+    const redis = {
+      get: jest.fn().mockRejectedValue(new Error('Command timed out')),
+      set: jest.fn().mockRejectedValue(new Error('Command timed out')),
+    };
+    const findMany = jest
+      .fn()
+      .mockResolvedValue([{ key: 'min_app_version_ios', value: '1.2.3' }]);
+    const prisma = { appConfig: { findMany } };
+    const service = new AppConfigService(prisma as never, redis as never);
+    await expect(service.getConfig()).resolves.toEqual({
+      min_app_version_ios: '1.2.3',
+    });
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(redis.set).toHaveBeenCalledTimes(1);
+  });
+
   it('serves the cached map without hitting Prisma on a cache hit', async () => {
     const store = new Map([
       ['config:app_config', JSON.stringify({ min_app_version_ios: '1.2.0' })],
