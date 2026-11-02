@@ -37,6 +37,7 @@ export const APP_PATHS = [
   ['/g/*', 'Group invitation'],
   ['/c/*', 'Channel (lawbid.dev/c/<username>)'],
   ['/auth/email-code', 'Email magic sign-in link'],
+  ['/verification/wizard', 'Continue verification on the phone (ID selfie), owner 2026-10-28'],
 ];
 
 export function appleAppSiteAssociation() {
@@ -94,10 +95,29 @@ export function assetLinks(fingerprints) {
   ];
 }
 
-export async function writeWellKnown({ out, androidSha256 }) {
+/**
+ * RFC 9116 security.txt (checklist reconciliation 2026-11-01: no bug-bounty /
+ * disclosure channel). `Expires` is required and must not be stale, so it is
+ * stamped one year ahead on every publish.
+ */
+export function securityTxt(now = new Date()) {
+  const expires = new Date(now.getTime() + 365 * 24 * 3600 * 1000);
+  return [
+    'Contact: mailto:support@lawbid.dev',
+    `Expires: ${expires.toISOString().replace(/\.\d{3}Z$/, 'Z')}`,
+    'Preferred-Languages: en, ru',
+    'Canonical: https://lawbid.dev/.well-known/security.txt',
+    'Policy: https://github.com/syimykkalykov1999/LawBid/security/policy',
+    '',
+  ].join('\n');
+}
+
+export async function writeWellKnown({ out, androidSha256, now }) {
   const dir = join(out, '.well-known');
   await mkdir(dir, { recursive: true });
   const written = ['apple-app-site-association'];
+  await writeFile(join(dir, 'security.txt'), securityTxt(now));
+  written.push('security.txt');
   await writeFile(
     join(dir, 'apple-app-site-association'),
     `${JSON.stringify(appleAppSiteAssociation(), null, 2)}\n`,

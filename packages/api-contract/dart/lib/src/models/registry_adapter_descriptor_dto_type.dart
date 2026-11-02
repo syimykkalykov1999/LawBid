@@ -14,6 +14,10 @@ enum RegistryAdapterDescriptorDtoType {
   socrata('socrata'),
   @JsonValue('generic_rest')
   genericRest('generic_rest'),
+  @JsonValue('html_page')
+  htmlPage('html_page'),
+  @JsonValue('state_preset')
+  statePreset('state_preset'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

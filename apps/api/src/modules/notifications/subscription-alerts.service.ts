@@ -5,8 +5,13 @@ import { readsAreSplit } from '../../sharding/split-reads';
 import { NotificationsService } from './notifications.service';
 
 /** One post alerts at most this many people (a later stage can
- * fan out through a queue). */
-export const ALERT_FANOUT_MAX = 5000;
+ * fan out through a queue). Audit A-1: raised from 5000 now that the
+ * audience is read by keyset and written in batches. */
+export const ALERT_FANOUT_MAX = 100_000;
+/** The split-reads path still loads the audience in one read: kept small. */
+export const SPLIT_FANOUT_MAX = 5000;
+/** Recipients per INSERT / push enqueue. */
+export const ALERT_BATCH = 500;
 
 /**
  * Owner 2026-09-30, opt-in alerts (categories off by default):
@@ -26,15 +31,61 @@ export class SubscriptionAlertsService {
     @Optional() private readonly fanout?: CaseFanoutService,
   ) {}
 
-  /** A published post / news of [authorId]. */
+  /** A published post / news of [authorId], alerted right here batch after
+   * batch (no Redis, tests). With Redis PostFanoutService queues the same
+   * batches so a restart cannot lose them. */
   async followersOfPost(
     authorId: string,
     postId: string,
     brief = false,
   ): Promise<number> {
-    const rows = readsAreSplit(this.prisma)
-      ? await this.followersSplit(authorId)
-      : await this.prisma.$queryRaw<{ id: string }[]>`
+    let total = 0;
+    let after: string | null = null;
+    do {
+      const r = await this.alertBatch(authorId, postId, brief, after);
+      total += r.sent;
+      after = r.next;
+    } while (after && total < ALERT_FANOUT_MAX);
+    return total;
+  }
+
+  /**
+   * Audit A-1: ONE batch of followers (keyset on follower_id after [after],
+   * ALERT_BATCH people) written through emitMany (one INSERT, one badge drop,
+   * one push enqueue) with the dedupe key `followed_post:<postId>`, so a
+   * retried batch, a republish or a re-run alerts nobody twice. Returns the
+   * rows written and the cursor of the next batch (null: no more).
+   */
+  async alertBatch(
+    authorId: string,
+    postId: string,
+    brief: boolean,
+    after: string | null,
+  ): Promise<{ sent: number; next: string | null }> {
+    const payload = {
+      postId,
+      actorId: authorId,
+      ...(brief ? { kind: 'brief' } : {}),
+    };
+    const send = (ids: string[]) =>
+      this.notifications.emitMany({
+        type: 'followed_post',
+        recipientIds: ids,
+        payload,
+        dedupeKey: `followed_post:${postId}`,
+      });
+    if (readsAreSplit(this.prisma)) {
+      // Sharded reads load the audience in one go (followersSplit): one
+      // pass, no cursor.
+      if (after) return { sent: 0, next: null };
+      const rows = await this.followersSplit(authorId);
+      let sent = 0;
+      for (let i = 0; i < rows.length; i += ALERT_BATCH) {
+        sent += await send(rows.slice(i, i + ALERT_BATCH).map((r) => r.id));
+      }
+      return { sent, next: null };
+    }
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       SELECT f.follower_id::TEXT AS id
       FROM follows f
       JOIN notification_settings s
@@ -43,23 +94,19 @@ export class SubscriptionAlertsService {
       JOIN users u ON u.id = f.follower_id
        AND u.status = 'active' AND u.deleted_at IS NULL
       WHERE f.followee_id = ${authorId}::UUID
+        AND f.follower_id > ${after ?? '00000000-0000-0000-0000-000000000000'}::UUID
         AND NOT EXISTS (
           SELECT 1 FROM user_blocks b
           WHERE (b.blocker_id = f.follower_id AND b.blocked_id = ${authorId}::UUID)
              OR (b.blocker_id = ${authorId}::UUID AND b.blocked_id = f.follower_id))
-      LIMIT ${ALERT_FANOUT_MAX}`;
-    for (const r of rows) {
-      await this.notifications.emit({
-        type: 'followed_post',
-        recipientId: r.id,
-        payload: {
-          postId,
-          actorId: authorId,
-          ...(brief ? { kind: 'brief' } : {}),
-        },
-      });
-    }
-    return rows.length;
+      ORDER BY f.follower_id
+      LIMIT ${ALERT_BATCH}`;
+    if (rows.length === 0) return { sent: 0, next: null };
+    const sent = await send(rows.map((r) => r.id));
+    return {
+      sent,
+      next: rows.length === ALERT_BATCH ? rows[rows.length - 1].id : null,
+    };
   }
 
   /**
@@ -131,7 +178,7 @@ export class SubscriptionAlertsService {
     );
     return ids
       .filter((id) => pushOn.has(id) && active.has(id) && !blocked.has(id))
-      .slice(0, ALERT_FANOUT_MAX)
+      .slice(0, SPLIT_FANOUT_MAX)
       .map((id) => ({ id }));
   }
   /**

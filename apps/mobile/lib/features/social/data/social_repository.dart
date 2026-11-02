@@ -231,7 +231,7 @@ abstract interface class SocialRepository {
   /// Owner 2026-10-15: hide / show the like and view counters of an own post.
   Future<Post> setPostCounters(String id, {bool? hideLikes, bool? hideViews});
 
-  /// Owner 2026-10-12: pin an own post to slot 1..3 / take it off.
+  /// Owner 2026-10-12: pin an own post to slot 1..6 / take it off.
   Future<Post> pinPost(String id, int slot);
   Future<Post> unpinPost(String id);
 
@@ -1087,6 +1087,7 @@ abstract final class SocialMappers {
               mediumUrl: m.mediumUrl,
               width: m.width,
               height: m.height,
+              blurhash: contractField<String>(m, ContractExtra.blurhash),
             ),
         ],
         locationName: d.location?.name,

@@ -15,12 +15,14 @@ import {
 } from '@nestjs/websockets';
 import { createAdapter, createShardedAdapter } from '@socket.io/redis-adapter';
 import type Redis from 'ioredis';
+import { incrWithTtl } from '../../redis/incr-with-ttl';
 import { PinoLogger } from 'nestjs-pino';
 import { socketClientIp } from './socket-ip';
 import type { Namespace, Socket } from 'socket.io';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { RealtimeStatsService } from '../../common/ops/realtime-stats.service';
+import { RuntimeStatsService } from '../../common/ops/runtime-stats.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import {
@@ -41,6 +43,7 @@ import {
   socketAdapterMode,
   userRoom,
   viewingKey,
+  VIEWING_TTL_MS,
 } from './realtime-publisher.service';
 import { demoContext } from '../../common/demo/demo-context';
 import {
@@ -49,6 +52,7 @@ import {
 } from '../../common/logging/ws-log-sampling';
 import { triMode, type TriMode } from '../../common/ops/tri-mode';
 import { shardContext } from '../../sharding/shard-context';
+import { pubSubClient } from '../../redis/redis-connection';
 import { RealtimeEventLog } from './realtime-event-log';
 import {
   newSocketEventBucket,
@@ -59,7 +63,6 @@ import {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Presence entries outlive a crashed instance by at most this. */
-const VIEW_TTL_SEC = 3600;
 /** At most one typing event per socket per this window. */
 const TYPING_MIN_GAP_MS = 1000;
 /** S1-7: `call:signal` budget (own bucket) and how long a call's members
@@ -81,7 +84,13 @@ interface SignalCall {
 const SIGNAL_MAX_BYTES = 64 * 1024;
 /** Sockets of one person per API instance (setting `realtime.max_sockets_per_user`). */
 const DEFAULT_MAX_SOCKETS_PER_USER = 10;
-const DEFAULT_CONNECTS_PER_IP_PER_MINUTE = 120;
+/** B-9: ceilings per socket — a buggy or hostile client cannot pile up
+ * rooms / "chat open" keys without bound. */
+const MAX_VIEWING_PER_SOCKET = 50;
+const MAX_ROOMS_PER_SOCKET = 400;
+/** B-5: CGNAT / office / campus put hundreds of users behind one address;
+ * a deploy reconnect storm must not lock them out (client backs off). */
+const DEFAULT_CONNECTS_PER_IP_PER_MINUTE = 600;
 /** How often a live socket refreshes its presence (and an assistant's
  * socket re-checks its duties). Owner 2026-10-22 (server load audit,
  * finding 5): no longer the session blacklist — a revoked session's
@@ -209,6 +218,7 @@ export class RealtimeGateway
     @Optional() private readonly stats?: RealtimeStatsService,
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() private readonly eventLog?: RealtimeEventLog,
+    @Optional() private readonly runtime?: RuntimeStatsService,
   ) {
     this.logger.setContext(RealtimeGateway.name);
   }
@@ -333,14 +343,16 @@ export class RealtimeGateway
 
   afterInit(nsp: Namespace): void {
     this.nsp = nsp;
+    // One number a minute for the ECS socket-count scaling policy.
+    this.runtime?.registerSocketGauge(() => this.nsp?.sockets.size ?? 0);
     void this.loadTiming();
     this.timingTimer = setInterval(() => void this.loadTiming(), 30_000);
     this.timingTimer.unref();
     // Test doubles of REDIS_CLIENT can't pub/sub: stay on the in-memory
     // adapter (a single instance) then.
     if (typeof this.redis.duplicate !== 'function') return;
-    this.pub = this.redis.duplicate();
-    this.sub = this.redis.duplicate();
+    this.pub = pubSubClient(this.redis);
+    this.sub = pubSubClient(this.redis);
     // Owner 2026-10-22 (server load audit, finding 5): Redis 7 sharded
     // pub/sub (infra/modules/redis: engine 7.1). An event for `user:X`
     // reaches only the instances that hold that room, instead of every
@@ -354,7 +366,7 @@ export class RealtimeGateway
           })
         : createAdapter(this.pub, this.sub),
     );
-    this.revocations = this.redis.duplicate();
+    this.revocations = pubSubClient(this.redis);
     this.revocations.on('message', (channel: string, raw: string) => {
       if (channel === SESSION_REVOKED_CHANNEL) this.onSessionRevoked(raw);
     });
@@ -513,8 +525,7 @@ export class RealtimeGateway
       );
       if (!ip) return false;
       const key = `ws:connect:${ip}`;
-      const n = await this.redis.incr(key);
-      if (n === 1) await this.redis.expire(key, 60);
+      const n = await incrWithTtl(this.redis, key, 60);
       if (n <= max) return false;
       this.logger.warn({ metric: 'ws_ip_limited', ip }, 'ws connect limit');
       return true;
@@ -659,10 +670,19 @@ export class RealtimeGateway
           })
           .catch(() => undefined);
       }
+      // B-1: keep the "chat open" keys of this live socket fresh.
+      if (state(socket).viewing.size > 0) {
+        // One command per key: the keys sit in different cluster slots.
+        for (const id of state(socket).viewing) {
+          void this.touchViewing(state(socket).user.sub, id, socket.id).catch(
+            () => undefined,
+          );
+        }
+      }
       // Owner 2026-10-01: presence heartbeat (own connections only).
       if (!state(socket).selfId) {
         void this.presence
-          .touch(state(socket).user.sub, socket.id)
+          .refresh(state(socket).user.sub, socket.id)
           .catch(() => undefined);
       }
     }, HEARTBEAT_MS);
@@ -859,7 +879,7 @@ export class RealtimeGateway
     }
     try {
       for (const id of s.viewing) {
-        await this.redis.srem(viewingKey(s.user.sub, id), socket.id);
+        await this.redis.zrem(viewingKey(s.user.sub, id), socket.id);
       }
     } catch {
       // Shutting down (Redis already closed): the entries expire anyway.
@@ -932,6 +952,29 @@ export class RealtimeGateway
     }
   }
 
+  /** B-9: true when joining [room] would pass the per-socket ceiling (a
+   * room the socket already holds never counts: re-joins stay idempotent). */
+  private roomsFull(socket: Socket, room: string): boolean {
+    const rooms = socket.rooms;
+    return !!rooms && !rooms.has(room) && rooms.size >= MAX_ROOMS_PER_SOCKET;
+  }
+
+  /** B-1: (re)stamp this socket's "chat open" expiry; the heartbeat repeats
+   * it while the socket lives, so a killed task's entry ages out in 2 min. */
+  private async touchViewing(
+    userId: string,
+    conversationId: string,
+    socketId: string,
+  ): Promise<void> {
+    const key = viewingKey(userId, conversationId);
+    await this.redis
+      .multi()
+      .zremrangebyscore(key, 0, Date.now())
+      .zadd(key, Date.now() + VIEWING_TTL_MS, socketId)
+      .pexpire(key, VIEWING_TTL_MS)
+      .exec();
+  }
+
   @SubscribeMessage('conversation:join')
   async join(
     @ConnectedSocket() socket: Socket,
@@ -940,6 +983,14 @@ export class RealtimeGateway
     const id = this.conversationIdOf(body);
     const uid = state(socket)?.user?.sub;
     if (!id || !uid) return { ok: false };
+    const mine = state(socket);
+    if (
+      !mine.viewing.has(id) &&
+      (mine.viewing.size >= MAX_VIEWING_PER_SOCKET ||
+        this.roomsFull(socket, conversationRoom(id)))
+    ) {
+      return { ok: false };
+    }
     const member = await this.prisma.conversationParticipant.findUnique({
       where: { conversation_id_user_id: { conversation_id: id, user_id: uid } },
       select: { user_id: true },
@@ -965,11 +1016,7 @@ export class RealtimeGateway
       id,
       others.map((o) => o.user_id),
     );
-    await this.redis
-      .multi()
-      .sadd(viewingKey(uid, id), socket.id)
-      .expire(viewingKey(uid, id), VIEW_TTL_SEC)
-      .exec();
+    await this.touchViewing(uid, id, socket.id);
     return { ok: true };
   }
 
@@ -982,7 +1029,7 @@ export class RealtimeGateway
     if (!id) return { ok: false };
     await socket.leave(conversationRoom(id));
     state(socket).viewing.delete(id);
-    await this.redis.srem(viewingKey(state(socket).user.sub, id), socket.id);
+    await this.redis.zrem(viewingKey(state(socket).user.sub, id), socket.id);
     return { ok: true };
   }
 
@@ -1008,6 +1055,7 @@ export class RealtimeGateway
         select: { user_id: true },
       }));
     if (!reader) return { ok: false };
+    if (this.roomsFull(socket, channelRoom(id))) return { ok: false };
     await socket.join(channelRoom(id));
     return { ok: true };
   }
@@ -1028,6 +1076,7 @@ export class RealtimeGateway
       select: { id: true },
     });
     if (!post) return { ok: false };
+    if (this.roomsFull(socket, postRoom(id))) return { ok: false };
     await socket.join(postRoom(id));
     return { ok: true };
   }
@@ -1072,6 +1121,7 @@ export class RealtimeGateway
     if (!me || !/^[0-9a-f-]{36}$/i.test(other) || other === me) {
       return { ok: false };
     }
+    if (this.roomsFull(socket, presenceRoom(other))) return { ok: false };
     const shared = await this.prisma.conversationParticipant.findFirst({
       where: {
         user_id: me,

@@ -195,7 +195,7 @@ class ChannelsArchiveScreen extends ConsumerWidget {
             )
           : value.isLoading && !value.hasValue
               ? const CasesListSkeleton()
-              : RefreshIndicator(
+              : AppRefreshIndicator(
                   onRefresh: () => ref
                       .read(
                         channelListSyncProvider(archivedChannelsKey).notifier,
@@ -214,25 +214,26 @@ class ChannelsArchiveScreen extends ConsumerWidget {
                             ),
                           ],
                         )
-                      : ListView(
+                      : ListView.builder(
                           physics: const AlwaysScrollableScrollPhysics(),
-                          children: [
-                            for (final c in channels)
-                              ChannelRow(
-                                key: ValueKey('channel-archived-${c.id}'),
-                                channel: c,
-                                picked: picking?.contains(c.id),
-                                onTap: picking != null
-                                    ? () => selection.toggle(c.id)
-                                    : () => context
-                                        .push(ChannelsRoutes.channel(c.id)),
-                                onLongPress: picking == null
-                                    ? () => selection
-                                      ..start()
-                                      ..toggle(c.id)
-                                    : null,
-                              ),
-                          ],
+                          itemCount: channels.length,
+                          itemBuilder: (context, i) {
+                            final c = channels[i];
+                            return ChannelRow(
+                              key: ValueKey('channel-archived-${c.id}'),
+                              channel: c,
+                              picked: picking?.contains(c.id),
+                              onTap: picking != null
+                                  ? () => selection.toggle(c.id)
+                                  : () => context
+                                      .push(ChannelsRoutes.channel(c.id)),
+                              onLongPress: picking == null
+                                  ? () => selection
+                                    ..start()
+                                    ..toggle(c.id)
+                                  : null,
+                            );
+                          },
                         ),
                 ),
       bar: () => ChatSelectionBar(

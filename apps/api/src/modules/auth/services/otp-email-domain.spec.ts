@@ -1,4 +1,5 @@
 import { EMAIL_DOMAIN_HOURLY_MAX, OtpService } from './otp.service';
+import { withEvalIncr } from '../../../redis/incr-with-ttl.test-support';
 
 function setup(counter: number | Error) {
   const config = {
@@ -13,7 +14,7 @@ function setup(counter: number | Error) {
       })[k],
     get: (k: string) => (k === 'NODE_ENV' ? 'production' : undefined),
   };
-  const redis = {
+  const redis = withEvalIncr({
     set: jest.fn().mockResolvedValue('OK'),
     expire: jest.fn().mockResolvedValue(1),
     incr: jest.fn(() =>
@@ -21,7 +22,7 @@ function setup(counter: number | Error) {
         ? Promise.reject(counter)
         : Promise.resolve(counter),
     ),
-  };
+  });
   const email = { sendEmail: jest.fn().mockResolvedValue(undefined) };
   const costGuard = { consume: jest.fn().mockResolvedValue(undefined) };
   const service = new OtpService(

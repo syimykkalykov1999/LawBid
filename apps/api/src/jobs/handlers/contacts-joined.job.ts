@@ -125,19 +125,26 @@ export class ContactsJoinedJob {
       select: { user_id: true },
     });
     let notified = 0;
-    for (const w of wants) {
-      const sent = await emitOnce(
-        this.redis,
-        `contacts:joined:${w.user_id}:${joinerId}`,
-        ONCE_TTL_SECONDS,
-        () =>
-          this.notifications.emit({
-            type: 'contact_joined',
-            recipientId: w.user_id,
-            payload: { actorId: joinerId },
-          }),
+    // Audit A-3: up to CONTACTS_JOINED_OWNERS_MAX recipients per joiner were
+    // notified strictly one after another; the pairs are independent (each
+    // has its own once-guard), so they go in parallel chunks of 25.
+    for (let i = 0; i < wants.length; i += 25) {
+      const sent = await Promise.all(
+        wants.slice(i, i + 25).map((w) =>
+          emitOnce(
+            this.redis,
+            `contacts:joined:${w.user_id}:${joinerId}`,
+            ONCE_TTL_SECONDS,
+            () =>
+              this.notifications.emit({
+                type: 'contact_joined',
+                recipientId: w.user_id,
+                payload: { actorId: joinerId },
+              }),
+          ),
+        ),
       );
-      if (sent) notified++;
+      notified += sent.filter(Boolean).length;
     }
     return { matched: fresh.length, notified };
   }

@@ -317,7 +317,7 @@ class PostScreen extends ConsumerWidget {
               onRetry: () => ref.invalidate(postProvider(postId)),
               builder: (p) => PostCard.isThreadsStyle(p)
                   ? _ThreadDetail(post: p, fromProfile: fromProfile)
-                  : RefreshIndicator(
+                  : AppRefreshIndicator(
                       color: colors.gold,
                       onRefresh: () async =>
                           ref.invalidate(postProvider(postId)),
@@ -935,47 +935,60 @@ class SavedPostsList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final value = ref.watch(savedPostsProvider);
     final notifier = ref.read(savedPostsProvider.notifier);
     final overrides = ref.watch(postOverridesProvider);
-    return PagedListBody<SavedPost>(
-      value: value.whenData(
-        (v) => v.without(
-          (s) => s.post != null && overrides[s.postId]?.savedByMe == false,
-        ),
+    final filtered = value.whenData(
+      (v) => v.without(
+        (s) => s.post != null && overrides[s.postId]?.savedByMe == false,
       ),
+    );
+    // Owner 2026-10-28: the saved posts are the profile's grid (covers only,
+    // no autoplay); a tap opens the posts viewer from that item. Posts that
+    // are gone are left out of the grid.
+    final page = filtered.value;
+    final posts = <Post>[
+      for (final s in page?.items ?? const <SavedPost>[])
+        if (s.post != null) s.post!,
+    ];
+    if (page != null && posts.isNotEmpty) {
+      return AppRefreshIndicator(
+        color: colors.gold,
+        backgroundColor: colors.sheet,
+        onRefresh: notifier.refresh,
+        child: GridView.builder(
+          key: const ValueKey('saved-posts-grid'),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          gridDelegate: profileGridDelegate(),
+          itemCount: posts.length,
+          itemBuilder: (context, i) {
+            if (i == posts.length - 1 && page.canLoadMore) {
+              notifier.loadMore();
+            }
+            final p = posts[i];
+            return PostGridTile(
+              key: ValueKey('saved-tile-${p.id}'),
+              post: p,
+              showPin: false,
+              semanticLabel: t.t('post.open'),
+              onTap: () => PostsFeedScreen.open(
+                context,
+                posts: posts,
+                index: i,
+                oneAuthor: false,
+              ),
+            );
+          },
+        ),
+      );
+    }
+    return PagedListBody<SavedPost>(
+      value: filtered,
       t: t,
       skeleton: const PostListSkeleton(),
       itemKey: (s) => s.postId,
-      itemBuilder: (context, s, _) => s.post == null
-          ? Container(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(AppRadii.card),
-                border: Border.all(color: colors.border),
-              ),
-              child: Row(
-                children: [
-                  AppIcon(
-                    AppIcons.hideSourceRounded,
-                    color: colors.textSecondary,
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Text(
-                      t.t('post.unavailable'),
-                      style: type.body.copyWith(color: colors.textSecondary),
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : PostImpressionTracker(
-              post: s.post!,
-              child: PostCard(post: s.post!),
-            ),
+      itemBuilder: (context, s, _) => const SizedBox.shrink(),
       empty: AppEmptyState(
         icon: AppIcons.bookmarkBorderRounded,
         message: t.t('mine.savedPosts.empty'),
@@ -1072,12 +1085,26 @@ class ProfilePostsGrid extends ConsumerWidget {
       required IndexedWidgetBuilder tile,
       Key? gridKey,
     }) {
-      final more = page.canLoadMore
-          ? TextButton(
-              onPressed: () => ref.read(_provider.notifier).loadMore(),
-              child: Text(t.t('pagination.loadingMore')),
-            )
-          : null;
+      // Infinite scroll (Instagram/TikTok profile): the footer is built
+      // lazily when the user nears the end, and loads the next page itself.
+      // A new key per loaded count re-arms it for the following page.
+      final more = !page.hasMore
+          ? null
+          : page.loadMoreError != null || !asSliver
+              ? TextButton(
+                  onPressed: () => ref.read(_provider.notifier).loadMore(),
+                  child: Text(
+                    t.t(
+                      page.loadMoreError != null
+                          ? 'error.retry'
+                          : 'pagination.loadingMore',
+                    ),
+                  ),
+                )
+              : _AutoLoadMore(
+                  key: ValueKey('more-${page.items.length}'),
+                  onLoad: () => ref.read(_provider.notifier).loadMore(),
+                );
       if (asSliver) {
         return SliverMinExtent(
           minExtent: minExtent,
@@ -1122,8 +1149,7 @@ class ProfilePostsGrid extends ConsumerWidget {
           physics: const NeverScrollableScrollPhysics(),
           mainAxisSpacing: 2,
           crossAxisSpacing: 2,
-          children:
-              List.generate(6, (_) => const AppSkeleton(borderRadius: 0)),
+          children: List.generate(6, (_) => const AppSkeleton(borderRadius: 0)),
         ),
       ),
       error: (_, __) => boxed(
@@ -1257,7 +1283,7 @@ class _ThreadDetailState extends ConsumerState<_ThreadDetail> {
     return Column(
       children: [
         Expanded(
-          child: RefreshIndicator(
+          child: AppRefreshIndicator(
             color: colors.gold,
             onRefresh: () async {
               ref
@@ -1322,4 +1348,37 @@ class _ThreadDetailState extends ConsumerState<_ThreadDetail> {
       ],
     );
   }
+}
+
+/// Footer of a paginated grid: fires [onLoad] once when first built (i.e. when
+/// it scrolls into the lazy viewport range) and shows a small spinner.
+class _AutoLoadMore extends StatefulWidget {
+  const _AutoLoadMore({required this.onLoad, super.key});
+
+  final VoidCallback onLoad;
+
+  @override
+  State<_AutoLoadMore> createState() => _AutoLoadMoreState();
+}
+
+class _AutoLoadMoreState extends State<_AutoLoadMore> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onLoad();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
 }

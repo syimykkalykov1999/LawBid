@@ -24,6 +24,7 @@ import {
 } from '../jobs.constants';
 import { ACCOUNT_DELETION_QUEUE } from '../../modules/privacy/privacy.constants';
 import { MEDIA_MODERATION_QUEUE } from '../../modules/media-moderation/media-moderation.constants';
+import { POST_FANOUT_QUEUE } from '../../modules/notifications/post-fanout.service';
 import { CHANNEL_FANOUT_QUEUE } from '../../modules/channels/channel-fanout.runner';
 import { BROADCAST_QUEUE } from '../../modules/admin-content/broadcast-fanout.runner';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -49,6 +50,7 @@ export const OBSERVED_QUEUES: readonly string[] = [
   ACCOUNT_DELETION_QUEUE,
   MEDIA_MODERATION_QUEUE,
   CHANNEL_FANOUT_QUEUE,
+  POST_FANOUT_QUEUE,
   BROADCAST_QUEUE,
   PUSH_QUEUE,
   CASE_FANOUT_QUEUE,
@@ -73,6 +75,7 @@ export const SLOW_LANE_QUEUES: readonly string[] = [
   CRON_HEAVY_QUEUE,
   ACCOUNT_DELETION_QUEUE,
   CHANNEL_FANOUT_QUEUE,
+  POST_FANOUT_QUEUE,
   BROADCAST_QUEUE,
 ];
 

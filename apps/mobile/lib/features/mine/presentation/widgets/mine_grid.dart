@@ -228,7 +228,7 @@ class MinePagedGrid<T> extends ConsumerWidget {
     }
 
     final body = switch (value) {
-      AsyncData(:final value) => RefreshIndicator(
+      AsyncData(:final value) => AppRefreshIndicator(
           color: colors.gold,
           backgroundColor: colors.sheet,
           onRefresh: pull,

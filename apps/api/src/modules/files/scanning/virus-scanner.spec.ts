@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:net';
 import {
   ClamdScanner,
+  ClamdTooLargeError,
   DevEicarScanner,
   EICAR_SIGNATURE,
   parseClamdReply,
@@ -46,6 +47,13 @@ describe('VirusScanner', () => {
     expect(() =>
       parseClamdReply('INSTREAM size limit exceeded. ERROR\0'),
     ).toThrow(/clamd error/);
+    // B-2: over the stream cap is a permanent verdict, not a retry.
+    expect(() =>
+      parseClamdReply('INSTREAM size limit exceeded. ERROR\0'),
+    ).toThrow(ClamdTooLargeError);
+    expect(() => parseClamdReply('stream: scanner busy ERROR\0')).not.toThrow(
+      ClamdTooLargeError,
+    );
   });
 
   describe('ClamdScanner over TCP', () => {

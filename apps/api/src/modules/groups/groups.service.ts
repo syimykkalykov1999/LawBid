@@ -1,3 +1,7 @@
+import {
+  communityQuery,
+  rankCommunities,
+} from '../../common/search/community-search';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { UsernamePolicyService } from '../usernames/username-policy.service';
@@ -26,6 +30,7 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaReadService } from '../../prisma/prisma-read.service';
 import {
   parseUpdatedSince,
   syncedAt,
@@ -169,6 +174,8 @@ export class GroupsService {
     // are admin settings again.
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() private readonly limits?: UsageLimitsService,
+    // Replica seam: the discover rows come from a cached snapshot anyway.
+    @Optional() private readonly replica?: PrismaReadService,
   ) {}
 
   /** `groups.max_members` (admin), never above the hard ceiling. */
@@ -1029,7 +1036,7 @@ export class GroupsService {
         row.inviter_id,
         'added',
       );
-      await this.broadcast(row.group_id, line);
+      if (line) await this.broadcast(row.group_id, line);
       await this.groupChanged(row.group_id, 'members');
     }
     await this.prisma.chatGroupInvite.update({
@@ -1265,19 +1272,32 @@ export class GroupsService {
     user: RequestUser,
     q: string,
   ): Promise<GroupInvitePreviewDto[]> {
-    const text = q.trim().replace(/^@/, '');
-    const rows = await this.prisma.chatGroup.findMany({
+    const query = communityQuery(q);
+    if (!query) return [];
+    const found = await this.prisma.chatGroup.findMany({
       where: {
         group_type: 'public',
         deleted_at: null,
-        OR: [
-          { title: { contains: text, mode: 'insensitive' } },
-          { username_lower: { contains: text.toLowerCase() } },
-        ],
+        AND: query.words.map((w) => ({
+          OR: [
+            { title: { contains: w, mode: 'insensitive' as const } },
+            { username_lower: { contains: w } },
+          ],
+        })),
       },
       orderBy: [{ member_count: 'desc' }, { created_at: 'desc' }],
-      take: 20,
+      take: 200,
     });
+    const rows = rankCommunities(
+      found,
+      query,
+      (g) => ({
+        title: g.title,
+        username: g.username_lower,
+        size: g.member_count,
+      }),
+      20,
+    );
     return this.previews(rows, user.sub);
   }
 
@@ -1297,7 +1317,11 @@ export class GroupsService {
     const next =
       start + limit < ranked.length ? encodeOffset(start + limit) : null;
     if (slice.length === 0) return { items: [], nextCursor: next };
-    const rows = await this.prisma.chatGroup.findMany({
+    // Rows of a cached ranked snapshot: a few seconds of lag is invisible.
+    // My memberships / join requests (read-your-writes) stay on the primary.
+    const rows = await (
+      this.replica?.readDb({ maxStalenessMs: 5000 }) ?? this.prisma
+    ).chatGroup.findMany({
       where: {
         id: { in: slice.map((r) => r.id) },
         group_type: 'public',
@@ -1383,8 +1407,10 @@ export class GroupsService {
       return { status: 'pending', groupId: g.id, group: null };
     }
     const row = await this.admit(g.id, user.sub, null, 'joined');
-    await this.broadcast(g.id, row);
-    await this.groupChanged(g.id, 'members');
+    if (row) {
+      await this.broadcast(g.id, row);
+      await this.groupChanged(g.id, 'members');
+    }
     return {
       status: 'joined',
       groupId: g.id,
@@ -1425,9 +1451,15 @@ export class GroupsService {
     if (!req) throw notFound();
     if (approve) {
       const row = await this.admit(id, userId, user.sub, 'added');
-      await this.broadcast(id, row);
-      await this.notifyAdded(id, row, [userId]);
-      await this.groupChanged(id, 'members');
+      if (row) {
+        await this.broadcast(id, row);
+        await this.notifyAdded(id, row, [userId]);
+        await this.groupChanged(id, 'members');
+      } else {
+        // Someone else admitted them first: the request is gone for the
+        // other admins too.
+        await this.adminsChanged(id, 'requests');
+      }
     } else {
       await this.prisma.chatGroupJoinRequest.delete({
         where: { group_id_user_id: { group_id: id, user_id: userId } },
@@ -1448,9 +1480,22 @@ export class GroupsService {
     userId: string,
     actorId: string | null,
     kind: 'joined' | 'added',
-  ): Promise<ChatGroupMessage> {
+  ): Promise<ChatGroupMessage | null> {
     return withTxRetry(this.prisma, async (tx) => {
       await tx.$queryRaw`SELECT id FROM chat_groups WHERE id = ${groupId}::UUID FOR UPDATE`;
+      // Audit A-5: the membership check lives AFTER the lock — a double tap
+      // or two admins approving at once must not demote an admin, re-stamp
+      // joined_at or bump member_count a second time.
+      const already = await tx.chatGroupMember.findUnique({
+        where: { group_id_user_id: { group_id: groupId, user_id: userId } },
+        select: { left_at: true },
+      });
+      if (already && already.left_at === null) {
+        await tx.chatGroupJoinRequest.deleteMany({
+          where: { group_id: groupId, user_id: userId },
+        });
+        return null;
+      }
       const count = await tx.chatGroupMember.count({
         where: { group_id: groupId, left_at: null },
       });
@@ -2284,12 +2329,20 @@ export class GroupsService {
       }),
       this.blocks.hiddenIds(by),
     ]);
+    // Audit A-14: the per-person privacy check ran one after another (up to
+    // 512 invitees = 512 sequential reads); now in parallel chunks of 25.
+    const candidates = users.filter((u) => !hidden.has(u.id));
     const out: string[] = [];
-    for (const u of users) {
-      if (hidden.has(u.id)) continue;
+    for (let i = 0; i < candidates.length; i += 25) {
+      const chunk = candidates.slice(i, i + 25);
       // Their "who can add me to groups" setting (a «no» stays out; the
       // caller reports them as not added).
-      if (await this.addPolicy.allows(by, u.id)) out.push(u.id);
+      const ok = await Promise.all(
+        chunk.map((u) => this.addPolicy.allows(by, u.id)),
+      );
+      chunk.forEach((u, j) => {
+        if (ok[j]) out.push(u.id);
+      });
     }
     return out;
   }

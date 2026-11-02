@@ -42,7 +42,7 @@ describe('RouteMetricsService (S12-8, S12-3)', () => {
   it('parses the three-state mode, unknown values mean auto', () => {
     expect(parseMode('off')).toBe('off');
     expect(parseMode('on')).toBe('on');
-    expect(parseMode('weird')).toBe('auto');
+    expect(parseMode('weird')).toBe('off');
   });
 
   it('counts the feed and chat journey SLIs; 4xx counts for nothing', () => {

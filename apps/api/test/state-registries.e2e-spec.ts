@@ -212,7 +212,24 @@ describe('State bar registries (e2e, owner 2026-10-05)', () => {
       'ny_open_data',
       'socrata',
       'generic_rest',
+      // Owner 2026-10-28: ready-made state presets and public pages.
+      'state_preset',
+      'html_page',
     ]);
+    // Every state says whether it can be checked automatically and why not.
+    const items = data.items as unknown as {
+      stateCode: string;
+      support: string;
+      supportNote: string;
+    }[];
+    for (const i of items) {
+      expect(['automatic', 'manual']).toContain(i.support);
+      expect(i.supportNote.length).toBeGreaterThan(0);
+    }
+    // Wyoming blocks automated requests: manual, with the reason.
+    expect(items.find((i) => i.stateCode === STATE)).toMatchObject({
+      support: 'manual',
+    });
     expect(data.items.find((i) => i.stateCode === STATE)).toMatchObject({
       adapter: 'manual',
       enabled: false,

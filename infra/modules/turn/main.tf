@@ -72,6 +72,11 @@ variable "denied_peer_cidrs" {
     "100.64.0.0/10",
   ]
 }
+variable "on_demand" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-11-02: the relay stands STOPPED and the API starts it only when Cloudflare is down (apps/api calls/turn-on-demand.ts). No Elastic IP (it costs about $3.6/month while unattached): the public address is new at every start and coturn reads it from the instance metadata before each start. Only one relay: not with secondary_subnet_id, and without hosted_zone_id (DNS cannot follow a changing address). A stopped box costs only its 8 GB disk (about $0.6/month)."
+}
 variable "tags" {
   type    = map(string)
   default = {}
@@ -95,6 +100,7 @@ resource "aws_ssm_parameter" "secret" {
 }
 
 resource "aws_eip" "this" {
+  count  = var.on_demand ? 0 : 1
   domain = "vpc"
   tags   = merge(var.tags, { Name = "${var.name}-turn" })
 }
@@ -208,6 +214,8 @@ resource "aws_instance" "this" {
   vpc_security_group_ids = [aws_security_group.this.id]
   iam_instance_profile   = aws_iam_instance_profile.this.name
   tags                   = merge(var.tags, { Name = "${var.name}-turn" })
+  # On-demand: no Elastic IP, so the box needs an automatic public address.
+  associate_public_ip_address = var.on_demand ? true : null
 
   metadata_options {
     http_tokens = "required" # IMDSv2 only
@@ -220,7 +228,8 @@ resource "aws_instance" "this" {
 
   user_data = templatefile("${path.module}/user-data.sh.tftpl", {
     realm        = var.realm
-    external_ip  = aws_eip.this.public_ip
+    external_ip  = local.primary_ip
+    on_demand    = var.on_demand
     secret_param = aws_ssm_parameter.secret.name
     region       = data.aws_region.current.name
     denied       = var.denied_peer_cidrs
@@ -272,11 +281,17 @@ locals {
 }
 
 resource "aws_eip_association" "this" {
+  count         = var.on_demand ? 0 : 1
   instance_id   = aws_instance.this.id
-  allocation_id = aws_eip.this.id
+  allocation_id = aws_eip.this[0].id
 }
 
-output "public_ip" { value = aws_eip.this.public_ip }
+locals {
+  # "" while the relay is on-demand: the address is new at every start.
+  primary_ip = var.on_demand ? "" : aws_eip.this[0].public_ip
+}
+
+output "public_ip" { value = local.primary_ip }
 output "public_ips" {
   value       = [for r in local.relays : r.ip]
   description = "All relay addresses. Without hosted_zone_id: one A record `turn` per address (Namecheap)."
@@ -287,8 +302,16 @@ output "total_quota" {
 }
 output "secret_parameter" { value = aws_ssm_parameter.secret.name }
 output "turn_url" {
-  value       = "turn:${var.realm == "" ? aws_eip.this.public_ip : "turn.${var.realm}"}:3478?transport=udp,turn:${var.realm == "" ? aws_eip.this.public_ip : "turn.${var.realm}"}:3478?transport=tcp"
+  value       = "turn:${var.realm == "" ? local.primary_ip : "turn.${var.realm}"}:3478?transport=udp,turn:${var.realm == "" ? local.primary_ip : "turn.${var.realm}"}:3478?transport=tcp"
   description = "Paste into admin → Интеграции → TURN → urls (after the turn.<domain> record exists)."
+}
+output "instance_id" {
+  value       = aws_instance.this.id
+  description = "EC2 id of the primary relay (the on-demand API starts and stops this one)."
+}
+output "instance_arn" {
+  value       = aws_instance.this.arn
+  description = "ARN of the primary relay (IAM: start / stop this instance only)."
 }
 output "instance_ids" {
   value       = concat([aws_instance.this.id], aws_instance.second[*].id)
