@@ -104,7 +104,9 @@ class _OwnSocial extends ConsumerWidget {
             ..invalidate(clientProfileProvider);
           try {
             await ref.read(publicClientProfileProvider(username).future);
-          } catch (_) {}
+          } catch (_) {
+            // Refresh only; the error state shows a failed load.
+          }
         },
       ),
     );
