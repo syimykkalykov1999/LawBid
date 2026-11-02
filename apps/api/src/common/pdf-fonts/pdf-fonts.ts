@@ -80,7 +80,7 @@ const SCRIPT_FONTS: ScriptFont[] = [
   { scripts: re('Han'), file: 'NotoSansCJKsc-Regular.otf', cjk: true },
 ];
 
-const CJK_CACHE_DIR =
+const cjkCacheDir = (): string =>
   process.env.PDF_FONT_CACHE_DIR ?? join(tmpdir(), 'lawbid-pdf-fonts');
 
 /** Full path of a script font, or undefined while it is not on disk. */
@@ -91,7 +91,7 @@ function fontPath(f: ScriptFont): string | undefined {
   }
   const local = FONTS_DIR && join(FONTS_DIR, 'noto', f.file);
   if (local && existsSync(local)) return local;
-  const cached = join(CJK_CACHE_DIR, f.file);
+  const cached = join(cjkCacheDir(), f.file);
   return existsSync(cached) ? cached : undefined;
 }
 
@@ -128,18 +128,33 @@ function loadInterCovers(): CoversFn {
   return (interCovers = (cp) => font.hasGlyphForCodePoint(cp));
 }
 
-const scriptCovers = new Map<string, FontkitFont | null>();
+const scriptCovers = new Map<string, FontkitFont>();
+/** Script font that has a glyph for a code point no Inter run can draw. */
+const hostCache = new Map<number, ScriptFont | undefined>();
 /** Whether the script font is on disk and has a glyph for [cp] (spaces, colons...). */
 function fontHasGlyph(f: ScriptFont, cp: number): boolean {
-  if (!scriptCovers.has(f.file)) {
+  let font = scriptCovers.get(f.file);
+  if (!font) {
     const p = fontPath(f);
-    scriptCovers.set(f.file, p ? openFont(p) : null);
+    if (!p) return false; // not on disk yet (CJK still downloading): ask again later
+    font = openFont(p);
+    scriptCovers.set(f.file, font);
   }
-  return scriptCovers.get(f.file)?.hasGlyphForCodePoint(cp) ?? false;
+  return font.hasGlyphForCodePoint(cp);
 }
 
 const familyOf = (f: ScriptFont): string =>
   `Noto-${f.file.replace(/-Regular\.(ttf|otf)$/, '')}`;
+
+function anyHost(cp: number): ScriptFont | undefined {
+  if (!hostCache.has(cp)) {
+    hostCache.set(
+      cp,
+      SCRIPT_FONTS.find((f) => !f.cjk && fontHasGlyph(f, cp)),
+    );
+  }
+  return hostCache.get(cp);
+}
 
 /** Script font for a code point Inter cannot draw, if we have one. */
 function scriptFontFor(ch: string): ScriptFont | undefined {
@@ -170,7 +185,7 @@ export function splitRuns(text: string): FontRun[] {
       // has the glyph, else any script font that does, else stay (box).
       const host =
         (current && fontHasGlyph(current, cp) ? current : undefined) ??
-        SCRIPT_FONTS.find((f) => !f.cjk && fontHasGlyph(f, cp)) ??
+        anyHost(cp) ??
         current;
       owner = host;
       if (host) {
@@ -179,7 +194,8 @@ export function splitRuns(text: string): FontRun[] {
       }
     } else if (
       current &&
-      /[\s\p{P}\p{N}]/u.test(ch) &&
+      // Digits never join an RTL run: fontkit would mirror 1500 into 0051.
+      (current.rtl ? /\s/u : /[\s\p{P}\p{N}]/u).test(ch) &&
       fontHasGlyph(current, cp)
     ) {
       // Space/punctuation between words of one script keeps the run whole.
@@ -203,11 +219,14 @@ const STRONG_RTL = /^[^\p{L}]*[\p{Script=Arabic}\p{Script=Hebrew}]/u;
 /** Whether the first letter of [text] is Arabic or Hebrew. */
 export const startsRtl = (text: string): boolean => STRONG_RTL.test(text);
 
-/** Visual order for an RTL run: pdfkit draws left to right. */
-function visualOrder(run: string): string {
-  // Reverse by code point; combining marks and shaping stay attached because
-  // fontkit shapes the reversed string with the script's own direction off.
-  return [...run].reverse().join('');
+/**
+ * pdfkit wraps by words before shaping, so a multi-word RTL run would come out
+ * with its words left to right. Reverse the word order (each word is shaped
+ * right to left by fontkit), which gives the visual order of the line.
+ */
+export function wordsRtl(run: string): string {
+  const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(run) as RegExpExecArray;
+  return `${m[3]}${m[2].split(/\s+/).reverse().join(' ')}${m[1]}`;
 }
 
 type TextFn = (...args: unknown[]) => unknown;
@@ -247,7 +266,7 @@ export function applyPdfFonts(doc: PDFKit.PDFDocument): void {
     let runs = splitRuns(text);
     if (runs.every((r) => r.font === 'Inter')) return original(...args);
     // Poor man's bidi: a string that starts in Hebrew/Arabic is an RTL
-    // paragraph, so its runs go in reverse (each RTL run is reversed inside).
+    // paragraph, so its runs go in reverse (fontkit already lays each RTL run out right to left).
     if (startsRtl(text)) runs = runs.slice().reverse();
 
     // text(str, options) or text(str, x, y, options)
@@ -266,8 +285,11 @@ export function applyPdfFonts(doc: PDFKit.PDFDocument): void {
         ...(opts ?? {}),
         continued: last ? opts?.continued === true : true,
       };
-      const s = run.rtl ? visualOrder(run.text) : run.text;
-      original(s, ...(i === 0 ? posArgs : []), o);
+      original(
+        run.rtl ? wordsRtl(run.text) : run.text,
+        ...(i === 0 ? posArgs : []),
+        o,
+      );
     });
     doc.font('Inter');
     return doc;
@@ -277,7 +299,7 @@ export function applyPdfFonts(doc: PDFKit.PDFDocument): void {
 
 // ---- CJK download -------------------------------------------------------
 
-interface CjkEntry {
+export interface CjkEntry {
   sha256: string;
   cdn: string;
   uploaded: boolean;
@@ -290,22 +312,28 @@ interface CjkEntry {
  */
 export async function warmCjkFonts(
   fetchFn: typeof fetch = fetch,
+  manifestOverride?: { cjk?: Record<string, CjkEntry> },
 ): Promise<string[]> {
   const got: string[] = [];
   try {
     if (!FONTS_DIR) return got;
-    const manifest = JSON.parse(
-      readFileSync(join(FONTS_DIR, 'noto', 'manifest.json'), 'utf8'),
-    ) as { cjk?: Record<string, CjkEntry> };
-    mkdirSync(CJK_CACHE_DIR, { recursive: true });
+    const manifest =
+      manifestOverride ??
+      (JSON.parse(
+        readFileSync(join(FONTS_DIR, 'noto', 'manifest.json'), 'utf8'),
+      ) as { cjk?: Record<string, CjkEntry> });
+    const cacheDir = cjkCacheDir();
+    mkdirSync(cacheDir, { recursive: true });
     for (const [file, e] of Object.entries(manifest.cjk ?? {})) {
       if (!e.uploaded || !e.cdn.startsWith('https://')) continue;
-      const target = join(CJK_CACHE_DIR, file);
+      const target = join(cacheDir, file);
       if (existsSync(target) && sha256(readFileSync(target)) === e.sha256) {
         got.push(file);
         continue;
       }
-      const res = await fetchFn(e.cdn);
+      const res = await fetchFn(e.cdn, {
+        signal: AbortSignal.timeout(120_000),
+      });
       if (!res.ok) {
         warnOnce(file, `download of ${file} failed: HTTP ${res.status}`);
         continue;

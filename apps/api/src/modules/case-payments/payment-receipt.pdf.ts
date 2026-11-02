@@ -3,9 +3,6 @@ import { applyPdfFonts } from '../../common/pdf-fonts/pdf-fonts';
 import type { CasePaymentDto } from './case-payments.dto';
 import type { PaymentQuote } from './case-payments.settings';
 
-/** Inter (same face as the app), covers Latin + Cyrillic. 3 levels up
- * from src/modules/case-payments, 4 from dist/src/modules/case-payments. */
-
 const NAVY = '#0B1B3F';
 const GOLD = '#B8860B';
 const MUTED = '#5B6475';

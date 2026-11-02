@@ -32,7 +32,6 @@ export function renderCaseHistoryPdf(input: {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    // Without the bundled font pdfkit falls back to Helvetica (Latin only).
     applyPdfFonts(doc);
 
     doc.fillColor(NAVY).fontSize(20).text('LawBid — Case history');

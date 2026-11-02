@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import {
+  type CjkEntry,
   FONTS_DIR,
   INTER_PATH,
   applyPdfFonts,
@@ -46,6 +47,16 @@ describe('PDF fonts: script fallback', () => {
     expect(startsRtl('العميل: محمد')).toBe(true);
     expect(startsRtl('Client: محمد')).toBe(false);
     expect(splitRuns('محمد').every((r) => r.rtl)).toBe(true);
+  });
+
+  it('keeps digits out of RTL runs so amounts are not mirrored', () => {
+    const runs = splitRuns('المبلغ: 1500 USD');
+    const rtl = runs
+      .filter((r) => r.rtl)
+      .map((r) => r.text)
+      .join('');
+    expect(rtl).not.toMatch(/\d/);
+    expect(runs.map((r) => r.text).join('')).toBe('المبلغ: 1500 USD');
   });
 
   it('renders a PDF with every bundled script without throwing', async () => {
@@ -144,12 +155,61 @@ describe('PDF fonts: script fallback', () => {
 });
 
 describe('warmCjkFonts', () => {
-  const body = Buffer.from('not really a font');
-  it('ignores a download whose sha256 differs from the manifest', async () => {
+  const body = Buffer.from('pretend this is a 16 MB font');
+  const entry = (sha256: string, uploaded = true): CjkEntry => ({
+    sha256,
+    cdn: 'https://cdn.example.test/NotoSansCJKjp-Regular.otf',
+    uploaded,
+  });
+  const sha = createHash('sha256').update(body).digest('hex');
+  beforeEach(() => {
     process.env.PDF_FONT_CACHE_DIR = mkdtempSync(join(tmpdir(), 'pdf-fonts-'));
-    const got = await warmCjkFonts(() => Promise.resolve(new Response(body)));
-    // Nothing is marked "uploaded" yet, so nothing may be fetched or kept.
+  });
+  afterEach(() => {
+    delete process.env.PDF_FONT_CACHE_DIR;
+  });
+
+  it('caches a download whose sha256 matches the manifest', async () => {
+    const fetchFn = jest.fn(() => Promise.resolve(new Response(body)));
+    const got = await warmCjkFonts(fetchFn, {
+      cjk: { 'NotoSansCJKjp-Regular.otf': entry(sha) },
+    });
+    expect(got).toEqual(['NotoSansCJKjp-Regular.otf']);
+    expect(
+      readFileSync(
+        join(
+          process.env.PDF_FONT_CACHE_DIR as string,
+          'NotoSansCJKjp-Regular.otf',
+        ),
+      ),
+    ).toEqual(body);
+    // A second warm-up finds it on disk and does not download again.
+    await warmCjkFonts(fetchFn, {
+      cjk: { 'NotoSansCJKjp-Regular.otf': entry(sha) },
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a download whose sha256 differs and keeps nothing on disk', async () => {
+    const got = await warmCjkFonts(() => Promise.resolve(new Response(body)), {
+      cjk: { 'NotoSansCJKjp-Regular.otf': entry('0'.repeat(64)) },
+    });
     expect(got).toEqual([]);
-    expect(createHash('sha256').update(body).digest('hex')).toHaveLength(64);
+    expect(
+      existsSync(
+        join(
+          process.env.PDF_FONT_CACHE_DIR as string,
+          'NotoSansCJKjp-Regular.otf',
+        ),
+      ),
+    ).toBe(false);
+  });
+
+  it('skips entries not marked uploaded', async () => {
+    const fetchFn = jest.fn();
+    await warmCjkFonts(fetchFn, {
+      cjk: { 'NotoSansCJKjp-Regular.otf': entry(sha, false) },
+    });
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 });

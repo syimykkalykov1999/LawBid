@@ -1,9 +1,6 @@
 import PDFDocument from 'pdfkit';
 import { applyPdfFonts } from '../../../common/pdf-fonts/pdf-fonts';
 
-/** Inter (the app's face), covers Latin + Cyrillic. 4 levels up from
- * src/modules/cases/tools, 5 from dist/src/modules/cases/tools. */
-
 export const NAVY = '#0B1B3F';
 export const GOLD = '#B8860B';
 export const MUTED = '#5B6475';
