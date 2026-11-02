@@ -25,7 +25,7 @@ BEGIN
       -- runner creates are owned by the migrator, not by lawbid_partition
       -- (otherwise later Prisma migrations could not ALTER them).
       ALTER ROLE lawbid_partition SET role = 'lawbid_migrator';
-    EXCEPTION WHEN insufficient_privilege OR invalid_grant_operation THEN
+    EXCEPTION WHEN insufficient_privilege THEN
       RAISE NOTICE 'lawbid_partition not linked to lawbid_migrator (grant it by hand)';
     END;
   END IF;
