@@ -214,6 +214,13 @@ export class SupportDeskService {
   async pickAgent(
     tx: Tx | PrismaService = this.prisma,
   ): Promise<string | null> {
+    // Audit A-16: the load below is read, then the caller writes the
+    // assignee in the same transaction. Without a lock a burst of tickets
+    // created together all read the same counts and land on one agent past
+    // `max_open`. A transaction-scoped advisory lock (released at commit)
+    // makes the next ticket count the previous one; same idea as the work
+    // lease's per-person lock. Outside a transaction it frees at once.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('support:pick-agent'))`;
     const agents = await tx.supportAgent.findMany({
       where: { on_shift: true },
       select: { admin_id: true, max_open: true },
