@@ -8,6 +8,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import bidiFactory from 'bidi-js';
 
 /**
  * Per-script font fallback for server PDFs (owner 2026-11-02: no empty boxes,
@@ -156,9 +157,30 @@ function anyHost(cp: number): ScriptFont | undefined {
   return hostCache.get(cp);
 }
 
+const CJK_BY_FILE = (file: string): ScriptFont =>
+  SCRIPT_FONTS.find((f) => f.file === file) as ScriptFont;
+
+/**
+ * Which CJK face draws Han characters: Japanese for ja or text with kana,
+ * Korean for ko, Simplified Chinese otherwise (zh, unknown). The same
+ * ideograph has different glyph shapes per language.
+ */
+function hanFont(text: string, lang?: string): ScriptFont {
+  const l = (lang ?? '').toLowerCase();
+  if (
+    l.startsWith('ja') ||
+    /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(text)
+  ) {
+    return CJK_BY_FILE('NotoSansCJKjp-Regular.otf');
+  }
+  if (l.startsWith('ko')) return CJK_BY_FILE('NotoSansCJKkr-Regular.otf');
+  return CJK_BY_FILE('NotoSansCJKsc-Regular.otf');
+}
+
 /** Script font for a code point Inter cannot draw, if we have one. */
-function scriptFontFor(ch: string): ScriptFont | undefined {
-  return SCRIPT_FONTS.find((f) => f.scripts.test(ch));
+function scriptFontFor(ch: string, han: ScriptFont): ScriptFont | undefined {
+  const f = SCRIPT_FONTS.find((x) => x.scripts.test(ch));
+  return f?.file === 'NotoSansCJKsc-Regular.otf' ? han : f;
 }
 
 /**
@@ -166,13 +188,14 @@ function scriptFontFor(ch: string): ScriptFont | undefined {
  * punctuation (no script of their own), stay with the run they follow so a
  * sentence does not flip fonts at every comma.
  */
-export function splitRuns(text: string): FontRun[] {
+export function splitRuns(text: string, lang?: string): FontRun[] {
   const covers = loadInterCovers();
+  const han = hanFont(text, lang);
   const runs: FontRun[] = [];
   let current: ScriptFont | undefined; // script font of the last run, if not Inter
   for (const ch of text) {
     const cp = ch.codePointAt(0) as number;
-    const sf = covers(cp) ? undefined : scriptFontFor(ch);
+    const sf = covers(cp) ? undefined : scriptFontFor(ch, han);
     let font = 'Inter';
     let rtl = false;
     let owner: ScriptFont | undefined;
@@ -215,9 +238,14 @@ export function splitRuns(text: string): FontRun[] {
 export const needsFallback = (text: string): boolean =>
   splitRuns(text).some((r) => r.font !== 'Inter');
 
-const STRONG_RTL = /^[^\p{L}]*[\p{Script=Arabic}\p{Script=Hebrew}]/u;
-/** Whether the first letter of [text] is Arabic or Hebrew. */
-export const startsRtl = (text: string): boolean => STRONG_RTL.test(text);
+const bidi = bidiFactory();
+const HAS_RTL = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/u;
+
+/** A piece of a line, in visual (left to right) order, with its font. */
+export interface Fragment {
+  text: string;
+  font: string;
+}
 
 /**
  * pdfkit wraps by words before shaping, so a multi-word RTL run would come out
@@ -229,14 +257,113 @@ export function wordsRtl(run: string): string {
   return `${m[3]}${m[2].split(/\s+/).reverse().join(' ')}${m[1]}`;
 }
 
-type TextFn = (...args: unknown[]) => unknown;
+/** Reverses a neutral piece (punctuation, spaces) and mirrors brackets. */
+const mirrorReverse = (t: string): string =>
+  [...t]
+    .reverse()
+    .map((ch) => bidi.getMirroredCharacter(ch) ?? ch)
+    .join('');
 
 /**
- * Registers Inter and routes `doc.text` through the script fallback. Safe to
- * call on any PDFDocument; without the bundled Inter it leaves pdfkit's
- * default font alone.
+ * Lays one line out in visual order with the Unicode Bidirectional Algorithm
+ * (UAX #9, bidi-js): levels per character, runs reordered per rule L2, RTL
+ * runs shaped by fontkit, digits and Latin inside Arabic/Hebrew kept left to
+ * right, brackets mirrored. [rtlParagraph] is the paragraph direction.
  */
-export function applyPdfFonts(doc: PDFKit.PDFDocument): void {
+export function layoutLine(
+  text: string,
+  lang?: string,
+): { fragments: Fragment[]; rtlParagraph: boolean } {
+  if (!HAS_RTL.test(text)) {
+    return {
+      fragments: spacesOnInter(
+        splitRuns(text, lang).map(({ text: t, font }) => ({ text: t, font })),
+      ),
+      rtlParagraph: false,
+    };
+  }
+  const { levels, paragraphs } = bidi.getEmbeddingLevels(text);
+  const rtlParagraph = (paragraphs[0]?.level ?? 0) % 2 === 1;
+  // Level runs (indices are UTF-16 units; both halves of a pair share a level).
+  const runs: { text: string; level: number }[] = [];
+  let i = 0;
+  for (const ch of text) {
+    const level = levels[i];
+    const last = runs[runs.length - 1];
+    if (last && last.level === level) last.text += ch;
+    else runs.push({ text: ch, level });
+    i += ch.length;
+  }
+  // L2: from the highest level down to the lowest odd level, reverse every
+  // maximal sequence of runs at that level or higher.
+  const maxLevel = Math.max(...runs.map((r) => r.level));
+  const minOdd = Math.min(
+    ...runs.map((r) => r.level).filter((l) => l % 2 === 1),
+  );
+  for (let lvl = maxLevel; lvl >= minOdd; lvl -= 1) {
+    for (let k = 0; k < runs.length; k += 1) {
+      if ((runs[k] as { level: number }).level < lvl) continue;
+      let end = k;
+      while (
+        end + 1 < runs.length &&
+        (runs[end + 1] as { level: number }).level >= lvl
+      ) {
+        end += 1;
+      }
+      const seg = runs.slice(k, end + 1).reverse();
+      runs.splice(k, seg.length, ...seg);
+      k = end;
+    }
+  }
+  const fragments: Fragment[] = [];
+  for (const run of runs) {
+    const parts = splitRuns(run.text, lang);
+    if (run.level % 2 === 0) {
+      for (const p of parts) fragments.push({ text: p.text, font: p.font });
+      continue;
+    }
+    for (const p of parts.reverse()) {
+      fragments.push({
+        text: p.rtl ? wordsRtl(p.text) : mirrorReverse(p.text),
+        font: p.font,
+      });
+    }
+  }
+  return { fragments: spacesOnInter(fragments), rtlParagraph };
+}
+
+/** pdfkit drops word spaces drawn by some Noto fonts: draw each space with Inter. */
+function spacesOnInter(fragments: Fragment[]): Fragment[] {
+  const out: Fragment[] = [];
+  for (const f of fragments) {
+    if (f.font === 'Inter' || !f.text.includes(' ')) {
+      out.push(f);
+      continue;
+    }
+    for (const piece of f.text.split(/( +)/)) {
+      if (piece === '') continue;
+      out.push({ text: piece, font: piece.trim() === '' ? 'Inter' : f.font });
+    }
+  }
+  return out;
+}
+
+type TextFn = (...args: unknown[]) => unknown;
+
+export interface PdfFontOptions {
+  /** Language of the document (ja, ko, zh...): picks the CJK face for Han. */
+  lang?: string;
+}
+
+/**
+ * Registers Inter and routes `doc.text` through the script fallback and the
+ * bidi layout. Safe to call on any PDFDocument; without the bundled Inter it
+ * leaves pdfkit's default font alone.
+ */
+export function applyPdfFonts(
+  doc: PDFKit.PDFDocument,
+  options: PdfFontOptions = {},
+): void {
   if (!INTER_PATH) return;
   doc.registerFont('Inter', INTER_PATH);
   doc.font('Inter');
@@ -263,14 +390,13 @@ export function applyPdfFonts(doc: PDFKit.PDFDocument): void {
   const patched: TextFn = (...args) => {
     const [text, a, b, c] = args;
     if (typeof text !== 'string' || text === '') return original(...args);
-    let runs = splitRuns(text);
-    if (runs.every((r) => r.font === 'Inter')) return original(...args);
-    // Poor man's bidi: a string that starts in Hebrew/Arabic is an RTL
-    // paragraph, so its runs go in reverse (fontkit already lays each RTL run out right to left).
-    if (startsRtl(text)) runs = runs.slice().reverse();
+    const { fragments, rtlParagraph } = layoutLine(text, options.lang);
+    if (!rtlParagraph && fragments.every((f) => f.font === 'Inter')) {
+      return original(...args);
+    }
 
     // text(str, options) or text(str, x, y, options)
-    const posArgs = typeof a === 'number' ? [a, b] : [];
+    const hasPos = typeof a === 'number';
     const opts = (
       typeof a === 'object' && a !== null
         ? a
@@ -278,20 +404,39 @@ export function applyPdfFonts(doc: PDFKit.PDFDocument): void {
           ? b
           : c
     ) as Record<string, unknown> | undefined;
-    runs.forEach((run, i) => {
-      doc.font(fontFor(run.font));
-      const last = i === runs.length - 1;
+    let x = hasPos ? a : undefined;
+    const startX = doc.x;
+    const y = hasPos ? (b as number | undefined) : undefined;
+
+    // An RTL paragraph sits against the right edge: measure the pieces and
+    // start so the line ends at the right margin, when it fits in one line.
+    if (rtlParagraph && (opts?.align === undefined || opts.align === 'left')) {
+      const x0 = x ?? doc.x;
+      const box =
+        (opts?.width as number | undefined) ??
+        doc.page.width - doc.page.margins.right - x0;
+      let total = 0;
+      for (const f of fragments) {
+        doc.font(fontFor(f.font));
+        total += doc.widthOfString(f.text);
+      }
+      if (total <= box) x = x0 + box - total;
+    }
+
+    fragments.forEach((f, i) => {
+      doc.font(fontFor(f.font));
+      const last = i === fragments.length - 1;
       const o = {
         ...(opts ?? {}),
         continued: last ? opts?.continued === true : true,
       };
-      original(
-        run.rtl ? wordsRtl(run.text) : run.text,
-        ...(i === 0 ? posArgs : []),
-        o,
-      );
+      if (i === 0 && x !== undefined) original(f.text, x, y ?? doc.y, o);
+      else if (i === 0 && hasPos) original(f.text, a, b, o);
+      else original(f.text, o);
     });
     doc.font('Inter');
+    // A shifted start (right-aligned RTL line) must not move the next line.
+    if (!hasPos && opts?.continued !== true) doc.x = startX;
     return doc;
   };
   (doc as unknown as { text: TextFn }).text = patched;

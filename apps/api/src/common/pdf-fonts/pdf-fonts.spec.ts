@@ -11,7 +11,7 @@ import {
   applyPdfFonts,
   needsFallback,
   splitRuns,
-  startsRtl,
+  layoutLine,
   warmCjkFonts,
 } from './pdf-fonts';
 
@@ -43,20 +43,26 @@ describe('PDF fonts: script fallback', () => {
     ).toBe(true);
   });
 
-  it('marks Arabic and Hebrew runs as RTL and the paragraph as RTL', () => {
-    expect(startsRtl('العميل: محمد')).toBe(true);
-    expect(startsRtl('Client: محمد')).toBe(false);
-    expect(splitRuns('محمد').every((r) => r.rtl)).toBe(true);
+  it('lays out Arabic with UAX#9: paragraph RTL, digits and Latin keep LTR order', () => {
+    const l = layoutLine('المبلغ: 1500 USD');
+    expect(l.rtlParagraph).toBe(true);
+    const text = l.fragments.map((f) => f.text).join('');
+    // Visual order: the LTR tail comes first, the Arabic word last (rightmost).
+    expect(text.startsWith('USD')).toBe(true);
+    expect(text).toContain('1500');
+    expect(l.fragments[l.fragments.length - 1].font).toBe(
+      'Noto-NotoSansArabic',
+    );
+    expect(layoutLine('Client: محمد').rtlParagraph).toBe(false);
   });
 
-  it('keeps digits out of RTL runs so amounts are not mirrored', () => {
-    const runs = splitRuns('المبلغ: 1500 USD');
-    const rtl = runs
-      .filter((r) => r.rtl)
-      .map((r) => r.text)
-      .join('');
-    expect(rtl).not.toMatch(/\d/);
-    expect(runs.map((r) => r.text).join('')).toBe('المبلغ: 1500 USD');
+  it('picks the Han font by document locale', () => {
+    const font = (t: string, lang?: string) => splitRuns(t, lang)[0].font;
+    expect(font('漢字', 'ja')).toBe('Noto-NotoSansCJKjp');
+    expect(font('漢字', 'ko')).toBe('Noto-NotoSansCJKkr');
+    expect(font('漢字', 'zh')).toBe('Noto-NotoSansCJKsc');
+    expect(font('漢字')).toBe('Noto-NotoSansCJKsc');
+    expect(font('かな漢字')).toBe('Noto-NotoSansCJKjp');
   });
 
   it('renders a PDF with every bundled script without throwing', async () => {
