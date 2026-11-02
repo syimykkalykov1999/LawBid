@@ -7,11 +7,25 @@ import {
 } from '@/lib/api/server';
 import { bodyTypeAllowed, crossSiteReason, isSafeMethod } from '@/lib/csrf';
 
-/** How long the API may take to start answering. */
+/** How long the API may take to start answering a write or export. */
 const UPSTREAM_TIMEOUT_MS = 120_000;
+/** Owner 2026-11-02 («админка зависает»): a read that has not started
+ * answering in 30 s is stuck, not slow; with 3 retries 120 s meant up to
+ * 8 minutes of a spinning screen. Reads come back as a retryable 504.
+ * Reads that build a whole file or re-check a whole table before they
+ * answer keep 120 s (SLOW_READ). */
+const UPSTREAM_READ_TIMEOUT_MS = 30_000;
 const RETRY_AFTER_SEC = 2;
 /** S18-6: no request body bigger than this goes through the panel. */
 const MAX_BODY_BYTES = 25 * 1024 * 1024;
+
+/** GETs that legitimately work for a long time before the first byte:
+ * CSV/ZIP exports (`export/…`, `…/export.csv`, `…-export`), the audit-chain
+ * re-check and the access report. */
+const SLOW_READ = /export|verify-chain|access-report/;
+function isSlowRead(path: string[]): boolean {
+  return path.some((seg) => SLOW_READ.test(seg));
+}
 
 function refuse(status: number, code: string, message: string): Response {
   return NextResponse.json({ error: { code, message } }, { status });
@@ -89,7 +103,7 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
   url.search = req.nextUrl.search;
   const headers = new Headers();
   headers.set('authorization', `Bearer ${token}`);
-  for (const h of ['content-type', 'x-justification', 'x-reason-code', 'idempotency-key', 'accept', 'x-admin-country', 'x-background']) {
+  for (const h of ['content-type', 'x-justification', 'x-reason-code', 'idempotency-key', 'accept', 'x-admin-country', 'x-background', 'if-none-match']) {
     const v = req.headers.get(h);
     if (v) headers.set(h, v);
   }
@@ -102,7 +116,7 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
   const timer = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, UPSTREAM_TIMEOUT_MS);
+  }, isSafeMethod(req.method) && !isSlowRead(path) ? UPSTREAM_READ_TIMEOUT_MS : UPSTREAM_TIMEOUT_MS);
   const capState = { tooLarge: false };
   let upstream: Response;
   try {
@@ -154,6 +168,15 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
   });
   const disposition = upstream.headers.get('content-disposition');
   if (disposition) passthrough.set('content-disposition', disposition);
+  // The API answers some reads with an ETag (GET /admin/counts → 304 when
+  // unchanged). Pass it on so the browser revalidates instead of
+  // downloading the same body every minute; `no-cache` + `private` keeps a
+  // shared cache from ever reusing it without asking the API.
+  const etag = upstream.headers.get('etag');
+  if (etag) {
+    passthrough.set('etag', etag);
+    passthrough.set('cache-control', 'private, no-cache');
+  }
   const res = new NextResponse(upstream.body, {
     status: upstream.status,
     headers: passthrough,

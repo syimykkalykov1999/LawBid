@@ -139,7 +139,7 @@ export const CLIENT_TUNING_DEFS = {
   'client.guest_browse_app_enabled': {
     default: false,
     description:
-      'Show "Browse without signing in" and open the feed to people with no account in the iOS and Android apps. Off by default (like Instagram, WhatsApp, Telegram). Works only while `guest.browsing_enabled` (the master switch) is on.',
+      'Show "Browse without signing in" and open the feed to people with no account in the iOS and Android apps. Off by default. Works only while `guest.browsing_enabled` (the master switch) is on.',
   },
   'client.guest_browse_web_enabled': {
     default: true,

@@ -31,6 +31,10 @@ import { OpsStateService } from '../ops-state.service';
 import { HttpStatsService } from '../http-stats.service';
 import { RealtimeStatsService } from '../realtime-stats.service';
 import { SLO_REDIS_PREFIX } from '../slo-metrics.service';
+import {
+  TURN_ADDR_KEY,
+  parseOwnTurnMode,
+} from '../../../modules/calls/turn-on-demand';
 import { bullOptions } from '../../../redis/redis-connection';
 import { pipeline } from '../../../redis/redis-cluster-safe';
 import { CircuitBreaker } from '../../resilience/resilience';
@@ -674,6 +678,27 @@ export class StatusProbesService implements OnModuleDestroy {
     return keyId && token ? { keyId, token } : null;
   }
 
+  /** Owner 2026-11-02: the on-demand coturn box's live address (kept in Redis
+   * by calls/turn-on-demand.ts) when there is no fixed one. */
+  private async onDemandTurn(): Promise<{
+    exists: boolean;
+    mode: 'auto' | 'on' | 'off';
+    address: string | null;
+  }> {
+    const exists = Boolean(
+      this.config.get<string>('TURN_ONDEMAND_INSTANCE_ID')?.trim(),
+    );
+    if (!exists) return { exists, mode: 'auto', address: null };
+    const mode = parseOwnTurnMode(
+      await this.settings.string('calls.own_turn.mode').catch(() => 'auto'),
+    );
+    const address =
+      mode === 'off'
+        ? null
+        : await this.redis.get(TURN_ADDR_KEY).catch(() => null);
+    return { exists, mode, address };
+  }
+
   private async ownTurnKeys(): Promise<{
     urls: string[];
     secret: string;
@@ -683,6 +708,10 @@ export class StatusProbesService implements OnModuleDestroy {
       .split(',')
       .map((u) => u.trim())
       .filter(Boolean);
+    if (urls.length === 0) {
+      const live = (await this.onDemandTurn()).address;
+      if (live) urls.push(live);
+    }
     const secret = f.secret ?? this.config.get<string>('TURN_SECRET') ?? '';
     return urls.length > 0 && secret ? { urls, secret } : null;
   }
@@ -922,14 +951,33 @@ export class StatusProbesService implements OnModuleDestroy {
 
   private async turn(): Promise<Omit<ProbeResult, 'key'>> {
     const f = (await this.secrets.get('turn'))?.fields ?? {};
-    const urls = f.urls ?? this.config.get<string>('TURN_URLS') ?? '';
-    const target = firstTurnTarget(urls);
-    if (!target) return { status: 'grey', detail: { configured: false } };
+    const fixed = f.urls ?? this.config.get<string>('TURN_URLS') ?? '';
+    // No fixed address: the on-demand box's CURRENT address (new at every
+    // start), so the alert never points at an old one.
+    const od = fixed.trim() ? null : await this.onDemandTurn();
+    const target = firstTurnTarget(fixed.trim() ? fixed : (od?.address ?? ''));
+    if (!target) {
+      return {
+        status: od?.exists && od.mode === 'on' ? 'yellow' : 'grey',
+        detail: {
+          configured: Boolean(od?.exists),
+          onDemand: Boolean(od?.exists),
+          mode: od?.mode,
+          // exists + no address: stopped on purpose (auto / off) or booting (on)
+          stopped: Boolean(od?.exists),
+        },
+      };
+    }
     try {
       const ms = await tcpProbe(target.host, target.port);
       return {
         status: ms > 1000 ? 'yellow' : 'green',
-        detail: { configured: true, host: target.host, connectMs: ms },
+        detail: {
+          configured: true,
+          host: target.host,
+          connectMs: ms,
+          onDemand: Boolean(od?.exists),
+        },
       };
     } catch (e) {
       return {
