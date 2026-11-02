@@ -161,9 +161,34 @@ void main() {
     );
     // The server is back; nobody touches the app, the timer sends it.
     chat.refuse = null;
-    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    await Future<void>.delayed(const Duration(milliseconds: 2000));
     expect(chat.sends, hasLength(1));
     expect(c.read(chatThreadProvider('c1')).outbox, isEmpty);
+  });
+
+  test("a busy server's Retry-After is waited out, not hammered", () async {
+    final chat = _FakeChat()
+      ..refuse = const ApiException(
+        code: 'SERVER_BUSY',
+        message: 'busy',
+        statusCode: 503,
+        retryAfter: Duration(seconds: 4),
+      );
+    final c = _container(chat);
+    final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
+    addTearDown(sub.close);
+    await _settle();
+    await c.read(chatThreadProvider('c1').notifier).send('Hi');
+    await _settle();
+    // The server is back at once, but it asked for 4 s: the own 1-2 s wait
+    // must not send before that.
+    chat.refuse = null;
+    await Future<void>.delayed(const Duration(milliseconds: 2500));
+    expect(chat.sends, isEmpty);
+    expect(
+      c.read(chatThreadProvider('c1')).outbox.single.delivery,
+      DeliveryState.sending,
+    );
   });
 
   test('401 and 408 are waited out, not shown as "not sent"', () async {

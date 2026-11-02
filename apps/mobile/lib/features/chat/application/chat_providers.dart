@@ -481,10 +481,14 @@ class OutboxSender with WidgetsBindingObserver {
     return ClientTuning.outboxBackoff(failures);
   }
 
-  void _scheduleRetry() {
+  /// [serverWait]: the longest `Retry-After` of this pass (429 / 503).
+  void _scheduleRetry([Duration? serverWait]) {
     _failures++;
     _retry?.cancel();
-    _retry = Timer(backoff(_failures), () => unawaited(drain()));
+    _retry = Timer(
+      ClientTuning.outboxDelay(_failures, retryAfter: serverWait),
+      () => unawaited(drain()),
+    );
   }
 
   /// Whether [e] is worth repeating as it is: no connection, a server that
@@ -544,6 +548,7 @@ class OutboxSender with WidgetsBindingObserver {
     // (nothing behind it goes first) but does not hold the other chats.
     final waiting = <String>{};
     var temporaryFailure = false;
+    Duration? serverWait;
     for (final row in await db.pending(owner)) {
       if (row.failedCode != null) continue;
       if (waiting.contains(row.conversationId)) continue;
@@ -564,6 +569,10 @@ class OutboxSender with WidgetsBindingObserver {
           await db.attempted(row.clientMessageId);
           waiting.add(row.conversationId);
           temporaryFailure = true;
+          final asked = e.retryAfter;
+          if (asked != null && (serverWait == null || asked > serverWait)) {
+            serverWait = asked;
+          }
           continue;
         }
         if (e.code == ApiErrorCodes.subscriptionRequired) {
@@ -579,7 +588,7 @@ class OutboxSender with WidgetsBindingObserver {
       }
     }
     if (temporaryFailure) {
-      _scheduleRetry();
+      _scheduleRetry(serverWait);
     } else {
       _failures = 0;
       _retry?.cancel();

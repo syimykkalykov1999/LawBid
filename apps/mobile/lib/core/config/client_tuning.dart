@@ -1,3 +1,5 @@
+import 'dart:math';
+
 /// Scale audit 2026-10-23: the knobs of the phone's own traffic (repeats of
 /// a failed request, polling, usage
 /// events). A store release takes days; if a build misbehaves under load
@@ -101,6 +103,27 @@ abstract final class ClientTuning {
     final s = 1 << (failures - 1).clamp(0, 9);
     return Duration(seconds: s > _outboxRetryMaxS ? _outboxRetryMaxS : s);
   }
+
+  /// The wait before retry number [failures] of the outbox / upload queue:
+  /// [outboxBackoff] plus up to 30% jitter (a fleet that failed together
+  /// does not come back together), and never sooner than the server's
+  /// `Retry-After` ([retryAfter], capped at [outboxRetryMaxS]).
+  static Duration outboxDelay(
+    int failures, {
+    Duration? retryAfter,
+    Random? random,
+  }) {
+    final base = outboxBackoff(failures);
+    final jitter =
+        (base.inMilliseconds * 0.3 * (random ?? _rng).nextDouble()).round();
+    final own = base + Duration(milliseconds: jitter);
+    if (retryAfter == null) return own;
+    final cap = Duration(seconds: _outboxRetryMaxS);
+    final asked = retryAfter > cap ? cap : retryAfter;
+    return asked > own ? asked : own;
+  }
+
+  static final _rng = Random();
 
   /// Called with the `app_config` of every bootstrap answer.
   static void apply(Map<String, String> config) {

@@ -630,6 +630,7 @@ class ApiException implements Exception {
     this.requestId,
     this.statusCode,
     this.guest = false,
+    this.retryAfter,
   });
 
   /// Always succeeds — falls back to [networkErrorCode] for anything that
@@ -637,6 +638,8 @@ class ApiException implements Exception {
   /// is the one contract every interceptor/repository relies on.
   factory ApiException.fromDioException(DioException e) {
     final guest = e.requestOptions.extra[RequestFlags.guest] == true;
+    final retryAfter =
+        parseRetryAfter(e.response?.headers.value('retry-after'));
     final data = e.response?.data;
     if (data is Map<String, dynamic>) {
       final error = data['error'];
@@ -653,6 +656,7 @@ class ApiException implements Exception {
             requestId: error['requestId'] as String?,
             statusCode: e.response?.statusCode,
             guest: guest,
+            retryAfter: retryAfter,
           );
         }
       }
@@ -667,7 +671,15 @@ class ApiException implements Exception {
       message: e.message ?? 'Network error',
       statusCode: e.response?.statusCode,
       guest: guest,
+      retryAfter: retryAfter,
     );
+  }
+
+  /// A `Retry-After` in seconds (an HTTP date is ignored); null when absent
+  /// or unparseable.
+  static Duration? parseRetryAfter(String? raw) {
+    final secs = raw == null ? null : int.tryParse(raw.trim());
+    return secs == null || secs < 0 ? null : Duration(seconds: secs);
   }
 
   /// Synthetic code for a failure that never reached the backend at all
@@ -687,6 +699,9 @@ class ApiException implements Exception {
   final Map<String, dynamic>? details;
   final String? requestId;
   final int? statusCode;
+
+  /// What the server's `Retry-After` asked for (429 / 503 busy), if it did.
+  final Duration? retryAfter;
 
   /// Owner 2026-10-22 (guest browsing): the request went out with no bearer
   /// token. A 401 on it means «sign in to see this», a 429 «try later».
