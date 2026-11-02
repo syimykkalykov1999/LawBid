@@ -12,7 +12,8 @@ t "all present" 0 "ok" A=1 B=x -- A B
 t "empty is missing" 1 "B is empty" A=1 B= -- A B
 t "whitespace only is missing" 1 "B is empty" A=1 "B=  " -- A B
 t "unset is missing" 1 "A is empty" -- A
-t "lists every missing name" 1 "A is empty.*B is empty" A= B= -- A B
+t "lists every missing name (first)" 1 "A is empty" A= B= -- A B
+t "lists every missing name (second)" 1 "B is empty" A= B= -- A B
 t "count ignores optional names" 0 "ok   1 required" A=1 -- A ?X ?Y
 t "optional only warns" 0 "warning::C is empty" A=1 -- A ?C
 t "bad name rejected" 2 "bad name" -- 'A;rm'
