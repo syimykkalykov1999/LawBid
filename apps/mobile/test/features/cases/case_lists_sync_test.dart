@@ -163,6 +163,25 @@ void main() {
     );
   });
 
+  test('«Сохранённые» (a list without deltas) opens on the phone copy',
+      () async {
+    final repo = _SyncFake([])
+      ..savedPhoneCopy = [
+        SavedCase(
+          caseId: 'old',
+          savedAt: DateTime(2026, 10, 4),
+          available: true,
+        ),
+      ];
+    final c = make(repo);
+    final sub = c.listen(savedCasesProvider, (_, __) {});
+    addTearDown(sub.close);
+    final first = await c.read(savedCasesProvider.future);
+    expect(first.items.map((x) => x.caseId), ['old']);
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(c.read(savedCasesProvider).value!.items, isEmpty);
+  });
+
   test('a search or filter on a Mine tab is read live, never from the copy',
       () async {
     final repo = _SyncFake([_case('a')])..phoneCopy = [_case('old')];

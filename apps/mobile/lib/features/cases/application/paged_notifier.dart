@@ -38,11 +38,12 @@ abstract class PagedNotifier<T> extends AsyncNotifier<PaginatedList<T>> {
   /// on the phone by the last visit, or null (the default: nothing saved).
   /// When it exists the list opens on it at once and the real first page is
   /// read in the background and swapped in ([build]); a failed read keeps
-  /// what is shown. Must not throw: a broken copy is just "no copy".
+  /// what is shown. A broken copy is just "no copy": any error is swallowed.
   Future<CursorPage<T>?> cachedFirstPage() async => null;
 
   bool _built = false;
   bool _rebuilding = false;
+  int _builds = 0;
   bool _copyIsFirstPage = false;
 
   /// The copy on screen is the phone's HTTP copy of the first page
@@ -57,13 +58,22 @@ abstract class PagedNotifier<T> extends AsyncNotifier<PaginatedList<T>> {
   /// build of this list: a rebuild (`invalidate` after an edit, a retry
   /// after an error) must not put the old copy back over what the user just
   /// changed. [read] calls the repository only (resolve providers before).
+  ///
+  /// [when] false (a search or a filter is on) means no copy. A miss throws
+  /// (`kNoPhoneCopy`); [_savedFirstPage] treats any error as "no copy".
   @protected
   Future<CursorPage<T>?> phoneCopy(
-    Future<CursorPage<T>> Function() read,
-  ) async {
-    if (_rebuilding) return null;
+    Future<CursorPage<T>> Function() read, {
+    bool when = true,
+  }) async {
+    if (_rebuilding || !when) return null;
+    final build = _builds;
     final page = await readFromPhoneOnly(read);
-    _copyIsFirstPage = page != null;
+    // Only a page that is really shown (not an empty one, not one that came
+    // after a newer build started) makes the cold start read the first page.
+    if (build == _builds) {
+      _copyIsFirstPage = page != null && page.items.isNotEmpty;
+    }
     return page;
   }
 
@@ -71,6 +81,7 @@ abstract class PagedNotifier<T> extends AsyncNotifier<PaginatedList<T>> {
   Future<PaginatedList<T>> build() async {
     _rebuilding = _built;
     _built = true;
+    _builds++;
     _copyIsFirstPage = false;
     _extended = false;
     _cacheFor();

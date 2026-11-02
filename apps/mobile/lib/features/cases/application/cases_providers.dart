@@ -573,9 +573,8 @@ class MineCasesNotifier extends SyncedListNotifier<CaseSummary>
 
   @override
   Future<CursorPage<CaseSummary>?> cachedFirstPage() {
-    if (!key.search.isEmpty) return Future.value();
     final repo = ref.read(casesRepositoryProvider);
-    return phoneCopy(() => repo.myCases(key.filter));
+    return phoneCopy(() => repo.myCases(key.filter), when: key.search.isEmpty);
   }
 
   @override
@@ -648,9 +647,8 @@ class MineBidsNotifier extends SyncedListNotifier<MyBid>
 
   @override
   Future<CursorPage<MyBid>?> cachedFirstPage() {
-    if (!key.search.isEmpty) return Future.value();
     final repo = ref.read(casesRepositoryProvider);
-    return phoneCopy(() => _page(repo, null));
+    return phoneCopy(() => _page(repo, null), when: key.search.isEmpty);
   }
 
   @override
@@ -713,9 +711,8 @@ class MineWorkNotifier extends SyncedListNotifier<WorkItem>
 
   @override
   Future<CursorPage<WorkItem>?> cachedFirstPage() {
-    if (!key.search.isEmpty) return Future.value();
     final repo = ref.read(casesRepositoryProvider);
-    return phoneCopy(() => repo.myWork(key.filter));
+    return phoneCopy(() => repo.myWork(key.filter), when: key.search.isEmpty);
   }
 
   @override
@@ -747,9 +744,8 @@ class MineSavedNotifier extends PagedNotifier<SavedCase> {
 
   @override
   Future<CursorPage<SavedCase>?> cachedFirstPage() {
-    if (!search.isEmpty) return Future.value();
     final repo = ref.read(casesRepositoryProvider);
-    return phoneCopy(repo.savedCases);
+    return phoneCopy(repo.savedCases, when: search.isEmpty);
   }
 
   @override

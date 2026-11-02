@@ -25,6 +25,9 @@ class FakeCasesRepository implements CasesRepository {
   /// The same for «Мои работы» (null = no copy).
   List<WorkItem>? workPhoneCopy;
 
+  /// The same for the saved cases (null = no copy).
+  List<SavedCase>? savedPhoneCopy;
+
   CursorPage<T> _empty<T>() => CursorPage<T>(items: const []);
 
   @override
@@ -109,7 +112,11 @@ class FakeCasesRepository implements CasesRepository {
     String? cursor,
     MineSearch search = const MineSearch(),
   }) async {
-    if (readingFromPhoneOnly) throw StateError(kNoPhoneCopy);
+    if (readingFromPhoneOnly) {
+      final copy = savedPhoneCopy;
+      if (copy == null) throw StateError(kNoPhoneCopy);
+      return CursorPage(items: copy);
+    }
     return _empty();
   }
 

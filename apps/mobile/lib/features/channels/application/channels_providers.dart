@@ -101,14 +101,12 @@ class ChannelListNotifier extends SyncedListNotifier<Channel> {
   // of the list; «discover» and a search are server-ranked and read live.
   @override
   Future<CursorPage<Channel>?> cachedFirstPage() {
-    if (key.scope == ChannelScope.discover || key.query.trim().isNotEmpty) {
-      return Future.value();
-    }
     final repo = ref.read(channelsRepositoryProvider);
     return phoneCopy(
       () async => CursorPage(
         items: await repo.list(key.scope, archived: key.archived),
       ),
+      when: key.scope != ChannelScope.discover && key.query.trim().isEmpty,
     );
   }
 
