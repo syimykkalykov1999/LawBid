@@ -26,22 +26,28 @@ typedef _Case = (
   List<Override> extra,
 );
 
-final _demoMe = DemoMe(
-  enabled: true,
-  canCreate: true,
-  maxAccounts: 1000000,
-  ttlDays: 9999,
-  accounts: [
-    for (final role in DemoRole.values)
-      DemoAccount(
-        id: role.wire,
-        role: role,
-        displayName: longTitle,
-        createdAt: DateTime(2026, 10),
-        lastSeenAt: DateTime(2026, 11),
-        expiresAt: DateTime(2026, 12),
-      ),
-  ],
+DemoMe _demoMe({bool canCreate = true, bool noAccounts = false}) => DemoMe(
+      enabled: true,
+      canCreate: canCreate,
+      maxAccounts: 1000000,
+      ttlDays: 9999,
+      accounts: [
+        if (!noAccounts)
+          for (final role in DemoRole.values)
+            DemoAccount(
+              id: role.wire,
+              role: role,
+              displayName: longTitle,
+              createdAt: DateTime(2026, 10),
+              lastSeenAt:
+                  role == DemoRole.assistant ? null : DateTime(2026, 11),
+              expiresAt: DateTime(2026, 12),
+            ),
+      ],
+    );
+
+const _demoHome = Scaffold(
+  body: SingleChildScrollView(child: DemoSection()),
 );
 
 /// The footer in one of its states, with the app's real pagination keys.
@@ -66,27 +72,44 @@ Widget _footer(AppPaginationStatus status) => Scaffold(
 void main() {
   setUpAll(initializeDateFormatting);
 
-  final demo = [demoMeProvider.overrideWith((_) async => _demoMe)];
+  List<Override> demo({bool canCreate = true, bool noAccounts = false}) => [
+        demoMeProvider.overrideWith(
+          (_) async => _demoMe(canCreate: canCreate, noAccounts: noAccounts),
+        ),
+      ];
 
   final cases = <String, _Case>{
     'demo section': (
-      () => const Scaffold(body: SingleChildScrollView(child: DemoSection())),
-      overflowShows(find.byKey(const ValueKey('demo-enter-client'))),
-      demo,
+      () => _demoHome,
+      overflowShows(find.byKey(const ValueKey('demo-section'))),
+      demo(),
+    ),
+    'demo section (limit reached)': (
+      () => _demoHome,
+      overflowShows(find.byKey(const ValueKey('demo-account-client'))),
+      demo(canCreate: false),
+    ),
+    'demo section (no accounts)': (
+      () => _demoHome,
+      overflowShows(find.byKey(const ValueKey('demo-create'))),
+      demo(noAccounts: true),
     ),
     'demo role picker': (
-      () => const Scaffold(
-            body: SingleChildScrollView(child: DemoSection()),
-          ),
+      () => _demoHome,
       (tester) async {
-        await tester.pump(const Duration(seconds: 2));
+        await overflowShows(find.byKey(const ValueKey('demo-create')))(tester);
         await tester.ensureVisible(find.byKey(const ValueKey('demo-create')));
         await tester.tap(find.byKey(const ValueKey('demo-create')));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 600));
-        expect(find.byKey(const ValueKey('demo-role-client')), findsOneWidget);
+        for (final role in DemoRole.values) {
+          expect(
+            find.byKey(ValueKey('demo-role-${role.wire}')),
+            findsOneWidget,
+          );
+        }
       },
-      demo,
+      demo(),
     ),
     'section archive row': (
       () => const Scaffold(
@@ -97,28 +120,29 @@ void main() {
     ),
     'pagination footer (loading)': (
       () => _footer(AppPaginationStatus.loading),
-      overflowShows(find.byType(AppPaginationFooter)),
+      overflowShows(find.byKey(const ValueKey(AppPaginationStatus.loading))),
       const [],
     ),
     'pagination footer (error)': (
       () => _footer(AppPaginationStatus.error),
-      overflowShows(find.byType(AppButton)),
+      overflowShows(find.byKey(const ValueKey(AppPaginationStatus.error))),
       const [],
     ),
     'pagination footer (end)': (
       () => _footer(AppPaginationStatus.end),
-      overflowShows(find.byType(AppPaginationFooter)),
+      overflowShows(find.byKey(const ValueKey(AppPaginationStatus.end))),
       const [],
     ),
   };
 
-  // Every language at both scales, then the four themes in the longest text.
+  // Every language at both scales, then the other themes in the longest text
+  // (day is the language loop's longest at x1.3).
   final variants = <(String, Translator, TextDirection, double, AppThemeId)>[
     for (final scale in overflowScales)
       for (final MapEntry(key: name, value: (t, dir))
           in overflowLocales().entries)
         ('$name, x$scale', t, dir, scale, AppThemeId.day),
-    for (final themeId in overflowThemes)
+    for (final themeId in overflowThemes.where((x) => x != AppThemeId.day))
       (
         'themes (${themeId.name}, longest, x1.3)',
         LongestTranslator(),
