@@ -22,6 +22,7 @@ import type { Namespace, Socket } from 'socket.io';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { RealtimeStatsService } from '../../common/ops/realtime-stats.service';
+import { RuntimeStatsService } from '../../common/ops/runtime-stats.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import {
@@ -217,6 +218,7 @@ export class RealtimeGateway
     @Optional() private readonly stats?: RealtimeStatsService,
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() private readonly eventLog?: RealtimeEventLog,
+    @Optional() private readonly runtime?: RuntimeStatsService,
   ) {
     this.logger.setContext(RealtimeGateway.name);
   }
@@ -341,6 +343,8 @@ export class RealtimeGateway
 
   afterInit(nsp: Namespace): void {
     this.nsp = nsp;
+    // One number a minute for the ECS socket-count scaling policy.
+    this.runtime?.registerSocketGauge(() => this.nsp?.sockets.size ?? 0);
     void this.loadTiming();
     this.timingTimer = setInterval(() => void this.loadTiming(), 30_000);
     this.timingTimer.unref();

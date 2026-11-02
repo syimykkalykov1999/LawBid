@@ -1134,13 +1134,14 @@ export const OWNER_STORAGE_SETTINGS = {
   'images.avif_quality': 60,
   'images.avif_effort': 2,
   /** Owner 2026-10-26: hash partitioning of the big chat / notification
-   * tables is OPT-IN (at small sizes the plain tables are faster). Per
-   * table: 'off' (default) | 'on' (the online runner converts now) |
-   * 'auto' (converts when the table reaches `partition.auto_rows`).
+   * tables starts by itself only at `partition.auto_rows` (50M rows; at small
+   * sizes the plain tables are faster, so below it nothing happens). Per
+   * table: 'auto' (default: converts at `partition.auto_rows`) | 'off' |
+   * 'on' (the online runner converts now). Needs PARTITION_DATABASE_URL.
    * docs/architecture/TABLE_PARTITIONING_READY.md */
-  'partition.messages_mode': 'off',
-  'partition.chat_group_messages_mode': 'off',
-  'partition.notifications_mode': 'off',
+  'partition.messages_mode': 'auto',
+  'partition.chat_group_messages_mode': 'auto',
+  'partition.notifications_mode': 'auto',
   'partition.auto_rows': 50_000_000,
   'images.webp_quality': 88,
   'images.jpeg_quality': 90,
@@ -1185,6 +1186,20 @@ export const OWNER_STORAGE_SETTINGS = {
   'db.replica_reads': 'auto',
   // The ceiling of «auto»: max replica lag in ms (also per call via readDb).
   'db.replica_max_lag_ms': 5000,
+  // Owner 2026-11-02: db.replica_provision: auto = the read replica is created
+  // by itself after 3 h of primary CPU >= 75 % (once a day at most, only when
+  // Terraform gave the API the right to: db_replica_toggle); off = only the
+  // admin button creates it. Never deletes by itself.
+  'db.replica_provision': 'auto',
+  // Owner 2026-11-02: the second database copy (Multi-AZ) and the Redis
+  // standby node come and go with the load. ha.mode: off = hands off, on =
+  // keep the copies, auto = add them after 3 h with at least
+  // ha.provision_online_users people online (open sockets, hourly average)
+  // and remove them after ha.release_days days all under half of it (never
+  // on a missing metric; the opposite direction waits 24 h).
+  'ha.mode': 'auto',
+  'ha.provision_online_users': 200,
+  'ha.release_days': 7,
   'db.health_table_size_gb': 20,
   'db.health_dead_ratio_percent': 20,
   'storage.growth_alert_percent': 20,
@@ -1631,12 +1646,16 @@ export const OWNER_COMPLIANCE_SETTINGS = {
  * metrics for ~15 journey routes, written as CloudWatch EMF lines
  * (namespace LawBid/Routes, dimension Route). 3 metrics x 15 routes = 45
  * custom metrics = about $13.5 a month once every route has data.
- * `off` — nothing written; `on` — every minute for every route; `auto`
- * (default) — a route writes a minute only while it has 5xx answers or a
- * slow 95th percentile (> 1 s), so a healthy system costs nothing and a
- * sick route is visible at once. RED dashboard in infra/modules/monitoring. */
+ * `off` (default since 2026-11-02) — nothing written; `on` — every minute for
+ * every route; `auto` — a route writes a minute only while it has 5xx answers
+ * or a slow 95th percentile (> 1 s). Why off: no alarm and no dashboard in
+ * infra/ reads LawBid/Routes, and Cost Explorer shows custom metrics
+ * (MetricMonitorUsage) as the biggest CloudWatch line; in `auto` every route
+ * that had one bad minute in the month is billed for all 3 metrics. The
+ * journey SLI counters (login, chat send, feed) do not depend on this switch.
+ * Turn it back on in admin → Настройки when you want to look at one route. */
 export const OWNER_OBSERVABILITY_SETTINGS = {
-  'ops.route_metrics.mode': 'auto',
+  'ops.route_metrics.mode': 'off',
 };
 
 /**
