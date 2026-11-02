@@ -59,4 +59,40 @@ describe('runtime stats', () => {
     expect(sample!.EventLoopMaxMs).toBeGreaterThan(50);
     expect(sample!.HeapLimitMb).toBeGreaterThan(100);
   });
+
+  it('adds OpenSockets only when the gateway registered a gauge', () => {
+    const base = {
+      EventLoopP50Ms: 1,
+      EventLoopP99Ms: 2,
+      EventLoopMaxMs: 3,
+      HeapUsedMb: 4,
+      HeapLimitMb: 5,
+      RssMb: 6,
+      ThreadPoolLagMs: 0,
+    };
+    const names = (line: string) =>
+      (
+        JSON.parse(line) as {
+          _aws: { CloudWatchMetrics: { Metrics: { Name: string }[] }[] };
+        }
+      )._aws.CloudWatchMetrics[0].Metrics.map((m) => m.Name);
+    expect(names(emfLine('worker', base))).not.toContain('OpenSockets');
+    const withSockets = emfLine('api', { ...base, OpenSockets: 1234 });
+    expect(names(withSockets)).toContain('OpenSockets');
+    expect(
+      (JSON.parse(withSockets) as { OpenSockets: number }).OpenSockets,
+    ).toBe(1234);
+  });
+
+  it('samples the registered socket gauge', async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+    const s = new RuntimeStatsService();
+    s.onApplicationBootstrap();
+    s.registerSocketGauge(() => 42);
+    const sample = s.sample();
+    s.onApplicationShutdown();
+    process.env.NODE_ENV = prev;
+    expect(sample?.OpenSockets).toBe(42);
+  });
 });

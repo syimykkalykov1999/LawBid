@@ -165,6 +165,11 @@ variable "api_requests_per_task" {
   type    = number
   default = 200
 }
+variable "api_sockets_per_task" {
+  type        = number
+  default     = 2500
+  description = "Open WebSocket connections one api task may hold on average before the service adds a task (LawBid/Runtime OpenSockets, emitted by runtime-stats.service.ts). 0 = no socket policy (CPU and request count only). Costs nothing until the average passes it."
+}
 variable "metrics_namespace" {
   type        = string
   default     = ""
@@ -969,6 +974,36 @@ resource "aws_appautoscaling_policy" "api_requests" {
     predefined_metric_specification {
       predefined_metric_type = "ALBRequestCountPerTarget"
       resource_label         = var.alb_resource_label
+    }
+  }
+}
+
+# Scale audit 2026-11-02: idle sockets cost memory and timers but no CPU and no
+# ALB requests, so the two policies above never see them (SCALE_LIMITS_AUDIT
+# row "Sockets"). Each api task emits OpenSockets once a minute (EMF, no
+# agent); the AVERAGE over the running tasks is the sockets per task. Same
+# rule as the others: out fast (60 s), in slowly (600 s, a scale-in drains
+# the sockets of the stopped task). While the app is small the average stays
+# far under the target and this policy never adds a task.
+resource "aws_appautoscaling_policy" "api_sockets" {
+  count              = var.api_sockets_per_task > 0 && var.metrics_namespace != "" ? 1 : 0
+  name               = "${var.name}-api-sockets"
+  policy_type        = "TargetTrackingScaling"
+  service_namespace  = aws_appautoscaling_target.svc["api"].service_namespace
+  scalable_dimension = aws_appautoscaling_target.svc["api"].scalable_dimension
+  resource_id        = aws_appautoscaling_target.svc["api"].resource_id
+  target_tracking_scaling_policy_configuration {
+    target_value       = var.api_sockets_per_task
+    scale_in_cooldown  = 600
+    scale_out_cooldown = 60
+    customized_metric_specification {
+      metric_name = "OpenSockets"
+      namespace   = "LawBid/Runtime"
+      statistic   = "Average"
+      dimensions {
+        name  = "Service"
+        value = "api"
+      }
     }
   }
 }
