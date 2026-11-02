@@ -107,7 +107,12 @@ jobs:
         working-directory: apps/mobile
         env:
           DART_DEFINES_JSON: ${{ secrets.MOBILE_DART_DEFINES_JSON }}
-        run: printf '%s' "$DART_DEFINES_JSON" > "config/${FLAVOR}.json"
+        run: |
+          printf '%s' "$DART_DEFINES_JSON" > "config/${FLAVOR}.json"
+          # Fail now (seconds), not after the build or in a published app.
+          # Stripe / Sentry / App Store id may be empty until the owner fills
+          # them: a warning, not a stop.
+          bash ../../scripts/ci/check-dart-defines.sh "config/${FLAVOR}.json" --require API_BASE_URL DEEP_LINK_HOST --warn STRIPE_PUBLISHABLE_KEY SENTRY_DSN APP_STORE_ID
       - name: Keystore
         working-directory: apps/mobile
         env:
@@ -125,6 +130,25 @@ jobs:
           fi
       - run: flutter pub get && dart run build_runner build --delete-conflicting-outputs
         working-directory: apps/mobile
+      - name: Firebase config (prod flavor only)
+        if: ${{ (inputs.flavor || 'prod') == 'prod' }}
+        working-directory: apps/mobile
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+          REQUIRE_FIREBASE: ${{ (startsWith(github.ref, 'refs/tags/') || inputs.upload == true) && 'true' || 'false' }}
+        run: |
+          # google-services.json is git-ignored and the Gradle plugin only WARNs
+          # when it is missing: a prod AAB would ship without push / App Check.
+          if [ -n "$GOOGLE_SERVICES_JSON_BASE64" ]; then
+            mkdir -p android/app/src/prod
+            echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > android/app/src/prod/google-services.json
+            jq -e .project_info android/app/src/prod/google-services.json >/dev/null || { echo "::error::GOOGLE_SERVICES_JSON_BASE64 is not a google-services.json"; exit 1; }
+          elif [ "$REQUIRE_FIREBASE" = "true" ]; then
+            echo "::error::GOOGLE_SERVICES_JSON_BASE64 is empty on a tag / upload build: the app would ship without push and App Check"
+            exit 1
+          else
+            echo "::warning::GOOGLE_SERVICES_JSON_BASE64 not set: push is off in this build (never uploaded)"
+          fi
       - name: fastlane build
         working-directory: apps/mobile/android
         env:
@@ -167,7 +191,12 @@ jobs:
         working-directory: apps/mobile
         env:
           DART_DEFINES_JSON: ${{ secrets.MOBILE_DART_DEFINES_JSON }}
-        run: printf '%s' "$DART_DEFINES_JSON" > "config/${FLAVOR}.json"
+        run: |
+          printf '%s' "$DART_DEFINES_JSON" > "config/${FLAVOR}.json"
+          # Fail now (seconds), not after the build or in a published app.
+          # Stripe / Sentry / App Store id may be empty until the owner fills
+          # them: a warning, not a stop.
+          bash ../../scripts/ci/check-dart-defines.sh "config/${FLAVOR}.json" --require API_BASE_URL DEEP_LINK_HOST --warn STRIPE_PUBLISHABLE_KEY SENTRY_DSN APP_STORE_ID
       - name: Signing (certificate + profile from secrets)
         env:
           IOS_CERT_P12_BASE64: ${{ secrets.IOS_CERT_P12_BASE64 }}
@@ -195,6 +224,22 @@ jobs:
       - run: flutter pub get && dart run build_runner build --delete-conflicting-outputs
         if: env.SKIP_IOS != '1'
         working-directory: apps/mobile
+      - name: Firebase config (prod flavor only)
+        if: ${{ (inputs.flavor || 'prod') == 'prod' }}
+        working-directory: apps/mobile
+        env:
+          GOOGLE_SERVICE_INFO_PLIST_BASE64: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_BASE64 }}
+          REQUIRE_FIREBASE: ${{ (startsWith(github.ref, 'refs/tags/') || inputs.upload == true) && 'true' || 'false' }}
+        run: |
+          if [ -n "$GOOGLE_SERVICE_INFO_PLIST_BASE64" ]; then
+            echo "$GOOGLE_SERVICE_INFO_PLIST_BASE64" | base64 -d > ios/Runner/GoogleService-Info.plist
+            grep -q "GOOGLE_APP_ID" ios/Runner/GoogleService-Info.plist || { echo "::error::GOOGLE_SERVICE_INFO_PLIST_BASE64 is not a GoogleService-Info.plist"; exit 1; }
+          elif [ "$REQUIRE_FIREBASE" = "true" ]; then
+            echo "::error::GOOGLE_SERVICE_INFO_PLIST_BASE64 is empty on a tag / upload build: the app would ship without push and App Check"
+            exit 1
+          else
+            echo "::warning::GOOGLE_SERVICE_INFO_PLIST_BASE64 not set: push is off in this build (never uploaded)"
+          fi
       - name: fastlane build
         if: env.SKIP_IOS != '1'
         working-directory: apps/mobile/ios
