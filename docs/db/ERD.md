@@ -3824,6 +3824,7 @@ erDiagram
     Int position
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   users }o--o| files : "avatar_file_id"
   users }o--|| countries : "country_code"
