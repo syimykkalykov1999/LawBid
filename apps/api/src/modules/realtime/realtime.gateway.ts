@@ -561,22 +561,20 @@ export class RealtimeGateway
       Number(process.env.TRUST_PROXY_HOPS ?? 0) || 0,
     );
     const ip = rawIp && isIP(rawIp) ? rawIp : undefined;
-    // Both settings are read together (one round trip, not two).
-    const [perIp, perUser] = await Promise.all([
-      this.connectLimit(
-        'realtime.max_connects_per_ip_per_minute',
-        DEFAULT_CONNECTS_PER_IP_PER_MINUTE,
-      ),
-      this.connectLimit(
-        'realtime.max_connects_per_user_per_minute',
-        DEFAULT_CONNECTS_PER_USER_PER_MINUTE,
-      ),
-    ]);
+    const perIp = await this.connectLimit(
+      'realtime.max_connects_per_ip_per_minute',
+      DEFAULT_CONNECTS_PER_IP_PER_MINUTE,
+    );
     if (sub === undefined) {
       return ip
         ? this.overConnectLimit(`ip:${ip}`, perIp, 'ws_ip_limited')
         : false;
     }
+    const perUser = await this.connectLimit(
+      'realtime.max_connects_per_user_per_minute',
+      DEFAULT_CONNECTS_PER_USER_PER_MINUTE,
+    );
+    // perIp 0 (off) stays off: 0 x factor = 0.
     const [byUser, byIp] = await Promise.all([
       this.overConnectLimit(`u:${sub}`, perUser, 'ws_user_limited'),
       ip
