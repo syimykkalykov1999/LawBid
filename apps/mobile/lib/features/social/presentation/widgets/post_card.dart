@@ -2522,6 +2522,7 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
                         fileId: m.fileId,
                         previewUrl: m.previewUrl,
                         url: m.mediumUrl,
+                        blurhash: m.blurhash,
                       ),
                     ],
                   ),

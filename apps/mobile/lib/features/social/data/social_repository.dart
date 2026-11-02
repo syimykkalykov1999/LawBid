@@ -1087,6 +1087,7 @@ abstract final class SocialMappers {
               mediumUrl: m.mediumUrl,
               width: m.width,
               height: m.height,
+              blurhash: contractField<String>(m, ContractExtra.blurhash),
             ),
         ],
         locationName: d.location?.name,

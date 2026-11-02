@@ -17,7 +17,7 @@ import {
   TYPO_THRESHOLD,
   typoMatch,
 } from '../../common/search/fts-sql';
-import { parseSearchQuery } from '../../common/search/search-query';
+import { hasCjk, parseSearchQuery } from '../../common/search/search-query';
 import {
   escapeLike,
   letterCount,
@@ -56,6 +56,17 @@ const POST_CANDIDATES = 1000;
 const CASE_CANDIDATES = 1500;
 /** A candidate query gets this much database time (ms). */
 const SEARCH_BUDGET_MS = 700;
+/** Hashtags ranked per type-ahead call (by name first, then by use). */
+const TAG_CANDIDATES = 300;
+/** Posts text the CJK substring search runs on (= posts_text_trgm_idx). */
+const POST_TEXT_SQL = "(coalesce(p.title, '') || ' ' || p.body)";
+/** A one/two-letter CJK query looks only through this many newest posts. */
+const CJK_SHORT_WINDOW = 100_000;
+/** A typed word shorter than this names a topic only as a whole word. */
+const SHORT_TOPIC_WORD = 4;
+/** More topics than this named by one word: it is a generic word ("law"),
+ * not a topic, and widens nothing. */
+const MAX_TOPIC_ROOTS = 2;
 /** Fewer whole-word matches than this: try the prefix too. */
 const MIN_EXACT = 3;
 
@@ -74,11 +85,18 @@ export function attorneyOnly(f: AttorneySearchFilters): boolean {
  * translated practice name or of its keywords" (accents and commas
  * ignored) — "штраф гибдд", "visa", "ажырашуу" all work.
  */
-function practiceWordsMatch(norm: string): Prisma.Sql {
+function practiceWordsMatch(norm: string, wholeShort = false): Prisma.Sql {
   const words = norm.split(/\s+/).filter((w) => w.length > 0);
+  // Audit 2026-11-01 ([wholeShort], used where a hit widens a text search): a
+  // word of fewer than 4 letters must be a whole word of the name, not the
+  // start of one — in 85 languages some name begins with any three letters.
   const conds = words.map(
     (w) =>
-      Prisma.sql`public.f_unaccent(' ' || replace(lower(t.value), ',', ' ')) LIKE ${`% ${escapeLike(w)}%`}`,
+      Prisma.sql`public.f_unaccent(' ' || replace(lower(t.value), ',', ' ') || ' ') LIKE ${
+        wholeShort && w.length < SHORT_TOPIC_WORD
+          ? `% ${escapeLike(w)} %`
+          : `% ${escapeLike(w)}%`
+      }`,
   );
   return conds.length ? Prisma.join(conds, ' AND ') : Prisma.sql`FALSE`;
 }
@@ -697,6 +715,36 @@ export class PostgresSearchProvider implements SearchProvider {
     );
     const merged = [...new Map([...exact, ...prefix].map((r) => [r.id, r]))];
     if (merged.length > 0) return merged.map(([id]) => id);
+    // Audit 2026-11-01: CJK has no spaces — "移民" is inside the sentence.
+    if (hasCjk(q)) {
+      const like = `%${escapeLike(parsed.plain)}%`;
+      // Trigram index (posts_text_trgm_idx) from 3 characters; a shorter
+      // query scans only the newest posts so it stays inside the budget.
+      const recent =
+        [...parsed.plain].length < 3
+          ? Prisma.sql`AND p.created_at >= COALESCE((SELECT min(r.created_at)
+              FROM (SELECT created_at FROM posts ORDER BY created_at DESC
+                    LIMIT ${CJK_SHORT_WINDOW}) r), '-infinity')`
+          : Prisma.empty;
+      const inside = await this.budget(SEARCH_BUDGET_MS, () =>
+        run(Prisma.sql`${Prisma.raw(POST_TEXT_SQL)} ILIKE ${like} ${recent}`),
+      );
+      if (inside.length > 0) return inside.map((r) => r.id);
+    }
+    // Audit 2026-11-01 ("immigration visa"): every word may name the text or
+    // the topic — each must match one of them, like the cases search.
+    if (parsed.tokens.length >= 2) {
+      const perWord = await Promise.all(
+        parsed.tokens.map(
+          async (w) =>
+            Prisma.sql`${ftsMatch('p', w, true, await this.practiceIdsFor(w))}`,
+        ),
+      );
+      const mixed = await this.budget(SEARCH_BUDGET_MS, () =>
+        run(Prisma.sql`(${Prisma.join(perWord, ' AND ')})`),
+      );
+      if (mixed.length > 0) return mixed.map((r) => r.id);
+    }
     // Owner 2026-10-15: nothing matched, maybe a typo ("gren card"): the
     // trigram index on the titles finds the close ones.
     const typo = await this.budget(
@@ -855,20 +903,24 @@ export class PostgresSearchProvider implements SearchProvider {
     if (norm.length < 3) return [];
     const hit = this.practiceCache.get(norm);
     if (hit && Date.now() - hit.at < 600_000) return hit.ids;
-    const rows = await this.db.$queryRaw<{ id: string }[]>`
+    const rows = await this.db.$queryRaw<{ id: string; root: string }[]>`
       WITH hits AS (
         SELECT DISTINCT pa.id, pa.parent_id
         FROM practice_areas pa
         JOIN i18n_keys k ON k.key IN (pa.i18n_key, pa.i18n_key || '.kw')
         JOIN i18n_translations t ON t.key_id = k.id
-        WHERE pa.is_active AND (${practiceWordsMatch(norm)})
+        WHERE pa.is_active AND (${practiceWordsMatch(norm, true)})
         LIMIT 12
       )
-      SELECT id::TEXT AS id FROM hits
+      SELECT id::TEXT AS id, COALESCE(parent_id, id)::TEXT AS root FROM hits
       UNION
-      SELECT c.id::TEXT FROM practice_areas c
+      SELECT c.id::TEXT, COALESCE(h.parent_id, h.id)::TEXT FROM practice_areas c
         JOIN hits h ON c.parent_id = h.id`;
-    const ids = rows.map((r) => r.id);
+    // Audit 2026-11-01: "law" is a word of Family law, Criminal law, … —
+    // naming many topics it names none, and used to return every post of
+    // all of them.
+    const generic = new Set(rows.map((r) => r.root)).size > MAX_TOPIC_ROOTS;
+    const ids = generic ? [] : rows.map((r) => r.id);
     this.practiceCache.set(norm, { at: Date.now(), ids });
     if (this.practiceCache.size > 2000) this.practiceCache.clear();
     return ids;
@@ -1048,16 +1100,30 @@ export class PostgresSearchProvider implements SearchProvider {
     ];
   }
 
+  /**
+   * Hashtags starting with [prefix], the most used first. Audit 2026-11-01:
+   * they used to come alphabetically (the first 20 of "a" were "aaa", "abc"
+   * … with no post) and only then were counted, so the popular ones never
+   * showed. Now the first [TAG_CANDIDATES] by name are ranked by their
+   * published posts, so a short prefix is still one cheap index range.
+   */
   async searchTags(prefix: string, limit: number): Promise<string[]> {
-    const rows = await this.db.tag.findMany({
-      where: {
-        tag_lower: { startsWith: prefix },
-        NOT: { tag_lower: { startsWith: HIDDEN_TAG_PREFIX } },
-      },
-      orderBy: { tag_lower: 'asc' },
-      take: limit,
-      select: { tag_lower: true },
-    });
+    const like = `${escapeLike(prefix)}%`;
+    const rows = await this.db.$queryRaw<{ tag_lower: string }[]>`
+      SELECT c.tag_lower FROM (
+        SELECT t.id, t.tag_lower FROM tags t
+        WHERE t.tag_lower LIKE ${like}
+          AND t.tag_lower NOT LIKE ${`${escapeLike(HIDDEN_TAG_PREFIX)}%`}
+        ORDER BY t.tag_lower
+        LIMIT ${TAG_CANDIDATES}) c
+      ORDER BY (
+        SELECT count(*) FROM (
+          SELECT 1 FROM post_tags pt JOIN posts p ON p.id = pt.post_id
+          WHERE pt.tag_id = c.id AND p.status = 'published'
+            AND p.deleted_at IS NULL AND p.archived_at IS NULL
+          LIMIT 1000) n) DESC,
+        c.tag_lower
+      LIMIT ${limit}`;
     return rows.map((r) => r.tag_lower);
   }
 }
