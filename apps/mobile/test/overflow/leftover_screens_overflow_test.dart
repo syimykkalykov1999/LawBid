@@ -35,7 +35,8 @@ import '../helpers/ux_harness.dart';
 
 /// Owner 2026-11-02: the screens no overflow test had covered yet, on a
 /// 360 dp phone in the longest translation of every key, right-to-left,
-/// Nepali, Arabic and Russian, at text scale 1 and 1.3, the shell's cap (DeviceTextScale.shellMax).
+/// Nepali, German, Marathi, Arabic and Russian, at text scale 1 and 1.3
+/// (the shell's cap, DeviceTextScale.shellMax).
 /// Any overflow fails.
 class _Session extends SessionController {
   @override
