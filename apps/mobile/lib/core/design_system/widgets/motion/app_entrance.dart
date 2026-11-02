@@ -9,6 +9,14 @@ extension AppMotionContext on BuildContext {
   /// (`MediaQuery.disableAnimations`). Callers must render the final state
   /// immediately in that case.
   bool get reduceMotion => MediaQuery.maybeDisableAnimationsOf(this) ?? false;
+
+  /// The duration for an `AnimatedSize` (and the like) that follows the
+  /// state: [AppMotion.stateChange], or — with reduce-motion on — 1 ms, not
+  /// zero. A zero-duration `AnimatedSize` asserts in debug ("RenderAnimatedSize
+  /// was mutated in its own performLayout"); 1 ms ends in the next frame, so
+  /// the final state shows at once.
+  Duration get sizeChangeDuration =>
+      reduceMotion ? const Duration(milliseconds: 1) : AppMotion.stateChange;
 }
 
 /// Staggered entrance for screen content (UI modernization pass,
