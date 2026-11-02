@@ -199,7 +199,7 @@ class StorageScreen extends ConsumerWidget {
     // Not emptied (the video proxy did not answer): say so, never «done».
     showAppSnackBar(
       context,
-      t.t(cleared ? 'storage.clear.done' : 'storage.clear.failed'),
+      t.t(cleared ? 'storage.clear.done' : 'error.default.message'),
     );
   }
 
