@@ -795,6 +795,7 @@ erDiagram
   }
   conversations {
     String id PK
+    Int last_seq
     String case_id FK "nullable"
     String attorney_id FK
     String client_id FK
@@ -908,6 +909,7 @@ erDiagram
     DateTime created_at
     DateTime updated_at
     Int shard_id
+    Int seq "nullable"
   }
   message_search_tokens {
     String conversation_id PK

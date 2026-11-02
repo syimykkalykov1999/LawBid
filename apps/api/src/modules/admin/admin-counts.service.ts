@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { weakEtag } from '../../common/sync/cheap-etag';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AttorneyTrustService } from '../attorney-trust/attorney-trust.service';
@@ -10,14 +11,31 @@ import type { AdminCountsDto } from './admin.dto';
  * /admin/dashboard aggregate, support stats and trust stats every minute
  * per open tab. The ETag is the counts themselves: unchanged → 304.
  */
+const COUNTS_FRESH_SEC = 30;
+
 @Injectable()
 export class AdminCountsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly trust: AttorneyTrustService,
+    private readonly summary: AdminSummaryService,
   ) {}
 
+  /** Owner 2026-11-02: every staff member polls this once a minute and one
+   * call took 2.4 s. The four counts are shared by the whole team for 30 s
+   * (Redis, one refresher; an older value is served at once while it
+   * refreshes) instead of four queries per poll per person. */
   async get(): Promise<AdminCountsDto> {
+    return (
+      await this.summary.get(
+        'admin-counts',
+        () => this.compute(),
+        COUNTS_FRESH_SEC,
+      )
+    ).data;
+  }
+
+  private async compute(): Promise<AdminCountsDto> {
     const [verificationQueue, openReports, supportUnread, trustQueue] =
       await Promise.all([
         this.prisma.verificationRequest.count({

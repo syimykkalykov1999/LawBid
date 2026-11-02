@@ -40,6 +40,7 @@ class MessageDto {
     this.attachment,
     this.call,
     this.clientMessageId,
+    this.seq,
     this.expiresAt,
     this.editedAt,
     this.forwardedFrom,
@@ -80,6 +81,9 @@ class MessageDto {
 
   /// Only on the viewer's own messages (outbox matching).
   final String? clientMessageId;
+
+  /// Per-chat sequence number 1, 2, 3, ... (no holes): a client that has 41, 42, 44 knows 43 is missing and fetches it. Null for messages from before numbering that were not backfilled.
+  final num? seq;
   final DateTime createdAt;
 
   /// Disappearing messages: when the message goes; the app hides it from this time on. Null = stays.

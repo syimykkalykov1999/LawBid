@@ -73,8 +73,9 @@ variable "redis_node_type" {
   default = "cache.r7g.large"
 }
 variable "redis_replicas" {
-  type    = number
-  default = 1
+  type        = number
+  default     = 0
+  description = "Standby Redis nodes at creation. Owner 2026-11-02: 0 (saves about $12 a month); the API adds the node by itself once people are online and the module ignores node-count drift (docs/runbooks/ha-auto.md)."
 }
 variable "api_max_tasks" {
   type    = number
@@ -124,6 +125,16 @@ variable "api_spot" {
 variable "admin_tasks" {
   type    = number
   default = 2
+}
+variable "admin_cpu" {
+  type        = number
+  default     = 256
+  description = "Fargate CPU units of one admin task. 2026-11-02 prod metrics (3 h): CPU avg 1.8 %, max 28.8 %, memory 22 % - the size is enough; raise only if CPUUtilization stays high."
+}
+variable "admin_memory" {
+  type        = number
+  default     = 512
+  description = "MiB of one admin task (Fargate pair for 256 CPU: 512-2048). Node heap limit is 70 % of this."
 }
 variable "api_cpu" {
   type    = number
@@ -340,8 +351,8 @@ variable "database_backup_retention_days" {
 # --- reliability (owner 2026-10-22, docs/runbooks/backups.md) -------------
 variable "database_multi_az" {
   type        = bool
-  default     = true
-  description = "RDS Multi-AZ for a Terraform-managed database; for the existing one it is checked at plan time (warning) and switched on in the console."
+  default     = false
+  description = "RDS Multi-AZ for a Terraform-managed database; for the existing one it is checked at plan time (warning); Terraform no longer reverts it, the API owns it from now on. Owner 2026-11-02: starts OFF (saves about $14 a month) and the API switches the existing database to Multi-AZ by itself once people are online (setting ha.provision_online_users, docs/runbooks/ha-auto.md); set true again here after that so the plan check stays quiet."
 }
 variable "existing_database_identifier" {
   type        = string
