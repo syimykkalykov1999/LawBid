@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
+import { RateLimitService } from '../auth/services/rate-limit.service';
 import type {
   CrashDetailDto,
   CrashGroupDto,
@@ -10,6 +11,10 @@ import type {
 } from './crash-reports.dto';
 
 const KEEP_DAYS = 30;
+
+/** Security audit 2026-11-02: the intake has no sign-in, so one address may
+ * store at most this many batches (<= 10 reports each) a day. */
+const BATCHES_PER_IP_PER_DAY = 100;
 
 /** The same crash from different phones gets the same fingerprint: the
  * error's type and its first stack lines with numbers (lines, addresses,
@@ -43,16 +48,29 @@ export class CrashReportsService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly flags?: FeatureFlagsService,
+    @Optional() private readonly rateLimit?: RateLimitService,
   ) {}
 
   async ingest(
     reports: CrashReportInDto[],
     deviceKey: string | null,
+    ip: string | null = null,
   ): Promise<number> {
     // Owner 2026-10-15: kill switch (flag `crash_reports`, on by default):
     // the batch is accepted and dropped, the phone just clears its queue.
     if (this.flags && !(await this.flags.isEnabled('crash_reports', true))) {
       return 0;
+    }
+    // Over the daily cap the batch is accepted and dropped (like the kill
+    // switch above): the phone clears its queue, the table cannot be filled
+    // from one address.
+    if (ip && this.rateLimit) {
+      const day = await this.rateLimit.consumeFixedWindow(
+        ['crash-intake', 'ip', ip],
+        BATCHES_PER_IP_PER_DAY,
+        86_400,
+      );
+      if (!day.allowed) return 0;
     }
     const rows = reports.slice(0, 10).map((r) => ({
       fingerprint: crashFingerprint(r.message, r.stack),
