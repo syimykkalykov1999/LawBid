@@ -79,7 +79,7 @@ Future<void> main() async {
     await tester.pump(const Duration(seconds: 1));
   }
 
-  for (final scale in [1.0, 1.1]) {
+  for (final scale in [1.0, 1.1, 1.3]) {
     for (final MapEntry(key: name, value: (code, dir)) in locales.entries) {
       for (final attorney in [true, false]) {
         testWidgets('Time tab, $name, x$scale, attorney=$attorney',

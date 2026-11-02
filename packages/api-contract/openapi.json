@@ -187372,6 +187372,11 @@
             "nullable": true,
             "description": "Only on the viewer's own messages (outbox matching)."
           },
+          "seq": {
+            "type": "number",
+            "nullable": true,
+            "description": "Per-chat sequence number 1, 2, 3, ... (no holes): a client that has 41, 42, 44 knows 43 is missing and fetches it. Null for messages from before numbering that were not backfilled."
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
