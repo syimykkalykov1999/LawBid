@@ -131,6 +131,36 @@ describe('decideHa: hysteresis', () => {
   });
 });
 
+describe('decideHa: finishing a started sequence', () => {
+  it('adds failover after the replica even if the load drifted', () => {
+    const l = { dir: 'up' as const, atMs: NOW - 600_000 };
+    const middling: HaFacts = {
+      ...base,
+      online: hours(168, 150), // between half the threshold and the threshold
+      db: full.db,
+      redis: { replicas: 1, failover: false, available: true },
+      last: { redis: l },
+    };
+    expect(wantedHa(middling)).toBeNull();
+    expect(decideHa(middling)).toEqual(['redis_failover_on']);
+  });
+
+  it('does not finish it a day later or with the mode off', () => {
+    const old = { dir: 'up' as const, atMs: NOW - HA_FLIP_MS - 1 };
+    const f: HaFacts = {
+      ...base,
+      online: hours(168, 150),
+      db: full.db,
+      redis: { replicas: 1, failover: false, available: true },
+      last: { redis: old },
+    };
+    expect(decideHa(f)).toEqual([]);
+    expect(
+      decideHa({ ...f, mode: 'off', last: { redis: { ...old, atMs: NOW } } }),
+    ).toEqual([]);
+  });
+});
+
 describe('HaAutoService', () => {
   it('is inert off AWS', async () => {
     const svc = new HaAutoService({ get: () => undefined } as never);

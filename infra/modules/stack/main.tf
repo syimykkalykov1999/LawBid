@@ -488,7 +488,7 @@ variable "api_cpu" {
 variable "api_uv_threadpool_size" {
   type        = number
   default     = 4
-  description = "S8-7: UV_THREADPOOL_SIZE of the API task (4 = Node default / unset). Raise to 8 after the load test shows ThreadPoolLagMs > 5 ms."
+  description = "S8-7: UV_THREADPOOL_SIZE of the API task (4 = Node default / unset). Raise to 8 after the load test shows ThreadPoolLagMs > 5 ms (log field in CloudWatch Logs Insights, not a metric)."
 }
 variable "api_memory" {
   type    = number
@@ -1234,6 +1234,8 @@ resource "aws_db_instance" "existing" {
       delete_automated_backups, apply_immediately, tags, tags_all, snapshot_identifier,
       replicate_source_db, character_set_name, license_model, ca_cert_identifier, network_type,
       monitoring_interval, monitoring_role_arn, iam_database_authentication_enabled, port, availability_zone,
+      # Multi-AZ comes and goes by itself (apps/api ha-auto, docs/runbooks/ha-auto.md): apply must not undo it.
+      multi_az,
     ]
   }
 }

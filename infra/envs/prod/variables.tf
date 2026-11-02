@@ -342,7 +342,7 @@ variable "database_backup_retention_days" {
 variable "database_multi_az" {
   type        = bool
   default     = false
-  description = "RDS Multi-AZ for a Terraform-managed database; for the existing one it is checked at plan time (warning). Owner 2026-11-02: starts OFF (saves about $14 a month) and the API switches the existing database to Multi-AZ by itself once people are online (setting ha.provision_online_users, docs/runbooks/ha-auto.md); set true again here after that so the plan check stays quiet."
+  description = "RDS Multi-AZ for a Terraform-managed database; for the existing one it is checked at plan time (warning); Terraform no longer reverts it, the API owns it from now on. Owner 2026-11-02: starts OFF (saves about $14 a month) and the API switches the existing database to Multi-AZ by itself once people are online (setting ha.provision_online_users, docs/runbooks/ha-auto.md); set true again here after that so the plan check stays quiet."
 }
 variable "existing_database_identifier" {
   type        = string

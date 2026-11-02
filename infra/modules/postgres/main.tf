@@ -338,7 +338,9 @@ resource "aws_db_instance" "this" {
   # Owner 2026-10-16: the admin («Экономика» → «Увеличить») may move the
   # database one tier up at run time; terraform apply must not undo it.
   lifecycle {
-    ignore_changes = [instance_class]
+    # multi_az: ha-auto (apps/api) switches the second copy on and off with
+    # the load; apply must not undo it (docs/runbooks/ha-auto.md).
+    ignore_changes = [instance_class, multi_az]
   }
 }
 

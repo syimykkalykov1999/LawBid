@@ -116,7 +116,10 @@ export class ReplicaAdminService implements OnModuleInit, OnModuleDestroy {
     this.timer.unref();
     // Auto growth: look at the primary's CPU every 10 minutes (one task wins
     // the Redis lock, so 70 tasks make one CloudWatch call per 10 minutes).
-    const autoTick = () => void this.autoCheck().catch(() => undefined);
+    const autoTick = () =>
+      void this.autoCheck().catch((e: Error) =>
+        this.log.warn(`replica auto-check failed: ${e.message}`),
+      );
     setTimeout(autoTick, 60_000 + Math.floor(Math.random() * 30_000)).unref();
     this.autoTimer = setInterval(autoTick, AUTO_CHECK_MS);
     this.autoTimer.unref();
@@ -130,8 +133,8 @@ export class ReplicaAdminService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Owner 2026-11-02 («с ростом включается само»): when the primary has been
-   * busy for hours although the database autoscaler is already on its
-   * ceiling, the read replica is created without a tap. Setting
+   * busy for hours although the database autoscaler could already have grown
+   * it (Multi-AZ on), the read replica is created without a tap. Setting
    * `db.replica_provision`: `off` = never, `auto` (default) = create on
    * sustained load. It is inert unless Terraform `db_replica_toggle` gave the
    * task the IAM rights, and it creates the same single replica the button
@@ -142,9 +145,12 @@ export class ReplicaAdminService implements OnModuleInit, OnModuleDestroy {
    */
   async autoCheck(): Promise<ReplicaAutoAction> {
     if (!this.available) return 'none';
-    const mode =
+    const mode = (
       (await this.settings?.string('db.replica_provision').catch(() => null)) ??
-      'auto';
+      'auto'
+    )
+      .trim()
+      .toLowerCase();
     if (mode !== 'auto') return 'none';
     const got = await this.redis
       ?.set(AUTO_LOCK_KEY, '1', 'EX', AUTO_LOCK_TTL_S, 'NX')
@@ -152,6 +158,11 @@ export class ReplicaAdminService implements OnModuleInit, OnModuleDestroy {
     if (!got) return 'none';
     const cur = await this.probe();
     if (cur.exists) return 'none';
+    // The database autoscaler pauses itself while a replica exists. It can
+    // only grow the primary with Multi-AZ on, so with Multi-AZ off high CPU
+    // means "autoscaler blocked", not "at its ceiling": no replica then (the
+    // ha-auto service adds Multi-AZ first, then the autoscaler grows the size).
+    if (!(await this.primaryMultiAz())) return 'none';
     const cooling = !!(await this.redis
       ?.get(AUTO_COOLDOWN_KEY)
       .catch(() => null));
@@ -162,13 +173,21 @@ export class ReplicaAdminService implements OnModuleInit, OnModuleDestroy {
       cpu: await this.primaryCpu(),
     });
     if (action === 'create') {
+      this.log.warn('primary CPU is high for hours: creating the read replica');
+      await this.enable('auto');
+      // Cooldown after success only: a failed create is retried next pass.
       await this.redis
         ?.set(AUTO_COOLDOWN_KEY, '1', 'EX', AUTO_COOLDOWN_S)
         .catch(() => undefined);
-      this.log.warn('primary CPU is high for hours: creating the read replica');
-      await this.enable('auto');
     }
     return action;
+  }
+
+  private async primaryMultiAz(): Promise<boolean> {
+    const r = await this.rdsClient().send(
+      new DescribeDBInstancesCommand({ DBInstanceIdentifier: this.primaryId }),
+    );
+    return !!r.DBInstances?.[0]?.MultiAZ;
   }
 
   /** Primary CPU in 15-minute averages over the last 3 hours (oldest first). */

@@ -97,20 +97,29 @@ export function wantedHa(f: HaFacts): Dir | null {
  * failover; down = failover off, then the replica away.
  */
 export function decideHa(f: HaFacts): HaAction[] {
-  const want = wantedHa(f);
-  if (!want) return [];
-  const free = (r: 'db' | 'redis'): boolean => {
+  if (f.mode === 'off') return [];
+  const load = wantedHa(f);
+  // A started Redis sequence is finished in its own direction for 24 h even
+  // if the load drifted into the band between the two thresholds, so the
+  // group is never left with a paid node and failover off (or the reverse).
+  const unfinished = (r: 'db' | 'redis'): Dir | null => {
     const l = f.last[r];
-    return !l || l.dir === want || f.nowMs - l.atMs >= HA_FLIP_MS;
+    return l && f.nowMs - l.atMs < HA_FLIP_MS ? l.dir : null;
   };
   const out: HaAction[] = [];
   const db = f.db;
-  if (db && db.available && !db.pending && free('db')) {
-    if (want === 'up' && !db.multiAz) out.push('db_multi_az_on');
-    if (want === 'down' && db.multiAz) out.push('db_multi_az_off');
+  const dbWant = load;
+  const free = (r: 'db' | 'redis', want: Dir): boolean => {
+    const l = f.last[r];
+    return !l || l.dir === want || f.nowMs - l.atMs >= HA_FLIP_MS;
+  };
+  if (dbWant && db && db.available && !db.pending && free('db', dbWant)) {
+    if (dbWant === 'up' && !db.multiAz) out.push('db_multi_az_on');
+    if (dbWant === 'down' && db.multiAz) out.push('db_multi_az_off');
   }
   const rd = f.redis;
-  if (rd && rd.available && free('redis')) {
+  const want = load ?? unfinished('redis');
+  if (want && rd && rd.available && free('redis', want)) {
     if (want === 'up') {
       if (rd.replicas < 1) out.push('redis_replica_up');
       else if (!rd.failover) out.push('redis_failover_on');
@@ -160,6 +169,7 @@ const dirOf = (a: HaAction): Dir =>
 export class HaAutoService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger('HaAuto');
   private timer?: NodeJS.Timeout;
+  private cw?: CloudWatchClient;
   private rds?: RDSClient;
   private cache?: ElastiCacheClient;
 
@@ -185,7 +195,10 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     if (!this.env('OPS_DB_INSTANCE') && !this.env('OPS_REDIS_GROUP')) return;
-    const tick = () => void this.check().catch(() => undefined);
+    const tick = () =>
+      void this.check().catch((e: Error) =>
+        this.log.warn(`ha-auto pass failed: ${e.message}`),
+      );
     setTimeout(tick, 90_000 + Math.floor(Math.random() * 30_000)).unref();
     this.timer = setInterval(tick, CHECK_MS);
     this.timer.unref();
@@ -197,9 +210,11 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
 
   /** One pass; returns what it did (for tests and the logs). */
   async check(): Promise<HaAction[]> {
-    const mode =
+    // Only the exact words act; a typo ("Off", " of") means hands off.
+    const raw =
       (await this.settings?.string('ha.mode').catch(() => 'off')) ?? 'off';
-    if (mode === 'off') return [];
+    const mode = raw.trim().toLowerCase();
+    if (mode !== 'on' && mode !== 'auto') return [];
     const num = async (k: 'ha.provision_online_users' | 'ha.release_days') =>
       (await this.settings?.number(k).catch(() => 0)) ?? 0;
     const threshold = await num('ha.provision_online_users');
@@ -209,13 +224,32 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
       .catch(() => null);
     if (!got) return [];
     const nowMs = Date.now();
+    // Independent reads: one failing (a missing permission, a throttle) must
+    // not stop the others, and is logged instead of swallowed.
+    const soft = async <T>(what: string, fb: T, fn: () => Promise<T>) => {
+      try {
+        return await fn();
+      } catch (e) {
+        this.log.warn(
+          `ha-auto: reading ${what} failed: ${(e as Error).message}`,
+        );
+        return fb;
+      }
+    };
+    const [online, db, redis] = await Promise.all([
+      soft('online users', [] as (number | null)[], () =>
+        this.onlineByHour(days * 24, nowMs),
+      ),
+      soft('database', null as HaFacts['db'], () => this.dbFacts()),
+      soft('redis', null as HaFacts['redis'], () => this.redisFacts()),
+    ]);
     const facts: HaFacts = {
       mode: mode === 'on' ? 'on' : 'auto',
       threshold,
-      online: await this.onlineByHour(days * 24, nowMs),
+      online,
       nowMs,
-      db: await this.dbFacts(),
-      redis: await this.redisFacts(),
+      db,
+      redis,
       last: {
         db: await this.lastStep('db'),
         redis: await this.lastStep('redis'),
@@ -254,10 +288,7 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
     nowMs: number,
   ): Promise<(number | null)[]> {
     const endMs = Math.floor(nowMs / 3_600_000) * 3_600_000;
-    const r = await new CloudWatchClient({
-      region: this.region(),
-      credentials: this.creds(),
-    }).send(
+    const r = await this.cwClient().send(
       new GetMetricStatisticsCommand({
         Namespace: 'LawBid/Runtime',
         MetricName: 'OpenSockets',
@@ -280,6 +311,12 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
     return out;
   }
 
+  private cwClient(): CloudWatchClient {
+    return (this.cw ??= new CloudWatchClient({
+      region: this.region(),
+      credentials: this.creds(),
+    }));
+  }
   private rdsClient(): RDSClient {
     return (this.rds ??= new RDSClient({
       region: this.region(),

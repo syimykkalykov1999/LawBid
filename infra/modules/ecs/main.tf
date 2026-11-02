@@ -50,7 +50,7 @@ variable "api_cpu" {
 variable "api_uv_threadpool_size" {
   type        = number
   default     = 4
-  description = "S8-7: libuv thread pool of the API task (Node default 4, max 1024; gzip, dns.lookup, fs, crypto share it). 4 = unset. Raise to 8 only after the ThreadPoolLagMs metric (LawBid/Runtime) shows a queue under load."
+  description = "S8-7: libuv thread pool of the API task (Node default 4, max 1024; gzip, dns.lookup, fs, crypto share it). 4 = unset. Raise to 8 only after the ThreadPoolLagMs field (a plain field of the LawBid/Runtime log line, not a billed metric since 2026-11-02; read it in CloudWatch Logs Insights) shows a queue under load."
   validation {
     condition     = var.api_uv_threadpool_size >= 4 && var.api_uv_threadpool_size <= 64
     error_message = "api_uv_threadpool_size: 4..64."
@@ -986,7 +986,7 @@ resource "aws_appautoscaling_policy" "api_requests" {
 # the sockets of the stopped task). While the app is small the average stays
 # far under the target and this policy never adds a task.
 resource "aws_appautoscaling_policy" "api_sockets" {
-  count              = var.api_sockets_per_task > 0 && var.metrics_namespace != "" ? 1 : 0
+  count              = var.api_sockets_per_task > 0 ? 1 : 0
   name               = "${var.name}-api-sockets"
   policy_type        = "TargetTrackingScaling"
   service_namespace  = aws_appautoscaling_target.svc["api"].service_namespace
