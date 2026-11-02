@@ -57,7 +57,7 @@ class MyPromotionsScreen extends ConsumerWidget {
                   ),
                 ),
               )
-            : RefreshIndicator(
+            : AppRefreshIndicator(
                 onRefresh: () async => ref.invalidate(myPromotionsProvider),
                 child: ListView.separated(
                   padding: EdgeInsets.fromLTRB(

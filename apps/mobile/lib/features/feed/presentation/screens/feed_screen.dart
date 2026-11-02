@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -60,6 +61,19 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   /// The shell's bottom bar (slides away on the Chats page).
   ValueNotifier<double>? _navAway;
 
+  /// Owner 2026-10-28 (the freeze on a swipe into Reels): the Reels page
+  /// opens its video only once the pages are at rest on it, and closes it
+  /// once they rest on another page.
+  final _reelsPresence = ValueNotifier<ReelsPresence>(ReelsPresence.away);
+
+  void _onSettled(_FeedTab? tab) {
+    _reelsPresence.value = switch (tab) {
+      null => ReelsPresence.moving,
+      _FeedTab.reels => ReelsPresence.settled,
+      _ => ReelsPresence.away,
+    };
+  }
+
   void _go(_FeedTab v) => setState(() {
         if (v == _FeedTab.chats && _tab != _FeedTab.chats) _beforeChats = _tab;
         _tab = v;
@@ -102,6 +116,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
   @override
   void dispose() {
     _chrome.dispose();
+    _reelsPresence.dispose();
     super.dispose();
   }
 
@@ -196,6 +211,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
         _FeedTab.reels => FeedChrome(
             controller: _chrome,
             child: _ReelsTab(
+              presence: _reelsPresence,
               header: buildHeader(onDark: !_webReelsLayout(context)),
             ),
           ),
@@ -228,6 +244,7 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
         value: pages.contains(_tab) ? _tab : _FeedTab.posts,
         values: pages,
         onChanged: _go,
+        onSettled: _onSettled,
         // The bottom bar slides down as Chats slides in.
         onPosition: (page) => _setNavAway(
           guest ? 0 : (page - (pages.length - 2)).clamp(0.0, 1.0),
@@ -420,9 +437,10 @@ bool _webReelsLayout(BuildContext context) =>
     adaptiveShellOn && MediaQuery.sizeOf(context).width >= 520;
 
 class _ReelsTab extends ConsumerStatefulWidget {
-  const _ReelsTab({required this.header});
+  const _ReelsTab({required this.header, required this.presence});
 
   final Widget header;
+  final ValueListenable<ReelsPresence> presence;
 
   @override
   ConsumerState<_ReelsTab> createState() => _ReelsTabState();
@@ -462,6 +480,7 @@ class _ReelsTabState extends ConsumerState<_ReelsTab> {
               child: ReelsScreen(
                 key: ValueKey('reels|$_category|$legalOnly'),
                 embedded: true,
+                presence: widget.presence,
                 filter: (p) => _accepts(p, legalOnly: legalOnly),
                 practice: _category,
               ),
@@ -486,6 +505,7 @@ class _ReelsTabState extends ConsumerState<_ReelsTab> {
                   // A new filter starts the player over.
                   key: ValueKey('reels|$_category|$legalOnly'),
                   embedded: true,
+                  presence: widget.presence,
                   filter: (p) => _accepts(p, legalOnly: legalOnly),
                   practice: _category,
                 ),

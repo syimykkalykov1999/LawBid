@@ -42,6 +42,7 @@ import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/caption_fit.dart';
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
+import 'package:lawbid/features/social/presentation/widgets/hidden_counter_mark.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_attachments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_promo_row.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
@@ -1151,7 +1152,13 @@ class _ThreadsPost extends ConsumerWidget {
           large: true,
         );
 
-    Widget action(Widget icon, int count, {VoidCallback? onCountTap}) => Row(
+    Widget action(
+      Widget icon,
+      int count, {
+      VoidCallback? onCountTap,
+      bool hiddenMark = false,
+    }) =>
+        Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             icon,
@@ -1161,14 +1168,20 @@ class _ThreadsPost extends ConsumerWidget {
                 behavior: HitTestBehavior.opaque,
                 child: Padding(
                   padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
-                  child: Text(
-                    SocialFormat.count(f, count),
-                    // The same number look as the post bar's (_Count).
-                    style: type.bodySmall.copyWith(
-                      color: colors.text,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 13,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        SocialFormat.count(f, count),
+                        // The same number look as the post bar's (_Count).
+                        style: type.bodySmall.copyWith(
+                          color: colors.text,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 13,
+                        ),
+                      ),
+                      if (hiddenMark) const HiddenCounterMark(),
+                    ],
                   ),
                 ),
               ),
@@ -1255,6 +1268,7 @@ class _ThreadsPost extends ConsumerWidget {
                     // a tap on the number opens who liked.
                     showLikeCount(ref, p) ? p.likeCount : 0,
                     onCountTap: () => showLikersList(context, p.id),
+                    hiddenMark: hiddenForOthersMark(ref, p, views: false),
                   ),
                   action(
                     BounceIcon(
@@ -2508,6 +2522,7 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
                         fileId: m.fileId,
                         previewUrl: m.previewUrl,
                         url: m.mediumUrl,
+                        blurhash: m.blurhash,
                       ),
                     ],
                   ),
@@ -2726,6 +2741,8 @@ class PostActionsBar extends ConsumerWidget {
                         value: post.likeCount,
                         color: colors.danger,
                         onTap: () => showLikersList(context, post.id),
+                        hiddenMark:
+                            hiddenForOthersMark(ref, post, views: false),
                       ),
                     if (post.commentCount > 0)
                       _Stat(
@@ -2770,6 +2787,8 @@ class PostActionsBar extends ConsumerWidget {
                       _Count(
                         post.likeCount,
                         onTap: () => showLikersList(context, post.id),
+                        hiddenMark:
+                            hiddenForOthersMark(ref, post, views: false),
                       ),
                     BounceIcon(
                       extent: _kBarExtent,
@@ -2836,17 +2855,20 @@ class PostActionsBar extends ConsumerWidget {
 }
 
 class _Count extends ConsumerWidget {
-  const _Count(this.value, {this.onTap});
+  const _Count(this.value, {this.onTap, this.hiddenMark = false});
 
   final int value;
   final VoidCallback? onTap;
+
+  /// The author hid this counter from others (see [HiddenCounterMark]).
+  final bool hiddenMark;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final text = Text(
+    final number = Text(
       SocialFormat.count(f, value),
       maxLines: 1,
       style: type.bodySmall.copyWith(
@@ -2855,6 +2877,12 @@ class _Count extends ConsumerWidget {
         fontSize: 13,
       ),
     );
+    final text = hiddenMark
+        ? Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [number, const HiddenCounterMark()],
+          )
+        : number;
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
       child: onTap == null ? text : AppPressable(onTap: onTap, child: text),
@@ -2870,12 +2898,14 @@ class _Stat extends StatelessWidget {
     required this.value,
     required this.color,
     required this.onTap,
+    this.hiddenMark = false,
   });
 
   final IconData icon;
   final int value;
   final Color color;
   final VoidCallback onTap;
+  final bool hiddenMark;
 
   @override
   Widget build(BuildContext context) {
@@ -2889,7 +2919,7 @@ class _Stat extends StatelessWidget {
             height: _kBarExtent,
             child: Center(child: AppIcon(icon, size: _kBarIcon, color: color)),
           ),
-          _Count(value, onTap: onTap),
+          _Count(value, onTap: onTap, hiddenMark: hiddenMark),
         ],
       ),
     );

@@ -42,7 +42,7 @@ class InvitesList extends ConsumerWidget {
               title: t.t('invites.empty'),
               message: t.t('invites.empty.body'),
             )
-          : RefreshIndicator(
+          : AppRefreshIndicator(
               onRefresh: () => ref.refresh(pendingInvitesProvider.future),
               child: ListView.separated(
                 padding: const EdgeInsets.fromLTRB(

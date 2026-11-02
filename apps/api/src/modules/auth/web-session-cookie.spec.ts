@@ -181,6 +181,7 @@ describe('web session cookie', () => {
         cookies(),
         {} as never,
         {} as never, // DemoReauthService (#405)
+        {} as never, // PasswordReauthService (owner 2026-10-28)
       );
       return { auth, controller };
     };
