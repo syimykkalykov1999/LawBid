@@ -238,8 +238,7 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // Perf suite markers (no-ops in release): the first frame on the glass.
   PerfMarks.mark('lb.run_app');
   unawaited(
-    WidgetsBinding.instance.waitUntilFirstFrameRasterized
-        .then((_) {
+    WidgetsBinding.instance.waitUntilFirstFrameRasterized.then((_) {
       PerfMarks.mark('lb.first_frame');
       SentryNative.markFirstFrame();
     }),

@@ -147,9 +147,7 @@ final taskReminderSyncProvider = Provider<void>((ref) {
       // Delta audit D-P3: one small `updatedSince`, not the whole list.
       final again = recheck;
       recheck = false;
-      ref
-          .read(tasksProvider((done: false, mine: false)).notifier)
-          .catchUp();
+      ref.read(tasksProvider((done: false, mine: false)).notifier).catchUp();
       // Back from the «Alarms & reminders» screen: arm again at once.
       if (again) unawaited(sync());
     },
@@ -258,8 +256,7 @@ bool armedNeedsSending(String? stored, String digest, DateTime now) {
   if (at < 0 || stored.substring(0, at) != digest) return true;
   final sent = int.tryParse(stored.substring(at + 1));
   if (sent == null) return true;
-  return now.millisecondsSinceEpoch - sent >=
-      armedResendAfter.inMilliseconds;
+  return now.millisecondsSinceEpoch - sent >= armedResendAfter.inMilliseconds;
 }
 
 /// Owner 2026-10-20: asked at the moment it matters — when a reminder is
