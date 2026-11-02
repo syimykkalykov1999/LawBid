@@ -113,6 +113,7 @@ jobs:
     name: Roll the web app back to ${{ inputs.web_release }}
     if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' && inputs.web_release != '' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment:
       name: production
     # Never at the same time as a web deploy.
