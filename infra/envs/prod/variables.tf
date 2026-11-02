@@ -486,6 +486,11 @@ variable "turn_enabled" {
   default     = false
   description = "coturn relay for calls (modules/turn); docs/runbooks/TURN.md."
 }
+variable "turn_on_demand" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-11-02: coturn stands stopped, no Elastic IP; the API starts it only while Cloudflare is down (about $0.6/month for the disk). Needs turn_enabled; not with turn_second_enabled."
+}
 variable "turn_second_enabled" {
   type        = bool
   default     = false

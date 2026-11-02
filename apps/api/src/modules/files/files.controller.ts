@@ -28,6 +28,8 @@ import {
   FileViewDto,
   FileViewsQueryDto,
   PresignFileDto,
+  MultipartCompleteDto,
+  MultipartPlanDto,
   PresignedFileDto,
 } from './dto/files.dto';
 import { FileAccessService } from './file-access.service';
@@ -75,6 +77,45 @@ export class FilesController {
     @Body() dto: PresignFileDto,
   ): Promise<PresignedFileDto> {
     return this.files.presign(user.sub, dto);
+  }
+
+  /**
+   * Resumable upload of a big file (flag `files_multipart`): after `presign`
+   * the app asks for the part links here, PUTs each part, and asks again
+   * after an interruption to learn which parts S3 already has.
+   */
+  @Post(':id/multipart')
+  @HttpCode(HttpStatus.OK)
+  @ApiEnvelopeResponse(MultipartPlanDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FEATURE_DISABLED],
+    404: [E.NOT_FOUND],
+    429: [E.RATE_LIMITED],
+    503: [E.FILE_STORAGE_UNAVAILABLE],
+  })
+  async multipartPlan(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<MultipartPlanDto> {
+    return this.files.multipartPlan(user.sub, id);
+  }
+
+  /** Assembles the uploaded parts; then call `confirm` as usual. Safe to retry. */
+  @Post(':id/multipart/complete')
+  @HttpCode(HttpStatus.OK)
+  @ApiEnvelopeResponse(MultipartCompleteDto)
+  @ApiErrors({
+    403: [E.FEATURE_DISABLED],
+    404: [E.NOT_FOUND],
+    409: [E.FILE_NOT_UPLOADED],
+    503: [E.FILE_STORAGE_UNAVAILABLE],
+  })
+  async multipartComplete(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<MultipartCompleteDto> {
+    return this.files.multipartComplete(user.sub, id);
   }
 
   /** Safe to retry: confirming an already confirmed file returns it. */

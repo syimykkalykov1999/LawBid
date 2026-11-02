@@ -77,6 +77,8 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   late final PageController _pages =
       PageController(initialPage: widget.initialIndex);
   late final List<Post> _items = [...widget.initial];
+  // Ids of _items, kept beside it: dedupe is O(1) per page, not a rebuilt set.
+  late final Set<String> _seenIds = {for (final p in widget.initial) p.id};
   String? _cursor;
   bool _more = true;
   bool _loading = false;
@@ -138,10 +140,9 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
             practice: widget.practice,
           );
       if (!mounted) return;
-      final seen = _items.map((p) => p.id).toSet();
       final fresh = [
         for (final p in page.items)
-          if (!seen.contains(p.id)) p,
+          if (!_seenIds.contains(p.id)) p,
       ];
       if (fresh.isEmpty) return;
       // After the reel on screen and the next one (already warmed).
@@ -155,7 +156,10 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
       final at = current == null
           ? _items.length
           : (_items.indexOf(current) + 2).clamp(0, _items.length);
-      setState(() => _items.insertAll(at, fresh));
+      setState(() {
+        _items.insertAll(at, fresh);
+        _seenIds.addAll(fresh.map((p) => p.id));
+      });
     } on Object {
       // Quiet: the stream goes on without them.
     }
@@ -172,17 +176,23 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
             practice: widget.practice,
           );
       if (!mounted) return;
-      final seen = _items.map((p) => p.id).toSet();
+      // One rebuild per page: the items, the cursor and the spinner.
       setState(() {
-        _items.addAll(page.items.where((p) => !seen.contains(p.id)));
+        for (final p in page.items) {
+          if (_seenIds.add(p.id)) _items.add(p);
+        }
         _cursor = page.nextCursor;
         _more = page.hasMore;
         _error = null;
+        _loading = false;
       });
     } on Object catch (e) {
-      if (mounted) setState(() => _error = e);
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _error = e;
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -202,6 +212,9 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
           ..clear()
           ..addAll(keep)
           ..addAll(page.items.where((p) => !seen.contains(p.id)));
+        _seenIds
+          ..clear()
+          ..addAll(_items.map((p) => p.id));
         _cursor = page.nextCursor;
         _more = page.hasMore;
         _error = null;
@@ -229,10 +242,11 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     // Owner 2026-10-19: the reel I just published comes right after the one
     // on screen (and stays in the list), once its video is ready.
     ref.listen(freshOwnReelProvider, (_, post) {
-      if (post == null || _items.any((p) => p.id == post.id)) return;
+      if (post == null || _seenIds.contains(post.id)) return;
       setState(() {
         final at = (_index.value + 1).clamp(0, _items.length);
         _items.insert(at, post);
+        _seenIds.add(post.id);
       });
     });
     final t = ref.watch(translatorProvider);

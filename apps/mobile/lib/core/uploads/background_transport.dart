@@ -10,3 +10,8 @@ import 'package:lawbid/core/uploads/storage_uploader.dart';
 /// desktop, tests) uses [fallback].
 StorageTransport queueTransport({required StorageTransport fallback}) =>
     impl.queueTransport(fallback: fallback);
+
+/// Stops the OS transfer of the queue job [taskId], if one runs (the user
+/// cancelled the upload). Best effort; a no-op where there is no OS service.
+Future<void> cancelBackgroundUpload(String taskId) =>
+    impl.cancelBackgroundUpload(taskId);
