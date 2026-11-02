@@ -6,6 +6,7 @@ import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/cache/media_cache_dir.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
+import 'package:lawbid/core/media/video_cache/video_cache.dart';
 import 'package:lawbid/core/persistence/drift_web.dart' show isFlutterTest;
 import 'package:lawbid/core/persistence/saved_json.dart';
 import 'package:lawbid/core/persistence/storage_compaction.dart';
@@ -39,13 +40,18 @@ class CacheMaintenance {
     HttpCacheInterceptor? http,
     MediaCacheDir? images,
     MediaCacheDir? chatMedia,
+    MediaCacheDir? video,
+    PrefixedTempFiles? voiceNotes,
   })  : _db = db,
         _pages = pages,
         _limits = limits,
         _http = http,
         _images = images ?? const MediaCacheDir(AppImageCaches.feedKey),
         _chatMedia =
-            chatMedia ?? const MediaCacheDir(AppImageCaches.chatMediaKey);
+            chatMedia ?? const MediaCacheDir(AppImageCaches.chatMediaKey),
+        _video = video ?? const MediaCacheDir(VideoCache.folderName),
+        _voiceNotes = voiceNotes ??
+            const PrefixedTempFiles('voice_cache_', suffix: '.m4a');
 
   final CacheDatabase _db;
   final SavedPageStore? _pages;
@@ -53,6 +59,8 @@ class CacheMaintenance {
   final HttpCacheInterceptor? _http;
   final MediaCacheDir _images;
   final MediaCacheDir _chatMedia;
+  final MediaCacheDir _video;
+  final PrefixedTempFiles _voiceNotes;
 
   /// Every store's size; a store that cannot be measured counts as 0.
   Future<CacheReport> measure() async {
@@ -70,10 +78,15 @@ class CacheMaintenance {
       guard(_db.messagesBytes),
       guard(() => _pages?.pagesBytes() ?? Future.value(0)),
       guard(_images.size),
-      guard(_chatMedia.size),
+      guard(() async {
+        final sizes =
+            await Future.wait([_chatMedia.size(), _voiceNotes.size()]);
+        return sizes[0] + sizes[1];
+      }),
       guard(
         () async => await _db.translationsBytes() + await _db.fileViewsBytes(),
       ),
+      guard(_video.size),
     ]);
     return CacheReport(
       bytes: {
@@ -83,6 +96,7 @@ class CacheMaintenance {
         CacheStore.images: results[3],
         CacheStore.chatMedia: results[4],
         CacheStore.other: results[5],
+        CacheStore.video: results[6],
       },
       measuredAt: DateTime.now(),
     );
@@ -90,7 +104,9 @@ class CacheMaintenance {
 
   /// Empties one store («Очистить» on its row). What is gone is fetched
   /// again when it is needed.
-  Future<void> clear(CacheStore store) async {
+  /// False when a store could not be emptied (the video proxy did not
+  /// answer): the caller must not show it as cleared.
+  Future<bool> clear(CacheStore store) async {
     switch (store) {
       case CacheStore.http:
         // The memory level and the table (the interceptor's disk level is
@@ -106,25 +122,39 @@ class CacheMaintenance {
         if (!isFlutterTest) await AppImageCaches.feed.emptyCache();
       case CacheStore.chatMedia:
         await _chatMedia.clear();
+        await _voiceNotes.clear();
         if (!isFlutterTest) await AppImageCaches.chatMedia.emptyCache();
+      case CacheStore.video:
+        // The video chunk cache (reels and chat videos). A running proxy
+        // owns the folder and empties it itself; without one its files
+        // are removed here (the folder stays).
+        // A proxy that is still starting must come up first, or the files
+        // would go out from under its first write.
+        await VideoCache.settled();
+        if (VideoCache.running) return VideoCache.clear();
+        await _video.clearContents();
       case CacheStore.other:
         await _db.clearOther();
       case CacheStore.files:
-      case CacheStore.video:
         // No cache of their own on the phone yet.
         break;
     }
+    return true;
   }
 
   /// «Очистить кэш» — everything except the outbox and the settings.
-  Future<void> clearAll() async {
+  /// False when some store could not be emptied.
+  Future<bool> clearAll() async {
+    var all = true;
     for (final s in CacheStore.values) {
       try {
-        await clear(s);
+        all = await clear(s) && all;
       } on Object catch (e) {
+        all = false;
         debugPrint('cache clear ${s.name}: $e');
       }
     }
+    return all;
   }
 
   /// Applies the limits and «Хранить медиа» (run once a day and when the
@@ -133,13 +163,23 @@ class CacheMaintenance {
     // One pass at a time (start, daily timer and the write burst may meet).
     if (_enforcing) return;
     _enforcing = true;
-    final l = _limits();
     try {
+      final l = _limits();
       await _images.trimTo(l.limitBytes(CacheStore.images));
-      await _chatMedia.trimTo(l.limitBytes(CacheStore.chatMedia));
+      // Pictures and voice notes are one store («Медиа чатов»): one limit,
+      // the least recently changed file goes first whichever it is.
+      await trimPoolTo(
+        [_chatMedia, _voiceNotes],
+        l.limitBytes(CacheStore.chatMedia),
+      );
       if (l.keepMediaDays > 0) {
         await _chatMedia.dropOlderThan(Duration(days: l.keepMediaDays));
+        await _voiceNotes.dropOlderThan(Duration(days: l.keepMediaDays));
       }
+      // Video files belong to the proxy, which evicts to the limit itself
+      // (at its start and on this command): never deleted from here, or a
+      // starting proxy would find its chunks gone.
+      VideoCache.limitTo(l.limitBytes(CacheStore.video));
       await _db.trimHttp(l.limitBytes(CacheStore.http));
       await _db.trimMessages(l.limitBytes(CacheStore.messages));
       // Owner 2026-10-24: the view lists of case documents live in «Прочее»

@@ -5,6 +5,7 @@ import type Redis from 'ioredis';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
+import { DATABASE_READY_GRACE_MS } from '../src/modules/health/indicators/database.health';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { BOOTSTRAP_CACHE_KEY } from '../src/modules/feature-flags/services/bootstrap.service';
@@ -97,12 +98,19 @@ describe('Security hardening (e2e)', () => {
       const spy = jest
         .spyOn(prisma, '$queryRaw')
         .mockRejectedValue(new Error('connection refused'));
+      // Readiness rides out a short outage (DATABASE_READY_GRACE_MS since the
+      // last success); jump past the grace to see the 503 of a long one.
+      const realNow = Date.now();
+      const clock = jest
+        .spyOn(Date, 'now')
+        .mockImplementation(() => realNow + DATABASE_READY_GRACE_MS + 1_000);
       try {
         const down = await api().get('/health/ready');
         expect(down.status).toBe(503);
         // Unauthenticated probe must not leak connection details.
         expect(JSON.stringify(down.body)).not.toContain('connection refused');
       } finally {
+        clock.mockRestore();
         spy.mockRestore();
       }
       await api().get('/health/ready').expect(200);
