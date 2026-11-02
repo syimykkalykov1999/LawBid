@@ -5,7 +5,23 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="${REPO:-$(cd "$here/../.." && pwd)}"
 r() { python3 -c 'import secrets;print(secrets.token_hex(32))'; }
+# AUTH_TEST=1 ./make-env.sh -> api-auth.env: a COPY of api.env (same keys, so
+# the minted tokens and the sealed messages keep working) with the login storm
+# (k6/auth.js) enabled: fixed SMS code 000000 (the API allows it only in
+# NODE_ENV=development) and per-address limits raised, because all test logins
+# come from one address. SMS stays "mock": nothing is ever sent. The SMS budget
+# caps live in the database: ladder.sh sets them for the run and removes them.
+if [ "${AUTH_TEST:-0}" = 1 ]; then
+  [ -f "$here/api.env" ] || { echo "make api.env first:  ./make-env.sh" >&2; exit 2; }
+  out="$here/api-auth.env"; cp "$here/api.env" "$out.tmp"
+  set_kv() { if grep -q "^$1=" "$out.tmp"; then sed -i "s|^$1=.*|$1=$2|" "$out.tmp"; else echo "$1=$2" >> "$out.tmp"; fi; }
+  set_kv OTP_DEV_FIXED_CODE true
+  for k in OTP_RATE_LIMIT_PER_IP_PER_HOUR OTP_RATE_LIMIT_PER_IDENTIFIER_PER_HOUR OTP_RATE_LIMIT_PER_IDENTIFIER_PER_DAY OTP_VERIFY_LIMIT_PER_IP_PER_HOUR AUTH_OTP_VERIFY_LIMIT_PER_HOUR OTP_RATE_LIMIT_PER_DEVICE_PER_HOUR BUDGET_SMS_PER_MINUTE_MAX BUDGET_SMS_DAILY_MAX BUDGET_SMS_MONTHLY_MAX; do set_kv $k 1000000; done
+  mv "$out.tmp" "$out"; chmod 600 "$out"; echo "wrote $out"; exit 0
+fi
 out="$here/api.env"
+# new secrets would make every token / message made earlier unreadable
+[ -f "$out" ] && [ "${FORCE:-0}" != 1 ] && { echo "$out exists (kept; FORCE=1 makes new secrets and requires prepare.sh again)"; exit 0; }
 grep -v '^\s*#' "$repo/apps/api/.env.example" | grep -v '^\s*$' > "$out.tmp"
 set_kv() { if grep -q "^$1=" "$out.tmp"; then sed -i "s|^$1=.*|$1=$2|" "$out.tmp"; else echo "$1=$2" >> "$out.tmp"; fi; }
 set_kv NODE_ENV development

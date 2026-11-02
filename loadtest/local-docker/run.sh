@@ -27,7 +27,7 @@ docker run --name "lt-k6-$name" --user "$(id -u):$(id -g)" --network host --ulim
   -e PROFILE=local -e ALLOW_LOCAL=1 -e API_URL=http://127.0.0.1:3055/api/v1 -e WS_URL=ws://127.0.0.1:3055 \
   -e TOKENS_FILE=/fx/tokens.json -e FIXTURES_FILE=/fx/fixtures.json \
   -e VUS="${VUS:-100}" -e WS="${WS:-0}" -e HOLD="${HOLD:-4m}" -e RAMP="${RAMP:-1m}" -e WS_HOLD_SECONDS="${WS_HOLD_SECONDS:-300}" \
-  -e SKIP_ACTIONS="${SKIP_ACTIONS:-}" -e NO_K6_ABORT="${NO_K6_ABORT:-0}" \
+  -e SKIP_ACTIONS="${SKIP_ACTIONS:-}" -e WRITES="${WRITES:-0}" -e NO_K6_ABORT="${NO_K6_ABORT:-0}" \
   grafana/k6:2.0.0 run --no-color --summary-export /out/summary.json /lt/k6/vus.js > "$res/k6.log" 2>&1
 rc=$?
 kill $sampler 2>/dev/null
