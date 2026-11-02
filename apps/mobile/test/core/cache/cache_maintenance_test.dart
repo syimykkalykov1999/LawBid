@@ -22,7 +22,7 @@ void main() {
     root = await Directory.systemTemp.createTemp('cache_maintenance_test');
   });
   tearDown(() async {
-    VideoCache.debugSetStarting(null);
+    VideoCache.debugStarting = null;
     await db.close();
     if (root.existsSync()) await root.delete(recursive: true);
   });
@@ -123,7 +123,7 @@ void main() {
 
   test('enforce waits for a starting video proxy before trimming', () async {
     final starting = Completer<void>();
-    VideoCache.debugSetStarting(starting.future);
+    VideoCache.debugStarting = starting.future;
     final old = write(
       'video/a',
       (_mib * 0.6).round(),
