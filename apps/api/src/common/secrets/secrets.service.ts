@@ -878,8 +878,7 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     const page = 200;
     // Join codes ('plain:' rows are local-dev values and stay).
     // Keyset cursor: null on the first page. Never '' — the id column is a
-    // uuid and Postgres/Prisma reject an empty string (the hourly failure of
-    // messages.reencrypt since the S3-4 release).
+    // uuid and Postgres/Prisma reject an empty string.
     let after: string | null = null;
     for (;;) {
       const rows: Array<{ id: string; join_code_enc: string | null }> =
