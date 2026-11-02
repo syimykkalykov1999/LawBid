@@ -32,17 +32,6 @@ if (!config.apiKey.startsWith('__')) {
     });
   });
 
-  self.addEventListener('notificationclick', (event) => {
-    event.notification.close();
-    event.waitUntil(
-      clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-        for (const c of list) {
-          if ('focus' in c) return c.focus();
-        }
-        return clients.openWindow('/');
-      }),
-    );
-  });
 } else {
   // Keyless path: the browser delivers the FCM payload as a Web Push event.
   self.addEventListener('push', (event) => {
@@ -70,15 +59,16 @@ if (!config.apiKey.startsWith('__')) {
     );
   });
 
-  self.addEventListener('notificationclick', (event) => {
-    event.notification.close();
-    event.waitUntil(
-      clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-        for (const c of list) {
-          if ('focus' in c) return c.focus();
-        }
-        return clients.openWindow('/');
-      }),
-    );
-  });
 }
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if ('focus' in c) return c.focus();
+      }
+      return clients.openWindow('/');
+    }),
+  );
+});

@@ -106,12 +106,7 @@ class PushService {
       unawaited(_registerVoip());
     }
     // Web: push only when the build or the admin carries the Firebase web
-    // app's keys.
-    if (kIsWeb) {
-      WebPushConfig.applyRemote(
-        _ref.read(featureFlagsControllerProvider).appConfig,
-      );
-    }
+    // app's keys (applied by the bootstrap).
     if (kIsWeb && !WebPushConfig.configured) {
       debugPrint('push: no web keys in this build');
       _startedFor = null;
@@ -465,6 +460,14 @@ final sessionServicesProvider = Provider<void>((ref) {
   }
   // Owner 2026-10-20: the phone's time zone and the planner's reminder
   // alarms follow the session.
+  // Web: the admin's push keys arrive with the bootstrap, maybe after the
+  // sign-in; the start runs again once they are here.
+  if (kIsWeb) {
+    ref.watch(
+      featureFlagsControllerProvider
+          .select((s) => s.appConfig['fcm.web.vapid_key']),
+    );
+  }
   ref
     ..watch(timezoneSyncProvider)
     ..watch(taskReminderSyncProvider);

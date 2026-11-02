@@ -311,7 +311,9 @@ describe('BootstrapService.fcmWebConfig', () => {
       {} as never,
       {} as never,
       {} as never,
-      { get: jest.fn().mockResolvedValue(fields ? { fields } : null) } as never,
+      {
+        getAll: jest.fn().mockResolvedValue(fields ? [{ fields }] : []),
+      } as never,
     );
   const full = {
     projectId: 'lawbid-6e5ff',
@@ -329,6 +331,15 @@ describe('BootstrapService.fcmWebConfig', () => {
       'fcm.web.project_id': full.projectId,
       'fcm.web.vapid_key': full.webVapidKey,
     });
+  });
+
+  it('never publishes the service-account key', async () => {
+    const out = await make({
+      ...full,
+      privateKey: '-----BEGIN PRIVATE KEY-----',
+      clientEmail: 'x@y.iam.gserviceaccount.com',
+    }).fcmWebConfig();
+    expect(JSON.stringify(out)).not.toMatch(/PRIVATE KEY|iam\.gserviceaccount/);
   });
 
   it('publishes nothing when one is missing or nothing is saved', async () => {

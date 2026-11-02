@@ -232,22 +232,31 @@ export class BootstrapService {
    * is saved. */
   async fcmWebConfig(): Promise<Record<string, string>> {
     try {
-      const f = (await this.secrets?.get('fcm'))?.fields ?? {};
-      const out = {
-        'fcm.web.api_key': f.webApiKey,
-        'fcm.web.app_id': f.webAppId,
-        'fcm.web.sender_id': f.webSenderId,
-        'fcm.web.project_id': f.projectId,
-        'fcm.web.vapid_key': f.webVapidKey,
-        'fcm.web.auth_domain': f.webAuthDomain,
-      };
-      const required = Object.entries(out).filter(
-        ([k]) => k !== 'fcm.web.auth_domain',
-      );
-      if (required.some(([, v]) => !v)) return {};
-      return Object.fromEntries(
-        Object.entries(out).filter(([, v]) => !!v),
-      ) as Record<string, string>;
+      // The first key set that carries the whole web group: the server keys
+      // may sit on several sets (main, backup) and their order follows
+      // failures, so the public config must not flip with it. Only the
+      // public fields named here are ever read; the private key is not.
+      for (const set of (await this.secrets?.getAll('fcm')) ?? []) {
+        const f = set.fields ?? {};
+        if (
+          !f.webApiKey ||
+          !f.webAppId ||
+          !f.webSenderId ||
+          !f.projectId ||
+          !f.webVapidKey
+        ) {
+          continue;
+        }
+        return {
+          'fcm.web.api_key': f.webApiKey,
+          'fcm.web.app_id': f.webAppId,
+          'fcm.web.sender_id': f.webSenderId,
+          'fcm.web.project_id': f.projectId,
+          'fcm.web.vapid_key': f.webVapidKey,
+          ...(f.webAuthDomain ? { 'fcm.web.auth_domain': f.webAuthDomain } : {}),
+        };
+      }
+      return {};
     } catch {
       return {};
     }

@@ -14,11 +14,11 @@ abstract final class WebPushConfig {
   static const _vapidKey = String.fromEnvironment('FIREBASE_WEB_VAPID_KEY');
 
   /// Owner 2026-11-02: the same values from Admin → Integrations → FCM,
-  /// delivered by the bootstrap (`fcm.web.*` in app_config). A build-time
-  /// value wins; the admin's fills in what the build lacks.
+  /// delivered by the bootstrap (`fcm.web.*` in app_config). A complete
+  /// build-time set wins; otherwise the admin's set is used.
   static Map<String, String> _remote = const {};
 
-  /// Called with every bootstrap's `app_config`.
+  /// Called with every bootstrap's `app_config` (FeatureFlagsController).
   static void applyRemote(Map<String, String> appConfig) {
     _remote = {
       for (final e in appConfig.entries)
@@ -27,14 +27,25 @@ abstract final class WebPushConfig {
     };
   }
 
+  /// All five required values were given at build time.
+  static bool get configuredAtBuild =>
+      _apiKey.isNotEmpty &&
+      _appId.isNotEmpty &&
+      _senderId.isNotEmpty &&
+      _projectId.isNotEmpty &&
+      _vapidKey.isNotEmpty;
+
+  /// One whole set wins, never a mix of two: the build's when it is
+  /// complete, otherwise the admin's.
   static String _pick(String build, String remoteKey) =>
-      build.isNotEmpty ? build : (_remote[remoteKey] ?? '');
+      configuredAtBuild ? build : (_remote[remoteKey] ?? '');
 
   static String get apiKey => _pick(_apiKey, 'fcm.web.api_key');
   static String get appId => _pick(_appId, 'fcm.web.app_id');
   static String get senderId => _pick(_senderId, 'fcm.web.sender_id');
   static String get projectId => _pick(_projectId, 'fcm.web.project_id');
-  static String get authDomain => _pick(_authDomain, 'fcm.web.auth_domain');
+  static String get authDomain =>
+      configuredAtBuild ? _authDomain : (_remote['fcm.web.auth_domain'] ?? '');
   static String get vapidKey => _pick(_vapidKey, 'fcm.web.vapid_key');
 
   static bool get configured =>
