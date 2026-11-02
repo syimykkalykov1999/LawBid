@@ -14,6 +14,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Logger,
   Optional,
   NotFoundException,
 } from '@nestjs/common';
@@ -158,6 +159,8 @@ export interface Membership {
  */
 @Injectable()
 export class GroupsService {
+  private readonly slowLog = new Logger('GroupSlowMode');
+
   readonly membershipEnded$ = new Subject<MembershipEnded>();
 
   constructor(
@@ -1595,27 +1598,42 @@ export class GroupsService {
   /**
    * Owner 2026-11-02 (Telegram «Медленный режим»): a member who is not an
    * admin sends one message per `slow_mode_s` seconds. One Redis key per
-   * (group, person) with that TTL, taken with SET NX, so the check costs one
-   * round trip, only in groups that switched it on. A retry of an already
-   * stored message (same clientMessageId) never gets here. Redis down = the
-   * message goes through (slow mode is a courtesy, not a security fence).
+   * (group, person) holding the time of the last send; the pause is compared
+   * with the CURRENT setting, so lowering or switching it off frees people at
+   * once. SET NX EX = one round trip in the common case, only in groups that
+   * switched it on. Redis down = the message goes through (slow mode is a
+   * courtesy, not a security fence; logged). Returns a function that gives
+   * the slot back when the message was not stored after all.
    */
-  private async takeSlowModeSlot(
+  async takeSlowModeSlot(
     m: { admin: boolean; group: { id: string; slow_mode_s: number | null } },
     userId: string,
-  ): Promise<void> {
+  ): Promise<() => Promise<void>> {
     const wait = m.group.slow_mode_s;
-    if (m.admin || !wait || !this.redis) return;
+    const noop = async (): Promise<void> => undefined;
+    if (m.admin || !wait || !this.redis) return noop;
+    const redis = this.redis;
     const key = `group:slow:${m.group.id}:${userId}`;
-    let taken: 'OK' | null;
-    let left = wait;
+    const release = async (): Promise<void> => {
+      await redis.del(key).catch(() => undefined);
+    };
+    let left = 0;
     try {
-      taken = await this.redis.set(key, '1', 'EX', wait, 'NX');
-      if (!taken) left = Math.max(1, await this.redis.ttl(key));
-    } catch {
-      return;
+      // The key outlives a shortened setting at most; its value, not its
+      // TTL, decides.
+      const now = Date.now();
+      const taken = await redis.set(key, String(now), 'EX', 3600, 'NX');
+      if (taken) return release;
+      const last = Number(await redis.get(key));
+      left = Math.ceil((last + wait * 1000 - now) / 1000);
+      if (!(left > 0)) {
+        await redis.set(key, String(now), 'EX', 3600);
+        return release;
+      }
+    } catch (error) {
+      this.slowLog.warn(`slow mode skipped, Redis failed: ${String(error)}`);
+      return noop;
     }
-    if (taken) return;
     throw new HttpException(
       {
         code: ErrorCode.RATE_LIMITED,
@@ -1716,7 +1734,7 @@ export class GroupsService {
         ).map((r) => r.user_id)
       : [];
     // After every check: a refused message must not burn the member's slot.
-    await this.takeSlowModeSlot(m, user.sub);
+    const giveSlotBack = await this.takeSlowModeSlot(m, user.sub);
     let row: ChatGroupMessage;
     try {
       row = await withTxRetry(this.prisma, async (tx) => {
@@ -1759,8 +1777,12 @@ export class GroupsService {
         error.code === 'P2002'
       ) {
         const again = await this.findOwn(id, user.sub, dto.clientMessageId);
-        if (again) return this.one(again, user.sub);
+        if (again) {
+          await giveSlotBack();
+          return this.one(again, user.sub);
+        }
       }
+      await giveSlotBack();
       throw error;
     }
     await this.fanOut(id, row, { push: opts.push });

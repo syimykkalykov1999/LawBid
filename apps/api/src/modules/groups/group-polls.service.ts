@@ -74,6 +74,8 @@ export class GroupPollsService {
     if (existing) {
       return (await this.presenter.messages([existing], user.sub))[0];
     }
+    // Owner 2026-11-02: a poll counts as the member's message in slow mode.
+    const giveSlotBack = await this.groups.takeSlowModeSlot(m, user.sub);
     let row: ChatGroupMessage;
     try {
       row = await withTxRetry(this.prisma, async (tx) => {
@@ -121,9 +123,11 @@ export class GroupPollsService {
           },
         });
         if (again) {
+          await giveSlotBack();
           return (await this.presenter.messages([again], user.sub))[0];
         }
       }
+      await giveSlotBack();
       throw error;
     }
     await this.groups.fanOut(groupId, row);

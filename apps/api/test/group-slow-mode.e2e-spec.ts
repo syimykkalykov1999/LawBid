@@ -4,6 +4,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { acceptInvites } from './support/group-invites';
@@ -131,5 +132,43 @@ describe('Group slow mode (e2e)', () => {
       .send({ slowModeS: null })
       .expect(200);
     await say(gid, ann.id, 'third').expect(201);
+  });
+
+  it('a shortened pause frees people at once, and a poll counts as a message', async () => {
+    const { gid, owner, ann } = await group();
+    const patch = (slowModeS: number) =>
+      api()
+        .patch(`/api/v1/groups/${gid}`)
+        .set(bearer(owner.id))
+        .send({ slowModeS })
+        .expect(200);
+    await patch(3600);
+    await say(gid, ann.id, 'first').expect(201);
+    // A poll during the pause is refused like a text.
+    const poll = () =>
+      api()
+        .post(`/api/v1/groups/${gid}/polls`)
+        .set(bearer(ann.id))
+        .send({
+          question: 'Q?',
+          options: ['a', 'b'],
+          multiple: false,
+          anonymous: false,
+          clientMessageId: randomUUID(),
+        });
+    await poll().expect(429);
+    // 20 s passed and the admin shortens the pause to 10 s: free at once.
+    await app
+      .get<{ set: (...a: unknown[]) => Promise<unknown> }>(REDIS_CLIENT)
+      .set(
+        `group:slow:${gid}:${ann.id}`,
+        String(Date.now() - 20_000),
+        'EX',
+        60,
+      );
+    await patch(10);
+    await poll().expect(201);
+    // The poll took the slot: a text right after is refused.
+    await say(gid, ann.id, 'again').expect(429);
   });
 });
