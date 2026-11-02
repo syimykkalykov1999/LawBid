@@ -126,6 +126,11 @@ jobs:
     # Backstop for everything below: 2 h of work + create + destroy. Each long
     # step has its own, shorter timeout; the watchdog covers a killed runner.
     timeout-minutes: 240
+    # actions: write only so the money guard can cancel THIS run at the limit
+    permissions:
+      id-token: write
+      contents: read
+      actions: write
     env:
       RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       WALL_START: ${{ github.run_started_at }}
@@ -182,6 +187,15 @@ jobs:
           echo "Testing image tag \`$tag\`" >>"$GITHUB_STEP_SUMMARY"
 
       # ---- everything from here on is cleaned up by the always() steps at the end ----
+      - name: MONEY GUARD (background) - cancels the run at the confirm_cost limit
+        env:
+          LIMIT: ${{ inputs.confirm_cost }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          nohup python3 loadtest/scripts/cost-guard.py "$LIMIT" "$PROFILE" >"$RUNNER_TEMP/cost-guard.log" 2>&1 &
+          echo "money guard started: limit \$$LIMIT for profile $PROFILE" | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Create the stack (Terraform, tagged Project=lawbid-loadtest)
         id: create
         timeout-minutes: 60
