@@ -85,6 +85,11 @@ const actions = [
     const c = pick(CASES);
     if (c) get(`/cases/${c.id}/bids`, c.t, 'case_bids');
   }],
+  // WRITES=1 only (weight 0 otherwise = never drawn): an attorney publishes a post
+  // (docs/perf/LOAD_LADDER_2026-11-02.md). 429/403/422 = a limit or rule answered, counted by api_429, not a failure here.
+  ['post_create', __ENV.WRITES === '1' ? 3 : 0, 1, () => {
+    post('/posts', { title: `load ${Date.now()}`, body: `load test post ${uuid()}` }, attorneyToken(rnd), 'post_create', { 'Idempotency-Key': uuid() }, [403, 422, 429]);
+  }],
   ['admin', 5, 1.2, () => {
     const t = pick(ADM);
     if (!t) return get('/me/session', clientToken(rnd), 'session');

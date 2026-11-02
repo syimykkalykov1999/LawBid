@@ -5,7 +5,11 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="${REPO:-$(cd "$here/../.." && pwd)}"
 r() { python3 -c 'import secrets;print(secrets.token_hex(32))'; }
-out="$here/api.env"
+# AUTH_TEST=1 ./make-env.sh -> api-auth.env: the same stack, but the login storm
+# (k6/auth.js) can run: fixed SMS code 000000 (the API allows it only in
+# NODE_ENV=development) and per-address limits raised, because all test logins
+# come from one address. SMS stays "mock": nothing is ever sent.
+out="$here/api.env"; [ "${AUTH_TEST:-0}" = 1 ] && out="$here/api-auth.env"
 grep -v '^\s*#' "$repo/apps/api/.env.example" | grep -v '^\s*$' > "$out.tmp"
 set_kv() { if grep -q "^$1=" "$out.tmp"; then sed -i "s|^$1=.*|$1=$2|" "$out.tmp"; else echo "$1=$2" >> "$out.tmp"; fi; }
 set_kv NODE_ENV development
@@ -24,7 +28,10 @@ set_kv TRUST_PROXY_HOPS 1
 set_kv HTTP_LOG_SAMPLE_PERCENT 1
 set_kv SMS_PROVIDER mock
 set_kv EMAIL_PROVIDER mock
-set_kv OTP_DEV_FIXED_CODE false
+set_kv OTP_DEV_FIXED_CODE "$([ "${AUTH_TEST:-0}" = 1 ] && echo true || echo false)"
+if [ "${AUTH_TEST:-0}" = 1 ]; then
+  for k in OTP_RATE_LIMIT_PER_IP_PER_HOUR OTP_RATE_LIMIT_PER_IDENTIFIER_PER_HOUR OTP_RATE_LIMIT_PER_IDENTIFIER_PER_DAY OTP_VERIFY_LIMIT_PER_IP_PER_HOUR AUTH_OTP_VERIFY_LIMIT_PER_HOUR OTP_RATE_LIMIT_PER_DEVICE_PER_HOUR; do set_kv $k 1000000; done
+fi
 set_kv DISPOSABLE_DOMAINS_URL http://127.0.0.1:9/none
 set_kv SMTP_HOST ""
 set_kv TURN_URLS ""
