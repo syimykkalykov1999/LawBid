@@ -9,6 +9,9 @@
 #                                               1 tag absent (go build), 2 anything
 #                                               else (missing repository, denied...)
 #
+# (deploy.yml, rollback.yml and scripts/deploy/prod-images.sh keep their own
+# inline describe-images probes on purpose: their failure semantics differ.)
+#
 # Uses only ecr:DescribeImages, which every role that pushes or pulls already
 # has (infra/bootstrap deploy role, infra/bootstrap-loadtest): no new IAM. The
 # two failure modes are told apart and each names the exact fix:

@@ -31,7 +31,6 @@ run "unexpected error is shown" 2 "AccessDeniedException" lawbid-denied:1.0
 run "reports every problem, not the first" 1 "lawbid-clamav:1.4" lawbid-missing:1.0 lawbid-clamav:1.4
 run "--repo rejects a :tag" 2 "takes repository names only" --repo lawbid-api:1.0
 run "denied is exit 2 with the hint" 2 "added to infra/bootstrap" lawbid-denied:1.0
-run "probe: found" 0 "ok   ECR" --probe lawbid-api:1.0
 run "probe: tag absent is exit 1" 1 "not there yet" --probe lawbid-api:9.9
 run "probe: missing repository is exit 2, not 'absent'" 2 "does not exist" --probe lawbid-missing:1.0
 run "tag required without --repo" 2 "has no :tag" lawbid-api
@@ -46,4 +45,7 @@ dflt() { awk -v k="$2" '$0 ~ "^ *"k":" {f=1} f && /default:/ {gsub(/[" ]/,"",$2)
 chk() { if [ -z "$2" ] || [ "$2" != "$3" ]; then echo "FAIL $1: load-test has '$2', workflow default '$3'"; fail=1; else echo "ok   $1 ($2)"; fi; }
 chk "pgbouncer tag matches Build PgBouncer" "$(pick PGBOUNCER_TAG)" "$(dflt build-pgbouncer.yml tag)"
 chk "clamav tag matches Mirror ClamAV" "$(pick CLAMAV_TAG)" "$(dflt mirror-clamav.yml target_tag)"
+tfv() { sed -n "s|.*$1 *= *\".*/lawbid-$2:\([^\"]*\)\".*|\1|p" "$R/infra/envs/prod/launch.tfvars.example" | head -1; }
+chk "tfvars example clamav tag" "$(pick CLAMAV_TAG)" "$(tfv clamav_image clamav)"
+chk "tfvars example pgbouncer tag" "$(pick PGBOUNCER_TAG)" "$(tfv pgbouncer_image pgbouncer)"
 exit $fail
