@@ -1184,6 +1184,15 @@ export const OWNER_STORAGE_SETTINGS = {
   // Terraform gave the API the right to: db_replica_toggle); off = only the
   // admin button creates it. Never deletes by itself.
   'db.replica_provision': 'auto',
+  // Owner 2026-11-02: the second database copy (Multi-AZ) and the Redis
+  // standby node come and go with the load. ha.mode: off = hands off, on =
+  // keep the copies, auto = add them after 3 h with at least
+  // ha.provision_online_users people online (open sockets, hourly average)
+  // and remove them after ha.release_days days all under half of it (never
+  // on a missing metric; the opposite direction waits 24 h).
+  'ha.mode': 'auto',
+  'ha.provision_online_users': 200,
+  'ha.release_days': 7,
   'db.health_table_size_gb': 20,
   'db.health_dead_ratio_percent': 20,
   'storage.growth_alert_percent': 20,

@@ -53,7 +53,7 @@ worker_spot = true
 api_spot    = true
 
 redis_node_type = "cache.t4g.micro" # cache.r7g.large → t4g.micro (≈ $12)
-redis_replicas  = 1                 # owner 2026-10-23: failover replica in the other AZ (+ ≈ $12)
+redis_replicas  = 0                 # owner 2026-11-02: standby node OFF at launch; the API adds it by itself when people are online (docs/runbooks/ha-auto.md)
 
 nat_per_az = false # one NAT gateway instead of one per AZ (≈ $33 saved)
 # Owner rule 2026-10-25 (S9-6): the four interface endpoints (≈ $29/month in one
@@ -85,7 +85,7 @@ existing_database_identifier = "lawbid-prod-postgres"
 # only imports; review `plan` first (docs/runbooks/infra-hardening.md).
 # adopt_existing_database = true
 # After the Sunday Multi-AZ switch in the console also set:
-# database_multi_az = true
+# database_multi_az = false  # owner 2026-11-02: Multi-AZ starts OFF; the API switches it on by itself when people are online (docs/runbooks/ha-auto.md)
 # S4-6: RDS cross-Region automated backups (PITR in us-west-2, RPO minutes):
 # rds_cross_region_backups = true
 backup_enabled               = true
