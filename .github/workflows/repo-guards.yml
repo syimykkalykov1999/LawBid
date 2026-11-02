@@ -19,7 +19,7 @@ on:
     branches: [main, master]
 
 concurrency:
-  group: repo-guards-${{ github.ref }}
+  group: repo-guards-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -36,20 +36,30 @@ jobs:
         with:
           node-version: "22.23.4"
 
-      # The audit needs only exceljs (version of package-lock.json), not the
-      # whole monorepo install.
-      - name: Install exceljs only
+      # The audits need only exceljs and fontkit (versions of package-lock.json),
+      # not the whole monorepo install.
+      - name: Install exceljs and fontkit only
         run: |
           V=$(node -p "require('./package-lock.json').packages['node_modules/exceljs'].version")
-          npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund "exceljs@$V"
+          F=$(node -p "require('./package-lock.json').packages['node_modules/fontkit'].version")
+          # Installed beside the repo, not in it: npm 10 cannot re-resolve the
+          # whole workspace tree without the lock file (vitest 4 peers crash
+          # arborist), and this job needs only exceljs and fontkit.
+          mkdir "$RUNNER_TEMP/audit-deps"
+          npm install --prefix "$RUNNER_TEMP/audit-deps" --no-save --no-package-lock --ignore-scripts --no-audit --no-fund "exceljs@$V" "fontkit@$F"
+          ln -s "$RUNNER_TEMP/audit-deps/node_modules" node_modules
 
       - name: Translations are complete in every language
         run: node scripts/i18n-audit.mjs --ci
+
+      # Owner 2026-11-02: languages once showed squares/crosses instead of text.
+      - name: Fonts cover every language (UI only; server PDFs are a known gap)
+        run: node scripts/i18n-glyph-audit.mjs --ci
 
       - name: SEO generator tests (deep links vs the Android manifest)
         run: node --test scripts/seo/test/*.test.mjs
 
       - name: Self-tests of the CI helper scripts
         run: |
-          node --test scripts/ci/flag-first-check.test.mjs
+          node --test scripts/ci/flag-first-check.test.mjs scripts/ci/npm-audit-gate.test.mjs
           bash scripts/ci/require-green.test.sh

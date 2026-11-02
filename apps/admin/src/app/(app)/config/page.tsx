@@ -408,8 +408,7 @@ const KEY_TEXT: Record<string, string> = {
   "limits.bio_chars": "«О себе» у адвоката: максимум знаков.",
   "post.max_chars_media":
     "Пост с фото, видео или файлами: максимум знаков (2200 знаков).",
-  "post.max_chars_brief":
-    "Бриф (только текст): максимум знаков (3000 знаков).",
+  "post.max_chars_brief": "Бриф (только текст): максимум знаков (3000 знаков).",
   "media.photo_max_px":
     "Фото (посты, рилсы, дела, отзывы): длинная сторона после сжатия на телефоне, px",
   "media.photo_quality":
@@ -495,7 +494,9 @@ const KEY_TEXT: Record<string, string> = {
   "rate_limit.chat_save_per_minute": "Сообщений в «Сохранённое» в минуту.",
   "rate_limit.forward_per_minute": "Пересылок сообщений в минуту.",
   "realtime.max_connects_per_ip_per_minute":
-    "Новых живых соединений в минуту с одного адреса (0 — без ограничения). За одним адресом бывает много людей: держите щедро.",
+    "Новых живых соединений в минуту с одного адреса для тех, кто не вошёл (0 — без ограничения). Для вошедших адрес — лишь широкая сетка безопасности (в 10 раз выше).",
+  "realtime.max_connects_per_user_per_minute":
+    "Новых живых соединений в минуту от одного вошедшего человека (0 — без ограничения). Считаем по аккаунту, а не по адресу.",
   "security.password_breach_check_enabled":
     "Проверять новый пароль по базе утёкших паролей (Have I Been Pwned, пароль не уходит наружу). Если сервис недоступен — пропускаем.",
   "security.password_breach_timeout_ms":
@@ -801,6 +802,8 @@ const KEY_TEXT: Record<string, string> = {
   "partition.chat_group_messages_mode":
     "То же для сообщений групп: off / on / auto.",
   "partition.notifications_mode": "То же для уведомлений: off / on / auto.",
+  "partition.post_view_events_mode":
+    "То же для просмотров постов, но делится по месяцам: off / on / auto.",
   "partition.auto_rows":
     "При скольких строках режим auto начинает разделять таблицу (по умолчанию 50 000 000).",
   "images.avif_quality":

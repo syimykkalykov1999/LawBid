@@ -62,7 +62,7 @@ on:
       - "infra/modules/ecs/main.tf"
 
 concurrency:
-  group: api-ci-${{ github.ref }}
+  group: api-ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Security research #5 (2026-10-22), A2: least privilege — the jobs only read
@@ -344,6 +344,7 @@ jobs:
           node --test scripts/ci/flag-first-check.test.mjs
           bash scripts/ci/require-green.test.sh
           python3 -m unittest discover -s infra/modules/signing-guard/lambda/tests
+          python3 -m unittest discover -s loadtest/local-docker -p 'test_*.py'
 
       - name: Dependency audit (high and critical block)
         # docs/06 §4.4; audit #15 (2026-10-22): a high or critical advisory

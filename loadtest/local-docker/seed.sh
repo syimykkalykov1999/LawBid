@@ -5,6 +5,9 @@
 #   seed.sh <S> <db> [workers]    (Postgres container lawbid-lt-postgres-1)
 #   DEFER_INDEXES=1: drop the secondary (non-unique) indexes before the load and
 #   build them once after it (indexes.py) - the 10M profile (S=100)
+#   SEED_PGOPTIONS='-c enable_hashjoin=off -c work_mem=256MB': server settings
+#   for every seed session (par_seed.py); the 10M run needed them so the 3M-row
+#   video-post UPDATE probed the posts index instead of hashing all 31M posts.
 set -euo pipefail
 S="$1"; DB="$2"; W="${3:-8}"
 here="$(cd "$(dirname "$0")" && pwd)"

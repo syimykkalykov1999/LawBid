@@ -289,7 +289,7 @@ function PartitionCardView({ c, onAct }: { c: PartCard; onAct: (p: Pending) => v
     <Card className="flex min-w-0 flex-col gap-2 p-4">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1 text-sm font-medium text-heading">
-          {c.mode ? 'Разделить таблицу по хешу' : 'Разделить таблицу по месяцам'}: {c.label}
+          {c.label.includes('хеш') ? 'Разделить таблицу по хешу' : 'Разделить таблицу по месяцам'}: {c.label}
         </div>
         <Badge tone={tone} dot className="shrink-0">
           {label}

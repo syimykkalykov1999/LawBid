@@ -113079,16 +113079,6 @@
               }
             }
           },
-          "403": {
-            "description": "Forbidden: FEATURE_DISABLED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
           "404": {
             "description": "Not found: NOT_FOUND",
             "content": {
@@ -190093,6 +190083,11 @@
             "type": "boolean",
             "description": "Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link."
           },
+          "slowModeS": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Slow mode: seconds a non-admin waits between two own messages; null = off."
+          },
           "canPost": {
             "type": "boolean",
             "description": "What I may do here (derived from the above)."
@@ -190197,6 +190192,7 @@
           "whoCanPin",
           "myRights",
           "showServiceMessages",
+          "slowModeS",
           "canPost",
           "canAdd",
           "canEditInfo",
@@ -190435,6 +190431,11 @@
             "type": "boolean",
             "description": "Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link."
           },
+          "slowModeS": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Slow mode: seconds a non-admin waits between two own messages; null = off."
+          },
           "canPost": {
             "type": "boolean",
             "description": "What I may do here (derived from the above)."
@@ -190559,6 +190560,7 @@
           "whoCanPin",
           "myRights",
           "showServiceMessages",
+          "slowModeS",
           "canPost",
           "canAdd",
           "canEditInfo",
@@ -190907,6 +190909,20 @@
             "nullable": true,
             "format": "uuid",
             "description": "A new clean `avatar` file; null removes the photo."
+          },
+          "slowModeS": {
+            "type": "number",
+            "nullable": true,
+            "enum": [
+              0,
+              10,
+              30,
+              60,
+              300,
+              900,
+              3600
+            ],
+            "description": "Slow mode: seconds a member who is not an admin waits between two own messages; 0 (or null) = off. Needs the «edit group info» right."
           },
           "whoCanPost": {
             "enum": [

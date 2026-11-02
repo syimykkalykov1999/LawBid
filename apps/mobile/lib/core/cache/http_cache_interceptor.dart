@@ -29,6 +29,31 @@ Map<String, dynamic> cacheFor(Duration maxAge) => {
 /// [Options] for a GET that may be served from the phone for [maxAge].
 Options cachedFor(Duration maxAge) => Options(extra: cacheFor(maxAge));
 
+const _phoneOnlyZoneKey = #lawbidReadFromPhoneOnly;
+
+/// Owner 2026-11-02 (Telegram / Instagram: a list opens at once, also on a
+/// cold start and offline): runs [read] so that every cacheable GET inside
+/// it is answered from the phone's HTTP copy (memory, then disk) **with no
+/// request**, however old the copy is; a GET with no copy fails with a
+/// [DioException] (`error` is [kNoPhoneCopy]) and never reaches the
+/// network. The caller shows what it got and reads the live answer next
+/// (a 304 when nothing changed). A zone value, so no repository signature
+/// has to change.
+///
+/// [read] must only call the repository: resolve providers **before** (a
+/// provider built inside would keep the zone for every timer it starts).
+/// The result is `Future<T?>` (awaited here) so it fits a nullable
+/// `cachedFirstPage`; a miss throws, it is never a quiet null.
+Future<T?> readFromPhoneOnly<T>(Future<T> Function() read) async =>
+    await runZoned(read, zoneValues: {_phoneOnlyZoneKey: true});
+
+/// Whether the code running now is inside [readFromPhoneOnly] (a test
+/// double with no HTTP copy answers it like a miss).
+bool get readingFromPhoneOnly => Zone.current[_phoneOnlyZoneKey] == true;
+
+/// `DioException.error` of a [readFromPhoneOnly] GET that found no copy.
+const kNoPhoneCopy = 'no copy on the phone';
+
 /// One remembered GET answer.
 class HttpCacheEntry {
   const HttpCacheEntry({
@@ -78,6 +103,7 @@ class HttpCacheInterceptor extends Interceptor {
     this.staleOnError = const Duration(hours: 8),
     this.followerWait = const Duration(seconds: 8),
     this.diskReadWait = const Duration(milliseconds: 1500),
+    this.phoneOnlyDiskWait = const Duration(milliseconds: 800),
     DateTime Function()? now,
   })  : _disk = disk,
         _usage = usage,
@@ -117,6 +143,12 @@ class HttpCacheInterceptor extends Interceptor {
   /// The longest the saved copy is looked for on disk.
   final Duration diskReadWait;
 
+  /// A phone-only read ([readFromPhoneOnly]) is a list's first-screen copy,
+  /// which the list gives only 1 s (`PagedNotifier.savedCopyTimeout`): the
+  /// disk must answer sooner than that or the copy arrives after the list
+  /// stopped waiting and the read is wasted.
+  final Duration phoneOnlyDiskWait;
+
   final _entries = <String, HttpCacheEntry>{};
   int _bytes = 0;
 
@@ -130,6 +162,11 @@ class HttpCacheInterceptor extends Interceptor {
   ) async {
     if (options.method.toUpperCase() != 'GET' ||
         options.responseType != ResponseType.json) {
+      if (readingFromPhoneOnly) {
+        // Only a JSON GET has a copy; anything else must not go out here.
+        handler.reject(_noCopy(options));
+        return;
+      }
       handler.next(options);
       return;
     }
@@ -146,6 +183,21 @@ class HttpCacheInterceptor extends Interceptor {
         fixLegacyShape(options.path, hit.data);
         _put(key, hit);
       }
+    }
+    if (readingFromPhoneOnly) {
+      if (hit == null) {
+        handler.reject(_noCopy(options));
+      } else {
+        handler.resolve(
+          Response<dynamic>(
+            requestOptions: options,
+            data: hit.data,
+            statusCode: 200,
+            extra: {kFromCacheExtra: true},
+          ),
+        );
+      }
+      return;
     }
     if (hit == null) {
       if (await _followOrLead(options, key, handler)) return;
@@ -175,6 +227,12 @@ class HttpCacheInterceptor extends Interceptor {
     if (await _followOrLead(options, key, handler)) return;
     handler.next(options);
   }
+
+  static DioException _noCopy(RequestOptions options) => DioException(
+        requestOptions: options,
+        type: DioExceptionType.cancel,
+        error: kNoPhoneCopy,
+      );
 
   /// S15-12: two widgets asking the same URL at the same moment sent two
   /// requests. The first one (the leader) goes out; an identical GET that
@@ -367,7 +425,10 @@ class HttpCacheInterceptor extends Interceptor {
     try {
       // Owner 2026-10-28 (app freeze): a stuck disk read must never hold a
       // request back — then it is simply a miss and the server is asked.
-      return await disk.read(key).timeout(diskReadWait, onTimeout: () => null);
+      return await disk.read(key).timeout(
+            readingFromPhoneOnly ? phoneOnlyDiskWait : diskReadWait,
+            onTimeout: () => null,
+          );
     } on Object catch (e) {
       debugPrint('http cache read: $e');
       return null;
