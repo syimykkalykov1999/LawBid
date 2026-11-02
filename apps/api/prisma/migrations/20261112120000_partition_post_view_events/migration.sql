@@ -1,3 +1,4 @@
+SET LOCAL lock_timeout = '5s';
 -- post_view_events joins the monthly-partitioning list (expand only: nothing is
 -- converted here). The online runner converts it only when an admin starts it
 -- («Масштаб» -> card -> «Запустить»); the daily job keeps the future months
