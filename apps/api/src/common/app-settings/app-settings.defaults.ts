@@ -1141,6 +1141,7 @@ export const OWNER_STORAGE_SETTINGS = {
   'partition.messages_mode': 'off',
   'partition.chat_group_messages_mode': 'off',
   'partition.notifications_mode': 'off',
+  'partition.post_view_events_mode': 'off',
   'partition.auto_rows': 50_000_000,
   'images.webp_quality': 88,
   'images.jpeg_quality': 90,
