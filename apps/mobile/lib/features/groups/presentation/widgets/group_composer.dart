@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_mention_picker.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_style.dart';
@@ -129,9 +130,7 @@ class _GroupComposerState extends ConsumerState<GroupComposer> {
     return [
       for (final m in widget.members)
         if (m.userId != me &&
-            (q.isEmpty ||
-                groupMemberName(t, m).toLowerCase().contains(q) ||
-                (m.username ?? '').toLowerCase().contains(q)))
+            textMatches(q, [groupMemberName(t, m), m.username]))
           m,
     ].take(40).toList();
   }
