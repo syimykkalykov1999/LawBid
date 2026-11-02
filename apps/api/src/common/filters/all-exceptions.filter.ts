@@ -11,6 +11,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../errors/error-code.enum';
 import { getRequestId } from '../middleware/request-id.middleware';
 import { CallTimeoutError, CircuitOpenError } from '../resilience/resilience';
+import { isRedisInfraError } from '../../redis/redis-errors';
 import type { ApiErrorBody } from '../dto/api-response.dto';
 
 /**
@@ -142,8 +143,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     // Batch C item 6: an outside service (SES, Twilio, Bunny, Stripe) is
-    // paused by its circuit breaker or timed out: «try again shortly», the
-    // same answer the apps already retry for load shedding.
+    // paused by its circuit breaker or timed out, or — load test 2026-11-02
+    // (PR #606, LOAD_RESILIENCE §2) — Redis is away or hung and the caller
+    // had no fallback: «try again shortly», the same answer the apps
+    // already retry for load shedding (they retry a 503 with Retry-After,
+    // never a 500).
     if (
       exception instanceof CircuitOpenError ||
       exception instanceof CallTimeoutError
@@ -153,6 +157,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
         code: 'SERVER_BUSY',
         message: 'A partner service is slow right now. Try again shortly.',
         retryAfterSec: 10,
+      };
+    }
+    if (isRedisInfraError(exception)) {
+      return {
+        status: HttpStatus.SERVICE_UNAVAILABLE,
+        code: 'SERVER_BUSY',
+        message: 'The server is busy right now. Try again shortly.',
+        retryAfterSec: 5,
       };
     }
 

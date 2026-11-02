@@ -8,6 +8,7 @@ import {
 import { LaunchChecksService } from './launch/launch-checks.service';
 import { SpendService } from './spend/spend.service';
 import { AwsOpsService } from './aws-ops.service';
+import { HaAutoService } from './ha-auto.service';
 import { HttpStatsService } from './http-stats.service';
 import { RouteMetricsService } from './route-metrics.service';
 import { RealtimeStatsService } from './realtime-stats.service';
@@ -29,6 +30,7 @@ import { UsageHardStopService } from './usage/usage-hard-stop.service';
   providers: [
     AwsOpsService,
     AwsCapacityService,
+    HaAutoService,
     OpsStateService,
     CronIdleBackoffService,
     SecretRotationService,
