@@ -33,6 +33,8 @@ void main() {
     'longest': (LongestTranslator(), TextDirection.ltr),
     'longest rtl': (LongestTranslator(), TextDirection.rtl),
     'ne': (ShippedTranslator('ne'), TextDirection.ltr),
+    'de': (ShippedTranslator('de'), TextDirection.ltr),
+    'mr': (ShippedTranslator('mr'), TextDirection.ltr),
     'ru': (
       L10nTranslator(language: AppLanguage.ru, cache: const {}),
       TextDirection.ltr,
@@ -75,6 +77,12 @@ void main() {
           await tester.pump(const Duration(milliseconds: 400));
           expect(tester.takeException(), isNull);
           final box = tester.getRect(find.byType(ReelPublishCard));
+          // Owner 2026-10-28: once uploaded (processing) the banner is gone.
+          if (phase == ReelPublishPhase.processing) {
+            expect(box.width, 0);
+            await tester.pumpWidget(const SizedBox());
+            return;
+          }
           expect(box.width, 360, reason: 'full width');
           if (phase == ReelPublishPhase.uploading && scale == 1.0) {
             expect(box.height, lessThan(80), reason: 'compact');

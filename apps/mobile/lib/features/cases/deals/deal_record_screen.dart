@@ -495,8 +495,7 @@ class _DayGroup extends StatelessWidget {
           ),
         ),
         AnimatedSize(
-          duration:
-              context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+          duration: context.sizeChangeDuration,
           curve: AppMotion.enterCurve,
           alignment: Alignment.topCenter,
           child: !expanded

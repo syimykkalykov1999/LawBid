@@ -223,3 +223,74 @@ describe('decideSweep', () => {
     ).toEqual({ action: 'release', reason: 'expired' });
   });
 });
+
+describe('LeaseService.tryClaim under contention (load test round 2)', () => {
+  const src = {
+    kind: 'support_ticket',
+    onClaimed: jest.fn().mockResolvedValue(true),
+  };
+  const svc = () =>
+    new LeaseService(
+      noDb,
+      noRedis,
+      settings(),
+      {} as unknown as StaffPresenceService,
+      idleEvents,
+    ) as unknown as {
+      tryClaim: (...a: unknown[]) => Promise<unknown>;
+    };
+  const tx = (locked: boolean) => {
+    const sqls: string[] = [];
+    return {
+      sqls,
+      $queryRaw: jest.fn((strings: TemplateStringsArray) => {
+        const q = strings.join('?');
+        sqls.push(q);
+        if (q.includes('pg_try_advisory_xact_lock'))
+          return Promise.resolve([{ ok: !locked }]);
+        if (q.includes('INSERT INTO work_leases'))
+          return Promise.resolve([
+            {
+              kind: 'support_ticket',
+              item_id: 'i1',
+              admin_id: 'a1',
+              taken_at: new Date(),
+              leased_until: new Date(),
+              last_renew_at: new Date(),
+              attempt: 1,
+            },
+          ]);
+        return Promise.resolve([]);
+      }),
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      workLeaseEvent: { create: jest.fn().mockResolvedValue({}) },
+    };
+  };
+
+  it('«Следующий» skips an item another worker is claiming right now, without waiting on it', async () => {
+    const t = tx(true);
+    await expect(
+      svc().tryClaim(t, src, 'i1', 'a1', 600, 30, false, true),
+    ).resolves.toBeNull();
+    expect(t.sqls.some((q) => q.includes('INSERT INTO work_leases'))).toBe(
+      false,
+    );
+  });
+
+  it('a free item is claimed exactly as before', async () => {
+    const t = tx(false);
+    const view = await svc().tryClaim(t, src, 'i1', 'a1', 600, 30, false, true);
+    expect(view).not.toBeNull();
+    expect(t.sqls.some((q) => q.includes('INSERT INTO work_leases'))).toBe(
+      true,
+    );
+  });
+
+  it('a click on one item ([claim]) takes no try-lock (waits as before)', async () => {
+    const t = tx(true);
+    await svc().tryClaim(t, src, 'i1', 'a1', 600, 30);
+    expect(t.sqls.some((q) => q.includes('pg_try_advisory_xact_lock'))).toBe(
+      false,
+    );
+  });
+});

@@ -46,6 +46,7 @@ function setup(maxSockets?: number) {
   const revocation = { isBlacklisted: jest.fn().mockResolvedValue(false) };
   const presence = {
     touch: jest.fn().mockResolvedValue(false),
+    refresh: jest.fn().mockResolvedValue(undefined),
     touchCount: jest.fn().mockResolvedValue(1),
     leave: jest.fn().mockResolvedValue(false),
     visible: jest.fn().mockResolvedValue(false),
@@ -136,7 +137,7 @@ describe('RealtimeGateway session revocation (finding 5)', () => {
     jest.advanceTimersByTime(10 * 45_000);
     expect(revocation.isBlacklisted).toHaveBeenCalledTimes(1);
     // The presence heartbeat still runs.
-    expect(presence.touch.mock.calls.length).toBeGreaterThanOrEqual(10);
+    expect(presence.refresh.mock.calls.length).toBeGreaterThanOrEqual(10);
     await gateway.handleDisconnect(s as unknown as Socket);
   });
 
@@ -174,7 +175,7 @@ describe('RealtimeGateway session revocation (finding 5)', () => {
     const redis = {
       duplicate: jest
         .fn()
-        .mockReturnValueOnce({ spublish: jest.fn() })
+        .mockReturnValueOnce({ spublish: jest.fn(), on: jest.fn() })
         .mockReturnValueOnce({ ssubscribe: jest.fn(), on: jest.fn() })
         .mockReturnValueOnce(sub),
       srem: jest.fn(),

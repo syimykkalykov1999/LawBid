@@ -859,6 +859,7 @@ abstract final class ChatMappers {
         unreadable: isSealedChatBody(d.body),
         contactMasked: d.contactMasked,
         clientMessageId: d.clientMessageId,
+        seq: d.seq?.toInt(),
         createdAt: d.createdAt,
         editedAt: d.editedAt,
         revoked: d.revoked,

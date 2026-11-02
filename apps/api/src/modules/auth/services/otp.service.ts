@@ -35,6 +35,7 @@ import {
   buildLoginOtpEmail,
 } from '../notifications/email-templates';
 import { ck } from '../../../redis/redis-cluster-safe';
+import { incrWithTtl } from '../../../redis/incr-with-ttl';
 
 const SMS_ALLOWED_COUNTRIES_CONFIG_KEY = 'sms.allowed_country_codes';
 
@@ -550,8 +551,7 @@ export class OtpService {
     try {
       const hour = new Date().toISOString().slice(0, 13);
       const key = `otp:email-domain:${hour}:${domain}`;
-      const n = await this.redis.incr(key);
-      if (n === 1) await this.redis.expire(key, 2 * 3600);
+      const n = await incrWithTtl(this.redis, key, 2 * 3600);
       return n > EMAIL_DOMAIN_HOURLY_MAX;
     } catch {
       return false;

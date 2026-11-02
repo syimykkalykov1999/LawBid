@@ -13195,6 +13195,238 @@
         ]
       }
     },
+    "/files/{id}/multipart": {
+      "post": {
+        "operationId": "multipartPlan",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MultipartPlanEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: FILE_STORAGE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Resumable upload of a big file (flag `files_multipart`): after `presign`\nthe app asks for the part links here, PUTs each part, and asks again\nafter an interruption to learn which parts S3 already has.",
+        "tags": [
+          "files"
+        ]
+      }
+    },
+    "/files/{id}/multipart/complete": {
+      "post": {
+        "operationId": "multipartComplete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MultipartCompleteEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FILE_NOT_UPLOADED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: FILE_STORAGE_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Assembles the uploaded parts; then call `confirm` as usual. Safe to retry.",
+        "tags": [
+          "files"
+        ]
+      }
+    },
     "/files/{id}/confirm": {
       "post": {
         "operationId": "confirm",
@@ -27069,7 +27301,7 @@
             "bearer": []
           }
         ],
-        "summary": "Pin an own post to slot 1, 2 or 3",
+        "summary": "Pin an own post to slot 1..6",
         "tags": [
           "posts"
         ]
@@ -112847,16 +113079,6 @@
               }
             }
           },
-          "403": {
-            "description": "Forbidden: FEATURE_DISABLED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
           "404": {
             "description": "Not found: NOT_FOUND",
             "content": {
@@ -133201,21 +133423,28 @@
           "method": {
             "type": "string",
             "enum": [
-              "otp"
+              "otp",
+              "password"
             ]
           },
           "identifier": {
-            "type": "string"
+            "type": "string",
+            "description": "Required for `otp`: the verified phone / e-mail the code went to."
           },
           "code": {
             "type": "string",
+            "description": "Required for `otp`: the 6-digit code.",
             "pattern": "^\\d{6}$"
+          },
+          "password": {
+            "type": "string",
+            "description": "Required for `password`: the account password.",
+            "minLength": 1,
+            "maxLength": 256
           }
         },
         "required": [
-          "method",
-          "identifier",
-          "code"
+          "method"
         ]
       },
       "ReauthTokenEnvelope": {
@@ -138207,7 +138436,9 @@
               "manual",
               "ny_open_data",
               "socrata",
-              "generic_rest"
+              "generic_rest",
+              "html_page",
+              "state_preset"
             ],
             "type": "string"
           },
@@ -138259,7 +138490,9 @@
               "manual",
               "ny_open_data",
               "socrata",
-              "generic_rest"
+              "generic_rest",
+              "html_page",
+              "state_preset"
             ],
             "type": "string"
           },
@@ -138305,6 +138538,28 @@
             "type": "string",
             "nullable": true,
             "description": "The state's own public lookup page (a link for the verifier)."
+          },
+          "support": {
+            "enum": [
+              "automatic",
+              "manual"
+            ],
+            "type": "string",
+            "description": "Owner 2026-10-28: whether the state registry can be checked automatically at all."
+          },
+          "supportNote": {
+            "type": "string",
+            "description": "Russian note: which registry is read, or why the state stays manual."
+          },
+          "presetAvailable": {
+            "type": "boolean",
+            "description": "A ready-made adapter (state_preset) exists for the state."
+          },
+          "pausedUntil": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Lookups to this state are paused by the circuit breaker until then."
           }
         },
         "required": [
@@ -138319,7 +138574,11 @@
           "lastTestAt",
           "lastTestResult",
           "updatedAt",
-          "lookupUrl"
+          "lookupUrl",
+          "support",
+          "supportNote",
+          "presetAvailable",
+          "pausedUntil"
         ]
       },
       "BarFormatMissDto": {
@@ -138405,7 +138664,9 @@
               "manual",
               "ny_open_data",
               "socrata",
-              "generic_rest"
+              "generic_rest",
+              "html_page",
+              "state_preset"
             ],
             "type": "string"
           },
@@ -138698,6 +138959,102 @@
           "data"
         ]
       },
+      "MultipartPartDto": {
+        "type": "object",
+        "properties": {
+          "partNumber": {
+            "type": "number",
+            "minimum": 1,
+            "description": "1-based part number."
+          },
+          "url": {
+            "type": "string",
+            "description": "Presigned link: PUT the raw bytes of this part (no extra headers)."
+          }
+        },
+        "required": [
+          "partNumber",
+          "url"
+        ]
+      },
+      "MultipartPlanDto": {
+        "type": "object",
+        "properties": {
+          "partSizeBytes": {
+            "type": "number",
+            "description": "Size of every part except the last one (the last is the remainder)."
+          },
+          "partCount": {
+            "type": "number"
+          },
+          "uploadedParts": {
+            "description": "Part numbers S3 already holds (an interrupted upload continues from here).",
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "parts": {
+            "description": "Links for the parts still to send, ascending.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MultipartPartDto"
+            }
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The part links expire at; ask for the plan again after."
+          }
+        },
+        "required": [
+          "partSizeBytes",
+          "partCount",
+          "uploadedParts",
+          "parts",
+          "expiresAt"
+        ]
+      },
+      "MultipartPlanEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MultipartPlanDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "MultipartCompleteDto": {
+        "type": "object",
+        "properties": {
+          "sizeBytes": {
+            "type": "number",
+            "description": "Size of the assembled object in bytes."
+          }
+        },
+        "required": [
+          "sizeBytes"
+        ]
+      },
+      "MultipartCompleteEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MultipartCompleteDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "FileDto": {
         "type": "object",
         "properties": {
@@ -138853,6 +139210,17 @@
           "nobody"
         ]
       },
+      "PrivacyAudienceOption": {
+        "type": "string",
+        "enum": [
+          "everyone",
+          "contacts",
+          "followers",
+          "following",
+          "nobody"
+        ],
+        "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow)."
+      },
       "PrivacySettingsDto": {
         "type": "object",
         "properties": {
@@ -138897,6 +139265,48 @@
                 "$ref": "#/components/schemas/PrivacyAudience"
               }
             ]
+          },
+          "lastSeenAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "messageFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "callFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "photoFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "aboutFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "groupAddFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow).",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
           },
           "doNotSell": {
             "type": "boolean",
@@ -138970,6 +139380,48 @@
                 "$ref": "#/components/schemas/PrivacyAudience"
               }
             ]
+          },
+          "lastSeenAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow). Wins over the single old value.",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "messageFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow). Wins over the single old value.",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "callFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow). Wins over the single old value.",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "photoFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow). Wins over the single old value.",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "aboutFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow). Wins over the single old value.",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
+          },
+          "groupAddFromAudiences": {
+            "type": "array",
+            "description": "Owner 2026-10-28: who exactly — [\"everyone\"], [\"nobody\"] or any of contacts (phone book) / followers (people who follow me) / following (people I follow). Wins over the single old value.",
+            "items": {
+              "$ref": "#/components/schemas/PrivacyAudienceOption"
+            }
           },
           "doNotSell": {
             "type": "boolean",
@@ -147134,7 +147586,7 @@
           "pinSlot": {
             "type": "integer",
             "nullable": true,
-            "description": "Owner 2026-10-12: 1..3 when pinned to the top of the author's list."
+            "description": "Owner 2026-10-12: 1..6 (was 1..3 until 2026-10-28) when pinned to the\ntop of the author's list."
           },
           "promotionId": {
             "type": "string",
@@ -147403,7 +147855,7 @@
           "slot": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 3
+            "maximum": 6
           }
         },
         "required": [
@@ -186910,6 +187362,11 @@
             "nullable": true,
             "description": "Only on the viewer's own messages (outbox matching)."
           },
+          "seq": {
+            "type": "number",
+            "nullable": true,
+            "description": "Per-chat sequence number 1, 2, 3, ... (no holes): a client that has 41, 42, 44 knows 43 is missing and fetches it. Null for messages from before numbering that were not backfilled."
+          },
           "createdAt": {
             "format": "date-time",
             "type": "string"
@@ -189626,6 +190083,11 @@
             "type": "boolean",
             "description": "Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link."
           },
+          "slowModeS": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Slow mode: seconds a non-admin waits between two own messages; null = off."
+          },
           "canPost": {
             "type": "boolean",
             "description": "What I may do here (derived from the above)."
@@ -189730,6 +190192,7 @@
           "whoCanPin",
           "myRights",
           "showServiceMessages",
+          "slowModeS",
           "canPost",
           "canAdd",
           "canEditInfo",
@@ -189968,6 +190431,11 @@
             "type": "boolean",
             "description": "Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link."
           },
+          "slowModeS": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Slow mode: seconds a non-admin waits between two own messages; null = off."
+          },
           "canPost": {
             "type": "boolean",
             "description": "What I may do here (derived from the above)."
@@ -190092,6 +190560,7 @@
           "whoCanPin",
           "myRights",
           "showServiceMessages",
+          "slowModeS",
           "canPost",
           "canAdd",
           "canEditInfo",
@@ -190440,6 +190909,20 @@
             "nullable": true,
             "format": "uuid",
             "description": "A new clean `avatar` file; null removes the photo."
+          },
+          "slowModeS": {
+            "type": "number",
+            "nullable": true,
+            "enum": [
+              0,
+              10,
+              30,
+              60,
+              300,
+              900,
+              3600
+            ],
+            "description": "Slow mode: seconds a member who is not an admin waits between two own messages; 0 (or null) = off. Needs the «edit group info» right."
           },
           "whoCanPost": {
             "enum": [

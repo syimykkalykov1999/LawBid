@@ -23,6 +23,7 @@ import {
   type TranslateZone,
   zoneAllowed,
 } from './translation-zones';
+import { incrWithTtl } from '../../redis/incr-with-ttl';
 
 /** Translations are kept a week, so re-opening a screen costs nothing. */
 const CACHE_TTL_S = 7 * 24 * 3600;
@@ -139,9 +140,7 @@ export class TranslationService {
     });
     const out = await this.callGoogle(key, text, target, zone, hash);
     // Counted only after a successful call: a Google error costs no quota.
-    if ((await this.redis.incr(quotaKey)) === 1) {
-      await this.redis.expire(quotaKey, 26 * 3600);
-    }
+    await incrWithTtl(this.redis, quotaKey, 26 * 3600);
     await this.cache.set(cacheKey, JSON.stringify(out), 'EX', CACHE_TTL_S);
     return out;
   }

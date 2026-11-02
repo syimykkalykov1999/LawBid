@@ -10,6 +10,7 @@ import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/app_button.dart';
+import 'package:lawbid/core/design_system/widgets/feedback/app_refresh_indicator.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 
 /// State of the "next page" slot at the end of a paginated list
@@ -368,7 +369,7 @@ class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>> {
     );
 
     if (widget.onRefresh != null) {
-      list = RefreshIndicator(
+      list = AppRefreshIndicator(
         color: colors.gold,
         backgroundColor: colors.sheet,
         onRefresh: widget.onRefresh!,

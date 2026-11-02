@@ -72,26 +72,42 @@ export class SearchLogService {
     targetType: ClickTarget,
     targetId: string,
   ): Promise<void> {
+    // Stability sweep 2026-11-02: three 500s on POST /search/clicks in a
+    // week. A click is analytics; it must never fail the app's request.
+    try {
+      await this.writeClick(userId, rawQuery, targetType, targetId);
+    } catch (e: unknown) {
+      this.logger.warn({ err: String(e) }, 'search click log skipped');
+    }
+  }
+
+  private async writeClick(
+    userId: string,
+    rawQuery: string,
+    targetType: ClickTarget,
+    targetId: string,
+  ): Promise<void> {
     const q = normalizeTerm(rawQuery).slice(0, 100);
     if (q.length < 3) return;
-    const fresh = await this.redis.set(
-      `search:click:${userId}:${q}:${targetType}:${targetId}`,
-      '1',
-      'EX',
-      24 * 3600,
-      'NX',
-    );
+    const key = `search:click:${userId}:${q}:${targetType}:${targetId}`;
+    const fresh = await this.redis.set(key, '1', 'EX', 24 * 3600, 'NX');
     if (!fresh) return;
-    const practiceId = await this.practiceOf(targetType, targetId);
-    await this.prisma.searchClick.create({
-      data: {
-        user_id: userId,
-        q,
-        target_type: targetType,
-        target_id: targetId.slice(0, 64),
-        practice_area_id: practiceId,
-      },
-    });
+    try {
+      const practiceId = await this.practiceOf(targetType, targetId);
+      await this.prisma.searchClick.create({
+        data: {
+          user_id: userId,
+          q,
+          target_type: targetType,
+          target_id: targetId.slice(0, 64),
+          practice_area_id: practiceId,
+        },
+      });
+    } catch (e) {
+      // The row was not written: free the day's slot so the next open counts.
+      await this.redis.del(key).catch(() => undefined);
+      throw e;
+    }
   }
 
   /** The topic of what was opened (null when it has none). */

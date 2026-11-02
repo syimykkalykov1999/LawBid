@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
@@ -202,7 +203,7 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
             : [
                 for (final g in ref.watch(groupsProvider).value?.items ??
                     const <api.GroupDto>[])
-                  if (q.isEmpty || g.title.toLowerCase().contains(q)) g,
+                  if (textMatches(q, [g.title])) g,
               ],
         channels: const <Channel>[],
       );
@@ -410,7 +411,7 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
       final q = query.toLowerCase();
       final mine = [
         for (final g in myGroups.value?.items ?? const <api.GroupDto>[])
-          if (g.title.toLowerCase().contains(q)) g,
+          if (textMatches(q, [g.title])) g,
       ];
       final found = ref.watch(groupSearchProvider(query)).value ?? const [];
       groupRows = [
@@ -476,54 +477,60 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
         : 0;
     final archivedChannels =
         archivable ? ref.watch(archivedChannelsProvider).value?.length ?? 0 : 0;
-    Widget list(_Kind kind, List<Widget> rows) => RefreshIndicator(
-          color: colors.gold,
-          backgroundColor: colors.sheet,
-          onRefresh: refresh,
-          child: NotificationListener<ScrollNotification>(
-            onNotification: more,
-            child: ListView(
-              key: ValueKey('channels-list-${kind.name}'),
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-              children: [
-                if (kind == _Kind.groups && archivedGroups > 0)
-                  SectionArchiveRow(
-                    count: archivedGroups,
-                    route: GroupRoutes.archive,
-                  ),
-                if (kind == _Kind.channels && archivedChannels > 0)
-                  SectionArchiveRow(
-                    count: archivedChannels,
-                    route: ChannelsRoutes.archive,
-                  ),
-                if (recommended && rows.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsetsDirectional.fromSTEB(
-                      AppSpacing.screenSide,
-                      AppSpacing.xs,
-                      AppSpacing.screenSide,
-                      AppSpacing.xs,
-                    ),
-                    child: Text(
-                      t.t('reco.title'),
-                      key: const ValueKey('channels-reco-title'),
-                      style: caption,
-                    ),
-                  ),
-                if (rows.isEmpty)
-                  SizedBox(
-                    height: 320,
-                    child: kind == _Kind.channels
-                        ? empty
-                        : ChannelsEmpty(message: t.t('channel.empty.groups')),
-                  )
-                else
-                  ...rows,
-              ],
+    Widget list(_Kind kind, List<Widget> rows) {
+      // Lazy: only the rows near the viewport are built (hundreds of
+      // groups/channels no longer jank on open/refresh).
+      final items = <Widget>[
+        if (kind == _Kind.groups && archivedGroups > 0)
+          SectionArchiveRow(
+            count: archivedGroups,
+            route: GroupRoutes.archive,
+          ),
+        if (kind == _Kind.channels && archivedChannels > 0)
+          SectionArchiveRow(
+            count: archivedChannels,
+            route: ChannelsRoutes.archive,
+          ),
+        if (recommended && rows.isNotEmpty)
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              AppSpacing.screenSide,
+              AppSpacing.xs,
+              AppSpacing.screenSide,
+              AppSpacing.xs,
+            ),
+            child: Text(
+              t.t('reco.title'),
+              key: const ValueKey('channels-reco-title'),
+              style: caption,
             ),
           ),
-        );
+        if (rows.isEmpty)
+          SizedBox(
+            height: 320,
+            child: kind == _Kind.channels
+                ? empty
+                : ChannelsEmpty(message: t.t('channel.empty.groups')),
+          )
+        else
+          ...rows,
+      ];
+      return AppRefreshIndicator(
+        color: colors.gold,
+        backgroundColor: colors.sheet,
+        onRefresh: refresh,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: more,
+          child: ListView.builder(
+            key: ValueKey('channels-list-${kind.name}'),
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+            itemCount: items.length,
+            itemBuilder: (_, i) => items[i],
+          ),
+        ),
+      );
+    }
 
     return Column(
       children: [

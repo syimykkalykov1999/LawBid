@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/accessibility/reduce_motion.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/navigation/back_swipe.dart' show PageBackground;
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 
 /// go_router page builders with LawBid's page motion (UI modernization
@@ -53,7 +54,9 @@ abstract final class AppPageTransitions {
     return CustomTransitionPage<void>(
       key: state.pageKey,
       name: state.name,
-      child: WebPageFrame(location: state.matchedLocation, child: child),
+      child: PageBackground(
+        child: WebPageFrame(location: state.matchedLocation, child: child),
+      ),
       transitionDuration: AppMotion.pageEnter,
       reverseTransitionDuration: AppMotion.pageExit,
       transitionsBuilder: _sharedAxisX,
@@ -85,7 +88,9 @@ abstract final class AppPageTransitions {
     return CustomTransitionPage<void>(
       key: state.pageKey,
       name: state.name,
-      child: WebPageFrame(location: state.matchedLocation, child: child),
+      child: PageBackground(
+        child: WebPageFrame(location: state.matchedLocation, child: child),
+      ),
       fullscreenDialog: true,
       transitionDuration: AppMotion.pageEnter,
       reverseTransitionDuration: AppMotion.pageExit,
@@ -133,7 +138,7 @@ abstract final class AppPageTransitions {
         transitionDuration: Duration.zero,
         reverseTransitionDuration: Duration.zero,
         transitionsBuilder: (_, __, ___, child) => child,
-        child: child,
+        child: PageBackground(child: child),
       );
 
   static Widget _sharedAxisX(

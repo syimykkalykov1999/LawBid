@@ -2,6 +2,11 @@ import {
   callPollKey,
   verifyCallPoll,
 } from '../../../common/calls/call-poll-token';
+import {
+  CALL_RING_GRACE_MS,
+  CALL_RING_SECONDS,
+  CALL_RING_TIMEOUT_MS,
+} from '../../../common/calls/ring';
 import { voipRequest, type VoipCallPayload } from './apns-voip.sender';
 import { PushDispatcher } from './push-dispatcher';
 import type { PushMessage } from './push.constants';
@@ -148,6 +153,16 @@ describe('incoming call ring push', () => {
     expect(sent[0].data?.pollToken).toBeUndefined();
   });
 
+  it('M2: one ring length — the push says how long the phone rings', async () => {
+    const { d, sent } = build();
+    await d.dispatch(job, 'j');
+    expect(sent[0].data?.ringSeconds).toBe(String(CALL_RING_SECONDS));
+    expect(CALL_RING_TIMEOUT_MS).toBe(
+      CALL_RING_SECONDS * 1000 + CALL_RING_GRACE_MS,
+    );
+    expect(CALL_RING_SECONDS).toBe(60);
+  });
+
   it('rings without a photo when the caller has none', async () => {
     const { d, sent, voipCalls, files } = build({ avatar: false });
     await d.dispatch(job, 'j');
@@ -193,6 +208,7 @@ describe('incoming call ring push', () => {
         avatarUrl: PHOTO,
         video: '1',
         silent: '0',
+        ringSeconds: '60',
       });
     });
 

@@ -229,6 +229,13 @@ export const FILE_06_SETTINGS = {
   /** Algo audit 2026-10-27 (CONTENT M-1): checks skipped for the budget or
    * failed four times are run again hourly (20 a run, last 3 days). */
   'moderation.image.recheck_enabled': true,
+  /** Owner 2026-11-02: frame-by-frame video check (needs ffmpeg in the
+   * image). OFF: each frame is one paid `image_moderation` unit. */
+  'moderation.video.frames_enabled': false,
+  /** One frame per this many seconds of the clip (10–60 s clips: 1–6). */
+  'moderation.video.frame_every_sec': 10,
+  /** At most this many frames per video. */
+  'moderation.video.frames_max': 6,
   // Owner 2026-10-22 (audit #4 §5): image moderation (AWS Rekognition).
   // Confidence 0–100: at `hide` the photo / reel is hidden at once and
   // queued; at `review` it stays up and is queued; below that it is clean.
@@ -893,7 +900,8 @@ export const OWNER_STRIPE_OPS_SETTINGS = {
 /** Owner 2026-10-05: countries (Система → Страны). People who asked to
  * be told get an e-mail by themselves when their country is switched on. */
 export const OWNER_COUNTRY_SETTINGS = {
-  'countries.notify_waitlist': true,
+  // Owner 2026-11-02: no e-mails or texts to the waiting list (no spend).
+  'countries.notify_waitlist': false,
 };
 
 /** Owner 2026-10-05: requests per minute for one signed-in admin (the
@@ -910,6 +918,10 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
   /** Owner 2026-10-25: new socket connections per minute from one address
    * (CGNAT / offices carry many people: generous). 0 = no limit. */
   'realtime.max_connects_per_ip_per_minute': 120,
+  /** New socket connections per minute from one signed-in person (the
+   * identity that is counted; the address only guards sockets with no
+   * account). 0 = no limit. */
+  'realtime.max_connects_per_user_per_minute': 60,
   /** Owner 2026-10-25: password screening (NIST SP 800-63B-4 §3.1.1.2). */
   'security.password_breach_check_enabled': true,
   /** Milliseconds to wait for the breached-password service; later = skip. */
@@ -977,6 +989,12 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * balancer; without it nothing fires. Costs an e-mail + a push per alert
    * (cost gate): OFF by default, at most one alert per account per 24 h. */
   'security.new_country_alert_enabled': false,
+  /** Owner 2026-10-28: linking an ADDITIONAL sign-in phone/email (or
+   * Apple/Google) to an account via `POST /auth/identifiers` costs SMS money
+   * and is not needed, so it is OFF: the endpoint stays for older apps and
+   * answers 403 FEATURE_DISABLED. Identifiers already linked keep working for
+   * sign-in; changing the account's one phone/email is a different route. */
+  'auth.additional_identifiers_enabled': false,
 };
 
 /** Owner 2026-10-05: storage like Telegram (Система → Хранилище). Every
@@ -1128,13 +1146,15 @@ export const OWNER_STORAGE_SETTINGS = {
   'images.avif_quality': 60,
   'images.avif_effort': 2,
   /** Owner 2026-10-26: hash partitioning of the big chat / notification
-   * tables is OPT-IN (at small sizes the plain tables are faster). Per
-   * table: 'off' (default) | 'on' (the online runner converts now) |
-   * 'auto' (converts when the table reaches `partition.auto_rows`).
+   * tables starts by itself only at `partition.auto_rows` (50M rows; at small
+   * sizes the plain tables are faster, so below it nothing happens). Per
+   * table: 'auto' (default: converts at `partition.auto_rows`) | 'off' |
+   * 'on' (the online runner converts now). Needs PARTITION_DATABASE_URL.
    * docs/architecture/TABLE_PARTITIONING_READY.md */
-  'partition.messages_mode': 'off',
-  'partition.chat_group_messages_mode': 'off',
-  'partition.notifications_mode': 'off',
+  'partition.messages_mode': 'auto',
+  'partition.chat_group_messages_mode': 'auto',
+  'partition.notifications_mode': 'auto',
+  'partition.post_view_events_mode': 'auto',
   'partition.auto_rows': 50_000_000,
   'images.webp_quality': 88,
   'images.jpeg_quality': 90,
@@ -1157,6 +1177,9 @@ export const OWNER_STORAGE_SETTINGS = {
   'storage.retention_assistant_activity_days': 365,
   'storage.retention_snapshots_days': 730,
   'storage.retention_post_views_days': 365,
+  // Audit A-10 (2026-11-01): who-opened-a-channel-post rows (one per reader
+  // and post) grow without end; the view counter itself stays.
+  'storage.retention_channel_post_views_days': 365,
   'storage.retention_app_events_days': 90,
   // Scale audit 2026-10-23: the two fastest-growing statistics tables.
   'storage.retention_post_view_events_days': 730,
@@ -1176,6 +1199,20 @@ export const OWNER_STORAGE_SETTINGS = {
   'db.replica_reads': 'auto',
   // The ceiling of «auto»: max replica lag in ms (also per call via readDb).
   'db.replica_max_lag_ms': 5000,
+  // Owner 2026-11-02: db.replica_provision: auto = the read replica is created
+  // by itself after 3 h of primary CPU >= 75 % (once a day at most, only when
+  // Terraform gave the API the right to: db_replica_toggle); off = only the
+  // admin button creates it. Never deletes by itself.
+  'db.replica_provision': 'auto',
+  // Owner 2026-11-02: the second database copy (Multi-AZ) and the Redis
+  // standby node come and go with the load. ha.mode: off = hands off, on =
+  // keep the copies, auto = add them after 3 h with at least
+  // ha.provision_online_users people online (open sockets, hourly average)
+  // and remove them after ha.release_days days all under half of it (never
+  // on a missing metric; the opposite direction waits 24 h).
+  'ha.mode': 'auto',
+  'ha.provision_online_users': 200,
+  'ha.release_days': 7,
   'db.health_table_size_gb': 20,
   'db.health_dead_ratio_percent': 20,
   'storage.growth_alert_percent': 20,
@@ -1277,6 +1314,11 @@ export const OWNER_OPS_SETTINGS = {
    * Lambda (S3 object ops/scale-controls.json). */
   'scale.endpoints.mode': 'auto',
   'scale.endpoints.ceiling': 4,
+  /** Own coturn box (owner 2026-11-02): auto = the API starts it only while
+   * Cloudflare is down and stops it after 30 quiet minutes; on = always
+   * running; off = never (stopped at once when no call runs). Only counts
+   * when the box exists (TURN_ONDEMAND_INSTANCE_ID). */
+  'calls.own_turn.mode': 'auto',
   /** This month's AWS bill when AWS Budgets cannot be read (≈ $150 for
    * the launch size). */
   'economy.aws_fallback_usd': 150,
@@ -1617,12 +1659,16 @@ export const OWNER_COMPLIANCE_SETTINGS = {
  * metrics for ~15 journey routes, written as CloudWatch EMF lines
  * (namespace LawBid/Routes, dimension Route). 3 metrics x 15 routes = 45
  * custom metrics = about $13.5 a month once every route has data.
- * `off` — nothing written; `on` — every minute for every route; `auto`
- * (default) — a route writes a minute only while it has 5xx answers or a
- * slow 95th percentile (> 1 s), so a healthy system costs nothing and a
- * sick route is visible at once. RED dashboard in infra/modules/monitoring. */
+ * `off` (default since 2026-11-02) — nothing written; `on` — every minute for
+ * every route; `auto` — a route writes a minute only while it has 5xx answers
+ * or a slow 95th percentile (> 1 s). Why off: no alarm and no dashboard in
+ * infra/ reads LawBid/Routes, and Cost Explorer shows custom metrics
+ * (MetricMonitorUsage) as the biggest CloudWatch line; in `auto` every route
+ * that had one bad minute in the month is billed for all 3 metrics. The
+ * journey SLI counters (login, chat send, feed) do not depend on this switch.
+ * Turn it back on in admin → Настройки when you want to look at one route. */
 export const OWNER_OBSERVABILITY_SETTINGS = {
-  'ops.route_metrics.mode': 'auto',
+  'ops.route_metrics.mode': 'off',
 };
 
 /**

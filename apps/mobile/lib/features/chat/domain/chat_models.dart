@@ -497,7 +497,12 @@ class ChatMessage {
     this.pinned = false,
     this.expiresAt,
     this.unreadable = false,
+    this.seq,
   });
+
+  /// Per-chat sequence number 1, 2, 3, … from the server (null: an old copy
+  /// or a message from before numbering). See [hasSeqGap].
+  final int? seq;
 
   /// Owner 2026-10-22: the server handed back a sealed `enc:v2…` body it
   /// could not open. [body] is then '' and a text bubble says «Couldn't
@@ -608,7 +613,22 @@ class ChatMessage {
         contact: contact,
         post: post,
         unreadable: unreadable,
+        seq: seq,
       );
+}
+
+/// Whether [incoming] skips a number after the newest one in [known]
+/// (41, 42, then 44: 43 is missing and must be fetched). Messages without
+/// a number never signal a gap.
+bool hasSeqGap(Iterable<ChatMessage> known, ChatMessage incoming) {
+  final n = incoming.seq;
+  if (n == null) return false;
+  var top = 0;
+  for (final m in known) {
+    final s = m.seq;
+    if (!m.isLocal && s != null && s > top) top = s;
+  }
+  return top > 0 && n > top + 1;
 }
 
 /// Owner 2026-10-22: the at-rest envelope of a chat body

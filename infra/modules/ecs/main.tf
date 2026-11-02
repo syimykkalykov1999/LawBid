@@ -42,6 +42,11 @@ variable "secret_arns" {
   description = "Env var name → Secrets Manager ARN, injected into api/worker."
 }
 variable "migrator_database_url_secret_arn" { type = string }
+variable "partition_database_url_secret_arn" {
+  type        = string
+  default     = ""
+  description = "PARTITION_DATABASE_URL (role lawbid_partition) for the WORKER only: the online table partitioning (messages, notifications, ...) needs DDL rights the app role does not have. Empty = not injected, partitioning stays a status card. Never given to the api task."
+}
 
 variable "api_cpu" {
   type    = number
@@ -50,7 +55,7 @@ variable "api_cpu" {
 variable "api_uv_threadpool_size" {
   type        = number
   default     = 4
-  description = "S8-7: libuv thread pool of the API task (Node default 4, max 1024; gzip, dns.lookup, fs, crypto share it). 4 = unset. Raise to 8 only after the ThreadPoolLagMs metric (LawBid/Runtime) shows a queue under load."
+  description = "S8-7: libuv thread pool of the API task (Node default 4, max 1024; gzip, dns.lookup, fs, crypto share it). 4 = unset. Raise to 8 only after the ThreadPoolLagMs field (a plain field of the LawBid/Runtime log line, not a billed metric since 2026-11-02; read it in CloudWatch Logs Insights) shows a queue under load."
   validation {
     condition     = var.api_uv_threadpool_size >= 4 && var.api_uv_threadpool_size <= 64
     error_message = "api_uv_threadpool_size: 4..64."
@@ -164,6 +169,11 @@ variable "alb_resource_label" {
 variable "api_requests_per_task" {
   type    = number
   default = 200
+}
+variable "api_sockets_per_task" {
+  type        = number
+  default     = 2500
+  description = "Open WebSocket connections one api task may hold on average before the service adds a task (LawBid/Runtime OpenSockets, emitted by runtime-stats.service.ts). 0 = no socket policy (CPU and request count only). Costs nothing until the average passes it."
 }
 variable "metrics_namespace" {
   type        = string
@@ -352,7 +362,7 @@ resource "aws_iam_role_policy_attachment" "execution" {
 data "aws_iam_policy_document" "execution_secrets" {
   statement {
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = concat(values(var.secret_arns), [var.migrator_database_url_secret_arn])
+    resources = concat(values(var.secret_arns), [var.migrator_database_url_secret_arn], var.partition_database_url_secret_arn == "" ? [] : [var.partition_database_url_secret_arn])
   }
   statement {
     actions   = ["kms:Decrypt"]
@@ -439,6 +449,7 @@ locals {
   }
   node_options = { for k, mb in local.heap_mb : k => { name = "NODE_OPTIONS", value = "--max-old-space-size=${mb}" } }
   api_secrets  = [for k, arn in var.secret_arns : { name = k, valueFrom = arn }]
+  worker_secrets = concat(local.api_secrets, var.partition_database_url_secret_arn == "" ? [] : [{ name = "PARTITION_DATABASE_URL", valueFrom = var.partition_database_url_secret_arn }])
   log_config = { for svc in ["api", "worker", "clamav", "admin", "migrate"] : svc => {
     logDriver = "awslogs"
     options = {
@@ -580,7 +591,7 @@ resource "aws_ecs_task_definition" "worker" {
     # Uploads are scanned by the clamd sidecar below (same task, localhost):
     # without a scanner every photo/document stays scan_status=pending.
     environment = concat(local.worker_environment, local.tracing_env, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }, local.node_options["worker"]])
-    secrets     = local.api_secrets
+    secrets     = local.worker_secrets
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
     # and forwards signals.
@@ -608,6 +619,14 @@ resource "aws_ecs_task_definition" "worker" {
     image             = var.clamav_image
     essential         = true
     memoryReservation = var.clamav_memory
+    # Default StreamMaxLength/MaxFileSize are 25M, but uploads go up to
+    # 50 MB: bigger files were answered "size limit exceeded" and ended
+    # "failed" (audit B-2). The official image maps CLAMD_CONF_<Option>.
+    environment = [
+      { name = "CLAMD_CONF_StreamMaxLength", value = "55M" },
+      { name = "CLAMD_CONF_MaxFileSize", value = "55M" },
+      { name = "CLAMD_CONF_MaxScanSize", value = "110M" },
+    ]
     healthCheck = {
       command     = ["CMD-SHELL", "clamdcheck.sh"]
       interval    = 30
@@ -961,6 +980,36 @@ resource "aws_appautoscaling_policy" "api_requests" {
     predefined_metric_specification {
       predefined_metric_type = "ALBRequestCountPerTarget"
       resource_label         = var.alb_resource_label
+    }
+  }
+}
+
+# Scale audit 2026-11-02: idle sockets cost memory and timers but no CPU and no
+# ALB requests, so the two policies above never see them (SCALE_LIMITS_AUDIT
+# row "Sockets"). Each api task emits OpenSockets once a minute (EMF, no
+# agent); the AVERAGE over the running tasks is the sockets per task. Same
+# rule as the others: out fast (60 s), in slowly (600 s, a scale-in drains
+# the sockets of the stopped task). While the app is small the average stays
+# far under the target and this policy never adds a task.
+resource "aws_appautoscaling_policy" "api_sockets" {
+  count              = var.api_sockets_per_task > 0 ? 1 : 0
+  name               = "${var.name}-api-sockets"
+  policy_type        = "TargetTrackingScaling"
+  service_namespace  = aws_appautoscaling_target.svc["api"].service_namespace
+  scalable_dimension = aws_appautoscaling_target.svc["api"].scalable_dimension
+  resource_id        = aws_appautoscaling_target.svc["api"].resource_id
+  target_tracking_scaling_policy_configuration {
+    target_value       = var.api_sockets_per_task
+    scale_in_cooldown  = 600
+    scale_out_cooldown = 60
+    customized_metric_specification {
+      metric_name = "OpenSockets"
+      namespace   = "LawBid/Runtime"
+      statistic   = "Average"
+      dimensions {
+        name  = "Service"
+        value = "api"
+      }
     }
   }
 }

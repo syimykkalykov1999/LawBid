@@ -6,6 +6,7 @@ import test from 'node:test';
 import {
   APP_PATHS,
   appleAppSiteAssociation,
+  securityTxt,
   normalizeFingerprint,
   parseFingerprints,
   writeWellKnown,
@@ -49,12 +50,12 @@ test('fingerprints: any common spelling → AA:BB:…; junk is refused', () => {
 test('files are written; assetlinks.json only with a real fingerprint', async () => {
   const out = mkdtempSync(join(tmpdir(), 'wk-'));
   const none = await writeWellKnown({ out, androidSha256: '' });
-  assert.deepEqual(none, ['apple-app-site-association']);
+  assert.deepEqual(none, ['apple-app-site-association', 'security.txt']);
   assert.equal(existsSync(join(out, '.well-known/assetlinks.json')), false);
   JSON.parse(readFileSync(join(out, '.well-known/apple-app-site-association'), 'utf8'));
 
   const both = await writeWellKnown({ out, androidSha256: FP });
-  assert.deepEqual(both, ['apple-app-site-association', 'assetlinks.json']);
+  assert.deepEqual(both, ['apple-app-site-association', 'security.txt', 'assetlinks.json']);
   const links = JSON.parse(readFileSync(join(out, '.well-known/assetlinks.json'), 'utf8'));
   assert.equal(links[0].target.package_name, 'com.lawbid.lawbid');
   assert.deepEqual(links[0].target.sha256_cert_fingerprints, [FP]);
@@ -76,4 +77,11 @@ test('Android manifest opens the same paths as the iOS file', () => {
   const ios = APP_PATHS.map(([p]) => p.replace(/\*$/, ''));
   for (const p of ios) assert.ok(android.has(p), `AndroidManifest.xml is missing ${p}`);
   for (const p of android) assert.ok(ios.includes(p), `apple-app-site-association is missing ${p}`);
+});
+
+test('security.txt: RFC 9116 fields, Expires one year ahead', () => {
+  const txt = securityTxt(new Date('2026-11-01T00:00:00Z'));
+  assert.match(txt, /^Contact: mailto:support@lawbid\.dev$/m);
+  assert.match(txt, /^Expires: 2027-11-01T00:00:00Z$/m);
+  assert.match(txt, /^Canonical: https:\/\/lawbid\.dev\/\.well-known\/security\.txt$/m);
 });

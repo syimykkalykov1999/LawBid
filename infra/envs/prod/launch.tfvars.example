@@ -27,6 +27,7 @@ alert_emails      = ["REPLACE@gmail.com"] # a mailbox the owner reads (lawbid.de
 # Subscription prices and all third-party keys are set in the admin.
 
 # --- size (full-size default → launch) -----------------------------------
+turn_on_demand   = false # owner 2026-11-02: with turn_enabled = true coturn stays stopped; the API starts it only when Cloudflare is down (docs/runbooks/TURN.md)
 turn_enabled     = false # owner 2026-10-24: calls use Cloudflare TURN (admin → Integrations → cloudflare_turn); our own coturn is removed (bring it back: docs/runbooks/TURN.md)
 min_tasks        = 1    # 2 → 1: one api + one worker task; autoscaling adds more
 # api_max_tasks / worker_max_tasks are the HARD cap the app never exceeds.
@@ -53,7 +54,7 @@ worker_spot = true
 api_spot    = true
 
 redis_node_type = "cache.t4g.micro" # cache.r7g.large → t4g.micro (≈ $12)
-redis_replicas  = 1                 # owner 2026-10-23: failover replica in the other AZ (+ ≈ $12)
+redis_replicas  = 0                 # owner 2026-11-02: standby node OFF at launch; the API adds it by itself when people are online (docs/runbooks/ha-auto.md)
 
 nat_per_az = false # one NAT gateway instead of one per AZ (≈ $33 saved)
 # Owner rule 2026-10-25 (S9-6): the four interface endpoints (≈ $29/month in one
@@ -85,7 +86,7 @@ existing_database_identifier = "lawbid-prod-postgres"
 # only imports; review `plan` first (docs/runbooks/infra-hardening.md).
 # adopt_existing_database = true
 # After the Sunday Multi-AZ switch in the console also set:
-# database_multi_az = true
+# database_multi_az = false  # owner 2026-11-02: Multi-AZ starts OFF; the API switches it on by itself when people are online (docs/runbooks/ha-auto.md)
 # S4-6: RDS cross-Region automated backups (PITR in us-west-2, RPO minutes):
 # rds_cross_region_backups = true
 backup_enabled               = true
@@ -134,7 +135,7 @@ web_create_certificate = true
 # --- database autoscale (owner 2026-10-24, docs/runbooks/db-autoscale.md) ------
 # On by default for the database named in existing_database_identifier. Idle
 # until Multi-AZ is on (a pending modification pauses it). Optional:
-# db_autoscale_mode      = "dry-run"          # first days: e-mails only, changes nothing
+# db_autoscale_mode      = "dry-run"          # default: e-mails only, changes nothing; switch on later in SSM (docs/architecture/DB_AUTOSCALE.md)
 # db_autoscale_max_class = "db.r7g.xlarge"    # ceiling, about $698/month with Multi-AZ
 # db_autoscale_min_class = "db.t4g.micro"
 # db_autoscale_enabled   = false              # switch the whole thing off

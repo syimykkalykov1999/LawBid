@@ -97,6 +97,19 @@ class ChannelListNotifier extends SyncedListNotifier<Channel> {
     return super.build();
   }
 
+  // Owner 2026-11-02: «my» and «managed» channels open on the phone's copy
+  // of the list; «discover» and a search are server-ranked and read live.
+  @override
+  Future<CursorPage<Channel>?> cachedFirstPage() {
+    final repo = ref.read(channelsRepositoryProvider);
+    return phoneCopy(
+      () async => CursorPage(
+        items: await repo.list(key.scope, archived: key.archived),
+      ),
+      when: key.scope != ChannelScope.discover && key.query.trim().isEmpty,
+    );
+  }
+
   @override
   Future<CursorPage<Channel>> fetchPage(String? cursor) async => CursorPage(
         items: await ref.read(channelsRepositoryProvider).list(
@@ -427,20 +440,40 @@ class ChannelPostsNotifier extends AsyncNotifier<PaginatedList<ChannelPost>> {
     );
   }
 
+  final _reactChain = <String, Future<void>>{};
+  final _reactSeq = <String, int>{};
+
   /// One reaction per reader: [emoji] sets it, the same emoji again removes
-  /// it. The counts move at once; an error puts the post back and rethrows.
-  Future<void> toggleReaction(ChannelPost post, String emoji) async {
-    final remove = post.myReaction == emoji;
+  /// it. The counts move at once. Taps on one post go to the server in
+  /// order; a reply or an error only touches the post when no later tap
+  /// has moved it again (no flicker on a double tap).
+  Future<void> toggleReaction(ChannelPost post, String emoji) {
+    final cur = state.value?.items.where((p) => p.id == post.id).firstOrNull;
+    final before = cur ?? post;
+    final remove = before.myReaction == emoji;
+    final seq = (_reactSeq[post.id] ?? 0) + 1;
+    _reactSeq[post.id] = seq;
     patch(post.id, (p) => p.withMyReaction(remove ? null : emoji));
-    try {
-      final saved = remove
-          ? await _repo.unreact(channelId, post.id)
-          : await _repo.react(channelId, post.id, emoji);
-      if (ref.mounted) patch(post.id, (_) => saved);
-    } on Object {
-      if (ref.mounted) patch(post.id, (_) => post);
-      rethrow;
-    }
+    final prev = _reactChain[post.id] ?? Future<void>.value();
+    final run = prev.catchError((Object _) {}).then((_) async {
+      try {
+        // Each tap sends its own target, so an earlier failure cannot turn
+        // a later «set» into a «remove».
+        final saved = remove
+            ? await _repo.unreact(channelId, post.id)
+            : await _repo.react(channelId, post.id, emoji);
+        if (ref.mounted && _reactSeq[post.id] == seq) {
+          patch(post.id, (_) => saved);
+        }
+      } on Object {
+        if (ref.mounted && _reactSeq[post.id] == seq) {
+          patch(post.id, (_) => before);
+        }
+        rethrow;
+      }
+    });
+    _reactChain[post.id] = run;
+    return run;
   }
 
   Future<void> edit(ChannelPost post, String body) async {
@@ -448,14 +481,21 @@ class ChannelPostsNotifier extends AsyncNotifier<PaginatedList<ChannelPost>> {
     if (ref.mounted) patch(post.id, (_) => saved);
   }
 
+  /// Deleting is instant (Telegram): the post leaves the list at once and
+  /// comes back only if the server refuses.
   Future<void> remove(ChannelPost post) async {
-    await _repo.removePost(channelId, post.id);
-    if (!ref.mounted) return;
-    final current = state.value;
-    if (current != null) {
-      state = AsyncData(current.without((p) => p.id == post.id));
+    final before = state.value;
+    if (before != null) {
+      state = AsyncData(before.without((p) => p.id == post.id));
     }
-    ref.invalidate(channelProvider);
+    try {
+      await _repo.removePost(channelId, post.id);
+      if (ref.mounted) ref.invalidate(channelProvider);
+    } on Object {
+      // The server kept the post: reload the list (one source of truth).
+      if (ref.mounted) ref.invalidateSelf();
+      rethrow;
+    }
   }
 
   /// A completed share: the counter moves after the server confirmed.

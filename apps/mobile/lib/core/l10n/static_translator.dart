@@ -38,6 +38,7 @@ import 'package:lawbid/core/l10n/strings/file07_strings.dart';
 import 'package:lawbid/core/l10n/strings/file_views_strings.dart';
 import 'package:lawbid/core/l10n/strings/forward_strings.dart';
 import 'package:lawbid/core/l10n/strings/group_calls_strings.dart';
+import 'package:lawbid/core/l10n/strings/group_slow_strings.dart';
 import 'package:lawbid/core/l10n/strings/group_strings.dart';
 import 'package:lawbid/core/l10n/strings/id_selfie_strings.dart';
 import 'package:lawbid/core/l10n/strings/invite_strings.dart';
@@ -61,6 +62,7 @@ import 'package:lawbid/core/l10n/strings/seat_roles_strings.dart';
 import 'package:lawbid/core/l10n/strings/share_to_strings.dart';
 import 'package:lawbid/core/l10n/strings/stale_case_strings.dart';
 import 'package:lawbid/core/l10n/strings/stars_strings.dart';
+import 'package:lawbid/core/l10n/strings/step_up_strings.dart';
 import 'package:lawbid/core/l10n/strings/storage_screen_strings.dart';
 import 'package:lawbid/core/l10n/strings/storage_strings.dart';
 import 'package:lawbid/core/l10n/strings/stories_strings.dart';
@@ -1219,6 +1221,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...inviteRu,
         ...qrRu,
         ...idSelfieRu,
+        ...stepUpRu,
         ...caseDossierRu,
         ...fileViewsRu,
         ...trustRu,
@@ -1234,6 +1237,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...webCheckoutRu,
         ...feedFreshRu,
         ...chatNoteRu,
+        ...groupSlowRu,
         ...shareToRu,
         ...peopleSuggestRu,
         ...groupCallsRu,
@@ -2674,6 +2678,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...inviteEn,
         ...qrEn,
         ...idSelfieEn,
+        ...stepUpEn,
         ...caseDossierEn,
         ...fileViewsEn,
         ...trustEn,
@@ -2689,6 +2694,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...webCheckoutEn,
         ...feedFreshEn,
         ...chatNoteEn,
+        ...groupSlowEn,
         ...shareToEn,
         ...peopleSuggestEn,
         ...groupCallsEn,

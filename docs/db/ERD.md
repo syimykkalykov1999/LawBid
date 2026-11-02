@@ -795,6 +795,7 @@ erDiagram
   }
   conversations {
     String id PK
+    Int last_seq
     String case_id FK "nullable"
     String attorney_id FK
     String client_id FK
@@ -908,6 +909,7 @@ erDiagram
     DateTime created_at
     DateTime updated_at
     Int shard_id
+    Int seq "nullable"
   }
   message_search_tokens {
     String conversation_id PK
@@ -967,6 +969,7 @@ erDiagram
     Boolean show_service_messages
     Int disappear_after_s "nullable"
     Boolean protect_content
+    Int slow_mode_s "nullable"
     enum_GroupWho who_can_media
     enum_GroupWho who_can_poll
     enum_GroupWho who_can_pin
@@ -1308,6 +1311,12 @@ erDiagram
     enum_PrivacyAudience photo_from
     enum_PrivacyAudience about_from
     enum_PrivacyAudience group_add_from
+    Int last_seen_mask "nullable"
+    Int message_from_mask "nullable"
+    Int call_from_mask "nullable"
+    Int photo_from_mask "nullable"
+    Int about_from_mask "nullable"
+    Int group_add_from_mask "nullable"
     DateTime updated_at
   }
   moderation_appeals {

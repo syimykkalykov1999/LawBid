@@ -175,7 +175,12 @@ resource "aws_elasticache_replication_group" "this" {
   # node_type here is only the first size. Before changing `replicas` later,
   # set node_type to the current type (new replicas are created from it).
   lifecycle {
-    ignore_changes = [node_type, auth_token]
+    # Owner 2026-11-02: the standby node starts OFF and the API adds it by
+    # itself when people are online (apps/api common/ops/ha-auto.service.ts:
+    # IncreaseReplicaCount, then automatic failover). apply must never take it
+    # away again, so node count and failover are not compared. To change them
+    # by hand use the AWS CLI (docs/runbooks/ha-auto.md).
+    ignore_changes = [node_type, auth_token, num_cache_clusters, automatic_failover_enabled, multi_az_enabled]
     # Failover needs a second Availability Zone to fail over into.
     precondition {
       condition     = var.replicas == 0 || length(var.subnet_ids) >= 2

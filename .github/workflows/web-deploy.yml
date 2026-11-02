@@ -79,7 +79,7 @@ jobs:
         run: |
           scripts/ci/require-green.sh "$GITHUB_SHA" \
             '^(Analyze, lint|Build check|gitleaks|CodeQL)' \
-            '^(Wait for green CI|Build and publish|Build & push|Deploy|Notify)'
+            '^(Wait for green CI|Build and publish|Build & push|Deploy|Notify|API |Admin|Build image|Dependency audit \(OSV)'
 
   deploy:
     name: Build and publish the web app

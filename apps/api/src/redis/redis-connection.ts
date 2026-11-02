@@ -52,8 +52,12 @@ export interface RedisClientOptions {
   commandTimeout?: number;
   /** `null` for BullMQ workers (blocking commands). */
   maxRetriesPerRequest?: number | null;
-  /** `false` = fail fast while disconnected (BullMQ producers). */
+  /** `false` = fail fast while disconnected (BullMQ producers, the
+   * request-path client). */
   enableOfflineQueue?: boolean;
+  /** ms without any byte from Redis while commands are pending before the
+   * socket is dropped (a hung node becomes a reconnect). */
+  socketTimeout?: number;
   /** ioredis auto-pipelining (same-tick commands share one round trip). */
   enableAutoPipelining?: boolean;
   /** `false`: no WRONGPASS/NOAUTH token re-read (default on). */
@@ -194,6 +198,9 @@ export function createRedisClient(
   if (options.commandTimeout !== undefined) {
     base.commandTimeout = options.commandTimeout;
   }
+  if (options.socketTimeout !== undefined) {
+    base.socketTimeout = options.socketTimeout;
+  }
   if (!isRedisClusterMode(env)) {
     const c = new Redis(url, base);
     if (options.authRefresh !== false) attachAuthRefresh(c);
@@ -216,6 +223,12 @@ export function createRedisClient(
     clusterRetryStrategy: (times) =>
       Math.round(Math.min(100 * times, 2000) * (0.5 + Math.random() * 0.5)),
     natMap: natMapOf(env),
+    // The offline queue of the Cluster itself is a CLUSTER option; inside
+    // `redisOptions` it only reaches the node sockets, so a lost cluster
+    // would still queue commands until commandTimeout.
+    ...(options.enableOfflineQueue !== undefined
+      ? { enableOfflineQueue: options.enableOfflineQueue }
+      : {}),
     ...(options.enableAutoPipelining !== undefined
       ? { enableAutoPipelining: options.enableAutoPipelining }
       : {}),
@@ -223,6 +236,86 @@ export function createRedisClient(
   const cluster = new Cluster([{ host: t.host, port: t.port }], clusterOptions);
   if (options.authRefresh !== false) attachAuthRefresh(cluster);
   return cluster as unknown as Redis;
+}
+
+/**
+ * The request-path client (REDIS_CLIENT). Load test 2026-11-02 (PR #606,
+ * docs/perf/LOAD_RESILIENCE_2026-11-02.md §2): with Redis away for 40 s every
+ * request that touched it waited ioredis' commandTimeout (2 s, twice per
+ * request) in the «offline queue» and then failed with a 500.
+ *
+ * The big look-aside caches do the opposite — Facebook's memcache clients
+ * («Scaling Memcache at Facebook», NSDI 2013) and Netflix's Hystrix («fail
+ * fast, fail silent, fallback») give up on an unreachable node at once and
+ * let the caller fall back, so a cache outage costs the latency of a miss,
+ * not of a timeout. ioredis has both halves built in:
+ *  - `enableOfflineQueue: false`: while the connection is lost a command is
+ *    refused synchronously («Stream isn't writeable …»); the reconnect
+ *    handshake still passes, and `retryStrategy` (jitteredBackoff) is the
+ *    cadence of the trial connections;
+ *  - `socketTimeout`: a connected node that stops answering while commands
+ *    are pending is dropped after [ms], which turns a hang into the same
+ *    fail-fast reconnect loop.
+ * Callers with a fallback (throttler, cost guard, badges, caches, session
+ * blacklist) get it in microseconds; the rest surface as 503 SERVER_BUSY
+ * + Retry-After through AllExceptionsFilter (redis-errors.ts).
+ */
+export function requestPathOptions(timeoutMs: number): RedisClientOptions {
+  return {
+    enableOfflineQueue: false,
+    maxRetriesPerRequest: 1,
+    commandTimeout: timeoutMs,
+    socketTimeout: timeoutMs,
+  };
+}
+
+/** A subscriber/adapter connection cloned from the fail-fast request-path
+ * client. `duplicate()` inherits `enableOfflineQueue: false`, so a
+ * `(s)subscribe` sent before the connection is ready (the socket.io adapter
+ * at `afterInit`) would be refused; pub/sub clients are not on the request
+ * path, so they queue commands and wait. */
+export function pubSubClient(client: Redis): Redis {
+  const queueing = {
+    enableOfflineQueue: true,
+    maxRetriesPerRequest: null,
+    commandTimeout: undefined,
+    socketTimeout: undefined,
+  };
+  const asCluster = client as unknown;
+  // Cluster#duplicate(startupNodes?, options?) merges `redisOptions` itself;
+  // the offline queue is a cluster-level option, the rest is per node.
+  const clone: Redis | Cluster =
+    asCluster instanceof Cluster
+      ? asCluster.duplicate(undefined, {
+          enableOfflineQueue: true,
+          redisOptions: queueing,
+        })
+      : client.duplicate(queueing);
+  // A clone has none of the original's listeners: without this it would keep
+  // the old password after a token rotation (WRONGPASS loop).
+  attachAuthRefresh(clone);
+  return clone as unknown as Redis;
+}
+
+/** Resolves when [client] is ready or after [maxMs] (a boot with Redis away
+ * starts fail-fast instead of hanging; health reports the state). Without
+ * the offline queue, module-init commands sent before `ready` would fail. */
+export function waitForReady(
+  client: Redis | Cluster,
+  maxMs: number,
+): Promise<void> {
+  if ((client as { status?: string }).status === 'ready') {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    const timer = setTimeout(done, maxMs);
+    function done() {
+      clearTimeout(timer);
+      client.off('ready', done);
+      resolve();
+    }
+    client.once('ready', done);
+  });
 }
 
 /** BullMQ producer (Queue) connection: fail fast while Redis is away

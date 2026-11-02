@@ -68,6 +68,7 @@ export class PostVideosService {
         status: 'awaiting_upload',
         upload_expires_at: { lt: new Date(now) },
       },
+      orderBy: { created_at: 'asc' },
       take: BATCH,
     });
     for (const a of expired) {
@@ -93,6 +94,8 @@ export class PostVideosService {
         ],
         created_at: { lt: new Date(now - POLL_AFTER_MS) },
       },
+      // B-14: oldest first, so a backlog drains instead of the same rows.
+      orderBy: { created_at: 'asc' },
       take: BATCH,
     });
     for (const a of stuck) {

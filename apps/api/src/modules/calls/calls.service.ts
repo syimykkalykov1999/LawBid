@@ -28,6 +28,7 @@ import { UsageLimitsService } from '../../common/usage-limits/usage-limits.servi
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CALL_SILENT_MS } from '../../common/calls/ongoing-call';
+import { CALL_RING_TIMEOUT_MS } from '../../common/calls/ring';
 import {
   callPollKey,
   verifyCallPoll,
@@ -78,6 +79,12 @@ import {
   type RelayCheck,
 } from './cloudflare-relay-probe';
 import { checkRelay } from './relay-check';
+import { TurnInstanceGateway } from './turn-instance.gateway';
+import {
+  parseOwnTurnMode,
+  RedisTurnStore,
+  TurnOnDemand,
+} from './turn-on-demand';
 import { LiveKitVideoProvider, type LiveKitRole } from './livekit.provider';
 import {
   SfuBrokerService,
@@ -93,9 +100,11 @@ import {
   videoCallAvailability,
   type VideoCallProvider,
 } from './video-call-provider';
+import { incrWithTtl } from '../../redis/incr-with-ttl';
 
-/** Unanswered after this → missed (the app gives up at 60 s, like WhatsApp). */
-export const CALL_RING_TIMEOUT_MS = 65_000;
+/** Unanswered after this → missed (the phones ring CALL_RING_SECONDS, like
+ * WhatsApp; common/calls/ring.ts). Re-exported for the existing imports. */
+export { CALL_RING_TIMEOUT_MS };
 /** A running call nobody has asked about for this long is over: the apps
  * read it every ~8 s (heartbeat), so silence means both are gone. Owner
  * 2026-10-21: no cap on how long people talk (days are fine) — only
@@ -227,6 +236,8 @@ export class CallsService {
     @Optional() private readonly settings?: AppSettingsService,
     // Owner 2026-10-24: group calls on Cloudflare Realtime SFU.
     @Optional() private readonly sfu?: SfuBrokerService,
+    // Owner 2026-11-02: our own coturn box that is started only when needed.
+    @Optional() private readonly turnBox?: TurnInstanceGateway,
   ) {
     this.videoProvider = new WebRtcVideoProvider(secrets, config);
     this.livekit = new LiveKitVideoProvider(secrets, config);
@@ -238,6 +249,11 @@ export class CallsService {
     // every running Cloudflare group call moves to our own path now, with
     // its call id (the people hear a 1-2 s pause, not a dropped call).
     const transport: CloudflareTransport | undefined = this.sfu?.transport;
+    // Owner 2026-11-02: any Cloudflare breaker opening wakes our own coturn
+    // (it is stopped while Cloudflare is healthy).
+    transport?.onOpen(() => {
+      void this.turnOnDemand?.tick().catch(() => undefined);
+    });
     transport?.onOpen((part) => {
       if (part !== 'sfu') return;
       void this.moveSfuCallsToOwn('breaker_open').catch(() => undefined);
@@ -259,8 +275,7 @@ export class CallsService {
     if (this.redis && this.redis.status === 'ready') {
       try {
         const key = `call:seq:${callId}`;
-        seq = await this.redis.incr(key);
-        if (seq === 1) await this.redis.expire(key, 86_400);
+        seq = await incrWithTtl(this.redis, key, 86_400);
       } catch {
         seq = 0;
       }
@@ -306,6 +321,47 @@ export class CallsService {
         this.settings,
       ))
     );
+  }
+
+  /** The on-demand coturn (undefined when TURN_ONDEMAND_INSTANCE_ID is not
+   * set). Owner 2026-11-02: see turn-on-demand.ts. */
+  private turnOnDemandOwn?: TurnOnDemand;
+  private get turnOnDemand(): TurnOnDemand | undefined {
+    const box = this.turnBox;
+    if (!box?.enabled) return undefined;
+    return (this.turnOnDemandOwn ??= new TurnOnDemand({
+      instance: box,
+      store: new RedisTurnStore(this.redis),
+      mode: async () =>
+        parseOwnTurnMode(await this.settings?.string('calls.own_turn.mode')),
+      needed: async () => {
+        // A fixed own TURN address wins: that server is always on, no box.
+        const keys = (await this.secrets?.get('turn'))?.fields ?? {};
+        if ((keys.urls ?? this.config.get<string>('TURN_URLS') ?? '').trim())
+          return false;
+        const t = this.cfTransport;
+        if ((await t.isOpen('turn')) || (await t.isOpen('sfu'))) return true;
+        // Own forced: the box is the only relay.
+        return (await t.mode()) === 'own';
+      },
+      activeCalls: () =>
+        this.prisma.call.count({
+          where: { status: { in: ['ringing', 'active'] } },
+        }),
+      relayAnswers: async (ip) =>
+        (await this.relayCheck({ host: ip, port: 3478 }, null)).stun.ok,
+      now: () => Date.now(),
+    }));
+  }
+
+  private turnNudgedAt = 0;
+  /** A call asked for ice servers while the box is not offered: wake it, at
+   * most every 20 s per API task (the minute cron is the safety net). */
+  private nudgeTurnBox(): void {
+    const t = Date.now();
+    if (t - this.turnNudgedAt < 20_000) return;
+    this.turnNudgedAt = t;
+    void this.turnOnDemand?.tick().catch(() => undefined);
   }
 
   /** GET /calls/video — owner 2026-10-05: flag on AND provider keys set. */
@@ -1080,10 +1136,17 @@ export class CallsService {
       this.config.get<string>('CLOUDFLARE_TURN_API_TOKEN') ??
       ''
     ).trim();
-    const turn = (turnKeys.urls ?? this.config.get<string>('TURN_URLS') ?? '')
+    let turn = (turnKeys.urls ?? this.config.get<string>('TURN_URLS') ?? '')
       .split(',')
       .map((u) => u.trim())
       .filter(Boolean);
+    // Owner 2026-11-02: no fixed own TURN -> the on-demand box's live address
+    // (only while the box runs and answers; STUN only before that).
+    if (turn.length === 0 && this.turnOnDemand) {
+      const live = await this.turnOnDemand.address().catch(() => null);
+      if (live) turn = [live];
+      else this.nudgeTurnBox();
+    }
     const secret = turnKeys.secret ?? this.config.get<string>('TURN_SECRET');
     const ownTurn = turn.length > 0 && Boolean(secret);
     let cfWorks = false;
@@ -1323,6 +1386,9 @@ export class CallsService {
     }
     await this.sweepInvites(now);
     await this.sweepSilentMembers(now);
+    // Owner 2026-11-02: once a minute the on-demand coturn is started,
+    // registered or stopped as needed.
+    await this.turnOnDemand?.tick().catch(() => undefined);
     await this.sweepSoloCalls(now);
     await this.sweepEmptyCalls(now);
     await this.sweepVotes(now);

@@ -19,6 +19,7 @@ import {
 } from '@aws-sdk/client-rds';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../redis/redis.constants';
+import { AppSettingsService } from '../common/app-settings/app-settings.service';
 import { replicaLive } from './replica-live';
 
 export type ReplicaState =
@@ -68,11 +69,13 @@ export class ReplicaAdminService implements OnModuleInit, OnModuleDestroy {
   private rds?: RDSClient;
   private cw?: CloudWatchClient;
   private timer?: NodeJS.Timeout;
+  private autoTimer?: NodeJS.Timeout;
   private serving = false;
 
   constructor(
     private readonly config: ConfigService,
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   private env(name: string): string | undefined {
@@ -111,11 +114,103 @@ export class ReplicaAdminService implements OnModuleInit, OnModuleDestroy {
     setTimeout(tick, Math.floor(Math.random() * 5000)).unref();
     this.timer = setInterval(tick, 30_000);
     this.timer.unref();
+    // Auto growth: look at the primary's CPU every 10 minutes (one task wins
+    // the Redis lock, so 70 tasks make one CloudWatch call per 10 minutes).
+    const autoTick = () =>
+      void this.autoCheck().catch((e: Error) =>
+        this.log.warn(`replica auto-check failed: ${e.message}`),
+      );
+    setTimeout(autoTick, 60_000 + Math.floor(Math.random() * 30_000)).unref();
+    this.autoTimer = setInterval(autoTick, AUTO_CHECK_MS);
+    this.autoTimer.unref();
   }
 
   onModuleDestroy(): void {
     if (this.timer) clearInterval(this.timer);
+    if (this.autoTimer) clearInterval(this.autoTimer);
     replicaLive.set(null);
+  }
+
+  /**
+   * Owner 2026-11-02 («с ростом включается само»): when the primary has been
+   * busy for hours although the database autoscaler could already have grown
+   * it (Multi-AZ on), the read replica is created without a tap. Setting
+   * `db.replica_provision`: `off` = never, `auto` (default) = create on
+   * sustained load. It is inert unless Terraform `db_replica_toggle` gave the
+   * task the IAM rights, and it creates the same single replica the button
+   * creates (same size, same name), at most once a day. It never deletes:
+   * deleting stays a tap with a second admin and a fresh 2FA code, because
+   * the replica itself lowers the primary's CPU and a "quiet" signal would
+   * make it flap.
+   */
+  async autoCheck(): Promise<ReplicaAutoAction> {
+    if (!this.available) return 'none';
+    const mode = (
+      (await this.settings?.string('db.replica_provision').catch(() => null)) ??
+      'auto'
+    )
+      .trim()
+      .toLowerCase();
+    if (mode !== 'auto') return 'none';
+    const got = await this.redis
+      ?.set(AUTO_LOCK_KEY, '1', 'EX', AUTO_LOCK_TTL_S, 'NX')
+      .catch(() => null);
+    if (!got) return 'none';
+    const cur = await this.probe();
+    if (cur.exists) return 'none';
+    // The database autoscaler pauses itself while a replica exists. It can
+    // only grow the primary with Multi-AZ on, so with Multi-AZ off high CPU
+    // means "autoscaler blocked", not "at its ceiling": no replica then (the
+    // ha-auto service adds Multi-AZ first, then the autoscaler grows the size).
+    if (!(await this.primaryMultiAz())) return 'none';
+    const cooling = !!(await this.redis
+      ?.get(AUTO_COOLDOWN_KEY)
+      .catch(() => null));
+    const action = decideReplicaAuto({
+      mode,
+      exists: false,
+      coolingDown: cooling,
+      cpu: await this.primaryCpu(),
+    });
+    if (action === 'create') {
+      this.log.warn('primary CPU is high for hours: creating the read replica');
+      await this.enable('auto');
+      // Cooldown after success only: a failed create is retried next pass.
+      await this.redis
+        ?.set(AUTO_COOLDOWN_KEY, '1', 'EX', AUTO_COOLDOWN_S)
+        .catch(() => undefined);
+    }
+    return action;
+  }
+
+  private async primaryMultiAz(): Promise<boolean> {
+    const r = await this.rdsClient().send(
+      new DescribeDBInstancesCommand({ DBInstanceIdentifier: this.primaryId }),
+    );
+    return !!r.DBInstances?.[0]?.MultiAZ;
+  }
+
+  /** Primary CPU in 15-minute averages over the last 3 hours (oldest first). */
+  private async primaryCpu(): Promise<number[]> {
+    const end = new Date();
+    const r = await this.cwClient().send(
+      new GetMetricStatisticsCommand({
+        Namespace: 'AWS/RDS',
+        MetricName: 'CPUUtilization',
+        Dimensions: [
+          { Name: 'DBInstanceIdentifier', Value: this.primaryId ?? '' },
+        ],
+        StartTime: new Date(end.getTime() - AUTO_UP_POINTS * 15 * 60_000),
+        EndTime: end,
+        Period: 900,
+        Statistics: ['Average'],
+      }),
+    );
+    return (r.Datapoints ?? [])
+      .sort(
+        (a, b) => (a.Timestamp?.getTime() ?? 0) - (b.Timestamp?.getTime() ?? 0),
+      )
+      .map((d) => d.Average ?? 0);
   }
 
   /** Reads RDS (or the Redis copy) and updates what this process serves. */
@@ -206,7 +301,7 @@ export class ReplicaAdminService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Create the replica (idempotent: an existing one is an error). */
-  async enable(): Promise<void> {
+  async enable(by: 'admin-button' | 'auto' = 'admin-button'): Promise<void> {
     if (!this.available) throw new Error('not available');
     const cur = await this.probe();
     if (cur.exists) throw new Error('Копия уже есть или создаётся.');
@@ -242,7 +337,7 @@ export class ReplicaAdminService implements OnModuleInit, OnModuleDestroy {
         CopyTagsToSnapshot: true,
         Tags: [
           { Key: 'Role', Value: 'read-replica' },
-          { Key: 'ManagedBy', Value: 'admin-button' },
+          { Key: 'ManagedBy', Value: by },
         ],
       }),
     );
@@ -267,6 +362,35 @@ export class ReplicaAdminService implements OnModuleInit, OnModuleDestroy {
     await this.redis?.del(CACHE_KEY).catch(() => undefined);
     this.log.warn(`read replica ${this.replicaId} is being deleted`);
   }
+}
+
+const AUTO_CHECK_MS = 10 * 60_000;
+const AUTO_LOCK_KEY = 'ops:db-replica:auto-lock';
+const AUTO_LOCK_TTL_S = 9 * 60;
+const AUTO_COOLDOWN_KEY = 'ops:db-replica:auto-cooldown';
+const AUTO_COOLDOWN_S = 24 * 3600;
+/** 12 points of 15 minutes = 3 hours. */
+export const AUTO_UP_POINTS = 12;
+/** Average CPU (%) every one of those points must reach. */
+export const AUTO_UP_CPU = 75;
+
+export type ReplicaAutoAction = 'create' | 'none';
+
+/**
+ * Pure: create the replica only when the whole last 3 hours were busy (all
+ * 12 quarter-hours at or above 75 %, at most one missing), the replica does
+ * not exist, and none was created in the last 24 h.
+ */
+export function decideReplicaAuto(i: {
+  mode: string;
+  exists: boolean;
+  coolingDown: boolean;
+  cpu: number[];
+}): ReplicaAutoAction {
+  if (i.mode !== 'auto' || i.exists || i.coolingDown) return 'none';
+  const last = i.cpu.slice(-AUTO_UP_POINTS);
+  if (last.length < AUTO_UP_POINTS - 1) return 'none';
+  return last.every((v) => v >= AUTO_UP_CPU) ? 'create' : 'none';
 }
 
 export interface RawProbe {
