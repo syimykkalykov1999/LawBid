@@ -12,6 +12,9 @@ import 'package:lawbid/core/media/video_cache/video_cache.dart';
 
 const _mib = 1024 * 1024;
 
+/// What a proxy starts with while the server's number is unknown.
+const _ceiling = 1000 * _mib;
+
 void main() {
   late Directory root;
   late CacheDatabase db;
@@ -106,7 +109,7 @@ void main() {
   test('enforce hands the video limit to a running proxy', () async {
     final port = ReceivePort();
     addTearDown(port.close);
-    VideoCache.debugAttach(port.sendPort, sentMaxBytes: -1);
+    VideoCache.debugAttach(port.sendPort, sentMaxBytes: _ceiling);
     await maintenance({CacheStore.video: 1}).enforce();
     expect(
       await port.first.timeout(const Duration(seconds: 5)),
@@ -119,7 +122,7 @@ void main() {
     final port = ReceivePort();
     addTearDown(port.close);
     // The proxy came up with the ceiling (the server's number unknown).
-    VideoCache.debugAttach(port.sendPort, sentMaxBytes: 1000 * _mib);
+    VideoCache.debugAttach(port.sendPort, sentMaxBytes: _ceiling);
     expect(
       await port.first.timeout(const Duration(seconds: 5)),
       ('max', _mib),
@@ -131,7 +134,7 @@ void main() {
     addTearDown(port.close);
     final seen = <Object?>[];
     port.listen(seen.add);
-    VideoCache.debugAttach(port.sendPort, sentMaxBytes: _mib);
+    VideoCache.debugAttach(port.sendPort, sentMaxBytes: _ceiling);
     VideoCache.limitTo(0);
     VideoCache.limitTo(-5);
     await Future<void>.delayed(const Duration(milliseconds: 50));
