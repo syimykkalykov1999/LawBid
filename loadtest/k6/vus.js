@@ -46,11 +46,12 @@ if (WS > 0) {
 }
 
 const abort = (threshold) => (__ENV.NO_K6_ABORT === '1' ? [threshold] : [{ threshold, abortOnFail: true, delayAbortEval: `${LIMITS.abort_window_seconds}s` }]);
-const ENDPOINTS = ['session', 'bootstrap', 'i18n', 'feed', 'feed_p2', 'reels', 'attorney_profile', 'post', 'search_attorneys', 'search_people', 'search_suggest', 'chat_list', 'chat_messages', 'chat_send', 'chat_send_ws', 'notifications', 'badges', 'cases_feed', 'my_cases', 'case_bids', 'admin_users', 'admin_search', 'admin_disputes', 'admin_export'];
+const ENDPOINTS = ['session', 'bootstrap', 'i18n', 'feed', 'feed_p2', 'reels', 'attorney_profile', 'post', 'search_attorneys', 'search_people', 'search_suggest', 'chat_list', 'chat_messages', 'chat_send', 'chat_send_ws', 'notifications', 'badges', 'cases_feed', 'my_cases', 'case_bids', 'admin_users', 'admin_search', 'admin_disputes', 'admin_export', 'post_create'];
 const t = {
   http_req_failed: abort(`rate<${LIMITS.abort_error_rate}`),
   http_req_duration: abort(`p(95)<${LIMITS.abort_p95_ms}`),
 };
+if (__ENV.WRITES === '1') t.post_created = ['rate>0.5']; // posts really written, not just answered
 for (const n of ENDPOINTS) {
   t[`http_req_duration{name:${n}}`] = ['max>=0'];
   t[`http_req_failed{name:${n}}`] = ['rate>=0'];

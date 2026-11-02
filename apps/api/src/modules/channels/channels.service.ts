@@ -1,4 +1,8 @@
 import {
+  communityQuery,
+  rankCommunities,
+} from '../../common/search/community-search';
+import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -208,25 +212,34 @@ export class ChannelsService {
       rows = adm.map((a) => a.channel);
       rows.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
     } else {
-      const term = (q ?? '').trim().replace(/^@/, '');
-      if (!term) return this.recommended(me, cursor);
+      const query = communityQuery(q ?? '');
+      // One letter is not a search yet: the recommended list stays.
+      if (!query) return this.recommended(me, cursor);
       const hidden = await this.blocks.hiddenIds(me);
-      rows = await this.prisma.channel.findMany({
+      const found = await this.prisma.channel.findMany({
         where: {
           status: 'active',
           owner_id: { notIn: [...hidden] },
-          ...(term
-            ? {
-                OR: [
-                  { title: { contains: term, mode: 'insensitive' } },
-                  { username: { contains: term.toLowerCase() } },
-                ],
-              }
-            : { post_count: { gt: 0 } }),
+          AND: query.words.map((w) => ({
+            OR: [
+              { title: { contains: w, mode: 'insensitive' as const } },
+              { username: { contains: w } },
+            ],
+          })),
         },
         orderBy: [{ subscriber_count: 'desc' }, { created_at: 'desc' }],
-        take: 30,
+        take: 200,
       });
+      rows = rankCommunities(
+        found,
+        query,
+        (c) => ({
+          title: c.title,
+          username: c.username,
+          size: c.subscriber_count,
+        }),
+        30,
+      );
     }
     const items = await this.presentChannels(rows, me);
     if (scope === 'discover') return { items, nextCursor: null };

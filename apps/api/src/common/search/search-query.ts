@@ -29,3 +29,16 @@ export function parseSearchQuery(raw: string): ParsedQuery {
   const exact = tokens.map((t) => `'${t}'`).join(' & ');
   return { tokens, tsquery, exact, plain: tokens.join(' ') };
 }
+
+/**
+ * Audit 2026-11-01: Chinese, Japanese and Korean are written without spaces,
+ * so the "word" tokenizer sees a whole sentence as one word and a query
+ * ("移民") never equals it. Such a query is also looked up as a plain
+ * substring.
+ */
+const CJK =
+  /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/u;
+
+export function hasCjk(raw: string): boolean {
+  return CJK.test(raw);
+}
