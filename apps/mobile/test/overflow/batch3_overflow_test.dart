@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
 import 'package:lawbid/features/case_payments/data/case_payments_repository.dart';
 import 'package:lawbid/features/case_payments/domain/case_payment_models.dart';
+import 'package:lawbid/features/case_payments/presentation/case_payment_widgets.dart';
 import 'package:lawbid/features/case_payments/presentation/case_payments_card.dart';
 import 'package:lawbid/features/case_payments/presentation/payment_request_sheet.dart';
 
@@ -43,11 +44,19 @@ CasePayment _payment(String id, CasePaymentStatus status) => CasePayment(
       createdAt: DateTime(2026, 10, 20),
       paidAt: DateTime(2026, 10, 21),
       refundable: true,
+      receiptUrl: 'https://example.test/receipt/$id',
+      disputeStatus:
+          status == CasePaymentStatus.disputed ? 'needs_response' : null,
       client: _party,
       attorney: _party,
     );
 
-PaymentRequest _request(String id, {bool overdue = false}) => PaymentRequest(
+PaymentRequest _request(
+  String id, {
+  bool overdue = false,
+  String feePayerBy = 'attorney',
+}) =>
+    PaymentRequest(
       id: id,
       caseId: 'c1',
       caseTitle: longTitle,
@@ -64,7 +73,7 @@ PaymentRequest _request(String id, {bool overdue = false}) => PaymentRequest(
       clientTotalCents: 99999999999,
       attorneyReceivesCents: 88888888888,
       feePayerStatus: 'proposed',
-      feePayerBy: 'attorney',
+      feePayerBy: feePayerBy,
       feePayerRounds: 1,
       feePayerMaxRounds: 3,
       canPay: true,
@@ -77,7 +86,7 @@ CasePaymentsState _state({required bool attorney}) => CasePaymentsState(
       attorneyReady: true,
       canPay: !attorney,
       canRequest: attorney,
-      paidCents: 99999999999,
+      paidCents: 50000000000,
       refundedCents: 12345678900,
       minAmountCents: 100,
       maxAmountCents: 99999999999,
@@ -87,14 +96,19 @@ CasePaymentsState _state({required bool attorney}) => CasePaymentsState(
       maxInstallments: 12,
       openRequestsCents: 99999999999,
       bidAmountCents: 99999999999,
-      remainingCents: 99999999999,
+      remainingCents: 49999999999,
       processingFeePayer: 'client',
-      requests: [_request('r1'), _request('r2', overdue: true)],
+      requests: [
+        _request('r1'),
+        _request('r2', overdue: true, feePayerBy: 'client'),
+      ],
       items: [
         _payment('p1', CasePaymentStatus.succeeded),
         _payment('p2', CasePaymentStatus.pendingPayment),
         _payment('p3', CasePaymentStatus.partiallyRefunded),
         _payment('p4', CasePaymentStatus.failed),
+        _payment('p5', CasePaymentStatus.disputed),
+        _payment('p6', CasePaymentStatus.refunded),
       ],
     );
 
@@ -105,6 +119,23 @@ class _FakePayments implements CasePaymentsRepository {
 
   @override
   Future<CasePaymentsState> caseState(String caseId) async => state;
+
+  @override
+  Future<PaymentSettings> settings() async => const PaymentSettings(
+        enabled: true,
+        minAmountCents: 100,
+        maxAmountCents: 99999999999,
+        allowCustomAmount: true,
+        allowPartial: true,
+        refundWindowDays: 30,
+        processingFeePayer: 'client',
+        saveCards: true,
+        allowInvoices: true,
+        allowInstallments: true,
+        maxInstallments: 12,
+        disclaimerEn: '$longText $longText',
+        disclaimerRu: '$longText $longText',
+      );
 
   @override
   Future<PaymentQuote> quote(
@@ -130,39 +161,31 @@ class _FakePayments implements CasePaymentsRepository {
 typedef _Case = (
   Widget Function() build,
   Future<void> Function(WidgetTester)? act,
-  bool client,
   bool attorneySide,
 );
 
 void main() {
   setUpAll(initializeDateFormatting);
 
-  Widget opener(void Function(BuildContext) open) => Scaffold(
-        body: Center(
-          child: Builder(
-            builder: (context) => TextButton(
-              key: const Key('open'),
-              onPressed: () => open(context),
-              child: const Text('open'),
-            ),
-          ),
-        ),
-      );
-
-  Future<void> Function(WidgetTester) shows(
-    Finder what, {
-    bool sheet = false,
-  }) =>
-      (tester) async {
-        if (sheet) {
-          await tester.tap(find.byKey(const Key('open')));
-          await tester.pump();
-        }
-        await tester.pump(const Duration(seconds: 2));
-        await tester.pump(const Duration(seconds: 2));
-        if (sheet) expect(find.byType(BottomSheet), findsOneWidget);
-        expect(what, findsWidgets);
-      };
+  /// Opens the invoice sheet, types an amount and switches installments on
+  /// with three parts, so the fee preview and the plan preview are built.
+  Future<void> invoiceFilled(WidgetTester tester) async {
+    await overflowShows(find.byType(TextField), sheet: true)(tester);
+    await tester.enterText(find.byType(TextField).first, '1000000');
+    await tester.pump(const Duration(seconds: 1));
+    final plus = find.byWidgetPredicate(
+      (w) => w is AppIcon && w.icon == AppIcons.addRounded,
+    );
+    expect(find.byType(Switch), findsOneWidget);
+    await tester.ensureVisible(find.byType(Switch));
+    await tester.tap(find.byType(Switch).first);
+    await tester.pump(const Duration(seconds: 1));
+    expect(plus, findsWidgets);
+    await tester.ensureVisible(plus.first);
+    await tester.tap(plus.first);
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.byType(Switch), findsOneWidget);
+  }
 
   final longNote = find.textContaining('The landlord');
   final cases = <String, _Case>{
@@ -172,8 +195,7 @@ void main() {
               child: CasePaymentsCard(caseId: 'c1', asAttorney: false),
             ),
           ),
-      shows(longNote),
-      true,
+      overflowShows(longNote),
       false,
     ),
     'payments card (attorney)': (
@@ -182,34 +204,31 @@ void main() {
               child: CasePaymentsCard(caseId: 'c1', asAttorney: true),
             ),
           ),
-      shows(longNote),
-      false,
+      overflowShows(longNote),
       true,
     ),
     'pay sheet': (
-      () => opener(
-            (c) => PaySheet.show(
+      () => overflowOpener(
+            (c, _) => PaySheet.show(
               c,
               'c1',
               _state(attorney: false),
               onStarted: () {},
             ),
           ),
-      shows(find.byType(TextField), sheet: true),
-      true,
+      overflowShows(find.byType(PaymentDisclaimer), sheet: true),
       false,
     ),
     'invoice sheet': (
-      () => opener(
-            (c) => PaymentRequestSheet.show(
+      () => overflowOpener(
+            (c, _) => PaymentRequestSheet.show(
               c,
               'c1',
               _state(attorney: true),
               onSent: () {},
             ),
           ),
-      shows(find.byType(TextField), sheet: true),
-      false,
+      invoiceFilled,
       true,
     ),
   };
@@ -226,7 +245,7 @@ void main() {
       group('batch 3: no overflow at 360 dp ($name, x$scale)', () {
         for (final MapEntry(
               key: label,
-              value: (build, act, client, attorneySide),
+              value: (build, act, attorneySide),
             ) in cases.entries) {
           testWidgets(label, (tester) async {
             await pumpOverflowApp(
@@ -235,7 +254,7 @@ void main() {
               t: t,
               dir: dir,
               scale: scale,
-              client: client,
+              client: !attorneySide,
               extra: overridesFor(attorneySide: attorneySide),
               act: act,
             );
@@ -248,7 +267,7 @@ void main() {
     group('batch 3: themes (${themeId.name}, longest, x1.3)', () {
       for (final MapEntry(
             key: label,
-            value: (build, act, client, attorneySide),
+            value: (build, act, attorneySide),
           ) in cases.entries) {
         testWidgets(label, (tester) async {
           await pumpOverflowApp(
@@ -258,7 +277,7 @@ void main() {
             dir: TextDirection.ltr,
             scale: DeviceTextScale.shellMax,
             theme: themeId,
-            client: client,
+            client: !attorneySide,
             extra: overridesFor(attorneySide: attorneySide),
             act: act,
           );
