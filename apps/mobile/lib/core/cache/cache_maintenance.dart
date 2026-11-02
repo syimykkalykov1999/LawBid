@@ -176,12 +176,10 @@ class CacheMaintenance {
         await _chatMedia.dropOlderThan(Duration(days: l.keepMediaDays));
         await _voiceNotes.dropOlderThan(Duration(days: l.keepMediaDays));
       }
-      // The video proxy trims itself while it runs (the user's lower limit
-      // is handed to it); a folder nobody writes to is trimmed here, after a
-      // proxy that is still starting is up.
-      VideoCache.limitTo(l.userLimitBytes(CacheStore.video));
-      await VideoCache.settled();
-      if (!VideoCache.running) await _video.trimTo(VideoCache.maxBytes);
+      // Video files belong to the proxy, which evicts to the limit itself
+      // (at its start and on this command): never deleted from here, or a
+      // starting proxy would find its chunks gone.
+      VideoCache.limitTo(l.limitBytes(CacheStore.video));
       await _db.trimHttp(l.limitBytes(CacheStore.http));
       await _db.trimMessages(l.limitBytes(CacheStore.messages));
       // Owner 2026-10-24: the view lists of case documents live in «Прочее»
