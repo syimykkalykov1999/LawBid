@@ -198,7 +198,13 @@ abstract class SyncedListNotifier<T> extends PagedNotifier<T> {
       final page = await fetchChanged(since);
       if (!ref.mounted) return;
       final current = state.value;
-      if (current != null) setItems(merge(current.items, page));
+      if (current != null) {
+        final merged = merge(current.items, page);
+        setItems(merged);
+        // Before «caught up to» moves: a saved copy older than that time
+        // would lose the changes in between at the next cold start.
+        didMerge(merged);
+      }
       _remember(page.syncedAt ?? _sinceOf(page.items) ?? since);
     } on ApiException catch (e) {
       if (e.code == ApiErrorCodes.syncTooOld) {
@@ -214,6 +220,12 @@ abstract class SyncedListNotifier<T> extends PagedNotifier<T> {
       _pulling = false;
     }
   }
+
+  /// The list after a catch-up merged [items] into it. A list that keeps a
+  /// saved first page rewrites it here (the stored «caught up to» moves on,
+  /// so the copy must move with it). Must not throw or wait on the disk.
+  @protected
+  void didMerge(List<T> items) {}
 
   /// Changed rows replace their old ones (or enter on top), deleted ids
   /// leave, then the server's order is re-applied.
