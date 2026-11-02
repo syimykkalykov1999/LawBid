@@ -457,3 +457,93 @@ describe('algo audit 2026-10-27 — image moderation', () => {
     }
   });
 });
+
+describe('MediaModerationService frame-by-frame video check (owner 2026-11-02)', () => {
+  const asset = {
+    id: 'v1',
+    duration_sec: 30,
+    trim_start_ms: 4000,
+    trim_end_ms: null,
+  };
+
+  function build(over: {
+    enabled?: boolean;
+    runs?: string[];
+    url?: string | null;
+  }) {
+    const runs = [...(over.runs ?? [])];
+    const settings = {
+      boolean: jest.fn(() => Promise.resolve(over.enabled ?? true)),
+      number: jest.fn((k: string) =>
+        Promise.resolve(k.endsWith('frame_every_sec') ? 10 : 6),
+      ),
+    };
+    const videos = {
+      present: jest.fn(() =>
+        Promise.resolve(
+          new Map([
+            [
+              'v1',
+              {
+                fallbackUrl:
+                  over.url === undefined ? 'https://cdn/x.mp4' : over.url,
+              },
+            ],
+          ]),
+        ),
+      ),
+    };
+    const svc = new MediaModerationService(
+      {} as never,
+      settings as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      logger,
+      videos as never,
+    );
+    const run = jest.fn(
+      async (_c: unknown, _s: unknown, load: () => Promise<Buffer>) => {
+        void load;
+        return runs.shift() ?? 'clean';
+      },
+    );
+    (svc as unknown as { run: typeof run }).run = run;
+    const check = () =>
+      (
+        svc as unknown as {
+          checkFrames(c: unknown, a: unknown): Promise<string>;
+        }
+      ).checkFrames({ id: 'c1' }, asset);
+    return { check, run, settings };
+  }
+
+  it('is off by default: no frame is judged', async () => {
+    const { check, run } = build({ enabled: false });
+    expect(await check()).toBe('clean');
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('judges every frame of the played part when all are clean', async () => {
+    const { check, run } = build({});
+    expect(await check()).toBe('clean');
+    expect(run).toHaveBeenCalledTimes(3); // 30 s played, one frame per 10 s
+  });
+
+  it('stops at the first unsafe frame and keeps its verdict', async () => {
+    const { check, run } = build({ runs: ['clean', 'hidden'] });
+    expect(await check()).toBe('hidden');
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  it('no playable url: the cover verdict stands', async () => {
+    const { check, run } = build({ url: null });
+    expect(await check()).toBe('clean');
+    expect(run).not.toHaveBeenCalled();
+  });
+});
