@@ -146759,6 +146759,11 @@
           "mediumUrl": {
             "type": "string",
             "description": "1080 px medium."
+          },
+          "blurhash": {
+            "type": "string",
+            "nullable": true,
+            "description": "BlurHash (4x3) placeholder shown while the photo loads."
           }
         },
         "required": [
