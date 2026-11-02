@@ -81,7 +81,8 @@ class UpTests(unittest.TestCase):
         m = replace(calm(), cpu=(20.0, 20.0, 93.0, 97.0))
         r = self.go(m)
         self.assertEqual((r.action, r.target), ("up", "db.t4g.medium"))
-        self.assertEqual(r.facts["triggers"]["cpu"], 95.0)
+        self.assertEqual(r.facts["triggers"]["cpu_fast"], 95.0)
+        self.assertIn("быстрая полоса", d.explain_triggers(r.facts["triggers"]))
 
     def test_one_saturated_point_is_not_enough(self):
         m = replace(calm(), cpu=(20.0, 20.0, 40.0, 99.0))

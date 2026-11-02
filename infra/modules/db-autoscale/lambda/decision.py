@@ -162,7 +162,7 @@ def up_triggers(cfg, cur, m):
         if len(fast) == cfg.up_cpu_fast_points and all(
             v > cfg.up_cpu_fast_pct for v in fast
         ):
-            hit["cpu"] = round(sum(fast) / len(fast), 1)
+            hit["cpu_fast"] = round(sum(fast) / len(fast), 1)
     mem = _last(m.mem_free, cfg.up_mem_points)
     total = cur.memory_gib * GIB
     if len(mem) == cfg.up_mem_points and all(
@@ -292,6 +292,7 @@ def _decide_down(cfg, cur, guards, state, m, now):
 
 _TRIGGER_RU = {
     "cpu": lambda v: f"нагрузка CPU {v:g} %",
+    "cpu_fast": lambda v: f"быстрая полоса: CPU почти на пределе, {v:g} % уже 10 минут",
     "memory": lambda v: f"свободной памяти осталось {v:g} %",
     "connections": lambda v: f"соединений {v:g} % от предела",
     "credits": lambda v: f"кончились «кредиты» процессора ({v:g})",
