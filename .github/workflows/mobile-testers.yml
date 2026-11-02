@@ -113,6 +113,8 @@ jobs:
         with: { flutter-version: "${{ steps.fv.outputs.v }}", channel: stable, cache: true }
       - uses: ruby/setup-ruby@e1bd6146574da5e0795075b5319b300edb30c5b0 # v1.333.0
         with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+      - name: Xcode with the current iOS SDK (fail now, not at the store upload)
+        run: bash scripts/ci/select-xcode.sh 26
       - name: Dart defines + Firebase config + App Store Connect key
         working-directory: apps/mobile
         env:

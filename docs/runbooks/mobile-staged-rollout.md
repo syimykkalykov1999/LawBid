@@ -17,7 +17,7 @@ App Store Connect -> версия -> Pause phased release (API-команды н
 
 Правила безопасности:
 - сборка по тегу `v*.*.*` ждёт зелёного CI этого коммита;
-- если пустые секреты подписи (`ANDROID_KEYSTORE_BASE64`, `IOS_CERT_P12_BASE64`), сборка
+- если пустые секреты подписи (`ANDROID_KEYSTORE_BASE64`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_CONTENT`, `APPLE_TEAM_ID` (iOS подписывает Xcode через ключ App Store Connect, как в «Mobile testers»)), сборка
   по тегу или с `upload=true` **падает**, а не публикует debug-подписанный файл;
 - ключ iOS в keychain доступен только `codesign`/`security` (раньше любому приложению).
 
