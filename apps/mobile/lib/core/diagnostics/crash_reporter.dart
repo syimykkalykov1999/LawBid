@@ -69,6 +69,12 @@ class CrashReporter {
     PlatformDispatcher.instance.onError = (error, stack) {
       // Returning true means the engine treats the error as handled and the
       // app keeps running, so it is not a fatal crash.
+      // socket_io_client closing a socket the server already closed throws
+      // from its own microtask; the client reconnects by itself.
+      if (error.runtimeType.toString() == 'WebSocketConnectionClosed' &&
+          (stack?.toString().contains('socket_io_client') ?? false)) {
+        return true;
+      }
       reporter.report(error, stack);
       return true;
     };
