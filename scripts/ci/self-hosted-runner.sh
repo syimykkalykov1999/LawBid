@@ -8,7 +8,9 @@
 #
 # Safety model: every runner is its own container, ephemeral (one job, then it is
 # destroyed and recreated with a fresh registration token), no bind mounts, no
-# home directory, CPU/RAM limited. Docker for the job's service containers is a
+# host home directory, CPU/RAM limited. The only state that survives a job is the
+# npm download cache: a named volume per runner mounted at ~/.npm (content-addressed,
+# holds no secrets). Docker for the job's service containers is a
 # private Docker-in-Docker sidecar per runner (privileged sidecar, NOT the host
 # socket). The registration token is requested with `gh` at start and never
 # stored. Workflows send only same-repo PRs and pushes here (see api-ci.yml).
@@ -41,12 +43,15 @@ D
 start_one() {
   i="$1"
   docker rm -f "lawbid-ci-dind-$i" "lawbid-ci-run-$i" >/dev/null 2>&1 || true
+  docker volume create "lawbid-ci-npm-$i" >/dev/null
+  docker run --rm --user root -v "lawbid-ci-npm-$i:/d" "$IMG" chown -R runner:runner /d >/dev/null 2>&1 || true
   docker run -d --name "lawbid-ci-dind-$i" --privileged --network "$NET" --restart unless-stopped \
     -e DOCKER_TLS_CERTDIR= docker:27-dind >/dev/null
   (
     while [ -f "/tmp/lawbid-ci-up" ]; do
       tok=$(gh api -X POST "repos/$REPO/actions/runners/registration-token" --jq .token)
       docker run --rm --name "lawbid-ci-run-$i" --network "$NET" --cpus "$CPUS" --memory "$MEM" \
+        -v "lawbid-ci-npm-$i:/home/runner/.npm" \
         -e DOCKER_HOST="tcp://lawbid-ci-dind-$i:2375" -e RTOK="$tok" -e REPO="$REPO" -e LABELS="$LABELS" -e N="$i" \
         "$IMG" bash -c './config.sh --unattended --ephemeral --url "https://github.com/$REPO" --token "$RTOK" --labels "$LABELS" --name "laptop-$N-$(hostname)" && ./run.sh' || sleep 10
     done
