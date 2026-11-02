@@ -7,18 +7,37 @@
  */
 export function installProcessGuards(): void {
   process.on('unhandledRejection', (reason) => {
-    console.error(
-      JSON.stringify({
-        level: 50,
-        alert: 'unhandled_rejection',
-        msg: 'unhandledRejection',
-        err:
-          reason instanceof Error
-            ? { message: reason.message, stack: reason.stack }
-            : String(reason),
-      }),
-    );
+    logFatal(50, 'unhandled_rejection', 'unhandledRejection', reason);
   });
+}
+
+// scheme://user:pass@host -> scheme://***@host (DB / Redis URLs in client errors)
+const URL_CREDENTIALS = /([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi;
+
+function describe(reason: unknown): unknown {
+  if (!(reason instanceof Error)) return String(reason);
+  const e = reason as Error & {
+    code?: unknown;
+    cause?: unknown;
+    errors?: unknown[];
+  };
+  return {
+    message: e.message.replace(URL_CREDENTIALS, '$1***@'),
+    // Node 20+ dual-stack ECONNREFUSED is an AggregateError with an empty message.
+    code: e.code,
+    errors: Array.isArray(e.errors) ? e.errors.map(describe) : undefined,
+    cause: e.cause === undefined ? undefined : describe(e.cause),
+    stack: e.stack?.replace(URL_CREDENTIALS, '$1***@'),
+  };
+}
+
+function logFatal(
+  level: number,
+  alert: string,
+  msg: string,
+  reason: unknown,
+): void {
+  console.error(JSON.stringify({ level, alert, msg, err: describe(reason) }));
 }
 
 /**
@@ -34,18 +53,10 @@ export function runEntrypoint(
   main: () => Promise<void>,
   exit: (code: number) => void = (code) => process.exit(code),
 ): Promise<void> {
-  return main().catch((reason: unknown) => {
-    console.error(
-      JSON.stringify({
-        level: 60,
-        alert: 'startup_failed',
-        msg: `${name} failed to start`,
-        err:
-          reason instanceof Error
-            ? { message: reason.message, stack: reason.stack }
-            : String(reason),
-      }),
-    );
-    exit(1);
-  });
+  return Promise.resolve()
+    .then(main)
+    .catch((reason: unknown) => {
+      logFatal(60, 'startup_failed', `${name} failed to start`, reason);
+      exit(1);
+    });
 }

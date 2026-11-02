@@ -30,6 +30,7 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true, // needed later for Stripe webhook signature verification (docs/06_PRODUCTION.md §1.5)
     bufferLogs: true,
+    abortOnError: false, // a start-up error must reach runEntrypoint, not process.abort()
   });
 
   // Logger, shutdown hooks, trust proxy, helmet, validation, global
