@@ -45,7 +45,13 @@ fi
 SUBNETS=$(aws ec2 describe-subnets --filters "Name=tag:Name,Values=${CLUSTER}-private-*" --query 'Subnets[].SubnetId' --output text | tr '\t' ',')
 SG=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=${CLUSTER}-tasks" --query 'SecurityGroups[0].GroupId' --output text)
 # Never two migrations at once (a re-run clicked while the first still works).
-RUNNING=$(aws ecs list-tasks --cluster "$CLUSTER" --family "${TASK_DEF##*/}" --desired-status RUNNING --query 'taskArns' --output text 2>/dev/null || true)
+# --family wants the family WITHOUT ":<revision>" (TASK_DEF is an ARN
+# .../task-definition/<family>:<rev>; with the revision the list was always empty).
+FAMILY="${TASK_DEF##*/}"; FAMILY="${FAMILY%%:*}"
+if ! RUNNING=$(aws ecs list-tasks --cluster "$CLUSTER" --family "$FAMILY" --desired-status RUNNING --query 'taskArns' --output text 2>/tmp/list-tasks.err); then
+  echo "::warning::could not check for a running migrate task (the guard is off this run): $(tr '\n' ' ' </tmp/list-tasks.err)" >&2
+  RUNNING=""
+fi
 RUNNING=$(printf '%s' "${RUNNING:-}" | sed 's/^None$//')
 if [ -n "$RUNNING" ]; then
   echo "::error::a migrate task is still running ($RUNNING). Wait for it or stop it (docs/runbooks/migrate-resolve.md)." >&2

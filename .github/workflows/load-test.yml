@@ -134,6 +134,13 @@ jobs:
       TF_LOCK_TABLE: lawbid-prod-tflock
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Required secrets are set (before any paid call)
+        env:
+          AWS_LOADTEST_ROLE: ${{ secrets.AWS_LOADTEST_ROLE }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+          LOADTEST_CERTIFICATE_ARN: ${{ secrets.LOADTEST_CERTIFICATE_ARN }}
+        run: scripts/ci/require-secrets.sh AWS_LOADTEST_ROLE AWS_REGION ECR_REGISTRY LOADTEST_CERTIFICATE_ARN
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22.23.4"

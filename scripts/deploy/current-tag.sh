@@ -8,5 +8,8 @@ CLUSTER="${CLUSTER:-lawbid-prod}"
 for SVC in api admin; do
   TD=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SVC" --query 'services[0].taskDefinition' --output text)
   IMG=$(aws ecs describe-task-definition --task-definition "$TD" --query "taskDefinition.containerDefinitions[?name=='$SVC'].image | [0]" --output text)
+  # A missing service / task definition prints "None": that must stop here, not
+  # become `api_image = "None"` in a terraform plan or apply.
+  case "$IMG" in ""|None|null) echo "current-tag.sh: no image found for service $SVC in cluster $CLUSTER" >&2; exit 1 ;; esac
   echo "${SVC}_image = \"$IMG\""
 done
