@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Optional,
 } from '@nestjs/common';
 import { Prisma, type Notification } from '@prisma/client';
 import {
@@ -18,6 +19,7 @@ import {
 } from '../../common/pagination/cursor.util';
 import { isValidTimeZone } from '../../common/utils/zoned-time';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaReadService } from '../../prisma/prisma-read.service';
 import {
   parseUpdatedSince,
   syncedAt,
@@ -67,6 +69,8 @@ export class NotificationsApiService {
     private readonly prisma: PrismaService,
     private readonly badges: BadgesService,
     private readonly files: FilesService,
+    // Replica seam: older pages of the list may be a few seconds old.
+    @Optional() private readonly replica?: PrismaReadService,
   ) {}
 
   async list(
@@ -108,7 +112,14 @@ export class NotificationsApiService {
     }
     const c = cursor ? decodeCursor(cursor) : undefined;
     const matching = q ? await this.matchingIds(userId, q) : undefined;
-    const rows = await this.prisma.notification.findMany({
+    // Only the older pages (a cursor) go to the replica: the first page holds
+    // the newest rows and the read/unread state the person just changed, so
+    // it stays on the primary (read-your-writes).
+    const rows = await (
+      c
+        ? (this.replica?.readDb({ maxStalenessMs: 5000 }) ?? this.prisma)
+        : this.prisma
+    ).notification.findMany({
       where: {
         user_id: userId,
         ...(matching ? { id: { in: matching } } : {}),
