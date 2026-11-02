@@ -55,6 +55,8 @@ import {
 } from '../../plans/entitlements.service';
 
 /** Owner 2026-10-02: promoted cases on top of the first feed page. */
+/** How stale the feed scan may be on a read replica. */
+const REPLICA_FEED_LAG_MS = 5000;
 const PROMOTED_FEED_SLOTS = 3;
 /** Owner 2026-10-05 (plan builder): cases of clients whose plan includes
  * "cases shown first" come right after the promoted ones on page one. */
@@ -229,14 +231,21 @@ export class CasesFeedService {
             since,
             extra: filter,
           });
-      return split
-        ? scatterFeed(this.prisma, sql, take)
-        : // Replica seam: the id list of a browse page may be a few seconds
-          // old (a new case shows up a moment later). Hydration, access
-          // checks and the viewer's own reads below stay on the primary.
-          (
-            this.read?.readDb({ maxStalenessMs: 5000 }) ?? this.prisma
-          ).$queryRaw<{ id: string; created_at: Date }[]>(sql);
+      if (split) return scatterFeed(this.prisma, sql, take);
+      // Replica seam: the expensive scan (licences, topics, filters) may be a
+      // few seconds old. Whatever it returns is then confirmed on the
+      // primary by id (cheap PK lookup, see `freshOnPrimary`), so a case
+      // that was just closed or paused, or a person who was just blocked,
+      // never shows up in the lag window.
+      const replica = this.read?.readDb({
+        maxStalenessMs: REPLICA_FEED_LAG_MS,
+      });
+      if (!replica || replica === this.prisma) {
+        return this.prisma.$queryRaw<{ id: string; created_at: Date }[]>(sql);
+      }
+      return replica
+        .$queryRaw<{ id: string; created_at: Date }[]>(sql)
+        .then((rows) => this.freshOnPrimary(rows, viewer.userId));
     };
     // Owner 2026-10-02 (paid case promotion): up to PROMOTED_FEED_SLOTS
     // active promoted cases this attorney may see (same filters) go on top
@@ -495,6 +504,24 @@ export class CasesFeedService {
       select: { verification_status: true },
     });
     return profile?.verification_status === 'verified';
+  }
+
+  /** Confirms replica ids on the primary: still open, not deleted, not
+   * paused, and no block either way. Keeps the replica's order. */
+  private async freshOnPrimary(
+    rows: { id: string; created_at: Date }[],
+    viewerId: string,
+  ): Promise<{ id: string; created_at: Date }[]> {
+    if (rows.length === 0) return rows;
+    const ok = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT c.id FROM cases c
+      WHERE c.id = ANY(${rows.map((r) => r.id)}::UUID[])
+        AND c.status = 'open' AND c.deleted_at IS NULL AND c.paused_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM user_blocks ub
+          WHERE (ub.blocker_id = ${viewerId}::UUID AND ub.blocked_id = c.client_id)
+             OR (ub.blocker_id = c.client_id AND ub.blocked_id = ${viewerId}::UUID))`);
+    const live = new Set(ok.map((r) => r.id));
+    return rows.filter((r) => live.has(r.id));
   }
 
   /** Feed-card representation of cases by id (order kept, missing ids
