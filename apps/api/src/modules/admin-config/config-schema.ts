@@ -566,6 +566,23 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'off | on | auto (default). Image moderation (paid): auto = on inside the daily cost-guard cap.',
     pattern: /^(off|on|auto)$/,
   };
+  out['moderation.video.frames_enabled'] = {
+    ...out['moderation.video.frames_enabled'],
+    description:
+      'Frame-by-frame video check (paid: every frame is one image_moderation unit inside the daily cap). Needs ffmpeg in the API image (build arg WITH_FFMPEG=1); without it only the cover is checked.',
+  };
+  out['moderation.video.frame_every_sec'] = {
+    ...out['moderation.video.frame_every_sec'],
+    description: 'One checked frame per this many seconds of the clip.',
+    min: 1,
+    max: 120,
+  };
+  out['moderation.video.frames_max'] = {
+    ...out['moderation.video.frames_max'],
+    description: 'At most this many frames checked per video.',
+    min: 1,
+    max: 12,
+  };
   out['chat.link_preview_enabled'] = {
     ...out['chat.link_preview_enabled'],
     description:

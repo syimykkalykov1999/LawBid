@@ -123,7 +123,11 @@ export function extractFrame(
       done(() => {
         if (code === 0 && size > 0) resolve(Buffer.concat(chunks));
         else
-          reject(new Error(`video frame: ffmpeg exit ${code}: ${err.trim()}`));
+          reject(
+            new Error(
+              `video frame: ffmpeg exit ${code}: ${err.trim().split(url).join('<url>')}`,
+            ),
+          );
       }),
     );
   });

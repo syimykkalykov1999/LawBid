@@ -1,4 +1,5 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
+import * as frames from './video-frames';
 import type { PinoLogger } from 'nestjs-pino';
 import sharp from 'sharp';
 import {
@@ -466,6 +467,11 @@ describe('MediaModerationService frame-by-frame video check (owner 2026-11-02)',
     trim_end_ms: null,
   };
 
+  beforeEach(() => {
+    jest.spyOn(frames, 'extractFrame').mockResolvedValue(Buffer.from('jpeg'));
+  });
+  afterEach(() => jest.restoreAllMocks());
+
   function build(over: {
     enabled?: boolean;
     runs?: string[];
@@ -514,6 +520,7 @@ describe('MediaModerationService frame-by-frame video check (owner 2026-11-02)',
       },
     );
     (svc as unknown as { run: typeof run }).run = run;
+    (svc as unknown as { finish: jest.Mock }).finish = jest.fn();
     const check = () =>
       (
         svc as unknown as {
@@ -543,6 +550,31 @@ describe('MediaModerationService frame-by-frame video check (owner 2026-11-02)',
 
   it('no playable url: the cover verdict stands', async () => {
     const { check, run } = build({ url: null });
+    expect(await check()).toBe('clean');
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('a skipped frame (cap used up) keeps the clean verdict', async () => {
+    const { check, run } = build({ runs: ['clean', 'skipped'] });
+    expect(await check()).toBe('clean');
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  it('a frame ffmpeg cannot grab is skipped, the next one is judged', async () => {
+    jest
+      .spyOn(frames, 'extractFrame')
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValue(Buffer.from('jpeg'));
+    const { check, run } = build({});
+    expect(await check()).toBe('clean');
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  it('no ffmpeg in the image: the cover verdict stands, nothing judged', async () => {
+    jest
+      .spyOn(frames, 'extractFrame')
+      .mockRejectedValue(new frames.FfmpegMissingError());
+    const { check, run } = build({});
     expect(await check()).toBe('clean');
     expect(run).not.toHaveBeenCalled();
   });

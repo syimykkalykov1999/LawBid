@@ -218,17 +218,38 @@ export class MediaModerationService {
     const url = (await this.videos?.present([asset]))?.get(
       asset.id,
     )?.fallbackUrl;
-    if (times.length === 0 || !url) return 'clean';
+    if (times.length === 0 || !url) {
+      this.logger.warn(
+        { checkId: check.id },
+        'video frames: no duration or no MP4 url, cover verdict kept',
+      );
+      return 'clean';
+    }
     for (const at of times) {
-      let status: CheckStatus;
+      // The frame is grabbed here, not inside run(): run() turns any loader
+      // error into a "skipped / format" verdict and would overwrite the
+      // clean cover verdict.
+      let frame: Buffer;
       try {
-        status = await this.run(check, null, () => extractFrame(url, at));
+        frame = await extractFrame(url, at);
       } catch (err) {
         if (err instanceof FfmpegMissingError) {
           this.logger.warn('video frames: ffmpeg missing, cover verdict kept');
           return 'clean';
         }
-        throw err; // BullMQ retries
+        this.logger.warn(
+          { checkId: check.id, at, err: String(err).replace(url, '<url>') },
+          'video frames: a frame could not be grabbed, skipped',
+        );
+        continue;
+      }
+      const status = await this.run(check, null, () => Promise.resolve(frame));
+      if (status === 'skipped') {
+        // Daily cap used up (or switched off mid-run): the cover and the
+        // frames before were clean, so that verdict stands. A cheap retry
+        // of the whole video would pay for the cover again.
+        await this.finish(check.id, 'clean');
+        return 'clean';
       }
       if (status !== 'clean') return status;
     }
