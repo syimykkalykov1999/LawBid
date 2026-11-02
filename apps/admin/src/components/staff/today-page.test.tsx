@@ -67,6 +67,8 @@ beforeEach(() => {
     Promise.resolve(
       url === '/admin/system-health'
         ? { data: { data: { overall: 'green', items: [] } } }
+        : url === '/admin/counts'
+          ? { data: { data: { verificationQueue: 5, openReports: 0, supportUnread: 2, trustQueue: 0 } } }
         : { data: { data: { today: { revenueUsd: 120, costUsd: 20, profitUsd: 100 } } } },
     ),
   );
@@ -98,6 +100,15 @@ const systemFull = {
 };
 
 describe('«Сегодня»', () => {
+  it('lists only the queues that have work waiting, even with the switch off', async () => {
+    renderPage();
+    const w = await screen.findByTestId('today-waiting');
+    expect(w.textContent).toContain('Проверка документов');
+    expect(w.textContent).toContain('Поддержка');
+    expect(w.textContent).not.toContain('Жалобы пользователей');
+    expect(screen.getByText('Страница «Сегодня» выключена')).toBeTruthy();
+  });
+
   it('shows the decision of the day and every block from ONE snapshot', async () => {
     todayResult = { ok: true, data: full };
     renderPage();
