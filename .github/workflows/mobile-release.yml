@@ -201,7 +201,7 @@ jobs:
       # App Store Connect API key (no p12 / provisioning-profile secrets, which
       # do not exist). Docs: docs/runbooks/mobile-testers-ci.md.
       - name: Xcode with the current iOS SDK (fail now, not at the store upload)
-        run: bash scripts/ci/select-xcode.sh 26
+        run: bash scripts/ci/select-xcode.sh
       - name: App Store Connect key (signing + upload)
         working-directory: apps/mobile
         env:
@@ -228,7 +228,7 @@ jobs:
         if: env.SKIP_IOS != '1'
         working-directory: apps/mobile
       - name: Firebase config (prod flavor only)
-        if: ${{ (inputs.flavor || 'prod') == 'prod' }}
+        if: ${{ env.SKIP_IOS != '1' && (inputs.flavor || 'prod') == 'prod' }}
         working-directory: apps/mobile
         env:
           GOOGLE_SERVICE_INFO_PLIST_BASE64: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_BASE64 }}
@@ -258,16 +258,20 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           set -eu
+          # Same place `flutter build ipa` used: sentry_dart_plugin finds the dSYMs here.
+          ARCHIVE="$GITHUB_WORKSPACE/apps/mobile/build/ios/archive/Runner.xcarchive"
+          mkdir -p "$(dirname "$ARCHIVE")"
           AUTH=(-allowProvisioningUpdates
                 -authenticationKeyPath "$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
                 -authenticationKeyID "$ASC_KEY_ID"
                 -authenticationKeyIssuerID "$ASC_ISSUER_ID")
           xcodebuild archive -workspace Runner.xcworkspace -scheme "$FLAVOR" -configuration "Release-$FLAVOR" \
-            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/LawBid.xcarchive" "${AUTH[@]}"
-          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/LawBid.xcarchive" \
+            -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" "${AUTH[@]}"
+          xcodebuild -exportArchive -archivePath "$ARCHIVE" \
             -exportPath "$RUNNER_TEMP/ipa" -exportOptionsPlist ExportOptions.plist "${AUTH[@]}"
       - name: Sentry symbols (prod; skips itself without a token)
         if: ${{ env.SKIP_IOS != '1' && env.FLAVOR == 'prod' }}
+        continue-on-error: true  # a Sentry problem must not block the IPA / TestFlight
         working-directory: apps/mobile/ios
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}

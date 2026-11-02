@@ -4,13 +4,13 @@
 # current iOS SDK (Xcode 26 since April 2026); `macos-latest` moves, and a too-old
 # Xcode shows up only as a rejected TestFlight upload after a 20-minute build.
 #
-#   select-xcode.sh <min-major>      e.g. 26
+#   select-xcode.sh [<min-major>]    default 26 - THE one place to raise it when Apple does
 # Takes the highest non-beta/RC Xcode_<version>.app in $XCODE_APPS_DIR
 # (default /Applications) whose major is >= min, selects it with
 # `xcode-select` (override: XCODE_SELECT_CMD, tests put a stub there) and
 # prints the choice. Exit 1 when none qualifies (the list is printed).
 set -u
-MIN="${1:?min major version}"
+MIN="${1:-26}"
 DIR="${XCODE_APPS_DIR:-/Applications}"
 SELECT="${XCODE_SELECT_CMD:-sudo xcode-select -s}"
 best=""; bestver=""

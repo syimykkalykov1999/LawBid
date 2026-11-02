@@ -22,10 +22,11 @@ done
 jq -e 'type == "object"' "$f" >/dev/null 2>&1 || { echo "::error::$f is not a JSON object (check the MOBILE_DART_DEFINES_JSON secret)"; exit 1; }
 bad=0
 for k in ${req[@]+"${req[@]}"}; do
-  jq -e --arg k "$k" '(.[$k] // "") | tostring | length > 0' "$f" >/dev/null 2>&1 || { echo "::error::dart-define $k is missing or empty in $f"; bad=1; }
+  jq -e --arg k "$k" '(.[$k] // "") | tostring | gsub("\\s"; "") | length > 0' "$f" >/dev/null 2>&1 || { echo "::error::dart-define $k is missing or empty in $f"; bad=1; continue; }
+  case "$k" in *_URL) jq -e --arg k "$k" '.[$k] | tostring | test("^https?://")' "$f" >/dev/null 2>&1 || { echo "::error::dart-define $k must start with http:// or https:// in $f"; bad=1; } ;; esac
 done
 for k in ${warn[@]+"${warn[@]}"}; do
-  jq -e --arg k "$k" '(.[$k] // "") | tostring | length > 0' "$f" >/dev/null 2>&1 || echo "::warning::dart-define $k is empty: the feature behind it is off in this build"
+  jq -e --arg k "$k" '(.[$k] // "") | tostring | gsub("\\s"; "") | length > 0' "$f" >/dev/null 2>&1 || echo "::warning::dart-define $k is empty: the feature behind it is off in this build"
 done
 [ "$bad" = 0 ] && echo "ok   dart-defines in $f"
 exit "$bad"

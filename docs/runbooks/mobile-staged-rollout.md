@@ -17,9 +17,11 @@ App Store Connect -> версия -> Pause phased release (API-команды н
 
 Правила безопасности:
 - сборка по тегу `v*.*.*` ждёт зелёного CI этого коммита;
-- если пустые секреты подписи (`ANDROID_KEYSTORE_BASE64`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_CONTENT`, `APPLE_TEAM_ID` (iOS подписывает Xcode через ключ App Store Connect, как в «Mobile testers»)), сборка
-  по тегу или с `upload=true` **падает**, а не публикует debug-подписанный файл;
-- подпись iOS: облачная подпись Xcode через ключ App Store Connect (файла сертификата и профиля в runner нет);
+- если пустые секреты подписи (Android: `ANDROID_KEYSTORE_BASE64`; iOS: `ASC_KEY_ID`, `ASC_ISSUER_ID`,
+  `ASC_KEY_CONTENT`, `APPLE_TEAM_ID`), сборка по тегу или с `upload=true` **падает**, а не публикует
+  debug-подписанный файл;
+- iOS подписывает Xcode через ключ App Store Connect, как в «Mobile testers» (сертификата и профиля в
+  runner нет); нужен Xcode 26+ (`scripts/ci/select-xcode.sh`);
 
 Честно: lanes `production`/`promote`/`halt` написаны по документации fastlane `supply`,
 но без живого Play-аккаунта не прогонялись. Первый настоящий запуск = проверка; запасной

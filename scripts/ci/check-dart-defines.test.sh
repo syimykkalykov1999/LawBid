@@ -11,8 +11,11 @@ t "empty file" 1 "secret is not set" ''
 t "not json" 1 "not a JSON object" 'oops'
 t "array is not an object" 1 "not a JSON object" '[]'
 t "required key empty" 1 "API_BASE_URL is missing" '{"API_BASE_URL":""}' --require API_BASE_URL
-t "required key absent" 1 "DEEP_LINK_HOST is missing" '{"API_BASE_URL":"x"}' --require API_BASE_URL DEEP_LINK_HOST
-t "warn only" 0 "warning::dart-define STRIPE_PUBLISHABLE_KEY" '{"API_BASE_URL":"x","STRIPE_PUBLISHABLE_KEY":""}' --require API_BASE_URL --warn STRIPE_PUBLISHABLE_KEY
-t "no values printed" 0 "ok" '{"API_BASE_URL":"supersecret"}' --require API_BASE_URL
-printf '{"API_BASE_URL":"supersecret"}' >"$T/c.json"; "$D/check-dart-defines.sh" "$T/c.json" --require API_BASE_URL 2>&1 | grep -q supersecret && { echo "FAIL leaked"; fail=1; }
+t "required key absent" 1 "DEEP_LINK_HOST is missing" '{"API_BASE_URL":"https://x"}' --require API_BASE_URL DEEP_LINK_HOST
+t "warn only" 0 "warning::dart-define STRIPE_PUBLISHABLE_KEY" '{"API_BASE_URL":"https://x","STRIPE_PUBLISHABLE_KEY":""}' --require API_BASE_URL --warn STRIPE_PUBLISHABLE_KEY
+t "whitespace-only is empty" 1 "API_BASE_URL is missing" '{"API_BASE_URL":" \n "}' --require API_BASE_URL
+t "URL without scheme" 1 "must start with http" '{"API_BASE_URL":"api.lawbid.dev"}' --require API_BASE_URL
+t "https URL ok" 0 "ok" '{"API_BASE_URL":"https://api.lawbid.dev/api/v1"}' --require API_BASE_URL
+t "no values printed" 0 "ok" '{"API_BASE_URL":"https://supersecret"}' --require API_BASE_URL
+printf '{"API_BASE_URL":"https://supersecret"}' >"$T/c.json"; "$D/check-dart-defines.sh" "$T/c.json" --require API_BASE_URL 2>&1 | grep -q supersecret && { echo "FAIL leaked"; fail=1; }
 exit $fail
