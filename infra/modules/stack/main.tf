@@ -485,6 +485,10 @@ variable "admin_memory" {
   type        = number
   default     = 512
   description = "MiB of one admin task (Fargate pair for 256 CPU: 512-2048). Node heap limit is 70 % of this."
+  validation {
+    condition     = (var.admin_cpu == 256 && var.admin_memory >= 512 && var.admin_memory <= 2048) || (var.admin_cpu == 512 && var.admin_memory >= 1024 && var.admin_memory <= 4096) || (var.admin_cpu >= 1024 && var.admin_memory >= 2048)
+    error_message = "admin_cpu/admin_memory is not a valid Fargate pair (256: 512-2048, 512: 1024-4096, 1024+: 2048+)."
+  }
 }
 variable "api_cpu" {
   type    = number

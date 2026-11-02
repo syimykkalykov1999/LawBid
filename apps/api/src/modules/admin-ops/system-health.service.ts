@@ -5,6 +5,7 @@ import type Redis from 'ioredis';
 import { IncidentsService } from '../../common/ops/status/incidents.service';
 import { StatusProbesService } from '../../common/ops/status/status-probes.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { AwsOpsService } from '../../common/ops/aws-ops.service';
 import { OpsStateService } from '../../common/ops/ops-state.service';
 import { SecretRotationService } from '../../common/ops/secret-rotation.service';
@@ -33,12 +34,15 @@ import { bullOptions } from '../../redis/redis-connection';
 
 const PROBE_TIMEOUT_MS = 3_000;
 /** Owner 2026-11-02: the board took 4-5 s on every open (the slowest probe
- * sets the pace). The finished report is kept in Redis for all API tasks:
- * younger than FRESH it is served as is; older (up to KEEP) it is served at
- * once while ONE background refresh runs; only a cold start waits. */
-const REPORT_KEY = 'ops:system-health:report:v1';
+ * sets the pace). The finished report is a shared admin summary
+ * (AdminSummaryService: Redis, one refresher across all tasks): younger than
+ * FRESH it is served as is; up to MAX_STALE it is served at once while one
+ * refresh runs; older than that, an outage board must not show old lights,
+ * so the request waits for a new one. */
+const REPORT_KEY = 'ops:system-health';
 const REPORT_FRESH_MS = 15_000;
-const REPORT_KEEP_SEC = 600;
+const REPORT_MAX_STALE_MS = 120_000;
+
 const DLQ = 'stripe-webhooks-dlq';
 
 function withTimeout<T>(p: Promise<T>, ms = PROBE_TIMEOUT_MS): Promise<T> {
@@ -89,51 +93,29 @@ export class SystemHealthService implements OnModuleDestroy {
     @Optional() private readonly partitions?: PartitionService,
     // Owner 2026-10-25: last / next rotation per rotated secret.
     @Optional() private readonly rotation?: SecretRotationService,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
-  private refreshing?: Promise<SystemHealthDto>;
-
-  /** GET path: cached report, refreshed in the background when stale. */
+  /** GET path: the shared summary (see REPORT_* above). */
   async cachedReport(): Promise<SystemHealthDto> {
-    type Hit = { at: number; report: SystemHealthDto };
-    let hit = null as Hit | null;
-    try {
-      const raw = await withTimeout(this.redis.get(REPORT_KEY), 500);
-      hit = raw ? (JSON.parse(raw) as Hit) : null;
-    } catch {
-      hit = null;
+    if (!this.summary) return this.build(new Date());
+    const compute = () => this.build(new Date());
+    const hit = await this.summary.peek<SystemHealthDto>(REPORT_KEY);
+    const age = hit ? Date.now() - Date.parse(hit.computedAt) : Infinity;
+    if (hit?.data?.items && age < REPORT_MAX_STALE_MS) {
+      if (age > REPORT_FRESH_MS) {
+        void this.summary.refresh(REPORT_KEY, compute).catch(() => undefined);
+      }
+      return hit.data;
     }
-    if (hit && Date.now() - hit.at < REPORT_FRESH_MS) return hit.report;
-    const fresh = this.refresh();
-    if (hit) {
-      fresh.catch(() => undefined);
-      return hit.report;
-    }
-    return fresh;
+    return (await this.summary.refresh(REPORT_KEY, compute, true)).data;
   }
 
-  /** One refresh at a time per task (report() stores the result). */
-  private refresh(): Promise<SystemHealthDto> {
-    this.refreshing ??= this.report().finally(() => {
-      this.refreshing = undefined;
-    });
-    return this.refreshing;
-  }
-
+  /** Always computed now (the action buttons); the result also replaces the
+   * shared copy so the next GET shows the state the owner just set. */
   async report(now: Date = new Date()): Promise<SystemHealthDto> {
     const report = await this.build(now);
-    try {
-      void Promise.resolve(
-        this.redis.set(
-          REPORT_KEY,
-          JSON.stringify({ at: Date.now(), report }),
-          'EX',
-          REPORT_KEEP_SEC,
-        ),
-      ).catch(() => undefined);
-    } catch {
-      /* a cache that cannot be written is only slower */
-    }
+    await this.summary?.put(REPORT_KEY, report);
     return report;
   }
 

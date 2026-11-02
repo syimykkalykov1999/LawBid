@@ -143,6 +143,37 @@ describe('admin proxy', () => {
     expect(res.headers.get('cache-control')).toBe('private, no-cache');
   });
 
+  it.each([['export', 'users'], ['leads', 'export.csv'], ['audit-log', 'verify-chain']])(
+    'keeps 120 s for the slow read %s/%s',
+    async (a, b) => {
+      vi.useFakeTimers();
+      try {
+        let aborted = false;
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(
+            (_u: unknown, init: RequestInit) =>
+              new Promise((_res, rej) => {
+                init.signal?.addEventListener('abort', () => {
+                  aborted = true;
+                  rej(new Error('aborted'));
+                });
+              }),
+          ),
+        );
+        const p = GET(new NextRequest(`http://admin.test/api/proxy/${a}/${b}`), {
+          params: Promise.resolve({ path: [a, b] }),
+        });
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(aborted).toBe(false);
+        await vi.advanceTimersByTimeAsync(61_000);
+        expect((await p).status).toBe(504);
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
   it('gives a read 30 s and a write 120 s to start answering', async () => {
     vi.useFakeTimers();
     try {

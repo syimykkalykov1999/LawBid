@@ -12,11 +12,20 @@ const UPSTREAM_TIMEOUT_MS = 120_000;
 /** Owner 2026-11-02 («админка зависает»): a read that has not started
  * answering in 30 s is stuck, not slow; with 3 retries 120 s meant up to
  * 8 minutes of a spinning screen. Reads come back as a retryable 504.
- * `GET export/:entity` builds a file before it answers and keeps 120 s. */
+ * Reads that build a whole file or re-check a whole table before they
+ * answer keep 120 s (SLOW_READ). */
 const UPSTREAM_READ_TIMEOUT_MS = 30_000;
 const RETRY_AFTER_SEC = 2;
 /** S18-6: no request body bigger than this goes through the panel. */
 const MAX_BODY_BYTES = 25 * 1024 * 1024;
+
+/** GETs that legitimately work for a long time before the first byte:
+ * CSV/ZIP exports (`export/…`, `…/export.csv`, `…-export`), the audit-chain
+ * re-check and the access report. */
+const SLOW_READ = /export|verify-chain|access-report/;
+function isSlowRead(path: string[]): boolean {
+  return path.some((seg) => SLOW_READ.test(seg));
+}
 
 function refuse(status: number, code: string, message: string): Response {
   return NextResponse.json({ error: { code, message } }, { status });
@@ -107,7 +116,7 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
   const timer = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, isSafeMethod(req.method) && path[0] !== 'export' ? UPSTREAM_READ_TIMEOUT_MS : UPSTREAM_TIMEOUT_MS);
+  }, isSafeMethod(req.method) && !isSlowRead(path) ? UPSTREAM_READ_TIMEOUT_MS : UPSTREAM_TIMEOUT_MS);
   const capState = { tooLarge: false };
   let upstream: Response;
   try {
