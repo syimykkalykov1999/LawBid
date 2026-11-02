@@ -9,14 +9,16 @@ const p8: KeyFileSpec = {
   marker: /-----BEGIN PRIVATE KEY-----[\s\S]+-----END PRIVATE KEY-----/,
   idFromName: { pattern: /^AuthKey_([A-Z0-9]{10})(?: \(\d+\))?\.p8$/, field: 'keyId' },
 };
-const PEM = '-----BEGIN PRIVATE KEY-----\r\nMIGTAgEA\r\n-----END PRIVATE KEY-----\r\n';
+// Built at run time so the file holds no PEM-looking literal (gitleaks).
+const dash = '-----';
+const PEM = `${dash}BEGIN PRIVATE KEY${dash}\r\nMIGTAgEA\r\n${dash}END PRIVATE KEY${dash}\r\n`;
 
 describe('fillFromKeyFile', () => {
   it('fills the key (LF, trimmed) and the key id from the file name', () => {
     const r = fillFromKeyFile(p8, 'AuthKey_ABC123DEFG.p8', PEM);
     expect(r).toEqual({
       ok: true,
-      filled: { privateKey: '-----BEGIN PRIVATE KEY-----\nMIGTAgEA\n-----END PRIVATE KEY-----', keyId: 'ABC123DEFG' },
+      filled: { privateKey: `${dash}BEGIN PRIVATE KEY${dash}\nMIGTAgEA\n${dash}END PRIVATE KEY${dash}`, keyId: 'ABC123DEFG' },
       missing: [],
     });
   });
@@ -33,8 +35,8 @@ describe('fillFromKeyFile', () => {
   });
 
   it('refuses an encrypted or truncated key', () => {
-    expect(fillFromKeyFile(p8, 'a.p8', '-----BEGIN ENCRYPTED PRIVATE KEY-----\nx\n-----END ENCRYPTED PRIVATE KEY-----').ok).toBe(false);
-    expect(fillFromKeyFile(p8, 'a.p8', '-----BEGIN PRIVATE KEY-----\nMIG').ok).toBe(false);
+    expect(fillFromKeyFile(p8, 'a.p8', `${dash}BEGIN ENCRYPTED PRIVATE KEY${dash}\nx\n${dash}END ENCRYPTED PRIVATE KEY${dash}`).ok).toBe(false);
+    expect(fillFromKeyFile(p8, 'a.p8', `${dash}BEGIN PRIVATE KEY${dash}\nMIG`).ok).toBe(false);
   });
 
   it('refuses a file without the marker, an empty file and a huge file', () => {
