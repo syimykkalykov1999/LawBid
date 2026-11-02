@@ -31,7 +31,7 @@ class AssistantActivityList extends ConsumerWidget {
         ),
       );
     }
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       color: colors.gold,
       backgroundColor: colors.sheet,
       onRefresh: () => ref.read(teamActivityProvider.notifier).refresh(),

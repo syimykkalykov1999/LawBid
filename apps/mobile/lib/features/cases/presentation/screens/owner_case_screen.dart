@@ -287,7 +287,7 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
         value: value,
         t: t,
         onRetry: _refresh,
-        builder: (c) => RefreshIndicator(
+        builder: (c) => AppRefreshIndicator(
           color: colors.gold,
           backgroundColor: colors.sheet,
           onRefresh: _refresh,

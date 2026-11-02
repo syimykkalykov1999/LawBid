@@ -401,6 +401,8 @@ class Post {
     bool? repostedByMe,
     int? pinSlot,
     bool unpin = false,
+    bool? likesHidden,
+    bool? viewsHidden,
   }) =>
       Post(
         id: id,
@@ -425,8 +427,8 @@ class Post {
         video: video,
         locationName: locationName,
         commentsEnabled: commentsEnabled,
-        likesHidden: likesHidden,
-        viewsHidden: viewsHidden,
+        likesHidden: likesHidden ?? this.likesHidden,
+        viewsHidden: viewsHidden ?? this.viewsHidden,
         attachments: attachments,
         isGeneral: isGeneral,
         promotionId: promotionId,

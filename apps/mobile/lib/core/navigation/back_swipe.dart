@@ -136,6 +136,22 @@ bool _enabled(PageRoute<dynamic> route) {
 /// The theme's page transition on iOS, Android and macOS: the Cupertino
 /// slide with [BackSwipeMode]-aware swipe back. (Web keeps Flutter's plain
 /// Cupertino transition: a mouse or a trackpad scroll must never go back.)
+/// The theme's page colour under a page (never the white window behind
+/// the app while a screen paints its first frame) — what Flutter's own
+/// `Scaffold` paints (`Material` with `scaffoldBackgroundColor`), applied
+/// once in the transition so a not-yet-built page is covered too.
+class PageBackground extends StatelessWidget {
+  const PageBackground({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: child,
+      );
+}
+
 class AppBackSwipeTransitionsBuilder extends PageTransitionsBuilder {
   const AppBackSwipeTransitionsBuilder();
 
@@ -147,6 +163,12 @@ class AppBackSwipeTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
+    // Owner 2026-10-28 (white flash on every new screen): a page whose
+    // first frame paints nothing (still loading, a deferred screen)
+    // showed the phone's white window behind the app. Every page now
+    // sits on the theme's page colour, in every theme.
+    // ignore: parameter_assignments
+    child = PageBackground(child: child);
     if (kIsWeb) {
       return const CupertinoPageTransitionsBuilder().buildTransitions<T>(
         route,
