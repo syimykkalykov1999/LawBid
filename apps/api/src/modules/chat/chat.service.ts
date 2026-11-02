@@ -81,6 +81,7 @@ import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { fileNameAad } from '../../common/secrets/field-aad';
 import { MessageSearchIndex } from '../../common/secrets/message-search-index';
 import { searchTokenRows, writeSearchTokenRows } from './chat-search-tokens';
+import { recordSentMessage } from './chat-send-bookkeeping';
 import { loadMessageExtras, type MessageExtras } from './chat-message-extras';
 import { messagesByPairs } from './messages-by-pairs';
 import { expiresAtFor, notExpired } from './disappearing';
@@ -1336,25 +1337,11 @@ export class ChatService {
           // BUG-1: the blind tokens (prepared above) in the same transaction
           // (a message is never searchable-less or vice versa).
           await writeSearchTokenRows(tx, p.tokens);
-          await tx.conversation.update({
-            where: { id },
-            data: { last_message_at: m.created_at, last_message_id: m.id },
-          });
-          // A new message brings a removed chat back for both sides.
-          await tx.conversationParticipant.updateMany({
-            where: { conversation_id: id, hidden_at: { not: null } },
-            data: { hidden_at: null },
-          });
-          // Your own message is read by you.
-          await tx.conversationParticipant.update({
-            where: {
-              conversation_id_user_id: {
-                conversation_id: id,
-                user_id: user.sub,
-              },
-            },
-            data: { last_read_message_id: m.id, last_read_at: new Date() },
-          });
+          await recordSentMessage(
+            tx,
+            { conversationId: id, messageId: m.id, createdAt: m.created_at },
+            user.sub,
+          );
           return m;
         },
         {
