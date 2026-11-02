@@ -40,6 +40,16 @@ CaseSummary _case(String id, {CaseStatus status = CaseStatus.open}) =>
       lastActivityAt: DateTime(2026, 10, 4),
     );
 
+WorkItem _work(String id) => WorkItem(
+      caseId: id,
+      bidId: 'b$id',
+      title: 'Work $id',
+      status: CaseStatus.inProgress,
+      clientName: null,
+      feeType: FeeType.fixed,
+      amountCents: 1000,
+    );
+
 class _SyncFake extends FakeCasesRepository implements CasesSyncRepository {
   _SyncFake(List<CaseSummary> items) : super(myCasesItems: items);
 
@@ -130,9 +140,41 @@ void main() {
     final live = c.read(myCasesProvider(MyCasesFilter.active)).value!;
     expect(live.items.map((x) => x.id), ['a', 'b'], reason: 'then the page');
     expect(pageReads(repo), 1, reason: 'one network read, not two');
-    expect(repo.changedCalls, 0,
-        reason: 'a delta from a time the copy may '
-            'be older than would leave stale rows');
+    expect(
+      repo.changedCalls,
+      0,
+      reason: 'a delta from a time the copy may '
+          'be older than would leave stale rows',
+    );
+  });
+
+  test('«Мои работы» opens on the phone copy, then the live page', () async {
+    final repo = _SyncFake([])..workPhoneCopy = [_work('old')];
+    final c = make(repo);
+    final sub = c.listen(myWorkProvider(WorkFilter.active), (_, __) {});
+    addTearDown(sub.close);
+    final first = await c.read(myWorkProvider(WorkFilter.active).future);
+    expect(first.items.map((x) => x.caseId), ['old']);
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(
+      c.read(myWorkProvider(WorkFilter.active)).value!.items,
+      isEmpty,
+      reason: 'the live page (empty in the fake) replaced the copy',
+    );
+  });
+
+  test('a search or filter on a Mine tab is read live, never from the copy',
+      () async {
+    final repo = _SyncFake([_case('a')])..phoneCopy = [_case('old')];
+    final c = make(repo);
+    const key = (
+      filter: MyCasesFilter.active,
+      search: MineSearch(q: 'tax'),
+    );
+    final sub = c.listen(mineCasesProvider(key), (_, __) {});
+    addTearDown(sub.close);
+    final first = await c.read(mineCasesProvider(key).future);
+    expect(first.items.map((x) => x.id), ['a']);
   });
 
   test('a rebuild (invalidate after an edit) never shows the old copy',

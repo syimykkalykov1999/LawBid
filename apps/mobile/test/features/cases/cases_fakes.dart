@@ -22,6 +22,9 @@ class FakeCasesRepository implements CasesRepository {
   /// What the phone's HTTP copy of the first page holds (null = no copy).
   List<CaseSummary>? phoneCopy;
 
+  /// The same for «Мои работы» (null = no copy).
+  List<WorkItem>? workPhoneCopy;
+
   CursorPage<T> _empty<T>() => CursorPage<T>(items: const []);
 
   @override
@@ -82,23 +85,33 @@ class FakeCasesRepository implements CasesRepository {
     MyBidsFilter filter, {
     String? cursor,
     MineSearch search = const MineSearch(),
-  }) async =>
-      _empty();
+  }) async {
+    if (readingFromPhoneOnly) throw StateError(kNoPhoneCopy);
+    return _empty();
+  }
 
   @override
   Future<CursorPage<WorkItem>> myWork(
     WorkFilter filter, {
     String? cursor,
     MineSearch search = const MineSearch(),
-  }) async =>
-      _empty();
+  }) async {
+    if (readingFromPhoneOnly) {
+      final copy = workPhoneCopy;
+      if (copy == null) throw StateError(kNoPhoneCopy);
+      return CursorPage(items: copy);
+    }
+    return _empty();
+  }
 
   @override
   Future<CursorPage<SavedCase>> savedCases({
     String? cursor,
     MineSearch search = const MineSearch(),
-  }) async =>
-      _empty();
+  }) async {
+    if (readingFromPhoneOnly) throw StateError(kNoPhoneCopy);
+    return _empty();
+  }
 
   @override
   Future<CursorPage<HistoryCase>> history(
