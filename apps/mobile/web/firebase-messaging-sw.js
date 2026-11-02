@@ -78,13 +78,13 @@ if (!config.apiKey.startsWith('__')) {
     }
     event.waitUntil(
       clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-        const visible = list.filter((c) => c.visibilityState === 'visible');
-        if (visible.length > 0) {
-          // The open page shows it in the app. It gets the message the way
-          // the SDK's worker hands it over, so `onMessage` fires there
-          // (calls, call end, reminders, badges, sync).
+        if (list.some((c) => c.visibilityState === 'visible')) {
+          // The open page shows it in the app. Every page gets the message
+          // exactly as the SDK's worker hands it over (sendMessagePayload-
+          // InternalToWindows in firebase-js-sdk messaging), so `onMessage`
+          // fires there (calls, call end, reminders, badges, sync).
           const message = { ...payload, messageType: 'push-received', isFirebaseMessaging: true };
-          visible.forEach((c) => c.postMessage(message));
+          list.forEach((c) => c.postMessage(message));
           return;
         }
         return showFor(payload);

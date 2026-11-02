@@ -68,6 +68,16 @@ test('a visible page gets the message, no notification', async () => {
   assert.equal(w.sent[0].data.callId, 'c1');
 });
 
+test('every open page gets it when one is visible (as the SDK does)', async () => {
+  const shownPage = page('visible');
+  const hiddenPage = page('hidden');
+  const t = load([shownPage, hiddenPage]);
+  await t.push({ data: { type: 'sync_hint' } });
+  assert.equal(shownPage.sent.length, 1);
+  assert.equal(hiddenPage.sent.length, 1);
+  assert.equal(t.shown.length, 0);
+});
+
 test('no visible page: the notification is shown with its link', async () => {
   const t = load([page('hidden')]);
   await t.push({
