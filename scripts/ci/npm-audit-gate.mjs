@@ -36,12 +36,18 @@ function runAudit() {
 }
 
 const report = JSON.parse(file ? readFileSync(file, 'utf8') : runAudit());
+// A registry or network error prints {"error":{...}} on stdout: that is NOT a
+// clean report, so the gate must not go green on it.
+if (report.error || !report.vulnerabilities) {
+  console.error(`::error::npm audit returned no report (${report.error?.code ?? 'no "vulnerabilities" key'}): ${report.error?.summary ?? 'the audit did not run'}`);
+  process.exit(1);
+}
 const allow = JSON.parse(readFileSync(join(root, '.github', 'npm-audit-allowlist.json'), 'utf8'));
 const today = new Date().toISOString().slice(0, 10);
 
 /** GHSA id → { severity, packages, title } for every high/critical advisory. */
 const found = new Map();
-for (const [pkg, v] of Object.entries(report.vulnerabilities ?? {})) {
+for (const [pkg, v] of Object.entries(report.vulnerabilities)) {
   for (const via of v.via ?? []) {
     if (typeof via !== 'object' || !['high', 'critical'].includes(via.severity)) continue;
     const id = String(via.url ?? via.source).split('/').pop();
@@ -66,7 +72,9 @@ for (const [id, a] of found) {
   }
 }
 for (const e of allow.advisories) {
-  if (!found.has(e.id)) console.log(`note: ${e.id} (${e.package}) is no longer reported — remove it from the allowlist`);
+  // The allowlist is shared by every workspace, so an entry that belongs to
+  // another workspace looks unused here: only judge it on a whole-repo run.
+  if (!workspace && !found.has(e.id)) console.log(`note: ${e.id} (${e.package}) is no longer reported — remove it from the allowlist`);
 }
 if (failed) process.exit(1);
 console.log(`npm audit gate: ${found.size} high/critical advisor${found.size === 1 ? 'y' : 'ies'}, none unallowed`);

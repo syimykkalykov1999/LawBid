@@ -30,6 +30,14 @@ ENV NODE_ENV=production
 # task definition if the vCPU count changes (about 4 x vCPU, 16 at most).
 ENV UV_THREADPOOL_SIZE=8
 RUN addgroup -S app && adduser -S app -G app
+# Frame-by-frame video moderation (src/modules/media-moderation/video-frames.ts)
+# grabs single frames over HTTPS with ffmpeg. Off by default in two ways: the
+# binary is added only with `--build-arg WITH_FFMPEG=1` (the daily Trivy scan
+# and the deploy scan must be run on that image first), and the feature itself
+# is the admin setting `moderation.video.frames_enabled`. Without the binary
+# the cover check stays as it is.
+ARG WITH_FFMPEG=0
+RUN if [ "$WITH_FFMPEG" = "1" ]; then apk add --no-cache ffmpeg; fi
 WORKDIR /repo
 COPY --from=build /repo/node_modules ./node_modules
 COPY --from=build /repo/apps/api/node_modules ./apps/api/node_modules

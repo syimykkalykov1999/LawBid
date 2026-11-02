@@ -206,6 +206,17 @@ class NotificationsNotifier extends SyncedListNotifier<AppNotification> {
     return super.build();
   }
 
+  // Owner 2026-11-02: the bell opens on the phone's copy of the first page.
+  @override
+  Future<CursorPage<AppNotification>?> cachedFirstPage() {
+    final repo = ref.read(notificationsRepositoryProvider);
+    final group = ref.read(notificationGroupProvider);
+    return phoneCopy(
+      () => repo.list(group: group),
+      when: ref.read(notificationQueryProvider).nullIfEmpty == null,
+    );
+  }
+
   @override
   Future<CursorPage<AppNotification>> fetchPage(String? cursor) =>
       ref.read(notificationsRepositoryProvider).list(
