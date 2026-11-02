@@ -633,7 +633,7 @@ class _PickerGroupCard extends StatelessWidget {
             ),
           ),
           AnimatedSize(
-            duration: reduce ? Duration.zero : AppMotion.stateChange,
+            duration: context.sizeChangeDuration,
             curve: AppMotion.enterCurve,
             alignment: Alignment.topCenter,
             child: !expanded

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
@@ -168,19 +169,21 @@ class _FinishedBidsRepo extends FakeCasesRepository {
     MyBidsFilter filter, {
     String? cursor,
     MineSearch search = const MineSearch(),
-  }) async =>
-      cursor == null
-          // A first page of only accepted bids reads on to the next one.
-          ? CursorPage(
-              items: [_myBid('a1', BidStatus.accepted)],
-              nextCursor: 'p2',
-            )
-          : CursorPage(
-              items: [
-                _myBid('a2', BidStatus.accepted),
-                _myBid('w1', BidStatus.withdrawn),
-              ],
-            );
+  }) async {
+    if (readingFromPhoneOnly) throw StateError(kNoPhoneCopy);
+    return cursor == null
+        // A first page of only accepted bids reads on to the next one.
+        ? CursorPage(
+            items: [_myBid('a1', BidStatus.accepted)],
+            nextCursor: 'p2',
+          )
+        : CursorPage(
+            items: [
+              _myBid('a2', BidStatus.accepted),
+              _myBid('w1', BidStatus.withdrawn),
+            ],
+          );
+  }
 }
 
 void main() {

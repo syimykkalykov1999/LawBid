@@ -134,6 +134,18 @@ class GroupsNotifier extends SyncedListNotifier<api.GroupDto> {
     return page;
   }
 
+  /// How many rows a copy re-saved after a catch-up keeps (a first page).
+  static const _copyRows = 50;
+
+  // The copy follows «caught up to»: without this the next cold start shows
+  // the page of the last full read and asks only for changes since a later
+  // time, so a group changed in between stayed old on screen.
+  @override
+  void didMerge(List<api.GroupDto> items) {
+    if (archived) return;
+    ref.read(groupListCacheProvider).save(items.take(_copyRows).toList());
+  }
+
   @override
   Future<SyncedPage<api.GroupDto>> fetchChanged(DateTime since) => ref
       .read(groupRepositoryProvider)
@@ -432,11 +444,15 @@ class PendingGroupMessage {
     this.replyToId,
     this.mentionIds = const [],
     this.fileName,
+    this.slowWaitS,
   });
 
   final String clientMessageId;
   final String body;
   final bool failed;
+
+  /// Owner 2026-11-02 (slow mode): the server refused for now; seconds left.
+  final int? slowWaitS;
   final String? replyToId;
   final List<String> mentionIds;
   final String? fileName;
@@ -801,8 +817,11 @@ class GroupThread extends Notifier<GroupThreadState> {
     try {
       final m = await _repo.send(key.groupId, dto);
       if (ref.mounted) _upsert(m);
-    } on ApiException {
+    } on ApiException catch (e) {
       if (!ref.mounted) return;
+      final slow = e.details?['kind'] == 'group_slow_mode'
+          ? (e.details?['retryAfterSeconds'] as num?)?.toInt()
+          : null;
       state = state.copyWith(
         pending: [
           for (final p in state.pending)
@@ -811,6 +830,7 @@ class GroupThread extends Notifier<GroupThreadState> {
                 clientMessageId: p.clientMessageId,
                 body: p.body,
                 failed: true,
+                slowWaitS: slow,
                 replyToId: p.replyToId,
                 mentionIds: p.mentionIds,
                 fileName: p.fileName,

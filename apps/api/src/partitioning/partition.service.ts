@@ -26,6 +26,16 @@ export const MONTHS_AHEAD = 2;
  */
 export const PARTITION_RETENTION_MONTHS: Readonly<Record<string, number>> = {};
 
+/**
+ * Tables with an «Выкл / Вкл / Авто» switch: the three hash tables plus the
+ * monthly `post_view_events` (the other monthly tables are converted by the
+ * migration or by hand).
+ */
+export const MODE_TABLES: readonly PartitionSpec[] = [
+  ...HASH_PARTITIONED,
+  ...PARTITION_TABLES.filter((s) => s.table === 'post_view_events'),
+];
+
 export type PartitionCardState =
   | 'monthly' // partitioned by the migration or by the runner
   | 'idle'
@@ -93,12 +103,13 @@ export class PartitionService implements OnModuleDestroy {
     return `partition.${table}_mode` as
       | 'partition.messages_mode'
       | 'partition.chat_group_messages_mode'
-      | 'partition.notifications_mode';
+      | 'partition.notifications_mode'
+      | 'partition.post_view_events_mode';
   }
 
-  /** «Выкл / Вкл / Авто» of a HASH table; anything else reads as off. */
+  /** «Выкл / Вкл / Авто» of a switchable table; anything else reads as off. */
   async mode(table: string): Promise<PartitionMode> {
-    if (!HASH_PARTITIONED.some((s) => s.table === table) || !this.settings) {
+    if (!MODE_TABLES.some((s) => s.table === table) || !this.settings) {
       return 'off';
     }
     const v = await this.settings.string(this.modeKey(table));
@@ -118,7 +129,7 @@ export class PartitionService implements OnModuleDestroy {
     mode: PartitionMode,
     adminId: string,
   ): Promise<void> {
-    if (!HASH_PARTITIONED.some((s) => s.table === table)) {
+    if (!MODE_TABLES.some((s) => s.table === table)) {
       throw new Error('Для этой таблицы режима «Авто» нет.');
     }
     if (!this.writer) throw new Error('Настройки недоступны.');
@@ -129,7 +140,7 @@ export class PartitionService implements OnModuleDestroy {
 
   /** After an undo / abort: back to «Выкл» so the table is not converted again. */
   async resetMode(table: string, adminId: string): Promise<void> {
-    if (!HASH_PARTITIONED.some((s) => s.table === table)) return;
+    if (!MODE_TABLES.some((s) => s.table === table)) return;
     if ((await this.mode(table)) !== 'off') {
       await this.setMode(table, 'off', adminId);
     }
@@ -145,14 +156,15 @@ export class PartitionService implements OnModuleDestroy {
     const run = this.runnerRw();
     if ((await run.activeJobs()).length > 0) return [];
     const limit = await this.autoRows();
-    for (const spec of HASH_PARTITIONED) {
+    for (const spec of MODE_TABLES) {
       const mode = await this.mode(spec.table);
       if (mode === 'off') continue;
       const st = await run.stats(spec.table);
       if (!st.exists || st.partitioned) continue;
+      // Cheap check first: a small table in «auto» costs no job query.
+      if (mode === 'auto' && st.rows < limit) continue;
       const job = await run.job(spec.table);
       if (job && job.phase !== 'done') continue;
-      if (mode === 'auto' && st.rows < limit) continue;
       const pre = await run.precheck(spec);
       if (!pre.ok) {
         this.log.warn(`auto ${spec.table}: ${pre.reasons.join('; ')}`);
@@ -306,7 +318,9 @@ export class PartitionService implements OnModuleDestroy {
       partitions,
       runnerConfigured: this.runnerConfigured,
       overThreshold: !st.partitioned && st.rows >= limit,
-      mode: spec.hash ? await this.mode(spec.table) : null,
+      mode: MODE_TABLES.some((m) => m.table === spec.table)
+        ? await this.mode(spec.table)
+        : null,
       autoRows: limit,
     };
     const idle = {

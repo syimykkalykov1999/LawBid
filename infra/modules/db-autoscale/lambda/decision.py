@@ -38,6 +38,11 @@ class Config:
     # --- up: any one trigger, held for N 5-minute points -------------------
     up_cpu_pct: float = 70
     up_cpu_points: int = 3  # 15 min
+    # Fast lane: a 2-vCPU class saturates in minutes at a launch spike (load
+    # test 2026-11-02: p95 > 2 s at ~460 people, DB CPU 213 % of 200 %), so
+    # waiting 15 min at 70 % is too late. Two points (10 min) above 90 % go up.
+    up_cpu_fast_pct: float = 90
+    up_cpu_fast_points: int = 2  # 10 min
     up_mem_free_pct: float = 10
     up_mem_points: int = 3  # 15 min
     up_conn_pct: float = 80
@@ -152,6 +157,12 @@ def up_triggers(cfg, cur, m):
     cpu = _last(m.cpu, cfg.up_cpu_points)
     if len(cpu) == cfg.up_cpu_points and all(v > cfg.up_cpu_pct for v in cpu):
         hit["cpu"] = round(sum(cpu) / len(cpu), 1)
+    else:
+        fast = _last(m.cpu, cfg.up_cpu_fast_points)
+        if len(fast) == cfg.up_cpu_fast_points and all(
+            v > cfg.up_cpu_fast_pct for v in fast
+        ):
+            hit["cpu_fast"] = round(sum(fast) / len(fast), 1)
     mem = _last(m.mem_free, cfg.up_mem_points)
     total = cur.memory_gib * GIB
     if len(mem) == cfg.up_mem_points and all(
@@ -281,6 +292,7 @@ def _decide_down(cfg, cur, guards, state, m, now):
 
 _TRIGGER_RU = {
     "cpu": lambda v: f"нагрузка CPU {v:g} %",
+    "cpu_fast": lambda v: f"быстрая полоса: CPU почти на пределе, {v:g} % уже 10 минут",
     "memory": lambda v: f"свободной памяти осталось {v:g} %",
     "connections": lambda v: f"соединений {v:g} % от предела",
     "credits": lambda v: f"кончились «кредиты» процессора ({v:g})",
