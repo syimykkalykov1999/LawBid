@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render } from "@testing-library/react";
 import type { ComponentType, ReactNode } from "react";
