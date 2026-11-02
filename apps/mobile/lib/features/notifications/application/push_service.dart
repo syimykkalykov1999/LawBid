@@ -126,6 +126,14 @@ class PushService {
       _startedFor = null;
       return;
     }
+    // The web app is already up with other keys (they were changed in the
+    // admin meanwhile): Firebase cannot be re-pointed, so the new ones apply
+    // at the next start of the page, never a token asked with a mix.
+    if (kIsWeb && !WebPushConfig.matches(Firebase.app().options)) {
+      debugPrint('push: web keys changed, applied at the next start');
+      _startedFor = null;
+      return;
+    }
     final m = FirebaseMessaging.instance;
     try {
       // OQ-041: a call pushed while the app is in the background rings
@@ -462,10 +470,18 @@ final sessionServicesProvider = Provider<void>((ref) {
   // alarms follow the session.
   // Web: the admin's push keys arrive with the bootstrap, maybe after the
   // sign-in; the start runs again once they are here.
+  // Only the push start runs again for it, not this provider (the outbox
+  // and the media drain stay as they are).
   if (kIsWeb) {
-    ref.watch(
+    ref.listen(
       featureFlagsControllerProvider
-          .select((s) => s.appConfig['fcm.web.vapid_key']),
+          .select((s) => WebPushConfig.fingerprintOf(s.appConfig)),
+      (_, __) {
+        WebPushConfig.applyRemote(
+          ref.read(featureFlagsControllerProvider).appConfig,
+        );
+        unawaited(ref.read(pushServiceProvider).start());
+      },
     );
   }
   ref

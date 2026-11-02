@@ -342,6 +342,41 @@ describe('BootstrapService.fcmWebConfig', () => {
     expect(JSON.stringify(out)).not.toMatch(/PRIVATE KEY|iam\.gserviceaccount/);
   });
 
+  it('adds authDomain only when it is saved', async () => {
+    const domain = 'lawbid-6e5ff.firebaseapp.com';
+    const withDomain = await make({
+      ...full,
+      webAuthDomain: domain,
+    }).fcmWebConfig();
+    expect(withDomain['fcm.web.auth_domain']).toBe(domain);
+    const without = await make(full).fcmWebConfig();
+    expect(Object.keys(without)).not.toContain('fcm.web.auth_domain');
+  });
+
+  it('takes the first key set that carries the whole group', async () => {
+    const svc = new BootstrapService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {
+        getAll: jest
+          .fn()
+          .mockResolvedValue([
+            { fields: { projectId: 'p-main', webApiKey: 'AIzaSyHALF' } },
+            { fields: full },
+          ]),
+      } as never,
+    );
+    const out = await svc.fcmWebConfig();
+    expect(out['fcm.web.project_id']).toBe(full.projectId);
+    expect(out['fcm.web.api_key']).toBe(full.webApiKey);
+  });
+
+  it('publishes nothing without the project id', async () => {
+    expect(await make({ ...full, projectId: '' }).fcmWebConfig()).toEqual({});
+  });
+
   it('publishes nothing when one is missing or nothing is saved', async () => {
     expect(await make({ ...full, webVapidKey: '' }).fcmWebConfig()).toEqual({});
     expect(await make().fcmWebConfig()).toEqual({});

@@ -48,6 +48,20 @@ abstract final class WebPushConfig {
       configuredAtBuild ? _authDomain : (_remote['fcm.web.auth_domain'] ?? '');
   static String get vapidKey => _pick(_vapidKey, 'fcm.web.vapid_key');
 
+  /// What the bootstrap's `fcm.web.*` values add up to: changes whenever the
+  /// admin's keys change, so a listener starts the push again only for that.
+  static String fingerprintOf(Map<String, String> appConfig) {
+    final keys = appConfig.keys.where((k) => k.startsWith('fcm.web.')).toList()
+      ..sort();
+    return [for (final k in keys) '$k=${appConfig[k]}'].join('|');
+  }
+
+  /// Whether [o] (a Firebase app that is already up) is the app these keys
+  /// describe. A running Firebase app cannot be re-pointed: new keys apply
+  /// at the next start of the page.
+  static bool matches(FirebaseOptions o) =>
+      o.apiKey == apiKey && o.appId == appId && o.projectId == projectId;
+
   static bool get configured =>
       apiKey.isNotEmpty &&
       appId.isNotEmpty &&
