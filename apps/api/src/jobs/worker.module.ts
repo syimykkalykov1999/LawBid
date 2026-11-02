@@ -31,6 +31,7 @@ import { MediaModerationModule } from '../modules/media-moderation/media-moderat
 import { BroadcastFanoutModule } from '../modules/admin-content/broadcast-fanout.module';
 import { CaseFanoutModule } from '../modules/notifications/case-fanout/case-fanout.worker';
 import { GroupFanoutModule } from '../modules/groups/group-fanout.module';
+import { PostFanoutModule } from '../modules/notifications/post-fanout.worker';
 import { ChannelFanoutModule } from '../modules/channels/channel-fanout.module';
 
 /**
@@ -111,6 +112,7 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     // (`group-fanout-<n>`) and channel posts (`channel-fanout`).
     GroupFanoutModule.register({ mode: 'worker' }),
     CaseFanoutModule.register({ mode: 'worker' }),
+    PostFanoutModule.register({ mode: 'worker' }),
     ChannelFanoutModule.register({ mode: 'worker' }),
     // docs/04 §12 (stage 4.7): case history PDF export queue.
     CaseHistoryModule.register({ mode: 'worker' }),
