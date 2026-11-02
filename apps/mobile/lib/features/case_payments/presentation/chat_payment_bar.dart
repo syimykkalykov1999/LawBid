@@ -26,6 +26,9 @@ class ChatPaymentBar extends ConsumerStatefulWidget {
 
 class _ChatPaymentBarState extends ConsumerState<ChatPaymentBar>
     with WidgetsBindingObserver, ResumeRefreshGate {
+  /// Widest the bar's button grows (a long label wraps inside it).
+  static const _buttonMaxWidth = 148.0;
+
   /// Silent in-flight guard: a double tap must not open two checkouts.
   bool _paying = false;
 
@@ -56,9 +59,8 @@ class _ChatPaymentBarState extends ConsumerState<ChatPaymentBar>
     _paying = true;
     final t = ref.read(translatorProvider);
     try {
-      final start = await ref
-          .read(casePaymentsRepositoryProvider)
-          .payRequest(first);
+      final start =
+          await ref.read(casePaymentsRepositoryProvider).payRequest(first);
       if (!mounted) return;
       expectExternalReturn();
       ref.invalidate(casePaymentsStateProvider(caseId));
@@ -108,14 +110,18 @@ class _ChatPaymentBarState extends ConsumerState<ChatPaymentBar>
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          AppButton(
-            label: t.t('cpay.chat.request'),
-            variant: AppButtonVariant.secondary,
-            onPressed: () => PaymentRequestSheet.show(
-              context,
-              caseId,
-              state,
-              onSent: () => ref.invalidate(casePaymentsStateProvider(caseId)),
+          // AppButton fills its width: in a Row it needs a bounded one.
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _buttonMaxWidth),
+            child: AppButton(
+              label: t.t('cpay.chat.request'),
+              variant: AppButtonVariant.secondary,
+              onPressed: () => PaymentRequestSheet.show(
+                context,
+                caseId,
+                state,
+                onSent: () => ref.invalidate(casePaymentsStateProvider(caseId)),
+              ),
             ),
           ),
         ],
@@ -146,10 +152,13 @@ class _ChatPaymentBarState extends ConsumerState<ChatPaymentBar>
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          AppButton(
-            label: t.t('cpay.req.payShort'),
-            icon: AppIcons.lockOutlineRounded,
-            onPressed: () => _pay(first),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _buttonMaxWidth),
+            child: AppButton(
+              label: t.t('cpay.req.payShort'),
+              icon: AppIcons.lockOutlineRounded,
+              onPressed: () => _pay(first),
+            ),
           ),
         ],
       );
