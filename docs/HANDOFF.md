@@ -113,3 +113,10 @@ ONLY after every item above is finished: the verified checkmark badges (attorney
 ## Решения для владельца
 - «Чаты» в Сохранённом (п. 19): оставлено как есть, ответа не было.
 - Ветка mac-rescue не слита целиком: там снимок несохранённой работы Mac (контакты, стикеры, iOS-проект) — конфликтует с main; брать частями по команде.
+
+## Ждёт устройства или решения (02.11)
+| Пункт | Что нужно |
+|---|---|
+| Certificate pinning | этап телефонных сборок: проверка на Samsung и iPhone, запасной ключ (primary+backup), kill-switch; без устройства не включать |
+| VoiceOver / TalkBack | этап телефонных сборок: пройти экраны экранным диктором на устройстве; в коде метки есть, на телефоне не проверено |
+| Покадровая проверка видео (#597) | флаг выключен. Rekognition и Bunny sandbox/mock в репозитории нет, настоящий прогон возможен только на проде с дневным лимитом. Включение: `gh workflow run container-scan.yml -f with_ffmpeg=true` → зелёный → `gh variable set WITH_FFMPEG --body 1` → деплой → в админке `moderation.video.frames_enabled` |
