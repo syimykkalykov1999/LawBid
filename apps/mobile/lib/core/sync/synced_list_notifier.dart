@@ -94,10 +94,21 @@ abstract class SyncedListNotifier<T> extends PagedNotifier<T> {
     return super.build();
   }
 
+  /// True for a list whose saved copy is the phone's HTTP copy of its first
+  /// page (`readFromPhoneOnly`): that copy only moves when the first page is
+  /// read, so a cold start reads it (one GET, a 304 when nothing changed)
+  /// instead of asking for changes since a time the copy may be older than.
+  @protected
+  bool get savedCopyIsFirstPage => false;
+
   /// A saved copy is on screen: catch up with one `updatedSince` instead
   /// of reading the first page again.
   @override
   Future<void> revalidateSaved(CursorPage<T> saved) async {
+    if (savedCopyIsFirstPage) {
+      await super.revalidateSaved(saved);
+      return;
+    }
     final since =
         catchesUp ? (await _storedSince() ?? _sinceOf(saved.items)) : null;
     if (since == null) {

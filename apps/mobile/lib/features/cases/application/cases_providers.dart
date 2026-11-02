@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/platform/review_prompter.dart';
@@ -133,6 +134,16 @@ class MyCasesNotifier extends SyncedListNotifier<CaseSummary>
     listenForChanges();
     return super.build();
   }
+
+  // Owner 2026-11-02: opens on the phone's copy of the first page at once
+  // (cold start, offline), the live page replaces it.
+  @override
+  bool get savedCopyIsFirstPage => true;
+
+  @override
+  Future<CursorPage<CaseSummary>?> cachedFirstPage() => readFromPhoneOnly(
+        () => ref.read(casesRepositoryProvider).myCases(filter),
+      );
 
   @override
   Future<CursorPage<CaseSummary>> fetchPage(String? cursor) =>

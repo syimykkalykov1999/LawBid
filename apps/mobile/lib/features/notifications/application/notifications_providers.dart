@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/cache/cache_providers.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/startup/app_session.dart';
 import 'package:lawbid/core/sync/synced_list_notifier.dart';
@@ -204,6 +205,22 @@ class NotificationsNotifier extends SyncedListNotifier<AppNotification> {
     });
     ref.onDispose(sub.cancel);
     return super.build();
+  }
+
+  // Owner 2026-11-02: the bell opens on the phone's copy of the first page.
+  @override
+  bool get savedCopyIsFirstPage => true;
+
+  @override
+  Future<CursorPage<AppNotification>?> cachedFirstPage() {
+    if (ref.read(notificationQueryProvider).nullIfEmpty != null) {
+      return Future.value();
+    }
+    return readFromPhoneOnly(
+      () => ref.read(notificationsRepositoryProvider).list(
+            group: ref.read(notificationGroupProvider),
+          ),
+    );
   }
 
   @override

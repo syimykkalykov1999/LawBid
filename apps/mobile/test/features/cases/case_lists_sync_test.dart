@@ -117,6 +117,24 @@ void main() {
         SyncedListNotifier.catchUpDelay + const Duration(milliseconds: 400),
       );
 
+  test('a cold start opens on the phone copy, then reads the first page',
+      () async {
+    final repo = _SyncFake([_case('a'), _case('b')])
+      ..phoneCopy = [_case('old')];
+    final c = make(repo);
+    final sub = c.listen(myCasesProvider(MyCasesFilter.active), (_, __) {});
+    addTearDown(sub.close);
+    final first = await c.read(myCasesProvider(MyCasesFilter.active).future);
+    expect(first.items.map((x) => x.id), ['old'], reason: 'the copy, at once');
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    final live = c.read(myCasesProvider(MyCasesFilter.active)).value!;
+    expect(live.items.map((x) => x.id), ['a', 'b'], reason: 'then the page');
+    expect(pageReads(repo), 1, reason: 'one network read, not two');
+    expect(repo.changedCalls, 0,
+        reason: 'a delta from a time the copy may '
+            'be older than would leave stale rows');
+  });
+
   test('case:update is one updatedSince: rows merge, deleted leave', () async {
     final repo = _SyncFake([_case('a'), _case('b')]);
     final c = make(repo);

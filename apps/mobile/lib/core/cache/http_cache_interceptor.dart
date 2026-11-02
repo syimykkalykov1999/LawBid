@@ -29,6 +29,28 @@ Map<String, dynamic> cacheFor(Duration maxAge) => {
 /// [Options] for a GET that may be served from the phone for [maxAge].
 Options cachedFor(Duration maxAge) => Options(extra: cacheFor(maxAge));
 
+const _phoneOnlyZoneKey = #lawbidReadFromPhoneOnly;
+
+/// Owner 2026-11-02 (Telegram / Instagram: a list opens at once, also on a
+/// cold start and offline): runs [read] so that every cacheable GET inside
+/// it is answered from the phone's HTTP copy (memory, then disk) **with no
+/// request**, however old the copy is; a GET with no copy fails with a
+/// [DioException] (`error` is [kNoPhoneCopy]) and never reaches the
+/// network. The caller shows what it got and reads the live answer next
+/// (a 304 when nothing changed). A zone value, so no repository signature
+/// has to change.
+Future<T?> readFromPhoneOnly<T>(Future<T> Function() read) async =>
+    // Awaited here so the caller gets a `Future<T?>` of its own (a miss is
+    // an error, never a quiet null).
+    await runZoned(read, zoneValues: {_phoneOnlyZoneKey: true});
+
+/// Whether the code running now is inside [readFromPhoneOnly] (a test
+/// double with no HTTP copy answers it like a miss).
+bool get readingFromPhoneOnly => Zone.current[_phoneOnlyZoneKey] == true;
+
+/// `DioException.error` of a [readFromPhoneOnly] GET that found no copy.
+const kNoPhoneCopy = 'no copy on the phone';
+
 /// One remembered GET answer.
 class HttpCacheEntry {
   const HttpCacheEntry({
@@ -146,6 +168,28 @@ class HttpCacheInterceptor extends Interceptor {
         fixLegacyShape(options.path, hit.data);
         _put(key, hit);
       }
+    }
+    if (readingFromPhoneOnly) {
+      if (hit == null) {
+        handler.reject(
+          DioException(
+            requestOptions: options,
+            type: DioExceptionType.cancel,
+            error: kNoPhoneCopy,
+          ),
+        );
+      } else {
+        _usage?.servedLocally();
+        handler.resolve(
+          Response<dynamic>(
+            requestOptions: options,
+            data: hit.data,
+            statusCode: 200,
+            extra: {kFromCacheExtra: true},
+          ),
+        );
+      }
+      return;
     }
     if (hit == null) {
       if (await _followOrLead(options, key, handler)) return;

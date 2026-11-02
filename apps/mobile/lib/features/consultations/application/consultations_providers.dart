@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/session/session_providers.dart';
@@ -89,6 +90,15 @@ class ConsultationsNotifier extends SyncedListNotifier<Consultation> {
       ..listen(consultationsTouchedProvider, (_, __) => catchUp());
     return super.build();
   }
+
+  // Owner 2026-11-02: opens on the phone's copy of the first page.
+  @override
+  bool get savedCopyIsFirstPage => true;
+
+  @override
+  Future<CursorPage<Consultation>?> cachedFirstPage() => readFromPhoneOnly(
+        () => ref.read(consultationsRepositoryProvider).list(view),
+      );
 
   @override
   Future<CursorPage<Consultation>> fetchPage(String? cursor) =>

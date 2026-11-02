@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/sync/synced_list_notifier.dart';
@@ -95,6 +96,19 @@ class ChannelListNotifier extends SyncedListNotifier<Channel> {
     });
     ref.onDispose(sub.cancel);
     return super.build();
+  }
+
+  // Owner 2026-11-02: «my» and «managed» channels open on the phone's copy
+  // of the list; «discover» and a search are server-ranked and read live.
+  @override
+  bool get savedCopyIsFirstPage => true;
+
+  @override
+  Future<CursorPage<Channel>?> cachedFirstPage() {
+    if (key.scope == ChannelScope.discover || key.query.trim().isNotEmpty) {
+      return Future.value();
+    }
+    return readFromPhoneOnly(() => fetchPage(null));
   }
 
   @override
