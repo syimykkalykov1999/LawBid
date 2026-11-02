@@ -11,7 +11,8 @@ name lookup of the people search. The ids are sampled from the data itself.
 A query FAILS when its plan reads a big table in sequence (Seq Scan on users,
 posts, messages, notifications), takes longer than its limit, or reads more
 than MAX_READ_BLOCKS blocks from disk (cold cache = a page that would hurt on
-RDS). Exit code 0 = all passed, 1 = at least one failed, 2 = no data.
+RDS). Exit code 0 = all passed, 1 = at least one failed, 2 = no data, 3 = a query
+or psql failed (the script is broken, not the database).
 """
 import json
 import os
@@ -22,8 +23,9 @@ BIG = ("users", "posts", "messages", "notifications")
 MAX_READ_BLOCKS = 5000  # 40 MB from disk for one page request
 
 
-def judge(plan, limit_ms):
-    """plan: the root `Plan` node of EXPLAIN (FORMAT JSON) with Execution Time.
+def judge(plan, limit_ms, big=BIG):
+    """plan: the root `Plan` node of EXPLAIN (FORMAT JSON) with Execution Time;
+    big: names of the big tables AND of their partitions.
     Returns the list of problems (empty = pass)."""
     problems, stack = [], [plan["Plan"]]
     reads = 0
@@ -31,10 +33,8 @@ def judge(plan, limit_ms):
         node = stack.pop()
         stack.extend(node.get("Plans", []))
         reads += node.get("Shared Read Blocks", 0) if "Plans" not in node else 0  # leaves only: parents repeat them
-        if node.get("Node Type") == "Seq Scan" and node.get("Relation Name", "").split(".")[-1] in BIG:
+        if node.get("Node Type") == "Seq Scan" and node.get("Relation Name") in big:
             problems.append("Seq Scan on " + node["Relation Name"])
-        if node.get("Node Type") == "Seq Scan" and node.get("Relation Name", "").startswith(tuple(b + "_p" for b in BIG)):
-            problems.append("Seq Scan on partition " + node["Relation Name"])
     took = plan.get("Execution Time", 0)
     if took > limit_ms:
         problems.append("%.1f ms > limit %d ms" % (took, limit_ms))
@@ -85,8 +85,18 @@ def psql(container, db, sql):
     return r.stdout.strip()
 
 
+def big_tables(container, db):
+    """The big tables and all their partitions (whatever the partitions are named)."""
+    names = psql(container, db,
+                 "SELECT c.relname FROM pg_class c WHERE c.relname IN ('users','posts','messages','notifications') "
+                 "UNION SELECT c.relname FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid "
+                 "JOIN pg_class p ON p.oid = i.inhparent WHERE p.relname IN ('users','posts','messages','notifications')")
+    return set(names.split()) | set(BIG)
+
+
 def sample(container, db):
-    """Ids from the data itself: the busiest of a few random chats / people.
+    """Ids from the data itself: the biggest of the chats / people that a
+    block sample (TABLESAMPLE) happens to hit - typical data, not the worst case.
     TABLESAMPLE reads a few blocks of a 100M table; a small database may give
     no row, then the first rows do."""
     def pick(sql_sample, sql_plain):
@@ -100,22 +110,34 @@ def sample(container, db):
                 "SELECT lower(split_part(last_name, ' ', 1)) FROM users WHERE length(last_name) > 5 LIMIT 1")
     if not (conv and user):
         return None
-    return {"conv": conv, "user": user, "word": "will", "rare": rare or "kalykov"}
+    rare = "".join(ch for ch in (rare or "") if ch.isalnum() and ch.isascii()).lower()  # goes into a LIKE
+    return {"conv": conv, "user": user, "word": "will", "rare": rare if len(rare) > 4 else "kalykov"}
 
 
 def main(argv):
     db = argv[1]
     out = argv[2] if len(argv) > 2 else None
     container = os.environ.get("PG_CONTAINER", "lawbid-lt-postgres-1")
-    ids = sample(container, db)
+    try:
+        big = big_tables(container, db)
+        ids = sample(container, db)
+    except RuntimeError as e:
+        print("psql failed: " + str(e))
+        return 3
     if not ids:
         print("no data to sample (messages / notifications empty?)")
         return 2
-    results, failed = [], 0
+    results, failed, broken = [], 0, False
     for name, limit, sql in QUERIES:
         q = "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + sql.format(**ids)
-        plan = json.loads(psql(container, db, q))[0]
-        problems = judge(plan, limit)
+        try:
+            plan = json.loads(psql(container, db, q))[0]
+        except (RuntimeError, ValueError) as e:  # keep the other queries' results
+            print("ERR  %s: %s" % (name, e))
+            results.append({"query": name, "error": str(e)})
+            broken = True
+            continue
+        problems = judge(plan, limit, big)
         failed += bool(problems)
         results.append({"query": name, "ms": round(plan.get("Execution Time", 0), 1), "limit_ms": limit,
                         "problems": problems})
@@ -124,7 +146,9 @@ def main(argv):
     if out:
         with open(out, "w") as f:
             json.dump({"ids": ids, "results": results}, f, indent=1)
-    return 1 if failed else 0
+        with open(out + ".big", "w") as f:  # for check-10m.sh: names of the big tables and partitions
+            f.write("\n".join(sorted(big)) + "\n")
+    return 3 if broken else (1 if failed else 0)
 
 
 if __name__ == "__main__":
