@@ -3046,7 +3046,6 @@ model Message {
 
   @@id([id, conversation_id])
   @@unique([conversation_id, sender_id, client_message_id])
-  @@unique([conversation_id, seq])
   @@index([file_id])
   @@index([sticker_id])
   @@index([gift_send_id])
