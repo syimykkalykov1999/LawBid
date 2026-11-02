@@ -151,9 +151,9 @@ void main() {
       final swift = File('ios/Runner/AppDelegate.swift').readAsStringSync();
       expect(swift, contains('data.duration = 60000'));
       expect(swift, isNot(contains('data.duration = 45000')));
-      // M1: a push for a call already shown still reports it (no early
-      // return without a CallKit report).
-      expect(swift, isNot(contains('if shown {')));
+      // M1: a push for a call already shown still reports it to CallKit
+      // (a throw-away call, ended at once), never an early return.
+      expect(swift, contains('reportThrowaway'));
       final kt = File(
         'android/app/src/main/kotlin/com/lawbid/lawbid/CallRinging.kt',
       ).readAsStringSync();

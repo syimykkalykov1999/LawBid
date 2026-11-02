@@ -2305,11 +2305,22 @@ export class GroupsService {
       }),
       this.blocks.hiddenIds(by),
     ]);
-    const live = users.map((u) => u.id).filter((id) => !hidden.has(id));
-    // Their "who can add me to groups" setting (a «no» stays out; the
-    // caller reports them as not added). One batch, not a query per person.
-    const allowed = await this.addPolicy.allowsMany(by, live);
-    return live.filter((id) => allowed.has(id));
+    // Audit A-14: the per-person privacy check ran one after another (up to
+    // 512 invitees = 512 sequential reads); now in parallel chunks of 25.
+    const candidates = users.filter((u) => !hidden.has(u.id));
+    const out: string[] = [];
+    for (let i = 0; i < candidates.length; i += 25) {
+      const chunk = candidates.slice(i, i + 25);
+      // Their "who can add me to groups" setting (a «no» stays out; the
+      // caller reports them as not added).
+      const ok = await Promise.all(
+        chunk.map((u) => this.addPolicy.allows(by, u.id)),
+      );
+      chunk.forEach((u, j) => {
+        if (ok[j]) out.push(u.id);
+      });
+    }
+    return out;
   }
 
   private async system(

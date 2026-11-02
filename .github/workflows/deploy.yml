@@ -68,6 +68,9 @@ env:
   IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
 
 jobs:
+  # CI audit 2026-11-01: the API/admin release does not wait for the MOBILE checks
+  # (macOS, 40+ min): excluded below, so this job holds its runner for the API CI
+  # time (~17 min) instead of the mobile one.
   gate:
     name: Wait for green CI
     runs-on: ubuntu-latest
@@ -84,7 +87,7 @@ jobs:
         run: |
           scripts/ci/require-green.sh "$GITHUB_SHA" \
             '^(API |Admin CI|Build image \+ Trivy|gitleaks|CodeQL)' \
-            '^(Wait for green CI|Build & push|Deploy|Web deploy|Build and publish|Notify|Mobile release)'
+            '^(Wait for green CI|Build & push|Deploy|Web deploy|Build and publish|Notify|Mobile release|Analyze, lint|Golden tests|Build check|Does the app|Dependency audit \(OSV)'
 
   # 2026-10-28: run 40632613817 hit the 60-min limit building admin's arm64
   # half under QEMU. Each architecture is now built NATIVELY in its own job
