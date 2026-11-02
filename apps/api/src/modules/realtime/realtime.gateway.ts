@@ -1128,11 +1128,52 @@ export class RealtimeGateway
     const id = typeof body?.postId === 'string' ? body.postId : '';
     const uid = state(socket)?.user?.sub;
     if (!uid || !UUID_RE.test(id)) return { ok: false };
+    // Same rules as the REST comment list (VISIBLE_POST_WHERE, kept inline
+    // so the gateway does not import the posts module): not archived, author
+    // active and not a suspended attorney, comments on; the author may also
+    // follow an own archived post. A block between the watcher and the author
+    // is refused. Security audit 2026-11-02: an archived post, comments off,
+    // a suspended attorney or an author who blocked the watcher must not
+    // stream `comment:new` to a stranger.
     const post = await this.prisma.post.findFirst({
-      where: { id, deleted_at: null, status: 'published' },
-      select: { id: true },
+      where: {
+        id,
+        deleted_at: null,
+        status: 'published',
+        OR: [
+          { author_id: uid },
+          {
+            archived_at: null,
+            comments_enabled: true,
+            author: {
+              status: 'active',
+              OR: [
+                { role: 'client' },
+                {
+                  attorney_profile: {
+                    verification_status: { not: 'suspended' },
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+      select: { author_id: true },
     });
     if (!post) return { ok: false };
+    if (post.author_id !== uid) {
+      const blocked = await this.prisma.userBlock.findFirst({
+        where: {
+          OR: [
+            { blocker_id: uid, blocked_id: post.author_id },
+            { blocker_id: post.author_id, blocked_id: uid },
+          ],
+        },
+        select: { blocker_id: true },
+      });
+      if (blocked) return { ok: false };
+    }
     if (this.roomsFull(socket, postRoom(id))) return { ok: false };
     await socket.join(postRoom(id));
     return { ok: true };

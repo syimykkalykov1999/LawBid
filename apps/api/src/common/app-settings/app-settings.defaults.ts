@@ -893,7 +893,8 @@ export const OWNER_STRIPE_OPS_SETTINGS = {
 /** Owner 2026-10-05: countries (Система → Страны). People who asked to
  * be told get an e-mail by themselves when their country is switched on. */
 export const OWNER_COUNTRY_SETTINGS = {
-  'countries.notify_waitlist': true,
+  // Owner 2026-11-02: no e-mails or texts to the waiting list (no spend).
+  'countries.notify_waitlist': false,
 };
 
 /** Owner 2026-10-05: requests per minute for one signed-in admin (the
