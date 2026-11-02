@@ -59,8 +59,9 @@ class _ChatPaymentBarState extends ConsumerState<ChatPaymentBar>
     _paying = true;
     final t = ref.read(translatorProvider);
     try {
-      final start =
-          await ref.read(casePaymentsRepositoryProvider).payRequest(first);
+      final start = await ref
+          .read(casePaymentsRepositoryProvider)
+          .payRequest(first);
       if (!mounted) return;
       expectExternalReturn();
       ref.invalidate(casePaymentsStateProvider(caseId));
