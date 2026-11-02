@@ -151,7 +151,9 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22.23.4"
-          cache: "npm"
+          # self-hosted runners are permanent: ~/.npm lives on the machine, saving it to the
+          # GitHub cache only cost minutes in "Post setup-node" (17 min under load, 2026-11-02)
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
 
       - name: Install dependencies (root workspace, hoisted)
         run: npm ci
@@ -410,7 +412,9 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22.23.4"
-          cache: "npm"
+          # self-hosted runners are permanent: ~/.npm lives on the machine, saving it to the
+          # GitHub cache only cost minutes in "Post setup-node" (17 min under load, 2026-11-02)
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
 
       - name: Install dependencies (root workspace, hoisted)
         run: npm ci
@@ -521,7 +525,9 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22.23.4"
-          cache: "npm"
+          # self-hosted runners are permanent: ~/.npm lives on the machine, saving it to the
+          # GitHub cache only cost minutes in "Post setup-node" (17 min under load, 2026-11-02)
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
 
       - name: Install dependencies (root workspace, hoisted)
         run: npm ci
@@ -638,7 +644,9 @@ jobs:
         if: steps.mig.outputs.changed == 'true'
         with:
           node-version: "22.23.4"
-          cache: "npm"
+          # self-hosted runners are permanent: ~/.npm lives on the machine, saving it to the
+          # GitHub cache only cost minutes in "Post setup-node" (17 min under load, 2026-11-02)
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
 
       - name: The previous release (checked out beside this one)
         if: steps.mig.outputs.changed == 'true'
