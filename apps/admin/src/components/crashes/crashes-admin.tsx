@@ -1,6 +1,6 @@
 'use client';
 
-import { Bug, CheckCircle } from '@phosphor-icons/react';
+import { Bug, CheckCircle, Copy } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ErrorNote } from '@/components/page-header';
@@ -161,13 +161,33 @@ function CrashDialog({ fingerprint, canWrite, onClose }: { fingerprint: string; 
               ))}
             </ul>
           </div>
-          {canWrite ? (
-            <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                const dd = d.data;
+                if (!dd) return;
+                const text = [
+                  dd.message,
+                  '',
+                  dd.stack,
+                  '',
+                  ...dd.latest.map(
+                    (c) =>
+                      `${c.at} ${c.platform} ${c.deviceModel} ${c.osVersion} v${c.appVersion} (${c.flavor})${c.route ? ` ${c.route}` : ''}${c.fatal ? ' fatal' : ''}`,
+                  ),
+                ].join('\n');
+                void navigator.clipboard?.writeText(text).then(() => toast.success('Скопировано'));
+              }}
+            >
+              <Copy size={16} /> Копировать
+            </Button>
+            {canWrite ? (
               <Button variant="soft" loading={fix.isPending} onClick={() => fix.mutate()}>
                 <CheckCircle size={16} /> Исправлено
               </Button>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
       ) : null}
     </Dialog>
