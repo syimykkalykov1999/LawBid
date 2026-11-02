@@ -223,7 +223,7 @@ export function createRedisClient(
     clusterRetryStrategy: (times) =>
       Math.round(Math.min(100 * times, 2000) * (0.5 + Math.random() * 0.5)),
     natMap: natMapOf(env),
-    // The offline queue of a Cluster is a CLUSTER option; inside
+    // The offline queue of the Cluster itself is a CLUSTER option; inside
     // `redisOptions` it only reaches the node sockets, so a lost cluster
     // would still queue commands until commandTimeout.
     ...(options.enableOfflineQueue !== undefined
@@ -281,16 +281,20 @@ export function pubSubClient(client: Redis): Redis {
     commandTimeout: undefined,
     socketTimeout: undefined,
   };
-  const cluster = client as unknown;
-  if (cluster instanceof Cluster) {
-    // Cluster#duplicate(startupNodes?, options?): the offline queue is a
-    // cluster option, the rest belongs to the node connections.
-    return cluster.duplicate(undefined, {
-      enableOfflineQueue: true,
-      redisOptions: { ...cluster.options.redisOptions, ...queueing },
-    }) as unknown as Redis;
-  }
-  return client.duplicate(queueing);
+  const asCluster = client as unknown;
+  // Cluster#duplicate(startupNodes?, options?) merges `redisOptions` itself;
+  // the offline queue is a cluster-level option, the rest is per node.
+  const clone: Redis | Cluster =
+    asCluster instanceof Cluster
+      ? asCluster.duplicate(undefined, {
+          enableOfflineQueue: true,
+          redisOptions: queueing,
+        })
+      : client.duplicate(queueing);
+  // A clone has none of the original's listeners: without this it would keep
+  // the old password after a token rotation (WRONGPASS loop).
+  attachAuthRefresh(clone);
+  return clone as unknown as Redis;
 }
 
 /** Resolves when [client] is ready or after [maxMs] (a boot with Redis away
