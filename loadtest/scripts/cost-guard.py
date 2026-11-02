@@ -45,7 +45,8 @@ def burn_per_hour(inv, p=PRICES):
     usd += inv.get("alb", 0) * p["alb_hour"] + inv.get("nat", 0) * p["nat_hour"]
     usd += inv.get("endpoints", 0) * p["endpoint_hour"] + inv.get("ipv4", 0) * p["ipv4_hour"]
     usd += (3 * p["kms_key_month"] + 25 * p["secret_month"]) / HOURS_MONTH
-    return usd
+    usd += inv.get("other", 0) * 2.0  # OpenSearch / Aurora: not priced item by item, assume $2/h each (pessimistic)
+    return usd * 1.10  # +10 %: ALB LCU, NAT/endpoint data, storage, logs and the public IPs are not counted item by item
 
 
 def aws(*args):
@@ -68,8 +69,10 @@ def inventory(run_id):
             inv["nat"] += 1
         elif ":vpc-endpoint/" in a:
             inv["endpoints"] += 1
-        elif ":elastic-ip/" in a or ":eip" in a:
+        elif ":elastic-ip/" in a:
             inv["ipv4"] += 1
+        elif a.startswith(("arn:aws:aoss", "arn:aws:es:", "arn:aws:opensearch")) or (a.startswith("arn:aws:rds") and ":cluster:" in a):
+            inv["other"] = inv.get("other", 0) + 1  # priced flat and pessimistic, see burn_per_hour
     for a in arns:
         if ":db:" in a and a.startswith("arn:aws:rds"):
             d = aws("rds", "describe-db-instances", "--db-instance-identifier", a.split(":db:")[1])
@@ -105,6 +108,20 @@ def estimate(profile):
     return e["estimate_usd"], e["hours"], per_use
 
 
+def cancel_run():
+    """Cancel this run; retry until it works (a guard that gives up on a failed cancel protects nothing)."""
+    run = os.environ.get("GITHUB_RUN_ID")
+    if not run:
+        return
+    for attempt in range(1, 11):
+        r = subprocess.run(["gh", "run", "cancel", run], capture_output=True, text=True)
+        if r.returncode == 0:
+            print("cost-guard: run cancelled", flush=True)
+            return
+        print(f"::error::cost-guard: cancel failed ({attempt}/10): {r.stderr.strip()[:200]}", flush=True)
+        time.sleep(15)
+
+
 def main():
     limit = float(sys.argv[1])
     profile = sys.argv[2]
@@ -116,6 +133,7 @@ def main():
     last = started
     spent = 0.0
     fails = 0
+    last_burn = 0.0
     warned = False
     if "--once" in sys.argv:
         print(json.dumps({"burn_per_hour": burn_per_hour(inventory(run_id))}))
@@ -125,10 +143,11 @@ def main():
         now = time.time()
         try:
             burn = burn_per_hour(inventory(run_id))
+            last_burn = burn
             fails = 0
         except Exception as ex:  # noqa: BLE001 - never go quiet
             fails += 1
-            burn = fallback_burn if fails >= 3 else 0.0
+            burn = max(last_burn, fallback_burn)  # blind: never count it as free
             print(f"cost-guard: cannot read AWS ({fails}x): {ex}", flush=True)
         spent += burn * (now - last) / 3600
         last = now
@@ -141,11 +160,14 @@ def main():
             msg = f"cost-guard: LIMIT ${limit:.0f} reached (about ${total:.2f}): cancelling the run, the stack is destroyed by the always() steps"
             print(f"::error::{msg}", flush=True)
             open(os.path.join(os.environ.get("RUNNER_TEMP", "/tmp"), "cost-abort.txt"), "w").write(msg + "\n")
-            run = os.environ.get("GITHUB_RUN_ID")
-            if run:
-                subprocess.run(["gh", "run", "cancel", run], check=False)
+            cancel_run()
             return 4
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception as ex:  # noqa: BLE001 - a guard that crashed must not leave a silent run: fail closed
+        print(f"::error::cost-guard crashed ({ex}): cancelling the run (fail closed)", flush=True)
+        cancel_run()
+        sys.exit(5)

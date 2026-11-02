@@ -19,7 +19,7 @@ class Burn(unittest.TestCase):
         # estimate-cost m10: API 30 x 0.0247 = 0.74, db 1.104, redis 0.874, gens 0.29, alb .02, nat .045 ...
         b = cg.burn_per_hour(inv)
         self.assertGreater(b, 3.0)
-        self.assertLess(b, 3.6)
+        self.assertLess(b, 4.0)
 
     def test_unknown_database_class_is_not_free(self):
         self.assertGreater(cg.burn_per_hour({"rds": ["db.x99.huge"]}), 2.0)
@@ -31,6 +31,10 @@ class Burn(unittest.TestCase):
 
     def test_big_databases_priced_for_the_cloud_ladder(self):
         self.assertAlmostEqual(cg.PRICES["rds"]["db.r7g.8xlarge"], 4.416)
+
+
+    def test_other_services_are_not_free(self):
+        self.assertGreater(cg.burn_per_hour({"other": 1}), 2.0)
 
 
 if __name__ == "__main__":
