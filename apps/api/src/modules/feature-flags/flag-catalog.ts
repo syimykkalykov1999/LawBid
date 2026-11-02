@@ -144,6 +144,15 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Video attachments on feed posts',
   },
   {
+    // Checklist reconciliation 2026-11-01: resumable uploads. On: the app
+    // sends big files (video, documents over 16 MiB) in 8 MiB parts and
+    // continues after an interruption instead of starting over.
+    key: 'files_multipart',
+    enabled: false,
+    app: true,
+    description: 'Resumable (multipart) uploads of large files',
+  },
+  {
     key: 'payments_in_app',
     enabled: false,
     app: true,

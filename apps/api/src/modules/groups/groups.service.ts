@@ -1,3 +1,7 @@
+import {
+  communityQuery,
+  rankCommunities,
+} from '../../common/search/community-search';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { UsernamePolicyService } from '../usernames/username-policy.service';
@@ -1265,19 +1269,32 @@ export class GroupsService {
     user: RequestUser,
     q: string,
   ): Promise<GroupInvitePreviewDto[]> {
-    const text = q.trim().replace(/^@/, '');
-    const rows = await this.prisma.chatGroup.findMany({
+    const query = communityQuery(q);
+    if (!query) return [];
+    const found = await this.prisma.chatGroup.findMany({
       where: {
         group_type: 'public',
         deleted_at: null,
-        OR: [
-          { title: { contains: text, mode: 'insensitive' } },
-          { username_lower: { contains: text.toLowerCase() } },
-        ],
+        AND: query.words.map((w) => ({
+          OR: [
+            { title: { contains: w, mode: 'insensitive' as const } },
+            { username_lower: { contains: w } },
+          ],
+        })),
       },
       orderBy: [{ member_count: 'desc' }, { created_at: 'desc' }],
-      take: 20,
+      take: 200,
     });
+    const rows = rankCommunities(
+      found,
+      query,
+      (g) => ({
+        title: g.title,
+        username: g.username_lower,
+        size: g.member_count,
+      }),
+      20,
+    );
     return this.previews(rows, user.sub);
   }
 
@@ -2305,12 +2322,20 @@ export class GroupsService {
       }),
       this.blocks.hiddenIds(by),
     ]);
+    // Audit A-14: the per-person privacy check ran one after another (up to
+    // 512 invitees = 512 sequential reads); now in parallel chunks of 25.
+    const candidates = users.filter((u) => !hidden.has(u.id));
     const out: string[] = [];
-    for (const u of users) {
-      if (hidden.has(u.id)) continue;
+    for (let i = 0; i < candidates.length; i += 25) {
+      const chunk = candidates.slice(i, i + 25);
       // Their "who can add me to groups" setting (a «no» stays out; the
       // caller reports them as not added).
-      if (await this.addPolicy.allows(by, u.id)) out.push(u.id);
+      const ok = await Promise.all(
+        chunk.map((u) => this.addPolicy.allows(by, u.id)),
+      );
+      chunk.forEach((u, j) => {
+        if (ok[j]) out.push(u.id);
+      });
     }
     return out;
   }

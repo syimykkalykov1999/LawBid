@@ -17,7 +17,10 @@ import {
   isNoSuchBucket,
 } from '../files/storage/file-release.service';
 import { S3StorageService } from '../files/storage/s3-storage.service';
-import { PENDING_UPLOADS_KEY } from '../files/storage/pending-uploads';
+import {
+  PENDING_UPLOADS_KEY,
+  multipartKey,
+} from '../files/storage/pending-uploads';
 
 /**
  * Every place a file id is kept (`table.column`, arrays marked `[]`). The
@@ -524,6 +527,23 @@ export class StorageCleanupService {
     }
   }
 
+  /** A resumable upload that was never finished: throw its parts away. A
+   * failure is only logged; the bucket lifecycle rule is the backstop. */
+  private async abortMultipart(
+    fileId: string,
+    bucket: string,
+    key: string,
+  ): Promise<void> {
+    try {
+      const uploadId = await this.redis.get(multipartKey(fileId));
+      if (!uploadId || !this.storage.configured) return;
+      await this.storage.abortMultipart(bucket, key, uploadId);
+      await this.redis.del(multipartKey(fileId));
+    } catch (err) {
+      this.logger.warn({ err, fileId }, 'multipart upload not aborted');
+    }
+  }
+
   /** Presigned uploads that were never confirmed: their objects would
    * otherwise stay in S3 forever with no row pointing at them. */
   private async sweepPendingUploads(now: Date): Promise<number> {
@@ -556,6 +576,7 @@ export class StorageCleanupService {
       const kept = new Set<string>();
       for (const p of parsed) {
         if (confirmed.has(p.id) || !p.bucket || !p.key) continue;
+        await this.abortMultipart(p.id, p.bucket, p.key);
         byBucket.set(p.bucket, [...(byBucket.get(p.bucket) ?? []), p.key]);
       }
       if (this.storage.configured) {
