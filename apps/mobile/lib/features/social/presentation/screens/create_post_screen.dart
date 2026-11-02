@@ -925,8 +925,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     AddressField(
                       key: const ValueKey('post-place-field'),
                       controller: _place,
-                      hintText: t.t('post.create.placeHint'),
-                      semanticLabel: t.t('post.create.placeHint'),
+                      hintText: t.t('tasks.steps.placeHint'),
+                      semanticLabel: t.t('tasks.steps.placeHint'),
                       leading: const AppIcon(AppIcons.placeOutlined, size: 18),
                       maxLength: 120,
                     ),
