@@ -67,6 +67,7 @@ class ChatMediaHandler extends UploadJobHandler {
         mime: webm ? 'audio/webm' : 'audio/mp4',
         filename: webm ? 'voice.webm' : 'voice.m4a',
         onProgress: scope.reportProgress,
+        cancel: scope.cancelToken,
         taskId: job.id,
       );
     } else {
@@ -82,6 +83,7 @@ class ChatMediaHandler extends UploadJobHandler {
         body: body,
         mime: job.mime ?? 'application/octet-stream',
         onProgress: scope.reportProgress,
+        cancel: scope.cancelToken,
         taskId: job.id,
       );
     }

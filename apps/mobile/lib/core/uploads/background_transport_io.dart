@@ -14,6 +14,16 @@ StorageTransport queueTransport({required StorageTransport fallback}) =>
         ? BackgroundStorageTransport(fallback: fallback)
         : fallback;
 
+/// Stops the OS transfer with this task id (a cancelled upload).
+Future<void> cancelBackgroundUpload(String taskId) async {
+  if (kIsWeb || !(Platform.isAndroid || Platform.isIOS)) return;
+  try {
+    await FileDownloader().cancelTaskWithId(taskId);
+  } on Object catch (e) {
+    debugPrint('cancel upload $taskId: $e');
+  }
+}
+
 /// Owner 2026-10-22 (audit #4 §3): the S3 POST of a queued file as an OS
 /// background transfer (`background_downloader`: Android WorkManager, iOS
 /// background URLSession). The task id is the queue job's id, so after the

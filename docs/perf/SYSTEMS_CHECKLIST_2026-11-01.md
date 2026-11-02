@@ -41,6 +41,8 @@
 12. **Web Push (код уже полностью есть** — сервис-воркер, платформа `web` в токенах API, `WebPushConfig`, шаги в `web-deploy.yml`; нет только ключей). Firebase console → Project settings → Your apps → Web app (создать, если нет) → скопировать конфиг; Cloud Messaging → Web Push certificates → Generate key pair. В GitHub → Settings → Secrets → Actions добавить `FIREBASE_WEB_API_KEY`, `FIREBASE_WEB_APP_ID`, `FIREBASE_WEB_SENDER_ID`, `FIREBASE_WEB_PROJECT_ID`, `FIREBASE_WEB_AUTH_DOMAIN`, `FIREBASE_WEB_VAPID_KEY`; затем Actions → `web-deploy` → Run.
 13. **Защита main.** GitHub → Settings → Branches → Add rule `main`: Require status checks (API CI, admin-ci, Mobile CI), Require PR. `npm run precheck` из PR #536 — перед каждым пушем.
 
+14. **CORS бакета для докачки (шаг с Mac, финальный раунд).** После слияния PR докачки: `terraform plan -target=module.stack.module.s3 -var-file=launch.tfvars.example -out=x.plan`, прочитать план (меняется только CORS: добавлен PUT), `apply x.plan`; затем в админке включить флаг `files_multipart`. Проверка на телефоне: загрузить файл больше 16 МБ, выключить сеть посередине, включить — загрузка продолжается.
+
 ## D. Не решено (с причиной)
 
 | Пункт | Почему не закрыт сейчас |
