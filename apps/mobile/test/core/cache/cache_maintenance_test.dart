@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -115,7 +114,7 @@ void main() {
     );
   });
 
-  test('a limit set with no proxy is sent once one is attached and enforced', () async {
+  test('a limit set with no proxy is sent once one is attached', () async {
     await maintenance({CacheStore.video: 1}).enforce();
     final port = ReceivePort();
     addTearDown(port.close);
