@@ -12,11 +12,9 @@ t "all present" 0 "ok" A=1 B=x -- A B
 t "empty is missing" 1 "B is empty" A=1 B= -- A B
 t "whitespace only is missing" 1 "B is empty" A=1 "B=  " -- A B
 t "unset is missing" 1 "A is empty" -- A
-t "lists every missing name" 1 "A is empty" A= B= -- A B
-t "lists every missing name (second)" 1 "B is empty" A= B= -- A B
+t "lists every missing name" 1 "A is empty.*B is empty" A= B= -- A B
 t "count ignores optional names" 0 "ok   1 required" A=1 -- A ?X ?Y
 t "optional only warns" 0 "warning::C is empty" A=1 -- A ?C
-t "value never printed" 0 "ok" A=topsecret -- A
 t "bad name rejected" 2 "bad name" -- 'A;rm'
 t "usage" 2 "usage" --
 out="$(env -i PATH="$PATH" A=topsecret "$D/require-secrets.sh" A 2>&1)"; echo "$out" | grep -q topsecret && { echo "FAIL leaked value"; fail=1; }

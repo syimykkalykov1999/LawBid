@@ -8,7 +8,7 @@ cat >"$T/aws" <<'S'
 #!/usr/bin/env bash
 case "$2" in
   describe-services) echo "arn:td/$4" ;;
-  describe-task-definition) eval "echo \"\${IMG_$(echo "$*" | sed -n "s/.*name=='\([a-z]*\)'.*/\1/p")}\"" ;;
+  describe-task-definition) case "$*" in *"name=='api'"*) echo "$IMG_api" ;; *) echo "$IMG_admin" ;; esac ;;
 esac
 S
 chmod +x "$T/aws"
