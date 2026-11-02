@@ -44,8 +44,7 @@ abstract final class WebPushConfig {
   static String get appId => _pick(_appId, 'fcm.web.app_id');
   static String get senderId => _pick(_senderId, 'fcm.web.sender_id');
   static String get projectId => _pick(_projectId, 'fcm.web.project_id');
-  static String get authDomain =>
-      configuredAtBuild ? _authDomain : (_remote['fcm.web.auth_domain'] ?? '');
+  static String get authDomain => _pick(_authDomain, 'fcm.web.auth_domain');
   static String get vapidKey => _pick(_vapidKey, 'fcm.web.vapid_key');
 
   /// What the bootstrap's `fcm.web.*` values add up to: changes whenever the
