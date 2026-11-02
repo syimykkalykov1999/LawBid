@@ -1291,11 +1291,17 @@ module "backup" {
   vault_lock_cooling_off_days = var.backup_vault_lock_cooling_off_days
 }
 
+variable "partition_role_enabled" {
+  type        = bool
+  default     = false
+  description = "Give the WORKER (never the api) the secret PARTITION_DATABASE_URL, role lawbid_partition, so that partition.*_mode = auto can convert messages / chat_group_messages / notifications online at partition.auto_rows. Turn on only after scripts/deploy/prod-db-setup.sh has put its value (ECS refuses to start a task whose secret is empty). docs/runbooks/table-partitioning.md."
+}
+
 module "secrets" {
   source      = "../secrets"
   name        = local.name
   kms_key_arn = module.kms.key_arn
-  names       = concat(local.secret_names, ["MIGRATOR_DATABASE_URL"], var.secret_rotation.db_enabled ? ["DB_APP_CREDENTIALS"] : [])
+  names       = concat(local.secret_names, ["MIGRATOR_DATABASE_URL", "PARTITION_DATABASE_URL"], var.secret_rotation.db_enabled ? ["DB_APP_CREDENTIALS"] : [])
   tags        = local.tags
 
   recovery_window_in_days = var.ephemeral ? 0 : 30
@@ -1870,6 +1876,8 @@ module "ecs" {
   }
   secret_arns                      = local.app_secret_arns
   migrator_database_url_secret_arn = module.secrets.arns["MIGRATOR_DATABASE_URL"]
+  # Worker only; empty until scripts/deploy/prod-db-setup.sh has filled it.
+  partition_database_url_secret_arn = var.partition_role_enabled ? module.secrets.arns["PARTITION_DATABASE_URL"] : ""
   alb_resource_label               = "${module.alb.arn_suffix}/${module.alb.api_target_group_arn_suffix}"
   api_max_tasks                    = var.api_max_tasks
   worker_max_tasks                 = var.worker_max_tasks
