@@ -118,8 +118,7 @@ void main() {
     expect(find.text('second'), findsOneWidget);
   });
 
-  testWidgets(
-      'a failed load retries once silently, then offers a retry that loads again',
+  testWidgets('a failed load retries silently once, then offers a manual retry',
       (tester) async {
     var calls = 0;
     await tester.pumpWidget(

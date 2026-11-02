@@ -72,7 +72,7 @@ class CrashReporter {
       // socket_io_client closing a socket the server already closed throws
       // from its own microtask; the client reconnects by itself.
       if (error.runtimeType.toString() == 'WebSocketConnectionClosed' &&
-          (stack?.toString().contains('socket_io_client') ?? false)) {
+          stack.toString().contains('socket_io_client')) {
         return true;
       }
       reporter.report(error, stack);
