@@ -124,19 +124,32 @@ abstract final class ClientTuning {
     return Duration(seconds: secs > 86400 ? 86400 : secs);
   }
 
+  /// The longest `Retry-After` the outbox / upload queue waits out (the
+  /// server may ask for more; a background queue does not sleep for hours).
+  static const Duration queueRetryAfterMax = Duration(minutes: 2);
+
   /// The wait before retry number [failures] of the outbox / upload queue:
-  /// [outboxBackoff] with jitter, and never sooner than the server's
-  /// `Retry-After` ([retryAfter]). Never longer than [outboxRetryMaxS]:
-  /// a queue in the background does not sleep for minutes on one header.
+  /// [outboxBackoff] with up to 30% jitter (downwards once at the
+  /// [outboxRetryMaxS] ceiling, so a long outage still spreads the clients
+  /// instead of landing them all on the same second). A server's
+  /// `Retry-After` ([retryAfter], at most [queueRetryAfterMax]) is a floor
+  /// and gets the same jitter on top: clients told «5» do not all return at
+  /// exactly 5.
   static Duration outboxDelay(
     int failures, {
     Duration? retryAfter,
     Random? random,
   }) {
     final cap = Duration(seconds: _outboxRetryMaxS);
-    var d = withJitter(outboxBackoff(failures), random);
-    if (retryAfter != null && retryAfter > d) d = retryAfter;
-    return d > cap ? cap : d;
+    final base = outboxBackoff(failures);
+    final extra = (random ?? _rng).nextDouble() * 0.3;
+    var own = base + base * extra;
+    if (own > cap) own = cap - base * extra;
+    if (retryAfter == null) return own;
+    final asked =
+        retryAfter > queueRetryAfterMax ? queueRetryAfterMax : retryAfter;
+    final askedJittered = withJitter(asked, random);
+    return askedJittered > own ? askedJittered : own;
   }
 
   static final _rng = Random();

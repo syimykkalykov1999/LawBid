@@ -2,6 +2,7 @@
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -194,7 +195,7 @@ void main() {
     await _settle();
     expect(chat.sends, isEmpty);
     // After the 4 s it goes by itself, both messages, in order.
-    await Future<void>.delayed(const Duration(milliseconds: 2500));
+    await Future<void>.delayed(const Duration(milliseconds: 3500));
     expect(chat.sends, hasLength(2));
   });
 
@@ -219,7 +220,7 @@ void main() {
 
   test('outbox wait grows 1, 2, 4 … and stops at 30 s', () {
     expect(
-      [for (var i = 1; i <= 8; i++) OutboxSender.backoff(i).inSeconds],
+      [for (var i = 1; i <= 8; i++) ClientTuning.outboxBackoff(i).inSeconds],
       [1, 2, 4, 8, 16, 30, 30, 30],
     );
   });

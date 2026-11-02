@@ -475,27 +475,24 @@ class OutboxSender with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) unawaited(drain());
   }
 
-  /// The wait before retry number [failures] (1-based).
-  @visibleForTesting
-  static Duration backoff(int failures) {
-    return ClientTuning.outboxBackoff(failures);
-  }
-
-  /// Set while the server's `Retry-After` is being waited out: a pass asked
-  /// for by a new message, a reconnect or the app resuming must not go to
-  /// the server before it (the timer clears it and runs the pass itself).
-  DateTime? _notBefore;
+  /// True while the server's `Retry-After` is being waited out, for the
+  /// account that got it: a pass asked for by a reconnect, the app resuming
+  /// or the next message must not reach the server before the timer (which
+  /// clears this and runs the pass itself).
+  String? _heldFor;
 
   /// [serverWait]: the longest `Retry-After` of this pass (429 / 503).
-  void _scheduleRetry([Duration? serverWait]) {
+  void _scheduleRetry(String owner, [Duration? serverWait]) {
     _failures++;
     _retry?.cancel();
-    final delay = ClientTuning.outboxDelay(_failures, retryAfter: serverWait);
-    _notBefore = serverWait == null ? null : DateTime.now().add(delay);
-    _retry = Timer(delay, () {
-      _notBefore = null;
-      unawaited(drain());
-    });
+    _heldFor = serverWait == null ? null : owner;
+    _retry = Timer(
+      ClientTuning.outboxDelay(_failures, retryAfter: serverWait),
+      () {
+        _heldFor = null;
+        unawaited(drain());
+      },
+    );
   }
 
   /// Whether [e] is worth repeating as it is: no connection, a server that
@@ -549,8 +546,7 @@ class OutboxSender with WidgetsBindingObserver {
   Future<void> _drain() async {
     final owner = _ref.read(currentUserIdProvider);
     if (owner == null) return;
-    final holdUntil = _notBefore;
-    if (holdUntil != null && DateTime.now().isBefore(holdUntil)) return;
+    if (_heldFor == owner) return;
     final db = _ref.read(socialLocalDatabaseProvider);
     final repo = _ref.read(chatRepositoryProvider);
     // A conversation whose message just failed temporarily keeps its order
@@ -582,6 +578,8 @@ class OutboxSender with WidgetsBindingObserver {
           if (asked != null && (serverWait == null || asked > serverWait)) {
             serverWait = asked;
           }
+          // The server asked for time: the other chats do not go to it now.
+          if (asked != null) break;
           continue;
         }
         if (e.code == ApiErrorCodes.subscriptionRequired) {
@@ -597,10 +595,10 @@ class OutboxSender with WidgetsBindingObserver {
       }
     }
     if (temporaryFailure) {
-      _scheduleRetry(serverWait);
+      _scheduleRetry(owner, serverWait);
     } else {
       _failures = 0;
-      _notBefore = null;
+      _heldFor = null;
       _retry?.cancel();
     }
   }

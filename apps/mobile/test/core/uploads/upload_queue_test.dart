@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart' show CancelToken;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/uploads/upload_files_io.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
@@ -268,8 +269,8 @@ void main() {
       );
     }
     expect(UploadQueue.temporary(_refused), isFalse);
-    expect(UploadQueue.backoff(1), const Duration(seconds: 1));
-    expect(UploadQueue.backoff(10), const Duration(seconds: 30));
+    expect(ClientTuning.outboxBackoff(1), const Duration(seconds: 1));
+    expect(ClientTuning.outboxBackoff(10), const Duration(seconds: 30));
   });
 
   test('progress is reported per job', () async {
