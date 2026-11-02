@@ -77,8 +77,9 @@ permissions:
 env:
   NODE_ENV: test
   PORT: "3000"
-  DATABASE_URL: "postgresql://root:lawbid@localhost:5432/lawbid_ci?schema=public"
-  REDIS_URL: "redis://localhost:6379"
+  # DATABASE_URL, REDIS_URL, SMTP_PORT, S3_ENDPOINT are set per job by
+  # scripts/ci/service-env.sh and start-minio.sh (random host ports); no
+  # fixed defaults here, so a job without that step fails loudly.
   SUBSCRIPTION_PAST_DUE_GRACE_DAYS: "3"
   JWT_KEYS: "ci1:ci_secret_at_least_32_characters_long_aaaa"
   JWT_ACTIVE_KID: "ci1"
@@ -102,7 +103,6 @@ env:
   SMS_PROVIDER: "mock"
   EMAIL_PROVIDER: "mock"
   SMTP_HOST: "localhost"
-  SMTP_PORT: "1025"
   GOOGLE_CLIENT_IDS: ""
   APPLE_BUNDLE_IDS: ""
 
@@ -125,7 +125,7 @@ jobs:
           POSTGRES_DB: lawbid_ci
           POSTGRES_HOST_AUTH_METHOD: trust
         ports:
-          - 5432:5432
+          - 5432
         options: >-
           --health-cmd "pg_isready -U root -d lawbid_ci"
           --health-interval 5s
@@ -134,7 +134,7 @@ jobs:
       redis:
         image: redis:7-alpine@sha256:57e4255cc971b1c8d6f8a6ca283ac01bc3ecdd914273ef6bfaede87aaecd6541
         ports:
-          - 6379:6379
+          - 6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 5s
@@ -147,6 +147,12 @@ jobs:
           # Full history + tags: scripts/migrate-from-previous.mjs reads the
           # previous release's migration set from git.
           fetch-depth: 0
+
+      - name: Point the job at its service containers (random host ports)
+        env:
+          PG_PORT: ${{ job.services.postgres.ports['5432'] }}
+          REDIS_PORT: ${{ job.services.redis.ports['6379'] }}
+        run: scripts/ci/service-env.sh
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -382,7 +388,7 @@ jobs:
           POSTGRES_DB: lawbid_ci
           POSTGRES_HOST_AUTH_METHOD: trust
         ports:
-          - 5432:5432
+          - 5432
         options: >-
           --health-cmd "pg_isready -U root -d lawbid_ci"
           --health-interval 5s
@@ -391,7 +397,7 @@ jobs:
       redis:
         image: redis:7-alpine@sha256:57e4255cc971b1c8d6f8a6ca283ac01bc3ecdd914273ef6bfaede87aaecd6541
         ports:
-          - 6379:6379
+          - 6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 5s
@@ -401,11 +407,18 @@ jobs:
       mailhog:
         image: mailhog/mailhog@sha256:8d76a3d4ffa32a3661311944007a415332c4bb855657f4f6c57996405c009bea
         ports:
-          - 1025:1025
-          - 8025:8025
+          - 1025
+          - 8025
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Point the job at its service containers (random host ports)
+        env:
+          PG_PORT: ${{ job.services.postgres.ports['5432'] }}
+          REDIS_PORT: ${{ job.services.redis.ports['6379'] }}
+          SMTP_MAPPED_PORT: ${{ job.services.mailhog.ports['1025'] }}
+        run: scripts/ci/service-env.sh
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -441,13 +454,7 @@ jobs:
         run: GOBIN=/tmp/minio-bin go install github.com/minio/minio@9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
 
       - name: Start MinIO for the file / voice e2e suites
-        run: |
-          mkdir -p /tmp/minio-data
-          # setsid: own session, so the runner's step cleanup cannot take it down.
-          MINIO_ROOT_USER=lawbid MINIO_ROOT_PASSWORD=lawbid_dev_only \
-            setsid nohup /tmp/minio-bin/minio server /tmp/minio-data --address :9000 > /tmp/minio.log 2>&1 < /dev/null &
-          for _ in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:9000/minio/health/live && exit 0; sleep 1; done
-          echo "MinIO did not start"; cat /tmp/minio.log; exit 1
+        run: scripts/ci/start-minio.sh
 
       - name: e2e tests (real PostgreSQL + Redis + local S3), shard ${{ matrix.shard }} of 3
         # Jest keeps every finished suite's module graph in memory (40–60 MB
@@ -475,7 +482,11 @@ jobs:
 
       - name: MinIO log (only when e2e failed)
         if: failure()
-        run: tail -n 60 /tmp/minio.log || true; curl -s -o /dev/null -w "minio http %{http_code}\n" http://127.0.0.1:9000/minio/health/live || echo "MinIO is down"
+        run: tail -n 60 "$RUNNER_TEMP/minio/minio.log" || true; curl -s -o /dev/null -w "minio http %{http_code}\n" "http://127.0.0.1:${MINIO_PORT:-0}/minio/health/live" || echo "MinIO is down"
+
+      - name: Stop MinIO
+        if: always()
+        run: scripts/ci/stop-minio.sh
 
   two-db:
     name: API e2e (two databases)
@@ -493,7 +504,7 @@ jobs:
           POSTGRES_DB: lawbid_ci
           POSTGRES_HOST_AUTH_METHOD: trust
         ports:
-          - 5432:5432
+          - 5432
         options: >-
           --health-cmd "pg_isready -U root -d lawbid_ci"
           --health-interval 5s
@@ -502,7 +513,7 @@ jobs:
       redis:
         image: redis:7-alpine@sha256:57e4255cc971b1c8d6f8a6ca283ac01bc3ecdd914273ef6bfaede87aaecd6541
         ports:
-          - 6379:6379
+          - 6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 5s
@@ -512,11 +523,18 @@ jobs:
       mailhog:
         image: mailhog/mailhog@sha256:8d76a3d4ffa32a3661311944007a415332c4bb855657f4f6c57996405c009bea
         ports:
-          - 1025:1025
-          - 8025:8025
+          - 1025
+          - 8025
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Point the job at its service containers (random host ports)
+        env:
+          PG_PORT: ${{ job.services.postgres.ports['5432'] }}
+          REDIS_PORT: ${{ job.services.redis.ports['6379'] }}
+          SMTP_MAPPED_PORT: ${{ job.services.mailhog.ports['1025'] }}
+        run: scripts/ci/service-env.sh
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -552,13 +570,7 @@ jobs:
         run: GOBIN=/tmp/minio-bin go install github.com/minio/minio@9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
 
       - name: Start MinIO for the file / voice e2e suites
-        run: |
-          mkdir -p /tmp/minio-data
-          # setsid: own session, so the runner's step cleanup cannot take it down.
-          MINIO_ROOT_USER=lawbid MINIO_ROOT_PASSWORD=lawbid_dev_only \
-            setsid nohup /tmp/minio-bin/minio server /tmp/minio-data --address :9000 > /tmp/minio.log 2>&1 < /dev/null &
-          for _ in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:9000/minio/health/live && exit 0; sleep 1; done
-          echo "MinIO did not start"; cat /tmp/minio.log; exit 1
+        run: scripts/ci/start-minio.sh
 
       - name: e2e tests on TWO databases (shard-ready step 5, subset)
         # docs/architecture/SHARDING_READY.md §10: every logical shard of
@@ -574,7 +586,11 @@ jobs:
 
       - name: MinIO log (only when e2e failed)
         if: failure()
-        run: tail -n 60 /tmp/minio.log || true; curl -s -o /dev/null -w "minio http %{http_code}\n" http://127.0.0.1:9000/minio/health/live || echo "MinIO is down"
+        run: tail -n 60 "$RUNNER_TEMP/minio/minio.log" || true; curl -s -o /dev/null -w "minio http %{http_code}\n" "http://127.0.0.1:${MINIO_PORT:-0}/minio/health/live" || echo "MinIO is down"
+
+      - name: Stop MinIO
+        if: always()
+        run: scripts/ci/stop-minio.sh
 
   n1:
     name: API N-1 (previous release's suites on the new schema)
@@ -592,7 +608,7 @@ jobs:
           POSTGRES_DB: lawbid_ci
           POSTGRES_HOST_AUTH_METHOD: trust
         ports:
-          - 5432:5432
+          - 5432
         options: >-
           --health-cmd "pg_isready -U root -d lawbid_ci"
           --health-interval 5s
@@ -601,7 +617,7 @@ jobs:
       redis:
         image: redis:7-alpine@sha256:57e4255cc971b1c8d6f8a6ca283ac01bc3ecdd914273ef6bfaede87aaecd6541
         ports:
-          - 6379:6379
+          - 6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 5s
@@ -612,6 +628,12 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
+
+      - name: Point the job at its service containers (random host ports)
+        env:
+          PG_PORT: ${{ job.services.postgres.ports['5432'] }}
+          REDIS_PORT: ${{ job.services.redis.ports['6379'] }}
+        run: scripts/ci/service-env.sh
 
       # S11-3: a deploy runs migrate THEN rolls (10-40 min of old tasks on the new
       # schema), and rollback.yml promises "the previous release still runs against
@@ -678,13 +700,7 @@ jobs:
 
       - name: Start MinIO for the file / voice e2e suites
         if: steps.mig.outputs.changed == 'true'
-        run: |
-          mkdir -p /tmp/minio-data
-          # setsid: own session, so the runner's step cleanup cannot take it down.
-          MINIO_ROOT_USER=lawbid MINIO_ROOT_PASSWORD=lawbid_dev_only \
-            setsid nohup /tmp/minio-bin/minio server /tmp/minio-data --address :9000 > /tmp/minio.log 2>&1 < /dev/null &
-          for _ in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:9000/minio/health/live && exit 0; sleep 1; done
-          echo "MinIO did not start"; cat /tmp/minio.log; exit 1
+        run: scripts/ci/start-minio.sh
 
       - name: New schema under the old code, then the old smoke suites
         if: steps.mig.outputs.changed == 'true'
@@ -693,7 +709,12 @@ jobs:
           PREV_DIR: ${{ runner.temp }}/prev
         run: node scripts/ci/n1-compat.mjs "$PREV_DIR"
 
+      - name: Stop MinIO
+        if: always()
+        run: scripts/ci/stop-minio.sh
+
   # One stable required check for the ruleset / merge queue.
+
   api-ci:
     name: API CI
     if: ${{ always() }}
