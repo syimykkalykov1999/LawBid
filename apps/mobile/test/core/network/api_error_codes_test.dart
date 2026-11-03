@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
@@ -106,5 +107,34 @@ void main() {
       ),
       contains('signed out on all devices'),
     );
+  });
+
+  test(
+      'Retry-After (seconds) rides on the ApiException; a date or junk is null',
+      () {
+    ApiException from(String? header) {
+      final req = RequestOptions(path: '/x');
+      return ApiException.fromDioException(
+        DioException(
+          requestOptions: req,
+          response: Response<dynamic>(
+            requestOptions: req,
+            statusCode: 503,
+            headers: Headers.fromMap({
+              if (header != null) 'retry-after': [header],
+            }),
+            data: {
+              'error': {'code': 'SERVER_BUSY', 'message': 'busy'},
+            },
+          ),
+        ),
+      );
+    }
+
+    expect(from('7').retryAfter, const Duration(seconds: 7));
+    expect(from(' 3 ').retryAfter, const Duration(seconds: 3));
+    expect(from('Wed, 21 Oct 2026 07:28:00 GMT').retryAfter, isNull);
+    expect(from('-1').retryAfter, isNull);
+    expect(from(null).retryAfter, isNull);
   });
 }

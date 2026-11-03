@@ -101,13 +101,16 @@ describe('email flows switch', () => {
         .fn()
         .mockResolvedValue({ countryCode: 'DE', available: false }),
     };
-    const ctrl = new CountriesController(countries as never);
+    const ctrl = new CountriesController(countries as never, {} as never);
     await expect(
-      ctrl.joinCountryWaitlist({
-        countryCode: 'DE',
-        email: 'a@example.com',
-        locale: 'en',
-      }),
+      ctrl.joinCountryWaitlist(
+        {
+          countryCode: 'DE',
+          email: 'a@example.com',
+          locale: 'en',
+        },
+        { ip: '203.0.113.5' } as never,
+      ),
     ).resolves.toEqual({ countryCode: 'DE', available: false });
     expect(countries.joinWaitlist).toHaveBeenCalledTimes(1);
   });

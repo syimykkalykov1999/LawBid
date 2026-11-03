@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:lawbid/core/addresses/address_field.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
@@ -36,6 +37,7 @@ import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/post_text.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/photo_crop_screen.dart';
+import 'package:lawbid/features/social/presentation/widgets/caption_fit.dart' show prefixEnd;
 import 'package:lawbid/features/social/presentation/widgets/mention_suggestions.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
@@ -124,6 +126,23 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   late final _body = TextEditingController(text: _initial);
   final _bodyFocus = FocusNode();
 
+  /// Owner 2026-11-02: where the post was made (optional, new posts and
+  /// reels); the same suggestions as every address field.
+  final _place = TextEditingController();
+
+  /// The server's limit for a post's place (`PostLocationDto`, counted in
+  /// UTF-16 units like Dart's `String.length`).
+  static const _maxPlaceChars = 120;
+
+  /// The place to publish: trimmed, cut to the server's limit (a tapped
+  /// suggestion is set programmatically and skips the field's own limit),
+  /// null when empty. Never cuts a surrogate pair in half.
+  String? get _placeName {
+    final text = _place.text.trim();
+    if (text.isEmpty) return null;
+    return text.substring(0, prefixEnd(text, _maxPlaceChars)).trimRight();
+  }
+
   /// The typed (title, caption) as they are published: never a title.
   (String, String) get _parts => ('', postBodyOf(_body.text));
 
@@ -176,6 +195,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     _docs.dispose();
     _body.dispose();
     _bodyFocus.dispose();
+    _place.dispose();
     super.dispose();
   }
 
@@ -557,7 +577,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                 cover: v.coverBytes ?? v.frame,
                 title: _parts.$1,
                 text: _parts.$2,
-                place: '',
+                place: _placeName ?? '',
                 commentsEnabled: true,
                 photoIds: const [],
                 attachments: _docs.refs,
@@ -580,6 +600,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             'kind': _news ? 'news' : 'post',
             if (_markedLegal) 'contentClass': 'legal',
             'mediaFileIds': [for (final p in _photos) p.fileId!],
+            if (_placeName case final place?) 'location': {'name': place},
             if (_docs.items.isNotEmpty)
               'attachments': [
                 for (final d in _docs.refs)
@@ -607,6 +628,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
           markedLegal: _markedLegal,
           mediaFileIds: [for (final p in _photos) p.fileId!],
           attachments: _docs.refs,
+          locationName: _placeName,
         ),
         thumbnail: _photos.firstOrNull?.bytes,
         onPublished: (post) {
@@ -915,6 +937,21 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                   ),
                   // OQ-042: "@…" suggests people to mention.
                   MentionSuggestions(controller: _body),
+                  // The place of a new post or reel. Never autofilled: the
+                  // phone would put the person's home address into a public
+                  // post.
+                  if (!_editing) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    AddressField(
+                      key: const ValueKey('post-place-field'),
+                      controller: _place,
+                      hintText: t.t('post.create.placeHint'),
+                      semanticLabel: t.t('post.create.placeHint'),
+                      leading: const AppIcon(AppIcons.placeOutlined, size: 18),
+                      maxLength: _maxPlaceChars,
+                      autofillHints: const [],
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.lg),
                   const SizedBox(height: AppSpacing.xl),
                   if (_showDisclaimer) const PostDisclaimer(),

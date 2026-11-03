@@ -10,7 +10,7 @@ part 'join_country_waitlist_dto.g.dart';
 class JoinCountryWaitlistDto {
   const JoinCountryWaitlistDto({
     required this.countryCode,
-    required this.email,
+    this.email,
     this.locale,
   });
 
@@ -18,7 +18,9 @@ class JoinCountryWaitlistDto {
       _$JoinCountryWaitlistDtoFromJson(json);
 
   final String countryCode;
-  final String email;
+
+  /// Optional. Without it the request only counts that people want this country.
+  final String? email;
   final String? locale;
 
   Map<String, Object?> toJson() => _$JoinCountryWaitlistDtoToJson(this);

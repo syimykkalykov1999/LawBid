@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:lawbid/core/audio/safe_play.dart';
 
 /// OQ-044 (owner 2026-09-30): call progress tones — ringback while our
 /// call rings on the other side, "busy" and call end. Owner 2026-10-07:
@@ -71,7 +72,7 @@ class JustAudioAppSounds implements AppSounds {
       await p.stop();
       await p.setAsset('assets/sounds/$asset.wav');
       await p.setVolume(volume);
-      unawaited(p.play());
+      p.playSafely();
     } on Object catch (e) {
       debugPrint('sound $asset: $e');
     }
@@ -96,7 +97,7 @@ class JustAudioAppSounds implements AppSounds {
       await p.setAsset('assets/sounds/ringback.wav');
       await p.setLoopMode(LoopMode.one);
       await p.setVolume(1);
-      unawaited(p.play());
+      p.playSafely();
     } on Object catch (e) {
       debugPrint('ringback: $e');
     }
@@ -113,7 +114,7 @@ class JustAudioAppSounds implements AppSounds {
           p.processingState == ProcessingState.completed) {
         await p.seek(Duration.zero);
       }
-      unawaited(p.play());
+      p.playSafely();
     } on Object catch (e) {
       debugPrint('ringback keep: $e');
     }

@@ -9,6 +9,10 @@
 //   VUS    people at the top          THINK_MIN/THINK_MAX  seconds between actions (1 / 3)
 //   RAMP   time to reach VUS          WS     held Socket.IO connections (0 = none)
 //   HOLD   time at VUS                WS_HOLD_SECONDS      life of one held connection
+//   RPS    >0 = OPEN model: a fixed arrival rate of requests per second (a few people press as fast
+//          as the server answers; docs/perf/LOAD_STEPS_2026-11-02.md). VUS is then only the pool of
+//          workers (maxVUs); the accounts are still drawn at random from the token file, so the
+//          100-requests-a-minute limit per person is spread over all accounts.
 import { sleep } from 'k6';
 import { assertSafeTarget } from './lib/env.js';
 import { LIMITS } from './lib/profiles.js';
@@ -25,6 +29,8 @@ const HOLD = __ENV.HOLD || '4m';
 const WS = Number(__ENV.WS || 0);
 const TMIN = Number(__ENV.THINK_MIN || 1);
 const TMAX = Number(__ENV.THINK_MAX || 3);
+const RPS = Number(__ENV.RPS || 0);
+const AVG_REQS = Number(__ENV.AVG_REQS_PER_ITER || 1.31); // lib/profiles.js: weighted requests per iteration
 
 const scenarios = {
   users: {
@@ -35,6 +41,19 @@ const scenarios = {
     exec: 'person',
   },
 };
+if (RPS > 0) {
+  const it = Math.round(RPS / AVG_REQS);
+  scenarios.users = {
+    executor: 'ramping-arrival-rate',
+    startRate: 1,
+    timeUnit: '1s',
+    preAllocatedVUs: Math.min(500, Math.max(20, it)),
+    maxVUs: Math.max(100, VUS), // reached = k6 reports dropped_iterations: the server is slower than the target
+    stages: [{ duration: RAMP, target: it }, { duration: HOLD, target: it }, { duration: '20s', target: 0 }],
+    gracefulStop: '15s',
+    exec: 'hit',
+  };
+}
 if (WS > 0) {
   scenarios.sockets = {
     executor: 'ramping-vus',
@@ -78,4 +97,8 @@ export function setup() {
 export function person() {
   runOne();
   sleep(TMIN + Math.random() * (TMAX - TMIN));
+}
+
+export function hit() {
+  runOne(); // open model: no think time, the arrival rate is the pace
 }

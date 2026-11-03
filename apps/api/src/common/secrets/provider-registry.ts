@@ -431,6 +431,56 @@ export const PROVIDERS: ProviderDefinition[] = [
         env: 'FCM_PRIVATE_KEY',
         normalize: normalizePem,
       },
+      // Owner 2026-11-02: the BROWSER's push needs the Firebase *web app*
+      // (Project settings → General → Your apps → Web) and a VAPID key
+      // (Cloud Messaging → Web Push certificates). All public by design
+      // (they sit in every website's page); the API hands them to the web
+      // build at start so a change here needs no rebuild.
+      {
+        name: 'webApiKey',
+        label: 'Web: apiKey',
+        secret: false,
+        required: false,
+        pattern: /^[0-9A-Za-z_-]{20,80}$/,
+        patternHint: 'AIzaSy…',
+        env: 'FCM_WEB_API_KEY',
+      },
+      {
+        name: 'webAppId',
+        label: 'Web: appId',
+        secret: false,
+        required: false,
+        pattern: /^\d+:\d+:web:[0-9a-f]+$/i,
+        patternHint: '1:1234567890:web:abc123…',
+        env: 'FCM_WEB_APP_ID',
+      },
+      {
+        name: 'webSenderId',
+        label: 'Web: messagingSenderId',
+        secret: false,
+        required: false,
+        pattern: /^\d{6,20}$/,
+        env: 'FCM_WEB_SENDER_ID',
+      },
+      {
+        name: 'webAuthDomain',
+        label: 'Web: authDomain',
+        secret: false,
+        required: false,
+        pattern: /^[a-z0-9.-]+$/,
+        patternHint: 'lawbid-6e5ff.firebaseapp.com',
+        env: 'FCM_WEB_AUTH_DOMAIN',
+        normalize: (v) => hostOnly(v).toLowerCase(),
+      },
+      {
+        name: 'webVapidKey',
+        label: 'Web: VAPID key (Web Push certificate)',
+        secret: false,
+        required: false,
+        pattern: /^[0-9A-Za-z_-]{60,120}$/,
+        patternHint: 'B…',
+        env: 'FCM_WEB_VAPID_KEY',
+      },
     ],
   },
   {
