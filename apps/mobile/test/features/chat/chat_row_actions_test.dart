@@ -274,6 +274,28 @@ void main() {
     await tester.pump(const Duration(minutes: 5));
   });
 
+  testWidgets('a group row: the long swipe asks, then hides the group',
+      (tester) async {
+    await pump(
+      tester,
+      _conv(last: _msg()),
+      groups: [listGroup('g1', unread: 2)],
+      groupTiles: true,
+    );
+    final rect = tester.getRect(find.byKey(const ValueKey('chat-swipe-g1')));
+    await tester.dragFrom(
+      Offset(rect.right - 8, rect.center.dy),
+      const Offset(-170, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(lastGroups.updates.any((u) => u.contains('hidden=true')), isFalse);
+    await tester.tap(find.widgetWithText(AppButton, 'Delete'));
+    await tester.pumpAndSettle();
+    expect(lastGroups.updates.any((u) => u.contains('hidden=true')), isTrue);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 5));
+  });
+
   testWidgets('a video and a document show their own icon', (tester) async {
     await pump(
       tester,

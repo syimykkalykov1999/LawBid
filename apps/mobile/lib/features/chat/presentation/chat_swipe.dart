@@ -116,7 +116,7 @@ class _SwipeBackground extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final fg = danger
-        ? AppColorsLight.onDanger
+        ? colors.onDanger
         : (alignEnd ? AppColorsDark.text : colors.onAccent);
     return ColoredBox(
       color: danger ? colors.danger : (alignEnd ? colors.navy : colors.gold),

@@ -122,10 +122,10 @@ class _EdgeSwipeState extends State<EdgeSwipe>
     });
   }
 
-  void _end(DragEndDetails d) {
+  void _end(DragEndDetails d, {bool cancelled = false}) {
     final v = (d.primaryVelocity ?? 0) * (_rtl ? -1 : 1);
     final fling = _fromStart ? v > 900 : v < -900;
-    if (_offset.abs() >= _kTrigger || (fling && _offset != 0)) {
+    if (!cancelled && (_offset.abs() >= _kTrigger || (fling && _offset != 0))) {
       if (_fromStart) {
         widget.onStart?.call();
       } else if (_isFar) {
@@ -153,7 +153,7 @@ class _EdgeSwipeState extends State<EdgeSwipe>
               ..onStart = _start
               ..onUpdate = _update
               ..onEnd = _end
-              ..onCancel = () => _end(DragEndDetails()),
+              ..onCancel = () => _end(DragEndDetails(), cancelled: true),
           ),
         },
         child: Stack(
