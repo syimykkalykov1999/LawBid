@@ -1,5 +1,6 @@
 import { HttpException } from '@nestjs/common';
 import { SmsAbuseGuardService } from './sms-abuse-guard.service';
+import { withEvalIncr } from '../../redis/incr-with-ttl.test-support';
 
 /** 2026-10-24 (abuse batch B, item 10). */
 describe('SmsAbuseGuardService', () => {
@@ -9,7 +10,7 @@ describe('SmsAbuseGuardService', () => {
   const logger = { setContext: jest.fn(), error: jest.fn(), warn: jest.fn() };
 
   // The handful of Redis commands the guard uses, in memory.
-  const redis = {
+  const redis = withEvalIncr({
     get: jest.fn((k: string) => {
       if (failRedis) return Promise.reject(new Error('down'));
       const v = store.get(k);
@@ -35,7 +36,7 @@ describe('SmsAbuseGuardService', () => {
       store.set(k, v);
       return Promise.resolve('OK');
     }),
-  };
+  });
 
   const guard = () =>
     new SmsAbuseGuardService(

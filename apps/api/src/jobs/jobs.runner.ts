@@ -24,7 +24,11 @@ import {
   type CronJobName,
   type CronLane,
 } from './jobs.constants';
-import { closeWorker, workerTuning } from '../common/queues/queue-hardening';
+import {
+  closeWorker,
+  workerTuning,
+  outageProof,
+} from '../common/queues/queue-hardening';
 import { CronProcessor } from './cron.processor';
 import { bullOptions } from '../redis/redis-connection';
 
@@ -133,7 +137,7 @@ export class JobsRunner
     for (const lane of CRON_LANES) {
       const worker = new Worker(
         lane,
-        (job: Job) => this.processor.process(job.name),
+        outageProof((job: Job) => this.processor.process(job.name)),
         {
           // Required by BullMQ for the worker's blocking connection.
           ...bullOptions(lane, url, { worker: true }),

@@ -14,6 +14,7 @@ PostMediaDto _$PostMediaDtoFromJson(Map<String, dynamic> json) => PostMediaDto(
   mediumUrl: json['mediumUrl'] as String,
   width: (json['width'] as num?)?.toInt(),
   height: (json['height'] as num?)?.toInt(),
+  blurhash: json['blurhash'] as String?,
 );
 
 Map<String, dynamic> _$PostMediaDtoToJson(PostMediaDto instance) =>
@@ -25,4 +26,5 @@ Map<String, dynamic> _$PostMediaDtoToJson(PostMediaDto instance) =>
       'url': instance.url,
       'previewUrl': instance.previewUrl,
       'mediumUrl': instance.mediumUrl,
+      'blurhash': ?instance.blurhash,
     };

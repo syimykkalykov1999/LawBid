@@ -12,6 +12,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { DeadlinesService } from '../deadlines/deadlines.service';
 import { CalendarConfig } from './calendar-config.service';
 import { buildIcs, type IcsCategory, type IcsEvent } from './ics-builder';
+import { incrWithTtl } from '../../redis/incr-with-ttl';
 
 const DAY_MS = 86_400_000;
 /** The feed looks back and ahead this far. */
@@ -157,8 +158,7 @@ export class IcsFeedService {
     if (!this.redis) return false;
     try {
       const key = rateKey(hash, Math.floor(Date.now() / MIN_MS));
-      const n = await this.redis.incr(key);
-      if (n === 1) await this.redis.expire(key, 120);
+      const n = await incrWithTtl(this.redis, key, 120);
       return n > FEED_RATE_PER_MINUTE;
     } catch {
       return false; // Redis trouble never locks a calendar out

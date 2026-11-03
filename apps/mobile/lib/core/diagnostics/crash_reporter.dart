@@ -61,10 +61,21 @@ class CrashReporter {
     final previous = FlutterError.onError;
     FlutterError.onError = (details) {
       previous?.call(details);
+      // A picture that failed to download (CDN 403/404, offline) is shown as
+      // a placeholder by the widget; it is not a crash and floods the list.
+      if (details.library == 'image resource service') return;
       reporter.report(details.exception, details.stack);
     };
     PlatformDispatcher.instance.onError = (error, stack) {
-      reporter.report(error, stack, fatal: true);
+      // Returning true means the engine treats the error as handled and the
+      // app keeps running, so it is not a fatal crash.
+      // socket_io_client closing a socket the server already closed throws
+      // from its own microtask; the client reconnects by itself.
+      if (error.runtimeType.toString() == 'WebSocketConnectionClosed' &&
+          stack.toString().contains('socket_io_client')) {
+        return true;
+      }
+      reporter.report(error, stack);
       return true;
     };
     // Whatever an earlier run left behind goes out soon.
