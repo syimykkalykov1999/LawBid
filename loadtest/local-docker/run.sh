@@ -57,7 +57,7 @@ docker run --rm --name "lt-k6-$name" --user "$(id -u):$(id -g)" --network host -
   -v "$repo/loadtest:/lt:ro" -v "$fx:/fx:ro" -v "$res:/out" \
   -e PROFILE=local -e ALLOW_LOCAL=1 -e API_URL=$API/api/v1 -e WS_URL=ws://127.0.0.1:3055 \
   -e TOKENS_FILE=/fx/tokens.json -e FIXTURES_FILE=/fx/fixtures.json \
-  -e VUS="${VUS:-100}" -e WS="${WS:-0}" -e HOLD="${HOLD:-4m}" -e RAMP="${RAMP:-1m}" -e WS_HOLD_SECONDS="${WS_HOLD_SECONDS:-300}" \
+  -e VUS="${VUS:-100}" -e RPS="${RPS:-0}" -e WS="${WS:-0}" -e HOLD="${HOLD:-4m}" -e RAMP="${RAMP:-1m}" -e WS_HOLD_SECONDS="${WS_HOLD_SECONDS:-300}" \
   -e SKIP_ACTIONS="${SKIP_ACTIONS:-}" -e WRITES="${WRITES:-0}" -e NO_K6_ABORT="${NO_K6_ABORT:-0}" -e MIX="${MIX:-}" -e ONLY_ACTIONS="${ONLY_ACTIONS:-}" \
   grafana/k6:2.0.0 run --quiet --no-color --summary-export /out/summary.json --out json=/dev/stdout /lt/k6/vus.js 2>> "$res/k6.log" \
   | python3 "$here/k6-series.py" > "$res/series.csv" 2>> "$res/k6.log"

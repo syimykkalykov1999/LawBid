@@ -118,6 +118,47 @@ class PostOverrides extends Notifier<Map<String, Post>> {
 final postOverridesProvider =
     NotifierProvider<PostOverrides, Map<String, Post>>(PostOverrides.new);
 
+/// Of the post [ids] a list shows, those whose override (if any) passes
+/// [test], as one string in the list's order. A list that only needs
+/// «which of my posts were undone here» watches
+/// `postOverridesProvider.select((m) => overrideIdsWhere(m, ids, …))` and so
+/// rebuilds when that answer changes, not on every like in the app (a `Set`
+/// has no value equality, a `String` does).
+/// Scanning only the shown [ids] keeps it cheap and ignores posts the list
+/// does not show. Read it back with [overrideIdSet].
+String overrideIdsWhere(
+  Map<String, Post> overrides,
+  Iterable<String> ids,
+  bool Function(Post) test,
+) {
+  if (overrides.isEmpty) return '';
+  return [
+    for (final id in ids)
+      if (overrides[id] case final p? when test(p)) id,
+  ].join(_idSep);
+}
+
+/// The ids of an [overrideIdsWhere] string.
+Set<String> overrideIdSet(String ids) =>
+    ids.isEmpty ? const {} : ids.split(_idSep).toSet();
+
+/// Of the post [ids] a list shows, those whose override passes [test];
+/// the widget rebuilds only when this answer changes (see
+/// [overrideIdsWhere]).
+Set<String> watchOverrideIds(
+  WidgetRef ref,
+  Iterable<String> ids,
+  bool Function(Post) test,
+) =>
+    overrideIdSet(
+      ref.watch(
+        postOverridesProvider.select((m) => overrideIdsWhere(m, ids, test)),
+      ),
+    );
+
+/// Cannot appear in an id.
+const _idSep = '\u0001';
+
 /// Posts gone from every public list in this session: deleted, or (owner
 /// 2026-10-18) archived — an archived one comes back with [remove] when the
 /// author shows it in the profile again.

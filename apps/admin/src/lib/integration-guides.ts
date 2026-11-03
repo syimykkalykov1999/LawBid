@@ -135,6 +135,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
     enable: [
       'Загрузите .json или вставьте три значения (FCM_PROJECT_ID, FCM_CLIENT_EMAIL, FCM_PRIVATE_KEY) → «Сохранить» → «Проверить» → «Включить».',
+      'Пуши на сайте: заполните ещё четыре поля «Сайт: …» (apiKey, appId, messagingSenderId и VAPID-ключ), все четыре нужны вместе, иначе сайт пуши не включит; authDomain можно пропустить. Нужен и project_id из файла выше: без него сайт ключей не получит. Эти значения сайт берёт при старте, пересборка для них не нужна. Но App Check в браузере и фоновый обработчик пушей настраиваются сборкой: без секретов GitHub FIREBASE_WEB_* App Check на сайте выключен, а обработчик показывает пуши сам, без Firebase SDK.',
       'В приложении пуши включаются сами. Для iPhone ещё загрузите ключ APNs в Firebase: Project settings → Cloud Messaging → Apple app configuration → APNs Authentication Key.',
     ],
     fields: {
@@ -147,6 +148,17 @@ export const GUIDES: Record<string, ProviderGuide> = {
         how: 'Из файла .json: строка "private_key" целиком, от -----BEGIN до END-----. Подходят и переносы строк, и \\n.',
         example: '-----BEGIN PRIVATE KEY-----…',
         multiline: true,
+      },
+      webApiKey: {
+        how: 'Для пушей в браузере (необязательно). Project settings → General → Your apps → добавьте Web-приложение → блок firebaseConfig → apiKey. Это не секрет.',
+        example: 'AIzaSy…',
+      },
+      webAppId: { how: 'Там же, firebaseConfig → appId (содержит :web:).', example: '1:1234567890:web:abc123' },
+      webSenderId: { how: 'Там же, firebaseConfig → messagingSenderId (только цифры).', example: '1234567890' },
+      webAuthDomain: { how: 'Там же, firebaseConfig → authDomain. Можно оставить пустым.', example: 'lawbid-6e5ff.firebaseapp.com' },
+      webVapidKey: {
+        how: 'Project settings → Cloud Messaging → Web Push certificates → Generate key pair → скопируйте «Key pair» (публичный ключ).',
+        example: 'B…',
       },
     },
   },

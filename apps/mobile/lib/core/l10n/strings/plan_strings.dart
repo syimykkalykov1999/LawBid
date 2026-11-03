@@ -213,6 +213,7 @@ const planRu = <String, String>{
   'post.create.hintBrief':
       'Первая строка станет заголовком поста, остальное — описанием. До {max} знаков',
   'post.create.hintCaption': 'Подпись к посту…',
+  'post.create.placeHint': 'Адрес / место',
   'post.crop.fit': 'Оригинал или квадрат',
   // Owner 2026-10-18: two fields on every post form.
   'post.create.hintTitle': 'Заголовок',
@@ -458,6 +459,7 @@ const planEn = <String, String>{
   'post.create.hintBrief':
       'The first line becomes the post title, the rest its text. Up to {max} characters',
   'post.create.hintCaption': 'Write a caption for your post…',
+  'post.create.placeHint': 'Address / place',
   'post.crop.fit': 'Original or square',
   // Owner 2026-10-18: two fields on every post form.
   'post.create.hintTitle': 'Title',

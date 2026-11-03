@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 
@@ -73,5 +75,88 @@ void main() {
     expect(ClientTuning.eventsFlush, const Duration(seconds: 15));
     expect(ClientTuning.qrPoll, const Duration(seconds: 60));
     expect(ClientTuning.chatPhotoMaxPx, 4096);
+  });
+
+  test(
+      'outboxDelay: jitter, and Retry-After as a jittered floor',
+      () {
+    ClientTuning.reset();
+    for (var seed = 0; seed < 20; seed++) {
+      final d = ClientTuning.outboxDelay(3, random: Random(seed));
+      expect(d, greaterThanOrEqualTo(const Duration(seconds: 4)));
+      expect(d, lessThanOrEqualTo(const Duration(milliseconds: 5200)));
+      // Told 12 s: never earlier, spread over the next 30%.
+      final asked = ClientTuning.outboxDelay(
+        1,
+        retryAfter: const Duration(seconds: 12),
+        random: Random(seed),
+      );
+      expect(asked, greaterThanOrEqualTo(const Duration(seconds: 12)));
+      expect(asked, lessThanOrEqualTo(const Duration(milliseconds: 15600)));
+    }
+    // Clients told the same number do not return at the same instant.
+    final spread = {
+      for (var seed = 0; seed < 20; seed++)
+        ClientTuning.outboxDelay(
+          1,
+          retryAfter: const Duration(seconds: 5),
+          random: Random(seed),
+        ),
+    };
+    expect(spread.length, greaterThan(10));
+    // A huge ask is honoured up to the queue's own ceiling (2 min), not
+    // cut to the 30 s of our own backoff.
+    final big = ClientTuning.outboxDelay(
+      1,
+      retryAfter: const Duration(minutes: 30),
+      random: Random(1),
+    );
+    expect(big, greaterThanOrEqualTo(ClientTuning.queueRetryAfterMax));
+    expect(
+      big,
+      lessThanOrEqualTo(ClientTuning.queueRetryAfterMax * 1.3),
+    );
+    // A shorter ask than our own wait does not shorten it.
+    expect(
+      ClientTuning.outboxDelay(
+        4,
+        retryAfter: const Duration(seconds: 1),
+        random: Random(1),
+      ),
+      greaterThanOrEqualTo(const Duration(seconds: 8)),
+    );
+  });
+
+  test('outboxDelay at the ceiling still spreads (jitter goes downwards)', () {
+    ClientTuning.reset();
+    final seen = <Duration>{};
+    for (var seed = 0; seed < 50; seed++) {
+      final d = ClientTuning.outboxDelay(10, random: Random(seed));
+      expect(d, lessThanOrEqualTo(const Duration(seconds: 30)));
+      expect(d, greaterThanOrEqualTo(const Duration(seconds: 21)));
+      seen.add(d);
+    }
+    expect(seen.length, greaterThan(20));
+  });
+
+  test('parseRetryAfter: seconds only, first header wins, huge is clamped', () {
+    expect(ClientTuning.parseRetryAfter(['7']), const Duration(seconds: 7));
+    expect(ClientTuning.parseRetryAfter([' 3 ']), const Duration(seconds: 3));
+    // Two headers (a proxy added one): no throw, the first counts.
+    expect(
+      ClientTuning.parseRetryAfter(['5', '9']),
+      const Duration(seconds: 5),
+    );
+    expect(
+      ClientTuning.parseRetryAfter(['Wed, 21 Oct 2026 07:28:00 GMT']),
+      isNull,
+    );
+    expect(ClientTuning.parseRetryAfter(['-1']), isNull);
+    expect(ClientTuning.parseRetryAfter(const []), isNull);
+    expect(ClientTuning.parseRetryAfter(null), isNull);
+    expect(
+      ClientTuning.parseRetryAfter(['99999999999999999']),
+      const Duration(days: 1),
+    );
   });
 }

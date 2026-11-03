@@ -13,6 +13,7 @@ import {
   closeWorker,
   isStalledFailure,
   workerTuning,
+  outageProof,
 } from '../../common/queues/queue-hardening';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -94,7 +95,7 @@ export class DealRecordRunner
     if (!this.workerEnabled) return;
     this.worker = new Worker(
       DEAL_RECORD_QUEUE,
-      (job: Job<RenderJob>) => this.process(job.data),
+      outageProof((job: Job<RenderJob>) => this.process(job.data)),
       {
         ...bullOptions(DEAL_RECORD_QUEUE, url, { worker: true }),
         ...workerTuning(DEAL_RECORD_QUEUE),

@@ -5,6 +5,9 @@
  * broken partner cannot tie up every connection of the API.
  */
 
+/** How long a half-open trial call may stay unsettled. */
+const TRIAL_DEADLINE_MS = 30_000;
+
 export class CircuitOpenError extends Error {
   constructor(readonly service: string) {
     super(`${service} is failing; calls are paused for a short while`);
@@ -107,6 +110,7 @@ export class CircuitBreaker {
   private failures = 0;
   private openUntil = 0;
   private trial = false;
+  private trialAt = 0;
   private readonly threshold: number;
   private readonly openMs: number;
   private readonly now: () => number;
@@ -146,8 +150,13 @@ export class CircuitBreaker {
     if (this.isOpen) throw new CircuitOpenError(this.service);
     if (this.openUntil !== 0) {
       // The pause is over: let exactly one call through to test the service.
-      if (this.trial) throw new CircuitOpenError(this.service);
+      // A trial that never settles (hung socket) must not keep the circuit
+      // shut for good: after a deadline another call becomes the trial.
+      if (this.trial && this.now() - this.trialAt < TRIAL_DEADLINE_MS) {
+        throw new CircuitOpenError(this.service);
+      }
       this.trial = true;
+      this.trialAt = this.now();
     }
     try {
       const result = await fn();

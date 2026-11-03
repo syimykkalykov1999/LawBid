@@ -1,0 +1,50 @@
+# Terraform fmt + validate on PRs that touch infra/. No AWS access and no state
+# (`init -backend=false` only downloads providers). Not a required check on
+# purpose: the public provider registry can flake; a red run is still a reason
+# not to merge. apply / drift float on ">=1.9"; this pin is the minimum we support.
+name: Infra validate
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - "apps/status-page/**" # read by infra/modules/status-page (filemd5)
+      - ".github/workflows/infra-validate.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-validate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Same as load-test.yml (the version that creates the test stacks).
+  TF_VERSION: "1.9.8"
+
+jobs:
+  validate:
+    name: terraform fmt + validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - name: Format (terraform fmt -check)
+        run: terraform fmt -check -recursive -diff infra
+      - name: Validate every root module
+        run: |
+          # One provider download for every root (the AWS provider is several hundred MB).
+          # Set here: the `runner` context is not available in workflow-level env.
+          export TF_PLUGIN_CACHE_DIR="$RUNNER_TEMP/tf-plugin-cache"
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
+          fail=0
+          for d in infra/envs/*/ infra/bootstrap*/; do
+            echo "::group::validate $d"
+            ( cd "$d" && terraform init -backend=false -input=false -no-color >/dev/null && terraform validate -no-color ) || { echo "::error::terraform validate failed in $d"; fail=1; }
+            echo "::endgroup::"
+          done
+          exit $fail

@@ -57,6 +57,11 @@ describe('intakeKey', () => {
     expect(intakeKey('1.2.3.4')).toBe('1.2.3.4');
     expect(intakeKey('2001:db8:1:2:aaaa:bbbb:cccc:dddd')).toBe('2001:db8:1:2');
     expect(intakeKey('2001:db8:1:2:1::9')).toBe('2001:db8:1:2');
+    // compressed forms of one /64 share a bucket
+    expect(intakeKey('2001:db8::1')).toBe(intakeKey('2001:db8:0:0::2'));
+    expect(intakeKey('2001:DB8:0:0:0:0:0:1')).toBe('2001:db8:0:0');
+    expect(intakeKey('2001:db8:1::1')).toBe('2001:db8:1:0');
+    expect(intakeKey('::ffff:1.2.3.4')).toBe('1.2.3.4');
   });
 });
 
