@@ -16,7 +16,7 @@ dmarc_rua         = "support@lawbid.dev"
 ses_from_address  = "no-reply@lawbid.dev"
 api_image         = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-api:REPLACE"
 admin_image       = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-admin:REPLACE"
-clamav_image      = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-clamav:1.4"
+clamav_image      = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-clamav:1.4-debian"
 # Owner 2026-10-24: our own PgBouncer (docs/architecture/DB_POOLER.md, runbook
 # docs/runbooks/DB_POOLER.md). Order: apply infra/bootstrap (ECR repo) -> run
 # the "Build PgBouncer" workflow -> set the two lines below -> terraform apply.
@@ -135,7 +135,7 @@ web_create_certificate = true
 # --- database autoscale (owner 2026-10-24, docs/runbooks/db-autoscale.md) ------
 # On by default for the database named in existing_database_identifier. Idle
 # until Multi-AZ is on (a pending modification pauses it). Optional:
-# db_autoscale_mode      = "dry-run"          # first days: e-mails only, changes nothing
+# db_autoscale_mode      = "dry-run"          # default: e-mails only, changes nothing; switch on later in SSM (docs/architecture/DB_AUTOSCALE.md)
 # db_autoscale_max_class = "db.r7g.xlarge"    # ceiling, about $698/month with Multi-AZ
 # db_autoscale_min_class = "db.t4g.micro"
 # db_autoscale_enabled   = false              # switch the whole thing off

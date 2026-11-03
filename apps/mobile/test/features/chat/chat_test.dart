@@ -2,6 +2,7 @@
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -161,9 +162,41 @@ void main() {
     );
     // The server is back; nobody touches the app, the timer sends it.
     chat.refuse = null;
-    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    await Future<void>.delayed(const Duration(milliseconds: 2000));
     expect(chat.sends, hasLength(1));
     expect(c.read(chatThreadProvider('c1')).outbox, isEmpty);
+  });
+
+  test("a busy server's Retry-After is waited out, not hammered", () async {
+    final chat = _FakeChat()
+      ..refuse = const ApiException(
+        code: 'SERVER_BUSY',
+        message: 'busy',
+        statusCode: 503,
+        retryAfter: Duration(seconds: 4),
+      );
+    final c = _container(chat);
+    final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
+    addTearDown(sub.close);
+    await _settle();
+    await c.read(chatThreadProvider('c1').notifier).send('Hi');
+    await _settle();
+    // The server is back at once, but it asked for 4 s: the own 1-2 s wait
+    // must not send before that.
+    chat.refuse = null;
+    await Future<void>.delayed(const Duration(milliseconds: 2500));
+    expect(chat.sends, isEmpty);
+    expect(
+      c.read(chatThreadProvider('c1')).outbox.single.delivery,
+      DeliveryState.sending,
+    );
+    // Writing again (which also asks the outbox to drain) is no way round it.
+    await c.read(chatThreadProvider('c1').notifier).send('Hi again');
+    await _settle();
+    expect(chat.sends, isEmpty);
+    // After the 4 s it goes by itself, both messages, in order.
+    await Future<void>.delayed(const Duration(milliseconds: 3500));
+    expect(chat.sends, hasLength(2));
   });
 
   test('401 and 408 are waited out, not shown as "not sent"', () async {
@@ -187,7 +220,7 @@ void main() {
 
   test('outbox wait grows 1, 2, 4 … and stops at 30 s', () {
     expect(
-      [for (var i = 1; i <= 8; i++) OutboxSender.backoff(i).inSeconds],
+      [for (var i = 1; i <= 8; i++) ClientTuning.outboxBackoff(i).inSeconds],
       [1, 2, 4, 8, 16, 30, 30, 30],
     );
   });

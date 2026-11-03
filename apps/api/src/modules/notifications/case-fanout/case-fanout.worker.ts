@@ -22,6 +22,7 @@ import {
 import {
   closeWorker,
   workerTuning,
+  outageProof,
 } from '../../../common/queues/queue-hardening';
 
 export const CASE_FANOUT_OPTIONS = Symbol('CASE_FANOUT_OPTIONS');
@@ -62,7 +63,7 @@ export class CaseFanoutWorker
     if (!url || !this.enabled) return;
     this.worker = new Worker<CaseFanoutJob>(
       CASE_FANOUT_QUEUE,
-      (job: Job<CaseFanoutJob>) => this.process(job.data),
+      outageProof((job: Job<CaseFanoutJob>) => this.process(job.data)),
       {
         ...bullOptions(CASE_FANOUT_QUEUE, url, { worker: true }),
         ...workerTuning(CASE_FANOUT_QUEUE),

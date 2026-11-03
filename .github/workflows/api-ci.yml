@@ -62,7 +62,7 @@ on:
       - "infra/modules/ecs/main.tf"
 
 concurrency:
-  group: api-ci-${{ github.ref }}
+  group: api-ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Security research #5 (2026-10-22), A2: least privilege — the jobs only read
@@ -112,7 +112,7 @@ jobs:
     runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
     # Two full PostgreSQL migration runs (clean DB + upgrade from the
     # previous release) at ~10 min each, plus the e2e database.
-    timeout-minutes: 75
+    timeout-minutes: 60
     services:
       # Owner 2026-10-14: the whole project runs on PostgreSQL 16. Images are
       # pinned by digest (S11-7); dependabot cannot bump a digest inside a
@@ -221,6 +221,7 @@ jobs:
         run: |
           node --test scripts/sort-lists.test.mjs
           node --test ../../scripts/dev/lint-staged-config.test.mjs
+          node --test ../../scripts/ci/web-push-worker.test.mjs
           node scripts/sort-lists.mjs --check
 
       - name: Online DDL rules and the concurrent-migration folder
@@ -344,6 +345,8 @@ jobs:
           node --test scripts/ci/flag-first-check.test.mjs
           bash scripts/ci/require-green.test.sh
           python3 -m unittest discover -s infra/modules/signing-guard/lambda/tests
+          python3 -m unittest discover -s loadtest/local-docker -p 'test_*.py'
+          python3 -m unittest discover -s loadtest/scripts/tests
 
       - name: Dependency audit (high and critical block)
         # docs/06 §4.4; audit #15 (2026-10-22): a high or critical advisory

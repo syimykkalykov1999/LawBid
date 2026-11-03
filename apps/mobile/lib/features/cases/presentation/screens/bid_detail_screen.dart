@@ -101,7 +101,7 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
       ].join('\n\n'),
       confirmLabel: t.t('cases.accept.confirm'),
     );
-    if (!ok) return;
+    if (!ok || !mounted) return;
     // Deal record 2026-10-27: with the admin switch on, accepting opens the
     // record both parties sign; the bid is accepted at the second signature.
     if (ref.read(dealRecordEnabledProvider)) {

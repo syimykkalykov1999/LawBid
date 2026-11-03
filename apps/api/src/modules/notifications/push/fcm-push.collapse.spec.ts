@@ -177,6 +177,7 @@ describe('PushDispatcher message collapse', () => {
       {} as never,
       {
         iconFor: () => Promise.resolve({ badge: 1, on: true }),
+        mutedCategories: () => Promise.resolve(new Set()),
         topicSwitches: () => Promise.resolve({ on: () => true, raw: {} }),
       } as never,
       { isViewing: () => Promise.resolve(false) } as never,

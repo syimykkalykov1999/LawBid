@@ -78,18 +78,17 @@ class RetryInterceptor extends Interceptor {
   /// Exponential backoff (base × 2^attempt) with up to 30% jitter so a
   /// fleet of clients coming back online doesn't retry in lockstep.
   Duration backoffFor(int attempt) {
-    final exp = baseDelay * pow(2, attempt).toInt();
-    final jitterMs = (exp.inMilliseconds * 0.3 * _random.nextDouble()).round();
-    return exp + Duration(milliseconds: jitterMs);
+    return ClientTuning.withJitter(
+      baseDelay * pow(2, attempt).toInt(),
+      _random,
+    );
   }
 
   /// The server's `Retry-After` in seconds (an HTTP date is ignored),
   /// capped at [maxRetryAfter]; null when absent or unparseable.
   Duration? retryAfter(Response<dynamic>? response) {
-    final raw = response?.headers.value('retry-after');
-    final secs = raw == null ? null : int.tryParse(raw.trim());
-    if (secs == null || secs < 0) return null;
-    final d = Duration(seconds: secs);
+    final d = ClientTuning.parseRetryAfter(response?.headers['retry-after']);
+    if (d == null) return null;
     return d > maxRetryAfter ? maxRetryAfter : d;
   }
 

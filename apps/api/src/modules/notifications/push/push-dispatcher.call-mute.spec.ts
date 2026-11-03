@@ -54,7 +54,10 @@ describe('PushDispatcher incoming call silence', () => {
       sender,
       {} as never,
       {} as never,
-      {} as never,
+      {
+        mutedCategories: () =>
+          Promise.resolve(new Set(opts.callsOn === false ? ['calls'] : [])),
+      } as never,
       {} as never,
       { setContext: () => undefined } as never,
     );
