@@ -90,6 +90,13 @@ export class SubscriptionSyncService {
     subscriptionId: string,
   ) => Promise<unknown>;
 
+  /** R-237: set by SubscriptionDisputeService (no import cycle). */
+  private disputeHook?: (event: ProviderEvent) => Promise<unknown>;
+
+  setDisputeHook(hook: (event: ProviderEvent) => Promise<unknown>): void {
+    this.disputeHook = hook;
+  }
+
   setForeignSubscriptionHook(
     hook: (userId: string, subscriptionId: string) => Promise<unknown>,
   ): void {
@@ -109,6 +116,13 @@ export class SubscriptionSyncService {
       event.type.startsWith('radar.')
     ) {
       await this.casePayments?.handleProviderEvent(event);
+      // R-237: a dispute on a subscription charge of the platform itself
+      // (not on an attorney's connected account) cancels the subscription.
+      if (
+        typeof o._account !== 'string' &&
+        event.type.startsWith('charge.dispute.')
+      )
+        await this.disputeHook?.(event);
       return;
     }
     switch (event.type) {
