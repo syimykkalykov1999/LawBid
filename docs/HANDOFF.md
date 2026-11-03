@@ -124,15 +124,11 @@ ONLY after every item above is finished: the verified checkmark badges (attorney
 | Скорость мобилки (аудит 02.11, PR #643) | этап телефонных сборок: время холодного старта в мс, память при длинной прокрутке ленты/чата, 60/120 fps в профиле на Samsung и iPhone; в облаке измерить нельзя |
 
 ### Тест на наезд текста: что покрыто и что осталось (02.11)
-Покрыто пачками 1–6 (`apps/mobile/test/overflow/batch1..6_overflow_test.dart`, общий каркас `test/helpers/overflow_harness.dart`, журнал `docs/dev/journal/*overflow*`): #609, #622, #627, #630, #637, #640. Каждая проверка идёт на 360 dp, 7 языков (самый длинный, RTL, ne, de, mr, ar, ru), масштаб 1 и 1,3, темы на самом длинном тексте, и убеждается, что на экране настоящее содержимое.
+Покрыто пачками 1–7 (`apps/mobile/test/overflow/batch1..7_overflow_test.dart`, общий каркас `test/helpers/overflow_harness.dart`, журнал `docs/dev/journal/*overflow*`): #609, #622, #627, #630, #637, #640 и пачка 7 (шторка зрителей истории, архивы групп и каналов, видео в чате, `AppPaginatedListView` с длинными строками, `WorkCaseScreen` с данными). Каждая проверка идёт на 360 dp, 7 языков (самый длинный, RTL, ne, de, mr, ar, ru), масштаб 1 и 1,3, темы на самом длинном тексте, и убеждается, что на экране настоящее содержимое.
 
 | Пункт | Что нужно |
 |---|---|
-| Шторка зрителей истории (`story_viewer_sheets`, `_ViewersSheet`) | фейк `storyViewersProvider`, пачка 7 |
-| Экраны архива групп и каналов (`GroupsArchiveScreen`, `ChannelsArchiveScreen`) | фейки `archivedGroupsProvider`, `archivedChannelsProvider` |
-| `chat_video` | тест виджетов видео в чате, нужны фейки плеера |
-| `AppPaginatedListView` со строками | подвал уже покрыт, сам список с длинными строками нет |
-| `WorkCaseScreen` | фикстура `attorneyCase` |
+| Видео в чате с готовым кадром (плашка с длиной) | фейк платформы `video_player`; сейчас покрыты плитка при отправке, ячейка сетки и экран просмотра без загруженного видео |
 | Камерные экраны (`id_selfie_capture_screen`, `camera_capture_screen`, `story_camera_view`) и `secure_screen` | только на телефоне, в финальном раунде |
 | Всё сделанное | на телефоне не проверено; голдены только на macOS |
 Попутно: общие `overflowOpener`/`overflowShows` стоит применить в `batch1_overflow_test.dart`, `data_sheets_overflow_test.dart`, `groups_overflow_test.dart` (там локальные копии); корень дефекта «`AppButton` растягивается на всю ширину и в `Row` требует ограничения» не менялся (в `chat_payment_bar.dart` стоит `maxWidth: 148`).
