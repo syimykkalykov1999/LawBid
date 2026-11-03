@@ -6,6 +6,7 @@ import type { RequestAdmin } from '../admin-auth/admin-auth.decorators';
 import { deviceFingerprint } from '../admin-auth/admin-session.service';
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import { StaffSecurityService } from './staff-security.service';
+import { withEvalIncr } from '../../redis/incr-with-ttl.test-support';
 
 const USER_ID = '3f2b8a52-1c3e-4a6f-9d2e-0a1b2c3d4e5f';
 
@@ -14,7 +15,7 @@ function setup(
   opts: { binding?: { ip: string; fp: string } } = {},
 ) {
   const store = new Map<string, number | string>();
-  const redis = {
+  const redis = withEvalIncr({
     incr: jest.fn((k: string) => {
       const n = Number(store.get(k) ?? 0) + 1;
       store.set(k, n);
@@ -31,7 +32,7 @@ function setup(
       store.set(k, v);
       return Promise.resolve('OK');
     }),
-  };
+  });
   const audit = { record: jest.fn(() => Promise.resolve()) };
   const sessions = {
     binding: jest.fn(() => Promise.resolve(opts.binding ?? { ip: '', fp: '' })),

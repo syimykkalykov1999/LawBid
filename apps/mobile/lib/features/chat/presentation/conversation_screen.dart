@@ -1722,7 +1722,11 @@ class _Bubble extends ConsumerWidget {
                           !m.revoked &&
                           !m.contactMasked &&
                           firstUrlIn(m.body) != null)
-                        LinkPreviewCard(url: firstUrlIn(m.body)!, mine: mine),
+                        LinkPreviewCard(
+                          url: firstUrlIn(m.body)!,
+                          mine: mine,
+                          conversationId: m.conversationId,
+                        ),
                       if (!inlineMeta) ...[
                         const SizedBox(height: 2),
                         pad(metaRow),
