@@ -28,6 +28,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/toast';
 import { api, ApiError, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
+import { fillFromKeyFile, KEY_FILE_MAX_BYTES } from '@/lib/key-file';
 import { generated, guideFor, rejectText, webhookUrl, type ProviderGuide } from '@/lib/integration-guides';
 import { formatDateTime } from '@/lib/utils';
 import { TranslateZones } from './translate-zones';
@@ -495,6 +496,7 @@ function KeyForm({
   const [label, setLabel] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const file = useRef<HTMLInputElement>(null);
+  const keyFileInput = useRef<HTMLInputElement>(null);
   const [visible, setVisible] = useState<Record<string, boolean>>({});
 
   const set = (name: string, v: string) => {
@@ -542,6 +544,36 @@ function KeyForm({
     }
   };
 
+  /** .p8 / .pem key file: its text fills the key field (read in the browser only). */
+  const loadKeyFile = async (picked: File | undefined) => {
+    const spec = guide?.keyFile;
+    if (!picked || !spec) return;
+    if (picked.size > KEY_FILE_MAX_BYTES) {
+      toast.error('Это не тот файл: ключ занимает пару килобайт. Выберите скачанный файл ключа.');
+      if (keyFileInput.current) keyFileInput.current.value = '';
+      return;
+    }
+    try {
+      const r = fillFromKeyFile(spec, picked.name, await picked.text());
+      if (!r.ok) {
+        toast.error(r.reason);
+        return;
+      }
+      setValues((prev) => ({ ...prev, ...r.filled }));
+      setErrors({});
+      if (r.missing.length > 0) {
+        const names = r.missing.map((n) => it.fields.find((f) => f.name === n)?.label ?? n).join(', ');
+        toast.success(`Ключ заполнен из файла. Впишите вручную: ${names}. Затем нажмите «Сохранить».`);
+      } else {
+        toast.success('Поля заполнены из файла. Нажмите «Сохранить».');
+      }
+    } catch {
+      toast.error('Не удалось прочитать файл. Выберите его ещё раз.');
+    } finally {
+      if (keyFileInput.current) keyFileInput.current.value = '';
+    }
+  };
+
   const save = () =>
     guarded(
       async () => {
@@ -574,6 +606,21 @@ function KeyForm({
             <FileArrowUp size={14} /> {guide.jsonFile.button}
           </Button>
           <p className="mt-2 break-words text-xs text-muted">Самый простой способ: выберите скачанный файл — поля заполнятся сами.</p>
+        </div>
+      ) : null}
+      {guide?.keyFile ? (
+        <div className="rounded-xl bg-surface-2 p-3 text-sm">
+          <input
+            ref={keyFileInput}
+            type="file"
+            accept={guide.keyFile.accept}
+            className="hidden"
+            onChange={(e) => void loadKeyFile(e.target.files?.[0])}
+          />
+          <Button type="button" size="sm" variant="gold" onClick={() => keyFileInput.current?.click()}>
+            <FileArrowUp size={14} /> {guide.keyFile.button}
+          </Button>
+          <p className="mt-2 break-words text-xs text-muted">Выберите скачанный файл ключа — поле заполнится само.</p>
         </div>
       ) : null}
       {isNew && slot !== MAIN ? (

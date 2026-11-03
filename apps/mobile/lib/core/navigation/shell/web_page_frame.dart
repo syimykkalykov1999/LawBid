@@ -93,7 +93,8 @@ class WebPageFrame extends ConsumerWidget {
     // Notifications to the menu; the chats pages take the whole width next
     // to the narrow menu and split it themselves (list | chat).
     final desktop = windowClassOf(context).isDesktop;
-    final listDetail = desktop && isListDetailLocation(location);
+    final listDetail = desktop &&
+        (isListDetailLocation(location) || isCaseDetailLocation(location));
     final extended = layout == ShellLayout.extendedRail && !listDetail;
     final translator = ref.watch(translatorProvider);
     final tabs = tabsForRole(ref.watch(currentUserRoleProvider), translator);
