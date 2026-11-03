@@ -187,6 +187,26 @@ describe('POST /calls/:id/status/decline (ring ticket)', () => {
     expect(toUsers).toHaveBeenCalledTimes(2);
   });
 
+  it('an answer landing between the read and the write stays an answer', async () => {
+    const w = world('ringing');
+    const prisma = (
+      w.svc as unknown as { prisma: { call: Record<string, jest.Mock> } }
+    ).prisma;
+    // decline reads «ringing»; the answer is written before its update.
+    prisma.call.findUnique.mockImplementationOnce(async () => {
+      const seen = { ...w.call };
+      w.call.status = 'active';
+      return seen;
+    });
+    await expect(w.svc.declineByTicket('c1', ticket())).resolves.toEqual({
+      state: 'active',
+    });
+    expect(w.call.status).toBe('active');
+    const toUsers = (w.svc as unknown as { realtime: { toUsers: jest.Mock } })
+      .realtime.toUsers;
+    expect(toUsers).not.toHaveBeenCalled();
+  });
+
   it('an answered call is not declined by a late tap', async () => {
     const w = world('active');
     await expect(w.svc.declineByTicket('c1', ticket())).resolves.toEqual({

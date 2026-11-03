@@ -446,6 +446,9 @@ import flutter_callkit_incoming
       // Owner 2026-11-03: the ring ticket — «Decline» on a closed iPhone
       // tells the server with it (onDecline below).
       "pollToken": (p["pollToken"] as? String) ?? "",
+      // When it started ringing: an end after the ring length is the
+      // ring's timeout, never the user's «Decline» (onDecline).
+      "rangAt": Date().timeIntervalSince1970,
     ]
     data.handleType = "generic"
     data.supportsVideo = video
@@ -614,7 +617,13 @@ import flutter_callkit_incoming
   ) {
     let extra = data.extra as? [String: Any] ?? [:]
     let callId = (extra["callId"] as? String) ?? data.uuid
+    // Review #693: the plugin reports its own ring timeout as onTimeOut;
+    // should an end come at or after the ring length anyway, it is the
+    // timeout (the caller's «no answer»), not a decline.
+    let rangAt = extra["rangAt"] as? Double ?? 0
+    let rangFor = (Date().timeIntervalSince1970 - rangAt) * 1000
     guard UUID(uuidString: callId) != nil,
+      rangAt > 0, rangFor < Double(data.duration),
       !wasEndedByPush(callId),
       let ticket = extra["pollToken"] as? String, !ticket.isEmpty,
       let api = UserDefaults.standard.string(forKey: AppDelegate.apiKey),

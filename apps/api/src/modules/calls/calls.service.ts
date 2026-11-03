@@ -954,6 +954,8 @@ export class CallsService {
     }
     if (call.callee_id !== user.sub) throw notFound();
     if (call.status !== 'ringing') return this.toDto(call, user.sub);
+    // Review #693: only a call that still rings is declined — an answer
+    // landing between the read above and this write stays an answer.
     return this.finish(
       call,
       'declined',
@@ -961,6 +963,7 @@ export class CallsService {
       undefined,
       undefined,
       user.sid,
+      ['ringing'],
     );
   }
 
@@ -1433,6 +1436,8 @@ export class CallsService {
     endReason?: string,
     /** LC-1: the phone that declined keeps quiet (no VoIP stop to it). */
     byChainId?: string,
+    /** The states this end may move the call from (default: any live). */
+    from: readonly CallStatus[] = LIVE,
   ): Promise<CallDto> {
     const now = at ?? new Date();
     const durationSec =
@@ -1443,7 +1448,7 @@ export class CallsService {
           )
         : 0;
     const { count } = await this.prisma.call.updateMany({
-      where: { id: call.id, status: { in: LIVE } },
+      where: { id: call.id, status: { in: [...from] } },
       data: {
         status: outcome,
         ended_at: now,

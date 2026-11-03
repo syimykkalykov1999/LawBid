@@ -167,6 +167,9 @@ void main() {
       );
       // A stop push's own end (caller hung up) is not a decline.
       expect(onDecline, contains('!wasEndedByPush(callId)'));
+      // An end at or after the ring length is the timeout, not a decline.
+      expect(swift, contains('"rangAt": Date().timeIntervalSince1970'));
+      expect(onDecline, contains('rangFor < Double(data.duration)'));
     });
   });
 }

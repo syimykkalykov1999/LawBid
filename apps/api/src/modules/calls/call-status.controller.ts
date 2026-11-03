@@ -41,8 +41,9 @@ export class CallStatusController {
    * — the same decline as POST /calls/:id/decline, with the ring ticket
    * (`{ t }` in the body) instead of a session. Idempotent. */
   @Public()
-  // One tap per ring, plus one retry when offline.
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  // One tap per ring plus one retry, per IP — many phones share one
+  // carrier NAT address.
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('calls/:id/status/decline')
   @HttpCode(200)
   @ApiExcludeEndpoint()
