@@ -340,11 +340,12 @@ class PagedTileGrid<T> extends StatelessWidget {
     required this.onRefresh,
     this.rows = false,
     this.header,
-    this.gridDelegate = kSearchPostGridDelegate,
+    this.gridDelegate,
     super.key,
   });
 
-  final SliverGridDelegate gridDelegate;
+  /// Null: the Search grid ([searchPostGridDelegate]).
+  final SliverGridDelegate? gridDelegate;
 
   final AsyncValue<PaginatedList<T>> value;
   final Widget Function(T item) itemBuilder;
@@ -387,7 +388,8 @@ class PagedTileGrid<T> extends StatelessWidget {
                   )
                 else
                   SliverGrid.builder(
-                    gridDelegate: gridDelegate,
+                    gridDelegate:
+                        gridDelegate ?? searchPostGridDelegate(context),
                     itemCount: value.items.length,
                     itemBuilder: (context, i) => itemBuilder(value.items[i]),
                   ),

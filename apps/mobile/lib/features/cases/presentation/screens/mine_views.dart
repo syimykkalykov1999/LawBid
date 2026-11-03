@@ -8,6 +8,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/deferred_screen.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/desktop_cases.dart';
 import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
@@ -548,7 +549,8 @@ class _WorkGrid extends ConsumerWidget {
                 statusTone: caseTone(w.status),
                 coverUrl: w.coverUrl,
                 practiceCode: w.practiceCode,
-                onTap: () => context.push(AppRoutes.workCase(w.caseId)),
+                onTap: () =>
+                    openCaseRoute(context, AppRoutes.workCase(w.caseId)),
               ),
     );
   }
@@ -697,7 +699,7 @@ class CompletedWorkScreen extends ConsumerWidget {
           item: w,
           t: t,
           formats: formats,
-          onTap: () => context.push(AppRoutes.workCase(w.caseId)),
+          onTap: () => openCaseRoute(context, AppRoutes.workCase(w.caseId)),
         ),
       ),
     );
