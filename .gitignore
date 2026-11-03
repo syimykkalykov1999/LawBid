@@ -62,3 +62,4 @@ loadtest/results/
 
 # Local dev caches (tsc incremental, eslint, hash-skip stamps) - scripts/dev
 .cache/
+__pycache__/
