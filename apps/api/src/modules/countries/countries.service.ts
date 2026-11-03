@@ -157,8 +157,11 @@ export class CountriesService {
    * the admin's switch-on sends the e-mail (AdminCountriesService). */
   async joinWaitlist(
     countryCode: string,
-    email: string,
+    email: string | undefined,
     locale: string | undefined,
+    /** False: an address-less request over the visitor's limit is accepted
+     * but not recorded. */
+    countVote = true,
   ): Promise<{ countryCode: string; available: boolean }> {
     const code = countryCode.toUpperCase();
     const country = await this.prisma.country.findUnique({
@@ -172,6 +175,15 @@ export class CountriesService {
       });
     }
     if (country.is_enabled) return { countryCode: code, available: true };
+    if (!email) {
+      if (!countVote) return { countryCode: code, available: false };
+      // No address: just one more vote for the country (the controller
+      // already limited how many one visitor can add).
+      await this.prisma.countryWaitlist.create({
+        data: { country_code: code, locale: locale ?? 'en' },
+      });
+      return { countryCode: code, available: false };
+    }
     const normalized = email.trim().toLowerCase();
     await this.prisma.countryWaitlist.upsert({
       where: {

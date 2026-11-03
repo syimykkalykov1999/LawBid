@@ -25,7 +25,11 @@ import type { ProviderEvent } from './payment-provider';
 import type { StripeWebhookJobData } from './stripe-webhook.intake';
 import { SubscriptionSyncService } from './subscription-sync.service';
 import { bullOptions } from '../../redis/redis-connection';
-import { closeWorker, workerTuning } from '../../common/queues/queue-hardening';
+import {
+  closeWorker,
+  workerTuning,
+  outageProof,
+} from '../../common/queues/queue-hardening';
 
 /**
  * BullMQ workers of the billing queues — in the `worker` process always,
@@ -92,7 +96,7 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
     this.workers.push(
       new Worker<StripeWebhookJobData>(
         STRIPE_WEBHOOKS_QUEUE,
-        (job) => this.processWebhook(job),
+        outageProof((job) => this.processWebhook(job)),
         {
           ...bullOptions(STRIPE_WEBHOOKS_QUEUE, url, { worker: true }),
           ...workerTuning(STRIPE_WEBHOOKS_QUEUE),
@@ -101,7 +105,7 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
       ),
       new Worker<{ subscriptionId: string }>(
         SUBSCRIPTION_JOBS_QUEUE,
-        (job) => this.processSubscriptionJob(job),
+        outageProof((job) => this.processSubscriptionJob(job)),
         {
           ...bullOptions(SUBSCRIPTION_JOBS_QUEUE, url, { worker: true }),
           ...workerTuning(SUBSCRIPTION_JOBS_QUEUE),

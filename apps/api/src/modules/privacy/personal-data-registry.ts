@@ -56,6 +56,7 @@ export const SWEEPS: Readonly<Record<string, readonly string[]>> = {
   VoipToken: ['user_id'],
   SavedItem: ['user_id'],
   SavedChatMessage: ['user_id'],
+  QuickReply: ['user_id'],
   UserBlock: ['blocker_id', 'blocked_id'],
   StoryView: ['viewer_id'],
   StoryHidden: ['owner_id', 'hidden_user_id'],

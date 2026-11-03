@@ -42,6 +42,11 @@ variable "secret_arns" {
   description = "Env var name → Secrets Manager ARN, injected into api/worker."
 }
 variable "migrator_database_url_secret_arn" { type = string }
+variable "partition_database_url_secret_arn" {
+  type        = string
+  default     = ""
+  description = "PARTITION_DATABASE_URL (role lawbid_partition) for the WORKER only: the online table partitioning (messages, notifications, ...) needs DDL rights the app role does not have. Empty = not injected, partitioning stays a status card. Never given to the api task."
+}
 
 variable "api_cpu" {
   type    = number
@@ -357,7 +362,7 @@ resource "aws_iam_role_policy_attachment" "execution" {
 data "aws_iam_policy_document" "execution_secrets" {
   statement {
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = concat(values(var.secret_arns), [var.migrator_database_url_secret_arn])
+    resources = concat(values(var.secret_arns), [var.migrator_database_url_secret_arn], var.partition_database_url_secret_arn == "" ? [] : [var.partition_database_url_secret_arn])
   }
   statement {
     actions   = ["kms:Decrypt"]
@@ -442,8 +447,9 @@ locals {
     worker = floor(max(var.worker_memory - var.clamav_memory, 512) * 0.7)
     admin  = floor(var.admin_memory * 0.7)
   }
-  node_options = { for k, mb in local.heap_mb : k => { name = "NODE_OPTIONS", value = "--max-old-space-size=${mb}" } }
-  api_secrets  = [for k, arn in var.secret_arns : { name = k, valueFrom = arn }]
+  node_options   = { for k, mb in local.heap_mb : k => { name = "NODE_OPTIONS", value = "--max-old-space-size=${mb}" } }
+  api_secrets    = [for k, arn in var.secret_arns : { name = k, valueFrom = arn }]
+  worker_secrets = concat(local.api_secrets, var.partition_database_url_secret_arn == "" ? [] : [{ name = "PARTITION_DATABASE_URL", valueFrom = var.partition_database_url_secret_arn }])
   log_config = { for svc in ["api", "worker", "clamav", "admin", "migrate"] : svc => {
     logDriver = "awslogs"
     options = {
@@ -585,7 +591,7 @@ resource "aws_ecs_task_definition" "worker" {
     # Uploads are scanned by the clamd sidecar below (same task, localhost):
     # without a scanner every photo/document stays scan_status=pending.
     environment = concat(local.worker_environment, local.tracing_env, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }, local.node_options["worker"]])
-    secrets     = local.api_secrets
+    secrets     = local.worker_secrets
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
     # and forwards signals.

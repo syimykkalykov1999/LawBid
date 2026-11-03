@@ -229,6 +229,13 @@ export const FILE_06_SETTINGS = {
   /** Algo audit 2026-10-27 (CONTENT M-1): checks skipped for the budget or
    * failed four times are run again hourly (20 a run, last 3 days). */
   'moderation.image.recheck_enabled': true,
+  /** Owner 2026-11-02: frame-by-frame video check (needs ffmpeg in the
+   * image). OFF: each frame is one paid `image_moderation` unit. */
+  'moderation.video.frames_enabled': false,
+  /** One frame per this many seconds of the clip (10–60 s clips: 1–6). */
+  'moderation.video.frame_every_sec': 10,
+  /** At most this many frames per video. */
+  'moderation.video.frames_max': 6,
   // Owner 2026-10-22 (audit #4 §5): image moderation (AWS Rekognition).
   // Confidence 0–100: at `hide` the photo / reel is hidden at once and
   // queued; at `review` it stays up and is queued; below that it is clean.
@@ -893,7 +900,8 @@ export const OWNER_STRIPE_OPS_SETTINGS = {
 /** Owner 2026-10-05: countries (Система → Страны). People who asked to
  * be told get an e-mail by themselves when their country is switched on. */
 export const OWNER_COUNTRY_SETTINGS = {
-  'countries.notify_waitlist': true,
+  // Owner 2026-11-02: no e-mails or texts to the waiting list (no spend).
+  'countries.notify_waitlist': false,
 };
 
 /** Owner 2026-10-05: requests per minute for one signed-in admin (the
@@ -910,6 +918,10 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
   /** Owner 2026-10-25: new socket connections per minute from one address
    * (CGNAT / offices carry many people: generous). 0 = no limit. */
   'realtime.max_connects_per_ip_per_minute': 120,
+  /** New socket connections per minute from one signed-in person (the
+   * identity that is counted; the address only guards sockets with no
+   * account). 0 = no limit. */
+  'realtime.max_connects_per_user_per_minute': 60,
   /** Owner 2026-10-25: password screening (NIST SP 800-63B-4 §3.1.1.2). */
   'security.password_breach_check_enabled': true,
   /** Milliseconds to wait for the breached-password service; later = skip. */
@@ -1134,13 +1146,15 @@ export const OWNER_STORAGE_SETTINGS = {
   'images.avif_quality': 60,
   'images.avif_effort': 2,
   /** Owner 2026-10-26: hash partitioning of the big chat / notification
-   * tables is OPT-IN (at small sizes the plain tables are faster). Per
-   * table: 'off' (default) | 'on' (the online runner converts now) |
-   * 'auto' (converts when the table reaches `partition.auto_rows`).
+   * tables starts by itself only at `partition.auto_rows` (50M rows; at small
+   * sizes the plain tables are faster, so below it nothing happens). Per
+   * table: 'auto' (default: converts at `partition.auto_rows`) | 'off' |
+   * 'on' (the online runner converts now). Needs PARTITION_DATABASE_URL.
    * docs/architecture/TABLE_PARTITIONING_READY.md */
-  'partition.messages_mode': 'off',
-  'partition.chat_group_messages_mode': 'off',
-  'partition.notifications_mode': 'off',
+  'partition.messages_mode': 'auto',
+  'partition.chat_group_messages_mode': 'auto',
+  'partition.notifications_mode': 'auto',
+  'partition.post_view_events_mode': 'auto',
   'partition.auto_rows': 50_000_000,
   'images.webp_quality': 88,
   'images.jpeg_quality': 90,

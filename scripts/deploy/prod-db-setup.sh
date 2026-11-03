@@ -124,10 +124,12 @@ DATABASE_URL="$MIGRATOR" npx prisma migrate deploy
 echo "3/5 Пароли ролей приложения"
 APP_PW="$(openssl rand -hex 24)"
 RET_PW="$(openssl rand -hex 24)"
-printf "ALTER USER lawbid_app WITH PASSWORD '%s';\nALTER USER lawbid_retention WITH PASSWORD '%s';\n" \
-  "$APP_PW" "$RET_PW" | sql "$MIGRATOR"
+PART_PW="$(openssl rand -hex 24)"
+printf "ALTER USER lawbid_app WITH PASSWORD '%s';\nALTER USER lawbid_retention WITH PASSWORD '%s';\nALTER USER lawbid_partition WITH PASSWORD '%s';\n" \
+  "$APP_PW" "$RET_PW" "$PART_PW" | sql "$MIGRATOR"
 APP_URL="$(url_for lawbid lawbid_app "$APP_PW")"
 RET_URL="$(url_for lawbid lawbid_retention "$RET_PW")"
+PART_URL="$(url_for lawbid lawbid_partition "$PART_PW")"
 
 echo "4/5 Лимиты запросов по ролям"
 sql "$MIGRATOR" < ../../infra/postgres/role-settings.sql
@@ -136,5 +138,6 @@ echo "5/5 Строки подключения → Secrets Manager ($PREFIX/…)"
 put MIGRATOR_DATABASE_URL "$MIGRATOR"
 put DATABASE_URL "$APP_URL"
 put RETENTION_DATABASE_URL "$RET_URL"
+put PARTITION_DATABASE_URL "$PART_URL"
 put DEMO_DATABASE_URL "$DEMO_URL"
 echo "Готово."

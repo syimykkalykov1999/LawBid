@@ -12,6 +12,9 @@ UpdateGroupDto _$UpdateGroupDtoFromJson(
   title: json['title'] as String?,
   description: json['description'] as String?,
   avatarFileId: json['avatarFileId'] as String?,
+  slowModeS: json['slowModeS'] == null
+      ? null
+      : UpdateGroupDtoSlowModeS.fromJson(json['slowModeS'] as num),
   whoCanPost: json['whoCanPost'] == null
       ? null
       : UpdateGroupDtoWhoCanPost.fromJson(json['whoCanPost'] as String),
@@ -52,6 +55,7 @@ Map<String, dynamic> _$UpdateGroupDtoToJson(UpdateGroupDto instance) =>
       'title': ?instance.title,
       'description': ?instance.description,
       'avatarFileId': ?instance.avatarFileId,
+      'slowModeS': ?instance.slowModeS?.toJson(),
       'whoCanPost': ?instance.whoCanPost?.toJson(),
       'whoCanAdd': ?instance.whoCanAdd?.toJson(),
       'whoCanEditInfo': ?instance.whoCanEditInfo?.toJson(),

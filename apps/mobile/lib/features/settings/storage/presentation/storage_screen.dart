@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/text/byte_size.dart';
 import 'package:lawbid/features/settings/storage/application/storage_providers.dart';
+import 'package:lawbid/features/settings/storage/presentation/chat_media_screen.dart';
 
 /// Owner 2026-10-22 (client economy plan §5.2, Telegram «Данные и
 /// память»): what the app keeps on the phone, by category, with
@@ -24,6 +25,13 @@ class StorageScreen extends ConsumerWidget {
     CacheStore.http,
     CacheStore.other,
   ];
+
+  /// The rows: the fixed ones, plus «Видео» once the video chunk cache
+  /// holds something (hidden while empty, so a fresh install stays short).
+  static List<CacheStore> _shown(CacheReport? r) => [
+        ...categories,
+        if (r != null && r.of(CacheStore.video) > 0) CacheStore.video,
+      ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -48,7 +56,7 @@ class StorageScreen extends ConsumerWidget {
           AppListSection(
             title: t.t('storage.section.onPhone'),
             children: [
-              for (final s in categories)
+              for (final s in _shown(report.value))
                 AppListRow(
                   key: ValueKey('storage-${s.configKey}'),
                   icon: _iconOf(s),
@@ -62,6 +70,22 @@ class StorageScreen extends ConsumerWidget {
                 ),
             ],
           ),
+          // Owner 2026-11-02: the chat pictures by chat, once there are any.
+          if ((report.value?.of(CacheStore.chatMedia) ?? 0) > 0)
+            AppListSection(
+              children: [
+                AppListRow(
+                  key: const ValueKey('storage-by-chat'),
+                  icon: AppIcons.chatBubbleOutlineRounded,
+                  label: t.t('storage.cat.chat_media'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const ChatMediaScreen(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           AppListSection(
             title: t.t('storage.section.rules'),
             children: [
@@ -186,8 +210,14 @@ class StorageScreen extends ConsumerWidget {
     );
     if (ok != true || !context.mounted) return;
     final notifier = ref.read(cacheReportProvider.notifier);
-    await (store == null ? notifier.clearAll() : notifier.clear(store));
-    if (context.mounted) showAppSnackBar(context, t.t('storage.clear.done'));
+    final cleared =
+        await (store == null ? notifier.clearAll() : notifier.clear(store));
+    if (!context.mounted) return;
+    // Not emptied (the video proxy did not answer): say so, never «done».
+    showAppSnackBar(
+      context,
+      t.t(cleared ? 'storage.clear.done' : 'error.default.message'),
+    );
   }
 
   static Future<void> _pickKeepMedia(
@@ -273,6 +303,7 @@ class _UsageHeader extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final text = Theme.of(context).textTheme;
     final total = report?.total ?? 0;
+    final shown = StorageScreen._shown(report);
     final palette = [
       colors.accent,
       colors.gold,
@@ -280,6 +311,7 @@ class _UsageHeader extends StatelessWidget {
       colors.success,
       colors.warning,
       colors.textSecondary,
+      colors.danger,
     ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -305,11 +337,10 @@ class _UsageHeader extends StatelessWidget {
               height: 10,
               child: Row(
                 children: [
-                  for (var i = 0; i < StorageScreen.categories.length; i++)
-                    if (total > 0 &&
-                        (report?.of(StorageScreen.categories[i]) ?? 0) > 0)
+                  for (var i = 0; i < shown.length; i++)
+                    if (total > 0 && (report?.of(shown[i]) ?? 0) > 0)
                       Expanded(
-                        flex: report!.of(StorageScreen.categories[i]),
+                        flex: report!.of(shown[i]),
                         child: ColoredBox(color: palette[i]),
                       ),
                   if (total == 0)

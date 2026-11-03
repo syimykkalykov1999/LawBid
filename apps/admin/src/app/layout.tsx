@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  // Audit #8: the per-request CSP nonce from middleware.ts. Reading it also
+  // Audit #8: the per-request CSP nonce from proxy.ts. Reading it also
   // makes every page dynamic, so each response carries its own nonce.
   const nonce = (await headers()).get('x-nonce') ?? undefined;
   const dsn = await sentryDsn();

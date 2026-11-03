@@ -426,6 +426,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 100000,
   };
+  out['realtime.max_connects_per_user_per_minute'] = {
+    ...out['realtime.max_connects_per_user_per_minute'],
+    description:
+      'New live connections per minute from one signed-in person (0 = no limit). A signed-in person is counted by account, not by address.',
+    min: 0,
+    max: 100000,
+  };
   out['security.password_hash_concurrency'] = {
     ...out['security.password_hash_concurrency'],
     description:
@@ -581,6 +588,23 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'off | on | auto (default). Image moderation (paid): auto = on inside the daily cost-guard cap.',
     pattern: /^(off|on|auto)$/,
+  };
+  out['moderation.video.frames_enabled'] = {
+    ...out['moderation.video.frames_enabled'],
+    description:
+      'Frame-by-frame video check (paid: every frame is one image_moderation unit inside the daily cap). Needs ffmpeg in the API image (build arg WITH_FFMPEG=1); without it only the cover is checked.',
+  };
+  out['moderation.video.frame_every_sec'] = {
+    ...out['moderation.video.frame_every_sec'],
+    description: 'One checked frame per this many seconds of the clip.',
+    min: 1,
+    max: 120,
+  };
+  out['moderation.video.frames_max'] = {
+    ...out['moderation.video.frames_max'],
+    description: 'At most this many frames checked per video.',
+    min: 1,
+    max: 12,
   };
   out['chat.link_preview_enabled'] = {
     ...out['chat.link_preview_enabled'],
@@ -1231,10 +1255,16 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   for (const t of ['messages', 'chat_group_messages', 'notifications']) {
     out[`partition.${t}_mode`] = {
       ...out[`partition.${t}_mode`],
-      description: `Hash partitioning of ${t}: off = plain table (default, faster while small), on = the online runner converts now, auto = converts at partition.auto_rows.`,
+      description: `Hash partitioning of ${t}: auto = converts by itself at partition.auto_rows (default; nothing happens while small), on = the online runner converts now, off = never.`,
       pattern: /^(off|on|auto)$/,
     };
   }
+  out['partition.post_view_events_mode'] = {
+    ...out['partition.post_view_events_mode'],
+    description:
+      'Monthly partitioning of post_view_events: auto = converts by itself at partition.auto_rows (default), on = the online runner converts now, off = never.',
+    pattern: /^(off|on|auto)$/,
+  };
   out['partition.auto_rows'] = {
     ...out['partition.auto_rows'],
     description:

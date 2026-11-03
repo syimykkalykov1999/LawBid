@@ -1,4 +1,5 @@
 import Redis, { Cluster } from 'ioredis';
+import { isRedisInfraError } from './redis-errors';
 import {
   attachAuthRefresh,
   bullOptions,
@@ -11,8 +12,11 @@ import {
   PRODUCER_OPTIONS,
   reconnectOnReadonly,
   redisOptions,
+  requestPathOptions,
   setRedisUrlProvider,
   sharedProducer,
+  waitForReady,
+  pubSubClient,
 } from './redis-connection';
 import { EventEmitter } from 'node:events';
 import { ck, delSafe, keySlot, mgetSafe, pipeline } from './redis-cluster-safe';
@@ -353,5 +357,93 @@ describe('WRONGPASS / NOAUTH token re-read (S6-9)', () => {
     t += 6000;
     expect(await handle(new Error('WRONGPASS'))).toBe(true);
     c.emit('error', new Error('WRONGPASS'));
+  });
+});
+
+describe('request-path client options (load test 2026-11-02, PR #606)', () => {
+  it('fails fast: no offline queue, one retry, command and socket timeouts', () => {
+    expect(requestPathOptions(1000)).toEqual({
+      enableOfflineQueue: false,
+      maxRetriesPerRequest: 1,
+      commandTimeout: 1000,
+      socketTimeout: 1000,
+    });
+    const c = createRedisClient(
+      'redis://localhost:6379',
+      { ...requestPathOptions(700), enableAutoPipelining: false },
+      { ...OFF, REDIS_CLUSTER: 'false' },
+    );
+    expect(c.options.enableOfflineQueue).toBe(false);
+    expect(c.options.socketTimeout).toBe(700);
+    expect(c.options.commandTimeout).toBe(700);
+    c.disconnect();
+  });
+
+  it('waitForReady resolves on ready, or after the bound when Redis is away', async () => {
+    const em = new EventEmitter() as unknown as Redis;
+    (em as unknown as { status: string }).status = 'connecting';
+    const p = waitForReady(em, 5000);
+    (em as unknown as EventEmitter).emit('ready');
+    await expect(p).resolves.toBeUndefined();
+    const t0 = Date.now();
+    await waitForReady(em, 30);
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(25);
+    (em as unknown as { status: string }).status = 'ready';
+    await expect(waitForReady(em, 5000)).resolves.toBeUndefined();
+  });
+});
+
+describe('pubSubClient', () => {
+  it('overrides the fail-fast options so (s)subscribe queues until ready', () => {
+    const duplicate = jest.fn().mockReturnValue({ on: jest.fn() });
+    pubSubClient({ duplicate } as never);
+    expect(duplicate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enableOfflineQueue: true,
+        maxRetriesPerRequest: null,
+        commandTimeout: undefined,
+        socketTimeout: undefined,
+      }),
+    );
+  });
+});
+
+describe('pubSubClient / fail-fast in cluster mode (no Redis needed)', () => {
+  it('Cluster clone: cluster-level offline queue on, node options queue too, refresh attached', () => {
+    const cluster = createRedisClient(
+      'redis://127.0.0.1:1',
+      requestPathOptions(1000),
+      { REDIS_CLUSTER: 'true' },
+    ) as unknown as Cluster;
+    expect(cluster.options.enableOfflineQueue).toBe(false);
+    const clone = pubSubClient(cluster as never) as unknown as Cluster;
+    expect(clone).toBeInstanceOf(Cluster);
+    expect(clone.options.enableOfflineQueue).toBe(true);
+    expect(
+      (clone.options.redisOptions as { enableOfflineQueue?: boolean })
+        .enableOfflineQueue,
+    ).toBe(true);
+    expect(clone.options.redisOptions?.commandTimeout).toBeUndefined();
+    expect(clone.options.redisOptions?.maxRetriesPerRequest).toBeNull();
+    expect(clone.listenerCount('error')).toBeGreaterThan(0);
+    clone.disconnect();
+    cluster.disconnect();
+  });
+
+  it('unreachable cluster: a request-path command is refused at once and counts as «Redis down»', async () => {
+    const cluster = createRedisClient(
+      'redis://127.0.0.1:1',
+      requestPathOptions(1000),
+      { REDIS_CLUSTER: 'true' },
+    );
+    cluster.on('error', () => undefined);
+    const started = Date.now();
+    const err = await cluster.get('k').then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(isRedisInfraError(err)).toBe(true);
+    expect(Date.now() - started).toBeLessThan(500);
+    cluster.disconnect();
   });
 });

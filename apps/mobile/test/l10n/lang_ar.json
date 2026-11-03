@@ -3536,6 +3536,7 @@
 "post.create.oneFieldHint":"ما الجديد؟",
 "post.create.photos":"الصور",
 "post.create.photosHint":"حتى 9 صور أو فيديو واحد.",
+"post.create.placeHint":"العنوان / المكان",
 "post.create.practice":"التخصص",
 "post.create.practicePick":"الموضوع (اختياري)",
 "post.create.publish":"نشر",
