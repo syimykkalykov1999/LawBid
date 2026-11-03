@@ -295,7 +295,7 @@ class WebRtcCallMedia implements CallMedia {
     _video = video;
     _servers = iceServers;
     _first = peer;
-    _mic = await _getUserMedia({
+    final stream = await _getUserMedia({
       'audio': {
         'echoCancellation': true,
         'noiseSuppression': true,
@@ -303,6 +303,17 @@ class WebRtcCallMedia implements CallMedia {
       },
       'video': video ? _cameraConstraints() : false,
     });
+    // close() ran while the permission/camera was pending: it found no
+    // stream to stop, so this one is ours to release — mic and camera must
+    // not stay live after the end.
+    if (_closed) {
+      for (final t in stream.getTracks()) {
+        await _guard('track.stop (late)', t.stop);
+      }
+      await _guard('stream.dispose (late)', stream.dispose);
+      return;
+    }
+    _mic = stream;
     if (video) _local.value = _mic;
     await _newLink(peer, onSignal: onSignal, onState: onState);
     await setSpeaker(video);

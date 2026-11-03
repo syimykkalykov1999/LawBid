@@ -509,10 +509,18 @@ class _SystemUi implements SystemCallUi {
   /// The native side never answers (a stuck platform call).
   bool hang = false;
 
+  /// dismiss fails from its Nth call on (1 = every call): endAll and the
+  /// service stop must still run. The earlier fire-and-forget calls of the
+  /// controller are outside the release steps and not under test.
+  int dismissThrowsFrom = 0;
+
   @override
   Future<void> dismiss(String callId) async {
     dismissed.add(callId);
     onDismiss?.call();
+    if (dismissThrowsFrom > 0 && dismissed.length >= dismissThrowsFrom) {
+      throw StateError('dismiss failed');
+    }
     if (hang) await Completer<void>().future;
   }
 
@@ -2089,6 +2097,61 @@ void main() {
         async.flushMicrotasks();
         expectClosed(h, async);
         done(h);
+      });
+    });
+
+    group('R-037: dismiss failing does not skip endAll and service stop', () {
+      void expectEnded(_Harness h, FakeAsync async) {
+        async.flushMicrotasks();
+        expect(h.systemUi.dismissed.toSet(), hasLength(1));
+        expect(h.systemUi.endAlls, 1);
+        expect(h.foreground.stops, 1);
+        done(h);
+      }
+
+      test('decline', () {
+        fakeAsync((async) {
+          final h = _Harness();
+          h.systemUi.dismissThrowsFrom = 2;
+          h.emit(
+            'call:incoming',
+            _event(_call('c5', CallStatus.ringing, outgoing: false)),
+          );
+          async.flushMicrotasks();
+          h.c.decline();
+          expectEnded(h, async);
+        });
+      });
+
+      test('cancel (outgoing, still ringing)', () {
+        fakeAsync((async) {
+          final h = _Harness();
+          h.systemUi.dismissThrowsFrom = 1;
+          h.c.call('conv', peer: _peer);
+          async.flushMicrotasks();
+          h.c.hangUp();
+          expectEnded(h, async);
+        });
+      });
+
+      test('remote hangup', () {
+        fakeAsync((async) {
+          final h = _Harness();
+          h.systemUi.dismissThrowsFrom = 2;
+          h.c.call('conv', peer: _peer);
+          async.flushMicrotasks();
+          h.emit(
+            'call:accepted',
+            _event(_call('c1', CallStatus.active, outgoing: true)),
+          );
+          async.flushMicrotasks();
+          h.media.onState!(CallMediaState.connected);
+          h.emit(
+            'call:ended',
+            _event(_call('c1', CallStatus.ended, outgoing: true)),
+          );
+          expectEnded(h, async);
+        });
       });
     });
 

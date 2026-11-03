@@ -2663,9 +2663,11 @@ class CallController extends Notifier<CallSession> {
   Future<void> _endSystemCall(String endedId) async {
     final ui = ref.read(systemCallUiProvider);
     final fg = ref.read(callForegroundProvider);
-    await ui.dismiss(endedId);
-    await ui.endAll();
-    await fg.stop();
+    // Each step on its own clock: one that throws or hangs must not keep
+    // the others (CallKit end, the ongoing-call service) from running.
+    await _releaseStep('system call dismiss', () => ui.dismiss(endedId));
+    await _releaseStep('system call endAll', ui.endAll);
+    await _releaseStep('foreground stop', fg.stop);
   }
 
   /// The media closing that the last [_reset] started.

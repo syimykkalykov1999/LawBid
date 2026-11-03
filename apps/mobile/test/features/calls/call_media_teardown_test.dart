@@ -35,6 +35,7 @@ class _Stream extends Fake implements MediaStream {
   _Stream(this.tracks);
 
   final List<MediaStreamTrack> tracks;
+  void Function()? onDispose;
 
   @override
   List<MediaStreamTrack> getTracks() => tracks;
@@ -45,7 +46,7 @@ class _Stream extends Fake implements MediaStream {
   List<MediaStreamTrack> getVideoTracks() =>
       tracks.where((t) => t.kind == 'video').toList();
   @override
-  Future<void> dispose() async {}
+  Future<void> dispose() async => onDispose?.call();
 }
 
 class _Sender extends Fake implements RTCRtpSender {}
@@ -127,26 +128,28 @@ void main() {
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
-      const MethodChannel('FlutterWebRTC.Method'),
-      (_) async => null,
-    );
+          const MethodChannel('FlutterWebRTC.Method'),
+          (_) async => null,
+        );
   });
 
   group('disposePeerConnection (LiveKit Transport.onDispose)', () {
-    test('callbacks cleared, senders removed, then close, then dispose',
-        () async {
-      final log = _Log();
-      final pc = _Pc(log, 'pc')
-        ..onTrack = (_) {}
-        ..onIceCandidate = (_) {}
-        ..onConnectionState = (_) {}
-        ..onIceConnectionState = (_) {}
-        ..onRenegotiationNeeded = () {};
-      await pc.addTrack(_Track(log, 'audio'));
-      await disposePeerConnection(pc);
-      expect(log.steps, ['pc removeTrack', 'pc close', 'pc dispose']);
-      expect(pc.callbacksCleared, isTrue);
-    });
+    test(
+      'callbacks cleared, senders removed, then close, then dispose',
+      () async {
+        final log = _Log();
+        final pc = _Pc(log, 'pc')
+          ..onTrack = (_) {}
+          ..onIceCandidate = (_) {}
+          ..onConnectionState = (_) {}
+          ..onIceConnectionState = (_) {}
+          ..onRenegotiationNeeded = () {};
+        await pc.addTrack(_Track(log, 'audio'));
+        await disposePeerConnection(pc);
+        expect(log.steps, ['pc removeTrack', 'pc close', 'pc dispose']);
+        expect(pc.callbacksCleared, isTrue);
+      },
+    );
   });
 
   group('WebRtcCallMedia', () {
@@ -171,8 +174,7 @@ void main() {
       );
     }
 
-    test(
-        'the end: our tracks stop first, then each link goes the LiveKit '
+    test('the end: our tracks stop first, then each link goes the LiveKit '
         'way', () async {
       final m = media();
       await m.open(const [], onSignal: (_) {}, onState: (_) {}, peer: 'a');
@@ -196,8 +198,7 @@ void main() {
       expect(log.steps, isEmpty);
     });
 
-    test(
-        'two set-ups of one link racing: one connection stays, the other '
+    test('two set-ups of one link racing: one connection stays, the other '
         'is disposed (no hidden second stream)', () async {
       final m2 = media(gate: true);
       final opening = m2.open(
@@ -220,10 +221,42 @@ void main() {
       await m2.close();
     });
 
+    test('close during a pending getUserMedia releases the stream', () async {
+      final log = _Log();
+      final gate = Completer<MediaStream>();
+      var disposed = false;
+      var pcs = 0;
+      final m = WebRtcCallMedia(
+        getUserMedia: (_) => gate.future,
+        createPc: (_) async => _Pc(log, 'pc${pcs++}'),
+      );
+      final opening = m.open(
+        const [],
+        onSignal: (_) {},
+        onState: (_) {},
+        peer: 'a',
+      );
+      await Future<void>.delayed(Duration.zero);
+      await m.close();
+      gate.complete(
+        _Stream([_Track(log, 'audio'), _Track(log, 'video')])
+          ..onDispose = () => disposed = true,
+      );
+      await opening;
+      expect(log.steps, ['stop audio', 'stop video']);
+      expect(disposed, isTrue);
+      expect(m.peers, isEmpty);
+      expect(pcs, 0);
+    });
+
     test('a link set up after the end is torn down, not kept', () async {
       final m = media(gate: true);
-      final opening =
-          m.open(const [], onSignal: (_) {}, onState: (_) {}, peer: 'a');
+      final opening = m.open(
+        const [],
+        onSignal: (_) {},
+        onState: (_) {},
+        peer: 'a',
+      );
       await Future<void>.delayed(Duration.zero);
       await m.close();
       pending.single.complete(_Pc(log, 'unused'));
