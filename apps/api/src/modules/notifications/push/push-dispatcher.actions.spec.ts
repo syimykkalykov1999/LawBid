@@ -119,6 +119,7 @@ function setup(notification?: Record<string, unknown>) {
     {} as never,
     {
       iconFor: () => Promise.resolve({ badge: 1, on: true }),
+      mutedCategories: () => Promise.resolve(new Set()),
       notificationsChanged: () => Promise.resolve(),
       topicSwitches: () => Promise.resolve({ on: () => true, raw: {} }),
     } as never,
