@@ -25,8 +25,25 @@ variable "hosted_zone_id" {
 }
 variable "dmarc_rua" { type = string }
 variable "ses_from_address" { type = string }
-variable "api_image" { type = string }
-variable "admin_image" { type = string }
+# Image pins. LEAVE BOTH EMPTY (default): the tag then comes from the SSM
+# parameter deploy.yml writes after every green release, so an apply never
+# moves prod to an older image (docs/dev/KNOWN_ERRORS.md #44). A non-empty
+# value pins that exact image (first launch, ARM64 switch, break-glass).
+variable "api_image" {
+  type        = string
+  default     = ""
+  description = "Full image reference for api + worker + migrate, or empty = <ECR>/lawbid-api:<last_good_tag from SSM>."
+}
+variable "admin_image" {
+  type        = string
+  default     = ""
+  description = "Full image reference for admin, or empty = <ECR>/lawbid-admin:<last_good_tag from SSM>."
+}
+variable "last_good_tag_ssm_parameter" {
+  type        = string
+  default     = "/lawbid-prod/deploy/last_good_tag"
+  description = "SSM parameter deploy.yml writes with the tag of the last release that passed every check."
+}
 variable "alert_emails" { type = list(string) }
 variable "slack_webhook_url" {
   type      = string
