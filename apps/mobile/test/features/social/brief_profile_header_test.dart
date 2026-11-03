@@ -4,6 +4,8 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/promotions/application/promotions_providers.dart';
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
+import 'package:lawbid/features/promotions/presentation/promote_case_card.dart'
+    show BoostButton;
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
     show IdentityAvatar;
@@ -50,7 +52,7 @@ Post _post({required bool photo}) => Post(
 void main() {
   setUpAll(initializeDateFormatting);
 
-  testWidgets('profile list: brief header = post header', (t) async {
+  Future<void> pump(WidgetTester t) async {
     t.view.physicalSize = const Size(400, 1000);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
@@ -100,6 +102,10 @@ void main() {
       ),
     );
     await t.pump(const Duration(seconds: 1));
+  }
+
+  testWidgets('profile list: brief header = post header', (t) async {
+    await pump(t);
     Rect rect(String card, Finder f) => t.getRect(
           find.descendant(of: find.byKey(ValueKey(card)), matching: f).first,
         );
@@ -132,5 +138,38 @@ void main() {
       rect('brief', find.textContaining('Three things')).left,
       closeTo(name.left, 0.5),
     );
+  });
+
+  testWidgets('own brief: «Продвигать» and «…» on one level, same edge',
+      (t) async {
+    await pump(t);
+    final more = t.getRect(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey('brief')),
+            matching: find.byIcon(AppIcons.moreHorizRounded),
+          )
+          .first,
+    );
+    final boost = t.getRect(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey('brief')),
+            matching: find.byType(BoostButton),
+          )
+          .first,
+    );
+    expect(boost.center.dy, closeTo(more.center.dy, 0.5));
+    expect(boost.right, lessThan(more.left));
+    // «…» keeps the post's right edge.
+    final postMore = t.getRect(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey('post')),
+            matching: find.byIcon(AppIcons.moreHorizRounded),
+          )
+          .first,
+    );
+    expect(more.right, closeTo(postMore.right, 0.5));
   });
 }
