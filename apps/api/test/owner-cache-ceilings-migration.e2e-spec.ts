@@ -18,8 +18,13 @@ const SQL = readFileSync(
   ),
   'utf8',
 );
-// Without the lock_timeout line (SET LOCAL needs a transaction, applied below).
-const BODY = SQL.replace("SET LOCAL lock_timeout = '5s';", '');
+// The statements after the lock_timeout line, comments stripped (a comment
+// may hold a «;» and must not be cut into statements).
+const STATEMENTS = SQL.replace(/--.*$/gm, '')
+  .replace("SET LOCAL lock_timeout = '5s';", '')
+  .split(';')
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
 
 const KEYS = [
   'cache.limit_mb.images',
@@ -44,11 +49,7 @@ describe('cache ceilings follow the user cap (migration)', () => {
   const migrate = () =>
     prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe("SET LOCAL lock_timeout = '5s'");
-      for (const stmt of BODY.split(';').filter((s) =>
-        /\w/.test(s.replace(/--.*$/gm, '')),
-      )) {
-        await tx.$executeRawUnsafe(stmt);
-      }
+      for (const stmt of STATEMENTS) await tx.$executeRawUnsafe(stmt);
     });
 
   beforeEach(async () => {
@@ -88,6 +89,10 @@ describe('cache ceilings follow the user cap (migration)', () => {
     await migrate();
     expect(await get('cache.keep_media_days.default')).toBeUndefined();
     expect(await get('cache.limit_mb.video')).toBe(0);
+  });
+
+  it('has two statements: the reset and the knob removal', () => {
+    expect(STATEMENTS).toHaveLength(2);
   });
 
   it('starts with lock_timeout (squawk) and never touches other keys', () => {
