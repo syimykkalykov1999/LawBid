@@ -15,6 +15,7 @@ import 'package:lawbid/features/case_payments/presentation/case_payments_card.da
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/deals/deal_record_card.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/desktop_cases.dart';
 import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart'
     show caseStageOf;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
@@ -95,7 +96,11 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
     );
     if (!ok) return;
     final done = await _run(action, doneKey: doneKey);
-    if (done && popAfter && mounted && context.canPop()) context.pop();
+    if (done && popAfter && mounted) {
+      closeCaseRoute(context, () {
+        if (context.canPop()) context.pop();
+      });
+    }
   }
 
   Future<void> _dispute(OwnerCase c) async {
@@ -270,8 +275,10 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go(AppRoutes.mine),
+          onPressed: () => closeCaseRoute(
+            context,
+            () => context.canPop() ? context.pop() : context.go(AppRoutes.mine),
+          ),
         ),
         title: Text(t.t('cases.owner.title')),
         actions: [

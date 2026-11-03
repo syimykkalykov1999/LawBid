@@ -671,14 +671,14 @@ class _BeforeTyping extends ConsumerWidget {
     // compact rows.
     Widget grid<T>(List<T> items, Widget Function(T) build) =>
         SliverGrid.builder(
-          gridDelegate: kSearchPostGridDelegate,
+          gridDelegate: searchPostGridDelegate(context),
           itemCount: items.length,
           itemBuilder: (context, i) => build(items[i]),
         );
     // Owner 2026-11-01 (start view «lost its grids»): while the first page
     // loads the grid shows placeholders, not a blank screen.
     Widget gridSkeleton() => SliverGrid.builder(
-          gridDelegate: kSearchPostGridDelegate,
+          gridDelegate: searchPostGridDelegate(context),
           itemCount: 12,
           itemBuilder: (_, __) => const AppSkeleton(borderRadius: 0),
         );

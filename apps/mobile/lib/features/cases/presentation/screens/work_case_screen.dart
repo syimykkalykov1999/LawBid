@@ -13,6 +13,7 @@ import 'package:lawbid/features/case_payments/presentation/case_payments_card.da
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/deals/deal_record_card.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/desktop_cases.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart'
     show routeSubscriptionError;
 import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart'
@@ -325,8 +326,10 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go(AppRoutes.mine),
+          onPressed: () => closeCaseRoute(
+            context,
+            () => context.canPop() ? context.pop() : context.go(AppRoutes.mine),
+          ),
         ),
         title: Text(t.t('cases.work.title')),
         actions: [
