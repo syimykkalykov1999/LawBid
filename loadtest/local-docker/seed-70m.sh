@@ -16,6 +16,8 @@ set -uo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 mode="${1:---check}"; DB="${2:-lawbid_lt70}"; W="${3:-8}"
 PGC="${PG_CONTAINER:-lawbid-lt-postgres-1}"
+[[ "$DB" =~ ^[a-z][a-z0-9_]{0,40}$ ]] || { echo "bad database name: $DB"; exit 2; }
+[[ "$W" =~ ^[0-9]+$ ]] || { echo "bad workers: $W"; exit 2; }
 GB_PER_M="${GB_PER_M:-20.5}"; USERS_M=70; MIN_FREE_PCT=10
 need_gb=$(python3 -c "print(int($GB_PER_M*$USERS_M*1.15))")
 dir="$(docker info -f '{{.DockerRootDir}}' 2>/dev/null || echo /var/lib/docker)"; [ -d "$dir" ] || dir="$HOME"
