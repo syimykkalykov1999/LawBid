@@ -3536,6 +3536,7 @@
 "post.create.oneFieldHint":"Was gibt's Neues?",
 "post.create.photos":"Fotos",
 "post.create.photosHint":"Bis zu 9 Fotos oder ein Video.",
+"post.create.placeHint":"Adresse / Ort",
 "post.create.practice":"Fachgebiet",
 "post.create.practicePick":"Thema (optional)",
 "post.create.publish":"Veröffentlichen",
