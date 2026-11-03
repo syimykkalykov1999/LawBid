@@ -431,9 +431,12 @@ class _FakeMedia implements CallMedia {
   /// Owner 2026-10-26: a teardown that throws (a stopped camera track).
   bool closeThrows = false;
 
+  void Function()? onClose;
+
   @override
   Future<void> close() async {
     closed = true;
+    onClose?.call();
     if (closeThrows) throw StateError('track already disposed');
   }
 }
@@ -484,8 +487,13 @@ class _FakeForeground implements CallForeground {
   }) async =>
       started.add('$name|${since > 0}');
 
+  void Function()? onStop;
+
   @override
-  Future<void> stop() async => stops++;
+  Future<void> stop() async {
+    stops++;
+    onStop?.call();
+  }
 }
 
 class _SystemUi implements SystemCallUi {
@@ -495,8 +503,18 @@ class _SystemUi implements SystemCallUi {
   @override
   Future<void> showIncoming(AppCall call) async {}
 
+  void Function()? onDismiss;
+  void Function()? onEndAll;
+
+  /// The native side never answers (a stuck platform call).
+  bool hang = false;
+
   @override
-  Future<void> dismiss(String callId) async => dismissed.add(callId);
+  Future<void> dismiss(String callId) async {
+    dismissed.add(callId);
+    onDismiss?.call();
+    if (hang) await Completer<void>().future;
+  }
 
   @override
   Future<void> showOngoing(AppCall call) async {}
@@ -505,7 +523,10 @@ class _SystemUi implements SystemCallUi {
   Future<void> answered(AppCall call) async {}
 
   @override
-  Future<void> endAll() async => endAlls++;
+  Future<void> endAll() async {
+    endAlls++;
+    onEndAll?.call();
+  }
 }
 
 class _Harness {
@@ -1247,6 +1268,8 @@ void main() {
     expect(h.foreground.started, ['Paul Phone|false']);
 
     await h.c.hangUp();
+    // Stopped once, by the ordered release after the media (R-037).
+    await _settle();
     expect(h.foreground.stops, 1);
   });
 
@@ -1890,28 +1913,68 @@ void main() {
     });
 
     test(
-        'end order: media at once, system call next, the late native sweep '
-        'only after the screen has slid away', () {
+        'R-037 end order (LiveKit): media closed → system call ended → '
+        'released → idle after the linger; no native work after release', () {
       fakeAsync((async) {
         final h = _Harness();
+        final order = <String>[];
+        h.media.onClose = () => order.add('media');
+        h.systemUi.onDismiss = () => order.add('system');
+        h.systemUi.onEndAll = () => order.add('endAll');
+        h.foreground.onStop = () => order.add('service');
         h.c.call('conv', peer: _peer);
         async.flushMicrotasks();
         h.c.hangUp();
-        // The camera / mic go with the end itself.
-        expect(h.media.closed, isTrue);
+        // «Call ended» at once; the screen holds still while it lets go.
+        expect(h.s.phase, CallPhase.ended);
+        expect(h.s.releasing, isTrue);
         async.flushMicrotasks();
-        final first = h.systemUi.endAlls;
-        expect(first, greaterThan(0));
-        expect(h.foreground.stops, 1);
-        // The screen closes at 1.5 s and slides for ~0.4 s: no native
-        // work lands in that window.
-        async.elapse(const Duration(milliseconds: 2900));
-        expect(h.systemUi.endAlls, first);
-        expect(h.foreground.stops, 1);
-        expect(kCallLateSweep, greaterThan(kCallEndedLinger));
-        async.elapse(const Duration(milliseconds: 200));
-        expect(h.systemUi.endAlls, first + 1);
-        expect(h.foreground.stops, 2);
+        expect(order, ['media', 'system', 'endAll', 'service']);
+        expect(h.s.releasing, isFalse);
+        expect(h.s.phase, CallPhase.ended);
+        // Nothing native lands while the screen slides away.
+        async.elapse(kCallEndedLinger + const Duration(seconds: 5));
+        expect(h.s.phase, CallPhase.idle);
+        expect(order, ['media', 'system', 'endAll', 'service']);
+        done(h);
+      });
+    });
+
+    test('R-037: a step that never answers cannot hold the ended screen', () {
+      fakeAsync((async) {
+        final h = _Harness();
+        h.systemUi.hang = true;
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        h.c.hangUp();
+        async.flushMicrotasks();
+        expect(h.s.releasing, isTrue);
+        async.elapse(kCallReleaseStepTimeout);
+        expect(h.s.releasing, isFalse);
+        async.elapse(kCallEndedLinger + const Duration(milliseconds: 100));
+        expect(h.s.phase, CallPhase.idle);
+        done(h);
+      });
+    });
+
+    test('R-037: a new call during the release is not ended by it', () {
+      fakeAsync((async) {
+        final h = _Harness();
+        h.systemUi.hang = true;
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        expect(h.s.phase, CallPhase.outgoing);
+        async.elapse(kCallReleaseStepTimeout * 2);
+        expect(h.s.phase, CallPhase.outgoing);
+        h.systemUi.hang = false;
+        h.c.hangUp();
+        async
+          ..flushMicrotasks()
+          ..elapse(kCallReleaseStepTimeout + kCallEndedLinger);
         done(h);
       });
     });

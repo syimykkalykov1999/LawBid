@@ -66,7 +66,6 @@ class _CallScreenState extends ConsumerState<CallScreen>
     vsync: this,
     duration: const Duration(milliseconds: 1800),
   );
-  Timer? _closeTimer;
 
   /// UI-03: the two pictures of a 1:1 video call keep one renderer each for
   /// the whole call; a swap moves them between the full screen and the
@@ -81,6 +80,13 @@ class _CallScreenState extends ConsumerState<CallScreen>
       ref.read(callVideoLayoutProvider.notifier);
 
   bool _closing = false;
+  bool _closeScheduled = false;
+
+  void _closeAfterFrame() {
+    if (_closing || _closeScheduled) return;
+    _closeScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _close());
+  }
 
   /// The video call's controls may fade (nothing else needs them now).
   bool _canHide = false;
@@ -271,7 +277,6 @@ class _CallScreenState extends ConsumerState<CallScreen>
   @override
   void dispose() {
     _alive--;
-    _closeTimer?.cancel();
     // A closed (minimised) screen never fades its controls away.
     _layout.stopIdle();
     final visible = _visible;
@@ -282,17 +287,6 @@ class _CallScreenState extends ConsumerState<CallScreen>
 
   void _listen(CallController c) {
     ref
-      ..listen(callControllerProvider.select((x) => x.phase), (_, phase) {
-        _closeTimer?.cancel();
-        if (phase == CallPhase.idle) {
-          _close();
-        } else if (phase == CallPhase.ended) {
-          // The 409 sheet (below) decides when this screen goes.
-          if (ref.read(callControllerProvider).staleCallId != null) return;
-          // «Call ended» stays readable for a moment, then the screen goes.
-          _closeTimer = Timer(const Duration(milliseconds: 1500), _close);
-        }
-      })
       // Telegram: the server holds a call this device does not have.
       ..listen(callControllerProvider.select((x) => x.staleCallId), (_, id) {
         if (id != null && mounted) unawaited(_askEndOther(c));
@@ -327,9 +321,16 @@ class _CallScreenState extends ConsumerState<CallScreen>
     final s = shownWhileClosing(
       live: live,
       last: _lastShown,
-      closing: _closing,
+      // Idle = this screen is on its way out (it pops after this frame).
+      closing: _closing || live.phase == CallPhase.idle,
     );
     if (live.phase != CallPhase.idle) _lastShown = live;
+    // R-037 (owner 2026-10-28, «the slide-down stops halfway»): one clock
+    // for the end — the controller's. It goes idle only once the call is
+    // fully let go and «Call ended» has been read; the screen then pops
+    // after this frame (LiveKit example: `RoomDisconnectedEvent` →
+    // `addPostFrameCallback` → pop). No timer of its own here.
+    if (live.phase == CallPhase.idle) _closeAfterFrame();
     final c = ref.read(callControllerProvider.notifier);
     _listen(c);
     final media = c.media;
@@ -669,7 +670,10 @@ class _CallScreenState extends ConsumerState<CallScreen>
                       end: 0,
                       bottom: 0,
                       child: _Fade(
-                        hidden: hidden || s.phase == CallPhase.ended,
+                        // R-037: the sheet goes once the call is let go —
+                        // never while native teardown holds the frames.
+                        hidden: hidden ||
+                            (s.phase == CallPhase.ended && !s.releasing),
                         offset: const Offset(0, 0.3),
                         child: bottom,
                       ),
