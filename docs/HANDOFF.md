@@ -288,3 +288,48 @@ Firebase Web app (public config + VAPID через админку, для Web Pu
 1. Прочитать `AGENTS.md` (строгие правила), этот файл, `docs/dev/PROJECT_MAP.md`, `docs/dev/KNOWN_ERRORS.md`.
 2. `gh pr list` и `git log origin/main --first-parent`, сверить со списком выше.
 3. Взять пункт из таблицы «пять пунктов», которому нужен код (1, 2, 4), или ждать устройства и владельца (3, 5).
+
+---
+
+## Передача другому ИИ (03.11): как продолжить серию деплоев
+Для ИИ, который видит репозиторий впервые. Владелец останавливает прежнего ИИ после деплоя #583 и передаёт остаток вам. Перед началом прочитайте `AGENTS.md`, разделы «Режим работы 2026-11-02» и «Что осталось и откуда продолжать» выше, `docs/runbooks/DEPLOY_PROD.md`. Секретов здесь нет и быть не должно.
+
+### А. Очередь деплойных PR (по одному, в этом порядке)
+Состояние снято 03.11 по GitHub в 08:30 по Висконсину; перед каждым PR перепроверяйте `gh pr view <n> --json headRefOid,mergeStateStatus,statusCheckRollup`.
+| Порядок | PR | Head SHA | Состояние на срез |
+|---|---|---|---|
+| 1 | #585 PDF-шрифты Noto | `bbd43625f` | mergeable clean, готов (база main `e80fc677`) |
+| 2 | #647 ключи файлом .p8/.pem в админке | `2e5eafa21` | только admin, статус «unstable»: смотреть красные проверки; деплойных путей API нет |
+| 3 | #644 сторож роста БД | `25353ae89` | **конфликт** (dirty): влить main и решить |
+| 4 | #577 поиск людей | `bf2aae1d9` | clean, готов; поверх него тестер ноута улучшит поиск, на 10M не проверено |
+| 5 | #629 старт API без Redis | `8c922b04d` | **конфликт** (dirty): влить main; кластерный Redis не проверен |
+| 6 | #568 coturn по требованию (Terraform) | `5fd7f1aa3` | clean; **apply не делать**, см. раздел Г |
+| 7 | #558 авто-реплика БД, авто-HA (Terraform) | `2d6c34b45` | **конфликт** (dirty), старая база; см. раздел Г |
+| 8 | #579 лимит сокетов 600/мин на адрес | `61adba639` | clean, готов; после деплоя проверить в админке `realtime.max_connects_per_ip_per_minute` (сохранённое значение перекрывает умолчание) |
+Прод на момент передачи: SHA #583 после выката (`e80fc677`), если выкат прошёл; иначе `53f2f5ec`. Точное значение: `gh run list --repo syimykkalykov1999/LawBid --workflow deploy.yml --limit 5` и `https://api.lawbid.dev/health/ready` (поле version = SHA main).
+
+### Б. Правило: один деплойный PR за раз
+1. Влить свежий `main` в ветку PR (`git merge origin/main`, не rebase и не force-push), решить конфликты, `npm run precheck`.
+2. Дождаться зелёного CI на текущем head.
+3. Слить (squash или merge как принято в репо, по словам диспетчера «Вылечить CI»/владельца). Merge queue не включать.
+4. Push-CI на main, затем `deploy.yml` запускается сам (пути `apps/api`, `apps/admin`, `packages`, `package*.json`; чисто документные и тестовые PR деплой не запускают).
+5. Шаг «Wait for green CI» → сборка образов → staging → Smoke → **ожидание Approve владельца**. Номер прогона: `gh run list --repo syimykkalykov1999/LawBid --workflow deploy.yml --status waiting --json databaseId --jq '.[0].databaseId'`. Approve (его даёт владелец, либо вы по его постоянному разрешению):
+```
+gh api -X POST repos/syimykkalykov1999/LawBid/actions/runs/<id>/pending_deployments -F 'environment_ids[]=23646149155' -f state=approved -f comment=approve
+```
+6. Ждать выкат: api → Smoke (проверяет, что отвечают задачи именно этого тега) → worker → admin → синтетический пользовательский сценарий; только затем тег пишется в SSM `last_good_tag`.
+7. Проверка прода: `https://api.lawbid.dev/health/ready` (version = SHA main), ECS-сервисы api/admin/worker стабильны, алармы CloudWatch не горят, 5xx не выросли. Только после этого следующий PR.
+
+### В. Откат
+Автоматически: circuit breaker ECS возвращает прошлую ревизию. Вручную: Actions → «Rollback production» (`rollback.yml`), по умолчанию целится в `last_good_tag` (SSM `/lawbid-prod/deploy/last_good_tag`) или в указанный предыдущий SHA. Миграции необратимы: PR с миграцией (например, 20261114090000 уже в проде) откатывать только кодом, совместимым со схемой.
+
+### Г. Terraform: #568 и #558
+Слияние этих PR **ничего не применяет** в AWS. `terraform apply` на проде делает **только владелец с Мака** по сохранённому плану; API при этом деплоить первым. Перед отдачей плана проверить, что он **не убирает реплики**, не включает платное (TURN-машина, второй узел), не сносит TURN (ловушка: `tfvars` на Mac с `turn_enabled=false`). `turn_on_demand` остаётся `false`. Команды Mac: `unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_CREDENTIAL_EXPIRATION`, `TF_CLI_CONFIG_FILE=~/.lawbid-tf-catchup/terraformrc`. #558 держит `database_multi_az=false` и `redis_replicas=0` по умолчанию: сверить план с реальным состоянием (`refresh`), прежде чем звать владельца.
+
+### Д. Известные ловушки
+- Гейт «Wait for green CI» красный из-за cron **Self-check (production)** и флейка e2e «data-export spec 50 000-message export». Лечение: **влить свежий main** и дождаться зелёного, **не перезапускать** красное (правило CI-протокола в `docs/dev/PROJECT_MAP.md`, `docs/dev/KNOWN_ERRORS.md`).
+- Пока `DEPLOY_ENABLED=true`, каждый merge в main с изменениями в деплойных путях запускает Deploy (`docs/runbooks/DEPLOY_PROD.md`, ловушка 5).
+- Если Approve не виден: окружение GitHub `production` должно иметь проверяющих (ловушка 3 там же).
+
+### Е. Дальше
+WARN на проде, дела владельца и пять пунктов «не сделано» выше. После серии: единый `terraform apply` (Mac), лестница нагрузки на ноуте, платные тесты ≤ 50 $ только по слову владельца.
