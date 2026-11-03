@@ -138,20 +138,27 @@ class RealAuthRepository implements AuthRepository {
     required String identifier,
     required String password,
   }) async {
+    final AuthTokensResult tokens;
     try {
-      final tokens = await _orContinue(
+      tokens = await _orContinue(
         () => _client.passwordLogin(
           identifier: identifier,
           password: password,
           deviceInfo: _deviceInfo,
         ),
       );
-      await _session.applyTokens(tokens);
-      return const PasswordAuthResult.success();
     } on ApiException catch (e) {
       return _passwordFailure(e);
     } catch (_) {
       return const PasswordAuthResult(PasswordAuthStatus.networkError);
+    }
+    // The server already answered with tokens: whatever goes wrong while the
+    // session is stored is not «No connection» (owner 2026-11-03, Samsung).
+    try {
+      await _session.applyTokens(tokens);
+      return const PasswordAuthResult.success();
+    } catch (_) {
+      return const PasswordAuthResult(PasswordAuthStatus.failed);
     }
   }
 
@@ -243,7 +250,14 @@ class RealAuthRepository implements AuthRepository {
       case ApiErrorCodes.reauthInvalid:
         return const PasswordAuthResult(PasswordAuthStatus.reauthRequired);
       default:
-        return const PasswordAuthResult(PasswordAuthStatus.networkError);
+        // Only a call that never got a real answer is «No connection»; any
+        // other code the server sent (a 4xx / 5xx we have no text for) is a
+        // generic failure, not a lie about the internet.
+        return PasswordAuthResult(
+          e.isNetworkError
+              ? PasswordAuthStatus.networkError
+              : PasswordAuthStatus.failed,
+        );
     }
   }
 
