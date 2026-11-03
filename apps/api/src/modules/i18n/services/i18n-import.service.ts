@@ -61,11 +61,13 @@ export class I18nImportService {
    * bundle version, so phones re-download nothing else.
    */
   async run(
-    fileBuffer: Buffer,
+    fileBuffer: Buffer | string[][],
     mode: I18nImportMode,
     options: { missingOnly?: boolean } = {},
   ): Promise<I18nImportReport> {
-    const grid = await this.safeParse(fileBuffer);
+    const grid = Array.isArray(fileBuffer)
+      ? { grid: fileBuffer }
+      : await this.safeParse(fileBuffer);
     if ('errors' in grid) {
       return this.errorReport(mode, grid.errors);
     }
@@ -192,7 +194,7 @@ export class I18nImportService {
    * Scale note: this issues roughly one query per changed (key, lang)
    * pair rather than a single batched statement — acceptable for an
    * admin-driven, infrequent import of a translation file sized like
-   * translations_seed.xlsx (hundreds of keys, not tens of thousands);
+   * the built-in translations (hundreds of keys, not tens of thousands);
    * revisit with batched raw SQL if a future file gets much larger.
    */
   private async apply(

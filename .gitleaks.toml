@@ -1,0 +1,11 @@
+# Default gitleaks rules plus one narrow exception: the translations seed is
+# plain natural-language text (KNOWN_ERRORS #39). Keys such as
+# "practice.<area>.chapter_11_bankruptcy.kw" look like "kw = <long value>" to
+# the generic-api-key rule. Every other rule still scans these files.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "translations seed: key names with keyword lists, not secrets"
+targetRules = ["generic-api-key"]
+paths = ['''apps/api/prisma/seed/translations/[A-Za-z_-]+\.json''']

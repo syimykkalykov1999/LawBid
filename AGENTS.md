@@ -46,6 +46,9 @@ Every feature must not heat, crash or drain user phones. It must keep server loa
 ## Rule #3 — Known errors
 Before any change, PR or deploy, read [`docs/dev/KNOWN_ERRORS.md`](docs/dev/KNOWN_ERRORS.md). Append every new cause of a red PR, failed deploy or prod outage there in the same hour.
 
+## Rule #4 — Repo hygiene: no binary seeds in git
+Data that changes often (translations, seeds, fixtures) is stored as sorted plain text (JSON/CSV), never as xlsx/zip/dumps: git cannot diff or delta binaries, and every rewrite adds the full file to history and to every CI clone ([`KNOWN_ERRORS.md` #39](docs/dev/KNOWN_ERRORS.md)). Translations live in `apps/api/prisma/seed/translations/<lang>.json`; add texts with `scripts/i18n-add.mjs`.
+
 Put these rules in every subagent / helper prompt.
 
 **Журнал шагов:** после каждого влитого шага добавь файл `docs/dev/journal/YYYY-MM-DD-prNNN-кратко.md` (дата, PR, SHA, что сделано). Строки в таблицу PROJECT_MAP.md не дописывай: параллельные PR конфликтуют на ней.
