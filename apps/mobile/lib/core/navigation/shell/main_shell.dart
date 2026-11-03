@@ -116,7 +116,7 @@ class _MainShellState extends ConsumerState<MainShell> {
       StartupIdleQueue.enqueue(() {
         if (mounted) ref.read(contactsBackgroundSyncProvider).start();
       });
-      // Owner 2026-10-24: attorneys / assistants without a passkey are
+      // Owner 2026-10-24 (R-140: every role): users without a passkey are
       // offered Face ID / fingerprint once (snoozable).
       unawaited(maybeShowPasskeyNudge(context, ref));
     });
