@@ -21,7 +21,6 @@ import 'package:lawbid/features/cases/presentation/widgets/offer_case_sheet.dart
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/consultations/application/consultations_providers.dart';
 import 'package:lawbid/features/consultations/presentation/booking_sheet.dart';
-import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_banners.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
@@ -150,14 +149,15 @@ Future<void> showAttorneyMoreSheet(
 class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
   late AttorneyProfileTab _picked = widget.initialTab;
 
-  /// Owner 2026-10-06: without News (flag off) its tab is gone.
   /// Owner 2026-10-18: the briefs live in the Reposts tab (no Threads tab).
-  List<AttorneyProfileTab> get _tabs => [
-        for (final tab in AttorneyProfileTab.values)
-          if (tab != AttorneyProfileTab.threads &&
-              (tab != AttorneyProfileTab.news ||
-                  ref.watch(newsEnabledProvider)))
-            tab,
+  /// Owner 2026-10-24 (R-104): at most 4 tabs in one row — Posts, Reels,
+  /// Briefs & reposts, Reviews. News never adds a fifth tab (its enum value
+  /// and page stay for when it gets a place of its own).
+  List<AttorneyProfileTab> get _tabs => const [
+        AttorneyProfileTab.posts,
+        AttorneyProfileTab.reels,
+        AttorneyProfileTab.reposts,
+        AttorneyProfileTab.reviews,
       ];
 
   AttorneyProfileTab get _tab {

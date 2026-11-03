@@ -6,6 +6,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 
 /** Owner 2026-10-20: stories end to end — post a photo / text story, the
  * tray, who may see it (everyone / followers / phone contacts / hidden
@@ -17,6 +18,7 @@ describe('Stories (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let tokens: TokenService;
+  let flags: FeatureFlagsService;
   let base = '';
 
   beforeAll(async () => {
@@ -37,6 +39,9 @@ describe('Stories (e2e)', () => {
     base = `http://127.0.0.1:${((app.getHttpServer() as Server).address() as AddressInfo).port}`;
     prisma = app.get(PrismaService);
     tokens = app.get(TokenService);
+    flags = app.get(FeatureFlagsService);
+    // R-049: stories are OFF by default — these cases need them on.
+    await setStories(true);
     await prisma.state.upsert({
       where: { code: 'NY' },
       create: { code: 'NY', name: 'New York' },
@@ -45,10 +50,20 @@ describe('Stories (e2e)', () => {
   });
 
   afterAll(async () => {
+    await setStories(false);
     await app.close();
   });
 
   const api = () => request(base);
+  // updated_by stays null: only the flag value changes for this test DB.
+  const setStories = async (enabled: boolean) => {
+    await prisma.featureFlag.upsert({
+      where: { key: 'stories' },
+      create: { key: 'stories', enabled },
+      update: { enabled },
+    });
+    await flags.invalidate();
+  };
   const auth = (id: string, role: 'attorney' | 'client') => ({
     Authorization: `Bearer ${tokens.signAccessToken({
       sub: id,
@@ -366,5 +381,17 @@ describe('Stories (e2e)', () => {
     const over = await text(a, { text: 'too many' });
     expect(over.status).toBe(409);
     expect(over.body.error.code).toBe('STORY_LIMIT_REACHED');
+  });
+
+  it('with the stories flag OFF (the default) posting a story is refused', async () => {
+    const a = await attorney('Off');
+    await setStories(false);
+    try {
+      const res = await text(a);
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('FEATURE_DISABLED');
+    } finally {
+      await setStories(true);
+    }
   });
 });

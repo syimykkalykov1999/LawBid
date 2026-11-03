@@ -243,7 +243,8 @@ void main() {
       await _teardown(tester);
     });
 
-    testWidgets('with News on, News is one more tab', (tester) async {
+    testWidgets('with News on there are still at most 4 tabs (R-104)',
+        (tester) async {
       await _pumpScreen(
         tester,
         const AttorneyProfileScreen(username: 'jane.doe'),
@@ -257,7 +258,6 @@ void main() {
         'profile-tab-posts',
         'profile-tab-reels',
         'profile-tab-reposts',
-        'profile-tab-news',
         'profile-tab-reviews',
       });
       await _teardown(tester);
