@@ -802,6 +802,8 @@ const KEY_TEXT: Record<string, string> = {
   "partition.chat_group_messages_mode":
     "То же для сообщений групп: off / on / auto.",
   "partition.notifications_mode": "То же для уведомлений: off / on / auto.",
+  "partition.post_view_events_mode":
+    "То же для просмотров постов, но делится по месяцам: off / on / auto.",
   "partition.auto_rows":
     "При скольких строках режим auto начинает разделять таблицу (по умолчанию 50 000 000).",
   "images.avif_quality":

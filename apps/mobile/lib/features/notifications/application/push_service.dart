@@ -8,6 +8,7 @@ import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/config/web_push_config.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/permissions/permission_primer.dart';
 import 'package:lawbid/core/platform/chat_notifications_channel.dart';
@@ -104,7 +105,8 @@ class PushService {
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       unawaited(_registerVoip());
     }
-    // Web: push only when the build carries the Firebase web app's keys.
+    // Web: push only when the build or the admin carries the Firebase web
+    // app's keys (applied by the bootstrap).
     if (kIsWeb && !WebPushConfig.configured) {
       debugPrint('push: no web keys in this build');
       _startedFor = null;
@@ -121,6 +123,14 @@ class PushService {
     } on Object catch (e) {
       debugPrint('push disabled: $e');
       if (prompt && !kIsWeb) unawaited(_explainThenAsk(null));
+      _startedFor = null;
+      return;
+    }
+    // The web app is already up with other keys (they were changed in the
+    // admin meanwhile): Firebase cannot be re-pointed, so the new ones apply
+    // at the next start of the page, never a token asked with a mix.
+    if (kIsWeb && !WebPushConfig.matches(Firebase.app().options)) {
+      debugPrint('push: web keys changed, applied at the next start');
       _startedFor = null;
       return;
     }
@@ -455,6 +465,22 @@ final sessionServicesProvider = Provider<void>((ref) {
     // tokens for the new session, or calls stop ringing on this phone.
     ref.read(pushServiceProvider).forgetSession();
     return;
+  }
+  // Web: the admin's push keys arrive with the bootstrap, maybe after the
+  // sign-in; the start runs again once they are here.
+  // Only the push start runs again for it, not this provider (the outbox
+  // and the media drain stay as they are).
+  if (kIsWeb) {
+    ref.listen(
+      featureFlagsControllerProvider
+          .select((s) => WebPushConfig.fingerprintOf(s.appConfig)),
+      (_, __) {
+        WebPushConfig.applyRemote(
+          ref.read(featureFlagsControllerProvider).appConfig,
+        );
+        unawaited(ref.read(pushServiceProvider).start());
+      },
+    );
   }
   // Owner 2026-10-20: the phone's time zone and the planner's reminder
   // alarms follow the session.

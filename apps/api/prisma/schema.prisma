@@ -928,6 +928,7 @@ model User {
   blocked_by                  UserBlock[]                    @relation("Blocked")
   saved_items                 SavedItem[]
   saved_chat_messages         SavedChatMessage[]
+  quick_replies               QuickReply[]
   conversations_attorney      Conversation[]                 @relation("ConversationAttorney")
   conversations_client        Conversation[]                 @relation("ConversationClient")
   conversation_memberships    ConversationParticipant[]
@@ -1049,6 +1050,9 @@ model File {
   source_sha256      String?
   width              Int?
   height             Int?
+  /// BlurHash (4x3) of a clean image, drawn by the app as a placeholder
+  /// while the picture loads. Null for non-images / not yet computed.
+  blurhash           String?            @db.VarChar(40)
   scan_status        ScanStatus         @default(pending)
   is_public          Boolean            @default(false)
   deleted_at         DateTime?          @db.Timestamptz
@@ -3218,6 +3222,9 @@ model ChatGroup {
   /// Owner 2026-10-21 (Telegram «Запретить копирование»): no forwarding,
   /// copying or saving of the group's messages; sharing sends the link.
   protect_content       Boolean   @default(false)
+  /// Owner 2026-11-02 (Telegram «Медленный режим»): seconds a non-admin must
+  /// wait between two own messages; null = off.
+  slow_mode_s           Int?
   /// Telegram's member permissions beyond post / add / edit-info / call.
   who_can_media         GroupWho  @default(all)
   who_can_poll          GroupWho  @default(all)
@@ -4488,6 +4495,7 @@ model PostViewEvent {
   @@index([post_id, viewer_id, kind, created_at(sort: Desc)])
   @@index([post_id, kind, created_at(sort: Desc)])
   @@index([viewer_id], map: "post_view_events_viewer_id_idx")
+  @@index([created_at], map: "post_view_events_created_idx")
   @@map("post_view_events")
 }
 
@@ -8945,4 +8953,27 @@ model StaffDigest {
   created_at DateTime @default(now()) @db.Timestamptz
 
   @@map("staff_digests")
+}
+
+/// Owner 2026-11-02: quick replies (WhatsApp Business): ready-made answers an
+/// attorney inserts into a chat from the composer. Private to the owner;
+/// at most QUICK_REPLIES_MAX per person (the API counts under a per-person
+/// advisory lock).
+model QuickReply {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  /// Short name shown in the picker.
+  title      String   @db.VarChar(60)
+  body       String   @db.VarChar(1000)
+  /// Order in the list (ascending); new ones go last (insertion order).
+  position   Int      @default(0)
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
+  shard_id Int @default(0) @db.SmallInt
+
+  @@index([user_id, position, created_at])
+  @@map("quick_replies")
 }

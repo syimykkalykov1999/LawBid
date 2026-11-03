@@ -447,8 +447,8 @@ locals {
     worker = floor(max(var.worker_memory - var.clamav_memory, 512) * 0.7)
     admin  = floor(var.admin_memory * 0.7)
   }
-  node_options = { for k, mb in local.heap_mb : k => { name = "NODE_OPTIONS", value = "--max-old-space-size=${mb}" } }
-  api_secrets  = [for k, arn in var.secret_arns : { name = k, valueFrom = arn }]
+  node_options   = { for k, mb in local.heap_mb : k => { name = "NODE_OPTIONS", value = "--max-old-space-size=${mb}" } }
+  api_secrets    = [for k, arn in var.secret_arns : { name = k, valueFrom = arn }]
   worker_secrets = concat(local.api_secrets, var.partition_database_url_secret_arn == "" ? [] : [{ name = "PARTITION_DATABASE_URL", valueFrom = var.partition_database_url_secret_arn }])
   log_config = { for svc in ["api", "worker", "clamav", "admin", "migrate"] : svc => {
     logDriver = "awslogs"

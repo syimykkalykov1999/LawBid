@@ -194,7 +194,7 @@ sigstore/cosign-installer и anchore/sbom-action (GitHub, 2026).
 
 1. **Ruleset на `main`** (Settings -> Rules -> Rulesets -> New branch ruleset, Target:
    `main`): Require a pull request; Require status checks: `API CI`, `Admin CI`,
-   `gitleaks`, `Analyze, lint checks, unit/widget/golden tests`;
+   `gitleaks`, `Analyze, lint checks, unit/widget tests`;
    Require merge queue; Block force pushes. (Создать его может только владелец.)
    CodeQL и Container scan (`Build image + Trivy`) не обязательные: они идут только
    после слияния в main и раз в день, не на каждом PR.

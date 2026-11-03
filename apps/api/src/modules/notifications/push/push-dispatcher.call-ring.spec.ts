@@ -89,7 +89,7 @@ describe('incoming call ring push', () => {
       sender,
       {} as never,
       {} as never,
-      {} as never,
+      { mutedCategories: () => Promise.resolve(new Set()) } as never,
       {} as never,
       { setContext: () => undefined, warn: () => undefined } as never,
       undefined,

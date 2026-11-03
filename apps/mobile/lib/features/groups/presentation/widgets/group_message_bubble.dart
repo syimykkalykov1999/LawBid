@@ -12,6 +12,7 @@ import 'package:lawbid/features/chat/presentation/chat_video.dart';
 import 'package:lawbid/features/chat/presentation/reply_swipe.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
+import 'package:lawbid/features/groups/domain/slow_mode.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
 import 'package:lawbid/features/groups/presentation/poll/poll_bubble.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_rich_text.dart';
@@ -618,7 +619,11 @@ class GroupPendingBubble extends ConsumerWidget {
               children: [
                 Flexible(
                   child: FitText(
-                    t.t('chat.notSent'),
+                    p.slowWaitS == null
+                        ? t.t('chat.notSent')
+                        : t.t('group.slow.wait', {
+                            'time': slowModeLabel(t, p.slowWaitS!),
+                          }),
                     style: type.caption.copyWith(color: colors.danger),
                   ),
                 ),

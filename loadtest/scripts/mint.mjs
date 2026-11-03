@@ -6,10 +6,11 @@
 //   JWT_SECRET=<secret> JWT_KID=j1 node mint.mjs <out.json> <clients> <attorneys> [admins]
 //   (local run: JWT_KEYS="dev1:secret" JWT_ACTIVE_KID=dev1 is also understood)
 // Also writes <out>.admin-sessions.txt: "<jti> <adminUserId>" lines; the
-// admin guard needs a Redis key adm:sess:<jti> (seed-admin-sessions.sh).
+// admin guard needs a Redis key adm:sess:<jti> (seed-admin-sessions.sh), and
+// <out>.sessions.txt: "<user id>\t<sid>" lines for seed-sessions.sh.
 import { writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { sign, userId, access } from './jwt.mjs';
+import { sign, userId, access, writeSessions } from './jwt.mjs';
 
 const [out, nc = '300', na = '100', nadm = '10'] = process.argv.slice(2);
 if (!out) {
@@ -33,4 +34,5 @@ for (let k = 0; k < Number(nadm); k++) {
 }
 writeFileSync(out, JSON.stringify({ clients: got.client, attorneys: got.attorney, admins }));
 writeFileSync(`${out}.admin-sessions.txt`, sessions.join('\n') + '\n');
+writeSessions(out);
 console.error(`minted ${got.client.length} clients, ${got.attorney.length} attorneys, ${admins.length} admins -> ${out}`);
