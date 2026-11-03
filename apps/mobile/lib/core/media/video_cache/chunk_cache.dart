@@ -83,6 +83,29 @@ class ChunkCache {
     await _evict();
   }
 
+  /// One-off trim to [bytes] (oldest first) without moving the ceiling:
+  /// the global «Максимальный размер кэша» asks for it.
+  Future<void> trimTo(int bytes) async {
+    await _load();
+    while (_bytes > bytes && _index.isNotEmpty) {
+      await _remove(_index.keys.first);
+    }
+  }
+
+  /// Drops the chunks not played for [maxAge] («Автоудаление»). The file's
+  /// time is the last play (every read touches it).
+  Future<void> dropOlderThan(Duration maxAge) async {
+    await _load();
+    final cutoff = DateTime.now().subtract(maxAge);
+    for (final k in _index.keys.toList()) {
+      try {
+        if (_file(k).statSync().modified.isBefore(cutoff)) await _remove(k);
+      } on FileSystemException {
+        await _remove(k);
+      }
+    }
+  }
+
   Future<void> clear() async {
     await _load();
     for (final k in _index.keys.toList()) {

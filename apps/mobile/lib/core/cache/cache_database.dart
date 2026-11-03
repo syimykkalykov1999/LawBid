@@ -789,10 +789,15 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
   }
 
   /// «Прочее»: everything small and technical.
-  Future<void> clearOther() async {
+  Future<void> clearOther({bool keepFileViews = false}) async {
     await delete(syncState).go();
     await delete(eventDedup).go();
     await delete(cachedTranslations).go();
+    if (!keepFileViews) await clearFileViews();
+  }
+
+  /// The case-file views (the «Документы» slice of «Данные и память»).
+  Future<void> clearFileViews() async {
     await delete(cachedFileViews).go();
     await delete(fileViewsSync).go();
   }

@@ -60,4 +60,30 @@ void main() {
     await again.clear();
     expect(again.count, 0);
   });
+
+  test('trimTo drops the oldest down to the size without moving the ceiling',
+      () async {
+    final c = ChunkCache(dir, maxBytes: 100);
+    await c.put('a', b(10));
+    await c.put('b', b(10));
+    await c.put('c', b(10));
+    await c.get('a'); // b is the oldest, then c
+    await c.trimTo(15);
+    expect(c.contains('a'), isTrue);
+    expect(c.count, 1);
+    expect(c.maxBytes, 100);
+  });
+
+  test('dropOlderThan removes chunks not played for the age', () async {
+    final c = ChunkCache(dir, maxBytes: 100);
+    await c.put('old', b(10));
+    await c.put('new', b(10));
+    File('${dir.path}/old').setLastModifiedSync(
+      DateTime.now().subtract(const Duration(days: 8)),
+    );
+    await c.dropOlderThan(const Duration(days: 7));
+    expect(c.contains('old'), isFalse);
+    expect(c.contains('new'), isTrue);
+    expect(File('${dir.path}/old').existsSync(), isFalse);
+  });
 }

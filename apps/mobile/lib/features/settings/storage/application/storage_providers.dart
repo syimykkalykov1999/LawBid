@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_maintenance.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
+import 'package:lawbid/core/cache/chat_media_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/features/social/application/social_providers.dart'
     show socialLocalDatabaseProvider;
@@ -14,14 +15,23 @@ export 'package:lawbid/core/cache/cache_maintenance.dart';
 /// Owner 2026-10-22 (client economy plan §5.2): the one object that
 /// measures and empties the phone's caches for «Данные и память».
 final cacheMaintenanceProvider = Provider<CacheMaintenance>((ref) {
+  final limits = ref.watch(cacheLimitsProvider);
+  // The picture manager's own stale period: as long as the longest chat age
+  // (always as soon as one chat scope is «Никогда»); the sweeps by scope
+  // are CacheMaintenance.enforce.
+  final personal = limits.autoDeleteDays(AutoDeleteScope.privateChats);
+  final groups = limits.autoDeleteDays(AutoDeleteScope.groups);
   AppImageCaches.configure(
-    keepChatMediaDays: ref.watch(cacheLimitsProvider).keepMediaDays,
+    keepChatMediaDays: personal <= 0 || groups <= 0
+        ? 0
+        : (personal > groups ? personal : groups),
   );
   return CacheMaintenance(
     db: ref.watch(cacheDatabaseProvider),
     pages: ref.watch(socialLocalDatabaseProvider),
     limits: () => ref.read(cacheLimitsProvider),
     http: ref.watch(httpCacheInterceptorProvider),
+    privateChatPaths: ref.watch(chatMediaIndexProvider).filePaths,
   );
 });
 
@@ -37,6 +47,16 @@ class CacheReportNotifier extends AsyncNotifier<CacheReport> {
     final before = state.value;
     if (before != null) state = AsyncData(before.zeroed([store]));
     final ok = await ref.read(cacheMaintenanceProvider).clear(store);
+    unawaited(_remeasure());
+    return ok;
+  }
+
+  /// The ticked categories of the ring («Очистить выбранное»).
+  Future<bool> clearCategories(Set<StorageCategory> categories) async {
+    final before = state.value;
+    if (before != null) state = AsyncData(before.zeroedCategories(categories));
+    final ok =
+        await ref.read(cacheMaintenanceProvider).clearCategories(categories);
     unawaited(_remeasure());
     return ok;
   }

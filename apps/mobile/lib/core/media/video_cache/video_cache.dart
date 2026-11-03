@@ -70,6 +70,25 @@ abstract final class VideoCache {
     _syncMax();
   }
 
+  /// Owner 2026-11-03: drops the oldest chunks until [bytes] remain (the
+  /// global cache cap). False when no proxy runs (its folder is then
+  /// untouched by this call).
+  static bool trimTo(int bytes) {
+    final c = _commands;
+    if (c == null) return false;
+    c.send(('trim', bytes < 0 ? 0 : bytes));
+    return true;
+  }
+
+  /// Owner 2026-11-03: drops the chunks not played for [age]
+  /// («Автоудаление»). False when no proxy runs.
+  static bool dropOlderThan(Duration age) {
+    final c = _commands;
+    if (c == null) return false;
+    c.send(('age', age.inSeconds));
+    return true;
+  }
+
   static void _syncMax() {
     final commands = _commands;
     final max = maxBytes;
@@ -221,6 +240,10 @@ Future<void> _proxyMain(_ProxyStart s) async {
     ..listen((Object? m) async {
       if (m is (String, int) && m.$1 == 'max') {
         await cache.setMaxBytes(m.$2);
+      } else if (m is (String, int) && m.$1 == 'trim') {
+        await cache.trimTo(m.$2);
+      } else if (m is (String, int) && m.$1 == 'age') {
+        await cache.dropOlderThan(Duration(seconds: m.$2));
       } else if (m is (String, SendPort) && m.$1 == 'clear') {
         await cache.clear();
         m.$2.send(true);

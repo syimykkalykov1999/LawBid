@@ -322,26 +322,35 @@ void main() {
 
   test('limits: the user may only lower the admin ceiling', () {
     final l = CacheLimits.fromAppConfig(
-      {'cache.limit_mb.http': '32', 'cache.keep_media_days.default': '30'},
+      {'cache.limit_mb.http': '32'},
       userMb: {CacheStore.http: 64, CacheStore.images: 100},
-      userKeepMediaDays: 7,
     );
     expect(l.limitMb(CacheStore.http), 32);
     expect(l.limitMb(CacheStore.images), 100);
     expect(l.limitMb(CacheStore.video), 1000);
-    expect(l.keepMediaDays, 7);
-    expect(l.keepMedia, KeepMedia.week);
+    // The media stores have no ceiling of their own: the cap rules them.
+    expect(l.limitMb(CacheStore.chatMedia), 0);
     expect(
-      CacheLimits.fromAppConfig(const {}, userKeepMediaDays: 0).keepMediaDays,
-      30,
+      l.limitBytes(CacheStore.chatMedia),
+      CacheLimits.unboundedBytes,
     );
-    expect(
-      CacheLimits.fromAppConfig(
-        const {'cache.keep_media_days.default': '0'},
-        userKeepMediaDays: 0,
-      ).keepMedia,
-      KeepMedia.always,
+  });
+
+  test('cap and auto-delete: owner defaults, user choices', () {
+    const d = CacheLimits();
+    expect(d.capMb, 10 * 1024, reason: 'default 10 GB');
+    expect(d.capBytes, 10 * 1024 * 1024 * 1024);
+    expect(d.autoDelete(AutoDeleteScope.privateChats), AutoDeleteAge.never);
+    expect(d.autoDelete(AutoDeleteScope.groups), AutoDeleteAge.month);
+    expect(d.autoDelete(AutoDeleteScope.feed), AutoDeleteAge.week);
+    final u = CacheLimits.fromAppConfig(
+      const {},
+      userCapMb: 0,
+      userAutoDeleteDays: {AutoDeleteScope.groups: 3},
     );
+    expect(u.capBytes, isNull, reason: '«Нет»');
+    expect(u.autoDelete(AutoDeleteScope.groups), AutoDeleteAge.threeDays);
+    expect(AutoDeleteAge.fromDays(5), AutoDeleteAge.week);
   });
 }
 
