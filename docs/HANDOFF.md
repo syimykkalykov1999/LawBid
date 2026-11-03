@@ -124,15 +124,11 @@ ONLY after every item above is finished: the verified checkmark badges (attorney
 | Скорость мобилки (аудит 02.11, PR #643) | этап телефонных сборок: время холодного старта в мс, память при длинной прокрутке ленты/чата, 60/120 fps в профиле на Samsung и iPhone; в облаке измерить нельзя |
 
 ### Тест на наезд текста: что покрыто и что осталось (02.11)
-Покрыто пачками 1–6 (`apps/mobile/test/overflow/batch1..6_overflow_test.dart`, общий каркас `test/helpers/overflow_harness.dart`, журнал `docs/dev/journal/*overflow*`): #609, #622, #627, #630, #637, #640. Каждая проверка идёт на 360 dp, 7 языков (самый длинный, RTL, ne, de, mr, ar, ru), масштаб 1 и 1,3, темы на самом длинном тексте, и убеждается, что на экране настоящее содержимое.
+Покрыто пачками 1–7 (`apps/mobile/test/overflow/batch1..7_overflow_test.dart`, общий каркас `test/helpers/overflow_harness.dart`, журнал `docs/dev/journal/*overflow*`): #609, #622, #627, #630, #637, #640 и пачка 7 (шторка зрителей истории, архивы групп и каналов, видео в чате, `AppPaginatedListView` с длинными строками, `WorkCaseScreen` с данными). Каждая проверка идёт на 360 dp, 7 языков (самый длинный, RTL, ne, de, mr, ar, ru), масштаб 1 и 1,3, темы на самом длинном тексте, и убеждается, что на экране настоящее содержимое.
 
 | Пункт | Что нужно |
 |---|---|
-| Шторка зрителей истории (`story_viewer_sheets`, `_ViewersSheet`) | фейк `storyViewersProvider`, пачка 7 |
-| Экраны архива групп и каналов (`GroupsArchiveScreen`, `ChannelsArchiveScreen`) | фейки `archivedGroupsProvider`, `archivedChannelsProvider` |
-| `chat_video` | тест виджетов видео в чате, нужны фейки плеера |
-| `AppPaginatedListView` со строками | подвал уже покрыт, сам список с длинными строками нет |
-| `WorkCaseScreen` | фикстура `attorneyCase` |
+| Видео в чате с готовым кадром (плашка с длиной) | фейк платформы `video_player`; сейчас покрыты плитка при отправке, ячейка сетки и экран просмотра без загруженного видео |
 | Камерные экраны (`id_selfie_capture_screen`, `camera_capture_screen`, `story_camera_view`) и `secure_screen` | только на телефоне, в финальном раунде |
 | Всё сделанное | на телефоне не проверено; голдены только на macOS |
 Попутно: общие `overflowOpener`/`overflowShows` стоит применить в `batch1_overflow_test.dart`, `data_sheets_overflow_test.dart`, `groups_overflow_test.dart` (там локальные копии); корень дефекта «`AppButton` растягивается на всю ширину и в `Row` требует ограничения» не менялся (в `chat_payment_bar.dart` стоит `maxWidth: 148`).
@@ -300,12 +296,12 @@ Firebase Web app (public config + VAPID через админку, для Web Pu
 |---|---|---|---|
 | 1 | #585 PDF-шрифты Noto | `bbd43625f` | **сделано**: влит `acd5dcca7`, выкат 03.11 ≈ 10:50 (UTC−6), прод `78cd3c2b8`, health ok, Smoke success |
 | 2 | #647 ключи файлом .p8/.pem в админке | `2e5eafa21` | **сделано**: влит `071a2b373` (≈11:05 UTC−6), выкат 03.11 ≈ 12:20, прод `071a2b373`, Smoke и Synthetic success |
-| 3 | #644 сторож роста БД | `4a0050ebd` | **следующий после #681**: подготовлен, ждёт #680 (CI-фикс «Does the app itself change?») |
+| 3 | #644 сторож роста БД | `80afca2c5` | **следующий после #671**: перебазирован на свежий main 03.11, зелёный, ждёт очереди |
 | 4 | #577 поиск людей | `bf2aae1d9` | clean, готов; поверх него тестер ноута улучшит поиск, на 10M не проверено |
 | 5 | #629 старт API без Redis | `8c922b04d` | конфликт решается: влить main; кластерный Redis не проверен |
 | 6 | #568 coturn по требованию (Terraform) | `5fd7f1aa3` | clean; **apply не делать**, см. раздел Г |
 | 7 | #579 лимит сокетов 600/мин на адрес | `61adba639` | clean, готов; после деплоя проверить в админке `realtime.max_connects_per_ip_per_minute` (сохранённое значение перекрывает умолчание) |
-Прод сейчас: `071a2b373` (после #647, 03.11 ≈ 12:20 UTC−6). Следом #681 (переводы seed xlsx → JSON, нужен деплой), затем #644. #677 (web desktop PR3) слит `f2802782f`, без деплоя (только apps/mobile). Точное значение: `gh run list --repo syimykkalykov1999/LawBid --workflow deploy.yml --limit 5` и `https://api.lawbid.dev/health/ready` (поле version = SHA main).
+Прод сейчас: `3b901b581` (#681, переводы seed xlsx → JSON; выкат 03.11 ≈ 15:15 UTC−6, Smoke и Synthetic success). #671 (истории выключены по умолчанию, свайп-удаление чата, профиль ≤4 вкладок) слит `c4ec2a94c` ≈ 15:18, выкат идёт. Дальше: #644 (`80afca2c5`, зелёный ждёт), затем #678 (`2bfde0a46`), #674 (`e2246e846`), затем #577, #629, #568, #579. #676 (звонки) слит `f1f661576` и #677 (web desktop PR3) слит `f2802782f` без деплоя (только apps/mobile). Точное значение: `gh run list --repo syimykkalykov1999/LawBid --workflow deploy.yml --limit 5` и `https://api.lawbid.dev/health/ready` (поле version = SHA main).
 
 ### Б. Правило: один деплойный PR за раз
 1. Влить свежий `main` в ветку PR (`git merge origin/main`, не rebase и не force-push), решить конфликты, `npm run precheck`.

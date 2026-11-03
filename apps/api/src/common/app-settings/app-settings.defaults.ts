@@ -1158,6 +1158,12 @@ export const OWNER_STORAGE_SETTINGS = {
   'partition.notifications_mode': 'auto',
   'partition.post_view_events_mode': 'auto',
   'partition.auto_rows': 50_000_000,
+  /** Owner 2026-11-02: «time to prepare a second database». Health turns
+   * yellow at 80% and red at 100% of EITHER number (primary size in GB;
+   * estimated rows of the sharded-family tables). Only a signal: moving
+   * shards stays a button for the owner. */
+  'growth.shard_db_gb': 400,
+  'growth.shard_rows': 1_000_000_000,
   'images.webp_quality': 88,
   'images.jpeg_quality': 90,
   /** Owner 2026-10-26: nightly sweep that recounts profile counters

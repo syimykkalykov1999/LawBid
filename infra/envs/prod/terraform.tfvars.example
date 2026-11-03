@@ -6,7 +6,10 @@ certificate_arn   = "arn:aws:acm:us-east-1:123456789012:certificate/REPLACE"
 hosted_zone_id    = null
 dmarc_rua         = "dmarc@lawbid.app"
 ses_from_address  = "no-reply@lawbid.app"
-api_image         = "123456789012.dkr.ecr.us-east-1.amazonaws.com/lawbid-api:REPLACE"
-admin_image       = "123456789012.dkr.ecr.us-east-1.amazonaws.com/lawbid-admin:REPLACE"
+# api_image / admin_image: leave UNSET. The tag then comes from SSM
+# /lawbid-prod/deploy/last_good_tag (written by Deploy), so apply never moves
+# prod to an older image. Pin only for the first launch or a break-glass case:
+# api_image   = "123456789012.dkr.ecr.us-east-1.amazonaws.com/lawbid-api:<tag>"
+# admin_image = "123456789012.dkr.ecr.us-east-1.amazonaws.com/lawbid-admin:<tag>"
 alert_emails      = ["ops@lawbid.app"]
 stripe_price_id   = "price_REPLACE"

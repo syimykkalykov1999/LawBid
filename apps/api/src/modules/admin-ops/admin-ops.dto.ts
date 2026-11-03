@@ -36,6 +36,7 @@ export class HealthItemDto {
       'cloudflare_usage',
       'bunny_usage',
       'table_growth',
+      'shard_growth',
     ],
   })
   key!: string;

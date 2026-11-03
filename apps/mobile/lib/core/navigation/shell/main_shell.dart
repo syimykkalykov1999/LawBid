@@ -116,7 +116,7 @@ class _MainShellState extends ConsumerState<MainShell> {
       StartupIdleQueue.enqueue(() {
         if (mounted) ref.read(contactsBackgroundSyncProvider).start();
       });
-      // Owner 2026-10-24: attorneys / assistants without a passkey are
+      // Owner 2026-10-24 (R-140: every role): users without a passkey are
       // offered Face ID / fingerprint once (snoozable).
       unawaited(maybeShowPasskeyNudge(context, ref));
     });
@@ -150,11 +150,11 @@ class _MainShellState extends ConsumerState<MainShell> {
     final layout = shellLayoutFor(MediaQuery.sizeOf(context).width);
     final side = layout != ShellLayout.bottom;
     // Desktop web plan §6: on a desktop window Feed, Search and Mine lay
-    // themselves out across the width (pane, grid, list | case); the other
-    // tabs keep the 680 column. Mine takes the narrow menu like Chats.
+    // themselves out across the width (pane, grid, list | case), and so does
+    // Profile (profile | side pane); Mine takes the narrow menu like Chats.
     final desktop = windowClassOf(context).isDesktop;
     final tab = navigationShell.currentIndex;
-    final ownWidth = desktop && tab <= 2;
+    final ownWidth = desktop && tab <= 3;
     final narrowMenu = desktop && tab == 2;
     final body = InsideMainShell(
       navAway: _navAway,

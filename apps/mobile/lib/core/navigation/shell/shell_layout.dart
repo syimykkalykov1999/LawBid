@@ -200,6 +200,30 @@ bool isListDetailLocation(String location) =>
 bool isCaseDetailLocation(String location) =>
     RegExp(r'^/mine/(case|work)/[^/]+$').hasMatch(location);
 
+/// Desktop web plan §6.7: Settings is «sections list | section» — a page
+/// that takes the whole width next to the narrow menu, like the chats.
+bool isSettingsLocation(String location) =>
+    location == '/profile/settings' || kSettingsSectionPaths.contains(location);
+
+/// The Settings sections the desktop page shows in its right pane; their
+/// own addresses (deep links, refresh) open that page with the section.
+const Set<String> kSettingsSectionPaths = {
+  '/profile/settings/account',
+  '/profile/settings/notifications',
+  '/profile/settings/privacy',
+  '/profile/settings/devices',
+  '/profile/settings/storage',
+  '/profile/settings/blocked',
+  '/profile/settings/data-export',
+  '/profile/settings/about',
+};
+
+/// Desktop web plan §6.5: someone's public profile page (`/lawyer/:name`)
+/// draws the profile and its side pane across the window, not in the
+/// 680 column.
+bool isPublicProfileLocation(String location) =>
+    RegExp(r'^/lawyer/[^/]+$').hasMatch(location);
+
 /// Desktop web plan §4: the Search page is at most this wide on a desktop
 /// window (its grid takes 3 to 5 tiles).
 const double kSearchMaxWidth = 1200;
@@ -209,6 +233,14 @@ const double kCaseListPaneWidth = 400;
 
 /// Desktop web plan §4: the case itself is at most this wide.
 const double kCaseDetailMaxWidth = 760;
+
+/// Desktop web plan §4: the Settings sections list is [kChatListPaneWidth]
+/// wide; the open section is at most this wide.
+const double kSettingsDetailMaxWidth = 680;
+
+/// Desktop web plan §6.5: the profile (header + tabs) is at most this wide,
+/// its side pane (counters, shortcuts) is the feed pane's 320.
+const double kProfileMainMaxWidth = 720;
 
 /// Desktop web plan §4: the chats list pane (wider from 1440).
 const double kChatListPaneWidth = 360;

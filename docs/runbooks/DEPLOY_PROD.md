@@ -163,7 +163,8 @@ Twilio, Stripe `sk_live_…` + `whsec_…` (оба вебхука), Firebase JSO
 
 ```sh
 cd infra/envs/prod
-../../../scripts/deploy/current-tag.sh        # подставить api_image / admin_image в terraform.tfvars
+# api_image / admin_image в terraform.tfvars НЕ задавать: тег берётся из SSM last_good_tag (KNOWN_ERRORS №44).
+# Если они там всё же есть - удалить эти две строки (или сверить: ../../../scripts/deploy/current-tag.sh).
 terraform init -backend-config=backend.hcl
 terraform plan -out=plan.bin
 ../../../scripts/deploy/plan-guard.sh plan.bin   # падает, если удаляются база, секреты, KMS, Redis, S3

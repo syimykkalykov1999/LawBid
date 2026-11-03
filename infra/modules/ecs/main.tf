@@ -25,6 +25,11 @@ variable "api_ws_target_group_arn" {
   description = "S4-7: second target group (sticky, /socket.io only) the api service also registers in. Empty = none."
 }
 variable "api_image" { type = string }
+variable "app_version" {
+  type        = string
+  default     = ""
+  description = "Image tag the app containers report as APP_VERSION (scripts/deploy/roll-services.sh sets the same variable on every deploy; smoke.sh and the synthetic check read it). Empty = not set by Terraform."
+}
 variable "admin_image" { type = string }
 variable "kms_key_arn" { type = string }
 
@@ -430,6 +435,9 @@ resource "aws_iam_role" "task_minimal" {
 # --- task definitions ----------------------------------------------------
 locals {
   api_environment = [for k, v in var.api_env : { name = k, value = v }]
+  # Same variable roll-services.sh writes on every deploy: a Terraform-made
+  # revision must carry it too, or the version checks go blind after an apply.
+  app_version_env = var.app_version != "" ? [{ name = "APP_VERSION", value = var.app_version }] : []
   # The worker has its own DB_POOL_SIZE when worker_db_pool_size > 0 (the
   # api_env value is dropped so the name is never listed twice).
   worker_environment = var.worker_db_pool_size > 0 ? concat(
@@ -544,7 +552,7 @@ resource "aws_ecs_task_definition" "api" {
     essential    = true
     command      = ["node", "dist/src/main.js"]
     portMappings = [{ containerPort = 3000, protocol = "tcp" }]
-    environment  = concat(local.api_environment, local.tracing_env, [{ name = "PORT", value = "3000" }, { name = "JOBS_ENABLED", value = "false" }, local.node_options["api"]], var.api_uv_threadpool_size > 4 ? [{ name = "UV_THREADPOOL_SIZE", value = tostring(var.api_uv_threadpool_size) }] : [])
+    environment  = concat(local.api_environment, local.app_version_env, local.tracing_env, [{ name = "PORT", value = "3000" }, { name = "JOBS_ENABLED", value = "false" }, local.node_options["api"]], var.api_uv_threadpool_size > 4 ? [{ name = "UV_THREADPOOL_SIZE", value = tostring(var.api_uv_threadpool_size) }] : [])
     secrets      = local.api_secrets
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
@@ -590,7 +598,7 @@ resource "aws_ecs_task_definition" "worker" {
     command   = ["node", "dist/src/worker.js"]
     # Uploads are scanned by the clamd sidecar below (same task, localhost):
     # without a scanner every photo/document stays scan_status=pending.
-    environment = concat(local.worker_environment, local.tracing_env, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }, local.node_options["worker"]])
+    environment = concat(local.worker_environment, local.app_version_env, local.tracing_env, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }, local.node_options["worker"]])
     secrets     = local.worker_secrets
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
@@ -658,7 +666,7 @@ resource "aws_ecs_task_definition" "admin" {
     image        = var.admin_image
     essential    = true
     portMappings = [{ containerPort = 3001, protocol = "tcp" }]
-    environment  = concat([for k, v in var.admin_env : { name = k, value = v }], [local.node_options["admin"]])
+    environment  = concat([for k, v in var.admin_env : { name = k, value = v }], local.app_version_env, [local.node_options["admin"]])
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
     # and forwards signals.

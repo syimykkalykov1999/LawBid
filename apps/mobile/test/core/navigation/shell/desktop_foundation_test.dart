@@ -121,11 +121,35 @@ void main() {
     expect(t.getSize(find.byType(AppSideNav)).width, 76);
     expect(t.getSize(find.byKey(const Key('page'))).width, 1440 - 76);
 
-    // Any other page keeps the 680 column and the menu with names.
+    // Settings (sections | section) takes the width like the chats.
     await pump(
       t,
       const WebPageFrame(
         location: '/profile/settings',
+        child: SizedBox.expand(key: Key('page')),
+      ),
+      const Size(1440, 900),
+    );
+    expect(t.getSize(find.byType(AppSideNav)).width, 76);
+    expect(t.getSize(find.byKey(const Key('page'))).width, 1440 - 76);
+
+    // The public profile splits the width itself but keeps the full menu.
+    await pump(
+      t,
+      const WebPageFrame(
+        location: '/lawyer/jane',
+        child: SizedBox.expand(key: Key('page')),
+      ),
+      const Size(1440, 900),
+    );
+    expect(t.getSize(find.byType(AppSideNav)).width, 220);
+    expect(t.getSize(find.byKey(const Key('page'))).width, 1440 - 220);
+
+    // Any other page keeps the 680 column and the menu with names.
+    await pump(
+      t,
+      const WebPageFrame(
+        location: '/profile/settings/payments',
         child: SizedBox.expand(key: Key('page')),
       ),
       const Size(1440, 900),
