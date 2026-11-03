@@ -9,7 +9,7 @@
 // `--write-charset` refreshes docs/dev/glyph-charset.txt (the code points every font subset must keep).
 // `--ci` fails on a script with no declared fallback, private-use or
 // unassigned code points, and a missing CSP host. Usage: node scripts/i18n-glyph-audit.mjs [--ci] [--json]
-import ExcelJS from 'exceljs';
+import { readSeed } from './lib/translations-seed.mjs';
 import * as fontkit from 'fontkit';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -23,19 +23,13 @@ const bundled = ['apps/mobile/assets/fonts/Inter-Variable.ttf', 'apps/mobile/ass
   .map((p) => fontkit.openSync(path.join(ROOT, p)));
 const covered = (cp) => bundled.some((f) => f.hasGlyphForCodePoint(cp));
 
-const wb = new ExcelJS.Workbook();
-await wb.xlsx.readFile(path.join(ROOT, 'apps/api/prisma/seed/translations_seed.xlsx'));
-const ws = wb.worksheets[0];
-const langs = ws.getRow(1).values.slice(2).map(String);
+const { langs, rows } = readSeed();
 const used = Object.fromEntries(langs.map((l) => [l, new Map()])); // lang -> cp -> count
-ws.eachRow((r, n) => {
-  if (n === 1) return;
-  langs.forEach((l, i) => {
-    const x = r.values[i + 2];
-    const s = x && typeof x === 'object' ? String(x.text ?? x.result ?? '') : x == null ? '' : String(x);
-    for (const ch of s) used[l].set(ch.codePointAt(0), (used[l].get(ch.codePointAt(0)) ?? 0) + 1);
-  });
-});
+for (const r of rows) {
+  for (const l of langs) {
+    for (const ch of r.cells[l]) used[l].set(ch.codePointAt(0), (used[l].get(ch.codePointAt(0)) ?? 0) + 1);
+  }
+}
 
 const SCRIPTS = ['Latin', 'Cyrillic', 'Greek', 'Arabic', 'Hebrew', 'Devanagari', 'Bengali', 'Gurmukhi', 'Gujarati', 'Tamil', 'Telugu', 'Kannada', 'Malayalam', 'Sinhala', 'Thai', 'Lao', 'Tibetan', 'Myanmar', 'Georgian', 'Armenian', 'Ethiopic', 'Khmer', 'Hangul', 'Han', 'Hiragana', 'Katakana', 'Thaana', 'Mongolian', 'Tifinagh', 'Syriac'];
 const SCRIPT_RES = SCRIPTS.map((sc) => [sc, new RegExp(`\\p{Script=${sc}}`, 'u')]);

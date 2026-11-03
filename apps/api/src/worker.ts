@@ -1,4 +1,5 @@
 // Tracing must be wired before any instrumented module is required.
+import { warmCjkFonts } from './common/pdf-fonts/pdf-fonts';
 import { startTelemetry } from './telemetry/otel';
 
 startTelemetry('worker');
@@ -41,6 +42,8 @@ async function bootstrap(): Promise<void> {
   );
   // SIGTERM from ECS: close the worker gracefully (in-flight job finishes).
   app.enableShutdownHooks();
+  // CJK PDF fonts (case-history export runs here): background, sha256-checked.
+  void warmCjkFonts();
 }
 
 void runEntrypoint('worker', bootstrap);

@@ -1,5 +1,5 @@
 // Translation audit (owner 2026-10-15: "check every translation, all of it").
-// Reads apps/api/prisma/seed/translations_seed.xlsx and the keys the code asks
+// Reads apps/api/prisma/seed/translations/*.json and the keys the code asks
 // for, and reports per language: empty cells, text identical to English that
 // should not be (non-brand), Latin text in a non-Latin language (untranslated),
 // placeholder mismatches ({name}), and keys used in code but missing from the
@@ -7,12 +7,11 @@
 // and sentences (2+ words) identical to English in 10+ languages (PHRASE_LANGS);
 // "same as English" is a warning unless the language is listed in
 // scripts/i18n-audit.allow.json (words that are legitimately the same).
-import ExcelJS from 'exceljs';
+import { readSeed } from './lib/translations-seed.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
-const XLSX = path.join(ROOT, 'apps/api/prisma/seed/translations_seed.xlsx');
 const ALLOW = path.join(ROOT, 'scripts/i18n-audit.allow.json');
 const ci = process.argv.includes('--ci');
 const json = process.argv.includes('--json');
@@ -21,22 +20,7 @@ const allow = fs.existsSync(ALLOW)
   ? JSON.parse(fs.readFileSync(ALLOW, 'utf8'))
   : { sameAsEnglishKeys: [], sameAsEnglishPrefixes: [], perLanguage: {} };
 
-const wb = new ExcelJS.Workbook();
-await wb.xlsx.readFile(XLSX);
-const ws = wb.worksheets[0];
-const head = ws.getRow(1).values;
-const langs = head.slice(2);
-const rows = [];
-ws.eachRow((r, n) => {
-  if (n === 1) return;
-  const v = r.values;
-  const cell = (c) => {
-    const x = v[c];
-    if (x && typeof x === 'object') return String(x.text ?? x.result ?? '');
-    return x == null ? '' : String(x);
-  };
-  rows.push({ key: cell(1), cells: Object.fromEntries(langs.map((l, i) => [l, cell(i + 2)])) });
-});
+const { langs, rows } = readSeed();
 
 const NON_LATIN = new Set(['ru','uk','bg','sr','be','mk','mn','kk','ky','tg','el','hy','ka','he','ar','fa','ur','ps','ku','hi','bn','ta','te','mr','gu','kn','ml','pa','ne','th','lo','km','my','si','am','zh','zh-tw','ja','ko']);
 const placeholders = (s) => [...s.matchAll(/\{[a-zA-Z0-9_]+\}/g)].map((m) => m[0]).sort().join(',');

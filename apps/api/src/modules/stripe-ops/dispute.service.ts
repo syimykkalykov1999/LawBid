@@ -293,7 +293,14 @@ export class DisputeService {
     const evidence = buildEvidenceFields(facts);
     if (this.provider.uploadEvidenceFile) {
       try {
-        const pdf = await renderDisputePacketPdf(evidenceDocumentLines(facts));
+        const cardholder = await this.prisma.user.findUnique({
+          where: { id: p.client_id },
+          select: { ui_language: true },
+        });
+        const pdf = await renderDisputePacketPdf(
+          evidenceDocumentLines(facts),
+          cardholder?.ui_language,
+        );
         evidence.service_documentation = await this.provider.uploadEvidenceFile(
           {
             accountId,

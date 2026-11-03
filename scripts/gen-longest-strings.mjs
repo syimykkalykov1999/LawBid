@@ -5,7 +5,7 @@
 // Also writes test/l10n/lang_<code>.json for the languages whose real text
 // the overflow tests pump as is (Nepali, Arabic, Marathi, German: the longest
 // texts by owner's measure).
-import ExcelJS from 'exceljs';
+import { readSeed } from './lib/translations-seed.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -15,34 +15,25 @@ const LANGS = ('en ru es fr de it pt nl pl uk tr el cs sk hu ro bg hr sr sl da s
   'eu gl is ga cy mt sq az tg').split(' ');
 const PH = /\{[a-zA-Z0-9_]+\}/g;
 const ph = (s) => (s.match(PH) ?? []).sort().join('|');
-const text = (v) => (v == null ? '' : typeof v === 'object' ? (v.richText ? v.richText.map((r) => r.text).join('') : String(v.text ?? v.result ?? '')) : String(v));
-
-const wb = new ExcelJS.Workbook();
-await wb.xlsx.readFile(path.join(ROOT, 'apps/api/prisma/seed/translations_seed.xlsx'));
-const ws = wb.worksheets[0];
-const header = Array.from(ws.getRow(1).values, text);
-const col = Object.fromEntries(header.map((h, i) => [h, i]));
+const { rows } = readSeed();
 const out = {};
 const ONE_LANG = ['ne', 'ar', 'de', 'mr'];
 const single = Object.fromEntries(ONE_LANG.map((l) => [l, {}]));
-ws.eachRow((row, n) => {
-  if (n === 1) return;
-  const v = row.values;
-  const key = text(v[1]);
-  const en = text(v[col.en]);
-  if (!key || !en) return;
+for (const { key, cells } of rows) {
+  const en = cells.en;
+  if (!key || !en) continue;
   const want = ph(en);
   let best = en;
   for (const lang of LANGS) {
-    const s = text(v[col[lang]]);
+    const s = cells[lang] ?? '';
     if (s && ph(s) === want && s.length > best.length) best = s;
   }
   out[key] = best;
   for (const l of ONE_LANG) {
-    const s = text(v[col[l]]);
+    const s = cells[l] ?? '';
     single[l][key] = s && ph(s) === want ? s : en;
   }
-});
+}
 const keys = Object.keys(out).sort();
 const file = path.join(ROOT, 'apps/mobile/test/l10n/longest_strings.json');
 fs.writeFileSync(file, '{\n' + keys.map((k) => `${JSON.stringify(k)}:${JSON.stringify(out[k])}`).join(',\n') + '\n}');

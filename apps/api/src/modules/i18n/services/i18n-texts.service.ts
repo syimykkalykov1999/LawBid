@@ -8,28 +8,16 @@ import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import type { I18nTextsDto } from '../dto/i18n-texts.dto';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { TranslationService } from '../../translation/translation.service';
+import { buildParsedWorkbook } from '../xlsx/i18n-workbook.util';
 import {
-  buildParsedWorkbook,
-  parseTranslationsFile,
-} from '../xlsx/i18n-workbook.util';
+  loadSeedGrid,
+  seedTranslationsDir,
+} from '../xlsx/seed-translations.util';
 import { I18nBundleService } from './i18n-bundle.service';
 
 /** Parallel Google calls for «Перевести на все языки». */
 const TRANSLATE_CONCURRENCY = 6;
-
-/** The built-in texts: the workbook the deploy imports. */
-function seedWorkbookPath(): string | null {
-  const candidates = [
-    join(process.cwd(), 'prisma/seed/translations_seed.xlsx'),
-    join(process.cwd(), 'apps/api/prisma/seed/translations_seed.xlsx'),
-    join(__dirname, '../../../../prisma/seed/translations_seed.xlsx'),
-    join(__dirname, '../../../../../prisma/seed/translations_seed.xlsx'),
-  ];
-  return candidates.find((p) => existsSync(p)) ?? null;
-}
 
 /** At most this many keys per prefix (the guide has 18). */
 const MAX_KEYS = 500;
@@ -39,7 +27,7 @@ const MAX_KEYS = 500;
  * A change is an ordinary translation cell with a new bundle version, so
  * phones pick it up on their next bundle sync (the compiled-in text stays
  * the fallback), and it is marked `admin_edited` so the deploy's
- * translations_seed.xlsx import never puts the old text back.
+ * translations seed import never puts the old text back.
  */
 @Injectable()
 export class I18nTextsService {
@@ -200,16 +188,14 @@ export class I18nTextsService {
    * translations file, for [lang] or every language; no longer marked as
    * changed in the admin. */
   async reset(key: string, lang?: string): Promise<void> {
-    const path = seedWorkbookPath();
-    if (!path) {
+    const dir = seedTranslationsDir();
+    if (!dir) {
       throw new NotFoundException({
         code: ErrorCode.NOT_FOUND,
         message: 'The built-in texts file is missing.',
       });
     }
-    const { workbook } = buildParsedWorkbook(
-      await parseTranslationsFile(readFileSync(path)),
-    );
+    const { workbook } = buildParsedWorkbook(loadSeedGrid(dir));
     const row = workbook.rows.find((r) => r.key === key);
     if (!row) {
       throw new NotFoundException({

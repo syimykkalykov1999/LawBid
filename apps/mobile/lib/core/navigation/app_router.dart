@@ -10,7 +10,9 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/deferred_screen.dart';
 import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
 import 'package:lawbid/core/navigation/route_observer.dart';
+import 'package:lawbid/core/navigation/shell/desktop_layouts.dart';
 import 'package:lawbid/core/navigation/shell/main_shell.dart';
+import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
@@ -21,6 +23,7 @@ import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/cases/deals/deal_record_screen.dart'
     deferred as d_deal_record_screen;
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/desktop_cases.dart';
 import 'package:lawbid/features/cases/presentation/screens/bid_detail_screen.dart'
     deferred as d_bid_detail_screen;
 import 'package:lawbid/features/cases/presentation/screens/bid_form_screen.dart'
@@ -48,6 +51,7 @@ import 'package:lawbid/features/contacts_sync/presentation/contacts_screen.dart'
 import 'package:lawbid/features/create/presentation/screens/create_screen.dart';
 import 'package:lawbid/features/deadlines/deadlines_routes.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
+import 'package:lawbid/features/feed/presentation/widgets/desktop_feed_pane.dart';
 import 'package:lawbid/features/groups/group_router.dart';
 import 'package:lawbid/features/legal/presentation/dmca_notice_screen.dart'
     deferred as d_dmca_notice_screen;
@@ -197,7 +201,8 @@ GoRouter appRouter(Ref ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.feed,
-                builder: (context, state) => const FeedScreen(),
+                builder: (context, state) =>
+                    const FeedAdaptivePage(feed: FeedScreen()),
               ),
             ],
           ),
@@ -206,7 +211,10 @@ GoRouter appRouter(Ref ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.search,
-                builder: (context, state) => const SearchScreen(),
+                builder: (context, state) => const ReadableWidth(
+                  maxWidth: kSearchMaxWidth,
+                  child: SearchScreen(),
+                ),
               ),
             ],
           ),
@@ -388,7 +396,11 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          OwnerCaseScreen(caseId: state.pathParameters['id'] ?? ''),
+          // Desktop web plan §6.4: list | case on a desktop window.
+          CasesAdaptivePage(
+            location: state.matchedLocation,
+            phone: OwnerCaseScreen(caseId: state.pathParameters['id'] ?? ''),
+          ),
         ),
       ),
       GoRoute(
@@ -481,11 +493,14 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'work_case_screen',
-            load: d_work_case_screen.loadLibrary,
-            builder: (_) => d_work_case_screen.WorkCaseScreen(
-              caseId: state.pathParameters['id'] ?? '',
+          CasesAdaptivePage(
+            location: state.matchedLocation,
+            phone: DeferredScreen(
+              id: 'work_case_screen',
+              load: d_work_case_screen.loadLibrary,
+              builder: (_) => d_work_case_screen.WorkCaseScreen(
+                caseId: state.pathParameters['id'] ?? '',
+              ),
             ),
           ),
         ),

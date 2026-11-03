@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/desktop_cases.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
@@ -47,7 +48,7 @@ class ClientCasesGrid extends ConsumerWidget {
                   child: AppCard(
                     elevated: true,
                     padding: const EdgeInsets.all(AppSpacing.md),
-                    onTap: () => context.push(AppRoutes.myCase(c.id)),
+                    onTap: () => openCaseRoute(context, AppRoutes.myCase(c.id)),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
