@@ -127,23 +127,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      mac: ${{ steps.d.outputs.mac }}
+      # push / dispatch: always true; pull_request: only when the app paths changed.
+      # No checkout: the repository history is ~3 GB and a full clone no longer
+      # fits in 5 minutes (KNOWN_ERRORS #38). paths-filter reads the PR files via the API.
+      mac: ${{ github.event_name != 'pull_request' || steps.d.outputs.mac == 'true' }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          fetch-depth: 0
       - id: d
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          if [ "${{ github.event_name }}" != "pull_request" ] || [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
-            echo "mac=true" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          if [ -n "$(git diff --name-only "$BASE" HEAD -- apps/mobile .github/workflows/mobile-ci.yml scripts/ci/check-web-phone-goldens.sh)" ]; then
-            echo "mac=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "mac=false" >> "$GITHUB_OUTPUT"; echo "no change under apps/mobile: macOS jobs skipped"
-          fi
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            mac:
+              - 'apps/mobile/**'
+              - '.github/workflows/mobile-ci.yml'
+              - 'scripts/ci/check-web-phone-goldens.sh'
 
   # The golden test files, rendered on macOS like the PNGs under test/**/goldens/.
   golden-tests:
