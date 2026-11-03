@@ -1259,6 +1259,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       pattern: /^(off|on|auto)$/,
     };
   }
+  out['growth.shard_db_gb'] = {
+    ...out['growth.shard_db_gb'],
+    description:
+      'Primary database size (GB) at which the health card says it is time to prepare a second database (yellow from 80%, red at 100%). A signal only: nothing is moved by itself.',
+    min: 10,
+    max: 100_000,
+  };
+  out['growth.shard_rows'] = {
+    ...out['growth.shard_rows'],
+    description:
+      'Estimated rows of the sharded-family tables at which the health card says it is time to prepare a second database (yellow from 80%, red at 100%). A signal only.',
+    min: 1_000_000,
+    max: 100_000_000_000,
+  };
   out['partition.post_view_events_mode'] = {
     ...out['partition.post_view_events_mode'],
     description:

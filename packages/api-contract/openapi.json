@@ -172245,7 +172245,8 @@
               "breakers",
               "cloudflare_usage",
               "bunny_usage",
-              "table_growth"
+              "table_growth",
+              "shard_growth"
             ]
           },
           "status": {

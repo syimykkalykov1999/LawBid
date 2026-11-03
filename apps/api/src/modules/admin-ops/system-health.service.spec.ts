@@ -146,6 +146,7 @@ describe('SystemHealthService', () => {
       restore_drill: 'grey',
       message_keys: 'grey',
       table_growth: 'grey',
+      shard_growth: 'grey',
       cost: 'grey',
     });
     expect(r.overall).toBe('yellow');
@@ -334,5 +335,38 @@ describe('SystemHealthService.cachedReport', () => {
       'ops:system-health',
       expect.objectContaining({ overall: 'green' }),
     );
+  });
+});
+
+describe('SystemHealthService.shardGrowth', () => {
+  const item = (partitions: unknown) =>
+    (
+      Object.assign(Object.create(SystemHealthService.prototype) as object, {
+        partitions,
+      }) as unknown as {
+        shardGrowth: () => Promise<{ status: string; detail: unknown }>;
+      }
+    ).shardGrowth();
+
+  it('is grey without the probe or when it fails', async () => {
+    expect((await item(undefined)).status).toBe('grey');
+    expect(
+      (await item({ shardSignal: () => Promise.reject(new Error('x')) }))
+        .status,
+    ).toBe('grey');
+  });
+
+  it('passes the status and the plan of the probe through', async () => {
+    const r = await item({
+      shardSignal: () =>
+        Promise.resolve({
+          status: 'yellow',
+          ratio: 0.9,
+          plan: { shards: 128, rows: 1, estimatedSeconds: 2 },
+          autoMove: false,
+        }),
+    });
+    expect(r.status).toBe('yellow');
+    expect(r.detail).toMatchObject({ autoMove: false, ratio: 0.9 });
   });
 });

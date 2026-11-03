@@ -14,6 +14,9 @@ import {
   type JobRow,
   type PartitionSpec,
 } from './partition-runner';
+import { assessShardGrowth, type ShardGrowth } from '../sharding/shard-growth';
+import { parseShardDatabaseUrls } from '../sharding/shard-databases';
+import { buildMoveTables } from '../sharding/move/move-plan';
 import { prismaSql, sharedSql, type SqlDb } from './sql';
 
 /** Months kept ahead of today by the daily job. */
@@ -412,6 +415,49 @@ export class PartitionService implements OnModuleDestroy {
         .filter((r) => r.rows >= limit && !r.partitioned)
         .map(({ table, rows }) => ({ table, rows })),
     };
+  }
+
+  /**
+   * Health signal «time to prepare a second database»: size of the primary and
+   * estimated rows of the sharded-family tables against two admin thresholds.
+   * Three catalog reads (pg_database_size, pg_class estimates, a GROUP BY over
+   * the 256-row shard_map); no COUNT(*), nothing is moved. `autoMove` is
+   * false on purpose (see sharding/shard-growth.ts).
+   */
+  async shardSignal(): Promise<ShardGrowth> {
+    const [gb, rowsLimit] = await Promise.all([
+      this.settings?.number('growth.shard_db_gb') ?? 400,
+      this.settings?.number('growth.shard_rows') ?? 1_000_000_000,
+    ]);
+    const tables = buildMoveTables().map((t) => t.table);
+    const [[size], [est], map] = await Promise.all([
+      this.prisma.$queryRawUnsafe<{ bytes: number }[]>(
+        'SELECT pg_database_size(current_database())::float8 AS bytes',
+      ),
+      this.prisma.$queryRawUnsafe<{ rows: number }[]>(
+        `SELECT COALESCE(sum(CASE WHEN c.relkind = 'p'
+                   THEN (SELECT COALESCE(sum(GREATEST(p.reltuples, 0)), 0) FROM pg_inherits i JOIN pg_class p ON p.oid = i.inhrelid WHERE i.inhparent = c.oid)
+                   ELSE GREATEST(c.reltuples, 0) END), 0)::float8 AS rows
+         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind IN ('r','p') AND NOT c.relispartition
+          AND c.relname = ANY($1::text[])`,
+        tables,
+      ),
+      this.prisma.$queryRawUnsafe<{ physical_db: string; n: number }[]>(
+        `SELECT physical_db, count(*)::int AS n FROM shard_map WHERE state = 'active' GROUP BY physical_db`,
+      ),
+    ]);
+    const onPrimary = map.find((m) => m.physical_db === 'primary')?.n ?? 0;
+    return assessShardGrowth({
+      dbBytes: Number(size?.bytes ?? 0),
+      rows: Number(est?.rows ?? 0),
+      thresholdGb: gb,
+      thresholdRows: rowsLimit,
+      targets: Object.keys(
+        parseShardDatabaseUrls(this.config.get<string>('DATABASE_URL_SHARDS')),
+      ),
+      shardsOnPrimary: onPrimary,
+    });
   }
 
   // ------------------------------------------------------------ actions ---
