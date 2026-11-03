@@ -23,6 +23,7 @@ abstract final class AccountRoutes {
 /// .profileSettings`: full-screen settings pages cover the bottom nav).
 List<RouteBase> accountRoutes({
   GlobalKey<NavigatorState>? parentNavigatorKey,
+  Widget Function(String location, Widget page)? sectionPage,
 }) =>
     [
       GoRoute(
@@ -30,10 +31,13 @@ List<RouteBase> accountRoutes({
         parentNavigatorKey: parentNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'account_screen',
-            load: d_account_screen.loadLibrary,
-            builder: (_) => d_account_screen.AccountScreen(),
+          (sectionPage ?? _plain)(
+            state.matchedLocation,
+            DeferredScreen(
+              id: 'account_screen',
+              load: d_account_screen.loadLibrary,
+              builder: (_) => d_account_screen.AccountScreen(),
+            ),
           ),
         ),
       ),
@@ -54,3 +58,5 @@ List<RouteBase> accountRoutes({
         },
       ),
     ];
+
+Widget _plain(String location, Widget page) => page;

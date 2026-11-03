@@ -11,6 +11,7 @@ import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_screen.dart';
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
 import 'package:lawbid/features/profile/presentation/widgets/client_profile_view.dart';
+import 'package:lawbid/features/profile/presentation/widgets/desktop_profile.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.dart';
 import 'package:lawbid/features/stars/presentation/gift_widgets.dart'
     show GiftHeaderButton;
@@ -41,9 +42,11 @@ class ProfileScreen extends ConsumerWidget {
 
     // Owner 2026-10-22 (guest browsing): the Profile tab asks to sign in.
     if (ref.watch(isGuestProvider)) {
-      return Scaffold(
-        backgroundColor: colors.bg,
-        body: const SafeArea(child: GuestGateView()),
+      return ProfileAdaptivePage(
+        page: Scaffold(
+          backgroundColor: colors.bg,
+          body: const SafeArea(child: GuestGateView()),
+        ),
       );
     }
     final Widget body;
@@ -76,7 +79,11 @@ class ProfileScreen extends ConsumerWidget {
 
     // Owner 2026-09-29: Instagram-style header — "@username" centered,
     // a small avatar left, the gear right; no "Profile" word.
-    return Scaffold(
+    // Desktop web plan §6.5: the profile | a side pane on a desktop window.
+    final paneUsername = user != null && (assistant != null || user.isAttorney)
+        ? username
+        : null;
+    final page = Scaffold(
       backgroundColor: colors.bg,
       // Owner 2026-09-29 (2nd pass): no small avatar in the corner — the
       // left slot stays empty, the handle stays centered.
@@ -146,6 +153,15 @@ class ProfileScreen extends ConsumerWidget {
         ],
       ),
       body: body,
+    );
+
+    return ProfileAdaptivePage(
+      page: page,
+      username: paneUsername,
+      client: user != null &&
+          assistant == null &&
+          !user.isAttorney &&
+          user.isClient,
     );
   }
 }
