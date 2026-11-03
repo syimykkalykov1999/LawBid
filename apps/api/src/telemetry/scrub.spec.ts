@@ -14,6 +14,12 @@ describe('scrubString (ABA 1.6(c): client information stays out of reports)', ()
     expect(out).toContain('[phone]');
   });
 
+  it('removes credentials embedded in a URL', () => {
+    const out = scrubString('bad url postgres://app:s3cret@db.internal:5432/x');
+    expect(out).not.toContain('s3cret');
+    expect(out).toContain('postgres://[REDACTED]@db.internal');
+  });
+
   it('removes document names', () => {
     const out = scrubString(
       'ENOENT cases/ab/Settlement offer - Smith v. Jones (final).pdf and scan_0042.JPEG',

@@ -16,6 +16,7 @@ class PostMediaDto {
     required this.mediumUrl,
     this.width,
     this.height,
+    this.blurhash,
   });
 
   factory PostMediaDto.fromJson(Map<String, Object?> json) =>
@@ -34,6 +35,9 @@ class PostMediaDto {
 
   /// 1080 px medium.
   final String mediumUrl;
+
+  /// BlurHash (4x3) placeholder shown while the photo loads.
+  final String? blurhash;
 
   Map<String, Object?> toJson() => _$PostMediaDtoToJson(this);
 }

@@ -18,6 +18,7 @@ import {
   modelForTier,
   type AiItemKind,
 } from './staff-ai.types';
+import { incrWithTtl } from '../../redis/incr-with-ttl';
 
 const HINT_TTL_SEC = 3600;
 const HINT_MAX_TOKENS = 300;
@@ -173,8 +174,7 @@ export class StaffAiHintService {
     perMinute: number,
   ): Promise<boolean> {
     const key = `staff:ai:hint:rl:${adminId}:${Math.floor(Date.now() / 60_000)}`;
-    const n = await this.redis.incr(key);
-    if (n === 1) await this.redis.expire(key, 90);
+    const n = await incrWithTtl(this.redis, key, 90);
     return n <= perMinute;
   }
 
