@@ -194,10 +194,13 @@ describe('People search + client usernames (e2e, OQ-026)', () => {
   });
 
   it('people: «по подписке» — following / not_following / all (R-084)', async () => {
-    const att = await attorney(`${token}.fol`, ['Followed', 'Lawyer']);
-    const other = await attorney(`${token}.nof`, ['Notfollowed', 'Lawyer']);
-    const cli = await client([token, 'Followedclient'], `${token}.fcl`);
-    const viewer = await client(['Viewer', 'Follow'], `${token}.vf`);
+    // Own query word: the ranked list of `@${token}` is cached for a minute
+    // by the tests above, so it would not contain these new people.
+    const fk = `fk${randomUUID().replace(/-/g, '').slice(0, 8)}`;
+    const att = await attorney(`${fk}.fol`, ['Followed', 'Lawyer']);
+    const other = await attorney(`${fk}.nof`, ['Notfollowed', 'Lawyer']);
+    const cli = await client([fk, 'Followedclient'], `${fk}.fcl`);
+    const viewer = await client(['Viewer', 'Follow'], `${fk}.vf`);
     await prisma.follow.createMany({
       data: [
         { follower_id: viewer.id, followee_id: att.id },
@@ -207,7 +210,7 @@ describe('People search + client usernames (e2e, OQ-026)', () => {
     const ids = async (follow?: string) => {
       const r = await api()
         .get('/api/v1/search/people')
-        .query({ q: `@${token}`, ...(follow ? { follow } : {}) })
+        .query({ q: `@${fk}`, ...(follow ? { follow } : {}) })
         .set(viewer.auth);
       expect(r.status).toBe(200);
       return (
@@ -228,7 +231,7 @@ describe('People search + client usernames (e2e, OQ-026)', () => {
     expect(not).not.toContain(cli.id);
     const bad = await api()
       .get('/api/v1/search/people')
-      .query({ q: token, follow: 'maybe' })
+      .query({ q: fk, follow: 'maybe' })
       .set(viewer.auth);
     expect(bad.status).toBe(400);
   });
