@@ -13,7 +13,7 @@
 // duplicates (docs/02_DATABASE.md §7.2).
 //
 // Stage 1.6 addition (docs/01_FOUNDATION_AUTH.md §15 "Этап 1.6"):
-// seedI18nTranslations() loads translations_seed.xlsx below and upserts
+// seedI18nTranslations() loads the per-language JSON files (seed/translations/) and upserts
 // i18n_keys/i18n_translations/i18n_bundle_versions through the same
 // parse+validate path as POST /admin/i18n/import.
 //
@@ -27,10 +27,8 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  buildParsedWorkbook,
-  parseTranslationsFile,
-} from '../src/modules/i18n/xlsx/i18n-workbook.util';
+import { buildParsedWorkbook } from '../src/modules/i18n/xlsx/i18n-workbook.util';
+import { loadSeedGrid } from '../src/modules/i18n/xlsx/seed-translations.util';
 import {
   flattenPracticeAreaSeed,
   PracticeAreaSeedCategory,
@@ -95,7 +93,7 @@ async function seedPracticeAreas(): Promise<void> {
 
 // docs/01_FOUNDATION_AUTH.md §3.3 / §3.3: en is default+active, ru active.
 async function seedI18nLanguages(): Promise<void> {
-  // Owner 2026-10-13: all 85 languages (the columns of translations_seed.xlsx)
+  // Owner 2026-10-13: all 85 languages (the files of seed/translations/)
   // come from languages.seed.json; en and ru stay the active defaults.
   const languages = JSON.parse(
     readFileSync(join(__dirname, 'seed', 'languages.seed.json'), 'utf8'),
@@ -128,7 +126,7 @@ async function seedI18nLanguages(): Promise<void> {
 // known language columns) a real admin upload would.
 //
 // Idempotent by diffing against current DB state (not a bare upsert of
-// everything every run): re-running this with an unchanged xlsx bumps
+// everything every run): re-running this with unchanged seed files bumps
 // nothing, matching this file's "never create duplicates" contract and
 // keeping i18n_bundle_versions.version from incrementing on every seed
 // run. No withTxRetry here (unlike I18nImportService's apply path) —
@@ -136,13 +134,11 @@ async function seedI18nLanguages(): Promise<void> {
 // once against a fresh/dev DB, not under the concurrent write load
 // withTxRetry exists for.
 async function seedI18nTranslations(): Promise<void> {
-  const seedPath = join(__dirname, 'seed', 'translations_seed.xlsx');
-  const buffer = readFileSync(seedPath);
-  const grid = await parseTranslationsFile(buffer);
+  const grid = loadSeedGrid(join(__dirname, 'seed', 'translations'));
   const { workbook, errors } = buildParsedWorkbook(grid);
   if (errors.length > 0) {
     throw new Error(
-      `translations_seed.xlsx failed validation:\n${errors
+      `prisma/seed/translations failed validation:\n${errors
         .map((e) => `  ${JSON.stringify(e)}`)
         .join('\n')}`,
     );
