@@ -1,8 +1,9 @@
-# docs/06 §7.4 — iOS lanes. Signing certificates/profiles come from the
-# App Store Connect API key; the certificate and profile are installed by
-# the workflow from secrets and Xcode signs automatically
-# (ExportOptions.plist: signingStyle automatic). The owner may switch to
-# `match` before the first TestFlight upload (docs/06 §11.2).
+# docs/06 §7.4 — iOS lanes. Signing: Xcode cloud-managed signing through the
+# App Store Connect API key (ExportOptions.plist: signingStyle automatic).
+# Since 2026-11-02 .github/workflows/mobile-release.yml and mobile-testers.yml
+# build with `flutter build ios --no-codesign` + `xcodebuild archive/export`
+# and upload with `fastlane run upload_to_testflight`; the `build` and
+# `testflight_upload` lanes below are for running the same release by hand.
 default_platform(:ios)
 
 platform :ios do
