@@ -1,6 +1,6 @@
 # Журнал за 02.11.2026: все слитые в main PR
 
-Срез по `git log origin/main --first-parent` на момент записи (время по Висконсину, UTC−6). SHA здесь — SHA слияния в main (сокращённый). Финальный список дописывает автор этого файла после серии деплоев.
+Из `git log origin/main --first-parent` за сутки 02.11 по Висконсину (UTC−6). SHA — SHA слияния в main (сокращённый). Слитое 03.11 смотри в git.
 
 | PR | SHA | Время | Что |
 |---|---|---|---|
@@ -46,5 +46,25 @@
 | #639 | 300cb711 | 09:34 | perf(mobile): копия телефона не опаздывает за лимитом списка, тесты медленного диска и офлайн-старта |
 | #606 | 03825c71 | 10:21 | perf(loadtest): отвал Postgres/Redis под 1 000 человек, soak 2 ч на 1 500, подготовка 10M — результаты и находки |
 | #624 | ee35430f | 10:21 | feat: post_view_events по месяцам через онлайн-раннер |
+| #591 | 66eb1631 | 10:57 | Статус: поправить web push, очистку кэша, адреса и п.37 |
+| #642 | 8c9eed96 | 11:03 | perf(loadtest): проверка базы 10M одной командой (счётчики, EXPLAIN горячих чтений, r1k) |
+| #596 | e74a3771 | 12:00 | feat: медленный режим в группах (как в Telegram) |
+| #640 | ea00f3fb | 12:00 | test(overflow): пачка 6 (демо-аккаунты, «Архив (N)», подвал списка) |
+| #587 | c1b8d442 | 14:03 | Merge pull request #587 from syimykkalykov1999/claude/project-thread-unx9ja |
+| #546 | 16572262 | 14:34 | Merge pull request #546 from syimykkalykov1999/claude/project-thread-vlopum |
+| #594 | 8e768337 | 14:40 | Merge pull request #594 from syimykkalykov1999/claude/quick-replies |
+| #588 | f48993fe | 16:12 | Merge pull request #588 from syimykkalykov1999/claude/project-thread-unx9ja-post-place |
+| #553 | 96530e7a | 16:27 | Merge pull request #553 from syimykkalykov1999/claude/project-thread-i0o4n9 |
+| #652 | cdb0f449 | 16:57 | Merge pull request #652 from syimykkalykov1999/claude/audit-mobile-preflight |
+| #607 | f8e858d2 | 17:05 | Merge pull request #607 from syimykkalykov1999/claude/project-thread-unx9ja-per-chat |
+| #660 | fd6337e0 | 17:43 | test(api): мок логгера в revocation-спеке с info (красный API static на main после #553) |
+| #648 | c994876d | 19:07 | Merge pull request #648 from syimykkalykov1999/claude/project-thread-ok6gzk |
+| #651 | b444cf24 | 19:08 | Merge pull request #651 from syimykkalykov1999/claude/audit-tf-validate |
+| #649 | 0e61b164 | 19:28 | Merge pull request #649 from syimykkalykov1999/claude/audit-api-startup |
+| #650 | be0ea223 | 19:37 | Merge pull request #650 from syimykkalykov1999/claude/audit-ci-preflight |
+| #653 | 2aebcc44 | 20:27 | Merge pull request #653 from syimykkalykov1999/claude/audit-api-kinesis |
+| #655 | f5ff939f | 21:46 | Merge pull request #655 from syimykkalykov1999/claude/project-thread-b7iuoa |
+| #656 | c4d4384e | 22:44 | Merge pull request #656 from syimykkalykov1999/claude/project-thread-b7iuoa-push-reads |
+| #657 | 9d5e8387 | 23:41 | Merge pull request #657 from syimykkalykov1999/claude/project-thread-b7iuoa-ws-handshake |
 
-Состояние, открытое и не сделанное: `docs/HANDOFF.md`, раздел «Состояние на 02.11».
+Состояние, открытое и не сделанное: `docs/HANDOFF.md`, разделы «Состояние на 02.11» и «Что осталось и откуда продолжать (03.11)».
