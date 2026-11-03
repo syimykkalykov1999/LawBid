@@ -1484,6 +1484,23 @@ class ConversationRow extends ConsumerWidget {
           c.muted ? 'chat.select.unmuted' : 'chat.select.muted',
         ),
       ),
+      onDelete: () => unawaited(
+        confirmDeleteChat(
+          context,
+          t: t,
+          onConfirmed: () async {
+            try {
+              await repo.organize(c.id, hidden: true);
+              refreshChatFolders(ref);
+              if (context.mounted) {
+                showAppSnackBar(context, t.t('chat.select.deleted'));
+              }
+            } on Object catch (e) {
+              if (context.mounted) showAppSnackBar(context, errorText(t, e));
+            }
+          },
+        ),
+      ),
       // Desktop: the hover tint (nothing on a phone).
       child: HoverSurface(child: row),
     );

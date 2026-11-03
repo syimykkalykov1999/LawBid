@@ -13,6 +13,10 @@ describe('FLAG_CATALOG — the one list of feature flags', () => {
     }
   });
 
+  it('stories are off by default (owner R-049)', () => {
+    expect(FLAG_CATALOG.find((f) => f.key === 'stories')?.enabled).toBe(false);
+  });
+
   it("the app's first-paint defaults are the catalog (run `npm run flags:sync` when this fails)", () => {
     const file = join(
       __dirname,
