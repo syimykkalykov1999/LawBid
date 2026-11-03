@@ -95,6 +95,7 @@ import { CaseFanoutModule } from './modules/notifications/case-fanout/case-fanou
 import { GroupFanoutModule } from './modules/groups/group-fanout.module';
 import { ForwardModule } from './modules/forward/forward.module';
 import { ChatSavedModule } from './modules/chat-saved/chat-saved.module';
+import { QuickRepliesModule } from './modules/quick-replies/quick-replies.module';
 import { TranslationModule } from './modules/translation/translation.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { MentionsModule } from './modules/mentions/mentions.module';
@@ -416,6 +417,7 @@ const isDev =
     RealtimeGatewayModule,
     ChatModule,
     ChatSavedModule,
+    QuickRepliesModule,
     TranslationModule,
     CallsModule,
     MentionsModule,
