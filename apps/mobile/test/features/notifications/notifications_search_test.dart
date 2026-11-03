@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
@@ -19,6 +20,7 @@ class _Repo implements NotificationsRepository {
     NotifGroup? group,
     String? query,
   }) async {
+    if (readingFromPhoneOnly) throw StateError(kNoPhoneCopy);
     queries.add(query);
     groups.add(group);
     final hit = query == null || query.isEmpty;

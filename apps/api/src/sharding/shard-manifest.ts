@@ -121,6 +121,7 @@ export const SHARDED_MODELS: Readonly<Record<string, ShardedModelSpec>> = {
   VoipToken: spec('user', owner('user_id')),
   SavedItem: spec('user', owner('user_id')),
   SavedChatMessage: spec('user', owner('user_id')),
+  QuickReply: spec('user', owner('user_id')),
   Follow: spec('user', owner('follower_id')),
   UserBlock: spec('user', owner('blocker_id')),
   Story: spec('user', owner('author_id')),

@@ -339,6 +339,17 @@ void main() {
               find.byKey(const ValueKey('post-body-field')),
               'Text ' * 40,
             );
+            // The place of the post, as long as the server allows (the field
+            // sits below the fold: scroll to it first).
+            await tester.scrollUntilVisible(
+              find.byKey(const ValueKey('post-place-field')),
+              200,
+              scrollable: find.byType(Scrollable).first,
+            );
+            await tester.enterText(
+              find.byKey(const ValueKey('post-place-field')),
+              'Place ' * 20,
+            );
             await tester.pump();
             expect(tester.takeException(), isNull);
             await scrollThrough(tester);

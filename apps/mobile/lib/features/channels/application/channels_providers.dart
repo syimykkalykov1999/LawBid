@@ -97,6 +97,19 @@ class ChannelListNotifier extends SyncedListNotifier<Channel> {
     return super.build();
   }
 
+  // Owner 2026-11-02: «my» and «managed» channels open on the phone's copy
+  // of the list; «discover» and a search are server-ranked and read live.
+  @override
+  Future<CursorPage<Channel>?> cachedFirstPage() {
+    final repo = ref.read(channelsRepositoryProvider);
+    return phoneCopy(
+      () async => CursorPage(
+        items: await repo.list(key.scope, archived: key.archived),
+      ),
+      when: key.scope != ChannelScope.discover && key.query.trim().isEmpty,
+    );
+  }
+
   @override
   Future<CursorPage<Channel>> fetchPage(String? cursor) async => CursorPage(
         items: await ref.read(channelsRepositoryProvider).list(

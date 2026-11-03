@@ -7,32 +7,33 @@ part of 'group_dto.dart';
 // **************************************************************************
 
 GroupDto _$GroupDtoFromJson(Map<String, dynamic> json) => GroupDto(
-  myRights: (json['myRights'] as List<dynamic>)
-      .map((e) => GroupDtoMyRights.fromJson(e as String))
-      .toList(),
+  showServiceMessages: json['showServiceMessages'] as bool,
   title: json['title'] as String,
   createdAt: DateTime.parse(json['createdAt'] as String),
   pinned: json['pinned'] as bool,
   callsMuted: json['callsMuted'] as bool,
   memberCount: json['memberCount'] as num,
   type: GroupType.fromJson(json['type'] as String),
-  whoCanPost: GroupWho.fromJson(json['whoCanPost'] as String),
+  whoCanAdd: GroupWho.fromJson(json['whoCanAdd'] as String),
   joinApproval: json['joinApproval'] as bool,
   topicsEnabled: json['topicsEnabled'] as bool,
   unreadMentions: json['unreadMentions'] as num,
   pendingRequests: json['pendingRequests'] as num,
   inviteEnabled: json['inviteEnabled'] as bool,
+  whoCanPost: GroupWho.fromJson(json['whoCanPost'] as String),
   id: json['id'] as String,
-  whoCanAdd: GroupWho.fromJson(json['whoCanAdd'] as String),
   whoCanEditInfo: GroupWho.fromJson(json['whoCanEditInfo'] as String),
   whoCanCall: GroupWho.fromJson(json['whoCanCall'] as String),
   whoCanMedia: GroupWho.fromJson(json['whoCanMedia'] as String),
   whoCanPoll: GroupWho.fromJson(json['whoCanPoll'] as String),
   whoCanPin: GroupWho.fromJson(json['whoCanPin'] as String),
+  myRights: (json['myRights'] as List<dynamic>)
+      .map((e) => GroupDtoMyRights.fromJson(e as String))
+      .toList(),
   canCall: json['canCall'] as bool,
-  showServiceMessages: json['showServiceMessages'] as bool,
   isAdmin: json['isAdmin'] as bool,
   updatedAt: DateTime.parse(json['updatedAt'] as String),
+  slowModeS: (json['slowModeS'] as num?)?.toInt(),
   canPost: json['canPost'] as bool,
   canAdd: json['canAdd'] as bool,
   canEditInfo: json['canEditInfo'] as bool,
@@ -90,6 +91,7 @@ Map<String, dynamic> _$GroupDtoToJson(GroupDto instance) => <String, dynamic>{
   'showServiceMessages': instance.showServiceMessages,
   'disappearAfterS': ?instance.disappearAfterS,
   'protectContent': ?instance.protectContent,
+  'slowModeS': ?instance.slowModeS,
   'canPost': instance.canPost,
   'canAdd': instance.canAdd,
   'canEditInfo': instance.canEditInfo,
