@@ -75,8 +75,9 @@ class GroupChatTile extends ConsumerWidget {
             : const {},
         child: Container(
           color: picked ? colors.chip : null,
-          padding:
-              const EdgeInsetsDirectional.only(start: AppSpacing.screenSide),
+          padding: const EdgeInsetsDirectional.only(
+            start: AppSpacing.screenSide,
+          ),
           child: Row(
             children: [
               if (picking != null) ...[
@@ -132,8 +133,9 @@ class GroupChatTile extends ConsumerWidget {
                             if (at != null) ...[
                               const SizedBox(width: AppSpacing.sm),
                               ConstrainedBox(
-                                constraints:
-                                    const BoxConstraints(maxWidth: 110),
+                                constraints: const BoxConstraints(
+                                  maxWidth: 110,
+                                ),
                                 child: Text(
                                   SocialFormat.ago(t, f, at),
                                   maxLines: 1,
@@ -242,6 +244,17 @@ class GroupChatTile extends ConsumerWidget {
           muted ? 'chat.select.unmuted' : 'chat.select.muted',
         ),
       ),
+      onDelete: () => unawaited(
+        confirmDeleteChat(
+          context,
+          t: t,
+          group: true,
+          onConfirmed: () => act(
+            () => updateMyGroup(ref, g.id, hidden: true),
+            'chat.select.deleted',
+          ),
+        ),
+      ),
       child: row,
     );
   }
@@ -271,10 +284,7 @@ TextSpan _bold(
     spans.add(
       TextSpan(
         text: m.group(0),
-        style: TextStyle(
-          fontWeight: FontWeight.w900,
-          color: colors.goldAccent,
-        ),
+        style: TextStyle(fontWeight: FontWeight.w900, color: colors.goldAccent),
       ),
     );
     at = m.end;

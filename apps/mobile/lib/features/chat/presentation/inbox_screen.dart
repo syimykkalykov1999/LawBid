@@ -124,9 +124,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     final query = _query.value;
     if (query.isNotEmpty) {
       return ref
-              .watch(
-                mergedChatSearchProvider((folder: _folder, q: query)),
-              )
+              .watch(mergedChatSearchProvider((folder: _folder, q: query)))
               .value
               ?.items ??
           const [];
@@ -164,8 +162,9 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     ];
     final requests = ref.watch(messageRequestsCountProvider).value ?? 0;
     final showTeam = ref.watch(currentUserRoleProvider) == UserRole.attorney;
-    final teamPending =
-        showTeam ? (ref.watch(pendingRequestsCountProvider).value ?? 0) : 0;
+    final teamPending = showTeam
+        ? (ref.watch(pendingRequestsCountProvider).value ?? 0)
+        : 0;
     // Audit 2026-10-04: an assistant without "chats" still reaches the
     // notifications here (the bell stays open, no Chats segment).
     final chatsAllowed = ref.watch(canDoProvider(AssistantDuty.chats));
@@ -246,7 +245,8 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                               children: [
                                 AppBackButton(
                                   semanticLabel: t.t('common.back'),
-                                  onPressed: widget.onBack ??
+                                  onPressed:
+                                      widget.onBack ??
                                       () => Navigator.of(context).maybePop(),
                                 ),
                               ],
@@ -262,10 +262,9 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                       padding: _headerSide,
                       child: Center(
                         child: Text(
-                          t.t(
-                            'chat.select.count',
-                            {'count': '${selection.length}'},
-                          ),
+                          t.t('chat.select.count', {
+                            'count': '${selection.length}',
+                          }),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context)
@@ -303,19 +302,19 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                   Align(
                     alignment: AlignmentDirectional.centerEnd,
                     child: Padding(
-                      padding:
-                          const EdgeInsetsDirectional.only(end: AppSpacing.xs),
+                      padding: const EdgeInsetsDirectional.only(
+                        end: AppSpacing.xs,
+                      ),
                       child: selecting
                           ? ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 108),
                               child: TextButton(
                                 key: const ValueKey('select-all'),
                                 onPressed: () {
-                                  final n =
-                                      ref.read(chatSelectionProvider.notifier);
-                                  entries.every(
-                                    (e) => selection.contains(e.id),
-                                  )
+                                  final n = ref.read(
+                                    chatSelectionProvider.notifier,
+                                  );
+                                  entries.every((e) => selection.contains(e.id))
                                       ? n.clear()
                                       : n.setAll(entries.map((e) => e.id));
                                 },
@@ -397,10 +396,12 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                       AppIcons.tuneRounded,
                                       color: colors.text,
                                     ),
-                                    semanticLabel:
-                                        t.t('settings.notifications'),
-                                    onPressed: () => context
-                                        .push(ChatRoutes.notificationSettings),
+                                    semanticLabel: t.t(
+                                      'settings.notifications',
+                                    ),
+                                    onPressed: () => context.push(
+                                      ChatRoutes.notificationSettings,
+                                    ),
                                   ),
                                   bell,
                                 ] else ...[
@@ -458,32 +459,32 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                     if (showTeam) InboxTab.team,
                   ];
                   Widget pageFor(InboxTab v) => switch (v) {
-                        InboxTab.chats => chatsAllowed
-                            ? ValueListenableBuilder<String>(
-                                valueListenable: _query,
-                                builder: (context, query, _) =>
-                                    ConversationsView(
-                                  folder: _folder,
-                                  onFolder: (f) => setState(() => _folder = f),
-                                  query: query,
-                                  onQuery: (q) => _query.value = q,
-                                ),
-                              )
-                            : const SizedBox.shrink(),
-                        InboxTab.notifications => NotificationsView(
-                            // Audit 2026-10-04: an Inbox tab target switches the
-                            // tab here instead of pushing a second Inbox.
-                            onInboxTab: (v) {
-                              if (widget.overBell && v == InboxTab.chats) {
-                                unawaited(Navigator.of(context).maybePop());
-                              } else {
-                                setState(() => _tab = v);
-                              }
-                            },
-                          ),
-                        InboxTab.requests => const SizedBox.shrink(),
-                        InboxTab.team => const TeamInboxTab(),
-                      };
+                    InboxTab.chats =>
+                      chatsAllowed
+                          ? ValueListenableBuilder<String>(
+                              valueListenable: _query,
+                              builder: (context, query, _) => ConversationsView(
+                                folder: _folder,
+                                onFolder: (f) => setState(() => _folder = f),
+                                query: query,
+                                onQuery: (q) => _query.value = q,
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    InboxTab.notifications => NotificationsView(
+                      // Audit 2026-10-04: an Inbox tab target switches the
+                      // tab here instead of pushing a second Inbox.
+                      onInboxTab: (v) {
+                        if (widget.overBell && v == InboxTab.chats) {
+                          unawaited(Navigator.of(context).maybePop());
+                        } else {
+                          setState(() => _tab = v);
+                        }
+                      },
+                    ),
+                    InboxTab.requests => const SizedBox.shrink(),
+                    InboxTab.team => const TeamInboxTab(),
+                  };
                   if (values.length > 1 && values.contains(tab)) {
                     return SwipePages<InboxTab>(
                       value: tab,
@@ -620,7 +621,8 @@ class InboxTabsBar extends StatelessWidget {
           AnimatedPositionedDirectional(
             duration: d,
             curve: AppMotion.enterCurve,
-            start: _segment *
+            start:
+                _segment *
                 tabs.indexWhere((x) => x.$1 == value).clamp(0, tabs.length),
             top: 0,
             // Owner 2026-10-01: with the bell open no segment is lit.
@@ -749,8 +751,8 @@ String messagePreview(Translator t, ChatMessage m, {String? me}) {
     final label = photo
         ? '📷 ${t.t('chat.attach.photo')}'
         : (a?.isVideo ?? false)
-            ? '🎥 ${t.t('chat.attach.video')}'
-            : '📄 ${t.t('chat.attach.label')}';
+        ? '🎥 ${t.t('chat.attach.video')}'
+        : '📄 ${t.t('chat.attach.label')}';
     // Owner 2026-10-22: no caption → the kind alone («📷 Фото»).
     final caption = m.body.trim();
     return caption.isEmpty ? label : '$label · $caption';
@@ -858,8 +860,9 @@ class ConversationsView extends ConsumerWidget {
             ? AppEmptyState(
                 icon: AppIcons.forumOutlined,
                 title: t.t('chat.empty.title'),
-                message:
-                    t.t(attorney ? 'chat.empty.attorney' : 'chat.empty.client'),
+                message: t.t(
+                  attorney ? 'chat.empty.attorney' : 'chat.empty.client',
+                ),
               )
             : AppEmptyState(
                 icon: folder == ChatListFolder.waiting
@@ -884,7 +887,8 @@ class ConversationsView extends ConsumerWidget {
             openSignal: ref.watch(chatSearchOpenProvider),
             // Owner 2026-10-20: the channels' door at the start of the row.
             // Owner 2026-10-22: hidden while channels are «coming soon».
-            leading: !ref.watch(channelsComingSoonProvider) &&
+            leading:
+                !ref.watch(channelsComingSoonProvider) &&
                     ref.watch(channelsEnabledProvider)
                 ? _ChannelsDoor(
                     unread: ref.watch(unreadGroupsProvider),
@@ -903,11 +907,11 @@ class ConversationsView extends ConsumerWidget {
                 : null,
           )
         : onFolder != null
-            ? Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                child: ChatFolderPills(value: folder, onChanged: onFolder!),
-              )
-            : null;
+        ? Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: ChatFolderPills(value: folder, onChanged: onFolder!),
+          )
+        : null;
     // Owner 2026-10-20 (Telegram): the stories strip under the folders,
     // hidden by default; two separate pulls open it.
     // Owner 2026-10-22: stories are off for now (storiesEnabled), so the
@@ -931,8 +935,9 @@ class ConversationsView extends ConsumerWidget {
 
 /// Owner 2026-10-21: the magnifier in the top bar opens the search of the
 /// folders row (each tap is a new number).
-final chatSearchOpenProvider =
-    NotifierProvider.autoDispose<_SearchOpen, int>(_SearchOpen.new);
+final chatSearchOpenProvider = NotifierProvider.autoDispose<_SearchOpen, int>(
+  _SearchOpen.new,
+);
 
 class _SearchOpen extends Notifier<int> {
   @override
@@ -1001,11 +1006,15 @@ class _ArchiveRow extends ConsumerWidget {
 }
 
 Widget _entryRow(ChatListEntry e, {String highlight = ''}) => switch (e) {
-      DirectChatEntry(:final conversation) =>
-        ConversationRow(conversation: conversation, highlight: highlight),
-      GroupChatEntry(:final group) =>
-        GroupChatTile(group: group, highlight: highlight),
-    };
+  DirectChatEntry(:final conversation) => ConversationRow(
+    conversation: conversation,
+    highlight: highlight,
+  ),
+  GroupChatEntry(:final group) => GroupChatTile(
+    group: group,
+    highlight: highlight,
+  ),
+};
 
 /// OQ-043: message requests sent to me — open one to accept or delete.
 class MessageRequestsView extends ConsumerWidget {
@@ -1062,13 +1071,14 @@ class MessageRequestsView extends ConsumerWidget {
 /// message of a chat search.
 @visibleForTesting
 TextSpan boldWords(String text, String query, TextStyle style) {
-  final words = query
-      .split(RegExp(r'\s+'))
-      .map((w) => w.trim())
-      .where((w) => w.isNotEmpty)
-      .map(RegExp.escape)
-      .toList()
-    ..sort((a, b) => b.length.compareTo(a.length));
+  final words =
+      query
+          .split(RegExp(r'\s+'))
+          .map((w) => w.trim())
+          .where((w) => w.isNotEmpty)
+          .map(RegExp.escape)
+          .toList()
+        ..sort((a, b) => b.length.compareTo(a.length));
   if (words.isEmpty) return TextSpan(text: text, style: style);
   final re = RegExp(words.join('|'), caseSensitive: false, unicode: true);
   final bold = style.copyWith(fontWeight: FontWeight.w700);
@@ -1120,10 +1130,12 @@ class ConversationRow extends ConsumerWidget {
     final chat = ChatColors.of(context);
     final me = ref.watch(currentUserIdProvider);
     final c = conversation;
-    final typing =
-        ref.watch(listTypingProvider.select((m) => m.containsKey(c.id)));
-    final typingVoice =
-        ref.watch(listTypingProvider.select((m) => m[c.id] ?? false));
+    final typing = ref.watch(
+      listTypingProvider.select((m) => m.containsKey(c.id)),
+    );
+    final typingVoice = ref.watch(
+      listTypingProvider.select((m) => m[c.id] ?? false),
+    );
     // Owner 2026-10-20: an unsent text shows as a red «Drafts: …».
     final draft = ref.watch(chatTextDraftsProvider.select((m) => m[c.id]));
     final who = counterpartName(t, c);
@@ -1132,7 +1144,8 @@ class ConversationRow extends ConsumerWidget {
     // Owner 2026-10-02: in "Select chats" a tap picks the chat.
     final picking = ref.watch(chatSelectionProvider);
     final picked = picking?.contains(c.id) ?? false;
-    final canOrganize = !c.awaitingMyAnswer &&
+    final canOrganize =
+        !c.awaitingMyAnswer &&
         picking == null &&
         !ref.watch(isAssistantProvider);
     void organize() =>
@@ -1141,13 +1154,14 @@ class ConversationRow extends ConsumerWidget {
     final secondary = type.bodySmall.copyWith(color: colors.textSecondary);
     // Owner 2026-10-18: no @username under the chat (WhatsApp/Telegram);
     // only a case chat's case, or "request sent".
-    final labelText = c.caseTitle ??
+    final labelText =
+        c.caseTitle ??
         (c.isDirect && c.myRequestPending ? t.t('chat.requests.sent') : null);
     final labelIcon = c.caseTitle != null
         ? (c.closed ? AppIcons.lockOutlineRounded : AppIcons.balanceRounded)
         : (c.myRequestPending
-            ? AppIcons.scheduleSendOutlined
-            : AppIcons.personOutlineRounded);
+              ? AppIcons.scheduleSendOutlined
+              : AppIcons.personOutlineRounded);
     final hasNote = c.note != null && c.note!.trim().isNotEmpty;
     // Owner 2026-10-20 (Telegram / WhatsApp): the time sits top right on the
     // title's line, at the same height in every row whatever the preview.
@@ -1202,8 +1216,9 @@ class ConversationRow extends ConsumerWidget {
             : const {},
         child: Container(
           color: picked || open ? colors.chip : null,
-          padding:
-              const EdgeInsetsDirectional.only(start: AppSpacing.screenSide),
+          padding: const EdgeInsetsDirectional.only(
+            start: AppSpacing.screenSide,
+          ),
           child: Row(
             children: [
               if (picking != null) ...[
@@ -1314,8 +1329,9 @@ class ConversationRow extends ConsumerWidget {
                                 ),
                                 decoration: BoxDecoration(
                                   border: Border.all(color: colors.gold),
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadii.pill),
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadii.pill,
+                                  ),
                                 ),
                                 child: Text(
                                   t.t('chat.awaitsMe'),
@@ -1373,50 +1389,47 @@ class ConversationRow extends ConsumerWidget {
                                       ),
                                     )
                                   : draft != null && highlight.isEmpty
-                                      ? Text.rich(
-                                          key: ValueKey('chat-draft-${c.id}'),
+                                  ? Text.rich(
+                                      key: ValueKey('chat-draft-${c.id}'),
+                                      TextSpan(
+                                        children: [
                                           TextSpan(
-                                            children: [
-                                              TextSpan(
-                                                text:
-                                                    '${t.t('mine.tab.drafts')}: ',
-                                                style: TextStyle(
-                                                  color: colors.dangerText,
-                                                ),
-                                              ),
-                                              TextSpan(text: draft),
-                                            ],
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: secondary,
-                                        )
-                                      : (c.matchedMessage?.isNotEmpty ?? false)
-                                          ? Text.rich(
-                                              key: ValueKey(
-                                                'chat-match-${c.id}',
-                                              ),
-                                              boldWords(
-                                                c.matchedMessage!,
-                                                highlight,
-                                                secondary,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            )
-                                          : Text(
-                                              last == null
-                                                  ? ''
-                                                  : '${last.senderId == me ? '${t.t('chat.you')}: ' : ''}'
-                                                      '${messagePreview(t, last, me: me)}',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: unread
-                                                  ? secondary.copyWith(
-                                                      color: colors.text,
-                                                    )
-                                                  : secondary,
+                                            text: '${t.t('mine.tab.drafts')}: ',
+                                            style: TextStyle(
+                                              color: colors.dangerText,
                                             ),
+                                          ),
+                                          TextSpan(text: draft),
+                                        ],
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: secondary,
+                                    )
+                                  : (c.matchedMessage?.isNotEmpty ?? false)
+                                  ? Text.rich(
+                                      key: ValueKey('chat-match-${c.id}'),
+                                      boldWords(
+                                        c.matchedMessage!,
+                                        highlight,
+                                        secondary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    )
+                                  : Text(
+                                      last == null
+                                          ? ''
+                                          : '${last.senderId == me ? '${t.t('chat.you')}: ' : ''}'
+                                                '${messagePreview(t, last, me: me)}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: unread
+                                          ? secondary.copyWith(
+                                              color: colors.text,
+                                            )
+                                          : secondary,
+                                    ),
                             ),
                             if (c.muted) ...[
                               const SizedBox(width: AppSpacing.sm),
@@ -1482,6 +1495,25 @@ class ConversationRow extends ConsumerWidget {
             c.muted ? null : DateTime.now().add(const Duration(days: 3650)),
           ),
           c.muted ? 'chat.select.unmuted' : 'chat.select.muted',
+        ),
+      ),
+      onDelete: () => unawaited(
+        confirmDeleteChat(
+          context,
+          t: t,
+          onConfirmed: () async {
+            try {
+              await repo.organize(c.id, hidden: true);
+              refreshChatFolders(ref);
+              if (context.mounted) {
+                showAppSnackBar(context, t.t('chat.select.deleted'));
+              }
+            } on Object catch (e) {
+              if (context.mounted) {
+                showAppSnackBar(context, errorText(t, e));
+              }
+            }
+          },
         ),
       ),
       // Desktop: the hover tint (nothing on a phone).

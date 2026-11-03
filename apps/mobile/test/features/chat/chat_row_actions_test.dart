@@ -173,10 +173,31 @@ void main() {
     expect(find.text('Anna Petrova'), findsOneWidget);
     await tester.dragFrom(
       Offset(rect.right - 8, rect.center.dy),
-      const Offset(-200, 0),
+      const Offset(-100, 0),
     );
     await tester.pumpAndSettle();
     expect(repo.calls, contains('mute on'));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 5));
+  });
+
+  testWidgets('long swipe left asks, then deletes the chat (R-055)',
+      (tester) async {
+    final repo = await pump(tester, _conv(last: _msg()));
+    final rect = tester.getRect(find.byKey(const ValueKey('chat-swipe-c1')));
+    final from = Offset(rect.right - 8, rect.center.dy);
+    await tester.dragFrom(from, const Offset(-170, 0));
+    await tester.pumpAndSettle();
+    // The confirm sheet comes first; cancel changes nothing.
+    expect(repo.calls.where((c) => c.contains('hidden=true')), isEmpty);
+    await tester.tap(find.widgetWithText(AppButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    expect(repo.calls.where((c) => c.contains('hidden=true')), isEmpty);
+    await tester.dragFrom(from, const Offset(-170, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(AppButton, 'Delete'));
+    await tester.pumpAndSettle();
+    expect(repo.calls.any((c) => c.contains('hidden=true')), isTrue);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 5));
   });
@@ -237,7 +258,7 @@ void main() {
     expect(lastGroups.updates.any((u) => u.contains('pinned=true')), isTrue);
     await tester.dragFrom(
       Offset(rect.right - 8, rect.center.dy),
-      const Offset(-200, 0),
+      const Offset(-100, 0),
     );
     await tester.pumpAndSettle();
     expect(lastGroups.updates.any((u) => u.contains('muted=true')), isTrue);

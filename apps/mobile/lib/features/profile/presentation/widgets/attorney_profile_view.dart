@@ -21,7 +21,6 @@ import 'package:lawbid/features/cases/presentation/widgets/offer_case_sheet.dart
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/consultations/application/consultations_providers.dart';
 import 'package:lawbid/features/consultations/presentation/booking_sheet.dart';
-import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_banners.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
@@ -150,15 +149,16 @@ Future<void> showAttorneyMoreSheet(
 class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
   late AttorneyProfileTab _picked = widget.initialTab;
 
-  /// Owner 2026-10-06: without News (flag off) its tab is gone.
   /// Owner 2026-10-18: the briefs live in the Reposts tab (no Threads tab).
-  List<AttorneyProfileTab> get _tabs => [
-        for (final tab in AttorneyProfileTab.values)
-          if (tab != AttorneyProfileTab.threads &&
-              (tab != AttorneyProfileTab.news ||
-                  ref.watch(newsEnabledProvider)))
-            tab,
-      ];
+  /// Owner 2026-10-24 (R-104): at most 4 tabs in one row — Posts, Reels,
+  /// Briefs & reposts, Reviews. News never adds a fifth tab (its enum value
+  /// and page stay for when it gets a place of its own).
+  List<AttorneyProfileTab> get _tabs => const [
+    AttorneyProfileTab.posts,
+    AttorneyProfileTab.reels,
+    AttorneyProfileTab.reposts,
+    AttorneyProfileTab.reviews,
+  ];
 
   AttorneyProfileTab get _tab {
     final picked = _picked == AttorneyProfileTab.threads
@@ -293,30 +293,30 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
                 ),
               )
             : tab == AttorneyProfileTab.news
-                ? ProfilePostsGrid(
-                    key: const ValueKey('news'),
-                    asSliver: true,
-                    minExtent: minExtent,
-                    attorneyId: p.id,
-                    newsOnly: true,
-                    emptyTitle: t.t('profile.news.empty.title'),
-                    emptyMessage: t.t(
-                      p.isSelf
-                          ? 'profile.news.empty.self'
-                          : 'profile.news.empty.other',
-                    ),
-                  )
-                : ProfilePostsGrid(
-                    asSliver: true,
-                    minExtent: minExtent,
-                    attorneyId: p.id,
-                    emptyTitle: t.t('profile.posts.empty.title'),
-                    emptyMessage: t.t(
-                      p.isSelf
-                          ? 'profile.posts.empty.self'
-                          : 'profile.posts.empty.other',
-                    ),
-                  ),
+            ? ProfilePostsGrid(
+                key: const ValueKey('news'),
+                asSliver: true,
+                minExtent: minExtent,
+                attorneyId: p.id,
+                newsOnly: true,
+                emptyTitle: t.t('profile.news.empty.title'),
+                emptyMessage: t.t(
+                  p.isSelf
+                      ? 'profile.news.empty.self'
+                      : 'profile.news.empty.other',
+                ),
+              )
+            : ProfilePostsGrid(
+                asSliver: true,
+                minExtent: minExtent,
+                attorneyId: p.id,
+                emptyTitle: t.t('profile.posts.empty.title'),
+                emptyMessage: t.t(
+                  p.isSelf
+                      ? 'profile.posts.empty.self'
+                      : 'profile.posts.empty.other',
+                ),
+              ),
       );
 
   @override
@@ -371,7 +371,8 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
             // OQ-043: "Написать" opens the direct chat (a message request
             // until accepted). Owner 2026-10-17: anyone writes to anyone;
             // an assistant needs the "chats" duty.
-            canMessage: !ref.watch(actsAsAttorneyProvider) ||
+            canMessage:
+                !ref.watch(actsAsAttorneyProvider) ||
                 ref.watch(canDoProvider(AssistantDuty.chats)),
             onMessage: () => openDirectChat(context, ref, p.id),
             onShare: () => _share(t),
@@ -469,8 +470,9 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           : _TabMessage(
               icon: AppIcons.starOutlineRounded,
               title: t.t('profile.rating.new'),
-              message:
-                  t.t(p.isSelf ? 'reviews.empty.self' : 'reviews.empty.other'),
+              message: t.t(
+                p.isSelf ? 'reviews.empty.self' : 'reviews.empty.other',
+              ),
             );
     } else if (state != null) {
       items = state.items;
@@ -541,9 +543,8 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
                     selectedStars: _stars,
                     sort: _sort,
                     // Tap a bar → only those reviews; tap again → all.
-                    onStarsTap: (stars) => setState(
-                      () => _stars = _stars == stars ? null : stars,
-                    ),
+                    onStarsTap: (stars) =>
+                        setState(() => _stars = _stars == stars ? null : stars),
                     onSort: (v) => setState(() => _sort = v),
                   ),
                 ),
@@ -570,10 +571,12 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
             onEdit: review.isMine ? () => _writeReview(t, review) : null,
             onDelete: review.isMine ? () => _deleteReview(t, review) : null,
             onReply: p.isSelf ? () => _reply(t, review) : null,
-            onDeleteReply:
-                p.isSelf ? () => _reply(t, review, remove: true) : null,
-            onHelpful:
-                review.isMine || p.isSelf ? null : () => _helpful(t, review),
+            onDeleteReply: p.isSelf
+                ? () => _reply(t, review, remove: true)
+                : null,
+            onHelpful: review.isMine || p.isSelf
+                ? null
+                : () => _helpful(t, review),
           ),
         ],
         if (items.isNotEmpty)
@@ -595,9 +598,9 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
     // empty or short), so nothing pulls the page when its data arrives.
     final minPage = MediaQuery.sizeOf(context).height * 0.5;
     Widget page(Widget child) => ConstrainedBox(
-          constraints: BoxConstraints(minHeight: minPage),
-          child: child,
-        );
+      constraints: BoxConstraints(minHeight: minPage),
+      child: child,
+    );
 
     return ProfileTabPages(
       initialPage: tabs.indexOf(_tab).clamp(0, tabs.length - 1),
@@ -630,12 +633,12 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           switch (tab) {
             AttorneyProfileTab.reviews => page(reviewsPage),
             AttorneyProfileTab.reposts => page(
-                ProfileBriefsAndReposts(
-                  key: const ValueKey('reposts'),
-                  attorneyId: p.id,
-                  isSelf: p.isSelf,
-                ),
+              ProfileBriefsAndReposts(
+                key: const ValueKey('reposts'),
+                attorneyId: p.id,
+                isSelf: p.isSelf,
               ),
+            ),
             _ => _gridPage(t, tab, minPage),
           },
       ],
@@ -699,8 +702,9 @@ class _VerificationBanner extends StatelessWidget {
                   ),
                   Text(
                     t.t('profile.verifyBanner.body'),
-                    style: typography.bodySmall
-                        .copyWith(color: colors.textSecondary),
+                    style: typography.bodySmall.copyWith(
+                      color: colors.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -802,8 +806,10 @@ class _HeaderCard extends ConsumerWidget {
                         context.push(SocialRoutes.followers(profile.id)),
                   ),
                   _Counter(
-                    value:
-                        SocialFormat.count(formats, profile.counters.following),
+                    value: SocialFormat.count(
+                      formats,
+                      profile.counters.following,
+                    ),
                     label: t.t('profile.counters.following'),
                     onTap: () =>
                         context.push(SocialRoutes.following(profile.id)),
@@ -903,8 +909,9 @@ class _Counter extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style:
-                      typography.caption.copyWith(color: colors.textSecondary),
+                  style: typography.caption.copyWith(
+                    color: colors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -949,8 +956,10 @@ class _AboutSection extends ConsumerWidget {
             enabled: !profile.isSelf,
             builder: (context, text) => Text(
               text,
-              style: typography.bodySmall
-                  .copyWith(color: colors.text, height: 1.4),
+              style: typography.bodySmall.copyWith(
+                color: colors.text,
+                height: 1.4,
+              ),
             ),
           ),
         ],
@@ -1022,34 +1031,30 @@ class _ChipRows extends ConsumerWidget {
     // One compact line per section (owner redesign): a small gold icon
     // (its label read by screen readers) + chips scrolling sideways.
     Widget row(String label, IconData icon, List<Widget> chips) => Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: Row(
-            children: [
-              Semantics(
-                label: label,
-                child: AppIcon(
-                  icon,
-                  size: AppSizes.iconSm,
-                  color: colors.iconTint,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (var i = 0; i < chips.length; i++) ...[
-                        if (i > 0) const SizedBox(width: AppSpacing.xs),
-                        chips[i],
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ],
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Row(
+        children: [
+          Semantics(
+            label: label,
+            child: AppIcon(icon, size: AppSizes.iconSm, color: colors.iconTint),
           ),
-        );
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (var i = 0; i < chips.length; i++) ...[
+                    if (i > 0) const SizedBox(width: AppSpacing.xs),
+                    chips[i],
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
 
     final languages = [
       for (final code in profile.languages)
@@ -1064,21 +1069,19 @@ class _ChipRows extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (firms.isNotEmpty)
-          row(
-            t.t('profile.section.firm'),
-            AppIcons.apartmentRounded,
-            [for (final f in firms) AppChip(label: f)],
-          ),
+          row(t.t('profile.section.firm'), AppIcons.apartmentRounded, [
+            for (final f in firms) AppChip(label: f),
+          ]),
         if (groups.isNotEmpty)
           row(t.t('profile.section.practices'), AppIcons.gavelRounded, [
             for (final g in groups)
               AppChip(
                 label: g.items.isEmpty
                     ? g.label
-                    : t.t(
-                        'profile.practices.group',
-                        {'name': g.label, 'count': '${g.items.length}'},
-                      ),
+                    : t.t('profile.practices.group', {
+                        'name': g.label,
+                        'count': '${g.items.length}',
+                      }),
                 trailing: g.items.isEmpty
                     ? null
                     : AppIcon(
@@ -1171,10 +1174,10 @@ class _PracticeGroupSheetState extends ConsumerState<PracticeGroupSheet> {
                 Semantics(
                   header: true,
                   child: Text(
-                    t.t(
-                      'profile.practices.group',
-                      {'name': group.label, 'count': '${group.items.length}'},
-                    ),
+                    t.t('profile.practices.group', {
+                      'name': group.label,
+                      'count': '${group.items.length}',
+                    }),
                     style: typography.titleMedium.copyWith(color: colors.text),
                   ),
                 ),
@@ -1199,8 +1202,9 @@ class _PracticeGroupSheetState extends ConsumerState<PracticeGroupSheet> {
                   child: items.isEmpty
                       ? Text(
                           t.t('search.empty.title'),
-                          style: typography.body
-                              .copyWith(color: colors.textSecondary),
+                          style: typography.body.copyWith(
+                            color: colors.textSecondary,
+                          ),
                         )
                       : SingleChildScrollView(
                           child: Wrap(
@@ -1389,35 +1393,35 @@ class _Tabs extends ConsumerWidget {
       for (final tab in tabs)
         switch (tab) {
           AttorneyProfileTab.posts => (
-              tab,
-              t.t('profile.tab.posts'),
-              AppIcons.gridOnRounded
-            ),
+            tab,
+            t.t('profile.tab.posts'),
+            AppIcons.gridOnRounded,
+          ),
           AttorneyProfileTab.reels => (
-              tab,
-              t.t('profile.tab.reels'),
-              AppIcons.playCircleOutlined
-            ),
+            tab,
+            t.t('profile.tab.reels'),
+            AppIcons.playCircleOutlined,
+          ),
           AttorneyProfileTab.threads => (
-              tab,
-              t.t('profile.tab.threads'),
-              AppIcons.editNoteRounded
-            ),
+            tab,
+            t.t('profile.tab.threads'),
+            AppIcons.editNoteRounded,
+          ),
           AttorneyProfileTab.reposts => (
-              tab,
-              t.t('profile.tab.briefsReposts'),
-              AppIcons.autoModeRounded
-            ),
+            tab,
+            t.t('profile.tab.briefsReposts'),
+            AppIcons.autoModeRounded,
+          ),
           AttorneyProfileTab.news => (
-              tab,
-              t.t('profile.tab.news'),
-              AppIcons.newspaperRounded
-            ),
+            tab,
+            t.t('profile.tab.news'),
+            AppIcons.newspaperRounded,
+          ),
           AttorneyProfileTab.reviews => (
-              tab,
-              t.t('profile.tab.reviews'),
-              AppIcons.starBorderRounded
-            ),
+            tab,
+            t.t('profile.tab.reviews'),
+            AppIcons.starBorderRounded,
+          ),
         },
     ];
     final index = tabs.indexOf(selected).clamp(0, tabs.length - 1);
@@ -1430,8 +1434,9 @@ class _Tabs extends ConsumerWidget {
         unawaited(
           pages.animateToPage(
             i,
-            duration:
-                reduce ? Duration.zero : const Duration(milliseconds: 250),
+            duration: reduce
+                ? Duration.zero
+                : const Duration(milliseconds: 250),
             curve: Curves.easeOutCubic,
           ),
         );
@@ -1625,9 +1630,7 @@ class AttorneyProfileSkeleton extends StatelessWidget {
           ],
         ),
         SizedBox(height: AppSpacing.xl),
-        AppSkeleton(
-          height: AppSizes.touchTarget + AppSpacing.sm,
-        ),
+        AppSkeleton(height: AppSizes.touchTarget + AppSpacing.sm),
       ],
     );
   }
