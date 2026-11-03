@@ -14,6 +14,7 @@ import 'package:lawbid/features/reels/data/reels_repository.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,8 +24,8 @@ import '../../helpers/long_locale.dart';
 import '../../helpers/referral_overrides.dart';
 import '../../helpers/ux_harness.dart';
 
-/// Owner 2026-10-28 (phone tests): the reel's author row stands at one
-/// height whatever the reel (caption or none, attorney or client); a
+/// Owner 2026-11-03 (Instagram): the author row sits right above the nav
+/// bar with no caption and rises by the caption's height with one; a
 /// loading reel shows its poster, never a black box; the pages coming to
 /// rest on a page always make it the chosen one (Samsung: the Reels page
 /// on screen with «Посты» lit and its video never playing).
@@ -40,7 +41,13 @@ class _SlowPlayer extends VideoPlayerController {
   Future<void> setVolume(double volume) async {}
 }
 
-Post _reel(String id, {required String body, required bool client}) => Post(
+Post _reel(
+  String id, {
+  required String body,
+  required bool client,
+  bool mine = false,
+}) =>
+    Post(
       id: id,
       author: PostAuthor(
         id: 'a-$id',
@@ -57,7 +64,7 @@ Post _reel(String id, {required String body, required bool client}) => Post(
       commentCount: 0,
       likedByMe: false,
       savedByMe: false,
-      isMine: false,
+      isMine: mine,
       createdAt: DateTime(2026, 10, 28),
       video: const PostVideo(status: 'processing'),
     );
@@ -85,48 +92,107 @@ void main() {
     ];
   });
 
-  Future<double> authorTop(WidgetTester tester, Post reel) async {
+  Future<void> show(
+    WidgetTester tester,
+    Post reel, {
+    TextDirection? dir,
+    double textScale = 1,
+  }) async {
     useNarrowPhone(tester);
-    await tester.pumpWidget(
-      uxApp(
-        ReelsScreen(key: ValueKey(reel.id), initial: [reel]),
-        theme: AppTheme.dark(),
-        size: narrowPhone,
-        disableAnimations: true,
-        overrides: uxOverrides(
-          translator: const StaticTranslatorRu(),
-          extra: base,
-        ),
+    var app = uxApp(
+      ReelsScreen(key: ValueKey(reel.id), initial: [reel]),
+      theme: AppTheme.dark(),
+      size: narrowPhone,
+      disableAnimations: true,
+      overrides: uxOverrides(
+        translator: const StaticTranslatorRu(),
+        extra: base,
       ),
     );
+    if (dir != null || textScale != 1) {
+      app = Directionality(
+        textDirection: dir ?? TextDirection.ltr,
+        child: MediaQuery(
+          data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
+          child: app,
+        ),
+      );
+    }
+    await tester.pumpWidget(app);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(tester.takeException(), isNull);
-    return tester.getTopLeft(find.byType(AuthorHeader)).dy;
   }
 
-  testWidgets('the author row is at one height with or without a caption',
-      (tester) async {
-    final attorney = await authorTop(
+  double rowBottom(WidgetTester tester) =>
+      tester.getBottomLeft(find.byType(AuthorHeader)).dy;
+
+  double railBottom(WidgetTester tester) =>
+      tester.getBottomLeft(find.byIcon(AppIcons.moreHorizRounded)).dy;
+
+  testWidgets(
+      'no caption: the author row sits just above the nav bar, on '
+      'the last rail icon line', (tester) async {
+    await show(tester, _reel('2', body: '', client: false, mine: true));
+    // The rail's last icon and the author row end on the same line.
+    expect(rowBottom(tester), closeTo(railBottom(tester), 0.5));
+    expect(find.text('\u00A0'), findsNothing);
+  });
+
+  testWidgets('a caption lifts the author row by exactly its height', (
+    tester,
+  ) async {
+    await show(tester, _reel('2', body: '', client: false));
+    final none = rowBottom(tester);
+    await show(
       tester,
       _reel('1', body: 'What to say at a traffic stop', client: false),
     );
-    final noCaption = await authorTop(
-      tester,
-      _reel('2', body: '', client: false),
+    final oneLine = rowBottom(tester);
+    final captionH =
+        tester.getSize(find.text('What to say at a traffic stop')).height;
+    expect(none - oneLine, closeTo(captionH + AppSpacing.sm, 0.5));
+    // Long caption: two lines at most, ending in «ещё».
+    await show(tester, _reel('4', body: 'A long caption ' * 20, client: true));
+    final twoLines = rowBottom(tester);
+    expect(twoLines, lessThan(oneLine));
+    expect(find.textContaining('ещё', findRichText: true), findsOneWidget);
+    final rich = tester.widget<RichText>(
+      find.descendant(
+        of: find.byType(ReelsScreen),
+        matching: find.byWidgetPredicate(
+          (w) => w is RichText && w.text.toPlainText().contains('ещё'),
+        ),
+      ),
     );
-    final client = await authorTop(tester, _reel('3', body: '', client: true));
-    final longCaption = await authorTop(
-      tester,
-      _reel('4', body: 'A long caption ' * 20, client: true),
-    );
-    expect(noCaption, closeTo(attorney, 0.5));
-    expect(client, closeTo(attorney, 0.5));
-    expect(longCaption, closeTo(attorney, 0.5));
+    expect(rich.maxLines, anyOf(isNull, 2));
   });
 
-  testWidgets('a loading reel shows its poster, not a black box',
-      (tester) async {
+  testWidgets('the username is centred on the avatar without a second line', (
+    tester,
+  ) async {
+    await show(tester, _reel('3', body: '', client: true));
+    final avatar = tester.getRect(find.byType(IdentityAvatar).first);
+    final name = tester.getRect(find.byType(AuthorNameLine));
+    expect(name.center.dy, closeTo(avatar.center.dy, 0.5));
+  });
+
+  testWidgets('RTL and large text keep the row at the bottom, no overflow', (
+    tester,
+  ) async {
+    await show(
+      tester,
+      _reel('5', body: 'A long caption ' * 20, client: false),
+      dir: TextDirection.rtl,
+      textScale: 1.6,
+    );
+    expect(tester.takeException(), isNull);
+    expect(rowBottom(tester), lessThanOrEqualTo(railBottom(tester) + 0.5));
+  });
+
+  testWidgets('a loading reel shows its poster, not a black box', (
+    tester,
+  ) async {
     debugReelPlayerFactory = (_, __) => _SlowPlayer();
     addTearDown(() => debugReelPlayerFactory = null);
     await tester.pumpWidget(
@@ -170,8 +236,9 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   });
 
-  testWidgets('the page the pages rest on becomes the chosen one',
-      (tester) async {
+  testWidgets('the page the pages rest on becomes the chosen one', (
+    tester,
+  ) async {
     var value = 'posts';
     var dropNext = true;
     await tester.pumpWidget(

@@ -96,8 +96,9 @@ class ReelsScreen extends ConsumerStatefulWidget {
 }
 
 class _ReelsScreenState extends ConsumerState<ReelsScreen> {
-  late final PageController _pages =
-      PageController(initialPage: widget.initialIndex);
+  late final PageController _pages = PageController(
+    initialPage: widget.initialIndex,
+  );
   late final List<Post> _items = [...widget.initial];
   // Ids of _items, kept beside it: dedupe is O(1) per page, not a rebuilt set.
   late final Set<String> _seenIds = {for (final p in widget.initial) p.id};
@@ -158,9 +159,9 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     if (DateTime.now().difference(_freshAt) < _freshGap) return;
     _freshAt = DateTime.now();
     try {
-      final page = await ref.read(reelsRepositoryProvider).reels(
-            practice: widget.practice,
-          );
+      final page = await ref
+          .read(reelsRepositoryProvider)
+          .reels(practice: widget.practice);
       if (!mounted) return;
       final fresh = [
         for (final p in page.items)
@@ -193,10 +194,9 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     if (!mounted) return;
     setState(() => _loading = true);
     try {
-      final page = await ref.read(reelsRepositoryProvider).reels(
-            cursor: _cursor,
-            practice: widget.practice,
-          );
+      final page = await ref
+          .read(reelsRepositoryProvider)
+          .reels(cursor: _cursor, practice: widget.practice);
       if (!mounted) return;
       // One rebuild per page: the items, the cursor and the spinner.
       setState(() {
@@ -222,9 +222,9 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   /// open tab in the nav bar) — the newest reels from the start.
   Future<void> _refresh() async {
     try {
-      final page = await ref.read(reelsRepositoryProvider).reels(
-            practice: widget.practice,
-          );
+      final page = await ref
+          .read(reelsRepositoryProvider)
+          .reels(practice: widget.practice);
       if (!mounted) return;
       // A reel opened from a feed card stays first.
       final keep = [...widget.initial];
@@ -251,12 +251,12 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
 
   /// The player under a pull-to-refresh (white on the dark video).
   Widget _refreshable(Widget child) => AppRefreshIndicator(
-        color: Colors.white,
-        backgroundColor: Colors.black54,
-        edgeOffset: MediaQuery.paddingOf(context).top + 48,
-        onRefresh: _refresh,
-        child: child,
-      );
+    color: Colors.white,
+    backgroundColor: Colors.black54,
+    edgeOffset: MediaQuery.paddingOf(context).top + 48,
+    onRefresh: _refresh,
+    child: child,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -297,8 +297,9 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                               ? errorText(t, _error!)
                               : t.t('reels.empty'),
                           textAlign: TextAlign.center,
-                          style: type.body
-                              .copyWith(color: AppMediaOverlay.inkMuted),
+                          style: type.body.copyWith(
+                            color: AppMediaOverlay.inkMuted,
+                          ),
                         ),
                 )
               : _refreshable(
@@ -318,21 +319,18 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                         index: _index,
                         presence: widget.presence,
                         page: i,
-                        builder: ({
-                          required active,
-                          required warm,
-                          required hold,
-                        }) =>
-                            _ReelPage(
-                          key: ValueKey(items[i].id),
-                          post: items[i],
-                          active: active,
-                          warm: warm,
-                          hold: hold,
-                          muted: muted,
-                          embedded: true,
-                          soundButton: true,
-                        ),
+                        builder:
+                            ({required active, required warm, required hold}) =>
+                                _ReelPage(
+                                  key: ValueKey(items[i].id),
+                                  post: items[i],
+                                  active: active,
+                                  warm: warm,
+                                  hold: hold,
+                                  muted: muted,
+                                  embedded: true,
+                                  soundButton: true,
+                                ),
                       ),
                     ),
                   ),
@@ -371,8 +369,9 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                                     ? errorText(t, _error!)
                                     : t.t('reels.empty'),
                                 textAlign: TextAlign.center,
-                                style:
-                                    type.body.copyWith(color: Colors.white70),
+                                style: type.body.copyWith(
+                                  color: Colors.white70,
+                                ),
                               ),
                             ],
                           ),
@@ -396,20 +395,17 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                         index: _index,
                         presence: widget.presence,
                         page: i,
-                        builder: ({
-                          required active,
-                          required warm,
-                          required hold,
-                        }) =>
-                            _ReelPage(
-                          key: ValueKey(items[i].id),
-                          post: items[i],
-                          active: active,
-                          warm: warm,
-                          hold: hold,
-                          muted: muted,
-                          embedded: _underNavBar,
-                        ),
+                        builder:
+                            ({required active, required warm, required hold}) =>
+                                _ReelPage(
+                                  key: ValueKey(items[i].id),
+                                  post: items[i],
+                                  active: active,
+                                  warm: warm,
+                                  hold: hold,
+                                  muted: muted,
+                                  embedded: _underNavBar,
+                                ),
                       ),
                     ),
                   ),
@@ -463,20 +459,6 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   }
 }
 
-/// The height of two lines of [style] at the system text size.
-double _twoLines(BuildContext context, TextStyle style) {
-  final base = DefaultTextStyle.of(context).style.merge(style);
-  final painter = TextPainter(
-    text: TextSpan(text: 'A\nA', style: base),
-    maxLines: 2,
-    textDirection: TextDirection.ltr,
-    textScaler: MediaQuery.textScalerOf(context),
-  )..layout();
-  final h = painter.height;
-  painter.dispose();
-  return h;
-}
-
 /// Owner 2026-10-26 (smoothness): one page of the reels pager. It
 /// rebuilds only when it becomes, or stops being, the reel on screen or
 /// its neighbour (the players to play and to warm).
@@ -495,7 +477,8 @@ class _ReelSlot extends StatefulWidget {
     required bool active,
     required bool warm,
     required bool hold,
-  }) builder;
+  })
+  builder;
 
   @override
   State<_ReelSlot> createState() => _ReelSlotState();
@@ -635,10 +618,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     required Translator t,
     required Post p,
   }) {
-    final style = type.body.copyWith(
-      color: Colors.white,
-      shadows: shadow,
-    );
+    final style = type.body.copyWith(color: Colors.white, shadows: shadow);
     // A short caption; the whole text is inside (the button below) — or,
     // with no attachments, opens in place over the video (owner
     // 2026-10-13).
@@ -666,17 +646,16 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
   /// The inner page; the reel waits paused and plays on when back (see
   /// `covered` in [build]).
   Future<void> _openInside(Post p) => showPostAttachmentsSheet(
-        context,
-        media: p.media,
-        documents: p.attachments,
-      );
+    context,
+    media: p.media,
+    documents: p.attachments,
+  );
 
   @override
   Widget build(BuildContext context) {
     BuildCounter.hit('reels.page');
-    final p = ref.watch(
-          postOverridesProvider.select((m) => m[widget.post.id]),
-        ) ??
+    final p =
+        ref.watch(postOverridesProvider.select((m) => m[widget.post.id])) ??
         widget.post;
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
@@ -721,58 +700,57 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
       Color? color,
       VoidCallback? onCountTap,
       bool hiddenMark = false,
-    }) =>
-        Padding(
-          // Owner 2026-10-13: Instagram-like rail — the count in 12, a tight
-          // step, whatever the system text size; the icon [kReelRailIcon]
-          // (owner 2026-10-19: bigger).
-          padding: const EdgeInsets.only(bottom: AppSpacing.md),
-          child: MediaQuery.withNoTextScaling(
-            child: Semantics(
-              button: true,
-              label: label,
-              excludeSemantics: true,
-              child: GestureDetector(
-                onTap: onTap,
-                behavior: HitTestBehavior.opaque,
-                child: Column(
-                  children: [
-                    AppIcon(
-                      icon,
-                      size: kReelRailIcon,
-                      color: color ?? AppMediaOverlay.ink,
-                      shadows: shadow,
-                    ),
-                    if (count != null && count > 0) ...[
-                      const SizedBox(height: 2),
-                      GestureDetector(
-                        onTap: onCountTap ?? onTap,
-                        behavior: HitTestBehavior.opaque,
-                        child: DefaultTextStyle.merge(
-                          style: type.caption.copyWith(
-                            fontSize: 13,
-                            color: AppMediaOverlay.ink,
-                            fontWeight: FontWeight.w600,
-                            shadows: shadow,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(SocialFormat.count(f, count)),
-                              // The mark takes the number's colour.
-                              if (hiddenMark)
-                                const HiddenCounterMark(inheritColor: true),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+    }) => Padding(
+      // Owner 2026-10-13: Instagram-like rail — the count in 12, a tight
+      // step, whatever the system text size; the icon [kReelRailIcon]
+      // (owner 2026-10-19: bigger).
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: MediaQuery.withNoTextScaling(
+        child: Semantics(
+          button: true,
+          label: label,
+          excludeSemantics: true,
+          child: GestureDetector(
+            onTap: onTap,
+            behavior: HitTestBehavior.opaque,
+            child: Column(
+              children: [
+                AppIcon(
+                  icon,
+                  size: kReelRailIcon,
+                  color: color ?? AppMediaOverlay.ink,
+                  shadows: shadow,
                 ),
-              ),
+                if (count != null && count > 0) ...[
+                  const SizedBox(height: 2),
+                  GestureDetector(
+                    onTap: onCountTap ?? onTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: DefaultTextStyle.merge(
+                      style: type.caption.copyWith(
+                        fontSize: 13,
+                        color: AppMediaOverlay.ink,
+                        fontWeight: FontWeight.w600,
+                        shadows: shadow,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(SocialFormat.count(f, count)),
+                          // The mark takes the number's colour.
+                          if (hiddenMark)
+                            const HiddenCounterMark(inheritColor: true),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-        );
+        ),
+      ),
+    );
 
     // The button sits outside the double-tap area: it opens at once.
     return Stack(
@@ -799,7 +777,8 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       warm: widget.warm && video.ready,
                       deferOpen: widget.hold,
                       muted: widget.muted,
-                      paused: _paused.value ||
+                      paused:
+                          _paused.value ||
                           _held.value ||
                           covered ||
                           widget.hold,
@@ -817,8 +796,9 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       child: Text(
                         t.t('reels.processing'),
                         textAlign: TextAlign.center,
-                        style:
-                            type.body.copyWith(color: AppMediaOverlay.inkMuted),
+                        style: type.body.copyWith(
+                          color: AppMediaOverlay.inkMuted,
+                        ),
                       ),
                     ),
                   ),
@@ -886,7 +866,8 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                   end: AppSpacing.md,
                   // The rail's last item keeps its own 12 dp: its icon ends at
                   // the same line as the author block.
-                  bottom: moreSpace -
+                  bottom:
+                      moreSpace -
                       AppSpacing.md +
                       MediaQuery.paddingOf(context).bottom,
                   child: Column(
@@ -1027,36 +1008,30 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                           // Owner 2026-10-19: no @username (only in the
                           // profile and search) and no role word «Клиент»
                           // (only on the welcome screen's role choice).
-                          // Owner 2026-10-28: the second line is always
-                          // there (blank when there is nothing to say), so
-                          // the row stands at one height for every author.
+                          // Owner 2026-11-03 (Instagram): no blank second
+                          // line; the name is centred on the avatar when
+                          // there is nothing to say under it.
                           subtitle: p.promotionId != null
                               ? t.t('promote.sponsored')
                               : p.locationName ??
-                                  (p.author.verified && !p.author.isClient
-                                      ? t.t('post.licensedAttorney')
-                                      : '\u00A0'),
+                                    (p.author.verified && !p.author.isClient
+                                        ? t.t('post.licensedAttorney')
+                                        : ''),
                         ),
                       ),
-                      // Owner 2026-10-28: the caption's two lines are kept
-                      // free even without a caption, so the author row is
-                      // at the same height on every reel.
-                      SizedBox(
-                        height: AppSpacing.sm + _twoLines(context, type.body),
-                        child: Align(
-                          alignment: AlignmentDirectional.topStart,
-                          child: caption.isEmpty
-                              ? const SizedBox.shrink()
-                              : _captionOf(
-                                  more: more,
-                                  caption: caption,
-                                  type: type,
-                                  shadow: shadow,
-                                  t: t,
-                                  p: p,
-                                ),
+                      // Owner 2026-11-03 (Instagram): the block is anchored
+                      // at the bottom and sized by its content — no caption,
+                      // the author row sits right above the nav bar; a
+                      // caption (two lines at most) lifts it by its height.
+                      if (caption.isNotEmpty)
+                        _captionOf(
+                          more: more,
+                          caption: caption,
+                          type: type,
+                          shadow: shadow,
+                          t: t,
+                          p: p,
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -1120,7 +1095,7 @@ class ReelFollowButton extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final following =
         ref.watch(followOverridesProvider.select((m) => m[attorneyId])) ??
-            initial;
+        initial;
     final label = t.t(following ? 'follow.following' : 'follow.follow');
     return Semantics(
       button: true,
@@ -1205,8 +1180,8 @@ const kReelMoreButtonSpace = 44.0 + AppSpacing.md;
 /// "Смотреть" when the reel has photos or documents inside, else "Читать".
 String reelMoreLabelKey(Post p) =>
     p.media.isNotEmpty || p.attachments.isNotEmpty
-        ? 'reels.more.watch'
-        : 'reels.more.read';
+    ? 'reels.more.watch'
+    : 'reels.more.read';
 
 /// Owner 2026-10-05: the wide, low button over the bottom of a reel.
 class ReelMoreButton extends StatelessWidget {
@@ -1300,8 +1275,9 @@ class _ReelCaption extends StatelessWidget {
         if (!painter.didExceedMaxLines) return Text(text, style: style);
         // "… more" ends the second line, never a third one.
         bool fits(int n) {
-          final shown =
-              n >= text.length ? text : '${text.substring(0, n).trimRight()}…';
+          final shown = n >= text.length
+              ? text
+              : '${text.substring(0, n).trimRight()}…';
           final p = TextPainter(
             text: TextSpan(
               style: base,
