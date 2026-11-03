@@ -1176,6 +1176,74 @@ void main() {
     expect(h.sounds.rings, isNot(contains('ring')));
   });
 
+  group('owner 2026-11-03: the push and the socket ring the same call', () {
+    test('push (app open) first, then the socket: one call screen, kept',
+        () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      await h.c.ringFromPush('c7', showSystemUi: true);
+      await _settle();
+      h.emit(
+        'call:incoming',
+        _event(_call('c7', CallStatus.ringing, outgoing: false)),
+      );
+      await _settle();
+      expect(h.s.phase, CallPhase.incoming);
+      expect(h.s.call?.id, 'c7');
+      expect(h.systemUi.shown, ['c7']);
+      expect(h.systemUi.dismissed, isEmpty);
+      expect(h.repo.declined, isEmpty);
+    });
+
+    test('the socket first, then the push: still one screen, never ended',
+        () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.emit(
+        'call:incoming',
+        _event(_call('c8', CallStatus.ringing, outgoing: false)),
+      );
+      await _settle();
+      await h.c.ringFromPush('c8', showSystemUi: true);
+      await _settle();
+      expect(h.s.phase, CallPhase.incoming);
+      expect(h.systemUi.shown, ['c8']);
+      expect(h.systemUi.dismissed, isEmpty);
+      expect(h.repo.declined, isEmpty);
+    });
+
+    test('the socket rings while the push is still loading the call',
+        () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.repo.getGate = Completer<void>();
+      final push = h.c.ringFromPush('c9', showSystemUi: true);
+      await _settle();
+      h.emit(
+        'call:incoming',
+        _event(_call('c9', CallStatus.ringing, outgoing: false)),
+      );
+      await _settle();
+      h.repo.getGate!.complete();
+      await push;
+      await _settle();
+      expect(h.s.phase, CallPhase.incoming);
+      expect(h.systemUi.shown, ['c9']);
+      expect(h.systemUi.dismissed, isEmpty);
+      expect(h.repo.declined, isEmpty);
+    });
+
+    test('a push the system UI already showed (background) shows no second',
+        () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      await h.c.ringFromPush('c10');
+      await _settle();
+      expect(h.s.phase, CallPhase.incoming);
+      expect(h.systemUi.shown, isEmpty);
+    });
+  });
+
   test('every end leaves the shade clean (decline and hang-up)', () async {
     final h = _Harness();
     addTearDown(h.dispose);
