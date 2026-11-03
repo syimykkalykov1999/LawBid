@@ -3,7 +3,8 @@
 # the released API image (docs/runbooks/PROD_LAUNCH.md):
 #   prod-run.sh <tag> seed               reference data + the super admin row
 #   prod-run.sh <tag> admin              super admin login + password (asked, hidden)
-#   prod-run.sh <tag> i18n <file.xlsx>   import translations (dry run first)
+#   prod-run.sh <tag> i18n <folder|file.xlsx>  import translations (dry run first);
+#                                        folder = prisma/seed/translations style (<lang>.json)
 #   prod-run.sh <tag> wipe [--purge-versions] [--execute]
 #                                        pre-launch wipe of beta test data: database,
 #                                        S3, Bunny (docs/runbooks/prelaunch-wipe.md);
@@ -77,9 +78,16 @@ case "$CMD" in
       "$IMAGE" node dist/src/cli/set-admin-credentials.js
     ;;
   i18n)
-    FILE="$(cd "$(dirname "${3:?xlsx file}")" && pwd)/$(basename "$3")"
-    "${RUN[@]}" -v "$FILE:/tmp/import.xlsx:ro" "$IMAGE" \
-      node dist/src/cli/import-translations.js /tmp/import.xlsx
+    SRC="${3:?folder with <lang>.json, or an xlsx file}"
+    if [ -d "$SRC" ]; then
+      DIR="$(cd "$SRC" && pwd)"
+      "${RUN[@]}" -v "$DIR:/tmp/import:ro" "$IMAGE" \
+        node dist/src/cli/import-translations.js /tmp/import
+    else
+      FILE="$(cd "$(dirname "$SRC")" && pwd)/$(basename "$SRC")"
+      "${RUN[@]}" -v "$FILE:/tmp/import.xlsx:ro" "$IMAGE" \
+        node dist/src/cli/import-translations.js /tmp/import.xlsx
+    fi
     ;;
   wipe)
     # S3 is reached with the Mac's own AWS login (temporary keys, same

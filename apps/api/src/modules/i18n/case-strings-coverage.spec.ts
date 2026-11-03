@@ -1,39 +1,26 @@
 import { join } from 'node:path';
-import ExcelJS from 'exceljs';
+import { loadSeedGrid } from './xlsx/seed-translations.util';
 
-// Owner 2026-10-13: the strings of the case screens live in the seed file
+// Owner 2026-10-13: the strings of the case screens live in the seed files
 // (all languages); a fresh seed must give every language every key.
-async function read(file: string): Promise<Map<string, Map<string, string>>> {
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.readFile(file);
-  const ws = wb.worksheets[0];
-  const head = (ws.getRow(1).values as string[]).slice(1).map(String);
+function read(dir: string): Map<string, Map<string, string>> {
+  const [head, ...rows] = loadSeedGrid(dir);
   const out = new Map<string, Map<string, string>>();
-  ws.eachRow((row, i) => {
-    if (i === 1) return;
-    const v = (row.values as (string | number | null | undefined)[]).slice(1);
+  for (const row of rows) {
     const m = new Map<string, string>();
     head.slice(1).forEach((lang, j) => {
-      const cell = v[j + 1];
-      if (typeof cell === 'string' && cell.trim() !== '') m.set(lang, cell);
+      const cell = row[j + 1];
+      if (cell.trim() !== '') m.set(lang, cell);
     });
-    out.set(String(v[0] ?? ''), m);
-  });
+    out.set(row[0], m);
+  }
   return out;
 }
 
 describe('case screen strings', () => {
-  it('the seed file has the case keys in every language', async () => {
-    const seed = await read(
-      join(
-        __dirname,
-        '..',
-        '..',
-        '..',
-        'prisma',
-        'seed',
-        'translations_seed.xlsx',
-      ),
+  it('the seed files have the case keys in every language', () => {
+    const seed = read(
+      join(__dirname, '..', '..', '..', 'prisma', 'seed', 'translations'),
     );
     const keys = [
       'cases.tab.tasks',
@@ -64,5 +51,5 @@ describe('case screen strings', () => {
         expect(seed.get(key)?.get(lang)).toBeTruthy();
       }
     }
-  }, 60_000);
+  });
 });

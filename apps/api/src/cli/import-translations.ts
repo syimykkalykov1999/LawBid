@@ -1,12 +1,14 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { NestFactory } from '@nestjs/core';
 import { unwrapKmsWrappedKeys } from '../common/secrets/kms-env';
 import { AppModule } from '../app.module';
 import { I18nImportService } from '../modules/i18n/services/i18n-import.service';
+import { loadSeedGrid } from '../modules/i18n/xlsx/seed-translations.util';
 
-// `npm run i18n:import -- <file.xlsx|file.csv>` (after `nest build`): the
+// `npm run i18n:import -- <folder|file.xlsx|file.csv>` (after `nest build`): the
 // same import the admin's System → Localization page runs (docs/01 §9.3),
-// without signing in. Dry-run first; the file is applied only when the
+// without signing in. A folder is the built-in per-language JSON seed
+// (prisma/seed/translations). Dry-run first; the file is applied only when the
 // dry run reports no errors.
 //
 // `--missing-only` (every release, scripts/deploy/prod-admin-ecs.sh i18n):
@@ -19,7 +21,9 @@ async function run(): Promise<void> {
   const path = process.argv[2];
   const options = { missingOnly: process.argv.includes('--missing-only') };
   if (!path) throw new Error('Usage: npm run i18n:import -- <file>');
-  const buffer = await readFile(path);
+  const buffer = (await stat(path)).isDirectory()
+    ? loadSeedGrid(path)
+    : await readFile(path);
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: false,
   });
