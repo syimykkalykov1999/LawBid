@@ -12,6 +12,7 @@ import { ErrorCode } from '../errors/error-code.enum';
 import { getRequestId } from '../middleware/request-id.middleware';
 import { CallTimeoutError, CircuitOpenError } from '../resilience/resilience';
 import { isRedisInfraError } from '../../redis/redis-errors';
+import { isDbBusyError } from '../../prisma/db-busy-error';
 import type { ApiErrorBody } from '../dto/api-response.dto';
 
 /**
@@ -159,7 +160,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
         retryAfterSec: 10,
       };
     }
-    if (isRedisInfraError(exception)) {
+    // Load test 2026-11-02: the connection pool / transaction slot ran out
+    // (Prisma P2028 / P2024) — nothing was stored, try again shortly.
+    if (isRedisInfraError(exception) || isDbBusyError(exception)) {
       return {
         status: HttpStatus.SERVICE_UNAVAILABLE,
         code: 'SERVER_BUSY',

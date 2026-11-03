@@ -59,6 +59,8 @@ export const SENSITIVE_KEYS: ReadonlySet<string> = new Set([
   'displayName',
 ]);
 
+// scheme://user:pass@host (DB / Redis / broker URLs inside client errors).
+const URL_CREDENTIALS_RE = /([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi;
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 // 9+ digits with optional separators and a leading +: a phone number.
 const PHONE_RE = /\+?\d[\d\s().-]{7,}\d/g;
@@ -74,13 +76,14 @@ const FILE_NAME_RE =
 /** Longest string kept; the rest is cut (a stack of text is never needed). */
 export const SCRUB_MAX_CHARS = 600;
 
-/** Removes e-mails, phone numbers, URL query strings (signed links), file
+/** Removes URL credentials, e-mails, phone numbers, URL query strings (signed links), file
  * names and cuts long text. Pure; safe to call on any string. */
 export function scrubString(
   input: string,
   maxChars: number = SCRUB_MAX_CHARS,
 ): string {
   let s = input
+    .replace(URL_CREDENTIALS_RE, '$1[REDACTED]@')
     .replace(URL_QUERY_RE, '$1?[REDACTED]')
     .replace(SIGNED_PARAM_RE, '$1=[REDACTED]')
     .replace(EMAIL_RE, '[email]')
@@ -92,7 +95,7 @@ export function scrubString(
 
 /** Longest stack kept in a log line (a stack is for debugging, but it can
  * carry an interpolated message with client data). */
-const LOG_STACK_MAX_CHARS = 4000;
+export const LOG_STACK_MAX_CHARS = 4000;
 
 /**
  * S3-12: pino `formatters.log` hook. Provider SDK errors (axios from

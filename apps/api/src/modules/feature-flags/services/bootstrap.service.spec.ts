@@ -303,3 +303,82 @@ describe('BootstrapService.turnstileSiteKey', () => {
     expect(await make('enforce').turnstileSiteKey()).toEqual({});
   });
 });
+
+describe('BootstrapService.fcmWebConfig', () => {
+  const make = (fields?: Record<string, string>) =>
+    new BootstrapService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {
+        getAll: jest.fn().mockResolvedValue(fields ? [{ fields }] : []),
+      } as never,
+    );
+  const full = {
+    projectId: 'lawbid-6e5ff',
+    webApiKey: 'AIzaSyAAAAAAAAAAAAAAAAAAAA',
+    webAppId: '1:123456:web:abc',
+    webSenderId: '123456',
+    webVapidKey: 'B'.repeat(80),
+  };
+
+  it('publishes the public web keys when all are saved', async () => {
+    expect(await make(full).fcmWebConfig()).toEqual({
+      'fcm.web.api_key': full.webApiKey,
+      'fcm.web.app_id': full.webAppId,
+      'fcm.web.sender_id': full.webSenderId,
+      'fcm.web.project_id': full.projectId,
+      'fcm.web.vapid_key': full.webVapidKey,
+    });
+  });
+
+  it('never publishes the service-account key', async () => {
+    const out = await make({
+      ...full,
+      privateKey: '-----BEGIN PRIVATE KEY-----',
+      clientEmail: 'x@y.iam.gserviceaccount.com',
+    }).fcmWebConfig();
+    expect(JSON.stringify(out)).not.toMatch(/PRIVATE KEY|iam\.gserviceaccount/);
+  });
+
+  it('adds authDomain only when it is saved', async () => {
+    const domain = 'lawbid-6e5ff.firebaseapp.com';
+    const withDomain = await make({
+      ...full,
+      webAuthDomain: domain,
+    }).fcmWebConfig();
+    expect(withDomain['fcm.web.auth_domain']).toBe(domain);
+    const without = await make(full).fcmWebConfig();
+    expect(Object.keys(without)).not.toContain('fcm.web.auth_domain');
+  });
+
+  it('takes the first key set that carries the whole group', async () => {
+    const svc = new BootstrapService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {
+        getAll: jest
+          .fn()
+          .mockResolvedValue([
+            { fields: { projectId: 'p-main', webApiKey: 'AIzaSyHALF' } },
+            { fields: full },
+          ]),
+      } as never,
+    );
+    const out = await svc.fcmWebConfig();
+    expect(out['fcm.web.project_id']).toBe(full.projectId);
+    expect(out['fcm.web.api_key']).toBe(full.webApiKey);
+  });
+
+  it('publishes nothing without the project id', async () => {
+    expect(await make({ ...full, projectId: '' }).fcmWebConfig()).toEqual({});
+  });
+
+  it('publishes nothing when one is missing or nothing is saved', async () => {
+    expect(await make({ ...full, webVapidKey: '' }).fcmWebConfig()).toEqual({});
+    expect(await make().fcmWebConfig()).toEqual({});
+  });
+});
