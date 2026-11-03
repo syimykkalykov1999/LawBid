@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/desktop_cases.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_stale_banner.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
@@ -93,7 +93,7 @@ class MyCaseRow extends ConsumerWidget {
       topTrailing: open
           ? BoostButton(postId: c.id, target: PromotionTarget.case_)
           : null,
-      onTap: () => context.push(AppRoutes.myCase(c.id)),
+      onTap: () => openCaseRoute(context, AppRoutes.myCase(c.id)),
     );
     final canDelete = open || c.status == CaseStatus.archived;
     // OQ-054: the question / the pause, right under the case it is about.
