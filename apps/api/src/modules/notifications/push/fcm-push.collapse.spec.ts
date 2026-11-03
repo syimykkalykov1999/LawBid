@@ -188,7 +188,7 @@ describe('PushDispatcher message collapse', () => {
     };
     const d = new PushDispatcher(
       { mode: 'worker' },
-      {},
+      {} as never,
       prisma as never,
       {
         render: () => Promise.resolve({ title: 'LawBid', body: 'New' }),
