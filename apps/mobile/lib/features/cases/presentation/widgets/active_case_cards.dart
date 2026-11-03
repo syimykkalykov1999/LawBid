@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/desktop_cases.dart';
 import 'package:lawbid/features/cases/presentation/widgets/active_case_card.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_stale_banner.dart';
@@ -103,7 +104,7 @@ class ClientActiveCaseCard extends ConsumerWidget {
       nextDate: scale ? when : null,
       nextYours: choosing || pending || (noPrice && stage == 2),
       nextDanger: disputed,
-      onTap: () => context.push(AppRoutes.myCase(c.id)),
+      onTap: () => openCaseRoute(context, AppRoutes.myCase(c.id)),
     );
     if (c.status != CaseStatus.open ||
         !CaseStaleBanner.needed(
@@ -183,7 +184,7 @@ class AttorneyActiveCaseCard extends ConsumerWidget {
       next: next,
       nextDate: when == null ? null : formats.dayMonth(when),
       nextDanger: disputed,
-      onTap: () => context.push(AppRoutes.workCase(w.caseId)),
+      onTap: () => openCaseRoute(context, AppRoutes.workCase(w.caseId)),
     );
   }
 }

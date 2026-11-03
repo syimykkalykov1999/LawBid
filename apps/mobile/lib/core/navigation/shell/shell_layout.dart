@@ -194,6 +194,22 @@ bool isDesktopWindow(BuildContext context) => windowClassOf(context).isDesktop;
 bool isListDetailLocation(String location) =>
     location == '/inbox' || location.startsWith('/chat/');
 
+/// Desktop web plan §6.4: a case opened as a page (`/mine/case/:id`,
+/// `/mine/work/:id`) is drawn as «cases list | case» on a desktop window,
+/// so it also takes the whole width next to the narrow menu.
+bool isCaseDetailLocation(String location) =>
+    RegExp(r'^/mine/(case|work)/[^/]+$').hasMatch(location);
+
+/// Desktop web plan §4: the Search page is at most this wide on a desktop
+/// window (its grid takes 3 to 5 tiles).
+const double kSearchMaxWidth = 1200;
+
+/// Desktop web plan §4: the cases list pane.
+const double kCaseListPaneWidth = 400;
+
+/// Desktop web plan §4: the case itself is at most this wide.
+const double kCaseDetailMaxWidth = 760;
+
 /// Desktop web plan §4: the chats list pane (wider from 1440).
 const double kChatListPaneWidth = 360;
 const double kChatListPaneWideWidth = 400;
