@@ -68,7 +68,16 @@ class CallSession {
     this.notice,
     this.videoPrompt,
     this.endedAt,
+    this.releasing = false,
   });
+
+  /// R-037 (owner 2026-10-28, «the slide-down stops halfway»): the call
+  /// ended here and the phone is still letting go of it — camera and mic,
+  /// the peer connections, the system call (CallKit / Telecom) and the
+  /// ongoing-call service. Those run on the platform thread, which also
+  /// paces Flutter's frames: the screen holds still until they are done,
+  /// so no animation runs under them.
+  final bool releasing;
 
   /// When the call ended here (the «Call ended · 2:14» line).
   final DateTime? endedAt;
@@ -132,6 +141,7 @@ class CallSession {
     String? videoPrompt,
     bool clearVideoPrompt = false,
     DateTime? endedAt,
+    bool? releasing,
   }) =>
       CallSession(
         phase: phase ?? this.phase,
@@ -149,6 +159,7 @@ class CallSession {
         notice: clearNotice ? null : notice ?? this.notice,
         videoPrompt: clearVideoPrompt ? null : videoPrompt ?? this.videoPrompt,
         endedAt: endedAt ?? this.endedAt,
+        releasing: releasing ?? this.releasing,
       );
 }
 
@@ -276,6 +287,16 @@ void callTrace(String message) {
   CrashReporter.instance?.report('calltrace $at $message', StackTrace.empty);
 }
 
+/// R-037 (owner 2026-10-28, «calls lag»): one line per call with its link
+/// numbers (round trip, jitter, loss, bandwidth, direct or TURN — no
+/// addresses, nothing personal), in every build: the phone tests run the
+/// store build, and one line per call is light. Off with the
+/// `crash_reports` flag like every other report.
+void callStatsReport(String line) {
+  final at = DateTime.now().toUtc().toIso8601String().substring(11, 23);
+  CrashReporter.instance?.report('$line at=$at', StackTrace.empty);
+}
+
 /// The caller gives up after this — about a minute, like WhatsApp (owner
 /// 2026-10-20; it was 30 s); the server marks a forgotten call missed a
 /// little later.
@@ -373,11 +394,9 @@ const kCallAloneGrace = Duration(seconds: 3);
 /// How long the "Call ended" screen stays.
 const kCallEndedLinger = Duration(milliseconds: 1600);
 
-/// Owner 2026-10-28 («the slide-down stops halfway»): the second, safety
-/// sweep of the system call after an end runs once the call screen has
-/// slid away (it closes at 1.5 s, the slide takes ~0.4 s) — its native
-/// calls run on the platform's UI thread and must not land mid-animation.
-const kCallLateSweep = Duration(milliseconds: 3000);
+/// R-037: the longest one step of the end may hold the «Call ended»
+/// screen still (a native call that never answers must not keep it up).
+const kCallReleaseStepTimeout = Duration(seconds: 3);
 
 /// Who the call is with: the other person, or for a group the first two
 /// names and a count.
@@ -2552,6 +2571,18 @@ class CallController extends Notifier<CallSession> {
     await ref.read(systemCallUiProvider).answered(call);
   }
 
+  /// The end of a call, in the reference order (LiveKit `Room.disconnect`
+  /// → `_cleanUp`: local tracks stopped → each transport's callbacks
+  /// cleared, closed and disposed → the system call ended → only then the
+  /// UI, which pops on `RoomDisconnectedEvent` in a post-frame callback):
+  ///
+  /// 1. at once: the phase reads «ended» ([CallSession.releasing]: the
+  ///    screen holds still), the end tone;
+  /// 2. awaited, one after the other: the media ([_reset] → `close()`),
+  ///    then CallKit / Telecom and the ongoing-call service;
+  /// 3. then the screen lets the sheet go, and after [kCallEndedLinger]
+  ///    the controller goes idle — the call screen pops on that, and no
+  ///    native work is left to land in the middle of its animation.
   void _finish(CallStatus outcome, {AppCall? call, bool keepOpen = false}) {
     final wasCalling = state.busy;
     final endedId = call?.id ?? state.call?.id;
@@ -2559,18 +2590,15 @@ class CallController extends Notifier<CallSession> {
         'error=${state.errorCode}');
     // Owner 2026-10-26: nothing below may keep the phase from reaching
     // «ended» — a throwing side effect left the call screen up.
-    if (endedId != null) {
-      try {
-        _endSystemCall(endedId);
-      } on Object catch (e) {
-        callTrace('finish $endedId: system call end failed: $e');
-      }
-    }
     try {
       _reset();
     } on Object catch (e) {
       callTrace('finish $endedId: reset failed: $e');
     }
+    final media = _mediaClosing;
+    // The service is stopped by the release below, not by the state
+    // listener a moment from now (once, in order).
+    _fgKey = null;
     // OQ-044: "busy" beeps, or the short end-of-call tone.
     try {
       final sounds = ref.read(appSoundsProvider);
@@ -2591,7 +2619,26 @@ class CallController extends Notifier<CallSession> {
       call: call,
       reconnecting: false,
       endedAt: DateTime.now(),
+      releasing: true,
     );
+    unawaited(_release(media, endedId, gen: _gen, keepOpen: keepOpen));
+  }
+
+  /// Steps 2 and 3 of [_finish].
+  Future<void> _release(
+    Future<void> media,
+    String? endedId, {
+    required int gen,
+    required bool keepOpen,
+  }) async {
+    await _releaseStep('media', () => media);
+    if (endedId != null) {
+      await _releaseStep('system call', () => _endSystemCall(endedId));
+    }
+    // A new call began meanwhile: this end is not on screen any more.
+    if (!ref.mounted || gen != _gen || state.phase != CallPhase.ended) return;
+    callTrace('finish $endedId: released');
+    state = state.copyWith(releasing: false);
     // The 409 sheet decides when this screen goes.
     if (keepOpen) return;
     _linger = Timer(kCallEndedLinger, () {
@@ -2601,27 +2648,30 @@ class CallController extends Notifier<CallSession> {
     });
   }
 
-  /// The system call (CallKit / the ringing notification) and the
-  /// ongoing-call service go with the call.
-  void _endSystemCall(String endedId) {
-    final ui = ref.read(systemCallUiProvider);
-    unawaited(ui.dismiss(endedId).then<void>((_) => ui.endAll()));
-    // Device test 2026-10-21: after a group call «Leave» the ongoing-call
-    // notification (7003) and the plugin's records stayed in the shade.
-    // The end is stated outright, not left to the state listener, and
-    // again a moment later for a start that was still in flight.
-    final fg = ref.read(callForegroundProvider);
-    _fgKey = null;
-    unawaited(fg.stop());
-    unawaited(
-      Future<void>.delayed(kCallLateSweep, () async {
-        if (ref.mounted && !state.busy) {
-          await fg.stop();
-          await ui.endAll();
-        }
-      }),
-    );
+  Future<void> _releaseStep(String step, Future<void> Function() run) async {
+    try {
+      await run().timeout(kCallReleaseStepTimeout);
+    } on Object catch (e) {
+      callTrace('finish: $step failed: $e');
+    }
   }
+
+  /// The system call (CallKit / the ringing notification), every other
+  /// trace of a call, and the ongoing-call service go with the call —
+  /// stated outright (device test 2026-10-21: after a group call «Leave»
+  /// the ongoing-call notification and the plugin's records stayed).
+  Future<void> _endSystemCall(String endedId) async {
+    final ui = ref.read(systemCallUiProvider);
+    final fg = ref.read(callForegroundProvider);
+    // Each step on its own clock: one that throws or hangs must not keep
+    // the others (CallKit end, the ongoing-call service) from running.
+    await _releaseStep('system call dismiss', () => ui.dismiss(endedId));
+    await _releaseStep('system call endAll', ui.endAll);
+    await _releaseStep('foreground stop', fg.stop);
+  }
+
+  /// The media closing that the last [_reset] started.
+  Future<void> _mediaClosing = Future<void>.value();
 
   void _reset() {
     _gen++;
@@ -2633,11 +2683,11 @@ class CallController extends Notifier<CallSession> {
     _mediaOpen = false;
     if (media != null) {
       callTrace('reset: closing media');
-      unawaited(
-        media.close().catchError((Object e) {
-          callTrace('reset: media close failed: $e');
-        }),
-      );
+      _mediaClosing = media.close().catchError((Object e) {
+        callTrace('reset: media close failed: $e');
+      });
+    } else {
+      _mediaClosing = Future<void>.value();
     }
     ref.read(callCamerasOffProvider.notifier).clear();
     ref.read(callFrontCameraProvider.notifier).front();
