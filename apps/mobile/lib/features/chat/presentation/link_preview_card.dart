@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/cache/chat_media_providers.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart'
     show decodeWidthFor;
@@ -15,19 +17,61 @@ import 'package:url_launcher/url_launcher.dart';
 /// that carries a web address — picture, site, title, a line of text
 /// (WhatsApp / Telegram). Nothing is drawn until the server answered with
 /// something to show; nothing at all while the Privacy switch is off.
-class LinkPreviewCard extends ConsumerWidget {
-  const LinkPreviewCard({required this.url, required this.mine, super.key});
+class LinkPreviewCard extends ConsumerStatefulWidget {
+  const LinkPreviewCard({
+    required this.url,
+    required this.mine,
+    this.conversationId,
+    super.key,
+  });
 
   final String url;
   final bool mine;
 
+  /// The chat the message is in: the card's picture is counted under it in
+  /// «Данные и память → По чатам» instead of «Прочее».
+  final String? conversationId;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LinkPreviewCard> createState() => _LinkPreviewCardState();
+}
+
+class _LinkPreviewCardState extends ConsumerState<LinkPreviewCard> {
+  String get url => widget.url;
+  bool get mine => widget.mine;
+
+  /// The chat and picture last noted, so a rebuild notes nothing twice.
+  String? _noted;
+
+  /// Counts the picture under its chat, once it is on screen (so nothing is
+  /// asked of the server while the Privacy switch is off).
+  void _noteOnce(String? image) {
+    final chatId = widget.conversationId;
+    if (chatId == null || image == null) return;
+    final key = '$chatId|$image';
+    if (_noted == key) return;
+    _noted = key;
+    unawaited(_noteImage(chatId, image));
+  }
+
+  /// Remembers which chat shows the picture (for «Данные и память»). Never
+  /// throws: a card must draw even when the index cannot be written.
+  Future<void> _noteImage(String chatId, String image) async {
+    try {
+      await ref.read(chatMediaIndexProvider).note(chatId, [image]);
+    } on Object catch (e) {
+      debugPrint('chat media index: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     if (!ref.watch(linkPreviewsEnabledProvider)) {
       return const SizedBox.shrink();
     }
     final preview = ref.watch(linkPreviewProvider(url)).value;
     if (preview == null) return const SizedBox.shrink();
+    _noteOnce(preview.imageUrl);
     final t = ref.watch(translatorProvider);
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final chat = ChatColors.of(context);
