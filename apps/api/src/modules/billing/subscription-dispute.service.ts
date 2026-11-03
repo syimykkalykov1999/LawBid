@@ -18,6 +18,8 @@ import { SubscriptionSyncService } from './subscription-sync.service';
 
 /** Subscription states in which nothing is left to cancel. */
 const ENDED = new Set(['canceled', 'incomplete_expired']);
+/** Real chargebacks (not inquiries `warning_*`); see onEvent. */
+const CHARGEBACK_STATUSES = new Set(['needs_response', 'under_review', 'lost']);
 
 /**
  * R-237 (owner 2026-11-03): a bank dispute (chargeback) on a SUBSCRIPTION
@@ -72,6 +74,7 @@ export class SubscriptionDisputeService implements OnModuleInit {
   async onEvent(event: ProviderEvent): Promise<void> {
     if (
       event.type !== 'charge.dispute.created' &&
+      event.type !== 'charge.dispute.updated' &&
       event.type !== 'charge.dispute.closed'
     )
       return;
@@ -107,55 +110,112 @@ export class SubscriptionDisputeService implements OnModuleInit {
         invoiceId: pay.stripe_invoice_id,
         refunded: false,
       });
-      return;
+      // A chargeback lost at the bank ends the subscription too (when an
+      // earlier inquiry did not); the code below is idempotent.
+      if (outcome !== 'lost') return;
     }
 
     if (!row?.stripe_subscription_id) {
+      if (event.type !== 'charge.dispute.created') return;
       await this.record(null, pay.user_id, 'no_subscription', {
         disputeId: dispute.id,
         invoiceId: pay.stripe_invoice_id,
       });
       return;
     }
-    await refreshProvider(this.provider);
     const subId = row.stripe_subscription_id;
+    const base = {
+      disputeId: dispute.id,
+      status: dispute.status,
+      reason: dispute.reason,
+      amountCents: dispute.amount,
+      subscriptionId: subId,
+      invoiceId: pay.stripe_invoice_id,
+      refunded: false,
+    };
+
+    // Stripe dispute statuses (docs.stripe.com/api/disputes/object#dispute_object-status):
+    // `warning_needs_response` / `warning_under_review` / `warning_closed` are
+    // INQUIRIES (the bank asks, no money has moved); `needs_response` /
+    // `under_review` / `won` / `lost` are real chargebacks; `prevented` is a
+    // dispute stopped before it started. Only a real open chargeback
+    // (`needs_response`, `under_review`) or `lost` cancels the subscription;
+    // an inquiry is only recorded and the staff told (it may be answered).
+    if (!CHARGEBACK_STATUSES.has(dispute.status)) {
+      if (event.type === 'charge.dispute.created') {
+        await this.record(row.id, pay.user_id, 'inquiry_noted', base);
+        await this.alert(
+          dispute.id,
+          'LawBid: bank inquiry on a subscription charge',
+          `A bank inquiry (${dispute.status}, ${dispute.reason ?? 'unknown'}) on an attorney's subscription charge. The subscription was NOT cancelled; answer the bank in time: Admin → Деньги → «Проверки Stripe».`,
+        );
+      }
+      return;
+    }
+
+    await refreshProvider(this.provider);
+    // Cancel the subscription the disputed invoice belongs to, never blindly
+    // the attorney's current one (they may have re-subscribed since).
+    const invoice = await this.provider.retrieveInvoice(pay.stripe_invoice_id!);
+    if (!invoice?.subscriptionId || invoice.subscriptionId !== subId) {
+      if (event.type === 'charge.dispute.created') {
+        await this.record(row.id, pay.user_id, 'other_subscription', {
+          ...base,
+          invoiceSubscriptionId: invoice?.subscriptionId ?? null,
+        });
+        await this.alert(
+          dispute.id,
+          'LawBid: dispute on an older subscription charge',
+          `A dispute (${dispute.status}) hit an invoice of subscription ${invoice?.subscriptionId ?? 'unknown'}, not the attorney's current ${subId}. Nothing was cancelled; look at it in «Проверки Stripe».`,
+        );
+      }
+      return;
+    }
+
     const now = await this.provider.retrieveSubscription(subId);
-    let canceled = false;
-    if (now && !ENDED.has(now.status)) {
-      const remote = await this.provider.cancelNow(subId, {
+    const ended = !now || ENDED.has(now.status);
+    let remote = now;
+    if (!ended) {
+      remote = await this.provider.cancelNow(subId, {
         idempotencyKey: `dispute:${dispute.id}:cancel`,
       });
-      await this.sync.apply(remote, {});
-      await this.access.invalidate(pay.user_id);
-      canceled = true;
     }
+    // Idempotent heal: on a retry after a partial failure (cancelled at
+    // Stripe, row not synced) the row and the access cache catch up here.
+    if (remote) await this.sync.apply(remote, {});
+    await this.access.invalidate(pay.user_id);
+    // `updated` / `closed` fire often: stay quiet when nothing new.
+    if (ended && event.type !== 'charge.dispute.created') return;
     await this.record(
       row.id,
       pay.user_id,
-      canceled ? 'subscription_canceled' : 'already_canceled',
-      {
-        disputeId: dispute.id,
-        status: dispute.status,
-        reason: dispute.reason,
-        amountCents: dispute.amount,
-        subscriptionId: subId,
-        invoiceId: pay.stripe_invoice_id,
-        refunded: false,
-      },
+      ended ? 'already_canceled' : 'subscription_canceled',
+      base,
     );
-    if (canceled) {
-      await this.review
-        ?.notifyStaff(
-          `dispute-cancel:${dispute.id}`,
-          'LawBid: subscription cancelled after a bank dispute',
-          `An attorney's subscription charge was disputed (${dispute.reason ?? 'unknown'}, ${dispute.status}). The subscription ${subId} was cancelled at once; no refund was made (the dispute reverses the charge).\n\nRespond to the dispute: Admin → Деньги → «Проверки Stripe».`,
-        )
-        .catch(() => undefined);
+    if (!ended) {
+      await this.alert(
+        dispute.id,
+        'LawBid: subscription cancelled after a bank dispute',
+        `An attorney's subscription charge was disputed (${dispute.reason ?? 'unknown'}, ${dispute.status}). The subscription ${subId} was cancelled at once; no refund was made (the dispute reverses the charge).\n\nRespond to the dispute: Admin → Деньги → «Проверки Stripe».`,
+      );
     }
   }
 
-  /** Audit row of a system action (audit_log needs a user as actor; the
-   * attorney concerned stands in, action prefix `system.`). */
+  private async alert(
+    disputeId: string,
+    subject: string,
+    text: string,
+  ): Promise<void> {
+    await this.review
+      ?.notifyStaff(`dispute-cancel:${disputeId}:${subject}`, subject, text)
+      .catch(() => undefined);
+  }
+
+  /** Audit row of a system action. audit_log.admin_id is a required FK to
+   * users and the repo has no system user, so (as in the duplicate-
+   * subscription auto-fix, the only existing convention) the attorney
+   * concerned stands in; the `system.` action prefix and `actor: 'system'`
+   * mark it as automatic. */
   private async record(
     subscriptionId: string | null,
     userId: string,

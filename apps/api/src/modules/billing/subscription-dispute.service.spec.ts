@@ -16,6 +16,7 @@ function setup(
     flag?: boolean;
     row?: { id: string; stripe_subscription_id: string | null } | null;
     subStatus?: 'active' | 'canceled';
+    invoiceSub?: string | null;
   } = {},
 ) {
   const fake = new FakePaymentProvider();
@@ -33,6 +34,18 @@ function setup(
     metadata: {},
     latestInvoiceId: null,
     created: nowSec() - 10 * DAY,
+    _version: 1,
+  });
+  fake.invoices.set('in_1', {
+    id: 'in_1',
+    customerId: 'cus_1',
+    subscriptionId: opts.invoiceSub === undefined ? 'sub_1' : opts.invoiceSub,
+    amountCents: 39_900,
+    currency: 'usd',
+    status: 'paid',
+    paidAt: nowSec(),
+    paymentIntentId: 'pi_1',
+    failureCode: null,
     _version: 1,
   });
   const cancelSpy = jest.spyOn(fake, 'cancelNow');
@@ -152,23 +165,83 @@ describe('SubscriptionDisputeService (R-237)', () => {
     );
   });
 
-  it('closed lost: recorded, nothing cancelled or refunded', async () => {
+  it('closed lost: recorded; an active subscription is still cancelled, never refunded', async () => {
     const t = setup();
     await t.svc.onEvent(ev('charge.dispute.closed', { status: 'lost' }));
-    expect(t.cancelSpy).not.toHaveBeenCalled();
+    expect(t.cancelSpy).toHaveBeenCalledTimes(1);
     expect(t.refundSpy).not.toHaveBeenCalled();
+    const actions = t.audit.record.mock.calls.map(
+      (c: unknown[]) => (c[0] as { action: string }).action,
+    );
+    expect(actions).toContain('system.billing.dispute.closed_lost');
+  });
+
+  it('closed lost on an already ended subscription: heals the row, no extra audit', async () => {
+    const t = setup({ subStatus: 'canceled' });
+    await t.svc.onEvent(ev('charge.dispute.closed', { status: 'lost' }));
+    expect(t.cancelSpy).not.toHaveBeenCalled();
+    expect(t.sync.apply).toHaveBeenCalledTimes(1);
+    expect(t.audit.record).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['warning_needs_response', 'warning_under_review', 'warning_closed'])(
+    'inquiry %s: audit + staff alert only, no cancel',
+    async (status) => {
+      const t = setup();
+      await t.svc.onEvent(ev('charge.dispute.created', { status }));
+      expect(t.cancelSpy).not.toHaveBeenCalled();
+      expect(t.sync.apply).not.toHaveBeenCalled();
+      expect(t.audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'system.billing.dispute.inquiry_noted',
+        }),
+      );
+      expect(t.review.notifyStaff).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('an inquiry that escalates (updated -> needs_response) cancels', async () => {
+    const t = setup();
+    await t.svc.onEvent(
+      ev('charge.dispute.updated', { status: 'needs_response' }),
+    );
+    expect(t.cancelSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('updated on an already ended subscription stays silent', async () => {
+    const t = setup({ subStatus: 'canceled' });
+    await t.svc.onEvent(
+      ev('charge.dispute.updated', { status: 'under_review' }),
+    );
+    expect(t.audit.record).not.toHaveBeenCalled();
+    expect(t.review.notifyStaff).not.toHaveBeenCalled();
+  });
+
+  it('re-subscribed attorney: the dispute is on an older subscription, nothing cancelled', async () => {
+    const t = setup({ invoiceSub: 'sub_old' });
+    await t.svc.onEvent(ev('charge.dispute.created'));
+    expect(t.cancelSpy).not.toHaveBeenCalled();
+    expect(t.fake.subscriptions.get('sub_1')!.status).toBe('active');
     expect(t.audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'system.billing.dispute.closed_lost',
-        after: expect.objectContaining({ refunded: false }),
+        action: 'system.billing.dispute.other_subscription',
+        after: expect.objectContaining({ invoiceSubscriptionId: 'sub_old' }),
       }),
     );
+    expect(t.review.notifyStaff).toHaveBeenCalledTimes(1);
+  });
+
+  it('retry after a partial failure heals: ended at Stripe, row still synced + access dropped', async () => {
+    const t = setup({ subStatus: 'canceled' });
+    await t.svc.onEvent(ev('charge.dispute.created'));
+    expect(t.sync.apply).toHaveBeenCalledTimes(1);
+    expect(t.access.invalidate).toHaveBeenCalledWith('u1');
   });
 
   it('closed won: recorded, the subscription is NOT reinstated', async () => {
     const t = setup({ subStatus: 'canceled' });
     await t.svc.onEvent(ev('charge.dispute.closed', { status: 'won' }));
-    expect(t.sync.apply).not.toHaveBeenCalled();
+    expect(t.cancelSpy).not.toHaveBeenCalled();
     expect(t.audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'system.billing.dispute.closed_won',
@@ -200,7 +273,6 @@ describe('SubscriptionDisputeService (R-237)', () => {
 
   it('other dispute events and a missing payment intent are ignored', async () => {
     const t = setup();
-    await t.svc.onEvent(ev('charge.dispute.updated'));
     await t.svc.onEvent(ev('charge.dispute.funds_withdrawn'));
     await t.svc.onEvent(ev('charge.dispute.created', { payment_intent: null }));
     expect(t.cancelSpy).not.toHaveBeenCalled();
