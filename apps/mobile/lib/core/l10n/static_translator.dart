@@ -38,6 +38,7 @@ import 'package:lawbid/core/l10n/strings/file07_strings.dart';
 import 'package:lawbid/core/l10n/strings/file_views_strings.dart';
 import 'package:lawbid/core/l10n/strings/forward_strings.dart';
 import 'package:lawbid/core/l10n/strings/group_calls_strings.dart';
+import 'package:lawbid/core/l10n/strings/group_slow_strings.dart';
 import 'package:lawbid/core/l10n/strings/group_strings.dart';
 import 'package:lawbid/core/l10n/strings/id_selfie_strings.dart';
 import 'package:lawbid/core/l10n/strings/invite_strings.dart';
@@ -54,6 +55,7 @@ import 'package:lawbid/core/l10n/strings/plan_strings.dart';
 import 'package:lawbid/core/l10n/strings/post_inner_strings.dart';
 import 'package:lawbid/core/l10n/strings/privacy_strings.dart';
 import 'package:lawbid/core/l10n/strings/qr_strings.dart';
+import 'package:lawbid/core/l10n/strings/quick_replies_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_docs_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
 import 'package:lawbid/core/l10n/strings/saved_cards_strings.dart';
@@ -1236,6 +1238,8 @@ class StaticTranslatorRu extends _MapTranslator {
         ...webCheckoutRu,
         ...feedFreshRu,
         ...chatNoteRu,
+        ...quickRepliesRu,
+        ...groupSlowRu,
         ...shareToRu,
         ...peopleSuggestRu,
         ...groupCallsRu,
@@ -2692,6 +2696,8 @@ class StaticTranslatorEn extends _MapTranslator {
         ...webCheckoutEn,
         ...feedFreshEn,
         ...chatNoteEn,
+        ...quickRepliesEn,
+        ...groupSlowEn,
         ...shareToEn,
         ...peopleSuggestEn,
         ...groupCallsEn,

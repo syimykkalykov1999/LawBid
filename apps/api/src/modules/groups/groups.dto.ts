@@ -201,6 +201,18 @@ export class UpdateGroupDto {
   @IsUUID('all')
   avatarFileId?: string | null;
 
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    enum: [0, 10, 30, 60, 300, 900, 3600],
+    description:
+      'Slow mode: seconds a member who is not an admin waits between two own messages; 0 (or null) = off. Needs the «edit group info» right.',
+  })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsIn([0, 10, 30, 60, 300, 900, 3600])
+  slowModeS?: number | null;
+
   @ApiPropertyOptional({ enum: GROUP_WHO, description: 'Admins only.' })
   @IsOptional()
   @IsIn(GROUP_WHO)
@@ -878,6 +890,14 @@ export class GroupDto {
   })
   protectContent!: boolean;
 
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Slow mode: seconds a non-admin waits between two own messages; null = off.',
+  })
+  slowModeS!: number | null;
+
   @ApiProperty({ description: 'What I may do here (derived from the above).' })
   canPost!: boolean;
 
@@ -1255,6 +1275,14 @@ export class GroupCardDto {
 
   @ApiProperty()
   protectContent!: boolean;
+
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Slow mode: seconds a non-admin waits between two own messages; null = off.',
+  })
+  slowModeS!: number | null;
 
   @ApiProperty({ type: String, nullable: true, format: 'date-time' })
   lastMessageAt!: Date | null;

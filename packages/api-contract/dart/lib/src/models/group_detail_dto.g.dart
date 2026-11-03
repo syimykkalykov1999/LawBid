@@ -28,13 +28,13 @@ GroupDetailDto _$GroupDetailDtoFromJson(
       .map((e) => GroupDetailDtoMyRights.fromJson(e as String))
       .toList(),
   showServiceMessages: json['showServiceMessages'] as bool,
-  inviteEnabled: json['inviteEnabled'] as bool,
+  isAdmin: json['isAdmin'] as bool,
+  slowModeS: (json['slowModeS'] as num?)?.toInt(),
   canPost: json['canPost'] as bool,
   canAdd: json['canAdd'] as bool,
   canEditInfo: json['canEditInfo'] as bool,
   canCall: json['canCall'] as bool,
-  isAdmin: json['isAdmin'] as bool,
-  unreadMentions: json['unreadMentions'] as num,
+  inviteEnabled: json['inviteEnabled'] as bool,
   invited: (json['invited'] as List<dynamic>)
       .map((e) => GroupPersonDto.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -45,6 +45,7 @@ GroupDetailDto _$GroupDetailDtoFromJson(
   updatedAt: DateTime.parse(json['updatedAt'] as String),
   pinned: json['pinned'] as bool,
   unreadCount: json['unreadCount'] as num,
+  unreadMentions: json['unreadMentions'] as num,
   inviteLink: json['inviteLink'] as String?,
   pinnedMessage: json['pinnedMessage'] == null
       ? null
@@ -102,6 +103,7 @@ Map<String, dynamic> _$GroupDetailDtoToJson(GroupDetailDto instance) =>
       'showServiceMessages': instance.showServiceMessages,
       'disappearAfterS': ?instance.disappearAfterS,
       'protectContent': ?instance.protectContent,
+      'slowModeS': ?instance.slowModeS,
       'canPost': instance.canPost,
       'canAdd': instance.canAdd,
       'canEditInfo': instance.canEditInfo,

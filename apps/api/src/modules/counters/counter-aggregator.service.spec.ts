@@ -119,6 +119,34 @@ const ID = (last: string, n = 0) =>
   `00000000-0000-4000-8000-0000000000${n}${last}`;
 
 describe('CounterAggregator (S6-6)', () => {
+  it('onModuleDestroy sends local deltas to Redis AND applies them to the DB (deploy loses no counter)', async () => {
+    const { redis, hashes } = fakeRedis();
+    const { agg, executed } = aggregator(redis);
+    await agg.bump('post', ID('2'), 'like_count', 7);
+    await agg.onModuleDestroy();
+    expect(executed.length).toBeGreaterThan(0);
+    expect(executed.flatMap((e) => e.deltas)).toContain(7);
+    expect(hashes.get(pendingKey('post', 'like_count', 2))?.size ?? 0).toBe(0);
+  });
+
+  it('a failing final flush is logged with the real cause and never throws', async () => {
+    const { redis } = fakeRedis();
+    const logger = { setContext: jest.fn(), error: jest.fn() };
+    const agg = new CounterAggregator({} as never, redis, logger as never);
+    (redis as unknown as { eval: unknown }).eval = async () => {
+      throw new Error('');
+    };
+    await agg.bump('post', ID('1'), 'like_count', 1);
+    await expect(agg.onModuleDestroy()).resolves.toBeUndefined();
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errName: 'Error',
+        errStack: expect.any(String),
+      }),
+      'counter final flush failed',
+    );
+  });
+
   it('shards by the last hex digit of the id (id % 16), 16 shards', () => {
     expect(COUNTER_SHARDS).toBe(16);
     expect(counterShard(ID('0'))).toBe(0);

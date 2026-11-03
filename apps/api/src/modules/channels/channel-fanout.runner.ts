@@ -15,7 +15,11 @@ import { BlocksService } from '../blocks/blocks.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import { bullOptions } from '../../redis/redis-connection';
-import { closeWorker, workerTuning } from '../../common/queues/queue-hardening';
+import {
+  closeWorker,
+  workerTuning,
+  outageProof,
+} from '../../common/queues/queue-hardening';
 
 export const CHANNEL_FANOUT_QUEUE = 'channel-fanout';
 export const CHANNEL_FANOUT_OPTIONS = Symbol('CHANNEL_FANOUT_OPTIONS');
@@ -99,7 +103,7 @@ export class ChannelFanoutRunner
     // bell list sorts by time, pushes carry their own post.
     this.worker = new Worker<ChannelFanoutJob>(
       CHANNEL_FANOUT_QUEUE,
-      (job: Job<ChannelFanoutJob>) => this.process(job.data),
+      outageProof((job: Job<ChannelFanoutJob>) => this.process(job.data)),
       {
         ...bullOptions(CHANNEL_FANOUT_QUEUE, url, { worker: true }),
         ...workerTuning(CHANNEL_FANOUT_QUEUE),

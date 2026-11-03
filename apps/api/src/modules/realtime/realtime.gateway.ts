@@ -55,6 +55,7 @@ import {
 import { triMode, type TriMode } from '../../common/ops/tri-mode';
 import { shardContext } from '../../sharding/shard-context';
 import { pubSubClient } from '../../redis/redis-connection';
+import { isRedisInfraError } from '../../redis/redis-errors';
 import { RealtimeEventLog } from './realtime-event-log';
 import {
   newSocketEventBucket,
@@ -255,6 +256,7 @@ export class RealtimeGateway
     { timer: NodeJS.Timeout; leftAt: Date }
   >();
   private timingTimer?: NodeJS.Timeout;
+  private gaugeTimer?: NodeJS.Timeout;
   /** S20-4: `log.ws_events` / `log.ws_sample_percent` (refreshed with the
    * timings) and the per-instance spike detector. */
   private wsLog: { mode: TriMode; samplePercent: number } = {
@@ -341,11 +343,10 @@ export class RealtimeGateway
     return this.draining;
   }
 
-  /** docs/06 §8 "число активных WebSocket-соединений": a gauge line per
-   * connect/disconnect on this instance (CloudWatch metric filter sums
+  /** docs/06 §8 "число активных WebSocket-соединений": a gauge line every 30 s on this instance (CloudWatch metric filter sums
    * the instances). */
   private gauge(): void {
-    const count = this.nsp?.sockets.size ?? 0;
+    const count = this.nsp?.sockets?.size ?? 0;
     this.logger.info({ metric: 'ws_connections', count }, 'ws connections');
   }
 
@@ -356,6 +357,10 @@ export class RealtimeGateway
     void this.loadTiming();
     this.timingTimer = setInterval(() => void this.loadTiming(), 30_000);
     this.timingTimer.unref();
+    // B-18: the connection gauge is a 30 s sample, not a line per connect /
+    // disconnect (a deploy with 50k sockets wrote ~100k lines).
+    this.gaugeTimer = setInterval(() => this.gauge(), 30_000);
+    this.gaugeTimer.unref();
     // Test doubles of REDIS_CLIENT can't pub/sub: stay on the in-memory
     // adapter (a single instance) then.
     if (typeof this.redis.duplicate !== 'function') return;
@@ -472,11 +477,11 @@ export class RealtimeGateway
     return sent;
   }
 
-  private sendGoingAway(socket: Socket): void {
+  private sendGoingAway(socket: Socket, reason = 'deploy'): void {
     const retryAfterMs = Math.floor(
       Math.random() * (this.timing.goingAwaySpreadMs + 1),
     );
-    socket.emit('server:going-away', { retryAfterMs, reason: 'deploy' });
+    socket.emit('server:going-away', { retryAfterMs, reason });
     this.stats?.record('going_away');
   }
 
@@ -484,7 +489,7 @@ export class RealtimeGateway
   private async waitForDrain(): Promise<void> {
     const budget = drainBudgetMs();
     const deadline = Date.now() + budget;
-    while (Date.now() < deadline && (this.nsp?.sockets.size ?? 0) > 0) {
+    while (Date.now() < deadline && (this.nsp?.sockets?.size ?? 0) > 0) {
       await new Promise((r) => setTimeout(r, 250));
     }
     await this.stats?.flush();
@@ -502,6 +507,7 @@ export class RealtimeGateway
    * before the shutdown hooks), so the adapter sends nothing more. */
   async onApplicationShutdown(): Promise<void> {
     if (this.timingTimer) clearInterval(this.timingTimer);
+    if (this.gaugeTimer) clearInterval(this.gaugeTimer);
     await this.settleAllOffline();
     await Promise.all(
       [this.pub, this.sub, this.revocations].map(async (c) => {
@@ -609,7 +615,15 @@ export class RealtimeGateway
         : header?.startsWith('Bearer ')
           ? header.slice(7)
           : undefined;
-    const claims = token ? await this.verify(token) : null;
+    let claims: AccessTokenClaims | null = null;
+    if (token) {
+      try {
+        claims = await this.verify(token);
+      } catch (error) {
+        this.busyHandshake(socket, 'verify', error);
+        return;
+      }
+    }
     // Never awaited: the limit check adds no latency to the handshake; an
     // over-limit socket is closed as soon as the answer arrives.
     // A demo session's person is shared by every visitor: counted by address.
@@ -667,13 +681,23 @@ export class RealtimeGateway
     // Shard-ready step 4: the socket's shard context is its user's shard
     // (the same weak default HTTP uses); handlers that touch another
     // entity set their own with shardContext.runForCase(...).
-    return demoContext.run(demo, () =>
-      shardContext.runForUser(
-        claims.sub,
-        () => this.finishConnection(socket, claims, token),
-        'socket',
-      ),
-    );
+    try {
+      await demoContext.run(demo, () =>
+        shardContext.runForUser(
+          claims.sub,
+          () => this.finishConnection(socket, claims, token),
+          'socket',
+        ),
+      );
+    } catch (error) {
+      // Joining the user's room goes through the Redis adapter; with Redis
+      // just back (or away) it can fail. The socket would stay connected
+      // but hear nothing, and nothing was logged (LOAD_RESILIENCE §4). Only
+      // Redis being unavailable is a «retry»: any other error is a bug and
+      // must not turn into an endless polite reconnect loop.
+      if (!isRedisInfraError(error)) throw error;
+      this.busyHandshake(socket, 'finish', error);
+    }
   }
 
   private async finishConnection(
@@ -782,7 +806,6 @@ export class RealtimeGateway
         // Presence is best-effort.
       }
     }
-    this.gauge();
     await this.markConnected(socket, claims.sub);
   }
 
@@ -909,7 +932,6 @@ export class RealtimeGateway
   }
 
   private async finishDisconnect(socket: Socket): Promise<void> {
-    this.gauge();
     const s = state(socket);
     if (!s?.user) return;
     clearTimeout(s.expiringTimer);
@@ -957,7 +979,9 @@ export class RealtimeGateway
   ): Promise<{ ok: boolean; expiresAt?: string }> {
     const raw = body?.accessToken ?? body?.token;
     const token = typeof raw === 'string' ? raw : '';
-    const claims = token ? await this.verify(token) : null;
+    // A failed revocation lookup ends the socket here as it always did (the
+    // app re-authenticates); only the handshake tells infra from a bad login.
+    const claims = token ? await this.verify(token).catch(() => null) : null;
     const s = state(socket);
     if (!claims || claims.sub !== (s.selfId ?? s.user.sub)) {
       socket.emit('auth:error', { code: 'UNAUTHORIZED' });
@@ -1410,14 +1434,38 @@ export class RealtimeGateway
     return typeof id === 'string' && UUID_RE.test(id) ? id : null;
   }
 
+  /** The claims of a valid, not revoked token, or null (bad / expired /
+   * revoked). Throws only when the revocation lookup itself failed (Redis
+   * AND the database unreachable): that says nothing about the token, so the
+   * callers must not answer it as «unauthorized» (load test 2026-11-02,
+   * LOAD_RESILIENCE §4: a healthy client was told its login is wrong while
+   * the server was merely busy). */
   private async verify(token: string): Promise<AccessTokenClaims | null> {
+    let claims: AccessTokenClaims;
     try {
-      const claims = this.tokens.verifyAccessToken(token);
-      if (await this.revocation.isBlacklisted(claims.sid)) return null;
-      return claims;
+      claims = this.tokens.verifyAccessToken(token);
     } catch {
       return null;
     }
+    return (await this.revocation.isBlacklisted(claims.sid)) ? null : claims;
+  }
+
+  /** A handshake the server could not finish for its own reasons: the same
+   * `server:going-away {retryAfterMs}` every client already obeys on a
+   * deploy (wait a random moment, retry with the same token), instead of
+   * `auth:error` (which sends the app to refresh its login) or a socket
+   * left connected but deaf. */
+  private busyHandshake(socket: Socket, why: string, err?: unknown): void {
+    this.logger.warn(
+      {
+        metric: 'ws_handshake_busy',
+        why,
+        err: err instanceof Error ? err.message : err,
+      },
+      'ws handshake could not finish: client told to retry',
+    );
+    this.sendGoingAway(socket, 'busy');
+    socket.disconnect(true);
   }
 
   /**

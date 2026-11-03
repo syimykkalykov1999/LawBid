@@ -10,7 +10,11 @@ import { ConfigService } from '@nestjs/config';
 import { Worker, type Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import { demoContext } from '../../common/demo/demo-context';
-import { closeWorker, workerTuning } from '../../common/queues/queue-hardening';
+import {
+  closeWorker,
+  workerTuning,
+  outageProof,
+} from '../../common/queues/queue-hardening';
 import { bullOptions } from '../../redis/redis-connection';
 import { shardContext } from '../../sharding/shard-context';
 import { NotificationsModule } from './notifications.module';
@@ -55,7 +59,7 @@ export class PostFanoutWorker
     if (!url || !this.enabled) return;
     this.worker = new Worker<PostFanoutJob>(
       POST_FANOUT_QUEUE,
-      (job: Job<PostFanoutJob>) => this.process(job.data),
+      outageProof((job: Job<PostFanoutJob>) => this.process(job.data)),
       {
         ...bullOptions(POST_FANOUT_QUEUE, url, { worker: true }),
         ...workerTuning(POST_FANOUT_QUEUE),

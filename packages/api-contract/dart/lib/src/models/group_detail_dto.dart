@@ -35,19 +35,20 @@ class GroupDetailDto {
     required this.whoCanPin,
     required this.myRights,
     required this.showServiceMessages,
-    required this.inviteEnabled,
+    required this.isAdmin,
+    required this.slowModeS,
     required this.canPost,
     required this.canAdd,
     required this.canEditInfo,
     required this.canCall,
-    required this.isAdmin,
-    required this.unreadMentions,
+    required this.inviteEnabled,
     required this.invited,
     required this.members,
     required this.createdAt,
     required this.updatedAt,
     required this.pinned,
     required this.unreadCount,
+    required this.unreadMentions,
     this.inviteLink,
     this.pinnedMessage,
     this.lastMessage,
@@ -110,6 +111,9 @@ class GroupDetailDto {
 
   /// Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link.
   final bool? protectContent;
+
+  /// Slow mode: seconds a non-admin waits between two own messages; null = off.
+  final int? slowModeS;
 
   /// What I may do here (derived from the above).
   final bool canPost;

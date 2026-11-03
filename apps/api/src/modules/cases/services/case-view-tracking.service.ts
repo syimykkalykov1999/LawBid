@@ -2,7 +2,7 @@ import {
   Inject,
   Injectable,
   OnApplicationBootstrap,
-  OnApplicationShutdown,
+  OnModuleDestroy,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
@@ -11,6 +11,11 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { withJobLock } from '../../../jobs/handlers/job-lock';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { ck } from '../../../redis/redis-cluster-safe';
+import {
+  errorLogFields,
+  SHUTDOWN_FLUSH_MS,
+  settleWithin,
+} from '../../../common/errors/error-log-fields';
 
 const SEEN_KEY = (caseId: string): string => ck('cv', `cv:seen:${caseId}`);
 const PENDING_KEY_FN = (): string => ck('cv', 'cv:pending');
@@ -59,9 +64,11 @@ return vals`;
  */
 @Injectable()
 export class CaseViewTrackingService
-  implements OnApplicationBootstrap, OnApplicationShutdown
+  implements OnApplicationBootstrap, OnModuleDestroy
 {
   private timer?: ReturnType<typeof setInterval>;
+  /** The timer-driven flush now running, so shutdown waits for it. */
+  private timerFlush?: Promise<unknown>;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -73,19 +80,35 @@ export class CaseViewTrackingService
 
   onApplicationBootstrap(): void {
     this.timer = setInterval(() => {
-      this.flushPending().catch((error: unknown) => {
-        this.logger.error(
-          { err: error instanceof Error ? error.message : String(error) },
-          'case view flush failed',
-        );
+      this.timerFlush = this.flushPending().catch((error: unknown) => {
+        this.logger.error(errorLogFields(error), 'case view flush failed');
       });
     }, FLUSH_INTERVAL_MS);
     // Never keeps the process alive by itself (tests, CLI scripts).
     this.timer.unref?.();
   }
 
-  onApplicationShutdown(): void {
+  /** onModuleDestroy, not onApplicationShutdown: Prisma disconnects in its
+   * own onModuleDestroy, so the last flush must run here, while the DB and
+   * Redis are still open (a deploy used to lose the pending views). Failures
+   * stay in Redis `cv:pending` for the next pod's flusher; views recorded
+   * after this point wait there for it too (recordView writes only Redis). */
+  async onModuleDestroy(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
+    await settleWithin(
+      (async () => {
+        // A timer flush already running holds the lock: let it finish
+        // (it would hit the closed DB), then flush what is left.
+        await this.timerFlush;
+        await this.flushPending();
+      })(),
+      SHUTDOWN_FLUSH_MS,
+      (error) =>
+        this.logger.error(
+          errorLogFields(error),
+          'case view final flush failed',
+        ),
+    );
   }
 
   /** Records one attorney's view of one case if it is the first for this
