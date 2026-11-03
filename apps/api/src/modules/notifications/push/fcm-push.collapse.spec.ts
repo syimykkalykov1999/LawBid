@@ -99,6 +99,32 @@ describe('FcmPushSender collapse', () => {
     }
   });
 
+  // Owner 2026-11-03 (KNOWN_ERRORS 47): a closed Android app rings only
+  // from this shape (flutter_callkit_incoming + firebase_messaging docs):
+  // data-only (no `notification` block, or Android would draw a plain
+  // banner and skip the background handler), high priority, short ttl.
+  it('an incoming call is a data-only, high-priority, short-lived Android message', async () => {
+    await build().send(
+      {
+        userId: 'u',
+        title: 'Ann',
+        body: 'Incoming call',
+        data: { type: 'incoming_call', callId: 'k2', callerName: 'Ann' },
+        call: true,
+      },
+      'call:k2',
+    );
+    const m = sent.find((x) => x.token === 'droid')!;
+    expect(m.notification).toBeUndefined();
+    expect(m.android).toEqual({ priority: 'high', ttl: '60s' });
+    expect(m.data).toMatchObject({
+      type: 'incoming_call',
+      callId: 'k2',
+      callerName: 'Ann',
+    });
+    for (const v of Object.values(m.data)) expect(typeof v).toBe('string');
+  });
+
   it('a long non-ASCII key still fits the 64-byte APNs limit', async () => {
     await build().send({ ...chat, collapseKey: 'я'.repeat(40) }, 'm:2');
     const m = sent.find((x) => x.token === 'iphone')!;
@@ -162,7 +188,7 @@ describe('PushDispatcher message collapse', () => {
     };
     const d = new PushDispatcher(
       { mode: 'worker' },
-      {} as never,
+      {},
       prisma as never,
       {
         render: () => Promise.resolve({ title: 'LawBid', body: 'New' }),
