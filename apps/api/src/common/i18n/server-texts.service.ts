@@ -23,7 +23,7 @@ export function fillVars(
 /**
  * Owner 2026-10-22 (audit #4 §4): server texts (pushes, auto replies) in
  * every app language. Reads the same i18n_translations the app's bundle is
- * built from (imported from prisma/seed/translations_seed.xlsx at deploy,
+ * built from (imported from prisma/seed/translations/ at deploy,
  * 85 languages, admin-editable), so a text translated for the app is the
  * text the server sends. Order: the person's language → its base language
  * (pt-BR → pt) → English in the table → the built-in fallback. Per-process

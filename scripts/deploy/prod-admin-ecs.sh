@@ -4,7 +4,7 @@
 # docker cannot reach it; prod-run.sh seed/admin is for a reachable DB).
 #   scripts/deploy/prod-admin-ecs.sh <image tag>          seed + super admin
 #   scripts/deploy/prod-admin-ecs.sh <image tag> i18n     add what the
-#        database lacks from the translations_seed.xlsx baked into the image
+#        database lacks from the prisma/seed/translations/*.json baked into the image
 #        (every release, deploy.yml); texts already there — the owner's
 #        uploads in Admin → Localization — are never overwritten
 #   scripts/deploy/prod-admin-ecs.sh <image tag> i18n-full  re-import the
@@ -15,7 +15,7 @@
 #        env + secrets, the KMS unwrap, one Postgres and one Redis round
 #        trip. Runs with the app's own DATABASE_URL (not the migrator), prints
 #        names only, exit 1 stops the deploy before anything changes.
-# Seed = reference data + all 85 languages from prisma/seed/translations_seed
+# Seed = reference data + all 85 languages from prisma/seed/translations/
 # .xlsx (in the image) + the admin row. The e-mail, login and password are
 # typed here (hidden), go into a temporary Secrets Manager secret that only
 # the ECS execution role may read, reach the task as `secrets` (never in the
@@ -83,12 +83,12 @@ case "$MODE" in
   i18n)
     echo "1/3 (no secret needed)"
     TMP_SECRET_ARN_FOR_TD=""
-    CMD='node dist/src/cli/import-translations.js prisma/seed/translations_seed.xlsx --missing-only 2>&1 | cut -c1-300'
+    CMD='node dist/src/cli/import-translations.js prisma/seed/translations --missing-only 2>&1 | cut -c1-300'
     ;;
   i18n-full)
     echo "1/3 (no secret needed)"
     TMP_SECRET_ARN_FOR_TD=""
-    CMD='node dist/src/cli/import-translations.js prisma/seed/translations_seed.xlsx 2>&1 | cut -c1-300'
+    CMD='node dist/src/cli/import-translations.js prisma/seed/translations 2>&1 | cut -c1-300'
     ;;
   config)
     echo "1/3 (no secret needed)"

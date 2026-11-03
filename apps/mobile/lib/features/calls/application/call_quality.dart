@@ -8,11 +8,74 @@ enum LinkQuality { good, fair, poor, bad }
 /// One reading of a link (WebRTC stats): round trip in ms, packet loss in
 /// percent, the estimated outgoing bandwidth in bit/s (0 = unknown).
 class LinkStats {
-  const LinkStats({this.rttMs = 0, this.lossPct = 0, this.availableBps = 0});
+  const LinkStats({
+    this.rttMs = 0,
+    this.lossPct = 0,
+    this.availableBps = 0,
+    this.jitterMs = 0,
+    this.localCandidate = '',
+    this.remoteCandidate = '',
+  });
 
   final double rttMs;
   final double lossPct;
   final double availableBps;
+
+  /// The worst inbound jitter in ms (0 = unknown).
+  final double jitterMs;
+
+  /// The candidate types of the pair in use (`host`, `srflx`, `prflx`,
+  /// `relay`; empty = unknown): `relay` = the call goes through TURN.
+  final String localCandidate;
+  final String remoteCandidate;
+}
+
+/// Owner 2026-10-28 («calls lag», R-037): every reading of a call's links,
+/// summed up in one line when the call closes — the next phone test tells
+/// round trip, jitter, loss and whether the call went direct or through
+/// TURN. Light: a few numbers per poll, one report per call.
+class CallStatsLog {
+  final _rtt = <double>[];
+  final _jitter = <double>[];
+  double _lossMax = 0;
+  double _bpsMin = 0;
+  final _pairs = <String>{};
+
+  int get samples => _rtt.length;
+
+  void add(LinkStats s) {
+    _rtt.add(s.rttMs);
+    _jitter.add(s.jitterMs);
+    if (s.lossPct > _lossMax) _lossMax = s.lossPct;
+    if (s.availableBps > 0 && (_bpsMin == 0 || s.availableBps < _bpsMin)) {
+      _bpsMin = s.availableBps;
+    }
+    if (s.localCandidate.isNotEmpty || s.remoteCandidate.isNotEmpty) {
+      _pairs.add('${_or(s.localCandidate)}>${_or(s.remoteCandidate)}');
+    }
+  }
+
+  static String _or(String v) => v.isEmpty ? '?' : v;
+
+  static double _median(List<double> v) {
+    final s = [...v]..sort();
+    return s[s.length ~/ 2];
+  }
+
+  static double _max(List<double> v) =>
+      v.fold<double>(0, (a, b) => b > a ? b : a);
+
+  /// `null` when nothing was read (the link never came up).
+  String? summary(String kind) {
+    if (_rtt.isEmpty) return null;
+    String ms(double v) => v.round().toString();
+    return 'callstats $kind n=$samples '
+        'rtt=${ms(_median(_rtt))}/${ms(_max(_rtt))}ms '
+        'jitter=${ms(_median(_jitter))}/${ms(_max(_jitter))}ms '
+        'loss<=${_lossMax.toStringAsFixed(1)}% '
+        'bwmin=${(_bpsMin / 1000).round()}kbps '
+        'pair=${_pairs.isEmpty ? '?' : _pairs.join(',')}';
+  }
 }
 
 /// The quality one reading alone points to.

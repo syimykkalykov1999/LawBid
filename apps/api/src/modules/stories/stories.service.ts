@@ -92,7 +92,7 @@ export class StoriesService {
   ) {}
 
   async assertEnabled(): Promise<void> {
-    if (!(await this.flags.isEnabled(STORIES_FLAG, true))) {
+    if (!(await this.flags.isEnabled(STORIES_FLAG, false))) {
       throw new ForbiddenException({
         code: ErrorCode.FEATURE_DISABLED,
         message: 'Stories are not available yet.',

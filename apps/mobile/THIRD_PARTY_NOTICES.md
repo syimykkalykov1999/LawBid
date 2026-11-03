@@ -28,3 +28,31 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## livekit_client (LiveKit client-sdk-flutter) — Apache-2.0
+
+Used in `lib/features/calls/application/livekit_rtc.dart` (the peer
+connection teardown of `Transport` → `onDispose` and the stats helpers
+`getNumValFromReport` / `getStringValFromReport`, with the changes listed
+in that file's header), release v2.13.2, commit
+7adc5959f735045261e6a81accb5cb6a9ad79a7b,
+https://github.com/livekit/client-sdk-flutter. The call screen's
+end-of-call order follows its `Room._cleanUp` and the example's
+`RoomDisconnectedEvent` → post-frame pop (behaviour, no code copied).
+Full licence text: `third_party/licenses/livekit_client-2.13.2-LICENSE.txt`.
+
+NOTICE:
+
+Copyright 2024 LiveKit, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
