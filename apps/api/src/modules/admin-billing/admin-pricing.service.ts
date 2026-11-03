@@ -244,7 +244,10 @@ export class AdminPricingService {
       adminId: admin.id,
       action: 'billing.price.move_subscribers',
       targetType: 'plan_price',
-      targetId: kind,
+      // audit_log.target_id is a UUID: the price row's id, never the kind
+      // name ('monthly') — that made the write fail with a 500 after the
+      // subscribers were already moved. The kind stays in `after`.
+      targetId: (await this.pricing.activeRows()).get(kind)?.id ?? null,
       after: { kind, priceId: target, moved, skipped, failed },
       ip: admin.ip,
       justification: reason,
