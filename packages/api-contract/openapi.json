@@ -46436,6 +46436,19 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "follow",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-28 (R-084): only people I follow / do not follow (omit for everyone).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "following",
+                "not_following"
+              ]
+            }
           }
         ],
         "responses": {

@@ -193,6 +193,46 @@ describe('People search + client usernames (e2e, OQ-026)', () => {
     ).toBe(true);
   });
 
+  it('people: «по подписке» — following / not_following / all (R-084)', async () => {
+    const att = await attorney(`${token}.fol`, ['Followed', 'Lawyer']);
+    const other = await attorney(`${token}.nof`, ['Notfollowed', 'Lawyer']);
+    const cli = await client([token, 'Followedclient'], `${token}.fcl`);
+    const viewer = await client(['Viewer', 'Follow'], `${token}.vf`);
+    await prisma.follow.createMany({
+      data: [
+        { follower_id: viewer.id, followee_id: att.id },
+        { follower_id: viewer.id, followee_id: cli.id },
+      ],
+    });
+    const ids = async (follow?: string) => {
+      const r = await api()
+        .get('/api/v1/search/people')
+        .query({ q: `@${token}`, ...(follow ? { follow } : {}) })
+        .set(viewer.auth);
+      expect(r.status).toBe(200);
+      return (
+        r.body.data as {
+          attorney: { id: string } | null;
+          client: { id: string } | null;
+        }[]
+      ).map((i) => i.attorney?.id ?? i.client?.id);
+    };
+    const all = await ids();
+    expect(all).toEqual(expect.arrayContaining([att.id, other.id, cli.id]));
+    const following = await ids('following');
+    expect(following).toEqual(expect.arrayContaining([att.id, cli.id]));
+    expect(following).not.toContain(other.id);
+    const not = await ids('not_following');
+    expect(not).toContain(other.id);
+    expect(not).not.toContain(att.id);
+    expect(not).not.toContain(cli.id);
+    const bad = await api()
+      .get('/api/v1/search/people')
+      .query({ q: token, follow: 'maybe' })
+      .set(viewer.auth);
+    expect(bad.status).toBe(400);
+  });
+
   it('people: a name in another alphabet, any word order, a typo (owner 2026-10-18)', async () => {
     const att = await attorney(`${token}.emily`, ['Emily', 'Zvorykina']);
     const cli = await client(['Rachel', 'Vanderbilt'], `${token}.rachel`);
