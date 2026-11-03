@@ -2,7 +2,7 @@ import {
   Inject,
   Injectable,
   OnApplicationBootstrap,
-  OnApplicationShutdown,
+  OnModuleDestroy,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
@@ -11,6 +11,10 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { withJobLock } from '../../../jobs/handlers/job-lock';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { ck } from '../../../redis/redis-cluster-safe';
+import {
+  errorLogFields,
+  settleWithin,
+} from '../../../common/errors/error-log-fields';
 
 const SEEN_KEY = (caseId: string): string => ck('cv', `cv:seen:${caseId}`);
 const PENDING_KEY_FN = (): string => ck('cv', 'cv:pending');
@@ -21,6 +25,8 @@ const FLUSH_BATCH = 500;
  * new viewer. Open cases are archived after 30 + 14 idle days (§10.2), so
  * the window outlives any case that can still be in the feed. */
 const SEEN_TTL_SECONDS = 60 * 24 * 3600;
+/** Final flush on shutdown must fit in the ECS stop window. */
+const SHUTDOWN_FLUSH_MS = 5_000;
 
 /** First view of a pair: SADD + EXPIRE + HINCRBY in one atomic call, so
  * a crash can't leave a set without TTL or lose the counted view. */
@@ -59,7 +65,7 @@ return vals`;
  */
 @Injectable()
 export class CaseViewTrackingService
-  implements OnApplicationBootstrap, OnApplicationShutdown
+  implements OnApplicationBootstrap, OnModuleDestroy
 {
   private timer?: ReturnType<typeof setInterval>;
 
@@ -74,18 +80,22 @@ export class CaseViewTrackingService
   onApplicationBootstrap(): void {
     this.timer = setInterval(() => {
       this.flushPending().catch((error: unknown) => {
-        this.logger.error(
-          { err: error instanceof Error ? error.message : String(error) },
-          'case view flush failed',
-        );
+        this.logger.error(errorLogFields(error), 'case view flush failed');
       });
     }, FLUSH_INTERVAL_MS);
     // Never keeps the process alive by itself (tests, CLI scripts).
     this.timer.unref?.();
   }
 
-  onApplicationShutdown(): void {
+  /** onModuleDestroy, not onApplicationShutdown: Prisma disconnects in its
+   * own onModuleDestroy, so the last flush must run here, while the DB and
+   * Redis are still open (a deploy used to lose the pending views). Failures
+   * stay in Redis `cv:pending` for the next pod's flusher. */
+  async onModuleDestroy(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
+    await settleWithin(this.flushPending(), SHUTDOWN_FLUSH_MS, (error) =>
+      this.logger.error(errorLogFields(error), 'case view final flush failed'),
+    );
   }
 
   /** Records one attorney's view of one case if it is the first for this

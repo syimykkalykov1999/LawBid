@@ -2,7 +2,7 @@ import {
   Inject,
   Injectable,
   OnApplicationBootstrap,
-  OnApplicationShutdown,
+  OnModuleDestroy,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
@@ -13,6 +13,10 @@ import { forEachDatabase } from '../../sharding/for-each-database';
 import { readsAreSplit } from '../../sharding/split-reads';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { ck } from '../../redis/redis-cluster-safe';
+import {
+  errorLogFields,
+  settleWithin,
+} from '../../common/errors/error-log-fields';
 
 /**
  * docs/02 §1.5 / docs/05 §4–§6 (stage 5.1): hot counters are not updated
@@ -136,6 +140,8 @@ export const COUNTER_FLUSH_MS = 10_000;
 /** Per-process aggregation window before the deltas go to Redis. */
 export const COUNTER_LOCAL_MS = 1_000;
 const BATCH = 500;
+/** Final flush on shutdown must fit in the ECS stop window. */
+const SHUTDOWN_FLUSH_MS = 5_000;
 
 /** Atomic HMGET + HDEL of a batch of pending fields. */
 const DRAIN = `
@@ -158,7 +164,7 @@ return 1`;
 
 @Injectable()
 export class CounterAggregator
-  implements OnApplicationBootstrap, OnApplicationShutdown
+  implements OnApplicationBootstrap, OnModuleDestroy
 {
   private timer?: ReturnType<typeof setInterval>;
   private localTimer?: ReturnType<typeof setInterval>;
@@ -192,28 +198,32 @@ export class CounterAggregator
   onApplicationBootstrap(): void {
     this.timer = setInterval(() => {
       this.flush({ waitForRunning: false }).catch((error: unknown) =>
-        this.logger.error(
-          { err: error instanceof Error ? error.message : String(error) },
-          'counter flush failed',
-        ),
+        this.logger.error(errorLogFields(error), 'counter flush failed'),
       );
     }, COUNTER_FLUSH_MS);
     this.timer.unref?.();
     this.localTimer = setInterval(() => {
       this.flushLocal().catch((error: unknown) =>
-        this.logger.error(
-          { err: error instanceof Error ? error.message : String(error) },
-          'counter local flush failed',
-        ),
+        this.logger.error(errorLogFields(error), 'counter local flush failed'),
       );
     }, COUNTER_LOCAL_MS);
     this.localTimer.unref?.();
   }
 
-  async onApplicationShutdown(): Promise<void> {
+  /** onModuleDestroy, not onApplicationShutdown: Prisma disconnects in its
+   * own onModuleDestroy and the Redis client quits right after, so the final
+   * flush must run here. Local deltas go to Redis and then Redis to the DB
+   * (waitForRunning false: if another pod holds the flush lock the deltas
+   * stay in Redis for it). A failure keeps the deltas in Redis / `local`. */
+  async onModuleDestroy(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
     if (this.localTimer) clearInterval(this.localTimer);
-    await this.flushLocal().catch(() => undefined);
+    await settleWithin(
+      this.flush({ waitForRunning: false }),
+      SHUTDOWN_FLUSH_MS,
+      (error) =>
+        this.logger.error(errorLogFields(error), 'counter final flush failed'),
+    );
   }
 
   /** Records +delta / -delta for one row. Call only after the source row

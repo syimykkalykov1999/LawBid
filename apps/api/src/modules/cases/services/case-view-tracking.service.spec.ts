@@ -70,12 +70,14 @@ function fakeLogger() {
 }
 
 function service(prisma: object, redis = fakeRedis()) {
+  const logger = fakeLogger();
   return {
     redis,
+    logger,
     svc: new CaseViewTrackingService(
       prisma as never,
       redis as never,
-      fakeLogger() as never,
+      logger as never,
     ),
   };
 }
@@ -125,5 +127,30 @@ describe('CaseViewTrackingService', () => {
     expect(redis.pending.get('case-1')).toBe(2);
     expect(await svc.flushPending()).toEqual({ casesUpdated: 1 });
     expect(redis.pending.size).toBe(0);
+  });
+
+  it('onModuleDestroy flushes pending views to the DB before the connections close', async () => {
+    const prisma = { $executeRaw: jest.fn().mockResolvedValue(undefined) };
+    const { svc, redis } = service(prisma);
+    await svc.recordView('att-1', 'case-1');
+    await svc.onModuleDestroy();
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(redis.pending.size).toBe(0);
+  });
+
+  it('a failing final flush logs the real cause (empty message too), never throws, keeps the views', async () => {
+    const prisma = { $executeRaw: jest.fn().mockRejectedValue(new Error('')) };
+    const { svc, redis, logger } = service(prisma);
+    await svc.recordView('att-1', 'case-1');
+    await expect(svc.onModuleDestroy()).resolves.toBeUndefined();
+    expect(redis.pending.get('case-1')).toBe(1);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        err: 'Error',
+        errName: 'Error',
+        errStack: expect.any(String),
+      }),
+      'case view final flush failed',
+    );
   });
 });
