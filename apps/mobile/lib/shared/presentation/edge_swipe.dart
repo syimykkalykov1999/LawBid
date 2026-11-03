@@ -8,8 +8,8 @@ const double _kRevealMax = 96;
 const double _kTrigger = 72;
 
 /// With an [EdgeSwipe.onEndFar] the trailing side reveals further and a swipe
-/// past [_kFar] calls it instead of [EdgeSwipe.onEnd] (Gmail / Telegram long
-/// swipe: short = first action, long = the destructive one).
+/// past [_kFar] calls it instead of [EdgeSwipe.onEnd] (long swipe: short =
+/// first action, long = the destructive one).
 const double _kRevealMaxFar = 180;
 const double _kFar = 140;
 
@@ -114,11 +114,11 @@ class _EdgeSwipeState extends State<EdgeSwipe>
       _offset = _fromStart
           ? next.clamp(0, _kRevealMax).toDouble()
           : next
-                .clamp(
-                  widget.onEndFar == null ? -_kRevealMax : -_kRevealMaxFar,
-                  0,
-                )
-                .toDouble();
+              .clamp(
+                widget.onEndFar == null ? -_kRevealMax : -_kRevealMaxFar,
+                0,
+              )
+              .toDouble();
     });
   }
 
@@ -145,32 +145,32 @@ class _EdgeSwipeState extends State<EdgeSwipe>
 
   @override
   Widget build(BuildContext context) => RawGestureDetector(
-    behavior: HitTestBehavior.translucent,
-    gestures: {
-      _EdgeDrag: GestureRecognizerFactoryWithHandlers<_EdgeDrag>(
-        () => _EdgeDrag(_allows),
-        (r) => r
-          ..onStart = _start
-          ..onUpdate = _update
-          ..onEnd = _end
-          ..onCancel = () => _end(DragEndDetails()),
-      ),
-    },
-    child: Stack(
-      children: [
-        if (_offset != 0)
-          Positioned.fill(
-            child: _offset > 0
-                ? widget.startBackground
-                : (_isFar && widget.endFarBackground != null
-                      ? widget.endFarBackground!
-                      : widget.endBackground),
+        behavior: HitTestBehavior.translucent,
+        gestures: {
+          _EdgeDrag: GestureRecognizerFactoryWithHandlers<_EdgeDrag>(
+            () => _EdgeDrag(_allows),
+            (r) => r
+              ..onStart = _start
+              ..onUpdate = _update
+              ..onEnd = _end
+              ..onCancel = () => _end(DragEndDetails()),
           ),
-        Transform.translate(
-          offset: Offset(_offset * (_rtl ? -1 : 1), 0),
-          child: widget.child,
+        },
+        child: Stack(
+          children: [
+            if (_offset != 0)
+              Positioned.fill(
+                child: _offset > 0
+                    ? widget.startBackground
+                    : (_isFar && widget.endFarBackground != null
+                        ? widget.endFarBackground!
+                        : widget.endBackground),
+              ),
+            Transform.translate(
+              offset: Offset(_offset * (_rtl ? -1 : 1), 0),
+              child: widget.child,
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 }
