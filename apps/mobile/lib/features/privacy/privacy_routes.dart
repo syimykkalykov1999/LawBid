@@ -8,6 +8,7 @@ import 'package:lawbid/features/privacy/presentation/my_reports_screen.dart'
     deferred as d_my_reports_screen;
 import 'package:lawbid/features/privacy/presentation/privacy_screen.dart'
     deferred as d_privacy_screen;
+import 'package:lawbid/features/profile/presentation/screens/desktop_settings.dart';
 
 /// Owner 2026-10-20: Settings → Privacy and moderation.
 abstract final class PrivacyRoutes {
@@ -22,10 +23,13 @@ List<RouteBase> privacyRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'privacy_screen',
-            load: d_privacy_screen.loadLibrary,
-            builder: (_) => d_privacy_screen.PrivacyScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            phone: DeferredScreen(
+              id: 'privacy_screen',
+              load: d_privacy_screen.loadLibrary,
+              builder: (_) => d_privacy_screen.PrivacyScreen(),
+            ),
           ),
         ),
       ),

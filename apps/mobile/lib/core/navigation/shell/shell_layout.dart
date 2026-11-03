@@ -202,7 +202,21 @@ bool isCaseDetailLocation(String location) =>
 
 /// Desktop web plan §6.7: Settings is «sections list | section» — a page
 /// that takes the whole width next to the narrow menu, like the chats.
-bool isSettingsLocation(String location) => location == '/profile/settings';
+bool isSettingsLocation(String location) =>
+    location == '/profile/settings' || kSettingsSectionPaths.contains(location);
+
+/// The Settings sections the desktop page shows in its right pane; their
+/// own addresses (deep links, refresh) open that page with the section.
+const Set<String> kSettingsSectionPaths = {
+  '/profile/settings/account',
+  '/profile/settings/notifications',
+  '/profile/settings/privacy',
+  '/profile/settings/devices',
+  '/profile/settings/storage',
+  '/profile/settings/blocked',
+  '/profile/settings/data-export',
+  '/profile/settings/about',
+};
 
 /// Desktop web plan §6.5: someone's public profile page (`/lawyer/:name`)
 /// draws the profile and its side pane across the window, not in the

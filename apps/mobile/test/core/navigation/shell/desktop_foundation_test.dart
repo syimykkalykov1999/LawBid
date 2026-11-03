@@ -149,7 +149,7 @@ void main() {
     await pump(
       t,
       const WebPageFrame(
-        location: '/profile/settings/devices',
+        location: '/profile/settings/payments',
         child: SizedBox.expand(key: Key('page')),
       ),
       const Size(1440, 900),

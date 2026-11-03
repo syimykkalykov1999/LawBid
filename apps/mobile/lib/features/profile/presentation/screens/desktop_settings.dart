@@ -12,16 +12,13 @@ import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/features/blocks/presentation/blocked_users_screen.dart'
     deferred as d_blocked_desktop;
-import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/notifications/presentation/notification_settings_screen.dart'
     deferred as d_notifications_desktop;
 import 'package:lawbid/features/privacy/presentation/privacy_screen.dart'
     deferred as d_privacy_desktop;
-import 'package:lawbid/features/privacy/privacy_routes.dart';
 import 'package:lawbid/features/profile/presentation/screens/settings_screen.dart';
 import 'package:lawbid/features/settings/about/about_screen.dart'
     deferred as d_about_desktop;
-import 'package:lawbid/features/settings/account/account_routes.dart';
 import 'package:lawbid/features/settings/account/presentation/screens/account_screen.dart'
     deferred as d_account_desktop;
 import 'package:lawbid/features/settings/active_devices/presentation/active_devices_screen.dart'
@@ -38,14 +35,13 @@ import 'package:lawbid/features/settings/storage/presentation/storage_screen.dar
 /// tap pushes the section as a page, as before.
 class DesktopSettingsScope extends InheritedWidget {
   const DesktopSettingsScope({
-    required this.selected,
     required this.open,
     required super.child,
     super.key,
   });
 
-  /// The open section's route (`/profile/settings/devices`), null when none.
-  final String? selected;
+  /// Shows a section: navigates to its address, so the section is in the
+  /// URL, survives a refresh, and the browser's back button closes it.
   final void Function(String location) open;
 
   static DesktopSettingsScope? maybeOf(BuildContext context) =>
@@ -55,25 +51,24 @@ class DesktopSettingsScope extends InheritedWidget {
   static bool inPage(BuildContext context) => maybeOf(context) != null;
 
   @override
-  bool updateShouldNotify(DesktopSettingsScope oldWidget) =>
-      selected != oldWidget.selected;
+  bool updateShouldNotify(DesktopSettingsScope oldWidget) => false;
 }
 
 /// The sections the right pane hosts: route path → the section's screen.
 /// These screens are self-contained pages (their own bar, no arguments).
 /// Any other row keeps pushing its page.
 final Map<String, Widget Function()> _hosted = {
-  AccountRoutes.account: () => DeferredScreen(
+  '/profile/settings/account': () => DeferredScreen(
         id: 'account_screen_desktop',
         load: d_account_desktop.loadLibrary,
         builder: (_) => d_account_desktop.AccountScreen(),
       ),
-  ChatRoutes.notificationSettings: () => DeferredScreen(
+  '/profile/settings/notifications': () => DeferredScreen(
         id: 'notification_settings_screen_desktop',
         load: d_notifications_desktop.loadLibrary,
         builder: (_) => d_notifications_desktop.NotificationSettingsScreen(),
       ),
-  PrivacyRoutes.privacy: () => DeferredScreen(
+  '/profile/settings/privacy': () => DeferredScreen(
         id: 'privacy_screen_desktop',
         load: d_privacy_desktop.loadLibrary,
         builder: (_) => d_privacy_desktop.PrivacyScreen(),
@@ -127,43 +122,66 @@ void openSettingsRoute(
   }
 }
 
-/// The desktop Settings page itself: sections | the open section.
-class DesktopSettingsPage extends StatefulWidget {
-  const DesktopSettingsPage({super.key});
+/// The route for `/profile/settings/<section>`: on a desktop window the
+/// two-pane Settings page with that section open, else [phone] as it was.
+class SettingsSectionPage extends StatelessWidget {
+  const SettingsSectionPage({
+    required this.location,
+    required this.phone,
+    super.key,
+  });
+
+  final String location;
+  final Widget phone;
 
   @override
-  State<DesktopSettingsPage> createState() => _DesktopSettingsPageState();
+  Widget build(BuildContext context) {
+    if (!isDesktopWindow(context)) return phone;
+    return DesktopSettingsPage(location: location);
+  }
 }
 
-class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
-  String? _location;
+/// The desktop Settings page itself: sections | the open section. The open
+/// section is the page's address ([location], null on `/profile/settings`).
+class DesktopSettingsPage extends StatelessWidget {
+  const DesktopSettingsPage({this.location, super.key});
 
-  void _open(String location) {
-    final path = Uri.parse(location).path;
-    if (path != _location) setState(() => _location = path);
+  final String? location;
+
+  void _open(BuildContext context, String target) {
+    final path = Uri.parse(target).path;
+    if (path == location) return;
+    // From the bare list a section is pushed (back closes it); from one
+    // section to another it replaces, so back does not walk every click.
+    if (location == null) {
+      context.push(path);
+    } else {
+      context.replace(path);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final location = _location;
+    final open = location;
     return DesktopSettingsScope(
-      selected: location,
-      open: _open,
+      open: (target) => _open(context, target),
       child: DesktopKeyBindings(
         onEscape: () {
-          if (location == null) return false;
-          setState(() => _location = null);
+          if (open == null) return false;
+          context.canPop()
+              ? context.pop()
+              : context.go(AppRoutes.profileSettings);
           return true;
         },
         child: ListDetailLayout(
           list: const SettingsScreen(),
-          detail: location == null
+          detail: open == null
               ? const _EmptySettingsPane()
               : ContentColumn(
                   maxWidth: kSettingsDetailMaxWidth,
                   child: _SectionPane(
-                    key: ValueKey('desktop-settings-$location'),
-                    location: location,
+                    key: ValueKey('desktop-settings-$open'),
+                    location: open,
                   ),
                 ),
         ),
@@ -194,6 +212,9 @@ class _SectionPane extends StatelessWidget {
   }
 }
 
+/// The empty pane's icon (the cases page uses the same size).
+const double _kEmptyIconSize = 72;
+
 /// The right pane while no section is open.
 class _EmptySettingsPane extends ConsumerWidget {
   const _EmptySettingsPane();
@@ -212,7 +233,7 @@ class _EmptySettingsPane extends ConsumerWidget {
           children: [
             AppIcon(
               AppIcons.settingsOutlined,
-              size: 72,
+              size: _kEmptyIconSize,
               color: colors.textSecondary,
             ),
             const SizedBox(height: AppSpacing.lg),

@@ -13,6 +13,7 @@ import 'package:lawbid/features/chat/presentation/desktop_chats.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/notifications/presentation/notification_settings_screen.dart'
     deferred as d_notification_settings_screen;
+import 'package:lawbid/features/profile/presentation/screens/desktop_settings.dart';
 
 /// docs/05 §8–§9 routes: the Chats/Notifications screen, one chat, and
 /// Settings → Notifications.
@@ -117,11 +118,14 @@ List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'notification_settings_screen',
-            load: d_notification_settings_screen.loadLibrary,
-            builder: (_) =>
-                d_notification_settings_screen.NotificationSettingsScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            phone: DeferredScreen(
+              id: 'notification_settings_screen',
+              load: d_notification_settings_screen.loadLibrary,
+              builder: (_) =>
+                  d_notification_settings_screen.NotificationSettingsScreen(),
+            ),
           ),
         ),
       ),

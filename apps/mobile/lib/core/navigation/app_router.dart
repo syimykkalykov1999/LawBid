@@ -73,6 +73,7 @@ import 'package:lawbid/features/profile/presentation/screens/attorney_stats_scre
 import 'package:lawbid/features/profile/presentation/screens/client_profile_edit_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/delete_account_screen.dart'
     deferred as d_delete_account_screen;
+import 'package:lawbid/features/profile/presentation/screens/desktop_settings.dart';
 import 'package:lawbid/features/profile/presentation/screens/firm_screen.dart'
     deferred as d_firm_screen;
 import 'package:lawbid/features/profile/presentation/screens/my_contacts_screen.dart'
@@ -267,10 +268,13 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'active_devices_screen',
-            load: d_active_devices_screen.loadLibrary,
-            builder: (_) => d_active_devices_screen.ActiveDevicesScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            phone: DeferredScreen(
+              id: 'active_devices_screen',
+              load: d_active_devices_screen.loadLibrary,
+              builder: (_) => d_active_devices_screen.ActiveDevicesScreen(),
+            ),
           ),
         ),
       ),
@@ -698,10 +702,13 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'about_screen',
-            load: d_about_screen.loadLibrary,
-            builder: (_) => d_about_screen.AboutScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            phone: DeferredScreen(
+              id: 'about_screen',
+              load: d_about_screen.loadLibrary,
+              builder: (_) => d_about_screen.AboutScreen(),
+            ),
           ),
         ),
       ),
@@ -774,10 +781,13 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'data_export_screen',
-            load: d_data_export_screen.loadLibrary,
-            builder: (_) => d_data_export_screen.DataExportScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            phone: DeferredScreen(
+              id: 'data_export_screen',
+              load: d_data_export_screen.loadLibrary,
+              builder: (_) => d_data_export_screen.DataExportScreen(),
+            ),
           ),
         ),
       ),
@@ -786,10 +796,13 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'storage_screen',
-            load: d_storage_screen.loadLibrary,
-            builder: (_) => d_storage_screen.StorageScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            phone: DeferredScreen(
+              id: 'storage_screen',
+              load: d_storage_screen.loadLibrary,
+              builder: (_) => d_storage_screen.StorageScreen(),
+            ),
           ),
         ),
       ),
@@ -813,10 +826,13 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'blocked_users_screen',
-            load: d_blocked_users_screen.loadLibrary,
-            builder: (_) => d_blocked_users_screen.BlockedUsersScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            phone: DeferredScreen(
+              id: 'blocked_users_screen',
+              load: d_blocked_users_screen.loadLibrary,
+              builder: (_) => d_blocked_users_screen.BlockedUsersScreen(),
+            ),
           ),
         ),
       ),

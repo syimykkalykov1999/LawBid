@@ -130,7 +130,8 @@ class AttorneyProfilePane extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
     final p = ref.watch(publicAttorneyProfileProvider(username)).value;
-    if (p == null) {
+    // As on the main page: nothing about a person in a block with you.
+    if (p == null || p.isBlocked || p.hasBlockedMe) {
       return const _PaneFrame(
         paneKey: ValueKey('desktop-profile-pane'),
         child: SizedBox.shrink(),
@@ -212,7 +213,7 @@ class _RatingRow extends ConsumerWidget {
       value: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          StarRatingDisplay(value: rating.average ?? 0, size: AppSpacing.md),
+          StarRatingDisplay(value: rating.average ?? 0),
           const SizedBox(width: AppSpacing.sm),
           _number(context, ratingNumber(formats, t, rating.average)),
         ],
