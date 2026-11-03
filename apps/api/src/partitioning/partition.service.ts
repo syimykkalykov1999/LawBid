@@ -224,7 +224,7 @@ export class PartitionService implements OnModuleDestroy {
       const s = { table };
       try {
         const r = await this.prisma.$queryRawUnsafe<{ n: number }[]>(
-          `SELECT lawbid_ensure_month_partitions($1, $2)::int AS n`,
+          `SELECT lawbid_ensure_month_partitions($1::text, $2::int)::int AS n`,
           s.table,
           MONTHS_AHEAD,
         );
@@ -232,7 +232,7 @@ export class PartitionService implements OnModuleDestroy {
         const keep = PARTITION_RETENTION_MONTHS[s.table];
         if (keep && keep > 0) {
           const d = await this.prisma.$queryRawUnsafe<{ n: number }[]>(
-            `SELECT lawbid_detach_old_partitions($1, $2)::int AS n`,
+            `SELECT lawbid_detach_old_partitions($1::text, $2::int)::int AS n`,
             s.table,
             keep,
           );
