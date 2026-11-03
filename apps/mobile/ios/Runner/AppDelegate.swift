@@ -443,6 +443,9 @@ import flutter_callkit_incoming
       "callId": callId,
       "conversationId": (p["conversationId"] as? String) ?? "",
       "avatarUrl": avatar,
+      // Owner 2026-11-03: the ring ticket — «Decline» on a closed iPhone
+      // tells the server with it (onDecline below).
+      "pollToken": (p["pollToken"] as? String) ?? "",
     ]
     data.handleType = "generic"
     data.supportsVideo = video
@@ -574,8 +577,68 @@ import flutter_callkit_incoming
     action.fulfill()
   }
 
+  /// Owner 2026-11-03 (iPhone «Отклонить» on the lock screen; the Samsung
+  /// caller stayed in the call): flutter_callkit_incoming's documented iOS
+  /// flow (README, AppDelegate `onDecline`): tell the server here, then
+  /// fulfill the action. A closed iPhone woken by the VoIP push runs only
+  /// the stand-in engine (`callkitPushEntry`, no Dart listener, no
+  /// session), so nobody else can. While the app's own engine runs, its
+  /// Dart side (callkit_bridge.dart) declines with the session — and also
+  /// ends ringing calls itself (answered elsewhere, its own ring timeout),
+  /// which must not turn into «declined» here.
   func onDecline(_ call: Call, _ action: CXEndCallAction) {
-    action.fulfill()
+    guard callkitEngine != nil else {
+      action.fulfill()
+      return
+    }
+    // iOS gives a background launch a few seconds; keep it until the
+    // request (and its one retry) is done.
+    var task: UIBackgroundTaskIdentifier = .invalid
+    task = UIApplication.shared.beginBackgroundTask {
+      UIApplication.shared.endBackgroundTask(task)
+    }
+    declineOnServer(call.data, attempt: 1) {
+      action.fulfill()
+      UIApplication.shared.endBackgroundTask(task)
+    }
+  }
+
+  /// `POST <api>/calls/<id>/status/decline {t}` with the ring push's ticket
+  /// (server: CallStatusController.decline, idempotent). One retry when the
+  /// network fails; the action is fulfilled either way (the server's ring
+  /// timeout is the safety net).
+  private func declineOnServer(
+    _ data: flutter_callkit_incoming.Data,
+    attempt: Int,
+    done: @escaping () -> Void
+  ) {
+    let extra = data.extra as? [String: Any] ?? [:]
+    let callId = (extra["callId"] as? String) ?? data.uuid
+    guard UUID(uuidString: callId) != nil,
+      !wasEndedByPush(callId),
+      let ticket = extra["pollToken"] as? String, !ticket.isEmpty,
+      let api = UserDefaults.standard.string(forKey: AppDelegate.apiKey),
+      let url = URL(string: api + "/calls/\(callId.lowercased())/status/decline")
+    else {
+      done()
+      return
+    }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 8
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = try? JSONSerialization.data(withJSONObject: ["t": ticket])
+    URLSession.shared.dataTask(with: request) { [weak self] _, response, error in
+      let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+      let retry = attempt < 2 && (error != nil || status >= 500)
+      DispatchQueue.main.asyncAfter(deadline: .now() + (retry ? 1 : 0)) {
+        if retry, let self = self {
+          self.declineOnServer(data, attempt: attempt + 1, done: done)
+        } else {
+          done()
+        }
+      }
+    }.resume()
   }
 
   func onEnd(_ call: Call, _ action: CXEndCallAction) {

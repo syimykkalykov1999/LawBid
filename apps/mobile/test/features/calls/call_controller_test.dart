@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -500,8 +501,10 @@ class _SystemUi implements SystemCallUi {
   final dismissed = <String>[];
   int endAlls = 0;
 
+  final shown = <String>[];
+
   @override
-  Future<void> showIncoming(AppCall call) async {}
+  Future<void> showIncoming(AppCall call) async => shown.add(call.id);
 
   void Function()? onDismiss;
   void Function()? onEndAll;
@@ -1137,6 +1140,40 @@ void main() {
     await h.c.decline();
     expect(h.repo.declined, ['c3']);
     expect(h.s.outcome, CallStatus.declined);
+  });
+
+  test('owner 2026-11-03: a decline is told to the server exactly once',
+      () async {
+    final h = _Harness();
+    addTearDown(h.dispose);
+    h.emit(
+      'call:incoming',
+      _event(_call('c3', CallStatus.ringing, outgoing: false)),
+    );
+    await _settle();
+    // The CallKit decline and a second tap / echo of the same decline.
+    await Future.wait([h.c.decline(), h.c.decline()]);
+    await h.c.decline();
+    expect(h.repo.declined, ['c3']);
+  });
+
+  test(
+      'owner 2026-11-03: iPhone with the app open — the ringing call is '
+      "CallKit's (WhatsApp), not an alert or an in-app strip", () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    TestWidgetsFlutterBinding.instance
+        .handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final h = _Harness();
+    addTearDown(h.dispose);
+    h.emit(
+      'call:incoming',
+      _event(_call('c6', CallStatus.ringing, outgoing: false)),
+    );
+    await _settle();
+    expect(h.systemUi.shown, ['c6']);
+    expect(h.container.read(systemRingingCallProvider), 'c6');
+    expect(h.sounds.rings, isNot(contains('ring')));
   });
 
   test('every end leaves the shade clean (decline and hang-up)', () async {

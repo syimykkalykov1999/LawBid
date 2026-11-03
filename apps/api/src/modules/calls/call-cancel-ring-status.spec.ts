@@ -152,3 +152,111 @@ describe('GET /calls/:id/status?t=', () => {
     );
   });
 });
+
+/**
+ * Owner 2026-11-03 (iPhone «Decline» on the lock screen; the Samsung caller
+ * stayed in the call): a closed iPhone runs no Dart, so AppDelegate.onDecline
+ * declines natively with the ring push's ticket —
+ * `POST /calls/:id/status/decline { t }`.
+ */
+describe('POST /calls/:id/status/decline (ring ticket)', () => {
+  it('declines the ringing call once; the caller hears call:ended', async () => {
+    const w = world('ringing');
+    await expect(w.svc.declineByTicket('c1', ticket())).resolves.toEqual({
+      state: 'ended',
+    });
+    expect(w.call.status).toBe('declined');
+    const toUsers = (w.svc as unknown as { realtime: { toUsers: jest.Mock } })
+      .realtime.toUsers;
+    expect(toUsers).toHaveBeenCalledWith(
+      ['caller'],
+      'call:ended',
+      expect.anything(),
+    );
+  });
+
+  it('a repeat (retry when offline, Dart and native both) changes nothing', async () => {
+    const w = world('ringing');
+    await w.svc.declineByTicket('c1', ticket());
+    await w.svc.declineByTicket('c1', ticket());
+    await w.svc.decline(user('callee'), 'c1');
+    expect(w.call.status).toBe('declined');
+    const toUsers = (w.svc as unknown as { realtime: { toUsers: jest.Mock } })
+      .realtime.toUsers;
+    // One finish: caller + callee told once each.
+    expect(toUsers).toHaveBeenCalledTimes(2);
+  });
+
+  it('an answered call is not declined by a late tap', async () => {
+    const w = world('active');
+    await expect(w.svc.declineByTicket('c1', ticket())).resolves.toEqual({
+      state: 'active',
+    });
+    expect(w.call.status).toBe('active');
+  });
+
+  it('a ticket of another call, an expired one or garbage is refused', async () => {
+    const w = world('ringing');
+    const old = ticket('c1', Date.now() - 10 * 60_000);
+    for (const t of [ticket('c2'), old, 'nope']) {
+      await expect(w.svc.declineByTicket('c1', t)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
+    }
+    expect(w.call.status).toBe('ringing');
+  });
+
+  it('only the rung account: a ticket for the caller declines nothing', async () => {
+    const w = world('ringing');
+    const callerTicket = signCallPoll(callPollKey(PEPPER), {
+      c: 'c1',
+      u: 'caller',
+    });
+    await expect(w.svc.declineByTicket('c1', callerTicket)).rejects.toThrow();
+    expect(w.call.status).toBe('ringing');
+  });
+});
+
+/** The safety net when no decline reaches the server: the ring timeout. */
+describe('ring timeout (calls.sweep, every minute)', () => {
+  function sweepable(w: ReturnType<typeof world>) {
+    const prisma = (w.svc as unknown as { prisma: Record<string, unknown> })
+      .prisma as { call: Record<string, unknown> };
+    prisma.call.findMany = jest.fn(async () =>
+      w.call.status === 'ringing' &&
+      w.call.created_at.getTime() < Date.now() - CALL_RING_TIMEOUT_MS
+        ? [{ ...w.call }]
+        : [],
+    );
+    for (const m of [
+      'sweepInvites',
+      'sweepSilentMembers',
+      'sweepSoloCalls',
+      'sweepEmptyCalls',
+      'sweepVotes',
+    ]) {
+      (w.svc as unknown as Record<string, unknown>)[m] = jest.fn(async () => 0);
+    }
+  }
+
+  it('a ring nobody answered or declined ends as missed for the caller', async () => {
+    const w = world('ringing', CALL_RING_TIMEOUT_MS + 1_000);
+    sweepable(w);
+    await w.svc.sweep();
+    expect(w.call.status).toBe('missed');
+    const toUsers = (w.svc as unknown as { realtime: { toUsers: jest.Mock } })
+      .realtime.toUsers;
+    expect(toUsers).toHaveBeenCalledWith(
+      ['caller'],
+      'call:ended',
+      expect.anything(),
+    );
+  });
+
+  it('a ring still inside its time is left alone', async () => {
+    const w = world('ringing', 10_000);
+    sweepable(w);
+    await w.svc.sweep();
+    expect(w.call.status).toBe('ringing');
+  });
+});

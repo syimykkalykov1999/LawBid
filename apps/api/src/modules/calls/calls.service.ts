@@ -30,6 +30,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CALL_SILENT_MS } from '../../common/calls/ongoing-call';
 import { CALL_RING_TIMEOUT_MS } from '../../common/calls/ring';
 import {
+  type CallPollClaims,
   callPollKey,
   verifyCallPoll,
 } from '../../common/calls/call-poll-token';
@@ -1031,21 +1032,7 @@ export class CallsService {
     id: string,
     token: string,
   ): Promise<{ state: 'ringing' | 'active' | 'ended' }> {
-    if (this.pollKey === undefined) {
-      let pepper: string | undefined;
-      try {
-        pepper = this.config.get<string>('AUTH_EVENT_PEPPER');
-      } catch {
-        pepper = undefined;
-      }
-      this.pollKey = pepper ? callPollKey(pepper) : null;
-    }
-    if (!this.pollKey || !verifyCallPoll(this.pollKey, token, id)) {
-      throw new UnauthorizedException({
-        code: ErrorCode.UNAUTHORIZED,
-        message: 'Invalid or expired ticket.',
-      });
-    }
+    this.pollClaims(id, token);
     const call = await this.prisma.call.findUnique({
       where: { id },
       select: { status: true, created_at: true },
@@ -1059,6 +1046,49 @@ export class CallsService {
       return { state: 'ringing' };
     }
     return { state: 'ended' };
+  }
+
+  /**
+   * POST /calls/:id/status/decline — owner 2026-11-03 (iPhone «Decline» on
+   * the lock screen left the Samsung caller in the call): a closed iPhone
+   * runs no Dart, so CallKit's decline is sent by AppDelegate.onDecline
+   * (flutter_callkit_incoming README: the server is told there, then the
+   * action is fulfilled) with the ring push's ticket instead of a session.
+   * Exactly the authenticated decline for the ticket's account: only a
+   * ringing call is declined, a repeat (or a call already over) changes
+   * nothing.
+   */
+  async declineByTicket(
+    id: string,
+    token: string,
+  ): Promise<{ state: 'ringing' | 'active' | 'ended' }> {
+    const claims = this.pollClaims(id, token);
+    const out = await this.decline({ sub: claims.u } as RequestUser, id);
+    if (out.status === 'active') return { state: 'active' };
+    return { state: out.status === 'ringing' ? 'ringing' : 'ended' };
+  }
+
+  /** The claims of the ring push's ticket for call [id]; 401 otherwise. */
+  private pollClaims(id: string, token: string): CallPollClaims {
+    if (this.pollKey === undefined) {
+      let pepper: string | undefined;
+      try {
+        pepper = this.config.get<string>('AUTH_EVENT_PEPPER');
+      } catch {
+        pepper = undefined;
+      }
+      this.pollKey = pepper ? callPollKey(pepper) : null;
+    }
+    const claims = this.pollKey
+      ? verifyCallPoll(this.pollKey, token, id)
+      : null;
+    if (!claims) {
+      throw new UnauthorizedException({
+        code: ErrorCode.UNAUTHORIZED,
+        message: 'Invalid or expired ticket.',
+      });
+    }
+    return claims;
   }
 
   async get(user: RequestUser, id: string): Promise<CallDto> {
