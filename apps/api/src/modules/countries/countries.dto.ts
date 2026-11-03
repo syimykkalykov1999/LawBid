@@ -48,11 +48,16 @@ export class JoinCountryWaitlistDto {
   @Matches(/^[A-Z]{2}$/)
   countryCode!: string;
 
-  @ApiProperty({ format: 'email' })
+  @ApiPropertyOptional({
+    format: 'email',
+    description:
+      'Optional. Without it the request only counts that people want this country.',
+  })
+  @IsOptional()
   @Transform(trim)
   @IsEmail()
   @MaxLength(254)
-  email!: string;
+  email?: string;
 
   @ApiPropertyOptional({ example: 'en' })
   @IsOptional()

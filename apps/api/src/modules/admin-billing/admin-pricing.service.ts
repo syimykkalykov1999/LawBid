@@ -208,6 +208,8 @@ export class AdminPricingService {
       });
     }
     const amounts = await this.pricing.amounts();
+    // Audit target (a UUID), read before the loop.
+    const priceRowId = (await this.pricing.activeRows()).get(kind)?.id ?? null;
     const subs = await this.targets(kind);
     let moved = 0;
     let skipped = 0;
@@ -244,7 +246,8 @@ export class AdminPricingService {
       adminId: admin.id,
       action: 'billing.price.move_subscribers',
       targetType: 'plan_price',
-      targetId: kind,
+      // audit_log.target_id is a UUID: the price row id, not the kind name.
+      targetId: priceRowId,
       after: { kind, priceId: target, moved, skipped, failed },
       ip: admin.ip,
       justification: reason,

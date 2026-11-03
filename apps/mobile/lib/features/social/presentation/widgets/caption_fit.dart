@@ -49,7 +49,7 @@ void _watchFonts() {
 
 /// Where a prefix of at most [max] code units of [text] may end without
 /// splitting a surrogate pair.
-int _prefixEnd(String text, int max) {
+int prefixEnd(String text, int max) {
   if (text.length <= max) return text.length;
   final unit = text.codeUnitAt(max - 1);
   // A high surrogate at the end would be half a character.
@@ -97,7 +97,7 @@ bool captionOverflows(
   TextScaler scaler,
 ) {
   if (text.length > kCaptionMeasureChars) {
-    final start = text.substring(0, _prefixEnd(text, kCaptionMeasureChars));
+    final start = text.substring(0, prefixEnd(text, kCaptionMeasureChars));
     if (_exceeds(start, style, width, maxLines, direction, scaler)) {
       return true;
     }
@@ -124,7 +124,7 @@ int captionLineCount(
   }
 
   if (text.length > kCaptionMeasureChars) {
-    final n = count(text.substring(0, _prefixEnd(text, kCaptionMeasureChars)));
+    final n = count(text.substring(0, prefixEnd(text, kCaptionMeasureChars)));
     if (n >= cap) return cap;
   }
   return count(text);

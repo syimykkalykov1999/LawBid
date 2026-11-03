@@ -9,8 +9,9 @@ import 'package:lawbid/features/auth/presentation/screens/email_screen.dart';
 import 'package:lawbid/features/onboarding/application/countries_providers.dart';
 
 /// Owner 2026-10-05: someone from a country LawBid is not open in yet
-/// leaves an e-mail; the server writes once when the owner switches that
-/// country on (Admin → Система → Страны, automatic by default).
+/// tells us they want it. Owner 2026-11-02: the e-mail is optional and
+/// nothing is promised by e-mail or SMS; the country alone is counted
+/// (Admin → Система → Страны).
 Future<void> showCountryWaitlistSheet(
   BuildContext context, {
   required String countryCode,
@@ -49,7 +50,7 @@ class _CountryWaitlistSheetState extends ConsumerState<CountryWaitlistSheet> {
   Future<void> _submit() async {
     final t = ref.read(translatorProvider);
     final email = _controller.text.trim().toLowerCase();
-    if (!isPlausibleEmail(email)) {
+    if (email.isNotEmpty && !isPlausibleEmail(email)) {
       setState(() => _error = t.t('auth.email.error.invalid'));
       return;
     }
@@ -61,7 +62,7 @@ class _CountryWaitlistSheetState extends ConsumerState<CountryWaitlistSheet> {
       final open = await joinCountryWaitlist(
         ref.read(dioProvider),
         countryCode: widget.countryCode,
-        email: email,
+        email: email.isEmpty ? null : email,
         locale: Localizations.localeOf(context).languageCode,
       );
       if (!mounted) return;
@@ -114,7 +115,6 @@ class _CountryWaitlistSheetState extends ConsumerState<CountryWaitlistSheet> {
               semanticLabel: t.t('auth.phone.waitlist.email'),
               errorText: _error,
               keyboardType: TextInputType.emailAddress,
-              autofocus: true,
               autofillHints: const [AutofillHints.email],
               onSubmitted: (_) => _submit(),
             ),
@@ -122,7 +122,7 @@ class _CountryWaitlistSheetState extends ConsumerState<CountryWaitlistSheet> {
             AppButton(
               label: t.t('auth.phone.waitlist.submit'),
               isLoading: _busy,
-              isEnabled:
+              isEnabled: _controller.text.trim().isEmpty ||
                   isPlausibleEmail(_controller.text.trim().toLowerCase()),
               onPressed: _busy ? null : _submit,
             ),

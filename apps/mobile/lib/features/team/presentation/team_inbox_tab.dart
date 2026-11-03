@@ -33,6 +33,7 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
       if (result == null) return;
       note = result.note;
     }
+    if (!mounted) return;
     setState(() => _busy.add(r.id));
     try {
       await ref

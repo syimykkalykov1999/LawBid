@@ -225,6 +225,45 @@ export class BootstrapService {
     }
   }
 
+  /** Owner 2026-11-02: the browser's push needs the Firebase web app and a
+   * VAPID key. They are public by design and live in Admin → Integrations →
+   * FCM (fields «Сайт: …»); the web build reads them from here at start, so
+   * changing them needs no rebuild. Published only when every required one
+   * is saved. */
+  async fcmWebConfig(): Promise<Record<string, string>> {
+    try {
+      // The first key set that carries the whole web group: the server keys
+      // may sit on several sets (main, backup) and their order follows
+      // failures, so the public config must not flip with it. Only the
+      // public fields named here are ever read; the private key is not.
+      for (const set of (await this.secrets?.getAll('fcm')) ?? []) {
+        const f = set.fields ?? {};
+        if (
+          !f.webApiKey ||
+          !f.webAppId ||
+          !f.webSenderId ||
+          !f.projectId ||
+          !f.webVapidKey
+        ) {
+          continue;
+        }
+        return {
+          'fcm.web.api_key': f.webApiKey,
+          'fcm.web.app_id': f.webAppId,
+          'fcm.web.sender_id': f.webSenderId,
+          'fcm.web.project_id': f.projectId,
+          'fcm.web.vapid_key': f.webVapidKey,
+          ...(f.webAuthDomain
+            ? { 'fcm.web.auth_domain': f.webAuthDomain }
+            : {}),
+        };
+      }
+      return {};
+    } catch {
+      return {};
+    }
+  }
+
   /** Owner 2026-10-01: reels stay hidden from everyone until the owner
    * both turns `video_posts` on AND saves every Bunny key in Admin →
    * Integrations — the app reads only this combined value. */
@@ -363,6 +402,7 @@ export class BootstrapService {
         [UPLOAD_LIMITS_KEY]: sanitizeUploadLimits(appConfig[UPLOAD_LIMITS_KEY]),
         ...(await this.sentryDsns()),
         ...(await this.turnstileSiteKey()),
+        ...(await this.fcmWebConfig()),
         ...(await this.videoPrefetchPlan(appConfig)),
       },
       client: { timings: clientTimingsFrom(appConfig) },

@@ -18,21 +18,7 @@ if (!p || !p.stack_hours) {
 }
 
 // --- list prices, USD (us-east-1) ---------------------------------------------
-const PRICE = {
-  alb_hour: 0.0225, lcu_hour: 0.008,
-  nat_hour: 0.045, nat_gb: 0.045,
-  ipv4_hour: 0.005, // every public IPv4 address
-  endpoint_hour: 0.01, // interface endpoint, per AZ
-  fargate_vcpu_hour: 0.04048, fargate_gb_hour: 0.004445,
-  rds: { 'db.t4g.medium': 0.065, 'db.r7g.large': 0.276, 'db.r7g.2xlarge': 1.104 },
-  rds_storage_gb_month: 0.115,
-  redis: { 'cache.t4g.small': 0.032, 'cache.r7g.large': 0.219, 'cache.r7g.xlarge': 0.437 },
-  ec2: { 't4g.nano': 0.0042, 'c7g.medium': 0.0361, 'c7g.xlarge': 0.145 }, spot_factor: 0.4,
-  cloudfront_gb: 0.085, cloudfront_10k_req: 0.0075,
-  waf_million_req: 0.6, waf_acl_month: 5.0, waf_rules_month: 6.0,
-  same_region_gb: 0.01,
-  kms_key_month: 1.0, secret_month: 0.4, logs_gb: 0.5,
-};
+const PRICE = JSON.parse(readFileSync(join(root, 'prices.json'), 'utf8'));
 const unit = { s: 1, m: 60, h: 3600 };
 const secs = (d) => Number(d.slice(0, -1)) * unit[d.slice(-1)];
 const loadSeconds = p.stages.reduce((a, [d]) => a + secs(d), 0);

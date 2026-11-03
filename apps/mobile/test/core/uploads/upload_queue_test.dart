@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart' show CancelToken;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/uploads/upload_files_io.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
@@ -222,6 +223,40 @@ void main() {
     expect(await db.pending('me'), isNotEmpty);
   });
 
+  test("a busy server's Retry-After holds every pass for that target",
+      () async {
+    var calls = 0;
+    final h = _Handler('test')
+      ..prepareError = (j) {
+        calls++;
+        return const ApiException(
+          code: 'SERVER_BUSY',
+          message: 'busy',
+          statusCode: 503,
+          retryAfter: Duration(seconds: 20),
+        );
+      };
+    final q = queue(h);
+    await add(q, 'a');
+    await q.drain();
+    expect(calls, 1);
+    // A resume / reconnect / new job asks again at once: nothing goes out.
+    await q.drain();
+    await q.drain();
+    expect(calls, 1);
+    expect(h.committed, isEmpty);
+    // Another chat is not held by this one's wait.
+    h.prepareError = null;
+    await add(q, 'x', target: 'c2');
+    await q.drain();
+    expect(h.committed, ['x']);
+    // «Повторить» is the person's own call: the wait is over.
+    h.prepareError = (j) => null;
+    await q.retry('a');
+    await q.drain();
+    expect(h.committed, contains('a'));
+  });
+
   test('temporary failures are the network, 401, 408, 425, 429 and 5xx', () {
     expect(UploadQueue.temporary(_offline), isTrue);
     for (final c in [401, 408, 425, 429, 500, 503]) {
@@ -234,8 +269,8 @@ void main() {
       );
     }
     expect(UploadQueue.temporary(_refused), isFalse);
-    expect(UploadQueue.backoff(1), const Duration(seconds: 1));
-    expect(UploadQueue.backoff(10), const Duration(seconds: 30));
+    expect(ClientTuning.outboxBackoff(1), const Duration(seconds: 1));
+    expect(ClientTuning.outboxBackoff(10), const Duration(seconds: 30));
   });
 
   test('progress is reported per job', () async {
