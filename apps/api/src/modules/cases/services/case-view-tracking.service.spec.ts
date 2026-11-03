@@ -153,4 +153,21 @@ describe('CaseViewTrackingService', () => {
       'case view final flush failed',
     );
   });
+
+  it('onModuleDestroy waits for a timer flush already running before its own final flush', async () => {
+    const prisma = { $executeRaw: jest.fn().mockResolvedValue(undefined) };
+    const { svc } = service(prisma);
+    await svc.recordView('att-1', 'case-1');
+    let release: () => void = () => undefined;
+    (svc as unknown as { timerFlush: Promise<void> }).timerFlush =
+      new Promise<void>((r) => {
+        release = r;
+      });
+    const done = svc.onModuleDestroy();
+    await new Promise((r) => setImmediate(r));
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+    release();
+    await done;
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+  });
 });

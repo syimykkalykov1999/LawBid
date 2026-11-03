@@ -35,8 +35,13 @@ export function errorLogFields(error: unknown): ErrorLogFields {
   };
 }
 
+/** The final flush on shutdown must fit in the ECS stop window. */
+export const SHUTDOWN_FLUSH_MS = 5_000;
+
 /** Resolves when `work` settles or after `ms`, whichever is first (the
- * timer is cleared); never rejects. Returns whether `work` finished in time. */
+ * timer is cleared); never rejects. A rejection is reported to `onError`
+ * even when it comes after the timeout. Returns whether `work` finished
+ * in time. */
 export async function settleWithin(
   work: Promise<unknown>,
   ms: number,
@@ -46,11 +51,15 @@ export async function settleWithin(
   const timeout = new Promise<false>((resolve) => {
     timer = setTimeout(() => resolve(false), ms);
   });
+  const settled = work.then(
+    () => true as const,
+    (error: unknown) => {
+      onError(error);
+      return true as const;
+    },
+  );
   try {
-    return await Promise.race([work.then(() => true as const), timeout]);
-  } catch (error) {
-    onError(error);
-    return true;
+    return await Promise.race([settled, timeout]);
   } finally {
     if (timer) clearTimeout(timer);
   }

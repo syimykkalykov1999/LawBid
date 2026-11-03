@@ -13,6 +13,7 @@ import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { ck } from '../../../redis/redis-cluster-safe';
 import {
   errorLogFields,
+  SHUTDOWN_FLUSH_MS,
   settleWithin,
 } from '../../../common/errors/error-log-fields';
 
@@ -25,8 +26,6 @@ const FLUSH_BATCH = 500;
  * new viewer. Open cases are archived after 30 + 14 idle days (§10.2), so
  * the window outlives any case that can still be in the feed. */
 const SEEN_TTL_SECONDS = 60 * 24 * 3600;
-/** Final flush on shutdown must fit in the ECS stop window. */
-const SHUTDOWN_FLUSH_MS = 5_000;
 
 /** First view of a pair: SADD + EXPIRE + HINCRBY in one atomic call, so
  * a crash can't leave a set without TTL or lose the counted view. */
@@ -68,6 +67,8 @@ export class CaseViewTrackingService
   implements OnApplicationBootstrap, OnModuleDestroy
 {
   private timer?: ReturnType<typeof setInterval>;
+  /** The timer-driven flush now running, so shutdown waits for it. */
+  private timerFlush?: Promise<unknown>;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -79,7 +80,7 @@ export class CaseViewTrackingService
 
   onApplicationBootstrap(): void {
     this.timer = setInterval(() => {
-      this.flushPending().catch((error: unknown) => {
+      this.timerFlush = this.flushPending().catch((error: unknown) => {
         this.logger.error(errorLogFields(error), 'case view flush failed');
       });
     }, FLUSH_INTERVAL_MS);
@@ -90,11 +91,23 @@ export class CaseViewTrackingService
   /** onModuleDestroy, not onApplicationShutdown: Prisma disconnects in its
    * own onModuleDestroy, so the last flush must run here, while the DB and
    * Redis are still open (a deploy used to lose the pending views). Failures
-   * stay in Redis `cv:pending` for the next pod's flusher. */
+   * stay in Redis `cv:pending` for the next pod's flusher; views recorded
+   * after this point wait there for it too (recordView writes only Redis). */
   async onModuleDestroy(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
-    await settleWithin(this.flushPending(), SHUTDOWN_FLUSH_MS, (error) =>
-      this.logger.error(errorLogFields(error), 'case view final flush failed'),
+    await settleWithin(
+      (async () => {
+        // A timer flush already running holds the lock: let it finish
+        // (it would hit the closed DB), then flush what is left.
+        await this.timerFlush;
+        await this.flushPending();
+      })(),
+      SHUTDOWN_FLUSH_MS,
+      (error) =>
+        this.logger.error(
+          errorLogFields(error),
+          'case view final flush failed',
+        ),
     );
   }
 

@@ -2,6 +2,7 @@ import {
   Inject,
   Injectable,
   OnApplicationBootstrap,
+  OnApplicationShutdown,
   OnModuleDestroy,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -15,6 +16,7 @@ import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { ck } from '../../redis/redis-cluster-safe';
 import {
   errorLogFields,
+  SHUTDOWN_FLUSH_MS,
   settleWithin,
 } from '../../common/errors/error-log-fields';
 
@@ -140,8 +142,6 @@ export const COUNTER_FLUSH_MS = 10_000;
 /** Per-process aggregation window before the deltas go to Redis. */
 export const COUNTER_LOCAL_MS = 1_000;
 const BATCH = 500;
-/** Final flush on shutdown must fit in the ECS stop window. */
-const SHUTDOWN_FLUSH_MS = 5_000;
 
 /** Atomic HMGET + HDEL of a batch of pending fields. */
 const DRAIN = `
@@ -164,10 +164,12 @@ return 1`;
 
 @Injectable()
 export class CounterAggregator
-  implements OnApplicationBootstrap, OnModuleDestroy
+  implements OnApplicationBootstrap, OnModuleDestroy, OnApplicationShutdown
 {
   private timer?: ReturnType<typeof setInterval>;
   private localTimer?: ReturnType<typeof setInterval>;
+  /** The timer-driven flush now running, so shutdown waits for it. */
+  private timerFlush?: Promise<unknown>;
   /** entity|field|id -> delta not yet sent to Redis (S6-6). */
   private local = new Map<string, number>();
   /** Deltas this process has taken out of `local` (on their way to Redis)
@@ -197,8 +199,9 @@ export class CounterAggregator
 
   onApplicationBootstrap(): void {
     this.timer = setInterval(() => {
-      this.flush({ waitForRunning: false }).catch((error: unknown) =>
-        this.logger.error(errorLogFields(error), 'counter flush failed'),
+      this.timerFlush = this.flush({ waitForRunning: false }).catch(
+        (error: unknown) =>
+          this.logger.error(errorLogFields(error), 'counter flush failed'),
       );
     }, COUNTER_FLUSH_MS);
     this.timer.unref?.();
@@ -219,10 +222,24 @@ export class CounterAggregator
     if (this.timer) clearInterval(this.timer);
     if (this.localTimer) clearInterval(this.localTimer);
     await settleWithin(
-      this.flush({ waitForRunning: false }),
+      (async () => {
+        // A timer flush already running holds the lock: let it finish
+        // (it would hit the closed DB), then flush what is left.
+        await this.timerFlush;
+        await this.flush({ waitForRunning: false });
+      })(),
       SHUTDOWN_FLUSH_MS,
       (error) =>
         this.logger.error(errorLogFields(error), 'counter final flush failed'),
+    );
+  }
+
+  /** Requests still draining after onModuleDestroy may bump once more:
+   * send those to Redis (the DB is closed by now; the next flusher applies
+   * them). */
+  async onApplicationShutdown(): Promise<void> {
+    await this.flushLocal().catch((error: unknown) =>
+      this.logger.error(errorLogFields(error), 'counter local flush failed'),
     );
   }
 

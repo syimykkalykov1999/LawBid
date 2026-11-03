@@ -35,4 +35,16 @@ describe('settleWithin', () => {
       await settleWithin(new Promise(() => undefined), 20, jest.fn()),
     ).toBe(false);
   });
+
+  it('still reports a rejection that arrives after the timeout', async () => {
+    const onError = jest.fn();
+    let fail: (e: Error) => void = () => undefined;
+    const work = new Promise<void>((_, rej) => {
+      fail = rej;
+    });
+    expect(await settleWithin(work, 10, onError)).toBe(false);
+    fail(new Error('late'));
+    await new Promise((r) => setImmediate(r));
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
 });
