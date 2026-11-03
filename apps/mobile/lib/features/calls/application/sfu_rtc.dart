@@ -5,6 +5,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_quality.dart';
+import 'package:lawbid/features/calls/application/livekit_rtc.dart';
 import 'package:lawbid/features/calls/application/sfu_sdp.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 
@@ -299,7 +300,10 @@ class _WebRtcSfuPeer implements SfuPeer {
       await r.dispose();
     }
     _webAudio.clear();
-    await _pc.close();
+    // R-037: the LiveKit transport teardown (callbacks cleared, senders
+    // removed, close + dispose) — `close()` alone left the native
+    // connection alive.
+    await disposePeerConnection(_pc);
   }
 }
 
