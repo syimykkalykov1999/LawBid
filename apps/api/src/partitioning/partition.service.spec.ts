@@ -167,3 +167,26 @@ describe('PartitionService modes (hash tables and post_view_events)', () => {
     });
   });
 });
+
+describe('PartitionService.maintain SQL signature', () => {
+  it('casts $2 to int: Prisma binds JS numbers as bigint, the DB functions take (text, integer)', async () => {
+    const calls: string[] = [];
+    const prisma = {
+      $queryRawUnsafe: (sql: string) => {
+        calls.push(sql);
+        return Promise.resolve([{ n: 1 }]);
+      },
+    } as unknown as PrismaService;
+    const svc = new PartitionService(
+      prisma,
+      { get: () => undefined } as unknown as ConfigService,
+      {} as AppSettingsService,
+      {} as AppSettingsWriter,
+    );
+    await svc.maintain();
+    expect(calls.length).toBeGreaterThan(0);
+    for (const sql of calls) {
+      expect(sql).toMatch(/\(\$1::text, \$2::int\)/);
+    }
+  });
+});
