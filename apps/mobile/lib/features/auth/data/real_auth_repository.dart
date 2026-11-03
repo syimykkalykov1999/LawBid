@@ -1,3 +1,4 @@
+import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/auth/data/auth_api_client.dart';
@@ -93,21 +94,51 @@ class RealAuthRepository implements AuthRepository {
     }
   }
 
+  /// Which step of a sign-in failed and with what kind of error, for the
+  /// next phone test (owner 2026-11-03: «No connection» with no request on
+  /// the server). Goes to the crash channel (flag `crash_reports`), never
+  /// throws, carries no phone, password or token: only the stage name and
+  /// the exception type.
+  static void _breadcrumb(String stage, Object error, StackTrace stack) {
+    try {
+      CrashReporter.instance?.report(
+        AuthStageBreadcrumb(stage, error.runtimeType.toString()),
+        stack,
+      );
+    } catch (_) {
+      // A breadcrumb must never be the next failure.
+    }
+  }
+
   @override
   Future<OtpVerifyResult> signInWithAssistantCode(String code) async {
+    final AuthTokensResult tokens;
     try {
-      final tokens = await _client.assistantCodeLogin(
+      tokens = await _client.assistantCodeLogin(
         code: code,
         deviceInfo: _deviceInfo,
       );
+    } on ApiException catch (e, st) {
+      if (e.code == ApiErrorCodes.assistantCodeInvalid) {
+        return const OtpVerifyResult.invalid();
+      }
+      final result = _otpFailure(e);
+      if (result is OtpVerifyNetworkError && !e.isNetworkError) {
+        _breadcrumb('assistant:server-${e.code}', e, st);
+        return const OtpVerifyResult.failed();
+      }
+      if (e.isNetworkError) _breadcrumb('assistant:request', e, st);
+      return result;
+    } catch (e, st) {
+      _breadcrumb('assistant:request', e, st);
+      return const OtpVerifyResult.networkError();
+    }
+    try {
       await _session.applyTokens(tokens);
       return OtpVerifyResult.success(isNewUser: tokens.isNewUser);
-    } on ApiException catch (e) {
-      return e.code == ApiErrorCodes.assistantCodeInvalid
-          ? const OtpVerifyResult.invalid()
-          : _otpFailure(e);
-    } catch (_) {
-      return const OtpVerifyResult.networkError();
+    } catch (e, st) {
+      _breadcrumb('assistant:session', e, st);
+      return const OtpVerifyResult.failed();
     }
   }
 
@@ -147,9 +178,19 @@ class RealAuthRepository implements AuthRepository {
           deviceInfo: _deviceInfo,
         ),
       );
-    } on ApiException catch (e) {
-      return _passwordFailure(e);
-    } catch (_) {
+    } on ApiException catch (e, st) {
+      final result = _passwordFailure(e);
+      if (result.status == PasswordAuthStatus.networkError ||
+          result.status == PasswordAuthStatus.failed) {
+        _breadcrumb(
+          e.isNetworkError ? 'password:request' : 'password:server-${e.code}',
+          e,
+          st,
+        );
+      }
+      return result;
+    } catch (e, st) {
+      _breadcrumb('password:request', e, st);
       return const PasswordAuthResult(PasswordAuthStatus.networkError);
     }
     // The server already answered with tokens: whatever goes wrong while the
@@ -157,7 +198,8 @@ class RealAuthRepository implements AuthRepository {
     try {
       await _session.applyTokens(tokens);
       return const PasswordAuthResult.success();
-    } catch (_) {
+    } catch (e, st) {
+      _breadcrumb('password:session', e, st);
       return const PasswordAuthResult(PasswordAuthStatus.failed);
     }
   }
@@ -377,3 +419,14 @@ class RealAuthRepository implements AuthRepository {
 
 /// The user chose not to sign the other device out.
 const _kCancelled = 'other-device-cancelled';
+
+/// Marker error for [RealAuthRepository._breadcrumb]: stage + exception type
+/// only, so the crash report holds nothing personal.
+class AuthStageBreadcrumb implements Exception {
+  const AuthStageBreadcrumb(this.stage, this.errorType);
+  final String stage;
+  final String errorType;
+
+  @override
+  String toString() => 'auth stage=$stage type=$errorType';
+}

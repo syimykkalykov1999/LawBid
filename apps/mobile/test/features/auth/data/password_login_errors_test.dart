@@ -6,6 +6,7 @@ import 'package:lawbid/core/session/session_state.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/auth/data/auth_api_client.dart';
 import 'package:lawbid/features/auth/data/auth_dtos.dart';
+import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
 import 'package:lawbid/features/auth/domain/password_auth_result.dart';
 import 'package:lawbid/features/auth/presentation/widgets/password_form_widgets.dart';
 
@@ -57,6 +58,51 @@ void main() {
           password: 'secret-pass',
         );
   }
+
+  Future<OtpVerifyResult> assistant(
+    FakeHandler handler, {
+    bool throwOnApply = false,
+  }) async {
+    final dio = Dio(BaseOptions(baseUrl: 'http://test/api/v1'))
+      ..httpClientAdapter = FakeHttpAdapter(handler);
+    final c = ProviderContainer(
+      overrides: [
+        authApiClientProvider.overrideWithValue(AuthApiClient(dio)),
+        deviceInfoProvider.overrideWithValue(
+          const DeviceInfo(deviceId: 'd1', platform: 'android'),
+        ),
+        sessionControllerProvider
+            .overrideWith(() => _Session(throwOnApply: throwOnApply)),
+      ],
+    );
+    addTearDown(c.dispose);
+    return c.read(authRepositoryProvider).signInWithAssistantCode('ABCD-1234');
+  }
+
+  test('assistant: unknown server code is failed, offline stays offline',
+      () async {
+    expect(
+      await assistant((_) async => apiError(400, 'VALIDATION_ERROR')),
+      const OtpVerifyResult.failed(),
+    );
+    expect(
+      await assistant(
+        (o) async => throw DioException.connectionError(
+          requestOptions: o,
+          reason: 'down',
+        ),
+      ),
+      const OtpVerifyResult.networkError(),
+    );
+    expect(
+      await assistant((_) async => ok(_tokens), throwOnApply: true),
+      const OtpVerifyResult.failed(),
+    );
+    expect(
+      await assistant((_) async => ok(_tokens)),
+      const OtpVerifyResult.success(isNewUser: false),
+    );
+  });
 
   test('wrong password -> invalidCredentials', () async {
     final r = await signIn(
