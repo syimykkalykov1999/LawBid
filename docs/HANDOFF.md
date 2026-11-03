@@ -299,13 +299,13 @@ Firebase Web app (public config + VAPID через админку, для Web Pu
 | Порядок | PR | Head SHA | Состояние на срез |
 |---|---|---|---|
 | 1 | #585 PDF-шрифты Noto | `bbd43625f` | **сделано**: влит `acd5dcca7`, выкат 03.11 ≈ 10:50 (UTC−6), прод `78cd3c2b8`, health ok, Smoke success |
-| 2 | #647 ключи файлом .p8/.pem в админке | `2e5eafa21` | **следующий**: main влит (`f157ca006`), ждёт CI; только admin |
-| 3 | #644 сторож роста БД | `4b682c5e` | конфликт решён, ждёт CI |
+| 2 | #647 ключи файлом .p8/.pem в админке | `2e5eafa21` | **сделано**: влит `071a2b373` (≈11:05 UTC−6), выкат 03.11 ≈ 12:20, прод `071a2b373`, Smoke и Synthetic success |
+| 3 | #644 сторож роста БД | `4a0050ebd` | **следующий после #681**: подготовлен, ждёт #680 (CI-фикс «Does the app itself change?») |
 | 4 | #577 поиск людей | `bf2aae1d9` | clean, готов; поверх него тестер ноута улучшит поиск, на 10M не проверено |
 | 5 | #629 старт API без Redis | `8c922b04d` | конфликт решается: влить main; кластерный Redis не проверен |
 | 6 | #568 coturn по требованию (Terraform) | `5fd7f1aa3` | clean; **apply не делать**, см. раздел Г |
 | 7 | #579 лимит сокетов 600/мин на адрес | `61adba639` | clean, готов; после деплоя проверить в админке `realtime.max_connects_per_ip_per_minute` (сохранённое значение перекрывает умолчание) |
-Прод сейчас: `78cd3c2b8` (после #585, 03.11 ≈ 10:50 UTC−6). #677 (web desktop PR3) слит `f2802782f`, без деплоя (только apps/mobile). Точное значение: `gh run list --repo syimykkalykov1999/LawBid --workflow deploy.yml --limit 5` и `https://api.lawbid.dev/health/ready` (поле version = SHA main).
+Прод сейчас: `071a2b373` (после #647, 03.11 ≈ 12:20 UTC−6). Следом #681 (переводы seed xlsx → JSON, нужен деплой), затем #644. #677 (web desktop PR3) слит `f2802782f`, без деплоя (только apps/mobile). Точное значение: `gh run list --repo syimykkalykov1999/LawBid --workflow deploy.yml --limit 5` и `https://api.lawbid.dev/health/ready` (поле version = SHA main).
 
 ### Б. Правило: один деплойный PR за раз
 1. Влить свежий `main` в ветку PR (`git merge origin/main`, не rebase и не force-push), решить конфликты, `npm run precheck`.
