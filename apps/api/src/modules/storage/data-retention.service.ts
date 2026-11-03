@@ -162,14 +162,17 @@ export class DataRetentionService implements OnModuleDestroy {
               })
             ).count
           : 0,
+      // By (id, created_at), not ctid: a ctid is only unique inside ONE
+      // partition, so after the monthly conversion it could hit other months.
       postViewEvents:
         viewEventsDays > 0
           ? await this.onEveryDatabase(() =>
               this.batched(
                 (limit) => this.prisma.$executeRaw`
                 DELETE FROM post_view_events
-                WHERE ctid IN (
-                  SELECT ctid FROM post_view_events
+                WHERE created_at < ${before(viewEventsDays)}
+                  AND (id, created_at) IN (
+                  SELECT id, created_at FROM post_view_events
                   WHERE created_at < ${before(viewEventsDays)}
                     AND ${ok('viewer_id')}
                   LIMIT ${limit})`,

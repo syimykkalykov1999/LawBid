@@ -372,12 +372,13 @@ export class AdminCountriesService {
     let sent = 0;
     while (sent < WAITLIST_MAX_PER_RUN) {
       const batch = await this.prisma.countryWaitlist.findMany({
-        where: { country_code: code, notified_at: null },
+        where: { country_code: code, notified_at: null, email: { not: null } },
         take: WAITLIST_BATCH,
         orderBy: { created_at: 'asc' },
       });
       if (batch.length === 0) break;
       for (const row of batch) {
+        if (!row.email) continue; // not selectable above; narrows the type
         const text = waitlistText(row.locale, country.name);
         try {
           await this.email.sendEmail({
