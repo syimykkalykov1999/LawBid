@@ -93,7 +93,7 @@ class _DeferredScreenState extends ConsumerState<DeferredScreen> {
     }
   }
 
-  void _start() {
+  void _start({bool retried = false}) {
     _failed = false;
     _showSpinner = false;
     // A fast load shows nothing in between; a slow one a spinner.
@@ -104,7 +104,14 @@ class _DeferredScreenState extends ConsumerState<DeferredScreen> {
     unawaited(
       DeferredScreen._preload(widget.load).then((_) {
         if (mounted) setState(() => _ready = true);
-      }).catchError((Object _) {
+      }).catchError((Object _) async {
+        // A chunk can fail on a flaky network: one silent retry after a
+        // short pause before the person ever sees the error state.
+        if (!retried) {
+          await Future<void>.delayed(const Duration(seconds: 1));
+          if (mounted) _start(retried: true);
+          return;
+        }
         if (mounted) setState(() => _failed = true);
       }),
     );

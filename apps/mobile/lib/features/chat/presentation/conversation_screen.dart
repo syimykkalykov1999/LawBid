@@ -2647,6 +2647,7 @@ class _ComposerState extends ConsumerState<_Composer> {
     if (h == null) return _finish(send: true);
     _tick?.cancel();
     await _player.stop();
+    if (!mounted) return;
     setState(_reset);
     // ignore: unawaited_futures
     AppHaptics.light();
