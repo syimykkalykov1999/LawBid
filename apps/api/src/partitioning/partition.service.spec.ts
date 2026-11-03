@@ -2,7 +2,7 @@ import type { ConfigService } from '@nestjs/config';
 import type { AppSettingsService } from '../common/app-settings/app-settings.service';
 import type { AppSettingsWriter } from '../common/app-settings/app-settings.writer';
 import type { PrismaService } from '../prisma/prisma.service';
-import { PartitionService } from './partition.service';
+import { MONTHS_AHEAD, PartitionService } from './partition.service';
 
 function make(values: Record<string, string | number>) {
   const writes: unknown[] = [];
@@ -171,9 +171,11 @@ describe('PartitionService modes (hash tables and post_view_events)', () => {
 describe('PartitionService.maintain SQL signature', () => {
   it('casts $2 to int: Prisma binds JS numbers as bigint, the DB functions take (text, integer)', async () => {
     const calls: string[] = [];
+    const args: unknown[][] = [];
     const prisma = {
-      $queryRawUnsafe: (sql: string) => {
+      $queryRawUnsafe: (sql: string, ...a: unknown[]) => {
         calls.push(sql);
+        args.push(a);
         return Promise.resolve([{ n: 1 }]);
       },
     } as unknown as PrismaService;
@@ -183,7 +185,9 @@ describe('PartitionService.maintain SQL signature', () => {
       {} as AppSettingsService,
       {} as AppSettingsWriter,
     );
-    await svc.maintain();
+    const { created } = await svc.maintain();
+    expect(Object.values(created)).toEqual(calls.map(() => 1));
+    for (const a of args) expect(a[1]).toBe(MONTHS_AHEAD);
     expect(calls.length).toBeGreaterThan(0);
     for (const sql of calls) {
       expect(sql).toMatch(/\(\$1::text, \$2::int\)/);
