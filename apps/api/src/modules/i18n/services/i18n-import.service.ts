@@ -61,13 +61,13 @@ export class I18nImportService {
    * bundle version, so phones re-download nothing else.
    */
   async run(
-    fileBuffer: Buffer | string[][],
+    source: Buffer | string[][],
     mode: I18nImportMode,
     options: { missingOnly?: boolean } = {},
   ): Promise<I18nImportReport> {
-    const grid = Array.isArray(fileBuffer)
-      ? { grid: fileBuffer }
-      : await this.safeParse(fileBuffer);
+    const grid = Array.isArray(source)
+      ? { grid: source }
+      : await this.safeParse(source);
     if ('errors' in grid) {
       return this.errorReport(mode, grid.errors);
     }

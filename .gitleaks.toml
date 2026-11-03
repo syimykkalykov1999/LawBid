@@ -2,10 +2,15 @@
 # plain natural-language text (KNOWN_ERRORS #39). Keys such as
 # "practice.<area>.chapter_11_bankruptcy.kw" look like "kw = <long value>" to
 # the generic-api-key rule. Every other rule still scans these files.
+# Rule-scoped allowlist form: works in gitleaks 8.24.3, the version
+# gitleaks-action v2.3.9 downloads by default (top-level [[allowlists]] with
+# targetRules needs 8.25+).
 [extend]
 useDefault = true
 
-[[allowlists]]
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
 description = "translations seed: key names with keyword lists, not secrets"
-targetRules = ["generic-api-key"]
 paths = ['''apps/api/prisma/seed/translations/[A-Za-z_-]+\.json''']

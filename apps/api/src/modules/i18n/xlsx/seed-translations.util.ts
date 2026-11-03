@@ -12,13 +12,26 @@ export function loadSeedGrid(dir: string): string[][] {
   const meta = JSON.parse(readFileSync(join(dir, '_meta.json'), 'utf8')) as {
     languages: string[];
   };
-  const byLang = meta.languages.map(
-    (lang) =>
-      JSON.parse(readFileSync(join(dir, `${lang}.json`), 'utf8')) as Record<
-        string,
-        string
-      >,
-  );
+  const byLang = meta.languages.map((lang) => {
+    const file = join(dir, `${lang}.json`);
+    if (!existsSync(file)) {
+      throw new Error(
+        `Translations seed: language "${lang}" is listed in _meta.json but ${file} is missing.`,
+      );
+    }
+    const texts = JSON.parse(readFileSync(file, 'utf8')) as Record<
+      string,
+      unknown
+    >;
+    for (const [key, value] of Object.entries(texts)) {
+      if (typeof value !== 'string') {
+        throw new Error(
+          `Translations seed: key "${key}" in ${lang}.json must be a string, got ${typeof value}.`,
+        );
+      }
+    }
+    return texts as Record<string, string>;
+  });
   const keys = [...new Set(byLang.flatMap((o) => Object.keys(o)))].sort();
   return [
     ['key', ...meta.languages],

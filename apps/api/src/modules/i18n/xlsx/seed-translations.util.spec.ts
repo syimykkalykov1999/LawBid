@@ -1,3 +1,5 @@
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildParsedWorkbook } from './i18n-workbook.util';
 import { loadSeedGrid, seedTranslationsDir } from './seed-translations.util';
@@ -37,5 +39,31 @@ describe('translations seed (per-language JSON)', () => {
     expect(workbook.languageCodes).toContain('en');
     const keys = workbook.rows.map((r) => r.key);
     expect(keys).toEqual([...keys].sort());
+  });
+
+  describe('broken seed folder', () => {
+    const make = (files: Record<string, string>): string => {
+      const d = mkdtempSync(join(tmpdir(), 'seed-'));
+      for (const [name, body] of Object.entries(files)) {
+        writeFileSync(join(d, name), body);
+      }
+      return d;
+    };
+
+    it('names the file of a language that has no <lang>.json', () => {
+      const d = make({
+        '_meta.json': '{"languages":["en","ru"]}',
+        'en.json': '{"a":"A"}',
+      });
+      expect(() => loadSeedGrid(d)).toThrow(/ru\.json is missing|ru\.json/);
+    });
+
+    it('names key and language of a non-string value', () => {
+      const d = make({
+        '_meta.json': '{"languages":["en"]}',
+        'en.json': '{"a":5}',
+      });
+      expect(() => loadSeedGrid(d)).toThrow(/key "a" in en\.json.*string/);
+    });
   });
 });
