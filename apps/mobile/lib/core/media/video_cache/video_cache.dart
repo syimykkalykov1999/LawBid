@@ -48,17 +48,19 @@ abstract final class VideoCache {
   /// The «Данные и память» limit for «Видео» (null = none handed over yet).
   static int? _storeLimitBytes;
 
-  /// The proxy's byte limit: the administrator's tuning, lowered (never
-  /// raised) by the store limit (itself the admin ceiling or the user's
-  /// lower choice). Before the first bootstrap answer the tuning is not
-  /// known: the proxy then starts with the ceiling, so its start-up
-  /// eviction cannot drop chunks that the server's number would keep.
+  /// The proxy's byte limit. Owner 2026-11-03: once the phone's cache
+  /// settings are known it is the «Данные и память» limit for video — the
+  /// administrator's own `cache.limit_mb.video` when one is set, else the
+  /// person's cap (default 10 GB) — not the server tuning, which now only
+  /// switches the cache on or off. Before the first limits are handed over
+  /// the tuning (or the ceiling) is what the proxy starts with, so its
+  /// start-up eviction cannot drop chunks the real limit would keep.
   static int get maxBytes {
+    final store = _storeLimitBytes;
+    if (store != null) return store;
     final tunedMb =
         ClientTuning.applied ? ClientTuning.videoCacheMb : _ceilingMb;
-    final tuned = tunedMb * 1024 * 1024;
-    final store = _storeLimitBytes;
-    return store == null || store >= tuned ? tuned : store;
+    return tunedMb * 1024 * 1024;
   }
 
   /// Hands the store limit to the proxy, which evicts to it itself: at

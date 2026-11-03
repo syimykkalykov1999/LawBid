@@ -286,7 +286,13 @@ class CacheMaintenance {
       // Video files belong to the proxy, which evicts to the limit itself
       // (at its start and on these commands): never deleted from here, or a
       // starting proxy would find its chunks gone.
-      VideoCache.limitTo(l.limitBytes(CacheStore.video));
+      // The admin's own video ceiling when there is one, else the user's cap
+      // (video is kept to the cap by the proxy and by the global trim).
+      VideoCache.limitTo(
+        l.limitMb(CacheStore.video) > 0
+            ? l.limitBytes(CacheStore.video)
+            : l.capBytes ?? CacheLimits.unboundedBytes,
+      );
       await _autoDelete(l);
       await _enforceCap(l);
       await _db.trimHttp(l.limitBytes(CacheStore.http));

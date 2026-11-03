@@ -210,6 +210,37 @@ void main() {
   }) =>
       () => CacheLimits(userCapMb: mb, userAutoDeleteDays: days);
 
+  test('video follows the user cap: 10 GB by default, the slider after',
+      () async {
+    final port = ReceivePort();
+    addTearDown(port.close);
+    final seen = <Object?>[];
+    port.listen(seen.add);
+    VideoCache.debugAttach(port.sendPort, sentMaxBytes: _ceiling);
+    await maintenance({}).enforce();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(seen.first, ('max', 10 * 1024 * _mib));
+    await maintenance({}, limits: cap(30 * 1024)).enforce();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(seen, contains(('max', 30 * 1024 * _mib)));
+  });
+
+  test('video: an admin ceiling wins, «Нет» lifts every limit', () async {
+    final port = ReceivePort();
+    addTearDown(port.close);
+    final seen = <Object?>[];
+    port.listen(seen.add);
+    VideoCache.debugAttach(port.sendPort, sentMaxBytes: _ceiling);
+    await maintenance(
+      {},
+      limits: () => const CacheLimits(ceilingMb: {CacheStore.video: 300}),
+    ).enforce();
+    await maintenance({}, limits: cap(0)).enforce();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(seen, contains(('max', 300 * _mib)));
+    expect(seen, contains(('max', CacheLimits.unboundedBytes)));
+  });
+
   test('cap: the least recently opened go first, across stores', () async {
     // 3 files of 0.5 MB, cap 1 MB: the one opened longest ago goes, wherever
     // it lives.

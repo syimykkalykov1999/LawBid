@@ -3,10 +3,10 @@
 /// (`app_config` `cache.limit_mb.*`, sent in `GET /config/bootstrap`); the
 /// user may only lower them on «Данные и память».
 ///
-/// Owner 2026-11-03 (cache like Telegram): the media stores have no ceiling
-/// of their own (`defaultMb` 0 = none unless the admin sets one); what they
-/// may take together is the user's [CacheLimits.capMb] (default 10 GB),
-/// kept least-recently-opened first.
+/// Owner 2026-11-03 (cache like Telegram): the media stores (video too) have
+/// no ceiling of their own (`defaultMb` 0 = none unless the admin sets one);
+/// what they may take together is the user's [CacheLimits.capMb] (default
+/// 10 GB), kept least-recently-opened first.
 enum CacheStore {
   http('http', 32),
   messages('messages', 50),
@@ -14,7 +14,7 @@ enum CacheStore {
   images('images', 0),
   chatMedia('chat_media', 0),
   files('files', 0),
-  video('video', 1000),
+  video('video', 0),
 
   /// l10n, recent searches, dedup, the events queue, translations.
   other('other', 5);

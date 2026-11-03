@@ -327,7 +327,7 @@ void main() {
     );
     expect(l.limitMb(CacheStore.http), 32);
     expect(l.limitMb(CacheStore.images), 100);
-    expect(l.limitMb(CacheStore.video), 1000);
+    expect(l.limitMb(CacheStore.video), 0, reason: 'no own ceiling');
     // The media stores have no ceiling of their own: the cap rules them.
     expect(l.limitMb(CacheStore.chatMedia), 0);
     expect(
@@ -347,10 +347,10 @@ void main() {
       CacheStore.images,
       CacheStore.chatMedia,
       CacheStore.files,
+      CacheStore.video,
     ]) {
       expect(l.limitBytes(s), CacheLimits.unboundedBytes, reason: s.name);
     }
-    expect(l.limitMb(CacheStore.video), 1000, reason: 'proxy tuning stays');
     expect(l.capBytes, 10 * 1024 * 1024 * 1024);
   });
 
