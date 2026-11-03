@@ -200,7 +200,7 @@ void main() {
     // From the trailing edge: the row mutes, still on Chats.
     await tester.dragFrom(
       Offset(row.right - 8, row.center.dy),
-      const Offset(-200, 0),
+      const Offset(-100, 0),
     );
     await tester.pumpAndSettle();
     expect(repo.calls, contains('mute'));

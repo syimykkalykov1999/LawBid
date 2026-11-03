@@ -44,7 +44,7 @@ const Map<String, bool> defaultFeatureFlags = {
   'bid_packs': false,
   'firm_profiles': false,
   'video_calls': false,
-  'stories': true,
+  'stories': false,
   'channels': true,
   'consultations': true,
   'legal_qa': true,

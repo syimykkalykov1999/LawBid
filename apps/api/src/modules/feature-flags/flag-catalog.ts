@@ -89,8 +89,9 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
   },
   {
     // Owner 2026-10-20: stories (24 h) like Instagram / WhatsApp.
+    // Owner 2026-10-22 (R-049): hidden until the next update; the code stays.
     key: 'stories',
-    enabled: true,
+    enabled: false,
     app: true,
     description: 'Stories: photo / video / text for 24 hours',
   },
