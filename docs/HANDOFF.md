@@ -294,18 +294,17 @@ Firebase Web app (public config + VAPID через админку, для Web Pu
 ## Передача другому ИИ (03.11): как продолжить серию деплоев
 Для ИИ, который видит репозиторий впервые. Владелец останавливает прежнего ИИ после деплоя #583 и передаёт остаток вам. Перед началом прочитайте `AGENTS.md`, разделы «Режим работы 2026-11-02» и «Что осталось и откуда продолжать» выше, `docs/runbooks/DEPLOY_PROD.md`. Секретов здесь нет и быть не должно.
 
-### А. Очередь деплойных PR (по одному, в этом порядке)
+### А. Очередь деплойных PR (7 штук, по одному, в этом порядке)
 Состояние снято 03.11 по GitHub в 08:30 по Висконсину; перед каждым PR перепроверяйте `gh pr view <n> --json headRefOid,mergeStateStatus,statusCheckRollup`.
 | Порядок | PR | Head SHA | Состояние на срез |
 |---|---|---|---|
 | 1 | #585 PDF-шрифты Noto | `bbd43625f` | mergeable clean, готов (база main `e80fc677`) |
 | 2 | #647 ключи файлом .p8/.pem в админке | `2e5eafa21` | только admin, статус «unstable»: смотреть красные проверки; деплойных путей API нет |
-| 3 | #644 сторож роста БД | `25353ae89` | **конфликт** (dirty): влить main и решить |
+| 3 | #644 сторож роста БД | `4b682c5e` | конфликт решён, ждёт CI |
 | 4 | #577 поиск людей | `bf2aae1d9` | clean, готов; поверх него тестер ноута улучшит поиск, на 10M не проверено |
-| 5 | #629 старт API без Redis | `8c922b04d` | **конфликт** (dirty): влить main; кластерный Redis не проверен |
+| 5 | #629 старт API без Redis | `8c922b04d` | конфликт решается: влить main; кластерный Redis не проверен |
 | 6 | #568 coturn по требованию (Terraform) | `5fd7f1aa3` | clean; **apply не делать**, см. раздел Г |
-| 7 | #558 авто-реплика БД, авто-HA (Terraform) | `2d6c34b45` | **конфликт** (dirty), старая база; см. раздел Г |
-| 8 | #579 лимит сокетов 600/мин на адрес | `61adba639` | clean, готов; после деплоя проверить в админке `realtime.max_connects_per_ip_per_minute` (сохранённое значение перекрывает умолчание) |
+| 7 | #579 лимит сокетов 600/мин на адрес | `61adba639` | clean, готов; после деплоя проверить в админке `realtime.max_connects_per_ip_per_minute` (сохранённое значение перекрывает умолчание) |
 Прод на момент передачи: SHA #583 после выката (`e80fc677`), если выкат прошёл; иначе `53f2f5ec`. Точное значение: `gh run list --repo syimykkalykov1999/LawBid --workflow deploy.yml --limit 5` и `https://api.lawbid.dev/health/ready` (поле version = SHA main).
 
 ### Б. Правило: один деплойный PR за раз
@@ -323,8 +322,8 @@ gh api -X POST repos/syimykkalykov1999/LawBid/actions/runs/<id>/pending_deployme
 ### В. Откат
 Автоматически: circuit breaker ECS возвращает прошлую ревизию. Вручную: Actions → «Rollback production» (`rollback.yml`), по умолчанию целится в `last_good_tag` (SSM `/lawbid-prod/deploy/last_good_tag`) или в указанный предыдущий SHA. Миграции необратимы: PR с миграцией (например, 20261114090000 уже в проде) откатывать только кодом, совместимым со схемой.
 
-### Г. Terraform: #568 и #558
-Слияние этих PR **ничего не применяет** в AWS. `terraform apply` на проде делает **только владелец с Мака** по сохранённому плану; API при этом деплоить первым. Перед отдачей плана проверить, что он **не убирает реплики**, не включает платное (TURN-машина, второй узел), не сносит TURN (ловушка: `tfvars` на Mac с `turn_enabled=false`). `turn_on_demand` остаётся `false`. Команды Mac: `unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_CREDENTIAL_EXPIRATION`, `TF_CLI_CONFIG_FILE=~/.lawbid-tf-catchup/terraformrc`. #558 держит `database_multi_az=false` и `redis_replicas=0` по умолчанию: сверить план с реальным состоянием (`refresh`), прежде чем звать владельца.
+### Г. Terraform: #568 и ha.mode=auto
+**#558 пустой** (после вливания main у него нет диффа: весь код уже в main через #586, `6d9dac79`, `ha-auto.service.ts`), его можно закрыть. Но `terraform apply` изменений `ha.mode=auto` с Мака **по-прежнему не сделан**: apply по слову владельца, API деплоить первым. Слияние #568 **ничего не применяет** в AWS. `terraform apply` на проде делает **только владелец с Мака** по сохранённому плану; API при этом деплоить первым. Перед отдачей плана проверить, что он **не убирает реплики**, не включает платное (TURN-машина, второй узел), не сносит TURN (ловушка: `tfvars` на Mac с `turn_enabled=false`). `turn_on_demand` остаётся `false`. Команды Mac: `unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_CREDENTIAL_EXPIRATION`, `TF_CLI_CONFIG_FILE=~/.lawbid-tf-catchup/terraformrc`. Авто-HA держит `database_multi_az=false` и `redis_replicas=0` по умолчанию: сверить план с реальным состоянием (`refresh`), прежде чем звать владельца.
 
 ### Д. Известные ловушки
 - Гейт «Wait for green CI» красный из-за cron **Self-check (production)** и флейка e2e «data-export spec 50 000-message export». Лечение: **влить свежий main** и дождаться зелёного, **не перезапускать** красное (правило CI-протокола в `docs/dev/PROJECT_MAP.md`, `docs/dev/KNOWN_ERRORS.md`).
