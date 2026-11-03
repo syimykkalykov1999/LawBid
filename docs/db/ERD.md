@@ -306,7 +306,7 @@ erDiagram
   country_waitlist {
     String id PK
     String country_code FK
-    String email
+    String email "nullable"
     String locale
     DateTime created_at
     DateTime notified_at "nullable"
