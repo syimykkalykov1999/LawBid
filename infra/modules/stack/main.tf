@@ -354,6 +354,10 @@ variable "deploy_rollback_on_slo" {
 variable "ses_from_address" { type = string }
 variable "api_image" { type = string }
 variable "admin_image" { type = string }
+variable "app_version" {
+  type    = string
+  default = ""
+}
 variable "alert_emails" { type = list(string) }
 variable "slack_webhook_url" {
   type      = string
@@ -1863,6 +1867,7 @@ module "ecs" {
   admin_target_group_arn          = module.alb.admin_target_group_arn
   api_image                       = var.api_image
   admin_image                     = var.admin_image
+  app_version                     = var.app_version
   kms_key_arn                     = module.kms.key_arn
   tracing_enabled                 = var.tracing_enabled
   tracing_sample_ratio            = var.tracing_sample_ratio

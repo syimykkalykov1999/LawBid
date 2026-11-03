@@ -17,6 +17,39 @@ provider "aws" {
   }
 }
 
+# Image tag: the explicit pin from tfvars, else the tag deploy.yml stored in SSM
+# after the last green release. Terraform therefore never re-registers the task
+# definitions with an older image than the one prod runs
+# (docs/dev/KNOWN_ERRORS.md #44). Read only when a pin is empty, so the first
+# launch (no parameter yet) works with explicit images.
+data "aws_caller_identity" "current" {}
+
+data "aws_ssm_parameter" "last_good_tag" {
+  count = (var.api_image == "" || var.admin_image == "") ? 1 : 0
+  name  = var.last_good_tag_ssm_parameter
+  lifecycle {
+    postcondition {
+      condition     = trimspace(self.value) != "" && trimspace(self.value) != "None"
+      error_message = "SSM ${var.last_good_tag_ssm_parameter} is empty: run Deploy once (it writes last_good_tag) or set api_image / admin_image explicitly in terraform.tfvars."
+    }
+  }
+}
+
+locals {
+  ecr_registry  = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com"
+  last_good_tag = try(trimspace(data.aws_ssm_parameter.last_good_tag[0].value), "")
+  api_image     = var.api_image != "" ? var.api_image : "${local.ecr_registry}/lawbid-api:${local.last_good_tag}"
+  admin_image   = var.admin_image != "" ? var.admin_image : "${local.ecr_registry}/lawbid-admin:${local.last_good_tag}"
+  app_version   = regex("[^:]+$", local.api_image)
+}
+
+check "image_tags_resolved" {
+  assert {
+    condition     = can(regex(":[^:]+$", local.api_image)) && can(regex(":[^:]+$", local.admin_image))
+    error_message = "api_image / admin_image must end in :<tag> (explicit pin or the SSM last_good_tag)."
+  }
+}
+
 provider "aws" {
   alias  = "replica"
   region = var.replica_region
@@ -53,8 +86,9 @@ module "stack" {
   hosted_zone_id                  = var.hosted_zone_id
   dmarc_rua                       = var.dmarc_rua
   ses_from_address                = var.ses_from_address
-  api_image                       = var.api_image
-  admin_image                     = var.admin_image
+  api_image                       = local.api_image
+  admin_image                     = local.admin_image
+  app_version                     = local.app_version
   alert_emails                    = var.alert_emails
   slack_webhook_url               = var.slack_webhook_url
   stripe_price_id                 = var.stripe_price_id
