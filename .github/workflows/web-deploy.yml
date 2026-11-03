@@ -89,6 +89,25 @@ jobs:
     if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' && needs.gate.result == 'success' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # Before the 30-minute WebAssembly build: an empty value would be baked in
+      # silently (API_BASE_URL) or fail only at the S3 step. The Firebase web
+      # values stay optional (owner pastes them after the Firebase step).
+      - name: Required secrets are set (before the build)
+        env:
+          AWS_DEPLOY_ROLE_PROD: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          WEB_API_BASE_URL: ${{ secrets.WEB_API_BASE_URL }}
+          WEB_BUCKET: ${{ secrets.WEB_BUCKET }}
+          WEB_DISTRIBUTION_ID: ${{ secrets.WEB_DISTRIBUTION_ID }}
+          WEB_DEEP_LINK_HOST: ${{ secrets.WEB_DEEP_LINK_HOST }}
+          FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          FIREBASE_WEB_APP_ID: ${{ secrets.FIREBASE_WEB_APP_ID }}
+          FIREBASE_WEB_SENDER_ID: ${{ secrets.FIREBASE_WEB_SENDER_ID }}
+          FIREBASE_WEB_PROJECT_ID: ${{ secrets.FIREBASE_WEB_PROJECT_ID }}
+          FIREBASE_WEB_AUTH_DOMAIN: ${{ secrets.FIREBASE_WEB_AUTH_DOMAIN }}
+          FIREBASE_WEB_VAPID_KEY: ${{ secrets.FIREBASE_WEB_VAPID_KEY }}
+          FIREBASE_WEB_RECAPTCHA_KEY: ${{ secrets.FIREBASE_WEB_RECAPTCHA_KEY }}
+        run: scripts/ci/require-secrets.sh AWS_DEPLOY_ROLE_PROD AWS_REGION WEB_API_BASE_URL WEB_BUCKET WEB_DISTRIBUTION_ID '?WEB_DEEP_LINK_HOST' '?FIREBASE_WEB_API_KEY' '?FIREBASE_WEB_APP_ID' '?FIREBASE_WEB_SENDER_ID' '?FIREBASE_WEB_PROJECT_ID' '?FIREBASE_WEB_AUTH_DOMAIN' '?FIREBASE_WEB_VAPID_KEY' '?FIREBASE_WEB_RECAPTCHA_KEY'
 
       - name: Flutter version (apps/mobile/.fvmrc, the one pin for every workflow)
         id: fv

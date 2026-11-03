@@ -3,7 +3,7 @@ import { startTelemetry } from './telemetry/otel';
 
 startTelemetry('api');
 
-import { installProcessGuards } from './common/process-guards';
+import { installProcessGuards, runEntrypoint } from './common/process-guards';
 
 installProcessGuards();
 
@@ -30,6 +30,7 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true, // needed later for Stripe webhook signature verification (docs/06_PRODUCTION.md §1.5)
     bufferLogs: true,
+    abortOnError: false, // a start-up error must reach runEntrypoint, not process.abort()
   });
 
   // Logger, shutdown hooks, trust proxy, helmet, validation, global
@@ -59,4 +60,4 @@ async function bootstrap(): Promise<void> {
   server.headersTimeout = server.keepAliveTimeout + 1_000; // 311 s
 }
 
-void bootstrap();
+void runEntrypoint('api', bootstrap);

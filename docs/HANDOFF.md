@@ -154,7 +154,7 @@ ONLY after every item above is finished: the verified checkmark badges (attorney
 ### 2. Слияния в main
 - **Один диспетчер-поток** (тред «Вылечить CI») сливает в main **по одному** после зелёного CI.
 - **Авторы PR сами не сливают.** Красное в PR чинит автор; механику CI (перезапуск, merge main, схемы переключателей) правит диспетчер.
-- **Merge queue не включать.** Единственный required check: «CI gate».
+- **Merge queue не включать.** Required check пока не включён (`ci-gate.yml` удалён 01.11, см. docs/dev/CI_FAILURES_AUDIT_2026-11-01.md): если владелец включит правило, требовать `Repo guards` и `API CI`.
 - Стек PR: после слияния A сразу `base` B → `main`. Ветка не живёт дольше суток без merge main. Force-push на чужую ветку нельзя.
 - Постоянное разрешение владельца: зелёное сливать и деплоить без вопросов. Approve деплоя нажимает владелец (см. п. 5).
 
