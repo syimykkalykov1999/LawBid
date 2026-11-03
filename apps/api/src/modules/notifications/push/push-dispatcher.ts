@@ -18,7 +18,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { NotificationCategory, NotificationType } from '@prisma/client';
 import { Worker, type Job } from 'bullmq';
-import { parseQueueMode } from '../../../common/queues/queue-hardening';
+import {
+  parseQueueMode,
+  outageProof,
+} from '../../../common/queues/queue-hardening';
 import type { QueueMode } from '../../../common/queues/queue-mode';
 import { PinoLogger } from 'nestjs-pino';
 import { CostGuardService } from '../../../common/cost-guard/cost-guard.service';
@@ -283,7 +286,7 @@ export class PushDispatcher
     const url = this.config.getOrThrow<string>('REDIS_URL');
     this.worker = new Worker<PushJobData>(
       PUSH_QUEUE,
-      (job: Job<PushJobData>) => this.processJob(job),
+      outageProof((job: Job<PushJobData>) => this.processJob(job)),
       {
         ...bullOptions(PUSH_QUEUE, url, { worker: true }),
         ...workerTuning(PUSH_QUEUE),
