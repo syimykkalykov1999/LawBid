@@ -139,6 +139,7 @@ export class FormTemplatesService {
     const title = asMap(t.title)[dto.language] ?? asMap(t.title).en ?? t.slug;
     const pdf = await renderDocumentPdf({
       title,
+      lang: dto.language,
       text: renderBody(body, values),
     });
     const file = await this.files.storeGenerated(

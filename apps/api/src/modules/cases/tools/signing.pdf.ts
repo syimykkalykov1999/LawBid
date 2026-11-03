@@ -15,6 +15,8 @@ export interface SignedBy {
 }
 
 export interface ProtocolInput {
+  /** Requester's language: picks the Han font. */
+  lang?: string;
   requestId: string;
   caseId: string;
   caseTitle: string;
@@ -40,7 +42,10 @@ const ROLE = { client: 'Client / Клиент', attorney: 'Attorney / Адвок
  * falls back to the typed name, so a bad image never loses the signature.
  */
 export function renderSignaturePages(p: ProtocolInput): Promise<Buffer> {
-  const { doc, done } = startPdf({ title: `Signatures — ${p.documentTitle}` });
+  const { doc, done } = startPdf({
+    title: `Signatures — ${p.documentTitle}`,
+    lang: p.lang,
+  });
   const left = doc.page.margins.left;
   const width = doc.page.width - left - doc.page.margins.right;
 

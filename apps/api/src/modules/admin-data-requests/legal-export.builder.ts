@@ -109,7 +109,12 @@ export class LegalExportBuilder {
         counts[k] = Array.isArray(v) ? v.length : 1;
       }
       const subject = gathered.subject;
+      const preparer = await this.prisma.user.findUnique({
+        where: { id: job.requested_by },
+        select: { ui_language: true },
+      });
       const pdf = await renderLegalReportPdf({
+        lang: preparer?.ui_language,
         referenceNumber: job.request.reference_number,
         agency: job.request.agency,
         requestType: job.request.request_type,

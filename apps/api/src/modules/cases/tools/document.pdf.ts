@@ -6,8 +6,10 @@ import { MUTED, NAVY, startPdf } from './pdf-common';
 export function renderDocumentPdf(input: {
   title: string;
   text: string;
+  /** Template language: picks the Han font. */
+  lang?: string;
 }): Promise<Buffer> {
-  const { doc, done } = startPdf({ title: input.title });
+  const { doc, done } = startPdf({ title: input.title, lang: input.lang });
   const left = doc.page.margins.left;
   const width = doc.page.width - left - doc.page.margins.right;
   doc.fillColor(NAVY).fontSize(18).text(input.title, left, 54, {
