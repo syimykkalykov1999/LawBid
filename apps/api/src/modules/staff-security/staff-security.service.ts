@@ -37,6 +37,7 @@ import {
   sameNetwork,
   utcDay,
 } from './staff-security.util';
+import { incrWithTtl } from '../../redis/incr-with-ttl';
 
 export const SECURITY_AUDIT = {
   reveal: 'admin.pii_reveal',
@@ -150,8 +151,7 @@ export class StaffSecurityService implements StaffSecurityPort {
     if (capped) {
       const cap = await this.staff.number('staff.reveal_per_day');
       counterKey = ck('adm', `staff:reveal:${admin.id}:${utcDay()}`);
-      const used = await this.redis.incr(counterKey);
-      if (used === 1) await this.redis.expire(counterKey, 2 * 86_400);
+      const used = await incrWithTtl(this.redis, counterKey, 2 * 86_400);
       if (used > cap) {
         await this.redis.decr(counterKey);
         throw new HttpException(

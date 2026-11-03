@@ -63,3 +63,6 @@ jobs:
         run: |
           node --test scripts/ci/flag-first-check.test.mjs scripts/ci/npm-audit-gate.test.mjs
           bash scripts/ci/require-green.test.sh
+          bash scripts/ci/require-ecr.test.sh
+          bash scripts/ci/check-dart-defines.test.sh
+          bash scripts/ci/select-xcode.test.sh
