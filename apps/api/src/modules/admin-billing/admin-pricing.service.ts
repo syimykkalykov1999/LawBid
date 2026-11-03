@@ -208,6 +208,9 @@ export class AdminPricingService {
       });
     }
     const amounts = await this.pricing.amounts();
+    // Read once with the price id above, so the audit row names the row
+    // the moved price came from even if another admin edits meanwhile.
+    const priceRowId = (await this.pricing.activeRows()).get(kind)?.id ?? null;
     const subs = await this.targets(kind);
     let moved = 0;
     let skipped = 0;
@@ -247,7 +250,7 @@ export class AdminPricingService {
       // audit_log.target_id is a UUID: the price row's id, never the kind
       // name ('monthly') — that made the write fail with a 500 after the
       // subscribers were already moved. The kind stays in `after`.
-      targetId: (await this.pricing.activeRows()).get(kind)?.id ?? null,
+      targetId: priceRowId,
       after: { kind, priceId: target, moved, skipped, failed },
       ip: admin.ip,
       justification: reason,
