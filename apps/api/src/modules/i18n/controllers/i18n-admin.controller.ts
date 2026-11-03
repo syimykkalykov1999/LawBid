@@ -47,7 +47,7 @@ import {
 
 /** Admin-only, so a single file this size is not a real DoS surface, but
  * there's no reason to accept more than a translation workbook plausibly
- * needs — 10 MB is generous headroom over translations_seed.xlsx. */
+ * needs — 10 MB is generous headroom over the translations seed. */
 const MAX_IMPORT_FILE_BYTES = 10 * 1024 * 1024;
 const XLSX_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import ExcelJS from 'exceljs';
+import { loadSeedGrid } from '../../modules/i18n/xlsx/seed-translations.util';
 import PDFDocument from 'pdfkit';
 import {
   type CjkEntry,
@@ -145,7 +145,7 @@ describe('PDF fonts: script fallback', () => {
     expect(pdf).toContain('Inter');
   });
 
-  it('draws every character of all 85 languages with a font that has the glyph (no boxes)', async () => {
+  it('draws every character of all 85 languages with a font that has the glyph (no boxes)', () => {
     expect(FONTS_DIR).toBeDefined();
     const inter = open(INTER_PATH as string);
     const fonts = new Map<string, Font | null>();
@@ -167,25 +167,14 @@ describe('PDF fonts: script fallback', () => {
       return fonts.get(family) ?? null;
     };
 
-    const wb = new ExcelJS.Workbook();
-    await wb.xlsx.readFile(
-      join(__dirname, '../../../prisma/seed/translations_seed.xlsx'),
+    const grid = loadSeedGrid(
+      join(__dirname, '../../../prisma/seed/translations'),
     );
-    const ws = wb.worksheets[0];
-    const langs = (ws.getRow(1).values as unknown[]).slice(2).map(String);
+    const langs = grid[0].slice(1);
     const missing = new Map<string, Set<string>>(); // lang -> chars with no glyph
-    ws.eachRow((row, n) => {
-      if (n === 1) return;
+    grid.slice(1).forEach((row) => {
       langs.forEach((lang, i) => {
-        const v = row.getCell(i + 2).value;
-        const text =
-          v && typeof v === 'object'
-            ? String(
-                (v as { text?: string; result?: string }).text ??
-                  (v as { result?: string }).result ??
-                  '',
-              )
-            : String(v ?? '');
+        const text = row[i + 1];
         if (!text) return;
         for (const run of splitRuns(text)) {
           const font = run.font === 'Inter' ? inter : fontOf(run.font);
