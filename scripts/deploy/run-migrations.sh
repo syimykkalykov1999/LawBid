@@ -45,7 +45,16 @@ fi
 SUBNETS=$(aws ec2 describe-subnets --filters "Name=tag:Name,Values=${CLUSTER}-private-*" --query 'Subnets[].SubnetId' --output text | tr '\t' ',')
 SG=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=${CLUSTER}-tasks" --query 'SecurityGroups[0].GroupId' --output text)
 # Never two migrations at once (a re-run clicked while the first still works).
-RUNNING=$(aws ecs list-tasks --cluster "$CLUSTER" --family "${TASK_DEF##*/}" --desired-status RUNNING --query 'taskArns' --output text 2>/dev/null || true)
+# --family wants the family WITHOUT ":<revision>" (TASK_DEF is an ARN
+# .../task-definition/<family>:<rev>; with the revision the list was always empty).
+FAMILY="${TASK_DEF##*/}"; FAMILY="${FAMILY%%:*}"
+# Fail closed: the deploy role has ecs:ListTasks (infra/bootstrap), so an error
+# here is real (throttling, network) and a second concurrent migration is worse.
+# stdout only is captured: CLI warnings on stderr stay in the job log and are not read as a task.
+if ! RUNNING=$(aws ecs list-tasks --cluster "$CLUSTER" --family "$FAMILY" --desired-status RUNNING --query 'taskArns' --output text); then
+  echo "::error::could not check for a running migrate task, not migrating blind (see the aws error above)" >&2
+  exit 1
+fi
 RUNNING=$(printf '%s' "${RUNNING:-}" | sed 's/^None$//')
 if [ -n "$RUNNING" ]; then
   echo "::error::a migrate task is still running ($RUNNING). Wait for it or stop it (docs/runbooks/migrate-resolve.md)." >&2
