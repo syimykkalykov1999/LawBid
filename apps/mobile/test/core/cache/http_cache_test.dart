@@ -336,6 +336,24 @@ void main() {
     );
   });
 
+  test('server ceilings of 0 leave the 10 GB cap in charge of the media', () {
+    final l = CacheLimits.fromAppConfig(const {
+      'cache.limit_mb.images': '0',
+      'cache.limit_mb.chat_media': '0',
+      'cache.limit_mb.files': '0',
+      'cache.limit_mb.video': '0',
+    });
+    for (final s in [
+      CacheStore.images,
+      CacheStore.chatMedia,
+      CacheStore.files,
+    ]) {
+      expect(l.limitBytes(s), CacheLimits.unboundedBytes, reason: s.name);
+    }
+    expect(l.limitMb(CacheStore.video), 1000, reason: 'proxy tuning stays');
+    expect(l.capBytes, 10 * 1024 * 1024 * 1024);
+  });
+
   test('cap and auto-delete: owner defaults, user choices', () {
     const d = CacheLimits();
     expect(d.capMb, 10 * 1024, reason: 'default 10 GB');

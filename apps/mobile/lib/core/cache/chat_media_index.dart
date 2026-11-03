@@ -2,11 +2,15 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/cache/cache_database.dart';
+import 'package:lawbid/core/cache/media_cache_dir.dart';
 
 /// What one chat's pictures take on the phone.
 @immutable
 class ChatMediaUsage {
-  const ChatMediaUsage({required this.conversationId, required this.bytes});
+  const ChatMediaUsage({
+    required this.conversationId,
+    required this.bytes,
+  });
 
   final String conversationId;
   final int bytes;
@@ -39,26 +43,38 @@ class ChatMediaIndex {
   final Future<void> Function(String key) remove;
 
   /// The cached file under `key`, null when it is not cached (without it
-  /// [filePaths] is empty).
+  /// [groupFilePaths] is empty).
   final Future<File?> Function(String key)? fileOf;
 
-  /// Owner 2026-11-03: where the pictures of personal chats are on disk, so
-  /// the auto-delete age can tell them from the groups' files.
-  Future<Set<String>> filePaths() async {
+  /// Owner 2026-11-03: where the pictures of GROUP chats are on disk (the
+  /// canonical path of each), so the groups' auto-delete age touches only
+  /// those. Anything not listed (personal chats, unknown) is never aged out
+  /// by that rule.
+  Future<Set<String>> groupFilePaths() async {
     final lookup = fileOf;
     if (lookup == null) return const {};
     final paths = <String>{};
     for (final r in await _db.chatMediaRows()) {
+      if (!r.isGroup) continue;
       final f = await lookup(r.url);
-      if (f != null) paths.add(f.path);
+      if (f != null) paths.add(canonicalPath(f.path));
     }
     return paths;
   }
 
   /// A message stored in [conversationId] carries these cache keys.
-  Future<void> note(String conversationId, Iterable<String> keys) async {
+  Future<void> note(
+    String conversationId,
+    Iterable<String> keys, {
+    bool isGroup = false,
+  }) async {
     if (keys.isEmpty) return;
-    await _db.noteChatMedia(conversationId, keys.toSet(), DateTime.now());
+    await _db.noteChatMedia(
+      conversationId,
+      keys.toSet(),
+      DateTime.now(),
+      isGroup: isGroup,
+    );
   }
 
   /// Per chat, biggest first. A file not in the cache yet (the message is
@@ -81,7 +97,10 @@ class ChatMediaIndex {
     if (gone.isNotEmpty) await _db.forgetChatMedia(gone);
     return [
       for (final id in bytes.keys)
-        ChatMediaUsage(conversationId: id, bytes: bytes[id]!),
+        ChatMediaUsage(
+          conversationId: id,
+          bytes: bytes[id]!,
+        ),
     ]..sort((a, b) => b.bytes.compareTo(a.bytes));
   }
 

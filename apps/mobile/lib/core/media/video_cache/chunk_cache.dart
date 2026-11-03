@@ -92,14 +92,23 @@ class ChunkCache {
     }
   }
 
-  /// Drops the chunks not played for [maxAge] («Автоудаление»). The file's
-  /// time is the last play (every read touches it).
-  Future<void> dropOlderThan(Duration maxAge) async {
+  /// Drops the chunks not played for [maxAge] («Автоудаление»); with
+  /// [onlyKeys] only those whose key it accepts (the feed ones: chat
+  /// videos are left alone). The time is the later of last read and last
+  /// write (every read also touches the file).
+  Future<void> dropOlderThan(
+    Duration maxAge, {
+    bool Function(String key)? onlyKeys,
+  }) async {
     await _load();
     final cutoff = DateTime.now().subtract(maxAge);
     for (final k in _index.keys.toList()) {
+      if (onlyKeys != null && !onlyKeys(k)) continue;
       try {
-        if (_file(k).statSync().modified.isBefore(cutoff)) await _remove(k);
+        final st = _file(k).statSync();
+        final used =
+            st.accessed.isAfter(st.modified) ? st.accessed : st.modified;
+        if (used.isBefore(cutoff)) await _remove(k);
       } on FileSystemException {
         await _remove(k);
       }

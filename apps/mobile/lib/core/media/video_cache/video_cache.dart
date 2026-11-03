@@ -80,8 +80,9 @@ abstract final class VideoCache {
     return true;
   }
 
-  /// Owner 2026-11-03: drops the chunks not played for [age]
-  /// («Автоудаление»). False when no proxy runs.
+  /// Owner 2026-11-03: drops the feed videos' chunks not played for [age]
+  /// («Автоудаление» of the feed; chat videos stay). False when no proxy
+  /// runs.
   static bool dropOlderThan(Duration age) {
     final c = _commands;
     if (c == null) return false;
@@ -137,7 +138,10 @@ abstract final class VideoCache {
       !kIsWeb && ClientTuning.videoCacheMb > 0 && !_backedOff;
 
   /// The URL for the player. Sync on purpose (called from `initState`).
-  static String resolve(String url) {
+  ///
+  /// [feed]: a feed / reel / channel video (aged out after a week by the
+  /// «Автоудаление» of the feed; chat videos are not).
+  static String resolve(String url, {bool feed = false}) {
     if (!enabled || !url.startsWith('https://')) return url;
     final port = _port;
     final secret = _secret;
@@ -152,6 +156,7 @@ abstract final class VideoCache {
       secret: secret,
       upstream: u,
       isPlaylist: u.path.endsWith('.m3u8'),
+      feed: feed,
     );
   }
 
@@ -243,7 +248,10 @@ Future<void> _proxyMain(_ProxyStart s) async {
       } else if (m is (String, int) && m.$1 == 'trim') {
         await cache.trimTo(m.$2);
       } else if (m is (String, int) && m.$1 == 'age') {
-        await cache.dropOlderThan(Duration(seconds: m.$2));
+        await cache.dropOlderThan(
+          Duration(seconds: m.$2),
+          onlyKeys: VideoCacheProxy.isFeedKey,
+        );
       } else if (m is (String, SendPort) && m.$1 == 'clear') {
         await cache.clear();
         m.$2.send(true);

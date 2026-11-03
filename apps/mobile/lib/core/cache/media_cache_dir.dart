@@ -8,6 +8,17 @@ import 'package:path_provider/path_provider.dart';
 /// One cached file: where it is, when it was last used, how big.
 typedef CachedFile = (File file, DateTime lastUsed, int bytes);
 
+/// One spelling of a file path, so the two sides of a comparison (the
+/// cache manager's `file.path` and the folder scan's) agree even through a
+/// symlinked temp directory (`/var` vs `/private/var`).
+String canonicalPath(String path) {
+  try {
+    return File(path).resolveSymbolicLinksSync();
+  } on Object {
+    return File(path).absolute.path;
+  }
+}
+
 /// Owner 2026-11-03 (cache like Telegram: oldest-unused first): a file was
 /// used when it was written or when it was last read, whichever is later
 /// (flutter_cache_manager serves a hit by reading the file, so the access
@@ -224,7 +235,9 @@ class PrefixedTempFiles implements CachedFiles {
 /// recently used go first, whichever pool they are in (see [lastUsedOf]).
 /// Answers how many bytes went.
 Future<int> trimPoolTo(Iterable<CachedFiles> pools, int limitBytes) async {
-  final files = <CachedFile>[for (final p in pools) ...await p.entries()];
+  final files = <CachedFile>[
+    for (final p in pools) ...await p.entries(),
+  ];
   final total = files.fold(0, (a, f) => a + f.$3);
   if (total <= limitBytes) return 0;
   files.sort((a, b) => a.$2.compareTo(b.$2));
@@ -245,7 +258,8 @@ Future<int> trimPoolTo(Iterable<CachedFiles> pools, int limitBytes) async {
 /// (path, last use in ms since epoch, bytes) per file.
 List<(String, int, int)> _scan(String dir) {
   final out = <(String, int, int)>[];
-  for (final e in Directory(dir).listSync(recursive: true)) {
+  final all = Directory(dir).listSync(recursive: true, followLinks: false);
+  for (final e in all) {
     if (e is! File) continue;
     try {
       final stat = e.statSync();

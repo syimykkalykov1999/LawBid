@@ -560,18 +560,20 @@ export const OWNER_SMS_SETTINGS = {
 // Owner 2026-10-22 (client economy plan §5, Telegram «Данные и память»):
 // the ceilings of the on-device caches, sent in GET /config/bootstrap
 // (`app_config.cache.*`). A person may lower a limit on the phone, never
-// raise it above these. keep_media_days: 3 / 7 / 30 / 0 (= always).
-// Owner 2026-10-23: images, chat media and video 1 GB each, files
-// 500 MB (~3.6 GB in all): fewer re-downloads, less traffic to pay for.
+// raise it above these.
+// Owner 2026-11-03: the media stores (images, chat media, files, video) have
+// no ceiling of their own (0 = none): the person's «Максимальный размер
+// кэша» (default 10 GB, least recently opened go first) governs them. An
+// admin may still store a positive number to cap one store. Video also
+// stays under `client.video_cache_mb`.
 export const OWNER_CACHE_SETTINGS = {
   'cache.limit_mb.http': 32,
   'cache.limit_mb.messages': 50,
   'cache.limit_mb.feed': 8,
-  'cache.limit_mb.images': 1000,
-  'cache.limit_mb.chat_media': 1000,
-  'cache.limit_mb.files': 500,
-  'cache.limit_mb.video': 1000,
-  'cache.keep_media_days.default': 30,
+  'cache.limit_mb.images': 0,
+  'cache.limit_mb.chat_media': 0,
+  'cache.limit_mb.files': 0,
+  'cache.limit_mb.video': 0,
 } as const;
 
 export const OWNER_WEB_SETTINGS = {

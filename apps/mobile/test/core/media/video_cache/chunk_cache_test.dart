@@ -78,12 +78,38 @@ void main() {
     final c = ChunkCache(dir, maxBytes: 100);
     await c.put('old', b(10));
     await c.put('new', b(10));
-    File('${dir.path}/old').setLastModifiedSync(
-      DateTime.now().subtract(const Duration(days: 8)),
-    );
+    final at = DateTime.now().subtract(const Duration(days: 8));
+    File('${dir.path}/old')
+      ..setLastModifiedSync(at)
+      ..setLastAccessedSync(at);
     await c.dropOlderThan(const Duration(days: 7));
     expect(c.contains('old'), isFalse);
     expect(c.contains('new'), isTrue);
     expect(File('${dir.path}/old').existsSync(), isFalse);
+  });
+
+  test('dropOlderThan(onlyKeys) leaves other scopes; last access counts',
+      () async {
+    final c = ChunkCache(dir, maxBytes: 100);
+    await c.put('feedold', b(10));
+    await c.put('chatold', b(10));
+    await c.put('feedread', b(10));
+    final old = DateTime.now().subtract(const Duration(days: 8));
+    for (final k in ['feedold', 'chatold', 'feedread']) {
+      File('${dir.path}/$k')
+        ..setLastModifiedSync(old)
+        ..setLastAccessedSync(old);
+    }
+    // Played yesterday: written long ago, accessed recently.
+    File('${dir.path}/feedread').setLastAccessedSync(
+      DateTime.now().subtract(const Duration(days: 1)),
+    );
+    await c.dropOlderThan(
+      const Duration(days: 7),
+      onlyKeys: (k) => k.startsWith('feed'),
+    );
+    expect(c.contains('feedold'), isFalse);
+    expect(c.contains('chatold'), isTrue, reason: 'chat video kept');
+    expect(c.contains('feedread'), isTrue, reason: 'opened recently');
   });
 }

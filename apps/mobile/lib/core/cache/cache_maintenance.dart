@@ -93,9 +93,9 @@ class CacheMaintenance {
     MediaCacheDir? chatMedia,
     MediaCacheDir? video,
     PrefixedTempFiles? voiceNotes,
-    Future<Set<String>> Function()? privateChatPaths,
+    Future<Set<String>> Function()? groupChatPaths,
   })  : _db = db,
-        _privateChatPaths = privateChatPaths,
+        _groupChatPaths = groupChatPaths,
         _pages = pages,
         _limits = limits,
         _http = http,
@@ -115,10 +115,10 @@ class CacheMaintenance {
   final MediaCacheDir _video;
   final PrefixedTempFiles _voiceNotes;
 
-  /// The paths of the chat-media files that belong to personal chats (the
-  /// chat → picture index); null = not known, every chat file counts as
-  /// personal (never swept by the groups' age).
-  final Future<Set<String>> Function()? _privateChatPaths;
+  /// The canonical paths of the chat-media files that belong to GROUP chats
+  /// (the chat → picture index). Every other chat file is personal or not
+  /// known, and never aged out by the groups' rule.
+  final Future<Set<String>> Function()? _groupChatPaths;
 
   /// Every store's size; a store that cannot be measured counts as 0.
   Future<CacheReport> measure() async {
@@ -318,8 +318,9 @@ class CacheMaintenance {
     final groups = l.autoDeleteDays(AutoDeleteScope.groups);
     if (personal > 0 || groups > 0) {
       final chat = await _chatMedia.entries();
-      final own = await _privateChatPaths?.call();
-      bool isPersonal(CachedFile f) => own == null || own.contains(f.$1.path);
+      final group = await _groupChatPaths?.call() ?? const <String>{};
+      bool isPersonal(CachedFile f) =>
+          !group.contains(canonicalPath(f.$1.path));
       final now = DateTime.now();
       Future<void> sweep(Iterable<CachedFile> files, int days) async {
         if (days <= 0) return;

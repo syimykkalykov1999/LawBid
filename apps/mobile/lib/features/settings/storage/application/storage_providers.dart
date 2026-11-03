@@ -31,7 +31,7 @@ final cacheMaintenanceProvider = Provider<CacheMaintenance>((ref) {
     pages: ref.watch(socialLocalDatabaseProvider),
     limits: () => ref.read(cacheLimitsProvider),
     http: ref.watch(httpCacheInterceptorProvider),
-    privateChatPaths: ref.watch(chatMediaIndexProvider).filePaths,
+    groupChatPaths: ref.watch(chatMediaIndexProvider).groupFilePaths,
   );
 });
 

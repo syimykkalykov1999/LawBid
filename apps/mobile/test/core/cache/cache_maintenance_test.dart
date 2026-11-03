@@ -47,7 +47,7 @@ void main() {
   CacheMaintenance maintenance(
     Map<CacheStore, int> userMb, {
     CacheLimits Function()? limits,
-    Future<Set<String>> Function()? privateChatPaths,
+    Future<Set<String>> Function()? groupChatPaths,
   }) =>
       CacheMaintenance(
         db: db,
@@ -61,7 +61,7 @@ void main() {
           suffix: '.m4a',
           root: () async => root,
         ),
-        privateChatPaths: privateChatPaths,
+        groupChatPaths: groupChatPaths,
       );
 
   test('measure counts video and voice notes next to the pictures', () async {
@@ -256,18 +256,29 @@ void main() {
     expect(seen, contains(('trim', 0)));
   });
 
-  test('auto-delete: groups by age, personal chats kept (Never)', () async {
+  test('auto-delete: groups by age; personal and unknown never by it',
+      () async {
     final personal = write('chat/personal', 100, age: day * 90);
+    final unknown = write('chat/unknown', 100, age: day * 90);
     final group = write('chat/group', 100, age: day * 40);
     final groupNew = write('chat/group2', 100, age: day * 2);
     await maintenance(
       {},
       limits: () => const CacheLimits(),
-      privateChatPaths: () async => {personal.path},
+      groupChatPaths: () async =>
+          {canonicalPath(group.path), canonicalPath(groupNew.path)},
     ).enforce();
-    expect(personal.existsSync(), isTrue, reason: 'private = never');
+    expect(personal.existsSync(), isTrue, reason: 'personal = never');
+    expect(unknown.existsSync(), isTrue, reason: 'not indexed = never');
     expect(group.existsSync(), isFalse, reason: 'groups = 1 month');
     expect(groupNew.existsSync(), isTrue);
+  });
+
+  test('auto-delete: without the group index nothing is aged by groups',
+      () async {
+    final f = write('chat/a', 100, age: day * 90);
+    await maintenance({}, limits: () => const CacheLimits()).enforce();
+    expect(f.existsSync(), isTrue);
   });
 
   test('auto-delete: personal chats and voice notes follow their own age',
@@ -280,7 +291,7 @@ void main() {
       limits: () => const CacheLimits(
         userAutoDeleteDays: {AutoDeleteScope.privateChats: 3},
       ),
-      privateChatPaths: () async => {personal.path},
+      groupChatPaths: () async => {canonicalPath(group.path)},
     ).enforce();
     expect(personal.existsSync(), isFalse);
     expect(note.existsSync(), isFalse);
