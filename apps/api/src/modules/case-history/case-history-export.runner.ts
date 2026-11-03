@@ -257,7 +257,12 @@ export class CaseHistoryExportRunner
       user,
       HISTORY_EXPORT_MAX_CASES,
     );
+    const owner = await this.prisma.user.findUnique({
+      where: { id: data.userId },
+      select: { ui_language: true },
+    });
     const pdf = await renderCaseHistoryPdf({
+      lang: owner?.ui_language,
       generatedAt: new Date(),
       cases,
       truncated,
