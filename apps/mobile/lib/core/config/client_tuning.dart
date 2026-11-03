@@ -1,3 +1,5 @@
+import 'dart:math';
+
 /// Scale audit 2026-10-23: the knobs of the phone's own traffic (repeats of
 /// a failed request, polling, usage
 /// events). A store release takes days; if a build misbehaves under load
@@ -101,6 +103,56 @@ abstract final class ClientTuning {
     final s = 1 << (failures - 1).clamp(0, 9);
     return Duration(seconds: s > _outboxRetryMaxS ? _outboxRetryMaxS : s);
   }
+
+  /// [d] plus up to 30% random extra, so a fleet that failed together does
+  /// not come back together. One rule for [outboxDelay] and the inline
+  /// `RetryInterceptor` backoff.
+  static Duration withJitter(Duration d, [Random? random]) {
+    final extra =
+        (d.inMilliseconds * 0.3 * (random ?? _rng).nextDouble()).round();
+    return d + Duration(milliseconds: extra);
+  }
+
+  /// The server's `Retry-After` in whole seconds (an HTTP date is ignored)
+  /// from the raw header values (Dio keeps a list, a proxy may send two:
+  /// the first counts); null when absent or unparseable. Clamped to a day so
+  /// an absurd number cannot overflow a [Duration].
+  static Duration? parseRetryAfter(Iterable<String>? values) {
+    final raw = values == null || values.isEmpty ? null : values.first;
+    final secs = raw == null ? null : int.tryParse(raw.trim());
+    if (secs == null || secs < 0) return null;
+    return Duration(seconds: secs > 86400 ? 86400 : secs);
+  }
+
+  /// The longest `Retry-After` the outbox / upload queue waits out (the
+  /// server may ask for more; a background queue does not sleep for hours).
+  static const Duration queueRetryAfterMax = Duration(minutes: 2);
+
+  /// The wait before retry number [failures] of the outbox / upload queue:
+  /// [outboxBackoff] with up to 30% jitter (downwards once at the
+  /// [outboxRetryMaxS] ceiling, so a long outage still spreads the clients
+  /// instead of landing them all on the same second). A server's
+  /// `Retry-After` ([retryAfter], at most [queueRetryAfterMax]) is a floor
+  /// and gets the same jitter on top: clients told «5» do not all return at
+  /// exactly 5.
+  static Duration outboxDelay(
+    int failures, {
+    Duration? retryAfter,
+    Random? random,
+  }) {
+    final cap = Duration(seconds: _outboxRetryMaxS);
+    final base = outboxBackoff(failures);
+    final extra = (random ?? _rng).nextDouble() * 0.3;
+    var own = base + base * extra;
+    if (own > cap) own = cap - base * extra;
+    if (retryAfter == null) return own;
+    final asked =
+        retryAfter > queueRetryAfterMax ? queueRetryAfterMax : retryAfter;
+    final askedJittered = withJitter(asked, random);
+    return askedJittered > own ? askedJittered : own;
+  }
+
+  static final _rng = Random();
 
   /// Called with the `app_config` of every bootstrap answer.
   static void apply(Map<String, String> config) {

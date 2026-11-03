@@ -202,6 +202,14 @@ class UploadQueue with WidgetsBindingObserver {
   final _again = <String>{};
   final _retries = <String, Timer>{};
   final _failures = <String, int>{};
+
+  /// The server's `Retry-After` seen on a target's last failed pass.
+  final _serverWait = <String, Duration>{};
+
+  /// While a target waits out its `Retry-After`, a pass asked for by anything
+  /// else (a new job, resume, reconnect) must not reach the server earlier;
+  /// the target's timer clears this and runs the pass itself.
+  final _held = <String>{};
   bool _disposed = false;
 
   /// The account whose jobs run now (null signed out).
@@ -251,6 +259,8 @@ class UploadQueue with WidgetsBindingObserver {
   Future<void> retry(String id) async {
     await db.clearFailure(id);
     _failures.clear();
+    _serverWait.clear();
+    _held.clear();
     unawaited(drain());
   }
 
@@ -275,12 +285,6 @@ class UploadQueue with WidgetsBindingObserver {
     }
     final n = job.fileName;
     if (n != null) await files.remove(n);
-  }
-
-  /// The wait before retry number [failures] (1-based): 1, 2, 4 … 30 s.
-  @visibleForTesting
-  static Duration backoff(int failures) {
-    return ClientTuning.outboxBackoff(failures);
   }
 
   /// Refusals that no repeat can change.
@@ -328,6 +332,7 @@ class UploadQueue with WidgetsBindingObserver {
   }
 
   Future<void> _drainTarget(String owner, String target) {
+    if (_held.contains(target)) return Future<void>.value();
     final running = _running[target];
     if (running != null) {
       _again.add(target);
@@ -355,15 +360,27 @@ class UploadQueue with WidgetsBindingObserver {
         debugPrint('upload queue: $e');
         temporaryFailure = true;
       }
-    } while (_again.contains(target) && !_disposed);
+      // A pass asked for while this one ran does not go round again once the
+      // server has said how long to wait.
+    } while (_again.contains(target) &&
+        !_disposed &&
+        !_serverWait.containsKey(target));
     if (_disposed) return;
     if (temporaryFailure) {
       final n = (_failures[target] ?? 0) + 1;
       _failures[target] = n;
       _retries[target]?.cancel();
-      _retries[target] = Timer(backoff(n), () => unawaited(drain()));
+      final asked = _serverWait.remove(target);
+      final delay = ClientTuning.outboxDelay(n, retryAfter: asked);
+      if (asked != null) _held.add(target);
+      _retries[target] = Timer(delay, () {
+        _held.remove(target);
+        unawaited(drain());
+      });
     } else {
       _failures.remove(target);
+      _serverWait.remove(target);
+      _held.remove(target);
       _retries.remove(target)?.cancel();
     }
   }
@@ -442,6 +459,12 @@ class UploadQueue with WidgetsBindingObserver {
     // is retried and no «failed» message comes back.
     if (await db.byId(job.id) == null) return false;
     final again = temporary(e);
+    if (again && e is ApiException && e.retryAfter != null) {
+      final known = _serverWait[job.target];
+      if (known == null || e.retryAfter! > known) {
+        _serverWait[job.target] = e.retryAfter!;
+      }
+    }
     final code = again ? null : (e is ApiException ? e.code : 'UPLOAD_FAILED');
     await db.attempted(job.id, failedCode: code);
     if (code != null) _handlers[job.kind]?.refused(job, code);
@@ -453,6 +476,8 @@ class UploadQueue with WidgetsBindingObserver {
     for (final t in _retries.values) {
       t.cancel();
     }
+    _serverWait.clear();
+    _held.clear();
     if (_observing) WidgetsBinding.instance.removeObserver(this);
     unawaited(_progress.close());
   }

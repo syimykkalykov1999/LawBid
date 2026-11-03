@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
+import { ipBucket } from '../../common/net/ip-bucket';
 import { RateLimitService } from '../auth/auth.public';
 import type {
   CrashDetailDto,
@@ -17,13 +18,7 @@ const KEEP_DAYS = 30;
  * a carrier NAT or an office behind one address). */
 const BATCHES_PER_IP_PER_DAY = 200;
 
-/** One budget per IPv4 address or per IPv6 /64 (a single customer owns a
- * whole /64, so rotating inside it must not give new budgets). */
-export function intakeKey(ip: string): string {
-  if (!ip.includes(':')) return ip;
-  const groups = ip.split(':');
-  return groups.slice(0, 4).join(':');
-}
+export const intakeKey = ipBucket;
 
 /** The same crash from different phones gets the same fingerprint: the
  * error's type and its first stack lines with numbers (lines, addresses,

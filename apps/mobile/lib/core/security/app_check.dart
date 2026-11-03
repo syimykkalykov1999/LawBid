@@ -58,7 +58,8 @@ class FirebaseAppCheckClient {
 
   Future<bool> _activate() async {
     try {
-      if (kIsWeb && !WebPushConfig.configured) {
+      // App Check starts at launch, before the bootstrap: build keys only.
+      if (kIsWeb && !WebPushConfig.configuredAtBuild) {
         debugPrint('app check: no Firebase web keys in this build');
         return false;
       }

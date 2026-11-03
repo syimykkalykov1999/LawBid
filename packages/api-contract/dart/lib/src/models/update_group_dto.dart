@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'group_type.dart';
 import 'update_group_dto_disappear_after_s.dart';
+import 'update_group_dto_slow_mode_s.dart';
 import 'update_group_dto_who_can_add.dart';
 import 'update_group_dto_who_can_call.dart';
 import 'update_group_dto_who_can_edit_info.dart';
@@ -22,6 +23,7 @@ class UpdateGroupDto {
     this.title,
     this.description,
     this.avatarFileId,
+    this.slowModeS,
     this.whoCanPost,
     this.whoCanAdd,
     this.whoCanEditInfo,
@@ -49,6 +51,9 @@ class UpdateGroupDto {
 
   /// A new clean `avatar` file; null removes the photo.
   final String? avatarFileId;
+
+  /// Slow mode: seconds a member who is not an admin waits between two own messages; 0 (or null) = off. Needs the «edit group info» right.
+  final UpdateGroupDtoSlowModeS? slowModeS;
 
   /// Admins only.
   final UpdateGroupDtoWhoCanPost? whoCanPost;

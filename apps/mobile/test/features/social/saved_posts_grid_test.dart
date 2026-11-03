@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/perf/build_counter.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
@@ -82,6 +85,77 @@ void main() {
       t.getSize(find.byKey(const ValueKey('saved-tile-s1'))).width,
       closeTo(400 / 3, 3),
     );
+  });
+
+  test('overrideIdsWhere: only the shown ids, in list order, empty when none',
+      () {
+    final saved = post('a');
+    final unsaved = post('b').copyWith(savedByMe: false);
+    final map = {'a': saved, 'b': unsaved, 'z': unsaved};
+    bool notSaved(Post p) => !p.savedByMe;
+    expect(overrideIdsWhere(map, ['b', 'a'], notSaved), 'b');
+    expect(overrideIdsWhere(map, ['a'], notSaved), '');
+    expect(overrideIdsWhere(const {}, ['a'], notSaved), '');
+    expect(overrideIdSet(''), isEmpty);
+    expect(
+      overrideIdSet(overrideIdsWhere(map, ['z', 'b', 'a,c'], notSaved)),
+      {'z', 'b'},
+    );
+  });
+
+  testWidgets('a like elsewhere does not rebuild the grid; an unsave does',
+      (t) async {
+    final repo = _SavedRepo([
+      SavedPost(
+        postId: 's1',
+        savedAt: DateTime(2026, 10, 20),
+        post: post('s1'),
+      ),
+      SavedPost(
+        postId: 's2',
+        savedAt: DateTime(2026, 10, 19),
+        post: post('s2'),
+      ),
+    ]);
+    t.view.physicalSize = const Size(400, 900);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(
+      uxApp(
+        const Scaffold(body: SavedPostsList()),
+        theme: AppTheme.light(),
+        size: const Size(400, 900),
+        overrides: uxOverrides(social: repo),
+      ),
+    );
+    await t.pump(const Duration(seconds: 1));
+    final overrides = ProviderScope.containerOf(
+      t.element(find.byType(SavedPostsList)),
+    ).read(postOverridesProvider.notifier);
+    BuildCounter.reset();
+
+    // A like on some other (unsaved) post, many times: not one rebuild.
+    for (var i = 0; i < 5; i++) {
+      overrides.put(
+        post('other$i').copyWith(
+          likedByMe: true,
+          savedByMe: false,
+          likeCount: i,
+        ),
+      );
+      await t.pump();
+    }
+    expect(BuildCounter.of('saved.posts'), 0);
+    // A like on a shown post that stays saved: not a rebuild either.
+    overrides.put(post('s2').copyWith(likedByMe: true));
+    await t.pump();
+    expect(BuildCounter.of('saved.posts'), 0);
+
+    // Unsaving a shown post takes it out at once.
+    overrides.put(post('s1').copyWith(savedByMe: false));
+    await t.pump();
+    expect(BuildCounter.of('saved.posts'), 1);
+    expect(find.byType(PostGridTile), findsOneWidget);
   });
 }
 

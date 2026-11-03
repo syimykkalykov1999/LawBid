@@ -6,6 +6,7 @@ import { ErrorCode } from '../errors/error-code.enum';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { COST_ALERT_RATIO } from './cost-guard.constants';
 import { existsSafe } from '../../redis/redis-cluster-safe';
+import { incrWithTtl } from '../../redis/incr-with-ttl';
 
 /** Digits of the number (country code included) that make a "prefix". */
 export const SMS_PREFIX_DIGITS = 6;
@@ -175,8 +176,7 @@ export class SmsAbuseGuardService {
     const windowSec = Math.max(1, windowMin) * 60;
     for (const r of rules) {
       const key = `sms:vel:${r.kind}:${r.id}`;
-      const n = await this.redis.incr(key);
-      if (n === 1) await this.redis.expire(key, windowSec);
+      const n = await incrWithTtl(this.redis, key, windowSec);
       const peakPrefix = `sms:velpk:${r.kind}:${r.id}`;
       const allowed = await this.allowed(r.max, peakPrefix, now);
       if (n <= allowed) {
@@ -275,8 +275,7 @@ export class SmsAbuseGuardService {
     const key = `sms:signup:${day}`;
     // Burst allowance: the cap is a floor (see the class comment).
     const cap = await this.allowed(typedCap, 'sms:signup', now);
-    const n = await this.redis.incr(key);
-    if (n === 1) await this.redis.expire(key, (BASELINE_DAYS + 2) * DAY_SEC);
+    const n = await incrWithTtl(this.redis, key, (BASELINE_DAYS + 2) * DAY_SEC);
     if (
       n > typedCap &&
       n <= cap &&

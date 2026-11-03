@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:lawbid/core/cache/cache_database.dart';
 import 'package:lawbid/core/cache/json_off_main.dart';
+import 'package:lawbid/core/media/stable_network_image.dart'
+    show stableImageCacheKey;
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// What the phone knows about one chat's history.
@@ -95,6 +97,22 @@ class MessageStore {
             (id: m.id, createdAt: m.createdAt, json: jsonEncode(m.toJson())),
         ],
       );
+      // «Данные и память» по чатам: which chat these pictures belong to. An
+      // auxiliary index: its failure must not stop the history bookkeeping.
+      try {
+        await _db.noteChatMedia(
+          conversationId,
+          {
+            for (final m in messages)
+              if (m.attachment?.isImage ?? false)
+                for (final u in [m.attachment!.url, m.attachment!.previewUrl])
+                  if (u != null) stableImageCacheKey(u) ?? u,
+          },
+          DateTime.now(),
+        );
+      } on Object catch (e) {
+        debugPrint('chat media index: $e');
+      }
       final newest = await _db.newestMessage(owner, conversationId);
       await _db.setConversationSync(
         owner: owner,

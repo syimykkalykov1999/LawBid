@@ -12,6 +12,7 @@ import {
   slowQueryThresholdMs,
 } from './slow-query.extension';
 import { softDeleteExtension } from './soft-delete.extension';
+import { transientRetryExtension } from './transient-retry.extension';
 import { parentShardLookup, shardExtension } from '../sharding/shard.extension';
 import { shardContext } from '../sharding/shard-context';
 import {
@@ -98,7 +99,8 @@ export function extend(client: PrismaClient, primary?: () => unknown) {
         (q) => slowLog.warn(`${q.operation} took ${q.ms} ms`),
         addDbTime,
       ),
-    );
+    )
+    .$extends(transientRetryExtension());
   // Shard-ready step 6: a client of a NON-primary database loads the global
   // rows an include asks for (user, practice area ...) from the primary one.
   return primary ? base.$extends(crossFamilyStitchExtension(primary)) : base;
