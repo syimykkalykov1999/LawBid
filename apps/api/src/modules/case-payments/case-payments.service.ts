@@ -2243,7 +2243,13 @@ export class CasePaymentsService {
         : null,
       this.parties([row.client_id, row.attorney_id]),
     ]);
+    // The Han font follows the language of whoever asks for the receipt.
+    const asker = await this.prisma.user.findUnique({
+      where: { id: user.sub },
+      select: { ui_language: true },
+    });
     const buffer = await renderPaymentReceiptPdf({
+      lang: asker?.ui_language,
       payment: dto,
       quote: quotePayment(row.amount_cents, {
         ...s,

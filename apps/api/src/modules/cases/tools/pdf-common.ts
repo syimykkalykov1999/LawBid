@@ -1,20 +1,5 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import PDFDocument from 'pdfkit';
-
-/** Inter (the app's face), covers Latin + Cyrillic. 4 levels up from
- * src/modules/cases/tools, 5 from dist/src/modules/cases/tools. */
-const FONT_PATH = [4, 5]
-  .map((up) =>
-    join(
-      __dirname,
-      ...Array<string>(up).fill('..'),
-      'assets',
-      'fonts',
-      'Inter-Variable.ttf',
-    ),
-  )
-  .find((p) => existsSync(p));
+import { applyPdfFonts } from '../../../common/pdf-fonts/pdf-fonts';
 
 export const NAVY = '#0B1B3F';
 export const GOLD = '#B8860B';
@@ -29,6 +14,8 @@ export function startPdf(info: {
   bufferPages?: boolean;
   bottomMargin?: number;
   creationDate?: Date;
+  /** Document language (BCP-47), picks the Han font for CJK text. */
+  lang?: string;
 }): {
   doc: PDFKit.PDFDocument;
   done: Promise<Buffer>;
@@ -55,10 +42,7 @@ export function startPdf(info: {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
   });
-  if (FONT_PATH) {
-    doc.registerFont('Inter', FONT_PATH);
-    doc.font('Inter');
-  }
+  applyPdfFonts(doc, { lang: info.lang });
   return { doc, done };
 }
 

@@ -11,6 +11,8 @@ export interface InvoiceLine {
 }
 
 export interface InvoiceInput {
+  /** Issuer's language: picks the Han font. */
+  lang?: string;
   number: string;
   issuedAt: Date;
   caseTitle: string;
@@ -32,7 +34,10 @@ export interface InvoiceInput {
  * about how to pay. EN / RU labels, one file for both apps.
  */
 export function renderInvoicePdf(i: InvoiceInput): Promise<Buffer> {
-  const { doc, done } = startPdf({ title: `Invoice ${i.number}` });
+  const { doc, done } = startPdf({
+    title: `Invoice ${i.number}`,
+    lang: i.lang,
+  });
   const left = doc.page.margins.left;
   const width = doc.page.width - left - doc.page.margins.right;
 
