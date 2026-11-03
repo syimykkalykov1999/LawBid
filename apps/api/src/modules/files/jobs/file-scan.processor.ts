@@ -12,6 +12,7 @@ import {
 } from '../scanning/virus-scanner';
 import { ImageProcessor } from '../processing/image-processor';
 import { detectMime } from '../magic-bytes';
+import { computeBlurhash } from '../processing/blurhash';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import {
   DEDUP_PROFILE,
@@ -148,6 +149,8 @@ export class FileScanProcessor {
       }
       await this.putAvifTwins(file, processed);
       const main = processed.main;
+      // Placeholder for the app while the picture loads (never blocks).
+      const blurhash = main ? await computeBlurhash(main.data) : null;
       if (main) {
         await this.storage.put(
           file.s3_bucket,
@@ -160,6 +163,7 @@ export class FileScanProcessor {
         where: { id: fileId, scan_status: 'pending' },
         data: {
           scan_status: 'clean',
+          ...(blurhash ? { blurhash } : {}),
           // Owner 2026-10-18: videos get their shown size too (the app
           // draws the bubble at that shape before the video loads).
           ...(mime === FILE_MIME.mp4 || mime === FILE_MIME.mov
@@ -221,6 +225,7 @@ export class FileScanProcessor {
         sha256: twin.sha256,
         width: twin.width,
         height: twin.height,
+        blurhash: twin.blurhash,
         scan_status: 'clean',
       },
     });

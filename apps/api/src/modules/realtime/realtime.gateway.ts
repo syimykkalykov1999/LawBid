@@ -256,6 +256,7 @@ export class RealtimeGateway
     { timer: NodeJS.Timeout; leftAt: Date }
   >();
   private timingTimer?: NodeJS.Timeout;
+  private gaugeTimer?: NodeJS.Timeout;
   /** S20-4: `log.ws_events` / `log.ws_sample_percent` (refreshed with the
    * timings) and the per-instance spike detector. */
   private wsLog: { mode: TriMode; samplePercent: number } = {
@@ -342,11 +343,10 @@ export class RealtimeGateway
     return this.draining;
   }
 
-  /** docs/06 §8 "число активных WebSocket-соединений": a gauge line per
-   * connect/disconnect on this instance (CloudWatch metric filter sums
+  /** docs/06 §8 "число активных WebSocket-соединений": a gauge line every 30 s on this instance (CloudWatch metric filter sums
    * the instances). */
   private gauge(): void {
-    const count = this.nsp?.sockets.size ?? 0;
+    const count = this.nsp?.sockets?.size ?? 0;
     this.logger.info({ metric: 'ws_connections', count }, 'ws connections');
   }
 
@@ -357,6 +357,10 @@ export class RealtimeGateway
     void this.loadTiming();
     this.timingTimer = setInterval(() => void this.loadTiming(), 30_000);
     this.timingTimer.unref();
+    // B-18: the connection gauge is a 30 s sample, not a line per connect /
+    // disconnect (a deploy with 50k sockets wrote ~100k lines).
+    this.gaugeTimer = setInterval(() => this.gauge(), 30_000);
+    this.gaugeTimer.unref();
     // Test doubles of REDIS_CLIENT can't pub/sub: stay on the in-memory
     // adapter (a single instance) then.
     if (typeof this.redis.duplicate !== 'function') return;
@@ -485,7 +489,7 @@ export class RealtimeGateway
   private async waitForDrain(): Promise<void> {
     const budget = drainBudgetMs();
     const deadline = Date.now() + budget;
-    while (Date.now() < deadline && (this.nsp?.sockets.size ?? 0) > 0) {
+    while (Date.now() < deadline && (this.nsp?.sockets?.size ?? 0) > 0) {
       await new Promise((r) => setTimeout(r, 250));
     }
     await this.stats?.flush();
@@ -503,6 +507,7 @@ export class RealtimeGateway
    * before the shutdown hooks), so the adapter sends nothing more. */
   async onApplicationShutdown(): Promise<void> {
     if (this.timingTimer) clearInterval(this.timingTimer);
+    if (this.gaugeTimer) clearInterval(this.gaugeTimer);
     await this.settleAllOffline();
     await Promise.all(
       [this.pub, this.sub, this.revocations].map(async (c) => {
@@ -801,7 +806,6 @@ export class RealtimeGateway
         // Presence is best-effort.
       }
     }
-    this.gauge();
     await this.markConnected(socket, claims.sub);
   }
 
@@ -928,7 +932,6 @@ export class RealtimeGateway
   }
 
   private async finishDisconnect(socket: Socket): Promise<void> {
-    this.gauge();
     const s = state(socket);
     if (!s?.user) return;
     clearTimeout(s.expiringTimer);

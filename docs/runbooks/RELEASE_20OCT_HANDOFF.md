@@ -47,7 +47,7 @@ Mobile (`apps/mobile`, Flutter 3.47.5):
 - **Голдены только на macOS.** На Linux падают голдены профиля и contact_info, это ожидаемо. Пересчёт на Mac на финальной голове, push PNG **без** `Podfile.lock` и `pbxproj`.
 - Числа в тексте через `context.digits(...)`.
 
-CI на PR: «Lint, typecheck, unit + e2e tests» (API, включая ERD, prettier и контракт) и «Analyze, lint checks, unit/widget/golden tests» (Mobile). Падение MinIO на старте = инфра-флейк, один перезапуск.
+CI на PR: «Lint, typecheck, unit + e2e tests» (API, включая ERD, prettier и контракт) и «Analyze, lint checks, unit/widget tests» (Mobile; golden-тесты в отдельном job «Golden tests (macOS)»). Падение MinIO на старте = инфра-флейк, один перезапуск.
 
 ## 5. Правила Mac
 

@@ -124,6 +124,7 @@ class CacheMaintenance {
         await _chatMedia.clear();
         await _voiceNotes.clear();
         if (!isFlutterTest) await AppImageCaches.chatMedia.emptyCache();
+        await _db.forgetAllChatMedia();
       case CacheStore.video:
         // The video chunk cache (reels and chat videos). A running proxy
         // owns the folder and empties it itself; without one its files
