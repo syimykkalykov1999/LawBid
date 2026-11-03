@@ -7,12 +7,11 @@ import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/auth/application/passkeys_providers.dart';
 import 'package:lawbid/features/auth/data/passkey_authenticator.dart';
 import 'package:lawbid/features/auth/presentation/widgets/passkeys_section.dart';
-import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
-import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Owner 2026-10-24 (attorney passkey nudge): once after sign-in, an
-/// attorney or an assistant who has no passkey yet is offered
+/// Owner 2026-10-24 (passkey nudge; R-140: every role, 2026-11-03): once after
+/// sign-in, any user (attorney, assistant or client) who has no passkey yet
+/// is offered
 /// «Защитите вход: Face ID / отпечаток». «Включить» runs the same enrolment
 /// as Settings → Devices → Sign-in keys; «Позже» snoozes it for 7 days, at
 /// most 3 times, and then it never comes back. Kept on this phone (there is
@@ -45,10 +44,8 @@ class PasskeyNudgePolicy {
         !now.isBefore(DateTime.fromMillisecondsSinceEpoch(until));
   }
 
-  Future<void> shown(DateTime now) => _prefs.setInt(
-        _until,
-        now.add(unansweredHide).millisecondsSinceEpoch,
-      );
+  Future<void> shown(DateTime now) =>
+      _prefs.setInt(_until, now.add(unansweredHide).millisecondsSinceEpoch);
 
   Future<void> later(DateTime now) async {
     await _prefs.setInt(_until, now.add(snooze).millisecondsSinceEpoch);
@@ -69,8 +66,6 @@ final passkeyNudgePolicyProvider = Provider<PasskeyNudgePolicy?>((ref) {
 /// without support, the web without WebAuthn).
 Future<void> maybeShowPasskeyNudge(BuildContext context, WidgetRef ref) async {
   try {
-    final role = ref.read(currentUserRoleProvider);
-    if (role != UserRole.attorney && role != UserRole.assistant) return;
     final policy = ref.read(passkeyNudgePolicyProvider);
     final now = DateTime.now();
     if (policy == null || !policy.due(now)) return;
@@ -152,11 +147,7 @@ class _PasskeyNudgeSheetState extends ConsumerState<PasskeyNudgeSheet> {
           children: [
             const AppSheetHandle(),
             const SizedBox(height: AppSpacing.md),
-            const Center(
-              child: AppIconMedallion(
-                icon: AppIcons.fingerprint,
-              ),
-            ),
+            const Center(child: AppIconMedallion(icon: AppIcons.fingerprint)),
             const SizedBox(height: AppSpacing.md),
             Text(
               t.t('passkey.nudge.title'),
