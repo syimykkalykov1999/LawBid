@@ -13,7 +13,6 @@ import 'package:lawbid/features/chat/presentation/desktop_chats.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/notifications/presentation/notification_settings_screen.dart'
     deferred as d_notification_settings_screen;
-import 'package:lawbid/features/profile/presentation/screens/desktop_settings.dart';
 
 /// docs/05 §8–§9 routes: the Chats/Notifications screen, one chat, and
 /// Settings → Notifications.
@@ -36,7 +35,11 @@ abstract final class ChatRoutes {
   static const call = '/call';
 }
 
-List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
+List<RouteBase> chatRoutes(
+  GlobalKey<NavigatorState> root, {
+  Widget Function(String location, Widget page)? sectionPage,
+}) =>
+    [
       GoRoute(
         path: ChatRoutes.inbox,
         parentNavigatorKey: root,
@@ -118,9 +121,9 @@ List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          SettingsSectionPage(
-            location: state.matchedLocation,
-            phone: DeferredScreen(
+          (sectionPage ?? _plain)(
+            state.matchedLocation,
+            DeferredScreen(
               id: 'notification_settings_screen',
               load: d_notification_settings_screen.loadLibrary,
               builder: (_) =>
@@ -130,3 +133,5 @@ List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
         ),
       ),
     ];
+
+Widget _plain(String location, Widget page) => page;

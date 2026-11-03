@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/core/navigation/deferred_screen.dart';
 import 'package:lawbid/features/onboarding/domain/contact_type.dart';
-import 'package:lawbid/features/profile/presentation/screens/desktop_settings.dart';
 import 'package:lawbid/features/settings/account/presentation/screens/account_contact_flow_screen.dart';
 import 'package:lawbid/features/settings/account/presentation/screens/account_screen.dart'
     deferred as d_account_screen;
@@ -24,6 +23,7 @@ abstract final class AccountRoutes {
 /// .profileSettings`: full-screen settings pages cover the bottom nav).
 List<RouteBase> accountRoutes({
   GlobalKey<NavigatorState>? parentNavigatorKey,
+  Widget Function(String location, Widget page)? sectionPage,
 }) =>
     [
       GoRoute(
@@ -31,9 +31,9 @@ List<RouteBase> accountRoutes({
         parentNavigatorKey: parentNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          SettingsSectionPage(
-            location: state.matchedLocation,
-            phone: DeferredScreen(
+          (sectionPage ?? _plain)(
+            state.matchedLocation,
+            DeferredScreen(
               id: 'account_screen',
               load: d_account_screen.loadLibrary,
               builder: (_) => d_account_screen.AccountScreen(),
@@ -58,3 +58,5 @@ List<RouteBase> accountRoutes({
         },
       ),
     ];
+
+Widget _plain(String location, Widget page) => page;

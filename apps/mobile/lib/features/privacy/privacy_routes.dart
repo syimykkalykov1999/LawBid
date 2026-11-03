@@ -8,7 +8,6 @@ import 'package:lawbid/features/privacy/presentation/my_reports_screen.dart'
     deferred as d_my_reports_screen;
 import 'package:lawbid/features/privacy/presentation/privacy_screen.dart'
     deferred as d_privacy_screen;
-import 'package:lawbid/features/profile/presentation/screens/desktop_settings.dart';
 
 /// Owner 2026-10-20: Settings → Privacy and moderation.
 abstract final class PrivacyRoutes {
@@ -17,15 +16,19 @@ abstract final class PrivacyRoutes {
   static const notices = '/profile/settings/privacy/decisions';
 }
 
-List<RouteBase> privacyRoutes(GlobalKey<NavigatorState> root) => [
+List<RouteBase> privacyRoutes(
+  GlobalKey<NavigatorState> root, {
+  Widget Function(String location, Widget page)? sectionPage,
+}) =>
+    [
       GoRoute(
         path: PrivacyRoutes.privacy,
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          SettingsSectionPage(
-            location: state.matchedLocation,
-            phone: DeferredScreen(
+          (sectionPage ?? _plain)(
+            state.matchedLocation,
+            DeferredScreen(
               id: 'privacy_screen',
               load: d_privacy_screen.loadLibrary,
               builder: (_) => d_privacy_screen.PrivacyScreen(),
@@ -59,3 +62,5 @@ List<RouteBase> privacyRoutes(GlobalKey<NavigatorState> root) => [
         ),
       ),
     ];
+
+Widget _plain(String location, Widget page) => page;

@@ -852,14 +852,17 @@ GoRouter appRouter(Ref ref) {
       ),
       ...authRoutes(),
       ...onboardingRoutes(),
-      ...accountRoutes(parentNavigatorKey: _rootNavigatorKey),
+      ...accountRoutes(
+        parentNavigatorKey: _rootNavigatorKey,
+        sectionPage: _settingsSection,
+      ),
       // docs/01_FOUNDATION_AUTH.md §12 content links (/case/:id,
       // /lawyer/:username, /post/:id) — core/deeplinks.
       ...deepLinkRoutes(),
       // docs/05 feed: tag pages, follower lists.
       ...socialRoutes(_rootNavigatorKey),
       // docs/05 chats, notifications, notification settings.
-      ...chatRoutes(_rootNavigatorKey),
+      ...chatRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
       // Owner 2026-10-20: group chats, polls, join links.
       ...groupRoutes(_rootNavigatorKey),
       // docs/06 §1.7: Settings → Подписка, payments, gate paywall.
@@ -881,7 +884,7 @@ GoRouter appRouter(Ref ref) {
       // Owner 2026-10-20: stories (24 h) and Telegram-style channels.
       ...storiesRoutes(_rootNavigatorKey),
       ...channelsRoutes(_rootNavigatorKey),
-      ...privacyRoutes(_rootNavigatorKey),
+      ...privacyRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
     ],
   );
 }
@@ -922,3 +925,9 @@ AssistantGate _assistantGate(Ref ref) {
       ? AssistantGate.active
       : AssistantGate.notJoined;
 }
+
+/// Desktop web plan §6.7: a Settings section page is the two-pane Settings
+/// page on a desktop window (wired here so the features do not import the
+/// profile feature).
+Widget _settingsSection(String location, Widget page) =>
+    SettingsSectionPage(location: location, phone: page);
