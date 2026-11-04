@@ -5,7 +5,7 @@ import type { I18nBundleService } from './i18n-bundle.service';
 interface FakeKeyRow {
   id: string;
   key: string;
-  translations: { lang: string; value: string }[];
+  translations: { lang: string; value: string; admin_edited?: boolean }[];
 }
 
 /** Minimal stateful fake covering exactly the Prisma surface
@@ -338,5 +338,34 @@ describe('I18nImportService.run — missingOnly (every release)', () => {
       value: 'Отменить (админка)',
     });
     expect(cancel.translations).toContainEqual({ lang: 'en', value: 'Cancel' });
+  });
+
+  it('replaces a leftover English copy in another language, but not an admin-edited one', async () => {
+    const prisma = buildFakePrisma();
+    const bundle = buildFakeBundle();
+    const service = new I18nImportService(
+      prisma as never,
+      bundle as unknown as I18nBundleService,
+      { del: jest.fn() } as never,
+    );
+    prisma.keysByKey.set('settings.archive', {
+      id: 'key-y',
+      key: 'settings.archive',
+      translations: [
+        { lang: 'en', value: 'Archive' },
+        { lang: 'ky', value: 'archive' },
+        { lang: 'ru', value: 'Archive', admin_edited: true },
+      ],
+    });
+
+    const report = await service.run(
+      csv('key,en,ky,ru\nsettings.archive,Archive,Архив,Архив\n'),
+      'apply',
+      { missingOnly: true },
+    );
+
+    expect(report.changedKeys).toEqual([
+      { key: 'settings.archive', lang: 'ky' },
+    ]);
   });
 });

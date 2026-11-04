@@ -119,9 +119,31 @@ export class I18nImportService {
       const existingValues = new Map(
         existing.translations.map((t) => [t.lang, t.value]),
       );
+      const edited = new Set(
+        existing.translations
+          .filter((t) => (t as { admin_edited?: boolean }).admin_edited)
+          .map((t) => t.lang),
+      );
+      const norm = (s: string | undefined) => (s ?? '').trim().toLowerCase();
       for (const [lang, value] of Object.entries(row.values)) {
         const current = existingValues.get(lang);
-        if (options.missingOnly && current !== undefined && current !== '') {
+        // 2026-11-03: a cell that still holds the English text (an old
+        // English copy, never edited in the admin) is not a translation:
+        // the seed's real text replaces it (owner saw English on a Kyrgyz UI).
+        const staleEnglishCopy =
+          lang !== 'en' &&
+          !edited.has(lang) &&
+          current !== undefined &&
+          current !== '' &&
+          norm(current) === norm(existingValues.get('en')) &&
+          norm(value) !== '' &&
+          norm(value) !== norm(current);
+        if (
+          options.missingOnly &&
+          !staleEnglishCopy &&
+          current !== undefined &&
+          current !== ''
+        ) {
           unchangedCount += 1;
         } else if (current !== value) {
           changedKeys.push({ key: row.key, lang });
