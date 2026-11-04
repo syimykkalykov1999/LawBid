@@ -19,7 +19,8 @@ import { SelfieCaptureNote } from '@/components/verification/selfie-capture-note
 import { FocusBar, useNextVerification } from '@/components/workspace/queue-next';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
-import { canOpen } from '@/lib/rbac';
+import { can, canOpen } from '@/lib/rbac';
+import { livePoll } from '@/lib/live';
 import { formatDateTime } from '@/lib/utils';
 import {
   CHECK_RESULT,
@@ -37,6 +38,8 @@ import {
 } from '@/lib/labels';
 
 const REJECTION = Object.entries(REJECTION_CODE).map(([value, l]) => ({ value, label: l }));
+/** R-394: how often the card re-reads itself while a registry lookup runs. */
+const CHECK_POLL_MS = 3000;
 const SCAN_STATUS: Record<string, string> = {
   pending: 'проверяется',
   clean: 'чисто',
@@ -67,6 +70,13 @@ export default function VerificationCardPage() {
     queryKey: ['verification', id],
     queryFn: async () =>
       (await api.GET('/admin/verification/requests/{id}', { params: { path: { id } } })).data!.data,
+    // R-394: while a registry lookup runs in the background the card asks
+    // again every few seconds (one light GET), then stops by itself.
+    refetchInterval: livePoll((data) =>
+      (data as { licenses?: { registryCheck: unknown }[] } | undefined)?.licenses?.some((l) => l.registryCheck)
+        ? CHECK_POLL_MS
+        : false,
+    ),
   });
   const r = q.data;
   const onError = (e: unknown) => toast.error(e);
@@ -85,14 +95,32 @@ export default function VerificationCardPage() {
     onSuccess: () => done('Заявка взята в работу'),
     onError,
   });
+  /** R-394: a free request is taken first (the same «Взять в работу» call). */
+  const ensureMine = async () => {
+    if (r && (r.status === 'submitted' || (r.status === 'needs_more_info' && !r.reviewerId))) {
+      await api.POST('/admin/verification/requests/{id}/take', p);
+    }
+  };
   const approve = useMutation({
     mutationFn: async () => {
+      // Same as the review screen: licenses without a decision are confirmed
+      // first (the reviewer approves the request = vouches for them).
+      const pending = r ? r.licenses.filter((l) => l.status === 'pending') : [];
       const ok = await confirm({
         title: 'Одобрить заявку?',
-        description: 'Адвокат получит статус «верифицирован» и уведомление.',
+        description:
+          pending.length > 0
+            ? `Будут подтверждены лицензии без решения (${pending.length}), затем заявка одобрена. Адвокат получит статус «верифицирован» и уведомление.`
+            : 'Адвокат получит статус «верифицирован» и уведомление.',
         confirm: 'Одобрить',
       });
       if (!ok) return null;
+      for (const l of pending) {
+        await api.POST('/admin/verification/requests/{id}/licenses/{licenseId}/decision', {
+          params: { path: { id, licenseId: l.id } },
+          body: { decision: 'verified' } as never,
+        });
+      }
       return api.POST('/admin/verification/requests/{id}/approve', p);
     },
     onSuccess: (x) => x && decided('Заявка одобрена'),
@@ -145,6 +173,7 @@ export default function VerificationCardPage() {
         if (!a) return null;
         body = { decision: 'rejected', rejectionCode: a.choice, ...(a.text ? { note: a.text } : {}) };
       }
+      await ensureMine();
       return api.POST('/admin/verification/requests/{id}/licenses/{licenseId}/decision', {
         params: { path: { id, licenseId: v.licenseId } },
         body: body as never,
@@ -153,17 +182,19 @@ export default function VerificationCardPage() {
     onSuccess: (x) => x && done('Решение по лицензии сохранено'),
     onError,
   });
-  // Owner 2026-10-05: a lookup now, no status change (sets/clears the registry mark).
+  // Owner 2026-10-05: a lookup, no status change (sets/clears the registry mark).
+  // R-394: both buttons only queue the lookup (202); the row shows
+  // «проверяется…» and the card re-reads itself until the answer is stored.
   const registryCheck = useMutation({
     mutationFn: (licenseId: string) =>
       api.POST('/admin/verification/licenses/{licenseId}/registry-check', { params: { path: { licenseId } } }),
-    onSuccess: () => done('Проверено по реестру штата'),
+    onSuccess: () => done('Проверка по реестру запущена — результат появится в строке'),
     onError,
   });
   const recheck = useMutation({
     mutationFn: (licenseId: string) =>
       api.POST('/admin/verification/licenses/{licenseId}/recheck', { params: { path: { licenseId } } }),
-    onSuccess: () => done('Перепроверка запущена'),
+    onSuccess: () => done('Перепроверка запущена — результат появится в строке'),
     onError,
   });
   /** Owner 2026-10-24: the admin enters or clears the expiry date by hand. */
@@ -262,6 +293,14 @@ export default function VerificationCardPage() {
   const active = r.status === 'in_review' || r.status === 'submitted' || r.status === 'needs_more_info';
   const busy = take.isPending || approve.isPending || requestInfo.isPending || reject.isPending;
   const canSeeUser = canOpen(me, '/users');
+  // R-394: who may decide a license here, and why not when they may not.
+  const canManage = can(me, 'verification', 'manage');
+  const lockedByOther = active && !!r.reviewerId && !mine;
+  const decideBlock = !canManage
+    ? 'Решение по лицензии принимает верификатор или супер-админ'
+    : lockedByOther
+      ? 'Заявку проверяет другой администратор'
+      : null;
 
   return (
     <>
@@ -425,9 +464,17 @@ export default function VerificationCardPage() {
                   {l.rejectionCode ? <div className="mt-1 text-xs text-muted">{label(REJECTION_CODE, l.rejectionCode)}{l.rejectionNote ? ` — ${l.rejectionNote}` : ''}</div> : null}
                 </Td>
                 <Td className="max-w-64 text-xs">
+                  {l.registryCheck ? (
+                    <div className="mb-1 font-medium text-muted" data-testid="registry-checking">
+                      проверяется…
+                    </div>
+                  ) : null}
                   {l.autoCheckResult ? (
                     <>
                       <div className="font-medium">{autoCheckLabel(l.autoCheckResult)}</div>
+                      {typeof l.autoCheckResult.checkedAt === 'string' ? (
+                        <div className="text-muted">проверено {formatDateTime(l.autoCheckResult.checkedAt)}</div>
+                      ) : null}
                       {l.registryFlag ? (
                         <div className="mt-1 font-medium text-warning">Отмечено для проверки: реестр не подтвердил</div>
                       ) : null}
@@ -440,7 +487,7 @@ export default function VerificationCardPage() {
                         </details>
                       )}
                     </>
-                  ) : '—'}
+                  ) : l.registryCheck ? null : '—'}
                 </Td>
                 <Td className="whitespace-nowrap">
                   {l.expiresAt ? formatDateTime(l.expiresAt) : '—'}
@@ -473,18 +520,34 @@ export default function VerificationCardPage() {
                 </Td>
                 <Td>
                   <div className="flex justify-end gap-2">
-                    <Button size="sm" variant="ghost" disabled={registryCheck.isPending} onClick={() => registryCheck.mutate(l.id)}>
+                    <Button size="sm" variant="ghost" disabled={registryCheck.isPending || !!l.registryCheck} onClick={() => registryCheck.mutate(l.id)}>
                       По реестру
                     </Button>
-                    <Button size="sm" variant="ghost" disabled={recheck.isPending} onClick={() => recheck.mutate(l.id)}>
+                    <Button size="sm" variant="ghost" disabled={recheck.isPending || !!l.registryCheck} onClick={() => recheck.mutate(l.id)}>
                       Перепроверить
                     </Button>
-                    {active && mine ? (
+                    {/* R-394: the reviewer always decides by hand — the registry's
+                        answer (or its silence) never greys the button out. */}
+                    {active && (l.status === 'pending' || mine) ? (
                       <>
-                        <Button size="sm" variant="outline" disabled={decide.isPending} onClick={() => decide.mutate({ licenseId: l.id, decision: 'verified' })}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          data-testid="license-confirm"
+                          disabled={!!decideBlock || (decide.isPending && decide.variables?.licenseId === l.id)}
+                          loading={decide.isPending && decide.variables?.licenseId === l.id && decide.variables.decision === 'verified'}
+                          title={decideBlock ?? 'Подтвердить лицензию вручную (реестр не обязателен)'}
+                          onClick={() => decide.mutate({ licenseId: l.id, decision: 'verified' })}
+                        >
                           Подтвердить
                         </Button>
-                        <Button size="sm" variant="danger" disabled={decide.isPending} onClick={() => decide.mutate({ licenseId: l.id, decision: 'rejected' })}>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          disabled={!!decideBlock || (decide.isPending && decide.variables?.licenseId === l.id)}
+                          title={decideBlock ?? undefined}
+                          onClick={() => decide.mutate({ licenseId: l.id, decision: 'rejected' })}
+                        >
                           Отклонить
                         </Button>
                       </>
@@ -572,7 +635,7 @@ function autoCheckLabel(r: Record<string, unknown>): string {
     case 'name_mismatch':
       return `Имя в реестре другое${name}`;
     case 'provider_error':
-      return 'Реестр не ответил — проверьте по ссылке';
+      return 'Реестр недоступен — подтвердите вручную';
     default:
       return String(r.result ?? '—');
   }
