@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/core/navigation/shell/content_column_frame.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show commentThreadSlivers;
@@ -19,26 +18,14 @@ Future<void> showCommentsSheet(
 }) {
   // Owner 2026-10-22 (guest browsing): comments need an account.
   if (!requireSignInFromContext(context)) return Future.value();
-  final colors = Theme.of(context).extension<AppColorTokens>()!;
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    constraints: contentColumnSheetConstraints(context),
-    // Over the nav bar too, like Instagram.
-    useRootNavigator: true,
     useSafeArea: true,
-    backgroundColor: sheetRouteColor(context, colors.sheet),
-    elevation: sheetDrawnByColumn(context) ? 0 : null,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
-    ),
-    builder: (_) => ContentColumnFrame(
-      surface: colors.sheet,
-      radius: const BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
-      child: CommentsSheet(
-        postId: postId,
-        commentsEnabled: commentsEnabled,
-      ),
+    closeByHandleOnly: true,
+    builder: (_) => CommentsSheet(
+      postId: postId,
+      commentsEnabled: commentsEnabled,
     ),
   );
 }
