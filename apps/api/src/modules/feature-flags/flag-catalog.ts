@@ -88,6 +88,17 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Video calls in chats (WebRTC, needs a TURN relay)',
   },
   {
+    // Owner 2026-11-04 (R-376): group calls off for now, one-to-one calls
+    // stay; they come back in a later update. Off: the app hides «Add
+    // participant» and the group / channel call buttons, the API refuses
+    // starting, joining or growing a group call (old app builds included).
+    key: 'calls_group',
+    enabled: false,
+    app: true,
+    description:
+      'Group calls (3+ people): add participants, group call from a group chat',
+  },
+  {
     // Owner 2026-10-20: stories (24 h) like Instagram / WhatsApp.
     // Owner 2026-10-22 (R-049): hidden until the next update; the code stays.
     key: 'stories',

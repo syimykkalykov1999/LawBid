@@ -81,6 +81,7 @@ class _ChannelScreenState extends ConsumerState<ChannelScreen> {
     final value = channel.value;
     final canStart = value != null &&
         value.isAdmin &&
+        ref.watch(groupCallsProvider) &&
         ref.watch(groupCallPortProvider)?.startChannel != null;
     final live = value == null || !(value.isAdmin || value.isSubscribed)
         ? null

@@ -17,6 +17,12 @@ describe('FLAG_CATALOG — the one list of feature flags', () => {
     expect(FLAG_CATALOG.find((f) => f.key === 'stories')?.enabled).toBe(false);
   });
 
+  it('group calls are off by default and reach the app (owner R-376)', () => {
+    const f = FLAG_CATALOG.find((x) => x.key === 'calls_group');
+    expect(f?.enabled).toBe(false);
+    expect(f?.app).toBe(true);
+  });
+
   it("the app's first-paint defaults are the catalog (run `npm run flags:sync` when this fails)", () => {
     const file = join(
       __dirname,
