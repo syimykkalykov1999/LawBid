@@ -2767,8 +2767,8 @@ class PostActionsBar extends ConsumerWidget {
                       _Stat(
                         icon: AppIcons.modeCommentOutlined,
                         value: post.commentCount,
-                        // Owner 2026-10-28 (R-111): the theme's own icon ink, like
-                        // the bar's buttons, never the grey secondary tone.
+                        // Owner 2026-10-28 (R-111): the theme's own icon ink,
+                        // like the bar's buttons, never the grey tone.
                         color: colors.text,
                         onTap: () => showCommentsSheet(
                           context,

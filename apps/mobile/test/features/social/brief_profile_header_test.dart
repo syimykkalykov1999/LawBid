@@ -129,8 +129,10 @@ void main() {
     }
     final avatar = local('brief', find.byType(IdentityAvatar));
     final name = local('brief', find.text('Syimyk Kalykov'));
-    expect(name.left,
-        closeTo(local('post', find.text('Syimyk Kalykov')).left, 0.5));
+    expect(
+      name.left,
+      closeTo(local('post', find.text('Syimyk Kalykov')).left, 0.5),
+    );
     // The name is centred on the avatar.
     expect(name.center.dy, closeTo(avatar.center.dy, 1));
     // The brief's text starts on the name's left edge.
