@@ -12,7 +12,6 @@
   "features/chat/application/chat_providers.dart:conversationsProvider": "conversation:update (closed / unlocked / request answered) may move a chat between folders — debounced first page, documented in the notifier",
   "features/chat/application/chat_providers.dart:folderConversationsProvider": "same as conversationsProvider",
   "features/chat/application/chat_providers.dart:messageRequestsProvider": "answering a request moves it to the inbox; the requests list has no delta",
-  "features/chat/application/chat_saved_providers.dart:savedChatListProvider": "saved messages have no updatedSince on the server",
   "features/chat/application/presence_providers.dart:conversationsProvider": "my activity-status switch changes what every row shows; rare",
   "features/contacts_sync/application/contacts_book_sync.dart:suggestionsProvider": "a contacts sync changes who is suggested; no event (daily job)",
   "features/contacts_sync/application/contacts_sync_providers.dart:suggestionsProvider": "same",
