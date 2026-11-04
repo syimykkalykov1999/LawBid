@@ -18,7 +18,10 @@ void main() {
       ..createSync(recursive: true)
       ..writeAsBytesSync(List.filled(bytes, 1));
     if (age > Duration.zero) {
-      f.setLastModifiedSync(DateTime.now().subtract(age));
+      final at = DateTime.now().subtract(age);
+      f
+        ..setLastModifiedSync(at)
+        ..setLastAccessedSync(at);
     }
     return f;
   }

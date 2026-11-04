@@ -65,13 +65,19 @@ class VideoCacheProxy {
   String get secret => _secret;
 
   /// The local URL that plays [upstream] (an https MP4 or `.m3u8`).
-  String wrap(Uri upstream, {bool cache = true, bool isPlaylist = false}) =>
+  String wrap(
+    Uri upstream, {
+    bool cache = true,
+    bool isPlaylist = false,
+    bool feed = false,
+  }) =>
       wrapUrl(
         port: port,
         secret: _secret,
         upstream: upstream,
         cache: cache,
         isPlaylist: isPlaylist,
+        feed: feed,
       );
 
   /// [wrap] for a proxy running in another isolate (only its port and
@@ -82,10 +88,14 @@ class VideoCacheProxy {
     required Uri upstream,
     bool cache = true,
     bool isPlaylist = false,
+
+    /// Owner 2026-11-03: the video is a feed / reel / channel one (the 7-day
+    /// auto-delete applies to these only, never to chat videos).
+    bool feed = false,
   }) {
     final kind = isPlaylist ? 'p' : (cache ? 'c' : 'x');
     final u = base64Url.encode(utf8.encode(upstream.toString()));
-    return 'http://127.0.0.1:$port/$secret/$kind/$u';
+    return 'http://127.0.0.1:$port/$secret/$kind/$u${feed ? '?f=1' : ''}';
   }
 
   /// Query parameters that only prove access (expire on every API answer);
@@ -117,8 +127,25 @@ class VideoCacheProxy {
 
   /// The key of a cached object (SHA-1 of the [identity], hex). Pass
   /// `identityOf(uri)`, never a signed URL.
+  /// The key of a cached object (SHA-1 of the [identity], hex). Pass
+  /// `identityOf(uri)`, never a signed URL.
   static String keyOf(String identity, [String suffix = '']) =>
       '${sha1.convert(utf8.encode(identity))}$suffix';
+
+  /// The key of a feed-scope object: an `f` right after the hash lets the
+  /// cache tell it from a chat video by the name alone ([isFeedKey]).
+  static String feedKeyOf(String identity, String suffix) =>
+      '${sha1.convert(utf8.encode(identity))}f$suffix';
+
+  static String _scopedKey(
+    String identity,
+    String suffix, {
+    required bool feed,
+  }) =>
+      feed ? feedKeyOf(identity, suffix) : keyOf(identity, suffix);
+
+  /// Whether a cached file's key was made with `feed: true`.
+  static bool isFeedKey(String key) => key.length > 40 && key[40] == 'f';
 
   Future<void> _handle(HttpRequest req) async {
     try {
@@ -134,11 +161,12 @@ class VideoCacheProxy {
         await req.response.close();
         return;
       }
+      final feed = req.uri.queryParameters['f'] == '1';
       switch (seg[1]) {
         case 'p':
-          await _playlist(req, upstream);
+          await _playlist(req, upstream, feed);
         case 'c':
-          await _cached(req, upstream);
+          await _cached(req, upstream, feed);
         default:
           await _pipe(req, upstream);
       }
@@ -159,16 +187,18 @@ class VideoCacheProxy {
   }
 
   /// A playlist: fetched fresh, rewritten, never cached on disk.
-  Future<void> _playlist(HttpRequest req, Uri upstream) async {
+  Future<void> _playlist(HttpRequest req, Uri upstream, bool feed) async {
+    String scoped(Uri u, {bool cache = true, bool isPlaylist = false}) =>
+        wrap(u, cache: cache, isPlaylist: isPlaylist, feed: feed);
     final up = await _open(upstream);
     final text = await utf8.decodeStream(up);
     final out = text.contains('#EXT-X-STREAM-INF')
-        ? rewritePlaylist(text, upstream, 0, wrap)
+        ? rewritePlaylist(text, upstream, 0, scoped)
         : rewritePlaylist(
             text,
             upstream,
             cachedSegmentCount(text, hlsSeconds),
-            wrap,
+            scoped,
           );
     req.response
       ..statusCode = up.statusCode
@@ -198,12 +228,12 @@ class VideoCacheProxy {
 
   /// A cached object. HLS segments are small: stored whole. An MP4 is
   /// served block by block for its head, piped for the tail.
-  Future<void> _cached(HttpRequest req, Uri upstream) async {
+  Future<void> _cached(HttpRequest req, Uri upstream, bool feed) async {
     if (!upstream.path.endsWith('.mp4') && !upstream.path.endsWith('.mov')) {
-      return _cachedSegment(req, upstream);
+      return _cachedSegment(req, upstream, feed);
     }
     final rangeHeader = req.headers.value(HttpHeaders.rangeHeader);
-    final total = await _total(upstream);
+    final total = await _total(upstream, feed);
     if (total == null) return _pipe(req, upstream);
     final r = parseRange(rangeHeader, total) ?? (0, total - 1);
     final (start, end) = r;
@@ -226,7 +256,7 @@ class VideoCacheProxy {
     }
     var pos = start;
     for (final b in blocks) {
-      final data = await _block(upstream, b, total);
+      final data = await _block(upstream, b, total, feed);
       if (data == null) break;
       final from = pos - b.start;
       final to = (end - b.start + 1).clamp(0, data.length);
@@ -243,11 +273,11 @@ class VideoCacheProxy {
   /// The object's size. Looked up by identity (memory, then a tiny disk
   /// entry), so a re-signed URL of a video we already hold costs no probe;
   /// only a never-seen object sends `Range: bytes=0-0`.
-  Future<int?> _total(Uri upstream) async {
+  Future<int?> _total(Uri upstream, bool feed) async {
     final id = identityOf(upstream);
     final known = _totals[id];
     if (known != null) return known;
-    final tkey = keyOf(id, '_total');
+    final tkey = _scopedKey(id, '_total', feed: feed);
     final onDisk = await cache.get(tkey);
     if (onDisk != null && onDisk.length == 8) {
       final t = ByteData.sublistView(onDisk).getUint64(0);
@@ -268,8 +298,13 @@ class VideoCacheProxy {
   }
 
   /// Fetches with the signed [upstream] URL, stores under its identity.
-  Future<Uint8List?> _block(Uri upstream, BlockRange b, int total) async {
-    final key = keyOf(identityOf(upstream), '_${b.index}');
+  Future<Uint8List?> _block(
+    Uri upstream,
+    BlockRange b,
+    int total,
+    bool feed,
+  ) async {
+    final key = _scopedKey(identityOf(upstream), '_${b.index}', feed: feed);
     final hit = await cache.get(key);
     if (hit != null) return hit;
     final end = b.endInclusive >= total ? total - 1 : b.endInclusive;
@@ -287,8 +322,12 @@ class VideoCacheProxy {
     return bytes;
   }
 
-  Future<void> _cachedSegment(HttpRequest req, Uri upstream) async {
-    final key = keyOf(identityOf(upstream), '_seg');
+  Future<void> _cachedSegment(
+    HttpRequest req,
+    Uri upstream,
+    bool feed,
+  ) async {
+    final key = _scopedKey(identityOf(upstream), '_seg', feed: feed);
     var bytes = await cache.get(key);
     if (bytes == null) {
       final up = await _open(upstream);

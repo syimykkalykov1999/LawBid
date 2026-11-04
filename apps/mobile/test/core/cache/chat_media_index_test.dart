@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/cache/cache_database.dart';
 import 'package:lawbid/core/cache/chat_media_index.dart';
+import 'package:lawbid/core/cache/media_cache_dir.dart';
 
 void main() {
   late CacheDatabase db;
@@ -87,5 +90,37 @@ void main() {
   test('noting nothing is a no-op', () async {
     await index.note('chat-1', const []);
     expect(await db.chatMediaRows(), isEmpty);
+  });
+
+  test('group files are told apart; unknown and personal are not group',
+      () async {
+    final files = {
+      'g': File('${Directory.systemTemp.path}/idx_g'),
+      'p': File('${Directory.systemTemp.path}/idx_p'),
+    };
+    final withFiles = ChatMediaIndex(
+      db,
+      sizeOf: (k) async => 1,
+      remove: (k) async {},
+      fileOf: (k) async => files[k],
+    );
+    await withFiles.note('grp', ['g'], isGroup: true);
+    await withFiles.note('chat', ['p']);
+    final paths = await withFiles.groupFilePaths();
+    expect(paths, {canonicalPath(files['g']!.path)});
+  });
+
+  test('a picture noted again from a personal chat is no longer a group one',
+      () async {
+    final f = File('${Directory.systemTemp.path}/idx_x');
+    final i = ChatMediaIndex(
+      db,
+      sizeOf: (k) async => 1,
+      remove: (k) async {},
+      fileOf: (k) async => f,
+    );
+    await i.note('grp', ['x'], isGroup: true);
+    await i.note('chat', ['x']);
+    expect(await i.groupFilePaths(), isEmpty);
   });
 }
