@@ -8,6 +8,7 @@ const seatRolesRu = <String, String>{
   'team.roles.title': 'Роли помощников',
   'team.roles.intro':
       'У одного помощника — не больше {max} ролей. Остальные роли дайте другому помощнику: так никто не получает весь аккаунт.',
+  'team.roles.left': 'Можно ещё {count}',
   'team.roles.group.talk': 'Звонки, чаты и файлы',
   'team.roles.group.work': 'Дела и подготовка',
   'team.roles.group.name': 'От вашего имени',
@@ -42,6 +43,7 @@ const seatRolesEn = <String, String>{
   'team.roles.title': 'Assistant roles',
   'team.roles.intro':
       'One assistant holds at most {max} roles. Give the other roles to another assistant, so nobody gets the whole account.',
+  'team.roles.left': 'You can add {count} more',
   'team.roles.group.talk': 'Calls, chats and files',
   'team.roles.group.work': 'Cases and preparation',
   'team.roles.group.name': 'In your name',

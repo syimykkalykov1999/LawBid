@@ -363,6 +363,17 @@ export const OWNER_MEDIA_SETTINGS = {
   'reco.post.authorQuality': 0.06,
   'reco.post.state': 0.06,
   'reco.post.affinity': 0.06,
+  // R-401 (owner 2026-11-04): Q&A answers lift an attorney in the
+  // recommendations (docs/architecture/QA_RECOMMENDATIONS_2026-11-04.md).
+  // Nightly snapshot score = answers·likes·best with HN gravity decay;
+  // on top of the people / case score with the two boosts below.
+  'reco.qa.answers': 0.5,
+  'reco.qa.likes': 0.3,
+  'reco.qa.best': 0.2,
+  'reco.qa.gravity': 1.8,
+  'reco.people.qa': 0.1,
+  'reco.people.qaTopic': 0.08,
+  'reco.case.qaTopic': 0.08,
   // Owner 2026-10-25: ranking of the bids a client sees on a case.
   // bids.default_sort is what the list uses when the app sends no sort
   // (newest = today; best_match = the weighted score below).

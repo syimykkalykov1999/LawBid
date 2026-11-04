@@ -356,17 +356,17 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: SEATS_HARD_CAP,
   };
-  // Owner 2026-10-22: duties per assistant (10 exist; the app and the API
-  // both refuse more).
+  // Owner 2026-10-22: duties per assistant (11 exist; the app and the API
+  // both refuse more). R-401 (owner 2026-11-04): 0 = «все» (no limit).
   out['assistants.max_duties'] = {
     ...out['assistants.max_duties'],
     type: 'integer',
     description:
-      'How many duties (roles) one assistant may hold at most, out of 10.',
-    min: 1,
-    // The 10 duties of assistants/assistant-duties.ts (not imported: the
+      'Макс. ролей у одного помощника (assistants.max_duties): число от 1 до 11 или 0 = все (без ограничения). По умолчанию 3.',
+    min: 0,
+    // The 11 duties of assistants/assistant-duties.ts (not imported: the
     // admin config stays free of feature modules).
-    max: 10,
+    max: 11,
   };
   // Owner 2026-10-22 (audit #4 §6): group / channel / post caps.
   out['groups.max_members'] = {
