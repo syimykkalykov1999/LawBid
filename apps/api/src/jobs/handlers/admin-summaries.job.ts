@@ -8,6 +8,7 @@ import { OPS_KEYS } from '../../common/ops/ops.constants';
 import { triMode } from '../../common/ops/tri-mode';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
+import { EconomyService } from '../../common/economy/economy.service';
 import { AnalyticsService } from '../../modules/analytics/analytics.service';
 import { PromotionsRollupService } from '../../modules/promotions/promotions-rollup.service';
 import { BillingOverviewService } from '../../modules/admin-billing/billing-overview.service';
@@ -45,6 +46,9 @@ export class AdminSummariesJob {
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
     // Owner 2026-10-27: Boost money by way to pay, recounted every ~6 hours.
     @Optional() private readonly promotions?: PromotionsRollupService,
+    // R-369: the «Масштаб» / «Экономика» report (AWS reads) stays warm, so
+    // opening the page reads Redis instead of waiting for AWS.
+    @Optional() private readonly economy?: EconomyService,
   ) {
     this.logger.setContext(AdminSummariesJob.name);
   }
@@ -104,6 +108,12 @@ export class AdminSummariesJob {
             Date.now() - Date.parse(hit.computedAt) > TRUST_SCAN_EVERY_MS
           )
             await this.trust.refreshScan();
+        },
+      ],
+      [
+        'economy-report',
+        async () => {
+          await this.economy?.report();
         },
       ],
       [

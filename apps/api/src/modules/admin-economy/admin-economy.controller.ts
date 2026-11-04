@@ -61,7 +61,8 @@ export class AdminEconomyController {
   @ApiOperation({ summary: 'Revenue vs third-party spend, ceiling, tiers' })
   @ApiEnvelopeResponse(EconomyReportDto)
   getEconomy(): Promise<EconomyReportDto> {
-    return this.economy.report();
+    // R-369: the shared copy (≤ 60 s old, refreshed in the background).
+    return this.economy.cachedReport();
   }
 
   @Patch('settings')

@@ -238,8 +238,24 @@ class ReviewsListController extends AsyncNotifier<ReviewsListState> {
   final ReviewsKey key;
   String get attorneyId => key.attorneyId;
 
+  /// Owner 2026-11-04 (R-383): a star / sort filter or the profile left and
+  /// opened again within this time shows the loaded reviews, no request
+  /// (the PagedNotifier.keepAliveFor «cache for» pattern).
+  static const keepAliveFor = Duration(minutes: 5);
+
   @override
-  Future<ReviewsListState> build() => _firstPage();
+  Future<ReviewsListState> build() {
+    final link = ref.keepAlive();
+    Timer? timer;
+    ref
+      ..onCancel(() {
+        timer?.cancel();
+        timer = Timer(keepAliveFor, link.close);
+      })
+      ..onResume(() => timer?.cancel())
+      ..onDispose(() => timer?.cancel());
+    return _firstPage();
+  }
 
   Future<ReviewsListState> _firstPage() async {
     // Owner 2026-10-22 (guest browsing): reviews are read with an account
