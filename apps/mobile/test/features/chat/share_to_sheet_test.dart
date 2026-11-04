@@ -319,6 +319,30 @@ void main() {
     expect(find.byKey(const ValueKey('share-to-groups')), findsNothing);
   });
 
+  testWidgets('flag off: writable groups are on Chats and sharing works',
+      (tester) async {
+    final r = await open(tester, communities: false);
+    final g1 = find.byKey(const ValueKey('share-to-group-g1'));
+    expect(g1, findsOneWidget);
+    expect(find.byKey(const ValueKey('share-to-group-g2')), findsNothing);
+    await tester.ensureVisible(g1);
+    await tester.tap(g1);
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('share-to-send')));
+    await tester.pumpAndSettle();
+    expect(r.sender.groups.single.$1, 'g1');
+    expect(r.social.shares, ['p1']);
+  });
+
+  testWidgets('flag on: groups are not on Chats, only under Communities',
+      (tester) async {
+    await open(tester);
+    expect(find.byKey(const ValueKey('share-to-group-g1')), findsNothing);
+    await tester.tap(find.text('Communities'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('share-to-group-g1')), findsOneWidget);
+  });
+
   testWidgets('channels flag on: both tabs (R-386)', (tester) async {
     await open(tester);
     expect(find.text('Chats'), findsOneWidget);
