@@ -17,7 +17,7 @@ import 'package:lawbid/features/team/presentation/task_widgets.dart';
 /// with the sub-tasks.
 
 /// The chips under the views: a slice of the board.
-enum TaskScope { all, overdue, mine, forClient, joint, assistant }
+enum TaskScope { all, important, overdue, mine, forClient, joint, assistant }
 
 /// Whose task it is (the pill on a card).
 enum TaskWho { mine, forClient, joint, attorneyMove, assistant, yours }
@@ -64,6 +64,9 @@ Color taskAccent(AppColorTokens colors, TaskItem task) {
 bool taskInScope(TaskItem task, TaskScope scope, DateTime now) =>
     switch (scope) {
       TaskScope.all => true,
+      TaskScope.important =>
+        task.priority == TaskPriority.high ||
+            task.priority == TaskPriority.urgent,
       TaskScope.overdue => task.isOverdue(now),
       TaskScope.forClient => task.boardTask?.forClient ?? false,
       TaskScope.joint => task.boardTask?.joint ?? false,

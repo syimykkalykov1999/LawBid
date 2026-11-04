@@ -1,3 +1,4 @@
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import {
   CostRegistryService,
   RegistryModeError,
@@ -9,6 +10,8 @@ function make(
   opts: {
     ssmMode?: 'on' | 'off' | 'dry-run' | null;
     stored?: Record<string, unknown>;
+    /** R-370: the shared admin summary (absent = no cache). */
+    summary?: AdminSummaryService;
   } = {},
 ) {
   const stored = { ...(opts.stored ?? {}) };
@@ -85,6 +88,8 @@ function make(
     audit as never,
     ops as never,
     redis as never,
+    undefined,
+    opts.summary,
   );
   return { svc, writer, audit, ssm, stored, spend, ops, redis };
 }
@@ -233,5 +238,76 @@ describe('CostRegistryService.setMode', () => {
       off.svc.setMode('a', null, 'aws.db_autoscale', 'off'),
     ).rejects.toBeInstanceOf(RegistryModeError);
     expect(off.ssm.setMode).not.toHaveBeenCalled();
+  });
+});
+
+/** In-memory stand-in for the ioredis calls AdminSummaryService makes. */
+function summaryRedis() {
+  const store = new Map<string, string>();
+  return {
+    store,
+    get: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
+    set: jest.fn((k: string, v: string, ...args: unknown[]) => {
+      if (args.includes('NX') && store.has(k)) return Promise.resolve(null);
+      store.set(k, v);
+      return Promise.resolve('OK');
+    }),
+    del: jest.fn((k: string) => Promise.resolve(store.delete(k) ? 1 : 0)),
+  };
+}
+
+const never = <T>() => new Promise<T>(() => undefined);
+
+describe('CostRegistryService cached report (R-370: «Реестр» opens at once)', () => {
+  it('a hung SSM read costs at most 3 s and says «AWS не ответил»', async () => {
+    const t = make();
+    t.ssm.getMode.mockImplementation(never);
+    const started = Date.now();
+    const r = await t.svc.report(NOW);
+    expect(Date.now() - started).toBeLessThan(3_900);
+    const db = r.rows.find((x) => x.id === 'aws.db_autoscale')!;
+    expect(db.stateKnown).toBe(false);
+    expect(db.stateNote).toBe('AWS не ответил на чтение переключателя.');
+  }, 10_000);
+
+  it('GET serves the shared copy: the registry is built once for many opens', async () => {
+    const summary = new AdminSummaryService(summaryRedis() as never);
+    const t = make({ summary });
+    const first = await t.svc.cachedReport();
+    const again = await t.svc.cachedReport();
+    expect(again).toEqual(first);
+    expect(t.spend.report).toHaveBeenCalledTimes(1);
+  });
+
+  it('a stale copy is returned at once while one refresh runs behind it', async () => {
+    const redis = summaryRedis();
+    const summary = new AdminSummaryService(redis as never);
+    const t = make({ summary });
+    await t.svc.report(NOW);
+    const key = [...redis.store.keys()].find((k) =>
+      k.endsWith('spend:registry'),
+    )!;
+    const stored = JSON.parse(redis.store.get(key)!) as { computedAt: string };
+    stored.computedAt = new Date(Date.now() - 5 * 60_000).toISOString();
+    redis.store.set(key, JSON.stringify(stored));
+    t.spend.report.mockImplementation(never); // the refresh is slow…
+    const started = Date.now();
+    const r = await t.svc.cachedReport(); // …but the page does not wait
+    expect(Date.now() - started).toBeLessThan(500);
+    expect(r.rows.length).toBeGreaterThan(0);
+    await new Promise((done) => setTimeout(done, 20));
+    expect(t.spend.report).toHaveBeenCalledTimes(2); // the background refresh
+  });
+
+  it('report() after a switch change replaces the shared copy at once', async () => {
+    const summary = new AdminSummaryService(summaryRedis() as never);
+    const t = make({ summary });
+    await t.svc.cachedReport();
+    t.ssm.getMode.mockResolvedValue('off');
+    await t.svc.report();
+    const db = (await t.svc.cachedReport()).rows.find(
+      (x) => x.id === 'aws.db_autoscale',
+    )!;
+    expect(db.state).toBe('off');
   });
 });
