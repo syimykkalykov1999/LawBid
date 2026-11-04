@@ -645,6 +645,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
     final board = _view == TasksView.today ? TasksView.today : TasksView.all;
     return [
       (scope: TaskScope.all, view: board),
+      (scope: TaskScope.important, view: board),
       (scope: TaskScope.overdue, view: board),
       if (!assistant && _attorneySide) ...[
         (scope: TaskScope.forClient, view: board),
@@ -654,8 +655,8 @@ class _TasksTabState extends ConsumerState<TasksTab> {
         (scope: TaskScope.mine, view: board),
         (scope: TaskScope.joint, view: board),
       ],
-      (scope: null, view: TasksView.archive),
       if (assistant) (scope: null, view: TasksView.results),
+      (scope: null, view: TasksView.archive),
     ];
   }
 
@@ -1291,6 +1292,7 @@ class _TopChips extends StatelessWidget {
     final items = <(String, String, bool, VoidCallback)>[
       if (showViews) ...[
         scope('all', t.t('tasks.scope.all'), TaskScope.all),
+        scope('important', t.t('notif.view.important'), TaskScope.important),
         scope('overdue', t.t('tasks.overdue'), TaskScope.overdue),
         if (!assistant && attorneySide) ...[
           scope('forClient', t.t('tasks.scope.forClient'), TaskScope.forClient),
@@ -1300,19 +1302,6 @@ class _TopChips extends StatelessWidget {
           scope('mine', t.t('tasks.scope.mine'), TaskScope.mine),
           scope('joint', t.t('tasks.scope.joint'), TaskScope.joint),
         ],
-        (
-          'done',
-          t.t('tasks.view.done'),
-          view == TasksView.archive,
-          () => onView(TasksView.archive),
-        ),
-        if (assistant)
-          (
-            'results',
-            t.t('tasks.results'),
-            view == TasksView.results,
-            () => onView(TasksView.results),
-          ),
       ],
       if (consultations)
         (
@@ -1328,6 +1317,22 @@ class _TopChips extends StatelessWidget {
           false,
           () => context.push('/deadlines'),
         ),
+      // Owner 2026-11-04 (R-390): the archive is always the last chip.
+      if (showViews) ...[
+        if (assistant)
+          (
+            'results',
+            t.t('tasks.results'),
+            view == TasksView.results,
+            () => onView(TasksView.results),
+          ),
+        (
+          'done',
+          t.t('tasks.view.done'),
+          view == TasksView.archive,
+          () => onView(TasksView.archive),
+        ),
+      ],
     ];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
