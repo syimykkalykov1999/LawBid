@@ -2609,6 +2609,7 @@ export 'models/media.dart';
 export 'models/kind2.dart';
 export 'models/status6.dart';
 export 'models/role2.dart';
+export 'models/follow.dart';
 export 'models/sort2.dart';
 export 'models/sort3.dart';
 export 'models/status7.dart';
