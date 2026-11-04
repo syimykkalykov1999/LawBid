@@ -1684,6 +1684,7 @@
   "create.post": "Шинэ нийтлэл",
   "create.post.sub": "Нийгэмлэгтэй туршлага эсвэл асуултаа хуваалцаарай.",
   "create.post.subAttorney": "Нийтлэл эсвэл мэдээ — дотор нь сонгоно уу.",
+  "create.post.sub_photo": "Зураг эсвэл зөвхөн текст",
   "create.sheet.case": "Хэрэг",
   "create.sheet.caseSub": "Даалгавраа тайлбарлана уу, өмгөөлөгчид хариулна",
   "create.sheet.post": "Нийтлэл",
