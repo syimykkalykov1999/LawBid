@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
+import 'package:lawbid/core/cache/keep_alive_for.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/platform/review_prompter.dart';
@@ -215,6 +216,9 @@ class OwnerCaseNotifier extends AsyncNotifier<OwnerCase> {
 
   @override
   Future<OwnerCase> build() {
+    // R-385: reopening the case within 5 min asks the server nothing; the
+    // realtime events below keep the card current meanwhile.
+    ref.keepAliveFor(KeepWindows.live);
     final sub = ref.watch(realtimeEventsProvider).listen(_onEvent);
     ref.onDispose(sub.cancel);
     return ref.watch(casesRepositoryProvider).ownerCase(id);
@@ -386,6 +390,8 @@ final bidProvider = FutureProvider.autoDispose.family<CaseBid, String>(
           e.data is Map &&
           (e.data! as Map)['bidId'] == id,
     );
+    // R-385: 5 min on the phone; the event above re-reads it.
+    ref.keepAliveFor(KeepWindows.live);
     return ref.watch(casesRepositoryProvider).bid(id);
   },
   retry: _noRetry,
@@ -448,6 +454,10 @@ class ExploreCasesNotifier extends PagedNotifier<FeedCase> {
 
   final ExploreCasesKey key;
 
+  // R-385: back to a filter seen in the last 5 minutes = no request.
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
+
   @override
   Future<CursorPage<FeedCase>> fetch(String? cursor) =>
       ref.read(casesRepositoryProvider).feed(
@@ -474,6 +484,8 @@ final attorneyCaseProvider =
     FutureProvider.autoDispose.family<FeedCase, String>(
   (ref, id) {
     _rereadOn(ref, (e) => caseEventFor(e, id));
+    // R-385: 5 min on the phone; a case event re-reads it.
+    ref.keepAliveFor(KeepWindows.live);
     return ref.watch(casesRepositoryProvider).attorneyCase(id);
   },
   retry: _noRetry,
@@ -765,7 +777,11 @@ final mineSavedProvider = AsyncNotifierProvider.autoDispose
 
 final clientContactsProvider =
     FutureProvider.autoDispose.family<ClientContacts, String>(
-  (ref, caseId) => ref.watch(casesRepositoryProvider).contacts(caseId),
+  (ref, caseId) {
+    // R-385: 5 min; a bid change invalidates it.
+    ref.keepAliveFor(KeepWindows.live);
+    return ref.watch(casesRepositoryProvider).contacts(caseId);
+  },
   retry: _noRetry,
 );
 
