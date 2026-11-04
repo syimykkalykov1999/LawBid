@@ -189068,6 +189068,10 @@
             "type": "string",
             "nullable": true
           },
+          "avatarFullUrl": {
+            "type": "string",
+            "nullable": true
+          },
           "status": {
             "allOf": [
               {

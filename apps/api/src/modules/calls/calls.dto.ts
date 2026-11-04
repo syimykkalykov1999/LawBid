@@ -183,6 +183,11 @@ export class CallParticipantDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   avatarUrl!: string | null;
 
+  /** R-405 (owner 2026-11-04): the 1024 px photo for the big round frame
+   * of the call screen; `avatarUrl` stays the 256 px preview for lists. */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  avatarFullUrl?: string | null;
+
   @ApiProperty({
     enum: ['invited', 'joined', 'declined', 'left', 'removed'],
     enumName: 'CallParticipantStatus',

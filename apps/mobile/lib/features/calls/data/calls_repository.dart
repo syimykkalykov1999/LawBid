@@ -390,6 +390,7 @@ abstract final class CallMappers {
         displayName: p.displayName,
         username: p.username,
         avatarUrl: p.avatarUrl,
+        avatarFullUrl: p.avatarFullUrl,
         muted: p.muted,
         mutedByHost: p.mutedByHost,
         joinedAt: p.joinedAt,

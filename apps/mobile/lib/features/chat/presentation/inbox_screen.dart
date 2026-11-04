@@ -6,6 +6,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -1234,8 +1235,13 @@ class ConversationRow extends ConsumerWidget {
                     onTap: () => showPhotoGallery(
                       context,
                       urls: [
-                        c.counterpart.avatarFullUrl ?? c.counterpart.avatarUrl!,
+                        avatarFullUrlFor(
+                          c.counterpart.avatarUrl!,
+                          fullUrl: c.counterpart.avatarFullUrl,
+                        ),
                       ],
+                      // R-405: the preview on screen while the full loads.
+                      previews: [c.counterpart.avatarUrl!],
                       closeLabel: t.t('common.close'),
                     ),
                     child: CounterpartAvatar(
@@ -1633,7 +1639,16 @@ class CounterpartAvatar extends StatelessWidget {
     }
     final name = counterpart.displayName ?? counterpart.username ?? '?';
     final avatar = GoldRingAvatar(
-      url: counterpart.avatarUrl,
+      // R-405: the full photo once the frame (contact info, 112 pt)
+      // needs more than the 256 px preview holds.
+      url: counterpart.avatarUrl == null
+          ? null
+          : avatarUrlFor(
+              counterpart.avatarUrl!,
+              logicalSize: size,
+              devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+              fullUrl: counterpart.avatarFullUrl,
+            ),
       fullUrl: counterpart.avatarFullUrl,
       initials: avatarInitials(name),
       size: size,

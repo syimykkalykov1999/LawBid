@@ -19,6 +19,7 @@ class CallParticipantDto {
     this.displayName,
     this.username,
     this.avatarUrl,
+    this.avatarFullUrl,
     this.joinedAt,
     this.sfuReady,
     this.sfuTracks,
@@ -31,6 +32,7 @@ class CallParticipantDto {
   final String? displayName;
   final String? username;
   final String? avatarUrl;
+  final String? avatarFullUrl;
   final CallParticipantStatus status;
 
   /// The microphone is off (their own or the host).
