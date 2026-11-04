@@ -152920,7 +152920,8 @@
           },
           "autoCloseAt": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "description": "R-392: when the close request closes the case by itself (ISO;\npending_completion only, else null)."
           },
           "photos": {
             "description": "OQ-031: photos — only when THIS attorney's bid was accepted.",

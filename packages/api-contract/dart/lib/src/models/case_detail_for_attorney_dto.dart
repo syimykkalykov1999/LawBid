@@ -138,6 +138,9 @@ class CaseDetailForAttorneyDto {
 
   /// Owner 2026-10-02: who marked "Done" first while the case waits for the other side (null otherwise).
   final CaseDetailForAttorneyDtoCompletionRequestedBy? completionRequestedBy;
+
+  /// R-392: when the close request closes the case by itself (ISO;.
+  /// pending_completion only, else null).
   final String? autoCloseAt;
 
   /// OQ-031: photos — only when THIS attorney's bid was accepted.
