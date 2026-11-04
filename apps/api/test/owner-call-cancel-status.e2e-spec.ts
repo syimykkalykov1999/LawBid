@@ -9,6 +9,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { PushQueueService } from '../src/modules/notifications/push/push-queue.service';
 import { callPollKey, signCallPoll } from '../src/common/calls/call-poll-token';
+import { RealtimePublisher } from '../src/modules/realtime/realtime-publisher.service';
 
 /**
  * Owner 2026-10-28 (a locked Samsung kept ringing after the caller hung up
@@ -196,6 +197,73 @@ describe('Cancel before answer + token-only ring status (e2e)', () => {
     await api().get(`/api/v1/calls/${callId}/status`).expect(400);
     // The normal call read still needs the session.
     await api().get(`/api/v1/calls/${callId}`).expect(401);
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(c.attorney.auth)
+      .send({})
+      .expect(200);
+  });
+  // Owner 2026-11-03: «Decline» on a closed iPhone — AppDelegate.onDecline
+  // posts the ring ticket, no session.
+  const declineByTicket = (callId: string, t: string) =>
+    api().post(`/api/v1/calls/${callId}/status/decline`).send({ t });
+
+  it('declines the ringing call by its ticket; the caller hears call:ended once; a replay changes nothing', async () => {
+    const c = await chat();
+    const realtime = app.get(RealtimePublisher);
+    const spy = jest.spyOn(realtime, 'toUsers');
+    const started = await api()
+      .post(`/api/v1/conversations/${c.id}/calls`)
+      .set(c.attorney.auth)
+      .expect(201);
+    const callId = started.body.data.id as string;
+    const t = signCallPoll(key, { c: callId, u: c.client.id });
+
+    const first = await declineByTicket(callId, t).expect(200);
+    expect(first.body.data).toEqual({ state: 'ended' });
+    const endedToCaller = () =>
+      spy.mock.calls.filter(
+        ([users, event]) =>
+          event === 'call:ended' && users.includes(c.attorney.id),
+      ).length;
+    expect(endedToCaller()).toBe(1);
+
+    // Replay (the native retry, or Dart's own decline): no second end.
+    await declineByTicket(callId, t).expect(200);
+    await api()
+      .post(`/api/v1/calls/${callId}/decline`)
+      .set(c.client.auth)
+      .expect(200);
+    expect(endedToCaller()).toBe(1);
+    spy.mockRestore();
+
+    const row = await prisma.call.findUniqueOrThrow({ where: { id: callId } });
+    expect(row.status).toBe('declined');
+  });
+
+  it('a decline ticket that is expired, of another call or of the caller declines nothing', async () => {
+    const c = await chat();
+    const started = await api()
+      .post(`/api/v1/conversations/${c.id}/calls`)
+      .set(c.attorney.auth)
+      .expect(201);
+    const callId = started.body.data.id as string;
+    const expired = signCallPoll(
+      key,
+      { c: callId, u: c.client.id },
+      Date.now() - 10 * 60_000,
+    );
+    await declineByTicket(callId, expired).expect(401);
+    const other = signCallPoll(key, { c: randomUUID(), u: c.client.id });
+    await declineByTicket(callId, other).expect(401);
+    const callers = signCallPoll(key, { c: callId, u: c.attorney.id });
+    await declineByTicket(callId, callers).expect(404);
+    await api()
+      .post(`/api/v1/calls/${callId}/status/decline`)
+      .send({})
+      .expect(400);
+    const row = await prisma.call.findUniqueOrThrow({ where: { id: callId } });
+    expect(row.status).toBe('ringing');
     await api()
       .post(`/api/v1/calls/${callId}/end`)
       .set(c.attorney.auth)
