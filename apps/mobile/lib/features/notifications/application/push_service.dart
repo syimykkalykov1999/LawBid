@@ -190,10 +190,16 @@ class PushService {
             }
             if (msg.data['type'] == 'incoming_call' &&
                 msg.data['callId'] is String) {
+              // Owner 2026-11-03: the open app's push rang nothing yet —
+              // show the phone's call screen (once per call; the socket's
+              // ring of the same call is the same screen).
               unawaited(
                 _ref
                     .read(callControllerProvider.notifier)
-                    .ringFromPush(msg.data['callId'] as String),
+                    .ringFromPush(
+                      msg.data['callId'] as String,
+                      showSystemUi: true,
+                    ),
               );
               return;
             }
