@@ -184,7 +184,7 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
     },
     impact: 'Без перерыва.',
   },
-  // aws.turn_own is an app-setting now (calls.own_fallback, owner 2026-11-02).
+  // aws.turn_own is an app-setting now (calls.own_turn.mode, owner 2026-11-02).
   {
     id: 'aws.livekit',
     values: { off: { livekit_enabled: false }, on: { livekit_enabled: true } },

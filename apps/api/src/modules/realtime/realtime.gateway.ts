@@ -1450,7 +1450,10 @@ export class RealtimeGateway
     }
     let on = false;
     try {
-      on = (await this.redis.get(relayOnlyKey(uid))) !== null;
+      // The kill switch (`calls.relay_signal_filter`, on by default).
+      const enabled =
+        (await this.settings?.boolean('calls.relay_signal_filter')) ?? true;
+      on = enabled && (await this.redis.get(relayOnlyKey(uid))) !== null;
     } catch {
       on = false;
     }

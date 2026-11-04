@@ -226,11 +226,12 @@ export class SfuBrokerService {
   }
 
   /**
-   * Owner 2026-11-04: Cloudflare SHOULD carry group calls whenever the SFU
-   * keys are in Integrations, in every mode. (Whether it does for a new call
-   * also depends on the breaker; see [decide].)
+   * Owner 2026-10-26: Cloudflare SHOULD carry group calls — the SFU keys are
+   * in Integrations and `calls.transport` is not `own`. (Whether it does for
+   * a new call also depends on the breaker; see [decide].)
    */
   async cloudflareWanted(): Promise<boolean> {
+    if ((await this.transport.mode()) === 'own') return false;
     return this.provider.isConfigured();
   }
 
@@ -238,7 +239,7 @@ export class SfuBrokerService {
    * Decides (and returns) how a new group call carries its media. Owner
    * 2026-10-26: Cloudflare SFU first whenever its keys are set (no admin
    * switch needed); our own mesh only while the breaker is open, the cost
-   * hard stop is on, or `calls.own_fallback` = `manual-on`. Nothing is asked of
+   * hard stop is on, or `calls.transport` = own. Nothing is asked of
    * Cloudflare while it is healthy; while open, one probe a minute.
    */
   async decide(input: {

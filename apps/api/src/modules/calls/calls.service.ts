@@ -82,7 +82,7 @@ import {
 import { checkRelay } from './relay-check';
 import { TurnInstanceGateway } from './turn-instance.gateway';
 import {
-  parseOwnTurnMode,
+  effectiveOwnTurnMode,
   RedisTurnStore,
   TurnOnDemand,
 } from './turn-on-demand';
@@ -297,7 +297,7 @@ export class CallsService {
   private readonly livekit: LiveKitVideoProvider;
 
   /** Owner 2026-10-26: Cloudflare is the primary transport as soon as its
-   * SFU keys are set (`calls.own_fallback` not `manual-on`; the cost hard stop of
+   * SFU keys are set (`calls.transport` not `own`; the cost hard stop of
    * registry V7 still wins). Otherwise our own path: `calls.video_provider`
    * = livekit while its keys exist, else device to device (p2p). */
   private async activeVideoProvider(): Promise<VideoCallProvider> {
@@ -343,7 +343,10 @@ export class CallsService {
       instance: box,
       store: new RedisTurnStore(this.redis),
       mode: async () =>
-        parseOwnTurnMode(await this.settings?.string('calls.own_fallback')),
+        effectiveOwnTurnMode(
+          await this.settings?.string('calls.transport'),
+          await this.settings?.string('calls.own_turn.mode'),
+        ),
       needed: async () => {
         // A fixed own TURN address wins: that server is always on, no box.
         const keys = (await this.secrets?.get('turn'))?.fields ?? {};
@@ -351,7 +354,8 @@ export class CallsService {
           return false;
         const t = this.cfTransport;
         if ((await t.isOpen('turn')) || (await t.isOpen('sfu'))) return true;
-        // No Cloudflare at all: the box is the only relay.
+        // Выкл, or no Cloudflare at all: the box is the only relay.
+        if ((await t.mode()) === 'own') return true;
         const { cfKeyId, cfToken } = await this.cloudflareKeys();
         return !cfKeyId || !cfToken;
       },
@@ -1174,11 +1178,12 @@ export class CallsService {
     // Owner 2026-10-26: a call never waits more than 1.5 s for Cloudflare
     // (first try + one quick retry); the failure counts for the SLO alarm and
     // the shared breaker, and an open breaker is probed once a minute.
-    // `calls.own_fallback` decides what else may carry the call:
-    // off (default) = Cloudflare only: no own TURN, no box, policy `relay`
+    // `calls.transport` (admin «Связь для звонков»):
+    // cloudflare (Вкл) = Cloudflare only: no own TURN, no box, policy `relay`
     // even with no relay on offer (the call fails, with an alert);
-    // auto = ours when Cloudflare is down, the box starts by itself;
-    // manual-on = the same, with the box kept running.
+    // auto (Авто, default) = the same while Cloudflare is healthy; ours
+    // (own TURN, direct) only while it is down;
+    // own (Выкл) = Cloudflare off: own TURN and direct.
     const cloudflareOnly = (await this.cfTransport.mode()) === 'cloudflare';
     let ownTurn = false;
     const { cfKeyId, cfToken } = await this.cloudflareKeys();
@@ -1310,8 +1315,9 @@ export class CallsService {
     if (!signaled) return;
     const { cfKeyId, cfToken } = await this.cloudflareKeys();
     if (!cfKeyId || !cfToken) return;
-    // With Cloudflare alone there is nothing to fall back on.
-    if ((await this.cfTransport.mode()) === 'cloudflare') return;
+    // Авто only: with Cloudflare forced there is nothing to fall back on,
+    // with it off it carried nothing.
+    if ((await this.cfTransport.mode()) !== 'auto') return;
     for (const who of [call.caller_id, call.callee_id]) {
       if (!who) continue;
       forgetCloudflareTurn(cfKeyId, who);
@@ -1369,7 +1375,7 @@ export class CallsService {
     if (t - this.noRelayWarnedAt < NO_RELAY_WARN_EVERY_MS) return;
     this.noRelayWarnedAt = t;
     const reason = why.cloudflareKeys
-      ? 'Cloudflare TURN login failed (keys are set) and no own TURN (calls.own_fallback = off: such a call fails)'
+      ? 'Cloudflare TURN login failed (keys are set) and no own TURN (calls.transport = cloudflare: such a call fails)'
       : why.ownTurn
         ? 'own TURN has no secret'
         : 'no Cloudflare TURN keys enabled (Admin → Integrations → ' +

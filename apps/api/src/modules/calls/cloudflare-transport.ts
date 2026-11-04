@@ -10,7 +10,7 @@ import type { AppSettingsService } from '../../common/app-settings/app-settings.
  * over by itself when Cloudflare keeps failing, and Cloudflare comes back by
  * itself when it answers again. Never "both equal".
  *
- * `calls.own_fallback` (admin, 3 states, Выкл default; see parseTransport):
+ * `calls.transport` (admin, 3 states, Авто default):
  *  - auto       Cloudflare while its breaker is closed, own path while open;
  *  - cloudflare Cloudflare always (when its keys exist), the breaker ignored;
  *  - own        never Cloudflare.
@@ -98,7 +98,11 @@ export function clientReportMin(uses: number, reportMin: number): number {
 }
 
 export type CfDecisionReason =
-  'cloudflare' | 'forced_cloudflare' | 'no_keys' | 'breaker_open';
+  | 'cloudflare'
+  | 'forced_cloudflare'
+  | 'no_keys'
+  | 'own_forced'
+  | 'breaker_open';
 
 export interface CfDecision {
   use: boolean;
@@ -124,11 +128,8 @@ export interface CfLastProbe {
   ms: number;
 }
 
-/** `calls.own_fallback` as the admin card shows it: off = Cloudflare only,
- * manual-on = `own`, anything else = auto. */
 export function parseTransport(raw: unknown): CallsTransport {
-  if (raw === 'off') return 'cloudflare';
-  return raw === 'manual-on' ? 'own' : 'auto';
+  return raw === 'cloudflare' || raw === 'own' ? raw : 'auto';
 }
 
 export class CloudflareTransport {
@@ -160,15 +161,12 @@ export class CloudflareTransport {
     return this.redis && this.redis.status === 'ready' ? this.redis : null;
   }
 
-  /** `calls.own_fallback` (anything unknown reads as auto). */
-  async mode(): Promise<'cloudflare' | 'auto'> {
+  /** `calls.transport` (anything unknown reads as auto). */
+  async mode(): Promise<CallsTransport> {
     try {
-      const raw = this.settings
-        ? await this.settings.string('calls.own_fallback')
-        : 'auto';
-      // Owner 2026-11-04: Вкл only keeps our machine running; a healthy
-      // Cloudflare still takes all the work.
-      return parseTransport(raw) === 'cloudflare' ? 'cloudflare' : 'auto';
+      return parseTransport(
+        this.settings ? await this.settings.string('calls.transport') : 'auto',
+      );
     } catch {
       return 'auto';
     }
@@ -724,6 +722,7 @@ export class CloudflareTransport {
   ): Promise<CfDecision> {
     if (!configured) return { use: false, reason: 'no_keys' };
     const mode = await this.mode();
+    if (mode === 'own') return { use: false, reason: 'own_forced' };
     const open = await this.isOpen(part);
     if (open && probe) {
       void this.maybeProbe(part, probe, onProbeFail).catch(() => undefined);

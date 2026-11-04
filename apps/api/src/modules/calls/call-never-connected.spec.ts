@@ -77,8 +77,8 @@ describe('a call that never connected (R-404)', () => {
     expect(line).toContain('callee_sent=nothing');
   });
 
-  it.each(['cloudflare'])(
-    'mode %s (off): the breaker is not taught',
+  it.each(['cloudflare', 'own'])(
+    'calls.transport %s: the breaker is not taught',
     async (mode) => {
       const w = world({ answeredAgoMs: 45_000, signals: ['b:answer'] });
       w.transport.mode.mockResolvedValue(mode);

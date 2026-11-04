@@ -58,32 +58,32 @@ describe('SFU settings schema', () => {
   });
 });
 
-describe('calls.own_fallback (owner 2026-10-26: Cloudflare primary, own backup)', () => {
+describe('calls.transport (owner 2026-10-26: Cloudflare primary, own backup)', () => {
   type T = {
     assertCloudflareTransportReady(k: string, v: unknown): Promise<void>;
   };
   const schema = configSchema();
-  it('3 states, off by default; breaker limits have sane bounds', () => {
-    const s = schema['calls.own_fallback'];
-    expect(s.defaultValue).toBe('off');
-    for (const v of ['off', 'auto', 'manual-on']) {
+  it('3 states, auto by default; breaker limits have sane bounds', () => {
+    const s = schema['calls.transport'];
+    expect(s.defaultValue).toBe('auto');
+    for (const v of ['auto', 'cloudflare', 'own']) {
       expect(validateConfigValue(s, v)).toBeNull();
     }
     expect(validateConfigValue(s, 'both')).not.toBeNull();
     expect(schema['calls.transport_fail_limit'].defaultValue).toBe(5);
     expect(schema['calls.transport_fail_window_sec'].defaultValue).toBe(120);
   });
-  it('off (Cloudflare only) needs a Cloudflare key; auto and manual-on never do', async () => {
+  it('forced cloudflare needs a Cloudflare key; auto and own never do', async () => {
     const none = svc(null) as unknown as T;
     await expect(
-      none.assertCloudflareTransportReady('calls.own_fallback', 'off'),
+      none.assertCloudflareTransportReady('calls.transport', 'cloudflare'),
     ).rejects.toMatchObject({ status: 400 });
-    await none.assertCloudflareTransportReady('calls.own_fallback', 'auto');
-    await none.assertCloudflareTransportReady(
-      'calls.own_fallback',
-      'manual-on',
-    );
+    await none.assertCloudflareTransportReady('calls.transport', 'auto');
+    await none.assertCloudflareTransportReady('calls.transport', 'own');
     const turnOnly = svc({ keyId: 'k', apiToken: 't' }) as unknown as T;
-    await turnOnly.assertCloudflareTransportReady('calls.own_fallback', 'off');
+    await turnOnly.assertCloudflareTransportReady(
+      'calls.transport',
+      'cloudflare',
+    );
   });
 });

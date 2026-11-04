@@ -1066,15 +1066,13 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
    * own path (own TURN + device to device) only while Cloudflare keeps
    * failing — back to Cloudflare by itself; cloudflare = always Cloudflare;
    * own = never Cloudflare. A running call keeps its path. */
-  /** Owner 2026-11-04: the ONE choice of what carries calls besides Cloudflare
-   * (replaces `calls.transport`, `calls.own_turn.mode` and relay-only).
-   * off = Cloudflare only: no own TURN, the box never starts, media only
-   * through the relay, a call with no relay fails. auto = own TURN and direct
-   * routes when Cloudflare fails. manual-on = the box runs, own TURN and
-   * direct routes, no Cloudflare, until switched back. */
-  'calls.own_fallback': 'off',
+  'calls.transport': 'auto',
   /** The breaker: this many Cloudflare failures within the window move NEW
    * calls to our own path; Cloudflare is then probed once a minute. */
+  /** Owner 2026-11-04: a phone told `relay` sends only relay candidates to
+   * the other phone (`call:signal` drops the rest; older apps ignore the
+   * policy). Off = pass every signal unchanged (the kill switch). */
+  'calls.relay_signal_filter': true,
   'calls.transport_fail_limit': 5,
   'calls.transport_fail_window_sec': 120,
   /** Phones reporting a dead Cloudflare relay open the breaker when at
@@ -1345,6 +1343,11 @@ export const OWNER_OPS_SETTINGS = {
    * Lambda (S3 object ops/scale-controls.json). */
   'scale.endpoints.mode': 'auto',
   'scale.endpoints.ceiling': 4,
+  /** Own coturn box (owner 2026-11-02): auto = the API starts it only while
+   * Cloudflare is down and stops it after 30 quiet minutes; on = always
+   * running; off = never (stopped at once when no call runs). Only counts
+   * when the box exists (TURN_ONDEMAND_INSTANCE_ID). */
+  'calls.own_turn.mode': 'auto',
   /** This month's AWS bill when AWS Budgets cannot be read (≈ $150 for
    * the launch size). */
   'economy.aws_fallback_usd': 150,

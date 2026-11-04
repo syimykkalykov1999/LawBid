@@ -3,6 +3,7 @@ import {
   RedisTurnStore,
   TURN_IDLE_MS,
   TurnOnDemand,
+  effectiveOwnTurnMode,
   parseOwnTurnMode,
   type Ec2State,
   type OwnTurnMode,
@@ -192,10 +193,13 @@ describe('on-demand coturn state machine', () => {
     expect(t.calls.stop).toBe(0);
   });
 
-  it('parseOwnTurnMode reads calls.own_fallback', () => {
-    expect(parseOwnTurnMode('off')).toBe('off');
-    expect(parseOwnTurnMode('auto')).toBe('auto');
-    expect(parseOwnTurnMode('manual-on')).toBe('on');
+  it('calls.transport wins: Вкл never runs the box, Выкл always may', () => {
+    expect(effectiveOwnTurnMode('cloudflare', 'on')).toBe('off');
+    expect(effectiveOwnTurnMode('own', 'off')).toBe('auto');
+    expect(effectiveOwnTurnMode('own', 'on')).toBe('on');
+    expect(effectiveOwnTurnMode('auto', 'off')).toBe('off');
+    expect(effectiveOwnTurnMode('auto', 'on')).toBe('on');
+    expect(effectiveOwnTurnMode('auto', undefined)).toBe('auto');
   });
 
   it('parseOwnTurnMode: unknown values mean auto', () => {

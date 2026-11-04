@@ -464,7 +464,7 @@ describe('SfuBrokerService.decide (owner 2026-10-26: Cloudflare primary)', () =>
     });
     expect(cf.calls.length).toBe(before);
     // Forced Cloudflare ignores the breaker.
-    const forced = setup({ ...S, 'calls.own_fallback': 'off' });
+    const forced = setup({ ...S, 'calls.transport': 'cloudflare' });
     for (let i = 0; i < 3; i++) {
       await forced.broker.transport.recordFailure('sfu', 'x');
     }
@@ -511,14 +511,14 @@ describe('SfuBrokerService.decide (owner 2026-10-26: Cloudflare primary)', () =>
     expect((await broker.transport.state('sfu')).failures).toBe(1);
   });
 
-  it('calls.own_fallback: manual-on still uses a healthy Cloudflare; off ignores an open breaker', async () => {
-    const own = setup({ ...S, 'calls.own_fallback': 'manual-on' });
+  it('calls.transport: own never uses Cloudflare; cloudflare ignores an open breaker', async () => {
+    const own = setup({ ...S, 'calls.transport': 'own' });
     expect(
       await own.broker.decide({ isGroup: true, video: true, headcount: 3 }),
-    ).toMatchObject({ mediaProvider: 'cloudflare' });
-    expect(await own.broker.cloudflareWanted()).toBe(true);
+    ).toEqual({ mediaProvider: 'p2p', video: true, degraded: false });
+    expect(await own.broker.cloudflareWanted()).toBe(false);
 
-    const forced = setup({ ...S, 'calls.own_fallback': 'off' });
+    const forced = setup({ ...S, 'calls.transport': 'cloudflare' });
     for (let i = 0; i < 3; i++) {
       await forced.broker.transport.recordFailure('sfu', 'test');
     }

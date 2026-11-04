@@ -48,6 +48,7 @@ describe('RealtimeGateway typing cap (big rooms)', () => {
 
 describe('RealtimeGateway call:signal', () => {
   it('a phone told `relay`: its direct candidates never reach the other phone', async () => {
+    let filterOn = true;
     const emit = jest.fn();
     const gw = Object.create(RealtimeGateway.prototype) as Record<
       string,
@@ -70,6 +71,7 @@ describe('RealtimeGateway call:signal', () => {
         expire: jest.fn().mockResolvedValue(1),
         get: jest.fn().mockResolvedValue('1'),
       },
+      settings: { boolean: () => Promise.resolve(filterOn) },
       nsp: { to: () => ({ emit }) },
     });
     const socket = { data: { user: { sub: 'u1' } } } as unknown as Socket;
@@ -98,6 +100,11 @@ describe('RealtimeGateway call:signal', () => {
       data: { type: 'candidate', candidate: 'candidate:1 typ host' },
     });
     expect(emit).toHaveBeenCalledTimes(2);
+    // The kill switch: everything passes.
+    filterOn = false;
+    (socket.data as { relayOnly?: unknown }).relayOnly = undefined;
+    await send('host');
+    expect(emit).toHaveBeenCalledTimes(3);
   });
 
   it('looks the call up once per 30 s per socket (not per ICE candidate)', async () => {

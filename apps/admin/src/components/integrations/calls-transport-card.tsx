@@ -14,7 +14,6 @@ import {
   checkLine,
   cloudflareStatus,
   ownStatus,
-  ownCostReminder,
   relayWarning,
   stateOfTransport,
   TRANSPORT_HINT,
@@ -88,7 +87,7 @@ export function CallsTransportCard({
     guarded(
       async () => {
         await api.PUT('/admin/config/{key}', {
-          params: { path: { key: 'calls.own_fallback' } },
+          params: { path: { key: 'calls.transport' } },
           // The contract types `value` as an opaque object; a string is valid here.
           body: { value: TRANSPORT_OF_STATE[st] } as never,
         });
@@ -142,11 +141,6 @@ export function CallsTransportCard({
               {relayWarning(r)}
             </p>
           ) : null}
-          {ownCostReminder(r) ? (
-            <p className="mb-2 text-sm text-warning" data-testid="calls-own-cost">
-              {ownCostReminder(r)}
-            </p>
-          ) : null}
           <div className="divide-y divide-line">
             <Row
               name="Cloudflare"
@@ -171,7 +165,8 @@ export function CallsTransportCard({
         </>
       ) : null}
       <p className="mt-3 text-xs text-muted">
-        {TRANSPORT_HINT[current]}
+        Если Cloudflare сбоит, звонки сами переходят на свою связь и сами возвращаются — разговор при этом не
+        обрывается.
       </p>
       <div className="mt-4 space-y-2">
         {keyCards.map((k) => (

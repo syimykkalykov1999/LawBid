@@ -40,7 +40,7 @@ function world(opts?: { calls?: Array<Partial<Call>>; joined?: number }) {
     ),
   };
   const settingsMap: Record<string, string | number> = {
-    'calls.own_fallback': 'auto',
+    'calls.transport': 'auto',
     'calls.transport_fail_limit': 5,
     'calls.transport_fail_window_sec': 120,
     'calls.sfu_fallback_mesh_max': 4,

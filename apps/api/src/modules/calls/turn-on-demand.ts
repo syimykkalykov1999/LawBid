@@ -5,8 +5,8 @@ import type Redis from 'ioredis';
  * The EC2 box stands STOPPED (only its disk is paid for, no Elastic IP) and
  * the API starts it when it is really needed, then stops it again:
  *
- *  - NEEDED: a Cloudflare breaker is open (TURN or SFU), or `calls.own_fallback`
- *    is `manual-on` and no fixed own TURN address is configured. Every tick that
+ *  - NEEDED: a Cloudflare breaker is open (TURN or SFU), or `calls.transport`
+ *    is `own` and no fixed own TURN address is configured. Every tick that
  *    sees the need stamps `lastNeeded`.
  *  - START: needed + the box is stopped -> StartInstances.
  *  - REGISTER: the box runs with a public address and its UDP 3478 answers a
@@ -16,8 +16,8 @@ import type Redis from 'ioredis';
  *  - STOP: not needed for [idleMs] (default 30 min) AND no call is running
  *    -> StopInstances, the address is forgotten.
  *
- * The admin switch `calls.own_fallback` rules over this: `auto` = all of the
- * above; `manual-on` = the box is kept running always; `off` = never started, and
+ * The admin switch `calls.own_turn.mode` rules over this: `auto` = all of the
+ * above; `on` = the box is kept running always; `off` = never started, and
  * stopped at once when no call is running (no address is offered).
  *
  * Honest gap: from the start to the first STUN answer (about 1-2 minutes) new
@@ -55,13 +55,28 @@ export interface TurnOnDemandStore {
   setLastNeeded(ms: number): Promise<void>;
 }
 
-/** Admin switch `calls.own_fallback` (Выкл / Вкл / Авто). */
+/** Admin switch `calls.own_turn.mode` (Выкл / Вкл / Авто). */
 export type OwnTurnMode = 'auto' | 'on' | 'off';
 
-/** `calls.own_fallback` as the box's mode: off / auto / manual-on (= on). */
 export function parseOwnTurnMode(v: unknown): OwnTurnMode {
-  if (v === 'manual-on' || v === 'on') return 'on';
-  return v === 'off' ? 'off' : 'auto';
+  return v === 'on' || v === 'off' ? v : 'auto';
+}
+
+/**
+ * Owner 2026-11-04: `calls.transport` wins where the two would disagree.
+ * Вкл (`cloudflare`) = Cloudflare only: the box never runs. Выкл (`own`) =
+ * Cloudflare off, our path carries calls: the box runs when it is needed
+ * (always, unless a fixed own TURN exists), even if `calls.own_turn.mode`
+ * says off. Авто: `calls.own_turn.mode` as it is.
+ */
+export function effectiveOwnTurnMode(
+  transport: unknown,
+  box: unknown,
+): OwnTurnMode {
+  if (transport === 'cloudflare') return 'off';
+  const mode = parseOwnTurnMode(box);
+  if (transport === 'own') return mode === 'on' ? 'on' : 'auto';
+  return mode;
 }
 
 export interface TurnOnDemandPorts {

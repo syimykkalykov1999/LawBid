@@ -1,5 +1,5 @@
 /**
- * Owner 2026-11-04 (`calls.own_fallback` = off, calls only through Cloudflare):
+ * Owner 2026-11-04 (a phone whose ICE list said `relay`):
  * phones that do not know `iceTransportPolicy` still offer their own addresses
  * (host, srflx). They never reach the other phone: with only relay candidates
  * on both sides, media can go only through the relay.

@@ -64,7 +64,7 @@ function make(opts: {
   args.push(secrets);
   // entitlements, privacy, groups, redis, then the SLO counters.
   args.push(undefined, undefined, undefined, undefined, opts.slo);
-  // Then `calls.*` settings (calls.own_fallback and the breaker limits).
+  // Then `calls.*` settings (calls.transport and the breaker limits).
   const st = opts.settings ?? {};
   const defaults: Record<string, number> = {
     'calls.transport_fail_limit': 5,
@@ -115,7 +115,7 @@ const relayJson = () =>
     ),
   );
 
-describe('calls.own_fallback: a healthy Cloudflare takes all the work (owner 2026-11-04)', () => {
+describe('calls.transport: a healthy Cloudflare takes all the work (owner 2026-11-04)', () => {
   const realFetch = global.fetch;
   beforeEach(() => clearCloudflareTurnCache());
   afterEach(() => {
@@ -128,7 +128,7 @@ describe('calls.own_fallback: a healthy Cloudflare takes all the work (owner 202
   const open = async (svc: CallsService) => {
     for (let i = 0; i < 5; i++) await svc.iceServers(user);
   };
-  const modes = ['off', 'auto', 'manual-on'];
+  const modes = ['cloudflare', 'auto'];
 
   it.each(modes)(
     '%s + Cloudflare healthy: only its relay, policy relay',
@@ -137,7 +137,7 @@ describe('calls.own_fallback: a healthy Cloudflare takes all the work (owner 202
       const r = await make({
         cf,
         turn: ownTurn,
-        settings: { 'calls.own_fallback': m },
+        settings: { 'calls.transport': m },
       }).iceServers(user);
       expect(r.iceTransportPolicy).toBe('relay');
       expect(r.iceServers).toHaveLength(1);
@@ -154,19 +154,19 @@ describe('calls.own_fallback: a healthy Cloudflare takes all the work (owner 202
       const r = await make({
         cf,
         turn: ownTurn,
-        settings: { 'calls.own_fallback': m },
+        settings: { 'calls.transport': m },
       }).iceServers(user, { relayFailed: true });
       expect(r.iceTransportPolicy).toBe('relay');
       expect(urls(r)).not.toContain('own.example');
     },
   );
 
-  it('off + Cloudflare gives no relay: nothing of ours, relay, alert', async () => {
+  it('Вкл (cloudflare) + Cloudflare gives no relay: nothing of ours, relay, alert', async () => {
     global.fetch = jest.fn(dead) as never;
     const svc = make({
       cf,
       turn: ownTurn,
-      settings: { 'calls.own_fallback': 'off' },
+      settings: { 'calls.transport': 'cloudflare' },
     });
     const warn = jest
       .spyOn((svc as unknown as { logger: Logger }).logger, 'warn')
@@ -178,42 +178,36 @@ describe('calls.own_fallback: a healthy Cloudflare takes all the work (owner 202
     expect(warn.mock.calls.flat().join(' ')).toContain('alert=no_turn_relay');
   });
 
-  it('off + no keys: nothing of ours, relay', async () => {
+  it('Вкл (cloudflare) + no keys: nothing of ours, relay', async () => {
     const r = await make({
       turn: ownTurn,
-      settings: { 'calls.own_fallback': 'off' },
+      settings: { 'calls.transport': 'cloudflare' },
     }).iceServers(user);
     expect(r.iceTransportPolicy).toBe('relay');
     expect(urls(r)).not.toContain('own.example');
   });
 
-  it.each(['auto', 'manual-on'])(
-    '%s + no Cloudflare keys: ours simply work',
-    async (m) => {
-      const r = await make({
-        turn: ownTurn,
-        settings: { 'calls.own_fallback': m },
-      }).iceServers(user);
-      expect(r.iceTransportPolicy).toBe('all');
-      expect(urls(r)).toContain('own.example');
-    },
-  );
+  it.each(['auto'])('%s + no Cloudflare keys: ours simply work', async (m) => {
+    const r = await make({
+      turn: ownTurn,
+      settings: { 'calls.transport': m },
+    }).iceServers(user);
+    expect(r.iceTransportPolicy).toBe('all');
+    expect(urls(r)).toContain('own.example');
+  });
 
-  it.each(['auto', 'manual-on'])(
-    '%s + Cloudflare login fails: ours at once',
-    async (m) => {
-      global.fetch = jest.fn(dead) as never;
-      const r = await make({
-        cf,
-        turn: ownTurn,
-        settings: { 'calls.own_fallback': m },
-      }).iceServers(user);
-      expect(r.iceTransportPolicy).toBe('all');
-      expect(urls(r)).toContain('own.example');
-    },
-  );
+  it.each(['auto'])('%s + Cloudflare login fails: ours at once', async (m) => {
+    global.fetch = jest.fn(dead) as never;
+    const r = await make({
+      cf,
+      turn: ownTurn,
+      settings: { 'calls.transport': m },
+    }).iceServers(user);
+    expect(r.iceTransportPolicy).toBe('all');
+    expect(urls(r)).toContain('own.example');
+  });
 
-  it.each(['auto', 'manual-on'])(
+  it.each(['auto'])(
     '%s + breaker open: ours first; recovered: back to Cloudflare only',
     async (m) => {
       let t = 1_000_000;
@@ -222,7 +216,7 @@ describe('calls.own_fallback: a healthy Cloudflare takes all the work (owner 202
       const svc = make({
         cf,
         turn: ownTurn,
-        settings: { 'calls.own_fallback': m },
+        settings: { 'calls.transport': m },
         now: () => t,
       });
       await open(svc);
@@ -243,13 +237,13 @@ describe('calls.own_fallback: a healthy Cloudflare takes all the work (owner 202
     },
   );
 
-  it('off + breaker open: Cloudflare only, relay', async () => {
+  it('Вкл (cloudflare) + breaker open: Cloudflare only, relay', async () => {
     let alive = false;
     global.fetch = jest.fn(() => (alive ? relayJson() : dead())) as never;
     const svc = make({
       cf,
       turn: ownTurn,
-      settings: { 'calls.own_fallback': 'off' },
+      settings: { 'calls.transport': 'cloudflare' },
     });
     await open(svc);
     alive = true;
@@ -257,6 +251,30 @@ describe('calls.own_fallback: a healthy Cloudflare takes all the work (owner 202
     const r = await svc.iceServers(user);
     expect(r.iceTransportPolicy).toBe('relay');
     expect(urls(r)).not.toContain('own.example');
+  });
+});
+
+describe('calls.transport = own (Выкл): Cloudflare off', () => {
+  const realFetch = global.fetch;
+  beforeEach(() => clearCloudflareTurnCache());
+  afterEach(() => {
+    global.fetch = realFetch;
+    jest.restoreAllMocks();
+  });
+
+  it('own TURN and direct, Cloudflare is never asked', async () => {
+    const fetchMock = jest.fn(relayJson);
+    global.fetch = fetchMock as never;
+    const r = await make({
+      cf,
+      turn: ownTurn,
+      settings: { 'calls.transport': 'own' },
+    }).iceServers(user);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(r.iceTransportPolicy).toBe('all');
+    expect(r.iceServers.flatMap((s) => s.urls).join(' ')).toContain(
+      'own.example',
+    );
   });
 });
 
@@ -608,14 +626,14 @@ describe('Cloudflare primary, own TURN as the automatic backup (owner 2026-10-26
     expect(isCf(res)).toBe(true);
   });
 
-  it('calls.own_fallback = off: Cloudflare even while the breaker is open', async () => {
+  it('calls.transport = cloudflare: Cloudflare even while the breaker is open', async () => {
     const fetchMock = jest.fn(fail);
     global.fetch = fetchMock as never;
     const svc = make({
       cf,
       turn: ownTurn,
       settings: {
-        'calls.own_fallback': 'off',
+        'calls.transport': 'cloudflare',
         'calls.transport_fail_limit': 1,
       },
     });
