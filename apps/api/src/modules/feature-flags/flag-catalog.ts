@@ -130,6 +130,17 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Ask a lawyer: public questions and attorneys answers',
   },
   {
+    // R-401 (owner 2026-11-04): answers to clients' questions lift an
+    // attorney in the recommendations (people grid, cases, the attorney's
+    // recommended questions) — read from the nightly snapshot
+    // `reco.qa-snapshot`. Off = the snapshot is not read: today's ranking.
+    // On by default: an empty snapshot changes nothing either.
+    key: 'recommendations_qa_ranking',
+    enabled: true,
+    description:
+      'Recommendations: Q&A answers and likes rank attorneys (nightly snapshot; admin: Настройки → reco.qa.*)',
+  },
+  {
     // Owner 2026-10-20: court deadlines and statutes of limitations. Off by
     // default (legal risk: a wrong date reads as advice); the rules stay in
     // the database and the owner can switch it on in «Функции».

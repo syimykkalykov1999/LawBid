@@ -90,6 +90,23 @@ void main() {
     expect(find.text('Ответов 12 · лучших 4'), findsOneWidget);
   });
 
+  // R-401 (owner 2026-11-04): the one small line under both prompts.
+  testWidgets('feed card and own profile row carry the recommendations hint',
+      (tester) async {
+    await pump(tester, const QaNewQuestionsBanner());
+    expect(find.text('Ответы поднимают вас в рекомендациях'), findsOneWidget);
+    await pump(
+      tester,
+      const QaProfileRow(answers: 12, best: 4, isSelf: true),
+    );
+    expect(find.text('Ответы поднимают вас в рекомендациях'), findsOneWidget);
+    await pump(
+      tester,
+      const QaProfileRow(answers: 12, best: 4, isSelf: false),
+    );
+    expect(find.byKey(const ValueKey('qa-reco-hint')), findsNothing);
+  });
+
   testWidgets('profile: nobody but the attorney sees the row', (tester) async {
     await pump(
       tester,

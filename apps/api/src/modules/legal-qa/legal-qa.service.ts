@@ -6,6 +6,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -41,7 +42,12 @@ import {
   type QuestionsQueryDto,
 } from './legal-qa.dto';
 
+import { QaSnapshotService } from '../recommendations/qa-snapshot.service';
+import { qaActor } from './qa-actor';
+
 const PAGE = 20;
+/** R-401: the attorney's recommended questions, one page, no cursor. */
+const RECOMMENDED_PAGE = 20;
 
 /** Owner 2026-10-21: one question takes at most this many attorney answers. */
 export const MAX_ANSWERS = 10;
@@ -85,6 +91,8 @@ export class LegalQaService {
     private readonly files: FilesService,
     @Inject(SEARCH_PROVIDER) private readonly search: SearchProvider,
     private readonly safety: QaSafetyService,
+    // R-401: the nightly Q&A ranking snapshot (recommended questions).
+    @Optional() private readonly qaSnapshot?: QaSnapshotService,
   ) {}
 
   // --- questions ------------------------------------------------------------
@@ -375,6 +383,13 @@ export class LegalQaService {
       }
       return updated;
     });
+    // R-401: who typed it — the assistant's id, null for the attorney (an
+    // edit by the attorney takes the answer back). Raw SQL: the column is
+    // new and the shared local Prisma client is not regenerated on this Mac.
+    await this.prisma.$executeRaw`
+      UPDATE legal_answers
+      SET authored_by_user_id = ${qaActor(user)?.authoredBy ?? null}::UUID
+      WHERE id = ${row.id}::UUID`;
     if (announce) {
       await this.notifications.emit({
         type: 'legal_answer_update',
@@ -564,6 +579,68 @@ export class LegalQaService {
           WHERE (b.blocker_id = ${user.sub}::UUID AND b.blocked_id = q.author_id)
              OR (b.blocker_id = q.author_id AND b.blocked_id = ${user.sub}::UUID))`;
     return { newCount: row?.n ?? 0, ...base };
+  }
+
+  /**
+   * R-401 (owner 2026-11-04): GET /questions/recommended — open questions
+   * of the topics the attorney practises and answers in, best first, from
+   * the nightly snapshot (QaSnapshotService.topicList): no counting on
+   * open. Without a snapshot (first night, flag off) it is the unanswered
+   * questions of my practice — today's behaviour. One page, no cursor;
+   * empty for clients and assistants.
+   */
+  async recommended(user: RequestUser): Promise<QuestionPage> {
+    await this.assertEnabled();
+    const none: QuestionPage = { items: [], nextCursor: null };
+    if (user.role !== 'attorney' || user.assistant) return none;
+    const topics = await this.myTopics(user.sub);
+    const ranked =
+      (await this.qaSnapshot?.topicList('topic_questions', topics)) ?? [];
+    if (ranked.length === 0) {
+      const page = await this.list(user, {
+        scope: 'mine',
+        filter: 'unanswered',
+        limit: RECOMMENDED_PAGE,
+      });
+      return { items: page.items, nextCursor: null };
+    }
+    const hidden = [...(await this.blocks.hiddenIds(user.sub))];
+    const ids = ranked.slice(0, RECOMMENDED_PAGE * 3).map((r) => r.id);
+    const rows = await this.prisma.legalQuestion.findMany({
+      where: {
+        id: { in: ids },
+        status: 'published',
+        closed_at: null,
+        author_id: {
+          not: user.sub,
+          ...(hidden.length ? { notIn: hidden } : {}),
+        },
+        answers: { none: { attorney_id: user.sub, status: 'published' } },
+      },
+      include: QUESTION_INCLUDE,
+    });
+    const order = new Map(ids.map((id, i) => [id, i]));
+    rows.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+    return {
+      items: await this.presentQuestions(rows.slice(0, RECOMMENDED_PAGE), user),
+      nextCursor: null,
+    };
+  }
+
+  /** Practice categories of the attorney: own practices (category level)
+   * plus the topics they answered in lately (snapshot). */
+  private async myTopics(attorneyId: string): Promise<string[]> {
+    const rows = await this.prisma.$queryRaw<{ category: string }[]>`
+      SELECT DISTINCT COALESCE(pa.parent_id, pa.id)::TEXT AS category
+      FROM attorney_practice_areas ap
+      JOIN practice_areas pa ON pa.id = ap.practice_area_id
+      WHERE ap.attorney_id = ${attorneyId}::UUID`;
+    const topics = new Set(rows.map((r) => r.category));
+    const mine = (await this.qaSnapshot?.attorneyScores([attorneyId]))?.get(
+      attorneyId,
+    );
+    for (const cat of Object.keys(mine?.topics ?? {})) topics.add(cat);
+    return [...topics];
   }
 
   async alertAttorneys(
@@ -812,7 +889,10 @@ export class LegalQaService {
   }
 
   private async isVerifiedAttorney(user: RequestUser): Promise<boolean> {
-    if (user.role !== 'attorney' || user.assistant) return false;
+    // R-401: an assistant with the «qa_answers» duty answers in the
+    // attorney's name (user.sub is the attorney already); without it the
+    // Q&A stays read-only for them.
+    if (!qaActor(user)) return false;
     const p = await this.prisma.attorneyProfile.findUnique({
       where: { user_id: user.sub },
       select: { verification_status: true },

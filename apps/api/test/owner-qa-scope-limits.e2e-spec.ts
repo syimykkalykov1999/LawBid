@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { LegalQaSweepJob } from '../src/modules/legal-qa/legal-qa-sweep.job';
+import { QaSnapshotService } from '../src/modules/recommendations/qa-snapshot.service';
 
 /**
  * Owner 2026-10-21: «Вопрос юристу» — the attorney's own feed, at most 10
@@ -116,6 +117,32 @@ describe('Q&A feed scope, answer cap, privacy, close and sweep (e2e)', () => {
       });
     }
     return { id: a.id, auth: bearer(a.id, 'attorney') };
+  }
+
+  /** R-401: an active assistant of the attorney with these duties. */
+  async function assistant(attorneyId: string, duties: string[]) {
+    const u = await prisma.user.create({
+      data: {
+        role: 'assistant',
+        first_name: 'Ann',
+        last_name: 'Helper',
+        phone_e164: phone(),
+        phone_verified_at: new Date(),
+      },
+    });
+    await prisma.assistantMembership.create({
+      data: {
+        attorney_id: attorneyId,
+        assistant_user_id: u.id,
+        phone_e164: u.phone_e164!,
+        display_name: 'Ann',
+        status: 'active',
+        approval: 'attorney_added',
+        duties,
+        joined_at: new Date(),
+      },
+    });
+    return { id: u.id, auth: bearer(u.id, 'assistant') };
   }
 
   async function client() {
@@ -281,6 +308,96 @@ describe('Q&A feed scope, answer cap, privacy, close and sweep (e2e)', () => {
       where: { id: mineArea.id },
       data: { parent_id: null },
     });
+  });
+
+  // R-401 (owner 2026-11-04 13:05): assistants answer with the «qa_answers»
+  // duty only, in the attorney's name.
+  it("assistant: 403 without the qa_answers duty, the attorney's answer with it", async () => {
+    const cl = await client();
+    const area = await leafArea();
+    const att = await attorney({ areaId: area.id });
+    const q = await ask(cl, 'Assistant duty question', area.id);
+    const body = { body: 'An assistant typed this answer for the attorney.' };
+
+    const without = await assistant(att.id, ['chats']);
+    await api()
+      .put(`/api/v1/questions/${q}/answer`)
+      .set(without.auth)
+      .send(body)
+      .expect(403);
+    // Read-only: the question is visible, canAnswer is false.
+    const seen = await api()
+      .get(`/api/v1/questions/${q}`)
+      .set(without.auth)
+      .expect(200);
+    expect(seen.body.data.canAnswer).toBe(false);
+
+    const withDuty = await assistant(att.id, ['chats', 'qa_answers']);
+    const answered = await api()
+      .put(`/api/v1/questions/${q}/answer`)
+      .set(withDuty.auth)
+      .send(body)
+      .expect(200);
+    // Published under the attorney, the assistant remembered on the row.
+    expect(answered.body.data.attorney.id).toBe(att.id);
+    const [row] = await prisma.$queryRaw<
+      { attorney_id: string; authored_by_user_id: string | null }[]
+    >`SELECT attorney_id::TEXT AS attorney_id, authored_by_user_id::TEXT AS authored_by_user_id
+      FROM legal_answers WHERE question_id = ${q}::UUID`;
+    expect(row).toEqual({
+      attorney_id: att.id,
+      authored_by_user_id: withDuty.id,
+    });
+    // The attorney's own edit takes the answer back.
+    await api()
+      .put(`/api/v1/questions/${q}/answer`)
+      .set(att.auth)
+      .send({ body: 'The attorney edited the answer themself.' })
+      .expect(200);
+    const [edited] = await prisma.$queryRaw<
+      { authored_by_user_id: string | null }[]
+    >`
+      SELECT authored_by_user_id::TEXT AS authored_by_user_id
+      FROM legal_answers WHERE question_id = ${q}::UUID`;
+    expect(edited.authored_by_user_id).toBeNull();
+  });
+
+  // R-401 (owner 2026-11-04): the attorney's recommended questions.
+  it('GET /questions/recommended: my topics; the fallback before the first snapshot, the snapshot after', async () => {
+    const cl = await client();
+    const mineArea = await leafArea();
+    const other = await otherArea('e2e_qa_reco_other');
+    const att = await attorney({ areaId: mineArea.id });
+    const qMine = await ask(cl, 'Reco mine question', mineArea.id);
+    const qOther = await ask(await client(), 'Reco other question', other.id);
+
+    // Before the first nightly run: the unanswered questions of my practice.
+    const before = await api()
+      .get('/api/v1/questions/recommended')
+      .set(att.auth)
+      .expect(200);
+    expect(ids(before)).toContain(qMine);
+    expect(ids(before)).not.toContain(qOther);
+    expect(before.body.meta?.nextCursor ?? null).toBeNull();
+
+    // The nightly job builds the snapshot; the read path now reads it.
+    const snapshot = app.get(QaSnapshotService);
+    const meta = await snapshot.rebuild();
+    expect(meta.questions).toBeGreaterThan(0);
+    expect((await snapshot.lastRun())?.at).toBe(meta.at);
+    const after = await api()
+      .get('/api/v1/questions/recommended')
+      .set(att.auth)
+      .expect(200);
+    expect(ids(after)).toContain(qMine);
+    expect(ids(after)).not.toContain(qOther);
+
+    // A client gets an empty list, never a 403.
+    const asClient = await api()
+      .get('/api/v1/questions/recommended')
+      .set(cl.auth)
+      .expect(200);
+    expect(ids(asClient)).toEqual([]);
   });
 
   it('search combines q, filter=unanswered, stateCode and scope=mine', async () => {

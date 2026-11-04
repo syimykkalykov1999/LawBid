@@ -1456,6 +1456,8 @@ export 'models/backfill_run_dto.dart';
 export 'models/backfill_run_list_envelope.dart';
 export 'models/queue_retry_result_dto.dart';
 export 'models/queue_retry_result_envelope.dart';
+export 'models/reco_qa_status_dto.dart';
+export 'models/reco_qa_status_envelope.dart';
 export 'models/heavy_jobs_dto.dart';
 export 'models/scale_dto.dart';
 export 'models/update_ops_settings_dto.dart';

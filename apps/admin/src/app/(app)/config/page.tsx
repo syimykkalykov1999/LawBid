@@ -5,6 +5,7 @@ import { MagnifyingGlass } from "@phosphor-icons/react";
 import { useState } from "react";
 import { BudgetLimitsCard, isBudgetKey } from "@/components/budget-limits-card";
 import { TextLimitsCard, isTextLimitKey } from "@/components/text-limits-card";
+import { RecoQaCard } from "@/components/reco-qa-card";
 import { MotionRow } from "@/components/legacy/fade-in";
 import { ErrorNote, PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ const KEY_TEXT: Record<string, string> = {
   "billing.max_assistant_seats":
     "Сколько помощников может добавить адвокат (годовой тариф включает все).",
   "assistants.max_duties":
-    "Сколько ролей (из 10) может быть у одного помощника; по умолчанию 3.",
+    "Макс. ролей у одного помощника: число от 1 до 11 или 0 = все (без ограничения). По умолчанию 3 — больше помощников, ни у кого нет всего аккаунта.",
   "cases.urgency_days_very_urgent":
     "Дело с датой считается «очень срочным», если до даты осталось не больше стольких дней.",
   "cases.urgency_days_urgent":
@@ -343,6 +344,21 @@ const KEY_TEXT: Record<string, string> = {
     "Рекомендации · Люди и «возможно знакомы»: вес «активность» (0.08).",
   "reco.people.affinity":
     "Рекомендации · Люди и «возможно знакомы»: вес «вы смотрели его посты» (0.056).",
+  // R-401 (owner 2026-11-04): answers to clients' questions lift an attorney.
+  "reco.qa.answers":
+    "Рекомендации по вопросам · ночной подсчёт: вес «ответов за 90 дней» (0.5). Свежие считаются сильнее (затухание как на Hacker News).",
+  "reco.qa.likes":
+    "Рекомендации по вопросам · ночной подсчёт: вес «лайков на ответах» (0.3) — доля ответов с лайком по Уилсону плюс их число.",
+  "reco.qa.best":
+    "Рекомендации по вопросам · ночной подсчёт: вес «ответ признан лучшим» (0.2).",
+  "reco.qa.gravity":
+    "Рекомендации по вопросам · затухание свежести (1.8, как на Hacker News): больше — старые ответы забываются быстрее.",
+  "reco.people.qa":
+    "Рекомендации · Люди: сколько добавляет к оценке адвоката его балл за ответы на вопросы (0.1). 0 = ответы не влияют.",
+  "reco.people.qaTopic":
+    "Рекомендации · Люди: сколько добавляет совпадение тем ответов адвоката с интересами клиента (0.08).",
+  "reco.case.qaTopic":
+    "Рекомендации · Кейсы адвокатам: сколько добавляет кейсу то, что адвокат отвечает на вопросы этой темы (0.08).",
   "reco.people.identity":
     "Рекомендации · Люди и «возможно знакомы»: вес «проверка личности» (0.024).",
   "reco.people.popularity":
@@ -1316,6 +1332,7 @@ function FullConfigPage() {
       />
       <BudgetLimitsCard />
       <TextLimitsCard entries={q.data ?? []} />
+      <RecoQaCard />
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       <Table>
         <thead>

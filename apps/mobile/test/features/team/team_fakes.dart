@@ -139,6 +139,7 @@ class FakeTeamRepository implements TeamRepository {
       used: teamInfo.used + 1,
       plan: teamInfo.plan,
       maxDuties: teamInfo.maxDuties,
+      maxDutiesUnlimited: teamInfo.maxDutiesUnlimited,
     );
   }
 
@@ -177,6 +178,7 @@ class FakeTeamRepository implements TeamRepository {
       used: teamInfo.used,
       plan: teamInfo.plan,
       maxDuties: teamInfo.maxDuties,
+      maxDutiesUnlimited: teamInfo.maxDutiesUnlimited,
     );
   }
 

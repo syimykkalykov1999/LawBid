@@ -12,9 +12,14 @@ class _QaLine extends StatelessWidget {
     required this.text,
     required this.onTap,
     this.subtitle,
+    this.footnote,
     this.prominent = false,
     super.key,
   });
+
+  /// R-401 (owner 2026-11-04): one small line at the bottom — «Ответы
+  /// поднимают вас в рекомендациях» — on the attorney's prompts only.
+  final String? footnote;
 
   /// The feed card: edge to edge, a warmer fill and border, bold text.
   final bool prominent;
@@ -93,6 +98,17 @@ class _QaLine extends StatelessWidget {
                             color: colors.textSecondary,
                           ),
                         ),
+                      if (footnote != null)
+                        Text(
+                          footnote!,
+                          key: const ValueKey('qa-reco-hint'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.caption.copyWith(
+                            color: colors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -132,6 +148,7 @@ class QaNewQuestionsBanner extends ConsumerWidget {
         child: _QaLine(
           prominent: true,
           text: t.t('qa.new.banner', {'count': '$count'}),
+          footnote: t.t('qa.reco.hint'),
           onTap: () {
             ref.read(qaBannerLastUsedProvider.notifier).markUsed();
             context.push(LegalQaRoutes.unanswered);
@@ -170,6 +187,7 @@ class QaProfileRow extends ConsumerWidget {
         key: const ValueKey('profile-qa'),
         text: cta ? t.t('qa.cta') : stats,
         subtitle: cta ? stats : null,
+        footnote: t.t('qa.reco.hint'),
         onTap: () => context.push(LegalQaRoutes.feed),
       ),
     );
