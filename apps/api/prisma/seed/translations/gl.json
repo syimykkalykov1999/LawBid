@@ -5565,6 +5565,8 @@
   "tag.new": "Novos",
   "tag.top": "Destacados",
   "tag.video": "Vídeo",
+  "tag.view.grid": "Grade",
+  "tag.view.list": "Lista",
   "tasks.add": "Engadir unha tarefa",
   "tasks.archive.empty": "O arquivo está baleiro",
   "tasks.archive.emptyBody": "As tarefas finalizadas e canceladas aparecen aquí.",

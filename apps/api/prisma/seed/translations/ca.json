@@ -5565,6 +5565,8 @@
   "tag.new": "Nous",
   "tag.top": "Destacats",
   "tag.video": "Vídeo",
+  "tag.view.grid": "Quadrícula",
+  "tag.view.list": "Llista",
   "tasks.add": "Afegeix una tasca",
   "tasks.archive.empty": "L’arxiu és buit",
   "tasks.archive.emptyBody": "Aquí van les tasques acabades i cancel·lades.",

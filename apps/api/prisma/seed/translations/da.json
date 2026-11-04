@@ -5565,6 +5565,8 @@
   "tag.new": "Nyeste",
   "tag.top": "Top",
   "tag.video": "Video",
+  "tag.view.grid": "Gitter",
+  "tag.view.list": "Liste",
   "tasks.add": "Tilføj en opgave",
   "tasks.archive.empty": "Arkivet er tomt",
   "tasks.archive.emptyBody": "Afsluttede og annullerede opgaver havner her.",

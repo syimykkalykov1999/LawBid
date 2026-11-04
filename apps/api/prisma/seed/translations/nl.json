@@ -5565,6 +5565,8 @@
   "tag.new": "Nieuw",
   "tag.top": "Populair",
   "tag.video": "Video",
+  "tag.view.grid": "Raster",
+  "tag.view.list": "Lijst",
   "tasks.add": "Een taak toevoegen",
   "tasks.archive.empty": "Het archief is leeg",
   "tasks.archive.emptyBody": "Afgeronde en geannuleerde taken komen hier.",

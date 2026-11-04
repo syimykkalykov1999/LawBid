@@ -5565,6 +5565,8 @@
   "tag.new": "Ново",
   "tag.top": "Најпопуларније",
   "tag.video": "Видео",
+  "tag.view.grid": "Мрежа",
+  "tag.view.list": "Листа",
   "tasks.add": "Додај задатак",
   "tasks.archive.empty": "Архива је празна",
   "tasks.archive.emptyBody": "Овде се чувају завршени и отказани задаци.",

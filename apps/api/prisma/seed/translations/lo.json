@@ -5565,6 +5565,8 @@
   "tag.new": "ໃໝ່",
   "tag.top": "ຍອດນິຍົມ",
   "tag.video": "ວິດີໂອ",
+  "tag.view.grid": "ຕາຕະລາງ",
+  "tag.view.list": "ລາຍການ",
   "tasks.add": "ເພີ່ມໜ້າວຽກ",
   "tasks.archive.empty": "ຄັງເກັບຫວ່າງເປົ່າ",
   "tasks.archive.emptyBody": "ໜ້າວຽກທີ່ສຳເລັດ ແລະ ຍົກເລີກແລ້ວຈະມາຢູ່ບ່ອນນີ້.",

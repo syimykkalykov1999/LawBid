@@ -5565,6 +5565,8 @@
   "tag.new": "最新",
   "tag.top": "热门",
   "tag.video": "视频",
+  "tag.view.grid": "网格",
+  "tag.view.list": "列表",
   "tasks.add": "添加任务",
   "tasks.archive.empty": "归档为空",
   "tasks.archive.emptyBody": "已完成和已取消的任务会放在这里。",

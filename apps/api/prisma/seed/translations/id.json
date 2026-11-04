@@ -5565,6 +5565,8 @@
   "tag.new": "Baru",
   "tag.top": "Teratas",
   "tag.video": "Video",
+  "tag.view.grid": "Kisi",
+  "tag.view.list": "Daftar",
   "tasks.add": "Tambah tugas",
   "tasks.archive.empty": "Arsip kosong",
   "tasks.archive.emptyBody": "Tugas yang selesai dan dibatalkan masuk ke sini.",

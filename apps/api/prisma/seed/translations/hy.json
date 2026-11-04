@@ -5565,6 +5565,8 @@
   "tag.new": "Նորերը",
   "tag.top": "Լավագույնները",
   "tag.video": "Տեսանյութ",
+  "tag.view.grid": "Ցանց",
+  "tag.view.list": "Ցանկ",
   "tasks.add": "Ավելացնել առաջադրանք",
   "tasks.archive.empty": "Արխիվը դատարկ է",
   "tasks.archive.emptyBody": "Ավարտված և չեղարկված առաջադրանքները հայտնվում են այստեղ։",

@@ -5565,6 +5565,8 @@
   "tag.new": "Berriak",
   "tag.top": "Nagusiak",
   "tag.video": "Bideoa",
+  "tag.view.grid": "Sareta",
+  "tag.view.list": "Zerrenda",
   "tasks.add": "Gehitu zeregin bat",
   "tasks.archive.empty": "Artxiboa hutsik dago",
   "tasks.archive.emptyBody": "Amaitutako eta bertan behera utzitako zereginak hemen geratzen dira.",

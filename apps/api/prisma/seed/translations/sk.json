@@ -5565,6 +5565,8 @@
   "tag.new": "Nové",
   "tag.top": "Najlepšie",
   "tag.video": "Video",
+  "tag.view.grid": "Mriežka",
+  "tag.view.list": "Zoznam",
   "tasks.add": "Pridať úlohu",
   "tasks.archive.empty": "Archív je prázdny",
   "tasks.archive.emptyBody": "Sem sa dostanú dokončené a zrušené úlohy.",

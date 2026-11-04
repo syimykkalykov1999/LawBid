@@ -5565,6 +5565,8 @@
   "tag.new": "Jaunākie",
   "tag.top": "Populārākie",
   "tag.video": "Video",
+  "tag.view.grid": "Režģis",
+  "tag.view.list": "Saraksts",
   "tasks.add": "Pievienot uzdevumu",
   "tasks.archive.empty": "Arhīvs ir tukšs",
   "tasks.archive.emptyBody": "Šeit nonāk pabeigtie un atceltie uzdevumi.",

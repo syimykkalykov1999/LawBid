@@ -5565,6 +5565,8 @@
   "tag.new": "최신",
   "tag.top": "인기",
   "tag.video": "동영상",
+  "tag.view.grid": "격자",
+  "tag.view.list": "목록",
   "tasks.add": "작업 추가",
   "tasks.archive.empty": "보관함이 비어 있습니다",
   "tasks.archive.emptyBody": "완료되거나 취소된 작업이 여기에 보관됩니다.",

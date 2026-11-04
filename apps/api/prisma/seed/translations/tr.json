@@ -5565,6 +5565,8 @@
   "tag.new": "Yeni",
   "tag.top": "Öne çıkanlar",
   "tag.video": "Video",
+  "tag.view.grid": "Izgara",
+  "tag.view.list": "Liste",
   "tasks.add": "Görev ekle",
   "tasks.archive.empty": "Arşiv boş",
   "tasks.archive.emptyBody": "Tamamlanan ve iptal edilen görevler buraya gelir.",

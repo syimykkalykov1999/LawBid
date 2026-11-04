@@ -5565,6 +5565,8 @@
   "tag.new": "Récents",
   "tag.top": "Populaires",
   "tag.video": "Vidéo",
+  "tag.view.grid": "Grille",
+  "tag.view.list": "Liste",
   "tasks.add": "Ajouter une tâche",
   "tasks.archive.empty": "Les archives sont vides",
   "tasks.archive.emptyBody": "Les tâches terminées et annulées apparaissent ici.",

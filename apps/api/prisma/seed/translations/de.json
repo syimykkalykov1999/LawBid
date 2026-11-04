@@ -5565,6 +5565,8 @@
   "tag.new": "Neu",
   "tag.top": "Top",
   "tag.video": "Video",
+  "tag.view.grid": "Raster",
+  "tag.view.list": "Liste",
   "tasks.add": "Aufgabe hinzufügen",
   "tasks.archive.empty": "Das Archiv ist leer",
   "tasks.archive.emptyBody": "Erledigte und abgebrochene Aufgaben landen hier.",

@@ -5565,6 +5565,8 @@
   "tag.new": "ახალი",
   "tag.top": "ტოპ",
   "tag.video": "ვიდეო",
+  "tag.view.grid": "ბადე",
+  "tag.view.list": "სია",
   "tasks.add": "ამოცანის დამატება",
   "tasks.archive.empty": "არქივი ცარიელია",
   "tasks.archive.emptyBody": "შესრულებული და გაუქმებული ამოცანები აქ ინახება.",

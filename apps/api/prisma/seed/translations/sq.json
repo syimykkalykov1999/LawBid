@@ -5565,6 +5565,8 @@
   "tag.new": "Të rejat",
   "tag.top": "Më të mirat",
   "tag.video": "Video",
+  "tag.view.grid": "Rrjetë",
+  "tag.view.list": "Listë",
   "tasks.add": "Shto një detyrë",
   "tasks.archive.empty": "Arkivi është bosh",
   "tasks.archive.emptyBody": "Detyrat e kryera dhe të anuluara shfaqen këtu.",

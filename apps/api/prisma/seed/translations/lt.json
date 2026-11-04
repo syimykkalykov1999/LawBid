@@ -5565,6 +5565,8 @@
   "tag.new": "Nauji",
   "tag.top": "Populiariausi",
   "tag.video": "Vaizdo įrašas",
+  "tag.view.grid": "Tinklelis",
+  "tag.view.list": "Sąrašas",
   "tasks.add": "Pridėti užduotį",
   "tasks.archive.empty": "Archyvas tuščias",
   "tasks.archive.emptyBody": "Čia patenka atliktos ir atšauktos užduotys.",

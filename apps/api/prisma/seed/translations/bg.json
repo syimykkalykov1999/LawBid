@@ -5565,6 +5565,8 @@
   "tag.new": "Нови",
   "tag.top": "Топ",
   "tag.video": "Видео",
+  "tag.view.grid": "Мрежа",
+  "tag.view.list": "Списък",
   "tasks.add": "Добавяне на задача",
   "tasks.archive.empty": "Архивът е празен",
   "tasks.archive.emptyBody": "Тук се озовават изпълнените и отменените задачи.",

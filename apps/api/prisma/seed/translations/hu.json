@@ -5565,6 +5565,8 @@
   "tag.new": "Új",
   "tag.top": "Népszerű",
   "tag.video": "Videó",
+  "tag.view.grid": "Rács",
+  "tag.view.list": "Lista",
   "tasks.add": "Feladat hozzáadása",
   "tasks.archive.empty": "Az archívum üres",
   "tasks.archive.emptyBody": "Ide kerülnek a befejezett és a törölt feladatok.",

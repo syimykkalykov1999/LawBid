@@ -5565,6 +5565,8 @@
   "tag.new": "Шинэ",
   "tag.top": "Шилдэг",
   "tag.video": "Видео",
+  "tag.view.grid": "Тор",
+  "tag.view.list": "Жагсаалт",
   "tasks.add": "Даалгавар нэмэх",
   "tasks.archive.empty": "Архив хоосон байна",
   "tasks.archive.emptyBody": "Дууссан болон цуцалсан даалгаврууд энд орно.",

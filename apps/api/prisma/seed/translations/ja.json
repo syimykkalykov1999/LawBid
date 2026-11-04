@@ -5565,6 +5565,8 @@
   "tag.new": "新着",
   "tag.top": "人気",
   "tag.video": "動画",
+  "tag.view.grid": "グリッド",
+  "tag.view.list": "リスト",
   "tasks.add": "タスクを追加",
   "tasks.archive.empty": "アーカイブは空です",
   "tasks.archive.emptyBody": "完了したタスクとキャンセルしたタスクがここに入ります。",

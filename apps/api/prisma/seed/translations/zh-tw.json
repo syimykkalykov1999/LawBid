@@ -5565,6 +5565,8 @@
   "tag.new": "最新",
   "tag.top": "熱門",
   "tag.video": "影片",
+  "tag.view.grid": "格狀",
+  "tag.view.list": "清單",
   "tasks.add": "新增任務",
   "tasks.archive.empty": "封存是空的",
   "tasks.archive.emptyBody": "已完成和已取消的任務會放在這裡。",
