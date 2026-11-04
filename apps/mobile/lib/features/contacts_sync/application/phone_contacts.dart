@@ -5,7 +5,6 @@ import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/platform/chat_notifications_channel.dart';
-import 'package:lawbid/core/sync/sync_freshness.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_book_sync.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
@@ -215,9 +214,6 @@ PhoneContacts _view(
 /// (ContactsBookSync): an unchanged book costs one tiny "changed?" request
 /// at most once an hour; the device keeps the people list between runs.
 final phoneContactsProvider = FutureProvider<PhoneContacts>((ref) async {
-  // Owner 2026-11-04 (R-383): an attempt counts, whatever its outcome (a
-  // failed match retries on its own timers, not on each tab switch).
-  ref.read(syncFreshnessProvider).mark(_contactsKey);
   final actions = ref.read(contactsSyncActionsProvider);
   final bookSync = ref.read(contactsBookSyncProvider);
   final saved = bookSync.saved;
@@ -272,22 +268,3 @@ final phoneContactsProvider = FutureProvider<PhoneContacts>((ref) async {
   live.show(null);
   return _view(entries, byHash, res.people, limited: res.limited);
 });
-
-const _contactsKey = 'phoneContacts';
-
-/// Owner 2026-11-04 (R-383, WhatsApp): the «Contacts» tab came into view.
-/// The list on screen stays; the book is matched again only when the last
-/// match is older than [SyncWindows.contacts] (the match itself sends only
-/// changes, see ContactsBookSync) — not on every tab switch.
-void refreshPhoneContactsIfStale(WidgetRef ref) {
-  final value = ref.read(phoneContactsProvider);
-  if (value.isLoading || !value.hasValue) return;
-  if (!ref
-      .read(syncFreshnessProvider)
-      .isStale(_contactsKey, SyncWindows.contacts)) {
-    return;
-  }
-  ref
-    ..invalidate(contactsSyncStatusProvider)
-    ..invalidate(phoneContactsProvider);
-}

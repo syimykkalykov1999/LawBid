@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/sync/sync_freshness.dart';
@@ -34,6 +35,8 @@ class _CountingCalls implements CallHistoryRepository {
     String? cursor,
     int? limit,
   }) async {
+    // No HTTP copy on the phone in a test: a phone-only read is a miss.
+    if (readingFromPhoneOnly) throw StateError(kNoPhoneCopy);
     reads++;
     return CursorPage(
       items: [
@@ -105,7 +108,6 @@ void main() {
       final f = SyncFreshness(clock: () => clock.now)..mark('k');
       for (final (window, inside) in [
         (SyncWindows.chats, const Duration(seconds: 59)),
-        (SyncWindows.contacts, const Duration(minutes: 9)),
         (SyncWindows.calls, const Duration(seconds: 119)),
       ]) {
         final start = clock.now;
@@ -126,7 +128,6 @@ void main() {
 
     test('the windows the owner agreed', () {
       expect(SyncWindows.chats, const Duration(seconds: 60));
-      expect(SyncWindows.contacts, const Duration(minutes: 10));
       expect(SyncWindows.calls, const Duration(minutes: 2));
     });
   });

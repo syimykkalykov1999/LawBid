@@ -94,8 +94,9 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
     switch (section) {
       case 0:
         unawaited(ref.read(myChatPeopleProvider.notifier).refreshIfStale());
-      case 1:
-        if (!kIsWeb) refreshPhoneContactsIfStale(ref);
+      // «Contacts» syncs on the first open of the run, on pull-to-refresh
+      // and with the daily background sync (ContactsBackgroundSync); the
+      // match sends only changes. Nothing on a switch.
       case 2:
         unawaited(ref.read(callHistoryProvider.notifier).refreshIfStale());
     }

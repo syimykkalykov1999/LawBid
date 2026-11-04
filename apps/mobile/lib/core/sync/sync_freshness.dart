@@ -8,9 +8,6 @@ abstract final class SyncWindows {
   /// «Chats» of the contacts section (my people).
   static const chats = Duration(seconds: 60);
 
-  /// The phone-book people on LawBid.
-  static const contacts = Duration(minutes: 10);
-
   /// The calls history.
   static const calls = Duration(minutes: 2);
 }

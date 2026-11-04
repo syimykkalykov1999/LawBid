@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -64,6 +65,8 @@ class _Repo implements CallHistoryRepository {
     String? cursor,
     int? limit,
   }) async {
+    // No HTTP copy on the phone in a test: a phone-only read is a miss.
+    if (readingFromPhoneOnly) throw StateError(kNoPhoneCopy);
     cursors.add(cursor);
     final i = cursor == null ? 0 : int.parse(cursor);
     return CursorPage(

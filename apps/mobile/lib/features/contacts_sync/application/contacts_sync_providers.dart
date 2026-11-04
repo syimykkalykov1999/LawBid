@@ -15,8 +15,7 @@ final contactsSyncRepositoryProvider = Provider<ContactsSyncRepository>(
 );
 
 /// Owner 2026-11-04 (R-383): kept for the app run (it was read again each
-/// time the «Contacts» tab was built); re-read after a change here and with
-/// the contacts sync (refreshPhoneContactsIfStale).
+/// time the «Contacts» tab was built); re-read after a change here.
 final contactsSyncStatusProvider = FutureProvider<ContactsSyncStatus>(
   (ref) {
     ref.watch(currentUserIdProvider);
