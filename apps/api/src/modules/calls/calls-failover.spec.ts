@@ -40,7 +40,7 @@ function world(opts?: { calls?: Array<Partial<Call>>; joined?: number }) {
     ),
   };
   const settingsMap: Record<string, string | number> = {
-    'calls.transport': 'auto',
+    'calls.own_fallback': 'auto',
     'calls.transport_fail_limit': 5,
     'calls.transport_fail_window_sec': 120,
     'calls.sfu_fallback_mesh_max': 4,
@@ -333,7 +333,7 @@ describe('1:1: the relay died mid-call (relayFailed)', () => {
     global.fetch = realFetch;
   });
 
-  it('a NEW Cloudflare login (not the cached one) and our own TURN first', async () => {
+  it('a NEW Cloudflare login (not the cached one), still only Cloudflare', async () => {
     const fetchMock = jest.fn(
       async () => new Response(JSON.stringify(CF_RESPONSE), { status: 201 }),
     );
@@ -341,35 +341,18 @@ describe('1:1: the relay died mid-call (relayFailed)', () => {
     const svc = iceSvc();
     const user = { sub: 'u1' } as never;
     const normal = await svc.iceServers(user);
-    // Cloudflare first; our own TURN is offered too (after it, FO-1).
+    // A healthy Cloudflare takes all the work (owner 2026-11-04).
     expect(relays(normal)).toEqual([
       'turn:turn.cloudflare.com:3478?transport=udp',
-      'turn:own.example:3478',
     ]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const after = await svc.iceServers(user, { relayFailed: true });
     // The cache was skipped: a second login from Cloudflare.
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(after.iceServers[0].urls[0]).toBe('turn:own.example:3478');
-    expect(after.iceServers[1].urls[0]).toContain('cloudflare');
-  });
-
-  it('FO-1: the Cloudflare relay (data plane) is dead but its credential API answers — a NEW call still has a path: own TURN next to Cloudflare', async () => {
-    global.fetch = jest.fn(
-      async () => new Response(JSON.stringify(CF_RESPONSE), { status: 201 }),
-    ) as never;
-    const t = new CloudflareTransport();
-    const svc = iceSvc(t, relayDead);
-    const res = await svc.iceServers({ sub: 'u1' } as never);
-    expect(await t.isOpen('turn')).toBe(false); // the API said yes
-    expect(first(res)).toContain('cloudflare');
-    expect(relays(res)).toContain('turn:own.example:3478');
-    // STUN is still there, and the own TURN has its TCP twin.
-    expect(res.iceServers.some((s) => /^stun:/.test(s.urls[0]))).toBe(true);
-    expect(
-      res.iceServers.find((s) => s.urls[0] === 'turn:own.example:3478')?.urls,
-    ).toContain('turn:own.example:3478?transport=tcp');
+    expect(relays(after)).toEqual([
+      'turn:turn.cloudflare.com:3478?transport=udp',
+    ]);
   });
 
   it('FO-8: breaker open + own TURN — own first, Cloudflare still offered second', async () => {
@@ -404,7 +387,7 @@ describe('1:1: the relay died mid-call (relayFailed)', () => {
     const res = await svc.iceServers({ sub: 'u1' } as never, {
       relayFailed: true,
     });
-    expect(first(res)).toBe('turn:own.example:3478');
+    expect(first(res)).toContain('cloudflare');
     await flush();
     expect((await t.state('turn')).failures).toBe(1);
     expect(await t.isOpen('turn')).toBe(false); // one check is not N

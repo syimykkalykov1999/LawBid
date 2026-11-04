@@ -156,21 +156,6 @@ describe('StatusProbesService outside probes', () => {
     });
   });
 
-  it('calls.transport = own: the relay is not probed at all', async () => {
-    const f = jest.fn(() =>
-      Promise.resolve(new Response(JSON.stringify(CF_OK), { status: 201 })),
-    );
-    global.fetch = f as never;
-    const check = jest.fn(relayAlive);
-    await make(
-      cfKeys,
-      { 'calls.transport': 'own' },
-      { relayCheck: check },
-    ).cloudflareTurn();
-    expect(check).not.toHaveBeenCalled();
-    expect(f).toHaveBeenCalledTimes(1); // the credential dot only
-  });
-
   it('cloudflare_turn is red on an error and never shows the token', async () => {
     global.fetch = jest.fn(() =>
       Promise.resolve(new Response('no', { status: 401 })),
@@ -180,16 +165,10 @@ describe('StatusProbesService outside probes', () => {
     expect(JSON.stringify(r)).not.toContain('tok-secret');
   });
 
-  it('cloudflare_sfu is grey without keys or when calls.transport = own', async () => {
+  it('cloudflare_sfu is grey without keys', async () => {
     const f = jest.fn();
     global.fetch = f as never;
-    const sfu = { cloudflare_sfu: { appId: 'a', appToken: 't' } };
     expect((await make({}).cloudflareSfu()).status).toBe('grey');
-    const r = await make(sfu, {
-      'calls.transport': 'own',
-    }).cloudflareSfu();
-    expect(r.status).toBe('grey');
-    expect(r.detail.inUse).toBe(false);
     expect(f).not.toHaveBeenCalled();
   });
 
@@ -236,9 +215,10 @@ describe('StatusProbesService outside probes', () => {
       transport: 'auto',
     });
     const own = await make(cfKeys, {
-      'calls.transport': 'own',
+      'calls.own_fallback': 'manual-on',
     }).cloudflareTurn();
-    expect(own.detail).toMatchObject({ path: 'own', transport: 'own' });
+    // Вкл: a healthy Cloudflare still takes the work.
+    expect(own.detail).toMatchObject({ path: 'cloudflare', transport: 'auto' });
     expect(own.status).toBe('green');
   });
 
@@ -355,7 +335,11 @@ describe('StatusProbesService.callsPath (Integrations -> «Связь для з�
       null,
       {
         string: (k: string) =>
-          Promise.resolve(k === 'calls.transport' ? transport : ''),
+          Promise.resolve(
+            k === 'calls.own_fallback'
+              ? { own: 'manual-on', cloudflare: 'off', auto: 'auto' }[transport]
+              : '',
+          ),
         number: () => Promise.resolve(5),
       },
       {
@@ -430,10 +414,10 @@ describe('StatusProbesService.callsPath (Integrations -> «Связь для з�
     expect(own).toHaveBeenCalledTimes(1);
   });
 
-  it('calls.transport = own: our own path carries calls even with Cloudflare keys', async () => {
+  it('calls.own_fallback = manual-on: a healthy Cloudflare still carries calls keys', async () => {
     const { p } = withRedis(keys, 'own');
     const r = await p.callsPath();
-    expect(r).toMatchObject({ transport: 'own', carrying: 'own' });
+    expect(r).toMatchObject({ transport: 'own', carrying: 'cloudflare' });
   });
 });
 

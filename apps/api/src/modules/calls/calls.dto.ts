@@ -430,6 +430,13 @@ export class IceServersDto {
     description: 'Seconds the TURN login lives.',
   })
   ttlSec!: number;
+
+  @ApiPropertyOptional({
+    enum: ['all', 'relay'],
+    description:
+      'relay = media only through the relay in this list (owner 2026-11-04); all = any route. Older apps ignore it.',
+  })
+  iceTransportPolicy?: 'all' | 'relay';
 }
 
 /** POST /calls/:id/livekit-token — what the app hands to the LiveKit SDK. */

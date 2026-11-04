@@ -168,12 +168,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 2,
     max: 100,
   };
-  out['calls.transport'] = {
+  out['calls.own_fallback'] = {
     type: 'string',
-    defaultValue: 'auto',
+    defaultValue: 'off',
     description:
-      'Who carries calls. auto (default) = Cloudflare (TURN for 1:1, SFU for groups) whenever its keys are set; our own path (own TURN, device to device) only while Cloudflare keeps failing, back to Cloudflare by itself. cloudflare = always Cloudflare. own = never Cloudflare. A running call keeps its path.',
-    pattern: /^(auto|cloudflare|own)$/,
+      'What carries calls besides Cloudflare. off (default) = Cloudflare only: no own TURN, the box never starts, media only through the relay, a call with no relay fails. auto = own TURN (the box starts by itself) and direct routes when Cloudflare fails. manual-on = the box runs, own TURN and direct routes, no Cloudflare, until switched back (costs money).',
+    pattern: /^(off|auto|manual-on)$/,
   };
   out['calls.transport_fail_limit'] = {
     type: 'integer',
@@ -257,13 +257,6 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     defaultValue: 'auto',
     description:
       'VPC interface endpoints (about $29 a month): auto = created / removed by NAT traffic, on = always kept, off = never.',
-    pattern: /^(auto|on|off)$/,
-  };
-  out['calls.own_turn.mode'] = {
-    type: 'string',
-    defaultValue: 'auto',
-    description:
-      'Own coturn relay box: auto = started only while Cloudflare is down and stopped after 30 quiet minutes, on = always running, off = never.',
     pattern: /^(auto|on|off)$/,
   };
   out['scale.endpoints.ceiling'] = {

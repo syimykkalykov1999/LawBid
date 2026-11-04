@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { CallsService, DEFAULT_STUN_URLS } from './calls.service';
 import type { RelayCheck } from './cloudflare-relay-probe';
 import {
@@ -63,7 +64,7 @@ function make(opts: {
   args.push(secrets);
   // entitlements, privacy, groups, redis, then the SLO counters.
   args.push(undefined, undefined, undefined, undefined, opts.slo);
-  // Then `calls.*` settings (calls.transport and the breaker limits).
+  // Then `calls.*` settings (calls.own_fallback and the breaker limits).
   const st = opts.settings ?? {};
   const defaults: Record<string, number> = {
     'calls.transport_fail_limit': 5,
@@ -94,6 +95,171 @@ const user = { sub: 'u1' } as never;
 const ownTurn = { urls: 'turn:own.example:3478', secret: 'x'.repeat(20) };
 const cf = { keyId: 'key12345', apiToken: TOKEN };
 
+const relayJson = () =>
+  Promise.resolve(
+    new Response(
+      JSON.stringify({
+        iceServers: [
+          { urls: ['stun:stun.cloudflare.com:3478'] },
+          {
+            urls: [
+              'turn:turn.cloudflare.com:3478?transport=udp',
+              'turns:turn.cloudflare.com:443?transport=tcp',
+            ],
+            username: 'test-user',
+            credential: 'test-credential',
+          },
+        ],
+      }),
+      { status: 201 },
+    ),
+  );
+
+describe('calls.own_fallback: a healthy Cloudflare takes all the work (owner 2026-11-04)', () => {
+  const realFetch = global.fetch;
+  beforeEach(() => clearCloudflareTurnCache());
+  afterEach(() => {
+    global.fetch = realFetch;
+    jest.restoreAllMocks();
+  });
+  const urls = (r: { iceServers: { urls: string[] }[] }) =>
+    r.iceServers.flatMap((s) => s.urls).join(' ');
+  const dead = () => Promise.resolve(new Response('', { status: 500 }));
+  const open = async (svc: CallsService) => {
+    for (let i = 0; i < 5; i++) await svc.iceServers(user);
+  };
+  const modes = ['off', 'auto', 'manual-on'];
+
+  it.each(modes)(
+    '%s + Cloudflare healthy: only its relay, policy relay',
+    async (m) => {
+      global.fetch = jest.fn(relayJson) as never;
+      const r = await make({
+        cf,
+        turn: ownTurn,
+        settings: { 'calls.own_fallback': m },
+      }).iceServers(user);
+      expect(r.iceTransportPolicy).toBe('relay');
+      expect(r.iceServers).toHaveLength(1);
+      expect(urls(r)).toContain('turn.cloudflare.com');
+      expect(urls(r)).not.toContain('own.example');
+      expect(urls(r)).not.toContain('stun:');
+    },
+  );
+
+  it.each(modes)(
+    '%s + a phone says the relay failed, breaker still closed: still only Cloudflare',
+    async (m) => {
+      global.fetch = jest.fn(relayJson) as never;
+      const r = await make({
+        cf,
+        turn: ownTurn,
+        settings: { 'calls.own_fallback': m },
+      }).iceServers(user, { relayFailed: true });
+      expect(r.iceTransportPolicy).toBe('relay');
+      expect(urls(r)).not.toContain('own.example');
+    },
+  );
+
+  it('off + Cloudflare gives no relay: nothing of ours, relay, alert', async () => {
+    global.fetch = jest.fn(dead) as never;
+    const svc = make({
+      cf,
+      turn: ownTurn,
+      settings: { 'calls.own_fallback': 'off' },
+    });
+    const warn = jest
+      .spyOn((svc as unknown as { logger: Logger }).logger, 'warn')
+      .mockImplementation(() => undefined);
+    const r = await svc.iceServers(user);
+    expect(r.iceTransportPolicy).toBe('relay');
+    expect(r.iceServers.some((s) => s.username)).toBe(false);
+    expect(urls(r)).not.toContain('own.example');
+    expect(warn.mock.calls.flat().join(' ')).toContain('alert=no_turn_relay');
+  });
+
+  it('off + no keys: nothing of ours, relay', async () => {
+    const r = await make({
+      turn: ownTurn,
+      settings: { 'calls.own_fallback': 'off' },
+    }).iceServers(user);
+    expect(r.iceTransportPolicy).toBe('relay');
+    expect(urls(r)).not.toContain('own.example');
+  });
+
+  it.each(['auto', 'manual-on'])(
+    '%s + no Cloudflare keys: ours simply work',
+    async (m) => {
+      const r = await make({
+        turn: ownTurn,
+        settings: { 'calls.own_fallback': m },
+      }).iceServers(user);
+      expect(r.iceTransportPolicy).toBe('all');
+      expect(urls(r)).toContain('own.example');
+    },
+  );
+
+  it.each(['auto', 'manual-on'])(
+    '%s + Cloudflare login fails: ours at once',
+    async (m) => {
+      global.fetch = jest.fn(dead) as never;
+      const r = await make({
+        cf,
+        turn: ownTurn,
+        settings: { 'calls.own_fallback': m },
+      }).iceServers(user);
+      expect(r.iceTransportPolicy).toBe('all');
+      expect(urls(r)).toContain('own.example');
+    },
+  );
+
+  it.each(['auto', 'manual-on'])(
+    '%s + breaker open: ours first; recovered: back to Cloudflare only',
+    async (m) => {
+      let t = 1_000_000;
+      let alive = false;
+      global.fetch = jest.fn(() => (alive ? relayJson() : dead())) as never;
+      const svc = make({
+        cf,
+        turn: ownTurn,
+        settings: { 'calls.own_fallback': m },
+        now: () => t,
+      });
+      await open(svc);
+      const down = await svc.iceServers(user);
+      expect(down.iceTransportPolicy).toBe('all');
+      expect(urls(down)).toContain('own.example');
+      alive = true;
+      for (let i = 0; i < CF_BREAKER_CLOSE_OK_PROBES; i++) {
+        t += CF_BREAKER_PROBE_MS + 1;
+        await svc.iceServers(user);
+        await new Promise((r) => setImmediate(r));
+      }
+      t += CF_BREAKER_PROBE_MS + 1;
+      await new Promise((r) => setImmediate(r));
+      const back = await svc.iceServers(user);
+      expect(back.iceTransportPolicy).toBe('relay');
+      expect(urls(back)).not.toContain('own.example');
+    },
+  );
+
+  it('off + breaker open: Cloudflare only, relay', async () => {
+    let alive = false;
+    global.fetch = jest.fn(() => (alive ? relayJson() : dead())) as never;
+    const svc = make({
+      cf,
+      turn: ownTurn,
+      settings: { 'calls.own_fallback': 'off' },
+    });
+    await open(svc);
+    alive = true;
+    clearCloudflareTurnCache();
+    const r = await svc.iceServers(user);
+    expect(r.iceTransportPolicy).toBe('relay');
+    expect(urls(r)).not.toContain('own.example');
+  });
+});
+
 describe('iceServers with Cloudflare TURN', () => {
   const realFetch = global.fetch;
   beforeEach(() => {
@@ -104,7 +270,7 @@ describe('iceServers with Cloudflare TURN', () => {
     jest.restoreAllMocks();
   });
 
-  it('puts Cloudflare first, then STUN, then own coturn (always offered: FO-1); keeps explicit transports; drops port 53', async () => {
+  it('a healthy Cloudflare alone (owner 2026-11-04, was FO-1); keeps explicit transports; drops port 53', async () => {
     const fetchMock = jest.fn(() =>
       Promise.resolve(
         new Response(JSON.stringify(CF_RESPONSE), { status: 201 }),
@@ -120,15 +286,7 @@ describe('iceServers with Cloudflare TURN', () => {
       username: 'cf-user',
       credential: 'cf-pass',
     });
-    expect(res.iceServers[1].username).toBeNull(); // STUN
-    // FO-1 (audit 2026-10-26): our own TURN is offered AFTER Cloudflare, so
-    // a dead Cloudflare relay behind a live credential API never leaves a
-    // call without a path (ICE gathers from both at once).
-    expect(res.iceServers).toHaveLength(3);
-    expect(res.iceServers[2].urls).toEqual([
-      'turn:own.example:3478',
-      'turn:own.example:3478?transport=tcp',
-    ]);
+    expect(res.iceServers).toHaveLength(1);
     const [url, init] = fetchMock.mock.calls[0] as unknown as [
       string,
       RequestInit,
@@ -165,8 +323,7 @@ describe('iceServers with Cloudflare TURN', () => {
     const res = await make({ cf, turn: ownTurn, slo }).iceServers(user);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(res.iceServers[0].username).toBe('cf-user');
-    expect(res.iceServers).toHaveLength(3); // + STUN + own TURN second
-    expect(res.iceServers[2].urls[0]).toBe('turn:own.example:3478');
+    expect(res.iceServers).toHaveLength(1);
     expect(slo.count).not.toHaveBeenCalled();
   });
 
@@ -213,14 +370,79 @@ describe('iceServers with Cloudflare TURN', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('Cloudflare only: Cloudflare + STUN', async () => {
+  it('Cloudflare only: its relay alone', async () => {
     global.fetch = jest.fn(() =>
       Promise.resolve(
         new Response(JSON.stringify(CF_RESPONSE), { status: 201 }),
       ),
     ) as never;
     const res = await make({ cf }).iceServers(user);
-    expect(res.iceServers).toHaveLength(2);
+    expect(res.iceServers).toHaveLength(1);
+  });
+
+  // R-402 (owner 2026-11-04): «Соединение…» for minutes — the list had no
+  // TURN at all (Cloudflare keys saved but not switched on, own coturn
+  // stopped) and nobody was told.
+  describe('alert=no_turn_relay (R-402)', () => {
+    it('Cloudflare enabled: turn:/turns: entries with a short-lived login, no warning', async () => {
+      global.fetch = jest.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify(CF_RESPONSE), { status: 201 }),
+        ),
+      ) as never;
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const res = await make({ cf }).iceServers(user);
+      const relay = res.iceServers[0];
+      expect(relay.username).toBe('cf-user');
+      expect(relay.credential).toBe('cf-pass');
+      expect(relay.urls.some((u) => u.startsWith('turn:'))).toBe(true);
+      // Restrictive networks (TCP 443 only) still get a relay.
+      expect(relay.urls).toContain(
+        'turns:turn.cloudflare.com:443?transport=tcp',
+      );
+      expect(res.ttlSec).toBeGreaterThan(0);
+      expect(warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('alert=no_turn_relay'),
+      );
+    });
+
+    it('no keys enabled and no own TURN: STUN only + ONE warning a minute', async () => {
+      global.fetch = jest.fn() as never;
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const svc = make({});
+      await svc.iceServers(user);
+      await svc.iceServers({ sub: 'u2' } as never);
+      const lines = warn.mock.calls
+        .map((c) => String(c[0]))
+        .filter((m) => m.includes('alert=no_turn_relay'));
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toContain('Включить');
+      expect(lines[0]).toContain('STUN only');
+    });
+
+    it('Cloudflare keys set but its login fails and no own TURN: the warning names Cloudflare', async () => {
+      global.fetch = jest.fn(() =>
+        Promise.resolve(new Response('nope', { status: 500 })),
+      ) as never;
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const res = await make({ cf }).iceServers(user);
+      expect(res.iceServers).toHaveLength(1); // STUN only
+      const line = warn.mock.calls
+        .map((c) => String(c[0]))
+        .find((m) => m.includes('alert=no_turn_relay'));
+      expect(line).toContain('Cloudflare TURN login failed');
+      expect(line).not.toContain(TOKEN);
+    });
+
+    it('own TURN alone (no Cloudflare): a relay is offered, no warning', async () => {
+      global.fetch = jest.fn() as never;
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const res = await make({ turn: ownTurn }).iceServers(user);
+      expect(res.iceServers.some((s) => s.username && s.credential)).toBe(true);
+      expect(warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('alert=no_turn_relay'),
+      );
+    });
   });
 
   it('reuses the login for the same user (one Cloudflare call)', async () => {
@@ -372,8 +594,8 @@ describe('Cloudflare primary, own TURN as the automatic backup (owner 2026-10-26
     }
     const after = await svc.iceServers(u(4));
     expect(isCf(after)).toBe(true);
-    // Own TURN stays offered, after Cloudflare again.
-    expect(after.iceServers.at(-1)?.urls[0]).toBe('turn:own.example:3478');
+    // Cloudflare back: nothing of ours next to it.
+    expect(after.iceServers).toHaveLength(1);
   });
 
   it('breaker open but no own TURN configured: Cloudflare is still tried', async () => {
@@ -386,44 +608,20 @@ describe('Cloudflare primary, own TURN as the automatic backup (owner 2026-10-26
     expect(isCf(res)).toBe(true);
   });
 
-  it('calls.transport = own: Cloudflare is never asked, own TURN is used', async () => {
-    const fetchMock = jest.fn(ok);
-    global.fetch = fetchMock as never;
-    const res = await make({
-      cf,
-      turn: ownTurn,
-      settings: { 'calls.transport': 'own' },
-    }).iceServers(user);
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(isOwn(res)).toBe(true);
-  });
-
-  it('calls.transport = cloudflare: Cloudflare even while the breaker is open', async () => {
+  it('calls.own_fallback = off: Cloudflare even while the breaker is open', async () => {
     const fetchMock = jest.fn(fail);
     global.fetch = fetchMock as never;
     const svc = make({
       cf,
       turn: ownTurn,
       settings: {
-        'calls.transport': 'cloudflare',
+        'calls.own_fallback': 'off',
         'calls.transport_fail_limit': 1,
       },
     });
     await svc.iceServers(u(1)); // opens
     fetchMock.mockImplementation(ok);
     expect(isCf(await svc.iceServers(u(2)))).toBe(true);
-  });
-
-  it('calls.transport = auto with keys: Cloudflare first, own TURN offered after it', async () => {
-    global.fetch = jest.fn(ok) as never;
-    const res = await make({
-      cf,
-      turn: ownTurn,
-      settings: { 'calls.transport': 'auto' },
-    }).iceServers(user);
-    expect(isCf(res)).toBe(true);
-    expect(isOwn(res)).toBe(true);
-    expect(res.iceServers.at(-1)?.urls[0]).toBe('turn:own.example:3478');
   });
 
   it('key rotation mid-call: the next fetch uses the new key, the running call keeps its login', async () => {

@@ -192,6 +192,12 @@ describe('on-demand coturn state machine', () => {
     expect(t.calls.stop).toBe(0);
   });
 
+  it('parseOwnTurnMode reads calls.own_fallback', () => {
+    expect(parseOwnTurnMode('off')).toBe('off');
+    expect(parseOwnTurnMode('auto')).toBe('auto');
+    expect(parseOwnTurnMode('manual-on')).toBe('on');
+  });
+
   it('parseOwnTurnMode: unknown values mean auto', () => {
     expect(parseOwnTurnMode('on')).toBe('on');
     expect(parseOwnTurnMode('off')).toBe('off');

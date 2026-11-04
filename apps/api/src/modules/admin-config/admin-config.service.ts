@@ -312,13 +312,13 @@ export class AdminConfigService {
     });
   }
 
-  /** Owner 2026-10-26: `calls.transport` = cloudflare (forced) needs at
+  /** Owner 2026-10-26: `calls.own_fallback` = off (Cloudflare only) needs at
    * least one Cloudflare call key (TURN or SFU); auto and own never do. */
   private async assertCloudflareTransportReady(
     key: string,
     value: unknown,
   ): Promise<void> {
-    if (key !== 'calls.transport' || value !== 'cloudflare') return;
+    if (key !== 'calls.own_fallback' || value !== 'off') return;
     const turn = (await this.secrets?.get('cloudflare_turn'))?.fields ?? {};
     const sfu = (await this.secrets?.get('cloudflare_sfu'))?.fields ?? {};
     const has = (f: Record<string, string>, name: string, env: string) =>

@@ -8,10 +8,10 @@ export interface MediaDecisionInput {
   /** People the call starts with, the caller included. */
   headcount: number;
   /** Cloudflare is the transport for this new call (keys present,
-   * `calls.transport` not `own`, breaker closed or `cloudflare` forced, no
+   * `calls.own_fallback` not `manual-on`, breaker closed or `cloudflare` forced, no
    * cost hard stop). */
   useCloudflare: boolean;
-  /** Cloudflare SHOULD carry group calls (keys present and `calls.transport`
+  /** Cloudflare SHOULD carry group calls (keys present and `calls.own_fallback`
    * not `own`) — false means our own path was chosen on purpose, true with
    * useCloudflare false means the automatic backup is running. */
   cloudflareWanted: boolean;
@@ -32,7 +32,7 @@ export interface MediaDecision {
  * the backup; a call is never refused because of the backup.
  *  - 1:1: device to device (Cloudflare TURN relays it; see iceServers);
  *  - group + Cloudflare up: the call runs on the Cloudflare SFU;
- *  - group + own path chosen (no keys / `calls.transport` = own): mesh as
+ *  - group + own path chosen (no keys / `calls.own_fallback` = `manual-on`): mesh as
  *    before Cloudflare existed;
  *  - group + Cloudflare wanted but failing (breaker open, cost hard stop):
  *    up to `meshVideoMax` people (4) keep video device to device, more are

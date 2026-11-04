@@ -47,6 +47,12 @@ describe('In-app calls (e2e, OQ-041)', () => {
     const { port } = (app.getHttpServer() as Server).address() as AddressInfo;
     base = `http://127.0.0.1:${port}`;
     prisma = app.get(PrismaService);
+    // These suites cover the fallback paths; the default is Cloudflare only.
+    await prisma.appConfig.upsert({
+      where: { key: 'calls.own_fallback' },
+      create: { key: 'calls.own_fallback', value: 'auto' },
+      update: { value: 'auto' },
+    });
     tokens = app.get(TokenService);
   });
 

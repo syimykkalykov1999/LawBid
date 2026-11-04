@@ -5,6 +5,8 @@ import {
   cloudflareStatus,
   isCallProvider,
   ownStatus,
+  ownCostReminder,
+  relayWarning,
   stateOfTransport,
   TRANSPORT_HINT,
   TRANSPORT_OF_STATE,
@@ -30,14 +32,14 @@ const path = (over: Partial<CallsPath> = {}): CallsPath => ({
 });
 
 describe('«Связь для звонков»: the 3-state control', () => {
-  it('Выкл / Вкл / Авто map to own / cloudflare / auto and back', () => {
-    expect(TRANSPORT_OF_STATE).toEqual({ off: 'own', on: 'cloudflare', auto: 'auto' });
-    expect(stateOfTransport('own')).toBe('off');
-    expect(stateOfTransport('cloudflare')).toBe('on');
+  it('Выкл / Вкл / Авто map to calls.own_fallback and back', () => {
+    expect(TRANSPORT_OF_STATE).toEqual({ off: 'off', on: 'manual-on', auto: 'auto' });
+    expect(stateOfTransport('cloudflare')).toBe('off');
+    expect(stateOfTransport('own')).toBe('on');
     expect(stateOfTransport('auto')).toBe('auto');
     // Unknown or missing reads as the default.
-    expect(stateOfTransport(undefined)).toBe('auto');
-    expect(stateOfTransport('weird')).toBe('auto');
+    expect(stateOfTransport(undefined)).toBe('off');
+    expect(stateOfTransport('weird')).toBe('off');
   });
 
   it('the four call services go inside the card', () => {
@@ -69,10 +71,17 @@ describe('«Связь для звонков»: the dots and the plain line', ()
     expect(ownStatus(path({ own: side({ lastProbeOk: false }) })).live).toBe('attention');
   });
 
-  it('Выкл: Cloudflare grey, own carries calls', () => {
-    const r = path({ transport: 'own', carrying: 'own' });
-    expect(cloudflareStatus(r)).toMatchObject({ live: 'idle', state: 'off' });
+  it('Вкл with a healthy Cloudflare: Cloudflare carries calls, the machine is idle for money', () => {
+    const r = path({ transport: 'own' });
+    expect(cloudflareStatus(r)).toMatchObject({ live: 'active', state: 'on' });
+    expect(ownStatus(r)).toMatchObject({ live: 'idle', reason: 'работает впустую: звонки идут через Cloudflare' });
+    expect(ownCostReminder(r)).toContain('впустую');
+  });
+
+  it('Вкл with Cloudflare down: the machine carries calls', () => {
+    const r = path({ transport: 'own', carrying: 'own', breakers: { turn: 'open', sfu: 'closed' } });
     expect(ownStatus(r).live).toBe('active');
+    expect(ownCostReminder(r)).toContain('несёт звонки');
   });
 
   it('no keys: grey with the reason, own not set up is grey too (quiet)', () => {
@@ -109,5 +118,61 @@ describe('«Связь для звонков»: the dots and the plain line', ()
 describe('backup wording', () => {
   it('no hint promises LiveKit as the automatic backup', () => {
     for (const h of Object.values(TRANSPORT_HINT)) expect(h).not.toMatch(/LiveKit/);
+  });
+});
+
+describe('relayWarning (R-402)', () => {
+  it('quiet when Cloudflare TURN is on', () => {
+    expect(relayWarning(path())).toBeNull();
+  });
+
+  it('quiet when only our own coturn is there', () => {
+    expect(
+      relayWarning(path({ cloudflare: side({ configured: false, parts: { turn: false, sfu: false } }) })),
+    ).toBeNull();
+  });
+
+  it('Cloudflare keys not switched on and no own coturn: tells the owner to press «Включить»', () => {
+    const w = relayWarning(
+      path({
+        carrying: 'own',
+        cloudflare: side({ configured: false, parts: { turn: false, sfu: false } }),
+        own: side({ configured: false, parts: { turn: false, livekit: false } }),
+      }),
+    );
+    expect(w).toContain('Включить');
+    expect(w).toContain('TURN');
+  });
+
+  it('Выкл (Cloudflare only) and no keys: red, the call will not happen', () => {
+    const w = relayWarning(
+      path({
+        transport: 'cloudflare',
+        cloudflare: side({ configured: false, parts: { turn: false, sfu: false } }),
+      }),
+    );
+    expect(w).toContain('не состоятся');
+  });
+
+  it('Выкл and Cloudflare failing: red even with a coturn set up, it will not start itself', () => {
+    const w = relayWarning(path({ transport: 'cloudflare', cloudflare: side({ lastProbeOk: false }) }));
+    expect(w).toContain('не запустится сама');
+  });
+
+  it('Вкл: no warning, a reminder that the machine costs money', () => {
+    const r = path({ transport: 'own' });
+    expect(relayWarning(r)).toBeNull();
+    expect(ownCostReminder(r)).toContain('стоит денег');
+    expect(ownCostReminder(path())).toBeNull();
+  });
+
+  it('Cloudflare on but failing its probe, no own coturn', () => {
+    const w = relayWarning(
+      path({
+        cloudflare: side({ lastProbeOk: false }),
+        own: side({ configured: false, parts: { turn: false, livekit: false } }),
+      }),
+    );
+    expect(w).toContain('не отвечает');
   });
 });

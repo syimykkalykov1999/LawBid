@@ -20,6 +20,7 @@ import {
 } from '../../../modules/calls/cloudflare-sfu.client';
 import {
   CloudflareTransport,
+  parseTransport,
   type CfPart,
 } from '../../../modules/calls/cloudflare-transport';
 import {
@@ -471,16 +472,11 @@ export class StatusProbesService implements OnModuleDestroy {
     const t = this.cfTransport;
     const mode = await t.mode();
     let st = await t.state(part);
-    if (mode !== 'own' && (st.open || always)) {
+    if (st.open || always) {
       await t.probe(part, probe);
       st = await t.state(part);
     }
-    const path =
-      mode === 'own'
-        ? 'own'
-        : mode === 'cloudflare' || !st.open
-          ? 'cloudflare'
-          : 'own';
+    const path = mode === 'cloudflare' || !st.open ? 'cloudflare' : 'own';
     return {
       transport: mode,
       path,
@@ -546,25 +542,8 @@ export class StatusProbesService implements OnModuleDestroy {
     if (!(await this.sfu.isConfigured())) {
       return { status: 'grey', detail: { configured: false } };
     }
-    // Owner 2026-10-26: SFU keys set = Cloudflare carries group calls,
-    // unless the admin chose our own path (`calls.transport` = own).
-    let selected = true;
-    try {
-      selected = (await this.settings.string('calls.transport')) !== 'own';
-    } catch {
-      selected = true;
-    }
-    if (!selected) {
-      return {
-        status: 'grey',
-        detail: {
-          configured: true,
-          inUse: false,
-          transport: 'own',
-          path: 'own',
-        },
-      };
-    }
+    // Owner 2026-11-04: SFU keys set = Cloudflare carries group calls, in
+    // every `calls.own_fallback` mode.
     const sfu = this.sfu;
     const path = await this.callPath('sfu', () => sfu.probe());
     const probe = await this.cached('cloudflare_sfu', async () => {
@@ -690,7 +669,7 @@ export class StatusProbesService implements OnModuleDestroy {
     );
     if (!exists) return { exists, mode: 'auto', address: null };
     const mode = parseOwnTurnMode(
-      await this.settings.string('calls.own_turn.mode').catch(() => 'auto'),
+      await this.settings.string('calls.own_fallback').catch(() => 'auto'),
     );
     const address =
       mode === 'off'
@@ -908,12 +887,11 @@ export class StatusProbesService implements OnModuleDestroy {
       ]);
     const cfConfigured = Boolean(cfTurn) || sfuSet;
     const anyOpen = (cfTurn && turnSt.open) || (sfuSet && sfuSt.open);
-    const carrying: 'cloudflare' | 'own' =
-      mode === 'own' || !cfConfigured
-        ? 'own'
-        : mode === 'cloudflare' || !anyOpen
-          ? 'cloudflare'
-          : 'own';
+    const carrying: 'cloudflare' | 'own' = !cfConfigured
+      ? 'own'
+      : mode === 'cloudflare' || !anyOpen
+        ? 'cloudflare'
+        : 'own';
     // The newest of: the breaker probe (while open) and the button's check.
     const newest = (
       items: Array<{ at: number; ok: boolean } | null>,
@@ -926,7 +904,9 @@ export class StatusProbesService implements OnModuleDestroy {
     const cfLast = newest([turnProbe, sfuProbe, asProbe(checks.cloudflare)]);
     const ownLast = asProbe(checks.own);
     return {
-      transport: mode,
+      transport: parseTransport(
+        await this.settings.string('calls.own_fallback').catch(() => 'auto'),
+      ),
       carrying,
       breakers: {
         turn: turnSt.open ? 'open' : 'closed',

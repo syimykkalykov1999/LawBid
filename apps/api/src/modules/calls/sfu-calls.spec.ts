@@ -70,9 +70,10 @@ function world(opts?: {
     readiness: jest.fn(async () => ({ tracksByUser: { a: ['mic'] } })),
     closeCall: jest.fn(async () => undefined),
     // Owner 2026-10-26: Cloudflare wanted = SFU keys set and
-    // `calls.transport` not own (the tests say it through the setting).
+    // `calls.own_fallback` not own (the tests say it through the setting).
     cloudflareWanted: jest.fn(
-      async () => (opts?.settings?.['calls.transport'] ?? 'own') !== 'own',
+      async () =>
+        (opts?.settings?.['calls.own_fallback'] ?? 'manual-on') !== 'manual-on',
     ),
   };
   const prisma = {
@@ -256,7 +257,7 @@ describe('SFU cleanup hooks', () => {
 
 describe('fallback: audio-only when too many people (owner 2026-10-24)', () => {
   const S = {
-    'calls.transport': 'auto',
+    'calls.own_fallback': 'auto',
     'calls.sfu_fallback_mesh_max': 4,
     'calls.sfu_max_participants': 20,
   };
@@ -285,7 +286,7 @@ describe('fallback: audio-only when too many people (owner 2026-10-24)', () => {
     expect(audio.prisma.call.update).not.toHaveBeenCalled();
     const plain = world({
       call: { media_provider: 'p2p' },
-      settings: { 'calls.transport': 'own' },
+      settings: { 'calls.own_fallback': 'manual-on' },
     });
     expect((await plain.svc.downgradeFallbackVideo(plain.call, 9)).video).toBe(
       true,
@@ -297,14 +298,14 @@ describe('fallback: audio-only when too many people (owner 2026-10-24)', () => {
     expect(await w.svc.capacity(true, 'cloudflare')).toBe(20);
     expect(await w.svc.capacity(true, 'p2p')).toBe(20);
     expect(await w.svc.capacity(false, 'p2p')).toBe(20);
-    const plain = world({ settings: { 'calls.transport': 'own' } });
+    const plain = world({ settings: { 'calls.own_fallback': 'manual-on' } });
     expect(await plain.svc.capacity(true, 'p2p')).toBe(9);
   });
 });
 
 describe('mediaFallback flag for the app', () => {
   const S = {
-    'calls.transport': 'auto',
+    'calls.own_fallback': 'auto',
     'calls.sfu_fallback_mesh_max': 4,
   };
   it('active + videoBlocked above the threshold, active but not blocked at 4', async () => {

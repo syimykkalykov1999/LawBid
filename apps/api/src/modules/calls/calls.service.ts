@@ -168,6 +168,8 @@ export const CLOUDFLARE_TURN_OPEN_TRY_MS = 500;
 /** R-404: `failed` this soon after the answer = the media never came up
  * (the app's connect timeout is 45 s). */
 export const CALL_NEVER_UP_WITHIN_MS = 60_000;
+/** R-402: the «STUN only, no relay» warning is written at most this often. */
+export const NO_RELAY_WARN_EVERY_MS = 60_000;
 
 type Outcome = 'ended' | 'missed' | 'declined' | 'busy' | 'canceled' | 'failed';
 
@@ -295,7 +297,7 @@ export class CallsService {
   private readonly livekit: LiveKitVideoProvider;
 
   /** Owner 2026-10-26: Cloudflare is the primary transport as soon as its
-   * SFU keys are set (`calls.transport` not `own`; the cost hard stop of
+   * SFU keys are set (`calls.own_fallback` not `manual-on`; the cost hard stop of
    * registry V7 still wins). Otherwise our own path: `calls.video_provider`
    * = livekit while its keys exist, else device to device (p2p). */
   private async activeVideoProvider(): Promise<VideoCallProvider> {
@@ -341,7 +343,7 @@ export class CallsService {
       instance: box,
       store: new RedisTurnStore(this.redis),
       mode: async () =>
-        parseOwnTurnMode(await this.settings?.string('calls.own_turn.mode')),
+        parseOwnTurnMode(await this.settings?.string('calls.own_fallback')),
       needed: async () => {
         // A fixed own TURN address wins: that server is always on, no box.
         const keys = (await this.secrets?.get('turn'))?.fields ?? {};
@@ -349,8 +351,9 @@ export class CallsService {
           return false;
         const t = this.cfTransport;
         if ((await t.isOpen('turn')) || (await t.isOpen('sfu'))) return true;
-        // Own forced: the box is the only relay.
-        return (await t.mode()) === 'own';
+        // No Cloudflare at all: the box is the only relay.
+        const { cfKeyId, cfToken } = await this.cloudflareKeys();
+        return !cfKeyId || !cfToken;
       },
       activeCalls: () =>
         this.prisma.call.count({
@@ -1166,40 +1169,27 @@ export class CallsService {
     const out: IceServersDto = {
       iceServers: [{ urls: stun, username: null, credential: null }],
       ttlSec: TURN_TTL_SEC,
+      iceTransportPolicy: 'all',
     };
-    // Owner 2026-10-26: Cloudflare Realtime TURN is the PRIMARY relay of
-    // every call; our own TURN (Admin -> Integrations -> TURN, or TURN_URLS)
-    // is only the backup. A call never waits more than 1.5 s for Cloudflare
-    // (first try + one quick retry); then it goes on our own TURN, and the
-    // failure counts for the SLO alarm and the shared breaker. While the
-    // breaker is open (N failures in M minutes) new calls skip Cloudflare,
-    // which is probed once a minute and used again when it answers.
-    // `calls.transport`: auto (default) | cloudflare (forced) | own.
+    // Owner 2026-10-26: a call never waits more than 1.5 s for Cloudflare
+    // (first try + one quick retry); the failure counts for the SLO alarm and
+    // the shared breaker, and an open breaker is probed once a minute.
+    // `calls.own_fallback` decides what else may carry the call:
+    // off (default) = Cloudflare only: no own TURN, no box, policy `relay`
+    // even with no relay on offer (the call fails, with an alert);
+    // auto = ours when Cloudflare is down, the box starts by itself;
+    // manual-on = the same, with the box kept running.
+    const cloudflareOnly = (await this.cfTransport.mode()) === 'cloudflare';
+    let ownTurn = false;
     const { cfKeyId, cfToken } = await this.cloudflareKeys();
-    let turn = (turnKeys.urls ?? this.config.get<string>('TURN_URLS') ?? '')
-      .split(',')
-      .map((u) => u.trim())
-      .filter(Boolean);
-    // Owner 2026-11-02: no fixed own TURN -> the on-demand box's live address
-    // (only while the box runs and answers; STUN only before that).
-    if (turn.length === 0 && this.turnOnDemand) {
-      const live = await this.turnOnDemand.address().catch(() => null);
-      if (live) turn = [live];
-      else this.nudgeTurnBox();
-    }
-    const secret = turnKeys.secret ?? this.config.get<string>('TURN_SECRET');
-    const ownTurn = turn.length > 0 && Boolean(secret);
-    let cfWorks = false;
-    /** Cloudflare offered as the BACKUP (own TURN first): the breaker is
-     * open, or the phone said its Cloudflare relay died. */
-    let cfSecond = false;
-    // Owner 2026-10-26 (failover): a phone whose call lost its relay asks
-    // again with relayFailed — it gets a NEW login and our own TURN next
-    // to (and before) Cloudflare, so the ICE restart finds a working relay
-    // whichever side is down. Its report teaches the breaker (enough
-    // distinct phones in the window; see recordClientFailure), and the API
-    // checks the relay itself once (CF-6).
+    // Owner 2026-11-04: a healthy Cloudflare takes all the work in every
+    // mode: only its relay, policy `relay`, nothing of ours next to it (this
+    // replaces FO-1 / TS-2, which always offered own TURN too). Ours work only
+    // when Cloudflare has no keys, its login fails or the breaker is open.
+    // A phone's relayFailed teaches the breaker; it opens no route by itself.
     const relayFailed = opts.relayFailed === true;
+    let relay: IceServerDto | null = null;
+    let cfHealthy = false;
     if (cfKeyId && cfToken) {
       if (relayFailed) {
         forgetCloudflareTurn(cfKeyId, user.sub);
@@ -1220,65 +1210,77 @@ export class CallsService {
           }),
         () => this.slo?.count('turnProviderFailed'),
       );
-      // Breaker open but no own TURN to fall back on: Cloudflare is still
-      // the best relay we have, so it is tried anyway.
-      if (d.use || (d.reason === 'breaker_open' && !ownTurn)) {
-        const relay = await this.cloudflareRelay(user.sub, cfKeyId, cfToken);
-        if (relay) {
-          out.iceServers.unshift(relay);
-          cfWorks = true;
-          cfSecond = relayFailed;
-          if (relayFailed) {
-            // CF-6: one real Allocate on the relay the phone complained
-            // about (fleet-wide at most every 10 s); never waited for.
-            void this.cfTransport
-              .verify('turn', () => checkRelayLogin(relay, this.relayCheck))
-              .catch(() => undefined);
-          } else {
-            // The denominator of the phones' relay reports.
-            void this.cfTransport.noteUse('turn').catch(() => undefined);
-          }
+      if (d.use) {
+        relay = await this.cloudflareRelay(user.sub, cfKeyId, cfToken);
+        cfHealthy = relay !== null;
+        const login = relay;
+        if (login && relayFailed) {
+          // CF-6: one real Allocate on the relay the phone complained about
+          // (fleet-wide at most every 10 s); never waited for.
+          void this.cfTransport
+            .verify('turn', () => checkRelayLogin(login, this.relayCheck))
+            .catch(() => undefined);
+        } else if (login) {
+          // The denominator of the phones' relay reports.
+          void this.cfTransport.noteUse('turn').catch(() => undefined);
         }
       } else if (d.reason === 'breaker_open') {
-        // FO-8: own TURN carries the call; Cloudflare is still offered
-        // second when its login comes quickly (nothing is counted here —
-        // the minute probe owns the breaker while it is open).
-        const relay = await this.cloudflareRelay(
+        // FO-8: ours carry the call; Cloudflare is still offered second when
+        // its login comes quickly (nothing is counted here: the minute probe
+        // owns the breaker while it is open).
+        relay = await this.cloudflareRelay(
           user.sub,
           cfKeyId,
           cfToken,
           CLOUDFLARE_TURN_OPEN_TRY_MS,
           false,
         );
-        if (relay) {
-          out.iceServers.unshift(relay);
-          cfWorks = true;
-          cfSecond = true;
-        }
       }
     }
-    // FO-1 / TS-2 (audit 2026-10-26): our own TURN is ALWAYS offered next
-    // to Cloudflare — after it while Cloudflare is primary (ICE gathers from
-    // both at once; a dead Cloudflare relay with a live credential API then
-    // costs a timed-out candidate, not the call), FIRST after a relay
-    // failure or while the breaker is open (WebRTC prefers the earlier TURN
-    // server).
-    if (ownTurn && secret) {
-      const urls = withTcpFallback(turn);
-      const username = `${Math.floor(Date.now() / 1000) + TURN_TTL_SEC}:${user.sub}`;
-      const own: IceServerDto = {
-        urls,
-        username,
-        credential: createHmac('sha1', secret)
-          .update(username)
-          .digest('base64'),
-      };
-      if (cfWorks && cfSecond) {
-        out.iceServers.unshift(own);
-      } else {
-        out.iceServers.push(own);
+    if (cfHealthy && relay) {
+      out.iceServers = [relay];
+      out.iceTransportPolicy = 'relay';
+    } else if (!cloudflareOnly) {
+      let turn = (turnKeys.urls ?? this.config.get<string>('TURN_URLS') ?? '')
+        .split(',')
+        .map((u) => u.trim())
+        .filter(Boolean);
+      // Owner 2026-11-02: no fixed own TURN -> the on-demand box's live
+      // address (only while the box runs and answers; STUN only before that).
+      if (turn.length === 0 && this.turnOnDemand) {
+        const live = await this.turnOnDemand.address().catch(() => null);
+        if (live) turn = [live];
+        else this.nudgeTurnBox();
+      }
+      const secret = turnKeys.secret ?? this.config.get<string>('TURN_SECRET');
+      if (relay) out.iceServers.unshift(relay);
+      if (turn.length > 0 && secret) {
+        const username = `${Math.floor(Date.now() / 1000) + TURN_TTL_SEC}:${user.sub}`;
+        const own: IceServerDto = {
+          urls: withTcpFallback(turn),
+          username,
+          credential: createHmac('sha1', secret)
+            .update(username)
+            .digest('base64'),
+        };
+        // WebRTC prefers the earlier TURN server: ours carry the call now.
+        if (relay) out.iceServers.unshift(own);
+        else out.iceServers.push(own);
+        ownTurn = true;
       }
     }
+    if (cloudflareOnly) out.iceTransportPolicy = 'relay';
+    // What this phone may offer the other one (`call:signal` drops the rest:
+    // builds that ignore the policy still gather direct addresses).
+    await this.realtime?.setRelayOnly(
+      user.sub,
+      out.iceTransportPolicy === 'relay',
+    );
+    this.warnWhenNoRelay(out, {
+      cloudflareKeys: Boolean(cfKeyId && cfToken),
+      cloudflareUsed: cfHealthy,
+      ownTurn,
+    });
     return out;
   }
 
@@ -1308,7 +1310,8 @@ export class CallsService {
     if (!signaled) return;
     const { cfKeyId, cfToken } = await this.cloudflareKeys();
     if (!cfKeyId || !cfToken) return;
-    if ((await this.cfTransport.mode()) === 'own') return;
+    // With Cloudflare alone there is nothing to fall back on.
+    if ((await this.cfTransport.mode()) === 'cloudflare') return;
     for (const who of [call.caller_id, call.callee_id]) {
       if (!who) continue;
       forgetCloudflareTurn(cfKeyId, who);
@@ -1343,6 +1346,37 @@ export class CallsService {
         ''
       ).trim(),
     };
+  }
+
+  /** Last `alert=no_turn_relay` line (one a minute, not one per call). */
+  private noRelayWarnedAt = 0;
+
+  /**
+   * R-402 (owner 2026-11-04, «Соединение…» for minutes): a list without a
+   * single TURN entry means STUN only — phones behind a carrier (symmetric)
+   * NAT never connect, or connect slowly and weakly. Nothing told anyone:
+   * the saved Cloudflare keys were not switched on («Включить» in the
+   * admin), our own coturn box was stopped, and the API handed out STUN in
+   * silence. Now it says so in the log (the admin card reads the same
+   * state through /admin/system-health/calls-path).
+   */
+  private warnWhenNoRelay(
+    out: IceServersDto,
+    why: { cloudflareKeys: boolean; cloudflareUsed: boolean; ownTurn: boolean },
+  ): void {
+    if (out.iceServers.some((s) => s.username && s.credential)) return;
+    const t = Date.now();
+    if (t - this.noRelayWarnedAt < NO_RELAY_WARN_EVERY_MS) return;
+    this.noRelayWarnedAt = t;
+    const reason = why.cloudflareKeys
+      ? 'Cloudflare TURN login failed (keys are set) and no own TURN (calls.own_fallback = off: such a call fails)'
+      : why.ownTurn
+        ? 'own TURN has no secret'
+        : 'no Cloudflare TURN keys enabled (Admin → Integrations → ' +
+          'Cloudflare TURN → «Включить») and no own TURN (fixed or on-demand)';
+    this.logger.warn(
+      `alert=no_turn_relay GET /calls/ice-servers hands out STUN only: ${reason}. Calls across mobile networks will not connect or stay weak.`,
+    );
   }
 
   /** A Cloudflare TURN login within [budgetMs] (1.5 s by default): a 1 s

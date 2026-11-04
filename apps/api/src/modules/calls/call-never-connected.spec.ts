@@ -53,9 +53,11 @@ describe('a call that never connected (R-404)', () => {
     await settle();
     expect(w.slo.count).toHaveBeenCalledWith('callFailed');
     expect(w.slo.count).not.toHaveBeenCalledWith('callConnected');
-    expect(w.transport.recordClientFailure.mock.calls.map((c) => c[1])).toEqual(
-      ['a', 'b'],
-    );
+    expect(
+      w.transport.recordClientFailure.mock.calls.map(
+        (c) => (c as unknown[])[1],
+      ),
+    ).toEqual(['a', 'b']);
     expect(w.transport.verify).toHaveBeenCalledTimes(1);
     expect(w.logger.warn.mock.calls[0][0]).toContain(
       'alert=call_media_never_up',
@@ -75,13 +77,18 @@ describe('a call that never connected (R-404)', () => {
     expect(line).toContain('callee_sent=nothing');
   });
 
-  it('own transport forced: Cloudflare is not reported', async () => {
-    const w = world({ answeredAgoMs: 45_000, signals: ['b:answer'] });
-    w.transport.mode.mockResolvedValue('own');
-    await w.svc.end(user, 'c1', { reason: 'failed' });
-    await settle();
-    expect(w.transport.recordClientFailure).not.toHaveBeenCalled();
-  });
+  it.each(['cloudflare'])(
+    'mode %s (off): the breaker is not taught',
+    async (mode) => {
+      const w = world({ answeredAgoMs: 45_000, signals: ['b:answer'] });
+      w.transport.mode.mockResolvedValue(mode);
+      await w.svc.end(user, 'c1', { reason: 'failed' });
+      await settle();
+      expect(w.slo.count).toHaveBeenCalledWith('callFailed');
+      expect(w.transport.recordClientFailure).not.toHaveBeenCalled();
+      expect(w.transport.verify).not.toHaveBeenCalled();
+    },
+  );
 
   it('a call that talked and then lost its link stays a connected call', async () => {
     const w = world({ answeredAgoMs: 120_000, signals: ['b:answer'] });

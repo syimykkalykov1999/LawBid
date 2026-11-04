@@ -63,9 +63,9 @@ const settings = (s: Record<string, string | number>) => ({
 });
 
 describe('CloudflareTransport (shared breaker, owner 2026-10-26)', () => {
-  it('reads calls.transport with auto as the default', () => {
-    expect(parseTransport('own')).toBe('own');
-    expect(parseTransport('cloudflare')).toBe('cloudflare');
+  it('reads calls.own_fallback with auto as the default', () => {
+    expect(parseTransport('manual-on')).toBe('own');
+    expect(parseTransport('off')).toBe('cloudflare');
     expect(parseTransport('p2p')).toBe('auto');
     expect(parseTransport(undefined)).toBe('auto');
   });
@@ -141,19 +141,19 @@ describe('CloudflareTransport (shared breaker, owner 2026-10-26)', () => {
     expect(probe).not.toHaveBeenCalled();
   });
 
-  it('calls.transport own / cloudflare override the breaker', async () => {
+  it('calls.own_fallback: manual-on obeys the breaker like auto; off overrides it', async () => {
     const own = new CloudflareTransport(
       undefined,
-      settings({ 'calls.transport': 'own' }),
+      settings({ 'calls.own_fallback': 'manual-on' }),
     );
     expect(await own.decide('turn', true)).toEqual({
-      use: false,
-      reason: 'own_forced',
+      use: true,
+      reason: 'cloudflare',
     });
     const cf = new CloudflareTransport(
       undefined,
       settings({
-        'calls.transport': 'cloudflare',
+        'calls.own_fallback': 'off',
         'calls.transport_fail_limit': 1,
       }),
     );

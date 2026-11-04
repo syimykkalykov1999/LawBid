@@ -7,7 +7,7 @@ are saved. Nothing runs on EC2 for calls any more.
 
 ## Cloudflare primary, own path as automatic backup (2026-10-26)
 
-- `calls.transport` (admin -> Settings): `auto` (default) | `cloudflare` | `own`.
+- `calls.own_fallback` (admin -> Интеграции -> «Связь для звонков»), one choice since 2026-11-04, replaces `calls.transport` and `calls.own_turn.mode`: `off` (default, «Выкл») = Cloudflare only, no own TURN, the box never starts, direct routes refused (the API also drops non-relay candidates from `call:signal`), a call with no relay fails; `auto` («Авто») = the box starts by itself when Cloudflare fails, direct allowed then; `manual-on` («Вкл») = the box runs, own TURN and direct, no Cloudflare, costs money until switched back.
   `auto`: Cloudflare (TURN for 1:1 ICE, Realtime SFU for groups) whenever its keys exist;
   our own path (own TURN from Integrations -> TURN / `TURN_URLS`, device-to-device mesh)
   only while the breaker is open. `cloudflare`: always Cloudflare (breaker ignored).
@@ -320,7 +320,7 @@ so the public address is new at every start).
   first use), wiring in `calls.service.ts` (`turnOnDemand`, `iceServers`, `sweep`).
 - It is on only when the API has `TURN_ONDEMAND_INSTANCE_ID` (Terraform passes it). Without it nothing
   changes.
-- **Needed** = a Cloudflare breaker is open (TURN or SFU), or `calls.transport=own` with no fixed own TURN.
+- **Needed** = a Cloudflare breaker is open (TURN or SFU), or `calls.own_fallback=manual-on` with no fixed own TURN.
 - **Start**: needed and stopped -> StartInstances. Woken by the breaker opening, by a call asking for ice
   servers (at most every 20 s per API task) and by the minute `calls.sweep` cron.
 - **Register**: the box runs with a public IP and UDP 3478 answers a STUN Binding -> `turn:<ip>:3478`
@@ -343,4 +343,4 @@ so the public address is new at every start).
 
 ### Переключатель в админке (Выкл / Вкл / Авто)
 
-Строка «Свой сервер звонков (coturn)» в Масштабе управляет настройкой `calls.own_turn.mode` (по умолчанию `auto`): **Авто** — машина стоит выключенной, API включает её, пока Cloudflare лёг, и гасит через 30 минут спокойной работы Cloudflare без звонков; **Вкл** — работает всегда; **Выкл** — не запускается и гасится сразу, если нет звонков. Если в Ключи и сервисы → TURN вписан постоянный `urls`, он главнее: в Авто машина не запускается. Тревога «TURN не отвечает» читает ТЕКУЩИЙ адрес машины (Redis `calls:turn:ondemand:addr`), пока машина остановлена, строка серая («выключен до нужды»), а после старта и ответа 3478 становится зелёной.
+Строка «Свой сервер звонков (coturn)» в Масштабе управляет настройкой `calls.own_fallback` (по умолчанию `auto`): **Авто** — машина стоит выключенной, API включает её, пока Cloudflare лёг, и гасит через 30 минут спокойной работы Cloudflare без звонков; **Вкл** — работает всегда; **Выкл** — не запускается и гасится сразу, если нет звонков. Если в Ключи и сервисы → TURN вписан постоянный `urls`, он главнее: в Авто машина не запускается. Тревога «TURN не отвечает» читает ТЕКУЩИЙ адрес машины (Redis `calls:turn:ondemand:addr`), пока машина остановлена, строка серая («выключен до нужды»), а после старта и ответа 3478 становится зелёной.

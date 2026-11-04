@@ -1226,11 +1226,11 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     kind: 'aws',
     control: {
       type: 'app-setting',
-      key: 'calls.own_turn.mode',
-      map: { off: 'off', on: 'on', auto: 'auto' },
+      key: 'calls.own_fallback',
+      map: { off: 'off', on: 'manual-on', auto: 'auto' },
     },
     states: ['off', 'on', 'auto'],
-    defaultState: 'auto',
+    defaultState: 'off',
     ceiling: null,
     price: price(
       'mixed',

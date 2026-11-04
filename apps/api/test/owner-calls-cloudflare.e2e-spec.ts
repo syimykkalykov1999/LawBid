@@ -126,6 +126,12 @@ describe('Calls: Cloudflare primary, own path as automatic backup (e2e, T3/T4)',
     const { port } = (app.getHttpServer() as Server).address() as AddressInfo;
     base = `http://127.0.0.1:${port}`;
     prisma = app.get(PrismaService);
+    // These suites cover the fallback paths; the default is Cloudflare only.
+    await prisma.appConfig.upsert({
+      where: { key: 'calls.own_fallback' },
+      create: { key: 'calls.own_fallback', value: 'auto' },
+      update: { value: 'auto' },
+    });
     tokens = app.get(TokenService);
     redis = app.get<Redis>(REDIS_CLIENT);
     // The relay's UDP check never leaves the machine.
