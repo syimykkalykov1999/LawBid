@@ -518,7 +518,7 @@ class _ActionButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AppIcon(icon, size: 20, color: colors.textSecondary),
+              AppIcon(icon, size: 20, color: colors.actionIcon),
               if (text != null) ...[
                 const SizedBox(width: AppSpacing.xs),
                 Text(
