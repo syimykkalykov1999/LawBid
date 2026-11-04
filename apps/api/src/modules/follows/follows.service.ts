@@ -42,6 +42,7 @@ import type {
   PersonItemDto,
 } from './follows.dto';
 import { userDirectory } from '../../sharding/user-directory';
+import { shardContext } from '../../sharding/shard-context';
 
 const PAGE = 20;
 /** Suggestions pool per client state, rebuilt at most every 10 minutes. */
@@ -482,7 +483,13 @@ export class FollowsService {
     const cached = await this.redis.get(key);
     if (cached) return JSON.parse(cached) as string[];
     const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+    // Shard-ready: attorney_profiles / users / attorney_licenses are GLOBAL
+    // family, so the pool is read on the primary database, not on the
+    // viewer's shard (there the tables are empty once the families are
+    // split — the two-DB e2e found 0 attorneys). The posts tie-break is
+    // exact with one database and 0 for everyone once posts move away.
+    const rows = await shardContext.runOnPrimary(
+      () => this.prisma.$queryRaw<{ id: string }[]>`
       SELECT a.user_id::TEXT AS id
       FROM attorney_profiles AS a
       JOIN users AS u ON u.id = a.user_id AND u.status = 'active' AND u.deleted_at IS NULL
@@ -499,7 +506,8 @@ export class FollowsService {
            AND p.created_at > ${since}) DESC,
         a.rating_count DESC,
         a.user_id
-      LIMIT ${SUGGEST_POOL}`;
+      LIMIT ${SUGGEST_POOL}`,
+    );
     const ids = rows.map((r) => r.id);
     await this.redis.set(key, JSON.stringify(ids), 'EX', SUGGEST_TTL_SEC);
     return ids;

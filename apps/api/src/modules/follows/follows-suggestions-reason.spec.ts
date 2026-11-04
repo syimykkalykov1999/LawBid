@@ -1,3 +1,4 @@
+import { shardContext } from '../../sharding/shard-context';
 import { FollowsService } from './follows.service';
 
 describe('FollowsService.suggestions reason', () => {
@@ -116,5 +117,34 @@ describe('FollowsService.suggestions reason', () => {
       Buffer.from('1').toString('base64url'),
     );
     expect(later.suggestionPool).not.toHaveBeenCalled();
+  });
+});
+
+// Shard-ready: attorney_profiles / users are GLOBAL family, so the pool of
+// popular attorneys is read on the primary database even when the request
+// runs in the viewer's shard context (the two-DB e2e got 0 attorneys when the
+// query followed the client's shard).
+describe('FollowsService.suggestionPool database', () => {
+  it('reads the attorney pool on the primary database, not the viewer shard', async () => {
+    const seen: (string | undefined)[] = [];
+    const svc = Object.create(FollowsService.prototype) as FollowsService;
+    Object.assign(svc, {
+      prisma: {
+        $queryRaw: jest.fn(() => {
+          seen.push(shardContext.current()?.physical);
+          return Promise.resolve([{ id: 'a' }]);
+        }),
+      },
+      redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn() },
+    });
+    const pool = await shardContext.runOnPhysical('db1', () =>
+      (
+        svc as unknown as {
+          suggestionPool: (s: string | null) => Promise<string[]>;
+        }
+      ).suggestionPool('NY'),
+    );
+    expect(pool).toEqual(['a']);
+    expect(seen).toEqual(['primary']);
   });
 });
