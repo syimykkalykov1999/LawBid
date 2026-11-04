@@ -2,87 +2,131 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/sync/sync_freshness.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
+import 'package:lawbid/features/calls/data/call_history_cache.dart';
 import 'package:lawbid/features/calls/data/call_history_repository.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_history_models.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
+final callHistoryCacheProvider = Provider<CallHistoryCache>(
+  (ref) => CallHistoryCache(ref.watch(savedJsonProvider)),
+);
+
 final callHistoryRepositoryProvider = Provider<CallHistoryRepository>(
-  (ref) => ApiCallHistoryRepository(ref.watch(dioProvider)),
+  (ref) => ApiCallHistoryRepository(
+    ref.watch(dioProvider),
+    cache: ref.watch(callHistoryCacheProvider),
+  ),
 );
 
 /// Owner 2026-10-21: the «Calls» tab list — newest first, the next page
 /// loads at the list end (cursor), pull-to-refresh keeps the loaded rows
 /// when it fails.
+///
+/// Owner 2026-11-04 (R-383, WhatsApp): opens on the copy saved on the phone
+/// and asks the server only on the first open of this app run, after a call
+/// ended (socket), on pull-to-refresh or when older than
+/// [SyncWindows.calls] — never on a tab switch. The server has no
+/// `updatedSince` for this list: a sync is the first page again.
 final callHistoryProvider = AsyncNotifierProvider.autoDispose<
     CallHistoryController, PaginatedList<CallHistoryEntry>>(
   CallHistoryController.new,
 );
 
-class CallHistoryController
-    extends AsyncNotifier<PaginatedList<CallHistoryEntry>> {
-  /// A response of an older generation (before a refresh) is dropped.
-  int _generation = 0;
-
+class CallHistoryController extends PagedNotifier<CallHistoryEntry> {
   CallHistoryRepository get _repo => ref.read(callHistoryRepositoryProvider);
 
-  @override
-  Future<PaginatedList<CallHistoryEntry>> build() async =>
-      PaginatedList.firstPage(await _repo.history());
+  Timer? _endedTimer;
 
-  Future<void> refresh() async {
-    _generation++;
-    final page = await _repo.history();
-    if (ref.mounted) state = AsyncData(PaginatedList.firstPage(page));
+  String get _key => 'calls:${ref.read(currentUserIdProvider)}';
+
+  SyncFreshness get _fresh => ref.read(syncFreshnessProvider);
+
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 10);
+
+  @override
+  Future<PaginatedList<CallHistoryEntry>> build() {
+    ref.watch(currentUserIdProvider);
+    final events = ref.watch(realtimeEventsProvider).listen(_onEvent);
+    ref.onDispose(() {
+      unawaited(events.cancel());
+      _endedTimer?.cancel();
+    });
+    return super.build();
   }
 
-  Future<void> loadMore() async {
-    final current = state.value;
-    if (current == null || !current.canLoadMore) return;
-    state = AsyncData(current.loadingMore());
-    final generation = _generation;
-    try {
-      final page = await _repo.history(cursor: current.nextCursor);
-      if (!ref.mounted || generation != _generation) return;
-      state = AsyncData(
-        (state.value ?? current).appended(page, idOf: (e) => e.id),
-      );
-    } on Object catch (error) {
-      if (!ref.mounted || generation != _generation) return;
-      state = AsyncData((state.value ?? current).failedMore(error));
+  void _onEvent(RealtimeEvent e) {
+    // A call of mine ended (it is in the history now), or the socket was
+    // away: one first-page read, a burst of events is one request.
+    if (e.name == 'call:ended') {
+      _fresh.forget(_key);
+    } else if (e.name != RealtimeEvent.reconnected) {
+      return;
     }
+    _endedTimer?.cancel();
+    _endedTimer = Timer(const Duration(seconds: 1), () {
+      if (ref.mounted) unawaited(refreshIfStale());
+    });
+  }
+
+  @override
+  Future<CursorPage<CallHistoryEntry>?> cachedFirstPage() =>
+      ref.read(callHistoryCacheProvider).read();
+
+  @override
+  Future<void> revalidateSaved(CursorPage<CallHistoryEntry> saved) async {
+    if (!_fresh.isStale(_key, SyncWindows.calls)) return;
+    await super.revalidateSaved(saved);
+  }
+
+  @override
+  Future<CursorPage<CallHistoryEntry>> fetch(String? cursor) async {
+    final page = await _repo.history(cursor: cursor);
+    if (cursor == null) _fresh.mark(_key);
+    return page;
+  }
+
+  @override
+  Object idOf(CallHistoryEntry item) => item.id;
+
+  /// The tab came into view: the first page again only when the list is
+  /// older than [SyncWindows.calls] (rows stay on screen meanwhile).
+  Future<void> refreshIfStale() async {
+    if (!_fresh.isStale(_key, SyncWindows.calls)) return;
+    if (state.value == null) return;
+    await refresh();
   }
 
   /// Owner 2026-10-21 (WhatsApp): calls off my list — gone at once, back
   /// when the server refused.
   Future<void> hide(Set<String> ids) => _drop(
-        (current) => PaginatedList(
-          items: [
-            for (final e in current.items)
-              if (!ids.contains(e.id)) e,
-          ],
-          nextCursor: current.nextCursor,
-        ),
+        (current) => current.without((e) => ids.contains(e.id)),
         () => _repo.hide(ids.toList()),
+        ids.contains,
       );
 
   /// «Clear»: the whole list.
   Future<void> clear() => _drop(
         (_) => const PaginatedList(items: []),
         _repo.clear,
+        (_) => true,
       );
 
   Future<void> _drop(
     PaginatedList<CallHistoryEntry> Function(PaginatedList<CallHistoryEntry>)
         next,
     Future<void> Function() write,
+    bool Function(String id) gone,
   ) async {
     final current = state.value;
     if (current == null) return;
-    _generation++;
     state = AsyncData(next(current));
     try {
       await write();
@@ -90,15 +134,7 @@ class CallHistoryController
       if (ref.mounted) state = AsyncData(current);
       rethrow;
     }
-  }
-
-  Future<void> retryLoadMore() async {
-    final current = state.value;
-    if (current == null || current.loadMoreError == null) return;
-    state = AsyncData(
-      PaginatedList(items: current.items, nextCursor: current.nextCursor),
-    );
-    await loadMore();
+    await ref.read(callHistoryCacheProvider).drop(gone);
   }
 }
 

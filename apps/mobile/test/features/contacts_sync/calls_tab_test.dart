@@ -19,6 +19,7 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/people/my_people.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../helpers/fixed_chat_people.dart';
 import '../../helpers/long_locale.dart';
 import '../../helpers/ux_harness.dart';
 
@@ -253,7 +254,7 @@ void main() {
             sharedPreferencesProvider.overrideWithValue(prefs),
             phoneContactsProvider
                 .overrideWith((_) async => const PhoneContacts()),
-            myChatPeopleProvider.overrideWith((_) async => const []),
+            myChatPeopleProvider.overrideWith(() => FixedChatPeople(const [])),
             callHistoryRepositoryProvider.overrideWithValue(theRepo),
             ...extra.cast(),
           ],

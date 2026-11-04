@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/calls/data/call_history_cache.dart';
 import 'package:lawbid/features/calls/domain/call_history_models.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -21,9 +22,12 @@ abstract interface class CallHistoryRepository {
 }
 
 class ApiCallHistoryRepository implements CallHistoryRepository {
-  ApiCallHistoryRepository(Dio dio) : _api = api.CallsClient(dio);
+  ApiCallHistoryRepository(Dio dio, {this.cache}) : _api = api.CallsClient(dio);
 
   final api.CallsClient _api;
+
+  /// Owner 2026-11-04 (R-383): the first page is kept on the phone.
+  final CallHistoryCache? cache;
 
   @override
   Future<CursorPage<CallHistoryEntry>> history({
@@ -33,8 +37,9 @@ class ApiCallHistoryRepository implements CallHistoryRepository {
     final env = await guardApiCall(
       () => _api.callHistory(cursor: cursor, limit: limit),
     );
+    if (cursor == null && limit == null) cache?.save(env);
     return CursorPage(
-      items: [for (final d in env.data) _entry(d)],
+      items: [for (final d in env.data) callHistoryEntry(d)],
       nextCursor: env.meta?.nextCursor,
     );
   }
@@ -70,35 +75,36 @@ class ApiCallHistoryRepository implements CallHistoryRepository {
 
   @override
   Future<void> clear() async => guardApiCall(_api.clearCalls);
-
-  CallHistoryEntry _entry(api.CallHistoryItemDto d) => CallHistoryEntry(
-        id: d.id,
-        status: _status(d.status),
-        outgoing: d.outgoing,
-        video: d.video,
-        peer: CallPeer(
-          id: d.peer.id,
-          isAttorney: d.peer.kind == api.CallPeerDtoKind.attorney,
-          displayName: d.peer.displayName,
-          username: d.peer.username,
-          avatarUrl: d.peer.avatarUrl,
-        ),
-        createdAt: d.createdAt,
-        conversationId: d.conversationId,
-        groupId: d.groupId,
-        groupTitle: d.groupTitle,
-        groupAvatarUrl: d.groupAvatarUrl,
-        durationSec: d.durationSec,
-      );
-
-  CallStatus _status(api.CallHistoryStatus s) => switch (s) {
-        api.CallHistoryStatus.ended => CallStatus.ended,
-        api.CallHistoryStatus.missed => CallStatus.missed,
-        api.CallHistoryStatus.declined => CallStatus.declined,
-        api.CallHistoryStatus.busy => CallStatus.busy,
-        api.CallHistoryStatus.canceled => CallStatus.canceled,
-        api.CallHistoryStatus.failed ||
-        api.CallHistoryStatus.$unknown =>
-          CallStatus.failed,
-      };
 }
+
+/// One history row from the server's (or the saved copy's) DTO.
+CallHistoryEntry callHistoryEntry(api.CallHistoryItemDto d) => CallHistoryEntry(
+      id: d.id,
+      status: _status(d.status),
+      outgoing: d.outgoing,
+      video: d.video,
+      peer: CallPeer(
+        id: d.peer.id,
+        isAttorney: d.peer.kind == api.CallPeerDtoKind.attorney,
+        displayName: d.peer.displayName,
+        username: d.peer.username,
+        avatarUrl: d.peer.avatarUrl,
+      ),
+      createdAt: d.createdAt,
+      conversationId: d.conversationId,
+      groupId: d.groupId,
+      groupTitle: d.groupTitle,
+      groupAvatarUrl: d.groupAvatarUrl,
+      durationSec: d.durationSec,
+    );
+
+CallStatus _status(api.CallHistoryStatus s) => switch (s) {
+      api.CallHistoryStatus.ended => CallStatus.ended,
+      api.CallHistoryStatus.missed => CallStatus.missed,
+      api.CallHistoryStatus.declined => CallStatus.declined,
+      api.CallHistoryStatus.busy => CallStatus.busy,
+      api.CallHistoryStatus.canceled => CallStatus.canceled,
+      api.CallHistoryStatus.failed ||
+      api.CallHistoryStatus.$unknown =>
+        CallStatus.failed,
+    };

@@ -14,9 +14,14 @@ final contactsSyncRepositoryProvider = Provider<ContactsSyncRepository>(
   (ref) => ApiContactsSyncRepository(ref.watch(dioProvider)),
 );
 
-final contactsSyncStatusProvider =
-    FutureProvider.autoDispose<ContactsSyncStatus>(
-  (ref) => ref.watch(contactsSyncRepositoryProvider).status(),
+/// Owner 2026-11-04 (R-383): kept for the app run (it was read again each
+/// time the «Contacts» tab was built); re-read after a change here and with
+/// the contacts sync (refreshPhoneContactsIfStale).
+final contactsSyncStatusProvider = FutureProvider<ContactsSyncStatus>(
+  (ref) {
+    ref.watch(currentUserIdProvider);
+    return ref.watch(contactsSyncRepositoryProvider).status();
+  },
   retry: _noRetry,
 );
 
