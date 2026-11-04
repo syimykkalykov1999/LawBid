@@ -188,6 +188,10 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final mq = MediaQuery.of(context);
     final height = (mq.size.height - mq.padding.top) * 0.86;
+    // Owner 2026-11-04 (R-386): with the `channels` flag off there is no
+    // «Сообщества» tab; the sheet is «Чаты» only.
+    final communities = ref.watch(channelsEnabledProvider);
+    final tab = communities ? _tab : _Tab.chats;
     return Padding(
       padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
       child: SizedBox(
@@ -204,10 +208,11 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
                 onChanged: (v) => setState(() => _q = v),
               ),
               PillTabs<_Tab>(
-                value: _tab,
+                value: tab,
                 tabs: [
                   (_Tab.chats, t.t('share.to.chats')),
-                  (_Tab.communities, t.t('share.to.communities')),
+                  if (communities)
+                    (_Tab.communities, t.t('share.to.communities')),
                 ],
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.screenSide,
@@ -219,8 +224,8 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
               ),
               Expanded(
                 child: SwipePages<_Tab>(
-                  value: _tab,
-                  values: _Tab.values,
+                  value: tab,
+                  values: communities ? _Tab.values : const [_Tab.chats],
                   onChanged: (v) => setState(() => _tab = v),
                   pageBuilder: (context, tab) => switch (tab) {
                     _Tab.chats => _chatsGrid(t),

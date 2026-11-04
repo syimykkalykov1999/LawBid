@@ -174,6 +174,7 @@ void main() {
     ThemeData? theme,
     TextDirection dir = TextDirection.ltr,
     double scale = 1,
+    bool communities = true,
   }) async {
     useNarrowPhone(tester);
     final sender = _Sender();
@@ -205,6 +206,7 @@ void main() {
           ),
         ];
       }),
+      channelsEnabledProvider.overrideWithValue(communities),
       postShareSenderProvider.overrideWithValue(sender),
       storiesEnabledProvider.overrideWithValue(true),
     ];
@@ -306,6 +308,21 @@ void main() {
     expect(r.social.shares, ['p1']);
     // The sheet is closed.
     expect(find.byKey(const ValueKey('share-to-send')), findsNothing);
+  });
+
+  testWidgets('channels flag off: only the Chats tab, no Communities (R-386)',
+      (tester) async {
+    await open(tester, communities: false);
+    expect(find.text('Chats'), findsOneWidget);
+    expect(find.text('Communities'), findsNothing);
+    expect(chat('a'), findsOneWidget);
+    expect(find.byKey(const ValueKey('share-to-groups')), findsNothing);
+  });
+
+  testWidgets('channels flag on: both tabs (R-386)', (tester) async {
+    await open(tester);
+    expect(find.text('Chats'), findsOneWidget);
+    expect(find.text('Communities'), findsOneWidget);
   });
 
   testWidgets('swipe Groups -> Channels and back, and on to Chats',
