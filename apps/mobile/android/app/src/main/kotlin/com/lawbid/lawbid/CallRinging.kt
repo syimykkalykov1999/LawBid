@@ -135,6 +135,57 @@ object CallRinging {
         closeRingingScreen(app)
     }
 
+    /**
+     * R-373 (owner 2026-11-04: Samsung showed «Аудиозвонок LawBid» with no
+     * call, and every reel stood on its first frame): Dart says no call of
+     * ours runs, yet a self-managed Telecom call of ours may still be up —
+     * one whose plugin record is already gone, so no end ever reaches it.
+     * While it lives the phone is «in a call»: the media apps get no audio
+     * focus. Ends every such connection that is past ringing and has no
+     * plugin record (a ringing call, or one answered on the system screen
+     * that Dart has not picked up yet, always has its record), and stops the
+     * plugin's ongoing-call service. Returns how many it ended.
+     *
+     * The plugin (MIT, flutter_callkit_incoming 3.1.6) keeps its connections
+     * in a private map with no list call; it is read by reflection and any
+     * failure ends nothing.
+     */
+    fun endOrphans(context: Context): Int {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return 0
+        val app = context.applicationContext
+        val known = try {
+            getDataActiveCalls(app).map { it.id }.toSet()
+        } catch (e: Exception) {
+            return 0
+        }
+        val all = try {
+            val f = CallkitConnection::class.java.getDeclaredField("activeConnections")
+            f.isAccessible = true
+            (f.get(null) as? Map<*, *>)?.values?.filterIsInstance<CallkitConnection>()
+        } catch (e: Exception) {
+            null
+        } ?: return 0
+        var ended = 0
+        for (conn in all) {
+            val live = conn.state == android.telecom.Connection.STATE_ACTIVE ||
+                conn.state == android.telecom.Connection.STATE_HOLDING ||
+                conn.state == android.telecom.Connection.STATE_DIALING
+            if (!live || conn.callId in known) continue
+            try {
+                conn.markEnded()
+                ended++
+            } catch (e: Exception) {
+            }
+        }
+        if (ended > 0) {
+            try {
+                CallkitNotificationService.stopService(app)
+            } catch (e: Exception) {
+            }
+        }
+        return ended
+    }
+
     /** Every end of a call (Dart `lawbid/call_service` endCall / clear). */
     fun endAll(context: Context, ids: Collection<String>) {
         val app = context.applicationContext
