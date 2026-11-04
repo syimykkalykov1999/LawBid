@@ -368,9 +368,9 @@ describe('I18nImportService.run — big file (KNOWN_ERRORS #48)', () => {
     // 3 languages for 999 new keys + en and ky for the edited one; ru kept.
     expect(report.changedKeys).toHaveLength((total - 1) * 3 + 2);
     expect(report.unchangedCount).toBe(1);
-    const calls = prisma.i18nKey.findMany.mock.calls as {
-      0: { where: { key: { in: string[] } }; include?: unknown };
-    }[];
+    const calls = prisma.i18nKey.findMany.mock.calls as [
+      { where: { key: { in: string[] } }; include?: unknown },
+    ][];
     expect(calls.length).toBeGreaterThan(1);
     for (const [arg] of calls) {
       expect(arg.where.key.in.length).toBeLessThanOrEqual(400);
