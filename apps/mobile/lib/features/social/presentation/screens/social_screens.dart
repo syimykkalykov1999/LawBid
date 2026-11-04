@@ -1200,8 +1200,14 @@ class ProfilePostsGrid extends ConsumerWidget {
                   PostImpressionTracker(
                     key: ValueKey('imp-${p.id}'),
                     post: p,
-                    child:
-                        PostCard(key: ValueKey(p.id), post: p, showPin: true),
+                    // Owner 2026-11-03 (R-136): a profile's list, so the header
+                    // is the posts' own row.
+                    child: PostCard(
+                      key: ValueKey(p.id),
+                      post: p,
+                      showPin: true,
+                      fromProfile: true,
+                    ),
                   ),
                 if (page.canLoadMore)
                   TextButton(

@@ -1391,15 +1391,22 @@ class _ThreadsPost extends ConsumerWidget {
         children: [
           // Owner 2026-10-28: the same header widget as every other post; the
           // text below starts on the name's left edge.
-          _AuthorRow(
-            post: p,
-            sponsored: promotionId != null,
-            compact: true,
-          ),
+          // Owner 2026-11-03 (R-136): in a profile's list a brief's header is
+          // the very row of the posts there (avatar, name centred on it, «…»),
+          // not the feed header.
+          if (fromProfile)
+            _OwnMenuRow(post: p, boost: true)
+          else
+            _AuthorRow(
+              post: p,
+              sponsored: promotionId != null,
+              compact: true,
+            ),
           Padding(
-            padding: const EdgeInsetsDirectional.only(
-              // Header: md inset + 32 avatar + 10 gap (the feed post's).
-              start: AppSpacing.md + 32 + 10,
+            padding: EdgeInsetsDirectional.only(
+              // Header: the inset + 32 avatar + the gap (the post's own).
+              start:
+                  fromProfile ? _OwnMenuRow.textInset : AppSpacing.md + 32 + 10,
               end: AppSpacing.md,
             ),
             child: Column(
@@ -1718,9 +1725,17 @@ class _AuthorRow extends ConsumerWidget {
 /// feed — their avatar and @username on the left and the «…» menu; no
 /// «Pinned» label (the pin lives only on the profile grid).
 class _OwnMenuRow extends ConsumerWidget {
-  const _OwnMenuRow({required this.post});
+  const _OwnMenuRow({required this.post, this.boost = false});
 
   final Post post;
+
+  /// Owner 2026-11-03 (R-133): a brief keeps its «Продвигать» pill in the
+  /// header (a post has it under the media); it sits on the «…» level.
+  final bool boost;
+
+  /// Where the name (and a brief's text under it) starts: the row's inset +
+  /// the 32 avatar + the gap.
+  static const double textInset = AppSpacing.lg + 32 + AppSpacing.sm;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1758,6 +1773,10 @@ class _OwnMenuRow extends ConsumerWidget {
               ),
             ),
           ),
+          if (boost && post.isMine && !ref.watch(isAssistantProvider)) ...[
+            BoostButton(postId: post.id),
+            const SizedBox(width: AppSpacing.sm),
+          ],
           AppIconButton(
             icon: const AppIcon(AppIcons.moreHorizRounded),
             semanticLabel: t.t('post.menu'),
