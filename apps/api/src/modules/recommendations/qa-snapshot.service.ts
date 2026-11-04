@@ -6,6 +6,7 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 import { shardContext } from '../../sharding/shard-context';
+import { forEachDatabase } from '../../sharding/for-each-database';
 import { FeatureFlagsService } from '../feature-flags/feature-flags.public';
 import { bullOptions } from '../../redis/redis-connection';
 import { CRON_JOBS, cronLaneOf } from '../../jobs/jobs.constants';
@@ -23,8 +24,9 @@ import {
 
 /** Feature flag: off = the snapshot is not read (today's ranking). */
 export const QA_RANKING_FLAG = 'recommendations_qa_ranking';
-/** Redis hot copy: one hash per kind, kept two nights (a missed run). */
-export const QA_REDIS_PREFIX = 'reco:qa:';
+/** Redis hot copy: one hash per kind, kept two nights (a missed run). The
+ * {qa} hash tag keeps every key in one cluster slot (one pipeline). */
+export const QA_REDIS_PREFIX = 'reco:qa:{qa}:';
 export const QA_REDIS_TTL_SEC = 2 * 24 * 3600;
 /** Per topic: this many attorneys / questions / cases are kept. */
 export const QA_TOPIC_TOP = 50;
@@ -113,10 +115,10 @@ export class QaSnapshotService {
       likes: (await this.settings?.number('reco.qa.likes')) ?? QA_WEIGHTS.likes,
       best: (await this.settings?.number('reco.qa.best')) ?? QA_WEIGHTS.best,
     };
-    // Shard-ready: legal_* are content family, cases the case family; with
-    // one database the primary holds everything. Once families split this
-    // read becomes a forEachDatabase sweep (docs/architecture/SHARDING_READY.md).
-    const [answers, questions, cases] = await shardContext.runOnPrimary(() =>
+    // Shard-ready: legal_* (content family) and cases (case family) live on
+    // the shard databases, so the sweep runs once per physical database
+    // and the parts are merged; the snapshot itself is global (primary).
+    const parts = await forEachDatabase(this.prisma, () =>
       Promise.all([
         this.prisma.$queryRaw<AnswerRow[]>`
           SELECT a.attorney_id::TEXT AS attorney_id, a.created_at,
@@ -149,6 +151,9 @@ export class QaSnapshotService {
           LIMIT 5000`,
       ]),
     );
+    const answers = parts.flatMap((p) => p[0]);
+    const questions = parts.flatMap((p) => p[1]);
+    const cases = parts.flatMap((p) => p[2]);
     const nowMs = now.getTime();
     const attorneys = buildAttorneyEntries(answers, nowMs, gravity, weights);
     const topicAttorneys = topLists(

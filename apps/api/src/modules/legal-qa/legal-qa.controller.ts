@@ -43,10 +43,7 @@ import {
   type QuestionPage,
 } from './legal-qa.dto';
 import { LegalQaService } from './legal-qa.service';
-import {
-  AttorneyOnly,
-  RequiresDuty,
-} from '../auth/assistant/assistant-context';
+import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
 const IDEMPOTENCY_HEADER = { name: 'Idempotency-Key', required: false };
@@ -144,11 +141,10 @@ export class LegalQaController {
 
   // Owner 2026-10-22 (security audit #3): a public answer speaks for the
   // attorney — an assistant needs the "publish" duty (OQ-049), the same as
-  // posts and comments.
-  @AttorneyOnly('publish')
-  // R-401: an assistant answers only with the «qa_answers» duty (403
-  // ASSISTANT_NOT_ALLOWED without it — read-only as before).
-  @RequiresDuty('qa_answers')
+  // posts and comments. R-401: an assistant answers only with the
+  // «qa_answers» duty (was «publish»); 403 ASSISTANT_NOT_ALLOWED without
+  // it — read-only as before.
+  @AttorneyOnly('qa_answers')
   @Put(':id/answer')
   @LegalDisclaimerNotice('qa')
   @ApiOperation({ summary: 'Answer (or edit my answer) — verified attorney' })
@@ -168,8 +164,7 @@ export class LegalQaController {
     return this.qa.answer(user, p.id, dto.body);
   }
 
-  @AttorneyOnly('publish')
-  @RequiresDuty('qa_answers')
+  @AttorneyOnly('qa_answers')
   @Delete(':id/answer')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete my answer' })

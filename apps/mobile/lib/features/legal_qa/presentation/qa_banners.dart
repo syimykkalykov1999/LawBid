@@ -106,7 +106,6 @@ class _QaLine extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: type.caption.copyWith(
                             color: colors.textSecondary,
-                            fontSize: 11,
                           ),
                         ),
                     ],

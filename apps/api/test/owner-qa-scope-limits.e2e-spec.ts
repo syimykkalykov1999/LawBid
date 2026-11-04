@@ -8,6 +8,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { LegalQaSweepJob } from '../src/modules/legal-qa/legal-qa-sweep.job';
 import { QaSnapshotService } from '../src/modules/recommendations/qa-snapshot.service';
+import { shardContext } from '../src/sharding/shard-context';
 
 /**
  * Owner 2026-10-21: «Вопрос юристу» — the attorney's own feed, at most 10
@@ -340,10 +341,14 @@ describe('Q&A feed scope, answer cap, privacy, close and sweep (e2e)', () => {
       .expect(200);
     // Published under the attorney, the assistant remembered on the row.
     expect(answered.body.data.attorney.id).toBe(att.id);
-    const [row] = await prisma.$queryRaw<
-      { attorney_id: string; authored_by_user_id: string | null }[]
-    >`SELECT attorney_id::TEXT AS attorney_id, authored_by_user_id::TEXT AS authored_by_user_id
-      FROM legal_answers WHERE question_id = ${q}::UUID`;
+    // Two-DB mode: the answer sits on the question's (client's) shard.
+    const [row] = await shardContext.runForUser(
+      cl.id,
+      () => prisma.$queryRaw<
+        { attorney_id: string; authored_by_user_id: string | null }[]
+      >`SELECT attorney_id::TEXT AS attorney_id, authored_by_user_id::TEXT AS authored_by_user_id
+        FROM legal_answers WHERE question_id = ${q}::UUID`,
+    );
     expect(row).toEqual({
       attorney_id: att.id,
       authored_by_user_id: withDuty.id,
@@ -354,11 +359,12 @@ describe('Q&A feed scope, answer cap, privacy, close and sweep (e2e)', () => {
       .set(att.auth)
       .send({ body: 'The attorney edited the answer themself.' })
       .expect(200);
-    const [edited] = await prisma.$queryRaw<
-      { authored_by_user_id: string | null }[]
-    >`
-      SELECT authored_by_user_id::TEXT AS authored_by_user_id
-      FROM legal_answers WHERE question_id = ${q}::UUID`;
+    const [edited] = await shardContext.runForUser(
+      cl.id,
+      () => prisma.$queryRaw<{ authored_by_user_id: string | null }[]>`
+        SELECT authored_by_user_id::TEXT AS authored_by_user_id
+        FROM legal_answers WHERE question_id = ${q}::UUID`,
+    );
     expect(edited.authored_by_user_id).toBeNull();
   });
 
