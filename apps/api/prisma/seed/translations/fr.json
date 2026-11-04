@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "Ouvrir la photo",
   "chat.awaitsMe": "Attend réponse",
   "chat.blockedBanner": "Messagerie indisponible : un blocage est en place",
+  "chat.casesWith": "Dossiers avec cette personne ({count})",
   "chat.closed": "Cette discussion est fermée. Impossible d'envoyer de nouveaux messages.",
   "chat.copied": "Copié",
   "chat.deleted": "Ce message a été supprimé",

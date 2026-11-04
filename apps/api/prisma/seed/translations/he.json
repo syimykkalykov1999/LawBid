@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "פתיחת התמונה",
   "chat.awaitsMe": "ממתין לתשובה",
   "chat.blockedBanner": "שליחת הודעות אינה זמינה: קיימת חסימה",
+  "chat.casesWith": "תיקים עם אדם זה ({count})",
   "chat.closed": "הצ'אט הזה סגור. לא ניתן לשלוח הודעות חדשות.",
   "chat.copied": "הועתק",
   "chat.deleted": "הודעה זו נמחקה",

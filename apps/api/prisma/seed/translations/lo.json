@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "ເປີດຮູບພາບ",
   "chat.awaitsMe": "ລໍຖ້າຄຳຕອບ",
   "chat.blockedBanner": "ສົ່ງຂໍ້ຄວາມບໍ່ໄດ້: ມີການບລັອກ",
+  "chat.casesWith": "ຄະດີກັບບຸກຄົນນີ້ ({count})",
   "chat.closed": "ແຊັດນີ້ຖືກປິດແລ້ວ. ບໍ່ສາມາດສົ່ງຂໍ້ຄວາມໃໝ່ໄດ້.",
   "chat.copied": "ສຳເນົາແລ້ວ",
   "chat.deleted": "ຂໍ້ຄວາມນີ້ຖືກລຶບແລ້ວ",

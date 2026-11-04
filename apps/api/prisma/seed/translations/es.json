@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "Abrir foto",
   "chat.awaitsMe": "Espera respuesta",
   "chat.blockedBanner": "La mensajería no está disponible: hay un bloqueo activo",
+  "chat.casesWith": "Casos con esta persona ({count})",
   "chat.closed": "Este chat está cerrado. No se pueden enviar mensajes nuevos.",
   "chat.copied": "Copiado",
   "chat.deleted": "Se eliminó este mensaje",

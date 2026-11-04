@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "Foto openen",
   "chat.awaitsMe": "Wacht op antwoord",
   "chat.blockedBanner": "Berichten niet beschikbaar: er is een blokkering actief",
+  "chat.casesWith": "Zaken met deze persoon ({count})",
   "chat.closed": "Deze chat is gesloten. Er kunnen geen nieuwe berichten worden verzonden.",
   "chat.copied": "Gekopieerd",
   "chat.deleted": "Dit bericht is verwijderd",

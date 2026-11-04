@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "Otvori fotografiju",
   "chat.awaitsMe": "Čeka odgovor",
   "chat.blockedBanner": "Poruke nisu dostupne: na snazi je blokada",
+  "chat.casesWith": "Predmeti s ovom osobom ({count})",
   "chat.closed": "Ovaj čat je zatvoren. Nove poruke se ne mogu slati.",
   "chat.copied": "Kopirano",
   "chat.deleted": "Ova poruka je izbrisana",

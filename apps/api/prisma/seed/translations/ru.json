@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "Открыть фото",
   "chat.awaitsMe": "Ждёт ответа",
   "chat.blockedBanner": "Переписка недоступна: есть блокировка",
+  "chat.casesWith": "Кейсы с этим человеком ({count})",
   "chat.closed": "Чат закрыт. Писать сюда больше нельзя.",
   "chat.copied": "Скопировано",
   "chat.deleted": "Сообщение удалено",

@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "Atvērt foto",
   "chat.awaitsMe": "Gaida atbildi",
   "chat.blockedBanner": "Ziņapmaiņa nav pieejama: ir spēkā bloķēšana",
+  "chat.casesWith": "Lietas ar šo personu ({count})",
   "chat.closed": "Šī tērzēšana ir slēgta. Jaunas ziņas nevar nosūtīt.",
   "chat.copied": "Nokopēts",
   "chat.deleted": "Šī ziņa ir dzēsta",

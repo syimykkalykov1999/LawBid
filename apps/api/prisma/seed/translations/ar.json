@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "فتح الصورة",
   "chat.awaitsMe": "بانتظار الرد",
   "chat.blockedBanner": "المراسلة غير متاحة: يوجد حظر",
+  "chat.casesWith": "القضايا مع هذا الشخص ({count})",
   "chat.closed": "هذه المحادثة مغلقة. لا يمكن إرسال رسائل جديدة.",
   "chat.copied": "تم النسخ",
   "chat.deleted": "تم حذف هذه الرسالة",

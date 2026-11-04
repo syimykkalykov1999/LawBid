@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "Mở ảnh",
   "chat.awaitsMe": "Chờ trả lời",
   "chat.blockedBanner": "Không thể nhắn tin: đang có chặn",
+  "chat.casesWith": "Các vụ việc với người này ({count})",
   "chat.closed": "Cuộc trò chuyện này đã đóng. Không thể gửi tin nhắn mới.",
   "chat.copied": "Đã sao chép",
   "chat.deleted": "Tin nhắn này đã bị xóa",

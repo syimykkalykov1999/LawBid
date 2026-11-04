@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "Atidaryti nuotrauką",
   "chat.awaitsMe": "Laukia atsakymo",
   "chat.blockedBanner": "Susirašinėjimas negalimas: galioja blokavimas",
+  "chat.casesWith": "Bylos su šiuo asmeniu ({count})",
   "chat.closed": "Šis pokalbis uždarytas. Naujų žinučių siųsti negalima.",
   "chat.copied": "Nukopijuota",
   "chat.deleted": "Ši žinutė ištrinta",

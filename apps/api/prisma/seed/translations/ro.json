@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "Deschide fotografia",
   "chat.awaitsMe": "Așteaptă răspuns",
   "chat.blockedBanner": "Mesageria nu este disponibilă: există o blocare",
+  "chat.casesWith": "Cazuri cu această persoană ({count})",
   "chat.closed": "Acest chat este închis. Nu se mai pot trimite mesaje noi.",
   "chat.copied": "Copiat",
   "chat.deleted": "Acest mesaj a fost șters",

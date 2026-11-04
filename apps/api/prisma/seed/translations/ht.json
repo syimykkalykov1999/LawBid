@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "Louvri foto a",
   "chat.awaitsMe": "Ap tann repons",
   "chat.blockedBanner": "Mesaj pa disponib: gen yon blokaj",
+  "chat.casesWith": "Ka ak moun sa a ({count})",
   "chat.closed": "Chat sa a fèmen. Pa ka voye nouvo mesaj.",
   "chat.copied": "Kopye",
   "chat.deleted": "Mesaj sa a efase",

@@ -12,6 +12,8 @@ const chatUxRu = <String, String>{
   'chat.scrollDown': 'К последнему сообщению',
   'chat.jump.gone': 'Исходное сообщение недоступно',
   'calls.ongoingNow': 'Идёт сейчас',
+  // R-404 (b): the direct chat's row to the case chats with this person.
+  'chat.casesWith': 'Кейсы с этим человеком ({count})',
 };
 
 const chatUxEn = <String, String>{
@@ -22,4 +24,5 @@ const chatUxEn = <String, String>{
   'chat.scrollDown': 'Scroll to the latest message',
   'chat.jump.gone': 'The original message is not available',
   'calls.ongoingNow': 'Ongoing now',
+  'chat.casesWith': 'Cases with this person ({count})',
 };

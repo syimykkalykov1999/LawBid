@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "باز کردن عکس",
   "chat.awaitsMe": "منتظر پاسخ",
   "chat.blockedBanner": "پیام‌رسانی در دسترس نیست: مسدودسازی فعال است",
+  "chat.casesWith": "پرونده‌ها با این شخص ({count})",
   "chat.closed": "این گفتگو بسته شده است. ارسال پیام جدید ممکن نیست.",
   "chat.copied": "کپی شد",
   "chat.deleted": "این پیام حذف شد",

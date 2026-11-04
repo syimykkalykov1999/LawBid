@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "फोटो खोल्नुहोस्",
   "chat.awaitsMe": "जवाफको प्रतीक्षा",
   "chat.blockedBanner": "सन्देश उपलब्ध छैन: ब्लक लागू छ",
+  "chat.casesWith": "यस व्यक्तिसँगका मुद्दाहरू ({count})",
   "chat.closed": "यो च्याट बन्द छ। नयाँ सन्देश पठाउन मिल्दैन।",
   "chat.copied": "कपी भयो",
   "chat.deleted": "यो सन्देश मेटाइयो",

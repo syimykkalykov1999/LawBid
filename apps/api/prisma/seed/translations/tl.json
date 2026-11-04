@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "Buksan ang larawan",
   "chat.awaitsMe": "Naghihintay ng sagot",
   "chat.blockedBanner": "Hindi available ang pagmemensahe: may block",
+  "chat.casesWith": "Mga kaso sa taong ito ({count})",
   "chat.closed": "Sarado na ang chat na ito. Hindi na makakapagpadala ng mga bagong mensahe.",
   "chat.copied": "Nakopya",
   "chat.deleted": "Binura ang mensaheng ito",

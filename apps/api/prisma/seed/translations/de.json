@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "Foto öffnen",
   "chat.awaitsMe": "Wartet auf Antwort",
   "chat.blockedBanner": "Nachrichten nicht verfügbar: Es besteht eine Sperre",
+  "chat.casesWith": "Fälle mit dieser Person ({count})",
   "chat.closed": "Dieser Chat ist geschlossen. Es können keine neuen Nachrichten gesendet werden.",
   "chat.copied": "Kopiert",
   "chat.deleted": "Diese Nachricht wurde gelöscht",

@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "写真を開く",
   "chat.awaitsMe": "返信待ち",
   "chat.blockedBanner": "メッセージを送れません: ブロックされています",
+  "chat.casesWith": "この相手との案件 ({count})",
   "chat.closed": "このチャットは終了しました。新しいメッセージは送信できません。",
   "chat.copied": "コピーしました",
   "chat.deleted": "このメッセージは削除されました",

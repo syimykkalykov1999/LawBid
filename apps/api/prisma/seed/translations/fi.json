@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "Avaa kuva",
   "chat.awaitsMe": "Odottaa vastausta",
   "chat.blockedBanner": "Viestit eivät ole käytettävissä: esto on voimassa",
+  "chat.casesWith": "Tapaukset tämän henkilön kanssa ({count})",
   "chat.closed": "Tämä keskustelu on suljettu. Uusia viestejä ei voi lähettää.",
   "chat.copied": "Kopioitu",
   "chat.deleted": "Tämä viesti poistettiin",

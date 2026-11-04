@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "Fotó megnyitása",
   "chat.awaitsMe": "Válaszra vár",
   "chat.blockedBanner": "Az üzenetküldés nem elérhető: letiltás van érvényben",
+  "chat.casesWith": "Ügyek ezzel a személlyel ({count})",
   "chat.closed": "Ez a csevegés lezárult. Új üzenet nem küldhető.",
   "chat.copied": "Másolva",
   "chat.deleted": "Ez az üzenet törölve lett",

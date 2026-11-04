@@ -1187,6 +1187,7 @@
   "chat.avatar.open": "Buka foto",
   "chat.awaitsMe": "Menunggu balasan",
   "chat.blockedBanner": "Pesan tidak tersedia: ada pemblokiran",
+  "chat.casesWith": "Kasus dengan orang ini ({count})",
   "chat.closed": "Obrolan ini ditutup. Pesan baru tidak dapat dikirim.",
   "chat.copied": "Disalin",
   "chat.deleted": "Pesan ini telah dihapus",
