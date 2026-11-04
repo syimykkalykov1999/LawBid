@@ -97,6 +97,7 @@ import { DemoService } from '../modules/demo/demo.service';
 import { StorageCleanupService } from '../modules/storage/storage-cleanup.service';
 import { DataRetentionService } from '../modules/storage/data-retention.service';
 import { StorageStatsService } from '../modules/storage/storage-stats.service';
+import { QaSnapshotService } from '../modules/recommendations/qa-snapshot.service';
 import { EconomyService } from '../common/economy/economy.service';
 import { ChatService } from '../modules/chat/chat.service';
 import { DisappearingSweepService } from '../modules/chat/disappearing-sweep.service';
@@ -252,6 +253,8 @@ export class CronProcessor {
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
     // Algo audit 2026-10-27 (CASES M-3).
     @Optional() private readonly caseRebroadcast?: CaseRebroadcastJob,
+    // R-401: `reco.qa-snapshot`.
+    @Optional() private readonly qaSnapshot?: QaSnapshotService,
   ) {}
 
   /**
@@ -505,6 +508,8 @@ export class CronProcessor {
         return this.dataRetention?.run() ?? null;
       case CRON_JOBS.storageSnapshot:
         return this.storageStats?.snapshot() ?? null;
+      case CRON_JOBS.recoQaSnapshot:
+        return this.qaSnapshot?.rebuild() ?? null;
       case CRON_JOBS.rewardsAward:
         return this.rewards?.autoAward();
       case CRON_JOBS.outreachRetention:

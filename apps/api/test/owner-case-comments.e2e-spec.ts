@@ -295,23 +295,22 @@ describe('Case comments, category filter, documents (e2e, OQ-034)', () => {
     expect(seen.body.data.photosCount).toBe(1);
   });
 
-  it('shares are counted on posts and cases (OQ-037)', async () => {
+  it('shares are counted on posts; cases cannot be shared (OQ-037, R-366)', async () => {
     const cli = await client();
     const caseId = (await postCase(cli.auth)).body.data.id as string;
     const att = await attorney();
     for (let i = 0; i < 2; i++) {
-      expect(
-        (await api().post(`/api/v1/cases/${caseId}/share`).set(att.auth))
-          .status,
-      ).toBe(204);
+      const r = await api().post(`/api/v1/cases/${caseId}/share`).set(att.auth);
+      expect(r.status).toBe(403);
+      expect(r.body.error.code).toBe('FORBIDDEN');
     }
     const seen = await api().get(`/api/v1/cases/${caseId}`).set(att.auth);
-    expect(seen.body.data.shareCount).toBe(2);
+    expect(seen.body.data.shareCount).toBe(0);
     const stranger = await client();
     expect(
       (await api().post(`/api/v1/cases/${caseId}/share`).set(stranger.auth))
         .status,
-    ).toBe(404);
+    ).toBe(403);
 
     const post = await api()
       .post('/api/v1/posts')

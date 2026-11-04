@@ -93,6 +93,15 @@ export class SearchPeopleQueryDto extends SearchAttorneysQueryDto {
   )
   @IsBoolean()
   verifiedOnly?: boolean;
+
+  @ApiPropertyOptional({
+    enum: ['following', 'not_following'],
+    description:
+      'Owner 2026-10-28 (R-084): only people I follow / do not follow (omit for everyone).',
+  })
+  @IsOptional()
+  @IsIn(['following', 'not_following'])
+  follow?: 'following' | 'not_following';
 }
 
 /** GET /search/cases (docs/05 §7.4, attorneys only). */

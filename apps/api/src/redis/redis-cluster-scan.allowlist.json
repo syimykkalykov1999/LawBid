@@ -130,6 +130,11 @@
     "reason": "SADD+EXPIRE on one viewing key."
   },
   {
+    "file": "modules/recommendations/qa-snapshot.service.ts",
+    "kind": "pipeline-raw",
+    "reason": "R-401 nightly Q&A snapshot: every key carries the {qa} hash tag (QA_REDIS_PREFIX), so the DEL/HSET/EXPIRE pipeline stays in one cluster slot."
+  },
+  {
     "file": "modules/staff-security/staff-card-watch.ts",
     "kind": "multi",
     "reason": "Every key of the MULTI is built with ck('adm', ...): the per-minute counter and the day hash share the {adm} hash tag, one slot in cluster mode."
