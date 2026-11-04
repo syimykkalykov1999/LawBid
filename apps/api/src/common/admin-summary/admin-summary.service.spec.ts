@@ -12,6 +12,7 @@ function fakeRedis() {
       return Promise.resolve('OK');
     }),
     del: jest.fn((k: string) => Promise.resolve(store.delete(k) ? 1 : 0)),
+    exists: jest.fn((k: string) => Promise.resolve(store.has(k) ? 1 : 0)),
   };
 }
 
@@ -87,5 +88,61 @@ describe('AdminSummaryService', () => {
     const svc = new AdminSummaryService(redis as never);
     const r = await svc.get('k', () => Promise.resolve(7), 60);
     expect(r.data).toBe(7);
+  });
+});
+
+describe('AdminSummaryService.keepWarm (R-370)', () => {
+  const ACTIVE = 'ops:admin-active';
+  const aged = (ms: number) =>
+    JSON.stringify({
+      data: { n: 0 },
+      computedAt: new Date(Date.now() - ms).toISOString(),
+    });
+
+  it('does nothing while no admin is looking', async () => {
+    const redis = fakeRedis();
+    const svc = new AdminSummaryService(redis as never);
+    const compute = jest.fn(() => Promise.resolve({ n: 1 }));
+    expect(await svc.warmOnce('k', compute, 60_000)).toBe(false);
+    expect(compute).not.toHaveBeenCalled();
+  });
+
+  it('recomputes an old copy while an admin is active', async () => {
+    const redis = fakeRedis();
+    redis.store.set(ACTIVE, '1');
+    redis.store.set('adm:sum:k', aged(5 * 60_000));
+    const svc = new AdminSummaryService(redis as never);
+    const compute = jest.fn(() => Promise.resolve({ n: 1 }));
+    expect(await svc.warmOnce('k', compute, 60_000)).toBe(true);
+    expect((await svc.peek<{ n: number }>('k'))?.data.n).toBe(1);
+  });
+
+  it('leaves a fresh copy alone', async () => {
+    const redis = fakeRedis();
+    redis.store.set(ACTIVE, '1');
+    redis.store.set('adm:sum:k', aged(1_000));
+    const svc = new AdminSummaryService(redis as never);
+    const compute = jest.fn(() => Promise.resolve({ n: 1 }));
+    expect(await svc.warmOnce('k', compute, 60_000)).toBe(false);
+    expect(compute).not.toHaveBeenCalled();
+  });
+
+  it('ticks on its timer and stops when asked', async () => {
+    jest.useFakeTimers();
+    try {
+      const redis = fakeRedis();
+      redis.store.set(ACTIVE, '1');
+      const svc = new AdminSummaryService(redis as never);
+      const compute = jest.fn(() => Promise.resolve({ n: 1 }));
+      const stop = svc.keepWarm('k', compute, 60_000, 1_000);
+      await jest.advanceTimersByTimeAsync(1_000);
+      expect(compute).toHaveBeenCalledTimes(1);
+      stop();
+      redis.store.delete('adm:sum:k');
+      await jest.advanceTimersByTimeAsync(5_000);
+      expect(compute).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
