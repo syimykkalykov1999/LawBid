@@ -193,6 +193,9 @@ export const CRON_JOBS = {
   storageCleanup: 'storage.gc',
   storageRetention: 'storage.retention',
   storageSnapshot: 'storage.snapshot',
+  /** R-401 (owner 2026-11-04): nightly Q&A ranking snapshot — attorney
+   * scores and per-topic top lists the recommendations read. */
+  recoQaSnapshot: 'reco.qa-snapshot',
   /** Owner 2026-10-05: client fraud — re-score the queue, propagate fresh
    * blocks to linked accounts, delete old hashes (retention). */
   fraudSweep: 'fraud.sweep',
@@ -351,6 +354,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.storageCleanup, pattern: '17 * * * *' },
   { name: CRON_JOBS.storageRetention, pattern: '35 4 * * *' },
   { name: CRON_JOBS.storageSnapshot, pattern: '55 4 * * *' },
+  // 05:20 UTC daily: after the rating / trust recomputes, before the US morning.
+  { name: CRON_JOBS.recoQaSnapshot, pattern: '20 5 * * *' },
   { name: CRON_JOBS.fraudSweep, pattern: '55 3 * * *' },
   { name: CRON_JOBS.opsGuard, pattern: '* * * * *' },
   { name: CRON_JOBS.statusWatchdog, pattern: '* * * * *' },
@@ -454,6 +459,7 @@ export const HEAVY_JOBS: readonly CronJobName[] = [
   CRON_JOBS.journalRetention,
   CRON_JOBS.ledgerReconcile,
   CRON_JOBS.storageSnapshot,
+  CRON_JOBS.recoQaSnapshot,
   CRON_JOBS.storageRetention,
   CRON_JOBS.fraudSweep,
   CRON_JOBS.searchLearn,

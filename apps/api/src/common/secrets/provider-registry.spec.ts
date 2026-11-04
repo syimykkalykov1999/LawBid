@@ -56,6 +56,25 @@ describe('pasted key cleanup (owner 2026-10-06)', () => {
     expect(from.normalize!('+1 (218) 551-6788')).toBe('+12185516788');
   });
 
+  // R-155: every Cloudflare key card follows the same secure pattern: tokens
+  // and secrets are write-only (masked in the admin), and each field falls
+  // back to its env variable when no value is saved in the settings store.
+  it.each(['cloudflare_turn', 'cloudflare_sfu', 'cloudflare_r2', 'turnstile'])(
+    '%s: secret fields are masked and every field has an env fallback',
+    (id) => {
+      const def = providerById(id)!;
+      expect(def).toBeDefined();
+      expect(def.fields.length).toBeGreaterThan(0);
+      for (const f of def.fields) {
+        expect(f.env).toMatch(/^[A-Z0-9_]+$/);
+        if (/token|secret/i.test(f.name) || /token|secret/i.test(f.label)) {
+          expect(f.secret).toBe(true);
+        }
+      }
+      expect(def.fields.some((f) => f.secret)).toBe(true);
+    },
+  );
+
   it.each(['cloudflare_sfu', 'cloudflare_turn'])(
     'TS-6: «Проверить» of %s on a fresh (404) App / key says «wait up to 60 s», not a bare HTTP 404',
     async (id) => {
