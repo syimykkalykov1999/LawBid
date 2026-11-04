@@ -51,4 +51,30 @@ void main() {
     final back = utf8.decode(base64Url.decode(u.pathSegments[2]));
     expect(back, up.toString());
   });
+
+  test('feed scope: the key carries f, the wrapped URL carries ?f=1', () {
+    final id = VideoCacheProxy.identityOf(Uri.parse('https://cdn.test/v.mp4'));
+    expect(VideoCacheProxy.isFeedKey(VideoCacheProxy.keyOf(id, '_0')), isFalse);
+    expect(
+      VideoCacheProxy.isFeedKey(VideoCacheProxy.feedKeyOf(id, '_0')),
+      isTrue,
+    );
+    final feed = VideoCacheProxy.wrapUrl(
+      port: 1,
+      secret: 's',
+      upstream: Uri.parse('https://cdn.test/v.mp4'),
+      feed: true,
+    );
+    expect(Uri.parse(feed).queryParameters['f'], '1');
+    expect(
+      Uri.parse(
+        VideoCacheProxy.wrapUrl(
+          port: 1,
+          secret: 's',
+          upstream: Uri.parse('https://cdn.test/v.mp4'),
+        ),
+      ).queryParameters,
+      isEmpty,
+    );
+  });
 }
