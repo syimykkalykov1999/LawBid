@@ -1198,18 +1198,21 @@ class _SuggestionRow extends ConsumerWidget {
               onTap: () => onPick(s.text),
               behavior: HitTestBehavior.opaque,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.xs,
-                ),
+                // Owner 2026-10-28 (R-086): every chip is as tall as the
+                // round buttons beside the chips (32).
+                height: AppRoundChipButton.diameter,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
                 decoration: BoxDecoration(
                   color: colors.chip,
                   borderRadius: BorderRadius.circular(AppRadii.pill),
                 ),
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  style: type.bodySmall.copyWith(color: colors.text),
+                child: Center(
+                  widthFactor: 1,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: type.bodySmall.copyWith(color: colors.text),
+                  ),
                 ),
               ),
             ),

@@ -4,15 +4,14 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
-import 'package:lawbid/features/chat/presentation/saved_chats_view.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
-enum _Kind { cases, posts, chats }
+enum _Kind { cases, posts }
 
 /// Owner 2026-10-15: the client's «Saved» posts moved here from «Mine».
-/// Owner 2026-10-20: and the messages, files and links kept from chats.
+/// Owner 2026-11-03: the «Чаты» tab is removed.
 /// Owner 2026-10-22 (audit #4 §1): the one «Сохранённое» of both roles —
 /// an attorney also sees the saved cases (same as the bookmark in «Мои»).
 class SavedScreen extends ConsumerStatefulWidget {
@@ -32,7 +31,6 @@ class _SavedScreenState extends ConsumerState<SavedScreen> {
     final kinds = [
       if (ref.watch(currentUserRoleProvider) == UserRole.attorney) _Kind.cases,
       _Kind.posts,
-      _Kind.chats,
     ];
     final kind = kinds.contains(_kind) ? _kind : _Kind.posts;
     return Scaffold(
@@ -46,41 +44,42 @@ class _SavedScreenState extends ConsumerState<SavedScreen> {
       ),
       body: SafeArea(
         top: false,
-        child: Column(
-          children: [
-            const SizedBox(height: AppSpacing.sm),
-            FilterChips<_Kind>(
-              value: kind,
-              options: [
-                for (final k in kinds)
-                  (
-                    k,
-                    t.t(
-                      switch (k) {
-                        _Kind.cases => 'mine.saved.cases',
-                        _Kind.posts => 'mine.saved.posts',
-                        _Kind.chats => 'inbox.tab.chats',
+        // Only one kind left (a client): the list alone, no tab bar.
+        child: kinds.length == 1
+            ? const SavedPostsList()
+            : Column(
+                children: [
+                  const SizedBox(height: AppSpacing.sm),
+                  FilterChips<_Kind>(
+                    value: kind,
+                    options: [
+                      for (final k in kinds)
+                        (
+                          k,
+                          t.t(
+                            switch (k) {
+                              _Kind.cases => 'mine.saved.cases',
+                              _Kind.posts => 'mine.saved.posts',
+                            },
+                          ),
+                        ),
+                    ],
+                    onChanged: (v) => setState(() => _kind = v),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Expanded(
+                    child: SwipePages<_Kind>(
+                      value: kind,
+                      values: kinds,
+                      onChanged: (v) => setState(() => _kind = v),
+                      pageBuilder: (_, kind) => switch (kind) {
+                        _Kind.cases => const SavedCasesGrid(),
+                        _Kind.posts => const SavedPostsList(),
                       },
                     ),
                   ),
-              ],
-              onChanged: (v) => setState(() => _kind = v),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Expanded(
-              child: SwipePages<_Kind>(
-                value: kind,
-                values: kinds,
-                onChanged: (v) => setState(() => _kind = v),
-                pageBuilder: (_, kind) => switch (kind) {
-                  _Kind.cases => const SavedCasesGrid(),
-                  _Kind.posts => const SavedPostsList(),
-                  _Kind.chats => const SavedChatsView(),
-                },
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
