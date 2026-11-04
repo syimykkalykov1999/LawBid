@@ -114,6 +114,11 @@ class UploadQueueDatabase extends _$UploadQueueDatabase {
       (update(uploadJobs)..where((j) => j.id.equals(id)))
           .write(UploadJobsCompanion(progress: Value(json)));
 
+  /// The job's payload replaced (a held draft released); rows changed.
+  Future<int> savePayload(String id, String json) =>
+      (update(uploadJobs)..where((j) => j.id.equals(id)))
+          .write(UploadJobsCompanion(payload: Value(json)));
+
   Future<void> attempted(String id, {String? failedCode}) => customUpdate(
         'UPDATE upload_jobs SET attempts = attempts + 1, failed_code = ? '
         'WHERE id = ?',

@@ -9,9 +9,11 @@ import {
   Post,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
+import { notModified } from '../../common/sync/cheap-etag';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -52,7 +54,12 @@ export class LegalDocumentsController {
       'Every current legal document (type, language, version, date; public, for the website and the app)',
   })
   @ApiEnvelopeResponse(LegalDocumentBriefDto, { isArray: true })
-  listCurrentLegalDocuments(): Promise<LegalDocumentBriefDto[]> {
+  async listCurrentLegalDocuments(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<LegalDocumentBriefDto[] | undefined> {
+    // R-385: a cheap 304 (config version) before the query.
+    if (notModified(req, res, await this.docs.publicTag())) return undefined;
     return this.docs.listCurrent();
   }
 
@@ -65,10 +72,14 @@ export class LegalDocumentsController {
   })
   @ApiEnvelopeResponse(LegalDocumentPublicDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  getCurrentLegalDocument(
+  async getCurrentLegalDocument(
     @Param() params: LegalDocTypeParamDto,
     @Query() q: LegalDocLocaleQueryDto,
-  ): Promise<LegalDocumentPublicDto> {
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<LegalDocumentPublicDto | undefined> {
+    const tag = await this.docs.publicTag(params.type, q.locale);
+    if (notModified(req, res, tag)) return undefined;
     return this.docs.currentText(params.type, q.locale);
   }
 

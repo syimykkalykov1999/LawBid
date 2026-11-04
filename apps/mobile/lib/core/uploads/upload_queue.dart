@@ -150,6 +150,10 @@ abstract class UploadJobHandler {
 
   Future<void> commit(UploadJob job, UploadJobScope scope);
 
+  /// R-396 (Instagram): true while [job] is a draft — its [prepare] (the
+  /// upload) runs, its [commit] waits for [UploadQueue.release].
+  bool holds(UploadJob job) => false;
+
   /// The job left the queue (done or deleted); its file is removed right
   /// after (move it away first to keep it).
   Future<void> removed(UploadJob job, {required bool sent}) async {}
@@ -253,6 +257,15 @@ class UploadQueue with WidgetsBindingObserver {
       ),
     );
     unawaited(drain());
+  }
+
+  /// R-396: a held job (see [UploadJobHandler.holds]) gets its final
+  /// [payload] and goes on to its commit. False when the job is gone.
+  Future<bool> release(String id, Map<String, Object?> payload) async {
+    final changed = await db.savePayload(id, jsonEncode(payload));
+    if (changed == 0) return false;
+    unawaited(drain());
+    return true;
   }
 
   /// «Повторить»: a refused job goes again.
@@ -406,6 +419,8 @@ class UploadQueue with WidgetsBindingObserver {
       final row = await db.byId(job.id);
       if (row == null) continue; // deleted meanwhile
       final fresh = UploadJob.fromRow(row);
+      // A draft: uploaded, it waits for release() (which drains again).
+      if (_handlers[job.kind]!.holds(fresh)) continue;
       try {
         await _handlers[job.kind]!.commit(fresh, UploadJobScope._(this, fresh));
         await _remove(fresh, sent: true);

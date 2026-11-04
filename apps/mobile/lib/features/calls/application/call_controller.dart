@@ -2763,6 +2763,13 @@ final videoCallsEnabledProvider = Provider<bool>(
   (ref) => ref.watch(featureFlagsControllerProvider).isEnabled('video_calls'),
 );
 
+/// Owner 2026-11-04 (R-376): group calls (three people or more) are off for
+/// now — «Add participant», group and channel call buttons hide; one-to-one
+/// calls stay. Off when the switch is missing.
+final groupCallsEnabledProvider = Provider<bool>(
+  (ref) => ref.watch(featureFlagsControllerProvider).isEnabled('calls_group'),
+);
+
 /// Owner 2026-10-21: the group call this person left but that may still be
 /// running — the app offers a way back (WhatsApp).
 @immutable

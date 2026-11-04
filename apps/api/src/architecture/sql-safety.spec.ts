@@ -9,10 +9,18 @@ import { join, relative, resolve, sep } from 'node:path';
  * a constant or a checked identifier (database name, table list).
  */
 const ALLOWED = new Set([
+  // R-374 one-off purge: table / column names come from pg_catalog checked
+  // against the classified KEEP / WIPE lists (prelaunch-wipe.plan.ts +
+  // purge-test-data.plan.ts), TRUNCATE only after the cascadeViolations
+  // check; WHERE texts are constants, every id list is a bound parameter;
+  // the CLI arguments (phones) never reach SQL.
+  'cli/purge-test-data.ts',
   // type-only: names the raw-SQL methods a backfill batch may use
   'common/backfill/backfill.types.ts',
   'common/secrets/secrets.service.ts',
   'modules/demo/demo-database.service.ts',
+  // R-374: see cli/purge-test-data.ts above (its database steps).
+  'ops/purge-test-data.db.ts',
   // Table names come from the fixed PARTITION_TABLES whitelist, never from input.
   'partitioning/partition.service.ts',
   'partitioning/sql.ts',

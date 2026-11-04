@@ -1,5 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { I18nLanguage } from '@prisma/client';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { configTag } from '../../feature-flags/feature-flags.public';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 
@@ -15,7 +18,17 @@ import { ErrorCode } from '../../../common/errors/error-code.enum';
  */
 @Injectable()
 export class I18nLanguagesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+  ) {}
+
+  /** R-385: the cheap ETag of the active list. Every language change in
+   * the admin panel and every import that adds one bumps the config
+   * version (AdminConfigService / I18nImportService). */
+  etag(): Promise<string> {
+    return configTag(this.redis, 'langs');
+  }
 
   async listActive(): Promise<I18nLanguage[]> {
     return this.prisma.i18nLanguage.findMany({

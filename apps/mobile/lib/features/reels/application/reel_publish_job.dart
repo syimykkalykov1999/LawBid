@@ -3,11 +3,12 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter/material.dart' show Size;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/media/data_saver.dart';
 import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/idempotency_interceptor.dart';
@@ -125,6 +126,13 @@ class ReelPublishRequest {
 const kReelJobKind = 'reel';
 const _kReelTarget = 'reels';
 
+/// R-396: the payload mark of a draft — the video picked on the form,
+/// uploading ahead; its post waits for «Publish»
+/// ([ReelPublishJob.publishDraft]).
+const kReelDraftKey = 'draft';
+
+bool _isDraft(Map<String, Object?> payload) => payload[kReelDraftKey] == true;
+
 /// Owner 2026-10-22 (product audit #4 §3, Instagram): a reel being published
 /// is a job of the persistent upload queue (core/uploads) — the video is
 /// copied into the queue's folder and every step is saved as it finishes
@@ -148,7 +156,9 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
     final owner = queue.ownerId;
     if (owner != null) {
       unawaited(
-        queue.db.ofKind(owner, kReelJobKind).then(_onJobs, onError: (_) {}),
+        queue.db
+            .ofKind(owner, kReelJobKind)
+            .then((rows) => _onJobs(queue, rows), onError: (_) {}),
       );
     }
     return const ReelPublishState();
@@ -162,7 +172,17 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
 
   /// The job found at start: a refused one shows «Retry», a waiting one
   /// shows the card while the queue continues it.
-  Future<void> _onJobs(List<UploadJobRow> rows) async {
+  Future<void> _onJobs(UploadQueue queue, List<UploadJobRow> all) async {
+    // R-396: a draft left by the last run belonged to a form that is gone:
+    // it is dropped (its Bunny upload too), never posted.
+    final rows = <UploadJobRow>[];
+    for (final r in all) {
+      if (_isDraft(UploadJob.fromRow(r).payload)) {
+        unawaited(queue.discard(r.id));
+      } else {
+        rows.add(r);
+      }
+    }
     if (!ref.mounted || rows.isEmpty) return;
     final row = rows.first;
     _jobId = row.id;
@@ -189,6 +209,25 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
     if (ref.mounted) state = next;
   }
 
+  /// The progress of job [id]: kept aside while it is a draft (no card yet),
+  /// dropped for a discarded draft, else shown on the card.
+  void reportFor(String id, ReelPublishState next) {
+    if (id == _draftId) {
+      _draftState = next;
+    } else if (!_dropped.contains(id)) {
+      report(next);
+    }
+  }
+
+  /// Job [id] was refused for good (see [reportFor]).
+  void refusedFor(String id, String code) => reportFor(
+        id,
+        ReelPublishState(
+          phase: ReelPublishPhase.failed,
+          error: ApiException(code: code, message: 'reel'),
+        ),
+      );
+
   CancelToken get cancelToken => _cancel ??= CancelToken();
 
   /// Up to the admin's height on the phone first (smaller upload).
@@ -196,6 +235,7 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
     XFile file, {
     required Size previewSize,
     required ReelCut cut,
+    String? jobId,
   }) async {
     if (kIsWeb) return null;
     final limits = videoLimitsOf(ref.read(featureFlagsControllerProvider));
@@ -211,9 +251,11 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
     return compressor.compress(
       file,
       limits: limits,
-      onProgress: (p) => report(
-        ReelPublishState(phase: ReelPublishPhase.compressing, progress: p),
-      ),
+      onProgress: (p) {
+        final next =
+            ReelPublishState(phase: ReelPublishPhase.compressing, progress: p);
+        jobId == null ? report(next) : reportFor(jobId, next);
+      },
     );
   }
 
@@ -253,6 +295,148 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
     } on Object catch (e) {
       state = ReelPublishState(phase: ReelPublishPhase.failed, error: e);
     }
+  }
+
+  /// R-396 (owner 2026-11-04, «в Инсте не так»): like Instagram, the video
+  /// starts compressing and uploading the moment it is picked; «Publish»
+  /// then only adds the caption. The draft is a held job of the upload
+  /// queue (same steps as [ReelUploadHandler.prepare]); its post waits.
+  String? _draftId;
+  Future<void>? _draftSaved;
+  ReelPublishState _draftState = const ReelPublishState();
+  final _dropped = <String>{};
+
+  /// The draft running now (tests).
+  @visibleForTesting
+  String? get draftId => _draftId;
+
+  /// Starts uploading a picked video ahead; its id, or null when it does
+  /// not start (another reel is publishing, the data saver is on, signed
+  /// out) — then «Publish» uploads it as before. One draft at a time: a
+  /// newer one replaces the older.
+  String? startDraft({
+    required XFile file,
+    required ReelCut cut,
+    required Size previewSize,
+    String? coverFileId,
+  }) {
+    if (!ref.mounted || state.busy || _queued.isNotEmpty) return null;
+    if (ref.read(dataSaverProvider)) return null;
+    final queue = ref.read(uploadQueueProvider);
+    if (queue.ownerId == null) return null;
+    final old = _draftId;
+    if (old != null) discardDraft(old);
+    final id = generateIdempotencyKey();
+    _draftId = id;
+    _draftState = const ReelPublishState(phase: ReelPublishPhase.compressing);
+    final r = ReelPublishRequest(
+      file: file,
+      cut: cut,
+      previewSize: previewSize,
+      coverFileId: coverFileId,
+      title: '',
+      text: '',
+      place: '',
+      commentsEnabled: true,
+      photoIds: const [],
+      attachments: const [],
+    );
+    _draftSaved = _saveDraft(queue, id, r);
+    return id;
+  }
+
+  Future<void> _saveDraft(
+    UploadQueue queue,
+    String id,
+    ReelPublishRequest r,
+  ) async {
+    final files = ref.read(uploadFilesProvider);
+    try {
+      final name = await files.keep('$id.mp4', fromPath: r.file.path);
+      if (_dropped.contains(id)) {
+        // Removed while it was copied: nothing goes to the server.
+        await files.remove(name);
+        return;
+      }
+      await queue.enqueue(
+        id: id,
+        kind: kReelJobKind,
+        target: _kReelTarget,
+        payload: {...reelRequestJson(r), kReelDraftKey: true},
+        fileName: name,
+        mime: 'video/mp4',
+      );
+    } on Object catch (e) {
+      if (_draftId == id) {
+        _draftState =
+            ReelPublishState(phase: ReelPublishPhase.failed, error: e);
+      }
+    }
+  }
+
+  /// «Publish» on a form whose video went ahead as draft [id]: the caption
+  /// goes into the job and its post is created as soon as the upload is
+  /// done (at once when it already is); the card picks up the progress
+  /// where the draft is. A draft that cannot be used (failed, replaced,
+  /// another reel publishing) is dropped and the reel goes as before.
+  Future<void> publishDraft(String id, ReelPublishRequest r) async {
+    final saved = _draftSaved;
+    final shown = _draftState;
+    if (_draftId != id ||
+        state.busy ||
+        saved == null ||
+        shown.phase == ReelPublishPhase.failed) {
+      discardDraft(id);
+      return start(r);
+    }
+    _draftId = null;
+    _draftSaved = null;
+    _draftState = const ReelPublishState();
+    _last = r;
+    _cover = r.cover;
+    _cancel = CancelToken();
+    _jobId = id;
+    state = shown.phase == ReelPublishPhase.idle
+        ? const ReelPublishState(phase: ReelPublishPhase.compressing)
+        : shown;
+    try {
+      await saved;
+      if (r.cover != null) {
+        await ref.read(uploadFilesProvider).keep('$id.cover', bytes: r.cover);
+      }
+      final released =
+          await ref.read(uploadQueueProvider).release(id, reelRequestJson(r));
+      if (released) return;
+      // The draft never reached the queue: the reel goes as before.
+      _jobId = null;
+      state = const ReelPublishState();
+      await start(r);
+    } on Object catch (e) {
+      state = ReelPublishState(phase: ReelPublishPhase.failed, error: e);
+    }
+  }
+
+  /// The video was removed or replaced, or the form closed unpublished:
+  /// the draft stops, its file goes and its Bunny upload is deleted
+  /// (`DELETE /videos/:id`, in [ReelUploadHandler.removed]).
+  void discardDraft(String id) {
+    if (_draftId != id) return;
+    final saved = _draftSaved;
+    final compressing = _draftState.phase == ReelPublishPhase.compressing;
+    _draftId = null;
+    _draftSaved = null;
+    _draftState = const ReelPublishState();
+    _dropped.add(id);
+    if (compressing) _compressor?.cancel().ignore();
+    final queue = ref.read(uploadQueueProvider);
+    unawaited(() async {
+      try {
+        await saved;
+      } on Object {
+        // Nothing was queued.
+      }
+      await queue.discard(id);
+    }());
   }
 
   /// After the post exists: «The video is processing…» until it plays.
@@ -383,10 +567,17 @@ class ReelUploadHandler extends UploadJobHandler {
   @override
   String get kind => kReelJobKind;
 
+  /// R-396: a draft uploads, but its post waits for «Publish».
+  @override
+  bool holds(UploadJob job) => _isDraft(job.payload);
+
   @override
   Future<void> prepare(UploadJob job, UploadJobScope scope) async {
     final p = job.progress;
     if (p['uploaded'] == true) return;
+    // Cancelled when the job is discarded (a removed draft, «×»): no
+    // further step reaches the server.
+    final cancel = scope.cancelToken;
     final repo = _ref.read(reelsRepositoryProvider);
     final files = _ref.read(uploadFilesProvider);
     final payload = job.payload;
@@ -404,7 +595,10 @@ class ReelUploadHandler extends UploadJobHandler {
     var name = p['video'] as String? ?? job.fileName;
     var path = name == null ? null : await files.pathOf(name);
     if (p['video'] == null && path != null) {
-      _job.report(const ReelPublishState(phase: ReelPublishPhase.compressing));
+      _job.reportFor(
+        job.id,
+        const ReelPublishState(phase: ReelPublishPhase.compressing),
+      );
       final out = await _job.compressIfNeeded(
         XFile(path),
         previewSize: Size(
@@ -412,7 +606,9 @@ class ReelUploadHandler extends UploadJobHandler {
           (preview['h'] as num?)?.toDouble() ?? 0,
         ),
         cut: cut,
+        jobId: job.id,
       );
+      if (cancel.isCancelled) return;
       if (out != null) {
         name =
             await files.keep('${job.id}.c.mp4', fromPath: out.path, move: true);
@@ -436,9 +632,11 @@ class ReelUploadHandler extends UploadJobHandler {
     }
     // The upload's share of the line starts after the compression's.
     final from = name != job.fileName ? ReelPublishState.compressShare : 0.0;
-    _job.report(
+    _job.reportFor(
+      job.id,
       ReelPublishState(phase: ReelPublishPhase.uploading, uploadFrom: from),
     );
+    if (cancel.isCancelled) return;
 
     // 2. Bunny's upload slot (kept: a restart reuses it).
     var upload = _uploadOf(p);
@@ -454,6 +652,11 @@ class ReelUploadHandler extends UploadJobHandler {
         coverTimeMs: cut.coverMs,
         coverFileId: payload['coverFileId'] as String?,
       );
+      if (cancel.isCancelled) {
+        // Discarded while Bunny's slot was made: it goes too.
+        repo.cancel(made.videoAssetId).ignore();
+        return;
+      }
       upload = made;
       await scope.saveProgress({
         'assetId': made.videoAssetId,
@@ -470,10 +673,11 @@ class ReelUploadHandler extends UploadJobHandler {
     await repo.upload(
       video,
       upload,
-      cancel: _job.cancelToken,
+      cancel: cancel,
       resumeLocation: p['location'] as String?,
       onLocation: (l) => unawaited(scope.saveProgress({'location': l})),
-      onProgress: (v) => _job.report(
+      onProgress: (v) => _job.reportFor(
+        job.id,
         ReelPublishState(
           phase: ReelPublishPhase.uploading,
           progress: v,
@@ -501,7 +705,8 @@ class ReelUploadHandler extends UploadJobHandler {
   @override
   Future<void> commit(UploadJob job, UploadJobScope scope) async {
     final payload = job.payload;
-    _job.report(
+    _job.reportFor(
+      job.id,
       const ReelPublishState(phase: ReelPublishPhase.posting, progress: 1),
     );
     final created = await _ref.read(socialRepositoryProvider).createPost(
@@ -534,7 +739,7 @@ class ReelUploadHandler extends UploadJobHandler {
   }
 
   @override
-  void refused(UploadJob job, String code) => _job.refused(code);
+  void refused(UploadJob job, String code) => _job.refusedFor(job.id, code);
 
   @override
   Future<void> removed(UploadJob job, {required bool sent}) async {

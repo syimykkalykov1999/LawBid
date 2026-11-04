@@ -1701,6 +1701,7 @@
   "create.post": "Uus postitus",
   "create.post.sub": "Jagage kogemust või küsimust kogukonnaga.",
   "create.post.subAttorney": "Postitus või uudis – valige sees.",
+  "create.post.sub_photo": "Foto või ainult tekst",
   "create.sheet.case": "Juhtum",
   "create.sheet.caseSub": "Kirjelda oma ülesannet, advokaadid vastavad",
   "create.sheet.post": "Postitus",
