@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/require-await -- in-memory fakes */
 import { EconomyService } from './economy.service';
+import { AdminSummaryService } from '../admin-summary/admin-summary.service';
 import type {
   EconomyEvent,
   EconomyState,
@@ -28,6 +29,8 @@ interface Opts {
   stored?: Record<string, unknown>;
   capacityMetrics?: Partial<CapacityReading>;
   mode?: 'auto' | 'manual';
+  /** R-369: the shared admin summary (absent = no cache). */
+  summary?: AdminSummaryService;
 }
 
 function setup(o: Opts = {}) {
@@ -217,8 +220,11 @@ function setup(o: Opts = {}) {
     logger as never,
     spend as never,
     storage as never,
+    undefined,
+    o.summary,
   );
   return {
+    spend,
     svc,
     ops,
     aws,
@@ -600,5 +606,114 @@ describe('EconomyService.decrease', () => {
       ok: false,
       reason: 'busy',
     });
+  });
+});
+
+/** In-memory stand-in for the ioredis calls AdminSummaryService makes. */
+function summaryRedis() {
+  const store = new Map<string, string>();
+  return {
+    store,
+    get: jest.fn(async (k: string) => store.get(k) ?? null),
+    set: jest.fn(async (k: string, v: string, ...args: unknown[]) => {
+      if (args.includes('NX') && store.has(k)) return null;
+      store.set(k, v);
+      return 'OK';
+    }),
+    del: jest.fn(async (k: string) => (store.delete(k) ? 1 : 0)),
+  };
+}
+
+const never = <T>() => new Promise<T>(() => undefined);
+
+describe('EconomyService.report (R-369: «Масштаб» opens at once)', () => {
+  beforeEach(() =>
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] }),
+  );
+  afterEach(() => jest.useRealTimers());
+
+  it('a hung AWS call costs at most 3 s and shows «н/д», not a stuck page', async () => {
+    jest.useRealTimers();
+    const t = setup();
+    t.aws.taskCounts.mockImplementation(never);
+    t.aws.ceilingsNow.mockImplementation(never);
+    t.spend.report.mockImplementation(never);
+    const started = Date.now();
+    const r = await t.svc.report(NOW);
+    const ms = Date.now() - started;
+    // Before: the three calls ran one after another without any limit.
+    expect(ms).toBeLessThan(3_900);
+    expect(r.containers.api.running).toBeNull();
+    expect(r.containers.api.hardCap).toBe(50);
+    expect(r.figures.lines[0].key).toBe('aws');
+  }, 10_000);
+
+  it('asks ECS and Auto Scaling together, not one after another', async () => {
+    const t = setup();
+    let inFlight = 0;
+    let peak = 0;
+    const slow =
+      <T>(v: T) =>
+      async () => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        await Promise.resolve();
+        inFlight -= 1;
+        return v;
+      };
+    t.aws.taskCounts.mockImplementation(
+      slow({
+        api: { running: 2, desired: 2 },
+        worker: { running: 1, desired: 1 },
+      }),
+    );
+    t.aws.ceilingsNow.mockImplementation(slow(null));
+    const r = await t.svc.report(NOW);
+    expect(peak).toBe(2);
+    expect(r.containers.api.running).toBe(2);
+  });
+
+  it('GET serves the shared copy: AWS is asked once for many opens', async () => {
+    jest.useRealTimers();
+    const summary = new AdminSummaryService(summaryRedis() as never);
+    const t = setup({ summary });
+    const first = await t.svc.cachedReport();
+    const again = await t.svc.cachedReport();
+    expect(again).toEqual(first);
+    expect(t.aws.taskCounts).toHaveBeenCalledTimes(1);
+  });
+
+  it('a stale copy is returned at once while one refresh runs behind it', async () => {
+    jest.useRealTimers();
+    const redis = summaryRedis();
+    const summary = new AdminSummaryService(redis as never);
+    const t = setup({ summary });
+    const old = await t.svc.report(NOW);
+    const key = [...redis.store.keys()].find((k) =>
+      k.endsWith('economy:report'),
+    )!;
+    const stored = JSON.parse(redis.store.get(key)!) as { computedAt: string };
+    stored.computedAt = new Date(Date.now() - 5 * 60_000).toISOString();
+    redis.store.set(key, JSON.stringify(stored));
+    t.aws.taskCounts.mockImplementation(never); // the refresh is slow…
+    const started = Date.now();
+    const r = await t.svc.cachedReport(); // …but the page does not wait for it
+    expect(Date.now() - started).toBeLessThan(500);
+    expect(r.containers.api.running).toBe(old.containers.api.running);
+    await new Promise((done) => setTimeout(done, 50));
+    expect(t.aws.taskCounts).toHaveBeenCalledTimes(2); // the background refresh
+  });
+
+  it('a button result replaces the shared copy at once', async () => {
+    jest.useRealTimers();
+    const summary = new AdminSummaryService(summaryRedis() as never);
+    const t = setup({ summary });
+    await t.svc.cachedReport();
+    t.aws.taskCounts.mockResolvedValue({
+      api: { running: 7, desired: 7 },
+      worker: { running: 1, desired: 1 },
+    });
+    await t.svc.report(NOW);
+    expect((await t.svc.cachedReport()).containers.api.running).toBe(7);
   });
 });
