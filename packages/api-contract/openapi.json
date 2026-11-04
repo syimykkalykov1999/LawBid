@@ -172875,6 +172875,63 @@
           "data"
         ]
       },
+      "RecoQaStatusDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Flag recommendations_qa_ranking."
+          },
+          "lastRunAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO time of the last run; null before the first."
+          },
+          "durationMs": {
+            "type": "number",
+            "description": "How long the last run took, ms."
+          },
+          "attorneys": {
+            "type": "number",
+            "description": "Attorneys with a Q&A score."
+          },
+          "questions": {
+            "type": "number",
+            "description": "Open questions in the per-topic lists."
+          },
+          "cases": {
+            "type": "number",
+            "description": "Open cases in the per-topic lists."
+          },
+          "queued": {
+            "type": "boolean",
+            "description": "A recompute was queued by this call."
+          }
+        },
+        "required": [
+          "enabled",
+          "lastRunAt",
+          "durationMs",
+          "attorneys",
+          "questions",
+          "cases",
+          "queued"
+        ]
+      },
+      "RecoQaStatusEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RecoQaStatusDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "BackfillRunDto": {
         "type": "object",
         "properties": {
@@ -173001,63 +173058,6 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/QueueRetryResultDto"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "RecoQaStatusDto": {
-        "type": "object",
-        "properties": {
-          "enabled": {
-            "type": "boolean",
-            "description": "Flag recommendations_qa_ranking."
-          },
-          "lastRunAt": {
-            "type": "string",
-            "nullable": true,
-            "description": "ISO time of the last run; null before the first."
-          },
-          "durationMs": {
-            "type": "number",
-            "description": "How long the last run took, ms."
-          },
-          "attorneys": {
-            "type": "number",
-            "description": "Attorneys with a Q&A score."
-          },
-          "questions": {
-            "type": "number",
-            "description": "Open questions in the per-topic lists."
-          },
-          "cases": {
-            "type": "number",
-            "description": "Open cases in the per-topic lists."
-          },
-          "queued": {
-            "type": "boolean",
-            "description": "A recompute was queued by this call."
-          }
-        },
-        "required": [
-          "enabled",
-          "lastRunAt",
-          "durationMs",
-          "attorneys",
-          "questions",
-          "cases",
-          "queued"
-        ]
-      },
-      "RecoQaStatusEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/RecoQaStatusDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

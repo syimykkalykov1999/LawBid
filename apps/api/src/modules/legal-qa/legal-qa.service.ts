@@ -901,7 +901,8 @@ export class LegalQaService {
   }
 
   private async assertVerifiedAttorney(user: RequestUser): Promise<void> {
-    if (user.role !== 'attorney' || user.assistant) throw this.forbidden();
+    // R-401: an assistant with «qa_answers» passes (qaActor); without it, no.
+    if (!qaActor(user)) throw this.forbidden();
     if (!(await this.isVerifiedAttorney(user))) {
       throw new ForbiddenException({
         code: ErrorCode.ATTORNEY_NOT_VERIFIED,
