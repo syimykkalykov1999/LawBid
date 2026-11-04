@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/reels/data/reels_repository.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 final reelsRepositoryProvider = Provider<ReelsRepository>(
   (ref) => ReelsRepository(
@@ -16,6 +18,27 @@ final reelsRepositoryProvider = Provider<ReelsRepository>(
 /// the flag as on when both are true.
 final reelsEnabledProvider = Provider<bool>(
   (ref) => ref.watch(featureFlagsControllerProvider).isEnabled('video_posts'),
+);
+
+/// Owner 2026-11-04 (R-381): «включить/выключить рилсы для клиентских
+/// аккаунтов». True when reels are on but this client may not publish one
+/// (`reels_client_publish` off): the reel entry points hide, viewing,
+/// likes, comments and shares stay; photos and briefs as before.
+/// Attorneys and assistants always publish. With reels off (`video_posts`)
+/// this is false — nothing changes there.
+final clientReelsBlockedProvider = Provider<bool>((ref) {
+  if (!ref.watch(reelsEnabledProvider)) return false;
+  if (ref.watch(currentUserRoleProvider) != UserRole.client) return false;
+  return !ref
+      .watch(featureFlagsControllerProvider)
+      .isEnabled('reels_client_publish');
+});
+
+/// Whether this person may publish a reel now: reels on and not a client
+/// held back by `reels_client_publish` (R-381).
+final canPublishReelsProvider = Provider<bool>(
+  (ref) =>
+      ref.watch(reelsEnabledProvider) && !ref.watch(clientReelsBlockedProvider),
 );
 
 /// The reels' sound: one switch for every video of the session, like

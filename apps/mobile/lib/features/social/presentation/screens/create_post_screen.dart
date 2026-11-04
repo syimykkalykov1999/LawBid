@@ -203,8 +203,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   /// while the owner has video switched on (flag + Bunny keys). Owner
   /// 2026-10-06: clients too (their plans include video posts); an
   /// assistant only with "publish".
+  /// Owner 2026-11-04 (R-381): not for a client while
+  /// `reels_client_publish` is off.
   bool get _videoAllowed =>
-      ref.read(reelsEnabledProvider) &&
+      ref.read(canPublishReelsProvider) &&
       ref.read(canDoProvider(AssistantDuty.publish));
 
   static bool _isVideo(XFile f) {
@@ -331,6 +333,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   /// Loads a picked video: its length, a first cut and the cover frame.
   Future<void> _setVideo(XFile file) async {
+    // Owner 2026-11-04 (R-381): a client does not publish reels while
+    // `reels_client_publish` is off.
+    if (ref.read(clientReelsBlockedProvider)) return;
     final t = ref.read(translatorProvider);
     final maxMs = reelMaxSeconds(ref) * 1000;
     final sourceSec = reelSourceSeconds(ref);
@@ -362,7 +367,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   Future<void> _editVideo(int tab) async {
     final pick = _video;
-    if (pick == null) return;
+    // Owner 2026-11-04 (R-381): no reel editor for a held-back client.
+    if (pick == null || ref.read(clientReelsBlockedProvider)) return;
     final edit = await Navigator.of(context).push<VideoEdit>(
       MaterialPageRoute(
         builder: (_) => VideoEditorScreen(
@@ -392,6 +398,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     if (left <= 0 && _video == null) return;
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    // Owner 2026-11-04 (R-381): a client held back from reels only takes
+    // a photo — no «photo or video» choice.
+    if (ref.read(clientReelsBlockedProvider)) return _cameraPhoto();
     final photo = await showAppBottomSheet<bool>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -438,18 +447,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     if (photo == null || !mounted) return;
     final picker = ImagePicker();
     if (photo) {
-      final limits = postPhotoLimits(ref);
-      final x = await picker.pickImage(
-        source: ImageSource.camera,
-        maxWidth: limits.maxPx,
-        maxHeight: limits.maxPx,
-        imageQuality: limits.quality,
-      );
-      if (x == null || !mounted) return;
-      setState(() => _video = null);
-      final bytes = await x.readAsBytes();
-      if (!mounted) return;
-      await _frameAndAdd([bytes]);
+      await _cameraPhoto();
     } else {
       final x = await picker.pickVideo(
         source: ImageSource.camera,
@@ -459,6 +457,22 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       setState(_photos.clear);
       await _setVideo(x);
     }
+  }
+
+  /// «Camera» → «Photo»: take one now and frame it.
+  Future<void> _cameraPhoto() async {
+    final limits = postPhotoLimits(ref);
+    final x = await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      maxWidth: limits.maxPx,
+      maxHeight: limits.maxPx,
+      imageQuality: limits.quality,
+    );
+    if (x == null || !mounted) return;
+    setState(() => _video = null);
+    final bytes = await x.readAsBytes();
+    if (!mounted) return;
+    await _frameAndAdd([bytes]);
   }
 
   Future<void> _upload(_Photo photo) async {
@@ -665,7 +679,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     // Owner 2026-10-06: the Post | News switch only while News is on.
     final attorney =
         ref.watch(actsAsAttorneyProvider) && ref.watch(newsEnabledProvider);
-    final video = ref.watch(reelsEnabledProvider) &&
+    final video = ref.watch(canPublishReelsProvider) &&
         ref.watch(canDoProvider(AssistantDuty.publish));
     final practice = _practice;
     final missing = _triedPublish;
