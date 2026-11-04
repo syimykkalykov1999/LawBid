@@ -71,6 +71,8 @@ export const CRON_JOBS = {
   feedReco: 'feed.reco',
   /** docs/05 §7.2: popular tags every 10 minutes. */
   trendingTags: 'search.trending-tags',
+  /** Owner 2026-11-04 (R-406): nightly covers of hashtag topics. */
+  topicCovers: 'search.topic-covers',
   /** Owner 2026-10-15: nightly "query → topic" learning from clicks. */
   searchLearn: 'search.learn',
   /** Owner 2026-10-15: topics of texts that name none (every 5 minutes). */
@@ -292,6 +294,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.countersReconcile, pattern: '50 4 * * *' },
   { name: CRON_JOBS.feedReco, pattern: '*/10 * * * *' },
   { name: CRON_JOBS.trendingTags, pattern: '5-55/10 * * * *' },
+  { name: CRON_JOBS.topicCovers, pattern: '40 3 * * *' },
   { name: CRON_JOBS.searchLearn, pattern: '30 3 * * *' },
   { name: CRON_JOBS.searchTagTopics, pattern: '3-58/5 * * * *' },
   { name: CRON_JOBS.searchIndex, pattern: '* * * * *' },
@@ -454,6 +457,7 @@ export const HEAVY_JOBS: readonly CronJobName[] = [
   CRON_JOBS.storageRetention,
   CRON_JOBS.fraudSweep,
   CRON_JOBS.searchLearn,
+  CRON_JOBS.topicCovers,
   CRON_JOBS.usagePoll,
   CRON_JOBS.contactsPepperBackfill,
   CRON_JOBS.treasuryDaily,
