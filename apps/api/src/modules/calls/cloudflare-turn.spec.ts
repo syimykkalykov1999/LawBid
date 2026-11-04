@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { CallsService, DEFAULT_STUN_URLS } from './calls.service';
 import type { RelayCheck } from './cloudflare-relay-probe';
 import {
@@ -221,6 +222,71 @@ describe('iceServers with Cloudflare TURN', () => {
     ) as never;
     const res = await make({ cf }).iceServers(user);
     expect(res.iceServers).toHaveLength(2);
+  });
+
+  // R-402 (owner 2026-11-04): «Соединение…» for minutes — the list had no
+  // TURN at all (Cloudflare keys saved but not switched on, own coturn
+  // stopped) and nobody was told.
+  describe('alert=no_turn_relay (R-402)', () => {
+    it('Cloudflare enabled: turn:/turns: entries with a short-lived login, no warning', async () => {
+      global.fetch = jest.fn(() =>
+        Promise.resolve(
+          new Response(JSON.stringify(CF_RESPONSE), { status: 201 }),
+        ),
+      ) as never;
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const res = await make({ cf }).iceServers(user);
+      const relay = res.iceServers[0];
+      expect(relay.username).toBe('cf-user');
+      expect(relay.credential).toBe('cf-pass');
+      expect(relay.urls.some((u) => u.startsWith('turn:'))).toBe(true);
+      // Restrictive networks (TCP 443 only) still get a relay.
+      expect(relay.urls).toContain(
+        'turns:turn.cloudflare.com:443?transport=tcp',
+      );
+      expect(res.ttlSec).toBeGreaterThan(0);
+      expect(warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('alert=no_turn_relay'),
+      );
+    });
+
+    it('no keys enabled and no own TURN: STUN only + ONE warning a minute', async () => {
+      global.fetch = jest.fn() as never;
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const svc = make({});
+      await svc.iceServers(user);
+      await svc.iceServers({ sub: 'u2' } as never);
+      const lines = warn.mock.calls
+        .map((c) => String(c[0]))
+        .filter((m) => m.includes('alert=no_turn_relay'));
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toContain('Включить');
+      expect(lines[0]).toContain('STUN only');
+    });
+
+    it('Cloudflare keys set but its login fails and no own TURN: the warning names Cloudflare', async () => {
+      global.fetch = jest.fn(() =>
+        Promise.resolve(new Response('nope', { status: 500 })),
+      ) as never;
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const res = await make({ cf }).iceServers(user);
+      expect(res.iceServers).toHaveLength(1); // STUN only
+      const line = warn.mock.calls
+        .map((c) => String(c[0]))
+        .find((m) => m.includes('alert=no_turn_relay'));
+      expect(line).toContain('Cloudflare TURN login failed');
+      expect(line).not.toContain(TOKEN);
+    });
+
+    it('own TURN alone (no Cloudflare): a relay is offered, no warning', async () => {
+      global.fetch = jest.fn() as never;
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const res = await make({ turn: ownTurn }).iceServers(user);
+      expect(res.iceServers.some((s) => s.username && s.credential)).toBe(true);
+      expect(warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('alert=no_turn_relay'),
+      );
+    });
   });
 
   it('reuses the login for the same user (one Cloudflare call)', async () => {

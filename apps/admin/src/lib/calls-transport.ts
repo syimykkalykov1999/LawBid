@@ -95,6 +95,30 @@ export function ownStatus(r: CallsPath): CostRowStatus {
   return status(r, 'idle', 'в запасе: включится сама, если Cloudflare сбоит', at);
 }
 
+/**
+ * R-402 (owner 2026-11-04, «Соединение…» for minutes): is there a TURN relay
+ * on offer for NEW calls at all? Without one the phones get STUN only and
+ * behind mobile (symmetric) NAT the call never connects or stays weak.
+ * Cloudflare counts only with its TURN keys switched on («Включить» in the
+ * key card; saved-but-off keys are invisible to the server) and the switch
+ * not on «Выкл»; our own side counts with a coturn address (fixed or the
+ * on-demand box while it runs).
+ */
+export function relayWarning(r: CallsPath): string | null {
+  const cf = r.cloudflare.parts.turn && r.transport !== 'own';
+  const own = r.own.parts.turn;
+  if (own) return null;
+  if (!cf) {
+    return r.cloudflare.parts.turn
+      ? 'Нет ретранслятора (TURN): Cloudflare выключен («Выкл»), а свой TURN-сервер не настроен или остановлен. Звонки идут только напрямую — через мобильный интернет соединение может не установиться. Переключите на «Авто» или включите свой TURN.'
+      : 'Нет ретранслятора (TURN): ключи Cloudflare TURN не включены (в карточке ключа нажмите «Включить»), а свой TURN-сервер не настроен или остановлен. Звонки идут только напрямую — через мобильный интернет соединение может не установиться.';
+  }
+  if (r.cloudflare.lastProbeOk === false || r.breakers.turn === 'open') {
+    return 'Ретранслятор Cloudflare TURN не отвечает, а своего TURN-сервера нет: звонки идут только напрямую, пока Cloudflare не вернётся.';
+  }
+  return null;
+}
+
 /** «✓ 120 мс» / «✗ причина» / null when never checked. */
 export function checkLine(c: CallsPathCheck | null | undefined): string | null {
   if (!c) return null;

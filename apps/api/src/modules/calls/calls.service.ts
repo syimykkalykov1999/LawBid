@@ -165,6 +165,8 @@ export const DEFAULT_STUN_URLS = [
  * comes within this long (ICE gathers from both at once; usually it is the
  * cached login and costs nothing). */
 export const CLOUDFLARE_TURN_OPEN_TRY_MS = 500;
+/** R-402: the «STUN only, no relay» warning is written at most this often. */
+export const NO_RELAY_WARN_EVERY_MS = 60_000;
 
 type Outcome = 'ended' | 'missed' | 'declined' | 'busy' | 'canceled' | 'failed';
 
@@ -1276,7 +1278,43 @@ export class CallsService {
         out.iceServers.push(own);
       }
     }
+    this.warnWhenNoRelay(out, {
+      cloudflareKeys: Boolean(cfKeyId && cfToken),
+      cloudflareUsed: cfWorks,
+      ownTurn,
+    });
     return out;
+  }
+
+  /** Last `alert=no_turn_relay` line (one a minute, not one per call). */
+  private noRelayWarnedAt = 0;
+
+  /**
+   * R-402 (owner 2026-11-04, «Соединение…» for minutes): a list without a
+   * single TURN entry means STUN only — phones behind a carrier (symmetric)
+   * NAT never connect, or connect slowly and weakly. Nothing told anyone:
+   * the saved Cloudflare keys were not switched on («Включить» in the
+   * admin), our own coturn box was stopped, and the API handed out STUN in
+   * silence. Now it says so in the log (the admin card reads the same
+   * state through /admin/system-health/calls-path).
+   */
+  private warnWhenNoRelay(
+    out: IceServersDto,
+    why: { cloudflareKeys: boolean; cloudflareUsed: boolean; ownTurn: boolean },
+  ): void {
+    if (out.iceServers.some((s) => s.username && s.credential)) return;
+    const t = Date.now();
+    if (t - this.noRelayWarnedAt < NO_RELAY_WARN_EVERY_MS) return;
+    this.noRelayWarnedAt = t;
+    const reason = why.cloudflareKeys
+      ? 'Cloudflare TURN login failed (keys are set) and no own TURN'
+      : why.ownTurn
+        ? 'own TURN has no secret'
+        : 'no Cloudflare TURN keys enabled (Admin → Integrations → ' +
+          'Cloudflare TURN → «Включить») and no own TURN (fixed or on-demand)';
+    this.logger.warn(
+      `alert=no_turn_relay GET /calls/ice-servers hands out STUN only: ${reason}. Calls across mobile networks will not connect or stay weak.`,
+    );
   }
 
   /** A Cloudflare TURN login within [budgetMs] (1.5 s by default): a 1 s

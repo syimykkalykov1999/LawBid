@@ -372,6 +372,7 @@ class WebRtcCallMedia implements CallMedia {
         switch (s) {
           case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
             onState(CallMediaState.connected);
+            unawaited(_traceRoute(link));
           case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
             onState(CallMediaState.disconnected);
           case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
@@ -384,6 +385,28 @@ class WebRtcCallMedia implements CallMedia {
     _watchLevels();
     _watchQuality();
     return link;
+  }
+
+  /// R-402 (owner 2026-11-04): one trace line per connected link saying
+  /// which candidate pair won — host (same network), srflx (direct through
+  /// STUN) or relay (TURN) — so a weak or slow call can be told apart from
+  /// «no relay at all». Dev/test builds only ([callTrace] is silent in the
+  /// store build); the end-of-call stats line keeps reporting the route.
+  Future<void> _traceRoute(_Link link) async {
+    try {
+      final stats = linkStatsFrom(await link.pc.getStats());
+      if (stats == null) return;
+      final local = stats.localCandidate.isEmpty ? '?' : stats.localCandidate;
+      final remote =
+          stats.remoteCandidate.isEmpty ? '?' : stats.remoteCandidate;
+      final via = local == 'relay' || remote == 'relay' ? 'TURN' : 'direct';
+      callTrace(
+        'link to ${link.peer}: connected via local=$local remote=$remote '
+        '($via)',
+      );
+    } on Object {
+      // The link is closing.
+    }
   }
 
   // --- Link quality: thin the picture, keep the voice ----------------------
