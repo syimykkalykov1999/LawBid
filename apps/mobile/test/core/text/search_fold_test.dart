@@ -78,4 +78,42 @@ void main() {
       expect(rankByName(names, '', (n) => n), names);
     });
   });
+
+  group('folds are kept between calls (speed) without changing the result', () {
+    test('plain Latin, accents and mixed text fold the same twice over', () {
+      const samples = {
+        '  Emily   KALYKOV ': 'emily kalykov',
+        'José  Müller': 'jose muller',
+        'ЁЖИК  Ёлка': 'ежик елка',
+        'Zoë ß': 'zoe ss',
+      };
+      samples.forEach((raw, folded) {
+        expect(searchFold(raw), folded);
+        expect(searchFold(raw), folded, reason: 'second call, from the table');
+      });
+    });
+
+    test('a table past its limit is emptied, not corrupted', () {
+      for (var i = 0; i < 25000; i++) {
+        searchFold('Name $i');
+      }
+      expect(searchFold('Name 7 Ёж'), 'name 7 еж');
+      expect(nameSkeleton('Emily'), 'emili');
+    });
+
+    test('ranking many names against one query matches one-by-one tiers', () {
+      final names = [for (var i = 0; i < 200; i++) 'Emily Kal$i', 'Эмили К'];
+      final ranked = rankByName(names, 'emily k', (n) => n);
+      expect(
+        ranked,
+        [
+          for (final n in names)
+            if (nameTier('emily k', n) != null) n,
+        ]..sort((a, b) {
+            final d = nameTier('emily k', a)! - nameTier('emily k', b)!;
+            return d != 0 ? d : names.indexOf(a) - names.indexOf(b);
+          }),
+      );
+    });
+  });
 }
