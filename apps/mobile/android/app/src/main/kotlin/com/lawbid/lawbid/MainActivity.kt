@@ -291,6 +291,11 @@ class MainActivity : FlutterFragmentActivity() {
                         CallRinging.endAll(this, listOfNotNull(id))
                         result.success(null)
                     }
+                    // R-373: no call runs in Dart — end what Telecom
+                    // still holds of ours (CallRinging.endOrphans).
+                    "endOrphans" -> {
+                        result.success(CallRinging.endOrphans(this))
+                    }
                     "pendingAction" -> {
                         result.success(pendingCallAction)
                         pendingCallAction = null
