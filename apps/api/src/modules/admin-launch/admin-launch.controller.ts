@@ -185,7 +185,10 @@ export class AdminLaunchController {
   @ApiEnvelopeResponse(AwsBudgetsDto)
   async listAwsBudgets(): Promise<AwsBudgetsDto> {
     if (!this.budgets.available) return { available: false, items: [] };
-    return { available: true, items: await this.budgets.list(true) };
+    // R-369: the 2-minute copy (a change below clears it); AWS recounts the
+    // spend only a few times a day, so a live DescribeBudgets per open bought
+    // nothing but a slower «Масштаб».
+    return { available: true, items: await this.budgets.list() };
   }
 
   @Post('budgets/limit')
