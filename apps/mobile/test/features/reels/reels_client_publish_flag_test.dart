@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/default_feature_flags.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
+import 'package:lawbid/features/create/presentation/create_sheet.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
@@ -97,5 +100,70 @@ void main() {
     await tester.tap(camera);
     await tester.pump(const Duration(milliseconds: 500));
     expect(recordVideo, findsOneWidget);
+  });
+
+  // Owner 2026-11-04 06:45: «Кейс наверх поставь, и там слово «видео»
+  // должно убираться и добавляться по кнопке вкл/выкл».
+  Future<void> openSheet(WidgetTester tester, {required bool on}) async {
+    useNarrowPhone(tester);
+    await tester.pumpWidget(
+      uxApp(
+        Consumer(
+          builder: (context, ref, _) => Center(
+            child: TextButton(
+              onPressed: () => showCreateSheet(context, ref),
+              child: const Text('plus'),
+            ),
+          ),
+        ),
+        theme: AppTheme.of(AppThemeId.values.first),
+        size: narrowPhone,
+        disableAnimations: true,
+        overrides: uxOverrides(
+          extra: [
+            featureFlagsControllerProvider
+                .overrideWith(() => _Flags(clientReels: on)),
+            currentUserRoleProvider.overrideWithValue(UserRole.client),
+          ],
+        ),
+      ),
+    );
+    await tester.tap(find.text('plus'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('«+» sheet, switch off: «Кейс» first, no «video» for a client',
+      (tester) async {
+    await openSheet(tester, on: false);
+    final caseY = tester.getTopLeft(find.text('Case')).dy;
+    final postY = tester.getTopLeft(find.text('Post')).dy;
+    expect(caseY, lessThan(postY));
+    expect(find.text('Photo or text only'), findsOneWidget);
+    expect(find.text('Photo, video or just text'), findsNothing);
+  });
+
+  testWidgets('«+» sheet, switch on: «Кейс» first, video is back', (
+    tester,
+  ) async {
+    await openSheet(tester, on: true);
+    expect(
+      tester.getTopLeft(find.text('Case')).dy,
+      lessThan(tester.getTopLeft(find.text('Post')).dy),
+    );
+    expect(find.text('Photo, video or just text'), findsOneWidget);
+    expect(find.text('Photo or text only'), findsNothing);
+  });
+
+  test('an attorney keeps the «photo, video» subtitle with the switch off', () {
+    final c = ProviderContainer(
+      overrides: [
+        featureFlagsControllerProvider
+            .overrideWith(() => _Flags(clientReels: false)),
+        currentUserRoleProvider.overrideWithValue(UserRole.attorney),
+      ],
+    );
+    addTearDown(c.dispose);
+    expect(c.read(canPublishReelsProvider), isTrue);
+    expect(c.read(clientReelsBlockedProvider), isFalse);
   });
 }
