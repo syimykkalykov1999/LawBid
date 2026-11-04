@@ -136,7 +136,10 @@ export class AdminLaunchController {
   })
   @ApiEnvelopeResponse(PagingStatusDto)
   getPagingStatus(): Promise<PagingStatusDto> {
-    return this.paging.status(true);
+    // R-370: the 1-minute copy (prod 7 d: 2.6-2.8 s for every open, an SNS
+    // ListSubscriptionsByTopic each time). «Синхронизировать» still asks
+    // SNS at once and replaces the copy.
+    return this.paging.status();
   }
 
   @Post('pagerduty/sync')

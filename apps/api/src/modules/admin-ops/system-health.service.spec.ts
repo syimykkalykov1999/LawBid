@@ -26,6 +26,8 @@ function build(
     r2Bucket?: string | null;
     head?: (bucket: string) => Promise<unknown>;
     bloatOver?: string[];
+    /** R-370: the status-board extra probes (absent = none). */
+    probes?: { extra: () => Promise<unknown[]> };
   } = {},
 ) {
   const opts = over;
@@ -110,6 +112,7 @@ function build(
     storage as never,
     cipher as never,
     reencrypt as never,
+    over.probes as never,
   );
   return { svc, now, storage };
 }
@@ -316,8 +319,15 @@ describe('SystemHealthService.cachedReport', () => {
     expect(summary.refresh).toHaveBeenCalledTimes(1);
   });
 
-  it('does not show old lights: an entry older than 2 minutes waits for a new report', async () => {
-    const { s, build } = svc({ age: 5 * 60_000, data: old('red') });
+  it('R-370: a 5-minute-old copy opens at once, one refresh runs behind it', async () => {
+    const { s, build, summary } = svc({ age: 5 * 60_000, data: old('red') });
+    expect((await s.cachedReport()).overall).toBe('red');
+    expect(summary.refresh).toHaveBeenCalledTimes(1);
+    expect(build).toHaveBeenCalledTimes(1); // the background refresh
+  });
+
+  it('a copy older than 15 minutes waits for a new report', async () => {
+    const { s, build } = svc({ age: 16 * 60_000, data: old('red') });
     expect((await s.cachedReport()).overall).toBe('green');
     expect(build).toHaveBeenCalledTimes(1);
   });
@@ -368,5 +378,35 @@ describe('SystemHealthService.shardGrowth', () => {
     });
     expect(r.status).toBe('yellow');
     expect(r.detail).toMatchObject({ autoMove: false, ratio: 0.9 });
+  });
+});
+
+describe('SystemHealthService build (R-370)', () => {
+  it('hung extra probes cost at most ~4 s; the core lights still show', async () => {
+    const { svc, now } = build({
+      probes: { extra: () => new Promise<unknown[]>(() => undefined) },
+    });
+    const started = Date.now();
+    const r = await svc.report(now);
+    expect(Date.now() - started).toBeLessThan(4_900);
+    expect(r.items.find((i) => i.key === 'database')?.status).toBe('green');
+  }, 10_000);
+
+  it('the extra probes run together with the core lights, not after them', async () => {
+    let extraStarted = false;
+    const { svc, now } = build({
+      probes: {
+        extra: () => {
+          extraStarted = true;
+          return Promise.resolve([
+            { key: 'push', status: 'green', detail: {} },
+          ]);
+        },
+      },
+    });
+    const p = svc.report(now);
+    expect(extraStarted).toBe(true); // started before any core probe answered
+    const r = await p;
+    expect(r.items.map((i) => i.key)).toContain('push');
   });
 });
