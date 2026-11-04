@@ -7,6 +7,7 @@ import { ErrorNote, SectionTitle } from "@/components/page-header";
 import { Badge, Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/empty";
 import { StatusDot, StatusLegend } from "@/components/status-dot";
+import { UpdatedAgo } from "@/components/updated-ago";
 import { useToast } from "@/components/ui/toast";
 import { api, errorText } from "@/lib/api/client";
 import {
@@ -113,7 +114,14 @@ export function CostRegistry() {
             </summary>
             <Ladder report={r} />
           </details>
-          <SectionTitle>
+          <SectionTitle
+            action={
+              // R-370: the registry is a shared copy (≤ 1 min old).
+              <span className="text-xs text-muted">
+                <UpdatedAgo at={Date.parse(r.generatedAt)} />
+              </span>
+            }
+          >
             Все платные пункты: состояние, деньги, как переключить
           </SectionTitle>
           {r.unclaimed.length > 0 ? (
