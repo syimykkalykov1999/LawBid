@@ -163,7 +163,7 @@ void main() {
         deviceInfoProvider.overrideWithValue(
           const DeviceInfo(deviceId: 'd1', platform: 'android'),
         ),
-        sessionControllerProvider.overrideWith(() => _Session()),
+        sessionControllerProvider.overrideWith(_Session.new),
       ],
     );
     addTearDown(c.dispose);
