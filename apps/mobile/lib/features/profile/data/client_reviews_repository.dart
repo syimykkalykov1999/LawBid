@@ -171,6 +171,12 @@ class ClientReviewsNotifier extends PagedNotifier<ClientReview> {
 
   final ClientReviewsKey key;
 
+  // Owner 2026-11-04 (R-383): kept 5 minutes after its tab or star / sort filter lets go
+  // (see PagedNotifier.keepAliveFor) — a switch back shows the same rows,
+  // no request.
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
+
   @override
   Future<CursorPage<ClientReview>> fetch(String? cursor) =>
       ref.read(clientReviewsRepositoryProvider).list(

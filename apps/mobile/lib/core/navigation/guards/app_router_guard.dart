@@ -67,7 +67,8 @@ class GuardSnapshot {
 /// нет токена, guest_browsing      → /feed, /search, /lawyer/*, /u/*,
 ///                                   /post/*, /c/* open; всё остальное →
 ///                                   /welcome (Owner 2026-10-22, A1)
-/// токен есть, пароль не задан     → /auth/set-password (Owner 2026-10-13)
+/// токен есть, пароль не задан     → /auth/set-password (Owner 2026-10-13,
+///                                   обязательно снова с 2026-11-04, R-384)
 /// токен есть, нет согласий/18+    → /onboarding/consents
 /// нет роли                        → /onboarding/role
 /// клиент без подтверждённых
@@ -146,12 +147,16 @@ abstract final class AppRouterGuard {
 
     if (isLegal) return null;
 
-    // Owner 2026-10-13: an account that signed in with a code may set a
-    // password. Owner 2026-10-22 (audit #4 §2, WhatsApp / Telegram): it is
-    // optional — no forced step after the code; «Задать пароль» lives in
-    // Settings and the screen stays open while there is no password yet.
-    if (user.passwordRequired && location == AuthRoutes.setPassword) {
-      return null;
+    // Owner 2026-10-13: the account signed in with an SMS code and has no
+    // password yet — set it first; from then on the person signs in with
+    // the password, no SMS (like Instagram). Owner 2026-11-04 (R-384):
+    // mandatory again right after the code, before consents / role /
+    // profile data — the 2026-10-22 optional variant (audit #4 §2) left new
+    // accounts without a password they knew. The API sends
+    // `passwordRequired` only while the admin flag «Вход по паролю»
+    // (`password_login`) is on, never for assistants.
+    if (user.passwordRequired) {
+      return location == AuthRoutes.setPassword ? null : AuthRoutes.setPassword;
     }
 
     final required = requiredStep(user);
