@@ -17,7 +17,6 @@ import 'package:lawbid/features/cases/presentation/widgets/invites_list.dart';
 import 'package:lawbid/features/cases/presentation/widgets/my_case_row.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/cases/tools/running_timer_chip.dart';
-import 'package:lawbid/features/chat/presentation/saved_chats_view.dart';
 import 'package:lawbid/features/deadlines/presentation/deadline_entry.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
@@ -335,10 +334,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
       onChanged: (v) => setState(() => _search = v),
       action: saved,
       hintKey: _saved
-          // Owner 2026-10-20: the saved chats have their own caption.
-          ? (_savedKind == _SavedKind.chats
-              ? 'saved.search'
-              : 'mine.search.saved')
+          ? 'mine.search.saved'
           : _section == AttorneyCasesSection.active
               ? 'mine.search.hint'
               : 'mine.search.bids',
@@ -556,7 +552,7 @@ class _WorkGrid extends ConsumerWidget {
   }
 }
 
-enum _SavedKind { cases, posts, chats }
+enum _SavedKind { cases, posts }
 
 /// "Saved" for attorneys: saved cases (a grid, searchable) and posts.
 class _AttorneySaved extends ConsumerStatefulWidget {
@@ -593,8 +589,6 @@ class _AttorneySavedState extends ConsumerState<_AttorneySaved> {
           options: [
             (_SavedKind.cases, t.t('mine.saved.cases')),
             (_SavedKind.posts, t.t('mine.saved.posts')),
-            // Owner 2026-10-20: messages, files and links kept from chats.
-            (_SavedKind.chats, t.t('inbox.tab.chats')),
           ],
           onChanged: widget.onKind,
         ),
@@ -609,7 +603,6 @@ class _AttorneySavedState extends ConsumerState<_AttorneySaved> {
             pageBuilder: (_, kind) => switch (kind) {
               _SavedKind.cases => SavedCasesGrid(search: widget.search),
               _SavedKind.posts => const SavedPostsList(),
-              _SavedKind.chats => SavedChatsView(query: widget.search.q),
             },
           ),
         ),

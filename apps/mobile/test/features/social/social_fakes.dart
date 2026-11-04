@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart' show CancelToken;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:lawbid/core/cache/http_cache_interceptor.dart'
+    show kNoPhoneCopy, readingFromPhoneOnly;
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/search/application/search_providers.dart';
@@ -76,6 +78,9 @@ class FakeSocialRepository implements SocialRepository {
   final followCalls = <(String, bool)>[];
   int attorneyPostsCalls = 0;
 
+  /// What a profile tab finds in the phone's HTTP copy (null = no copy).
+  List<Post>? profilePhoneCopy;
+
   @override
   Future<bool> attachmentsAllowed() async => true;
 
@@ -131,6 +136,13 @@ class FakeSocialRepository implements SocialRepository {
     bool newsOnly = false,
     ProfileMedia? media,
   }) async {
+    // A phone-only read (a profile tab's saved first page): only a copy the
+    // test put there answers, like the HTTP copy; a miss throws.
+    if (readingFromPhoneOnly) {
+      final copy = profilePhoneCopy;
+      if (copy == null) throw StateError(kNoPhoneCopy);
+      return CursorPage(items: copy);
+    }
     attorneyPostsCalls++;
     attorneyPostsMedia.add(media);
     // Like the server's `media` filter (owner 2026-10-18).

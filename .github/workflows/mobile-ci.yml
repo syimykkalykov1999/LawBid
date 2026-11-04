@@ -257,6 +257,20 @@ jobs:
         working-directory: apps/mobile
         run: dart run build_runner build --delete-conflicting-outputs
 
+      # KNOWN_ERRORS №49 (2026-11-04): «No space left on device» while Gradle
+      # unzips the NDK (r28c, ~2 GB) on ubuntu-latest — the image ships
+      # ~14 GB free, most of it taken by toolchains this job never uses. The
+      # same cleanup list as apache/flink, home-assistant and the
+      # free-disk-space action; takes ~20 s, frees ~25 GB.
+      - name: Free disk space (unused toolchains)
+        run: |
+          df -h / | tail -1
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk /opt/ghc \
+            /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/share/swift \
+            /usr/local/share/boost "$AGENT_TOOLSDIRECTORY/Python" 2>/dev/null || true
+          sudo docker image prune -af >/dev/null 2>&1 || true
+          df -h / | tail -1
+
       - name: Build debug APK (build-check only — no signing, no publish)
         working-directory: apps/mobile
         run: flutter build apk --debug
