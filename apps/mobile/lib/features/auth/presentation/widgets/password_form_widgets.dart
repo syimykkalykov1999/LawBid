@@ -182,6 +182,7 @@ String passwordErrorKey(PasswordAuthStatus status) => switch (status) {
       PasswordAuthStatus.providerDisabled => 'error.api.AUTH_PROVIDER_DISABLED',
       PasswordAuthStatus.reauthRequired => 'error.api.REAUTH_REQUIRED',
       PasswordAuthStatus.networkError => 'error.api.NETWORK_ERROR',
+      PasswordAuthStatus.failed => 'error.default.message',
     };
 
 String passwordErrorText(Translator t, PasswordAuthResult result) =>
