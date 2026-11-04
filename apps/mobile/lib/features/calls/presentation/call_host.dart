@@ -80,6 +80,9 @@ class CallHost extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // System call UI answers/declines → the controller.
     ref.watch(callkitEventsProvider);
+    // R-373: no leftover system call keeps the phone «in a call».
+    // ignore: cascade_invocations
+    ref.watch(orphanCallSweepProvider);
     // ignore: cascade_invocations
     ref.listen(callControllerProvider.select((s) => s.phase), (prev, next) {
       // A new call opens the screen even during the previous call's
