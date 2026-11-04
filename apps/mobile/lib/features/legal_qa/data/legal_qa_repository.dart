@@ -61,6 +61,13 @@ class LegalQaRepository {
     );
   }
 
+  /// R-401: attorney — open questions of my topics, best first, from the
+  /// server's nightly snapshot (`GET /questions/recommended`); one page.
+  Future<List<Question>> recommended() async {
+    final env = await guardApiCall(_api.recommendedForMe);
+    return env.data.map(_question).toList();
+  }
+
   /// Attorney: unanswered questions of the last 24 h in my practice, and
   /// how the admin set the card and the profile call to show.
   Future<QaSummary> summary() async {

@@ -185,6 +185,7 @@ class ApiTeamRepository implements TeamRepository, TeamTasksSync {
         used: d.used,
         plan: d.plan.json ?? 'none',
         maxDuties: d.maxDuties,
+        maxDutiesUnlimited: d.maxDutiesUnlimited,
       );
 
   static ActivityEntry _activity(api.ActivityDto a) => ActivityEntry(
