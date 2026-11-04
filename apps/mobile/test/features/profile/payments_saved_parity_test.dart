@@ -13,6 +13,7 @@ import 'package:lawbid/features/case_payments/domain/case_payment_models.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/profile/presentation/screens/payments_hub_screen.dart';
 import 'package:lawbid/features/settings/saved/saved_screen.dart';
+import 'package:lawbid/features/social/presentation/screens/social_screens.dart' show SavedPostsList;
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
@@ -179,7 +180,10 @@ void main() {
         await tester.pumpWidget(wrap(const SavedScreen()));
         await tester.pumpAndSettle();
         expect(find.text('Cases'), cases ? findsOneWidget : findsNothing);
-        expect(find.text('Posts'), findsOneWidget);
+        // Client: a single kind, so no tab bar at all.
+        expect(find.text('Posts'), cases ? findsOneWidget : findsNothing);
+        expect(find.byType(SavedPostsList), findsOneWidget);
+        expect(find.text('Chats'), findsNothing);
         await _done(tester);
       }
     });
