@@ -21,14 +21,53 @@ const _accents = {
   'ż': 'z', 'ž': 'z', 'ß': 'ss', 'æ': 'ae', 'œ': 'oe', 'ё': 'е',
 };
 
+// Compiled once. A `RegExp(...)` inside these functions was compiled again on
+// every call, and the matchers below run once per contact / chat on every
+// keystroke (thousands of calls per letter typed).
+final _spaces = RegExp(r'\s+');
+final _repeat = RegExp(r'(.)\1+');
+final _vowels = RegExp('[aeiou]');
+final _hissing = RegExp('[чшжz]');
+final _leadMarks = RegExp('^[@#]+');
+final _leadAt = RegExp('^@+');
+final _handleSplit = RegExp('[._-]');
+final _notLettersDigits = RegExp(r'[^\p{L}\p{N}]', unicode: true);
+
+/// Names are folded again on every keystroke while a list is filtered, and the
+/// same few thousand strings come back each time. The two folds are pure, so
+/// their results are kept (cleared whole when the table grows past
+/// [_memoLimit], so a long session cannot grow it without bound).
+const _memoLimit = 20000;
+final _foldMemo = <String, String>{};
+final _skeletonMemo = <String, String>{};
+
+String _memo(Map<String, String> table, String key, String Function(String) f) {
+  final hit = table[key];
+  if (hit != null) return hit;
+  if (table.length >= _memoLimit) table.clear();
+  return table[key] = f(key);
+}
+
 /// Lower case, no accents, ё = е, one space between words.
-String searchFold(String s) {
+String searchFold(String s) => _memo(_foldMemo, s, _searchFold);
+
+String _searchFold(String s) {
   final lower = s.toLowerCase();
+  // Every accent in [_accents] is outside ASCII: plain ASCII text (most
+  // usernames, Latin names, the query) needs no per-letter pass.
+  var ascii = true;
+  for (var i = 0; i < lower.length; i++) {
+    if (lower.codeUnitAt(i) > 0x7f) {
+      ascii = false;
+      break;
+    }
+  }
+  if (ascii) return lower.trim().replaceAll(_spaces, ' ');
   final out = StringBuffer();
   for (final ch in lower.split('')) {
     out.write(_accents[ch] ?? ch);
   }
-  return out.toString().trim().replaceAll(RegExp(r'\s+'), ' ');
+  return out.toString().trim().replaceAll(_spaces, ' ');
 }
 
 const _cyrSingle = {
@@ -42,7 +81,9 @@ const _latSingle = {'y': 'i', 'j': 'i', 'w': 'u', 'q': 'k', 'c': 'k'};
 
 /// The spelling skeleton of a name: the same text whether it was written in
 /// Cyrillic or Latin, with "y" or "i", one letter or two.
-String nameSkeleton(String s) {
+String nameSkeleton(String s) => _memo(_skeletonMemo, s, _nameSkeleton);
+
+String _nameSkeleton(String s) {
   var t = searchFold(s)
       .replaceAll('дж', 'j')
       .replaceAll('щ', 'ш')
@@ -60,21 +101,21 @@ String nameSkeleton(String s) {
     b.write(_latSingle[c] ?? c);
   }
   t = b.toString().replaceAll('x', 'ks').replaceAll('h', '');
-  return t.replaceAllMapped(RegExp(r'(.)\1+'), (m) => m[1]!);
+  return t.replaceAllMapped(_repeat, (m) => m[1]!);
 }
 
 /// The consonants of [nameSkeleton] with the hissing sounds as one —
 /// names written by how they sound («Рэйчел» = "Rachel").
 String nameConsonants(String s) => nameSkeleton(s)
-    .replaceAll(RegExp('[aeiou]'), '')
-    .replaceAll(RegExp('[чшжz]'), 's')
-    .replaceAllMapped(RegExp(r'(.)\1+'), (m) => m[1]!);
+    .replaceAll(_vowels, '')
+    .replaceAll(_hissing, 's')
+    .replaceAllMapped(_repeat, (m) => m[1]!);
 
 /// The words of [query] (folded), without a leading '@' / '#'.
 List<String> searchWords(String query) => [
       for (final w in searchFold(query).split(' '))
-        if (w.replaceFirst(RegExp('^[@#]+'), '').isNotEmpty)
-          w.replaceFirst(RegExp('^[@#]+'), ''),
+        if (w.replaceFirst(_leadMarks, '').isNotEmpty)
+          w.replaceFirst(_leadMarks, ''),
     ];
 
 /// Whether every word of [query] is found in [fields]: as text, in another
@@ -145,16 +186,40 @@ bool _withinOne(String a, String b) {
 /// word in another alphabet / spelling (3+ letters), 5 a typo (4+ letters, one edit per
 /// word). Null = no match. A list keeps typo matches only when nothing
 /// matched better ([rankByName]).
-int? nameTier(String query, String name, [String username = '']) {
-  final q = searchFold(query).replaceFirst(RegExp('^[@#]+'), '');
-  final words = searchWords(query);
-  if (q.isEmpty || words.isEmpty) return null;
+int? nameTier(String query, String name, [String username = '']) =>
+    _tier(_NameQuery(query), name, username);
+
+/// What [nameTier] needs from the query alone, worked out once: a list of a
+/// few thousand contacts is ranked against the same query on every letter
+/// typed, so folding the query again per contact was most of the cost.
+class _NameQuery {
+  _NameQuery(String query)
+      : q = searchFold(query).replaceFirst(_leadMarks, ''),
+        words = searchWords(query) {
+    letters = q.replaceAll(_notLettersDigits, '');
+    skeletons = [for (final w in words) nameSkeleton(w)];
+  }
+
+  final String q;
+  final List<String> words;
+  late final String letters;
+
+  /// [nameSkeleton] of each of [words], in the same order.
+  late final List<String> skeletons;
+
+  bool get isEmpty => q.isEmpty || words.isEmpty;
+}
+
+int? _tier(_NameQuery nq, String name, String username) {
+  if (nq.isEmpty) return null;
+  final q = nq.q;
+  final words = nq.words;
+  final letters = nq.letters;
   final n = searchFold(name);
-  final u = searchFold(username).replaceFirst(RegExp('^@+'), '');
+  final u = searchFold(username).replaceFirst(_leadAt, '');
   final nameWords = n.split(' ').where((w) => w.isNotEmpty).toList();
-  final handleWords = u.split(RegExp('[._-]')).where((w) => w.isNotEmpty);
+  final handleWords = u.split(_handleSplit).where((w) => w.isNotEmpty);
   final allWords = [...nameWords, ...handleWords];
-  final letters = q.replaceAll(RegExp(r'[^\p{L}\p{N}]', unicode: true), '');
   if (n == q || (u.isNotEmpty && u == q)) return 0;
   if (n.startsWith(q) ||
       (u.isNotEmpty && u.startsWith(q)) ||
@@ -167,15 +232,13 @@ int? nameTier(String query, String name, [String username = '']) {
   if (letters.length >= 3 && (n.contains(q) || u.contains(q))) return 3;
   final skelWords = nameSkeleton(n).split(' ');
   if (letters.length >= 3 &&
-      words.every((w) {
-        final s = nameSkeleton(w);
-        return s.isNotEmpty && startsAWord(s, skelWords);
-      })) {
+      nq.skeletons.every((s) => s.isNotEmpty && startsAWord(s, skelWords))) {
     return 4;
   }
   if (letters.length >= 4 &&
-      words.every((w) {
-        final s = nameSkeleton(w);
+      words.indexed.every((e) {
+        final w = e.$2;
+        final s = nq.skeletons[e.$1];
         if (s.isNotEmpty && startsAWord(s, skelWords)) return true;
         if (w.length < 4) return false;
         return nameWords.any((h) {
@@ -197,10 +260,11 @@ List<T> rankByName<T>(
   String Function(T) name, [
   String Function(T)? username,
 ]) {
-  if (searchWords(query).isEmpty) return items;
+  final nq = _NameQuery(query);
+  if (nq.words.isEmpty) return items;
   final scored = <(int, int, T)>[];
   for (final (i, it) in items.indexed) {
-    final t = nameTier(query, name(it), username?.call(it) ?? '');
+    final t = _tier(nq, name(it), username?.call(it) ?? '');
     if (t != null) scored.add((t, i, it));
   }
   final strong = scored.any((s) => s.$1 < 5);
