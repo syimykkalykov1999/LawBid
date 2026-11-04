@@ -10,9 +10,24 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 /// envelope. Files (avatar, attachments) are uploaded by the existing
 /// chat / avatar repositories; this one only takes the resulting file id.
 class GroupRepository {
-  GroupRepository(Dio dio) : _c = api.GroupsClient(dio);
+  GroupRepository(Dio dio, {this.noteMedia}) : _c = api.GroupsClient(dio);
 
   final api.GroupsClient _c;
+
+  /// Owner 2026-11-03: told which pictures a group's messages carry (cache
+  /// keys), so «Данные и память» can age them out by the groups' rule.
+  final void Function(String groupId, Iterable<String> imageUrls)? noteMedia;
+
+  void _noteImages(String id, Iterable<api.GroupMessageDto> messages) {
+    final note = noteMedia;
+    if (note == null) return;
+    note(id, [
+      for (final m in messages)
+        if (m.attachment?.isImage ?? false)
+          for (final u in [m.attachment!.url, m.attachment!.previewUrl])
+            if (u != null) u,
+    ]);
+  }
 
   // --- lists and lookup -----------------------------------------------------
 
@@ -182,6 +197,7 @@ class GroupRepository {
     final env = await guardApiCall(
       () => _c.listGroupMessages(id: id, topicId: topicId, cursor: cursor),
     );
+    _noteImages(id, env.data);
     return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
   }
 
@@ -191,11 +207,14 @@ class GroupRepository {
     String id,
     String afterId, {
     String? topicId,
-  }) async =>
-      (await guardApiCall(
-        () => _c.listGroupMessages(id: id, topicId: topicId, afterId: afterId),
-      ))
-          .data;
+  }) async {
+    final data = (await guardApiCall(
+      () => _c.listGroupMessages(id: id, topicId: topicId, afterId: afterId),
+    ))
+        .data;
+    _noteImages(id, data);
+    return data;
+  }
 
   /// Owner 2026-10-21: one tab of the group's shared media, newest first.
   Future<CursorPage<api.GroupMessageDto>> shared(

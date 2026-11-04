@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
+import 'package:lawbid/core/cache/chat_media_providers.dart';
+import 'package:lawbid/core/media/stable_network_image.dart'
+    show stableImageCacheKey;
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/platform/chat_notifications_channel.dart';
@@ -19,7 +22,21 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 Duration? _noRetry(int retryCount, Object error) => null;
 
 final groupRepositoryProvider = Provider<GroupRepository>(
-  (ref) => GroupRepository(ref.watch(dioProvider)),
+  (ref) => GroupRepository(
+    ref.watch(dioProvider),
+    // Owner 2026-11-03: group pictures are indexed as group media («Данные
+    // и память»: the groups' auto-delete age). Never blocks the chat.
+    noteMedia: (id, urls) => unawaited(
+      ref
+          .read(chatMediaIndexProvider)
+          .note(
+            id,
+            {for (final u in urls) stableImageCacheKey(u) ?? u},
+            isGroup: true,
+          )
+          .catchError((Object _) {}),
+    ),
+  ),
 );
 
 /// Owner 2026-10-22 (package B): the first page of my groups, per account.

@@ -21,11 +21,12 @@ final cacheDatabaseProvider = Provider<CacheDatabase>((ref) {
   return db;
 });
 
-/// The user's own, lower cache limits and «Хранить медиа»
-/// (SharedPreferences).
+/// The user's own cache choices (SharedPreferences): lower store limits,
+/// the cap on all cached media, and the auto-delete age by scope.
 class CacheSettings extends Notifier<CacheSettingsState> {
   static const _limitPrefix = 'cache.user_limit_mb.';
-  static const _keepKey = 'cache.keep_media_days';
+  static const _capKey = 'cache.cap_mb';
+  static const _agePrefix = 'cache.auto_delete_days.';
 
   @override
   CacheSettingsState build() {
@@ -35,9 +36,16 @@ class CacheSettings extends Notifier<CacheSettingsState> {
       final v = int.tryParse(kv.getString('$_limitPrefix${s.configKey}') ?? '');
       if (v != null && v > 0) user[s] = v;
     }
+    final ages = <AutoDeleteScope, int>{};
+    for (final s in AutoDeleteScope.values) {
+      final v = int.tryParse(kv.getString('$_agePrefix${s.key}') ?? '');
+      if (v != null && v >= 0) ages[s] = v;
+    }
+    final cap = int.tryParse(kv.getString(_capKey) ?? '');
     return CacheSettingsState(
       userMb: user,
-      keepMediaDays: int.tryParse(kv.getString(_keepKey) ?? ''),
+      capMb: cap != null && cap >= 0 ? cap : null,
+      autoDeleteDays: ages,
     );
   }
 
@@ -55,22 +63,47 @@ class CacheSettings extends Notifier<CacheSettingsState> {
     } else {
       next[store] = mb;
     }
-    state =
-        CacheSettingsState(userMb: next, keepMediaDays: state.keepMediaDays);
+    state = state.copyWith(userMb: next);
   }
 
-  Future<void> setKeepMedia(KeepMedia keep) async {
-    await ref.read(localKvStoreProvider).setString(_keepKey, '${keep.days}');
-    state = CacheSettingsState(userMb: state.userMb, keepMediaDays: keep.days);
+  /// «Максимальный размер кэша», MB; 0 = «Нет».
+  Future<void> setCapMb(int mb) async {
+    await ref.read(localKvStoreProvider).setString(_capKey, '$mb');
+    state = state.copyWith(capMb: mb);
+  }
+
+  Future<void> setAutoDelete(AutoDeleteScope scope, AutoDeleteAge age) async {
+    await ref
+        .read(localKvStoreProvider)
+        .setString('$_agePrefix${scope.key}', '${age.days}');
+    state = state.copyWith(
+      autoDeleteDays: {...state.autoDeleteDays, scope: age.days},
+    );
   }
 }
 
 @immutable
 class CacheSettingsState {
-  const CacheSettingsState({this.userMb = const {}, this.keepMediaDays});
+  const CacheSettingsState({
+    this.userMb = const {},
+    this.capMb,
+    this.autoDeleteDays = const {},
+  });
 
   final Map<CacheStore, int> userMb;
-  final int? keepMediaDays;
+  final int? capMb;
+  final Map<AutoDeleteScope, int> autoDeleteDays;
+
+  CacheSettingsState copyWith({
+    Map<CacheStore, int>? userMb,
+    int? capMb,
+    Map<AutoDeleteScope, int>? autoDeleteDays,
+  }) =>
+      CacheSettingsState(
+        userMb: userMb ?? this.userMb,
+        capMb: capMb ?? this.capMb,
+        autoDeleteDays: autoDeleteDays ?? this.autoDeleteDays,
+      );
 }
 
 final cacheSettingsProvider =
@@ -83,7 +116,8 @@ final cacheLimitsProvider = Provider<CacheLimits>((ref) {
   return CacheLimits.fromAppConfig(
     config,
     userMb: settings.userMb,
-    userKeepMediaDays: settings.keepMediaDays,
+    userCapMb: settings.capMb,
+    userAutoDeleteDays: settings.autoDeleteDays,
   );
 });
 
