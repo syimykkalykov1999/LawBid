@@ -21,7 +21,7 @@ import { adminSession, type AdminSession } from './support/admin-login';
  * STUN/TURN check stubbed: no packet leaves the machine):
  *   no keys → own path;
  *   keys pasted in the admin, «Проверить», «Включить» → the NEXT call gets
- *   the Cloudflare relay first (own coturn behind it, FO-1), the
+ *   only the Cloudflare relay (nothing of ours next to it), the
  *   «Связь для звонков» card says Cloudflare carries calls;
  *   Cloudflare dies → after the breaker limit new calls go on our own
  *   relay first, the card says so, a phone whose relay died gets ours first;
@@ -255,8 +255,8 @@ describe('Calls: Cloudflare primary, own path as automatic backup (e2e, T3/T4)',
 
     const r = await ice(await person());
     expect(r.firstRelayIsCloudflare).toBe(true);
-    // FO-1: our own coturn always rides behind it.
-    expect(r.hasOwn).toBe(true);
+    // Owner 2026-11-04: a healthy Cloudflare takes all the work.
+    expect(r.hasOwn).toBe(false);
     expect((await card()).carrying).toBe('cloudflare');
   });
 
