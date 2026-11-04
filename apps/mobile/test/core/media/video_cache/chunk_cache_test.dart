@@ -60,4 +60,67 @@ void main() {
     await again.clear();
     expect(again.count, 0);
   });
+
+  test('two readers at once both see the folder, oldest first', () async {
+    File('${dir.path}/old').writeAsBytesSync(b(10));
+    File('${dir.path}/old').setLastModifiedSync(DateTime(2020));
+    File('${dir.path}/new').writeAsBytesSync(b(10));
+    final c = ChunkCache(dir, maxBytes: 100);
+    final both = await Future.wait([c.get('old'), c.get('new')]);
+    expect(both.map((e) => e?.length).toList(), [10, 10]);
+    expect(c.count, 2);
+    expect(c.totalBytes, 20);
+  });
+
+  test('trimTo drops the oldest down to the size without moving the ceiling',
+      () async {
+    final c = ChunkCache(dir, maxBytes: 100);
+    await c.put('a', b(10));
+    await c.put('b', b(10));
+    await c.put('c', b(10));
+    await c.get('a'); // b is the oldest, then c
+    await c.trimTo(15);
+    expect(c.contains('a'), isTrue);
+    expect(c.count, 1);
+    expect(c.maxBytes, 100);
+  });
+
+  test('dropOlderThan removes chunks not played for the age', () async {
+    final c = ChunkCache(dir, maxBytes: 100);
+    await c.put('old', b(10));
+    await c.put('new', b(10));
+    final at = DateTime.now().subtract(const Duration(days: 8));
+    File('${dir.path}/old')
+      ..setLastModifiedSync(at)
+      ..setLastAccessedSync(at);
+    await c.dropOlderThan(const Duration(days: 7));
+    expect(c.contains('old'), isFalse);
+    expect(c.contains('new'), isTrue);
+    expect(File('${dir.path}/old').existsSync(), isFalse);
+  });
+
+  test('dropOlderThan(onlyKeys) leaves other scopes; last access counts',
+      () async {
+    final c = ChunkCache(dir, maxBytes: 100);
+    await c.put('feedold', b(10));
+    await c.put('chatold', b(10));
+    await c.put('feedread', b(10));
+    final old = DateTime.now().subtract(const Duration(days: 8));
+    for (final k in ['feedold', 'chatold', 'feedread']) {
+      File('${dir.path}/$k')
+        ..setLastModifiedSync(old)
+        ..setLastAccessedSync(old);
+    }
+    // Played yesterday: written long ago, accessed recently.
+    File('${dir.path}/feedread').setLastAccessedSync(
+      DateTime.now().subtract(const Duration(days: 1)),
+    );
+    await c.dropOlderThan(
+      const Duration(days: 7),
+      onlyKeys: (k) => k.startsWith('feed'),
+    );
+    expect(c.contains('feedold'), isFalse);
+    expect(c.contains('chatold'), isTrue, reason: 'chat video kept');
+    expect(c.contains('feedread'), isTrue, reason: 'opened recently');
+  });
 }

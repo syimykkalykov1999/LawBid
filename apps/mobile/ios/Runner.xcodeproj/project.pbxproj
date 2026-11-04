@@ -489,7 +489,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Push 2026-10-19: ios/Runner/GoogleService-Info.plist is git-ignored and\n# not a project file, so it is copied into the app here when it exists.\n# Without it the build still succeeds and push simply stays off.\nSRC=\"${SRCROOT}/Runner/GoogleService-Info.plist\"\nDST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\nif [ -f \"$SRC\" ]; then\n  cp -f \"$SRC\" \"$DST\"\nelse\n  rm -f \"$DST\"\n  echo \"note: no Runner/GoogleService-Info.plist - FCM push is off in this build\"\nfi\n";
+			shellScript = "# Push 2026-10-19: ios/Runner/GoogleService-Info.plist is git-ignored and\n# not a project file, so it is copied into the app here when it exists.\n# Without it the build still succeeds and push simply stays off.\nSRC=\"${SRCROOT}/Runner/GoogleService-Info.plist\"\nDST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\nif [ -f \"$SRC\" ]; then\n  cp -f \"$SRC\" \"$DST\"\nelse\n  rm -f \"$DST\"\n  # Owner 2026-11-03 (KNOWN_ERRORS 47): a prod release without it ships\n  # with no push at all - fail it (a CI dry run sets LAWBID_ALLOW_NO_FIREBASE=1).\n  if [ \"$CONFIGURATION\" = \"Release-prod\" ] && [ \"${LAWBID_ALLOW_NO_FIREBASE:-}\" != \"1\" ]; then\n    echo \"error: Runner/GoogleService-Info.plist is missing - a prod release would ship without push (docs/dev/KNOWN_ERRORS.md 47)\"\n    exit 1\n  fi\n  echo \"note: no Runner/GoogleService-Info.plist - FCM push is off in this build\"\nfi\n";
 		};
 		5668436FCFC06E09B0A57FCB /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;

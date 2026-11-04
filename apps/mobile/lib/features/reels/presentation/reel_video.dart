@@ -324,7 +324,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     final options = VideoPlayerOptions(mixWithOthers: widget.muted);
     final c = debugReelPlayerFactory?.call(Uri.parse(url), options) ??
         VideoPlayerController.networkUrl(
-          Uri.parse(VideoCache.resolve(url)),
+          Uri.parse(VideoCache.resolve(url, feed: true)),
           formatHint: widget.video.usesMp4(web: kIsWeb, hlsOnly: _hlsOnly)
               ? VideoFormat.other
               : VideoFormat.hls,
