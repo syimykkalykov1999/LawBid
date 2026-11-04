@@ -58,7 +58,11 @@ async function reroute(
   // 30-minute idle session alive.
   if (request.method === 'GET' && isBackgroundNow()) headers.set('x-background', '1');
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
-  const body = hasBody ? await request.text() : undefined;
+  // A POST without a body (e.g. «Проверить» on an integration) must stay
+  // bodyless: `new Request(url, { body: '' })` makes the browser add
+  // `Content-Type: text/plain`, which the proxy refuses (415, S18-5).
+  const text = hasBody ? await request.text() : '';
+  const body = text === '' ? undefined : text;
   const out = new Request(url, {
     method: request.method,
     headers,
