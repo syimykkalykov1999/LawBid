@@ -8,6 +8,7 @@ import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/chat/data/chat_list_cache.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/data/message_store.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
@@ -75,6 +76,19 @@ class _FakeChat implements ChatRepository {
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
 }
 
+/// R-380: the saved chats list (what the inbox shows before the network).
+class _SavedList implements ChatListCache {
+  _SavedList(this.items);
+
+  final List<Conversation> items;
+
+  @override
+  Future<CursorPage<Conversation>?> read() async => CursorPage(items: items);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
 void main() {
   late CacheDatabase cache;
   late MessageStore store;
@@ -88,10 +102,11 @@ void main() {
   });
   tearDown(() => cache.close());
 
-  ProviderContainer container() {
+  ProviderContainer container({ChatListCache? saved}) {
     final social = SocialLocalDatabase(NativeDatabase.memory());
     final c = ProviderContainer(
       overrides: [
+        if (saved != null) chatListCacheProvider.overrideWithValue(saved),
         chatRepositoryProvider.overrideWithValue(chat),
         socialLocalDatabaseProvider.overrideWithValue(social),
         cacheDatabaseProvider.overrideWithValue(cache),
@@ -154,6 +169,34 @@ void main() {
     expect(s.messages.map((m) => m.id), ['c', 'b', 'a']);
     expect(chat.pageCalls, 0);
     expect(chat.afterCalls, 1);
+  });
+
+  test(
+      'R-380: a chat from the phone gets its conversation from the saved '
+      'list in the same update as the messages (the composer does not wait '
+      'for the server)', () async {
+    await store.put('c1', [dto('a', 'c1', minute: 1)]);
+    final row = Conversation(
+      id: 'c1',
+      caseId: null,
+      caseTitle: null,
+      status: ConversationStatus.active,
+      contactsUnlocked: true,
+      counterpart: const Counterpart(isAttorney: true, verified: true),
+      unreadCount: 0,
+      updatedAt: DateTime(2026),
+    );
+    final c = container(saved: _SavedList([row]));
+    final seen = <(bool, bool)>[];
+    final sub = c.listen(
+      chatThreadProvider('c1'),
+      (_, s) => seen.add((s.messages.isNotEmpty, s.conversation != null)),
+    );
+    addTearDown(sub.close);
+    await settle();
+    // Never "messages without the conversation" (the old jump).
+    expect(seen.where((x) => x.$1 && !x.$2), isEmpty);
+    expect(c.read(chatThreadProvider('c1')).conversation, isNotNull);
   });
 
   test('a chat without a copy reads its first page and keeps it', () async {

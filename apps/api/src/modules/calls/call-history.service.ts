@@ -4,6 +4,7 @@ import {
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
+import { timeBucket, weakEtag } from '../../common/sync/cheap-etag';
 import { viewerContext } from '../../common/viewer/viewer-context';
 import { PrismaService } from '../../prisma/prisma.service';
 import { hashShard } from '../../sharding/shard-id';
@@ -18,6 +19,9 @@ import type {
 import { CALL_SILENT_MS } from './calls.service';
 
 const DEFAULT_LIMIT = 30;
+/** The first-page tag rotates at least this often (names, photos, signed
+ * links of the people in the rows are not in the tag). */
+export const HISTORY_TAG_BUCKET_MS = 5 * 60_000;
 const FINISHED = [
   'ended',
   'missed',
@@ -40,6 +44,43 @@ export class CallHistoryService {
     private readonly prisma: PrismaService,
     private readonly files: FilesService,
   ) {}
+
+  /**
+   * Owner 2026-11-04 (R-385): the cheap ETag of the first page — the newest
+   * visible finished call and my hidden-calls marks (two indexed reads),
+   * so an unchanged list is a 304 without the page, people and groups
+   * queries. A new call, a status change of the newest one, «delete» and
+   * «clear» all move it.
+   */
+  async firstPageTag(
+    user: RequestUser,
+    limit = DEFAULT_LIMIT,
+  ): Promise<string> {
+    const me = user.sub;
+    const [newest, hidden] = await Promise.all([
+      this.prisma.call.findFirst({
+        where: { ...this.mine(me), log_hidden: { none: { user_id: me } } },
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+        select: { id: true, status: true, ended_at: true },
+      }),
+      this.prisma.callLogHidden.aggregate({
+        where: { user_id: me },
+        _count: { _all: true },
+        _max: { created_at: true },
+      }),
+    ]);
+    return weakEtag(
+      'calls',
+      me,
+      limit,
+      newest?.id,
+      newest?.status,
+      newest?.ended_at,
+      hidden._count._all,
+      hidden._max.created_at,
+      timeBucket(HISTORY_TAG_BUCKET_MS),
+    );
+  }
 
   async history(
     user: RequestUser,
