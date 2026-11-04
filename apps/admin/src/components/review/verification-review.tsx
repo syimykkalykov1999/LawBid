@@ -252,30 +252,30 @@ function VerificationBody({ card: r, name }: { card: Card; name: string }) {
       {links.capped ? (
         <p className="mb-3 rounded-xl bg-warning-soft px-3 py-2 text-sm text-warning">Лимит просмотров документов на этот час исчерпан — откройте позже.</p>
       ) : null}
-      <div className="grid gap-4 lg:grid-cols-12">
-        <Card className="lg:col-span-5">
+      <div data-testid="verification-grid" className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-12">
+        <Card data-testid="verification-document" className="min-w-0 lg:col-span-7 xl:col-span-5">
           <CardHeader>
             <CardTitle className="inline-flex items-center gap-2">
               <IdentificationCard size={18} /> Документ
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
+          <CardContent className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">
             {docs.id.length === 0 ? <p className="text-sm text-muted">Документа нет</p> : null}
             {docs.id.map((d) => (
               <Picture key={d.id} doc={d} url={links.urls[d.id]} loading={links.loading} onOpen={() => openDoc(d)} />
             ))}
           </CardContent>
         </Card>
-        <Card className="lg:col-span-3">
+        <Card data-testid="verification-selfie" className="min-w-0 lg:col-span-5 xl:col-span-3">
           <CardHeader>
             <CardTitle className="inline-flex items-center gap-2">
               <UserFocus size={18} /> Селфи
             </CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-3">
+          <CardContent className="grid min-w-0 gap-3">
             {docs.selfie.length === 0 ? <p className="text-sm text-muted">Селфи нет</p> : null}
             {docs.selfie.map((d) => (
-              <div key={d.id} className="grid gap-1.5">
+              <div key={d.id} className="grid min-w-0 gap-1.5 break-words">
                 <Picture doc={d} url={links.urls[d.id]} loading={links.loading} onOpen={() => openDoc(d)} />
                 {/* Owner 2026-10-28: how the selfie was taken, right next to it. */}
                 <SelfieCaptureNote capture={d.capture} />
@@ -283,7 +283,7 @@ function VerificationBody({ card: r, name }: { card: Card; name: string }) {
             ))}
           </CardContent>
         </Card>
-        <div className="space-y-4 lg:col-span-4">
+        <div data-testid="verification-side" className="min-w-0 space-y-4 lg:col-span-12 xl:col-span-4 [&>*]:min-w-0">
           <Card>
             <CardHeader>
               <CardTitle>Профиль</CardTitle>
@@ -401,7 +401,7 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-3">
       <span className="text-muted">{k}</span>
-      <span className="text-right">{v}</span>
+      <span className="min-w-0 break-words text-right">{v}</span>
     </div>
   );
 }
