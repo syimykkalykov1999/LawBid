@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/deeplinks/deep_link.dart';
 import 'package:lawbid/core/deeplinks/deep_link_routes.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
@@ -359,9 +360,19 @@ GoRouter appRouter(Ref ref) {
             id: 'verification_wizard_screen',
             load: d_verification_wizard_screen.loadLibrary,
             builder: (_) =>
-                d_verification_wizard_screen.VerificationWizardScreen(),
+                d_verification_wizard_screen.VerificationWizardScreen(
+              handoffToken: state.uri.queryParameters['handoff'],
+            ),
           ),
         ),
+      ),
+      // R-146: the computer's «continue on your phone» link opened in a
+      // browser tab of this app (web) — the same wizard step.
+      GoRoute(
+        path: AppRoutes.selfieHandoffPattern,
+        parentNavigatorKey: _rootNavigatorKey,
+        redirect: (context, state) =>
+            selfieHandoffLocation(state.pathParameters['token'] ?? ''),
       ),
       // Owner 2026-10-05 (legal documents): accept the documents of my role.
       GoRoute(

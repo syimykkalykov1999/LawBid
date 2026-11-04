@@ -32,9 +32,12 @@ import type {
 } from '../dto/verification-requests.dto';
 import type {
   SelfieCaptureTokenDto,
+  VerificationHandoffDto,
+  VerificationHandoffStatusDto,
   VerificationOverviewDto,
   VerificationRequestDto,
 } from '../dto/verification-responses.dto';
+import { VerificationHandoffStatus } from '../dto/verification-responses.dto';
 import {
   ATTESTATION_VERSION,
   EDITABLE_REQUEST_STATUSES,
@@ -55,6 +58,7 @@ import {
   SelfieCaptureTokensService,
   type SelfieCaptureGrant,
 } from './selfie-capture-tokens.service';
+import { VerificationHandoffService } from './verification-handoff.service';
 
 type Tx = Prisma.TransactionClient;
 
@@ -109,6 +113,8 @@ export class VerificationRequestsService {
     private readonly captureTokens: SelfieCaptureTokensService,
     // Owner 2026-10-14: the number's shape and the stepped cooldown.
     @Optional() private readonly attempts?: BarAttemptsService,
+    // R-146: «continue on your phone» codes for the selfie.
+    @Optional() private readonly handoff?: VerificationHandoffService,
   ) {}
 
   /**
@@ -517,6 +523,37 @@ export class VerificationRequestsService {
     return { ...issued, required };
   }
 
+  /**
+   * R-146 (owner 2026-11-04): the computer without a camera asks for a
+   * one-time «continue on your phone» code bound to this attorney and this
+   * editable request (rate-limited, journaled in auth_events).
+   */
+  async createHandoff(
+    userId: string,
+    requestId: string,
+    ip?: string,
+  ): Promise<VerificationHandoffDto> {
+    await this.requireActiveAttorney(userId);
+    const req = await this.load(this.prisma, userId, requestId);
+    assertEditable(req.status);
+    const made = await this.requireHandoff().create(userId, requestId, ip);
+    return { ...made, qrPayload: made.url };
+  }
+
+  /** R-146: pending / done / expired of the attorney's own code. */
+  async handoffStatus(
+    userId: string,
+    token: string,
+  ): Promise<VerificationHandoffStatusDto> {
+    const s = await this.requireHandoff().status(userId, token);
+    return { ...s, status: VerificationHandoffStatus[s.status] };
+  }
+
+  private requireHandoff(): VerificationHandoffService {
+    if (!this.handoff) throw new Error('VerificationHandoffService missing');
+    return this.handoff;
+  }
+
   private selfieLiveCaptureRequired(): Promise<boolean> {
     return this.settings.boolean('verification.selfie_live_capture_required');
   }
@@ -533,6 +570,16 @@ export class VerificationRequestsService {
       throw validationError('Capture data belongs to the selfie only.', {
         field: 'captureToken',
       });
+    }
+    if (!selfie && dto.handoffToken) {
+      throw validationError('The handoff code belongs to the selfie only.', {
+        field: 'handoffToken',
+      });
+    }
+    // R-146: the phone opened the computer's link — it must be this
+    // attorney's code for this request.
+    if (selfie && dto.handoffToken && this.handoff) {
+      await this.handoff.assertUsable(userId, requestId, dto.handoffToken);
     }
     await this.files.assertAttachable(
       userId,
@@ -568,6 +615,12 @@ export class VerificationRequestsService {
           .catch(() => undefined);
       }
       throw e;
+    }
+    // R-146: the computer waiting on «continue on your phone» reads `done`.
+    if (selfie && this.handoff) {
+      await this.handoff
+        .markDone(userId, requestId, dto.handoffToken)
+        .catch(() => undefined);
     }
     return this.get(userId, requestId);
   }

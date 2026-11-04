@@ -23,6 +23,12 @@ export {
   PasskeyRemovedDto,
 } from './passkeys/passkey.dto';
 export { RateLimitService } from './services/rate-limit.service';
+// R-146: «continue on your phone» codes of the verification selfie are
+// journaled in auth_events.
+export {
+  AUTH_EVENT_TYPES,
+  AuthEventService,
+} from './services/auth-event.service';
 export { QR_LOGIN_TTL_SEC } from './services/qr-login.service';
 // Compliance (#388): the provider contracts the e-mail / SMS suppression
 // wrappers implement.
