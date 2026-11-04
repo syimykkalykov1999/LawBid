@@ -3,8 +3,10 @@ import {
   Inject,
   Injectable,
   Logger,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import type { PlanPrice, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -46,6 +48,7 @@ export class AdminPricingService {
     private readonly pricing: PricingService,
     private readonly audit: AuditLogService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
   async list(): Promise<AdminPlanPricesDto> {
@@ -290,7 +293,21 @@ export class AdminPricingService {
     }));
   }
 
+  /** Data-layer audit 2026-11-04 (R-395): four counts over the whole
+   * subscriptions / client badge tables — shared for 5 minutes
+   * (AdminSummaryService), not recounted on every open of the prices page. */
   private async subscriberCounts(): Promise<Record<PlanKind, number>> {
+    if (!this.summary) return this.countSubscribers();
+    return (
+      await this.summary.get(
+        'plan-subscriber-counts',
+        () => this.countSubscribers(),
+        300,
+      )
+    ).data;
+  }
+
+  private async countSubscribers(): Promise<Record<PlanKind, number>> {
     const live = { status: { in: LIVE_SUB } };
     const [monthly, seat, yearly, badge] = await Promise.all([
       this.prisma.subscription.count({ where: { ...live, plan: 'monthly' } }),
