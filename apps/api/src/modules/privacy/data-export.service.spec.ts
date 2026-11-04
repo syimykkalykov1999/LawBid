@@ -4,7 +4,11 @@ import { setFlagsFromString } from 'node:v8';
 import { runInNewContext } from 'node:vm';
 import { DataExportService } from './data-export.service';
 
-jest.setTimeout(180_000);
+// KNOWN_ERRORS №51 (2026-11-04): the 50 000-message export takes 60–90 s on a
+// quiet runner but passed 180 s twice tonight under coverage on a loaded
+// ubuntu-latest (PR #696, #719). The assertions are about streaming and peak
+// memory, not speed, so the budget is wall-clock only.
+jest.setTimeout(600_000);
 
 const MESSAGES = 50_000;
 
