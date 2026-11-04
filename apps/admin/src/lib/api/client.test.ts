@@ -43,6 +43,18 @@ describe('admin api client (S18-12)', () => {
     expect(f.mock.calls[1]![0].headers.get('x-background')).toBeNull();
   });
 
+  it('keeps a bodyless POST bodyless (no text/plain content type for the proxy)', async () => {
+    // «Проверить» on an integration is a POST without a body. Materializing
+    // it as '' made the browser add text/plain, and the proxy answered 415
+    // «Send JSON or a multipart upload» (owner 2026-11-04).
+    const f = vi.fn(async (r: Request) => (void r, Response.json({ data: {} })));
+    vi.stubGlobal('fetch', f);
+    await api.POST('/admin/integrations/x/versions/1/test' as never);
+    const sent = f.mock.calls[0]![0];
+    expect(sent.body).toBeNull();
+    expect(sent.headers.get('content-type') ?? '').not.toMatch(/text\/plain/);
+  });
+
   it('never marks a write as background', async () => {
     const f = vi.fn(async (r: Request) => (void r, Response.json({ data: {} })));
     vi.stubGlobal('fetch', f);
