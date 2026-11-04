@@ -46,6 +46,7 @@ export function useMe() {
       const { data } = await api.GET('/admin/auth/me');
       return data!.data as Me;
     },
-    staleTime: 5 * 60_000,
+    // R-385: 15 min (REFERENCE_STALE_MS in lib/query-client.ts); every
+    // own-profile save invalidates ['me'].
   });
 }
