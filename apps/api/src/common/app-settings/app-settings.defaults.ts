@@ -511,6 +511,12 @@ export const OWNER_BILLING_GATE_SETTINGS = {
    * guards. Off: the old behaviour (the newcomer is cancelled, no refund)
    * and an alert for a manual decision. */
   'billing.duplicate_subscription_autofix': true,
+  /** R-237 (owner 2026-11-03): a bank dispute on a subscription charge
+   * cancels that subscription at Stripe at once (no further charges, no
+   * extra refund: the dispute reverses the charge) and is recorded in the
+   * audit log and to the admins. Off: the dispute only lands in «Проверки
+   * Stripe» as before. */
+  'billing.dispute_auto_cancel': true,
   /** Algo audit M-4: the most the duplicate auto-fix refunds in one UTC day
    * (cents, all attorneys together); above it a refund waits for a person. */
   'billing.duplicate_autorefund_daily_cap_cents': 50_000,
