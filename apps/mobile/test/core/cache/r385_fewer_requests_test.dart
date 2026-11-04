@@ -128,8 +128,10 @@ void main() {
     final rec = _Recorder({'data': <Object>[]});
     final dio = Dio()..interceptors.add(rec);
     await I18nApiClient(dio).getLanguages();
-    expect(rec.extras.single[kCacheMaxAgeExtra],
-        const Duration(hours: 1).inSeconds);
+    expect(
+      rec.extras.single[kCacheMaxAgeExtra],
+      const Duration(hours: 1).inSeconds,
+    );
     expect(rec.extras.single['skipAuth'], isTrue);
   });
 
