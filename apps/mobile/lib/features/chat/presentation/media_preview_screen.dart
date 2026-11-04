@@ -238,6 +238,11 @@ class _MediaPreviewScreenState extends ConsumerState<MediaPreviewScreen> {
                         style: type.body.copyWith(color: ChatColors.onViewer),
                         cursorColor: ChatColors.onViewer,
                         decoration: InputDecoration(
+                          // The app theme fills every field with
+                          // `colors.surface`; here the dark viewer bar is the
+                          // field, so the theme fill (white in day) must not
+                          // cover it (R-378).
+                          filled: false,
                           border: InputBorder.none,
                           hintText: t.t('chat.preview.caption'),
                           hintStyle: type.body.copyWith(

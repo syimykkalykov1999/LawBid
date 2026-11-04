@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/card';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
-import { REASON_RU, RESULT_RU } from '@/lib/registry-labels';
+import { REASON_RU } from '@/lib/registry-labels';
+import { livePoll } from '@/lib/live';
 import { formatDateTime } from '@/lib/utils';
 
 /**
@@ -22,19 +23,20 @@ export function RegistryFlags() {
   const q = useQuery({
     queryKey: ['registry-flags'],
     queryFn: async () => (await api.GET('/admin/verification/registry-flags')).data!.data,
+    // R-394: the lookup runs in the background; the list re-reads itself
+    // every few seconds while one is running, then stops.
+    refetchInterval: livePoll((data) =>
+      (data as { license: { registryCheck: unknown } }[] | undefined)?.some((x) => x.license.registryCheck) ? 3000 : false,
+    ),
   });
   const refresh = () => void qc.invalidateQueries({ queryKey: ['registry-flags'] });
   const rerun = useMutation({
-    mutationFn: async (licenseId: string) =>
-      (
-        await api.POST('/admin/verification/licenses/{licenseId}/registry-check', {
-          params: { path: { licenseId } },
-        })
-      ).data!.data,
-    onSuccess: (r) => {
-      const reason = typeof r.details.reason === 'string' ? ` — ${REASON_RU[r.details.reason] ?? r.details.reason}` : '';
-      if (r.result === 'pass') toast.success('Реестр подтвердил — отметка снята');
-      else toast.error(`${RESULT_RU[r.result]?.text ?? r.result}${reason}`);
+    mutationFn: (licenseId: string) =>
+      api.POST('/admin/verification/licenses/{licenseId}/registry-check', {
+        params: { path: { licenseId } },
+      }),
+    onSuccess: () => {
+      toast.success('Проверка по реестру запущена — строка обновится сама');
       refresh();
     },
     onError: (e) => toast.error(e),
@@ -110,8 +112,13 @@ export function RegistryFlags() {
                   <Td className="whitespace-nowrap text-muted">{formatDateTime(l.registryFlaggedAt)}</Td>
                   <Td>
                     <div className="flex justify-end gap-2">
-                      <Button size="sm" variant="ghost" loading={rerun.isPending && rerun.variables === l.id} onClick={() => rerun.mutate(l.id)}>
-                        Проверить снова
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        loading={(rerun.isPending && rerun.variables === l.id) || !!l.registryCheck}
+                        onClick={() => rerun.mutate(l.id)}
+                      >
+                        {l.registryCheck ? 'Проверяется…' : 'Проверить снова'}
                       </Button>
                       <Button size="sm" variant="outline" disabled={clear.isPending} onClick={() => clear.mutate(l.id)}>
                         Снять отметку
