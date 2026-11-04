@@ -35,7 +35,16 @@ const nextConfig: NextConfig = {
   // their data through the proxy (not from the payload), so a short reuse
   // is safe: clicks within 30 s open at once; the data itself is still
   // revalidated by TanStack Query.
-  experimental: { staleTimes: { dynamic: 30, static: 180 } },
+  //
+  // Smoothness audit 2026-11-03: the icon and animation libraries are imported
+  // from their barrel files in 175 places (137 x @phosphor-icons/react, 38 x
+  // motion/react). `optimizePackageImports` (Next.js docs, «Optimizing
+  // package bundling») rewrites those barrel imports to the modules actually
+  // used; it is not in Next's built-in list for these two packages.
+  experimental: {
+    staleTimes: { dynamic: 30, static: 180 },
+    optimizePackageImports: ['@phosphor-icons/react', 'motion/react'],
+  },
   // «План роста» reads apps/admin/content/*.md at run time; make sure the
   // standalone bundle carries the folder.
   outputFileTracingIncludes: { '/growth-plan': ['./content/**/*'], '/guides': ['./content/**/*'], '/guides/[id]': ['./content/**/*'] },
