@@ -7,6 +7,7 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/attorney_list_item_list_envelope.dart';
 import '../models/case_feed_item_list_envelope.dart';
+import '../models/follow.dart';
 import '../models/latest_posts_sort.dart';
 import '../models/min_urgency.dart';
 import '../models/period.dart';
@@ -69,6 +70,8 @@ abstract class SearchClient {
   /// [q] - Search text, at least 2 characters (§7.1).
   ///
   /// [verifiedOnly] - Only people with the check mark (verified).
+  ///
+  /// [follow] - Owner 2026-10-28 (R-084): only people I follow / do not follow (omit for everyone).
   @GET('/search/people')
   Future<PersonItemListEnvelope> people({
     @Query('q') required String q,
@@ -79,6 +82,7 @@ abstract class SearchClient {
     @Query('language') String? language,
     @Query('role') Role2? role,
     @Query('verifiedOnly') bool? verifiedOnly,
+    @Query('follow') Follow? follow,
     @Extras() Map<String, dynamic>? extras,
   });
 

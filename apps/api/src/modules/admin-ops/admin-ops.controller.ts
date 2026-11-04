@@ -42,6 +42,7 @@ import {
   ReplicaStatusDto,
   ReplicaToggleDto,
   QueueRetryResultDto,
+  RecoQaStatusDto,
   ScaleDto,
   ScaleExtrasDto,
   SystemHealthDto,
@@ -50,6 +51,7 @@ import {
 import { BackfillsService } from './backfills.service';
 import { HeavyHittersReportService } from './heavy-hitters-report.service';
 import { QueueAdminService } from './queue-admin.service';
+import { QaSnapshotService } from '../recommendations/qa-snapshot.service';
 import { ScaleService } from './scale.service';
 import { SystemHealthService } from './system-health.service';
 
@@ -81,6 +83,7 @@ export class AdminOpsController {
     private readonly backfills: BackfillsService,
     private readonly queues: QueueAdminService,
     private readonly probes: StatusProbesService,
+    private readonly qaSnapshot: QaSnapshotService,
   ) {}
 
   // Owner 2026-10-26 (calls failover): Integrations -> «Связь для звонков».
@@ -303,6 +306,48 @@ export class AdminOpsController {
   @ApiEnvelopeResponse(HeavyHittersDto)
   getHeavyHitters(): Promise<HeavyHittersDto> {
     return this.heavyHitters.report();
+  }
+
+  // R-401 (owner 2026-11-04): Настройки → «Рекомендации по вопросам».
+  @Get('reco-qa')
+  @ApiOperation({
+    summary: 'Q&A ranking snapshot: flag, last nightly run and its counts',
+  })
+  @ApiEnvelopeResponse(RecoQaStatusDto)
+  getRecoQa(): Promise<RecoQaStatusDto> {
+    return this.recoQaStatus(false);
+  }
+
+  @Post('reco-qa/recompute')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Queue the Q&A ranking snapshot now (needs step-up)',
+  })
+  @ApiEnvelopeResponse(RecoQaStatusDto)
+  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async recomputeRecoQa(
+    @CurrentAdmin() admin: AdminActor,
+  ): Promise<RecoQaStatusDto> {
+    await this.auth.assertStepUp(admin.sessionId);
+    await this.qaSnapshot.enqueueRebuild();
+    await this.log(admin, 'reco_qa.recompute', { job: 'reco.qa-snapshot' });
+    return this.recoQaStatus(true);
+  }
+
+  private async recoQaStatus(queued: boolean): Promise<RecoQaStatusDto> {
+    const [enabled, last] = await Promise.all([
+      this.qaSnapshot.enabled(),
+      this.qaSnapshot.lastRun(),
+    ]);
+    return {
+      enabled,
+      lastRunAt: last?.at ?? null,
+      durationMs: last?.durationMs ?? 0,
+      attorneys: last?.attorneys ?? 0,
+      questions: last?.questions ?? 0,
+      cases: last?.cases ?? 0,
+      queued,
+    };
   }
 
   @Get('backfills')

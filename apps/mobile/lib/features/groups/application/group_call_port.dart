@@ -161,3 +161,7 @@ final channelRunningCallProvider =
 
 /// Whether the video button may show (the flag and TURN keys are on).
 final groupVideoCallsProvider = Provider<bool>((ref) => false);
+
+/// Owner 2026-11-04 (R-376): whether group / channel calls may start at all
+/// (the `calls_group` switch; off until the app says otherwise).
+final groupCallsProvider = Provider<bool>((ref) => false);

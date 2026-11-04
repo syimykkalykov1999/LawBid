@@ -142,6 +142,10 @@ export const GROUP_MAX_AUDIO = 9;
 export const GROUP_MAX_VIDEO = 9;
 /** The channels feature switch (ChannelsService.assertEnabled). */
 const CHANNELS_FLAG = 'channels';
+/** Owner 2026-11-04 (R-376): group calls (3+ people). Off = only
+ * one-to-one calls: no group / channel call, no joining one, no adding a
+ * participant (assertGroupCalls). */
+export const CALLS_GROUP_FLAG = 'calls_group';
 const IN_CALL = ['joined', 'invited'];
 /** A vote to remove a member runs this long, then the count decides. */
 export const CALL_VOTE_MS = 30_000;
@@ -1615,6 +1619,7 @@ export class CallsService {
     if (!groups) throw notFound();
     const video = dto.video === true;
     const m = await groups.assertMember(user.sub, groupId);
+    await this.assertGroupCalls();
     // The same right as the button (GroupDto.canCall, canStartCall).
     if (!(m.group.who_can_call === 'all' || m.can('calls'))) {
       throw new ForbiddenException({
@@ -1725,6 +1730,17 @@ export class CallsService {
   }
 
   /** The running (not yet ended) call of a group, else null. */
+  /** Owner 2026-11-04 (R-376): the `calls_group` switch, off by default —
+   * an old app build cannot start, join or grow a group call either. */
+  private async assertGroupCalls(): Promise<void> {
+    if (await this.flags.isEnabled(CALLS_GROUP_FLAG, false)) return;
+    throw new ForbiddenException({
+      code: ErrorCode.FEATURE_DISABLED,
+      message: 'Group calls are not available yet.',
+      details: { flag: CALLS_GROUP_FLAG },
+    });
+  }
+
   private async runningGroupCall(groupId: string): Promise<Call | null> {
     return this.prisma.call.findFirst({
       where: { group_id: groupId, status: 'active' },
@@ -1809,6 +1825,7 @@ export class CallsService {
   ): Promise<CallDto> {
     const video = dto.video === true;
     const role = await this.assertChannelReader(user.sub, channelId);
+    await this.assertGroupCalls();
     await this.sweepIfDue();
     const running = await this.runningChannelCall(channelId);
     if (running) return this.joinCall(user, running.id);
@@ -1989,6 +2006,8 @@ export class CallsService {
     const rows = await this.rowsOf(fresh.id);
     const me = rows.find((r) => r.user_id === user.sub);
     if (me?.status === 'joined') return this.toDto(fresh, user.sub);
+    // Someone already in the call keeps it; nobody new comes in.
+    await this.assertGroupCalls();
     if (me?.status === 'removed') {
       throw new ForbiddenException({
         code: ErrorCode.FORBIDDEN,
@@ -2213,6 +2232,8 @@ export class CallsService {
       ? me?.status === 'joined'
       : call.caller_id === user.sub || call.callee_id === user.sub;
     if (!isMember) throw notFound();
+    // Adding anyone makes the call three people or more.
+    await this.assertGroupCalls();
 
     const targetId = await this.resolveInvitee(dto);
     if (!targetId || targetId === user.sub) {
