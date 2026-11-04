@@ -405,7 +405,7 @@ class _CaseCardRow extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            AppIcon(icon, size: 22, color: colors.text),
+            AppIcon(icon, size: 22, color: colors.actionIcon),
             const SizedBox(width: 4),
             Text(
               SocialFormat.count(formats, n),
