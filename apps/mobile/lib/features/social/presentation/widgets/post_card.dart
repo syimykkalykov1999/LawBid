@@ -2767,7 +2767,9 @@ class PostActionsBar extends ConsumerWidget {
                       _Stat(
                         icon: AppIcons.modeCommentOutlined,
                         value: post.commentCount,
-                        color: colors.textSecondary,
+                        // Owner 2026-10-28 (R-111): the theme's own icon ink, like
+                        // the bar's buttons, never the grey secondary tone.
+                        color: colors.text,
                         onTap: () => showCommentsSheet(
                           context,
                           postId: post.id,
@@ -2778,14 +2780,14 @@ class PostActionsBar extends ConsumerWidget {
                       _Stat(
                         icon: AppIcons.autoModeRounded,
                         value: post.repostCount,
-                        color: colors.textSecondary,
+                        color: colors.text,
                         onTap: () => showRepostersList(context, post.id),
                       ),
                     if (post.shareCount > 0)
                       _Stat(
                         icon: AppIcons.sendOutlined,
                         value: post.shareCount,
-                        color: colors.textSecondary,
+                        color: colors.text,
                         onTap: () => sharePost(context, ref, post),
                       ),
                   ],
