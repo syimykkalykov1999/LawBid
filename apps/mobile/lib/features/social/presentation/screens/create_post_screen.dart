@@ -37,8 +37,7 @@ import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/post_text.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/photo_crop_screen.dart';
-import 'package:lawbid/features/social/presentation/widgets/caption_fit.dart'
-    show prefixEnd;
+import 'package:lawbid/features/social/presentation/widgets/caption_fit.dart' show prefixEnd;
 import 'package:lawbid/features/social/presentation/widgets/mention_suggestions.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
