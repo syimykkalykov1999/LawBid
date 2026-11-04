@@ -1,4 +1,10 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  OnModuleDestroy,
+  OnModuleInit,
+  Optional,
+} from '@nestjs/common';
 import type Redis from 'ioredis';
 import { OpsStateService } from '../../common/ops/ops-state.service';
 import { pressures } from '../../common/economy/economy.rules';
@@ -33,6 +39,8 @@ import {
 } from '../../common/ops/cost-registry.logic';
 import { SpendService } from '../../common/ops/spend/spend.service';
 import { SsmParamGateway } from '../../common/ops/ssm-param.gateway';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
+import { withTimeout } from '../../common/resilience/resilience';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import {
   INFRA_SWITCH_IDS,
@@ -112,8 +120,24 @@ export interface RegistryReport {
 
 const EDITABLE: CostEntry['control']['type'][] = ['app-setting', 'ssm-mode'];
 
+/** R-370 (owner 2026-11-04 «все страницы так открываются»): every open of
+ * «Расходы → Реестр» rebuilt the registry live — the spend snapshot, an SSM
+ * read per autoscaler, the infra requests and the status signals (prod 7 d:
+ * p50 1.3 s, max 1.6 s). Now it is a shared admin summary, the same pattern
+ * as «Масштаб» (R-369): younger than FRESH it is served as is; up to
+ * MAX_STALE it is served at once while ONE refresh runs; only a cold cache
+ * waits. A switch change replaces the copy at once (setMode), and the copy
+ * is kept warm every minute while an admin is active. */
+const REPORT_KEY = 'spend:registry';
+const REPORT_FRESH_MS = 60_000;
+const REPORT_MAX_STALE_MS = 15 * 60_000;
+/** An SSM read that hangs shows «AWS не ответил», never a stuck page. */
+const SSM_READ_MS = 3_000;
+
 @Injectable()
-export class CostRegistryService {
+export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
+  private stopWarm?: () => void;
+
   constructor(
     private readonly spend: SpendService,
     private readonly settings: AppSettingsService,
@@ -123,7 +147,36 @@ export class CostRegistryService {
     private readonly ops: OpsStateService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Optional() private readonly infra?: InfraChangeService,
+    // R-370: the shared, background-refreshed copy of report().
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
+
+  onModuleInit(): void {
+    this.stopWarm = this.summary?.keepWarm(
+      REPORT_KEY,
+      () => this.build(new Date()),
+      REPORT_FRESH_MS,
+    );
+  }
+
+  onModuleDestroy(): void {
+    this.stopWarm?.();
+  }
+
+  /** GET path: the shared summary (see REPORT_* above). */
+  async cachedReport(): Promise<RegistryReport> {
+    if (!this.summary) return this.build(new Date());
+    const compute = () => this.build(new Date());
+    const hit = await this.summary.peek<RegistryReport>(REPORT_KEY);
+    const age = hit ? Date.now() - Date.parse(hit.computedAt) : Infinity;
+    if (hit?.data?.rows && age < REPORT_MAX_STALE_MS) {
+      if (age > REPORT_FRESH_MS) {
+        void this.summary.refresh(REPORT_KEY, compute).catch(() => undefined);
+      }
+      return hit.data;
+    }
+    return (await this.summary.refresh(REPORT_KEY, compute, true)).data;
+  }
 
   /** search.engine (for the «пора включить OpenSearch» suggestion). */
   async searchEngine(): Promise<string | null> {
@@ -177,7 +230,9 @@ export class CostRegistryService {
     }
     if (c.type === 'ssm-mode') {
       try {
-        const mode = await this.ssm.getMode(c.target);
+        const mode = await withTimeout('ssm.getMode', SSM_READ_MS, () =>
+          this.ssm.getMode(c.target),
+        );
         if (mode === null) {
           return {
             state: null,
@@ -254,10 +309,23 @@ export class CostRegistryService {
     };
   }
 
+  /** Always computed now (after a change); the result also replaces the
+   * shared copy so the next GET shows the state the owner just set. */
   async report(now: Date = new Date()): Promise<RegistryReport> {
-    const [spendReport, raw] = await Promise.all([
+    const report = await this.build(now);
+    await this.summary?.put(REPORT_KEY, report);
+    return report;
+  }
+
+  private async build(now: Date): Promise<RegistryReport> {
+    // Everything independent at once (it used to run in four steps).
+    const [spendReport, raw, infraLive, signals] = await Promise.all([
       this.spend.report(now),
       this.spend.raw(),
+      this.infra
+        ? this.infra.liveStates().catch(() => undefined)
+        : Promise.resolve(undefined),
+      this.signals(now),
     ]);
     const awsVendor = spendReport.vendors.find((v) => v.id === 'aws');
     const awsLines = raw?.aws?.data?.byService ?? null;
@@ -277,16 +345,9 @@ export class CostRegistryService {
       })),
       now,
     );
-    let infraLive: Map<string, 'off' | 'on'> | undefined;
-    try {
-      infraLive = await this.infra?.liveStates();
-    } catch {
-      infraLive = undefined;
-    }
     const live = await Promise.all(
       COST_REGISTRY.map((e) => this.liveState(e, infraLive)),
     );
-    const signals = await this.signals(now);
     const rows: RegistryRow[] = COST_REGISTRY.map((e, i) => {
       const a = attr.byId[e.id];
       const locked = this.lockedReason(e);
