@@ -38,6 +38,7 @@ import {
   feedOrder,
 } from './communities.scoring';
 import { diversify, type Scored } from './ranking.math';
+import { shardContext } from '../../sharding/shard-context';
 
 /** Ranked lists are rebuilt at most this often per viewer. */
 export const PEOPLE_TTL_SEC = 10 * 60;
@@ -347,7 +348,14 @@ export class RecommendationsService {
             AND NOT EXISTS (SELECT 1 FROM follows fx
               WHERE fx.follower_id = ${viewerId}::UUID AND fx.followee_id = a.user_id)`;
     const limit = 'ids' in mode ? mode.ids.length : PEOPLE_SCAN + newest;
-    const rows = await this.prisma.$queryRaw<PersonRow[]>`
+    // Shard-ready: attorney_profiles / users / attorney_licenses are GLOBAL
+    // family — the candidates are read on the primary database, not on the
+    // viewer's shard (empty tables there once the families are split; the
+    // two-DB e2e got 0 candidates). The follows / user_blocks NOT EXISTS
+    // are exact with one database; FollowsService.suggestions re-filters
+    // followed and blocked people from their own family anyway.
+    const rows = await shardContext.runOnPrimary(
+      () => this.prisma.$queryRaw<PersonRow[]>`
       SELECT a.user_id::TEXT AS id,
         a.rating_avg::FLOAT8 AS rating_avg, a.rating_count::INT AS rating_count,
         a.followers_count::INT AS followers_count,
@@ -393,7 +401,8 @@ export class RecommendationsService {
           WHERE (ub.blocker_id = ${viewerId}::UUID AND ub.blocked_id = a.user_id)
              OR (ub.blocker_id = a.user_id AND ub.blocked_id = ${viewerId}::UUID))
       ORDER BY a.rating_avg DESC, a.followers_count DESC, a.user_id
-      LIMIT ${limit}`;
+      LIMIT ${limit}`,
+    );
     return rows.map(toPerson);
   }
 

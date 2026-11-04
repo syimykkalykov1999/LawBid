@@ -673,6 +673,11 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'On (default): when one attorney ends up with two live subscriptions (a second device, a re-subscription after grace), the system keeps the newest paid one, cancels the other at once and refunds only the unused part of its last invoice — never on a disputed charge, an account under fraud review, a third duplicate in 90 days or above the daily cap (those wait for a person). Off: the newcomer is cancelled without a refund (old behaviour); the owner gets an alert either way.',
   };
+  out['billing.dispute_auto_cancel'] = {
+    ...out['billing.dispute_auto_cancel'],
+    description:
+      'On (default): when a bank disputes (chargeback) a subscription charge, the subscription is cancelled at Stripe at once so nothing more is charged, the admins get an e-mail and the audit log gets a row. No extra refund is made (the dispute already reverses the charge). Off: the dispute only appears in «Проверки Stripe».',
+  };
   out['billing.duplicate_autorefund_daily_cap_cents'] = {
     ...out['billing.duplicate_autorefund_daily_cap_cents'],
     description:
