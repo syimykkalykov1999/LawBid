@@ -43,6 +43,8 @@ export interface I18nImportReport {
 /** Up to this many changed cells the simple per-row upserts are used; a full
  * multi-language file goes through the batched path below. */
 const SMALL_IMPORT_CELLS = 2000;
+/** Keys compared with the database per query (memory of the diff). */
+const DIFF_SLICE = 400;
 
 @Injectable()
 export class I18nImportService {
@@ -91,43 +93,50 @@ export class I18nImportService {
       (code) => !existingCodes.has(code),
     );
 
-    const rowKeys = workbook.rows.map((row) => row.key);
-    const existingKeyRows =
-      rowKeys.length > 0
-        ? await this.prisma.i18nKey.findMany({
-            where: { key: { in: rowKeys } },
-            include: { translations: true },
-          })
-        : [];
-    const existingByKey = new Map(existingKeyRows.map((row) => [row.key, row]));
-
     const newKeys: string[] = [];
     const changedKeys: I18nChangedEntry[] = [];
     const affectedLangs = new Set<string>();
     let unchangedCount = 0;
 
-    for (const row of workbook.rows) {
-      const existing = existingByKey.get(row.key);
-      if (!existing) {
-        newKeys.push(row.key);
-        for (const lang of Object.keys(row.values)) {
-          changedKeys.push({ key: row.key, lang });
-          affectedLangs.add(lang);
-        }
-        continue;
-      }
-      const existingValues = new Map(
-        existing.translations.map((t) => [t.lang, t.value]),
+    // KNOWN_ERRORS #48: the existing rows are read a slice at a time and only
+    // (lang, value) — loading every key with all its translations at once
+    // (~540k rows) got the one-off prod task OOM-killed (2 GiB) and no key
+    // after the first release ever reached the database.
+    for (let at = 0; at < workbook.rows.length; at += DIFF_SLICE) {
+      const slice = workbook.rows.slice(at, at + DIFF_SLICE);
+      const existingKeyRows = await this.prisma.i18nKey.findMany({
+        where: { key: { in: slice.map((row) => row.key) } },
+        select: {
+          key: true,
+          translations: { select: { lang: true, value: true } },
+        },
+      });
+      const existingByKey = new Map(
+        existingKeyRows.map((row) => [row.key, row]),
       );
-      for (const [lang, value] of Object.entries(row.values)) {
-        const current = existingValues.get(lang);
-        if (options.missingOnly && current !== undefined && current !== '') {
-          unchangedCount += 1;
-        } else if (current !== value) {
-          changedKeys.push({ key: row.key, lang });
-          affectedLangs.add(lang);
-        } else {
-          unchangedCount += 1;
+      for (const row of slice) {
+        const existing = existingByKey.get(row.key);
+        if (!existing) {
+          newKeys.push(row.key);
+          for (const lang of Object.keys(row.values)) {
+            changedKeys.push({ key: row.key, lang });
+            affectedLangs.add(lang);
+          }
+          continue;
+        }
+        const existingValues = new Map(
+          existing.translations.map((t) => [t.lang, t.value]),
+        );
+        for (const [lang, value] of Object.entries(row.values)) {
+          const current = existingValues.get(lang);
+          if (options.missingOnly && current !== undefined && current !== '') {
+            unchangedCount += 1;
+          } else if (current !== value) {
+            changedKeys.push({ key: row.key, lang });
+            affectedLangs.add(lang);
+          } else {
+            unchangedCount += 1;
+          }
         }
       }
     }

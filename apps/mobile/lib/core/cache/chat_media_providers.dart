@@ -16,6 +16,13 @@ final chatMediaIndexProvider = Provider<ChatMediaIndex>((ref) {
         return null;
       }
     },
+    fileOf: (key) async {
+      try {
+        return (await AppImageCaches.chatMedia.getFileFromCache(key))?.file;
+      } on Object {
+        return null;
+      }
+    },
     remove: (key) async {
       try {
         await AppImageCaches.chatMedia.removeFile(key);

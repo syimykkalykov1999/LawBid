@@ -39,6 +39,10 @@ export interface VoipCallPayload {
   avatarUrl?: string | null;
   video: boolean;
   silent: boolean;
+  /** Owner 2026-11-03 (a declined iPhone left the caller ringing): the ring
+   * ticket (call-poll-token.ts) — the iPhone declines with it natively
+   * while the app is closed (AppDelegate.onDecline). */
+  pollToken?: string;
 }
 
 /**
@@ -76,6 +80,7 @@ export function voipRequest(
       silent: call.silent ? '1' : '0',
       // M2: how long the phone rings (one number for every side).
       ringSeconds: String(CALL_RING_SECONDS),
+      ...(call.pollToken ? { pollToken: call.pollToken } : {}),
     }),
   };
 }

@@ -363,7 +363,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                               const AppIcon(
                                 AppIcons.filmReelOutlined,
                                 size: 48,
-                                color: Colors.white70,
+                                color: AppMediaOverlay.inkMuted,
                               ),
                               const SizedBox(height: AppSpacing.md),
                               Text(
@@ -371,8 +371,9 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                                     ? errorText(t, _error!)
                                     : t.t('reels.empty'),
                                 textAlign: TextAlign.center,
-                                style:
-                                    type.body.copyWith(color: Colors.white70),
+                                style: type.body.copyWith(
+                                  color: AppMediaOverlay.inkMuted,
+                                ),
                               ),
                             ],
                           ),
@@ -461,20 +462,6 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
       ),
     );
   }
-}
-
-/// The height of two lines of [style] at the system text size.
-double _twoLines(BuildContext context, TextStyle style) {
-  final base = DefaultTextStyle.of(context).style.merge(style);
-  final painter = TextPainter(
-    text: TextSpan(text: 'A\nA', style: base),
-    maxLines: 2,
-    textDirection: TextDirection.ltr,
-    textScaler: MediaQuery.textScalerOf(context),
-  )..layout();
-  final h = painter.height;
-  painter.dispose();
-  return h;
 }
 
 /// Owner 2026-10-26 (smoothness): one page of the reels pager. It
@@ -1027,36 +1014,30 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                           // Owner 2026-10-19: no @username (only in the
                           // profile and search) and no role word «Клиент»
                           // (only on the welcome screen's role choice).
-                          // Owner 2026-10-28: the second line is always
-                          // there (blank when there is nothing to say), so
-                          // the row stands at one height for every author.
+                          // Owner 2026-11-03 (Instagram): no blank second
+                          // line; the name is centred on the avatar when
+                          // there is nothing to say under it.
                           subtitle: p.promotionId != null
                               ? t.t('promote.sponsored')
                               : p.locationName ??
                                   (p.author.verified && !p.author.isClient
                                       ? t.t('post.licensedAttorney')
-                                      : '\u00A0'),
+                                      : ''),
                         ),
                       ),
-                      // Owner 2026-10-28: the caption's two lines are kept
-                      // free even without a caption, so the author row is
-                      // at the same height on every reel.
-                      SizedBox(
-                        height: AppSpacing.sm + _twoLines(context, type.body),
-                        child: Align(
-                          alignment: AlignmentDirectional.topStart,
-                          child: caption.isEmpty
-                              ? const SizedBox.shrink()
-                              : _captionOf(
-                                  more: more,
-                                  caption: caption,
-                                  type: type,
-                                  shadow: shadow,
-                                  t: t,
-                                  p: p,
-                                ),
+                      // Owner 2026-11-03 (Instagram): the block is anchored
+                      // at the bottom and sized by its content — no caption,
+                      // the author row sits right above the nav bar; a
+                      // caption (two lines at most) lifts it by its height.
+                      if (caption.isNotEmpty)
+                        _captionOf(
+                          more: more,
+                          caption: caption,
+                          type: type,
+                          shadow: shadow,
+                          t: t,
+                          p: p,
                         ),
-                      ),
                     ],
                   ),
                 ),

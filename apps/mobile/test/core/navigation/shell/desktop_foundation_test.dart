@@ -149,7 +149,7 @@ void main() {
     await pump(
       t,
       const WebPageFrame(
-        location: '/profile/settings/payments',
+        location: '/profile/settings/delete-account',
         child: SizedBox.expand(key: Key('page')),
       ),
       const Size(1440, 900),

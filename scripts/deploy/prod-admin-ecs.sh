@@ -83,12 +83,14 @@ case "$MODE" in
   i18n)
     echo "1/3 (no secret needed)"
     TMP_SECRET_ARN_FOR_TD=""
-    CMD='node dist/src/cli/import-translations.js prisma/seed/translations --missing-only 2>&1 | cut -c1-300'
+    # KNOWN_ERRORS #48: the pipe used to hide the importer's exit code (OOM "Killed"
+    # still went green); heap 1400 MiB fits the 2 GiB task and fails with a message.
+    CMD='{ NODE_OPTIONS=--max-old-space-size=1400 node dist/src/cli/import-translations.js prisma/seed/translations --missing-only 2>&1; echo $? > /tmp/i18n.rc; } | cut -c1-300; exit $(cat /tmp/i18n.rc)'
     ;;
   i18n-full)
     echo "1/3 (no secret needed)"
     TMP_SECRET_ARN_FOR_TD=""
-    CMD='node dist/src/cli/import-translations.js prisma/seed/translations 2>&1 | cut -c1-300'
+    CMD='{ NODE_OPTIONS=--max-old-space-size=1400 node dist/src/cli/import-translations.js prisma/seed/translations 2>&1; echo $? > /tmp/i18n.rc; } | cut -c1-300; exit $(cat /tmp/i18n.rc)'
     ;;
   config)
     echo "1/3 (no secret needed)"
