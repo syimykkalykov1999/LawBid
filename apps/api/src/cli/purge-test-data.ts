@@ -29,11 +29,16 @@ import {
 } from '@aws-sdk/client-s3';
 import { NestFactory } from '@nestjs/core';
 import { PrismaClient } from '@prisma/client';
-import Redis from 'ioredis';
+import type Redis from 'ioredis';
 import { AppModule } from '../app.module';
 import { unwrapKmsWrappedKeys } from '../common/secrets/kms-env';
 import { SecretEnvelope } from '../common/secrets/secret-envelope';
 import { AccountAnonymizationService } from '../modules/privacy/account-anonymization.service';
+import { delSafe } from '../redis/redis-cluster-safe';
+import {
+  createRedisClient,
+  isRedisClusterMode,
+} from '../redis/redis-connection';
 import {
   redisGroup,
   redisKeyKept,
@@ -387,7 +392,7 @@ async function bunnyPhase(db: PrismaClient, execute: boolean): Promise<number> {
   return removed;
 }
 
-// --- Redis (copied from scripts/prelaunch-wipe.ts) ---------------------------------
+// --- Redis (prelaunch-wipe filters; cluster sweep as in personal-data-erasure) ----
 
 async function redisPhase(execute: boolean): Promise<number> {
   out('== Redis');
@@ -396,32 +401,39 @@ async function redisPhase(execute: boolean): Promise<number> {
     out('  skipped: REDIS_URL not set');
     return 0;
   }
-  const redis = new Redis(url, { maxRetriesPerRequest: 3 });
+  const redis = createRedisClient(url, { maxRetriesPerRequest: 3 });
   try {
     const doomed: string[] = [];
     const groups = new Map<string, number>();
     let kept = 0;
-    let cursor = '0';
-    do {
-      const [next, keys] = await redis.scan(cursor, 'COUNT', 1000);
-      cursor = next;
-      for (const k of keys) {
-        if (redisKeyKept(k)) {
-          kept++;
-          continue;
+    // Cluster: SCAN sees one node only, so sweep every master.
+    const nodes: Redis[] = isRedisClusterMode()
+      ? (redis as unknown as { nodes(r: string): Redis[] }).nodes('master')
+      : [redis];
+    for (const node of nodes) {
+      let cursor = '0';
+      do {
+        const [next, keys] = await node.scan(cursor, 'COUNT', 1000);
+        cursor = next;
+        for (const k of keys) {
+          if (redisKeyKept(k)) {
+            kept++;
+            continue;
+          }
+          doomed.push(k);
+          const g = redisGroup(k);
+          groups.set(g, (groups.get(g) ?? 0) + 1);
         }
-        doomed.push(k);
-        const g = redisGroup(k);
-        groups.set(g, (groups.get(g) ?? 0) + 1);
-      }
-    } while (cursor !== '0');
+      } while (cursor !== '0');
+    }
     out(
       `  delete ${doomed.length} keys, keep ${kept} (budget, queues, locks, i18n)`,
     );
     for (const [g, n] of [...groups].sort()) out(`    ${g.padEnd(28)} ${n}`);
     if (!execute) return 0;
+    // Keys sit in different slots: delSafe (one DEL per key in cluster mode).
     for (let i = 0; i < doomed.length; i += 500) {
-      await redis.unlink(...doomed.slice(i, i + 500));
+      await delSafe(redis, doomed.slice(i, i + 500));
     }
     out('    done.');
     return doomed.length;
