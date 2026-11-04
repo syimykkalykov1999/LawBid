@@ -6,7 +6,11 @@ import {
   HttpCode,
   Post,
   Query,
+  Req,
+  Res,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { conditionalGet } from '../../common/sync/cheap-etag';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -45,11 +49,21 @@ export class CallHistoryController {
   @ApiOperation({ summary: 'My finished calls, newest first (cursor)' })
   @ApiEnvelopeResponse(CallHistoryItemDto, { isArray: true })
   @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
-  callHistory(
+  async callHistory(
     @CurrentUser() user: RequestUser,
     @Query() q: CallHistoryQueryDto,
-  ): Promise<CallHistoryPage> {
-    return this.history.history(user, q.cursor, q.limit);
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<CallHistoryPage | undefined> {
+    // R-385: the first page answers 304 from a cheap tag when nothing
+    // changed (the «Calls» tab re-syncs it, #728).
+    return conditionalGet(
+      req,
+      res,
+      q.cursor ? null : await this.history.firstPageTag(user, q.limit),
+      () => Promise.resolve(),
+      () => this.history.history(user, q.cursor, q.limit),
+    );
   }
 
   @Post('history/hide')
