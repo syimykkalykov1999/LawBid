@@ -31,8 +31,12 @@ const clamp = (v: number) => Math.min(MAX, Math.max(MIN, v));
  * Focus stays inside while open (the WAI-ARIA APG modal dialog pattern: Tab
  * wraps, focus starts on «Закрыть» and returns to the opener on close) and
  * the page under it does not scroll.
+ *
+ * Owner 2026-11-04 (R-400): [lastSlide] — controls shown only under the last
+ * document (the registry button and the copy chips of the conveyor), so the
+ * verifier reaches the registry right after the last picture.
  */
-export function Lightbox({ images, index, onIndex, onClose }: { images: readonly LightboxImage[]; index: number; onIndex: (i: number) => void; onClose: () => void }) {
+export function Lightbox({ images, index, onIndex, onClose, lastSlide }: { images: readonly LightboxImage[]; index: number; onIndex: (i: number) => void; onClose: () => void; lastSlide?: React.ReactNode }) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
@@ -181,6 +185,11 @@ export function Lightbox({ images, index, onIndex, onClose }: { images: readonly
           <BottomButton onClick={() => go(1)}>
             Вперёд <CaretRight size={16} weight="bold" />
           </BottomButton>
+        </div>
+      ) : null}
+      {lastSlide && index === count - 1 ? (
+        <div className="flex shrink-0 flex-wrap items-center justify-center gap-2 px-3 pb-2" data-testid="lightbox-last-slide">
+          {lastSlide}
         </div>
       ) : null}
       <p className="shrink-0 pb-2 text-center text-xs text-white/70">

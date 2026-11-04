@@ -11,6 +11,7 @@ import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui
 import { Skeleton } from '@/components/ui/empty';
 import { useToast } from '@/components/ui/toast';
 import { docTitle } from '@/components/verification/document-gallery';
+import { RegistryActions } from '@/components/verification/registry-actions';
 import { RegistryResult } from '@/components/verification/registry-result';
 import { SelfieCaptureNote } from '@/components/verification/selfie-capture-note';
 import { api } from '@/lib/api/client';
@@ -316,6 +317,8 @@ function VerificationBody({ card: r, name }: { card: Card; name: string }) {
                   ) : null}
                 </div>
               ))}
+              {/* Owner 2026-11-04 (R-400): the registry in one tab and the copy chips. */}
+              <RegistryActions card={r} />
             </CardContent>
           </Card>
           {docs.other.length > 0 ? (
@@ -336,7 +339,7 @@ function VerificationBody({ card: r, name }: { card: Card; name: string }) {
           ) : null}
         </div>
       </div>
-      {open !== null ? <Lightbox images={shown} index={open} onIndex={setOpen} onClose={() => setOpen(null)} /> : null}
+      {open !== null ? <Lightbox images={shown} index={open} onIndex={setOpen} onClose={() => setOpen(null)} lastSlide={<RegistryActions card={r} tone="overlay" />} /> : null}
     </>
   );
 }

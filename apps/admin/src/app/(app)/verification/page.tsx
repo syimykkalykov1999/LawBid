@@ -16,6 +16,7 @@ import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
 import { api, errorText } from '@/lib/api/client';
 import { REQUEST_STATUS, StatusPill } from '@/lib/labels';
+import { queueSearch } from '@/lib/registry-conveyor';
 import { VERIFICATION_REVIEW_PATH } from '@/lib/review-flow';
 import { formatDateTime, formatDuration } from '@/lib/utils';
 
@@ -50,6 +51,8 @@ export default function VerificationQueuePage() {
   });
   const rows = q.data?.pages.flatMap((p) => p.data) ?? [];
   const now = Date.now();
+  // R-400: the card carries the filter, so «после решения — следующая» stays inside it.
+  const href = (id: string) => `/verification/${id}${queueSearch(filters)}`;
 
   return (
     <>
@@ -115,11 +118,11 @@ export default function VerificationQueuePage() {
                     key={r.id}
                     i={i}
                     className="cursor-pointer"
-                    onClick={() => router.push(`/verification/${r.id}`)}
+                    onClick={() => router.push(href(r.id))}
                   >
                     <Td>
                       <Link
-                        href={`/verification/${r.id}`}
+                        href={href(r.id)}
                         className="font-medium text-heading hover:underline"
                         onClick={(e) => e.stopPropagation()}
                       >
