@@ -15,7 +15,7 @@ import {
   COMMON_ERRORS,
 } from '../../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
-import { etagMatches } from '../../../common/sync/cheap-etag';
+import { etagMatches, notModified } from '../../../common/sync/cheap-etag';
 import { I18nBundleDto, I18nLanguageDto } from '../dto/i18n-responses.dto';
 import { Public } from '../../auth/decorators/public.decorator';
 import { I18nBundleQueryDto } from '../dto/bundle-query.dto';
@@ -40,9 +40,15 @@ export class I18nController {
 
   @Public()
   @Get('languages')
-  @Header('Cache-Control', 'public, max-age=60')
+  // R-385: five minutes on the phone / CDN, then a cheap 304 (config
+  // version, no query) while nothing changed.
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600')
   @ApiEnvelopeResponse(I18nLanguageDto, { isArray: true })
-  async listLanguages(): Promise<I18nLanguageDto[]> {
+  async listLanguages(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<I18nLanguageDto[] | undefined> {
+    if (notModified(req, res, await this.languages.etag())) return undefined;
     return this.languages.listActive();
   }
 
