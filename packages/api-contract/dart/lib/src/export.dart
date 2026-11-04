@@ -1452,6 +1452,8 @@ export 'models/heavy_entry_dto.dart';
 export 'models/heavy_metric_dto.dart';
 export 'models/heavy_hitters_dto.dart';
 export 'models/heavy_hitters_envelope.dart';
+export 'models/reco_qa_status_dto.dart';
+export 'models/reco_qa_status_envelope.dart';
 export 'models/backfill_run_dto.dart';
 export 'models/backfill_run_list_envelope.dart';
 export 'models/queue_retry_result_dto.dart';

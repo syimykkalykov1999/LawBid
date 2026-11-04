@@ -313,6 +313,10 @@ const file07Ru = <String, String>{
   'duty.publish': 'Публикации без одобрения',
   'duty.publish.hint':
       'Публиковать посты, новости и комментарии от вашего имени сразу',
+  // R-401 (owner 2026-11-04): answers in «Вопрос юристу» for the attorney.
+  'duty.qa_answers': 'Отвечать на вопросы',
+  'duty.qa_answers.hint':
+      'Отвечать на вопросы клиентов от вашего имени — ответы выходят под вашим профилем',
   'liability.title': 'Вы берёте ответственность на себя',
   'liability.body':
       'Включая доступ «{duty}», вы разрешаете помощнику действовать от вашего имени и принимаете полную ответственность за все его действия: ставки, договорённости с клиентами, сообщения, звонки, публикации и любые другие действия в вашем аккаунте.\n\nLawBid — доска объявлений, а не юридическая фирма, и не отвечает за действия ваших помощников. Вы обязаны соблюдать правила профессиональной этики вашего штата, в том числе о контроле работы сотрудников, не являющихся адвокатами.\n\nВаше согласие сохраняется с датой и временем. Доступ можно выключить в любой момент.',
@@ -497,6 +501,8 @@ const file07Ru = <String, String>{
   'act.case.share': 'поделился(ась) кейсом',
   'act.bid.draft': 'подготовил(а) черновик ставки',
   'act.bid.draft_delete': 'удалил(а) черновик ставки',
+  'act.qa.answer': 'ответил(а) на вопрос клиента',
+  'act.qa.answer_delete': 'удалил(а) ответ на вопрос',
   'act.post.like': 'лайкнул(а) пост',
   'act.post.unlike': 'убрал(а) лайк',
   'act.post.save': 'сохранил(а) пост',
@@ -940,6 +946,9 @@ const file07En = <String, String>{
   'duty.publish': 'Publish without approval',
   'duty.publish.hint':
       'Publish posts, news and comments in your name right away',
+  'duty.qa_answers': 'Answer questions',
+  'duty.qa_answers.hint':
+      "Answer clients' questions in your name — the answers appear under your profile",
   'liability.title': 'You take responsibility',
   'liability.body':
       'By switching on "{duty}" you let the assistant act in your name and accept full responsibility for everything they do: bids, agreements with clients, messages, calls, publications and any other action in your account.\n\nLawBid is a bulletin board, not a law firm, and is not responsible for your assistants\' actions. You must follow your state\'s rules of professional conduct, including supervision of non-lawyer staff.\n\nYour consent is recorded with the date and time. You can switch access off at any time.',
@@ -1125,6 +1134,8 @@ const file07En = <String, String>{
   'act.case.share': 'shared a case',
   'act.bid.draft': 'prepared a bid draft',
   'act.bid.draft_delete': 'deleted a bid draft',
+  'act.qa.answer': "answered a client's question",
+  'act.qa.answer_delete': 'deleted an answer',
   'act.post.like': 'liked a post',
   'act.post.unlike': 'unliked a post',
   'act.post.save': 'saved a post',
