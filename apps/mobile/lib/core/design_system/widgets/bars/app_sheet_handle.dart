@@ -44,15 +44,15 @@ Future<T?> showAppBottomSheet<T>({
   // Owner 2026-10-15: a long picker scrolls without closing — only its
   // handle closes it.
   bool closeByHandleOnly = false,
+  // Phone only: keeps the sheet below the status bar (the desktop dialog
+  // is centred and never needs it).
+  bool useSafeArea = false,
 }) {
   final colors = Theme.of(context).extension<AppColorTokens>()!;
   // Desktop web plan 2026-10-28 §5.5: on a desktop window a sheet from the
   // bottom is a window in the middle (Esc or a click outside closes it).
   if (isDesktopWindow(context)) {
-    return showDialog<T>(
-      context: context,
-      builder: (ctx) => DesktopSheetDialog(child: builder(ctx)),
-    );
+    return showDesktopSheetDialog<T>(context, builder);
   }
   return showModalBottomSheet<T>(
     context: context,
@@ -60,6 +60,7 @@ Future<T?> showAppBottomSheet<T>({
     // under it (the last row of a menu was hidden behind it).
     useRootNavigator: true,
     isScrollControlled: isScrollControlled,
+    useSafeArea: useSafeArea,
     constraints: contentColumnSheetConstraints(context),
     backgroundColor: sheetRouteColor(context, colors.sheet),
     elevation: sheetDrawnByColumn(context) ? 0 : null,
@@ -137,15 +138,29 @@ class _PullDownToCloseState extends State<PullDownToClose> {
       );
 }
 
+/// Desktop web plan §5.5 / PR 5: opens [builder] (a sheet's content) as a
+/// centred window instead of a bottom sheet. Esc or a click on the dim
+/// background closes it; Tab stays inside it (a dialog route is its own
+/// focus scope). Used by [showAppBottomSheet] and by the few sheets that
+/// keep their own phone look but still must become a window.
+Future<T?> showDesktopSheetDialog<T>(
+  BuildContext context,
+  WidgetBuilder builder,
+) =>
+    showDialog<T>(
+      context: context,
+      builder: (ctx) => DesktopSheetDialog(child: builder(ctx)),
+    );
+
 /// Desktop web plan §5.5: what a bottom sheet becomes on a desktop window —
-/// a dialog at most [maxWidth] wide and 85 % of the window high, with the
-/// sheet's colour and corners.
+/// a dialog at most [maxWidth] wide and 80 % of the window high, with the
+/// sheet's colour and corners. The content scrolls inside it when taller.
 class DesktopSheetDialog extends StatelessWidget {
   const DesktopSheetDialog({required this.child, super.key});
 
   final Widget child;
 
-  static const double maxWidth = 560;
+  static const double maxWidth = 480;
 
   /// Whether [context] is inside one (the drag handle hides itself).
   static bool of(BuildContext context) =>
@@ -164,7 +179,7 @@ class DesktopSheetDialog extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: maxWidth,
-          maxHeight: height * 0.85,
+          maxHeight: height * 0.8,
         ),
         child: Padding(
           padding: const EdgeInsets.only(top: AppSpacing.sm),

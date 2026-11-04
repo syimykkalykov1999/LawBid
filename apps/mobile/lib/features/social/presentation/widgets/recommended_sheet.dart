@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
-import 'package:lawbid/core/navigation/shell/content_column_frame.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -14,25 +13,14 @@ const _kViewKey = 'recommended_sheet_view';
 /// recommendation in a sheet, endless, as rows or as tiles (the choice is
 /// remembered on the device).
 Future<void> showRecommendedSheet(BuildContext context) {
-  final colors = Theme.of(context).extension<AppColorTokens>()!;
-  return showModalBottomSheet<void>(
+  return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    constraints: contentColumnSheetConstraints(context),
-    useRootNavigator: true,
     useSafeArea: true,
-    backgroundColor: sheetRouteColor(context, colors.sheet),
-    elevation: sheetDrawnByColumn(context) ? 0 : null,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
-    ),
-    builder: (_) => ContentColumnFrame(
-      surface: colors.sheet,
-      radius: const BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
-      child: const FractionallySizedBox(
-        heightFactor: 0.92,
-        child: RecommendedSheet(),
-      ),
+    closeByHandleOnly: true,
+    builder: (_) => const FractionallySizedBox(
+      heightFactor: 0.92,
+      child: RecommendedSheet(),
     ),
   );
 }
