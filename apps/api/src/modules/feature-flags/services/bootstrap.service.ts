@@ -135,7 +135,7 @@ export const PUBLIC_CONFIG_PREFIXES = [
   // Owner 2026-10-17: the percent cap and where the percent is hidden.
   'fees.contingency_',
   // Owner 2026-10-22 (client economy plan §5): the on-device cache limits
-  // (`cache.limit_mb.*`, `cache.keep_media_days.default`) — the app may
+  // (`cache.limit_mb.*`) — the app may
   // lower them, never raise above these.
   'cache.',
   // Scale audit 2026-10-23: where "Update" opens the store (the iOS App
