@@ -481,6 +481,7 @@ export class PushDispatcher
     // Owner 2026-10-17: iPhones with a VoIP token ring through Apple
     // directly (CallKit, even when the app is closed); their FCM call push
     // is skipped so they don't ring twice.
+    const poll = this.pollToken(data.recipientId, data.callId);
     const rang =
       (await this.voip?.ringCall(data.recipientId, {
         callId: data.callId,
@@ -489,6 +490,9 @@ export class PushDispatcher
         avatarUrl,
         video: call.video,
         silent,
+        // Owner 2026-11-03: «Decline» on a closed iPhone tells the server
+        // natively with this ticket (AppDelegate.onDecline).
+        ...poll,
       })) ?? [];
     const skipTokens = rang.length
       ? ((await this.voipTokens?.fcmTokensCoveredBy(rang)) ?? [])
@@ -513,7 +517,7 @@ export class PushDispatcher
           ringSeconds: String(CALL_RING_SECONDS),
           // Owner 2026-10-28: a locked Android phone asks the call's state
           // with this while it rings (older apps ignore it).
-          ...this.pollToken(data.recipientId, data.callId),
+          ...poll,
         },
         call: true,
         skipTokens,
