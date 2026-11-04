@@ -123,7 +123,7 @@ function build() {
     prismaAll as never,
     storage as never,
     notifications as never,
-    { get: () => undefined },
+    { get: () => undefined } as never,
     { sendEmail: jest.fn() },
     { setContext: jest.fn(), warn: jest.fn() } as never,
   );
