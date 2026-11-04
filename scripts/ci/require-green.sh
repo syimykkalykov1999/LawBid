@@ -20,10 +20,20 @@ SHA="${1:?sha}"; MUST="${2:?must-have regex}"; EXCLUDE="${3:-^$}"
 TIMEOUT="${REQUIRE_GREEN_TIMEOUT:-2700}"; POLL="${REQUIRE_GREEN_POLL:-30}"
 start=$(date +%s)
 
+# KNOWN_ERRORS #53: a transient GitHub 5xx from `gh api` must not end the
+# gate (set -e killed it after 18 min on 2026-11-04). Up to 5 tries, 30 s apart;
+# only after that the error propagates.
 fetch() {
   if [ -n "${REQUIRE_GREEN_JSON:-}" ]; then cat "$REQUIRE_GREEN_JSON"; return; fi
-  gh api --paginate "repos/${GITHUB_REPOSITORY:?}/commits/${SHA}/check-runs?per_page=100" \
-    | jq -s '[.[].check_runs[]]'
+  local try out
+  for try in 1 2 3 4 5; do
+    if out=$(gh api --paginate "repos/${GITHUB_REPOSITORY:?}/commits/${SHA}/check-runs?per_page=100" 2>&1); then
+      printf '%s' "$out" | jq -s '[.[].check_runs[]]'; return
+    fi
+    echo "gh api failed (try $try/5): ${out##*$'\n'}" >&2
+    sleep "${REQUIRE_GREEN_RETRY_SLEEP:-30}"
+  done
+  echo "::error::gh api kept failing for $SHA"; return 1
 }
 
 # Prints "green", "wait: ..." or "red: ...".
