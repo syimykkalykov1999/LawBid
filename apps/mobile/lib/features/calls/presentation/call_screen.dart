@@ -500,7 +500,11 @@ class _CallScreenState extends ConsumerState<CallScreen>
       type: type,
       onMinimize:
           incoming ? null : () => unawaited(Navigator.of(context).maybePop()),
-      onAdd: active ? () => unawaited(showAddToCallPanel(context)) : null,
+      // Owner 2026-11-04 (R-376): no «Add participant» while group calls
+      // are off.
+      onAdd: active && ref.watch(groupCallsEnabledProvider)
+          ? () => unawaited(showAddToCallPanel(context))
+          : null,
       minimizeLabel: t.t('call.minimize'),
       addLabel: t.t('call.addParticipant'),
     );

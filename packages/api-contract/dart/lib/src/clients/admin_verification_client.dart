@@ -12,8 +12,7 @@ import '../models/copy_state_registry_dto.dart';
 import '../models/copy_state_registry_result_envelope.dart';
 import '../models/document_url_envelope.dart';
 import '../models/license_decision_dto.dart';
-import '../models/license_recheck_envelope.dart';
-import '../models/registry_check_envelope.dart';
+import '../models/registry_check_queued_envelope.dart';
 import '../models/registry_flag_item_list_envelope.dart';
 import '../models/registry_test_result_envelope.dart';
 import '../models/reject_request_dto.dart';
@@ -104,9 +103,9 @@ abstract class AdminVerificationClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Re-run the bar lookup or queue the license for manual review
+  /// Queue a bar lookup; a non-pass queues the license for manual review (runs in the background)
   @POST('/admin/verification/licenses/{licenseId}/recheck')
-  Future<LicenseRecheckEnvelope> recheckLicense({
+  Future<RegistryCheckQueuedEnvelope> recheckLicense({
     @Path('licenseId') required String licenseId,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -125,9 +124,9 @@ abstract class AdminVerificationClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Look the license up in its state's registry now (no status change)
+  /// Queue a look-up of the license in its state's registry (no status change; runs in the background)
   @POST('/admin/verification/licenses/{licenseId}/registry-check')
-  Future<RegistryCheckEnvelope> checkLicenseInRegistry({
+  Future<RegistryCheckQueuedEnvelope> checkLicenseInRegistry({
     @Path('licenseId') required String licenseId,
     @Extras() Map<String, dynamic>? extras,
   });
