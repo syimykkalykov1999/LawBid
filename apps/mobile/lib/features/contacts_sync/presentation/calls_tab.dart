@@ -172,42 +172,56 @@ class _CallsTabState extends ConsumerState<CallsTab> {
           );
         }
         final bottom = AppSpacing.xxl + MediaQuery.paddingOf(context).bottom;
+        // Lazy rows (a history grows page by page and a plain `ListView`
+        // builds every row at once). Row widgets are made only when scrolled
+        // near, by index over: [ongoing title + rows] [recent title + rows]
+        // [footer].
+        final ongoingLen = ongoing.isEmpty ? 0 : 1 + ongoing.length;
+        final recentLen = groups.isEmpty ? 0 : 1 + groups.length;
+        final hasFooter = list.isLoadingMore || list.loadMoreError != null;
         return AppRefreshIndicator(
           onRefresh: _refresh,
-          child: ListView(
+          child: ListView.builder(
             controller: _scroll,
             physics: const AlwaysScrollableScrollPhysics(),
             padding: EdgeInsets.only(bottom: bottom),
-            children: [
-              if (ongoing.isNotEmpty) ...[
-                ContactsSectionTitle(t.t('calls.ongoingNow')),
-                for (final c in ongoing)
-                  LiveCallRow(key: ValueKey('ongoing-${c.id}'), call: c),
-              ],
-              if (groups.isNotEmpty) ContactsSectionTitle(t.t('calls.recent')),
-              for (final g in groups)
-                CallHistoryRow(
+            itemCount: ongoingLen + recentLen + (hasFooter ? 1 : 0),
+            itemBuilder: (_, index) {
+              var i = index;
+              if (i < ongoingLen) {
+                if (i == 0) {
+                  return ContactsSectionTitle(t.t('calls.ongoingNow'));
+                }
+                final c = ongoing[i - 1];
+                return LiveCallRow(key: ValueKey('ongoing-${c.id}'), call: c);
+              }
+              i -= ongoingLen;
+              if (i < recentLen) {
+                if (i == 0) return ContactsSectionTitle(t.t('calls.recent'));
+                final g = groups[i - 1];
+                return CallHistoryRow(
                   key: ValueKey('call-${g.latest.id}'),
                   group: g,
                   picked: picked,
-                ),
-              if (list.isLoadingMore)
-                const Padding(
+                );
+              }
+              if (list.isLoadingMore) {
+                return const Padding(
                   padding: EdgeInsets.all(AppSpacing.lg),
                   child: Center(child: CircularProgressIndicator()),
-                )
-              else if (list.loadMoreError != null)
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: AppButton(
-                    label: t.t('common.retry'),
-                    variant: AppButtonVariant.secondary,
-                    onPressed: () => unawaited(
-                      ref.read(callHistoryProvider.notifier).retryLoadMore(),
-                    ),
+                );
+              }
+              return Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: AppButton(
+                  label: t.t('common.retry'),
+                  variant: AppButtonVariant.secondary,
+                  onPressed: () => unawaited(
+                    ref.read(callHistoryProvider.notifier).retryLoadMore(),
                   ),
                 ),
-            ],
+              );
+            },
           ),
         );
       },
