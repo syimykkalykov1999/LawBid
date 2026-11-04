@@ -38,7 +38,9 @@ import {
   type AccessTokenClaims,
 } from '../auth/services/token.service';
 import {
+  CALL_SIGNALS_TTL_SEC,
   REALTIME_NAMESPACE,
+  callSignalsKey,
   channelRoom,
   conversationRoom,
   postRoom,
@@ -145,6 +147,8 @@ interface SocketState {
   /** S1-7: the last call looked up for signaling (30 s), so each ICE
    * candidate does not cost a database query. */
   signalCall?: { id: string; at: number; call: SignalCall };
+  /** R-404: the signal kinds of this call already noted in Redis. */
+  signalNoted?: { callId: string; kinds: Set<string> };
   viewing: Set<string>;
   /** Owner 2026-10-01: the other members of each open chat — "typing…"
    * also reaches their chat list. */
@@ -1426,7 +1430,32 @@ export class RealtimeGateway
         ?.to(userRoom(t))
         .emit('call:signal', { callId, data, from: uid });
     }
+    void this.noteCallSignal(st, callId, uid, data);
     return { ok: true };
+  }
+
+  /** R-404: the first signal of each kind per socket and call is remembered
+   * (one Redis write, not one per ICE candidate). Best effort. */
+  private async noteCallSignal(
+    st: SocketState,
+    callId: string,
+    uid: string,
+    data: { type?: unknown },
+  ): Promise<void> {
+    const kind = data.type;
+    if (kind !== 'offer' && kind !== 'answer' && kind !== 'candidate') return;
+    if (st.signalNoted?.callId !== callId) {
+      st.signalNoted = { callId, kinds: new Set() };
+    }
+    if (st.signalNoted.kinds.has(kind)) return;
+    st.signalNoted.kinds.add(kind);
+    try {
+      const key = callSignalsKey(callId);
+      await this.redis.hset(key, `${uid}:${kind}`, '1');
+      await this.redis.expire(key, CALL_SIGNALS_TTL_SEC);
+    } catch {
+      // Only the diagnosis of a failed call loses a line.
+    }
   }
 
   private conversationIdOf(body: { conversationId?: unknown }): string | null {

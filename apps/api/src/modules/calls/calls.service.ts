@@ -165,6 +165,9 @@ export const DEFAULT_STUN_URLS = [
  * comes within this long (ICE gathers from both at once; usually it is the
  * cached login and costs nothing). */
 export const CLOUDFLARE_TURN_OPEN_TRY_MS = 500;
+/** R-404: `failed` this soon after the answer = the media never came up
+ * (the app's connect timeout is 45 s). */
+export const CALL_NEVER_UP_WITHIN_MS = 60_000;
 
 type Outcome = 'ended' | 'missed' | 'declined' | 'busy' | 'canceled' | 'failed';
 
@@ -1014,8 +1017,18 @@ export class CallsService {
     }
     // A call that was up and ended normally connected; `failed` is the
     // app saying the media never came up (ICE / TURN).
-    if (outcome === 'ended') this.slo?.count('callConnected');
-    if (outcome === 'failed') this.slo?.count('callFailed');
+    // R-404 (owner 2026-11-04): the app gives up [kCallConnectTimeout] (45 s)
+    // after the answer with reason `failed`; a link that was up and then lost
+    // has the 30 s reconnect grace on top of its talk, so nearly always more.
+    // Those calls used to count as `callConnected`: nothing on the server
+    // ever saw a call stuck on «Соединение…».
+    const neverUp =
+      dropped &&
+      !!call.answered_at &&
+      Date.now() - call.answered_at.getTime() < CALL_NEVER_UP_WITHIN_MS;
+    if (neverUp) void this.onNeverConnected(call).catch(() => undefined);
+    if (outcome === 'ended' && !neverUp) this.slo?.count('callConnected');
+    if (outcome === 'failed' || neverUp) this.slo?.count('callFailed');
     return this.finish(
       call,
       outcome,
@@ -1162,17 +1175,7 @@ export class CallsService {
     // breaker is open (N failures in M minutes) new calls skip Cloudflare,
     // which is probed once a minute and used again when it answers.
     // `calls.transport`: auto (default) | cloudflare (forced) | own.
-    const cf = (await this.secrets?.get('cloudflare_turn'))?.fields ?? {};
-    const cfKeyId = (
-      cf.keyId ??
-      this.config.get<string>('CLOUDFLARE_TURN_KEY_ID') ??
-      ''
-    ).trim();
-    const cfToken = (
-      cf.apiToken ??
-      this.config.get<string>('CLOUDFLARE_TURN_API_TOKEN') ??
-      ''
-    ).trim();
+    const { cfKeyId, cfToken } = await this.cloudflareKeys();
     let turn = (turnKeys.urls ?? this.config.get<string>('TURN_URLS') ?? '')
       .split(',')
       .map((u) => u.trim())
@@ -1277,6 +1280,69 @@ export class CallsService {
       }
     }
     return out;
+  }
+
+  /**
+   * R-404: a 1:1 call was answered and its media never came up. Only when the
+   * answer really travelled (both sockets work) can the relay be to blame:
+   * then both phones count as reports for the Cloudflare breaker (which wakes
+   * the on-demand coturn when it opens) and the relay gets one real check.
+   * Without an answer there was no signaling at all, and no relay could have
+   * helped: that must not move the fleet off Cloudflare, it is only logged.
+   */
+  private async onNeverConnected(call: Call): Promise<void> {
+    const seen = new Set(await this.realtime.callSignals(call.id));
+    const has = (who: string, kind: string) => seen.has(`${who}:${kind}`);
+    const side = (who: string | null) =>
+      who
+        ? (['offer', 'answer', 'candidate'] as const)
+            .filter((k) => has(who, k))
+            .join('+') || 'nothing'
+        : 'nothing';
+    const signaled =
+      (call.caller_id && has(call.caller_id, 'answer')) ||
+      (call.callee_id && has(call.callee_id, 'answer'));
+    this.logger.warn(
+      `alert=${signaled ? 'call_media_never_up' : 'call_no_signaling'} call=${call.id} caller_sent=${side(call.caller_id)} callee_sent=${side(call.callee_id)}`,
+    );
+    if (!signaled) return;
+    const { cfKeyId, cfToken } = await this.cloudflareKeys();
+    if (!cfKeyId || !cfToken) return;
+    if ((await this.cfTransport.mode()) === 'own') return;
+    for (const who of [call.caller_id, call.callee_id]) {
+      if (!who) continue;
+      forgetCloudflareTurn(cfKeyId, who);
+      await this.cfTransport.recordClientFailure(
+        'turn',
+        who,
+        'call never connected',
+      );
+    }
+    await this.cfTransport.verify('turn', () =>
+      probeCloudflareRelay(cfKeyId, cfToken, {
+        check: this.relayCheck,
+        loginTimeoutMs: CLOUDFLARE_TURN_BUDGET_MS,
+      }),
+    );
+  }
+
+  private async cloudflareKeys(): Promise<{
+    cfKeyId: string;
+    cfToken: string;
+  }> {
+    const cf = (await this.secrets?.get('cloudflare_turn'))?.fields ?? {};
+    return {
+      cfKeyId: (
+        cf.keyId ??
+        this.config.get<string>('CLOUDFLARE_TURN_KEY_ID') ??
+        ''
+      ).trim(),
+      cfToken: (
+        cf.apiToken ??
+        this.config.get<string>('CLOUDFLARE_TURN_API_TOKEN') ??
+        ''
+      ).trim(),
+    };
   }
 
   /** A Cloudflare TURN login within [budgetMs] (1.5 s by default): a 1 s

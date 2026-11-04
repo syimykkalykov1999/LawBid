@@ -588,6 +588,7 @@ class CallController extends Notifier<CallSession> {
     // The ongoing-call notification follows the call; its buttons come back.
     listenSelf(_syncForeground);
     listenSelf(_syncProximity);
+    listenSelf(_syncSocket);
     // R-373: the feed's players follow the call (silent, no audio focus).
     listenSelf((_, next) {
       ref.read(callAudioActiveProvider.notifier).set(active: next.busy);
@@ -625,6 +626,14 @@ class CallController extends Notifier<CallSession> {
         onError: (Object _) {},
       ),
     );
+  }
+
+  /// R-404 (owner 2026-11-04): offers, answers and candidates travel over the
+  /// socket; while a call lives it is kept up even with the app behind the
+  /// lock screen or the system call UI.
+  void _syncSocket(CallSession? prev, CallSession next) {
+    if ((prev?.busy ?? false) == next.busy) return;
+    ref.read(realtimeClientProvider)?.keepUpForCall(next.busy);
   }
 
   // Android ongoing-call notification (owner 2026-10-20).
