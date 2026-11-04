@@ -688,6 +688,10 @@ export const OWNER_STALE_SETTINGS = {
   'cases.stale_pause_days_flexible': 14,
   'cases.stale_pause_days_by_date': 3,
   'cases.stale_archive_after_pause_days': 30,
+  // R-392 (owner 2026-11-04): one side asked to close a case in work; the
+  // other side confirms or keeps it open within this many days, else the
+  // case closes by itself (both are told).
+  'cases.close_confirm_days': 7,
 } as const;
 
 // Owner 2026-10-05: attorney trust levels (docs/ATTORNEY_TRUST.md). The

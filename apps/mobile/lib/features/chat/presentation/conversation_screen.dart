@@ -1275,7 +1275,13 @@ String? _systemTarget(
     'payment_requested' ||
     'payment_request_canceled' ||
     'payment_fee_countered' ||
-    'payment_fee_agreed' =>
+    'payment_fee_agreed' ||
+    // R-392: closing with both sides, the sealed deal record.
+    'close_requested_client' ||
+    'close_requested_attorney' ||
+    'close_declined_client' ||
+    'close_declined_attorney' ||
+    'deal_record_sealed' =>
       attorney ? AppRoutes.workCase(caseId) : AppRoutes.myCase(caseId),
     'no_agreement' ||
     'accepted_by_other' =>

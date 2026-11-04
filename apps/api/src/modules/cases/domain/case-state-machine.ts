@@ -47,6 +47,10 @@ export type CaseAction =
   | 'attorney_complete'
   | 'client_confirm'
   | 'client_dispute'
+  // R-392 (owner 2026-11-04): the other side answers «Не закрывать» — the
+  // case goes back to work, the close request is void.
+  | 'client_decline_completion'
+  | 'attorney_decline_completion'
   // §10.2 auto-close job: auto_close_at reached.
   | 'auto_close'
   // §10.1 attorney "Оспорить".
@@ -120,6 +124,16 @@ export const CASE_TRANSITIONS: Readonly<
     to: 'disputed',
     event: 'disputed',
   },
+  client_decline_completion: {
+    from: ['pending_completion'],
+    to: 'in_progress',
+    event: 'completion_declined',
+  },
+  attorney_decline_completion: {
+    from: ['pending_completion'],
+    to: 'in_progress',
+    event: 'completion_declined',
+  },
   auto_close: {
     from: ['pending_completion'],
     to: 'closed',
@@ -170,13 +184,29 @@ export const CASE_TRANSITIONS: Readonly<
 export const CASE_ACTIONS = Object.keys(CASE_TRANSITIONS) as CaseAction[];
 
 /** §10.1: completion is auto-confirmed 7 days after the client's
- * "Выполнено". */
+ * "Выполнено" — the default of `cases.close_confirm_days` (R-392). */
 export const AUTO_CLOSE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface CaseTransitionContext {
   now: Date;
   /** Required for accept_bid. */
   acceptedBidId?: string;
+  /** R-392: days the other side has to answer a close request (admin
+   * `cases.close_confirm_days`); default 7. */
+  closeConfirmDays?: number;
+}
+
+/** The auto-close moment of a close request made at [now]. */
+export function autoCloseAt(now: Date, closeConfirmDays?: number): Date {
+  const days =
+    closeConfirmDays !== undefined &&
+    Number.isFinite(closeConfirmDays) &&
+    closeConfirmDays >= 1
+      ? Math.floor(closeConfirmDays)
+      : AUTO_CLOSE_AFTER_MS / DAY_MS;
+  return new Date(now.getTime() + days * DAY_MS);
 }
 
 export interface CaseTransitionPlan {
@@ -244,7 +274,7 @@ export function planCaseTransition(
     case 'client_complete':
       data = {
         client_completed_at: now,
-        auto_close_at: new Date(now.getTime() + AUTO_CLOSE_AFTER_MS),
+        auto_close_at: autoCloseAt(now, ctx.closeConfirmDays),
         last_activity_at: now,
       };
       break;
@@ -256,7 +286,7 @@ export function planCaseTransition(
       // client's mark (client_completed_at) is what is still missing.
       data = {
         attorney_confirmed_at: now,
-        auto_close_at: new Date(now.getTime() + AUTO_CLOSE_AFTER_MS),
+        auto_close_at: autoCloseAt(now, ctx.closeConfirmDays),
         last_activity_at: now,
       };
       break;
@@ -271,6 +301,16 @@ export function planCaseTransition(
     case 'attorney_dispute':
     case 'client_dispute':
       data = {};
+      break;
+    case 'client_decline_completion':
+    case 'attorney_decline_completion':
+      // R-392 «Не закрывать»: back to work, the request is void.
+      data = {
+        client_completed_at: null,
+        attorney_confirmed_at: null,
+        auto_close_at: null,
+        last_activity_at: now,
+      };
       break;
     case 'admin_resolve_reopen':
       // Back to work: the completion request is void.
@@ -355,6 +395,7 @@ export class CaseStateMachine {
     const plan = planCaseTransition(current.status, input.action, {
       now: input.now ?? new Date(),
       acceptedBidId: input.acceptedBidId,
+      closeConfirmDays: input.closeConfirmDays,
     });
     const { count } = await tx.case.updateMany({
       where: {

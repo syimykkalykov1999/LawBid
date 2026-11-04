@@ -333,6 +333,8 @@ enum CaseJournalEvent {
   contacts_disclosed
   completion_requested
   completion_confirmed
+  // R-392: the other side answered «Не закрывать» (back to in_progress).
+  completion_declined
   auto_closed
   disputed
   dispute_resolved

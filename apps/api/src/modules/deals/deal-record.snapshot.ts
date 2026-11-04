@@ -46,6 +46,9 @@ export interface SnapshotTexts {
   notContract: string;
   /** The footer of every page (English). */
   footer: string;
+  /** R-392: the disclaimer block at the end (English). Absent in records
+   * sealed before it existed (their hash stays as signed). */
+  terms?: string;
   /** Version of the admin texts these came from (0 = built-in). */
   textVersion: number;
 }
