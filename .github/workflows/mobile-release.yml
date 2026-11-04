@@ -148,6 +148,9 @@ jobs:
             exit 1
           else
             echo "::warning::GOOGLE_SERVICES_JSON_BASE64 not set: push is off in this build (never uploaded)"
+            # build.gradle.kts fails a prod release without the file; this
+            # dry run (never uploaded) is the one allowed exception.
+            echo "LAWBID_ALLOW_NO_FIREBASE=1" >> "$GITHUB_ENV"
           fi
       - run: flutter pub get && dart run build_runner build --delete-conflicting-outputs
         working-directory: apps/mobile
@@ -242,6 +245,9 @@ jobs:
             exit 1
           else
             echo "::warning::GOOGLE_SERVICE_INFO_PLIST_BASE64 not set: push is off in this build (never uploaded)"
+            # The Xcode "Firebase config" phase fails a Release-prod build
+            # without the plist; this dry run (never uploaded) may skip it.
+            echo "LAWBID_ALLOW_NO_FIREBASE=1" >> "$GITHUB_ENV"
           fi
       - run: flutter pub get && dart run build_runner build --delete-conflicting-outputs
         if: env.SKIP_IOS != '1'
