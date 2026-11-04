@@ -156,6 +156,19 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Video attachments on feed posts',
   },
   {
+    // Owner 2026-11-04 (R-381): reels from clients off until there are
+    // more users. Off: clients only watch reels (photos and briefs as
+    // before), the app hides every reel-publishing entry point for a
+    // client, the API refuses a client's video upload / post with a video
+    // (old app builds included). Attorneys always publish. Under
+    // `video_posts`: with reels off globally nothing changes.
+    key: 'reels_client_publish',
+    enabled: false,
+    app: true,
+    description:
+      'Clients may publish reels (off: clients only watch, attorneys still publish)',
+  },
+  {
     // Checklist reconciliation 2026-11-01: resumable uploads. On: the app
     // sends big files (video, documents over 16 MiB) in 8 MiB parts and
     // continues after an interruption instead of starting over.
