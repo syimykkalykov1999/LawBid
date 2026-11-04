@@ -6,9 +6,16 @@ set -euo pipefail
 dir="${RUNNER_TEMP:?}/minio"
 mkdir -p "$dir/data"
 port=$(node -e "const s=require('net').createServer().listen(0,()=>{console.log(s.address().port);s.close()})")
+# KNOWN_ERRORS #54: MinIO picks its console port at random and refuses to start
+# when it equals --address ("--console-address cannot be same as --address").
+# A second free port, different from the first, is passed explicitly.
+console=$port
+while [ "$console" = "$port" ]; do
+  console=$(node -e "const s=require('net').createServer().listen(0,()=>{console.log(s.address().port);s.close()})")
+done
 # setsid: own session, so the runner's step cleanup cannot take it down.
 MINIO_ROOT_USER=lawbid MINIO_ROOT_PASSWORD=lawbid_dev_only \
-  setsid nohup /tmp/minio-bin/minio server "$dir/data" --address ":${port}" > "$dir/minio.log" 2>&1 < /dev/null &
+  setsid nohup /tmp/minio-bin/minio server "$dir/data" --address ":${port}" --console-address ":${console}" > "$dir/minio.log" 2>&1 < /dev/null &
 pid=$!
 echo "$pid" > "$dir/pid"
 for _ in $(seq 1 30); do
