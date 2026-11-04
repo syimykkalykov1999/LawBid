@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/connectivity/reachability.dart';
+import 'package:lawbid/core/realtime/realtime_timings.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/session/session_state.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
@@ -139,5 +141,41 @@ void main() {
   test('success applies the session', () async {
     final r = await signIn((_) async => ok(_tokens));
     expect(r.isSuccess, isTrue);
+  });
+
+  test('a stale «offline» flag does not stop the sign-in from being sent',
+      () async {
+    final signal = ReachabilitySignal(
+      timings: () =>
+          const RealtimeTimings(offlineFailures: 1, offlineSeconds: 0),
+    );
+    addTearDown(signal.dispose);
+    signal.markUnreachable();
+    expect(signal.lastKnown, isFalse);
+
+    final adapter = FakeHttpAdapter((_) async => ok(_tokens));
+    final dio = Dio(BaseOptions(baseUrl: 'http://test/api/v1'))
+      ..httpClientAdapter = adapter
+      ..interceptors.add(ReachabilityInterceptor(() => signal));
+    final c = ProviderContainer(
+      overrides: [
+        authApiClientProvider.overrideWithValue(AuthApiClient(dio)),
+        deviceInfoProvider.overrideWithValue(
+          const DeviceInfo(deviceId: 'd1', platform: 'android'),
+        ),
+        sessionControllerProvider.overrideWith(() => _Session()),
+      ],
+    );
+    addTearDown(c.dispose);
+
+    final r = await c.read(authRepositoryProvider).signInWithPassword(
+          identifier: '+12244224434',
+          password: 'secret-pass',
+        );
+
+    expect(adapter.requests, hasLength(1));
+    expect(adapter.requests.single.path, '/auth/password/login');
+    expect(r.isSuccess, isTrue);
+    expect(signal.lastKnown, isTrue); // the answer clears the flag
   });
 }
