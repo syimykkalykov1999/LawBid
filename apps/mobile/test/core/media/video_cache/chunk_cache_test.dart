@@ -60,4 +60,15 @@ void main() {
     await again.clear();
     expect(again.count, 0);
   });
+
+  test('two readers at once both see the folder, oldest first', () async {
+    File('${dir.path}/old').writeAsBytesSync(b(10));
+    File('${dir.path}/old').setLastModifiedSync(DateTime(2020));
+    File('${dir.path}/new').writeAsBytesSync(b(10));
+    final c = ChunkCache(dir, maxBytes: 100);
+    final both = await Future.wait([c.get('old'), c.get('new')]);
+    expect(both.map((e) => e?.length).toList(), [10, 10]);
+    expect(c.count, 2);
+    expect(c.totalBytes, 20);
+  });
 }
