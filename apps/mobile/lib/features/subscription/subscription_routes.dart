@@ -13,12 +13,22 @@ abstract final class SubscriptionRoutes {
   static const payments = '/profile/settings/subscription/payments';
 }
 
-List<RouteBase> subscriptionRoutes(GlobalKey<NavigatorState> root) => [
+List<RouteBase> subscriptionRoutes(
+  GlobalKey<NavigatorState> root, {
+  // Desktop web plan §6.7: wraps the page as a Settings section.
+  Widget Function(String location, Widget page)? sectionPage,
+}) =>
+    [
       GoRoute(
         path: SubscriptionRoutes.subscription,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const SubscriptionScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          (sectionPage ?? _plain)(
+            state.matchedLocation,
+            const SubscriptionScreen(),
+          ),
+        ),
       ),
       // Owner 2026-10-22 (audit #4 §1): the receipts live on the one
       // «Платежи» page (an old link lands on its first tab).
@@ -37,3 +47,5 @@ List<RouteBase> subscriptionRoutes(GlobalKey<NavigatorState> root) => [
         ),
       ),
     ];
+
+Widget _plain(String location, Widget page) => page;

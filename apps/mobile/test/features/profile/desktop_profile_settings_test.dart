@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/hosted_settings_sections.dart';
 import 'package:lawbid/core/navigation/shell/desktop_layouts.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
@@ -17,6 +18,7 @@ import 'package:lawbid/features/profile/presentation/screens/profile_screen.dart
 import 'package:lawbid/features/profile/presentation/screens/settings_screen.dart';
 import 'package:lawbid/features/settings/about/about_screen.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
+import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/support/application/support_providers.dart';
 
 import '../../helpers/referral_overrides.dart';
@@ -85,6 +87,7 @@ void main() {
             path: path,
             builder: (_, state) => SettingsSectionPage(
               location: state.matchedLocation,
+              query: state.uri.queryParameters,
               phone: const Text('phone page'),
             ),
           ),
@@ -242,6 +245,51 @@ void main() {
       expect(find.text('phone page'), findsOneWidget);
     });
 
+    // PR 5: the pages that were still pushed are hosted by address too.
+    for (final path in [
+      AppRoutes.payments,
+      SubscriptionRoutes.subscription,
+      AppRoutes.support,
+      AppRoutes.saved,
+      AppRoutes.caseHistory,
+    ]) {
+      testWidgets('$path: in the pane at 1440, a plain page at 390', (t) async {
+        await pumpRouter(t, path, const Size(1440, 900));
+        expect(find.byType(DesktopSettingsPage), findsOneWidget);
+        expect(find.byType(SettingsScreen), findsOneWidget);
+        expect(find.text('phone page'), findsNothing);
+        expect(
+          find.byKey(const ValueKey('desktop-settings-empty')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(ValueKey('desktop-settings-$path-{}')),
+          findsOneWidget,
+        );
+        expect(t.takeException(), isNull);
+        await pumpRouter(t, path, const Size(390, 844));
+        expect(find.byType(DesktopSettingsPage), findsNothing);
+        expect(find.text('phone page'), findsOneWidget);
+      });
+    }
+
+    testWidgets('Payments keeps its ?tab= in the pane', (t) async {
+      await pumpRouter(
+        t,
+        AppRoutes.paymentsTab('purchases'),
+        const Size(1440, 900),
+      );
+      expect(
+        find.byKey(
+          const ValueKey(
+            'desktop-settings-${AppRoutes.payments}-{tab: purchases}',
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(t.takeException(), isNull);
+    });
+
     testWidgets('a dialog from a section opens above the pane, not in it',
         (t) async {
       await pumpRouter(t, '/profile/settings/about', const Size(1440, 900));
@@ -278,12 +326,15 @@ void main() {
   test('settings and public profile are wide desktop pages', () {
     expect(isSettingsLocation('/profile/settings'), isTrue);
     expect(isSettingsLocation('/profile/settings/devices'), isTrue);
-    expect(isSettingsLocation('/profile/settings/payments'), isFalse);
+    expect(isSettingsLocation('/profile/settings/payments'), isTrue);
+    expect(isSettingsLocation('/profile/settings/support/new'), isFalse);
     expect(isPublicProfileLocation('/lawyer/jane.doe'), isTrue);
     expect(isPublicProfileLocation('/lawyer/jane/x'), isFalse);
     expect(isHostedSettingsRoute('/profile/settings/about'), isTrue);
-    expect(isHostedSettingsRoute('/profile/settings/payments'), isFalse);
-    // The hosted sections are exactly the routes the router wraps.
+    expect(isHostedSettingsRoute('/profile/settings/payments'), isTrue);
+    expect(isHostedSettingsRoute('/profile/settings/delete-account'), isFalse);
+    // PR 5: the rest of the Settings pages are in the pane too, and the
+    // pane's registry is exactly the set the shell treats as a wide page.
     expect(kSettingsSectionPaths, {
       AccountRoutes.account,
       ChatRoutes.notificationSettings,
@@ -293,7 +344,22 @@ void main() {
       AppRoutes.blockedUsers,
       AppRoutes.dataExport,
       AppRoutes.about,
+      AppRoutes.payments,
+      SubscriptionRoutes.subscription,
+      AppRoutes.support,
+      AppRoutes.saved,
+      AppRoutes.postArchive,
+      AppRoutes.caseHistory,
+      AppRoutes.referral,
+      AppRoutes.partner,
+      AppRoutes.bidPacks,
+      AppRoutes.stars,
+      AppRoutes.clientBadge,
+      AppRoutes.myFirm,
+      AppRoutes.myStats,
+      AppRoutes.myPromotions,
     });
+    expect(hostedSettingsSections.keys.toSet(), kSettingsSectionPaths);
     for (final path in kSettingsSectionPaths) {
       expect(isHostedSettingsRoute(path), isTrue);
     }
