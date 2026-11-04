@@ -117,6 +117,10 @@ Future<void> runLawBid(AppFlavor flavor) async {
       groupVideoCallsProvider.overrideWith(
         (ref) => ref.watch(videoCallsEnabledProvider),
       ),
+      // Owner 2026-11-04 (R-376): group calls only while `calls_group` is on.
+      groupCallsProvider.overrideWith(
+        (ref) => ref.watch(groupCallsEnabledProvider),
+      ),
       // Owner 2026-10-23: the Q&A's notification switch.
       qaNotifySwitchProvider.overrideWithValue(() => const QaNotifySwitch()),
       // Owner 2026-10-21 (Telegram «Переслать»): a channel post into chats.
