@@ -13,10 +13,12 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 
 /// `/auth/set-password` (owner 2026-10-13): the person sets a password;
 /// from then on they may sign in with it instead of a code. Owner
-/// 2026-10-22 (audit #4 §2): optional, like WhatsApp / Telegram — opened
-/// from Settings → «Задать пароль» while `GET /users/me` says
-/// `passwordRequired` (no password yet); back closes it. Once saved the
-/// screen closes and the user is reloaded.
+/// 2026-11-04 (R-384): the router guard opens it right after the SMS code
+/// while `GET /users/me` says `passwordRequired` (no password yet, flag
+/// `password_login` on) — no back arrow there; once saved the user is
+/// reloaded and the guard moves on to the next onboarding step. Opened
+/// from Settings → «Задать пароль» on top of a page, back closes it and a
+/// save pops it.
 class SetPasswordScreen extends ConsumerStatefulWidget {
   const SetPasswordScreen({super.key});
 
