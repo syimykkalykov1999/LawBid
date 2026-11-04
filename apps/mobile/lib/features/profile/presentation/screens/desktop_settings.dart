@@ -1,32 +1,17 @@
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
-import 'package:lawbid/core/navigation/deferred_screen.dart';
+import 'package:lawbid/core/navigation/hosted_settings_sections.dart';
 import 'package:lawbid/core/navigation/push_once.dart';
 import 'package:lawbid/core/navigation/shell/desktop_input.dart';
 import 'package:lawbid/core/navigation/shell/desktop_layouts.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
-import 'package:lawbid/features/blocks/presentation/blocked_users_screen.dart'
-    deferred as d_blocked_desktop;
-import 'package:lawbid/features/notifications/presentation/notification_settings_screen.dart'
-    deferred as d_notifications_desktop;
-import 'package:lawbid/features/privacy/presentation/privacy_screen.dart'
-    deferred as d_privacy_desktop;
 import 'package:lawbid/features/profile/presentation/screens/settings_screen.dart';
-import 'package:lawbid/features/settings/about/about_screen.dart'
-    deferred as d_about_desktop;
-import 'package:lawbid/features/settings/account/presentation/screens/account_screen.dart'
-    deferred as d_account_desktop;
-import 'package:lawbid/features/settings/active_devices/presentation/active_devices_screen.dart'
-    deferred as d_devices_desktop;
-import 'package:lawbid/features/settings/data_export/presentation/data_export_screen.dart'
-    deferred as d_export_desktop;
-import 'package:lawbid/features/settings/storage/presentation/storage_screen.dart'
-    deferred as d_storage_desktop;
 
 /// Desktop web plan 2026-10-28 §6.7: on a desktop window Settings is two
 /// panes — the sections list on the left (the same screen as on the phone)
@@ -54,55 +39,9 @@ class DesktopSettingsScope extends InheritedWidget {
   bool updateShouldNotify(DesktopSettingsScope oldWidget) => false;
 }
 
-/// The sections the right pane hosts: route path → the section's screen.
-/// These screens are self-contained pages (their own bar, no arguments).
-/// Any other row keeps pushing its page.
-final Map<String, Widget Function()> _hosted = {
-  '/profile/settings/account': () => DeferredScreen(
-        id: 'account_screen_desktop',
-        load: d_account_desktop.loadLibrary,
-        builder: (_) => d_account_desktop.AccountScreen(),
-      ),
-  '/profile/settings/notifications': () => DeferredScreen(
-        id: 'notification_settings_screen_desktop',
-        load: d_notifications_desktop.loadLibrary,
-        builder: (_) => d_notifications_desktop.NotificationSettingsScreen(),
-      ),
-  '/profile/settings/privacy': () => DeferredScreen(
-        id: 'privacy_screen_desktop',
-        load: d_privacy_desktop.loadLibrary,
-        builder: (_) => d_privacy_desktop.PrivacyScreen(),
-      ),
-  AppRoutes.activeDevices: () => DeferredScreen(
-        id: 'active_devices_screen_desktop',
-        load: d_devices_desktop.loadLibrary,
-        builder: (_) => d_devices_desktop.ActiveDevicesScreen(),
-      ),
-  AppRoutes.storage: () => DeferredScreen(
-        id: 'storage_screen_desktop',
-        load: d_storage_desktop.loadLibrary,
-        builder: (_) => d_storage_desktop.StorageScreen(),
-      ),
-  AppRoutes.blockedUsers: () => DeferredScreen(
-        id: 'blocked_users_screen_desktop',
-        load: d_blocked_desktop.loadLibrary,
-        builder: (_) => d_blocked_desktop.BlockedUsersScreen(),
-      ),
-  AppRoutes.dataExport: () => DeferredScreen(
-        id: 'data_export_screen_desktop',
-        load: d_export_desktop.loadLibrary,
-        builder: (_) => d_export_desktop.DataExportScreen(),
-      ),
-  AppRoutes.about: () => DeferredScreen(
-        id: 'about_screen_desktop',
-        load: d_about_desktop.loadLibrary,
-        builder: (_) => d_about_desktop.AboutScreen(),
-      ),
-};
-
 /// Whether the right pane can show the page at [location].
 bool isHostedSettingsRoute(String location) =>
-    _hosted.containsKey(Uri.parse(location).path);
+    hostedSettingsSections.containsKey(Uri.parse(location).path);
 
 /// Opens a Settings row's page: in the right pane on the desktop page (for
 /// the sections it hosts), pushed as a page everywhere else. [once] keeps
@@ -128,35 +67,45 @@ class SettingsSectionPage extends StatelessWidget {
   const SettingsSectionPage({
     required this.location,
     required this.phone,
+    this.query = const {},
     super.key,
   });
 
   final String location;
   final Widget phone;
 
+  /// The address's query (e.g. `?tab=receipts` on Payments), kept for the
+  /// section shown in the right pane.
+  final Map<String, String> query;
+
   @override
   Widget build(BuildContext context) {
     if (!isDesktopWindow(context)) return phone;
-    return DesktopSettingsPage(location: location);
+    return DesktopSettingsPage(location: location, query: query);
   }
 }
 
 /// The desktop Settings page itself: sections | the open section. The open
 /// section is the page's address ([location], null on `/profile/settings`).
 class DesktopSettingsPage extends StatelessWidget {
-  const DesktopSettingsPage({this.location, super.key});
+  const DesktopSettingsPage({this.location, this.query = const {}, super.key});
 
   final String? location;
+  final Map<String, String> query;
 
   void _open(BuildContext context, String target) {
-    final path = Uri.parse(target).path;
-    if (path == location) return;
+    final uri = Uri.parse(target);
+    final path = uri.path;
+    if (path == location && mapEquals(uri.queryParameters, query)) {
+      return;
+    }
+    final next = uri.hasQuery ? '$path?${uri.query}' : path;
     // From the bare list a section is pushed (back closes it); from one
     // section to another it replaces, so back does not walk every click.
     if (location == null) {
-      context.push(path);
+      context.push(next);
     } else {
-      context.replace(path);
+      context.replace(next);
     }
   }
 
@@ -180,8 +129,9 @@ class DesktopSettingsPage extends StatelessWidget {
               : ContentColumn(
                   maxWidth: kSettingsDetailMaxWidth,
                   child: _SectionPane(
-                    key: ValueKey('desktop-settings-$open'),
+                    key: ValueKey('desktop-settings-$open-$query'),
                     location: open,
+                    query: query,
                   ),
                 ),
         ),
@@ -194,19 +144,20 @@ class DesktopSettingsPage extends StatelessWidget {
 /// pops its page, and here there is nothing to pop, so it does nothing
 /// instead of leaving Settings.
 class _SectionPane extends StatelessWidget {
-  const _SectionPane({required this.location, super.key});
+  const _SectionPane({required this.location, required this.query, super.key});
 
   final String location;
+  final Map<String, String> query;
 
   @override
   Widget build(BuildContext context) {
-    final build = _hosted[location];
+    final build = hostedSettingsSections[location];
     if (build == null) return const SizedBox.shrink();
     return Navigator(
       onGenerateRoute: (_) => PageRouteBuilder<void>(
         transitionDuration: Duration.zero,
         reverseTransitionDuration: Duration.zero,
-        pageBuilder: (_, __, ___) => build(),
+        pageBuilder: (_, __, ___) => build(query),
       ),
     );
   }
