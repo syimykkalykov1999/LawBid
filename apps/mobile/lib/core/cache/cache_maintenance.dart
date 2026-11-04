@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/cache/cache_database.dart';
+import 'package:lawbid/core/cache/cache_eviction.dart';
 import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/cache/media_cache_dir.dart';
@@ -11,23 +13,72 @@ import 'package:lawbid/core/persistence/drift_web.dart' show isFlutterTest;
 import 'package:lawbid/core/persistence/saved_json.dart';
 import 'package:lawbid/core/persistence/storage_compaction.dart';
 
+/// Owner 2026-11-03 (Telegram «Использование памяти»): the four slices of
+/// the ring and the rows with checkboxes. Stores map onto them: video;
+/// photos (pictures and chat media); documents (the case-file views and
+/// the files store); everything else (messages, requests, feed, the rest).
+enum StorageCategory { video, photos, documents, other }
+
 /// What the phone's caches take, by store (plan §5.2: the ring and the
 /// rows of «Данные и память»).
 @immutable
 class CacheReport {
-  const CacheReport({required this.measuredAt, this.bytes = const {}});
+  const CacheReport({
+    required this.measuredAt,
+    this.bytes = const {},
+    this.documents = 0,
+  });
 
   final Map<CacheStore, int> bytes;
   final DateTime measuredAt;
+
+  /// The part of [CacheStore.other] that is case-file views.
+  final int documents;
 
   int of(CacheStore s) => bytes[s] ?? 0;
 
   int get total => bytes.values.fold(0, (a, b) => a + b);
 
+  int ofCategory(StorageCategory c) => switch (c) {
+        StorageCategory.video => of(CacheStore.video),
+        StorageCategory.photos =>
+          of(CacheStore.images) + of(CacheStore.chatMedia),
+        StorageCategory.documents => documents + of(CacheStore.files),
+        StorageCategory.other => of(CacheStore.http) +
+            of(CacheStore.messages) +
+            of(CacheStore.feed) +
+            (of(CacheStore.other) - documents).clamp(0, 1 << 62),
+      };
+
   CacheReport zeroed(Iterable<CacheStore> stores) => CacheReport(
         bytes: {...bytes, for (final s in stores) s: 0},
         measuredAt: measuredAt,
+        documents: stores.contains(CacheStore.other) ? 0 : documents,
       );
+
+  /// The sizes right after «Очистить» of [categories] (before the disk is
+  /// measured again).
+  CacheReport zeroedCategories(Set<StorageCategory> categories) {
+    final next = {...bytes};
+    var docs = documents;
+    if (categories.contains(StorageCategory.video)) next[CacheStore.video] = 0;
+    if (categories.contains(StorageCategory.photos)) {
+      next[CacheStore.images] = 0;
+      next[CacheStore.chatMedia] = 0;
+    }
+    if (categories.contains(StorageCategory.documents)) {
+      next[CacheStore.files] = 0;
+      next[CacheStore.other] = of(CacheStore.other) - docs;
+      docs = 0;
+    }
+    if (categories.contains(StorageCategory.other)) {
+      next[CacheStore.http] = 0;
+      next[CacheStore.messages] = 0;
+      next[CacheStore.feed] = 0;
+      next[CacheStore.other] = docs;
+    }
+    return CacheReport(bytes: next, measuredAt: measuredAt, documents: docs);
+  }
 }
 
 /// Owner 2026-10-22 (client economy plan §5): measures and empties the
@@ -42,7 +93,9 @@ class CacheMaintenance {
     MediaCacheDir? chatMedia,
     MediaCacheDir? video,
     PrefixedTempFiles? voiceNotes,
+    Future<Set<String>> Function()? groupChatPaths,
   })  : _db = db,
+        _groupChatPaths = groupChatPaths,
         _pages = pages,
         _limits = limits,
         _http = http,
@@ -62,6 +115,11 @@ class CacheMaintenance {
   final MediaCacheDir _video;
   final PrefixedTempFiles _voiceNotes;
 
+  /// The canonical paths of the chat-media files that belong to GROUP chats
+  /// (the chat → picture index). Every other chat file is personal or not
+  /// known, and never aged out by the groups' rule.
+  final Future<Set<String>> Function()? _groupChatPaths;
+
   /// Every store's size; a store that cannot be measured counts as 0.
   Future<CacheReport> measure() async {
     Future<int> guard(Future<int> Function() f) async {
@@ -79,14 +137,17 @@ class CacheMaintenance {
       guard(() => _pages?.pagesBytes() ?? Future.value(0)),
       guard(_images.size),
       guard(() async {
-        final sizes =
-            await Future.wait([_chatMedia.size(), _voiceNotes.size()]);
+        final sizes = await Future.wait([
+          _chatMedia.size(),
+          _voiceNotes.size(),
+        ]);
         return sizes[0] + sizes[1];
       }),
       guard(
         () async => await _db.translationsBytes() + await _db.fileViewsBytes(),
       ),
       guard(_video.size),
+      guard(_db.fileViewsBytes),
     ]);
     return CacheReport(
       bytes: {
@@ -99,6 +160,7 @@ class CacheMaintenance {
         CacheStore.video: results[6],
       },
       measuredAt: DateTime.now(),
+      documents: results[7],
     );
   }
 
@@ -143,6 +205,46 @@ class CacheMaintenance {
     return true;
   }
 
+  /// «Очистить» of the ticked categories of the ring. All four = [clearAll].
+  /// False when something could not be emptied.
+  Future<bool> clearCategories(Set<StorageCategory> categories) async {
+    if (categories.length == StorageCategory.values.length) return clearAll();
+    Future<bool> one(Future<bool> Function() f) async {
+      try {
+        return await f();
+      } on Object catch (e) {
+        debugPrint('cache clear category: $e');
+        return false;
+      }
+    }
+
+    Future<bool> store(CacheStore s) => one(() => clear(s));
+    final jobs = <Future<bool>>[
+      if (categories.contains(StorageCategory.video)) store(CacheStore.video),
+      if (categories.contains(StorageCategory.photos)) ...[
+        store(CacheStore.images),
+        store(CacheStore.chatMedia),
+      ],
+      if (categories.contains(StorageCategory.documents))
+        one(() async {
+          await _db.clearFileViews();
+          return true;
+        }),
+      if (categories.contains(StorageCategory.other)) ...[
+        store(CacheStore.http),
+        store(CacheStore.messages),
+        store(CacheStore.feed),
+        one(() async {
+          await _db.clearOther(
+            keepFileViews: !categories.contains(StorageCategory.documents),
+          );
+          return true;
+        }),
+      ],
+    ];
+    return !(await Future.wait(jobs)).contains(false);
+  }
+
   /// «Очистить кэш» — everything except the outbox and the settings.
   /// False when some store could not be emptied.
   Future<bool> clearAll() async {
@@ -173,19 +275,26 @@ class CacheMaintenance {
       final l = _limits();
       await _images.trimTo(l.limitBytes(CacheStore.images));
       // Pictures and voice notes are one store («Медиа чатов»): one limit,
-      // the least recently changed file goes first whichever it is.
+      // the least recently used file goes first whichever it is.
       await trimPoolTo(
-        [_chatMedia, _voiceNotes],
+        [
+          _chatMedia,
+          _voiceNotes,
+        ],
         l.limitBytes(CacheStore.chatMedia),
       );
-      if (l.keepMediaDays > 0) {
-        await _chatMedia.dropOlderThan(Duration(days: l.keepMediaDays));
-        await _voiceNotes.dropOlderThan(Duration(days: l.keepMediaDays));
-      }
       // Video files belong to the proxy, which evicts to the limit itself
-      // (at its start and on this command): never deleted from here, or a
+      // (at its start and on these commands): never deleted from here, or a
       // starting proxy would find its chunks gone.
-      VideoCache.limitTo(l.limitBytes(CacheStore.video));
+      // The admin's own video ceiling when there is one, else the user's cap
+      // (video is kept to the cap by the proxy and by the global trim).
+      VideoCache.limitTo(
+        l.limitMb(CacheStore.video) > 0
+            ? l.limitBytes(CacheStore.video)
+            : l.capBytes ?? CacheLimits.unboundedBytes,
+      );
+      await _autoDelete(l);
+      await _enforceCap(l);
       await _db.trimHttp(l.limitBytes(CacheStore.http));
       await _db.trimMessages(l.limitBytes(CacheStore.messages));
       // Owner 2026-10-24: the view lists of case documents live in «Прочее»
@@ -204,6 +313,87 @@ class CacheMaintenance {
       debugPrint('cache enforce: $e');
     } finally {
       _enforcing = false;
+    }
+  }
+
+  /// «Автоудаление закэшированных медиа»: what was not opened for the
+  /// scope's age goes. Personal chats (and voice notes) / groups (the other
+  /// chat files) / the feed (pictures and video chunks).
+  Future<void> _autoDelete(CacheLimits l) async {
+    final personal = l.autoDeleteDays(AutoDeleteScope.privateChats);
+    final groups = l.autoDeleteDays(AutoDeleteScope.groups);
+    if (personal > 0 || groups > 0) {
+      final chat = await _chatMedia.entries();
+      final group = await _groupChatPaths?.call() ?? const <String>{};
+      bool isPersonal(CachedFile f) =>
+          !group.contains(canonicalPath(f.$1.path));
+      final now = DateTime.now();
+      Future<void> sweep(Iterable<CachedFile> files, int days) async {
+        if (days <= 0) return;
+        final cutoff = now.subtract(Duration(days: days));
+        await _delete([
+          for (final f in files)
+            if (f.$2.isBefore(cutoff)) f.$1,
+        ]);
+      }
+
+      await sweep(
+        [
+          ...chat.where(isPersonal),
+          ...await _voiceNotes.entries(),
+        ],
+        personal,
+      );
+      await sweep(chat.where((f) => !isPersonal(f)), groups);
+    }
+    final feed = l.autoDeleteDays(AutoDeleteScope.feed);
+    if (feed > 0) {
+      await _images.dropOlderThan(Duration(days: feed));
+      VideoCache.dropOlderThan(Duration(days: feed));
+    }
+  }
+
+  /// «Максимальный размер кэша»: when pictures, chat media, voice notes and
+  /// video chunks together pass the cap, the least recently used go first.
+  Future<void> _enforceCap(CacheLimits l) async {
+    final cap = l.capBytes;
+    if (cap == null) return;
+    final entries = <EvictionEntry>[];
+    Future<void> collect(String pool, CachedFiles source) async {
+      for (final (file, used, bytes) in await source.entries()) {
+        entries.add(
+          EvictionEntry(pool: pool, lastUsed: used, bytes: bytes, ref: file),
+        );
+      }
+    }
+
+    await collect('images', _images);
+    await collect('chat', _chatMedia);
+    await collect('voice', _voiceNotes);
+    await collect('video', _video);
+    final victims = planCapEviction(entries, cap);
+    if (victims.isEmpty) return;
+    await _delete([
+      for (final v in victims)
+        if (v.pool != 'video') v.ref! as File,
+    ]);
+    // The proxy drops its own oldest chunks down to what is left.
+    final videoTotal = entries
+        .where((e) => e.pool == 'video')
+        .fold<int>(0, (a, e) => a + e.bytes);
+    final videoFreed = victims
+        .where((e) => e.pool == 'video')
+        .fold<int>(0, (a, e) => a + e.bytes);
+    if (videoFreed > 0) VideoCache.trimTo(videoTotal - videoFreed);
+  }
+
+  Future<void> _delete(Iterable<File> files) async {
+    for (final f in files) {
+      try {
+        await f.delete();
+      } on Object {
+        // Busy or gone: the next pass tries again.
+      }
     }
   }
 
