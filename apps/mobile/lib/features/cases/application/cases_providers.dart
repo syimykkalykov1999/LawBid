@@ -527,6 +527,12 @@ final myWorkProvider = AsyncNotifierProvider.autoDispose
 );
 
 class SavedCasesNotifier extends PagedNotifier<SavedCase> {
+  // Owner 2026-11-04 (R-383): kept 5 minutes after its screen lets go
+  // (see PagedNotifier.keepAliveFor) — a switch back shows the same rows,
+  // no request.
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
+
   @override
   Future<CursorPage<SavedCase>?> cachedFirstPage() {
     final repo = ref.read(casesRepositoryProvider);
@@ -741,6 +747,12 @@ class MineSavedNotifier extends PagedNotifier<SavedCase> {
   MineSavedNotifier(this.search);
 
   final MineSearch search;
+
+  // Owner 2026-11-04 (R-383): kept 5 minutes after its screen lets go
+  // (see PagedNotifier.keepAliveFor) — a switch back shows the same rows,
+  // no request.
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
 
   @override
   Future<CursorPage<SavedCase>?> cachedFirstPage() {
