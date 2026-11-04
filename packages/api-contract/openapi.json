@@ -151254,7 +151254,7 @@
           "username": {
             "type": "string",
             "nullable": true,
-            "description": "Attorneys only."
+            "description": "The author's @handle (attorney or client); null for a client under a case."
           },
           "displayName": {
             "type": "string",
