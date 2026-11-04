@@ -35,7 +35,26 @@ import flutter_callkit_incoming
     // app is open too.
     UNUserNotificationCenter.current().delegate = self
     registerChatCategory()
-    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    let launched = super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    paintWindowBackground()
+    return launched
+  }
+
+  /// R-112 (owner 28.10): the window behind Flutter is the chosen theme's
+  /// background, not the system's white. Dart writes `#AARRGGBB` under
+  /// `flutter.design_system.window_bg` (shared_preferences keeps its keys in
+  /// UserDefaults with the `flutter.` prefix) when the theme changes.
+  private func paintWindowBackground() {
+    guard let raw = UserDefaults.standard.string(forKey: "flutter.design_system.window_bg"),
+      raw.hasPrefix("#"), raw.count == 9, let value = UInt32(raw.dropFirst(), radix: 16)
+    else { return }
+    let color = UIColor(
+      red: CGFloat((value >> 16) & 0xFF) / 255,
+      green: CGFloat((value >> 8) & 0xFF) / 255,
+      blue: CGFloat(value & 0xFF) / 255,
+      alpha: CGFloat((value >> 24) & 0xFF) / 255)
+    window?.backgroundColor = color
+    window?.rootViewController?.view.backgroundColor = color
   }
 
   // MARK: - Chat notification buttons
