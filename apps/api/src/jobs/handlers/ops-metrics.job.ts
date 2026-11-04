@@ -31,6 +31,7 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { queueLoadSignal } from '../../common/queues/queue-load';
 import { parseQueueMode } from '../../common/queues/queue-hardening';
 import { bullOptions } from '../../redis/redis-connection';
+import { REGISTRY_CHECK_QUEUE } from '../../modules/verification/registry-check.queue';
 
 /** Stripe queue names/options for the admin replay tool (S10-7), re-exported
  * here so the admin module reaches billing through the jobs layer. */
@@ -61,6 +62,8 @@ export const OBSERVED_QUEUES: readonly string[] = [
   HISTORY_EXPORT_QUEUE,
   DEAL_RECORD_QUEUE,
   DATA_EXPORT_QUEUE,
+  // R-394: state-registry lookups of the verifier's buttons.
+  REGISTRY_CHECK_QUEUE,
 ];
 
 /**

@@ -64,7 +64,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:4px
   background:color-mix(in srgb,var(--gold) 18%,transparent);color:var(--gold-ink);font-weight:600;font-size:12.5px}
 /* The card artwork with the three Stripe fields on it. */
 .stage{perspective:1100px}
-.card{position:relative;width:100%;aspect-ratio:1.586;border-radius:18px;transform-style:preserve-3d;
+.card{position:relative;width:100%;aspect-ratio:1.586;min-height:236px;border-radius:18px;transform-style:preserve-3d;
   transition:transform .7s cubic-bezier(.2,.8,.2,1)}
 .card.flip{transform:rotateY(180deg)}
 .face{position:absolute;inset:0;border-radius:18px;padding:5.5% 6%;color:var(--card-ink);overflow:hidden;
@@ -78,9 +78,15 @@ header{display:flex;align-items:center;justify-content:space-between;padding:4px
 .brandmark{font:700 15px/1 Georgia,serif;letter-spacing:.3px;opacity:.95}
 #brandlabel{font-weight:700;font-size:15px;letter-spacing:.6px;text-transform:uppercase;min-width:3.2em;text-align:right;
   transition:opacity .25s}
-.num{position:absolute;left:6%;right:6%;top:41%}
-.exp{position:absolute;left:6%;width:38%;bottom:11%}
-.lbl{display:block;font-size:10.5px;letter-spacing:1.3px;text-transform:uppercase;opacity:.75;margin-bottom:4px}
+/* Owner 2026-11-04 (R-388): on a narrow phone the card is only ~210 px tall and
+   the absolutely-positioned «Expires» block climbed over the number field.
+   The front face is a column now: number and expiry flow after the chip,
+   and the card grows (min-height) instead of overlapping, in every language. */
+.front{display:flex;flex-direction:column}
+.num{margin-top:auto;position:relative;z-index:1}
+.exp{margin-top:10px;width:max-content;min-width:38%;max-width:62%}
+.lbl{display:block;font-size:10.5px;letter-spacing:1.3px;text-transform:uppercase;opacity:.75;margin-bottom:4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .field{height:42px;display:flex;align-items:center;padding:0 12px;border-radius:12px;
   background:var(--field);border:1px solid var(--field-line);transition:border-color .2s,box-shadow .2s}
 .field.focus{border-color:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.22)}

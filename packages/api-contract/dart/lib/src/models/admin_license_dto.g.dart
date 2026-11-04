@@ -40,6 +40,11 @@ AdminLicenseDto _$AdminLicenseDtoFromJson(
   registryFlaggedAt: json['registryFlaggedAt'] == null
       ? null
       : DateTime.parse(json['registryFlaggedAt'] as String),
+  registryCheck: json['registryCheck'] == null
+      ? null
+      : RegistryCheckPendingDto.fromJson(
+          json['registryCheck'] as Map<String, dynamic>,
+        ),
 );
 
 Map<String, dynamic> _$AdminLicenseDtoToJson(AdminLicenseDto instance) =>
@@ -61,4 +66,5 @@ Map<String, dynamic> _$AdminLicenseDtoToJson(AdminLicenseDto instance) =>
       'decidedBy': ?instance.decidedBy,
       'registryFlag': ?instance.registryFlag?.toJson(),
       'registryFlaggedAt': ?instance.registryFlaggedAt?.toIso8601String(),
+      'registryCheck': ?instance.registryCheck?.toJson(),
     };

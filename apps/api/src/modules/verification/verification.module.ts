@@ -37,6 +37,10 @@ import { StateRegistryService } from './services/state-registry.service';
 import { VerificationRequestsService } from './services/verification-requests.service';
 import { SelfieCaptureTokensService } from './services/selfie-capture-tokens.service';
 import { VerificationHandoffService } from './services/verification-handoff.service';
+import {
+  RegistryCheckQueue,
+  RegistryCheckWorker,
+} from './registry-check.queue';
 
 /**
  * docs/03_VERIFICATION_PROFILES.md §2: attorney verification requests
@@ -104,6 +108,9 @@ import { VerificationHandoffService } from './services/verification-handoff.serv
     // R-146: «continue on your phone» codes (computer without a camera).
     VerificationHandoffService,
     VerificationRequestsService,
+    // Owner 2026-11-04 (R-394): registry lookups in the background.
+    RegistryCheckQueue,
+    RegistryCheckWorker,
     VerificationAdminService,
   ],
   exports: [

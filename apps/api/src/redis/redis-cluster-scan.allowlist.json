@@ -1,5 +1,10 @@
 [
   {
+    "file": "cli/purge-test-data.ts",
+    "kind": "scan",
+    "reason": "One-off purge (R-374): cluster mode scans every master node (nodes('master')), standalone the one node; doomed keys are deleted with delSafe (one DEL per key in cluster mode)."
+  },
+  {
     "file": "common/cost-guard/cost-autoscale.service.ts",
     "kind": "mget",
     "reason": "Daily and monthly counters of ONE provider share the {provider} hash tag (costCounterKey): one slot."

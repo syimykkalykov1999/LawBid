@@ -5,6 +5,7 @@ import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { bumpConfigVersion } from '../../feature-flags/feature-flags.public';
 import { BOOTSTRAP_CACHE_KEY } from '../../feature-flags/services/bootstrap.service';
 import { isRtlLanguage, nativeNameForLanguage } from '../language-names';
 import {
@@ -342,6 +343,11 @@ export class I18nImportService {
     }
     // docs/06 §2.3 item 9: a new language column adds a language — the
     // bootstrap payload (languages) must reflect it without a release.
-    if (newLanguages.length > 0) await this.redis.del(BOOTSTRAP_CACHE_KEY);
+    // R-385: and the config version moves, so the cheap ETags of
+    // GET /i18n/languages and /config/bootstrap stop matching.
+    if (newLanguages.length > 0) {
+      await this.redis.del(BOOTSTRAP_CACHE_KEY);
+      await bumpConfigVersion(this.redis);
+    }
   }
 }
