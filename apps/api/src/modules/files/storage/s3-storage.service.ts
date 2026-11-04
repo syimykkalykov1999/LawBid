@@ -33,6 +33,12 @@ import { Readable } from 'node:stream';
 import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { BucketKind } from '../files.policy';
+import {
+  createR2Client,
+  presignR2Put,
+  webOriginOf,
+} from '../../../common/secrets/r2-client';
+import { checkR2, R2_NOT_READY_TEXT, type R2NotReady } from './r2-readiness';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { CdnInvalidationQueue, type CdnTarget } from './cdn-invalidation';
 
@@ -97,6 +103,19 @@ export interface PrivateCdn {
   privateKey: string;
 }
 
+/** How long one live look at R2 is trusted. */
+const R2_READY_TTL_MS = 60_000;
+const R2_NOT_READY_TTL_MS = 30_000;
+
+/** What the admin sees about the `media.public_store` switch. */
+export interface R2Status {
+  selected: boolean;
+  /** New public media really goes to R2. */
+  active: boolean;
+  /** Selected but held on AWS: why, in plain words. */
+  fallback: string | null;
+}
+
 export interface ObjectHead {
   size: number;
   contentType?: string;
@@ -120,6 +139,9 @@ export class S3StorageService implements OnModuleDestroy {
   private r2Fingerprint = '';
   /** `media.public_store` = 'r2' (cached; refreshed on every operation). */
   private r2Selected = false;
+  /** The last live look at R2 (none yet = not proven = AWS). */
+  private r2Check?: { at: number; notReady: R2NotReady | null };
+  private r2CheckRunning?: Promise<void>;
   private readonly invalidations?: CdnInvalidationQueue;
 
   constructor(
@@ -222,6 +244,7 @@ export class S3StorageService implements OnModuleDestroy {
       this.publicStore?.client.destroy();
       this.publicStore = c ? this.buildPublicStore(c.fields) : undefined;
       this.r2Fingerprint = fp;
+      this.r2Check = undefined;
     }
     try {
       this.r2Selected =
@@ -229,6 +252,63 @@ export class S3StorageService implements OnModuleDestroy {
     } catch {
       this.r2Selected = false;
     }
+  }
+
+  /** Owner 2026-11-04: R2 takes new files only after a recent live look said
+   * it works. Until then the switch changes nothing and uploads keep going
+   * to AWS, whatever was typed in the admin. */
+  private get r2Proven(): boolean {
+    return (
+      this.r2Selected &&
+      this.publicStore !== undefined &&
+      this.r2Check?.notReady === null
+    );
+  }
+
+  /** Looks at a selected R2 again when the last look is old. One look at a
+   * time; it is bounded by short timeouts. Never throws. */
+  private async ensureR2Checked(): Promise<void> {
+    const store = this.publicStore;
+    if (!this.r2Selected || !store) return;
+    const last = this.r2Check;
+    const ttl = last?.notReady ? R2_NOT_READY_TTL_MS : R2_READY_TTL_MS;
+    if (last && Date.now() - last.at < ttl) return;
+    this.r2CheckRunning ??= checkR2({
+      client: store.client,
+      bucket: store.bucket,
+      publicBaseUrl: store.publicBaseUrl,
+      webOrigin: webOriginOf(store.publicBaseUrl),
+    })
+      .then((notReady) => {
+        if (notReady && last?.notReady !== notReady) {
+          this.logger.warn(
+            { alert: 'r2_fallback_to_aws', notReady },
+            'R2 is selected but not ready: new public media stays on AWS',
+          );
+        }
+        this.r2Check = { at: Date.now(), notReady };
+      })
+      .finally(() => {
+        this.r2CheckRunning = undefined;
+      });
+    await this.r2CheckRunning;
+  }
+
+  /** For the admin: the switch and what it really does right now. */
+  async r2Status(): Promise<R2Status> {
+    await this.refresh();
+    const selected = this.r2Selected;
+    if (!selected) return { selected, active: false, fallback: null };
+    if (!this.publicStore) {
+      return { selected, active: false, fallback: R2_NOT_READY_TEXT.no_keys };
+    }
+    await this.ensureR2Checked();
+    const notReady = this.r2Check?.notReady;
+    return {
+      selected,
+      active: this.r2Proven,
+      fallback: notReady ? R2_NOT_READY_TEXT[notReady] : null,
+    };
   }
 
   private buildPublicStore(f: R2Fields): PublicStore | undefined {
@@ -252,14 +332,7 @@ export class S3StorageService implements OnModuleDestroy {
       return undefined;
     }
     return {
-      client: new S3Client({
-        region: 'auto',
-        endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-        credentials: { accessKeyId, secretAccessKey },
-        // Newer SDK checksums are not accepted by every R2 operation.
-        requestChecksumCalculation: 'WHEN_REQUIRED',
-        responseChecksumValidation: 'WHEN_REQUIRED',
-      }),
+      client: createR2Client({ accountId, accessKeyId, secretAccessKey }),
       bucket,
       publicBaseUrl: base,
       zoneId: f.zoneId?.trim() || undefined,
@@ -319,9 +392,9 @@ export class S3StorageService implements OnModuleDestroy {
     );
   }
 
-  /** New public media goes to R2 now (switch on and R2 configured). */
+  /** New public media goes to R2 now (switch on and R2 proven to work). */
   get publicStoreActive(): boolean {
-    return this.r2Selected && this.publicStore !== undefined;
+    return this.r2Proven;
   }
 
   /** True when storage keys are present (loads them first). */
@@ -338,15 +411,15 @@ export class S3StorageService implements OnModuleDestroy {
    * The bucket new objects of [kind] go to. `documents` (everything
    * private) is ALWAYS the AWS documents bucket: there is no code path
    * from a private kind to R2. `media` (public) is R2 only when the
-   * switch is on and R2 is configured. Call [resolveBucket] when the
-   * switch may not have been read yet.
+   * switch is on and a recent live look proved R2 works. Call
+   * [resolveBucket] when the switch may not have been read yet.
    */
   bucket(kind: BucketKind): string {
     const { buckets } = this.require();
     if (
       kind === 'media' &&
       this.publicStore &&
-      this.r2Selected &&
+      this.r2Proven &&
       this.isPublicStoreBucket(this.publicStore.bucket)
     ) {
       return this.publicStore.bucket;
@@ -354,9 +427,10 @@ export class S3StorageService implements OnModuleDestroy {
     return buckets[kind];
   }
 
-  /** [bucket] after loading the keys and the switch. */
+  /** [bucket] after loading the keys, the switch and R2's health. */
   async resolveBucket(kind: BucketKind): Promise<string> {
     await this.refresh();
+    if (kind === 'media') await this.ensureR2Checked();
     return this.bucket(kind);
   }
 
@@ -430,24 +504,10 @@ export class S3StorageService implements OnModuleDestroy {
     if (!this.isPublicStoreBucket(input.bucket) || !this.publicStore) {
       throw new Error('presignPut is only for the public R2 bucket');
     }
-    const url = await getSignedUrl(
-      this.publicStore.client,
-      new PutObjectCommand({
-        Bucket: input.bucket,
-        Key: input.key,
-        ContentType: input.contentType,
-        ContentLength: input.size,
-        CacheControl: IMMUTABLE_CACHE_CONTROL,
-      }),
-      {
-        expiresIn: input.expiresSec,
-        signableHeaders: new Set([
-          'content-type',
-          'content-length',
-          'cache-control',
-        ]),
-      },
-    );
+    const url = await presignR2Put(this.publicStore.client, {
+      ...input,
+      cacheControl: IMMUTABLE_CACHE_CONTROL,
+    });
     return {
       url,
       fields: {},

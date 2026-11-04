@@ -77,6 +77,7 @@ function make(
         ),
       ),
       awsBucket: jest.fn((k: string) => `lawbid-${k}`),
+      ready: jest.fn().mockResolvedValue(true),
       isPublicStoreBucket: jest.fn((b: string) => b === 'lawbid-r2'),
       publicObjectUrl: jest.fn((b: string, k: string) =>
         b === 'lawbid-r2' ? `https://media.example/${k}` : null,
@@ -302,6 +303,29 @@ describe('FilesService', () => {
       expect(deps.storage.presignPost).toHaveBeenCalledWith(
         expect.objectContaining({ bucket: 'lawbid-documents' }),
       );
+    });
+  });
+
+  describe('R2 links and server-made files (owner 2026-11-04)', () => {
+    it('loads the R2 keys before answering a link: a fresh instance gives the R2 address', async () => {
+      const { service, deps } = make({
+        file: { purpose: 'avatar', s3_bucket: 'lawbid-r2', s3_key: 'avatar/k' },
+      });
+      const order: string[] = [];
+      deps.storage.ready.mockImplementation(() => {
+        order.push('ready');
+        return Promise.resolve(true);
+      });
+      deps.storage.publicObjectUrl.mockImplementation(
+        (b: string, k: string) => {
+          order.push('url');
+          return b === 'lawbid-r2' ? `https://media.example/${k}` : null;
+        },
+      );
+      expect(await service.mediaUrl('f1')).toBe(
+        'https://media.example/avatar/k',
+      );
+      expect(order.slice(0, 2)).toEqual(['ready', 'url']);
     });
   });
 

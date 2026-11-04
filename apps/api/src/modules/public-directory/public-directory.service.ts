@@ -275,6 +275,7 @@ export class PublicDirectoryService {
         },
         select: { id: true, s3_key: true, s3_bucket: true },
       });
+      await this.storage?.ready();
       for (const f of files) {
         const url =
           this.storage?.publicObjectUrl(f.s3_bucket, f.s3_key) ??

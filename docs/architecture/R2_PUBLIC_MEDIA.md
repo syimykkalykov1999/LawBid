@@ -9,10 +9,12 @@ Private content stays on AWS exactly as today.
 - Что: публичные фото (аватары, фото постов и отзывов, стикеры) можно хранить в Cloudflare R2. У R2 нет платы за исходящий трафик, поэтому раздача фото дешевле, чем с S3/CloudFront.
 - Что НЕ меняется: чаты (фото, голос, файлы), файлы дел, документы, документы верификации остаются на AWS (KMS, Macie, подписанные ссылки CloudFront). Код устроен так, что приватный тип файла физически не может попасть в R2 (есть тест).
 - Видео и рилсы идут через Bunny Stream, как и раньше; R2 их не касается.
-- Включение: Админка -> Интеграции -> «Cloudflare R2» (5 полей) -> Настройки -> `media.public_store` = `r2`. По умолчанию `aws`, пока не включите — ничего не меняется.
+- Включение: чек-лист владельца в `docs/runbooks/DNS_TO_CLOUDFLARE.md`. По умолчанию `aws`, пока не включите — ничего не меняется.
+- Защита: переключатель на `r2` при неготовом R2 ничего не ломает. Новые фото идут в AWS, в «Здоровье системы» красная строка с причиной (проверено 2026-11-04).
 - Старые посты продолжают грузиться: у каждого файла в базе записано имя бакета, по нему система сама понимает, где лежит файл (AWS или R2).
 - Откат: вернуть `media.public_store` = `aws`. Новые файлы пойдут в AWS, уже загруженные в R2 останутся доступными.
 - Раздача: публичный бакет R2 на своём домене (например `media.lawbid.dev`) за кэшем Cloudflare. Для этого домен `lawbid.dev` должен быть в Cloudflare (сейчас DNS в Namecheap — надо сменить NS; все существующие записи переносятся как есть, без «оранжевого облака»).
+- Стикеры и подарки из админки тоже идут в R2 (2026-11-04).
 - Старые приложения (без поддержки PUT) при включённом R2 продолжают загружать фото в AWS: сервер выдаёт R2-загрузку только тем, кто сообщил, что умеет PUT.
 
 ## Verified facts (developers.cloudflare.com/r2, checked 2026-10-24)
@@ -60,7 +62,7 @@ Consequences: old posts keep loading from AWS after the switch; objects in R2 ke
 
 Where new objects go is decided only by `bucket(kind)`:
 - `documents` -> always the AWS documents bucket (the R2 branch does not exist for it).
-- `media` -> R2 bucket only if `media.public_store = r2` AND R2 is configured AND (for browser/app uploads) the client said it can do PUT; else AWS media bucket.
+- `media` -> R2 bucket only if `media.public_store = r2` AND R2 is configured AND a live look within the last minute proved it works (see Fail-safe) AND (for browser/app uploads) the client said it can do PUT; else AWS media bucket.
 
 Hard guards (all tested):
 1. `bucket('documents')` can never return the R2 bucket.
@@ -82,7 +84,21 @@ How limits stay enforced (S3 POST policy had `content-length-range`; PUT has no 
 4. Objects never confirmed are removed by the existing pending-upload cleanup (`PENDING_UPLOADS_KEY`), which routes by bucket name.
 5. Residual risk: within the 5-minute link life a client could upload a larger body if R2 ignores the signed length; it is deleted at confirm or by the sweep and costs only cents of storage (no egress charge on R2). Rate limits and the cost guard still apply per presign.
 
-Browser uploads (Flutter web) need a CORS rule on the R2 bucket allowing PUT from the app origins with `Content-Type`, `Cache-Control` headers.
+Browser uploads (Flutter web, admin stickers and gifts) need a CORS rule on the R2 bucket allowing PUT from the app origins with `Content-Type`, `Cache-Control` headers.
+
+## Fail-safe (added 2026-11-04)
+
+`media.public_store = r2` alone never sends a file to R2. `resolveBucket('media')` looks at R2 first (`storage/r2-readiness.ts`; cached 60 s when fine, 30 s when not; one look at a time; 4 s timeouts):
+
+1. `HeadBucket` with the saved keys;
+2. `HEAD <publicBaseUrl>/ops/health-probe`: no answer or 5xx means the domain is not ready;
+3. the web app's CSP (`https://<site>`, from `media.<site>`) must allow `r2.cloudflarestorage.com`; an unreachable site or a missing header does not count against R2.
+
+Not ready: new public media goes to AWS, the worker logs `alert: r2_fallback_to_aws` once per reason and the admin's storage line is red with the reason (`SystemHealthService.storageItem`, Staff home via `system-items.ts`). It recovers by itself. Files already in R2 keep loading from R2.
+
+Admin «Проверить» (`common/secrets/r2-self-test.ts`) runs the whole path on the real bucket: signed PUT, read through the public domain, `DeleteObjects`, probe object, CORS preflight. The first failing step is named.
+
+Web CSP: the app's `connect-src` is a CloudFront header in Terraform (`infra/modules/web`), so `https://*.r2.cloudflarestorage.com` and `https://media.<web host>` need one `terraform apply`. The admin's CSP is built in code and needs nothing.
 
 ## Scan and moderation
 
@@ -110,6 +126,8 @@ Requirements: `lawbid.dev` becomes a Cloudflare zone (change nameservers at Name
 
 ## Migration of existing public objects
 
+**Owner's flow 2026-11-04: not needed.** Prod is purged (`purge-test-data` also empties R2), then the switch is flipped. Official stickers, gifts and admin avatars survive the purge and stay on AWS with their rows; they keep loading from there. The script below is only for moving them later, if wanted.
+
 Script: `apps/api/scripts/migrate-public-media-to-r2.ts` (dry-run by default).
 
 1. Lists `File` rows of public purposes whose `s3_bucket` is the AWS media bucket and which are not deleted.
@@ -127,32 +145,11 @@ Order for the owner: create R2 -> configure integration -> run the script in dry
 
 ## Deletion, retention, GDPR
 
-`FileReleaseService`, storage cleanup, orphan sweep, account deletion and GDPR erase all call `storage.remove(bucket, keys)`; routing by bucket name makes them delete from R2 for R2 rows. Unchanged and tested for R2.
+`FileReleaseService`, storage cleanup, orphan sweep, account deletion and GDPR erase all call `storage.remove(bucket, keys)`; routing by bucket name makes them delete from R2 for R2 rows. Unchanged and tested for R2. `purge-test-data` and `prelaunch-wipe` list buckets themselves, so they add the R2 bucket from the saved keys (`ops/r2-wipe-refs.ts`, added 2026-11-04); R2 has no versions, so `--purge-versions` does one normal pass there. Do not remove the R2 keys while files live there: a row's object could then no longer be reached or deleted.
 
-## Owner checklist: CORS, cache rule, verification (added 2026-10-24)
+## Owner checklist
 
-Exact steps in Russian with the JSON to paste: `docs/runbooks/DNS_TO_CLOUDFLARE.md`
-(section «После переноса: два обязательных пункта для R2»). Summary:
-
-1. **Bucket CORS** (Dashboard -> R2 -> bucket -> Settings -> CORS Policy -> JSON):
-   ```json
-   [
-     {
-       "AllowedOrigins": ["https://lawbid.dev", "https://www.lawbid.dev", "https://admin.lawbid.dev",
-                          "http://localhost:3000", "http://localhost:3001", "http://localhost:8080"],
-       "AllowedMethods": ["PUT", "GET", "HEAD"],
-       "AllowedHeaders": ["Content-Type", "Cache-Control"],
-       "ExposeHeaders": ["ETag"],
-       "MaxAgeSeconds": 3600
-     }
-   ]
-   ```
-   Purge the cache of `media.lawbid.dev` after changing it (Cloudflare docs).
-2. **Cache Rule** for hostname `media.lawbid.dev`: Cache eligibility = Eligible for cache
-   (Cache Everything), Edge TTL = ignore origin, **1 day**; Browser TTL = **respect origin**
-   (the objects carry `public, max-age=31536000, immutable`).
-3. **Verify**: `sh scripts/ops/verify-r2-media.sh https://media.lawbid.dev/<key>` (second
-   request `cf-cache-status: HIT`, `immutable`, `Accept-Ranges`, CORS headers, preflight PUT).
+One list, in the exact final order, with the CORS JSON and the cache rule: `docs/runbooks/DNS_TO_CLOUDFLARE.md`.
 
 ## Monitoring and cost visibility (added 2026-10-24)
 

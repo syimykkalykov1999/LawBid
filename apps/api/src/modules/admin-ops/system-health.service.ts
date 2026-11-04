@@ -475,6 +475,13 @@ export class SystemHealthService implements OnModuleInit, OnModuleDestroy {
         detail.r2Error = (e as Error).message;
       }
     }
+    // Owner 2026-11-04: the R2 switch is on but new files stay on AWS. Uploads
+    // work; the owner has to see that the switch does nothing yet.
+    const r2 = await this.storage.r2Status();
+    if (r2.fallback) {
+      ok = false;
+      detail.r2Fallback = `R2 включён, но новые фото идут в AWS. ${r2.fallback}`;
+    }
     return { status: ok ? 'green' : 'red', detail };
   }
 

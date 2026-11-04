@@ -6,9 +6,11 @@
  *
  * connect-src is 'self' (every API call goes through /api/proxy) plus the
  * origins in ADMIN_CONNECT_SRC — the S3 buckets the presigned uploads POST
- * to (stickers, gifts, documents, support files) and the media CDN — and
- * Sentry's ingest hosts (browser error reports, DSN set in the admin).
+ * to (stickers, gifts, documents, support files) and the media CDN — the
+ * Cloudflare R2 host presigned PUTs go to (stickers, gifts) and Sentry's
+ * ingest hosts (browser error reports, DSN set in the admin).
  */
+export const R2_CONNECT_SRC = ['https://*.r2.cloudflarestorage.com'];
 export const SENTRY_CONNECT_SRC = ['https://*.ingest.sentry.io', 'https://*.ingest.us.sentry.io', 'https://*.ingest.de.sentry.io'];
 
 /** "https://a, https://b" / space separated → valid origins only. */
@@ -21,7 +23,7 @@ export function parseOrigins(raw: string | undefined): string[] {
 
 export function buildCsp(opts: { nonce: string; dev: boolean; connectSrc?: string }): string {
   const { nonce, dev } = opts;
-  const connect = ["'self'", ...parseOrigins(opts.connectSrc), ...SENTRY_CONNECT_SRC];
+  const connect = ["'self'", ...parseOrigins(opts.connectSrc), ...R2_CONNECT_SRC, ...SENTRY_CONNECT_SRC];
   // Outside production http:/ws: are allowed too: on a phone in the same
   // Wi-Fi the local storage (MinIO) answers at http://<mac-ip>:9000, and
   // `next dev` needs eval + its websocket for react-refresh.
