@@ -68,6 +68,13 @@ export class LegalDocumentsService {
 
   // ---- public ------------------------------------------------------------
 
+  /** R-385: the cheap ETag of the public legal answers. Publishing a
+   * document calls `bootstrap.invalidate()`, which bumps the config
+   * version, so a 304 never outlives a new text (plus a 5-min bucket). */
+  publicTag(type?: string, locale?: string): Promise<string> {
+    return this.bootstrap.configTag('legal', type ?? '*', locale ?? '');
+  }
+
   /** GET /legal/documents — what is current, without the texts. */
   async listCurrent(): Promise<LegalDocumentBriefDto[]> {
     const rows = await this.prisma.legalDocument.findMany({
