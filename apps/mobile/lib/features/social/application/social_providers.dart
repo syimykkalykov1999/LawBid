@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show protected;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/file_types.dart';
@@ -286,10 +287,25 @@ class AttorneyPostsNotifier extends PagedNotifier<Post> {
   @override
   Duration? get keepAliveFor => const Duration(minutes: 5);
 
+  /// One page of this list from [repo]: the tabs of a profile differ only in
+  /// what they ask for.
+  @protected
+  Future<CursorPage<Post>> readPage(SocialRepository repo, String? cursor) =>
+      repo.attorneyPosts(attorneyId, cursor: cursor);
+
   @override
-  Future<CursorPage<Post>> fetch(String? cursor) => ref
-      .read(socialRepositoryProvider)
-      .attorneyPosts(attorneyId, cursor: cursor);
+  Future<CursorPage<Post>> fetch(String? cursor) =>
+      readPage(ref.read(socialRepositoryProvider), cursor);
+
+  // Owner 2026-10-28 (R-114, «на миллисекунду пустые квадраты»): a profile
+  // tab opens on the phone's copy of its first page at once (the feed's
+  // pattern), the live page replaces it; without this a cold open showed
+  // empty skeleton squares until the first answer.
+  @override
+  Future<CursorPage<Post>?> cachedFirstPage() {
+    final repo = ref.read(socialRepositoryProvider);
+    return phoneCopy(() => readPage(repo, null));
+  }
 
   @override
   Object idOf(Post item) => item.id;
@@ -323,9 +339,8 @@ class AttorneyNewsNotifier extends AttorneyPostsNotifier {
   AttorneyNewsNotifier(super.attorneyId);
 
   @override
-  Future<CursorPage<Post>> fetch(String? cursor) => ref
-      .read(socialRepositoryProvider)
-      .attorneyPosts(attorneyId, cursor: cursor, newsOnly: true);
+  Future<CursorPage<Post>> readPage(SocialRepository repo, String? cursor) =>
+      repo.attorneyPosts(attorneyId, cursor: cursor, newsOnly: true);
 }
 
 final attorneyNewsProvider = AsyncNotifierProvider.autoDispose
@@ -340,12 +355,12 @@ class AttorneyPhotoPostsNotifier extends AttorneyPostsNotifier {
   AttorneyPhotoPostsNotifier(super.attorneyId);
 
   @override
-  Future<CursorPage<Post>> fetch(String? cursor) =>
-      ref.read(socialRepositoryProvider).attorneyPosts(
-            attorneyId,
-            cursor: cursor,
-            media: ProfileMedia.visual,
-          );
+  Future<CursorPage<Post>> readPage(SocialRepository repo, String? cursor) =>
+      repo.attorneyPosts(
+        attorneyId,
+        cursor: cursor,
+        media: ProfileMedia.visual,
+      );
 }
 
 final attorneyPhotoPostsProvider = AsyncNotifierProvider.autoDispose
@@ -360,12 +375,12 @@ class AttorneyReelsNotifier extends AttorneyPostsNotifier {
   AttorneyReelsNotifier(super.attorneyId);
 
   @override
-  Future<CursorPage<Post>> fetch(String? cursor) =>
-      ref.read(socialRepositoryProvider).attorneyPosts(
-            attorneyId,
-            cursor: cursor,
-            media: ProfileMedia.video,
-          );
+  Future<CursorPage<Post>> readPage(SocialRepository repo, String? cursor) =>
+      repo.attorneyPosts(
+        attorneyId,
+        cursor: cursor,
+        media: ProfileMedia.video,
+      );
 }
 
 final attorneyReelsProvider = AsyncNotifierProvider.autoDispose

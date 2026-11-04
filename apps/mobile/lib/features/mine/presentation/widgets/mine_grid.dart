@@ -674,10 +674,9 @@ class MineActiveFilters extends ConsumerWidget {
     Widget chip(String label, VoidCallback onRemove) => AppPressable(
           onTap: onRemove,
           child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.xs + 2,
-            ),
+            // Owner 2026-10-28 (R-086): as tall as every other chip (32).
+            height: AppRoundChipButton.diameter,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
             decoration: BoxDecoration(
               color: colors.navy,
               borderRadius: BorderRadius.circular(AppRadii.pill),
