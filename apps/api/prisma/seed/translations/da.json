@@ -5345,7 +5345,7 @@
   "storage.autoDelete.footer": "Medier, du ikke har åbnet i længere tid end det valgte, fjernes fra denne telefon. De bliver på serveren.",
   "storage.autoDelete.groups": "Grupper",
   "storage.autoDelete.never": "Aldrig",
-  "storage.autoDelete.private_chats": "Private chats",
+  "storage.autoDelete.private_chats": "Private samtaler",
   "storage.autoDelete.title": "Slet cachede medier automatisk",
   "storage.cap.footer": "Når grænsen overskrides, slettes de medier, du har haft uåbnet længst, først.",
   "storage.cap.none": "Ingen grænse",

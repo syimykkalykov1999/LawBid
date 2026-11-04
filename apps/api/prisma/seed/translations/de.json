@@ -5345,7 +5345,7 @@
   "storage.autoDelete.footer": "Medien, die Sie länger als die gewählte Zeit nicht geöffnet haben, werden von diesem Telefon entfernt. Auf dem Server bleiben sie erhalten.",
   "storage.autoDelete.groups": "Gruppen",
   "storage.autoDelete.never": "Nie",
-  "storage.autoDelete.private_chats": "Private Chats",
+  "storage.autoDelete.private_chats": "Private Unterhaltungen",
   "storage.autoDelete.title": "Zwischengespeicherte Medien automatisch löschen",
   "storage.cap.footer": "Wird das Limit überschritten, werden zuerst die Medien gelöscht, die am längsten nicht geöffnet wurden.",
   "storage.cap.none": "Kein Limit",
