@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -398,6 +399,22 @@ Future<void> endAndroidSystemCall(String callId) async {
   }
 }
 
+/// R-373 (owner 2026-11-04): no call of ours runs, yet Android may still
+/// hold a Telecom call of ours (Samsung's «call in progress»), and while it
+/// does no reel or post video gets the audio focus. Ends those orphans
+/// (MainActivity → CallRinging.endOrphans); a ringing call or one answered
+/// on the system screen is never touched. Nothing on other platforms.
+Future<void> endAndroidOrphanCalls() async {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+  try {
+    final n = await const MethodChannel('lawbid/call_service')
+        .invokeMethod<int>('endOrphans');
+    if (n != null && n > 0) callTrace('ended $n orphan system call(s)');
+  } on Object {
+    // No host (the push isolate, tests).
+  }
+}
+
 /// Push 2026-10-19 (`call_ended` push): the caller hung up, the call was
 /// missed or answered elsewhere — the system ringing screen goes away,
 /// unless this phone is the one that answered it.
@@ -648,4 +665,23 @@ final callkitEventsProvider = Provider<void>((ref) {
     sub?.cancel();
     stopEnded();
   });
+});
+
+/// R-373: whenever no call of ours runs — at start, at the end of every
+/// call, each time the app comes back to the front — Android's leftovers
+/// of earlier calls are ended ([endAndroidOrphanCalls]). Kept alive by
+/// `CallHost`.
+final orphanCallSweepProvider = Provider<void>((ref) {
+  if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+  void sweep() {
+    if (ref.read(callControllerProvider).busy) return;
+    unawaited(endAndroidOrphanCalls());
+  }
+
+  ref.listen(callControllerProvider.select((s) => s.busy), (was, busy) {
+    if ((was ?? false) && !busy) sweep();
+  });
+  final lifecycle = AppLifecycleListener(onResume: sweep);
+  ref.onDispose(lifecycle.dispose);
+  sweep();
 });

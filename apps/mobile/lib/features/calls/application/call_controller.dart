@@ -12,6 +12,7 @@ import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
@@ -587,6 +588,10 @@ class CallController extends Notifier<CallSession> {
     // The ongoing-call notification follows the call; its buttons come back.
     listenSelf(_syncForeground);
     listenSelf(_syncProximity);
+    // R-373: the feed's players follow the call (silent, no audio focus).
+    listenSelf((_, next) {
+      ref.read(callAudioActiveProvider.notifier).set(active: next.busy);
+    });
     final fg = ref.read(callForegroundProvider);
     final actions = fg.actions.listen(_onNotificationAction);
     unawaited(
