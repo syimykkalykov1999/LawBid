@@ -96,9 +96,8 @@ class ReelsScreen extends ConsumerStatefulWidget {
 }
 
 class _ReelsScreenState extends ConsumerState<ReelsScreen> {
-  late final PageController _pages = PageController(
-    initialPage: widget.initialIndex,
-  );
+  late final PageController _pages =
+      PageController(initialPage: widget.initialIndex);
   late final List<Post> _items = [...widget.initial];
   // Ids of _items, kept beside it: dedupe is O(1) per page, not a rebuilt set.
   late final Set<String> _seenIds = {for (final p in widget.initial) p.id};
@@ -159,9 +158,9 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     if (DateTime.now().difference(_freshAt) < _freshGap) return;
     _freshAt = DateTime.now();
     try {
-      final page = await ref
-          .read(reelsRepositoryProvider)
-          .reels(practice: widget.practice);
+      final page = await ref.read(reelsRepositoryProvider).reels(
+            practice: widget.practice,
+          );
       if (!mounted) return;
       final fresh = [
         for (final p in page.items)
@@ -194,9 +193,10 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     if (!mounted) return;
     setState(() => _loading = true);
     try {
-      final page = await ref
-          .read(reelsRepositoryProvider)
-          .reels(cursor: _cursor, practice: widget.practice);
+      final page = await ref.read(reelsRepositoryProvider).reels(
+            cursor: _cursor,
+            practice: widget.practice,
+          );
       if (!mounted) return;
       // One rebuild per page: the items, the cursor and the spinner.
       setState(() {
@@ -222,9 +222,9 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   /// open tab in the nav bar) — the newest reels from the start.
   Future<void> _refresh() async {
     try {
-      final page = await ref
-          .read(reelsRepositoryProvider)
-          .reels(practice: widget.practice);
+      final page = await ref.read(reelsRepositoryProvider).reels(
+            practice: widget.practice,
+          );
       if (!mounted) return;
       // A reel opened from a feed card stays first.
       final keep = [...widget.initial];
@@ -297,9 +297,8 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                               ? errorText(t, _error!)
                               : t.t('reels.empty'),
                           textAlign: TextAlign.center,
-                          style: type.body.copyWith(
-                            color: AppMediaOverlay.inkMuted,
-                          ),
+                          style: type.body
+                              .copyWith(color: AppMediaOverlay.inkMuted),
                         ),
                 )
               : _refreshable(
@@ -319,10 +318,11 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                         index: _index,
                         presence: widget.presence,
                         page: i,
-                        builder: (
-                                {required active,
-                                required warm,
-                                required hold}) =>
+                        builder: ({
+                          required active,
+                          required warm,
+                          required hold,
+                        }) =>
                             _ReelPage(
                           key: ValueKey(items[i].id),
                           post: items[i],
@@ -397,10 +397,11 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                         index: _index,
                         presence: widget.presence,
                         page: i,
-                        builder: (
-                                {required active,
-                                required warm,
-                                required hold}) =>
+                        builder: ({
+                          required active,
+                          required warm,
+                          required hold,
+                        }) =>
                             _ReelPage(
                           key: ValueKey(items[i].id),
                           post: items[i],
@@ -621,8 +622,10 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     required Translator t,
     required Post p,
   }) {
-    final style =
-        type.body.copyWith(color: AppMediaOverlay.ink, shadows: shadow);
+    final style = type.body.copyWith(
+      color: Colors.white,
+      shadows: shadow,
+    );
     // A short caption; the whole text is inside (the button below) — or,
     // with no attachments, opens in place over the video (owner
     // 2026-10-13).
@@ -658,9 +661,10 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
   @override
   Widget build(BuildContext context) {
     BuildCounter.hit('reels.page');
-    final p =
-        ref.watch(postOverridesProvider.select((m) => m[widget.post.id])) ??
-            widget.post;
+    final p = ref.watch(
+          postOverridesProvider.select((m) => m[widget.post.id]),
+        ) ??
+        widget.post;
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
@@ -800,9 +804,8 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       child: Text(
                         t.t('reels.processing'),
                         textAlign: TextAlign.center,
-                        style: type.body.copyWith(
-                          color: AppMediaOverlay.inkMuted,
-                        ),
+                        style:
+                            type.body.copyWith(color: AppMediaOverlay.inkMuted),
                       ),
                     ),
                   ),
