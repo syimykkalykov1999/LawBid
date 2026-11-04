@@ -56,10 +56,12 @@ class _SavedScreenState extends ConsumerState<SavedScreen> {
                       for (final k in kinds)
                         (
                           k,
-                          t.t(switch (k) {
-                            _Kind.cases => 'mine.saved.cases',
-                            _Kind.posts => 'mine.saved.posts',
-                          }),
+                          t.t(
+                            switch (k) {
+                              _Kind.cases => 'mine.saved.cases',
+                              _Kind.posts => 'mine.saved.posts',
+                            },
+                          ),
                         ),
                     ],
                     onChanged: (v) => setState(() => _kind = v),

@@ -198,10 +198,12 @@ void main() {
       await tester.pumpWidget(wrap(const SavedScreen()));
       await tester.pumpAndSettle();
       final pages = tester.widget<PageView>(find.byType(PageView).first);
+      // Attorney: «Cases» then «Posts»; it opens on Posts (the last page),
+      // so the swipe goes back to Cases.
       final start = pages.controller!.page!;
-      await tester.drag(find.byType(PageView).first, const Offset(-400, 0));
+      await tester.drag(find.byType(PageView).first, const Offset(400, 0));
       await tester.pumpAndSettle();
-      expect(pages.controller!.page, start + 1);
+      expect(pages.controller!.page, start - 1);
       await _done(tester);
     });
   });
