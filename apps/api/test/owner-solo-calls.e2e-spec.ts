@@ -6,6 +6,7 @@ import request from 'supertest';
 import { io, type Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { CallsService } from '../src/modules/calls/calls.service';
 import { AppSettingsService } from '../src/common/app-settings/app-settings.service';
@@ -45,6 +46,14 @@ describe('Solo call end (e2e)', () => {
     const { port } = (app.getHttpServer() as Server).address() as AddressInfo;
     base = `http://127.0.0.1:${port}`;
     prisma = app.get(PrismaService);
+    // Owner 2026-11-04 (R-376): group calls sit behind `calls_group`
+    // (off by default); these scenarios are about group calls.
+    await prisma.featureFlag.upsert({
+      where: { key: 'calls_group' },
+      create: { key: 'calls_group', enabled: true, description: 'e2e' },
+      update: { enabled: true },
+    });
+    await app.get(FeatureFlagsService).invalidate();
     tokens = app.get(TokenService);
     // A short grace so the suite does not wait 30 s.
     const settings = app.get(AppSettingsService);

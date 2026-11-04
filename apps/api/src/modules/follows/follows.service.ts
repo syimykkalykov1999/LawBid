@@ -24,6 +24,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { BoostActions } from '../promotions/boost-actions.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 import { bumpFeedVersion } from '../../common/cache/feed-version';
+import { timeBucket, weakEtag } from '../../common/sync/cheap-etag';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import {
   CounterAggregator,
@@ -45,6 +46,9 @@ import { userDirectory } from '../../sharding/user-directory';
 import { shardContext } from '../../sharding/shard-context';
 
 const PAGE = 20;
+/** A follow-list tag rotates at least this often (names, photos and
+ * profile states of the people in the rows are not in the tag). */
+export const FOLLOW_LIST_TAG_BUCKET_MS = 5 * 60_000;
 /** Suggestions pool per client state, rebuilt at most every 10 minutes. */
 const SUGGEST_POOL = 300;
 const SUGGEST_TTL_SEC = 10 * 60;
@@ -335,6 +339,56 @@ export class FollowsService {
     q?: string,
   ): Promise<PeoplePage> {
     return this.people(viewerId, attorneyId, 'following', cursor, q);
+  }
+
+  /**
+   * Owner 2026-11-04 (R-385): the cheap ETag of the first page of a follow
+   * list (no cursor, no search): size and newest follow of the list, plus
+   * the viewer's own follows (the rows show «you follow»), all from the
+   * follows indexes — an unchanged list is a 304 without building the
+   * people rows. A follow moves the newest time, an unfollow the size.
+   * [userId] null = the viewer's own follows (GET /users/me/following).
+   */
+  async listTag(
+    viewerId: string,
+    userId: string | null,
+    side: 'followers' | 'following',
+  ): Promise<string> {
+    const of = async (where: Prisma.FollowWhereInput) => {
+      const [count, newest] = await Promise.all([
+        this.prisma.follow.count({ where }),
+        this.prisma.follow.findFirst({
+          where,
+          orderBy: { created_at: 'desc' },
+          select: { created_at: true },
+        }),
+      ]);
+      return [count, newest?.created_at] as const;
+    };
+    const list =
+      userId === null
+        ? null
+        : await of(
+            side === 'followers'
+              ? { followee_id: userId }
+              : { follower_id: userId },
+          );
+    const mine = await of({ follower_id: viewerId });
+    return weakEtag(
+      'follows',
+      side,
+      userId ?? 'me',
+      viewerId,
+      ...(list ?? []),
+      ...mine,
+      timeBucket(FOLLOW_LIST_TAG_BUCKET_MS),
+    );
+  }
+
+  /** 404 for a profile whose follow lists are not public (R-385: also run
+   * before a 304). */
+  assertListable(userId: string): Promise<void> {
+    return this.assertPublicAttorney(userId);
   }
 
   /** The public lists exist for attorneys only: a client's follows are
