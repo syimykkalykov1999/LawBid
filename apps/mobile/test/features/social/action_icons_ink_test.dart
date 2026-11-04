@@ -112,14 +112,17 @@ void main() {
             )
             .toList();
         expect(icons, isNotEmpty);
+        // R-111 (28.10) asked for the theme's own ink instead of the grey
+        // tone; R-368 (04.11) refined it to `actionIcon` — softer than text,
+        // still tinted by the theme, never the bare textSecondary grey.
         for (final i in icons) {
           expect(
             i.color,
-            colors.text,
+            colors.actionIcon,
             reason: '${_kindOf(i.icon)} icon in ${id.name}',
           );
         }
-        expect(colors.text, isNot(colors.textSecondary));
+        expect(colors.actionIcon, isNot(colors.textSecondary));
       });
     }
   }

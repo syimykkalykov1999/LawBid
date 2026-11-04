@@ -2755,10 +2755,14 @@ class PostActionsBar extends ConsumerWidget {
                 children: [
                   if (!reactions) ...[
                     if (post.likeCount > 0 && showLikeCount(ref, post))
+                      // Owner 2026-11-04 (R-368): red only when liked.
                       _Stat(
-                        icon: AppIcons.favoriteRounded,
+                        icon: post.likedByMe
+                            ? AppIcons.favoriteRounded
+                            : AppIcons.favoriteBorderRounded,
                         value: post.likeCount,
-                        color: colors.danger,
+                        color:
+                            post.likedByMe ? colors.danger : colors.actionIcon,
                         onTap: () => showLikersList(context, post.id),
                         hiddenMark:
                             hiddenForOthersMark(ref, post, views: false),
@@ -2767,9 +2771,7 @@ class PostActionsBar extends ConsumerWidget {
                       _Stat(
                         icon: AppIcons.modeCommentOutlined,
                         value: post.commentCount,
-                        // Owner 2026-10-28 (R-111): the theme's own icon ink,
-                        // like the bar's buttons, never the grey tone.
-                        color: colors.text,
+                        color: colors.actionIcon,
                         onTap: () => showCommentsSheet(
                           context,
                           postId: post.id,
@@ -2780,14 +2782,14 @@ class PostActionsBar extends ConsumerWidget {
                       _Stat(
                         icon: AppIcons.autoModeRounded,
                         value: post.repostCount,
-                        color: colors.text,
+                        color: colors.actionIcon,
                         onTap: () => showRepostersList(context, post.id),
                       ),
                     if (post.shareCount > 0)
                       _Stat(
                         icon: AppIcons.sendOutlined,
                         value: post.shareCount,
-                        color: colors.text,
+                        color: colors.actionIcon,
                         onTap: () => sharePost(context, ref, post),
                       ),
                   ],
@@ -3047,9 +3049,11 @@ class _BounceIconState extends State<BounceIcon>
                     widget.active ? widget.activeIcon : widget.icon,
                     key: ValueKey(widget.active),
                     size: widget.size,
+                    // Owner 2026-11-04 (R-368): idle icons in the theme's
+                    // softer action ink; the active colour only when on.
                     color: widget.active
-                        ? (widget.activeColor ?? colors.text)
-                        : colors.text,
+                        ? (widget.activeColor ?? colors.actionIcon)
+                        : colors.actionIcon,
                   ),
                 ),
               ),

@@ -216,6 +216,20 @@ const Set<String> kSettingsSectionPaths = {
   '/profile/settings/blocked',
   '/profile/settings/data-export',
   '/profile/settings/about',
+  '/profile/settings/payments',
+  '/profile/settings/subscription',
+  '/profile/settings/support',
+  '/profile/settings/saved',
+  '/profile/settings/archive',
+  '/profile/settings/case-history',
+  '/profile/settings/referral',
+  '/profile/settings/partner',
+  '/profile/settings/bid-packs',
+  '/profile/settings/stars',
+  '/profile/settings/verify-account',
+  '/profile/settings/firm',
+  '/profile/settings/stats',
+  '/profile/settings/promotions',
 };
 
 /// Desktop web plan §6.5: someone's public profile page (`/lawyer/:name`)
