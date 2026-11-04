@@ -1690,7 +1690,18 @@ class CallController extends Notifier<CallSession> {
 
   /// A ring that arrived by push / the system call UI (app was in the
   /// background): load it and show it here.
-  Future<void> ringFromPush(String callId, {bool accept = false}) async {
+  ///
+  /// [showSystemUi] (owner 2026-11-03, iPhone → Samsung, the Samsung's ring
+  /// «got lost»): a push that reaches the OPEN app (FCM `onMessage`) has
+  /// shown nothing yet — no background handler ran — so the phone's own
+  /// call screen is shown here. Without it the push rang silently, set the
+  /// call as ringing, and the socket's `call:incoming` for the same call was
+  /// then skipped as a duplicate: nothing on screen while the caller rang.
+  Future<void> ringFromPush(
+    String callId, {
+    bool accept = false,
+    bool showSystemUi = false,
+  }) async {
     callTrace('ringFromPush $callId accept=$accept phase=${state.phase} '
         'current=${state.call?.id}');
     if (state.busy && state.call?.id != callId) {
@@ -1722,7 +1733,7 @@ class CallController extends Notifier<CallSession> {
             return;
           }
         } else {
-          _ring(call, showSystemUi: false);
+          _ring(call, showSystemUi: showSystemUi);
         }
       }
       if (accept) await this.accept();

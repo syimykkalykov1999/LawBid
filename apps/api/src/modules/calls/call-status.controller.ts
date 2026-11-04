@@ -1,4 +1,12 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiExcludeEndpoint } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator';
@@ -27,5 +35,22 @@ export class CallStatusController {
     @Query() q: CallStatusQueryDto,
   ): Promise<{ state: 'ringing' | 'active' | 'ended' }> {
     return this.calls.ringStatus(p.id, q.t);
+  }
+
+  /** Owner 2026-11-03: «Decline» on a closed iPhone (AppDelegate.onDecline)
+   * — the same decline as POST /calls/:id/decline, with the ring ticket
+   * (`{ t }` in the body) instead of a session. Idempotent. */
+  @Public()
+  // One tap per ring plus one retry, per IP — many phones share one
+  // carrier NAT address.
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Post('calls/:id/status/decline')
+  @HttpCode(200)
+  @ApiExcludeEndpoint()
+  decline(
+    @Param() p: CallIdParamDto,
+    @Body() b: CallStatusQueryDto,
+  ): Promise<{ state: 'ringing' | 'active' | 'ended' }> {
+    return this.calls.declineByTicket(p.id, b.t);
   }
 }

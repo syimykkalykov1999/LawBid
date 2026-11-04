@@ -28,4 +28,8 @@ sealed class OtpVerifyResult with _$OtpVerifyResult {
   const factory OtpVerifyResult.rateLimited(int retryAfterSeconds) =
       OtpVerifyRateLimited;
   const factory OtpVerifyResult.networkError() = OtpVerifyNetworkError;
+
+  /// The server answered with something this screen has no text for, or the
+  /// session could not be stored: a generic error, not «offline».
+  const factory OtpVerifyResult.failed() = OtpVerifyFailed;
 }
