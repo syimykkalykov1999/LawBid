@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 /// N-1: the on-disk store of video chunks (the first seconds of a video).
@@ -15,28 +16,24 @@ class ChunkCache {
   /// key -> size, in LRU order (first = oldest).
   final _index = <String, int>{};
   int _bytes = 0;
-  bool _loaded = false;
+  Future<void>? _loading;
 
   int get totalBytes => _bytes;
   int get count => _index.length;
   bool contains(String key) => _index.containsKey(key);
 
-  Future<void> _load() async {
-    if (_loaded) return;
-    _loaded = true;
-    if (!dir.existsSync()) {
-      dir.createSync(recursive: true);
-      return;
-    }
-    final files = <(FileSystemEntity, FileStat)>[];
-    for (final f in dir.listSync()) {
-      if (f is File) files.add((f, f.statSync()));
-    }
-    files.sort((a, b) => a.$2.modified.compareTo(b.$2.modified));
-    for (final (f, st) in files) {
-      final key = f.uri.pathSegments.last;
-      _index[key] = st.size;
-      _bytes += st.size;
+  // One shared load: every caller waits for the same listing. The listing is
+  // async (a sync `listSync` + `statSync` per file froze the UI thread on the
+  // first video of a session, once per cached chunk).
+  Future<void> _load() => _loading ??= _loadFiles();
+
+  Future<void> _loadFiles() async {
+    final path = dir.path;
+    // The listing runs in a helper isolate (the sync calls are fine there).
+    final found = await Isolate.run(() => _listChunks(path));
+    for (final (key, size) in found) {
+      _index[key] = size;
+      _bytes += size;
     }
     await _evict();
   }
@@ -137,4 +134,20 @@ class ChunkCache {
       // Already gone.
     }
   }
+}
+
+/// Name and size of each cached chunk, oldest first (the LRU order). Creates
+/// the folder when it is missing. Top-level so it can run in an isolate.
+List<(String, int)> _listChunks(String path) {
+  final dir = Directory(path);
+  if (!dir.existsSync()) {
+    dir.createSync(recursive: true);
+    return const [];
+  }
+  final files = <(File, FileStat)>[];
+  for (final f in dir.listSync()) {
+    if (f is File) files.add((f, f.statSync()));
+  }
+  files.sort((a, b) => a.$2.modified.compareTo(b.$2.modified));
+  return [for (final (f, st) in files) (f.uri.pathSegments.last, st.size)];
 }
