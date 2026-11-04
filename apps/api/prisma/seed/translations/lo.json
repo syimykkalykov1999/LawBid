@@ -1684,6 +1684,7 @@
   "create.post": "ໂພສຕ໌ໃໝ່",
   "create.post.sub": "ແບ່ງປັນປະສົບການ ຫຼື ຄຳຖາມກັບຊຸມຊົນ.",
   "create.post.subAttorney": "ໂພສຕ໌ ຫຼື ຂ່າວ — ສະຫຼັບຢູ່ພາຍໃນ.",
+  "create.post.sub_photo": "ຮູບ ຫຼື ຂໍ້ຄວາມຢ່າງດຽວ",
   "create.sheet.case": "ຄະດີ",
   "create.sheet.caseSub": "ອະທິບາຍວຽກຂອງທ່ານ, ທະນາຍຄວາມຈະຕອບກັບ",
   "create.sheet.post": "ໂພສ",

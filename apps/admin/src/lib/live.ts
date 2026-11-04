@@ -29,13 +29,15 @@ export const UNFOCUSED_MS = 120_000;
 
 /** A refetchInterval that slows down after a 429 and when the window has
  * no focus. */
-export function livePoll(ms: number | ((data: unknown) => number) = LIVE_MS) {
+export function livePoll(ms: number | ((data: unknown) => number | false) = LIVE_MS) {
   return <Q extends { state: { error: unknown; data?: unknown } }>(query: Q): number | false => {
     // S18-1: nobody has touched the screen for 15 minutes — stop polling so
     // the session can run into its idle timeout (any input restarts it).
     if (typeof window !== 'undefined' && idleMs() > IDLE_STOP_MS) return false;
     // S18-9: a board may poll faster while its data says something is wrong.
     const base = typeof ms === 'function' ? ms(query.state.data) : ms;
+    // R-394: a page may poll only while its data says work is running.
+    if (base === false) return false;
     if (isRateLimited(query.state.error)) return Math.max(base, RATE_LIMITED_BACKOFF_MS);
     if (typeof document !== 'undefined' && !document.hasFocus()) return Math.max(base, UNFOCUSED_MS);
     return base;

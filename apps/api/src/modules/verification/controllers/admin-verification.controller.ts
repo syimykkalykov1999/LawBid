@@ -31,8 +31,7 @@ import {
   AttorneyVerificationStatusDto,
   DocumentUrlDto,
   LicenseDecisionDto,
-  LicenseRecheckDto,
-  RegistryCheckDto,
+  RegistryCheckQueuedDto,
   RegistryFlagItemDto,
   RejectRequestDto,
   SetLicenseExpiryDto,
@@ -189,16 +188,17 @@ export class AdminVerificationController {
   }
 
   @Post('licenses/:licenseId/recheck')
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
-    summary: 'Re-run the bar lookup or queue the license for manual review',
+    summary:
+      'Queue a bar lookup; a non-pass queues the license for manual review (runs in the background)',
   })
-  @ApiEnvelopeResponse(LicenseRecheckDto)
-  @ApiErrors({ ...REVIEW_ERRORS, 409: [E.VERIFICATION_INVALID_STATUS] })
+  @ApiEnvelopeResponse(RegistryCheckQueuedDto, { status: HttpStatus.ACCEPTED })
+  @ApiErrors(REVIEW_ERRORS)
   recheckLicense(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: AdminLicenseIdParamDto,
-  ): Promise<LicenseRecheckDto> {
+  ): Promise<RegistryCheckQueuedDto> {
     return this.admin.recheck(admin, params.licenseId);
   }
 
@@ -229,17 +229,17 @@ export class AdminVerificationController {
   }
 
   @Post('licenses/:licenseId/registry-check')
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
     summary:
-      "Look the license up in its state's registry now (no status change)",
+      "Queue a look-up of the license in its state's registry (no status change; runs in the background)",
   })
-  @ApiEnvelopeResponse(RegistryCheckDto)
+  @ApiEnvelopeResponse(RegistryCheckQueuedDto, { status: HttpStatus.ACCEPTED })
   @ApiErrors(REVIEW_ERRORS)
   checkLicenseInRegistry(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: AdminLicenseIdParamDto,
-  ): Promise<RegistryCheckDto> {
+  ): Promise<RegistryCheckQueuedDto> {
     return this.admin.registryCheck(admin, params.licenseId);
   }
 

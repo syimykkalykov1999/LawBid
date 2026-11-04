@@ -37,7 +37,8 @@ import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/post_text.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/photo_crop_screen.dart';
-import 'package:lawbid/features/social/presentation/widgets/caption_fit.dart' show prefixEnd;
+import 'package:lawbid/features/social/presentation/widgets/caption_fit.dart'
+    show prefixEnd;
 import 'package:lawbid/features/social/presentation/widgets/mention_suggestions.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
@@ -79,6 +80,10 @@ class _VideoPick {
   /// A cover chosen from the gallery (uploaded), instead of a frame.
   Uint8List? coverBytes;
   String? coverFileId;
+
+  /// R-396: the upload that started when the video was picked (a held job
+  /// of [ReelPublishJob]); null when it did not start early.
+  String? draftId;
 }
 
 /// Owner 2026-09-30: "+" → a post (everyone) or News (attorneys): the
@@ -92,6 +97,7 @@ class CreatePostScreen extends ConsumerStatefulWidget {
     this.news = false,
     this.editing,
     @visibleForTesting this.debugPhotoCount = 0,
+    @visibleForTesting this.debugVideo,
     super.key,
   });
 
@@ -101,6 +107,9 @@ class CreatePostScreen extends ConsumerStatefulWidget {
 
   /// Tests: open the form with this many photos already uploaded.
   final int debugPhotoCount;
+
+  /// Tests: open the form with this video already picked (1 s, 720×1280).
+  final XFile? debugVideo;
 
   @override
   ConsumerState<CreatePostScreen> createState() => _CreatePostScreenState();
@@ -150,7 +159,39 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     for (var i = 0; i < widget.debugPhotoCount; i++)
       _Photo(Uint8List(0))..fileId = 'debug-$i',
   ];
-  _VideoPick? _video;
+  _VideoPick? _pickedVideo;
+
+  /// The picked video. Replacing or removing it drops its early upload
+  /// (R-396).
+  _VideoPick? get _video => _pickedVideo;
+  set _video(_VideoPick? next) {
+    final old = _pickedVideo;
+    if (old != null && !identical(old, next)) _dropDraft(old);
+    _pickedVideo = next;
+  }
+
+  /// The reel job, kept for [dispose] (no `ref` there).
+  late final ReelPublishJob _reels = ref.read(reelPublishJobProvider.notifier);
+
+  /// R-396 (owner 2026-11-04, Instagram): the picked video compresses and
+  /// uploads while the caption is typed; «Publish» only adds the caption.
+  /// Never for an edited post, nor while video is not allowed (#726).
+  void _startDraft(_VideoPick pick) {
+    if (_editing || pick.draftId != null || !_videoAllowed) return;
+    pick.draftId = _reels.startDraft(
+      file: pick.file,
+      cut: pick.cut,
+      previewSize: pick.size,
+      coverFileId: pick.coverFileId,
+    );
+  }
+
+  void _dropDraft(_VideoPick pick) {
+    final id = pick.draftId;
+    if (id == null) return;
+    pick.draftId = null;
+    _reels.discardDraft(id);
+  }
 
   /// The shape of the post's photos (original or square, Instagram).
   PhotoFrame _frame = PhotoFrame.original;
@@ -191,7 +232,25 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    final debug = widget.debugVideo;
+    if (debug != null) {
+      final pick = _VideoPick(
+        debug,
+        ReelCut.initial(1000, reelMaxSeconds(ref) * 1000),
+        const Size(720, 1280),
+      );
+      _video = pick;
+      _startDraft(pick);
+    }
+  }
+
+  @override
   void dispose() {
+    // R-396: closed without «Publish»: the early upload stops.
+    final pick = _pickedVideo;
+    if (pick != null) _dropDraft(pick);
     _docs.dispose();
     _body.dispose();
     _bodyFocus.dispose();
@@ -203,8 +262,10 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   /// while the owner has video switched on (flag + Bunny keys). Owner
   /// 2026-10-06: clients too (their plans include video posts); an
   /// assistant only with "publish".
+  /// Owner 2026-11-04 (R-381): not for a client while
+  /// `reels_client_publish` is off.
   bool get _videoAllowed =>
-      ref.read(reelsEnabledProvider) &&
+      ref.read(canPublishReelsProvider) &&
       ref.read(canDoProvider(AssistantDuty.publish));
 
   static bool _isVideo(XFile f) {
@@ -331,6 +392,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   /// Loads a picked video: its length, a first cut and the cover frame.
   Future<void> _setVideo(XFile file) async {
+    // Owner 2026-11-04 (R-381): a client does not publish reels while
+    // `reels_client_publish` is off.
+    if (ref.read(clientReelsBlockedProvider)) return;
     final t = ref.read(translatorProvider);
     final maxMs = reelMaxSeconds(ref) * 1000;
     final sourceSec = reelSourceSeconds(ref);
@@ -350,6 +414,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       info.size,
     );
     setState(() => _video = pick);
+    _startDraft(pick);
     unawaited(_loadCoverFrame(pick));
   }
 
@@ -362,7 +427,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
 
   Future<void> _editVideo(int tab) async {
     final pick = _video;
-    if (pick == null) return;
+    // Owner 2026-11-04 (R-381): no reel editor for a held-back client.
+    if (pick == null || ref.read(clientReelsBlockedProvider)) return;
     final edit = await Navigator.of(context).push<VideoEdit>(
       MaterialPageRoute(
         builder: (_) => VideoEditorScreen(
@@ -376,12 +442,23 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       ),
     );
     if (edit == null || !mounted) return;
+    final before = pick.cut;
+    final changed = edit.cut.startMs != before.startMs ||
+        edit.cut.endMs != before.endMs ||
+        edit.cut.coverMs != before.coverMs ||
+        edit.coverFileId != pick.coverFileId;
     setState(() {
       pick
         ..cut = edit.cut
         ..coverBytes = edit.coverBytes
         ..coverFileId = edit.coverFileId;
     });
+    // R-396: the cut and the cover go with Bunny's upload slot — a changed
+    // one starts the early upload again with them.
+    if (changed && identical(_video, pick)) {
+      _dropDraft(pick);
+      _startDraft(pick);
+    }
     unawaited(_loadCoverFrame(pick));
   }
 
@@ -392,6 +469,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     if (left <= 0 && _video == null) return;
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    // Owner 2026-11-04 (R-381): a client held back from reels only takes
+    // a photo — no «photo or video» choice.
+    if (ref.read(clientReelsBlockedProvider)) return _cameraPhoto();
     final photo = await showAppBottomSheet<bool>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -438,18 +518,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     if (photo == null || !mounted) return;
     final picker = ImagePicker();
     if (photo) {
-      final limits = postPhotoLimits(ref);
-      final x = await picker.pickImage(
-        source: ImageSource.camera,
-        maxWidth: limits.maxPx,
-        maxHeight: limits.maxPx,
-        imageQuality: limits.quality,
-      );
-      if (x == null || !mounted) return;
-      setState(() => _video = null);
-      final bytes = await x.readAsBytes();
-      if (!mounted) return;
-      await _frameAndAdd([bytes]);
+      await _cameraPhoto();
     } else {
       final x = await picker.pickVideo(
         source: ImageSource.camera,
@@ -459,6 +528,22 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       setState(_photos.clear);
       await _setVideo(x);
     }
+  }
+
+  /// «Camera» → «Photo»: take one now and frame it.
+  Future<void> _cameraPhoto() async {
+    final limits = postPhotoLimits(ref);
+    final x = await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      maxWidth: limits.maxPx,
+      maxHeight: limits.maxPx,
+      imageQuality: limits.quality,
+    );
+    if (x == null || !mounted) return;
+    setState(() => _video = null);
+    final bytes = await x.readAsBytes();
+    if (!mounted) return;
+    await _frameAndAdd([bytes]);
   }
 
   Future<void> _upload(_Photo photo) async {
@@ -567,22 +652,28 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       // background job and the form closes at once.
       final v = _video;
       if (v != null) {
-        // ignore: unawaited_futures
-        ref.read(reelPublishJobProvider.notifier).start(
-              ReelPublishRequest(
-                file: v.file,
-                cut: v.cut,
-                previewSize: v.size,
-                coverFileId: v.coverFileId,
-                cover: v.coverBytes ?? v.frame,
-                title: _parts.$1,
-                text: _parts.$2,
-                place: _placeName ?? '',
-                commentsEnabled: true,
-                photoIds: const [],
-                attachments: _docs.refs,
-              ),
-            );
+        final request = ReelPublishRequest(
+          file: v.file,
+          cut: v.cut,
+          previewSize: v.size,
+          coverFileId: v.coverFileId,
+          cover: v.coverBytes ?? v.frame,
+          title: _parts.$1,
+          text: _parts.$2,
+          place: _placeName ?? '',
+          commentsEnabled: true,
+          photoIds: const [],
+          attachments: _docs.refs,
+        );
+        // R-396: the video went ahead when it was picked — only the
+        // caption is added now (the draft is no longer this form's).
+        final draft = v.draftId;
+        v.draftId = null;
+        unawaited(
+          draft != null
+              ? _reels.publishDraft(draft, request)
+              : _reels.start(request),
+        );
         // ignore: unawaited_futures
         AppHaptics.medium();
         if (mounted) Navigator.of(context).pop();
@@ -665,7 +756,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     // Owner 2026-10-06: the Post | News switch only while News is on.
     final attorney =
         ref.watch(actsAsAttorneyProvider) && ref.watch(newsEnabledProvider);
-    final video = ref.watch(reelsEnabledProvider) &&
+    final video = ref.watch(canPublishReelsProvider) &&
         ref.watch(canDoProvider(AssistantDuty.publish));
     final practice = _practice;
     final missing = _triedPublish;

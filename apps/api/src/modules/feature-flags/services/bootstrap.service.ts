@@ -17,7 +17,11 @@ import {
 } from '../../../common/app-settings/realtime-settings';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
-import { bumpConfigVersion, readConfigVersion } from './config-version';
+import {
+  bumpConfigVersion,
+  configTag,
+  readConfigVersion,
+} from './config-version';
 import { FeatureFlagsService } from './feature-flags.service';
 import { AppConfigService } from './app-config.service';
 import {
@@ -437,6 +441,12 @@ export class BootstrapService {
       version,
       Math.floor(now / BOOTSTRAP_ETAG_BUCKET_MS),
     );
+  }
+
+  /** R-385: a cheap ETag for another answer that changes only with the
+   * config version (legal documents): see [configTag]. */
+  configTag(...parts: (string | number | null | undefined)[]): Promise<string> {
+    return configTag(this.redis, ...parts);
   }
 
   private async getContent(): Promise<CachedBootstrapContent> {
