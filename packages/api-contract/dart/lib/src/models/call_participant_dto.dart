@@ -32,6 +32,9 @@ class CallParticipantDto {
   final String? displayName;
   final String? username;
   final String? avatarUrl;
+
+  /// R-405 (owner 2026-11-04): the 1024 px photo for the big round frame.
+  /// of the call screen; `avatarUrl` stays the 256 px preview for lists.
   final String? avatarFullUrl;
   final CallParticipantStatus status;
 
