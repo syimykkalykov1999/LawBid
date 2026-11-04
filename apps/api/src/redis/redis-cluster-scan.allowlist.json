@@ -130,6 +130,11 @@
     "reason": "Every key of the MULTI is built with ck('adm', ...): the per-minute counter and the day hash share the {adm} hash tag, one slot in cluster mode."
   },
   {
+    "file": "modules/verification/services/verification-handoff.service.ts",
+    "kind": "multi",
+    "reason": "Two independent SET … EX on two keys (token hash and request pointer); no atomicity across keys is relied on, each key has its own TTL, so a split across cluster slots is safe."
+  },
+  {
     "file": "modules/work-lease/staff-presence.service.ts",
     "kind": "mget",
     "reason": "The four presence keys of ONE admin all carry the {staff:<adminId>} hash tag (key()): one slot."
