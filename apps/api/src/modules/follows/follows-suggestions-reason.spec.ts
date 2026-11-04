@@ -1,3 +1,4 @@
+import { shardContext } from '../../sharding/shard-context';
 import { FollowsService } from './follows.service';
 
 describe('FollowsService.suggestions reason', () => {
@@ -54,5 +55,96 @@ describe('FollowsService.suggestions reason', () => {
     const p3 = await svc.suggestions(user, p2.nextCursor!, 2);
     expect(p3.items.map((i) => i.id)).toEqual(['e']);
     expect(p3.nextCursor).toBeNull();
+  });
+
+  // R-389 (owner 04.11): a small base fills a client's grid with the
+  // popular attorneys of their state, followed ones included.
+  function svcWith(ranked: string[], popular: string[], hidden: string[] = []) {
+    const svc = Object.create(FollowsService.prototype) as FollowsService;
+    const suggestionPool = jest.fn().mockResolvedValue(popular);
+    Object.assign(svc, {
+      prisma: {
+        clientProfile: {
+          findUnique: jest.fn().mockResolvedValue({ state_code: 'NY' }),
+        },
+        follow: { findMany: jest.fn().mockResolvedValue([]) },
+        contactMatch: { findMany: jest.fn().mockResolvedValue([]) },
+      },
+      blocks: { hiddenIds: jest.fn().mockResolvedValue(new Set(hidden)) },
+      recommendations: { peopleFor: jest.fn().mockResolvedValue(ranked) },
+      suggestionPool,
+      present: jest.fn((p: string[]) =>
+        Promise.resolve(p.map((id) => ({ id }))),
+      ),
+    });
+    return { svc, suggestionPool };
+  }
+
+  it('client with fewer than 4 real suggestions: filled from the popular pool', async () => {
+    const { svc, suggestionPool } = svcWith(
+      ['r1'],
+      ['me', 'r1', 'f1', 'blocked', 'f2', 'p3', 'p4', 'p5'],
+      ['blocked'],
+    );
+    const page = await svc.suggestions(
+      { sub: 'me', role: 'client' } as never,
+      undefined,
+      5,
+    );
+    expect(page.items.map((i) => i.id)).toEqual(['r1', 'f1', 'f2', 'p3', 'p4']);
+    expect(page.nextCursor).toBeNull();
+    expect(suggestionPool).toHaveBeenCalledWith('NY');
+  });
+
+  it('client with 4 or more real suggestions: §6.3 as before, no fill', async () => {
+    const { svc, suggestionPool } = svcWith(['a', 'b', 'c', 'd'], ['x']);
+    const page = await svc.suggestions(
+      { sub: 'me', role: 'client' } as never,
+      undefined,
+      5,
+    );
+    expect(page.items.map((i) => i.id)).toEqual(['a', 'b', 'c', 'd']);
+    expect(suggestionPool).not.toHaveBeenCalled();
+  });
+
+  it('an attorney and a later page are never filled', async () => {
+    const att = svcWith(['a'], ['x']);
+    await att.svc.suggestions({ sub: 'me', role: 'attorney' } as never);
+    expect(att.suggestionPool).not.toHaveBeenCalled();
+    const later = svcWith(['a'], ['x']);
+    await later.svc.suggestions(
+      { sub: 'me', role: 'client' } as never,
+      Buffer.from('1').toString('base64url'),
+    );
+    expect(later.suggestionPool).not.toHaveBeenCalled();
+  });
+});
+
+// Shard-ready: attorney_profiles / users are GLOBAL family, so the pool of
+// popular attorneys is read on the primary database even when the request
+// runs in the viewer's shard context (the two-DB e2e got 0 attorneys when the
+// query followed the client's shard).
+describe('FollowsService.suggestionPool database', () => {
+  it('reads the attorney pool on the primary database, not the viewer shard', async () => {
+    const seen: (string | undefined)[] = [];
+    const svc = Object.create(FollowsService.prototype) as FollowsService;
+    Object.assign(svc, {
+      prisma: {
+        $queryRaw: jest.fn(() => {
+          seen.push(shardContext.current()?.physical);
+          return Promise.resolve([{ id: 'a' }]);
+        }),
+      },
+      redis: { get: jest.fn().mockResolvedValue(null), set: jest.fn() },
+    });
+    const pool = await shardContext.runOnPhysical('db1', () =>
+      (
+        svc as unknown as {
+          suggestionPool: (s: string | null) => Promise<string[]>;
+        }
+      ).suggestionPool('NY'),
+    );
+    expect(pool).toEqual(['a']);
+    expect(seen).toEqual(['primary']);
   });
 });
