@@ -246,8 +246,29 @@ export function TrustPanel({ attorneyId }: { attorneyId: string }) {
     onError,
   });
 
-  if (q.isPending) return <Skeleton className="h-56 rounded-[var(--radius-lg)]" />;
-  if (!c) return <ErrorNote text={q.error ? errorText(q.error) : 'Не удалось загрузить проверку адвоката'} />;
+  // R-394 (owner 2026-11-04): no untitled 220 px placeholder above «Лицензии»
+  // while the trust card loads or after it failed — a one-line titled card.
+  if (!c) {
+    return (
+      <Card data-testid="trust-panel-placeholder">
+        <CardHeader>
+          <CardTitle>Борьба с мошенниками</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm">
+          {q.isPending ? (
+            <Skeleton className="h-4 w-48 rounded" />
+          ) : (
+            <div className="flex flex-wrap items-center gap-3">
+              <ErrorNote text={q.error ? errorText(q.error) : 'Не удалось загрузить проверку адвоката'} />
+              <Button size="sm" variant="ghost" onClick={() => void q.refetch()}>
+                Повторить
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
 
   const s = c.signals;
   const held = Boolean(c.holds.payments || c.holds.bids);

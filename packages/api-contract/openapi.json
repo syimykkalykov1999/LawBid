@@ -11879,12 +11879,12 @@
           }
         ],
         "responses": {
-          "200": {
+          "202": {
             "description": "Success envelope (docs/01 §7).",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LicenseRecheckEnvelope"
+                  "$ref": "#/components/schemas/RegistryCheckQueuedEnvelope"
                 }
               }
             }
@@ -11929,16 +11929,6 @@
               }
             }
           },
-          "409": {
-            "description": "Conflict: VERIFICATION_INVALID_STATUS",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
           "426": {
             "description": "Upgrade required: APP_UPDATE_REQUIRED",
             "content": {
@@ -11975,7 +11965,7 @@
             "admin": []
           }
         ],
-        "summary": "Re-run the bar lookup or queue the license for manual review",
+        "summary": "Queue a bar lookup; a non-pass queues the license for manual review (runs in the background)",
         "tags": [
           "admin-verification"
         ]
@@ -12200,12 +12190,12 @@
           }
         ],
         "responses": {
-          "200": {
+          "202": {
             "description": "Success envelope (docs/01 §7).",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RegistryCheckEnvelope"
+                  "$ref": "#/components/schemas/RegistryCheckQueuedEnvelope"
                 }
               }
             }
@@ -12286,7 +12276,7 @@
             "admin": []
           }
         ],
-        "summary": "Look the license up in its state's registry now (no status change)",
+        "summary": "Queue a look-up of the license in its state's registry (no status change; runs in the background)",
         "tags": [
           "admin-verification"
         ]
@@ -137893,6 +137883,31 @@
           "persona"
         ]
       },
+      "RegistryCheckPendingDto": {
+        "type": "object",
+        "properties": {
+          "checkId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "enum": [
+              "registry",
+              "recheck"
+            ],
+            "type": "string"
+          },
+          "queuedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "checkId",
+          "kind",
+          "queuedAt"
+        ]
+      },
       "AdminLicenseDto": {
         "type": "object",
         "properties": {
@@ -137995,6 +138010,16 @@
             "type": "string",
             "nullable": true,
             "format": "date-time"
+          },
+          "registryCheck": {
+            "nullable": true,
+            "description": "Owner 2026-11-04 (R-394): a registry lookup still running in the background; null when none.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RegistryCheckPendingDto"
+              }
+            ]
           }
         },
         "required": [
@@ -138014,7 +138039,8 @@
           "verifiedAt",
           "decidedBy",
           "registryFlag",
-          "registryFlaggedAt"
+          "registryFlaggedAt",
+          "registryCheck"
         ]
       },
       "ScanStatus": {
@@ -138530,37 +138556,50 @@
           "rejectionCode"
         ]
       },
-      "LicenseRecheckDto": {
+      "RegistryCheckQueuedDto": {
         "type": "object",
         "properties": {
-          "license": {
-            "$ref": "#/components/schemas/AdminLicenseDto"
+          "licenseId": {
+            "type": "string",
+            "format": "uuid"
           },
-          "result": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CheckResult"
-              }
+          "checkId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Id of the queued lookup; the same id while one is still running for this license."
+          },
+          "kind": {
+            "enum": [
+              "registry",
+              "recheck"
+            ],
+            "type": "string",
+            "description": "registry = look up only; recheck = a non-pass also queues the license for review."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued"
             ]
           },
-          "requestId": {
+          "queuedAt": {
             "type": "string",
-            "nullable": true,
-            "format": "uuid",
-            "description": "The request the license was queued in for manual review, null when the lookup passed."
+            "format": "date-time"
           }
         },
         "required": [
-          "license",
-          "result",
-          "requestId"
+          "licenseId",
+          "checkId",
+          "kind",
+          "status",
+          "queuedAt"
         ]
       },
-      "LicenseRecheckEnvelope": {
+      "RegistryCheckQueuedEnvelope": {
         "type": "object",
         "properties": {
           "data": {
-            "$ref": "#/components/schemas/LicenseRecheckDto"
+            "$ref": "#/components/schemas/RegistryCheckQueuedDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -138628,44 +138667,6 @@
             "items": {
               "$ref": "#/components/schemas/RegistryFlagItemDto"
             }
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "RegistryCheckDto": {
-        "type": "object",
-        "properties": {
-          "license": {
-            "$ref": "#/components/schemas/AdminLicenseDto"
-          },
-          "result": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CheckResult"
-              }
-            ]
-          },
-          "details": {
-            "type": "object",
-            "additionalProperties": true
-          }
-        },
-        "required": [
-          "license",
-          "result",
-          "details"
-        ]
-      },
-      "RegistryCheckEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/RegistryCheckDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
