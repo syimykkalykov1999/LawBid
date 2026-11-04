@@ -254,6 +254,19 @@ export interface VerificationQueuePage {
   nextCursor: string | null;
 }
 
+/** Owner 2026-11-04 (R-394): a registry lookup of this license is still
+ * running in the worker («проверяется…»). */
+export class RegistryCheckPendingDto {
+  @ApiProperty({ format: 'uuid' })
+  checkId!: string;
+
+  @ApiProperty({ enum: ['registry', 'recheck'] })
+  kind!: 'registry' | 'recheck';
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  queuedAt!: string;
+}
+
 export class AdminLicenseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -336,6 +349,14 @@ export class AdminLicenseDto {
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   registryFlaggedAt!: string | null;
+
+  @ApiProperty({
+    type: RegistryCheckPendingDto,
+    nullable: true,
+    description:
+      'Owner 2026-11-04 (R-394): a registry lookup still running in the background; null when none.',
+  })
+  registryCheck!: RegistryCheckPendingDto | null;
 }
 
 export class RegistryFlagItemDto {
@@ -352,17 +373,6 @@ export class RegistryFlagItemDto {
     description: "The attorney's latest verification request (its card).",
   })
   latestRequestId!: string | null;
-}
-
-export class RegistryCheckDto {
-  @ApiProperty({ type: () => AdminLicenseDto })
-  license!: AdminLicenseDto;
-
-  @ApiProperty({ enum: CheckResult, enumName: 'CheckResult' })
-  result!: CheckResult;
-
-  @ApiProperty({ type: 'object', additionalProperties: true })
-  details!: Record<string, unknown>;
 }
 
 /** Owner 2026-10-28: how a selfie was captured (guided in-app camera). The
@@ -602,21 +612,31 @@ export class DocumentUrlDto {
   expiresAt!: string;
 }
 
-export class LicenseRecheckDto {
-  @ApiProperty({ type: AdminLicenseDto })
-  license!: AdminLicenseDto;
-
-  @ApiProperty({ enum: CheckResult, enumName: 'CheckResult' })
-  result!: CheckResult;
+/** Owner 2026-11-04 (R-394): a registry lookup accepted for the worker
+ * (`POST …/registry-check`, `POST …/recheck` answer 202 with it). */
+export class RegistryCheckQueuedDto {
+  @ApiProperty({ format: 'uuid' })
+  licenseId!: string;
 
   @ApiProperty({
-    type: String,
     format: 'uuid',
-    nullable: true,
     description:
-      'The request the license was queued in for manual review, null when the lookup passed.',
+      'Id of the queued lookup; the same id while one is still running for this license.',
   })
-  requestId!: string | null;
+  checkId!: string;
+
+  @ApiProperty({
+    enum: ['registry', 'recheck'],
+    description:
+      'registry = look up only; recheck = a non-pass also queues the license for review.',
+  })
+  kind!: 'registry' | 'recheck';
+
+  @ApiProperty({ enum: ['queued'] })
+  status!: 'queued';
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  queuedAt!: string;
 }
 
 export class AttorneyVerificationStatusDto {

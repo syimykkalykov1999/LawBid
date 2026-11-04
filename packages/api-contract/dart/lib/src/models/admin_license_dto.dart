@@ -8,6 +8,7 @@ import 'admin_license_dto_expires_source.dart';
 import 'admin_license_dto_registry_flag.dart';
 import 'admin_license_dto_renewal_state.dart';
 import 'license_status.dart';
+import 'registry_check_pending_dto.dart';
 
 part 'admin_license_dto.g.dart';
 
@@ -31,6 +32,7 @@ class AdminLicenseDto {
     required this.decidedBy,
     required this.registryFlag,
     required this.registryFlaggedAt,
+    required this.registryCheck,
   });
 
   factory AdminLicenseDto.fromJson(Map<String, Object?> json) =>
@@ -65,6 +67,9 @@ class AdminLicenseDto {
   /// Owner 2026-10-05: the state registry disagreed with this verified license (it stays verified).
   final AdminLicenseDtoRegistryFlag? registryFlag;
   final DateTime? registryFlaggedAt;
+
+  /// Owner 2026-11-04 (R-394): a registry lookup still running in the background; null when none.
+  final RegistryCheckPendingDto? registryCheck;
 
   Map<String, Object?> toJson() => _$AdminLicenseDtoToJson(this);
 }
