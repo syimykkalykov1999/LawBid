@@ -254,11 +254,9 @@ abstract interface class SocialRepository {
   /// Owner 2026-10-07: Threads-style repost / undo (idempotent).
   Future<void> setReposted(String postId, {required bool reposted});
 
-  /// OQ-037: count a completed share of a post / a case.
+  /// OQ-037: count a completed share of a post (cases are never shared, R-366).
   Future<void> recordPostShare(String postId);
 
-  /// Owner 2026-10-12: a video post / reel was watched (once per viewer).
-  Future<void> recordCaseShare(String caseId);
   Future<void> setSaved(String postId, {required bool saved});
   Future<CursorPage<SavedPost>> savedPosts({String? cursor});
 
@@ -691,10 +689,6 @@ class ApiSocialRepository implements SocialRepository {
   @override
   Future<void> recordPostShare(String postId) =>
       guardApiCall(() => _posts.sharePost(id: postId));
-
-  @override
-  Future<void> recordCaseShare(String caseId) =>
-      guardApiCall(() => _caseComments.shareCase(id: caseId));
 
   @override
   Future<void> setLiked(String postId, {required bool liked}) => guardApiCall(
