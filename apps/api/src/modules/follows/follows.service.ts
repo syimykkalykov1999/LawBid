@@ -47,6 +47,8 @@ const PAGE = 20;
 /** Suggestions pool per client state, rebuilt at most every 10 minutes. */
 const SUGGEST_POOL = 300;
 const SUGGEST_TTL_SEC = 10 * 60;
+/** R-389: fewer real suggestions than this = a client's small-base fill. */
+const SUGGEST_MIN = 4;
 /** §7.3 "первые практики" on a list row. */
 const LIST_PRACTICES = 3;
 
@@ -418,6 +420,26 @@ export class FollowsService {
         picked.push(pool[i]);
       }
     }
+    // R-389 (owner 04.11, Search → «Люди» as a client): §6.3 leaves out
+    // everyone I follow, so a client on a small base (few verified
+    // attorneys, most of them followed) got a near-empty grid. With fewer
+    // than SUGGEST_MIN real suggestions on the first page, a client's grid
+    // is filled up to the page size with the popular verified attorneys of
+    // their state, then nationwide (suggestionPool orders by state first),
+    // followed ones included — their tile shows «Вы подписаны». One page,
+    // no cursor. ≥ SUGGEST_MIN real suggestions: §6.3 as before.
+    let filled = false;
+    if (user.role === 'client' && start === 0 && picked.length < SUGGEST_MIN) {
+      const taken = new Set(picked);
+      for (const id of await this.suggestionPool(state)) {
+        if (picked.length >= limit) break;
+        if (id !== user.sub && !hidden.has(id) && !taken.has(id)) {
+          picked.push(id);
+          taken.add(id);
+          filled = true;
+        }
+      }
+    }
     const items = await this.present(picked, user.sub);
     // Owner 2026-10-13: people from my address book get a small caption.
     const inContacts = new Set(
@@ -434,7 +456,9 @@ export class FollowsService {
     return {
       items,
       nextCursor:
-        i < pool.length ? Buffer.from(String(i)).toString('base64url') : null,
+        !filled && i < pool.length
+          ? Buffer.from(String(i)).toString('base64url')
+          : null,
     };
   }
 

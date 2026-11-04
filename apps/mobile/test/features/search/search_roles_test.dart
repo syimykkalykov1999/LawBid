@@ -166,6 +166,43 @@ void main() {
     });
   }
 
+  // R-389: the small-base fill brings attorneys I already follow; their
+  // tile says «Вы подписаны», not «Подписаться».
+  testWidgets('People: a followed attorney in the grid shows Following',
+      (tester) async {
+    const followed = AttorneyRow(
+      id: 'rec2',
+      username: 'rec.two',
+      firstName: 'Fay',
+      lastName: 'Dunn',
+      verified: true,
+      ratingAvg: 0,
+      ratingCount: 0,
+      states: [],
+      practiceKeys: [],
+      isFollowing: true,
+    );
+    await pump(
+      tester,
+      attorney: false,
+      social: _Social(const [_rec, followed]),
+    );
+    final tile = find.byKey(const ValueKey('rec-rec2'));
+    expect(tile, findsOneWidget);
+    expect(
+      find.descendant(of: tile, matching: find.text('Following')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('rec-rec1')),
+        matching: find.text('Follow'),
+      ),
+      findsOneWidget,
+    );
+    await done(tester);
+  });
+
   test('People: leaving Search and coming back reads the grid once', () async {
     final social = _Social(const [_rec]);
     final c = ProviderContainer(overrides: uxOverrides(social: social));
