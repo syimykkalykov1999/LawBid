@@ -34,6 +34,19 @@ final clientReelsBlockedProvider = Provider<bool>((ref) {
       .isEnabled('reels_client_publish');
 });
 
+/// Owner 2026-11-04 05:15 (R-381): «Для клиентов вкладка рилсов в профиле
+/// тоже убирается, когда выключу, и добавляется, когда включу». Whether a
+/// CLIENT's profile (own or viewed by anyone) shows the «Рилсы» tab — by
+/// the profile's role, not the viewer's. With reels off (`video_posts`)
+/// nothing changes.
+final clientProfileReelsTabProvider = Provider<bool>(
+  (ref) =>
+      !ref.watch(reelsEnabledProvider) ||
+      ref
+          .watch(featureFlagsControllerProvider)
+          .isEnabled('reels_client_publish'),
+);
+
 /// Whether this person may publish a reel now: reels on and not a client
 /// held back by `reels_client_publish` (R-381).
 final canPublishReelsProvider = Provider<bool>(
