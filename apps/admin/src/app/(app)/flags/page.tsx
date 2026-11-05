@@ -22,6 +22,11 @@ type FlagInfo = { title: string; what: string; need?: string; href?: string; hre
 const KEYS = '/integrations';
 
 const FLAG_INFO: Record<string, FlagInfo> = {
+  channel_views_buffered: {
+    title: 'Просмотры каналов пачками',
+    what: 'Просмотры постов в каналах пишутся в базу пачкой раз в несколько секунд, а не отдельным запросом на каждого читателя. Число на экране обновляется на эти секунды позже. Выключено: как раньше.',
+    need: 'Ничего, работает сразу.',
+  },
   video_posts: {
     title: 'Рилсы (видео-посты)',
     what: 'Пользователи снимают и выкладывают короткие вертикальные видео в ленту.',
