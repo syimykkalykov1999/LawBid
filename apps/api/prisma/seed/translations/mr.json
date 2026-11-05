@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "वकिलाकडे या प्रकरणाच्या राज्यात परवाना नाही. ते हे कसे हाताळतील ते विचारा.",
   "cases.overview.meta": "प्रकाशित {published} · स्वीकारले {accepted} · {bids} बोली",
   "cases.owner.actions": "प्रकरणाच्या कृती",
+  "cases.owner.agreedTerms": "देयकावर सहमती",
   "cases.owner.archivedNotice": "प्रकरण संग्रहात आहे. पुन्हा बोली मिळवण्यासाठी ते पुनर्संचयित करा.",
   "cases.owner.attorneyAtWork": "वकील कामावर",
   "cases.owner.attorneyMarkedNotice": "वकिलाने प्रकरण पूर्ण झाल्याचे नोंदवले आहे. तुमच्या स्वतःच्या \"पूर्ण\" ने पुष्टी करा किंवा आक्षेप घ्या. उत्तर न दिल्यास प्रकरण {date} रोजी आपोआप बंद होईल.",

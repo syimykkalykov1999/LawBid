@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Az ügyvédnek nincs engedélye az ügy államában. Kérdezd meg, hogyan intézi.",
   "cases.overview.meta": "Közzétéve: {published} · Elfogadva: {accepted} · {bids} ajánlat",
   "cases.owner.actions": "Ügy műveletei",
+  "cases.owner.agreedTerms": "Megállapodott díjazás",
   "cases.owner.archivedNotice": "Az ügy az archívumban van. Állítsa vissza, hogy újra fogadhasson ajánlatokat.",
   "cases.owner.attorneyAtWork": "Az ügyvéd dolgozik az ügyön",
   "cases.owner.attorneyMarkedNotice": "Az ügyvéd késznek jelölte az ügyet. Erősítse meg saját „Kész” jelölésével, vagy vitassa. Válasz nélkül az ügy automatikusan lezárul: {date}.",

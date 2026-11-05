@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Vəkilin bu işin ştatında lisenziyası yoxdur. Necə həll edəcəyini soruşun.",
   "cases.overview.meta": "Dərc edildi {published} · Qəbul edildi {accepted} · {bids} təklif",
   "cases.owner.actions": "İş üzrə əməliyyatlar",
+  "cases.owner.agreedTerms": "Ödəniş razılaşdırıldı",
   "cases.owner.archivedNotice": "İş arxivdədir. Yenidən təkliflər almaq üçün onu bərpa edin.",
   "cases.owner.attorneyAtWork": "Vəkil işləyir",
   "cases.owner.attorneyMarkedNotice": "Vəkil işi tamamlanmış kimi qeyd etdi. Öz \"Hazır\" düyməniz ilə təsdiq edin və ya etiraz edin. Cavab verilməsə, iş {date} tarixində avtomatik bağlanacaq.",

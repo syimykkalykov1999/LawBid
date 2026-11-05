@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Luật sư không có giấy phép tại tiểu bang của vụ việc này. Hãy hỏi họ sẽ xử lý thế nào.",
   "cases.overview.meta": "Đăng {published} · Chấp nhận {accepted} · {bids} báo giá",
   "cases.owner.actions": "Thao tác với vụ việc",
+  "cases.owner.agreedTerms": "Đã thỏa thuận thanh toán",
   "cases.owner.archivedNotice": "Vụ việc đang ở trong kho lưu trữ. Hãy khôi phục để nhận báo giá trở lại.",
   "cases.owner.attorneyAtWork": "Luật sư đang thực hiện",
   "cases.owner.attorneyMarkedNotice": "Luật sư đã đánh dấu vụ việc là hoàn thành. Hãy xác nhận bằng nút \"Xong\" của bạn hoặc phản đối. Nếu không phản hồi, vụ việc sẽ tự động đóng vào {date}.",

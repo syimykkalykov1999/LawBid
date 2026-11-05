@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "وکیل کے پاس اس کیس کی ریاست میں لائسنس نہیں ہے۔ پوچھیں کہ وہ اسے کیسے سنبھالیں گے۔",
   "cases.overview.meta": "شائع {published} · قبول {accepted} · {bids} بولیاں",
   "cases.owner.actions": "مقدمے کے اقدامات",
+  "cases.owner.agreedTerms": "ادائیگی پر اتفاق",
   "cases.owner.archivedNotice": "مقدمہ آرکائیو میں ہے۔ دوبارہ بولیاں وصول کرنے کے لیے اسے بحال کریں۔",
   "cases.owner.attorneyAtWork": "وکیل کارروائی میں",
   "cases.owner.attorneyMarkedNotice": "وکیل نے مقدمے کو مکمل قرار دیا ہے۔ اپنے \"مکمل\" سے تصدیق کریں یا اعتراض کریں۔ جواب نہ دینے پر مقدمہ {date} کو خودکار طور پر بند ہو جائے گا۔",

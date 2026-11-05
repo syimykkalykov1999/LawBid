@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "وکیل در ایالت این پرونده پروانه ندارد. بپرسید چطور رسیدگی می‌کند.",
   "cases.overview.meta": "منتشرشده {published} · پذیرفته‌شده {accepted} · {bids} پیشنهاد",
   "cases.owner.actions": "اقدامات پرونده",
+  "cases.owner.agreedTerms": "توافق بر پرداخت",
   "cases.owner.archivedNotice": "پرونده در بایگانی است. برای دریافت دوباره پیشنهاد، آن را بازیابی کنید.",
   "cases.owner.attorneyAtWork": "وکیل مشغول کار است",
   "cases.owner.attorneyMarkedNotice": "وکیل پرونده را انجام‌شده علامت زد. با «انجام شد» خودتان تأیید کنید یا اعتراض کنید. در صورت عدم پاسخ، پرونده در تاریخ {date} به‌طور خودکار بسته می‌شود.",

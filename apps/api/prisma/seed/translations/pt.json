@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "O advogado não tem licença no estado deste caso. Pergunte como ele vai lidar com isso.",
   "cases.overview.meta": "Publicado {published} · Aceito {accepted} · {bids} propostas",
   "cases.owner.actions": "Ações do caso",
+  "cases.owner.agreedTerms": "Pagamento combinado",
   "cases.owner.archivedNotice": "O caso está no arquivo. Restaure-o para voltar a receber propostas.",
   "cases.owner.attorneyAtWork": "Advogado trabalhando",
   "cases.owner.attorneyMarkedNotice": "O advogado marcou o caso como concluído. Confirme com o seu \"Concluído\" ou conteste. Sem resposta, o caso será encerrado automaticamente em {date}.",

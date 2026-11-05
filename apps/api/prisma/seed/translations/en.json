@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "The attorney has no license in this case's state. Ask how they'll handle it.",
   "cases.overview.meta": "Published {published} · Accepted {accepted} · {bids} bids",
   "cases.owner.actions": "Case actions",
+  "cases.owner.agreedTerms": "Agreed on payment",
   "cases.owner.archivedNotice": "The case is in the archive. Restore it to receive bids again.",
   "cases.owner.attorneyAtWork": "Attorney at work",
   "cases.owner.attorneyMarkedNotice": "The attorney marked the case as done. Confirm with your own \"Done\" or dispute it. Without an answer the case closes automatically on {date}.",

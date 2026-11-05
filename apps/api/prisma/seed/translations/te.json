@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "ఈ కేసు రాష్ట్రంలో న్యాయవాదికి లైసెన్స్ లేదు. ఎలా నిర్వహిస్తారో అడగండి.",
   "cases.overview.meta": "ప్రచురించినది {published} · అంగీకరించినది {accepted} · {bids} బిడ్లు",
   "cases.owner.actions": "కేసు చర్యలు",
+  "cases.owner.agreedTerms": "చెల్లింపు అంగీకరించబడింది",
   "cases.owner.archivedNotice": "కేసు ఆర్కైవ్‌లో ఉంది. మళ్లీ బిడ్‌లు పొందడానికి దాన్ని పునరుద్ధరించండి.",
   "cases.owner.attorneyAtWork": "న్యాయవాది పనిలో ఉన్నారు",
   "cases.owner.attorneyMarkedNotice": "న్యాయవాది కేసును పూర్తయినట్లు గుర్తించారు. మీ స్వంత \"పూర్తయింది\"తో నిర్ధారించండి లేదా వివాదం చేయండి. సమాధానం లేకపోతే కేసు {date} న స్వయంచాలకంగా మూసివేయబడుతుంది.",

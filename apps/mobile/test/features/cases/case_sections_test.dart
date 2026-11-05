@@ -399,7 +399,8 @@ void main() {
       expectSections(['Overview', 'Files', 'Tasks']);
       expect(hero(), findsOneWidget);
       expect(find.byType(MoneyText), findsOneWidget);
-      expect(find.text('Terms'), findsOneWidget);
+      expect(find.text('Terms'), findsNothing);
+      expect(find.text('Agreed on payment'), findsOneWidget);
       // The card has no chat of its own: only the bottom button.
       expect(find.text('Chat'), findsNothing);
       expect(find.text('Chat with lawyer'), findsOneWidget);

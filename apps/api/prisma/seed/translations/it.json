@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "L'avvocato non ha una licenza nello stato di questo caso. Chiedi come intende procedere.",
   "cases.overview.meta": "Pubblicato {published} · Accettato {accepted} · {bids} offerte",
   "cases.owner.actions": "Azioni sul caso",
+  "cases.owner.agreedTerms": "Pagamento concordato",
   "cases.owner.archivedNotice": "Il caso è in archivio. Lo ripristini per ricevere di nuovo offerte.",
   "cases.owner.attorneyAtWork": "Avvocato al lavoro",
   "cases.owner.attorneyMarkedNotice": "L'avvocato ha segnato il caso come completato. Confermi con il suo \"Fatto\" oppure contesti. Senza risposta il caso si chiude automaticamente il {date}.",

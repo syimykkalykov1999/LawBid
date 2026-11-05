@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Advokatas neturi licencijos šios bylos valstijoje. Paklauskite, kaip jis tvarkysis.",
   "cases.overview.meta": "Paskelbta {published} · Priimta {accepted} · Pasiūlymų: {bids}",
   "cases.owner.actions": "Veiksmai su byla",
+  "cases.owner.agreedTerms": "Sutartas mokėjimas",
   "cases.owner.archivedNotice": "Byla yra archyve. Atkurkite ją, kad vėl gautumėte pasiūlymų.",
   "cases.owner.attorneyAtWork": "Advokatas dirba",
   "cases.owner.attorneyMarkedNotice": "Advokatas pažymėjo bylą kaip atliktą. Patvirtinkite savo „Atlikta“ arba ginčykite. Neatsakius byla automatiškai užsidarys {date}.",

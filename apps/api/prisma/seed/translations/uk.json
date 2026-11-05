@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Адвокат не має ліцензії в штаті цієї справи. Запитайте, як він це вирішить.",
   "cases.overview.meta": "Опубліковано {published} · Прийнято {accepted} · Ставок: {bids}",
   "cases.owner.actions": "Дії зі справою",
+  "cases.owner.agreedTerms": "Домовилися про оплату",
   "cases.owner.archivedNotice": "Справа в архіві. Відновіть її, щоб знову отримувати пропозиції.",
   "cases.owner.attorneyAtWork": "Адвокат працює",
   "cases.owner.attorneyMarkedNotice": "Адвокат позначив справу як виконану. Підтвердьте своїм «Готово» або оскаржте. Якщо не відповісти, справа закриється автоматично {date}.",

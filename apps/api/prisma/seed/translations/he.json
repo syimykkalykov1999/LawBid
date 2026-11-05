@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "לעורך הדין אין רישיון במדינה של התיק. שאלו כיצד יטפל בכך.",
   "cases.overview.meta": "פורסם {published} · אושר {accepted} · {bids} הצעות",
   "cases.owner.actions": "פעולות בתיק",
+  "cases.owner.agreedTerms": "תשלום מוסכם",
   "cases.owner.archivedNotice": "התיק בארכיון. שחזרו אותו כדי לקבל שוב הצעות.",
   "cases.owner.attorneyAtWork": "עורך הדין בעבודה",
   "cases.owner.attorneyMarkedNotice": "עורך הדין סימן את התיק כהושלם. אשר באמצעות \"סיום\" שלך או השג. ללא תשובה התיק ייסגר אוטומטית ב-{date}.",

@@ -457,14 +457,31 @@ class _TermsLine extends ConsumerWidget {
       child: Row(
         children: [
           Expanded(
-            child: MoneyText(
-              CaseFormat.terms(
-                t,
-                formats,
-                bid.feeType,
-                bid.amountCents,
-                percentBps: bid.percentBps,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  t.t('cases.owner.agreedTerms'),
+                  style: Theme.of(context)
+                      .extension<AppTypographyTokens>()!
+                      .caption
+                      .copyWith(
+                        color: Theme.of(context)
+                            .extension<AppColorTokens>()!
+                            .textSecondary,
+                      ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                MoneyText(
+                  CaseFormat.terms(
+                    t,
+                    formats,
+                    bid.feeType,
+                    bid.amountCents,
+                    percentBps: bid.percentBps,
+                  ),
+                ),
+              ],
             ),
           ),
           AppIcon(

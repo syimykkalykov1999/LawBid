@@ -476,7 +476,18 @@ class _FilesTabState extends ConsumerState<FilesTab> {
                   style: TextStyle(color: colors.textSecondary),
                 ),
               ),
-            for (final f in shown) _FileRow(file: f, t: t, formats: formats),
+            for (final f in shown)
+              _FileRow(
+                file: f,
+                t: t,
+                formats: formats,
+                // Owner 2026-11-05: a thumbnail opens the viewer, with a swipe
+                // through every photo on the list.
+                gallery: [
+                  for (final g in shown)
+                    if (g.mime.startsWith('image/')) g.url,
+                ],
+              ),
           ],
         );
       },
@@ -490,8 +501,14 @@ String fileKindLabel(Translator t, api.WorkspaceFileDto f) =>
         : t.t('cases.files.document');
 
 class _FileRow extends StatelessWidget {
-  const _FileRow({required this.file, required this.t, required this.formats});
+  const _FileRow({
+    required this.file,
+    required this.t,
+    required this.formats,
+    required this.gallery,
+  });
 
+  final List<String> gallery;
   final api.WorkspaceFileDto file;
   final Translator t;
   final L10nFormats formats;
@@ -540,9 +557,18 @@ class _FileRow extends StatelessWidget {
               child: SizedBox.square(
                 dimension: 48,
                 child: isImage
-                    ? Image(
-                        image: appNetworkImage(file.previewUrl, 600),
-                        fit: BoxFit.cover,
+                    ? GestureDetector(
+                        key: ValueKey('file-thumb-${file.fileId}'),
+                        onTap: () => showPhotoGallery(
+                          context,
+                          urls: gallery,
+                          initial: gallery.indexOf(file.url),
+                          closeLabel: t.t('common.close'),
+                        ),
+                        child: Image(
+                          image: appNetworkImage(file.previewUrl, 600),
+                          fit: BoxFit.cover,
+                        ),
                       )
                     : ColoredBox(
                         color: colors.chip,

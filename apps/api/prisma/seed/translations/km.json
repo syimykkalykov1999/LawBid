@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "មេធាវីគ្មានអាជ្ញាប័ណ្ណនៅរដ្ឋនៃករណីនេះទេ។ សូមសួរថាគាត់នឹងដោះស្រាយយ៉ាងណា។",
   "cases.overview.meta": "បានចេញផ្សាយ {published} · បានទទួលយក {accepted} · ការដេញថ្លៃ {bids}",
   "cases.owner.actions": "សកម្មភាពសំណុំរឿង",
+  "cases.owner.agreedTerms": "បានព្រមព្រៀងការទូទាត់",
   "cases.owner.archivedNotice": "សំណុំរឿងស្ថិតនៅក្នុងបណ្ណសារ។ ស្ដារវាវិញដើម្បីទទួលសំណើដេញថ្លៃម្តងទៀត។",
   "cases.owner.attorneyAtWork": "មេធាវីកំពុងធ្វើការ",
   "cases.owner.attorneyMarkedNotice": "មេធាវីបានសម្គាល់សំណុំរឿងថារួចរាល់។ សូមបញ្ជាក់ដោយ “រួចរាល់” របស់អ្នក ឬជំទាស់។ បើគ្មានការឆ្លើយតប សំណុំរឿងនឹងបិទដោយស្វ័យប្រវត្តិនៅ {date}។",

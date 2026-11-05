@@ -904,7 +904,7 @@ class BidCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onAttorneyTap;
 
-  /// Owner 2026-11-05: on the case's Bids: «Условия» and «Принять».
+  /// Owner 2026-11-05: on the case's Bids: «Посмотреть бид» and «Принять».
   final VoidCallback? onAccept;
 
   @override
@@ -991,7 +991,7 @@ class BidCard extends StatelessWidget {
               Expanded(
                 child: AppButton(
                   key: ValueKey('bid-card-view-${bid.id}'),
-                  label: t.t('cases.owner.viewBid'),
+                  label: t.t('bids.card.view'),
                   variant: AppButtonVariant.secondary,
                   onPressed: onTap,
                 ),

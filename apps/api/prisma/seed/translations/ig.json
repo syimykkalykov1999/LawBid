@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Onye ọka iwu enweghị ikikere na steeti okwu a. Jụọ otú ọ ga-esi lebara ya anya.",
   "cases.overview.meta": "Ebipụtara {published} · Anabatara {accepted} · Ọkwa {bids}",
   "cases.owner.actions": "Omume ikpe",
+  "cases.owner.agreedTerms": "Ekwere na ịkwụ ụgwọ",
   "cases.owner.archivedNotice": "Ikpe ahụ nọ n'ebe nchekwa. Weghachite ya iji natakwa onyinye ọzọ.",
   "cases.owner.attorneyAtWork": "Ọka iwu na-arụ ọrụ",
   "cases.owner.attorneyMarkedNotice": "Ọka iwu akaa ikpe ahụ dị ka emechala. Kwenye site na \"Emechala\" gị ma ọ bụ mee mkpesa. Ọ bụrụ na azaghị, ikpe ahụ ga-emechi n'onwe ya na {date}.",

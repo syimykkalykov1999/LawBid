@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "ਵਕੀਲ ਦਾ ਇਸ ਕੇਸ ਦੇ ਰਾਜ ਵਿੱਚ ਲਾਇਸੈਂਸ ਨਹੀਂ ਹੈ। ਪੁੱਛੋ ਕਿ ਉਹ ਇਸ ਨੂੰ ਕਿਵੇਂ ਸੰਭਾਲਣਗੇ।",
   "cases.overview.meta": "ਪ੍ਰਕਾਸ਼ਿਤ {published} · ਮਨਜ਼ੂਰ {accepted} · {bids} ਬੋਲੀਆਂ",
   "cases.owner.actions": "ਕੇਸ ਦੀਆਂ ਕਾਰਵਾਈਆਂ",
+  "cases.owner.agreedTerms": "ਭੁਗਤਾਨ 'ਤੇ ਸਹਿਮਤੀ",
   "cases.owner.archivedNotice": "ਕੇਸ ਆਰਕਾਈਵ ਵਿੱਚ ਹੈ। ਦੁਬਾਰਾ ਬੋਲੀਆਂ ਪ੍ਰਾਪਤ ਕਰਨ ਲਈ ਇਸ ਨੂੰ ਬਹਾਲ ਕਰੋ।",
   "cases.owner.attorneyAtWork": "ਵਕੀਲ ਕੰਮ ਕਰ ਰਿਹਾ ਹੈ",
   "cases.owner.attorneyMarkedNotice": "ਵਕੀਲ ਨੇ ਕੇਸ ਨੂੰ ਮੁਕੰਮਲ ਵਜੋਂ ਨਿਸ਼ਾਨਬੱਧ ਕੀਤਾ ਹੈ। ਆਪਣੇ \"ਹੋ ਗਿਆ\" ਨਾਲ ਪੁਸ਼ਟੀ ਕਰੋ ਜਾਂ ਇਤਰਾਜ਼ ਕਰੋ। ਜਵਾਬ ਨਾ ਮਿਲਣ ਤੇ ਕੇਸ {date} ਨੂੰ ਆਪਣੇ-ਆਪ ਬੰਦ ਹੋ ਜਾਵੇਗਾ।",

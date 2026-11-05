@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "وکیل د دې قضیې په ایالت کې جواز نه لري. وپوښتئ چې څنګه یې سمبالوي.",
   "cases.overview.meta": "خپور شو {published} · ومنل شو {accepted} · {bids} وړاندیزونه",
   "cases.owner.actions": "د قضیې کړنې",
+  "cases.owner.agreedTerms": "په تادیه موافقه",
   "cases.owner.archivedNotice": "قضیه په آرشیف کې ده. د بیا وړاندیزونو ترلاسه کولو لپاره یې بیرته راوګرځوئ.",
   "cases.owner.attorneyAtWork": "وکیل په کار کې دی",
   "cases.owner.attorneyMarkedNotice": "وکیل قضیه ترسره شوې په نښه کړه. د خپل \"ترسره شو\" سره تایید کړئ یا یې رد کړئ. که ځواب ورنکړئ، قضیه به د {date} په ورځ په اتوماتيک ډول وتړل شي.",

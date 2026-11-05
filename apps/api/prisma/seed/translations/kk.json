@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Адвокаттың бұл іс штатында лицензиясы жоқ. Қалай шешетінін сұраңыз.",
   "cases.overview.meta": "Жарияланды {published} · Қабылданды {accepted} · {bids} ұсыныс",
   "cases.owner.actions": "Іс әрекеттері",
+  "cases.owner.agreedTerms": "Төлем келісілді",
   "cases.owner.archivedNotice": "Іс мұрағатта. Ұсыныстарды қайта алу үшін оны қалпына келтіріңіз.",
   "cases.owner.attorneyAtWork": "Адвокат жұмыста",
   "cases.owner.attorneyMarkedNotice": "Адвокат істі аяқталды деп белгіледі. Өзіңіздің «Дайын» түймеңізбен растаңыз немесе дауласыңыз. Жауап болмаса, іс {date} күні автоматты түрде жабылады.",

@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Der Anwalt hat keine Zulassung im Staat dieses Falls. Fragen Sie nach, wie er vorgeht.",
   "cases.overview.meta": "Veröffentlicht {published} · Angenommen {accepted} · {bids} Gebote",
   "cases.owner.actions": "Aktionen zum Fall",
+  "cases.owner.agreedTerms": "Vereinbarte Zahlung",
   "cases.owner.archivedNotice": "Der Fall ist im Archiv. Stellen Sie ihn wieder her, um erneut Angebote zu erhalten.",
   "cases.owner.attorneyAtWork": "Anwalt ist tätig",
   "cases.owner.attorneyMarkedNotice": "Der Anwalt hat den Fall als erledigt markiert. Bestätigen Sie mit Ihrem eigenen „Fertig“ oder widersprechen Sie. Ohne Antwort wird der Fall am {date} automatisch geschlossen.",

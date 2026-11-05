@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "वकिलसँग यस मुद्दाको राज्यमा इजाजतपत्र छैन। उनीहरूले यो कसरी सम्हाल्छन् सोध्नुहोस्।",
   "cases.overview.meta": "प्रकाशित {published} · स्वीकृत {accepted} · {bids} बोली",
   "cases.owner.actions": "मुद्दाका कार्यहरू",
+  "cases.owner.agreedTerms": "भुक्तानीमा सहमति",
   "cases.owner.archivedNotice": "मुद्दा अभिलेखमा छ। फेरि बोली प्राप्त गर्न यसलाई पुनर्स्थापना गर्नुहोस्।",
   "cases.owner.attorneyAtWork": "कार्यरत वकिल",
   "cases.owner.attorneyMarkedNotice": "वकिलले मुद्दालाई सम्पन्न भएको चिन्ह लगाए। आफ्नो \"सम्पन्न\" बाट पुष्टि गर्नुहोस् वा विवाद गर्नुहोस्। जवाफ नदिए मुद्दा {date} मा स्वतः बन्द हुनेछ।",

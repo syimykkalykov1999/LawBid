@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Igqwetha alinayo ilayisense esifundeni salolu daba. Buza ukuthi lizobhekana kanjani nalo.",
   "cases.overview.meta": "Kushicilelwe {published} · Kwamukelwe {accepted} · iziphakamiso ezingu-{bids}",
   "cases.owner.actions": "Izenzo zecala",
+  "cases.owner.agreedTerms": "Inkokhelo evunyelwene",
   "cases.owner.archivedNotice": "Icala lisekhasini lomlando. Libuyisele ukuze uphinde uthole iziphakamiso.",
   "cases.owner.attorneyAtWork": "Ummeli uyasebenza",
   "cases.owner.attorneyMarkedNotice": "Ummeli ubone icala njengeliphelile. Qinisekisa nge-\"Kwenziwe\" yakho noma uphikise. Uma ungaphenduli icala livala ngokuzenzakalela ngo-{date}.",

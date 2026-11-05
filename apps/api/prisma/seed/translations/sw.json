@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Wakili hana leseni katika jimbo la kesi hii. Uliza atalishughulikiaje.",
   "cases.overview.meta": "Imechapishwa {published} · Imekubaliwa {accepted} · Zabuni {bids}",
   "cases.owner.actions": "Vitendo vya kesi",
+  "cases.owner.agreedTerms": "Malipo yaliyokubaliwa",
   "cases.owner.archivedNotice": "Kesi iko kwenye kumbukumbu. Irejeshe ili upokee zabuni tena.",
   "cases.owner.attorneyAtWork": "Wakili anafanya kazi",
   "cases.owner.attorneyMarkedNotice": "Wakili ameweka alama kuwa kesi imekamilika. Thibitisha kwa \"Imekamilika\" yako au ipinge. Bila jibu, kesi itafungwa kiotomatiki tarehe {date}.",

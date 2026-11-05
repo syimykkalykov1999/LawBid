@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "L'advocat no té llicència a l'estat d'aquest cas. Pregunta com ho gestionarà.",
   "cases.overview.meta": "Publicat {published} · Acceptat {accepted} · {bids} ofertes",
   "cases.owner.actions": "Accions del cas",
+  "cases.owner.agreedTerms": "Pagament acordat",
   "cases.owner.archivedNotice": "El cas és a l’arxiu. Restaureu-lo per tornar a rebre ofertes.",
   "cases.owner.attorneyAtWork": "Advocat al cas",
   "cases.owner.attorneyMarkedNotice": "L’advocat ha marcat el cas com a fet. Confirmeu-ho amb el vostre «Fet» o disputeu-lo. Si no hi ha resposta, el cas es tancarà automàticament el {date}.",

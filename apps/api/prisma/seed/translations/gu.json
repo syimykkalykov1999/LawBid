@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "વકીલ પાસે આ કેસના રાજ્યમાં લાઇસન્સ નથી. તેઓ તે કેવી રીતે સંભાળશે તે પૂછો.",
   "cases.overview.meta": "પ્રકાશિત {published} · સ્વીકાર્યું {accepted} · {bids} બિડ",
   "cases.owner.actions": "કેસની કાર્યવાહી",
+  "cases.owner.agreedTerms": "ચુકવણી પર સંમતિ",
   "cases.owner.archivedNotice": "કેસ આર્કાઇવમાં છે. ફરીથી બિડ મેળવવા માટે તેને પુનઃસ્થાપિત કરો.",
   "cases.owner.attorneyAtWork": "વકીલ કાર્યરત છે",
   "cases.owner.attorneyMarkedNotice": "વકીલે કેસને પૂર્ણ તરીકે ચિહ્નિત કર્યો છે. તમારા પોતાના \"થઈ ગયું\" થી પુષ્ટિ કરો અથવા વિવાદ નોંધાવો. જવાબ ન આપો તો કેસ {date} ના રોજ આપોઆપ બંધ થશે.",

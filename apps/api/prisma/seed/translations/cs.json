@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Právník nemá licenci ve státě tohoto případu. Zeptejte se, jak to vyřeší.",
   "cases.overview.meta": "Zveřejněno {published} · Přijato {accepted} · nabídek: {bids}",
   "cases.owner.actions": "Akce s případem",
+  "cases.owner.agreedTerms": "Dohodnutá platba",
   "cases.owner.archivedNotice": "Případ je v archivu. Obnovte jej, abyste mohli znovu přijímat nabídky.",
   "cases.owner.attorneyAtWork": "Advokát pracuje na případu",
   "cases.owner.attorneyMarkedNotice": "Advokát označil případ jako hotový. Potvrďte svým tlačítkem „Hotovo“ nebo jej zpochybněte. Bez odpovědi se případ automaticky uzavře dne {date}.",

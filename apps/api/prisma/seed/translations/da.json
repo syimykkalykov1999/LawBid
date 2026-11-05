@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Advokaten har ingen autorisation i sagens stat. Spørg, hvordan de vil håndtere det.",
   "cases.overview.meta": "Udgivet {published} · Accepteret {accepted} · {bids} bud",
   "cases.owner.actions": "Sagshandlinger",
+  "cases.owner.agreedTerms": "Aftalt betaling",
   "cases.owner.archivedNotice": "Sagen er i arkivet. Gendan den for at modtage bud igen.",
   "cases.owner.attorneyAtWork": "Advokat på sagen",
   "cases.owner.attorneyMarkedNotice": "Advokaten har markeret sagen som færdig. Bekræft med dit eget „Færdig“, eller bestrid det. Uden svar lukkes sagen automatisk den {date}.",

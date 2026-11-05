@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Advokaten har ikke lisens i sakens delstat. Spør hvordan de vil håndtere det.",
   "cases.overview.meta": "Publisert {published} · Godtatt {accepted} · {bids} bud",
   "cases.owner.actions": "Handlinger for saken",
+  "cases.owner.agreedTerms": "Avtalt betaling",
   "cases.owner.archivedNotice": "Saken er i arkivet. Gjenopprett den for å motta bud igjen.",
   "cases.owner.attorneyAtWork": "Advokat på saken",
   "cases.owner.attorneyMarkedNotice": "Advokaten har markert saken som ferdig. Bekreft med din egen «Ferdig» eller bestrid. Uten svar lukkes saken automatisk {date}.",

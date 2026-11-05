@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "この弁護士はこの案件の州での資格がありません。どう対応するか確認してください。",
   "cases.overview.meta": "公開 {published} · 承諾 {accepted} · 入札 {bids}件",
   "cases.owner.actions": "案件の操作",
+  "cases.owner.agreedTerms": "合意した支払い",
   "cases.owner.archivedNotice": "案件はアーカイブにあります。再び提案を受け取るには復元してください。",
   "cases.owner.attorneyAtWork": "弁護士が対応中",
   "cases.owner.attorneyMarkedNotice": "弁護士が案件を完了としました。ご自身の「完了」で確認するか、異議を申し立ててください。回答がない場合、案件は{date}に自動的に終了します。",

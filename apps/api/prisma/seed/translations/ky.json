@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Адвокаттын бул иштин штатында лицензиясы жок. Кандай иштей турганын сураңыз.",
   "cases.overview.meta": "Жарыяланды {published} · Кабыл алынды {accepted} · {bids} сунуш",
   "cases.owner.actions": "Иш боюнча аракеттер",
+  "cases.owner.agreedTerms": "Төлөм макулдашылды",
   "cases.owner.archivedNotice": "Иш архивде. Кайра сунуш алуу үчүн аны калыбына келтириңиз.",
   "cases.owner.attorneyAtWork": "Иштеп жаткан адвокат",
   "cases.owner.attorneyMarkedNotice": "Адвокат ишти аткарылды деп белгиледи. Өзүңүздүн «Даяр» баскычыңыз менен ырастаңыз же каршы чыгыңыз. Жооп берилбесе, иш {date} автоматтык түрдө жабылат.",

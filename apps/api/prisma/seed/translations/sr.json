@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Advokat nema licencu u državi ovog slučaja. Pitajte kako će to rešiti.",
   "cases.overview.meta": "Objavljeno {published} · Prihvaćeno {accepted} · Ponuda: {bids}",
   "cases.owner.actions": "Радње за случај",
+  "cases.owner.agreedTerms": "Договорено плаћање",
   "cases.owner.archivedNotice": "Случај је у архиви. Вратите га да бисте поново примали понуде.",
   "cases.owner.attorneyAtWork": "Адвокат ради на случају",
   "cases.owner.attorneyMarkedNotice": "Адвокат је означио случај као завршен. Потврдите својим „Готово“ или оспорите. Без одговора случај се аутоматски затвара {date}.",

@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "L'avocat n'a pas de licence dans l'État de cette affaire. Demandez comment il compte procéder.",
   "cases.overview.meta": "Publiée le {published} · Acceptée le {accepted} · {bids} offres",
   "cases.owner.actions": "Actions sur l'affaire",
+  "cases.owner.agreedTerms": "Paiement convenu",
   "cases.owner.archivedNotice": "L'affaire est archivée. Restaurez-la pour recevoir à nouveau des offres.",
   "cases.owner.attorneyAtWork": "Avocat au travail",
   "cases.owner.attorneyMarkedNotice": "L'avocat a marqué l'affaire comme terminée. Confirmez avec votre propre « Terminé » ou contestez. Sans réponse, l'affaire sera clôturée automatiquement le {date}.",

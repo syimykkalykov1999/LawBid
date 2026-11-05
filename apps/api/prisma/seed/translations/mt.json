@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "L-avukat m'għandux liċenzja fl-istat ta' dan il-każ. Staqsi kif se jittrattah.",
   "cases.overview.meta": "Ippubblikat {published} · Aċċettat {accepted} · {bids} offerti",
   "cases.owner.actions": "Azzjonijiet tal-każ",
+  "cases.owner.agreedTerms": "Ħlas miftiehem",
   "cases.owner.archivedNotice": "Il-każ qiegħed fl-arkivju. Irrestawrah biex terġa’ tirċievi offerti.",
   "cases.owner.attorneyAtWork": "Avukat fuq ix-xogħol",
   "cases.owner.attorneyMarkedNotice": "L-avukat immarka l-każ bħala lest. Ikkonferma bil-“Lest” tiegħek jew ikkontesta. Mingħajr tweġiba l-każ jingħalaq awtomatikament fl-{date}.",

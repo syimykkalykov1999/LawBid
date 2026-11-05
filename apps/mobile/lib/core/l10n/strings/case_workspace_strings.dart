@@ -12,6 +12,7 @@ const caseWorkspaceRu = <String, String>{
   'cases.owner.chatWithLawyer': 'Чат с юристом',
   'cases.owner.editCase': 'Изменить кейс',
   'cases.files.block': 'Фото и документы',
+  'cases.owner.agreedTerms': 'Договорились об оплате',
   'cases.tab.changes': 'Изменения',
   'cases.detail.attached':
       'Клиент приложил: {items}. Откроются после принятия бида',
@@ -155,6 +156,7 @@ const caseWorkspaceEn = <String, String>{
   'cases.owner.chatWithLawyer': 'Chat with lawyer',
   'cases.owner.editCase': 'Edit case',
   'cases.files.block': 'Photos and documents',
+  'cases.owner.agreedTerms': 'Agreed on payment',
   'cases.tab.changes': 'Changes',
   'cases.detail.attached':
       'The client attached: {items}. They open once a bid is accepted',

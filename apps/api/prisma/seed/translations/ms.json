@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Peguam tiada lesen di negeri kes ini. Tanya bagaimana beliau akan mengendalikannya.",
   "cases.overview.meta": "Diterbitkan {published} · Diterima {accepted} · {bids} bidaan",
   "cases.owner.actions": "Tindakan kes",
+  "cases.owner.agreedTerms": "Bayaran dipersetujui",
   "cases.owner.archivedNotice": "Kes berada dalam arkib. Pulihkannya untuk menerima bidaan semula.",
   "cases.owner.attorneyAtWork": "Peguam sedang bertugas",
   "cases.owner.attorneyMarkedNotice": "Peguam telah menandakan kes sebagai selesai. Sahkan dengan \"Selesai\" anda sendiri atau bantah. Tanpa jawapan, kes akan ditutup secara automatik pada {date}.",

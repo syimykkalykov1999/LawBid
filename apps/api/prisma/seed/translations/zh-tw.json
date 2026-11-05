@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "律師在此案件所在的州沒有執照。請詢問他們打算如何處理。",
   "cases.overview.meta": "發布於 {published} · 接受於 {accepted} · {bids} 筆報價",
   "cases.owner.actions": "案件操作",
+  "cases.owner.agreedTerms": "已約定付款",
   "cases.owner.archivedNotice": "案件已歸檔。恢復後可再次接收報價。",
   "cases.owner.attorneyAtWork": "律師辦理中",
   "cases.owner.attorneyMarkedNotice": "律師已將案件標記為完成。請點擊您自己的「完成」確認，或提出異議。若不回應，案件將於 {date} 自動關閉。",

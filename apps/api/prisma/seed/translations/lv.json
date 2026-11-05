@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Advokātam nav licences šīs lietas štatā. Pajautājiet, kā viņš to risinās.",
   "cases.overview.meta": "Publicēts {published} · Pieņemts {accepted} · Piedāvājumi: {bids}",
   "cases.owner.actions": "Darbības ar lietu",
+  "cases.owner.agreedTerms": "Saskaņots maksājums",
   "cases.owner.archivedNotice": "Lieta atrodas arhīvā. Atjaunojiet to, lai atkal saņemtu piedāvājumus.",
   "cases.owner.attorneyAtWork": "Advokāts strādā pie lietas",
   "cases.owner.attorneyMarkedNotice": "Advokāts atzīmēja lietu kā pabeigtu. Apstipriniet ar savu „Gatavs” vai apstrīdiet. Ja neatbildēsiet, lieta tiks automātiski slēgta {date}.",

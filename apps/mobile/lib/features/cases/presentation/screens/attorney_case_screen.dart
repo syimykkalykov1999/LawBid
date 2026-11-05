@@ -571,7 +571,7 @@ class _BodyState extends ConsumerState<_Body> {
     ];
   }
 
-  /// Owner 2026-11-05: the attorney's bid, its terms, taking it back. The
+  /// Owner 2026-11-05: the attorney's bid with its terms, taking it back. The
   /// client's changes join this section with the server part.
   List<Widget> _changes(
     BuildContext context,

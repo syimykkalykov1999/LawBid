@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Pengacara tidak punya lisensi di negara bagian kasus ini. Tanyakan bagaimana mereka akan menanganinya.",
   "cases.overview.meta": "Dipublikasikan {published} · Diterima {accepted} · {bids} penawaran",
   "cases.owner.actions": "Tindakan kasus",
+  "cases.owner.agreedTerms": "Pembayaran disepakati",
   "cases.owner.archivedNotice": "Kasus ada di arsip. Pulihkan untuk menerima penawaran lagi.",
   "cases.owner.attorneyAtWork": "Pengacara sedang menangani",
   "cases.owner.attorneyMarkedNotice": "Pengacara menandai kasus sebagai selesai. Konfirmasi dengan \"Selesai\" Anda atau ajukan sanggahan. Jika tidak ada jawaban, kasus ditutup otomatis pada {date}.",

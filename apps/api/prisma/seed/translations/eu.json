@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Abokatuak ez du lizentziarik kasu honen estatuan. Galdetu nola kudeatuko duen.",
   "cases.overview.meta": "Argitaratua {published} · Onartua {accepted} · {bids} eskaintza",
   "cases.owner.actions": "Auziaren ekintzak",
+  "cases.owner.agreedTerms": "Adostutako ordainketa",
   "cases.owner.archivedNotice": "Auzia artxiboan dago. Berreskuratu berriro eskaintzak jasotzeko.",
   "cases.owner.attorneyAtWork": "Abokatua lanean",
   "cases.owner.attorneyMarkedNotice": "Abokatuak auzia eginda bezala markatu du. Berretsi zure «Eginda» botoiarekin edo eztabaidatu. Erantzunik gabe, auzia automatikoki itxiko da {date}(e)an.",

@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Адвокатът няма лиценз в щата на това дело. Попитайте как ще се справи.",
   "cases.overview.meta": "Публикувано {published} · Прието {accepted} · {bids} оферти",
   "cases.owner.actions": "Действия по делото",
+  "cases.owner.agreedTerms": "Договорено плащане",
   "cases.owner.archivedNotice": "Делото е в архива. Възстановете го, за да получавате отново оферти.",
   "cases.owner.attorneyAtWork": "Адвокатът работи по делото",
   "cases.owner.attorneyMarkedNotice": "Адвокатът отбеляза делото като приключено. Потвърдете със своето „Готово“ или оспорете. Без отговор делото ще бъде затворено автоматично на {date}.",

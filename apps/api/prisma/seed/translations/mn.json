@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Өмгөөлөгч энэ хэргийн мужид лицензгүй. Хэрхэн шийдэхийг нь асуугаарай.",
   "cases.overview.meta": "Нийтэлсэн {published} · Хүлээн авсан {accepted} · {bids} санал",
   "cases.owner.actions": "Хэргийн үйлдлүүд",
+  "cases.owner.agreedTerms": "Төлбөр тохирсон",
   "cases.owner.archivedNotice": "Хэрэг архивт байна. Дахин санал авахын тулд сэргээнэ үү.",
   "cases.owner.attorneyAtWork": "Ажиллаж буй өмгөөлөгч",
   "cases.owner.attorneyMarkedNotice": "Өмгөөлөгч хэргийг дууссан гэж тэмдэглэлээ. Өөрийн «Болсон» товчоор баталгаажуулах эсвэл маргана уу. Хариу өгөөгүй бол хэрэг {date}-нд автоматаар хаагдана.",

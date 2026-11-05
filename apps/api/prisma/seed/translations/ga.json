@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Níl ceadúnas ag an dlíodóir i stát an cháis seo. Fiafraigh de conas a láimhseálfaidh sé é.",
   "cases.overview.meta": "Foilsithe {published} · Glactha {accepted} · {bids} tairiscint",
   "cases.owner.actions": "Gníomhartha cáis",
+  "cases.owner.agreedTerms": "Íocaíocht comhaontaithe",
   "cases.owner.archivedNotice": "Tá an cás sa chartlann. Athbhunaigh é chun tairiscintí a fháil arís.",
   "cases.owner.attorneyAtWork": "Aturnae ag obair",
   "cases.owner.attorneyMarkedNotice": "Mharcáil an t-aturnae an cás mar chríochnaithe. Deimhnigh le do “Déanta” féin nó cuir faoi dhíospóid. Gan freagra, dúnfar an cás go huathoibríoch ar {date}.",

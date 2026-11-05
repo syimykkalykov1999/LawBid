@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Die prokureur het nie 'n lisensie in hierdie saak se staat nie. Vra hoe dit hanteer sal word.",
   "cases.overview.meta": "Gepubliseer {published} · Aanvaar {accepted} · {bids} bodde",
   "cases.owner.actions": "Saakhandelinge",
+  "cases.owner.agreedTerms": "Ooreengekome betaling",
   "cases.owner.archivedNotice": "Die saak is in die argief. Herstel dit om weer bodde te ontvang.",
   "cases.owner.attorneyAtWork": "Prokureur aan die werk",
   "cases.owner.attorneyMarkedNotice": "Die prokureur het die saak as klaar gemerk. Bevestig met jou eie \"Klaar\" of betwis dit. Sonder antwoord sluit die saak outomaties op {date}.",

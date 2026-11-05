@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Agbẹjọ́rò kò ní ìwé àṣẹ ní ìpínlẹ̀ ẹjọ́ yìí. Béèrè bí yóò ṣe bójú tó o.",
   "cases.overview.meta": "A tẹ̀jáde {published} · A gbà {accepted} · ìdíyelé {bids}",
   "cases.owner.actions": "Àwọn iṣẹ́ ẹjọ́",
+  "cases.owner.agreedTerms": "A fẹnukò lórí ìsanwó",
   "cases.owner.archivedNotice": "Ẹjọ́ náà wà ní ibi ìpamọ́. Dá a padà láti tún gba àwọn ìfilọ́.",
   "cases.owner.attorneyAtWork": "Agbẹjọ́rò ń ṣiṣẹ́",
   "cases.owner.attorneyMarkedNotice": "Agbẹjọ́rò ti sàmì ẹjọ́ náà gẹ́gẹ́ bí èyí tí a parí. Fìdí rẹ̀ múlẹ̀ pẹ̀lú \"Parí\" tìrẹ tàbí tako ó. Láìsí ìdáhùn, ẹjọ́ náà yóò pa dé fúnra rẹ̀ ní {date}.",

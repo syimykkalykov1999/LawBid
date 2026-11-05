@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Qareenku shati kuma laha gobolka kiiskan. Weydii sida uu u maaraynayo.",
   "cases.overview.meta": "La daabacay {published} · La aqbalay {accepted} · {bids} bixin",
   "cases.owner.actions": "Ficilada kiiska",
+  "cases.owner.agreedTerms": "Lacag lagu heshiiyey",
   "cases.owner.archivedNotice": "Kiisku wuxuu ku jiraa kaydka. Soo celi si aad mar kale dalabyo ugu hesho.",
   "cases.owner.attorneyAtWork": "Qareenka ayaa shaqeynaya",
   "cases.owner.attorneyMarkedNotice": "Qareenku wuxuu kiiska u calaamadiyay inuu dhammaaday. Ku xaqiiji \"Waa dhammaaday\" adiga u gaar ah ama ka biyo diid. Haddii aan jawaab la bixin, kiisku wuxuu si toos ah u xirmayaa {date}.",

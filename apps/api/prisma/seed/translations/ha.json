@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Lauyan ba shi da lasisi a jihar wannan shari'a. Ka tambaye shi yadda zai yi.",
   "cases.overview.meta": "An wallafa {published} · An karɓa {accepted} · Tayi {bids}",
   "cases.owner.actions": "Ayyukan shari'a",
+  "cases.owner.agreedTerms": "An amince da biya",
   "cases.owner.archivedNotice": "Shari'ar tana cikin taskar bayanai. Ku dawo da ita don sake karɓar tayi.",
   "cases.owner.attorneyAtWork": "Lauya yana aiki",
   "cases.owner.attorneyMarkedNotice": "Lauyan ya yi wa shari'ar alamar an gama. Tabbatar da \"An gama\" ɗinku ko ku ƙalubalance ta. Idan ba a amsa ba, za a rufe shari'ar kai tsaye a {date}.",

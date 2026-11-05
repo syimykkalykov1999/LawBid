@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "ທະນາຍຄວາມບໍ່ມີໃບອະນຸຍາດໃນລັດຂອງຄະດີນີ້. ລອງຖາມວ່າຈະຈັດການແນວໃດ.",
   "cases.overview.meta": "ເຜີຍແຜ່ {published} · ຍອມຮັບ {accepted} · {bids} ການສະເໜີລາຄາ",
   "cases.owner.actions": "ການດຳເນີນການກັບຄະດີ",
+  "cases.owner.agreedTerms": "ຕົກລົງການຊຳລະ",
   "cases.owner.archivedNotice": "ຄະດີຢູ່ໃນບ່ອນເກັບ. ກູ້ຄືນເພື່ອຮັບຂໍ້ສະເໜີອີກຄັ້ງ.",
   "cases.owner.attorneyAtWork": "ທະນາຍຄວາມກຳລັງດຳເນີນຄະດີ",
   "cases.owner.attorneyMarkedNotice": "ທະນາຍຄວາມໝາຍຄະດີວ່າສຳເລັດແລ້ວ. ຢືນຢັນດ້ວຍ \"ແລ້ວໆ\" ຂອງທ່ານເອງ ຫຼື ໂຕ້ແຍ້ງ. ຖ້າບໍ່ຕອບ ຄະດີຈະປິດອັດຕະໂນມັດໃນວັນທີ {date}.",

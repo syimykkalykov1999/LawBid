@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Ҳуқуқшинос дар иёлоти ин парванда иҷозатнома надорад. Пурсед, ки ӯ инро чӣ гуна ҳал мекунад.",
   "cases.overview.meta": "Нашр шуд {published} · Қабул шуд {accepted} · Пешниҳодҳо: {bids}",
   "cases.owner.actions": "Амалҳо бо парванда",
+  "cases.owner.agreedTerms": "Пардохт мувофиқа шуд",
   "cases.owner.archivedNotice": "Парванда дар бойгонӣ аст. Барои гирифтани пешниҳодҳо онро барқарор кунед.",
   "cases.owner.attorneyAtWork": "Адвокат дар кор аст",
   "cases.owner.attorneyMarkedNotice": "Адвокат паронда ҳамчун иҷрошуда қайд кард. Бо «Тайёр»-и худ тасдиқ кунед ё эътироз намоед. Агар ҷавоб надиҳед, парванда рӯзи {date} худкор баста мешавад.",

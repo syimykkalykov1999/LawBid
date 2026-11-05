@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Avukatın bu davanın eyaletinde ruhsatı yok. Nasıl ilerleyeceğini sorun.",
   "cases.overview.meta": "Yayınlandı {published} · Kabul edildi {accepted} · {bids} teklif",
   "cases.owner.actions": "Dava işlemleri",
+  "cases.owner.agreedTerms": "Anlaşılan ödeme",
   "cases.owner.archivedNotice": "Dava arşivde. Yeniden teklif almak için geri yükleyin.",
   "cases.owner.attorneyAtWork": "Davayı yürüten avukat",
   "cases.owner.attorneyMarkedNotice": "Avukat davayı tamamlandı olarak işaretledi. Kendi \"Bitti\" işaretinizle onaylayın veya itiraz edin. Yanıt verilmezse dava {date} tarihinde otomatik olarak kapanır.",

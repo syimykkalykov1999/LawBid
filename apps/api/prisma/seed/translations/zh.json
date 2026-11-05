@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "该律师没有本案所在州的执照。请询问其如何处理。",
   "cases.overview.meta": "发布于 {published} · 接受于 {accepted} · {bids} 个报价",
   "cases.owner.actions": "案件操作",
+  "cases.owner.agreedTerms": "已约定付款",
   "cases.owner.archivedNotice": "案件已归档。恢复后可再次接收报价。",
   "cases.owner.attorneyAtWork": "律师办理中",
   "cases.owner.attorneyMarkedNotice": "律师已将案件标记为完成。请点击您自己的“完成”确认，或提出异议。若不回应，案件将于 {date} 自动关闭。",

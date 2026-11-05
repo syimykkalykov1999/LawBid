@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Avoka a pa gen lisans nan eta ka sa a. Mande kijan l pral jere l.",
   "cases.overview.meta": "Pibliye {published} · Aksepte {accepted} · {bids} òf",
   "cases.owner.actions": "Aksyon sou ka a",
+  "cases.owner.agreedTerms": "Peman dakò",
   "cases.owner.archivedNotice": "Ka a nan achiv. Restore l pou w resevwa ofri ankò.",
   "cases.owner.attorneyAtWork": "Avoka ki ap travay",
   "cases.owner.attorneyMarkedNotice": "Avoka a make ka a kòm fini. Konfime ak pwòp \"Fini\" ou oswa konteste li. Si pa gen repons, ka a ap fèmen otomatikman le {date}.",

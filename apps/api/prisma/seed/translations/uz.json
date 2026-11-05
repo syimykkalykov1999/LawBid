@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Advokatning ish shtatida litsenziyasi yo'q. U buni qanday hal qilishini so'rang.",
   "cases.overview.meta": "E'lon qilingan: {published} · Qabul qilingan: {accepted} · {bids} ta taklif",
   "cases.owner.actions": "Ish bo‘yicha amallar",
+  "cases.owner.agreedTerms": "To'lov kelishildi",
   "cases.owner.archivedNotice": "Ish arxivda. Yana takliflar olish uchun uni tiklang.",
   "cases.owner.attorneyAtWork": "Advokat ish ustida",
   "cases.owner.attorneyMarkedNotice": "Advokat ishni bajarilgan deb belgiladi. O‘zingizning “Tayyor” tugmangiz bilan tasdiqlang yoki e’tiroz bildiring. Javob bo‘lmasa, ish {date} kuni avtomatik yopiladi.",

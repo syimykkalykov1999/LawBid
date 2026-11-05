@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "वकील का इस केस के राज्य में लाइसेंस नहीं है। पूछें कि वे इसे कैसे संभालेंगे।",
   "cases.overview.meta": "प्रकाशित {published} · स्वीकृत {accepted} · {bids} बोलियाँ",
   "cases.owner.actions": "मामले की कार्रवाइयाँ",
+  "cases.owner.agreedTerms": "भुगतान पर सहमति",
   "cases.owner.archivedNotice": "मामला संग्रह में है। फिर से बोलियाँ पाने के लिए इसे पुनर्स्थापित करें।",
   "cases.owner.attorneyAtWork": "वकील कार्यरत हैं",
   "cases.owner.attorneyMarkedNotice": "वकील ने मामले को पूर्ण चिह्नित किया है। अपने \"हो गया\" से पुष्टि करें या आपत्ति दर्ज करें। उत्तर न देने पर मामला {date} को अपने-आप बंद हो जाएगा।",

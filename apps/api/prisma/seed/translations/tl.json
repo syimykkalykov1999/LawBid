@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Walang lisensya ang abogado sa estado ng kasong ito. Itanong kung paano nila ito aasikasuhin.",
   "cases.overview.meta": "Nai-publish {published} · Tinanggap {accepted} · {bids} bid",
   "cases.owner.actions": "Mga aksyon sa kaso",
+  "cases.owner.agreedTerms": "Napagkasunduang bayad",
   "cases.owner.archivedNotice": "Nasa archive ang kaso. Ibalik ito para makatanggap muli ng mga alok.",
   "cases.owner.attorneyAtWork": "Abogadong gumagawa sa kaso",
   "cases.owner.attorneyMarkedNotice": "Minarkahan ng abogado na tapos na ang kaso. Kumpirmahin gamit ang sarili mong \"Tapos na\" o i-dispute ito. Kung walang sagot, awtomatikong magsasara ang kaso sa {date}.",

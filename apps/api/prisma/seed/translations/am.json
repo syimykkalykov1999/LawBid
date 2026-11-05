@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "ጠበቃው በዚህ ጉዳይ ክልል ፈቃድ የለውም። እንዴት እንደሚይዙት ይጠይቁ።",
   "cases.overview.meta": "የታተመ {published} · የተቀበለ {accepted} · {bids} ቅናሾች",
   "cases.owner.actions": "የጉዳይ እርምጃዎች",
+  "cases.owner.agreedTerms": "ስለ ክፍያ ተስማምተናል",
   "cases.owner.archivedNotice": "ጉዳዩ በማህደር ውስጥ ነው። እንደገና ጨረታ ለመቀበል ይመልሱት።",
   "cases.owner.attorneyAtWork": "ጠበቃው በሥራ ላይ",
   "cases.owner.attorneyMarkedNotice": "ጠበቃው ጉዳዩን ተጠናቋል ብሎ ምልክት አድርጓል። በራስዎ «ተጠናቋል» ያረጋግጡ ወይም ይቃወሙ። መልስ ካልሰጡ ጉዳዩ በ{date} በራስ-ሰር ይዘጋል።",

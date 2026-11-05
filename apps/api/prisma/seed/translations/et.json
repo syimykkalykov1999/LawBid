@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Advokaadil pole selle juhtumi osariigis litsentsi. Küsi, kuidas ta seda lahendab.",
   "cases.overview.meta": "Avaldatud {published} · Vastu võetud {accepted} · {bids} pakkumist",
   "cases.owner.actions": "Juhtumi toimingud",
+  "cases.owner.agreedTerms": "Kokku lepitud tasu",
   "cases.owner.archivedNotice": "Juhtum on arhiivis. Taastage see, et saada uuesti pakkumisi.",
   "cases.owner.attorneyAtWork": "Advokaat töötab",
   "cases.owner.attorneyMarkedNotice": "Advokaat märkis juhtumi tehtuks. Kinnitage oma „Valmis“ abil või vaidlustage. Vastuse puudumisel suletakse juhtum automaatselt {date}.",

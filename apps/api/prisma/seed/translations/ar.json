@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "المحامي ليس لديه ترخيص في ولاية هذه القضية. اسأله كيف سيتعامل مع ذلك.",
   "cases.overview.meta": "نُشرت {published} · قُبلت {accepted} · {bids} عروض",
   "cases.owner.actions": "إجراءات القضية",
+  "cases.owner.agreedTerms": "تم الاتفاق على الدفع",
   "cases.owner.archivedNotice": "القضية في الأرشيف. استعِدها لتلقي العروض مجددًا.",
   "cases.owner.attorneyAtWork": "المحامي يعمل على القضية",
   "cases.owner.attorneyMarkedNotice": "وضع المحامي علامة على القضية بأنها منتهية. أكّد بزر \"تم\" الخاص بك أو اعترض. وبدون ردّ ستُغلق القضية تلقائيًا في {date}.",

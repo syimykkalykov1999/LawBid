@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "De advocaat heeft geen licentie in de staat van deze zaak. Vraag hoe hij of zij dit aanpakt.",
   "cases.overview.meta": "Gepubliceerd {published} · Geaccepteerd {accepted} · {bids} biedingen",
   "cases.owner.actions": "Acties voor de zaak",
+  "cases.owner.agreedTerms": "Overeengekomen betaling",
   "cases.owner.archivedNotice": "De zaak staat in het archief. Herstel de zaak om weer biedingen te ontvangen.",
   "cases.owner.attorneyAtWork": "Advocaat aan het werk",
   "cases.owner.attorneyMarkedNotice": "De advocaat heeft de zaak als gereed gemarkeerd. Bevestig met uw eigen \"Gereed\" of betwist dit. Zonder antwoord wordt de zaak op {date} automatisch gesloten.",

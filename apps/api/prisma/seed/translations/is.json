@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Lögmaðurinn hefur ekki réttindi í fylki þessa máls. Spyrðu hvernig hann ætlar að leysa það.",
   "cases.overview.meta": "Birt {published} · Samþykkt {accepted} · {bids} tilboð",
   "cases.owner.actions": "Aðgerðir í máli",
+  "cases.owner.agreedTerms": "Umsamin greiðsla",
   "cases.owner.archivedNotice": "Málið er í skjalasafni. Endurheimtu það til að fá tilboð aftur.",
   "cases.owner.attorneyAtWork": "Lögmaður að störfum",
   "cases.owner.attorneyMarkedNotice": "Lögmaðurinn merkti málið sem lokið. Staðfestu með þínu eigin „Lokið“ eða mótmæltu. Án svars lokast málið sjálfkrafa þann {date}.",

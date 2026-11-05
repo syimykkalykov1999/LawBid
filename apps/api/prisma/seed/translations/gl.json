@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "O avogado non ten licenza no estado deste caso. Pregunta como o xestionará.",
   "cases.overview.meta": "Publicado {published} · Aceptado {accepted} · {bids} ofertas",
   "cases.owner.actions": "Accións do caso",
+  "cases.owner.agreedTerms": "Pagamento acordado",
   "cases.owner.archivedNotice": "O caso está no arquivo. Restáureo para volver recibir ofertas.",
   "cases.owner.attorneyAtWork": "Avogado a cargo",
   "cases.owner.attorneyMarkedNotice": "O avogado marcou o caso como feito. Confirme co seu propio \"Feito\" ou dispute. Se non responde, o caso péchase automaticamente o {date}.",

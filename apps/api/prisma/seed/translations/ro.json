@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Avocatul nu are licență în statul acestui caz. Întreabă-l cum va proceda.",
   "cases.overview.meta": "Publicat {published} · Acceptat {accepted} · {bids} oferte",
   "cases.owner.actions": "Acțiuni pentru caz",
+  "cases.owner.agreedTerms": "Plată convenită",
   "cases.owner.archivedNotice": "Cazul este în arhivă. Restaurați-l pentru a primi din nou oferte.",
   "cases.owner.attorneyAtWork": "Avocatul lucrează",
   "cases.owner.attorneyMarkedNotice": "Avocatul a marcat cazul ca finalizat. Confirmați cu propriul „Gata” sau contestați. Fără un răspuns, cazul se închide automat la {date}.",

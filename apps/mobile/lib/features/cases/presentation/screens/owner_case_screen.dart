@@ -1031,8 +1031,10 @@ class _AcceptedAttorneyCard extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final a = bid.attorney;
+    // Owner 2026-11-05: the terms are written on the card; a tap opens the bid.
     return AppCard(
       elevated: true,
+      onTap: () => context.push(AppRoutes.bid(bid.id)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1046,6 +1048,11 @@ class _AcceptedAttorneyCard extends StatelessWidget {
                   : () => context.push(AppRoutes.lawyer(a.username)),
             ),
           const SizedBox(height: AppSpacing.md),
+          Text(
+            t.t('cases.owner.agreedTerms'),
+            style: typography.caption.copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(height: AppSpacing.xs),
           MoneyText(
             CaseFormat.terms(
               t,
@@ -1067,13 +1074,6 @@ class _AcceptedAttorneyCard extends StatelessWidget {
             style: typography.caption.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.lg),
-          // Owner 2026-11-05: one chat on the screen, the button at the bottom.
-          AppButton(
-            label: t.t('cases.owner.viewBid'),
-            variant: AppButtonVariant.secondary,
-            height: AppSizes.touchTarget,
-            onPressed: () => context.push(AppRoutes.bid(bid.id)),
-          ),
         ],
       ),
     );

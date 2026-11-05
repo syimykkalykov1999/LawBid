@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Prawnik nie ma licencji w stanie tej sprawy. Zapytaj, jak sobie z tym poradzi.",
   "cases.overview.meta": "Opublikowano {published} · Przyjęto {accepted} · Ofert: {bids}",
   "cases.owner.actions": "Działania dotyczące sprawy",
+  "cases.owner.agreedTerms": "Uzgodniona płatność",
   "cases.owner.archivedNotice": "Sprawa jest w archiwum. Przywróć ją, aby ponownie otrzymywać oferty.",
   "cases.owner.attorneyAtWork": "Prawnik pracuje nad sprawą",
   "cases.owner.attorneyMarkedNotice": "Prawnik oznaczył sprawę jako zakończoną. Potwierdź własnym „Gotowe” lub zakwestionuj. Bez odpowiedzi sprawa zamknie się automatycznie {date}.",

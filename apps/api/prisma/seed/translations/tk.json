@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Aklawçynyň bu işiň ştatynda ygtyyarnamasy ýok. Işi nädip alyp barjakdygyny soraň.",
   "cases.overview.meta": "Çap edildi {published} · Kabul edildi {accepted} · {bids} teklip",
   "cases.owner.actions": "Iş boýunça amallar",
+  "cases.owner.agreedTerms": "Töleg ylalaşyldy",
   "cases.owner.archivedNotice": "Iş arhiwde. Täzeden teklip almak üçin ony dikeldiň.",
   "cases.owner.attorneyAtWork": "Aklawçy işleýär",
   "cases.owner.attorneyMarkedNotice": "Aklawçy işi tamamlandy diýip bellän. Öz \"Taýýar\" düwmeňiz bilen tassyklaň ýa-da jedel ediň. Jogap bolmasa, iş {date} senesinde awtomatiki ýapylar.",

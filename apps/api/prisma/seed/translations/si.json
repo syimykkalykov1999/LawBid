@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "මෙම නඩුවේ ප්‍රාන්තයේ නීතිඥයාට බලපත්‍රයක් නැත. එය හසුරුවන්නේ කෙසේදැයි විමසන්න.",
   "cases.overview.meta": "ප්‍රකාශිතය {published} · භාරගත්තේ {accepted} · ලංසු {bids}",
   "cases.owner.actions": "නඩු ක්‍රියා",
+  "cases.owner.agreedTerms": "ගෙවීම එකඟයි",
   "cases.owner.archivedNotice": "නඩුව සංරක්ෂිතයේ ඇත. නැවත ලංසු ලැබීමට එය ප්‍රතිසාධනය කරන්න.",
   "cases.owner.attorneyAtWork": "වැඩ කරන නීතිඥ",
   "cases.owner.attorneyMarkedNotice": "නීතිඥයා නඩුව අවසන් ලෙස සලකුණු කළා. ඔබගේ \"අවසන්\" මගින් තහවුරු කරන්න හෝ අභියෝග කරන්න. පිළිතුරක් නොදුන්නොත් නඩුව {date} දින ස්වයංක්‍රීයව වසා දමයි.",

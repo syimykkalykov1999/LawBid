@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "У адвоката нет лицензии в штате этого кейса. Уточните, как будет вестись дело.",
   "cases.overview.meta": "Опубликован {published} · Принят {accepted} · Бидов: {bids}",
   "cases.owner.actions": "Действия с кейсом",
+  "cases.owner.agreedTerms": "Договорились об оплате",
   "cases.owner.archivedNotice": "Кейс в архиве. Верните его, чтобы снова получать биды.",
   "cases.owner.attorneyAtWork": "Адвокат в работе",
   "cases.owner.attorneyMarkedNotice": "Адвокат отметил дело выполненным. Подтвердите своим «Выполнено» или оспорьте. Если не ответить, дело закроется само {date}.",

@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "ადვოკატს ამ საქმის შტატში ლიცენზია არ აქვს. ჰკითხეთ, როგორ აპირებს მის მოგვარებას.",
   "cases.overview.meta": "გამოქვეყნდა {published} · მიღებულია {accepted} · {bids} შეთავაზება",
   "cases.owner.actions": "საქმის მოქმედებები",
+  "cases.owner.agreedTerms": "შეთანხმებული გადახდა",
   "cases.owner.archivedNotice": "საქმე არქივშია. შეთავაზებების ხელახლა მისაღებად აღადგინეთ.",
   "cases.owner.attorneyAtWork": "ადვოკატი მუშაობს საქმეზე",
   "cases.owner.attorneyMarkedNotice": "ადვოკატმა საქმე შესრულებულად მონიშნა. დაადასტურეთ საკუთარი „მზადაა“-თი ან გაასაჩივრეთ. პასუხის გარეშე საქმე ავტომატურად დაიხურება {date}.",

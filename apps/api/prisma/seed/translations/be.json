@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "У адваката няма ліцэнзіі ў штаце гэтай справы. Спытайце, як ён будзе вырашаць.",
   "cases.overview.meta": "Апублікавана {published} · Прынята {accepted} · стаўак: {bids}",
   "cases.owner.actions": "Дзеянні са справай",
+  "cases.owner.agreedTerms": "Дамовіліся аб аплаце",
   "cases.owner.archivedNotice": "Справа ў архіве. Аднавіце яе, каб зноў атрымліваць прапановы.",
   "cases.owner.attorneyAtWork": "Адвакат у рабоце",
   "cases.owner.attorneyMarkedNotice": "Адвакат адзначыў справу выкананай. Пацвердзіце сваім «Гатова» або аспрэчце. Без адказу справа закрыецца сама {date}.",

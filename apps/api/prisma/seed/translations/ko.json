@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "변호사가 이 사건의 주에 면허가 없습니다. 어떻게 처리할지 문의해 보세요.",
   "cases.overview.meta": "게시 {published} · 수락 {accepted} · 입찰 {bids}건",
   "cases.owner.actions": "사건 작업",
+  "cases.owner.agreedTerms": "합의된 결제",
   "cases.owner.archivedNotice": "사건이 보관함에 있습니다. 다시 제안을 받으려면 복원하세요.",
   "cases.owner.attorneyAtWork": "담당 변호사",
   "cases.owner.attorneyMarkedNotice": "변호사가 사건을 완료로 표시했습니다. 직접 \"완료\"를 눌러 확인하거나 이의를 제기하세요. 응답이 없으면 {date}에 사건이 자동으로 종결됩니다.",

@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Asianajajalla ei ole lupaa tämän asian osavaltiossa. Kysy, miten hän hoitaa asian.",
   "cases.overview.meta": "Julkaistu {published} · Hyväksytty {accepted} · {bids} tarjousta",
   "cases.owner.actions": "Asian toiminnot",
+  "cases.owner.agreedTerms": "Sovittu maksu",
   "cases.owner.archivedNotice": "Asia on arkistossa. Palauta se saadaksesi taas tarjouksia.",
   "cases.owner.attorneyAtWork": "Asianajaja työssä",
   "cases.owner.attorneyMarkedNotice": "Asianajaja merkitsi asian valmiiksi. Vahvista omalla \"Valmis\"-painikkeellasi tai kiistä. Ilman vastausta asia sulkeutuu automaattisesti {date}.",

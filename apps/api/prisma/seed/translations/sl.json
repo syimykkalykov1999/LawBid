@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Odvetnik nima licence v zvezni državi te zadeve. Vprašajte, kako bo to uredil.",
   "cases.overview.meta": "Objavljeno {published} · Sprejeto {accepted} · {bids} ponudb",
   "cases.owner.actions": "Dejanja za zadevo",
+  "cases.owner.agreedTerms": "Dogovorjeno plačilo",
   "cases.owner.archivedNotice": "Zadeva je v arhivu. Obnovite jo, če želite znova prejemati ponudbe.",
   "cases.owner.attorneyAtWork": "Odvetnik dela na zadevi",
   "cases.owner.attorneyMarkedNotice": "Odvetnik je zadevo označil kot končano. Potrdite s svojim gumbom \"Končano\" ali jo izpodbijajte. Brez odgovora se zadeva samodejno zapre {date}.",

@@ -843,6 +843,7 @@
   "cases.outsideStates.clientNoList": "Փաստաբանը լիցենզիա չունի այս գործի նահանգում։ Հարցրեք, թե ինչպես է այն վարելու։",
   "cases.overview.meta": "Հրապարակվել է՝ {published} · Ընդունվել է՝ {accepted} · {bids} առաջարկ",
   "cases.owner.actions": "Գործի գործողություններ",
+  "cases.owner.agreedTerms": "Վճարումը համաձայնեցված է",
   "cases.owner.archivedNotice": "Գործը արխիվում է։ Վերականգնեք այն՝ նորից հայտեր ստանալու համար։",
   "cases.owner.attorneyAtWork": "Փաստաբանը աշխատանքի մեջ է",
   "cases.owner.attorneyMarkedNotice": "Փաստաբանը նշել է գործը որպես ավարտված: Հաստատեք ձեր «Պատրաստ է»-ով կամ վիճարկեք: Առանց պատասխանի գործը ավտոմատ կփակվի {date}-ին:",
