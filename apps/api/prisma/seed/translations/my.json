@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "သင့်စာရင်းသွင်းမှု အခြေအနေ ပြောင်းလဲသွားပါပြီ",
   "notif.list.subscription_status.contract": "LawBid က သင့်အတွက် စာချုပ်အရ စာရင်းသွင်းမှုတစ်ခု သတ်မှတ်ပေးခဲ့သည်",
   "notif.list.subscription_status.contract_revoked": "သင့်စာချုပ်အရ စာရင်းသွင်းမှု ပြီးဆုံးသွားပါပြီ",
+  "notif.list.subscription_status.dispute_refund": "သင့်ငွေပေးချေမှုကို ပြန်အမ်းပြီး စာရင်းသွင်းမှုကို ပယ်ဖျက်လိုက်ပါပြီ။",
   "notif.list.subscription_status.seat_limit_approved": "လက်ထောက် ကန့်သတ်ချက် မြှင့်ပြီး: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "လက်ထောက် ထပ်တောင်းသော သင့်တောင်းဆိုချက် ငြင်းပယ်ခံရသည်",
   "notif.list.subscription_trial_ending": "သင့်အခမဲ့ စမ်းသုံးကာလ မကြာမီ ပြီးဆုံးပါမည်",

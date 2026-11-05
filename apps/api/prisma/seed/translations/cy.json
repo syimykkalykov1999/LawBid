@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Mae statws eich tanysgrifiad wedi newid",
   "notif.list.subscription_status.contract": "Mae LawBid wedi trefnu tanysgrifiad contract i chi",
   "notif.list.subscription_status.contract_revoked": "Daeth eich tanysgrifiad contract i ben",
+  "notif.list.subscription_status.dispute_refund": "Mae eich taliad wedi'i ad-dalu a'r tanysgrifiad wedi'i ganslo.",
   "notif.list.subscription_status.seat_limit_approved": "Terfyn cynorthwywyr wedi'i godi: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Gwrthodwyd eich cais am fwy o gynorthwywyr",
   "notif.list.subscription_trial_ending": "Mae eich cyfnod prawf am ddim yn dod i ben yn fuan",

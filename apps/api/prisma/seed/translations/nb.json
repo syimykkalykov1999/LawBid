@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Abonnementsstatusen din er endret",
   "notif.list.subscription_status.contract": "LawBid har satt opp et avtaleabonnement for deg",
   "notif.list.subscription_status.contract_revoked": "Avtaleabonnementet ditt er avsluttet",
+  "notif.list.subscription_status.dispute_refund": "Betalingen din er refundert, og abonnementet er kansellert.",
   "notif.list.subscription_status.seat_limit_approved": "Assistentgrensen er hevet: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Forespørselen din om flere assistenter ble avslått",
   "notif.list.subscription_trial_ending": "Den gratis prøveperioden din utløper snart",

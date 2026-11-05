@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Status langganan anda berubah",
   "notif.list.subscription_status.contract": "LawBid menyediakan langganan kontrak untuk anda",
   "notif.list.subscription_status.contract_revoked": "Langganan kontrak anda telah tamat",
+  "notif.list.subscription_status.dispute_refund": "Bayaran anda telah dikembalikan dan langganan dibatalkan.",
   "notif.list.subscription_status.seat_limit_approved": "Had pembantu dinaikkan: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Permintaan anda untuk lebih ramai pembantu ditolak",
   "notif.list.subscription_trial_ending": "Percubaan percuma anda akan tamat tidak lama lagi",

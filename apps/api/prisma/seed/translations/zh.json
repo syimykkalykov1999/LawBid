@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "您的订阅状态已变更",
   "notif.list.subscription_status.contract": "LawBid 已为您开通合同订阅",
   "notif.list.subscription_status.contract_revoked": "您的合同订阅已结束",
+  "notif.list.subscription_status.dispute_refund": "您的付款已退还,订阅已取消。",
   "notif.list.subscription_status.seat_limit_approved": "助理上限已提高：{seats}",
   "notif.list.subscription_status.seat_limit_rejected": "你申请更多助理的请求未通过",
   "notif.list.subscription_trial_ending": "您的免费试用即将结束",

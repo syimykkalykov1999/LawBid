@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Жазылуу статусуңуз өзгөрдү",
   "notif.list.subscription_status.contract": "LawBid сиз үчүн келишим боюнча жазылуу түздү",
   "notif.list.subscription_status.contract_revoked": "Келишим боюнча жазылууңуз аяктады",
+  "notif.list.subscription_status.dispute_refund": "Төлөмүңүз кайтарылды, жазылуу жокко чыгарылды.",
   "notif.list.subscription_status.seat_limit_approved": "Жардамчы чеги көбөйтүлдү: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Көбүрөөк жардамчыга өтүнмөңүз четке кагылды",
   "notif.list.subscription_trial_ending": "Бекер сыноо мөөнөтүңүз жакында аяктайт",

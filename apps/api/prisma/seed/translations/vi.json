@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Trạng thái gói đăng ký của bạn đã thay đổi",
   "notif.list.subscription_status.contract": "LawBid đã thiết lập gói đăng ký theo hợp đồng cho bạn",
   "notif.list.subscription_status.contract_revoked": "Gói đăng ký theo hợp đồng của bạn đã kết thúc",
+  "notif.list.subscription_status.dispute_refund": "Khoản thanh toán của bạn đã được hoàn lại và gói đăng ký đã bị hủy.",
   "notif.list.subscription_status.seat_limit_approved": "Giới hạn trợ lý đã tăng: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Yêu cầu thêm trợ lý của bạn bị từ chối",
   "notif.list.subscription_trial_ending": "Bản dùng thử miễn phí của bạn sắp kết thúc",

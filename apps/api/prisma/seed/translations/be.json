@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Статус вашай падпіскі змяніўся",
   "notif.list.subscription_status.contract": "LawBid аформіў для вас падпіску па кантракце",
   "notif.list.subscription_status.contract_revoked": "Ваша падпіска па кантракце скончылася",
+  "notif.list.subscription_status.dispute_refund": "Плацёж вернуты на картку, падпіска скасавана.",
   "notif.list.subscription_status.seat_limit_approved": "Ліміт памочнікаў павышаны: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Ваш запыт на больш памочнікаў адхілены",
   "notif.list.subscription_trial_ending": "Ваш бясплатны прабны перыяд хутка скончыцца",

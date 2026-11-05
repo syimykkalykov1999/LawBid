@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Abonelik durumunuz değişti",
   "notif.list.subscription_status.contract": "LawBid sizin için bir sözleşme aboneliği oluşturdu",
   "notif.list.subscription_status.contract_revoked": "Sözleşme aboneliğiniz sona erdi",
+  "notif.list.subscription_status.dispute_refund": "Ödemeniz iade edildi ve abonelik iptal edildi.",
   "notif.list.subscription_status.seat_limit_approved": "Asistan sınırı yükseltildi: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Daha fazla asistan talebiniz reddedildi",
   "notif.list.subscription_trial_ending": "Ücretsiz deneme süreniz yakında bitiyor",

@@ -14,6 +14,7 @@ import { BillingPromoController } from './billing-promo.controller';
 import { ContractGrantsService } from './contract-grants.service';
 import { PromoCodesService } from './promo-codes.service';
 import { RefundsService } from './refunds.service';
+import { DisputeRefundsAdminService } from './dispute-refunds-admin.service';
 import { SeatChangesAdminService } from './seat-changes-admin.service';
 import { DuplicateFixesAdminService } from './duplicate-fixes-admin.service';
 import {
@@ -57,6 +58,8 @@ import { LedgerModule } from '../ledger/ledger.public';
     SeatChangesAdminService,
     // Algo audit M-4: «Двойные подписки».
     DuplicateFixesAdminService,
+    // R-237: «Возвраты по спорам».
+    DisputeRefundsAdminService,
     BillingOverviewService,
     AdminPricingService,
     AdminPlansService,

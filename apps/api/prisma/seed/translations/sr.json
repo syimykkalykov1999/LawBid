@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Статус ваше претплате је промењен",
   "notif.list.subscription_status.contract": "LawBid вам је поставио уговорну претплату",
   "notif.list.subscription_status.contract_revoked": "Ваша уговорна претплата је окончана",
+  "notif.list.subscription_status.dispute_refund": "Ваша уплата је враћена, а претплата отказана.",
   "notif.list.subscription_status.seat_limit_approved": "Лимит асистената повећан: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Ваш захтев за више асистената је одбијен",
   "notif.list.subscription_trial_ending": "Ваш бесплатни пробни период ускоро истиче",

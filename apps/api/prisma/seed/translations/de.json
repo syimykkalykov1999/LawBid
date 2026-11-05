@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Der Status Ihres Abos hat sich geändert",
   "notif.list.subscription_status.contract": "LawBid hat ein Vertrags-Abo für Sie eingerichtet",
   "notif.list.subscription_status.contract_revoked": "Ihr Vertrags-Abo wurde beendet",
+  "notif.list.subscription_status.dispute_refund": "Deine Zahlung wurde erstattet und das Abonnement gekündigt.",
   "notif.list.subscription_status.seat_limit_approved": "Assistentenlimit erhöht: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Ihre Anfrage für mehr Assistenten wurde abgelehnt",
   "notif.list.subscription_trial_ending": "Ihre kostenlose Testphase endet bald",

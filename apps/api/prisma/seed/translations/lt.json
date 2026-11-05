@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Jūsų prenumeratos būsena pasikeitė",
   "notif.list.subscription_status.contract": "LawBid Jums nustatė prenumeratą pagal sutartį",
   "notif.list.subscription_status.contract_revoked": "Jūsų prenumerata pagal sutartį baigėsi",
+  "notif.list.subscription_status.dispute_refund": "Jūsų mokėjimas grąžintas, o prenumerata atšaukta.",
   "notif.list.subscription_status.seat_limit_approved": "Asistentų limitas padidintas: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Jūsų prašymas dėl daugiau asistentų atmestas",
   "notif.list.subscription_trial_ending": "Netrukus baigsis Jūsų nemokamas laikotarpis",

@@ -308,4 +308,13 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     app: true,
     description: 'Sign in with a passkey (WebAuthn)',
   },
+  {
+    // R-237 (owner 2026-11-05): REAL MONEY. On: a bank inquiry on a
+    // subscription charge is refunded in full within the limits; above them
+    // it waits for a person. Off (default): nothing is refunded.
+    key: 'dispute_auto_refund',
+    enabled: false,
+    description:
+      'Automatic refund of a bank inquiry on a subscription charge (real money; off by default)',
+  },
 ];

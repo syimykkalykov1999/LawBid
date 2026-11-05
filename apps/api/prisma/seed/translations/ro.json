@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Starea abonamentului dvs. s-a schimbat",
   "notif.list.subscription_status.contract": "LawBid v-a configurat un abonament prin contract",
   "notif.list.subscription_status.contract_revoked": "Abonamentul dvs. prin contract s-a încheiat",
+  "notif.list.subscription_status.dispute_refund": "Plata ta a fost rambursată, iar abonamentul a fost anulat.",
   "notif.list.subscription_status.seat_limit_approved": "Limita de asistenți a fost mărită: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Cererea ta pentru mai mulți asistenți a fost respinsă",
   "notif.list.subscription_trial_ending": "Perioada dvs. de probă gratuită se încheie în curând",

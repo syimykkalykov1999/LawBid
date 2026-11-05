@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "നിങ്ങളുടെ സബ്സ്ക്രിപ്ഷൻ നില മാറി",
   "notif.list.subscription_status.contract": "LawBid നിങ്ങൾക്കായി ഒരു കരാർ സബ്സ്ക്രിപ്ഷൻ സജ്ജമാക്കി",
   "notif.list.subscription_status.contract_revoked": "നിങ്ങളുടെ കരാർ സബ്സ്ക്രിപ്ഷൻ അവസാനിച്ചു",
+  "notif.list.subscription_status.dispute_refund": "നിങ്ങളുടെ പേയ്‌മെന്റ് തിരികെ നൽകി, സബ്‌സ്‌ക്രിപ്‌ഷൻ റദ്ദാക്കി.",
   "notif.list.subscription_status.seat_limit_approved": "അസിസ്റ്റന്റ് പരിധി ഉയർത്തി: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "കൂടുതൽ അസിസ്റ്റന്റുമാർക്കുള്ള അഭ്യർത്ഥന നിരസിച്ചു",
   "notif.list.subscription_trial_ending": "നിങ്ങളുടെ സൗജന്യ ട്രയൽ ഉടൻ അവസാനിക്കും",

@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "თქვენი გამოწერის სტატუსი შეიცვალა",
   "notif.list.subscription_status.contract": "LawBid-მა თქვენთვის ხელშეკრულებით გამოწერა გააფორმა",
   "notif.list.subscription_status.contract_revoked": "თქვენი ხელშეკრულებით გამოწერა დასრულდა",
+  "notif.list.subscription_status.dispute_refund": "თქვენი გადახდა დაგიბრუნდათ და გამოწერა გაუქმდა.",
   "notif.list.subscription_status.seat_limit_approved": "ასისტენტების ლიმიტი გაიზარდა: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "თქვენი მოთხოვნა მეტ ასისტენტზე უარყოფილია",
   "notif.list.subscription_trial_ending": "თქვენი უფასო საცდელი პერიოდი მალე მთავრდება",

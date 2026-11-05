@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "আপনার সাবস্ক্রিপশনের অবস্থা পরিবর্তিত হয়েছে",
   "notif.list.subscription_status.contract": "LawBid আপনার জন্য একটি চুক্তিভিত্তিক সাবস্ক্রিপশন চালু করেছে",
   "notif.list.subscription_status.contract_revoked": "আপনার চুক্তিভিত্তিক সাবস্ক্রিপশন শেষ হয়েছে",
+  "notif.list.subscription_status.dispute_refund": "আপনার পেমেন্ট ফেরত দেওয়া হয়েছে এবং সাবস্ক্রিপশন বাতিল করা হয়েছে।",
   "notif.list.subscription_status.seat_limit_approved": "সহকারী সীমা বেড়েছে: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "আরও সহকারীর অনুরোধ প্রত্যাখ্যাত",
   "notif.list.subscription_trial_ending": "আপনার বিনামূল্যের ট্রায়াল শীঘ্রই শেষ হচ্ছে",

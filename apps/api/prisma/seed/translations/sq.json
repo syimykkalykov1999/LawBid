@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Statusi i abonimit tuaj ndryshoi",
   "notif.list.subscription_status.contract": "LawBid ju krijoi një abonim sipas kontratës",
   "notif.list.subscription_status.contract_revoked": "Abonimi juaj sipas kontratës përfundoi",
+  "notif.list.subscription_status.dispute_refund": "Pagesa juaj u rimbursua dhe abonimi u anulua.",
   "notif.list.subscription_status.seat_limit_approved": "Kufiri i asistentëve u rrit: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Kërkesa juaj për më shumë asistentë u refuzua",
   "notif.list.subscription_trial_ending": "Prova juaj falas përfundon së shpejti",

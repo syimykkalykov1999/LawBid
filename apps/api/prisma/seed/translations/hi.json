@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "आपकी सदस्यता की स्थिति बदली",
   "notif.list.subscription_status.contract": "LawBid ने आपके लिए अनुबंध सदस्यता सेट की है",
   "notif.list.subscription_status.contract_revoked": "आपकी अनुबंध सदस्यता समाप्त हो गई",
+  "notif.list.subscription_status.dispute_refund": "आपका भुगतान वापस कर दिया गया है और सदस्यता रद्द कर दी गई है।",
   "notif.list.subscription_status.seat_limit_approved": "सहायक सीमा बढ़ी: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "और सहायक का आपका अनुरोध अस्वीकृत हुआ",
   "notif.list.subscription_trial_ending": "आपका निःशुल्क ट्रायल जल्द समाप्त होगा",

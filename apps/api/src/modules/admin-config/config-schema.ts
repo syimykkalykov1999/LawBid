@@ -689,6 +689,25 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'The most the duplicate-subscription auto-fix may refund in one UTC day, all attorneys together (cents; default 50000 = $500). A refund above it is not sent: it waits in «Проверки Stripe» for a person.',
   };
+  out['billing.dispute_refund_max_cents'] = {
+    ...out['billing.dispute_refund_max_cents'],
+    description:
+      'The largest refund of a bank inquiry on a subscription charge the system makes by itself, in cents. Above it the refund waits for a person.',
+  };
+  out['billing.dispute_refund_user_limit'] = {
+    ...out['billing.dispute_refund_user_limit'],
+    description:
+      'How many automatic dispute refunds one user may get within the window. The next one waits for a person.',
+  };
+  out['billing.dispute_refund_window_days'] = {
+    ...out['billing.dispute_refund_window_days'],
+    description: 'The window of the per-user limit, in days.',
+  };
+  out['billing.dispute_refund_daily_cap_cents'] = {
+    ...out['billing.dispute_refund_daily_cap_cents'],
+    description:
+      'The most all automatic dispute refunds may return in one UTC day, in cents. Above it a refund waits for a person.',
+  };
   out['billing.require_verified_for_purchases'] = {
     ...out['billing.require_verified_for_purchases'],
     description:

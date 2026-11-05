@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Mainījies Jūsu abonementa statuss",
   "notif.list.subscription_status.contract": "LawBid Jums izveidoja līguma abonementu",
   "notif.list.subscription_status.contract_revoked": "Jūsu līguma abonements ir beidzies",
+  "notif.list.subscription_status.dispute_refund": "Jūsu maksājums ir atmaksāts, un abonements ir atcelts.",
   "notif.list.subscription_status.seat_limit_approved": "Asistentu limits palielināts: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Jūsu pieprasījums pēc vairāk asistentu noraidīts",
   "notif.list.subscription_trial_ending": "Jūsu bezmaksas izmēģinājuma periods drīz beigsies",

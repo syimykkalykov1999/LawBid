@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Ipò ìforúkọsílẹ̀ oṣooṣù rẹ ti yí padà",
   "notif.list.subscription_status.contract": "LawBid ṣètò ìforúkọsílẹ̀ oṣooṣù àdéhùn fún ọ",
   "notif.list.subscription_status.contract_revoked": "Ìforúkọsílẹ̀ oṣooṣù àdéhùn rẹ ti parí",
+  "notif.list.subscription_status.dispute_refund": "A ti dá owó rẹ padà, a sì ti fagilé ìforúkọsílẹ̀ náà.",
   "notif.list.subscription_status.seat_limit_approved": "A ti gbé ààlà olùrànlọ́wọ́ ga: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "A kọ ìbéèrè rẹ fún olùrànlọ́wọ́ sí i",
   "notif.list.subscription_trial_ending": "Àkókò àdánwò ọ̀fẹ́ rẹ máa parí láìpẹ́",

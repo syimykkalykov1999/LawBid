@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Статус вашої підписки змінився",
   "notif.list.subscription_status.contract": "LawBid оформив для вас підписку за договором",
   "notif.list.subscription_status.contract_revoked": "Вашу підписку за договором завершено",
+  "notif.list.subscription_status.dispute_refund": "Платіж повернуто на картку, підписку скасовано.",
   "notif.list.subscription_status.seat_limit_approved": "Ліміт помічників підвищено: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Ваш запит на більше помічників відхилено",
   "notif.list.subscription_trial_ending": "Незабаром закінчується ваш безкоштовний пробний період",

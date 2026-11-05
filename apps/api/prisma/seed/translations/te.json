@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "మీ సబ్‌స్క్రిప్షన్ స్థితి మారింది",
   "notif.list.subscription_status.contract": "LawBid మీ కోసం ఒప్పంద సబ్‌స్క్రిప్షన్‌ను సెట్ చేసింది",
   "notif.list.subscription_status.contract_revoked": "మీ ఒప్పంద సబ్‌స్క్రిప్షన్ ముగిసింది",
+  "notif.list.subscription_status.dispute_refund": "మీ చెల్లింపు తిరిగి ఇవ్వబడింది, సభ్యత్వం రద్దు చేయబడింది.",
   "notif.list.subscription_status.seat_limit_approved": "సహాయకుల పరిమితి పెంచబడింది: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "మరిన్ని సహాయకుల కోసం మీ అభ్యర్థన తిరస్కరించబడింది",
   "notif.list.subscription_trial_ending": "మీ ఉచిత ట్రయల్ త్వరలో ముగుస్తుంది",

@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Abunəlik statusunuz dəyişdi",
   "notif.list.subscription_status.contract": "LawBid sizin üçün müqavilə üzrə abunəlik qurdu",
   "notif.list.subscription_status.contract_revoked": "Müqavilə üzrə abunəliyiniz bitdi",
+  "notif.list.subscription_status.dispute_refund": "Ödənişiniz geri qaytarıldı və abunə ləğv edildi.",
   "notif.list.subscription_status.seat_limit_approved": "Köməkçi limiti artırıldı: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Daha çox köməkçi üçün müraciətiniz rədd edildi",
   "notif.list.subscription_trial_ending": "Pulsuz sınaq müddətiniz tezliklə bitir",

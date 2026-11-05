@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "ستاسو د ګډون حالت بدل شو",
   "notif.list.subscription_status.contract": "LawBid ستاسو لپاره د تړون ګډون جوړ کړ",
   "notif.list.subscription_status.contract_revoked": "ستاسو د تړون ګډون پای ته ورسېد",
+  "notif.list.subscription_status.dispute_refund": "ستاسو تادیه بیرته ورکړل شوه او ګډون لغوه شو.",
   "notif.list.subscription_status.seat_limit_approved": "د مرستیالانو حد لوړ شو: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "ستاسو د نورو مرستیالانو غوښتنه رد شوه",
   "notif.list.subscription_trial_ending": "ستاسو وړیا آزموینه ډیر ژر پای ته رسیږي",

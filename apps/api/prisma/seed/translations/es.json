@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Cambió el estado de su suscripción",
   "notif.list.subscription_status.contract": "LawBid configuró una suscripción por contrato para usted",
   "notif.list.subscription_status.contract_revoked": "Su suscripción por contrato terminó",
+  "notif.list.subscription_status.dispute_refund": "Se ha reembolsado tu pago y se ha cancelado la suscripción.",
   "notif.list.subscription_status.seat_limit_approved": "Límite de asistentes aumentado: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Tu solicitud de más asistentes fue rechazada",
   "notif.list.subscription_trial_ending": "Su prueba gratuita termina pronto",

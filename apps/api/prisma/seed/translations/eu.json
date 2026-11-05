@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Zure harpidetzaren egoera aldatu da",
   "notif.list.subscription_status.contract": "LawBid-ek kontratu bidezko harpidetza bat ezarri dizu",
   "notif.list.subscription_status.contract_revoked": "Zure kontratu bidezko harpidetza amaitu da",
+  "notif.list.subscription_status.dispute_refund": "Ordainketa itzuli da eta harpidetza bertan behera utzi da.",
   "notif.list.subscription_status.seat_limit_approved": "Laguntzaile-muga igo da: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Laguntzaile gehiagorako zure eskaera baztertu da",
   "notif.list.subscription_trial_ending": "Zure doako proba laster amaituko da",

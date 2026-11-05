@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "O estado da súa subscrición cambiou",
   "notif.list.subscription_status.contract": "LawBid configurou unha subscrición por contrato para vostede",
   "notif.list.subscription_status.contract_revoked": "A súa subscrición por contrato rematou",
+  "notif.list.subscription_status.dispute_refund": "Reembolsouse o teu pagamento e cancelouse a subscrición.",
   "notif.list.subscription_status.seat_limit_approved": "Límite de asistentes ampliado: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "A túa solicitude de máis asistentes foi rexeitada",
   "notif.list.subscription_trial_ending": "O seu período de proba gratuíto remata en breve",

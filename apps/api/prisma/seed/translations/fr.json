@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Le statut de votre abonnement a changé",
   "notif.list.subscription_status.contract": "LawBid a configuré un abonnement sous contrat pour vous",
   "notif.list.subscription_status.contract_revoked": "Votre abonnement sous contrat est terminé",
+  "notif.list.subscription_status.dispute_refund": "Votre paiement a été remboursé et l'abonnement annulé.",
   "notif.list.subscription_status.seat_limit_approved": "Limite d'assistants relevée : {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Votre demande d'assistants supplémentaires a été refusée",
   "notif.list.subscription_trial_ending": "Votre essai gratuit se termine bientôt",

@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "L’estat de la vostra subscripció ha canviat",
   "notif.list.subscription_status.contract": "LawBid us ha configurat una subscripció per contracte",
   "notif.list.subscription_status.contract_revoked": "La vostra subscripció per contracte ha acabat",
+  "notif.list.subscription_status.dispute_refund": "S'ha retornat el pagament i s'ha cancel·lat la subscripció.",
   "notif.list.subscription_status.seat_limit_approved": "Límit d'assistents augmentat: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "La teva sol·licitud de més assistents s'ha rebutjat",
   "notif.list.subscription_trial_ending": "El vostre període de prova gratuït acaba aviat",

@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Status vaše naročnine se je spremenil",
   "notif.list.subscription_status.contract": "LawBid vam je nastavil pogodbeno naročnino",
   "notif.list.subscription_status.contract_revoked": "Vaša pogodbena naročnina se je končala",
+  "notif.list.subscription_status.dispute_refund": "Vaše plačilo je bilo vrnjeno, naročnina pa preklicana.",
   "notif.list.subscription_status.seat_limit_approved": "Omejitev asistentov zvišana: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Vaša prošnja za več asistentov je bila zavrnjena",
   "notif.list.subscription_trial_ending": "Vaše brezplačno preizkusno obdobje se kmalu izteče",

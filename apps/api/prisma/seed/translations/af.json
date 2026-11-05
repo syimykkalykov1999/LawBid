@@ -2988,6 +2988,7 @@
   "notif.list.subscription_status": "Jou intekeningstatus het verander",
   "notif.list.subscription_status.contract": "LawBid het 'n kontrakintekening vir jou opgestel",
   "notif.list.subscription_status.contract_revoked": "Jou kontrakintekening het geëindig",
+  "notif.list.subscription_status.dispute_refund": "Jou betaling is terugbetaal en die intekening gekanselleer.",
   "notif.list.subscription_status.seat_limit_approved": "Assistentlimiet verhoog: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Jou versoek vir meer assistente is afgekeur",
   "notif.list.subscription_trial_ending": "Jou gratis proeftydperk eindig binnekort",

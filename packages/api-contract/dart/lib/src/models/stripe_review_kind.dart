@@ -22,6 +22,8 @@ enum StripeReviewKind {
   reconcileDrift('reconcile_drift'),
   @JsonValue('duplicate_subscription')
   duplicateSubscription('duplicate_subscription'),
+  @JsonValue('dispute_refund')
+  disputeRefund('dispute_refund'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
