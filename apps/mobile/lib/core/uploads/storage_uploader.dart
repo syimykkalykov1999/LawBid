@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
@@ -9,6 +10,12 @@ import 'package:lawbid/core/transfers/adaptive_limiter.dart';
 import 'package:lawbid/core/transfers/transfer_limits.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+
+/// A part got no answer in a browser before any part ever got through: most
+/// likely no CORS for PUT on the storage. See [StorageUploader._browser].
+class _PartsRefusedByBrowser implements Exception {
+  const _PartsRefusedByBrowser();
+}
 
 /// Where one file goes: the presigned upload of `POST /files/presign`.
 ///
@@ -201,7 +208,9 @@ class StorageUploader {
     Duration Function(int failures)? partBackoff,
     PartsGate? partsGate,
     AdaptiveLimiter? limiter,
+    bool browser = kIsWeb,
   })  : _files = api.FilesClient(apiDio),
+        _browser = browser,
         _transport = transport,
         _forgetTransfer = forgetTransfer,
         _storageDio = storageDio,
@@ -231,6 +240,15 @@ class StorageUploader {
   final Duration Function(int failures) _partBackoff;
   final PartsGate? _partsGate;
   final AdaptiveLimiter _limiter;
+
+  /// In a browser a part PUT needs CORS on the storage. Without it the browser
+  /// hides the answer: no status, the same as a lost connection. So the first
+  /// part that fails that way, before any part ever got through, sends the
+  /// file down the old single-request path, and this session stops asking for
+  /// part links. The abandoned multipart upload is aborted by storage-cleanup.
+  final bool _browser;
+  bool _partsWorked = false;
+  bool _partsRefused = false;
 
   /// Files at least this big go in parts that can be continued after an
   /// interruption (server flag `files_multipart`; mirrors the server's
@@ -319,6 +337,7 @@ class StorageUploader {
     if (storage == null) return false;
     final total = await body.length();
     if (total < resumableThresholdBytes) return false;
+    if (_partsRefused) return false;
     await TransferLimits.checkDevice();
     _limiter.restoreIfIdle();
 
@@ -339,14 +358,19 @@ class StorageUploader {
 
     // Three rounds: an expired part link is fixed by asking for a new plan.
     for (var round = 0; round < 3 && current.parts.isNotEmpty; round++) {
-      await _putParts(
-        storage,
-        current,
-        body,
-        total,
-        onProgress: onProgress,
-        cancel: cancel,
-      );
+      try {
+        await _putParts(
+          storage,
+          current,
+          body,
+          total,
+          onProgress: onProgress,
+          cancel: cancel,
+        );
+      } on _PartsRefusedByBrowser {
+        _partsRefused = true;
+        return false;
+      }
       current = await plan();
     }
     await guardApiCall(() => _files.multipartComplete(id: fileId));
@@ -449,10 +473,14 @@ class StorageUploader {
             onSendProgress: (sent, _) => onBytes?.call(sent),
           ),
         );
+        _partsWorked = true;
         return;
       } on DioException catch (e) {
         if (CancelToken.isCancel(e)) rethrow;
         final c = e.response?.statusCode;
+        if (_browser && c == null && !_partsWorked) {
+          throw const _PartsRefusedByBrowser();
+        }
         final temporary = c == null || c == 408 || c == 429 || c >= 500;
         if (!temporary || failures + 1 >= attempts) throw storageError(e);
         // A bad network: fewer parts at once, for this file and the others.
