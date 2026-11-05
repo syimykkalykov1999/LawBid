@@ -67,6 +67,12 @@ describe('Bar number format and stepped cooldown (e2e)', () => {
       create: { key: 'verification.require_identity', value: false },
       update: { value: false },
     });
+    // Nor the attorney photo (owner 2026-11-05; covered in verification.e2e).
+    await prisma.appConfig.upsert({
+      where: { key: 'verification.require_photo' },
+      create: { key: 'verification.require_photo', value: false },
+      update: { value: false },
+    });
     await redis.del('config:app_config');
   });
 
