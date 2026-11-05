@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -10,7 +13,9 @@ import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_sections.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
+import 'package:lawbid/features/cases/tools/billing_data.dart';
 import 'package:lawbid/features/cases/tools/billing_tab.dart';
+import 'package:lawbid/features/cases/tools/signing_data.dart';
 import 'package:lawbid/features/cases/tools/signing_tab.dart';
 import 'package:lawbid/features/cases/workspace/tasks_tab.dart';
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
@@ -32,6 +37,18 @@ const _practice = PracticeRef(
 );
 const _title = 'Speeding ticket in Trenton';
 const _text = 'Short line.';
+
+class _SeenClient implements api.CasesClient {
+  @override
+  Future<void> markCaseUpdatesSeen({
+    required String id,
+    Map<String, dynamic>? extras,
+  }) async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('$invocation');
+}
 
 CaseBid _bid({String id = 'bid-1', BidStatus status = BidStatus.active}) =>
     CaseBid(
@@ -64,33 +81,41 @@ class _Repo extends FakeCasesRepository {
   final String? conversation;
   final String? ownBid;
   final List<CaseBid> bids;
+  int bidsRequests = 0;
+  int bidRequests = 0;
+  int caseRequests = 0;
 
   @override
   Future<CursorPage<CaseBid>> caseBids(
     String caseId,
     BidsSort sort, {
     String? cursor,
-  }) async =>
-      CursorPage(items: bids);
+  }) async {
+    bidsRequests++;
+    return CursorPage(items: bids);
+  }
 
   @override
-  Future<OwnerCase> ownerCase(String caseId) async => OwnerCase(
-        id: caseId,
-        title: _title,
-        description: _text,
-        practice: _practice,
-        primaryStateCode: 'NJ',
-        additionalStateCodes: const [],
-        city: null,
-        budget: const CaseBudget(mode: BudgetMode.clarifyLater),
-        status: status,
-        viewCount: 1,
-        bidsCount: 0,
-        createdAt: DateTime(2026, 9, 2),
-        lastActivityAt: DateTime(2026, 9, 2),
-        acceptedBid: accepted,
-        conversationId: conversation,
-      );
+  Future<OwnerCase> ownerCase(String caseId) async {
+    caseRequests++;
+    return OwnerCase(
+      id: caseId,
+      title: _title,
+      description: _text,
+      practice: _practice,
+      primaryStateCode: 'NJ',
+      additionalStateCodes: const [],
+      city: null,
+      budget: const CaseBudget(mode: BudgetMode.clarifyLater),
+      status: status,
+      viewCount: 1,
+      bidsCount: 0,
+      createdAt: DateTime(2026, 9, 2),
+      lastActivityAt: DateTime(2026, 9, 2),
+      acceptedBid: accepted,
+      conversationId: conversation,
+    );
+  }
 
   @override
   Future<FeedCase> attorneyCase(String caseId) async => FeedCase(
@@ -112,7 +137,10 @@ class _Repo extends FakeCasesRepository {
       );
 
   @override
-  Future<CaseBid> bid(String bidId) async => _bid(id: bidId);
+  Future<CaseBid> bid(String bidId) async {
+    bidRequests++;
+    return _bid(id: bidId);
+  }
 
   @override
   Future<void> recordViews(List<String> caseIds) async {}
@@ -454,6 +482,166 @@ void main() {
       await settle(tester);
       expect(find.text('Get signed'), findsOneWidget);
       expect(find.text('From template'), findsNothing);
+    });
+
+    test('marking updates seen does not ask for the summary again', () async {
+      var summaries = 0;
+      final container = ProviderContainer(
+        overrides: [
+          caseWorkspaceClientProvider.overrideWithValue(_SeenClient()),
+          caseWorkspaceProvider('case-1').overrideWith((ref) async {
+            summaries++;
+            return const api.CaseWorkspaceDto(
+              role: api.CaseWorkspaceDtoRole.client,
+              files: [],
+              openTasks: 0,
+              updatesCount: 0,
+              publishedAt: '2026-09-20T00:00:00.000Z',
+              bidsCount: 1,
+              newUpdates: 0,
+              canWrite: true,
+            );
+          }),
+        ],
+      );
+      addTearDown(container.dispose);
+      final keep = container.listen(
+        caseWorkspaceProvider('case-1').future,
+        (_, __) {},
+      );
+      addTearDown(keep.close);
+      await keep.read();
+      await container
+          .read(caseWorkspaceActionsProvider)
+          .markUpdatesSeen('case-1');
+      await container.read(caseWorkspaceProvider('case-1').future);
+      expect(summaries, 1);
+    });
+
+    group('switching asks the server nothing new', () {
+      testWidgets('a case in work: each list once, at its first opening',
+          (tester) async {
+        final asked = <String, int>{};
+        Future<T> never<T>(String name) {
+          asked[name] = (asked[name] ?? 0) + 1;
+          return Completer<T>().future;
+        }
+
+        tester.view.physicalSize = const Size(320, 700);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final repo = _Repo(
+          status: CaseStatus.inProgress,
+          accepted: _bid(status: BidStatus.accepted),
+        );
+        final wrap = await onboardingWrapper(
+          AppTheme.light(),
+          user: clientMe(),
+          extra: [
+            ...casesOverrides(repo: repo),
+            caseWorkspaceProvider('case-1')
+                .overrideWith((ref) => never('workspace')),
+            caseFilesProvider('case-1').overrideWith((ref) => never('files')),
+            caseTasksProvider('case-1').overrideWith((ref) => never('tasks')),
+            caseUpdatesProvider('case-1')
+                .overrideWith((ref) => never('updates')),
+            caseActivityProvider('case-1')
+                .overrideWith((ref) => never('activity')),
+            caseBillingProvider('case-1')
+                .overrideWith((ref) => never('billing')),
+            signRequestsProvider('case-1').overrideWith((ref) => never('sign')),
+          ],
+        );
+        await tester.pumpWidget(
+          wrap(const OwnerCaseScreen(caseId: 'case-1')),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump(const Duration(milliseconds: 100));
+        // Only what the Case tab shows.
+        expect(asked.keys, ['workspace']);
+
+        await tester.tap(subTab('Activity'));
+        await settle(tester);
+        expect(asked['updates'], 1);
+        expect(asked['activity'], 1);
+        expect(asked['files'], isNull);
+
+        await openSection(tester, 'Files');
+        expect(asked['files'], 1);
+        expect(asked['sign'], 1);
+        expect(asked['tasks'], isNull);
+
+        await tester.tap(subTab('Photos'));
+        await settle(tester);
+
+        await openSection(tester, 'Tasks');
+        expect(asked['tasks'], 1);
+        expect(asked['billing'], isNull);
+
+        await tester.tap(subTab('Time'));
+        await settle(tester);
+        expect(asked['billing'], 1);
+
+        // Everything opened; round and round: not one more request.
+        final seen = Map.of(asked);
+        final cases = repo.caseRequests;
+        for (var round = 0; round < 3; round++) {
+          for (final section in ['Overview', 'Files', 'Tasks']) {
+            await openSection(tester, section);
+          }
+          await tester.tap(subTab('Tasks'));
+          await settle(tester);
+          await tester.tap(subTab('Time'));
+          await settle(tester);
+          await openSection(tester, 'Files');
+          await tester.tap(subTab('Docs'));
+          await settle(tester);
+          await tester.tap(subTab('Photos'));
+          await settle(tester);
+          await openSection(tester, 'Overview');
+          await tester.tap(subTab('Case'));
+          await settle(tester);
+          await tester.tap(subTab('Activity'));
+          await settle(tester);
+        }
+        expect(asked, seen);
+        expect(repo.caseRequests, cases);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('client, open case: Overview and Bids', (tester) async {
+        final repo = _Repo(bids: [_bid()]);
+        await pumpScreen(
+          tester,
+          const OwnerCaseScreen(caseId: 'case-1'),
+          repo,
+        );
+        final bids = repo.bidsRequests;
+        final cases = repo.caseRequests;
+        for (var round = 0; round < 3; round++) {
+          await openSection(tester, 'Bids');
+          await openSection(tester, 'Overview');
+        }
+        expect(repo.bidsRequests, bids);
+        expect(repo.caseRequests, cases);
+      });
+
+      testWidgets('attorney, open case: Overview and Changes', (tester) async {
+        final repo = _Repo(ownBid: 'bid-1');
+        await pumpScreen(
+          tester,
+          const AttorneyCaseScreen(caseId: 'case-1'),
+          repo,
+        );
+        await openSection(tester, 'Changes');
+        final bid = repo.bidRequests;
+        for (var round = 0; round < 3; round++) {
+          await openSection(tester, 'Overview');
+          await openSection(tester, 'Changes');
+        }
+        expect(repo.bidRequests, bid);
+      });
     });
 
     testWidgets('sub-tabs: equal parts, 44 pt to tap', (tester) async {
