@@ -5,14 +5,17 @@ import { ApiEnvelopeResponse } from '../../common/dto/api-docs.decorators';
 import { notModified } from '../../common/sync/cheap-etag';
 import {
   ALL_ADMIN_ROLES,
+  type AdminActor,
   AdminEndpoint,
+  CurrentAdmin,
 } from '../admin-auth/admin-auth.decorators';
 import { AdminCountsDto } from './admin.dto';
 import { AdminCountsService } from './admin-counts.service';
 
 /** Owner 2026-10-22 (client economy plan, package J): the sidebar badges
  * in one request — every admin role (each badge is shown only where the
- * role may open the section). */
+ * role may open the section). R-403: counted in the admin's country scope,
+ * like the lists. */
 @ApiTags('admin-dashboard')
 @AdminEndpoint(...ALL_ADMIN_ROLES)
 @Controller('admin/counts')
@@ -27,10 +30,11 @@ export class AdminCountsController {
   })
   @ApiEnvelopeResponse(AdminCountsDto)
   async getCounts(
+    @CurrentAdmin() admin: AdminActor,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AdminCountsDto | undefined> {
-    const counts = await this.counts.get();
+    const counts = await this.counts.get(admin.countries);
     if (notModified(req, res, this.counts.etagOf(counts))) return undefined;
     return counts;
   }
