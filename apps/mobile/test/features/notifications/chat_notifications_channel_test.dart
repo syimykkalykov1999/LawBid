@@ -36,13 +36,17 @@ void main() {
     expect(calls.single.arguments, {'names': names});
   });
 
-  test('an opened chat clears its notification; sign-out clears all',
-      () async {
+  test('an opened chat clears its notification; sign-out clears all', () async {
     final c = ChatNotificationsChannel(channel: channel);
     await c.clearChat('c1');
     await c.clearAll();
     expect(calls.map((m) => m.method), ['clear', 'clearAll']);
     expect(calls.first.arguments, {'conversationId': 'c1'});
+  });
+
+  test('R-379: nothing unread clears the leftover alerts', () async {
+    await ChatNotificationsChannel(channel: channel).clearDelivered();
+    expect(calls.map((m) => m.method), ['clearDelivered']);
   });
 
   test('the chat the app was started from (strings only)', () async {
