@@ -99,6 +99,24 @@ void main() {
       expect(created, 1);
     });
 
+    testWidgets('screen readers get every item as a named button',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester, extended: true, taps: <int>[], onCreate: () {});
+      for (final label in ['Search', 'Create']) {
+        expect(
+          tester.getSemantics(find.bySemanticsLabel(label)),
+          matchesSemantics(
+            label: label,
+            isButton: true,
+            hasTapAction: true,
+            hasSelectedState: true,
+          ),
+        );
+      }
+      handle.dispose();
+    });
+
     testWidgets('compact: icons only, narrow column', (tester) async {
       await pump(tester, extended: false, taps: [], onCreate: () {});
       expect(find.text('Search'), findsNothing);

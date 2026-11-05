@@ -314,6 +314,18 @@ export class AdminClientCardDto {
   @ApiProperty({ type: [String] }) preferredLanguages!: string[];
 }
 
+/** Owner 2026-11-05: the account switched its profile (Settings → Account). */
+export class AdminRoleSwitchDto {
+  @ApiProperty() from!: string;
+  @ApiProperty() to!: string;
+  @ApiProperty({
+    description: 'Went back from an unfinished onboarding of the new profile.',
+  })
+  reverted!: boolean;
+  @ApiProperty({ type: String, nullable: true }) ip!: string | null;
+  @ApiProperty({ format: 'date-time' }) at!: string;
+}
+
 export class AdminUserCardDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ type: String, nullable: true }) role!: string | null;
@@ -340,6 +352,11 @@ export class AdminUserCardDto {
   @ApiProperty({ type: [AdminUserBidDto], description: 'Last 20 (attorney).' })
   bids!: AdminUserBidDto[];
   @ApiProperty({ type: 'integer' }) warnings!: number;
+  @ApiProperty({
+    type: [AdminRoleSwitchDto],
+    description: 'Last 20 profile switches, newest first.',
+  })
+  roleSwitches!: AdminRoleSwitchDto[];
 }
 
 /** docs/06 §2.1: contacts are sensitive — X-Justification required. */

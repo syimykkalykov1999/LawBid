@@ -210,6 +210,15 @@ export const MB = 1024 * 1024;
 /** docs/03 §2.2: the pre-signed upload link lives 5 minutes. */
 export const PRESIGN_TTL_SEC = 300;
 
+/**
+ * R-252 (flag `files_confirm_light`): from this size `confirm` reads only the
+ * first [CONFIRM_PREFIX_BYTES] and the scan worker does the rest. Smaller
+ * files cost little to read and get a refusal on the spot.
+ */
+export const LIGHT_CONFIRM_MIN_BYTES = 8 * 1024 * 1024;
+/** Covers every look of `detectMime` (the longest is 256 KiB, WebM video). */
+export const CONFIRM_PREFIX_BYTES = 256 * 1024;
+
 /** How long a presigned upload may wait for POST /files/:id/confirm. */
 export const UPLOAD_INTENT_TTL_SEC = 60 * 60;
 

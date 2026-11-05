@@ -11,6 +11,7 @@ import {
   type VirusScanner,
 } from '../scanning/virus-scanner';
 import { ImageProcessor } from '../processing/image-processor';
+import { dangerousContent } from '../content-guard';
 import { detectMime } from '../magic-bytes';
 import { computeBlurhash } from '../processing/blurhash';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
@@ -70,6 +71,16 @@ export class FileScanProcessor {
   async run(fileId: string, finalAttempt: boolean): Promise<ScanOutcome> {
     const file = await this.prisma.file.findUnique({ where: { id: fileId } });
     if (!file || file.scan_status !== 'pending') return 'skipped:not-pending';
+    // R-252: confirmed without reading the file (flag `files_confirm_light`):
+    // the checks `confirm` left are done first, before the dedup can look at
+    // the hash.
+    let held: Buffer | null = null;
+    if (file.source_sha256 === null) {
+      const checked = await this.finishLightConfirm(file, finalAttempt);
+      if (typeof checked === 'string') return checked;
+      held = checked;
+      file.source_sha256 = file.sha256;
+    }
     if (await this.deduplicate(file)) {
       await this.moderation?.enqueueFile(file.id, file.purpose);
       return 'deduplicated';
@@ -84,7 +95,7 @@ export class FileScanProcessor {
 
     let data: Buffer;
     try {
-      data = await this.storage.read(file.s3_bucket, file.s3_key);
+      data = held ?? (await this.storage.read(file.s3_bucket, file.s3_key));
       const verdict = await this.scanner.scan(data);
       if (verdict.infected) {
         await this.storage.remove(file.s3_bucket, [file.s3_key]);
@@ -186,6 +197,51 @@ export class FileScanProcessor {
       await this.setStatus(fileId, 'failed');
       return 'failed';
     }
+  }
+
+  /**
+   * The size was checked at `confirm`; here the phone's hash is proven and the
+   * inside of the container is looked at, the same refusals `confirm` makes
+   * for a small file. A refused file is removed and ends `failed`, which the
+   * app shows as not attachable. Returns the bytes for the scan, or the end.
+   */
+  private async finishLightConfirm(
+    file: File,
+    finalAttempt: boolean,
+  ): Promise<Buffer | ScanOutcome> {
+    let data: Buffer;
+    try {
+      data = await this.storage.read(file.s3_bucket, file.s3_key);
+    } catch (err) {
+      if (!finalAttempt) throw err;
+      this.logger.error({ fileId: file.id, err }, 'Light confirm: no bytes');
+      await this.setStatus(file.id, 'failed');
+      return 'failed';
+    }
+    const sha256 = createHash('sha256').update(data).digest('hex');
+    const mime = detectMime(data, file.mime);
+    const refused =
+      sha256 !== file.sha256
+        ? 'checksum'
+        : !mime
+          ? 'unrecognised content'
+          : dangerousContent(data, mime);
+    if (refused) {
+      this.logger.warn(
+        { fileId: file.id, reason: refused },
+        'Upload refused after a light confirm',
+      );
+      await this.storage
+        .remove(file.s3_bucket, [file.s3_key])
+        .catch(() => undefined);
+      await this.setStatus(file.id, 'failed');
+      return 'failed';
+    }
+    await this.prisma.file.updateMany({
+      where: { id: file.id, scan_status: 'pending' },
+      data: { source_sha256: sha256 },
+    });
+    return data;
   }
 
   /**
