@@ -8,8 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/cache/cache_database.dart';
-import 'package:lawbid/core/cache/cache_limits.dart';
-import 'package:lawbid/core/cache/cache_maintenance.dart';
 import 'package:lawbid/core/cache/media_cache_dir.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/files/open_local_file.dart';
