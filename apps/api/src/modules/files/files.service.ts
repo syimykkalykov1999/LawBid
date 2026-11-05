@@ -791,6 +791,7 @@ export class FilesService {
       previewUrl: string;
       mime: string;
       sizeBytes: number;
+      blurhash: string | null;
     }[]
   > {
     if (fileIds.length === 0 || !this.storage.configured) return [];
@@ -812,6 +813,7 @@ export class FilesService {
       previewUrl: string;
       mime: string;
       sizeBytes: number;
+      blurhash: string | null;
     }[] = [];
     for (const id of fileIds) {
       const f = byId.get(id);
@@ -830,6 +832,8 @@ export class FilesService {
           : url,
         mime: f.mime,
         sizeBytes: Number(f.size_bytes),
+        // R-248: drawn while the picture loads (images only).
+        blurhash: isImageMime(f.mime) ? f.blurhash : null,
       });
     }
     return out;

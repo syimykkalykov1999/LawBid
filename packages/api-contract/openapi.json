@@ -152389,6 +152389,11 @@
             "nullable": true,
             "description": "Owner 2026-09-30: the first photo (the \"Mine\" grid), else null."
           },
+          "coverBlurhash": {
+            "type": "string",
+            "nullable": true,
+            "description": "R-248: BlurHash of the cover, drawn while it loads (null = none)."
+          },
           "title": {
             "type": "string"
           },
@@ -152883,6 +152888,11 @@
           },
           "sizeBytes": {
             "type": "integer"
+          },
+          "blurhash": {
+            "type": "string",
+            "nullable": true,
+            "description": "R-248: BlurHash of a photo, drawn while it loads (null for documents\nand older photos)."
           }
         },
         "required": [
@@ -155049,6 +155059,11 @@
             "type": "string",
             "nullable": true,
             "description": "Owner 2026-09-30: the case's first photo once this bid is accepted,\nelse null (the app shows the qualification's art)."
+          },
+          "coverBlurhash": {
+            "type": "string",
+            "nullable": true,
+            "description": "R-248: BlurHash of the cover, drawn while it loads (null = none)."
           }
         },
         "required": [
@@ -155169,6 +155184,11 @@
             "type": "string",
             "nullable": true,
             "description": "Owner 2026-09-30: the case's first photo (the hired attorney sees\nthem), else null — the app shows the qualification's art."
+          },
+          "coverBlurhash": {
+            "type": "string",
+            "nullable": true,
+            "description": "R-248: BlurHash of the cover, drawn while it loads (null = none)."
           }
         },
         "required": [

@@ -111,6 +111,7 @@ class CaseSummary {
     required this.createdAt,
     required this.lastActivityAt,
     this.coverUrl,
+    this.coverBlurhash,
     this.coverKey,
     this.urgency,
     this.urgencyDetail,
@@ -155,6 +156,9 @@ class CaseSummary {
   /// may see photos; else the qualification's art is shown.
   final String? coverUrl;
 
+  /// R-248: BlurHash of [coverUrl], drawn while it loads (null = none).
+  final String? coverBlurhash;
+
   final String id;
   final String title;
   final PracticeRef practice;
@@ -180,11 +184,15 @@ class CasePhoto {
     required this.previewUrl,
     this.mime = 'image/jpeg',
     this.sizeBytes = 0,
+    this.blurhash,
   });
 
   final String fileId;
   final String url;
   final String previewUrl;
+
+  /// R-248: BlurHash of the photo, drawn while it loads (null = none).
+  final String? blurhash;
 
   /// OQ-034: photos and documents (PDF, Word) share the list.
   final String mime;
@@ -711,11 +719,15 @@ class MyBid {
     required this.lastOffer,
     this.casePracticeCode,
     this.coverUrl,
+    this.coverBlurhash,
   });
 
   /// Owner 2026-09-30: the first photo (the Mine grid) when this viewer
   /// may see photos; else the qualification's art is shown.
   final String? coverUrl;
+
+  /// R-248: BlurHash of [coverUrl], drawn while it loads (null = none).
+  final String? coverBlurhash;
 
   final CaseBid bid;
   final String caseId;
@@ -751,12 +763,16 @@ class WorkItem {
     this.practiceI18nKey,
     this.practiceNameEn,
     this.coverUrl,
+    this.coverBlurhash,
     this.percentBps,
   });
 
   /// Owner 2026-09-30: the first photo (the Mine grid) when this viewer
   /// may see photos; else the qualification's art is shown.
   final String? coverUrl;
+
+  /// R-248: BlurHash of [coverUrl], drawn while it loads (null = none).
+  final String? coverBlurhash;
 
   final String caseId;
   final String bidId;
