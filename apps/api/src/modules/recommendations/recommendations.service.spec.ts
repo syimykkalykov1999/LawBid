@@ -1,3 +1,4 @@
+import { shardContext } from '../../sharding/shard-context';
 import {
   RecommendationsService,
   hashOf,
@@ -159,6 +160,26 @@ describe('RecommendationsService.peopleFor', () => {
     expect(redis.store.has('reco:people:v1')).toBe(true);
     await s.peopleFor('v2');
     expect(prisma.$queryRaw.mock.calls.length).toBeGreaterThan(calls);
+  });
+
+  // Shard-ready: attorney_profiles / users are GLOBAL family — the
+  // candidates are read on the primary database even inside the viewer's
+  // shard context (the two-DB e2e got 0 candidates on the shard database).
+  it('reads the candidates on the primary database, not the viewer shard', async () => {
+    const prisma = makePrisma({ people: [person('a')] });
+    const seen: (string | undefined)[] = [];
+    const inner = prisma.$queryRaw.getMockImplementation()!;
+    prisma.$queryRaw.mockImplementation((strings: TemplateStringsArray) => {
+      if (strings.join('?').includes('FROM attorney_profiles a')) {
+        seen.push(shardContext.current()?.physical);
+      }
+      return inner(strings);
+    });
+    const ids = await shardContext.runOnPhysical('db1', () =>
+      svc(prisma).peopleFor('viewer'),
+    );
+    expect(ids).toEqual(['a']);
+    expect(seen).toEqual(['primary']);
   });
 
   it('a viewer with no signals still gets a list (quality / activity)', async () => {
