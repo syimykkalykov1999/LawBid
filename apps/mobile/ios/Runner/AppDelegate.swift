@@ -324,6 +324,18 @@ import flutter_callkit_incoming
         // Signed out: the notification buttons stop working on this phone.
         AppDelegate.setPushActions(url: nil, token: nil)
         result(nil)
+      case "clearDelivered":
+        // R-379: nothing unread — every pushed alert left on the lock
+        // screen goes (local planner reminders stay); the icon number is
+        // set by the app.
+        center.getDeliveredNotifications { delivered in
+          let ids = delivered
+            .filter { $0.request.trigger is UNPushNotificationTrigger }
+            .filter { $0.request.content.userInfo["type"] as? String != "task_reminder" }
+            .map { $0.request.identifier }
+          if !ids.isEmpty { center.removeDeliveredNotifications(withIdentifiers: ids) }
+        }
+        result(nil)
       case "setPushActions":
         AppDelegate.setPushActions(
           url: args?["url"] as? String, token: args?["token"] as? String)
@@ -635,7 +647,9 @@ import flutter_callkit_incoming
     done: @escaping () -> Void
   ) {
     let extra = data.extra as? [String: Any] ?? [:]
-    let callId = (extra["callId"] as? String) ?? data.uuid
+    // R-377: CallKit hands ids back as `UUID.uuidString` (uppercase); the
+    // server knows the call by its lowercase id.
+    let callId = ((extra["callId"] as? String) ?? data.uuid).lowercased()
     // Review #693: the plugin reports its own ring timeout as onTimeOut;
     // should an end come at or after the ring length anyway, it is the
     // timeout (the caller's «no answer»), not a decline.
@@ -646,7 +660,7 @@ import flutter_callkit_incoming
       !wasEndedByPush(callId),
       let ticket = extra["pollToken"] as? String, !ticket.isEmpty,
       let api = UserDefaults.standard.string(forKey: AppDelegate.apiKey),
-      let url = URL(string: api + "/calls/\(callId.lowercased())/status/decline")
+      let url = URL(string: api + "/calls/\(callId)/status/decline")
     else {
       done()
       return
