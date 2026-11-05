@@ -97,6 +97,7 @@ abstract final class ApiErrorCodes {
   static const onboardingIncomplete = 'ONBOARDING_INCOMPLETE';
   static const roleAlreadySet = 'ROLE_ALREADY_SET';
   static const roleSwitchBlocked = 'ROLE_SWITCH_BLOCKED';
+  static const roleSwitchNotAllowed = 'ROLE_SWITCH_NOT_ALLOWED';
   static const notImplemented = 'NOT_IMPLEMENTED';
 
   // i18n (docs/01 §9, stage 1.6)
@@ -411,6 +412,7 @@ abstract final class ApiErrorCodes {
     onboardingIncomplete,
     roleAlreadySet,
     roleSwitchBlocked,
+    roleSwitchNotAllowed,
     notImplemented,
     i18nLanguageNotFound,
     i18nImportInvalid,
