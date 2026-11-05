@@ -47,8 +47,10 @@ export class CommentsQueryDto {
   cursor?: string;
 }
 
-/** §5.2: attorneys are shown by their public profile; clients only as
- * "Имя + первая буква фамилии", with no id — their profiles are closed. */
+/** §5.2: attorneys are shown by their public profile; clients as
+ * "Имя + первая буква фамилии" with no id. R-387 (owner 04.11): on post
+ * comments a client's @handle and photo come too (their mini-profile,
+ * OQ-026); under a case the client stays anonymous (OQ-034). */
 export class CommentAuthorDto {
   @ApiProperty({ enum: ['attorney', 'client'] })
   kind!: 'attorney' | 'client';
@@ -64,7 +66,8 @@ export class CommentAuthorDto {
   @ApiPropertyOptional({
     type: String,
     nullable: true,
-    description: 'Attorneys only.',
+    description:
+      "The author's @handle (attorney or client); null for a client under a case.",
   })
   username!: string | null;
 

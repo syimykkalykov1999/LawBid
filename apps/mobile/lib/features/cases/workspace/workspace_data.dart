@@ -138,8 +138,9 @@ class CaseWorkspaceActions {
   }
 
   Future<void> markUpdatesSeen(String caseId) async {
+    // Owner 2026-11-05: the case screen shows no «new» number any more, so
+    // the summary is not asked for again.
     await guardApiCall(() => _c.markCaseUpdatesSeen(id: caseId));
-    _ref.invalidate(caseWorkspaceProvider(caseId));
   }
 
   Future<void> createTask(
