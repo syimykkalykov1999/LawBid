@@ -44,6 +44,8 @@ import {
 import {
   MB,
   MEDIA_SIGNED_URL_TTL_SEC,
+  CONFIRM_PREFIX_BYTES,
+  LIGHT_CONFIRM_MIN_BYTES,
   PRESIGN_TTL_SEC,
   PURPOSE_RULES,
   UPLOAD_INTENT_TTL_SEC,
@@ -455,11 +457,31 @@ export class FilesService {
       await this.reject(fileId, intent);
       throw this.checksumMismatch();
     }
-    const data = await this.storage.read(intent.bucket, intent.key);
-    const sha256 = createHash('sha256').update(data).digest('hex');
-    if (data.length !== intent.size || sha256 !== intent.sha256) {
-      await this.reject(fileId, intent);
-      throw this.checksumMismatch();
+    // R-252: a big file is not read into the API's memory here. The start
+    // of the file settles its type at once; the checksum and the look inside
+    // the container move to the scan worker, which holds the file anyway. The
+    // file stays `pending`, and only `clean` files can be attached. A start
+    // the prefix cannot settle goes the full way.
+    let prefix: Buffer | null = null;
+    if (
+      head.size >= LIGHT_CONFIRM_MIN_BYTES &&
+      (await this.flags.isEnabled('files_confirm_light', false))
+    ) {
+      const start = await this.storage.readStart(
+        intent.bucket,
+        intent.key,
+        CONFIRM_PREFIX_BYTES,
+      );
+      if (detectMime(start, intent.mime) !== null) prefix = start;
+    }
+    const data = prefix ?? (await this.storage.read(intent.bucket, intent.key));
+    let sha256: string | null = null;
+    if (!prefix) {
+      sha256 = createHash('sha256').update(data).digest('hex');
+      if (data.length !== intent.size || sha256 !== intent.sha256) {
+        await this.reject(fileId, intent);
+        throw this.checksumMismatch();
+      }
     }
     const detected = detectMime(data, intent.mime);
     if (
@@ -476,7 +498,7 @@ export class FilesService {
     }
     // Owner 2026-10-07: no program, macro or script hidden inside an
     // allowed document (APK in a .docx, a macro, PDF JavaScript).
-    const danger = dangerousContent(data, detected);
+    const danger = prefix ? null : dangerousContent(data, detected);
     if (danger) {
       await this.reject(fileId, intent);
       throw new BadRequestException({
@@ -495,8 +517,12 @@ export class FilesService {
           s3_bucket: intent.bucket,
           s3_key: intent.key,
           mime: detected,
-          size_bytes: BigInt(data.length),
-          sha256,
+          size_bytes: BigInt(head.size),
+          // Light confirm: `sha256` is what the phone claimed, unproven until
+          // the worker checks it. An empty `source_sha256` is what tells the
+          // worker so, and it keeps the row out of the storage dedup: a false
+          // hash must never point this row at someone else's object.
+          sha256: sha256 ?? intent.sha256,
           source_sha256: sha256,
         },
       });
@@ -509,7 +535,7 @@ export class FilesService {
         throw err;
       }
     }
-    this.heavy?.upload(userId, data.length);
+    this.heavy?.upload(userId, head.size);
     await this.redis.del(intentKey(fileId));
     await this.redis.zrem(
       PENDING_UPLOADS_KEY,

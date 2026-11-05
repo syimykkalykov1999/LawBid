@@ -25,6 +25,12 @@ Every switch below is off by default; off = the old path, request for request. R
 - Video start (chunk cache): flag `video_cache_parallel`, blocks fetched ahead, written in order. The tail stays one stream at the player's speed.
 - Stays one stream on purpose: small files, avatars, verification documents, voice notes (under one piece), the OS background transfer (it takes one whole file), HLS (the player fetches segments itself).
 
+## Confirm without reading the file (R-252, flag `files_confirm_light`, off)
+From 8 MiB `POST /files/:id/confirm` reads the first 256 KiB (type, allow-list) and keeps the file `pending` with an empty `source_sha256`. The scan worker then proves the hash and looks inside the container (`dangerousContent`) before anything else, the dedup included: a false hash must never point a row at someone else's object. A refused file is removed and ends `failed`. Only `clean` files can be attached. Off: the whole file is read in the API, as before.
+
+## Queue job and the OS transfer
+The OS transfer outlives the app and sends the file of ITS presign, so the target is saved in the job before the transfer starts and used again after a restart. If storage still has nothing, one fresh start with the OS record forgotten.
+
 ## Verification
 - Auto: API `files.multipart.spec`, `multipart.spec` (182 files tests); app `storage_uploader_test` (ranges, resume, part retry, fallback), `post_video_url_test`.
 - Phone only: real network cut mid-upload, battery/background upload, MP4-vs-HLS start time on a slow link, S3 CORS for PUT after Terraform apply (owner step).

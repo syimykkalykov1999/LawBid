@@ -189,6 +189,15 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Resumable (multipart) uploads of large files',
   },
   {
+    // R-252: on, `confirm` of a file from 8 MiB reads only its first 256 KiB;
+    // the checksum and the look inside go to the scan worker. Off until
+    // checked against real storage.
+    key: 'files_confirm_light',
+    enabled: false,
+    app: false,
+    description: 'Big uploads are confirmed without reading them into the API',
+  },
+  {
     // R-251: on, the app sends a reel to Bunny in 4 pieces at once and asks
     // Bunny to join them (TUS concatenation; Bunny announces it, but it was
     // not tried with a real video: off until checked on a phone). A refusal

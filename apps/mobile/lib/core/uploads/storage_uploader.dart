@@ -25,6 +25,30 @@ class StorageTarget {
     this.headers = const {},
   });
 
+  /// A target kept in a queue job; null when the shape is not one.
+  static StorageTarget? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final m = json.cast<String, Object?>();
+    final fileId = m['fileId'];
+    final url = m['url'];
+    if (fileId is! String || url is! String) return null;
+    return StorageTarget(
+      fileId: fileId,
+      url: url,
+      fields: (m['fields'] as Map?)?.cast<String, String>() ?? const {},
+      method: m['method'] as String? ?? 'POST',
+      headers: (m['headers'] as Map?)?.cast<String, String>() ?? const {},
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+        'fileId': fileId,
+        'url': url,
+        'fields': fields,
+        'method': method,
+        'headers': headers,
+      };
+
   final String fileId;
   final String url;
 
@@ -168,11 +192,13 @@ class StorageUploader {
     this.scanPoll = const Duration(milliseconds: 700),
     this.scanMaxPolls = 40,
     Dio? storageDio,
+    Future<void> Function(String taskId)? forgetTransfer,
     Duration Function(int failures)? partBackoff,
     PartsGate? partsGate,
     AdaptiveLimiter? limiter,
   })  : _files = api.FilesClient(apiDio),
         _transport = transport,
+        _forgetTransfer = forgetTransfer,
         _storageDio = storageDio,
         _partBackoff = partBackoff ?? DioStorageTransport.defaultBackoff,
         _partsGate = partsGate,
@@ -196,6 +222,7 @@ class StorageUploader {
   final api.FilesClient _files;
   final StorageTransport _transport;
   final Dio? _storageDio;
+  final Future<void> Function(String taskId)? _forgetTransfer;
   final Duration Function(int failures) _partBackoff;
   final PartsGate? _partsGate;
   final AdaptiveLimiter _limiter;
@@ -469,10 +496,15 @@ class StorageUploader {
     int? scanMaxPolls,
     StorageTransport? transport,
     String? taskId,
+    StorageTarget? savedTarget,
+    Future<void> Function(StorageTarget target)? onTarget,
     String? resumeFileId,
     void Function(String fileId)? onPartsFileId,
   }) async {
-    if (transport == null && taskId != null && _partsGate != null) {
+    if (transport == null &&
+        taskId != null &&
+        savedTarget == null &&
+        _partsGate != null) {
       final done = await _partsWhileOpen(
         _partsGate,
         purpose: purpose,
@@ -487,12 +519,62 @@ class StorageUploader {
       );
       if (done != null) return done;
     }
-    final target = await presign(
-      purpose: purpose,
-      mime: mime,
-      sizeBytes: await body.length(),
-      sha256: await body.sha256Hex(),
-    );
+    // The OS transfer of a queue job outlives the app, and the file it sends
+    // has the id of ITS presign. So the target is saved in the job before the
+    // transfer starts and used again after a restart; a new presign here
+    // would confirm a file nobody uploaded, and the job would be refused for
+    // good. If storage still has nothing for that target (it expired, or the
+    // record is of an older try), one fresh start, with the old record gone
+    // (a finished record makes the transport send nothing).
+    var saved = savedTarget;
+    for (var attempt = 0;; attempt++) {
+      final target = saved ??
+          await presign(
+            purpose: purpose,
+            mime: mime,
+            sizeBytes: await body.length(),
+            sha256: await body.sha256Hex(),
+          );
+      if (saved == null) await onTarget?.call(target);
+      try {
+        return await _sendAndConfirm(
+          target,
+          body,
+          mime: mime,
+          filename: filename,
+          onProgress: onProgress,
+          cancel: cancel,
+          scanMaxPolls: scanMaxPolls,
+          transport: transport,
+          taskId: taskId,
+        );
+      } on ApiException catch (e) {
+        final forget = _forgetTransfer;
+        final nothingThere = e.code == ApiErrorCodes.fileNotUploaded ||
+            e.code == ApiErrorCodes.notFound;
+        if (!nothingThere ||
+            attempt > 0 ||
+            taskId == null ||
+            forget == null) {
+          rethrow;
+        }
+        await forget(taskId);
+        saved = null;
+      }
+    }
+  }
+
+  Future<String> _sendAndConfirm(
+    StorageTarget target,
+    UploadBody body, {
+    required String mime,
+    required String filename,
+    void Function(double progress)? onProgress,
+    CancelToken? cancel,
+    int? scanMaxPolls,
+    StorageTransport? transport,
+    String? taskId,
+  }) async {
     // A big file goes in resumable parts when the server offers it (and the
     // caller did not pick its own transport, e.g. the background queue).
     final resumed = transport == null &&

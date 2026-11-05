@@ -534,6 +534,7 @@ final uploadQueueUploaderProvider = Provider<StorageUploader>((ref) {
     transport: queueTransport(fallback: DioStorageTransport(storage)),
     storageDio: storage,
     partsGate: gate,
+    forgetTransfer: forgetBackgroundUpload,
   );
 });
 

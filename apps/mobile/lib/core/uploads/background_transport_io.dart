@@ -24,6 +24,16 @@ Future<void> cancelBackgroundUpload(String taskId) async {
   }
 }
 
+/// Forgets the record of [taskId]; the next post sends the file again.
+Future<void> forgetBackgroundUpload(String taskId) async {
+  if (kIsWeb || !(Platform.isAndroid || Platform.isIOS)) return;
+  try {
+    await FileDownloader().database.deleteRecordWithId(taskId);
+  } on Object catch (e) {
+    debugPrint('forget upload $taskId: $e');
+  }
+}
+
 bool get backgroundHandsOff =>
     !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
