@@ -671,6 +671,7 @@ class _GroupConversationScreenState
                 actions: [
                   // Like WhatsApp: video and phone, tight, before the menu.
                   if (detail.canCall &&
+                      ref.watch(groupCallsProvider) &&
                       ref.watch(groupCallPortProvider) != null) ...[
                     if (ref.watch(groupVideoCallsProvider))
                       AppIconButton(

@@ -16,7 +16,7 @@ import 'package:lawbid/features/team/presentation/team_screen.dart'
 abstract final class TeamRoutes {
   static const team = '/team';
 
-  /// Owner 2026-10-22: «Роли помощников» — the 10 duties, open to every
+  /// Owner 2026-10-22: «Роли помощников» — the 11 duties, open to every
   /// attorney (the Team tab's header).
   static const roles = '/team/roles';
   static const newTask = '/tasks/new';

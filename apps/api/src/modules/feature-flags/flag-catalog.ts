@@ -88,6 +88,17 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Video calls in chats (WebRTC, needs a TURN relay)',
   },
   {
+    // Owner 2026-11-04 (R-376): group calls off for now, one-to-one calls
+    // stay; they come back in a later update. Off: the app hides «Add
+    // participant» and the group / channel call buttons, the API refuses
+    // starting, joining or growing a group call (old app builds included).
+    key: 'calls_group',
+    enabled: false,
+    app: true,
+    description:
+      'Group calls (3+ people): add participants, group call from a group chat',
+  },
+  {
     // Owner 2026-10-20: stories (24 h) like Instagram / WhatsApp.
     // Owner 2026-10-22 (R-049): hidden until the next update; the code stays.
     key: 'stories',
@@ -117,6 +128,17 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: true,
     app: true,
     description: 'Ask a lawyer: public questions and attorneys answers',
+  },
+  {
+    // R-401 (owner 2026-11-04): answers to clients' questions lift an
+    // attorney in the recommendations (people grid, cases, the attorney's
+    // recommended questions) — read from the nightly snapshot
+    // `reco.qa-snapshot`. Off = the snapshot is not read: today's ranking.
+    // On by default: an empty snapshot changes nothing either.
+    key: 'recommendations_qa_ranking',
+    enabled: true,
+    description:
+      'Recommendations: Q&A answers and likes rank attorneys (nightly snapshot; admin: Настройки → reco.qa.*)',
   },
   {
     // Owner 2026-10-20: court deadlines and statutes of limitations. Off by

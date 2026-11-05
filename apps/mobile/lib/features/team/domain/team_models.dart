@@ -16,9 +16,17 @@ enum AssistantDuty {
   bids,
 
   /// OQ-049: publish posts / news / comments without approval.
-  publish;
+  publish,
 
-  String get wire => this == bidDrafts ? 'bid_drafts' : name;
+  /// R-401 (owner 2026-11-04): answer clients' questions in «Вопрос
+  /// юристу» in the attorney's name.
+  qaAnswers;
+
+  String get wire => switch (this) {
+        bidDrafts => 'bid_drafts',
+        qaAnswers => 'qa_answers',
+        _ => name,
+      };
 
   static AssistantDuty? parse(String raw) {
     for (final d in values) {
@@ -116,7 +124,12 @@ class TeamInfo {
     required this.used,
     required this.plan,
     this.maxDuties = defaultMaxDuties,
+    this.maxDutiesUnlimited = false,
   });
+
+  /// R-401 (owner 2026-11-04): the admin set the limit to «все» — no
+  /// counter, every duty may go to one assistant.
+  final bool maxDutiesUnlimited;
 
   /// Owner 2026-10-22: one assistant holds at most this many duties (the
   /// admin's `assistants.max_duties`) — more assistants, nobody with the

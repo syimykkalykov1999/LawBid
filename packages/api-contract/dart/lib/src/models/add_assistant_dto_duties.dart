@@ -26,6 +26,8 @@ enum AddAssistantDtoDuties {
   bids('bids'),
   @JsonValue('publish')
   publish('publish'),
+  @JsonValue('qa_answers')
+  qaAnswers('qa_answers'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

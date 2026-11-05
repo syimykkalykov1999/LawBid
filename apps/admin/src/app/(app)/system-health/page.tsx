@@ -119,7 +119,8 @@ export default function SystemHealthPage() {
         eyebrow="Система"
         title="Здоровье системы"
         subtitle="Система следит за собой сама: перезапускает упавшее, растёт и сжимается с нагрузкой, сдерживает расходы и проверяет бэкапы. Если что-то сломается, письмо придёт на почту с тем, что делать."
-        actions={h ? <UpdatedAgo at={health.dataUpdatedAt} /> : null}
+        // R-370: the board is a shared copy; show ITS age, not the fetch time.
+        actions={h ? <UpdatedAgo at={Date.parse(h.generatedAt) || health.dataUpdatedAt} /> : null}
       />
       <ErrorNote text={health.error ? errorText(health.error) : null} />
 
@@ -279,8 +280,16 @@ export default function SystemHealthPage() {
             </Card>
           </div>
 
-          <ShardSplitCard />
+        </>
+      )}
 
+      {/* R-370: own request, own skeleton — not held by the board. */}
+      <ShardSplitCard />
+
+      {!h ? (
+        <Skeleton className="h-32 rounded-[var(--radius-lg)]" />
+      ) : (
+        <>
           <SectionTitle>Что система делает сама</SectionTitle>
           <Card className="divide-y divide-line">
             <div className="flex items-start gap-4 p-4">

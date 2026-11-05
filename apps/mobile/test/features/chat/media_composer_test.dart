@@ -93,6 +93,7 @@ Future<_Host> _open(
   List<PickedFile> files, {
   String caption = '',
   _Chat? chat,
+  ThemeData? theme,
 }) async {
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -111,7 +112,7 @@ Future<_Host> _open(
     UncontrolledProviderScope(
       container: c,
       child: MaterialApp(
-        theme: AppTheme.light(),
+        theme: theme ?? AppTheme.light(),
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(
@@ -208,6 +209,22 @@ void main() {
     expect(r.files.map((f) => f.name), ['a.png', 'b.png', 'c.png']);
     expect(r.caption, 'Lease pages');
   });
+
+  for (final id in AppThemeId.values) {
+    testWidgets(
+        'R-378: caption field is readable on the dark viewer (${id.name})',
+        (tester) async {
+      await _open(tester, [_img('a.png')], theme: AppTheme.of(id));
+      final field = tester.widget<TextField>(
+        find.byKey(const ValueKey('preview-caption')),
+      );
+      // No theme fill (white in day) over the dark bar; light viewer text.
+      expect(field.decoration!.filled, isFalse);
+      expect(field.style!.color, ChatColors.onViewer);
+      expect(field.cursorColor, ChatColors.onViewer);
+      expect(field.decoration!.fillColor, isNot(Colors.white));
+    });
+  }
 
   testWidgets('the typed text is the caption; one photo has no strip / count',
       (tester) async {

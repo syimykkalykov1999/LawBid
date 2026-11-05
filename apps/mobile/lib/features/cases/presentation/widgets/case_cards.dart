@@ -382,7 +382,7 @@ class ClientActivityLine extends StatelessWidget {
   }
 }
 
-/// Bid first (a little larger), then bids / comments / shares, and on the
+/// Bid first (a little larger), then bids / comments (no share: R-366), and on the
 /// right the time with Save.
 class _CaseCardRow extends StatelessWidget {
   const _CaseCardRow({
@@ -472,7 +472,6 @@ class _CaseCardRow extends StatelessWidget {
               commentsEnabled: true,
             ),
           ),
-          stat(AppIcons.sendOutlined, item.shareCount),
           // Owner 2026-10-15: Bid and the time sit at the right edge,
           // left of Save (Expanded + Align, not Spacer + Flexible).
           Expanded(

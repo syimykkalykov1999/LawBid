@@ -19,6 +19,7 @@ IconData dutyIcon(AssistantDuty d) => switch (d) {
       AssistantDuty.profile => AppIcons.badgeOutlined,
       AssistantDuty.bids => AppIcons.gavelRounded,
       AssistantDuty.publish => AppIcons.campaignRounded,
+      AssistantDuty.qaAnswers => AppIcons.helpOutlineRounded,
     };
 
 /// "act.<key>" or the raw action for unknown routes.

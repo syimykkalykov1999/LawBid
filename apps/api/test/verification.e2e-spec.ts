@@ -287,6 +287,20 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
       })
     ).verification_status;
 
+  /** R-394: registry lookups run in the background worker. */
+  async function waitFor<T>(
+    probe: () => Promise<T | null>,
+    timeoutMs = 15_000,
+  ): Promise<T> {
+    const until = Date.now() + timeoutMs;
+    for (;;) {
+      const value = await probe();
+      if (value) return value;
+      if (Date.now() > until) throw new Error('waitFor: timed out');
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+
   const auditActions = async (adminId: string) =>
     (
       await prisma.auditLog.findMany({
@@ -1191,7 +1205,7 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
       ]);
     });
 
-    it('recheck with manual lookup queues the license for manual review', async () => {
+    it('recheck answers 202 at once; the worker queues the license for manual review', async () => {
       const a = await attorney('verified');
       const license = await prisma.attorneyLicense.create({
         data: {
@@ -1202,27 +1216,38 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         },
       });
       const verifier = await admin('super_admin');
+      // R-394: the lookup never runs inside the click.
       const res = await api()
         .post(`/api/v1/admin/verification/licenses/${license.id}/recheck`)
         .set(verifier.auth)
-        .expect(200);
+        .expect(202);
       const data = (res.body as Body).data;
-      expect(data.result).toBe('manual_review');
-      expect((data.license as { status: string }).status).toBe('pending');
-      const queued = await prisma.verificationRequest.findUniqueOrThrow({
-        where: { id: data.requestId as string },
+      expect(data).toMatchObject({
+        licenseId: license.id,
+        kind: 'recheck',
+        status: 'queued',
+      });
+      expect(typeof data.checkId).toBe('string');
+      const fresh = await waitFor(() =>
+        prisma.attorneyLicense.findFirst({
+          where: { id: license.id, license_status: 'pending' },
+        }),
+      );
+      expect(fresh.auto_check_result).toMatchObject({
+        result: 'manual_review',
+      });
+      const queued = await prisma.verificationRequest.findFirstOrThrow({
+        where: { attorney_id: a.userId, status: 'submitted' },
         include: { checks: true },
       });
-      expect(queued.status).toBe('submitted');
       expect(queued.admin_note).toContain('license_recheck');
       expect(queued.checks.map((c) => c.check_type)).toEqual(['bar_lookup']);
+      await waitFor(async () =>
+        (await auditActions(verifier.userId)).length > 0 ? true : null,
+      );
       expect(await auditActions(verifier.userId)).toEqual([
         'verification.license_recheck',
       ]);
-      await api()
-        .post(`/api/v1/admin/verification/licenses/${license.id}/recheck`)
-        .set(verifier.auth)
-        .expect(409);
     });
   });
 
