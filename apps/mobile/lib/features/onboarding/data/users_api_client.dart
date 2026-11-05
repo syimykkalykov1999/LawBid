@@ -43,6 +43,22 @@ class UsersApiClient {
       ))
           .data;
 
+  /// Owner 2026-11-05: Settings → Account «Сменить профиль».
+  Future<api.RoleSwitchPreviewDto> previewRoleSwitch() async =>
+      (await guardApiCall(_users.previewRoleSwitch)).data;
+
+  Future<api.MeDto> switchRole(
+    api.SwitchRoleDtoRole role,
+    String reauthToken,
+  ) async =>
+      (await guardApiCall(
+        () => _users.switchRole(
+          xReauthToken: reauthToken,
+          body: api.SwitchRoleDto(role: role),
+        ),
+      ))
+          .data;
+
   Future<api.MeDto> saveOnboardingStep(api.SaveOnboardingStepDto body) async =>
       (await guardApiCall(() => _users.saveOnboardingStep(body: body))).data;
 

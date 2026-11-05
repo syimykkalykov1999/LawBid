@@ -412,6 +412,7 @@ class FakeChannelsRepository implements ChannelsRepository {
     ChannelVideoUpload u, {
     void Function(double)? onProgress,
     CancelToken? cancel,
+    bool parallel = false,
   }) =>
       _run('uploadVideo', () async {
         onProgress?.call(0.5);

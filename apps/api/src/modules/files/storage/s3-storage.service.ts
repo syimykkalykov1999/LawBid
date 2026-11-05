@@ -671,6 +671,20 @@ export class S3StorageService implements OnModuleDestroy {
     return Buffer.from(await res.Body.transformToByteArray());
   }
 
+  /** The first [bytes] of an object (all of it when it is shorter). */
+  async readStart(bucket: string, key: string, bytes: number): Promise<Buffer> {
+    await this.refresh();
+    const res = await this.clientFor(bucket).send(
+      new GetObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Range: `bytes=0-${bytes - 1}`,
+      }),
+    );
+    if (!res.Body) return Buffer.alloc(0);
+    return Buffer.from(await res.Body.transformToByteArray());
+  }
+
   async put(
     bucket: string,
     key: string,

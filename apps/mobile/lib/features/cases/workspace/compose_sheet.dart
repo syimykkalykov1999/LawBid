@@ -4,14 +4,17 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
+import 'package:lawbid/core/transfers/adaptive_limiter.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart'
     show casesRepositoryProvider;
 import 'package:lawbid/features/cases/domain/case_models.dart'
@@ -1191,8 +1194,11 @@ Future<void> createPlannerTaskFrom(
 }) async {
   final repo = ref.read(teamRepositoryProvider);
   final ids = <String>[
-    for (final f in r.files)
-      await repo.uploadTaskFile(f.bytes, _mimeOf(f.name, f.bytes)),
+    ...await mapAtOnce(
+      r.files,
+      _filesAtOnce(ref),
+      (f) => repo.uploadTaskFile(f.bytes, _mimeOf(f.name, f.bytes)),
+    ),
   ];
   await repo.createTask(
     TaskDraft(
@@ -1226,8 +1232,11 @@ Future<void> updatePlannerTaskFrom(
   final repo = ref.read(teamRepositoryProvider);
   final ids = <String>[
     ...r.keptFileIds,
-    for (final f in r.files)
-      await repo.uploadTaskFile(f.bytes, _mimeOf(f.name, f.bytes)),
+    ...await mapAtOnce(
+      r.files,
+      _filesAtOnce(ref),
+      (f) => repo.uploadTaskFile(f.bytes, _mimeOf(f.name, f.bytes)),
+    ),
   ];
   final timed = r.dueAt != null;
   await repo.updateTask(
@@ -1292,3 +1301,10 @@ Future<void> updatePlannerTaskFrom(
   }
   syncAllTasks(ref);
 }
+
+/// R-251: files of a task going up together (flag `chat_upload_parallel`);
+/// off, one after another as before.
+int _filesAtOnce(WidgetRef ref) =>
+    ref.read(featureFlagsControllerProvider).isEnabled('chat_upload_parallel')
+        ? ClientTuning.uploadsAtOnce
+        : 1;

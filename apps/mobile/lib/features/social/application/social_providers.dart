@@ -575,6 +575,10 @@ class ExplorePostsNotifier extends PagedNotifier<Post> {
 
   final ExplorePostsKey key;
 
+  // R-385: back to a filter seen in the last 5 minutes = no request.
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
+
   @override
   Future<CursorPage<Post>> fetch(String? cursor) {
     final practice = key.practice;
