@@ -507,6 +507,11 @@ export class CaseDetailForAttorneyDto extends CaseFeedItemDto {
   })
   completionRequestedBy!: 'client' | 'attorney' | null;
 
+  /** R-392: when the close request closes the case by itself (ISO;
+   * pending_completion only, else null). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  autoCloseAt!: string | null;
+
   /** OQ-031: photos — only when THIS attorney's bid was accepted. */
   @ApiProperty({ type: [CasePhotoDto] })
   photos!: CasePhotoDto[];
