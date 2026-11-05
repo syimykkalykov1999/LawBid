@@ -352,8 +352,10 @@ void main() {
       expect(find.byKey(const ValueKey('client-avatar')), findsOneWidget);
       expect(find.byKey(const ValueKey('avatar-pick')), findsOneWidget);
       expect(find.text('Optional'), findsOneWidget);
-      expect(find.text('Add a photo — it is required for attorneys.'),
-          findsNothing);
+      expect(
+        find.text('Add a photo — it is required for attorneys.'),
+        findsNothing,
+      );
       await _tearDownDrift(tester);
     });
 
