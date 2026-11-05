@@ -434,7 +434,7 @@ class RealtimeClient {
         {'accessToken': token, 'token': token},
         ack: (Object? _) {},
       );
-    } else if (!s.active && !_policy.paused) {
+    } else if (!s.active && _policy.mayRetry) {
       s.connect();
     }
   }
@@ -599,8 +599,32 @@ class RealtimeClient {
         if (!done.isCompleted) done.complete(r is Map && r['ok'] == true);
       },
     );
-    return done.future
-        .timeout(const Duration(seconds: 5), onTimeout: () => false);
+    return done.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () {
+        // R-404: `connected` can be a leftover of a suspended app. While a
+        // call needs the socket a mute one is replaced now, not when its
+        // ping timeout comes (which may outlast the whole connect window).
+        if (_keepUpForCall && identical(s, _socket)) {
+          s
+            ..disconnect()
+            ..connect();
+        }
+        return false;
+      },
+    );
+  }
+
+  bool _keepUpForCall = false;
+
+  /// R-404: a call lives — the socket stays up in the background too (see
+  /// [ReconnectController.keepUp]); a client that never connected connects.
+  // ignore: avoid_positional_boolean_parameters
+  void keepUpForCall(bool on) {
+    if (_disposed || _keepUpForCall == on) return;
+    _keepUpForCall = on;
+    _policy.keepUp(on);
+    if (on && _socket == null) unawaited(connect());
   }
 
   void dispose() {
