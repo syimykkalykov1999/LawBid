@@ -48,4 +48,37 @@ void main() {
     expect(to(attorney: true), AppRoutes.workCase('c1'));
     expect(to(attorney: false), AppRoutes.myCase('c1'));
   });
+
+  test('R-392: the close request names who asked; kept open = in work', () {
+    const en = StaticTranslatorEn();
+    const ru = StaticTranslatorRu();
+    AppNotification req(String by) => AppNotification(
+          id: 'n2',
+          type: 'completion_requested',
+          category: NotifCategory.cases,
+          payload: {'caseId': 'c1', 'by': by},
+          aggregateCount: 1,
+          createdAt: DateTime(2026, 11, 4),
+        );
+    expect(
+      notificationText(en, req('attorney')),
+      'The attorney asks to close the case — confirm or keep it open',
+    );
+    expect(
+      notificationText(ru, req('client')),
+      'Клиент предлагает закрыть кейс — подтвердите или оставьте в работе',
+    );
+    expect(
+      notificationText(en, n('close_declined')),
+      'Thomas Brennan kept the case open — it stays in work',
+    );
+    expect(
+      notificationRoute(
+        type: 'completion_requested',
+        payload: const {'caseId': 'c1', 'by': 'client'},
+        attorney: true,
+      ),
+      AppRoutes.workCase('c1'),
+    );
+  });
 }

@@ -5,8 +5,10 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:lawbid/core/media/video_cache/chunk_cache.dart';
 import 'package:lawbid/core/media/video_cache/range_plan.dart';
+import 'package:lawbid/core/transfers/adaptive_limiter.dart';
 
 /// N-1: a tiny loopback HTTP server (127.0.0.1 only, per-launch secret in
 /// the path) that sits between the native player (ExoPlayer / AVPlayer,
@@ -22,6 +24,7 @@ class VideoCacheProxy {
     required this.cache,
     required this.headBytes,
     required this.hlsSeconds,
+    this.blocksAtOnce = 1,
     HttpClient? client,
   }) : _client = client ?? HttpClient()
           ..connectionTimeout = const Duration(seconds: 8);
@@ -30,6 +33,22 @@ class VideoCacheProxy {
   final int headBytes;
   final int hlsSeconds;
   final HttpClient _client;
+
+  /// R-251 (flag `video_cache_parallel`): blocks of a video's start fetched
+  /// at once; 1 = one after another, as before. Set again when the server
+  /// changes it. The tail past the head stays one stream: the player reads it
+  /// at the video's own speed, and more would only waste the viewer's traffic.
+  int blocksAtOnce;
+
+  /// Tests: a plain local server stands in for the CDN.
+  @visibleForTesting
+  bool allowHttpForTests = false;
+
+  late final _limiter = AdaptiveLimiter(() => blocksAtOnce);
+
+  /// One fetch of a block however many requests want it (a player often asks
+  /// for the start of a file twice).
+  final _inFlight = <String, Future<Uint8List?>>{};
 
   HttpServer? _server;
   final String _secret = _randomSecret();
@@ -156,7 +175,7 @@ class VideoCacheProxy {
         return;
       }
       final upstream = Uri.parse(utf8.decode(base64Url.decode(seg[2])));
-      if (upstream.scheme != 'https') {
+      if (upstream.scheme != 'https' && !allowHttpForTests) {
         req.response.statusCode = HttpStatus.forbidden;
         await req.response.close();
         return;
@@ -255,8 +274,20 @@ class VideoCacheProxy {
       );
     }
     var pos = start;
-    for (final b in blocks) {
-      final data = await _block(upstream, b, total, feed);
+    // The next blocks are fetched ahead of the one being written; the bytes
+    // still leave in order. At most [blocksAtOnce] blocks wait in memory.
+    _limiter.restoreIfIdle();
+    final ahead = <int, Future<Uint8List?>>{};
+    Future<Uint8List?> fetch(int i) =>
+        ahead[i] ??= _block(upstream, blocks[i], total, feed);
+    for (var i = 0; i < blocks.length; i++) {
+      final window = blocksAtOnce < 1 ? 1 : blocksAtOnce;
+      for (var j = i; j < blocks.length && j < i + window; j++) {
+        unawaited(fetch(j));
+      }
+      final b = blocks[i];
+      final data = await fetch(i);
+      unawaited(ahead.remove(i));
       if (data == null) break;
       final from = pos - b.start;
       final to = (end - b.start + 1).clamp(0, data.length);
@@ -298,35 +329,45 @@ class VideoCacheProxy {
   }
 
   /// Fetches with the signed [upstream] URL, stores under its identity.
-  Future<Uint8List?> _block(
+  /// Null when the block cannot be had: the caller pipes the rest instead, so
+  /// a failed block never fails the video.
+  Future<Uint8List?> _block(Uri upstream, BlockRange b, int total, bool feed) {
+    final key = _scopedKey(identityOf(upstream), '_${b.index}', feed: feed);
+    return _inFlight[key] ??=
+        _fetchBlock(upstream, key, b, total).catchError((Object _) {
+      _limiter.rateLimit(const Duration(seconds: 1));
+      return null;
+    }).whenComplete(() {
+      unawaited(_inFlight.remove(key));
+    });
+  }
+
+  Future<Uint8List?> _fetchBlock(
     Uri upstream,
+    String key,
     BlockRange b,
     int total,
-    bool feed,
   ) async {
-    final key = _scopedKey(identityOf(upstream), '_${b.index}', feed: feed);
     final hit = await cache.get(key);
     if (hit != null) return hit;
     final end = b.endInclusive >= total ? total - 1 : b.endInclusive;
-    final up = await _open(upstream, range: 'bytes=${b.start}-$end');
-    if (up.statusCode != HttpStatus.partialContent) {
-      await up.drain<void>();
-      return null;
-    }
-    final bb = BytesBuilder(copy: false);
-    await for (final c in up) {
-      bb.add(c);
-    }
-    final bytes = bb.takeBytes();
-    await cache.put(key, bytes);
-    return bytes;
+    return _limiter.run(() async {
+      final up = await _open(upstream, range: 'bytes=${b.start}-$end');
+      if (up.statusCode != HttpStatus.partialContent) {
+        await up.drain<void>();
+        return null;
+      }
+      final bb = BytesBuilder(copy: false);
+      await for (final c in up) {
+        bb.add(c);
+      }
+      final bytes = bb.takeBytes();
+      await cache.put(key, bytes);
+      return bytes;
+    });
   }
 
-  Future<void> _cachedSegment(
-    HttpRequest req,
-    Uri upstream,
-    bool feed,
-  ) async {
+  Future<void> _cachedSegment(HttpRequest req, Uri upstream, bool feed) async {
     final key = _scopedKey(identityOf(upstream), '_seg', feed: feed);
     var bytes = await cache.get(key);
     if (bytes == null) {

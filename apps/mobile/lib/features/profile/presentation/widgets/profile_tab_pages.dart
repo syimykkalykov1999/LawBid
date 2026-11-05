@@ -23,11 +23,16 @@ class ProfileTabPages extends StatefulWidget {
     this.onNearEnd,
     this.pagePadding,
     this.tabBarHeight = AppSizes.touchTarget,
+    this.controller,
     super.key,
   });
 
   /// The sticky tab row's height.
   final double tabBarHeight;
+
+  /// The pages' controller when the tabs live outside this widget (the case
+  /// screen's top bar); the owner disposes it. Null: this widget has its own.
+  final PageController? controller;
 
   /// Everything above the tabs (avatar, counters, bio, buttons).
   final Widget header;
@@ -60,11 +65,11 @@ class ProfileTabPages extends StatefulWidget {
 
 class _ProfileTabPagesState extends State<ProfileTabPages> {
   late final PageController _pages =
-      PageController(initialPage: widget.initialPage);
+      widget.controller ?? PageController(initialPage: widget.initialPage);
 
   @override
   void dispose() {
-    _pages.dispose();
+    if (widget.controller == null) _pages.dispose();
     super.dispose();
   }
 

@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/transfers/adaptive_limiter.dart';
+import 'package:lawbid/core/transfers/transfer_limits.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -144,6 +147,16 @@ class DioStorageTransport implements StorageTransport {
   }
 }
 
+/// R-251: whether a queued file may go in parts right now, and the moment it
+/// must stop (the app left the screen). See core/uploads/foreground_parts.dart.
+abstract interface class PartsGate {
+  /// Parts may start for the queue job [taskId].
+  Future<bool> allows(String taskId);
+
+  /// Completes when parts running now must stop.
+  Future<void> get whenLeft;
+}
+
 /// Owner 2026-10-22 (product audit #4 §3): the ONE way the app puts a file
 /// into storage — `POST /files/presign` → S3 POST → `POST /files/:id/confirm`
 /// → wait for a clean virus scan. Before, nine repositories each had their
@@ -156,10 +169,14 @@ class StorageUploader {
     this.scanMaxPolls = 40,
     Dio? storageDio,
     Duration Function(int failures)? partBackoff,
+    PartsGate? partsGate,
+    AdaptiveLimiter? limiter,
   })  : _files = api.FilesClient(apiDio),
         _transport = transport,
         _storageDio = storageDio,
-        _partBackoff = partBackoff ?? DioStorageTransport.defaultBackoff;
+        _partBackoff = partBackoff ?? DioStorageTransport.defaultBackoff,
+        _partsGate = partsGate,
+        _limiter = limiter ?? TransferLimits.uploads;
 
   /// The usual pair: the API's Dio and the plain storage Dio.
   factory StorageUploader.dio(
@@ -180,11 +197,21 @@ class StorageUploader {
   final StorageTransport _transport;
   final Dio? _storageDio;
   final Duration Function(int failures) _partBackoff;
+  final PartsGate? _partsGate;
+  final AdaptiveLimiter _limiter;
 
   /// Files at least this big go in parts that can be continued after an
   /// interruption (server flag `files_multipart`; mirrors the server's
   /// MIN_MULTIPART_BYTES).
   static const resumableThresholdBytes = 16 * 1024 * 1024;
+
+  /// R-251 / R-253: the most parts in flight at once, the default of AWS's
+  /// own uploader (`queueSize` in @aws-sdk/lib-storage, Apache-2.0), which is
+  /// the model of the loop in [putResumable]. The real number comes from
+  /// [AdaptiveLimiter]: the admin's `client.uploads_at_once`, less on mobile
+  /// data, a weak phone or after a failure. A file body streams each part
+  /// from disk, so this does not grow the phone's memory.
+  static const partsAtOnce = 4;
   final Duration scanPoll;
   final int scanMaxPolls;
 
@@ -257,6 +284,8 @@ class StorageUploader {
     if (storage == null) return false;
     final total = await body.length();
     if (total < resumableThresholdBytes) return false;
+    await TransferLimits.checkDevice();
+    _limiter.restoreIfIdle();
 
     Future<api.MultipartPlanDto> plan() async =>
         (await guardApiCall(() => _files.multipartPlan(id: fileId))).data;
@@ -275,27 +304,89 @@ class StorageUploader {
 
     // Three rounds: an expired part link is fixed by asking for a new plan.
     for (var round = 0; round < 3 && current.parts.isNotEmpty; round++) {
-      final partSize = current.partSizeBytes.toInt();
-      var sent = current.uploadedParts.length * partSize;
-      for (final part in current.parts) {
-        final start = (part.partNumber.toInt() - 1) * partSize;
-        final end = (start + partSize).clamp(0, total);
-        await _putPart(
-          storage,
-          part.url,
-          body,
-          start,
-          end,
-          cancel: cancel,
-          onBytes: (n) => onProgress?.call(((sent + n) / total).clamp(0, 1)),
-        );
-        sent += end - start;
-        onProgress?.call((sent / total).clamp(0, 1));
-      }
+      await _putParts(
+        storage,
+        current,
+        body,
+        total,
+        onProgress: onProgress,
+        cancel: cancel,
+      );
       current = await plan();
     }
     await guardApiCall(() => _files.multipartComplete(id: fileId));
     return true;
+  }
+
+  /// The parts of one plan, [partsAtOnce] at a time: workers pull the next
+  /// part from one shared list, as `__doConcurrentUpload` does in
+  /// @aws-sdk/lib-storage. The first failure stops the others, and is the
+  /// error the caller sees.
+  Future<void> _putParts(
+    Dio storage,
+    api.MultipartPlanDto plan,
+    UploadBody body,
+    int total, {
+    void Function(double progress)? onProgress,
+    CancelToken? cancel,
+  }) async {
+    final partSize = plan.partSizeBytes.toInt();
+    final next = plan.parts.iterator;
+    final inFlight = <int, int>{};
+    var finished = plan.uploadedParts.length * partSize;
+    void report() {
+      final moving = inFlight.values.fold<int>(0, (a, b) => a + b);
+      onProgress?.call(((finished + moving) / total).clamp(0, 1));
+    }
+
+    // One token for the workers: the caller's cancel stops them all, and so
+    // does the first failure.
+    final stop = CancelToken();
+    unawaited(
+      cancel?.whenCancel.then((_) {
+        if (!stop.isCancelled) stop.cancel('cancelled');
+      }),
+    );
+
+    Future<void> worker() async {
+      while (!stop.isCancelled && next.moveNext()) {
+        final number = next.current.partNumber.toInt();
+        final start = (number - 1) * partSize;
+        final end = (start + partSize).clamp(0, total);
+        try {
+          await _putPart(
+            storage,
+            next.current.url,
+            body,
+            start,
+            end,
+            cancel: stop,
+            onBytes: (n) {
+              inFlight[number] = n;
+              report();
+            },
+          );
+        } on Object {
+          if (!stop.isCancelled) stop.cancel('another part failed');
+          rethrow;
+        }
+        inFlight.remove(number);
+        finished += end - start;
+        report();
+      }
+    }
+
+    await Future.wait([
+      for (var i = 0; i < math.min(partsAtOnce, plan.parts.length); i++)
+        worker(),
+    ]);
+    // The caller's cancel while the last part was finishing still counts.
+    if (cancel?.isCancelled ?? false) {
+      throw DioException.requestCancelled(
+        requestOptions: RequestOptions(),
+        reason: 'cancelled',
+      );
+    }
   }
 
   /// One part: the raw bytes to its link, retried on a lost connection or a
@@ -312,12 +403,16 @@ class StorageUploader {
   }) async {
     for (var failures = 0;; failures++) {
       try {
-        await storage.put<void>(
-          url,
-          data: body.openRange(start, end),
-          options: Options(headers: {Headers.contentLengthHeader: end - start}),
-          cancelToken: cancel,
-          onSendProgress: (sent, _) => onBytes?.call(sent),
+        await _limiter.run(
+          () => storage.put<void>(
+            url,
+            data: body.openRange(start, end),
+            options: Options(
+              headers: {Headers.contentLengthHeader: end - start},
+            ),
+            cancelToken: cancel,
+            onSendProgress: (sent, _) => onBytes?.call(sent),
+          ),
         );
         return;
       } on DioException catch (e) {
@@ -325,7 +420,10 @@ class StorageUploader {
         final c = e.response?.statusCode;
         final temporary = c == null || c == 408 || c == 429 || c >= 500;
         if (!temporary || failures + 1 >= attempts) throw storageError(e);
-        await Future<void>.delayed(_partBackoff(failures + 1));
+        // A bad network: fewer parts at once, for this file and the others.
+        final wait = _partBackoff(failures + 1);
+        _limiter.rateLimit(wait);
+        await Future<void>.delayed(wait);
         if (cancel?.isCancelled ?? false) rethrow;
       }
     }
@@ -371,7 +469,24 @@ class StorageUploader {
     int? scanMaxPolls,
     StorageTransport? transport,
     String? taskId,
+    String? resumeFileId,
+    void Function(String fileId)? onPartsFileId,
   }) async {
+    if (transport == null && taskId != null && _partsGate != null) {
+      final done = await _partsWhileOpen(
+        _partsGate,
+        purpose: purpose,
+        body: body,
+        mime: mime,
+        taskId: taskId,
+        resumeFileId: resumeFileId,
+        onFileId: onPartsFileId,
+        onProgress: onProgress,
+        cancel: cancel,
+        scanMaxPolls: scanMaxPolls,
+      );
+      if (done != null) return done;
+    }
     final target = await presign(
       purpose: purpose,
       mime: mime,
@@ -381,6 +496,7 @@ class StorageUploader {
     // A big file goes in resumable parts when the server offers it (and the
     // caller did not pick its own transport, e.g. the background queue).
     final resumed = transport == null &&
+        _partsGate == null &&
         await putResumable(
           target.fileId,
           body,
@@ -405,5 +521,89 @@ class StorageUploader {
       maxPolls: scanMaxPolls,
     );
     return target.fileId;
+  }
+
+  /// R-251: a queued big file in parallel parts while the app is on screen.
+  /// Returns the clean file's id, or null when the file goes the usual way:
+  /// parts not allowed or not offered, or the app left the screen mid-way
+  /// (then the whole file goes to the OS transfer, which a closed app does
+  /// not stop). A new link is taken for that, the first may have expired.
+  ///
+  /// The parts' file id is saved by the caller, so a retry or a restart sends
+  /// only what storage does not have yet.
+  Future<String?> _partsWhileOpen(
+    PartsGate gate, {
+    required api.FilePurpose purpose,
+    required UploadBody body,
+    required String mime,
+    required String taskId,
+    String? resumeFileId,
+    void Function(String fileId)? onFileId,
+    void Function(double progress)? onProgress,
+    CancelToken? cancel,
+    int? scanMaxPolls,
+  }) async {
+    if (await body.length() < resumableThresholdBytes) return null;
+    if (!await gate.allows(taskId)) return null;
+
+    final stop = CancelToken();
+    void halt(String why) {
+      if (!stop.isCancelled) stop.cancel(why);
+    }
+
+    var left = false;
+    unawaited(
+      gate.whenLeft.then((_) {
+        left = true;
+        halt('left the screen');
+      }),
+    );
+    unawaited(cancel?.whenCancel.then((_) => halt('cancelled')));
+
+    var fileId = resumeFileId;
+    try {
+      var offered = false;
+      if (fileId != null) {
+        try {
+          offered = await putResumable(
+            fileId,
+            body,
+            onProgress: onProgress,
+            cancel: stop,
+          );
+        } on ApiException catch (e) {
+          // The server answered: that upload is over (assembled before a lost
+          // reply, or expired). A lost connection is tried again later.
+          if (e.isNetworkError || e.statusCode == null) rethrow;
+          fileId = null;
+        }
+      }
+      if (fileId == null) {
+        final target = await presign(
+          purpose: purpose,
+          mime: mime,
+          sizeBytes: await body.length(),
+          sha256: await body.sha256Hex(),
+        );
+        fileId = target.fileId;
+        onFileId?.call(target.fileId);
+        offered = await putResumable(
+          target.fileId,
+          body,
+          onProgress: onProgress,
+          cancel: stop,
+        );
+      }
+      if (!offered) return null;
+    } on DioException catch (e) {
+      if (left && CancelToken.isCancel(e)) return null;
+      rethrow;
+    }
+    await waitClean(
+      fileId,
+      status: await confirm(fileId),
+      maxPolls: scanMaxPolls,
+    );
+    return fileId;
   }
 }
