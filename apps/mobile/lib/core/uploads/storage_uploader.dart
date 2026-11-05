@@ -20,6 +20,7 @@ class StorageTarget {
     required this.fields,
     this.method = 'POST',
     this.headers = const {},
+    this.alreadyStored = false,
   });
 
   final String fileId;
@@ -34,6 +35,10 @@ class StorageTarget {
 
   /// Headers a PUT must send as given (Content-Type, Cache-Control).
   final Map<String, String> headers;
+
+  /// R-254: this user already stored these bytes: [fileId] is ready and
+  /// clean, nothing goes to storage.
+  final bool alreadyStored;
 
   bool get isPut => method.toUpperCase() == 'PUT';
 }
@@ -194,6 +199,7 @@ class StorageUploader {
     required String mime,
     required int sizeBytes,
     required String sha256,
+    bool acceptsExisting = false,
   }) async {
     final d = (await guardApiCall(
       () => _files.presign(
@@ -204,6 +210,7 @@ class StorageUploader {
           sha256: sha256,
           // Owner 2026-10-24: this app can do a presigned PUT (R2).
           supportsPut: true,
+          acceptsExisting: acceptsExisting ? true : null,
         ),
         extras: const {RequestFlags.createsResource: true},
       ),
@@ -215,6 +222,7 @@ class StorageUploader {
       fields: d.upload.fields,
       method: d.upload.method?.name.toUpperCase() ?? 'POST',
       headers: d.upload.headers ?? const {},
+      alreadyStored: d.existing ?? false,
     );
   }
 
@@ -377,7 +385,12 @@ class StorageUploader {
       mime: mime,
       sizeBytes: await body.length(),
       sha256: await body.sha256Hex(),
+      acceptsExisting: true,
     );
+    if (target.alreadyStored) {
+      onProgress?.call(1);
+      return target.fileId;
+    }
     // A big file goes in resumable parts when the server offers it (and the
     // caller did not pick its own transport, e.g. the background queue).
     final resumed = transport == null &&

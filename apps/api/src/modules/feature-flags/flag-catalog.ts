@@ -189,6 +189,15 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Resumable (multipart) uploads of large files',
   },
   {
+    // R-254: on, a file this same user already stored is not uploaded again.
+    // Own files only (a hash is not proof of holding a file). Needs the
+    // setting storage.dedup on. Off until checked against real storage.
+    key: 'files_reuse_own',
+    enabled: false,
+    app: false,
+    description: 'A file the user already stored is not uploaded again',
+  },
+  {
     key: 'payments_in_app',
     enabled: false,
     app: true,

@@ -53,6 +53,8 @@ import {
   AVIF_PURPOSES,
   type FileMime,
   isImageMime,
+  DEDUP_PROFILE,
+  purposesOfProfile,
 } from './files.policy';
 import type {
   FileDto,
@@ -228,6 +230,8 @@ export class FilesService {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
+    const reused = await this.reuseOwnFile(userId, dto, bucket, allowed);
+    if (reused) return reused;
     if (!QUOTA_FREE_PURPOSES.includes(dto.purpose)) {
       await this.reserveDailyUpload(userId, dto.sizeBytes);
     }
@@ -277,6 +281,82 @@ export class FilesService {
       fileId,
       upload,
       expiresAt: new Date(Date.now() + PRESIGN_TTL_SEC * 1000).toISOString(),
+    };
+  }
+
+  /**
+   * R-254 (flag `files_reuse_own`): this user already stored these bytes, so
+   * nothing is uploaded; a new row points at the object, as the storage dedup
+   * does.
+   *
+   * ONLY the user's own files, by `owner_user_id`. A hash is not proof of
+   * having a file: anyone who learned the hash of someone else's document
+   * could otherwise get that document without ever holding it. The bytes of a
+   * proven hash only (`source_sha256`, empty until proven), same bucket (so a
+   * private file never lands among public ones), same processing, and only
+   * purposes with no image moderation: a moderated picture goes the usual way
+   * and gets its own check. Identity documents and video have no profile.
+   */
+  private async reuseOwnFile(
+    userId: string,
+    dto: PresignFileDto,
+    bucket: string,
+    allowed: readonly string[],
+  ): Promise<PresignedFileDto | null> {
+    const profile = DEDUP_PROFILE[dto.purpose];
+    if (
+      !dto.acceptsExisting ||
+      !profile ||
+      isModeratedPurpose(dto.purpose) ||
+      !(await this.flags.isEnabled('files_reuse_own', false)) ||
+      !(await this.settings.boolean('storage.dedup'))
+    ) {
+      return null;
+    }
+    const since = await avifSince(this.settings);
+    const own = await this.prisma.file.findFirst({
+      where: {
+        owner_user_id: userId,
+        s3_bucket: bucket,
+        source_sha256: dto.sha256,
+        purpose: { in: purposesOfProfile(profile) },
+        scan_status: 'clean',
+        deleted_at: null,
+        ...(since ? { created_at: { gte: since } } : {}),
+      },
+      orderBy: { created_at: 'desc' },
+    });
+    if (
+      !own ||
+      own.owner_user_id !== userId ||
+      !allowed.includes(own.mime) ||
+      (await this.mediaBlocked(own.id))
+    ) {
+      return null;
+    }
+    const fileId = randomUUID();
+    await this.prisma.file.create({
+      data: {
+        id: fileId,
+        owner_user_id: userId,
+        purpose: dto.purpose,
+        s3_bucket: own.s3_bucket,
+        s3_key: own.s3_key,
+        mime: own.mime,
+        size_bytes: own.size_bytes,
+        sha256: own.sha256,
+        source_sha256: own.source_sha256,
+        width: own.width,
+        height: own.height,
+        blurhash: own.blurhash,
+        scan_status: 'clean',
+      },
+    });
+    return {
+      fileId,
+      upload: { url: '', fields: {} },
+      expiresAt: new Date().toISOString(),
+      existing: true,
     };
   }
 
