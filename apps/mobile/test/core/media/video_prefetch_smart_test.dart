@@ -194,7 +194,7 @@ void main() {
 
   test('a player without the disk cache: the wish stays the old one', () {
     final calls = <String>[];
-    final w = HlsPrefetcher(
+    HlsPrefetcher(
       dio: Dio()..httpClientAdapter = _Refuse(),
     )
       ..smart = (() => true)
