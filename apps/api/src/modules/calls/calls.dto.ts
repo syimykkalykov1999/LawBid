@@ -65,6 +65,12 @@ export class CallVoteParamDto {
 
 export class CallIdParamDto {
   @ApiProperty({ format: 'uuid' })
+  // R-377: iOS CallKit sends the call id as `UUID.uuidString` (UPPERCASE);
+  // the call is stored lowercase. Lowercased before any lookup so a decline
+  // from the system call screen (old app builds included) finds its call.
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.toLowerCase() : value,
+  )
   @IsUUID('all')
   id!: string;
 }

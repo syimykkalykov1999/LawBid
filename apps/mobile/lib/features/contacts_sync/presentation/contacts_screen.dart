@@ -26,6 +26,7 @@ import 'package:lawbid/features/contacts_sync/presentation/contacts_states.dart'
 import 'package:lawbid/features/contacts_sync/presentation/invite_contact.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/shared/people/my_people.dart';
 import 'package:lawbid/shared/people/people_suggest_list.dart';
 
 /// Owner 2026-10-20: "Contacts" like WhatsApp — the phone-book people who
@@ -71,6 +72,7 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
     if (section == _section) return;
     ref.read(callLogSelectionProvider.notifier).stop();
     setState(() => _section = section);
+    _syncIfStale(section);
     if (!slide || !_pages.hasClients) return;
     if (context.reduceMotion) {
       _pages.jumpToPage(section);
@@ -82,6 +84,21 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
           curve: Curves.easeOutCubic,
         ),
       );
+    }
+  }
+
+  /// Owner 2026-11-04 (R-383, Telegram / WhatsApp): a section that comes
+  /// into view keeps its rows; the server is asked only when its list is
+  /// older than its window (SyncWindows), never for the switch itself.
+  void _syncIfStale(int section) {
+    switch (section) {
+      case 0:
+        unawaited(ref.read(myChatPeopleProvider.notifier).refreshIfStale());
+      // «Contacts» syncs on the first open of the run, on pull-to-refresh
+      // and with the daily background sync (ContactsBackgroundSync); the
+      // match sends only changes. Nothing on a switch.
+      case 2:
+        unawaited(ref.read(callHistoryProvider.notifier).refreshIfStale());
     }
   }
 
@@ -133,21 +150,48 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
             controller: _pages,
             physics: BackAwarePages.physicsFor(context),
             onPageChanged: (i) => _show(i, slide: false),
+            // Owner 2026-11-04 (R-383): the three sections stay built
+            // while the screen is open (a switch shows the same rows, no
+            // reload), like the profile tabs (_KeepAlive there).
             children: [
-              const ChatsTab(),
-              if (kIsWeb)
-                AppEmptyState(
-                  icon: AppIcons.contactPhoneOutlined,
-                  message: t.t('phoneContacts.webOnly'),
-                )
-              else
-                _Body(t: t),
-              const CallsTab(),
+              const _KeepPage(child: ChatsTab()),
+              _KeepPage(
+                child: kIsWeb
+                    ? AppEmptyState(
+                        icon: AppIcons.contactPhoneOutlined,
+                        message: t.t('phoneContacts.webOnly'),
+                      )
+                    : _Body(t: t),
+              ),
+              const _KeepPage(child: CallsTab()),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+/// Keeps a section built while it is off screen (AutomaticKeepAlive, the
+/// same as the profile tabs and the cases pill tabs).
+class _KeepPage extends StatefulWidget {
+  const _KeepPage({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeepPage> createState() => _KeepPageState();
+}
+
+class _KeepPageState extends State<_KeepPage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }
 
