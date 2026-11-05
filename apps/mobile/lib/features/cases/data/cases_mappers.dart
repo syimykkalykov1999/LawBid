@@ -245,6 +245,7 @@ abstract final class CasesMappers {
         excerpt: c.excerpt,
         practice: feedPractice(c.practiceArea),
         extraPracticeCount: c.extraPracticeCount,
+        extraPracticeCodes: c.extraPracticeCodes ?? const [],
         primaryStateCode: c.primaryStateCode,
         additionalStateCodes: c.additionalStateCodes,
         city: c.city,

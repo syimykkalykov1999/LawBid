@@ -140,7 +140,11 @@ class _EditFormState extends ConsumerState<_EditForm> {
           onChange: _change,
           statesLocked: !widget.original.canChangePracticeAndStates,
         ),
-      _ => BudgetStep(draft: _draft, onChange: _change),
+      _ => BudgetStep(
+          draft: _draft,
+          onChange: _change,
+          startChosen: true,
+        ),
     };
     return Scaffold(
       backgroundColor: colors.bg,

@@ -49,6 +49,7 @@ class CaseDetailForAttorneyDto {
     required this.description,
     required this.inMyPractice,
     this.clientActivity,
+    this.extraPracticeCodes,
     this.ownBidId,
     this.promotedUntil,
     this.completionRequestedBy,
@@ -129,6 +130,9 @@ class CaseDetailForAttorneyDto {
   /// Owner 2026-10-05: how complete the case is (counts only).
   final CaseDossierDto dossier;
   final String description;
+
+  /// Codes of the topics besides the first: the bid form hides a percent the admin forbids for them (the server still checks).
+  final List<String>? extraPracticeCodes;
 
   /// The attorney's own bid on this case (§4.3: shown instead of "Сделать бид").
   final String? ownBidId;

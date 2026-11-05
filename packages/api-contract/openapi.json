@@ -153153,6 +153153,13 @@
           "description": {
             "type": "string"
           },
+          "extraPracticeCodes": {
+            "description": "Codes of the topics besides the first: the bid form hides a percent the admin forbids for them (the server still checks).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "ownBidId": {
             "type": "string",
             "nullable": true,
