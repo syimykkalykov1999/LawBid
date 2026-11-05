@@ -12,6 +12,7 @@ function fakeRedis() {
       return Promise.resolve('OK');
     }),
     del: jest.fn((k: string) => Promise.resolve(store.delete(k) ? 1 : 0)),
+    exists: jest.fn((k: string) => Promise.resolve(store.has(k) ? 1 : 0)),
   };
 }
 
@@ -87,5 +88,107 @@ describe('AdminSummaryService', () => {
     const svc = new AdminSummaryService(redis as never);
     const r = await svc.get('k', () => Promise.resolve(7), 60);
     expect(r.data).toBe(7);
+  });
+});
+
+describe('AdminSummaryService.keepWarm (R-370)', () => {
+  const ACTIVE = 'ops:admin-active';
+  const aged = (ms: number) =>
+    JSON.stringify({
+      data: { n: 0 },
+      computedAt: new Date(Date.now() - ms).toISOString(),
+    });
+
+  it('does nothing while no admin is looking', async () => {
+    const redis = fakeRedis();
+    const svc = new AdminSummaryService(redis as never);
+    const compute = jest.fn(() => Promise.resolve({ n: 1 }));
+    expect(await svc.warmOnce('k', compute, 60_000)).toBe(false);
+    expect(compute).not.toHaveBeenCalled();
+  });
+
+  it('recomputes an old copy while an admin is active', async () => {
+    const redis = fakeRedis();
+    redis.store.set(ACTIVE, '1');
+    redis.store.set('adm:sum:k', aged(5 * 60_000));
+    const svc = new AdminSummaryService(redis as never);
+    const compute = jest.fn(() => Promise.resolve({ n: 1 }));
+    expect(await svc.warmOnce('k', compute, 60_000)).toBe(true);
+    expect((await svc.peek<{ n: number }>('k'))?.data.n).toBe(1);
+  });
+
+  it('leaves a fresh copy alone', async () => {
+    const redis = fakeRedis();
+    redis.store.set(ACTIVE, '1');
+    redis.store.set('adm:sum:k', aged(1_000));
+    const svc = new AdminSummaryService(redis as never);
+    const compute = jest.fn(() => Promise.resolve({ n: 1 }));
+    expect(await svc.warmOnce('k', compute, 60_000)).toBe(false);
+    expect(compute).not.toHaveBeenCalled();
+  });
+
+  it('ticks on its timer and stops when asked', async () => {
+    jest.useFakeTimers();
+    try {
+      const redis = fakeRedis();
+      redis.store.set(ACTIVE, '1');
+      const svc = new AdminSummaryService(redis as never);
+      const compute = jest.fn(() => Promise.resolve({ n: 1 }));
+      const stop = svc.keepWarm('k', compute, 60_000, 1_000);
+      await jest.advanceTimersByTimeAsync(1_000);
+      expect(compute).toHaveBeenCalledTimes(1);
+      stop();
+      redis.store.delete('adm:sum:k');
+      await jest.advanceTimersByTimeAsync(5_000);
+      expect(compute).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  /** R-403: one copy per country scope; an action forgets them all. */
+  it('keeps a copy per scope and dropFamily forgets every one', async () => {
+    const store = new Map<string, string>();
+    const scopes = new Set<string>();
+    const redis = {
+      get: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
+      set: jest.fn((k: string, v: string) => {
+        store.set(k, v);
+        return Promise.resolve('OK');
+      }),
+      del: jest.fn((...keys: string[]) => {
+        keys.forEach((k) => store.delete(k));
+        return Promise.resolve(keys.length);
+      }),
+      sadd: jest.fn((_k: string, m: string) => {
+        scopes.add(m);
+        return Promise.resolve(1);
+      }),
+      expire: jest.fn(() => Promise.resolve(1)),
+      smembers: jest.fn(() => Promise.resolve([...scopes])),
+    };
+    const svc = new AdminSummaryService(redis as never);
+    const all = jest.fn(() => Promise.resolve(5));
+    const us = jest.fn(() => Promise.resolve(2));
+    expect((await svc.getScoped('c', null, all, 30)).data).toBe(5);
+    expect((await svc.getScoped('c', 'US', us, 30)).data).toBe(2);
+    await svc.getScoped('c', null, all, 30);
+    await svc.getScoped('c', 'US', us, 30);
+    expect(all).toHaveBeenCalledTimes(1);
+    expect(us).toHaveBeenCalledTimes(1);
+
+    await svc.dropFamily('c');
+    await svc.getScoped('c', null, all, 30);
+    await svc.getScoped('c', 'US', us, 30);
+    expect(all).toHaveBeenCalledTimes(2);
+    expect(us).toHaveBeenCalledTimes(2);
+  });
+
+  it('dropFamily survives Redis being down', async () => {
+    const redis = {
+      smembers: jest.fn(() => Promise.reject(new Error('down'))),
+    };
+    const svc = new AdminSummaryService(redis as never);
+    await expect(svc.dropFamily('c')).resolves.toBeUndefined();
   });
 });

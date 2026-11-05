@@ -539,6 +539,12 @@ final myWorkProvider = AsyncNotifierProvider.autoDispose
 );
 
 class SavedCasesNotifier extends PagedNotifier<SavedCase> {
+  // Owner 2026-11-04 (R-383): kept 5 minutes after its screen lets go
+  // (see PagedNotifier.keepAliveFor) — a switch back shows the same rows,
+  // no request.
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
+
   @override
   Future<CursorPage<SavedCase>?> cachedFirstPage() {
     final repo = ref.read(casesRepositoryProvider);
@@ -754,6 +760,12 @@ class MineSavedNotifier extends PagedNotifier<SavedCase> {
 
   final MineSearch search;
 
+  // Owner 2026-11-04 (R-383): kept 5 minutes after its screen lets go
+  // (see PagedNotifier.keepAliveFor) — a switch back shows the same rows,
+  // no request.
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
+
   @override
   Future<CursorPage<SavedCase>?> cachedFirstPage() {
     final repo = ref.read(casesRepositoryProvider);
@@ -917,6 +929,14 @@ class CaseActions {
     // Owner 2026-10-22 (checklist §27): a case done to the client's
     // satisfaction — ask for the store rating (90-day cap, flag).
     askForReviewLater(_ref);
+  }
+
+  /// R-392 «Не закрывать»: the other side's close request is void.
+  Future<void> declineCompletion(String caseId) async {
+    await _repo.declineCompletion(caseId);
+    _ref.invalidate(attorneyCaseProvider(caseId));
+    _clientCase(caseId);
+    _attorneyLists();
   }
 
   Future<void> dispute(String caseId, String reason) async {

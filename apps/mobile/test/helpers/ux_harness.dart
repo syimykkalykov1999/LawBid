@@ -12,6 +12,8 @@ import 'package:lawbid/features/calls/application/call_history_providers.dart';
 import 'package:lawbid/features/calls/domain/call_history_models.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
+import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
+import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
 import 'package:lawbid/features/stories/application/stories_providers.dart';
 
 import '../features/cases/cases_fakes.dart';
@@ -112,6 +114,9 @@ List<Override> uxOverrides({
   bool storiesTray = true,
   List<OngoingGroupCall> ongoingCalls = const [],
   List<Override>? uploadQueue,
+  // R-401: the attorney's recommended questions in Search → Cases; no
+  // network (and no pending request timers) in tests.
+  List<Question> recommendedQuestions = const [],
 }) =>
     [
       translatorProvider.overrideWithValue(translator),
@@ -129,6 +134,8 @@ List<Override> uxOverrides({
       // a test has no network and no pending timers.
       ongoingGroupCallsProvider
           .overrideWith(() => _FixedOngoingCalls(ongoingCalls)),
+      recommendedQuestionsProvider
+          .overrideWith((ref) async => recommendedQuestions),
       ...extra,
     ];
 

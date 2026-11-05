@@ -31,17 +31,20 @@ final stepUpPasskeyProvider = FutureProvider.autoDispose<bool>((ref) async {
 /// «Забыли пароль? Получить код по SMS» which hands over to the screen's
 /// code path ([onUseCode]). The server's «no password / passkey only / I
 /// only know codes (older server)» answers go to [onUseCode] on their own.
+///
+/// Owner 2026-11-05: [onUseCode] null = no SMS path on this step (the link
+/// is gone; an account with no password is told what went wrong instead).
 class PasswordStepUp extends ConsumerStatefulWidget {
   const PasswordStepUp({
     required this.onToken,
-    required this.onUseCode,
+    this.onUseCode,
     this.autofocus = true,
     super.key,
   });
 
   /// The single-use reauth token (5 minutes), same as the code path's.
   final Future<void> Function(String reauthToken) onToken;
-  final VoidCallback onUseCode;
+  final VoidCallback? onUseCode;
   final bool autofocus;
 
   @override
@@ -86,8 +89,12 @@ class _PasswordStepUpState extends ConsumerState<PasswordStepUp> {
           _error = t.t('stepUp.password.locked');
         });
       case PasswordReauthUseCode():
-        setState(() => _busy = false);
-        widget.onUseCode();
+        final useCode = widget.onUseCode;
+        setState(() {
+          _busy = false;
+          if (useCode == null) _error = t.t('error.default.message');
+        });
+        useCode?.call();
       case PasswordReauthNetworkError():
         setState(() {
           _busy = false;
@@ -154,18 +161,20 @@ class _PasswordStepUpState extends ConsumerState<PasswordStepUp> {
             onPressed: _passkey,
           ),
         ],
-        const SizedBox(height: AppSpacing.sm),
-        SwitchChannelLink(
-          key: const ValueKey('step-up-use-code'),
-          label: t.t('stepUp.useCode'),
-          alignment: AlignmentDirectional.center,
-          textAlign: TextAlign.center,
-          onTap: () {
-            if (_busy) return;
-            dropKeyboard();
-            widget.onUseCode();
-          },
-        ),
+        if (widget.onUseCode case final useCode?) ...[
+          const SizedBox(height: AppSpacing.sm),
+          SwitchChannelLink(
+            key: const ValueKey('step-up-use-code'),
+            label: t.t('stepUp.useCode'),
+            alignment: AlignmentDirectional.center,
+            textAlign: TextAlign.center,
+            onTap: () {
+              if (_busy) return;
+              dropKeyboard();
+              useCode();
+            },
+          ),
+        ],
       ],
     );
   }

@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:app_badge_plus/app_badge_plus.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/platform/chat_notifications_channel.dart';
 import 'package:lawbid/core/startup/app_session.dart';
 import 'package:lawbid/core/sync/synced_list_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
@@ -26,12 +28,34 @@ final notificationsRepositoryProvider = Provider<NotificationsRepository>(
 /// docs/05 §10 badges: loaded once, then kept current by `badge:update`
 /// (and re-read after a reconnect). Mirrors [Badges.total] on the iOS
 /// app icon.
+///
+/// R-379 (owner 2026-11-04, Samsung: icon «2», nothing unread inside): one
+/// number everywhere, like WhatsApp / Telegram — the server's total
+/// (BadgesService). The icon follows it on every change, is re-read when
+/// the app comes back to the screen, and is cleared on sign-out. When
+/// nothing is unread, the alerts still in the phone's shade go too: on
+/// Samsung / One UI the launcher number is the count of those alerts, so a
+/// read chat's leftover notification kept the icon at «2».
 class BadgesNotifier extends Notifier<Badges> {
+  /// The total last applied (null = none yet this session).
+  int? _lastTotal;
+
   @override
   Badges build() {
+    _lastTotal = null;
     if (ref.watch(currentUserIdProvider) == null) {
       unawaited(_appIcon(0));
       return const Badges();
+    }
+    // R-379: back on the screen — the icon follows the server's number
+    // (pushes may have set it while the app slept).
+    try {
+      final life = AppLifecycleListener(
+        onResume: () => unawaited(refresh(resumed: true)),
+      );
+      ref.onDispose(life.dispose);
+    } on Object {
+      // No Flutter binding (a plain unit test): nothing to listen to.
     }
     // Audit 2026-10-02: the "category off" switches are loaded with the
     // badges (so the first chime/ring after a cold start honours them).
@@ -75,9 +99,13 @@ class BadgesNotifier extends Notifier<Badges> {
     return const Badges();
   }
 
-  Future<void> refresh() async {
+  /// [resumed]: the app came back to the screen — nothing unread then
+  /// clears the shade even if the number did not change.
+  Future<void> refresh({bool resumed = false}) async {
     try {
-      _set(await ref.read(notificationsRepositoryProvider).badges());
+      final b = await ref.read(notificationsRepositoryProvider).badges();
+      if (resumed) _lastTotal = null;
+      _set(b);
     } on Object {
       // Offline: keep the last known numbers.
     }
@@ -85,6 +113,13 @@ class BadgesNotifier extends Notifier<Badges> {
 
   void _set(Badges b) {
     if (!ref.mounted) return;
+    // R-379: nothing unread (newly, or first time this session / after a
+    // resume) — every message / notification alert left in the shade goes
+    // (calls and planner reminders stay), like WhatsApp.
+    if (b.total == 0 && _lastTotal != 0) {
+      unawaited(chatNotificationsChannel.clearDelivered());
+    }
+    _lastTotal = b.total;
     // Owner 2026-10-21 (inbox 29): «Счётчик на иконке в меню» — the
     // settings state (changed here at once) wins over a count that was
     // already on its way.

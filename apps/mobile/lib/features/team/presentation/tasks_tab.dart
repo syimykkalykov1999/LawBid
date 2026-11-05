@@ -16,7 +16,6 @@ import 'package:lawbid/core/time/local_now.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
-import 'package:lawbid/features/consultations/application/consultations_providers.dart';
 import 'package:lawbid/features/consultations/consultations_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -645,6 +644,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
     final board = _view == TasksView.today ? TasksView.today : TasksView.all;
     return [
       (scope: TaskScope.all, view: board),
+      (scope: TaskScope.important, view: board),
       (scope: TaskScope.overdue, view: board),
       if (!assistant && _attorneySide) ...[
         (scope: TaskScope.forClient, view: board),
@@ -654,8 +654,8 @@ class _TasksTabState extends ConsumerState<TasksTab> {
         (scope: TaskScope.mine, view: board),
         (scope: TaskScope.joint, view: board),
       ],
-      (scope: null, view: TasksView.archive),
       if (assistant) (scope: null, view: TasksView.results),
+      (scope: null, view: TasksView.archive),
     ];
   }
 
@@ -712,8 +712,6 @@ class _TasksTabState extends ConsumerState<TasksTab> {
                   assistant: assistant,
                   // Owner 2026-10-20: booking and the deadline calculator
                   // live one tap from the planner.
-                  consultations:
-                      !assistant && ref.watch(consultationsFlagProvider),
                   deadlines: !assistant &&
                       ref
                           .watch(featureFlagsControllerProvider)
@@ -1263,11 +1261,9 @@ class _TopChips extends StatelessWidget {
     required this.assistant,
     required this.onScope,
     required this.onView,
-    this.consultations = false,
     this.deadlines = false,
   });
 
-  final bool consultations;
   final bool deadlines;
 
   final Translator t;
@@ -1291,6 +1287,7 @@ class _TopChips extends StatelessWidget {
     final items = <(String, String, bool, VoidCallback)>[
       if (showViews) ...[
         scope('all', t.t('tasks.scope.all'), TaskScope.all),
+        scope('important', t.t('notif.view.important'), TaskScope.important),
         scope('overdue', t.t('tasks.overdue'), TaskScope.overdue),
         if (!assistant && attorneySide) ...[
           scope('forClient', t.t('tasks.scope.forClient'), TaskScope.forClient),
@@ -1300,27 +1297,7 @@ class _TopChips extends StatelessWidget {
           scope('mine', t.t('tasks.scope.mine'), TaskScope.mine),
           scope('joint', t.t('tasks.scope.joint'), TaskScope.joint),
         ],
-        (
-          'done',
-          t.t('tasks.view.done'),
-          view == TasksView.archive,
-          () => onView(TasksView.archive),
-        ),
-        if (assistant)
-          (
-            'results',
-            t.t('tasks.results'),
-            view == TasksView.results,
-            () => onView(TasksView.results),
-          ),
       ],
-      if (consultations)
-        (
-          'consultations',
-          t.t('consult.chip'),
-          false,
-          () => context.push(ConsultationsRoutes.list),
-        ),
       if (deadlines)
         (
           'deadlines',
@@ -1328,6 +1305,22 @@ class _TopChips extends StatelessWidget {
           false,
           () => context.push('/deadlines'),
         ),
+      // Owner 2026-11-04 (R-390): the archive is always the last chip.
+      if (showViews) ...[
+        if (assistant)
+          (
+            'results',
+            t.t('tasks.results'),
+            view == TasksView.results,
+            () => onView(TasksView.results),
+          ),
+        (
+          'done',
+          t.t('tasks.view.done'),
+          view == TasksView.archive,
+          () => onView(TasksView.archive),
+        ),
+      ],
     ];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,

@@ -231,6 +231,7 @@ List<Override> callScreenFakeOverrides(
   CallVideoLayout layout = const CallVideoLayout(),
   CallVideoSurface surface = fakeVideo,
   DateTime Function()? clock,
+  bool groupCalls = true,
 }) =>
     [
       callMyIdProvider.overrideWithValue('u0'),
@@ -239,4 +240,6 @@ List<Override> callScreenFakeOverrides(
           .overrideWith(() => FixedCallController(s, fakeMediaFor(s))),
       callVideoLayoutProvider.overrideWith(() => FixedLayout(layout)),
       callVideoSurfaceProvider.overrideWithValue(surface),
+      // The pictures show «Add participant» (group calls on, R-376).
+      groupCallsEnabledProvider.overrideWithValue(groupCalls),
     ];
