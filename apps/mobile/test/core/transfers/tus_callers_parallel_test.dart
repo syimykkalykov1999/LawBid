@@ -119,7 +119,8 @@ void main() {
           apiDio: Dio(),
           storageDio: Dio()..httpClientAdapter = bunny,
         ).upload(f, story, parallel: parallel, onProgress: onProgress),
-    'channels': (bunny, f, onProgress, {required parallel}) => ChannelsRepository(
+    'channels': (bunny, f, onProgress, {required parallel}) =>
+        ChannelsRepository(
           apiDio: Dio(),
           storageDio: Dio()..httpClientAdapter = bunny,
         ).uploadVideo(f, channel, parallel: parallel, onProgress: onProgress),
