@@ -9,6 +9,7 @@ import request from 'supertest';
 import sharp from 'sharp';
 import type Redis from 'ioredis';
 import { AppModule } from '../src/app.module';
+import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { FilesService } from '../src/modules/files/files.service';
@@ -711,6 +712,97 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
         });
         await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
       }
+    });
+  });
+
+  describe('confirm without reading a big file (R-252, files_confirm_light)', () => {
+    const setFlag = async (enabled: boolean) => {
+      await prisma.featureFlag.upsert({
+        where: { key: 'files_confirm_light' },
+        create: { key: 'files_confirm_light', enabled },
+        update: { enabled },
+      });
+      await app.get(FeatureFlagsService).invalidate();
+    };
+    beforeAll(() => setFlag(true));
+    afterAll(() => setFlag(false));
+
+    const bigPdf = (fill: string, tail = '') =>
+      Buffer.concat([
+        Buffer.from(`%PDF-1.7 ${fill} `),
+        Buffer.alloc(9 * 1024 * 1024, 0x20),
+        Buffer.from(tail),
+      ]);
+    const send = async (
+      auth: Record<string, string>,
+      data: Buffer,
+      claimed: string,
+    ) => {
+      const body = await presign(auth, {
+        purpose: 'chat_attachment',
+        mime: 'application/pdf',
+        sizeBytes: data.length,
+        sha256: claimed,
+      });
+      const p = body.data as {
+        fileId: string;
+        upload: { url: string; fields: Record<string, string> };
+      };
+      expect(await uploadTo(p.upload, data, 'application/pdf')).toBe(204);
+      return p.fileId;
+    };
+
+    it('an honest big file ends clean, its hash proven by the worker', async () => {
+      const me = await login();
+      const data = bigPdf(`honest ${Date.now()}`);
+      const id = await send(me, data, sha(data));
+      const out = (await confirm(me, id)).data as { scanStatus: string };
+      expect(out.scanStatus).toBe('pending');
+      expect((await settled(me, id)).scanStatus).toBe('clean');
+      const row = await prisma.file.findUniqueOrThrow({ where: { id } });
+      expect(row.source_sha256).toBe(sha(data));
+    });
+
+    it('SECURITY: a false hash ends failed and never joins another file', async () => {
+      const victim = await login();
+      const secret = Buffer.from(`%PDF-1.7 secret ${Date.now()}`);
+      const { fileId: theirs } = await uploaded(
+        victim,
+        'chat_attachment',
+        'application/pdf',
+        secret,
+      );
+      await confirm(victim, theirs);
+      expect((await settled(victim, theirs)).scanStatus).toBe('clean');
+      const victimRow = await prisma.file.findUniqueOrThrow({
+        where: { id: theirs },
+      });
+
+      const thief = await login();
+      const id = await send(thief, bigPdf(`liar ${Date.now()}`), sha(secret));
+      await confirm(thief, id);
+      expect((await settled(thief, id)).scanStatus).toBe('failed');
+      const row = await prisma.file.findUniqueOrThrow({ where: { id } });
+      expect(row.s3_key).not.toBe(victimRow.s3_key);
+    });
+
+    it('active content past the first bytes ends failed', async () => {
+      const me = await login();
+      const data = bigPdf(`active ${Date.now()}`, '/JavaScript (app.alert(1))');
+      const id = await send(me, data, sha(data));
+      await confirm(me, id);
+      expect((await settled(me, id)).scanStatus).toBe('failed');
+    });
+
+    it('another type at the start is refused at once', async () => {
+      const me = await login();
+      const data = Buffer.concat([
+        await png(),
+        Buffer.alloc(9 * 1024 * 1024, 0),
+      ]);
+      const id = await send(me, data, sha(data));
+      const body = await confirm(me, id, 400);
+      expect(errorCode(body)).toBe('FILE_TYPE_NOT_ALLOWED');
     });
   });
 });

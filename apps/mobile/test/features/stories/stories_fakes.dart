@@ -205,6 +205,7 @@ class FakeStoriesRepository extends StoriesRepository {
     StoryUpload u, {
     void Function(double)? onProgress,
     CancelToken? cancel,
+    bool parallel = false,
   }) async {
     uploads++;
     onProgress?.call(1);
