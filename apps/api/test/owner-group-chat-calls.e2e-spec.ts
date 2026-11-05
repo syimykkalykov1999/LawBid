@@ -784,4 +784,100 @@ describe('Group chat calls (e2e)', () => {
       .expect(200);
     expect(after.body.data.ongoingCall).toBeNull();
   });
+
+  it('item 26b (Telegram): admins run the call only with the «calls» right; the owner always', async () => {
+    const [owner, plain, mgr, ann] = await Promise.all([
+      person('ROwn'),
+      person('RPlain'),
+      person('RMgr'),
+      person('RAnn'),
+    ]);
+    const g = await api()
+      .post('/api/v1/groups')
+      .set(auth(owner.id))
+      .send({
+        title: 'Rights',
+        type: 'closed',
+        memberIds: [plain.id, mgr.id, ann.id],
+      })
+      .expect(201);
+    const gid = g.body.data.id as string;
+    await acceptInvites(api, auth, gid, [plain.id, mgr.id, ann.id]);
+    await api()
+      .patch(`/api/v1/groups/${gid}`)
+      .set(auth(owner.id))
+      .send({ whoCanCall: 'admins' })
+      .expect(200);
+    // An admin without the «calls» right, an admin with only it.
+    await api()
+      .put(`/api/v1/groups/${gid}/members/${plain.id}/role`)
+      .set(auth(owner.id))
+      .send({ role: 'admin', rights: ['info', 'delete', 'pin'] })
+      .expect(200);
+    await api()
+      .put(`/api/v1/groups/${gid}/members/${mgr.id}/role`)
+      .set(auth(owner.id))
+      .send({ role: 'admin', rights: ['calls'] })
+      .expect(200);
+
+    // Starting: the admin without the right is refused.
+    const refused = await api()
+      .post(`/api/v1/groups/${gid}/calls`)
+      .set(auth(plain.id))
+      .send({})
+      .expect(403);
+    expect((refused.body as { error: { code: string } }).error.code).toBe(
+      'GROUP_FORBIDDEN',
+    );
+    const detail = await api()
+      .get(`/api/v1/groups/${gid}`)
+      .set(auth(plain.id))
+      .expect(200);
+    expect(detail.body.data.canCall).toBe(false);
+
+    // The owner starts; everyone joins.
+    const started = await api()
+      .post(`/api/v1/groups/${gid}/calls`)
+      .set(auth(owner.id))
+      .send({ userIds: [] })
+      .expect(201);
+    const callId = started.body.data.id as string;
+    for (const u of [plain, mgr, ann]) {
+      const j = await api()
+        .post(`/api/v1/calls/${callId}/join`)
+        .set(auth(u.id))
+        .expect(200);
+      expect(j.body.data.canManage).toBe(u.id === mgr.id);
+    }
+
+    // The admin without the right is a plain member in the call.
+    await api()
+      .post(`/api/v1/calls/${callId}/participants/${ann.id}/mute`)
+      .set(auth(plain.id))
+      .send({ muted: true })
+      .expect(403);
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(auth(plain.id))
+      .send({ forAll: true })
+      .expect(403);
+    // The admin holding it mutes like the host.
+    await api()
+      .post(`/api/v1/calls/${callId}/participants/${ann.id}/mute`)
+      .set(auth(mgr.id))
+      .send({ muted: true })
+      .expect(200);
+    const annRow = await prisma.callParticipant.findUniqueOrThrow({
+      where: { call_id_user_id: { call_id: callId, user_id: ann.id } },
+    });
+    expect(annRow.muted_by_host).toBe(true);
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(auth(mgr.id))
+      .send({ forAll: true })
+      .expect(200);
+    expect(
+      (await prisma.call.findUniqueOrThrow({ where: { id: callId } })).status,
+    ).toBe('ended');
+  });
 });
