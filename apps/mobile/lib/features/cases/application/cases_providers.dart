@@ -915,6 +915,14 @@ class CaseActions {
     askForReviewLater(_ref);
   }
 
+  /// R-392 «Не закрывать»: the other side's close request is void.
+  Future<void> declineCompletion(String caseId) async {
+    await _repo.declineCompletion(caseId);
+    _ref.invalidate(attorneyCaseProvider(caseId));
+    _clientCase(caseId);
+    _attorneyLists();
+  }
+
   Future<void> dispute(String caseId, String reason) async {
     await _repo.dispute(caseId, reason);
     _ref.invalidate(attorneyCaseProvider(caseId));

@@ -56,7 +56,7 @@ export class CaseLifecycleController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Either side "Done": in_progress → pending_completion (docs/04 §10.1)',
+      'Either side "Done" / «Закрыть кейс»: in_progress → pending_completion; the other side confirms, keeps it open or disputes (docs/04 §10.1, R-392)',
   })
   @ApiEnvelopeResponse(CaseDto)
   @ApiErrors(LIFECYCLE_ERRORS)
@@ -85,6 +85,27 @@ export class CaseLifecycleController {
   ): Promise<CaseDto> {
     return this.cases.toFullDto(
       await this.lifecycle.confirmCompletion(user, params.id),
+    );
+  }
+
+  // R-392 (owner 2026-11-04): «Не закрывать» — the case stays in work.
+  // Applies to an assistant only (needs the "bids" duty); clients and
+  // attorneys act as themselves.
+  @AttorneyOnly('bids')
+  @Post('cases/:id/decline-completion')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'The other side keeps the case open: pending_completion → in_progress (R-392)',
+  })
+  @ApiEnvelopeResponse(CaseDto)
+  @ApiErrors(LIFECYCLE_ERRORS)
+  async declineCaseCompletion(
+    @CurrentUser() user: RequestUser,
+    @Param() params: CaseIdParamDto,
+  ): Promise<CaseDto> {
+    return this.cases.toFullDto(
+      await this.lifecycle.declineCompletion(user, params.id),
     );
   }
 
