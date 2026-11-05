@@ -272,7 +272,7 @@ CHECK: если `status = 'active'` и `role = 'client'` и онбординг �
 
 **attorney_licenses**: `attorney_id FK → attorney_profiles`, `state_code FK`, `bar_number text`, `license_status default pending`, `expires_at date?`, `verified_at?`, `verified_by? FK → users`, `auto_check_result jsonb?`. UQ (`state_code`, `bar_number`) — одна лицензия не может быть привязана к двум аккаунтам.
 
-**attorney_practice_areas**: `attorney_id FK`, `practice_area_id FK`. PK (составной). Запись допускается только при `verification_status = 'verified'` (проверка в сервисе).
+**attorney_practice_areas**: `attorney_id FK`, `practice_area_id FK`. PK (составной). Запись допускается только при `verification_status` = `'verified'` или `'pending'` (проверка в сервисе; владелец 2026-11-05: практики — обязательный шаг регистрации сразу после отправки лицензии; кейсы видны всё равно только по `verified`-лицензиям, см. §5.4).
 
 **verification_requests**: `attorney_id FK`, `status verification_request_status`, `provider verification_provider default manual`, `provider_ref?`, `submitted_at?`, `reviewed_by? FK → users`, `reviewed_at?`, `rejection_reason?`, `admin_note?`.
 **verification_documents**: `request_id FK`, `doc_type`, `file_id FK`, `state_code?` (для `bar_license`), `notes?`.
