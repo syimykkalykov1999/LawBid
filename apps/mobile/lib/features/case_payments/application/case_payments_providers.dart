@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/cache/keep_alive_for.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/case_payments/data/case_payments_repository.dart';
@@ -17,7 +18,11 @@ final casePaymentsFlagProvider = Provider<bool>(
 );
 
 final paymentSettingsProvider = FutureProvider.autoDispose<PaymentSettings>(
-  (ref) => ref.watch(casePaymentsRepositoryProvider).settings(),
+  (ref) {
+    // R-385: admin settings, read on every case card — kept for an hour.
+    ref.keepAliveFor(KeepWindows.reference);
+    return ref.watch(casePaymentsRepositoryProvider).settings();
+  },
 );
 
 /// Payments of one case (owner's and attorney's case screens).

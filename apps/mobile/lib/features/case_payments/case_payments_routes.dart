@@ -18,16 +18,24 @@ abstract final class CasePaymentsRoutes {
   static const payoutRefresh = '/payout/refresh';
 }
 
-List<RouteBase> casePaymentsRoutes(GlobalKey<NavigatorState> root) => [
+List<RouteBase> casePaymentsRoutes(
+  GlobalKey<NavigatorState> root, {
+  // Desktop web plan §6.7: wraps the page as a Settings section.
+  Widget Function(String location, Widget page)? sectionPage,
+}) =>
+    [
       GoRoute(
         path: CasePaymentsRoutes.payoutAccount,
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'payout_account_screen',
-            load: d_payout_account_screen.loadLibrary,
-            builder: (_) => d_payout_account_screen.PayoutAccountScreen(),
+          (sectionPage ?? _plain)(
+            state.matchedLocation,
+            DeferredScreen(
+              id: 'payout_account_screen',
+              load: d_payout_account_screen.loadLibrary,
+              builder: (_) => d_payout_account_screen.PayoutAccountScreen(),
+            ),
           ),
         ),
       ),
@@ -61,3 +69,5 @@ List<RouteBase> casePaymentsRoutes(GlobalKey<NavigatorState> root) => [
           redirect: (context, state) => CasePaymentsRoutes.payoutAccount,
         ),
     ];
+
+Widget _plain(String location, Widget page) => page;

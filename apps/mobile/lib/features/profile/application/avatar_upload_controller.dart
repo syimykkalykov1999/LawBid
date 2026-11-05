@@ -119,6 +119,15 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
       final me = await repo.attach(target.fileId);
       if (!ref.mounted) return;
       ref.read(currentUserControllerProvider.notifier).apply(me);
+      // Owner 2026-11-04: an attorney's profile screen reads these two, not
+      // the current user; without this the old picture stayed after «Фото
+      // обновлено» until the next full read.
+      final username = me.attorneyProfile?.username;
+      if (username != null) {
+        ref
+          ..invalidate(ownAttorneyProfileProvider)
+          ..invalidate(publicAttorneyProfileProvider(username));
+      }
       state = AvatarUploadState(
         stage: AvatarUploadStage.done,
         progress: 1,

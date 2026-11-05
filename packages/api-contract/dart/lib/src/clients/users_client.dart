@@ -16,9 +16,11 @@ import '../models/deletion_cancelled_envelope.dart';
 import '../models/deletion_pending_envelope.dart';
 import '../models/identifier_list_envelope.dart';
 import '../models/me_envelope.dart';
+import '../models/role_switch_preview_envelope.dart';
 import '../models/save_consents_dto.dart';
 import '../models/save_onboarding_step_dto.dart';
 import '../models/set_role_dto.dart';
+import '../models/switch_role_dto.dart';
 import '../models/update_profile_dto.dart';
 
 part 'users_client.g.dart';
@@ -54,6 +56,22 @@ abstract class UsersClient {
   @POST('/users/me/role')
   Future<MeEnvelope> setRole({
     @Body() required SetRoleDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Can this account switch its profile now
+  @GET('/users/me/role/switch')
+  Future<RoleSwitchPreviewEnvelope> previewRoleSwitch({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Switch between attorney and client profile.
+  ///
+  /// [xReauthToken] - Single-use reauth token (account password or passkey).
+  @POST('/users/me/role/switch')
+  Future<MeEnvelope> switchRole({
+    @Header('X-Reauth-Token') required String xReauthToken,
+    @Body() required SwitchRoleDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -27,7 +27,7 @@ class CommentAuthorDto {
   /// Attorneys only.
   final String? attorneyId;
 
-  /// Attorneys only.
+  /// The author's @handle (attorney or client); null for a client under a case.
   final String? username;
 
   /// Attorney: full name; client: "Anna K."
