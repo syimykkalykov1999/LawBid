@@ -47,6 +47,7 @@ class AvatarPickerField extends ConsumerWidget {
     this.heroTag,
     this.label,
     this.requiredError,
+    this.optionalHint,
   });
 
   final String? initials;
@@ -55,6 +56,10 @@ class AvatarPickerField extends ConsumerWidget {
   /// Validation message for a required photo (attorney onboarding,
   /// docs/03 §4.1); shown in place of the hint while nothing is uploading.
   final String? requiredError;
+
+  /// Grey line under the caption while nothing is uploading (owner
+  /// 2026-11-05: «Необязательно» on the client's sign-up photo).
+  final String? optionalHint;
 
   /// Field caption; defaults to "Profile photo".
   final String? label;
@@ -157,7 +162,7 @@ class AvatarPickerField extends ConsumerWidget {
       AvatarUploadStage.idle => requiredError != null
           ? (requiredError!, colors.dangerText)
           // Owner 2026-10-13: no file-format hint under the photo.
-          : ('', colors.textSecondary),
+          : (optionalHint ?? '', colors.textSecondary),
     };
 
     return Row(

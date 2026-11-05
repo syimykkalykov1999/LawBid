@@ -5,8 +5,11 @@ import { SecretsService } from '../../../common/secrets/secrets.service';
 
 /** The workflow file the API may start, and the only one it trusts. */
 export const INFRA_WORKFLOW_FILE = 'infra-apply.yml';
-/** Other workflows the API may start (dry runs only; the caller picks the inputs). */
-export const DISPATCHABLE_WORKFLOWS: readonly string[] = ['seo-deploy.yml'];
+/** The public pages + company site build («Продвижение» dry runs; owner
+ * 2026-11-04 R-399: a saved price starts it for real). */
+export const SEO_WORKFLOW_FILE = 'seo-deploy.yml';
+/** Other workflows the API may start (the caller picks the inputs). */
+export const DISPATCHABLE_WORKFLOWS: readonly string[] = [SEO_WORKFLOW_FILE];
 /** Audience the workflow asks GitHub for when it calls the API. */
 export const INFRA_OIDC_AUDIENCE = 'lawbid-infra-apply';
 const GITHUB_OIDC_ISSUER = 'https://token.actions.githubusercontent.com';
