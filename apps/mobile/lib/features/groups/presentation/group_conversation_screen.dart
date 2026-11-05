@@ -307,30 +307,22 @@ class _GroupConversationScreenState
     try {
       // R-251: several files go up together, then the messages in order. With
       // the flag off, one after another as before.
-      final together = files.length > 1 &&
-          ref
-              .read(featureFlagsControllerProvider)
-              .isEnabled('chat_upload_parallel');
-      final ready = together
-          ? await mapAtOnce(
-              files,
-              ClientTuning.uploadsAtOnce,
-              (f) => chat.uploadAttachment(f.bytes, f.mime),
-            )
-          : null;
-      if (!mounted) return;
-      for (var i = 0; i < files.length; i++) {
-        final f = files[i];
-        final fileId =
-            ready?[i] ?? await chat.uploadAttachment(f.bytes, f.mime);
-        if (!mounted) return;
-        await thread.sendAttachment(
+      await uploadThenSendInOrder(
+        items: files,
+        atOnce: ref
+                .read(featureFlagsControllerProvider)
+                .isEnabled('chat_upload_parallel')
+            ? ClientTuning.uploadsAtOnce
+            : 1,
+        upload: (f) => chat.uploadAttachment(f.bytes, f.mime),
+        alive: () => mounted,
+        send: (i, f, fileId) => thread.sendAttachment(
           fileId: fileId,
           fileName: f.name,
           caption: i == files.length - 1 && caption.isNotEmpty ? caption : null,
           replyToId: i == 0 ? reply?.id : null,
-        );
-      }
+        ),
+      );
     } on Object catch (e) {
       _error(e);
     } finally {

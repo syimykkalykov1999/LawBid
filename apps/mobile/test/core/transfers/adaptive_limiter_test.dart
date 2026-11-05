@@ -127,6 +127,89 @@ void main() {
     });
   });
 
+  group('uploadThenSendInOrder (several files of a group chat)', () {
+    test('together: uploads overlap up to the limit, messages keep the order',
+        () async {
+      var now = 0;
+      var most = 0;
+      final sent = <String>[];
+      await uploadThenSendInOrder<String, String>(
+        items: ['slow', 'mid', 'fast', 'last'],
+        atOnce: 3,
+        upload: (f) async {
+          most = math.max(most, ++now);
+          await Future<void>.delayed(
+            Duration(milliseconds: f == 'slow' ? 20 : 2),
+          );
+          now--;
+          return 'id-$f';
+        },
+        send: (i, f, id) async => sent.add('$i:$id'),
+      );
+      expect(most, 3);
+      expect(sent, ['0:id-slow', '1:id-mid', '2:id-fast', '3:id-last']);
+    });
+
+    test('together: a failed file sends nothing, a retry cannot double',
+        () async {
+      final sent = <String>[];
+      await expectLater(
+        uploadThenSendInOrder<String, String>(
+          items: ['a', 'bad', 'c'],
+          atOnce: 3,
+          upload: (f) async => f == 'bad' ? throw StateError('no') : f,
+          send: (i, f, id) async => sent.add(id),
+        ),
+        throwsStateError,
+      );
+      expect(sent, isEmpty);
+    });
+
+    test('flag off (1): file, message, file, message, as before', () async {
+      final steps = <String>[];
+      await uploadThenSendInOrder<String, String>(
+        items: ['a', 'b'],
+        atOnce: 1,
+        upload: (f) async {
+          steps.add('up $f');
+          return f;
+        },
+        send: (i, f, id) async => steps.add('send $f'),
+      );
+      expect(steps, ['up a', 'send a', 'up b', 'send b']);
+    });
+
+    test('one file never waits for a second round', () async {
+      final steps = <String>[];
+      await uploadThenSendInOrder<String, String>(
+        items: ['a'],
+        atOnce: 4,
+        upload: (f) async {
+          steps.add('up');
+          return f;
+        },
+        send: (i, f, id) async => steps.add('send'),
+      );
+      expect(steps, ['up', 'send']);
+    });
+
+    test('the screen closed: no further message', () async {
+      var open = true;
+      final sent = <String>[];
+      await uploadThenSendInOrder<String, String>(
+        items: ['a', 'b'],
+        atOnce: 2,
+        upload: (f) async => f,
+        alive: () => open,
+        send: (i, f, id) async {
+          sent.add(f);
+          open = false;
+        },
+      );
+      expect(sent, ['a']);
+    });
+  });
+
   group('ClientTuning limits', () {
     tearDown(ClientTuning.reset);
 

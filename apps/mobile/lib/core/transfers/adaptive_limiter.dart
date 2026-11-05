@@ -142,3 +142,26 @@ Future<List<R>> mapAtOnce<T, R>(
   ]);
   return results.cast<R>();
 }
+
+/// R-251: several files of one send. With [atOnce] above 1 they all go up
+/// first, together, and the messages then leave in the order of [items] (a
+/// failed file sends nothing, so a retry never doubles a message). With 1,
+/// file by file and message by message, as before the flag. [alive] false
+/// stops before the next message (the screen was closed).
+Future<void> uploadThenSendInOrder<T, I extends Object>({
+  required List<T> items,
+  required int atOnce,
+  required Future<I> Function(T item) upload,
+  required Future<void> Function(int index, T item, I uploaded) send,
+  bool Function()? alive,
+}) async {
+  final ready = atOnce > 1 && items.length > 1
+      ? await mapAtOnce(items, atOnce, upload)
+      : null;
+  for (var i = 0; i < items.length; i++) {
+    if (!(alive?.call() ?? true)) return;
+    final uploaded = ready?[i] ?? await upload(items[i]);
+    if (!(alive?.call() ?? true)) return;
+    await send(i, items[i], uploaded);
+  }
+}
