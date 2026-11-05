@@ -19,6 +19,8 @@
 10. **Деплой-проверки читают ответ API в обёртке `{data:…}`:** `/health/ready` → `.data.version`.
 11. **Деплой запускается сам только при изменениях в apps/api, apps/admin, packages, package*.json или deploy.yml.** Правка в scripts/deploy/ или infra/ НЕ создаёт новый деплой: после такой правки нужен ручной запуск `gh workflow run deploy.yml --ref main` (кнопка владельцу), а ждущий старый деплой со старыми скриптами — отменить.
 
+- **Admin CI: «window is not defined» после всех тестов (05.11).** В админке нет vitest globals, поэтому Testing Library сама не размонтирует: рендер из последнего теста доигрывал уже без DOM, тесты зелёные, а прогон красный. В таком файле нужен `afterEach(() => cleanup())`.
+
 ## B. Деплой и прод
 12. **Сайт 503 с 24.10:** CloudFront function опубликована со старым кодом (`cf.kvs(имя)` вместо ID хранилища). После любого Terraform apply проверять `curl -s -o /dev/null -w "%{http_code}" https://lawbid.dev/` = 200 и `aws cloudfront test-function` на LIVE-стадии.
 13. **Terraform apply оборвался на сохранении state:** короткий `aws login` истёк в конце apply → state ушёл в errored.tfstate. Перед apply обновлять вход; при обрыве — `terraform state push errored.tfstate`, а не повторный apply.
