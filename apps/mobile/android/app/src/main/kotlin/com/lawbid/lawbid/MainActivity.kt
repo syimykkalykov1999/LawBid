@@ -330,6 +330,11 @@ class MainActivity : FlutterFragmentActivity() {
                         ChatNotifications.clearAll(applicationContext)
                         result.success(null)
                     }
+                    // R-379: nothing unread — the leftover alerts go.
+                    "clearDelivered" -> {
+                        ChatNotifications.clearDelivered(applicationContext)
+                        result.success(null)
+                    }
                     // Owner 2026-10-26: «Ответить» / «Прочитано» on a chat
                     // notification answer through this server with this
                     // device's push token (PushActionReceiver).

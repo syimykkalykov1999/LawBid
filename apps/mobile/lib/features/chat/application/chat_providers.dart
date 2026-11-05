@@ -184,7 +184,12 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
         );
       case 'conversation:read':
         final cid = data is Map ? data['conversationId'] : null;
-        if (cid is String) _edit((items) => applyReadByMe(items, cid));
+        if (cid is String) {
+          _edit((items) => applyReadByMe(items, cid));
+          // R-379: read here or on another device — its alert leaves the
+          // shade too (WhatsApp / Telegram), so the icon number drops.
+          unawaited(chatNotificationsChannel.clearChat(cid));
+        }
       case 'conversation:update':
         // Closed, unlocked, a request answered (it may change folders):
         // rare — the first page is read again, debounced.

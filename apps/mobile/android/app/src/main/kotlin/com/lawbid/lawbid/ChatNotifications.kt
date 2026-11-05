@@ -313,6 +313,35 @@ object ChatNotifications {
         prefs(context).edit().remove("h:$conversation").remove("m:$conversation").apply()
     }
 
+    /** R-379 (owner 2026-11-04, Samsung: icon «2», nothing unread in the
+     * app): nothing is unread any more, so every message / notification
+     * alert of ours leaves the shade — One UI's launcher number is the count
+     * of these. Ours are the chat (NOTIFICATION_ID) and person
+     * (ActorNotifications) alerts and the ones FCM drew (id 0); ongoing
+     * calls, the call plugin's alerts and planner reminders (`task:` tag or
+     * their own id) stay. */
+    fun clearDelivered(context: Context) {
+        val nm = context.getSystemService(NotificationManager::class.java) ?: return
+        val edit = prefs(context).edit()
+        try {
+            nm.activeNotifications?.forEach {
+                if (it.isOngoing) return@forEach
+                val tag = it.tag
+                val ours = it.id == NOTIFICATION_ID ||
+                    it.id == ActorNotifications.NOTIFICATION_ID ||
+                    (it.id == 0 && tag?.startsWith("task:") != true)
+                if (!ours) return@forEach
+                nm.cancel(tag, it.id)
+                if (it.id == NOTIFICATION_ID && tag != null) {
+                    edit.remove("h:$tag").remove("m:$tag")
+                }
+            }
+        } catch (e: Exception) {
+            // listing not allowed: nothing to clear
+        }
+        edit.apply()
+    }
+
     /** Sign-out: no chat of the previous account stays in the shade (and
      * the notification buttons stop: the device token is forgotten). */
     fun clearAll(context: Context) {
