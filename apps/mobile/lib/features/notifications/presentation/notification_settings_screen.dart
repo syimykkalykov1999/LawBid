@@ -12,6 +12,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/notifications/application/notification_sounds.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/system_notifications.dart';
@@ -158,6 +159,7 @@ class _NotificationSettingsScreenState
     final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
     // An assistant's own settings have no «From assistants» block.
     final team = attorney && !ref.watch(isAssistantProvider);
+    final channelsOn = ref.watch(channelsEnabledProvider);
     final emailFlows = ref.watch(emailFlowsEnabledProvider);
 
     // A Material card, so the switch rows' ink shows on it.
@@ -233,8 +235,10 @@ class _NotificationSettingsScreenState
           final system = s.categories
               .where((c) => c.category == NotifCategory.system)
               .firstOrNull;
+          // Owner 2026-11-04 (R-386): no «Channels» switch with the flag off.
           bool shown(TopicSetting x) =>
-              !x.attorneyOnly || (x.block == 'assistants' ? team : attorney);
+              (x.key != 'channels' || channelsOn) &&
+              (!x.attorneyOnly || (x.block == 'assistants' ? team : attorney));
           return AbsorbPointer(
             absorbing: _saving,
             child: ListView(

@@ -14,6 +14,7 @@ import {
   checkLine,
   cloudflareStatus,
   ownStatus,
+  relayWarning,
   stateOfTransport,
   TRANSPORT_HINT,
   TRANSPORT_OF_STATE,
@@ -135,6 +136,11 @@ export function CallsTransportCard({
           <p className="mb-1 text-sm text-ink" data-testid="calls-carrying">
             {carryingLine(r)}
           </p>
+          {relayWarning(r) ? (
+            <p className="mb-2 text-sm text-danger" data-testid="calls-relay-warning">
+              {relayWarning(r)}
+            </p>
+          ) : null}
           <div className="divide-y divide-line">
             <Row
               name="Cloudflare"
