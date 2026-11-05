@@ -189,6 +189,16 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Resumable (multipart) uploads of large files',
   },
   {
+    // R-251: on, the app sends a reel to Bunny in 4 pieces at once and asks
+    // Bunny to join them (TUS concatenation; Bunny announces it, but it was
+    // not tried with a real video: off until checked on a phone). A refusal
+    // falls back to the plain single-stream upload.
+    key: 'reels_tus_parallel',
+    enabled: false,
+    app: true,
+    description: 'Reels upload to Bunny in parallel pieces',
+  },
+  {
     key: 'payments_in_app',
     enabled: false,
     app: true,
