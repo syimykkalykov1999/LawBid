@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/system_notifications.dart';
@@ -167,8 +168,10 @@ List<Override> _overrides(
   _Repo repo, {
   UserRole role = UserRole.attorney,
   Translator? translator,
+  bool channelsOn = true,
 }) =>
     [
+      channelsEnabledProvider.overrideWithValue(channelsOn),
       ...uxOverrides(translator: translator ?? const StaticTranslatorEn()),
       notificationsRepositoryProvider.overrideWithValue(repo),
       currentUserIdProvider.overrideWithValue('u1'),
@@ -352,6 +355,28 @@ void main() {
     // Keeps its own value, greyed out under the off parent.
     expect(tasks.value, isTrue);
     expect(tasks.onChanged, isNull);
+  });
+
+  testWidgets('channels flag off: no Channels switch (R-386)', (t) async {
+    _tall(t);
+    final c = ProviderContainer(
+      overrides: _overrides(_Repo(), channelsOn: false),
+    );
+    addTearDown(c.dispose);
+    await t.pumpWidget(_app(c));
+    await t.pumpAndSettle();
+    expect(find.byKey(const ValueKey('notif-topic-groups')), findsOneWidget);
+    expect(find.byKey(const ValueKey('notif-topic-channels')), findsNothing);
+  });
+
+  testWidgets('channels flag on: the Channels switch is there (R-386)',
+      (t) async {
+    _tall(t);
+    final c = ProviderContainer(overrides: _overrides(_Repo()));
+    addTearDown(c.dispose);
+    await t.pumpWidget(_app(c));
+    await t.pumpAndSettle();
+    expect(find.byKey(const ValueKey('notif-topic-channels')), findsOneWidget);
   });
 
   testWidgets('a client sees no attorney blocks', (t) async {
