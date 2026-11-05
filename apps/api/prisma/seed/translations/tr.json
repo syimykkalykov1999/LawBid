@@ -784,6 +784,7 @@
   "cases.field.urgency": "Aciliyet",
   "cases.files.add": "Dosya ekle",
   "cases.files.all": "Tümü",
+  "cases.files.block": "Fotoğraflar ve belgeler",
   "cases.files.count.few": "{count} dosya",
   "cases.files.count.many": "{count} dosya",
   "cases.files.count.one": "{count} dosya",

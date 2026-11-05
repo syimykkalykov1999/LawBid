@@ -784,6 +784,7 @@
   "cases.field.urgency": "জরুরিতা",
   "cases.files.add": "একটি ফাইল যোগ করুন",
   "cases.files.all": "সব",
+  "cases.files.block": "ছবি ও নথি",
   "cases.files.count.few": "{count}টি ফাইল",
   "cases.files.count.many": "{count}টি ফাইল",
   "cases.files.count.one": "{count}টি ফাইল",

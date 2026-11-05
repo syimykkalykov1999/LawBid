@@ -784,6 +784,7 @@
   "cases.field.urgency": "Urgență",
   "cases.files.add": "Adăugați un fișier",
   "cases.files.all": "Toate",
+  "cases.files.block": "Fotografii și documente",
   "cases.files.count.few": "{count} fișiere",
   "cases.files.count.many": "{count} de fișiere",
   "cases.files.count.one": "{count} fișier",

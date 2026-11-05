@@ -407,7 +407,7 @@ const file06Ru = <String, String>{
       'Имя отличается от имени в проверенных документах. Всё работает как обычно. Верните прежнее имя или подтвердите новое документом.',
   'profile.nameMismatch.action': 'Подтвердить новое имя',
   // OQ-031 case photos.
-  'cases.photos.title': 'Фото и документы',
+  'cases.photos.title': 'Фото и файлы',
   'cases.photos.privacy': 'До {max} фото или файлов (PDF, Word).',
   'cases.photos.optional': '· необязательно',
   'cases.photos.tilePhoto': 'Фото',

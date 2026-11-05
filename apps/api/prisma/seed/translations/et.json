@@ -784,6 +784,7 @@
   "cases.field.urgency": "Kiireloomulisus",
   "cases.files.add": "Lisa fail",
   "cases.files.all": "Kõik",
+  "cases.files.block": "Fotod ja dokumendid",
   "cases.files.count.few": "{count} faili",
   "cases.files.count.many": "{count} faili",
   "cases.files.count.one": "{count} fail",

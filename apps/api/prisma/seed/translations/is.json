@@ -784,6 +784,7 @@
   "cases.field.urgency": "Brýnleiki",
   "cases.files.add": "Bæta við skrá",
   "cases.files.all": "Allt",
+  "cases.files.block": "Myndir og skjöl",
   "cases.files.count.few": "{count} skrár",
   "cases.files.count.many": "{count} skrár",
   "cases.files.count.one": "{count} skrá",

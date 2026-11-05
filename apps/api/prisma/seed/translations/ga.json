@@ -784,6 +784,7 @@
   "cases.field.urgency": "Práinn",
   "cases.files.add": "Cuir comhad leis",
   "cases.files.all": "Gach rud",
+  "cases.files.block": "Grianghraif agus doiciméid",
   "cases.files.count.few": "{count} chomhad",
   "cases.files.count.many": "{count} gcomhad",
   "cases.files.count.one": "{count} chomhad",

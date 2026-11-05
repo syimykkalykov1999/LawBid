@@ -784,6 +784,7 @@
   "cases.field.urgency": "तात्कालिकता",
   "cases.files.add": "फ़ाइल जोड़ें",
   "cases.files.all": "सभी",
+  "cases.files.block": "फ़ोटो और दस्तावेज़",
   "cases.files.count.few": "{count} फ़ाइलें",
   "cases.files.count.many": "{count} फ़ाइलें",
   "cases.files.count.one": "{count} फ़ाइल",

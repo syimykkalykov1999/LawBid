@@ -784,6 +784,7 @@
   "cases.field.urgency": "Urgència",
   "cases.files.add": "Afegeix un fitxer",
   "cases.files.all": "Tots",
+  "cases.files.block": "Fotos i documents",
   "cases.files.count.few": "{count} fitxers",
   "cases.files.count.many": "{count} de fitxers",
   "cases.files.count.one": "{count} fitxer",

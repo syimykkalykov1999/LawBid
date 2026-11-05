@@ -784,6 +784,7 @@
   "cases.field.urgency": "ความเร่งด่วน",
   "cases.files.add": "เพิ่มไฟล์",
   "cases.files.all": "ทั้งหมด",
+  "cases.files.block": "รูปภาพและเอกสาร",
   "cases.files.count.few": "{count} ไฟล์",
   "cases.files.count.many": "{count} ไฟล์",
   "cases.files.count.one": "{count} ไฟล์",

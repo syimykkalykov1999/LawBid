@@ -784,6 +784,7 @@
   "cases.field.urgency": "Pagkaapurahan",
   "cases.files.add": "Magdagdag ng file",
   "cases.files.all": "Lahat",
+  "cases.files.block": "Mga larawan at dokumento",
   "cases.files.count.few": "{count} file",
   "cases.files.count.many": "{count} file",
   "cases.files.count.one": "{count} file",

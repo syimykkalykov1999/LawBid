@@ -784,6 +784,7 @@
   "cases.field.urgency": "Тэрміновасць",
   "cases.files.add": "Дадаць файл",
   "cases.files.all": "Усе",
+  "cases.files.block": "Фота і дакументы",
   "cases.files.count.few": "{count} файлы",
   "cases.files.count.many": "{count} файлаў",
   "cases.files.count.one": "{count} файл",

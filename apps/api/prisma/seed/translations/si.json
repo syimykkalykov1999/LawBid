@@ -784,6 +784,7 @@
   "cases.field.urgency": "හදිසිතාව",
   "cases.files.add": "ගොනුවක් එක් කරන්න",
   "cases.files.all": "සියල්ල",
+  "cases.files.block": "ඡායාරූප සහ ලේඛන",
   "cases.files.count.few": "ගොනු {count}",
   "cases.files.count.many": "ගොනු {count}",
   "cases.files.count.one": "ගොනු {count}",

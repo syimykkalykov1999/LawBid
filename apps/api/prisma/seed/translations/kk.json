@@ -784,6 +784,7 @@
   "cases.field.urgency": "Шұғылдығы",
   "cases.files.add": "Файл қосу",
   "cases.files.all": "Барлығы",
+  "cases.files.block": "Фото мен құжаттар",
   "cases.files.count.few": "{count} файл",
   "cases.files.count.many": "{count} файл",
   "cases.files.count.one": "{count} файл",

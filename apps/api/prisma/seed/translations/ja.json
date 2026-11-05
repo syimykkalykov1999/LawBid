@@ -784,6 +784,7 @@
   "cases.field.urgency": "緊急度",
   "cases.files.add": "ファイルを追加",
   "cases.files.all": "すべて",
+  "cases.files.block": "写真と書類",
   "cases.files.count.few": "{count}件のファイル",
   "cases.files.count.many": "{count}件のファイル",
   "cases.files.count.one": "{count}件のファイル",

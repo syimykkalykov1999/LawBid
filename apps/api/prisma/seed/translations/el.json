@@ -784,6 +784,7 @@
   "cases.field.urgency": "Επείγον",
   "cases.files.add": "Προσθήκη αρχείου",
   "cases.files.all": "Όλα",
+  "cases.files.block": "Φωτογραφίες και έγγραφα",
   "cases.files.count.few": "{count} αρχεία",
   "cases.files.count.many": "{count} αρχεία",
   "cases.files.count.one": "{count} αρχείο",

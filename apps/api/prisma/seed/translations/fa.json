@@ -784,6 +784,7 @@
   "cases.field.urgency": "فوریت",
   "cases.files.add": "افزودن فایل",
   "cases.files.all": "همه",
+  "cases.files.block": "عکس‌ها و اسناد",
   "cases.files.count.few": "{count} فایل",
   "cases.files.count.many": "{count} فایل",
   "cases.files.count.one": "{count} فایل",

@@ -784,6 +784,7 @@
   "cases.field.urgency": "דחיפות",
   "cases.files.add": "הוספת קובץ",
   "cases.files.all": "הכול",
+  "cases.files.block": "תמונות ומסמכים",
   "cases.files.count.few": "{count} קבצים",
   "cases.files.count.many": "{count} קבצים",
   "cases.files.count.one": "{count} קובץ",

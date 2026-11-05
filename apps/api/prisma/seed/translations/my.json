@@ -784,6 +784,7 @@
   "cases.field.urgency": "အရေးတကြီးမှု",
   "cases.files.add": "ဖိုင် ထည့်ရန်",
   "cases.files.all": "အားလုံး",
+  "cases.files.block": "ဓာတ်ပုံနှင့် စာရွက်စာတမ်းများ",
   "cases.files.count.few": "ဖိုင် {count} ခု",
   "cases.files.count.many": "ဖိုင် {count} ခု",
   "cases.files.count.one": "ဖိုင် {count} ခု",

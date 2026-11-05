@@ -784,6 +784,7 @@
   "cases.field.urgency": "긴급도",
   "cases.files.add": "파일 추가",
   "cases.files.all": "전체",
+  "cases.files.block": "사진 및 문서",
   "cases.files.count.few": "파일 {count}개",
   "cases.files.count.many": "파일 {count}개",
   "cases.files.count.one": "파일 {count}개",

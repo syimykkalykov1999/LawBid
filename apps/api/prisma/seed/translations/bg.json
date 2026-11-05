@@ -784,6 +784,7 @@
   "cases.field.urgency": "Спешност",
   "cases.files.add": "Добавяне на файл",
   "cases.files.all": "Всички",
+  "cases.files.block": "Снимки и документи",
   "cases.files.count.few": "{count} файла",
   "cases.files.count.many": "{count} файла",
   "cases.files.count.one": "{count} файл",

@@ -784,6 +784,7 @@
   "cases.field.urgency": "Hastegrad",
   "cases.files.add": "Tilføj en fil",
   "cases.files.all": "Alle",
+  "cases.files.block": "Fotos og dokumenter",
   "cases.files.count.few": "{count} filer",
   "cases.files.count.many": "{count} filer",
   "cases.files.count.one": "{count} fil",

@@ -784,6 +784,7 @@
   "cases.field.urgency": "Шашылыштык",
   "cases.files.add": "Файл кошуу",
   "cases.files.all": "Баары",
+  "cases.files.block": "Сүрөттөр жана документтер",
   "cases.files.count.few": "{count} файл",
   "cases.files.count.many": "{count} файл",
   "cases.files.count.one": "{count} файл",

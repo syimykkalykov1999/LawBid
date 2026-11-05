@@ -784,6 +784,7 @@
   "cases.field.urgency": "Təcililik",
   "cases.files.add": "Fayl əlavə et",
   "cases.files.all": "Hamısı",
+  "cases.files.block": "Fotolar və sənədlər",
   "cases.files.count.few": "{count} fayl",
   "cases.files.count.many": "{count} fayl",
   "cases.files.count.one": "{count} fayl",

@@ -784,6 +784,7 @@
   "cases.field.urgency": "Urgensi",
   "cases.files.add": "Tambah file",
   "cases.files.all": "Semua",
+  "cases.files.block": "Foto dan dokumen",
   "cases.files.count.few": "{count} file",
   "cases.files.count.many": "{count} file",
   "cases.files.count.one": "{count} berkas",

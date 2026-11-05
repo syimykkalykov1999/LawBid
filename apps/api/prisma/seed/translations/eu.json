@@ -784,6 +784,7 @@
   "cases.field.urgency": "Presa",
   "cases.files.add": "Gehitu fitxategi bat",
   "cases.files.all": "Guztiak",
+  "cases.files.block": "Argazkiak eta dokumentuak",
   "cases.files.count.few": "{count} fitxategi",
   "cases.files.count.many": "{count} fitxategi",
   "cases.files.count.one": "{count} fitxategi",

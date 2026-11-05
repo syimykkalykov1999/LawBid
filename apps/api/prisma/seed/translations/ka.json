@@ -784,6 +784,7 @@
   "cases.field.urgency": "სისწრაფე",
   "cases.files.add": "ფაილის დამატება",
   "cases.files.all": "ყველა",
+  "cases.files.block": "ფოტოები და დოკუმენტები",
   "cases.files.count.few": "{count} ფაილი",
   "cases.files.count.many": "{count} ფაილი",
   "cases.files.count.one": "{count} ფაილი",

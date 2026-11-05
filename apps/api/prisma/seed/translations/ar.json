@@ -784,6 +784,7 @@
   "cases.field.urgency": "الاستعجال",
   "cases.files.add": "إضافة ملف",
   "cases.files.all": "الكل",
+  "cases.files.block": "الصور والمستندات",
   "cases.files.count.few": "{count} ملفات",
   "cases.files.count.many": "{count} ملفًا",
   "cases.files.count.one": "{count} ملف",

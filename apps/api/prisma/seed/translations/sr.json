@@ -784,6 +784,7 @@
   "cases.field.urgency": "Hitnost",
   "cases.files.add": "Додај датотеку",
   "cases.files.all": "Sve",
+  "cases.files.block": "Фотографије и документи",
   "cases.files.count.few": "{count} fajla",
   "cases.files.count.many": "{count} фајлова",
   "cases.files.count.one": "{count} fajl",

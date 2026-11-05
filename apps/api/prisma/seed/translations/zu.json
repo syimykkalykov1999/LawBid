@@ -784,6 +784,7 @@
   "cases.field.urgency": "Ukuphuthuma",
   "cases.files.add": "Engeza ifayela",
   "cases.files.all": "Konke",
+  "cases.files.block": "Izithombe nemibhalo",
   "cases.files.count.few": "Amafayela: {count}",
   "cases.files.count.many": "Amafayela: {count}",
   "cases.files.count.one": "Ifayela: {count}",

@@ -705,7 +705,7 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
                 if (c.photos.isNotEmpty)
                   DetailSection(
                     key: const ValueKey('case-files-block'),
-                    title: t.t('cases.photos.title'),
+                    title: t.t('cases.files.block'),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [

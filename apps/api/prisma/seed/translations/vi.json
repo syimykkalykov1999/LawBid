@@ -784,6 +784,7 @@
   "cases.field.urgency": "Mức khẩn cấp",
   "cases.files.add": "Thêm tệp",
   "cases.files.all": "Tất cả",
+  "cases.files.block": "Ảnh và tài liệu",
   "cases.files.count.few": "{count} tệp",
   "cases.files.count.many": "{count} tệp",
   "cases.files.count.one": "{count} tệp",

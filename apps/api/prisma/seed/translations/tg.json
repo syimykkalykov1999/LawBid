@@ -784,6 +784,7 @@
   "cases.field.urgency": "Таъҷилият",
   "cases.files.add": "Илова кардани файл",
   "cases.files.all": "Ҳама",
+  "cases.files.block": "Аксҳо ва ҳуҷҷатҳо",
   "cases.files.count.few": "{count} файл",
   "cases.files.count.many": "{count} файл",
   "cases.files.count.one": "{count} файл",

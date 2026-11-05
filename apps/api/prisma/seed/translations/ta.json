@@ -784,6 +784,7 @@
   "cases.field.urgency": "அவசரம்",
   "cases.files.add": "கோப்பைச் சேர்",
   "cases.files.all": "அனைத்தும்",
+  "cases.files.block": "புகைப்படங்கள் மற்றும் ஆவணங்கள்",
   "cases.files.count.few": "{count} கோப்புகள்",
   "cases.files.count.many": "{count} கோப்புகள்",
   "cases.files.count.one": "{count} கோப்பு",

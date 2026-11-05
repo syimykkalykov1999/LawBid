@@ -784,6 +784,7 @@
   "cases.field.urgency": "فوری ضرورت",
   "cases.files.add": "فائل شامل کریں",
   "cases.files.all": "سب",
+  "cases.files.block": "تصاویر اور دستاویزات",
   "cases.files.count.few": "{count} فائلیں",
   "cases.files.count.many": "{count} فائلیں",
   "cases.files.count.one": "{count} فائل",

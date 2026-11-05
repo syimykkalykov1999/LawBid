@@ -784,6 +784,7 @@
   "cases.field.urgency": "Gaggawa",
   "cases.files.add": "Ƙara fayil",
   "cases.files.all": "Duka",
+  "cases.files.block": "Hotuna da takardu",
   "cases.files.count.few": "Fayiloli {count}",
   "cases.files.count.many": "Fayiloli {count}",
   "cases.files.count.one": "Fayil {count}",

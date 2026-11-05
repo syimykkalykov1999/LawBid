@@ -784,6 +784,7 @@
   "cases.field.urgency": "Naliehavosť",
   "cases.files.add": "Pridať súbor",
   "cases.files.all": "Všetky",
+  "cases.files.block": "Fotky a dokumenty",
   "cases.files.count.few": "{count} súbory",
   "cases.files.count.many": "{count} súboru",
   "cases.files.count.one": "{count} súbor",

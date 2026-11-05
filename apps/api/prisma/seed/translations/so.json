@@ -784,6 +784,7 @@
   "cases.field.urgency": "Degdeg",
   "cases.files.add": "Ku dar fayl",
   "cases.files.all": "Dhammaan",
+  "cases.files.block": "Sawirro iyo dukumentiyo",
   "cases.files.count.few": "{count} fayl",
   "cases.files.count.many": "{count} fayl",
   "cases.files.count.one": "{count} fayl",

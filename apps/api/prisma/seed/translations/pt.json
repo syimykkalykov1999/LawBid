@@ -784,6 +784,7 @@
   "cases.field.urgency": "Urgência",
   "cases.files.add": "Adicionar um arquivo",
   "cases.files.all": "Todos",
+  "cases.files.block": "Fotos e documentos",
   "cases.files.count.few": "{count} arquivos",
   "cases.files.count.many": "{count} de arquivos",
   "cases.files.count.one": "{count} arquivo",

@@ -784,6 +784,7 @@
   "cases.field.urgency": "Շտապություն",
   "cases.files.add": "Ավելացնել ֆայլ",
   "cases.files.all": "Բոլորը",
+  "cases.files.block": "Լուսանկարներ և փաստաթղթեր",
   "cases.files.count.few": "{count} ֆայլ",
   "cases.files.count.many": "{count} ֆայլ",
   "cases.files.count.one": "{count} ֆայլ",

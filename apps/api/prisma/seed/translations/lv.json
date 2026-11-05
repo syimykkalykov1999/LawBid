@@ -784,6 +784,7 @@
   "cases.field.urgency": "Steidzamība",
   "cases.files.add": "Pievienot failu",
   "cases.files.all": "Visi",
+  "cases.files.block": "Fotoattēli un dokumenti",
   "cases.files.count.few": "{count} faili",
   "cases.files.count.many": "{count} failu",
   "cases.files.count.one": "{count} fails",

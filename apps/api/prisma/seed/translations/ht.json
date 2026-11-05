@@ -784,6 +784,7 @@
   "cases.field.urgency": "Ijans",
   "cases.files.add": "Ajoute yon fichye",
   "cases.files.all": "Tout",
+  "cases.files.block": "Foto ak dokiman",
   "cases.files.count.few": "{count} dosye",
   "cases.files.count.many": "{count} dosye",
   "cases.files.count.one": "{count} dosye",

@@ -784,6 +784,7 @@
   "cases.field.urgency": "Skubumas",
   "cases.files.add": "Pridėti failą",
   "cases.files.all": "Visi",
+  "cases.files.block": "Nuotraukos ir dokumentai",
   "cases.files.count.few": "{count} failai",
   "cases.files.count.many": "{count} failo",
   "cases.files.count.one": "{count} failas",
