@@ -189,6 +189,15 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Resumable (multipart) uploads of large files',
   },
   {
+    // R-252: on, `confirm` of a file from 8 MiB reads only its first 256 KiB;
+    // the checksum and the look inside go to the scan worker. Off until
+    // checked against real storage.
+    key: 'files_confirm_light',
+    enabled: false,
+    app: false,
+    description: 'Big uploads are confirmed without reading them into the API',
+  },
+  {
     // R-251: on, the app sends a reel to Bunny in 4 pieces at once and asks
     // Bunny to join them (TUS concatenation; Bunny announces it, but it was
     // not tried with a real video: off until checked on a phone). A refusal
@@ -306,6 +315,17 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: false,
     description:
       "The store's «Rate LawBid» dialog, shown once after a positive moment (iOS and Android)",
+  },
+  {
+    // Owner 2026-11-05: Settings → Account «Сменить профиль» — the same
+    // account (same phone and password, no SMS) switches between the
+    // attorney and the client profile; both profiles are kept. Off until
+    // the owner turns it on.
+    key: 'role_switch',
+    enabled: false,
+    app: true,
+    description:
+      'Switch the account between the attorney and the client profile (Settings → Account), confirmed with the password or a passkey',
   },
   {
     // Owner 2026-10-13: sign in with a password, no SMS each time.

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/transfers/tus_upload.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
@@ -130,10 +131,28 @@ class ReelsRepository {
   Future<void> cancel(String videoAssetId) =>
       guardApiCall(() => _videos.cancelVideoUpload(id: videoAssetId));
 
+  /// Shorter than the 3-minute fresh-reels mix of the screen, so ranking
+  /// freshness is unchanged.
+  static const firstPageWindow = Duration(minutes: 2);
+
   /// The full-screen reels feed, newest first.
-  Future<CursorPage<Post>> reels({String? cursor, String? practice}) async {
+  ///
+  /// R-385: the first page is served from the phone for [firstPageWindow]
+  /// (reopening Reels asks nothing); [fresh] (pull down, the fresh-reels
+  /// mix) always asks the server, with If-None-Match.
+  Future<CursorPage<Post>> reels({
+    String? cursor,
+    String? practice,
+    bool fresh = false,
+  }) async {
     final env = await guardApiCall(
-      () => _videos.listReels(cursor: cursor, practice: practice),
+      () => _videos.listReels(
+        cursor: cursor,
+        practice: practice,
+        extras: cursor == null
+            ? cacheFor(fresh ? Duration.zero : firstPageWindow)
+            : null,
+      ),
     );
     return CursorPage(
       items: env.data.map(SocialMappers.post).toList(),

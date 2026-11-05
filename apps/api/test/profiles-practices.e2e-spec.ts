@@ -15,7 +15,8 @@ import { PRACTICE_TREE_CACHE_KEY } from '../src/modules/profiles/services/practi
  * docs/03_VERIFICATION_PROFILES.md stages 3.5 (practices, license
  * expiry) and 3.6 (profiles API), against real PostgreSQL + Redis.
  *
- * Acceptance 3.5: practices before `verified` -> ATTORNEY_NOT_VERIFIED;
+ * Acceptance 3.5: practices before the licence is sent (owner 2026-11-05:
+ * `pending` may save) -> ATTORNEY_NOT_VERIFIED;
  * the last license expiring makes the profile `unverified`; the §5.4
  * cases query (canonical shape: db-roles-indexes.e2e-spec.ts) stops
  * returning the expired license's states.
@@ -243,21 +244,33 @@ describe('Profiles and practices (e2e) — docs/03 stages 3.5–3.6', () => {
         .expect(304);
     });
 
-    it('saving practices before verified -> 403 ATTORNEY_NOT_VERIFIED', async () => {
-      for (const status of ['unverified', 'pending'] as const) {
-        const a = await attorney({ status });
-        const res = await api()
-          .put('/api/v1/attorneys/me/practice-areas')
-          .set(a.auth)
-          .send({ practiceAreaIds: [leafA] })
-          .expect(403);
-        expect(code(res)).toBe('ATTORNEY_NOT_VERIFIED');
-        expect(
-          await prisma.attorneyPracticeArea.count({
-            where: { attorney_id: a.userId },
-          }),
-        ).toBe(0);
-      }
+    it('saving practices before the licence is sent -> 403 ATTORNEY_NOT_VERIFIED', async () => {
+      const a = await attorney({ status: 'unverified' });
+      const res = await api()
+        .put('/api/v1/attorneys/me/practice-areas')
+        .set(a.auth)
+        .send({ practiceAreaIds: [leafA] })
+        .expect(403);
+      expect(code(res)).toBe('ATTORNEY_NOT_VERIFIED');
+      expect(
+        await prisma.attorneyPracticeArea.count({
+          where: { attorney_id: a.userId },
+        }),
+      ).toBe(0);
+    });
+
+    it('owner 2026-11-05: a licence under review (pending) may save practices — a required sign-up step', async () => {
+      const a = await attorney({ status: 'pending' });
+      await api()
+        .put('/api/v1/attorneys/me/practice-areas')
+        .set(a.auth)
+        .send({ practiceAreaIds: [leafA] })
+        .expect(200);
+      expect(
+        await prisma.attorneyPracticeArea.count({
+          where: { attorney_id: a.userId },
+        }),
+      ).toBe(1);
     });
 
     it('a client cannot use attorney practice endpoints', async () => {

@@ -196,7 +196,7 @@ export class BidsService {
           'You can send an offer only in states where you hold a verified licence.',
       });
     }
-    const paymentTerms = await this.checkPaymentTerms(dto.paymentTerms);
+    const paymentTerms = await this.checkPaymentTerms(dto.paymentTerms, caseId);
     // Owner 2026-10-17: a percent bid — within the admin cap, never on a
     // case whose topics forbid it (criminal, family by default).
     const percentBps =
@@ -552,7 +552,10 @@ export class BidsService {
   ): Promise<BidDto> {
     await this.limits?.consume('bid_counter', user.sub);
     const { bid, by } = await this.loadForEitherParty(bidId, user);
-    const paymentTerms = await this.checkPaymentTerms(dto.paymentTerms);
+    const paymentTerms = await this.checkPaymentTerms(
+      dto.paymentTerms,
+      bid.case_id,
+    );
     // OQ-054: a counter from the client is their own action on the case.
     if (by === 'client') {
       await touchClientActive(this.prisma, bid.case_id, user.sub);
@@ -593,10 +596,13 @@ export class BidsService {
    * admin switch `bids.rich_terms_enabled` is on (400 PAYMENT_TERMS_DISABLED
    * otherwise, so an app with the field cannot slip it in), and only when
    * the object follows the rules of its type (400 PAYMENT_TERMS_INVALID,
-   * details.problems). Returns the canonical object to store, or null.
+   * details.problems). A percent inside the terms obeys the same rules as a
+   * percent bid: never on a topic that forbids it, never above the admin cap.
+   * Returns the canonical object to store, or null.
    */
   private async checkPaymentTerms(
     dto: PaymentTermsDto | undefined,
+    caseId: string,
   ): Promise<Prisma.InputJsonObject | null> {
     if (dto === undefined || dto === null) return null;
     const enabled =
@@ -614,6 +620,15 @@ export class BidsService {
         message: 'The payment terms are not valid.',
         details: { problems },
       });
+    }
+    // contingency_pct always has it here: paymentTermsProblems requires it.
+    if (dto.contingencyBps !== undefined && dto.contingencyBps !== null) {
+      assertContingency(
+        await contingencyPolicy(this.settings),
+        await this.casePracticeCodes(caseId),
+        dto.contingencyBps,
+        'paymentTerms.contingencyBps',
+      );
     }
     return normalizePaymentTerms(dto) as unknown as Prisma.InputJsonObject;
   }

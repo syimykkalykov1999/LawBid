@@ -8,6 +8,8 @@ StorageTransport queueTransport({required StorageTransport fallback}) =>
 Future<void> cancelBackgroundUpload(String taskId) async {}
 
 /// The browser: no OS transfer exists.
+Future<void> forgetBackgroundUpload(String taskId) async {}
+
 Future<bool> backgroundUploadKnown(String taskId) async => false;
 
 /// The browser: nothing is handed over when the tab is hidden.
