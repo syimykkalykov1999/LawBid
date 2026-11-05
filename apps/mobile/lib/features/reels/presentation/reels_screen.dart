@@ -126,12 +126,24 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   /// Owner 2026-10-23 (Instagram): the first bytes of the next three reels
   /// are fetched before the finger gets to them (the players of the two
   /// neighbours are already open — see WarmPlan).
+  final _swipeWarm = SwipeWarm();
+
   void _warmAhead(List<Post> items, int index) {
     if (kIsWeb) return;
-    HlsPrefetcher.instance.prefetchAll([
+    final warmer = HlsPrefetcher.instance;
+    final smart = warmer.smart();
+    final ahead = [
       for (final i in WarmPlan.at(index, items.length).prefetch)
-        if (items[i].video?.ready ?? false) items[i].video!.playbackUrl!,
-    ]);
+        if (items[i].video?.warmUrl(smart: smart) case final url?) url,
+    ];
+    if (!smart) {
+      warmer.prefetchAll(ahead);
+      return;
+    }
+    final step = _swipeWarm.next(ahead);
+    warmer
+      ..drop(step.drop)
+      ..prefetchAll(step.warm);
   }
 
   @override

@@ -189,6 +189,15 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Resumable (multipart) uploads of large files',
   },
   {
+    // Owner 2026-11-05: videos are warmed ahead into the disk cache the player
+    // reads, in the stream it will open, and fewer while the viewer flicks.
+    // Off until checked on real phones.
+    key: 'video_prefetch_smart',
+    enabled: false,
+    app: true,
+    description: 'Videos warmed ahead land in the cache the player reads',
+  },
+  {
     key: 'payments_in_app',
     enabled: false,
     app: true,

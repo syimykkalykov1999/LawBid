@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/media/data_saver.dart';
 import 'package:lawbid/core/media/video_prefetch.dart';
 
@@ -19,5 +20,11 @@ final prefetchGateProvider = Provider<void>((ref) {
         dataSaver: ref.read(dataSaverProvider),
         ahead: ClientTuning.videoPrefetchAhead,
       );
-  ref.onDispose(() => HlsPrefetcher.instance.allow = () => true);
+  HlsPrefetcher.instance.smart = () => ref
+      .read(featureFlagsControllerProvider)
+      .isEnabled('video_prefetch_smart');
+  ref.onDispose(() {
+    HlsPrefetcher.instance.allow = () => true;
+    HlsPrefetcher.instance.smart = () => false;
+  });
 });
