@@ -271,6 +271,25 @@ jobs:
           sudo docker image prune -af >/dev/null 2>&1 || true
           df -h / | tail -1
 
+      # KNOWN_ERRORS (2026-11-04): the NDK download from dl.google.com sometimes
+      # arrives cut off («Error on ZipFile unknown archive») and Gradle fails at
+      # once. Install it first with retries; Gradle then finds it. If the version
+      # cannot be read, the step does nothing and Gradle installs it as before.
+      - name: Install Android NDK (retry a cut-off download)
+        run: |
+          ndk=$(grep -rhoE 'ndkVersion[^"]*"[0-9.]+"' "$FLUTTER_ROOT/packages/flutter_tools/gradle/src/main" 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+          [ -n "$ndk" ] || { echo "NDK version not found, Gradle will install it"; exit 0; }
+          sm="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          for try in 1 2 3; do
+            if yes | "$sm" --install "ndk;$ndk" >/tmp/ndk.log 2>&1 && [ -f "$ANDROID_HOME/ndk/$ndk/source.properties" ]; then
+              echo "NDK $ndk installed (try $try)"; exit 0
+            fi
+            tail -3 /tmp/ndk.log
+            rm -rf "$ANDROID_HOME/ndk/$ndk" "$ANDROID_HOME/.temp"
+            sleep 20
+          done
+          echo "::warning::NDK $ndk did not install in 3 tries; Gradle will try once more"
+
       - name: Build debug APK (build-check only — no signing, no publish)
         working-directory: apps/mobile
         run: flutter build apk --debug
