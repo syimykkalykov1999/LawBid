@@ -324,6 +324,18 @@ import flutter_callkit_incoming
         // Signed out: the notification buttons stop working on this phone.
         AppDelegate.setPushActions(url: nil, token: nil)
         result(nil)
+      case "clearDelivered":
+        // R-379: nothing unread — every pushed alert left on the lock
+        // screen goes (local planner reminders stay); the icon number is
+        // set by the app.
+        center.getDeliveredNotifications { delivered in
+          let ids = delivered
+            .filter { $0.request.trigger is UNPushNotificationTrigger }
+            .filter { $0.request.content.userInfo["type"] as? String != "task_reminder" }
+            .map { $0.request.identifier }
+          if !ids.isEmpty { center.removeDeliveredNotifications(withIdentifiers: ids) }
+        }
+        result(nil)
       case "setPushActions":
         AppDelegate.setPushActions(
           url: args?["url"] as? String, token: args?["token"] as? String)
