@@ -59,6 +59,14 @@ export class PresignFileDto {
   @IsOptional()
   @IsBoolean()
   supportsPut?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'True when the client understands `existing` in the answer: if this user already stored these exact bytes, nothing needs to be uploaded.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  acceptsExisting?: boolean;
 }
 
 export class PresignedUploadDto {
@@ -107,6 +115,12 @@ export class PresignedFileDto {
     description: 'The upload link expires at (5 minutes).',
   })
   expiresAt!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'True: this user already stored these bytes. `fileId` is ready and clean; skip the upload and the confirm.',
+  })
+  existing?: boolean;
 }
 
 export class MultipartPartDto {
