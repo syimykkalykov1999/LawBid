@@ -65,11 +65,12 @@ describe('assistant gates (security audit #3)', () => {
     ]);
   });
 
-  it('a public Q&A answer needs "publish"', () => {
-    expect(attorneyOnlyHandlers(LegalQaController, 'publish').sort()).toEqual([
-      'answerQuestion',
-      'deleteQuestionAnswer',
-    ]);
+  // R-401 (owner 2026-11-04): its own duty «qa_answers», no longer «publish».
+  it('a public Q&A answer needs "qa_answers"', () => {
+    expect(
+      attorneyOnlyHandlers(LegalQaController, 'qa_answers').sort(),
+    ).toEqual(['answerQuestion', 'deleteQuestionAnswer']);
+    expect(attorneyOnlyHandlers(LegalQaController, 'publish')).toEqual([]);
   });
 
   it('finding 3: stars and paid promotions spend the attorney’s money', () => {

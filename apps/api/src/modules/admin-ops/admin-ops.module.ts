@@ -12,12 +12,20 @@ import { PartitionService } from '../../partitioning/partition.service';
 import { QueueAdminService } from './queue-admin.service';
 import { SearchIndexController } from './search-index.controller';
 import { SearchModule } from '../search/search.module';
+import { RecommendationsModule } from '../recommendations/recommendations.module';
 import { ScaleService } from './scale.service';
 import { SystemHealthService } from './system-health.service';
 
 /** Owner 2026-10-05: Система → Здоровье системы (zero maintenance). */
 @Module({
-  imports: [AdminAccessModule, FeatureFlagsModule, FilesModule, SearchModule],
+  imports: [
+    AdminAccessModule,
+    FeatureFlagsModule,
+    FilesModule,
+    SearchModule,
+    // R-401: the Q&A ranking snapshot («Пересчитать сейчас»).
+    RecommendationsModule,
+  ],
   controllers: [
     AdminOpsController,
     AdminStatusPageController,

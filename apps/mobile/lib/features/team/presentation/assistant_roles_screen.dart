@@ -12,7 +12,7 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/assistant_code_card.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
 
-/// Owner 2026-10-22: the 10 duties in three groups — what reaches the
+/// Owner 2026-10-22: the 11 duties in three groups — what reaches the
 /// assistant (calls, chats, files), the work they prepare, and what they
 /// may do in the attorney's own name.
 const assistantRoleGroups = <(String, List<AssistantDuty>)>[
@@ -30,11 +30,14 @@ const assistantRoleGroups = <(String, List<AssistantDuty>)>[
       AssistantDuty.profile,
     ],
   ),
-  ('team.roles.group.name', [AssistantDuty.bids, AssistantDuty.publish]),
+  (
+    'team.roles.group.name',
+    [AssistantDuty.bids, AssistantDuty.publish, AssistantDuty.qaAnswers],
+  ),
 ];
 
 /// Owner 2026-10-22 — «Роли помощников» (the Team tab's header), open to
-/// EVERY attorney: the 10 duties with one line each. With assistants the
+/// EVERY attorney: the 11 duties with one line each. With assistants the
 /// switches give the chosen assistant a duty (at most [TeamInfo.maxDuties]
 /// each — more assistants, nobody with the whole account); without a free
 /// seat a switch or «Add assistant» opens the seat purchase (no paid plan
