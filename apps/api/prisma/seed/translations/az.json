@@ -3715,6 +3715,8 @@
   "post.video.remove": "Videonu sil",
   "post.video.trim": "Kəs {start}–{end}",
   "post.viewComments": "Bütün şərhlərə bax ({count})",
+  "post.window.next": "Növbəti paylaşım",
+  "post.window.prev": "Əvvəlki paylaşım",
   "postInner.docs.empty": "Sənəd yoxdur",
   "postInner.documentsCount": "sənəd: {count}",
   "postInner.info.author": "Müəllif",

@@ -3715,6 +3715,8 @@
   "post.video.remove": "Убрать видео",
   "post.video.trim": "Обрезать {start}–{end}",
   "post.viewComments": "Посмотреть все комментарии ({count})",
+  "post.window.next": "Следующий пост",
+  "post.window.prev": "Предыдущий пост",
   "postInner.docs.empty": "Документов нет",
   "postInner.documentsCount": "документов: {count}",
   "postInner.info.author": "Автор",

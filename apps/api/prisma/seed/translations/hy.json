@@ -3715,6 +3715,8 @@
   "post.video.remove": "Հեռացնել տեսանյութը",
   "post.video.trim": "Կտրել {start}–{end}",
   "post.viewComments": "Դիտել բոլոր մեկնաբանությունները ({count})",
+  "post.window.next": "Հաջորդ գրառումը",
+  "post.window.prev": "Նախորդ գրառումը",
   "postInner.docs.empty": "Փաստաթղթեր չկան",
   "postInner.documentsCount": "փաստաթղթեր՝ {count}",
   "postInner.info.author": "Հեղինակ",

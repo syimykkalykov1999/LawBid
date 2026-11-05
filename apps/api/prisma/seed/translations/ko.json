@@ -3715,6 +3715,8 @@
   "post.video.remove": "동영상 삭제",
   "post.video.trim": "자르기 {start}–{end}",
   "post.viewComments": "댓글 {count}개 모두 보기",
+  "post.window.next": "다음 게시물",
+  "post.window.prev": "이전 게시물",
   "postInner.docs.empty": "문서가 없습니다",
   "postInner.documentsCount": "문서: {count}개",
   "postInner.info.author": "작성자",

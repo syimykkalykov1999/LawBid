@@ -3715,6 +3715,8 @@
   "post.video.remove": "حذف ویدیو",
   "post.video.trim": "برش {start}–{end}",
   "post.viewComments": "مشاهده همه نظرها ({count})",
+  "post.window.next": "پست بعدی",
+  "post.window.prev": "پست قبلی",
   "postInner.docs.empty": "سندی نیست",
   "postInner.documentsCount": "اسناد: {count}",
   "postInner.info.author": "نویسنده",

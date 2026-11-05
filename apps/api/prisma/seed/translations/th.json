@@ -3715,6 +3715,8 @@
   "post.video.remove": "ลบวิดีโอ",
   "post.video.trim": "ตัด {start}–{end}",
   "post.viewComments": "ดูความคิดเห็นทั้งหมด ({count})",
+  "post.window.next": "โพสต์ถัดไป",
+  "post.window.prev": "โพสต์ก่อนหน้า",
   "postInner.docs.empty": "ไม่มีเอกสาร",
   "postInner.documentsCount": "เอกสาร: {count}",
   "postInner.info.author": "ผู้เขียน",

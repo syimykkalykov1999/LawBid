@@ -189,6 +189,15 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Resumable (multipart) uploads of large files',
   },
   {
+    // On a wide website window a post of a grid opens as a window with
+    // arrows (the idea from Instagram) instead of a scrolling page. Phones
+    // never: isDesktopWindow is false there.
+    key: 'web_post_window',
+    enabled: false,
+    app: true,
+    description: 'Website, wide window: a post opens as a window with arrows',
+  },
+  {
     key: 'payments_in_app',
     enabled: false,
     app: true,

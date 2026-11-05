@@ -3715,6 +3715,8 @@
   "post.video.remove": "លុបវីដេអូ",
   "post.video.trim": "កាត់ {start}–{end}",
   "post.viewComments": "មើលមតិយោបល់ទាំងអស់ ({count})",
+  "post.window.next": "ការបង្ហោះបន្ទាប់",
+  "post.window.prev": "ការបង្ហោះមុន",
   "postInner.docs.empty": "គ្មានឯកសារ",
   "postInner.documentsCount": "ឯកសារ៖ {count}",
   "postInner.info.author": "អ្នកនិពន្ធ",

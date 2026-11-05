@@ -3715,6 +3715,8 @@
   "post.video.remove": "Ondoa video",
   "post.video.trim": "Punguza {start}–{end}",
   "post.viewComments": "Tazama maoni yote ({count})",
+  "post.window.next": "Chapisho linalofuata",
+  "post.window.prev": "Chapisho lililotangulia",
   "postInner.docs.empty": "Hakuna hati",
   "postInner.documentsCount": "hati: {count}",
   "postInner.info.author": "Mwandishi",

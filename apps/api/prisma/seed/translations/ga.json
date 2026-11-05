@@ -3715,6 +3715,8 @@
   "post.video.remove": "Bain an físeán",
   "post.video.trim": "Bearr {start}–{end}",
   "post.viewComments": "Féach ar gach nóta tráchta ({count})",
+  "post.window.next": "An chéad phost eile",
+  "post.window.prev": "An post roimhe seo",
   "postInner.docs.empty": "Gan doiciméid",
   "postInner.documentsCount": "doiciméid: {count}",
   "postInner.info.author": "Údar",

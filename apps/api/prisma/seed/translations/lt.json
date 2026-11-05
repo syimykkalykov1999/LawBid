@@ -3715,6 +3715,8 @@
   "post.video.remove": "Pašalinti vaizdo įrašą",
   "post.video.trim": "Apkirpti {start}–{end}",
   "post.viewComments": "Peržiūrėti visus komentarus ({count})",
+  "post.window.next": "Kitas įrašas",
+  "post.window.prev": "Ankstesnis įrašas",
   "postInner.docs.empty": "Dokumentų nėra",
   "postInner.documentsCount": "dokumentų: {count}",
   "postInner.info.author": "Autorius",

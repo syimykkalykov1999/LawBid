@@ -3715,6 +3715,8 @@
   "post.video.remove": "Hiq videon",
   "post.video.trim": "Shkurto {start}–{end}",
   "post.viewComments": "Shiko të gjitha komentet ({count})",
+  "post.window.next": "Postimi tjetër",
+  "post.window.prev": "Postimi i mëparshëm",
   "postInner.docs.empty": "Nuk ka dokumente",
   "postInner.documentsCount": "dokumente: {count}",
   "postInner.info.author": "Autori",

@@ -18,6 +18,12 @@ Future<void> showCommentsSheet(
 }) {
   // Owner 2026-10-22 (guest browsing): comments need an account.
   if (!requireSignInFromContext(context)) return Future.value();
+  // In the website's post window the comments are already beside the post.
+  final inline = context.getInheritedWidgetOfExactType<PostCommentsInline>();
+  if (inline != null) {
+    inline.focus();
+    return Future.value();
+  }
   return showAppBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -28,6 +34,21 @@ Future<void> showCommentsSheet(
       commentsEnabled: commentsEnabled,
     ),
   );
+}
+
+/// Marks a post whose comments are shown next to it: the comment button
+/// goes to the field instead of opening the sheet.
+class PostCommentsInline extends InheritedWidget {
+  const PostCommentsInline({
+    required this.focus,
+    required super.child,
+    super.key,
+  });
+
+  final VoidCallback focus;
+
+  @override
+  bool updateShouldNotify(PostCommentsInline oldWidget) => false;
 }
 
 class CommentsSheet extends ConsumerStatefulWidget {

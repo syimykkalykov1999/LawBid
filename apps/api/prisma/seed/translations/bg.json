@@ -3715,6 +3715,8 @@
   "post.video.remove": "Премахни видеото",
   "post.video.trim": "Изрязване {start}–{end}",
   "post.viewComments": "Преглед на всички коментари ({count})",
+  "post.window.next": "Следваща публикация",
+  "post.window.prev": "Предишна публикация",
   "postInner.docs.empty": "Няма документи",
   "postInner.documentsCount": "документи: {count}",
   "postInner.info.author": "Автор",

@@ -3715,6 +3715,8 @@
   "post.video.remove": "Elimina el vídeo",
   "post.video.trim": "Retalla {start}–{end}",
   "post.viewComments": "Mostra tots els comentaris ({count})",
+  "post.window.next": "Publicació següent",
+  "post.window.prev": "Publicació anterior",
   "postInner.docs.empty": "Cap document",
   "postInner.documentsCount": "documents: {count}",
   "postInner.info.author": "Autor",

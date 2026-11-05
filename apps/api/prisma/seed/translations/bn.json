@@ -3715,6 +3715,8 @@
   "post.video.remove": "ভিডিও সরান",
   "post.video.trim": "ট্রিম {start}–{end}",
   "post.viewComments": "সব মন্তব্য দেখুন ({count})",
+  "post.window.next": "পরবর্তী পোস্ট",
+  "post.window.prev": "আগের পোস্ট",
   "postInner.docs.empty": "কোনো নথি নেই",
   "postInner.documentsCount": "নথি: {count}",
   "postInner.info.author": "লেখক",

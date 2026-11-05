@@ -3715,6 +3715,8 @@
   "post.video.remove": "移除视频",
   "post.video.trim": "裁剪 {start}–{end}",
   "post.viewComments": "查看全部评论（{count}）",
+  "post.window.next": "下一篇帖子",
+  "post.window.prev": "上一篇帖子",
   "postInner.docs.empty": "暂无文档",
   "postInner.documentsCount": "文档：{count}",
   "postInner.info.author": "作者",

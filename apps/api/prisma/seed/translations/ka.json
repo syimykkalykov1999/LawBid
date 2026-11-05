@@ -3715,6 +3715,8 @@
   "post.video.remove": "ვიდეოს წაშლა",
   "post.video.trim": "ამოჭრა {start}–{end}",
   "post.viewComments": "ყველა კომენტარის ნახვა ({count})",
+  "post.window.next": "შემდეგი პოსტი",
+  "post.window.prev": "წინა პოსტი",
   "postInner.docs.empty": "დოკუმენტები არ არის",
   "postInner.documentsCount": "დოკუმენტები: {count}",
   "postInner.info.author": "ავტორი",

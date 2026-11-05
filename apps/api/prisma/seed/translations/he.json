@@ -3715,6 +3715,8 @@
   "post.video.remove": "הסרת הווידאו",
   "post.video.trim": "חיתוך {start}–{end}",
   "post.viewComments": "הצגת כל התגובות ({count})",
+  "post.window.next": "הפוסט הבא",
+  "post.window.prev": "הפוסט הקודם",
   "postInner.docs.empty": "אין מסמכים",
   "postInner.documentsCount": "מסמכים: {count}",
   "postInner.info.author": "מחבר",

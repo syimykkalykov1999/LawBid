@@ -3715,6 +3715,8 @@
   "post.video.remove": "Fjarlægja myndband",
   "post.video.trim": "Klippa {start}–{end}",
   "post.viewComments": "Skoða allar athugasemdir ({count})",
+  "post.window.next": "Næsta færsla",
+  "post.window.prev": "Fyrri færsla",
   "postInner.docs.empty": "Engin skjöl",
   "postInner.documentsCount": "skjöl: {count}",
   "postInner.info.author": "Höfundur",

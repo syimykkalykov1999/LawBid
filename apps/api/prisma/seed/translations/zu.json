@@ -3715,6 +3715,8 @@
   "post.video.remove": "Susa ividiyo",
   "post.video.trim": "Anqamula {start}–{end}",
   "post.viewComments": "Buka zonke izimvo ({count})",
+  "post.window.next": "Okuthunyelwe okulandelayo",
+  "post.window.prev": "Okuthunyelwe kwangaphambilini",
   "postInner.docs.empty": "Awekho amadokhumenti",
   "postInner.documentsCount": "amadokhumenti: {count}",
   "postInner.info.author": "Umlobi",

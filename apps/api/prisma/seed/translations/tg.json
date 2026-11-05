@@ -3715,6 +3715,8 @@
   "post.video.remove": "Нест кардани видео",
   "post.video.trim": "Бурида {start}–{end}",
   "post.viewComments": "Дидани ҳамаи шарҳҳо ({count})",
+  "post.window.next": "Нашри навбатӣ",
+  "post.window.prev": "Нашри қаблӣ",
   "postInner.docs.empty": "Ҳуҷҷат нест",
   "postInner.documentsCount": "ҳуҷҷатҳо: {count}",
   "postInner.info.author": "Муаллиф",

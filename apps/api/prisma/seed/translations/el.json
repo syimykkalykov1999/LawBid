@@ -3715,6 +3715,8 @@
   "post.video.remove": "Κατάργηση βίντεο",
   "post.video.trim": "Περικοπή {start}–{end}",
   "post.viewComments": "Προβολή όλων των σχολίων ({count})",
+  "post.window.next": "Επόμενη ανάρτηση",
+  "post.window.prev": "Προηγούμενη ανάρτηση",
   "postInner.docs.empty": "Δεν υπάρχουν έγγραφα",
   "postInner.documentsCount": "έγγραφα: {count}",
   "postInner.info.author": "Συντάκτης",

@@ -3715,6 +3715,8 @@
   "post.video.remove": "ဗီဒီယိုဖယ်ရှားပါ",
   "post.video.trim": "ဖြတ်ရန် {start}–{end}",
   "post.viewComments": "မှတ်ချက်အားလုံး ကြည့်ရန် ({count})",
+  "post.window.next": "နောက်ပို့စ်",
+  "post.window.prev": "ယခင်ပို့စ်",
   "postInner.docs.empty": "စာရွက်စာတမ်း မရှိပါ",
   "postInner.documentsCount": "စာရွက်စာတမ်း - {count}",
   "postInner.info.author": "ရေးသားသူ",

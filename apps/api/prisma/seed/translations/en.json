@@ -3715,6 +3715,8 @@
   "post.video.remove": "Remove video",
   "post.video.trim": "Trim {start}–{end}",
   "post.viewComments": "View all comments ({count})",
+  "post.window.next": "Next post",
+  "post.window.prev": "Previous post",
   "postInner.docs.empty": "No documents",
   "postInner.documentsCount": "documents: {count}",
   "postInner.info.author": "Author",

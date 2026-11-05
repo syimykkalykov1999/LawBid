@@ -3715,6 +3715,8 @@
   "post.video.remove": "વિડિયો દૂર કરો",
   "post.video.trim": "ટ્રિમ {start}–{end}",
   "post.viewComments": "બધી કોમેન્ટ જુઓ ({count})",
+  "post.window.next": "આગલી પોસ્ટ",
+  "post.window.prev": "પાછલી પોસ્ટ",
   "postInner.docs.empty": "કોઈ દસ્તાવેજ નથી",
   "postInner.documentsCount": "દસ્તાવેજો: {count}",
   "postInner.info.author": "લેખક",

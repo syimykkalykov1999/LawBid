@@ -54,6 +54,7 @@ const Map<String, bool> defaultFeatureFlags = {
   'video_posts': false,
   'reels_client_publish': false,
   'files_multipart': false,
+  'web_post_window': false,
   'payments_in_app': false,
   'chat_translate': false,
   'auto_bar_check': false,

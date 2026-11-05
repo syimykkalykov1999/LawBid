@@ -3715,6 +3715,8 @@
   "post.video.remove": "Videoni olib tashlash",
   "post.video.trim": "Kesish {start}–{end}",
   "post.viewComments": "Barcha izohlarni ko‘rish ({count})",
+  "post.window.next": "Keyingi post",
+  "post.window.prev": "Oldingi post",
   "postInner.docs.empty": "Hujjatlar yo‘q",
   "postInner.documentsCount": "hujjatlar: {count}",
   "postInner.info.author": "Muallif",

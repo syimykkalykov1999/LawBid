@@ -3715,6 +3715,8 @@
   "post.video.remove": "Отстрани видео",
   "post.video.trim": "Пресечи {start}–{end}",
   "post.viewComments": "Прикажи ги сите коментари ({count})",
+  "post.window.next": "Следна објава",
+  "post.window.prev": "Претходна објава",
   "postInner.docs.empty": "Нема документи",
   "postInner.documentsCount": "документи: {count}",
   "postInner.info.author": "Автор",

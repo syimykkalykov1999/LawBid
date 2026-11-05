@@ -3715,6 +3715,8 @@
   "post.video.remove": "Бейнені жою",
   "post.video.trim": "Қию {start}–{end}",
   "post.viewComments": "Барлық пікірлерді көру ({count})",
+  "post.window.next": "Келесі жазба",
+  "post.window.prev": "Алдыңғы жазба",
   "postInner.docs.empty": "Құжаттар жоқ",
   "postInner.documentsCount": "құжат: {count}",
   "postInner.info.author": "Автор",

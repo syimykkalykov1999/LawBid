@@ -3715,6 +3715,8 @@
   "post.video.remove": "Noņemt video",
   "post.video.trim": "Apgriezt {start}–{end}",
   "post.viewComments": "Skatīt visus komentārus ({count})",
+  "post.window.next": "Nākamā ziņa",
+  "post.window.prev": "Iepriekšējā ziņa",
   "postInner.docs.empty": "Nav dokumentu",
   "postInner.documentsCount": "dokumenti: {count}",
   "postInner.info.author": "Autors",

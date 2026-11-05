@@ -3715,6 +3715,8 @@
   "post.video.remove": "Verwyder video",
   "post.video.trim": "Sny {start}–{end}",
   "post.viewComments": "Sien alle opmerkings ({count})",
+  "post.window.next": "Volgende plasing",
+  "post.window.prev": "Vorige plasing",
   "postInner.docs.empty": "Geen dokumente nie",
   "postInner.documentsCount": "dokumente: {count}",
   "postInner.info.author": "Skrywer",

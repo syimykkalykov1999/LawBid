@@ -3715,6 +3715,8 @@
   "post.video.remove": "Kendu bideoa",
   "post.video.trim": "Moztu {start}–{end}",
   "post.viewComments": "Ikusi iruzkin guztiak ({count})",
+  "post.window.next": "Hurrengo argitalpena",
+  "post.window.prev": "Aurreko argitalpena",
   "postInner.docs.empty": "Dokumenturik ez",
   "postInner.documentsCount": "dokumentuak: {count}",
   "postInner.info.author": "Egilea",

@@ -3715,6 +3715,8 @@
   "post.video.remove": "Видалити відео",
   "post.video.trim": "Обрізати {start}–{end}",
   "post.viewComments": "Переглянути всі коментарі ({count})",
+  "post.window.next": "Наступний допис",
+  "post.window.prev": "Попередній допис",
   "postInner.docs.empty": "Документів немає",
   "postInner.documentsCount": "документів: {count}",
   "postInner.info.author": "Автор",

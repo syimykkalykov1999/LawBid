@@ -3715,6 +3715,8 @@
   "post.video.remove": "Wepụ vidio",
   "post.video.trim": "Bepụ {start}–{end}",
   "post.viewComments": "Lelee nkọwa niile ({count})",
+  "post.window.next": "Ozi na-esote",
+  "post.window.prev": "Ozi gara aga",
   "postInner.docs.empty": "Enweghị akwụkwọ",
   "postInner.documentsCount": "akwụkwọ: {count}",
   "postInner.info.author": "Onye dere",

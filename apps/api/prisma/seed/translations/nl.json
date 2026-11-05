@@ -3715,6 +3715,8 @@
   "post.video.remove": "Video verwijderen",
   "post.video.trim": "Knippen {start}–{end}",
   "post.viewComments": "Alle reacties bekijken ({count})",
+  "post.window.next": "Volgend bericht",
+  "post.window.prev": "Vorig bericht",
   "postInner.docs.empty": "Geen documenten",
   "postInner.documentsCount": "documenten: {count}",
   "postInner.info.author": "Auteur",

@@ -3715,6 +3715,8 @@
   "post.video.remove": "Ka saar fiidiyoowga",
   "post.video.trim": "Gooy {start}–{end}",
   "post.viewComments": "Arag dhammaan faallooyinka ({count})",
+  "post.window.next": "Qoraalka xiga",
+  "post.window.prev": "Qoraalkii hore",
   "postInner.docs.empty": "Dukumeenti ma jiro",
   "postInner.documentsCount": "dukumeentiyo: {count}",
   "postInner.info.author": "Qoraa",

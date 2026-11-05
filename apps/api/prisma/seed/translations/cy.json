@@ -3715,6 +3715,8 @@
   "post.video.remove": "Dileu'r fideo",
   "post.video.trim": "Trimio {start}–{end}",
   "post.viewComments": "Gweld pob sylw ({count})",
+  "post.window.next": "Y postiad nesaf",
+  "post.window.prev": "Y postiad blaenorol",
   "postInner.docs.empty": "Dim dogfennau",
   "postInner.documentsCount": "dogfennau: {count}",
   "postInner.info.author": "Awdur",

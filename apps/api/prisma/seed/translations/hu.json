@@ -3715,6 +3715,8 @@
   "post.video.remove": "Videó eltávolítása",
   "post.video.trim": "Vágás {start}–{end}",
   "post.viewComments": "Összes hozzászólás megtekintése ({count})",
+  "post.window.next": "Következő bejegyzés",
+  "post.window.prev": "Előző bejegyzés",
   "postInner.docs.empty": "Nincs dokumentum",
   "postInner.documentsCount": "dokumentumok: {count}",
   "postInner.info.author": "Szerző",
