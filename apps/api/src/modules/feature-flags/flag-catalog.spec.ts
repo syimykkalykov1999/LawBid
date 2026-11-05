@@ -23,6 +23,14 @@ describe('FLAG_CATALOG — the one list of feature flags', () => {
     expect(f?.app).toBe(true);
   });
 
+  it('«only with the badge» is off by default and reaches the app (owner R-398)', () => {
+    const f = FLAG_CATALOG.find(
+      (x) => x.key === 'reels_client_publish_paid_only',
+    );
+    expect(f?.enabled).toBe(false);
+    expect(f?.app).toBe(true);
+  });
+
   it("the app's first-paint defaults are the catalog (run `npm run flags:sync` when this fails)", () => {
     const file = join(
       __dirname,
