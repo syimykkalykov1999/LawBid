@@ -31200,6 +31200,218 @@
         ]
       }
     },
+    "/users/me/role/switch": {
+      "get": {
+        "operationId": "previewRoleSwitch",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleSwitchPreviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ROLE_SWITCH_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Can this account switch its profile now",
+        "tags": [
+          "users"
+        ]
+      },
+      "post": {
+        "operationId": "switchRole",
+        "parameters": [
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "Single-use reauth token (account password or passkey).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwitchRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED, REAUTH_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: REAUTH_REQUIRED, ROLE_SWITCH_NOT_ALLOWED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: ROLE_SWITCH_BLOCKED, ROLE_ALREADY_SET",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Switch between attorney and client profile",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/users/me/onboarding": {
       "patch": {
         "operationId": "saveOnboardingStep",
@@ -133219,7 +133431,9 @@
           "DEAL_RECORD_PENDING",
           "DEAL_RECORD_INVALID_STATE",
           "PAYMENT_TERMS_DISABLED",
-          "PAYMENT_TERMS_INVALID"
+          "PAYMENT_TERMS_INVALID",
+          "ROLE_SWITCH_BLOCKED",
+          "ROLE_SWITCH_NOT_ALLOWED"
         ]
       },
       "ErrorBodyDto": {
@@ -136937,6 +137151,36 @@
           "createdAt"
         ]
       },
+      "AdminRoleSwitchDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "reverted": {
+            "type": "boolean",
+            "description": "Went back from an unfinished onboarding of the new profile."
+          },
+          "ip": {
+            "type": "string",
+            "nullable": true
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "reverted",
+          "ip",
+          "at"
+        ]
+      },
       "AdminUserCardDto": {
         "type": "object",
         "properties": {
@@ -137025,6 +137269,13 @@
           },
           "warnings": {
             "type": "integer"
+          },
+          "roleSwitches": {
+            "description": "Last 20 profile switches, newest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminRoleSwitchDto"
+            }
           }
         },
         "required": [
@@ -137045,7 +137296,8 @@
           "sessions",
           "cases",
           "bids",
-          "warnings"
+          "warnings",
+          "roleSwitches"
         ]
       },
       "AdminUserCardEnvelope": {
@@ -150905,6 +151157,80 @@
               "client",
               "attorney",
               "assistant"
+            ]
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "RoleSwitchPreviewDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "enum": [
+              "client",
+              "attorney"
+            ],
+            "type": "string"
+          },
+          "to": {
+            "enum": [
+              "client",
+              "attorney"
+            ],
+            "type": "string"
+          },
+          "allowed": {
+            "type": "boolean"
+          },
+          "blockers": {
+            "description": "What must be finished first: active_cases, active_bids, open_disputes, upcoming_consultations, paid_subscription, assistants, firm.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "needsOnboarding": {
+            "type": "boolean",
+            "description": "The other profile does not exist yet: the usual onboarding opens after the switch."
+          },
+          "retryAfterSeconds": {
+            "type": "integer",
+            "description": "Seconds until the daily limit allows a switch; 0 = now."
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "allowed",
+          "blockers",
+          "needsOnboarding",
+          "retryAfterSeconds"
+        ]
+      },
+      "RoleSwitchPreviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RoleSwitchPreviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SwitchRoleDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "client",
+              "attorney"
             ]
           }
         },

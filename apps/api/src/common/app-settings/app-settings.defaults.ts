@@ -927,6 +927,11 @@ export const OWNER_COUNTRY_SETTINGS = {
  * panel keeps several queues live on one screen). Users keep 100/min.
  * ADMIN_THROTTLE_LIMIT in the env wins (src/throttler/throttle-limits.ts). */
 export const OWNER_RATE_LIMIT_SETTINGS = {
+  /** Owner 2026-11-05 (role switch, Settings → Account): how many times one
+   * account may switch between the attorney and the client profile within
+   * 24 hours (going back from an unfinished onboarding does not count).
+   * Below 1 counts as 1. */
+  'account.role_switch_per_day': 2,
   'security.admin_rate_limit_per_minute': 600,
   /** Scale audit 2026-10-23: requests per minute for callers who are not
    * signed in, per address (CGNAT / office addresses carry many people).

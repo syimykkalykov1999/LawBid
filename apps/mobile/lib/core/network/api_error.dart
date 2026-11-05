@@ -96,6 +96,7 @@ abstract final class ApiErrorCodes {
   static const clientContactsIncomplete = 'CLIENT_CONTACTS_INCOMPLETE';
   static const onboardingIncomplete = 'ONBOARDING_INCOMPLETE';
   static const roleAlreadySet = 'ROLE_ALREADY_SET';
+  static const roleSwitchBlocked = 'ROLE_SWITCH_BLOCKED';
   static const notImplemented = 'NOT_IMPLEMENTED';
 
   // i18n (docs/01 §9, stage 1.6)
@@ -409,6 +410,7 @@ abstract final class ApiErrorCodes {
     clientContactsIncomplete,
     onboardingIncomplete,
     roleAlreadySet,
+    roleSwitchBlocked,
     notImplemented,
     i18nLanguageNotFound,
     i18nImportInvalid,
