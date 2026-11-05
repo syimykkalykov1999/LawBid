@@ -38,8 +38,8 @@ export function stateOfTransport(t: string | null | undefined): CostState {
 
 export const TRANSPORT_HINT: Record<CostState, string> = {
   off: 'Cloudflare не используется: все звонки идут через свою связь (свой TURN-сервер coturn и напрямую между телефонами).',
-  on: 'Только Cloudflare, без автоматического перехода на свою связь (нужны ключи Cloudflare).',
-  auto: 'Cloudflare основной; если он сбоит, звонки сами переходят на свою связь и сами возвращаются. По умолчанию.',
+  on: 'Только Cloudflare: свой TURN и напрямую между телефонами не используются, своя машина не запускается. Нет Cloudflare — звонок не состоится (нужны ключи Cloudflare).',
+  auto: 'Пока Cloudflare исправен, все звонки идут только через него. Если он сбоит, звонки сами переходят на свою связь и сами возвращаются. По умолчанию.',
 };
 
 export function carryingLine(r: Pick<CallsPath, 'carrying'>): string {
@@ -93,6 +93,39 @@ export function ownStatus(r: CallsPath): CostRowStatus {
   if (side.lastProbeOk === false) return status(r, 'attention', 'последняя проверка своей связи не прошла', at);
   if (r.carrying === 'own') return status(r, 'active', 'несёт звонки сейчас', at);
   return status(r, 'idle', 'в запасе: включится сама, если Cloudflare сбоит', at);
+}
+
+/**
+ * R-402 (owner 2026-11-04, «Соединение…» for minutes): is there a TURN relay
+ * on offer for NEW calls at all? Without one the phones get STUN only and
+ * behind mobile (symmetric) NAT the call never connects or stays weak.
+ * Cloudflare counts only with its TURN keys switched on («Включить» in the
+ * key card; saved-but-off keys are invisible to the server) and the switch
+ * not on «Выкл»; our own side counts with a coturn address (fixed or the
+ * on-demand box while it runs).
+ */
+export function relayWarning(r: CallsPath): string | null {
+  if (r.transport === 'cloudflare') {
+    if (!r.cloudflare.parts.turn) {
+      return 'Звонки не состоятся: выбран «Вкл» (только Cloudflare), а ключи Cloudflare TURN не включены (в карточке ключа нажмите «Включить»).';
+    }
+    if (r.cloudflare.lastProbeOk === false || r.breakers.turn === 'open') {
+      return 'Звонки могут не состояться: выбран «Вкл» (только Cloudflare), а его ретранслятор не отвечает. Своя связь при «Вкл» не используется; переключите на «Авто», если нужно.';
+    }
+    return null;
+  }
+  const cf = r.cloudflare.parts.turn && r.transport !== 'own';
+  const own = r.own.parts.turn;
+  if (own) return null;
+  if (!cf) {
+    return r.cloudflare.parts.turn
+      ? 'Нет ретранслятора (TURN): Cloudflare выключен («Выкл»), а свой TURN-сервер не настроен или остановлен. Звонки идут только напрямую — через мобильный интернет соединение может не установиться. Переключите на «Авто» или включите свой TURN.'
+      : 'Нет ретранслятора (TURN): ключи Cloudflare TURN не включены (в карточке ключа нажмите «Включить»), а свой TURN-сервер не настроен или остановлен. Звонки идут только напрямую — через мобильный интернет соединение может не установиться.';
+  }
+  if (r.cloudflare.lastProbeOk === false || r.breakers.turn === 'open') {
+    return 'Ретранслятор Cloudflare TURN не отвечает, а своего TURN-сервера нет: звонки идут только напрямую, пока Cloudflare не вернётся.';
+  }
+  return null;
 }
 
 /** «✓ 120 мс» / «✗ причина» / null when never checked. */

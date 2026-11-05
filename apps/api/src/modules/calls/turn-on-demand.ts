@@ -62,6 +62,23 @@ export function parseOwnTurnMode(v: unknown): OwnTurnMode {
   return v === 'on' || v === 'off' ? v : 'auto';
 }
 
+/**
+ * Owner 2026-11-04: `calls.transport` wins where the two would disagree.
+ * Вкл (`cloudflare`) = Cloudflare only: the box never runs. Выкл (`own`) =
+ * Cloudflare off, our path carries calls: the box runs when it is needed
+ * (always, unless a fixed own TURN exists), even if `calls.own_turn.mode`
+ * says off. Авто: `calls.own_turn.mode` as it is.
+ */
+export function effectiveOwnTurnMode(
+  transport: unknown,
+  box: unknown,
+): OwnTurnMode {
+  if (transport === 'cloudflare') return 'off';
+  const mode = parseOwnTurnMode(box);
+  if (transport === 'own') return mode === 'on' ? 'on' : 'auto';
+  return mode;
+}
+
 export interface TurnOnDemandPorts {
   instance: TurnInstancePort;
   store: TurnOnDemandStore;

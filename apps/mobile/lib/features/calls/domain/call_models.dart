@@ -265,11 +265,21 @@ const callMaxSfu = 20;
 /// One ICE server (STUN or TURN) for WebRTC.
 @immutable
 class IceServer {
-  const IceServer({required this.urls, this.username, this.credential});
+  const IceServer({
+    required this.urls,
+    this.username,
+    this.credential,
+    this.relayOnly = false,
+  });
 
   final List<String> urls;
   final String? username;
   final String? credential;
+
+  /// Owner 2026-11-04: the server's `iceTransportPolicy` of the list this
+  /// entry came in: media only through the relay. Not part of the entry's
+  /// JSON (the policy is a field of the whole peer connection config).
+  final bool relayOnly;
 
   Map<String, Object?> toJson() => {
         'urls': urls,
