@@ -48,6 +48,9 @@ CaseDetailForAttorneyDto _$CaseDetailForAttorneyDtoFromJson(
       : ClientActivityDto.fromJson(
           json['clientActivity'] as Map<String, dynamic>,
         ),
+  extraPracticeCodes: (json['extraPracticeCodes'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
   ownBidId: json['ownBidId'] as String?,
   promotedUntil: json['promotedUntil'] == null
       ? null
@@ -106,6 +109,7 @@ Map<String, dynamic> _$CaseDetailForAttorneyDtoToJson(
   'clientActivity': ?instance.clientActivity?.toJson(),
   'dossier': instance.dossier.toJson(),
   'description': instance.description,
+  'extraPracticeCodes': ?instance.extraPracticeCodes,
   'ownBidId': ?instance.ownBidId,
   'acceptedBidIsMine': instance.acceptedBidIsMine,
   'completionRequestedBy': ?instance.completionRequestedBy?.toJson(),

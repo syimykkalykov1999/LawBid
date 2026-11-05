@@ -3,7 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/deals/deal_record_format.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_option_picker.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Deal record 2026-10-27: the rich payment terms of a bid (plan §2.3), shown
@@ -112,8 +115,12 @@ class RichTermsDraft {
             _cents(installment) != null &&
             _int(count) != null;
       case api.PaymentTermsDtoType.mixed:
-        return [_cents(flat), _cents(rate), _bps(percent), _cents(retainer)]
-            .any((x) => x != null);
+        return [
+          _cents(flat),
+          _cents(rate),
+          _bps(percent),
+          _cents(retainer),
+        ].any((x) => x != null);
       case api.PaymentTermsDtoType.toBeClarified:
         return true;
       case api.PaymentTermsDtoType.$unknown:
@@ -127,6 +134,7 @@ class RichTermsEditor extends ConsumerWidget {
     required this.draft,
     required this.onChanged,
     this.enabled = true,
+    this.percentAllowed = true,
     super.key,
   });
 
@@ -134,13 +142,31 @@ class RichTermsEditor extends ConsumerWidget {
   final VoidCallback onChanged;
   final bool enabled;
 
+  /// The case's topics allow a percent (the server checks it too).
+  final bool percentAllowed;
+
+  static String _hint(Translator t, api.PaymentTermsDtoType x) =>
+      t.t(switch (x) {
+        api.PaymentTermsDtoType.flat => 'cases.pay.fixedHint',
+        api.PaymentTermsDtoType.hourly => 'cases.pay.hourlyHint',
+        api.PaymentTermsDtoType.contingencyPct => 'cases.pay.percentHint',
+        api.PaymentTermsDtoType.retainerPlusInstallments =>
+          'cases.pay.retainerHint',
+        api.PaymentTermsDtoType.mixed => 'cases.pay.mixedHint',
+        _ => 'cases.pay.laterHint',
+      },);
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final types = api.PaymentTermsDtoType.values
-        .where((x) => x != api.PaymentTermsDtoType.$unknown)
+        .where(
+          (x) =>
+              x != api.PaymentTermsDtoType.$unknown &&
+              (percentAllowed || x != api.PaymentTermsDtoType.contingencyPct),
+        )
         .toList();
     Widget money(TextEditingController c, String label) => Padding(
           padding: const EdgeInsets.only(top: AppSpacing.md),
@@ -183,25 +209,19 @@ class RichTermsEditor extends ConsumerWidget {
           style: typography.bodySmall.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: AppSpacing.sm),
-        DropdownButtonFormField<api.PaymentTermsDtoType?>(
-          initialValue: draft.type,
-          decoration: InputDecoration(labelText: t.t('deal.row.terms')),
-          items: [
-            DropdownMenuItem<api.PaymentTermsDtoType?>(
-              child: Text(String.fromCharCode(0x2014)),
-            ),
+        CaseOptionPicker<api.PaymentTermsDtoType>(
+          label: t.t('deal.row.terms'),
+          value: draft.type,
+          enabled: enabled,
+          clearLabel: String.fromCharCode(0x2014),
+          options: [
             for (final x in types)
-              DropdownMenuItem<api.PaymentTermsDtoType?>(
-                value: x,
-                child: Text(DealRecordFormat.typeLabel(t, x)),
-              ),
+              CaseOption(x, DealRecordFormat.typeLabel(t, x), _hint(t, x)),
           ],
-          onChanged: enabled
-              ? (v) {
-                  draft.type = v;
-                  onChanged();
-                }
-              : null,
+          onChanged: (v) {
+            draft.type = v;
+            onChanged();
+          },
         ),
         if (draft.showsFlat) money(draft.flat, t.t('cases.bidForm.amount')),
         if (draft.showsHourly) ...[
@@ -214,7 +234,7 @@ class RichTermsEditor extends ConsumerWidget {
             ],
           ),
         ],
-        if (draft.showsPercent)
+        if (draft.showsPercent && percentAllowed)
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.md),
             child: AppTextField(
@@ -225,8 +245,9 @@ class RichTermsEditor extends ConsumerWidget {
                 '%',
                 style: typography.titleMedium.copyWith(color: colors.goldDark),
               ),
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
                 LengthLimitingTextInputFormatter(6),
@@ -239,27 +260,23 @@ class RichTermsEditor extends ConsumerWidget {
         if (draft.showsInstallments) ...[
           money(draft.installment, t.t('deal.terms.installment')),
           number(draft.count, t.t('deal.terms.count')),
+          // Owner 2026-11-05: the period is a strip of three parts.
           Padding(
             padding: const EdgeInsets.only(top: AppSpacing.md),
-            child:
-                DropdownButtonFormField<api.PaymentTermsDtoInstallmentPeriod>(
-              initialValue: draft.period,
-              items: [
+            child: SegmentedChoice<api.PaymentTermsDtoInstallmentPeriod>(
+              value: draft.period,
+              options: [
                 for (final p
                     in api.PaymentTermsDtoInstallmentPeriod.values.where(
                   (x) => x != api.PaymentTermsDtoInstallmentPeriod.$unknown,
                 ))
-                  DropdownMenuItem(
-                    value: p,
-                    child: Text(DealRecordFormat.periodLabel(t, p)),
-                  ),
+                  (p, DealRecordFormat.periodLabel(t, p)),
               ],
-              onChanged: enabled
-                  ? (v) {
-                      if (v != null) draft.period = v;
-                      onChanged();
-                    }
-                  : null,
+              onChanged: (v) {
+                if (!enabled) return;
+                draft.period = v;
+                onChanged();
+              },
             ),
           ),
         ],

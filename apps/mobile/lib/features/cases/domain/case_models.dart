@@ -563,6 +563,7 @@ class FeedCase {
     this.promotedUntil,
     this.priorityClient = false,
     this.extraPracticeCount = 0,
+    this.extraPracticeCodes = const [],
     this.completionRequestedBy,
     this.autoCloseAt,
     this.acceptedBidIsMine = false,
@@ -632,6 +633,9 @@ class FeedCase {
 
   /// Owner 2026-10-15: topics besides the first — «+N» on the card.
   final int extraPracticeCount;
+
+  /// Codes of those topics (the case's detail only).
+  final List<String> extraPracticeCodes;
 
   final String id;
   final String title;

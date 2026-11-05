@@ -387,6 +387,9 @@ export class CasesFeedService {
           client_completed_at: true,
           attorney_confirmed_at: true,
           auto_close_at: true,
+          extra_practices: {
+            select: { practice_area: { select: { code: true } } },
+          },
         },
       }),
       this.prisma.savedItem.findFirst({
@@ -405,6 +408,7 @@ export class CasesFeedService {
       : { photos: [], photosCount: 0, privateDetails: null };
     return {
       ...item,
+      extraPracticeCodes: row.extra_practices.map((e) => e.practice_area.code),
       description: row.description,
       isSaved: !!saved,
       ownBidId: ownBid?.id ?? null,
