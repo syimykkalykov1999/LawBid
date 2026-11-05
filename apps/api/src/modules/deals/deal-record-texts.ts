@@ -14,6 +14,9 @@ export const DEAL_RECORD_TEXT_KEYS = {
   pdfTitle: 'deal_record.pdf.title',
   pdfNotContract: 'deal_record.pdf.not_contract',
   pdfFooter: 'deal_record.pdf.footer',
+  // R-392 (owner 2026-11-04): the full disclaimer block at the end of the
+  // document (no party, no payments in the app, agreements kept apart).
+  pdfTerms: 'deal_record.pdf.terms',
   consentNotContract: 'deal_record.consent.not_contract',
   consentPlatform: 'deal_record.consent.platform',
   consentAccurate: 'deal_record.consent.accurate',
@@ -26,6 +29,8 @@ export const DEAL_RECORD_DEFAULT_TEXTS = {
     'This is not a contract. The attorney and the client conclude their legal-services agreement separately. This document only records how they agreed inside the LawBid app.',
   [DEAL_RECORD_TEXT_KEYS.pdfFooter]:
     'LawBid is a listing board: clients post cases, attorneys make offers. LawBid is not a party to your agreement, is not an intermediary, does not handle or take any part of any payment or fee, and is not responsible for the result. This document only records how you agreed in the app, on the dates shown.',
+  [DEAL_RECORD_TEXT_KEYS.pdfTerms]:
+    'LawBid is not a party to the agreement between the client and the attorney and is not an intermediary. LawBid does not accept, hold or transfer any payment, and no payment for legal services is made inside the LawBid app. The fee agreement and the legal-services agreement are made directly between the client and the attorney, separately from this case and from the app. Any question or dispute about the services, the fee or a payment is between the client and the attorney and is governed by the law that applies to their agreement.',
   [DEAL_RECORD_TEXT_KEYS.consentNotContract]: 'This is not a contract',
   [DEAL_RECORD_TEXT_KEYS.consentPlatform]:
     'The platform is not a party and does not take part in payment',
@@ -54,6 +59,7 @@ export class DealRecordTexts {
       DEAL_RECORD_TEXT_KEYS.pdfTitle,
       DEAL_RECORD_TEXT_KEYS.pdfNotContract,
       DEAL_RECORD_TEXT_KEYS.pdfFooter,
+      DEAL_RECORD_TEXT_KEYS.pdfTerms,
     ];
     const rows = await this.prisma.i18nTranslation.findMany({
       where: { lang: 'en', i18n_key: { key: { in: keys } } },
@@ -72,6 +78,7 @@ export class DealRecordTexts {
       title: pick(DEAL_RECORD_TEXT_KEYS.pdfTitle),
       notContract: pick(DEAL_RECORD_TEXT_KEYS.pdfNotContract),
       footer: pick(DEAL_RECORD_TEXT_KEYS.pdfFooter),
+      terms: pick(DEAL_RECORD_TEXT_KEYS.pdfTerms),
       textVersion: Math.max(0, ...rows.map((r) => r.version)),
     };
   }

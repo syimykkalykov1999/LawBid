@@ -40,6 +40,7 @@ import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
 import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart'
     deferred as d_work_case_screen;
+import 'package:lawbid/features/cases/presentation/widgets/case_sections.dart';
 import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/client_badge/presentation/client_badge_screen.dart'
@@ -406,7 +407,11 @@ GoRouter appRouter(Ref ref) {
           // Desktop web plan §6.4: list | case on a desktop window.
           CasesAdaptivePage(
             location: state.matchedLocation,
-            phone: OwnerCaseScreen(caseId: state.pathParameters['id'] ?? ''),
+            phone: OwnerCaseScreen(
+              caseId: state.pathParameters['id'] ?? '',
+              initialSection:
+                  caseSectionFromName(state.uri.queryParameters['tab']),
+            ),
           ),
         ),
       ),
@@ -507,6 +512,8 @@ GoRouter appRouter(Ref ref) {
               load: d_work_case_screen.loadLibrary,
               builder: (_) => d_work_case_screen.WorkCaseScreen(
                 caseId: state.pathParameters['id'] ?? '',
+                initialSection:
+                    caseSectionFromName(state.uri.queryParameters['tab']),
               ),
             ),
           ),

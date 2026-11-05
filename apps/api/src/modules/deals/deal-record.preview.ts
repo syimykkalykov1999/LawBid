@@ -100,6 +100,7 @@ export class DealRecordPreview {
       texts: {
         notContract: texts.notContract,
         footer: texts.footer,
+        terms: texts.terms,
         textVersion: texts.textVersion,
       },
     };
