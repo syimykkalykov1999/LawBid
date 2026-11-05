@@ -217,8 +217,8 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // code (first launch only). Fire-and-forget, never delays first paint.
   unawaited(captureInstallReferrer(container));
 
-  // Owner 2026-10-22 (load audit finding 8): case files not opened for a
-  // week leave the phone — in the background, after the first screens.
+  // Broken case-file downloads leave the phone — in the background, after
+  // the first screens (finished files stay until someone deletes them).
   if (!kIsWeb) {
     unawaited(
       Future<void>.delayed(const Duration(seconds: 20), CaseFileCache.cleanUp),

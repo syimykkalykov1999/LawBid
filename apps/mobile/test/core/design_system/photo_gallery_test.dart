@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/media/photo_saver.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 
 import '../../helpers/ux_harness.dart';
@@ -67,5 +68,23 @@ void main() {
     await pump(t);
     expect(find.text('SK'), findsOneWidget);
     expect(find.byKey(const ValueKey('avatar-open')), findsNothing);
+  });
+
+  testWidgets('«Download» in the top bar saves the shown photo', (t) async {
+    final saved = <String>[];
+    debugSavePhoto = (url) async {
+      saved.add(url);
+      return PhotoSaveResult.noAccess;
+    };
+    addTearDown(() => debugSavePhoto = null);
+    await pump(t, url: 'https://x.test/me.jpg');
+    await t.tap(find.byKey(const ValueKey('avatar-open')));
+    await t.pumpAndSettle();
+
+    await t.tap(find.byKey(const ValueKey('gallery-save')));
+    await t.pump();
+
+    expect(saved, ['https://x.test/me.jpg']);
+    expect(find.textContaining('No access to your photos'), findsWidgets);
   });
 }

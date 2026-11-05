@@ -43,6 +43,7 @@ class LawBidApp extends ConsumerWidget {
     // once a day, and today's network use is counted from the start.
     ref
       ..watch(cacheEnforcerProvider)
+      ..watch(accountFilesGuardProvider)
       ..watch(networkUsageTodayProvider);
     // Owner 2026-10-13: Day, Night, Blue or Green; never chosen = Day or
     // Night by the phone.
