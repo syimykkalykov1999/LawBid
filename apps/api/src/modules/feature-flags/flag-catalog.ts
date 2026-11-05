@@ -189,6 +189,44 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Resumable (multipart) uploads of large files',
   },
   {
+    // R-251: on, the app sends a reel to Bunny in 4 pieces at once and asks
+    // Bunny to join them (TUS concatenation; Bunny announces it, but it was
+    // not tried with a real video: off until checked on a phone). A refusal
+    // falls back to the plain single-stream upload.
+    key: 'reels_tus_parallel',
+    enabled: false,
+    app: true,
+    description:
+      'Reels, stories and channel videos go to Bunny in parallel pieces',
+  },
+  {
+    // R-251: on, a big queued chat file goes in parallel S3 parts while the
+    // app is on screen and passes to the OS background transfer when it
+    // leaves; several files of a group chat or a task go up together. Needs
+    // `files_multipart`. Off until checked on a phone with real storage.
+    key: 'chat_upload_parallel',
+    enabled: false,
+    app: true,
+    description: 'Chat files go in parallel parts while the app is on screen',
+  },
+  {
+    // R-251: on, a document over 4 MB comes down in parallel HTTP Range
+    // pieces. A server without Range falls back by itself. Off until checked
+    // on a phone with real storage.
+    key: 'downloads_parallel',
+    enabled: false,
+    app: true,
+    description: 'Documents download in parallel pieces',
+  },
+  {
+    // R-251: on, the blocks of a video's cached start are fetched at once.
+    // Off until measured against the real CDN.
+    key: 'video_cache_parallel',
+    enabled: false,
+    app: true,
+    description: 'The cached start of a video is fetched in parallel blocks',
+  },
+  {
     key: 'payments_in_app',
     enabled: false,
     app: true,

@@ -24,6 +24,24 @@ Future<void> cancelBackgroundUpload(String taskId) async {
   }
 }
 
+bool get backgroundHandsOff =>
+    !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+/// A transfer of [taskId] that is running or complete. On any doubt: true, so
+/// the file stays with the OS as before.
+Future<bool> backgroundUploadKnown(String taskId) async {
+  if (!backgroundHandsOff) return false;
+  try {
+    await BackgroundStorageTransport._start();
+    final record = await FileDownloader().database.recordForId(taskId);
+    return record != null &&
+        (record.status == TaskStatus.complete || record.status.isNotFinalState);
+  } on Object catch (e) {
+    debugPrint('upload record $taskId: $e');
+    return true;
+  }
+}
+
 /// Owner 2026-10-22 (audit #4 §3): the S3 POST of a queued file as an OS
 /// background transfer (`background_downloader`: Android WorkManager, iOS
 /// background URLSession). The task id is the queue job's id, so after the
