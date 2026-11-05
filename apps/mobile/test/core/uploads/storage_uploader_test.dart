@@ -492,6 +492,63 @@ void main() {
     });
   });
 
+  group('a file this user already stored (R-254)', () {
+    Map<String, Object?> presignBody() => jsonDecode(
+          jsonEncode(
+            apiAdapter.requests
+                .firstWhere((r) => r.path == '/files/presign')
+                .data,
+          ),
+        ) as Map<String, Object?>;
+
+    test('nothing goes to storage, no confirm, the id comes back', () async {
+      apiAdapter.handler = (o) async => jsonBody(
+            {
+              'data': {
+                'fileId': 'ready',
+                'upload': {'url': '', 'fields': <String, String>{}},
+                'expiresAt': '2026-11-05T10:05:00.000Z',
+                'existing': true,
+              },
+            },
+            201,
+          );
+      final progress = <double>[];
+      final id = await uploader().upload(
+        purpose: api.FilePurpose.chatAttachment,
+        body: UploadBody.bytes(Uint8List.fromList([1, 2, 3])),
+        mime: 'application/pdf',
+        onProgress: progress.add,
+      );
+      expect(id, 'ready');
+      expect(storage.requests, isEmpty);
+      expect(apiAdapter.requests, hasLength(1));
+      expect(progress.last, 1);
+      expect(presignBody()['acceptsExisting'], isTrue);
+    });
+
+    test('a server without it: the usual upload', () async {
+      final id = await uploader().upload(
+        purpose: api.FilePurpose.chatAttachment,
+        body: UploadBody.bytes(Uint8List.fromList([1, 2, 3])),
+        mime: 'image/png',
+      );
+      expect(id, 'file-1');
+      expect(storage.requests, hasLength(1));
+    });
+
+    test('a direct presign (avatars, verification) does not ask for it',
+        () async {
+      await uploader().presign(
+        purpose: api.FilePurpose.avatar,
+        mime: 'image/png',
+        sizeBytes: 3,
+        sha256: 'abc',
+      );
+      expect(presignBody().containsKey('acceptsExisting'), isFalse);
+    });
+  });
+
   group('a queue job the OS transfer outlives (the app was closed)', () {
     late Set<String> inStorage;
     late List<String> confirmed;
