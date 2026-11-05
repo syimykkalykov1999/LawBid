@@ -4,6 +4,13 @@
 // compiled-in strings merged into StaticTranslatorRu/En.
 
 const attorneySetupRu = <String, String>{
+  // Owner 2026-11-05: names under the numbered sign-up stepper.
+  'onboarding.stepper.consents': 'Согласия',
+  'onboarding.stepper.role': 'Роль',
+  'onboarding.stepper.profile': 'Профиль',
+  'onboarding.stepper.license': 'Лицензия',
+  'onboarding.stepper.practices': 'Практики',
+  'onboarding.stepper.finish': 'Готово',
   'onboarding.attorney.license.title': 'Подтвердите лицензию',
   'onboarding.attorney.license.subtitle':
       'Штат и номер лицензии и одна галочка, что данные верны. Подтверждение сразу.',
@@ -50,6 +57,12 @@ const attorneySetupRu = <String, String>{
 };
 
 const attorneySetupEn = <String, String>{
+  'onboarding.stepper.consents': 'Consents',
+  'onboarding.stepper.role': 'Role',
+  'onboarding.stepper.profile': 'Profile',
+  'onboarding.stepper.license': 'License',
+  'onboarding.stepper.practices': 'Practice areas',
+  'onboarding.stepper.finish': 'Finish',
   'onboarding.attorney.license.title': 'Confirm your license',
   'onboarding.attorney.license.subtitle':
       'Your state and bar number, plus one checkbox that the details are true. Approved right away.',

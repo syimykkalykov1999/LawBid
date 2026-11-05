@@ -22,6 +22,11 @@ import {
 } from '../../staff-core/staff-recorder.port';
 import { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
 import {
+  ADMIN_COUNTS_SUMMARY_KEY,
+  verificationQueueWhere,
+} from '../../../common/admin-queues/admin-queues';
+import { AdminSummaryService } from '../../../common/admin-summary/admin-summary.service';
+import {
   BLOCK_SOURCE,
   BarNumberBlocksService,
 } from '../../attorney-trust/bar-number-blocks.service';
@@ -134,8 +139,17 @@ export class VerificationAdminService {
     // Owner 2026-11-04 (R-394): registry lookups run in the background.
     @Optional() private readonly registryQueue?: RegistryCheckQueue,
     @Optional() registryWorker?: RegistryCheckWorker,
+    // R-403: a decision drops the shared sidebar counts (badge = list).
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {
     registryWorker?.handle((data) => this.runRegistryCheck(data));
+  }
+
+  /** R-403: the next `GET /admin/counts` recounts (an item left the queue). */
+  private dropCounts(): Promise<void> {
+    return (
+      this.summary?.dropFamily(ADMIN_COUNTS_SUMMARY_KEY) ?? Promise.resolve()
+    );
   }
 
   private endLease(admin: AdminActor, requestId: string, outcome: string) {
@@ -176,22 +190,12 @@ export class VerificationAdminService {
     const after = query.cursor ? decodeCursor(query.cursor) : null;
     const rows = await this.prisma.verificationRequest.findMany({
       where: {
-        // Owner 2026-10-05: a verifier for one country sees only its
-        // attorneys.
-        ...(countries && {
-          AND: [{ attorney: { user: userInScope(countries) } }],
-        }),
-        status: {
-          in: query.status ? [query.status] : ['submitted', 'needs_more_info'],
-        },
-        submitted_at: { not: null },
-        ...(query.stateCode && {
-          attorney: {
-            licenses: {
-              some: { state_code: query.stateCode, license_status: 'pending' },
-            },
-          },
-        }),
+        // R-403: the same predicate feeds the sidebar badge
+        // (common/admin-queues), so badge == rows of this default view.
+        ...verificationQueueWhere(
+          { status: query.status, stateCode: query.stateCode },
+          countries,
+        ),
         ...(after && {
           OR: [
             { submitted_at: { gt: after.createdAt } },
@@ -404,6 +408,7 @@ export class VerificationAdminService {
         requestId: req.id,
       });
     });
+    await this.dropCounts();
     return this.card(requestId);
   }
 
@@ -588,6 +593,7 @@ export class VerificationAdminService {
       outcome: 'approve',
     });
     await this.endLease(admin, requestId, 'approve');
+    await this.dropCounts();
     return this.card(requestId);
   }
 
@@ -628,6 +634,7 @@ export class VerificationAdminService {
       });
     });
     await this.endLease(admin, requestId, 'request_info');
+    await this.dropCounts();
     return this.card(requestId);
   }
 
@@ -716,6 +723,7 @@ export class VerificationAdminService {
       outcome: 'reject',
     });
     await this.endLease(admin, requestId, 'reject');
+    await this.dropCounts();
     return this.card(requestId);
   }
 

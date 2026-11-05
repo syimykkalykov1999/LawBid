@@ -291,20 +291,23 @@ class ApiCallsRepository implements CallsRepository {
   }
 
   @override
-  Future<List<IceServer>> iceServers({bool relayFailed = false}) async =>
-      (await guardApiCall(
-        () => _api.callIceServers(relayFailed: relayFailed ? true : null),
-      ))
-          .data
-          .iceServers
-          .map(
-            (s) => IceServer(
-              urls: s.urls,
-              username: s.username,
-              credential: s.credential,
-            ),
-          )
-          .toList();
+  Future<List<IceServer>> iceServers({bool relayFailed = false}) async {
+    final body = (await guardApiCall(
+      () => _api.callIceServers(relayFailed: relayFailed ? true : null),
+    ))
+        .data;
+    final relayOnly =
+        body.iceTransportPolicy == api.IceServersDtoIceTransportPolicy.relay;
+    return [
+      for (final s in body.iceServers)
+        IceServer(
+          urls: s.urls,
+          username: s.username,
+          credential: s.credential,
+          relayOnly: relayOnly,
+        ),
+    ];
+  }
 }
 
 abstract final class CallMappers {

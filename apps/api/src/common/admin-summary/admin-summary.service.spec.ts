@@ -145,4 +145,50 @@ describe('AdminSummaryService.keepWarm (R-370)', () => {
       jest.useRealTimers();
     }
   });
+
+  /** R-403: one copy per country scope; an action forgets them all. */
+  it('keeps a copy per scope and dropFamily forgets every one', async () => {
+    const store = new Map<string, string>();
+    const scopes = new Set<string>();
+    const redis = {
+      get: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
+      set: jest.fn((k: string, v: string) => {
+        store.set(k, v);
+        return Promise.resolve('OK');
+      }),
+      del: jest.fn((...keys: string[]) => {
+        keys.forEach((k) => store.delete(k));
+        return Promise.resolve(keys.length);
+      }),
+      sadd: jest.fn((_k: string, m: string) => {
+        scopes.add(m);
+        return Promise.resolve(1);
+      }),
+      expire: jest.fn(() => Promise.resolve(1)),
+      smembers: jest.fn(() => Promise.resolve([...scopes])),
+    };
+    const svc = new AdminSummaryService(redis as never);
+    const all = jest.fn(() => Promise.resolve(5));
+    const us = jest.fn(() => Promise.resolve(2));
+    expect((await svc.getScoped('c', null, all, 30)).data).toBe(5);
+    expect((await svc.getScoped('c', 'US', us, 30)).data).toBe(2);
+    await svc.getScoped('c', null, all, 30);
+    await svc.getScoped('c', 'US', us, 30);
+    expect(all).toHaveBeenCalledTimes(1);
+    expect(us).toHaveBeenCalledTimes(1);
+
+    await svc.dropFamily('c');
+    await svc.getScoped('c', null, all, 30);
+    await svc.getScoped('c', 'US', us, 30);
+    expect(all).toHaveBeenCalledTimes(2);
+    expect(us).toHaveBeenCalledTimes(2);
+  });
+
+  it('dropFamily survives Redis being down', async () => {
+    const redis = {
+      smembers: jest.fn(() => Promise.reject(new Error('down'))),
+    };
+    const svc = new AdminSummaryService(redis as never);
+    await expect(svc.dropFamily('c')).resolves.toBeUndefined();
+  });
 });

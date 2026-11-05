@@ -6,6 +6,10 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import {
+  ADMIN_COUNTS_SUMMARY_KEY,
+  unreadTicketsWhere,
+} from '../../common/admin-queues/admin-queues';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import type { Prisma, SupportMessage, SupportTicket } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -98,10 +102,12 @@ export class AdminSupportService {
       ...(countries ? { country_code: { in: countries } } : {}),
       ...(q.status ? { status: q.status } : {}),
       // Owner 2026-10-18: «Непрочитанные» — something new from the user.
+      // R-403: the same predicate is the «Поддержка» sidebar badge
+      // (common/admin-queues).
       ...(q.unread
         ? {
-            unread_by_admin: true,
-            ...(q.status ? {} : { status: { not: 'closed' } }),
+            ...unreadTicketsWhere(),
+            ...(q.status ? { status: q.status } : {}),
           }
         : {}),
       ...(q.category ? { category: q.category } : {}),
@@ -172,15 +178,10 @@ export class AdminSupportService {
       this.prisma.supportTicket.count({
         where: { status: 'open', assignee_id: null },
       }),
-      this.prisma.supportTicket.count({
-        where: { unread_by_admin: true, status: { not: 'closed' } },
-      }),
+      this.prisma.supportTicket.count({ where: unreadTicketsWhere() }),
       this.prisma.supportTicket.count({
         where: {
-          OR: [
-            { status: 'open', assignee_id: null },
-            { unread_by_admin: true, status: { not: 'closed' } },
-          ],
+          OR: [{ status: 'open', assignee_id: null }, unreadTicketsWhere()],
         },
       }),
       this.avgFirstResponseMinutes(),
@@ -232,6 +233,8 @@ export class AdminSupportService {
         where: { id },
         data: { unread_by_admin: false },
       });
+      // R-403: one fewer unread — the sidebar badge recounts.
+      await this.summary?.dropFamily(ADMIN_COUNTS_SUMMARY_KEY);
     }
     const [people, files] = await Promise.all([
       this.people([
@@ -389,6 +392,10 @@ export class AdminSupportService {
     if (closedNow && adminId) {
       this.recordClose(adminId, id);
       await this.endLease(adminId, id);
+    }
+    // R-403: a closed ticket is no longer unread — the sidebar badge recounts.
+    if (updated.status === 'closed' && updated.unread_by_admin) {
+      await this.summary?.dropFamily(ADMIN_COUNTS_SUMMARY_KEY);
     }
     const people = await this.people([updated.user_id, updated.assignee_id]);
     return this.row(updated, people);
