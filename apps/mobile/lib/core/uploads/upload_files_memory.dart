@@ -5,7 +5,8 @@ import 'package:lawbid/core/uploads/upload_files.dart';
 
 UploadFiles createUploadFiles() => MemoryUploadFiles();
 
-/// The browser (and tests): the bytes stay in this tab's memory. A reload
+/// Tests (and the base of the browser store, upload_files_web.dart): the
+/// bytes stay in memory. A reload
 /// loses them; the job then shows «not sent» with Delete.
 class MemoryUploadFiles implements UploadFiles {
   final _files = <String, Uint8List>{};
@@ -38,4 +39,7 @@ class MemoryUploadFiles implements UploadFiles {
 
   @override
   Future<void> remove(String name) async => _files.remove(name);
+
+  @override
+  Future<void> forgetOnSignOut() async {}
 }
