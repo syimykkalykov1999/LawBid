@@ -25,7 +25,14 @@ export type ChatSystemKey =
   | 'sign_completed'
   | 'sign_declined'
   // Consultation booking card (body `consult:<consultationId>`).
-  | 'consult';
+  | 'consult'
+  // R-392 (owner 2026-11-04): one side asked to close the case in work,
+  // the other side kept it open; the deal record is sealed (PDF in the case).
+  | 'close_requested_client'
+  | 'close_requested_attorney'
+  | 'close_declined_client'
+  | 'close_declined_attorney'
+  | 'deal_record_sealed';
 
 /** A conversation changed inside a transaction; published after commit. */
 export interface ChatChange {
