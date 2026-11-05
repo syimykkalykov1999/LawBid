@@ -86,6 +86,41 @@ void main() {
       timings = const RealtimeTimings();
     });
 
+    // R-404 (owner 2026-11-04): a call answered from the lock screen never
+    // resumes the app; a socket lost in the background must still come back.
+    test('paused: a lost socket stays down until a call needs it', () {
+      fakeAsync((f) {
+        final r = build()..pause();
+        r.onFailure();
+        f.elapse(const Duration(minutes: 5));
+        expect(attempts, 0);
+        r.keepUp(true);
+        expect(attempts, 1, reason: 'tries at once');
+        r.onFailure();
+        f.elapse(const Duration(seconds: 2));
+        expect(attempts, 2, reason: 'and keeps trying, still paused');
+        r.keepUp(false);
+        r.onFailure();
+        f.elapse(const Duration(minutes: 5));
+        expect(attempts, 2, reason: 'call over, back to the battery rule');
+        r.dispose();
+      });
+    });
+
+    test('keepUp: a pause in the middle of a call stops nothing', () {
+      fakeAsync((f) {
+        connected = true;
+        final r = build()..keepUp(true);
+        expect(attempts, 0, reason: 'connected: nothing to do');
+        r.pause();
+        connected = false;
+        r.onFailure();
+        f.elapse(const Duration(seconds: 2));
+        expect(attempts, 1);
+        r.dispose();
+      });
+    });
+
     test('failures retry on the backoff schedule and reset on success', () {
       fakeAsync((async) {
         c = build();
