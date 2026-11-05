@@ -101,6 +101,9 @@ class StoryPublishJob extends Notifier<StoryPublishState> {
             video,
             upload,
             cancel: _cancel,
+            parallel: ref
+                .read(featureFlagsControllerProvider)
+                .isEnabled('reels_tus_parallel'),
             onProgress: (v) => set(
               StoryPublishState(
                 phase: StoryPublishPhase.uploading,

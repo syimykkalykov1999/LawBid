@@ -24,6 +24,12 @@ export class SetRoleDto {
   role!: 'client' | 'attorney' | 'assistant';
 }
 
+/** Owner 2026-11-05: Settings → Account «Сменить профиль». */
+export class SwitchRoleDto {
+  @IsIn(['client', 'attorney'])
+  role!: 'client' | 'attorney';
+}
+
 /** docs/01_FOUNDATION_AUTH.md §11 steps 1/3A/3B (name) and §15 stage 1.7
  * acceptance item 7 (language + theme persist). */
 export class UpdateProfileDto {

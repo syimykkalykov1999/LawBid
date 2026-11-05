@@ -25,6 +25,8 @@ abstract final class ClientTuning {
   static int _videoPrefetchAhead = 3;
   static int _videoPrefetchCellular = 1;
   static int _videoCacheMb = 100;
+  static int _uploadsAtOnce = 4;
+  static int _downloadsAtOnce = 4;
 
   /// Whether a bootstrap answer (or [reset]) has set the numbers yet.
   static bool applied = false;
@@ -34,6 +36,16 @@ abstract final class ClientTuning {
   /// Set by the connectivity monitor: true while the only way online is
   /// mobile data (S20-9). Reset by [reset].
   static bool metered = false;
+
+  /// Set when a big transfer starts: a phone with little memory
+  /// (core/transfers/transfer_limits.dart). Reset by [reset].
+  static bool weakDevice = false;
+
+  /// Flag `downloads_parallel`, set with every bootstrap answer.
+  static bool downloadsParallel = false;
+
+  /// Flag `video_cache_parallel`, set with every bootstrap answer.
+  static bool videoCacheParallel = false;
 
   static double _chatPhotoMaxPx = 1600;
   static int _chatPhotoQuality = 82;
@@ -77,6 +89,22 @@ abstract final class ClientTuning {
   /// Disk ceiling of the video chunk cache, MB; 0 = off
   /// (`client.video_cache_mb`).
   static int get videoCacheMb => _videoCacheMb;
+
+  /// R-251: pieces of files going up at once in the whole app
+  /// (`client.uploads_at_once`); two on mobile data or a weak phone.
+  static int get uploadsAtOnce => _gentle(_uploadsAtOnce);
+
+  /// R-251: pieces of files coming down at once in the whole app
+  /// (`client.downloads_at_once`); two on mobile data or a weak phone.
+  static int get downloadsAtOnce => _gentle(_downloadsAtOnce);
+
+  /// Pieces one document download is cut into; 1 = the old single stream.
+  static int get downloadPieces => downloadsParallel ? downloadsAtOnce : 1;
+
+  /// Blocks of a video's start fetched at once; 1 = one after another.
+  static int get videoBlocksAtOnce => videoCacheParallel ? downloadsAtOnce : 1;
+
+  static int _gentle(int n) => (metered || weakDevice) && n > 2 ? 2 : n;
 
   /// Seconds from the start of a video kept on the phone
   /// (`client.video_cache_chunk_s`).
@@ -176,6 +204,8 @@ abstract final class ClientTuning {
     _videoPrefetchCellular = pick('client.video_prefetch_cellular', 1, 0, 6);
     _videoCacheMb = pick('client.video_cache_mb', 100, 0, 1000);
     _videoCacheChunkS = pick('client.video_cache_chunk_s', 4, 1, 15);
+    _uploadsAtOnce = pick('client.uploads_at_once', 4, 1, 4);
+    _downloadsAtOnce = pick('client.downloads_at_once', 4, 1, 4);
     _chatPhotoMaxPx = pick(
       'media.chat_photo_max_px',
       1600,
@@ -190,6 +220,9 @@ abstract final class ClientTuning {
   /// Back to the starter values (tests).
   static void reset() {
     metered = false;
+    weakDevice = false;
+    downloadsParallel = false;
+    videoCacheParallel = false;
     apply(const {});
   }
 }
