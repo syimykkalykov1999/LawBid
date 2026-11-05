@@ -87,7 +87,7 @@ class CacheReportNotifier extends AsyncNotifier<CacheReport> {
 
 /// Owner 2026-11-05: what an account kept on the phone leaves with it,
 /// whichever way it ended (sign-out, a dead session, another person signing
-/// in). One pass at a time, so a quick sign-in never meets a wipe still running.
+/// in). One pass at a time: a quick sign-in never meets a wipe still running.
 final accountFilesGuardProvider = Provider<void>((ref) {
   var last = Future<void>.value();
   Future<void> forgetOthers(String owner) async {
