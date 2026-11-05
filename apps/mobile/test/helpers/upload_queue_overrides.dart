@@ -35,6 +35,8 @@ class FakeStorageUploader extends StorageUploader {
     int? scanMaxPolls,
     StorageTransport? transport,
     String? taskId,
+    String? resumeFileId,
+    void Function(String fileId)? onPartsFileId,
   }) async {
     final f = fail;
     if (f != null) throw f;

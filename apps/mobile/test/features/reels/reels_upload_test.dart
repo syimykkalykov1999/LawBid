@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/features/reels/data/reels_repository.dart';
 
 /// Bunny's TUS endpoint: creates the upload, then takes PATCH chunks.
@@ -107,7 +108,7 @@ void main() {
         onPartLocations: saved.add,
         onProgress: progress.add,
       );
-      expect(bunny.mostAtOnce, ReelsRepository.parallelParts);
+      expect(bunny.mostAtOnce, ClientTuning.uploadsAtOnce);
       final joined = bunny.finalConcat!.replaceFirst('final;', '').split(' ');
       expect(joined, hasLength(4));
       expect(saved.single, joined);
