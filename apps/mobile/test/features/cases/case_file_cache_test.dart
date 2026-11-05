@@ -202,28 +202,59 @@ void main() {
     test('leaving the account deletes them', () async {
       await CaseFileCache.download(_ref(_signedOnce));
 
-      await maintenance.clearAccountFiles();
+      await maintenance.clearAccountData();
 
       expect(kept().existsSync(), isFalse);
     });
   });
 
+  test('the same person back after signing out: the file downloads again',
+      () async {
+    final db = CacheDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final maintenance = CacheMaintenance(
+      db: db,
+      pages: null,
+      limits: () => const CacheLimits(),
+      caseFiles: MediaCacheDir(caseFilesFolder, root: () async => root),
+    );
+    await CaseFileCache.download(_ref(_signedOnce));
+    expect(storage.requests, 1);
+
+    await maintenance.clearAccountData();
+    await CaseFileCache.download(_ref(_signedOnce));
+
+    expect(storage.requests, 2);
+    expect(kept().existsSync(), isTrue);
+  });
+
   group('whose files', () {
     late LocalKvStore kv;
     late int wipes;
+    late bool wipeWorks;
+    late List<String> forgotten;
+    String? kept_;
 
     Future<bool> change(String? previous, String? next) =>
-        wipeAccountFilesIfChanged(
+        wipeAccountDataIfChanged(
           previous: previous,
           next: next,
           kv: kv,
-          wipe: () async => wipes++,
+          wipe: (keepOwner) async {
+            wipes++;
+            kept_ = keepOwner;
+            return wipeWorks;
+          },
+          forgetOthers: (owner) async => forgotten.add(owner),
         );
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
       kv = LocalKvStore(await SharedPreferences.getInstance());
       wipes = 0;
+      wipeWorks = true;
+      forgotten = [];
+      kept_ = null;
       await kv.setString(caseFilesOwnerKey, 'user-a');
     });
 
@@ -235,7 +266,34 @@ void main() {
     test('signing out wipes', () async {
       expect(await change('user-a', null), isTrue);
       expect(wipes, 1);
-      expect(kv.getString(caseFilesOwnerKey), isNull);
+      expect(kept_, isNull);
+      expect(kv.getString(caseFilesOwnerKey), accountDataCleanMark);
+    });
+
+    test('the same person back after signing out: no second wipe', () async {
+      await change('user-a', null);
+      expect(await change(null, 'user-a'), isFalse);
+      expect(wipes, 1);
+      expect(forgotten, ['user-a']);
+      expect(kv.getString(caseFilesOwnerKey), 'user-a');
+    });
+
+    test('a wipe that did not finish runs again', () async {
+      wipeWorks = false;
+      await change('user-a', null);
+      expect(kv.getString(caseFilesOwnerKey), 'user-a');
+      wipeWorks = true;
+      expect(await change(null, 'user-b'), isTrue);
+      expect(wipes, 2);
+      expect(kept_, 'user-b');
+    });
+
+    test('the first start after the update tidies once', () async {
+      await kv.remove(caseFilesOwnerKey);
+      expect(await change(null, 'user-a'), isTrue);
+      expect(kept_, 'user-a');
+      expect(await change(null, 'user-a'), isFalse);
+      expect(wipes, 1);
     });
 
     test('another person signing in wipes, also after a closed app', () async {

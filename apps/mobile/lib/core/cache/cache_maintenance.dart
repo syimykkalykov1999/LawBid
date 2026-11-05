@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart' show PaintingBinding;
 import 'package:lawbid/core/cache/cache_database.dart';
 import 'package:lawbid/core/cache/cache_eviction.dart';
 import 'package:lawbid/core/cache/cache_limits.dart';
@@ -24,25 +25,40 @@ enum StorageCategory { video, photos, documents, other }
 /// Who the case files on this device belong to.
 const caseFilesOwnerKey = 'case_files.owner';
 
-/// Owner 2026-11-05: documents between an attorney and a client must not
-/// outlive the account on the device. Runs [wipe] when the account is left or
-/// replaced; the owner is remembered, so an account that ended while the app
-/// was closed is noticed at the next sign-in. Answers whether it wiped.
-Future<bool> wipeAccountFilesIfChanged({
+/// The value of [caseFilesOwnerKey] after a finished sign-out wipe: nothing of
+/// any account is left, so the next sign-in has nothing to wipe and the screens
+/// it starts are never emptied under it.
+const accountDataCleanMark = '';
+
+/// Owner 2026-11-05: what passes between an attorney and a client must not
+/// outlive the account on the device (the server has it all, as in Telegram).
+/// Runs [wipe] when the account is left or replaced; the owner is remembered,
+/// so an account that ended while the app was closed is noticed at the next
+/// sign-in. [wipe] gets the account signing in, whose rows stay; [forgetOthers]
+/// drops what waits to be sent for other accounts. A wipe answering false is
+/// not marked done and runs again. Answers whether it wiped.
+Future<bool> wipeAccountDataIfChanged({
   required String? previous,
   required String? next,
   required LocalKvStore kv,
-  required Future<void> Function() wipe,
+  required Future<bool> Function(String? keepOwner) wipe,
+  Future<void> Function(String owner)? forgetOthers,
 }) async {
   if (next == null) {
     if (previous == null) return false;
-    await wipe();
-    await kv.remove(caseFilesOwnerKey);
+    if (await wipe(null)) {
+      await kv.setString(caseFilesOwnerKey, accountDataCleanMark);
+    }
     return true;
   }
-  if (kv.getString(caseFilesOwnerKey) == next) return false;
-  await wipe();
-  await kv.setString(caseFilesOwnerKey, next);
+  final owner = kv.getString(caseFilesOwnerKey);
+  if (owner == next) return false;
+  await forgetOthers?.call(next);
+  if (owner == accountDataCleanMark) {
+    await kv.setString(caseFilesOwnerKey, next);
+    return false;
+  }
+  if (await wipe(next)) await kv.setString(caseFilesOwnerKey, next);
   return true;
 }
 
@@ -240,12 +256,56 @@ class CacheMaintenance {
     return true;
   }
 
-  /// Owner 2026-11-05: the account was left. Case documents and the picture
-  /// cache (case photos are kept there, under their file) go; the next account
-  /// fetches its own.
-  Future<void> clearAccountFiles() async {
-    await clear(CacheStore.files);
-    await clear(CacheStore.images);
+  /// Owner 2026-11-05: the account was left. Everything the server can give
+  /// back leaves the phone: documents, pictures, chat media with half-loaded
+  /// voice notes, video, saved lists, the message history and its sync marks
+  /// (they go together, so the same person's next sign-in loads it all again).
+  /// [keepOwner] signs in right now: its rows stay, so the screens it is
+  /// opening are not emptied. The outbox stays for its owner: an expired
+  /// session must not lose what was typed. False when something stayed.
+  Future<bool> clearAccountData({String? keepOwner}) async {
+    Future<bool> guarded(String name, Future<bool> Function() f) async {
+      try {
+        return await f();
+      } on Object catch (e) {
+        debugPrint('account data $name: $e');
+        return false;
+      }
+    }
+
+    Future<bool> done(Future<void> Function() f) async {
+      await f();
+      return true;
+    }
+
+    final results = await Future.wait([
+      for (final s in const [
+        CacheStore.files,
+        CacheStore.images,
+        CacheStore.chatMedia,
+        CacheStore.video,
+        CacheStore.feed,
+        CacheStore.http,
+      ])
+        guarded(s.name, () => clear(s)),
+      guarded('partial notes', () => done(_voiceNotes.clearWithPartial)),
+      guarded(
+        'rows',
+        () => done(() async {
+          await _db.clearAccountRows(keepOwner: keepOwner);
+          // The freed pages go back to the OS: the history does not linger
+          // inside the file.
+          await _db.incrementalVacuum();
+          await _db.checkpointWal();
+        }),
+      ),
+    ]);
+    if (!isFlutterTest) {
+      PaintingBinding.instance.imageCache
+        ..clear()
+        ..clearLiveImages();
+    }
+    return !results.contains(false);
   }
 
   /// «Очистить» of the ticked categories of the ring. All four = [clearAll].

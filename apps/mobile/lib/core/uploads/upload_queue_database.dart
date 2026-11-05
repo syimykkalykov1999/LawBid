@@ -103,6 +103,10 @@ class UploadQueueDatabase extends _$UploadQueueDatabase {
             ..orderBy([(j) => OrderingTerm.asc(j.seq)]))
           .get();
 
+  /// The jobs of accounts other than [owner] (another person signed in).
+  Future<List<UploadJobRow>> ofOthers(String owner) =>
+      (select(uploadJobs)..where((j) => j.ownerId.equals(owner).not())).get();
+
   Future<void> remove(String id) =>
       (delete(uploadJobs)..where((j) => j.id.equals(id))).go();
 

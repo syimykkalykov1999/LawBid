@@ -9,6 +9,9 @@ import 'package:lawbid/core/cache/chat_media_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/core/uploads/upload_queue.dart';
+import 'package:lawbid/features/cases/application/cases_providers.dart'
+    show casesLocalDatabaseProvider;
 import 'package:lawbid/features/social/application/social_providers.dart'
     show socialLocalDatabaseProvider;
 
@@ -82,23 +85,51 @@ class CacheReportNotifier extends AsyncNotifier<CacheReport> {
   }
 }
 
-/// Owner 2026-11-05: the case documents and pictures of an account leave the
-/// phone with it, whichever way it ended (sign-out, a dead session, another
-/// person signing in).
+/// Owner 2026-11-05: what an account kept on the phone leaves with it,
+/// whichever way it ended (sign-out, a dead session, another person signing
+/// in). One pass at a time, so a quick sign-in never meets a wipe still running.
 final accountFilesGuardProvider = Provider<void>((ref) {
+  var last = Future<void>.value();
+  Future<void> forgetOthers(String owner) async {
+    final social = ref.read(socialLocalDatabaseProvider);
+    await social.forgetOutboxOfOthers(owner);
+    await social.forgetRecentOfOthers(keeping: owner);
+    await ref.read(casesLocalDatabaseProvider).forgetDraftsOfOthers(owner);
+    final uploads = ref.read(uploadQueueDatabaseProvider);
+    final files = ref.read(uploadFilesProvider);
+    for (final job in await uploads.ofOthers(owner)) {
+      final name = job.fileName;
+      if (name != null) await files.remove(name);
+      await uploads.remove(job.id);
+    }
+  }
+
+  Future<bool> wipe(String? keepOwner) async {
+    if (keepOwner == null) {
+      await ref.read(socialLocalDatabaseProvider).forgetRecentOfOthers();
+    }
+    return ref
+        .read(cacheMaintenanceProvider)
+        .clearAccountData(keepOwner: keepOwner);
+  }
+
   ref.listen(
     sessionControllerProvider.select((s) => s?.sub),
-    (previous, next) => unawaited(
-      wipeAccountFilesIfChanged(
-        previous: previous,
-        next: next,
-        kv: ref.read(localKvStoreProvider),
-        wipe: ref.read(cacheMaintenanceProvider).clearAccountFiles,
-      ).catchError((Object e) {
-        debugPrint('account files: $e');
-        return false;
-      }),
-    ),
+    (previous, next) {
+      last = last.then((_) async {
+        try {
+          await wipeAccountDataIfChanged(
+            previous: previous,
+            next: next,
+            kv: ref.read(localKvStoreProvider),
+            wipe: wipe,
+            forgetOthers: forgetOthers,
+          );
+        } on Object catch (e) {
+          debugPrint('account data: $e');
+        }
+      });
+    },
   );
 });
 

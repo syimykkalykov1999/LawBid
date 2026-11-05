@@ -216,6 +216,24 @@ class SocialLocalDatabase extends _$SocialLocalDatabase
       )..where((r) => r.ownerId.equals(recentKey(ownerId, tab))))
           .go();
 
+  /// Owner 2026-11-05: search history leaves with the account; [keeping] is
+  /// the account signing in, whose history stays.
+  Future<void> forgetRecentOfOthers({String? keeping}) =>
+      (delete(recentSearches)
+            ..where(
+              (r) => keeping == null
+                  ? const Constant(true)
+                  : (r.ownerId.equals(keeping) |
+                          r.ownerId.like('${recentKey(keeping, '')}%'))
+                      .not(),
+            ))
+          .go();
+
+  /// Unsent messages of accounts other than [owner]: another person signed in
+  /// on this phone, so they will never be sent from here.
+  Future<void> forgetOutboxOfOthers(String owner) =>
+      (delete(chatOutbox)..where((o) => o.ownerId.equals(owner).not())).go();
+
   /// History saved before the tabs had their own: one list for everything,
   /// so there is no telling which tab a line belonged to. Dropped.
   Future<void> dropLegacyRecent(String ownerId) =>

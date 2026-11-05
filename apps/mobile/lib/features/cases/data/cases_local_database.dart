@@ -57,6 +57,10 @@ class CasesLocalDatabase extends _$CasesLocalDatabase {
         ),
       );
 
+  /// Case drafts of accounts other than [owner] (another person signed in).
+  Future<void> forgetDraftsOfOthers(String owner) =>
+      (delete(caseDrafts)..where((d) => d.ownerId.equals(owner).not())).go();
+
   Future<void> deleteDraft(String ownerId) =>
       (delete(caseDrafts)..where((d) => d.ownerId.equals(ownerId))).go();
 
