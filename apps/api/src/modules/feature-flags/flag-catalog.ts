@@ -189,6 +189,15 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Resumable (multipart) uploads of large files',
   },
   {
+    // R-256: on, a phone with little charge or its battery saver on warms no
+    // videos ahead and does not re-encode clips up to 30 MB. Off until
+    // checked on real phones.
+    key: 'low_power_mode',
+    enabled: false,
+    app: true,
+    description: 'The app goes gently on a phone low on power',
+  },
+  {
     key: 'payments_in_app',
     enabled: false,
     app: true,

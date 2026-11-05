@@ -35,6 +35,10 @@ abstract final class ClientTuning {
   /// mobile data (S20-9). Reset by [reset].
   static bool metered = false;
 
+  /// R-256 (flag `low_power_mode`): little charge left or the phone's battery
+  /// saver is on (core/config/low_power.dart). Reset by [reset].
+  static bool lowPower = false;
+
   static double _chatPhotoMaxPx = 1600;
   static int _chatPhotoQuality = 82;
   static int _sentryTracesPercent = 0;
@@ -69,10 +73,13 @@ abstract final class ClientTuning {
   /// Reels warmed ahead of the one on screen: `client.video_prefetch_ahead`
   /// on Wi-Fi, `client.video_prefetch_cellular` on mobile data (S20-9; the
   /// server already folded its Выкл/Вкл/Авто switch into the two numbers).
-  static int get videoPrefetchAhead =>
-      metered && _videoPrefetchCellular < _videoPrefetchAhead
-          ? _videoPrefetchCellular
-          : _videoPrefetchAhead;
+  /// R-256: none at all while the phone is low on power.
+  static int get videoPrefetchAhead {
+    if (lowPower) return 0;
+    return metered && _videoPrefetchCellular < _videoPrefetchAhead
+        ? _videoPrefetchCellular
+        : _videoPrefetchAhead;
+  }
 
   /// Disk ceiling of the video chunk cache, MB; 0 = off
   /// (`client.video_cache_mb`).
@@ -190,6 +197,7 @@ abstract final class ClientTuning {
   /// Back to the starter values (tests).
   static void reset() {
     metered = false;
+    lowPower = false;
     apply(const {});
   }
 }

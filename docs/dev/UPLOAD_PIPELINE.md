@@ -15,6 +15,9 @@ Goal (owner): every upload is compressed on the phone first, sent in parts strai
 - Small files: presigned POST/PUT as before.
 - Files ≥16 MiB: **multipart** (flag `files_multipart`, default OFF). `POST /files/:id/multipart` returns presigned part URLs (8 MiB parts) and the parts S3 already has; the app PUTs only missing parts (retry per part), then `POST /files/:id/multipart/complete`. Abandoned uploads are aborted by `storage-cleanup`. The app falls back to the single upload when the flag is off.
 
+## Low power (R-256, flag `low_power_mode`, off)
+Battery at 20 % or less off the charger, or the phone's battery saver on (`core/config/low_power.dart`, battery_plus): no reels warmed ahead, and clips up to 30 MB go without a re-encode. Bigger videos are still encoded, so they fit the upload limits. Off: no battery call at all.
+
 ## Verification
 - Auto: API `files.multipart.spec`, `multipart.spec` (182 files tests); app `storage_uploader_test` (ranges, resume, part retry, fallback), `post_video_url_test`.
 - Phone only: real network cut mid-upload, battery/background upload, MP4-vs-HLS start time on a slow link, S3 CORS for PUT after Terraform apply (owner step).

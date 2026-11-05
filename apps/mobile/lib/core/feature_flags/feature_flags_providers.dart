@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
+import 'package:lawbid/core/config/low_power.dart';
 import 'package:lawbid/core/config/web_push_config.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
@@ -121,6 +122,9 @@ class FeatureFlagsController extends _$FeatureFlagsController {
       TextLimits.apply(state.appConfig);
       // Scale audit 2026-10-23: retries, reconnects, polling - server-tunable.
       ClientTuning.apply(state.appConfig);
+      LowPowerMonitor.instance.setEnabled(
+        enabled: state.isEnabled('low_power_mode'),
+      );
       // Owner 2026-11-02: the browser's push keys come from the admin.
       WebPushConfig.applyRemote(state.appConfig);
       // Owner 2026-10-15: kill switches of the app's own diagnostics.
