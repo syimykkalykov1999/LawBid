@@ -264,6 +264,7 @@ abstract final class CasesMappers {
         isSaved: c.isSaved,
         ownBidId: c.ownBidId,
         completionRequestedBy: c.completionRequestedBy?.json,
+        autoCloseAt: _dateOrNull(c.autoCloseAt),
         photos: c.photos.map(casePhoto).toList(growable: false),
         photosCount: c.photosCount.toInt(),
         commentCount: c.commentCount,

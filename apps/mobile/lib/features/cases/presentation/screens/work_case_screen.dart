@@ -20,6 +20,7 @@ import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dar
     show caseStageOf;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_close_block.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
@@ -219,16 +220,17 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
       overview: [
         // Deal record 2026-10-27: compact copy of the Docs-tab card.
         DealRecordCard(caseId: c.id, isAttorney: true, compact: true),
-        if (pending)
+        // R-392: «Закрыть кейс» / «Подтвердить закрытие» / «Не закрывать».
+        if (CaseCloseBlock.shown(c.status))
           Padding(
             padding: side(AppSpacing.md),
-            child: NoticeCard(
-              icon: AppIcons.hourglassTopRounded,
-              message: t.t(
-                c.completionRequestedBy == 'attorney'
-                    ? 'cases.work.waitingClientNotice'
-                    : 'cases.work.pendingNotice',
-              ),
+            child: CaseCloseBlock(
+              caseId: c.id,
+              status: c.status,
+              isAttorney: true,
+              requestedBy: c.completionRequestedBy,
+              autoCloseAt: c.autoCloseAt,
+              canAct: ref.watch(canDoProvider(AssistantDuty.bids)),
             ),
           ),
         if (c.status == CaseStatus.disputed)
