@@ -309,10 +309,13 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'my_contacts_screen',
-            load: d_my_contacts_screen.loadLibrary,
-            builder: (_) => d_my_contacts_screen.MyContactsScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            phone: DeferredScreen(
+              id: 'my_contacts_screen',
+              load: d_my_contacts_screen.loadLibrary,
+              builder: (_) => d_my_contacts_screen.MyContactsScreen(),
+            ),
           ),
         ),
       ),
@@ -920,7 +923,7 @@ GoRouter appRouter(Ref ref) {
       // docs/06 §1.7: Settings → Подписка, payments, gate paywall.
       ...subscriptionRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
       // Owner 2026-10-05: payouts, case payments, Stripe return pages.
-      ...casePaymentsRoutes(_rootNavigatorKey),
+      ...casePaymentsRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
       // Owner 2026-10-20: consultation booking.
       ...consultationsRoutes(_rootNavigatorKey),
       // Owner 2026-10-20: the deadline calculator.

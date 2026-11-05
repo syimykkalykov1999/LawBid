@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +10,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/hosted_settings_sections.dart';
 import 'package:lawbid/core/navigation/shell/desktop_layouts.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
+import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
@@ -358,6 +360,9 @@ void main() {
       AppRoutes.myFirm,
       AppRoutes.myStats,
       AppRoutes.myPromotions,
+      // Owner 2026-11-04 (web audit): «How to reach me» and payouts too.
+      AppRoutes.myContacts,
+      CasePaymentsRoutes.payoutAccount,
     });
     expect(hostedSettingsSections.keys.toSet(), kSettingsSectionPaths);
     for (final path in kSettingsSectionPaths) {
