@@ -1,6 +1,7 @@
 import { Module, type DynamicModule } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { BidsModule } from '../bids/bids.module';
+import { ChatSystemModule } from '../chat/chat-system.module';
 import { FilesModule } from '../files/files.module';
 import { JournalModule } from '../journal/journal.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -35,9 +36,10 @@ export class DealsModule {
               FilesModule,
               JournalModule,
               NotificationsModule,
+              ChatSystemModule,
               AdminAccessModule,
             ]
-          : [FilesModule, JournalModule, NotificationsModule],
+          : [FilesModule, JournalModule, NotificationsModule, ChatSystemModule],
       controllers:
         options.mode === 'api'
           ? [DealRecordsController, AdminDealRecordController]
