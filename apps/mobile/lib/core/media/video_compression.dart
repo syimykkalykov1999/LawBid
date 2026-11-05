@@ -81,6 +81,11 @@ class PluginVideoCompressor implements VideoCompressor {
     required VideoLimits limits,
     void Function(double progress)? onProgress,
   }) async {
+    // The browser: the original goes up and the server transcodes it.
+    // 2026-11-03 search: no maintained MIT/Apache/BSD pure-Dart or WASM
+    // encoder exists (ffmpeg.wasm is LGPL/GPL and needs cross-origin
+    // isolation headers; WebCodecs needs our own muxer glue), so by
+    // Rule #1 nothing is invented here.
     if (kIsWeb) return null;
     if (keepOriginalForPower(
       lowPower: ClientTuning.lowPower,

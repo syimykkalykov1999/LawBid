@@ -64,8 +64,7 @@ class LowPowerMonitor with WidgetsBindingObserver {
       final state = await battery.batteryState;
       final low = isLowPower(
         level: await battery.batteryLevel,
-        charging:
-            state == BatteryState.charging || state == BatteryState.full,
+        charging: state == BatteryState.charging || state == BatteryState.full,
         saver: await battery.isInBatterySaveMode,
       );
       if (_on) ClientTuning.lowPower = low;

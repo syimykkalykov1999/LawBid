@@ -131,16 +131,14 @@ Future<void> runLawBid(AppFlavor flavor) async {
       ),
       groupCallPortProvider.overrideWith(
         (ref) => GroupCallPort(
-          start:
-              (
-                groupId, {
-                required title,
-                avatarUrl,
-                video = false,
-                userIds = const [],
-              }) => ref
-                  .read(callControllerProvider.notifier)
-                  .startGroupCall(
+          start: (
+            groupId, {
+            required title,
+            avatarUrl,
+            video = false,
+            userIds = const [],
+          }) =>
+              ref.read(callControllerProvider.notifier).startGroupCall(
                     groupId,
                     peer: CallPeer(
                       id: groupId,
@@ -157,10 +155,9 @@ Future<void> runLawBid(AppFlavor flavor) async {
             ownerId: groupId,
           ),
           // Owner 2026-10-21 (inbox 20e): the call of a channel.
-          startChannel:
-              (channelId, {required title, avatarUrl, video = false}) => ref
-                  .read(callControllerProvider.notifier)
-                  .startChannelCall(
+          startChannel: (channelId,
+                  {required title, avatarUrl, video = false}) =>
+              ref.read(callControllerProvider.notifier).startChannelCall(
                     channelId,
                     peer: CallPeer(
                       id: channelId,
@@ -256,15 +253,14 @@ GroupRunningCall? _runningCall(
   final mine = call.participants.where((m) => m.userId == me).firstOrNull;
   // Taken out by the host / a vote: no way back into this call.
   if (mine?.status == CallMemberStatus.removed) return null;
-  final joined =
-      [
-        for (final m in call.participants)
-          if (m.joined) m,
-      ]..sort(
-        (a, b) => (b.userId == call.hostId ? 1 : 0).compareTo(
-          a.userId == call.hostId ? 1 : 0,
-        ),
-      );
+  final joined = [
+    for (final m in call.participants)
+      if (m.joined) m,
+  ]..sort(
+      (a, b) => (b.userId == call.hostId ? 1 : 0).compareTo(
+        a.userId == call.hostId ? 1 : 0,
+      ),
+    );
   return GroupRunningCall(
     video: call.video,
     members: joined.length,
@@ -280,16 +276,15 @@ GroupRunningCall? _runningCall(
     ],
     returning:
         mine != null && (mine.joined || mine.status == CallMemberStatus.left),
-    join: (title, avatarUrl) => ref
-        .read(callControllerProvider.notifier)
-        .joinGroupCall(
-          call,
-          peer: CallPeer(
-            id: ownerId,
-            isAttorney: false,
-            displayName: title,
-            avatarUrl: avatarUrl,
-          ),
-        ),
+    join: (title, avatarUrl) =>
+        ref.read(callControllerProvider.notifier).joinGroupCall(
+              call,
+              peer: CallPeer(
+                id: ownerId,
+                isAttorney: false,
+                displayName: title,
+                avatarUrl: avatarUrl,
+              ),
+            ),
   );
 }

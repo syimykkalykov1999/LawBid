@@ -18,6 +18,22 @@ Goal (owner): every upload is compressed on the phone first, sent in parts strai
 ## Low power (R-256, flag `low_power_mode`, off)
 Battery at 20 % or less off the charger, or the phone's battery saver on (`core/config/low_power.dart`, battery_plus): no reels warmed ahead, and clips up to 30 MB go without a re-encode. Bigger videos are still encoded, so they fit the upload limits. Off: no battery call at all.
 
+## Parallel pieces (R-251, 2026-11-05)
+Every switch below is off by default; off = the old path, request for request. Reference and mismatches: `docs/dev/TRANSFERS_REFERENCE_2026-11-05.md`.
+- How many at once: admin `client.uploads_at_once` / `client.downloads_at_once` (1-4, default 4), for all files together (`core/transfers/transfer_limits.dart`). Two on mobile data or a phone under 3 GB. A failure holds new requests and drops the limit to 1, then it climbs back (`AdaptiveLimiter`); the next file starts at the full number.
+- S3 parts: flag `files_multipart` (part links are signed in one call, `POST /files/:id/multipart`).
+- Bunny TUS (reels, stories, channels, one client `core/transfers/tus_upload.dart`): flag `reels_tus_parallel`.
+- Queued chat files: flag `chat_upload_parallel` + `files_multipart`. Parts only while the app is on screen; on `hidden` / `paused` they stop and the whole file goes to the OS transfer on a fresh link (`core/uploads/foreground_parts.dart`). A file the OS already holds stays with it. The parts' file id is saved in the job, so a restart sends only what storage lacks. Several small files of a group chat or a task go up together under the same flag.
+- Documents: flag `downloads_parallel`. Over 4 MiB, HTTP Range pieces, each continues from its own part file; no HEAD (signed GET links only). A server without Range: the first answer is kept.
+- Video start (chunk cache): flag `video_cache_parallel`, blocks fetched ahead, written in order. The tail stays one stream at the player's speed.
+- Stays one stream on purpose: small files, avatars, verification documents, voice notes (under one piece), the OS background transfer (it takes one whole file), HLS (the player fetches segments itself).
+
+## Confirm without reading the file (R-252, flag `files_confirm_light`, off)
+From 8 MiB `POST /files/:id/confirm` reads the first 256 KiB (type, allow-list) and keeps the file `pending` with an empty `source_sha256`. The scan worker then proves the hash and looks inside the container (`dangerousContent`) before anything else, the dedup included: a false hash must never point a row at someone else's object. A refused file is removed and ends `failed`. Only `clean` files can be attached. Off: the whole file is read in the API, as before.
+
+## Queue job and the OS transfer
+The OS transfer outlives the app and sends the file of ITS presign, so the target is saved in the job before the transfer starts and used again after a restart. If storage still has nothing, one fresh start with the OS record forgotten.
+
 ## Verification
 - Auto: API `files.multipart.spec`, `multipart.spec` (182 files tests); app `storage_uploader_test` (ranges, resume, part retry, fallback), `post_video_url_test`.
 - Phone only: real network cut mid-upload, battery/background upload, MP4-vs-HLS start time on a slow link, S3 CORS for PUT after Terraform apply (owner step).

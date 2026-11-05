@@ -438,7 +438,12 @@ class ApiClientProfileRepository implements ClientProfileRepository {
   Future<PublicClientProfile> fetchPublic(String username) async =>
       ProfileMappers.publicClient(
         (await guardApiCall(
-          () => _clients.getClientProfile(username: username),
+          // R-385: like the attorney profile — 10 min from the phone, then
+          // If-None-Match.
+          () => _clients.getClientProfile(
+            username: username,
+            extras: cacheFor(const Duration(minutes: 10)),
+          ),
         ))
             .data,
       );

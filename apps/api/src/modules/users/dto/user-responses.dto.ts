@@ -292,3 +292,35 @@ export class DeletionCancelledDto {
   })
   cancelled!: boolean;
 }
+
+/** Owner 2026-11-05: what the «Сменить профиль» sheet shows before asking
+ * for the password. */
+export class RoleSwitchPreviewDto {
+  @ApiProperty({ enum: ['client', 'attorney'] })
+  from!: 'client' | 'attorney';
+
+  @ApiProperty({ enum: ['client', 'attorney'] })
+  to!: 'client' | 'attorney';
+
+  @ApiProperty()
+  allowed!: boolean;
+
+  @ApiProperty({
+    type: [String],
+    description:
+      'What must be finished first: active_cases, active_bids, open_disputes, upcoming_consultations, paid_subscription, assistants, firm.',
+  })
+  blockers!: string[];
+
+  @ApiProperty({
+    description:
+      'The other profile does not exist yet: the usual onboarding opens after the switch.',
+  })
+  needsOnboarding!: boolean;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Seconds until the daily limit allows a switch; 0 = now.',
+  })
+  retryAfterSeconds!: number;
+}

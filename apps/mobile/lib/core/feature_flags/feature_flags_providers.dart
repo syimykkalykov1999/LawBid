@@ -125,6 +125,10 @@ class FeatureFlagsController extends _$FeatureFlagsController {
       LowPowerMonitor.instance.setEnabled(
         enabled: state.isEnabled('low_power_mode'),
       );
+      // R-251: read by code with no access to the flags (the download helper,
+      // the video cache proxy).
+      ClientTuning.downloadsParallel = state.isEnabled('downloads_parallel');
+      ClientTuning.videoCacheParallel = state.isEnabled('video_cache_parallel');
       // Owner 2026-11-02: the browser's push keys come from the admin.
       WebPushConfig.applyRemote(state.appConfig);
       // Owner 2026-10-15: kill switches of the app's own diagnostics.

@@ -7,6 +7,7 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/auth/presentation/widgets/us_phone_input.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/domain/contact_type.dart';
@@ -16,6 +17,8 @@ import 'package:lawbid/features/settings/account/application/account_providers.d
 import 'package:lawbid/features/settings/account/domain/account_identifier.dart';
 import 'package:lawbid/features/settings/account/presentation/screens/account_contact_flow_screen.dart';
 import 'package:lawbid/features/settings/account/presentation/widgets/account_tile.dart';
+import 'package:lawbid/features/settings/account/presentation/widgets/role_switch_sheet.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Settings → Account (docs/01 §10.3): the account's phone/email contact
 /// (change = reauth + code on the new contact, §11 3A), every linked
@@ -34,6 +37,21 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
     if (mounted) {
       await ref.read(accountIdentifiersProvider.notifier).reloadQuietly();
     }
+  }
+
+  /// Owner 2026-11-05: same path as a session swap in place: the guard holds
+  /// the splash until `GET /users/me` lands, so the tabs and every screen
+  /// are rebuilt for the new role (or the new role's onboarding opens); the
+  /// session itself is not touched.
+  Future<void> _switchRole() async {
+    final switched = await showAppBottomSheet<CurrentUser>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => const RoleSwitchSheet(),
+    );
+    if (switched == null || !mounted) return;
+    ref.read(currentUserControllerProvider.notifier).resetForNewSession();
   }
 
   @override
@@ -86,6 +104,12 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             identifiers: items,
             emailFlows: ref.watch(emailFlowsEnabledProvider),
             onContact: _openFlow,
+            onSwitchRole: ref.watch(roleSwitchEnabledProvider) &&
+                    !ref.watch(isDemoSessionProvider) &&
+                    (user?.role == UserRole.client ||
+                        user?.role == UserRole.attorney)
+                ? _switchRole
+                : null,
           ),
         ),
       ),
@@ -100,6 +124,7 @@ class _AccountBody extends StatelessWidget {
     required this.identifiers,
     required this.emailFlows,
     required this.onContact,
+    this.onSwitchRole,
   });
 
   final Translator t;
@@ -111,6 +136,10 @@ class _AccountBody extends StatelessWidget {
   /// is still shown, read-only.
   final bool emailFlows;
   final void Function(ContactType, AccountContactMode) onContact;
+
+  /// Owner 2026-11-05: null = no «Сменить профиль» row (the admin switch is
+  /// off, a demo session, an assistant).
+  final VoidCallback? onSwitchRole;
 
   @override
   Widget build(BuildContext context) {
@@ -201,8 +230,9 @@ class _AccountBody extends StatelessWidget {
                       Expanded(
                         child: Text(
                           t.t('account.identifiers.empty'),
-                          style: typography.body
-                              .copyWith(color: colors.textSecondary),
+                          style: typography.body.copyWith(
+                            color: colors.textSecondary,
+                          ),
                         ),
                       ),
                     ],
@@ -214,6 +244,21 @@ class _AccountBody extends StatelessWidget {
                   _IdentifierTile(t: t, identifier: i),
               ],
       ),
+      if (onSwitchRole != null)
+        AppListSection(
+          children: [
+            AccountTile(
+              key: const ValueKey('account-role-switch'),
+              title: t.t('account.roleSwitch.title'),
+              subtitle: t.t(
+                user?.role == UserRole.attorney
+                    ? 'account.roleSwitch.toClient'
+                    : 'account.roleSwitch.toAttorney',
+              ),
+              onTap: onSwitchRole,
+            ),
+          ],
+        ),
     ];
 
     return ListView(

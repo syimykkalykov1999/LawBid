@@ -12,6 +12,36 @@ import 'package:lawbid/features/cases/workspace/workspace_data.dart';
 import 'package:lawbid/features/cases/workspace/workspace_view.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
+/// Owner 2026-11-05: the round «+» of the Tasks tab.
+Future<void> createCaseTask(
+  BuildContext context,
+  WidgetRef ref,
+  String caseId, {
+  required bool isAttorney,
+}) async {
+  final t = ref.read(translatorProvider);
+  final r = await showComposeSheet(
+    context,
+    mode: ComposeMode.task,
+    isAttorney: isAttorney,
+  );
+  if (r == null || !context.mounted) return;
+  try {
+    await ref.read(caseWorkspaceActionsProvider).createTask(
+          caseId,
+          kind: r.kind!,
+          title: r.title,
+          description: r.text.isEmpty ? null : r.text,
+          items: r.items,
+          files: r.files,
+          dueAt: r.dueAt,
+          remindBeforeMin: r.remindBeforeMin,
+        );
+  } on Object catch (e) {
+    if (context.mounted) showAppSnackBar(context, errorText(t, e));
+  }
+}
+
 /// Owner 2026-10-13: Tasks of an accepted case. The attorney sees three
 /// kinds (For client · Shared · Private), the client two (Your tasks ·
 /// Lawyer's progress); one list at a time, picked by text filters.
@@ -27,30 +57,6 @@ class TasksTab extends ConsumerStatefulWidget {
 
 class _TasksTabState extends ConsumerState<TasksTab> {
   int _filter = 0;
-
-  Future<void> _create() async {
-    final t = ref.read(translatorProvider);
-    final r = await showComposeSheet(
-      context,
-      mode: ComposeMode.task,
-      isAttorney: widget.isAttorney,
-    );
-    if (r == null || !mounted) return;
-    try {
-      await ref.read(caseWorkspaceActionsProvider).createTask(
-            widget.caseId,
-            kind: r.kind!,
-            title: r.title,
-            description: r.text.isEmpty ? null : r.text,
-            items: r.items,
-            files: r.files,
-            dueAt: r.dueAt,
-            remindBeforeMin: r.remindBeforeMin,
-          );
-    } on Object catch (e) {
-      if (mounted) showAppSnackBar(context, errorText(t, e));
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -93,51 +99,12 @@ class _TasksTabState extends ConsumerState<TasksTab> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: FilterRow(
-                    labels: [
-                      for (final (i, l) in labels.indexed)
-                        '$l ${_open(lists[i])}',
-                    ],
-                    index: idx,
-                    onChanged: (i) => setState(() => _filter = i),
-                  ),
-                ),
-                if (canEdit)
-                  Padding(
-                    padding: const EdgeInsetsDirectional.only(
-                      end: AppSpacing.lg,
-                      top: AppSpacing.sm,
-                    ),
-                    child: GestureDetector(
-                      onTap: _create,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.chip,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const AppIcon(AppIcons.addRounded, size: 14),
-                            const SizedBox(width: 4),
-                            Text(
-                              t.t('cases.tasks.add'),
-                              style: type.bodySmall
-                                  .copyWith(fontWeight: FontWeight.w700),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+            FilterRow(
+              labels: [
+                for (final (i, l) in labels.indexed) '$l ${_open(lists[i])}',
               ],
+              index: idx,
+              onChanged: (i) => setState(() => _filter = i),
             ),
             if (!canEdit)
               WorkspaceReadOnlyNote(

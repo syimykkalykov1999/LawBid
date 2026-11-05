@@ -40,6 +40,7 @@ import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
 import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart'
     deferred as d_work_case_screen;
+import 'package:lawbid/features/cases/presentation/widgets/case_sections.dart';
 import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/client_badge/presentation/client_badge_screen.dart'
@@ -309,10 +310,13 @@ GoRouter appRouter(Ref ref) {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'my_contacts_screen',
-            load: d_my_contacts_screen.loadLibrary,
-            builder: (_) => d_my_contacts_screen.MyContactsScreen(),
+          SettingsSectionPage(
+            location: state.matchedLocation,
+            phone: DeferredScreen(
+              id: 'my_contacts_screen',
+              load: d_my_contacts_screen.loadLibrary,
+              builder: (_) => d_my_contacts_screen.MyContactsScreen(),
+            ),
           ),
         ),
       ),
@@ -403,7 +407,11 @@ GoRouter appRouter(Ref ref) {
           // Desktop web plan §6.4: list | case on a desktop window.
           CasesAdaptivePage(
             location: state.matchedLocation,
-            phone: OwnerCaseScreen(caseId: state.pathParameters['id'] ?? ''),
+            phone: OwnerCaseScreen(
+              caseId: state.pathParameters['id'] ?? '',
+              initialSection:
+                  caseSectionFromName(state.uri.queryParameters['tab']),
+            ),
           ),
         ),
       ),
@@ -504,6 +512,8 @@ GoRouter appRouter(Ref ref) {
               load: d_work_case_screen.loadLibrary,
               builder: (_) => d_work_case_screen.WorkCaseScreen(
                 caseId: state.pathParameters['id'] ?? '',
+                initialSection:
+                    caseSectionFromName(state.uri.queryParameters['tab']),
               ),
             ),
           ),
@@ -920,7 +930,7 @@ GoRouter appRouter(Ref ref) {
       // docs/06 §1.7: Settings → Подписка, payments, gate paywall.
       ...subscriptionRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
       // Owner 2026-10-05: payouts, case payments, Stripe return pages.
-      ...casePaymentsRoutes(_rootNavigatorKey),
+      ...casePaymentsRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
       // Owner 2026-10-20: consultation booking.
       ...consultationsRoutes(_rootNavigatorKey),
       // Owner 2026-10-20: the deadline calculator.

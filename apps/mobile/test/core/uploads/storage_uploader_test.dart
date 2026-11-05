@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -361,6 +363,118 @@ void main() {
       expect(calls, 2);
     });
 
+    // R-251 / R-253.
+    group('in parallel', () {
+      Map<String, Object?> plan10(List<int> uploaded, List<int> todo) => {
+            'data': {
+              'partSizeBytes': 8 * mib,
+              'partCount': 10,
+              'uploadedParts': uploaded,
+              'parts': [
+                for (final n in todo)
+                  {'partNumber': n, 'url': 'https://s3.test/p$n'},
+              ],
+              'expiresAt': '2026-11-01T12:00:00.000Z',
+            },
+          };
+      final large = UploadBody.bytes(Uint8List(80 * mib));
+
+      void serveTenParts() {
+        var plans = 0;
+        final inner = apiAdapter.handler;
+        apiAdapter.handler = (o) async {
+          if (o.path == '/files/file-1/multipart') {
+            plans++;
+            return jsonBody(
+              plans == 1
+                  ? plan10([], List.generate(10, (i) => i + 1))
+                  : plan10(List.generate(10, (i) => i + 1), []),
+            );
+          }
+          if (o.path == '/files/file-1/multipart/complete') {
+            return jsonBody({
+              'data': {'sizeBytes': 80 * mib},
+            });
+          }
+          return inner(o);
+        };
+      }
+
+      test('never more than four parts at once, and four are reached',
+          () async {
+        serveTenParts();
+        var now = 0;
+        var most = 0;
+        storage.handler = (o) async {
+          most = math.max(most, ++now);
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+          now--;
+          return ResponseBody.fromString('', 200);
+        };
+        final progress = <double>[];
+        expect(
+          await resumable().putResumable(
+            'file-1',
+            large,
+            onProgress: progress.add,
+          ),
+          isTrue,
+        );
+        expect(most, StorageUploader.partsAtOnce);
+        expect(storage.requests.map((r) => r.path).toSet(), hasLength(10));
+        expect(progress.last, 1);
+        expect(
+          apiAdapter.requests.last.path,
+          '/files/file-1/multipart/complete',
+        );
+      });
+
+      test('a refused part stops the rest and its error is what is seen',
+          () async {
+        serveTenParts();
+        storage.handler = (o) async {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+          if (o.path.endsWith('/p2')) {
+            return ResponseBody.fromString('', 403);
+          }
+          return ResponseBody.fromString('', 200);
+        };
+        await expectLater(
+          resumable().putResumable('file-1', large),
+          throwsA(
+            isA<ApiException>()
+                .having((e) => e.statusCode, 'status', 403)
+                .having((e) => e.code, 'code', ApiErrorCodes.fileNotUploaded),
+          ),
+        );
+        // Only the first batch started; the plan is not completed.
+        expect(storage.requests.length, lessThanOrEqualTo(5));
+        expect(
+          apiAdapter.requests.map((r) => r.path),
+          isNot(contains('/files/file-1/multipart/complete')),
+        );
+      });
+
+      test('cancel stops every part', () async {
+        serveTenParts();
+        final cancel = CancelToken();
+        storage.handler = (o) async {
+          cancel.cancel();
+          return ResponseBody.fromString('', 200);
+        };
+        await expectLater(
+          resumable().putResumable('file-1', large, cancel: cancel),
+          throwsA(
+            isA<DioException>().having(
+              CancelToken.isCancel,
+              'cancelled',
+              isTrue,
+            ),
+          ),
+        );
+      });
+    });
+
     test('flag off or a small file: false, nothing sent to storage', () async {
       apiAdapter.handler = (o) async => jsonBody(
             {
@@ -377,4 +491,206 @@ void main() {
       expect(storage.requests, isEmpty);
     });
   });
+
+  group('a queue job the OS transfer outlives (the app was closed)', () {
+    late Set<String> inStorage;
+    late List<String> confirmed;
+    late _OsTransport os;
+    var presigns = 0;
+    final forgotten = <String>[];
+
+    StorageUploader queued() => StorageUploader(
+          apiDio: apiDio,
+          transport: os,
+          scanPoll: Duration.zero,
+          scanMaxPolls: 3,
+          forgetTransfer: (id) async {
+            forgotten.add(id);
+            if (!os.keepRecord) os.recordComplete = false;
+          },
+        );
+
+    Future<String> send({StorageTarget? saved, List<StorageTarget>? kept}) =>
+        queued().upload(
+          purpose: api.FilePurpose.chatAttachment,
+          body: UploadBody.bytes(Uint8List.fromList([1, 2, 3])),
+          mime: 'image/png',
+          taskId: 'job-1',
+          savedTarget: saved,
+          onTarget: (t) async => kept?.add(t),
+        );
+
+    setUp(() {
+      inStorage = {};
+      confirmed = [];
+      presigns = 0;
+      forgotten.clear();
+      os = _OsTransport(inStorage);
+      apiAdapter.handler = (o) async {
+        if (o.path == '/files/presign') {
+          presigns++;
+          return jsonBody(
+            {
+              'data': {
+                'fileId': 'new-$presigns',
+                'upload': {
+                  'url': 'https://storage.test/new-$presigns',
+                  'fields': {'key': 'new-$presigns'},
+                },
+                'expiresAt': '2026-11-05T10:05:00.000Z',
+              },
+            },
+            201,
+          );
+        }
+        final id = o.path.split('/')[2];
+        if (o.path.endsWith('/confirm')) {
+          confirmed.add(id);
+          if (!inStorage.contains(id)) {
+            return jsonBody(
+              {
+                'error': {
+                  'code': ApiErrorCodes.fileNotUploaded,
+                  'message': 'Upload the file before confirming it.',
+                },
+              },
+              409,
+            );
+          }
+        }
+        return fileDto('clean');
+      };
+    });
+
+    test('the target is saved BEFORE the transfer starts', () async {
+      final kept = <StorageTarget>[];
+      os.onPost = () => expect(kept, hasLength(1));
+      expect(await send(kept: kept), 'new-1');
+      expect(kept.single.fileId, 'new-1');
+    });
+
+    test(
+        'the transfer finished while closed: the same file is confirmed, '
+        'no new link, nothing sent twice', () async {
+      inStorage.add('old');
+      os.recordComplete = true;
+      const saved = StorageTarget(
+        fileId: 'old',
+        url: 'https://storage.test/old',
+        fields: {'key': 'old'},
+      );
+      expect(await send(saved: saved), 'old');
+      expect(presigns, 0);
+      expect(confirmed, ['old']);
+      expect(os.sent, isEmpty);
+    });
+
+    test(
+        'a finished record and no saved target (a job from an older build): '
+        'one fresh start instead of «not sent» for good', () async {
+      os.recordComplete = true;
+      expect(await send(), 'new-2');
+      expect(forgotten, ['job-1']);
+      expect(presigns, 2);
+      expect(os.sent, ['new-2']);
+    });
+
+    test('the saved target is too old: a fresh start, sent once', () async {
+      const saved = StorageTarget(
+        fileId: 'old',
+        url: 'https://storage.test/old',
+        fields: {'key': 'old'},
+      );
+      os.refuse = {'old'};
+      expect(await send(saved: saved), 'new-1');
+      expect(os.sent, ['new-1']);
+    });
+
+    test('nothing in storage twice running: the refusal reaches the job',
+        () async {
+      os
+        ..recordComplete = true
+        ..keepRecord = true;
+      await expectLater(
+        queued().upload(
+          purpose: api.FilePurpose.chatAttachment,
+          body: UploadBody.bytes(Uint8List.fromList([1])),
+          mime: 'image/png',
+          taskId: 'job-1',
+          onTarget: (_) async {},
+        ),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.code, 'code', ApiErrorCodes.fileNotUploaded),
+        ),
+      );
+      expect(presigns, 2);
+    });
+
+    test('no job id: no second try (a direct upload)', () async {
+      os.recordComplete = true;
+      await expectLater(
+        queued().upload(
+          purpose: api.FilePurpose.chatAttachment,
+          body: UploadBody.bytes(Uint8List.fromList([1])),
+          mime: 'image/png',
+        ),
+        throwsA(isA<ApiException>()),
+      );
+      expect(presigns, 1);
+    });
+
+    test('a target survives its trip through the job', () {
+      const t = StorageTarget(
+        fileId: 'f',
+        url: 'https://u',
+        fields: {'a': 'b'},
+        method: 'PUT',
+        headers: {'c': 'd'},
+      );
+      final back = StorageTarget.fromJson(jsonDecode(jsonEncode(t.toJson())))!;
+      expect(back.fileId, 'f');
+      expect(back.isPut, isTrue);
+      expect(back.fields, {'a': 'b'});
+      expect(back.headers, {'c': 'd'});
+      expect(StorageTarget.fromJson(null), isNull);
+      expect(StorageTarget.fromJson({'url': 1}), isNull);
+    });
+  });
+}
+
+/// What BackgroundStorageTransport does with a record: a finished one sends
+/// nothing.
+class _OsTransport implements StorageTransport {
+  _OsTransport(this.inStorage);
+
+  final Set<String> inStorage;
+  final sent = <String>[];
+  bool recordComplete = false;
+  bool keepRecord = false;
+  Set<String> refuse = const {};
+  void Function()? onPost;
+
+  @override
+  Future<void> post(
+    StorageTarget target,
+    UploadBody body, {
+    required String filename,
+    required String mime,
+    void Function(double progress)? onProgress,
+    CancelToken? cancel,
+    String? taskId,
+  }) async {
+    onPost?.call();
+    if (recordComplete) return;
+    if (refuse.contains(target.fileId)) {
+      throw const ApiException(
+        code: ApiErrorCodes.fileNotUploaded,
+        message: 'expired',
+        statusCode: 403,
+      );
+    }
+    sent.add(target.fileId);
+    inStorage.add(target.fileId);
+  }
 }
