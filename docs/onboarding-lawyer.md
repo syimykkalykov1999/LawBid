@@ -11,8 +11,8 @@ pushed on top of the onboarding step, so Back and Continue can't loop.
 | 1 | Code (`/auth/code`) | signed out | code accepted | 2 |
 | 2 | Consents, contacts, profile, push (`/onboarding/...`) | `onboarding.step` points there | saved on the server | next step |
 | 3a | **License** (`/onboarding/verification`, stage `license`) | verification is start, draft, needs more info or rejected | state + bar number + sworn checkbox submitted (self-attestation, approved at once) | 3b |
-| 3a' | License pending (stage `licensePending`) | verification pending or suspended (admin review) | — | Continue → tour → feed |
-| 3b | **Practices** (same route, stage `practices`) | license verified, no practice areas saved | "Save and continue" with at least one area | 3c |
+| 3b | **Practices** (same route, stage `practices`) | license sent (pending) or verified, no practice areas saved (owner 2026-11-05: required, not skipped while the license is under review) | "Save and continue" with at least one area | 3c |
+| 3b' | License pending (stage `licensePending`) | verification pending with practices saved, or suspended | — | Continue → tour → feed |
 | 3c | **Subscription offer** (same route, stage `subscription`) | practices saved, no active subscription or trial | "Start 7 days free" (card at start) **or** "Later" | 4 |
 | 3d | Summary (stage `done`) | everything above is complete | Continue | 4 |
 | 4 | Tour (`/onboarding/tour`) | — | Finish | feed |
