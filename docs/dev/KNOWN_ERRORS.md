@@ -26,6 +26,8 @@
 
 - **iOS-сборка: «failed downloading … WebRTC.xcframework» (05.11, main, #755, #779).** Файл качается с релиза GitHub и часто обрывается. В CI кэш Swift-пакетов и до 3 попыток только на этой ошибке.
 
+- **`resumable_download_pieces_test`: «an expired link» иногда падает (05.11, #755).** Запрос, отменённый в первой попытке, доходил до тестового сервера уже после очистки списка. Порядок запросов при параллельной работе в тестах не проверять; проверять наличие.
+
 ## B. Деплой и прод
 12. **Сайт 503 с 24.10:** CloudFront function опубликована со старым кодом (`cf.kvs(имя)` вместо ID хранилища). После любого Terraform apply проверять `curl -s -o /dev/null -w "%{http_code}" https://lawbid.dev/` = 200 и `aws cloudfront test-function` на LIVE-стадии.
 13. **Terraform apply оборвался на сохранении state:** короткий `aws login` истёк в конце apply → state ушёл в errored.tfstate. Перед apply обновлять вход; при обрыве — `terraform state push errored.tfstate`, а не повторный apply.
