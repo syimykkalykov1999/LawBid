@@ -138,6 +138,22 @@ void main() {
     expect(find.text('Under review'), findsWidgets);
   });
 
+  testWidgets(
+      'owner 2026-11-05: licence document — camera, photo gallery and PDF file',
+      (tester) async {
+    final backend = FakeVerificationBackend();
+    final source = FakeDocumentSource();
+    await pumpApp(tester, backend, source: source);
+    await tapText(tester, 'Start verification');
+    await tapText(tester, 'Start');
+    await addLicense(tester, 'Add a state', 'Alabama', '123');
+    expect(find.text('Take a photo'), findsOneWidget);
+    expect(find.text('Photo or PDF'), findsOneWidget);
+    await tapText(tester, 'Photo library');
+    // Straight to the phone's photos, not the Files app.
+    expect(source.pickAllowPdf, [false]);
+  });
+
   testWidgets('2. closing the app at step 3 resumes the saved draft',
       (tester) async {
     final backend = FakeVerificationBackend();
