@@ -47,6 +47,10 @@ GroupMessageDto _$GroupMessageDtoFromJson(
       : DateTime.parse(json['expiresAt'] as String),
   forwarded: json['forwarded'] as bool?,
   forwardedFrom: json['forwardedFrom'] as String?,
+  reactions: (json['reactions'] as List<dynamic>?)
+      ?.map((e) => GroupReactionCountDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  myReaction: json['myReaction'] as String?,
 );
 
 Map<String, dynamic> _$GroupMessageDtoToJson(GroupMessageDto instance) =>
@@ -73,4 +77,6 @@ Map<String, dynamic> _$GroupMessageDtoToJson(GroupMessageDto instance) =>
       'expiresAt': ?instance.expiresAt?.toIso8601String(),
       'forwarded': ?instance.forwarded,
       'forwardedFrom': ?instance.forwardedFrom,
+      'reactions': ?instance.reactions?.map((e) => e.toJson()).toList(),
+      'myReaction': ?instance.myReaction,
     };

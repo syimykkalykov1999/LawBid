@@ -1,3 +1,4 @@
+import 'package:lawbid/shared/domain/reaction_palette.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// The generated DTOs are immutable without `copyWith`; these rebuild the
@@ -26,6 +27,8 @@ extension GroupMessageDtoX on api.GroupMessageDto {
         expiresAt: expiresAt,
         forwarded: forwarded,
         forwardedFrom: forwardedFrom,
+        reactions: reactions,
+        myReaction: myReaction,
       );
 
   /// Owner 2026-10-21: disappearing messages — gone by the clock.
@@ -54,6 +57,12 @@ extension GroupRightsX on api.GroupDetailDto {
   bool get canSendPolls =>
       isAdmin ||
       (whoCanPost == api.GroupWho.all && whoCanPoll == api.GroupWho.all);
+
+  /// Owner 2026-10-21 (inbox 26c): the reactions members may put here.
+  List<String> get reactionOptions => reactionChoices(
+        ReactionsMode.parse(reactionsMode?.json),
+        reactionsAllowed ?? const [],
+      );
 
   /// Owner 2026-10-21 (Telegram «Запретить копирование и пересылку»): no
   /// forwarding, copying or saving of the messages.

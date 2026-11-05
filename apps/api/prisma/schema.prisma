@@ -2716,6 +2716,10 @@ model ChatGroup {
   who_can_media         GroupWho  @default(all)
   who_can_poll          GroupWho  @default(all)
   who_can_pin           GroupWho  @default(admins)
+  /// Owner 2026-10-21 (inbox 26c): reactions — 'all' (the app's palette),
+  /// 'some' (only `reactions_allowed`) or 'off'; set with «edit info».
+  reactions_mode        String    @default("all") @db.VarChar(8)
+  reactions_allowed     String[]  @default([]) @db.VarChar(16)
   /// Bare uuid pointers (a FK would make groups <-> messages a cycle).
   pinned_message_id     String?   @db.Uuid
   last_message_id       String?   @db.Uuid
@@ -2803,6 +2807,7 @@ model ChatGroupMessage {
   forwarded_from_name String?            @db.VarChar(120)
   created_at          DateTime           @default(now()) @db.Timestamptz
   poll                ChatGroupPoll?
+  reactions           GroupReaction[]
 
   @@unique([group_id, sender_id, client_message_id])
   @@index([group_id, created_at(sort: Desc)])
@@ -2811,6 +2816,21 @@ model ChatGroupMessage {
   @@index([file_id])
   @@index([reply_to_id])
   @@map("chat_group_messages")
+}
+
+/// Owner 2026-10-21 (inbox 26c, Telegram): one emoji per person per group
+/// message (changing it replaces it). `user_id` is a bare pointer like the
+/// other group links.
+model GroupReaction {
+  message_id String           @db.Uuid
+  message    ChatGroupMessage @relation(fields: [message_id], references: [id], onDelete: Cascade)
+  user_id    String           @db.Uuid
+  emoji      String           @db.VarChar(16)
+  created_at DateTime         @default(now()) @db.Timestamptz
+
+  @@id([message_id, user_id])
+  @@index([user_id])
+  @@map("chat_group_message_reactions")
 }
 
 model ChatGroupTopic {

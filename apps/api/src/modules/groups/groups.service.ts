@@ -79,6 +79,11 @@ import {
   forwardPartId,
   unsupportedInTarget,
 } from '../../common/forward/forward-content';
+import {
+  assertReactionAllowed,
+  cleanAllowed,
+  reactionMode,
+} from '../../common/reactions/reaction-palette';
 
 const GROUPS_PAGE = 30;
 const MESSAGES_PAGE = 30;
@@ -448,7 +453,9 @@ export class GroupsService {
       dto.username !== undefined ||
       dto.joinApproval !== undefined ||
       dto.topicsEnabled !== undefined ||
-      dto.protectContent !== undefined;
+      dto.protectContent !== undefined ||
+      dto.reactionsMode !== undefined ||
+      dto.reactionsAllowed !== undefined;
     const info =
       dto.title !== undefined ||
       dto.description !== undefined ||
@@ -519,6 +526,15 @@ export class GroupsService {
       dto.protectContent !== undefined &&
       dto.protectContent !== m.group.protect_content;
     if (protectChanged) data.protect_content = dto.protectContent;
+    // Owner 2026-10-21 (inbox 26c): reactions all / selected / off.
+    if (dto.reactionsMode !== undefined || dto.reactionsAllowed !== undefined) {
+      const mode = dto.reactionsMode ?? reactionMode(m.group.reactions_mode);
+      data.reactions_mode = mode;
+      data.reactions_allowed = cleanAllowed(
+        mode,
+        dto.reactionsAllowed ?? m.group.reactions_allowed,
+      );
+    }
 
     // Type switch: the rules move with it (public needs a @username, a
     // private group has no link, closed keeps the approval flag).
@@ -1733,6 +1749,44 @@ export class GroupsService {
     return this.one(updated, user.sub);
   }
 
+  /**
+   * Owner 2026-10-21 (inbox 26c, Telegram): put / change ([emoji]) or take
+   * back (null) my reaction — one per person, any member, only what the
+   * group's setting opens. Everyone sees it through `group:message`.
+   */
+  async react(
+    user: RequestUser,
+    id: string,
+    messageId: string,
+    emoji: string | null,
+  ): Promise<GroupMessageDto> {
+    const m = await this.requireMember(user.sub, id);
+    const row = await this.prisma.chatGroupMessage.findFirst({
+      where: { id: messageId, group_id: id, deleted_at: null, ...notExpired() },
+    });
+    if (!row || row.type === 'system') throw notFound();
+    if (emoji === null) {
+      await this.prisma.groupReaction.deleteMany({
+        where: { message_id: messageId, user_id: user.sub },
+      });
+    } else {
+      assertReactionAllowed(
+        m.group.reactions_mode,
+        m.group.reactions_allowed,
+        emoji,
+      );
+      await this.prisma.groupReaction.upsert({
+        where: {
+          message_id_user_id: { message_id: messageId, user_id: user.sub },
+        },
+        create: { message_id: messageId, user_id: user.sub, emoji },
+        update: { emoji },
+      });
+    }
+    await this.broadcast(id, row);
+    return this.one(row, user.sub);
+  }
+
   /** Delete for everyone: the author, or an admin. */
   async remove(
     user: RequestUser,
@@ -2213,17 +2267,23 @@ export class GroupsService {
       });
       if (g && !g.show_service_messages) return;
     }
-    const [ids, [dto]] = await Promise.all([
+    const [ids, [dto], reacted] = await Promise.all([
       this.activeMemberIds(groupId),
       this.presenter.messages([row], NOBODY),
+      this.prisma.groupReaction.findMany({
+        where: { message_id: row.id },
+        select: { user_id: true, emoji: true },
+      }),
     ]);
     if (!dto) return;
+    const mineOf = new Map(reacted.map((r) => [r.user_id, r.emoji]));
     for (const uid of ids) {
       this.realtime.toUsers([uid], 'group:message', {
         message: {
           ...dto,
           mine: row.sender_id === uid,
           mentionsMe: !dto.deleted && row.mention_ids.includes(uid),
+          myReaction: dto.deleted ? null : (mineOf.get(uid) ?? null),
         },
       });
     }

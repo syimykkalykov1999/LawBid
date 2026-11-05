@@ -279,7 +279,7 @@ class ChannelPostCard extends ConsumerWidget {
                     children: [
                       for (final r in post.reactions)
                         if (r.count > 0)
-                          _ReactionChip(
+                          ReactionChip(
                             key: ValueKey('channel-react-${r.emoji}'),
                             emoji: r.emoji,
                             count: SocialFormat.count(f, r.count),
@@ -387,41 +387,6 @@ class ChannelPostCard extends ConsumerWidget {
       ),
     );
   }
-}
-
-class _ReactionChip extends StatelessWidget {
-  const _ReactionChip({
-    required this.emoji,
-    required this.count,
-    required this.selected,
-    required this.label,
-    required this.onTap,
-    super.key,
-  });
-
-  final String emoji;
-  final String count;
-  final bool selected;
-  final String label;
-
-  /// Null: shown, not tappable (the channel closed this reaction).
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-        button: onTap != null,
-        selected: selected,
-        label: label,
-        excludeSemantics: true,
-        onTap: onTap,
-        // Compact (28), as wide as its content, never stretched.
-        child: AppChip(
-          label: '$emoji $count',
-          selected: selected,
-          height: 28,
-          onTap: onTap,
-        ),
-      );
 }
 
 /// A small icon button with an optional count beside it (≥ 44 dp to tap).

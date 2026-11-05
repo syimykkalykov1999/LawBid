@@ -38,9 +38,10 @@ class ReactionEmojiButton extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: selected ? colors.goldTint : null,
+            // No gold fills (owner rule): the theme's icon tint marks mine.
+            color: selected ? colors.iconTint.withValues(alpha: 0.14) : null,
             border: Border.all(
-              color: selected ? colors.goldStroke : colors.border,
+              color: selected ? colors.iconTint : colors.border,
             ),
           ),
           child: Text(emoji, style: type.titleLarge),
@@ -48,6 +49,88 @@ class ReactionEmojiButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Owner 2026-10-20/21 (Telegram): a small reaction chip «emoji count»
+/// under a channel post or a group message; [selected] = mine.
+class ReactionChip extends StatelessWidget {
+  const ReactionChip({
+    required this.emoji,
+    required this.count,
+    required this.selected,
+    required this.label,
+    required this.onTap,
+    super.key,
+  });
+
+  final String emoji;
+  final String count;
+  final bool selected;
+  final String label;
+
+  /// Null: shown, not tappable (the reaction was closed).
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: onTap != null,
+        selected: selected,
+        label: label,
+        excludeSemantics: true,
+        onTap: onTap,
+        // Compact (28), as wide as its content, never stretched.
+        child: AppChip(
+          label: '$emoji $count',
+          selected: selected,
+          height: 28,
+          onTap: onTap,
+        ),
+      );
+}
+
+/// Owner 2026-10-21 (inbox 26c, Telegram): the row of reactions on top of a
+/// message's long-press menu — scrolls sideways when the palette is long.
+class ReactionQuickBar extends StatelessWidget {
+  const ReactionQuickBar({
+    required this.choices,
+    required this.mine,
+    required this.label,
+    required this.onPick,
+    this.keyPrefix = 'reaction-quick',
+    super.key,
+  });
+
+  final List<String> choices;
+  final String? mine;
+
+  /// The spoken label of one emoji button.
+  final String Function(String emoji) label;
+  final ValueChanged<String> onPick;
+  final String keyPrefix;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        height: AppSizes.hitTarget + AppSpacing.sm,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.screenSide,
+            vertical: AppSpacing.xs,
+          ),
+          itemCount: choices.length,
+          separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.xs),
+          itemBuilder: (context, i) {
+            final e = choices[i];
+            return ReactionEmojiButton(
+              key: ValueKey('$keyPrefix-$e'),
+              emoji: e,
+              selected: mine == e,
+              label: label(e),
+              onTap: () => onPick(e),
+            );
+          },
+        ),
+      );
 }
 
 /// The «pick a reaction» sheet: [choices] in rows; returns the emoji, or

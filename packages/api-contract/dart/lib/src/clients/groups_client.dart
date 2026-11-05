@@ -21,6 +21,7 @@ import '../models/group_join_result_envelope.dart';
 import '../models/group_list_envelope.dart';
 import '../models/group_message_envelope.dart';
 import '../models/group_message_list_envelope.dart';
+import '../models/group_reaction_dto.dart';
 import '../models/group_read_result_envelope.dart';
 import '../models/group_shared_kind.dart';
 import '../models/group_topic_envelope.dart';
@@ -227,6 +228,23 @@ abstract class GroupsClient {
   /// Delete for everyone (the author, or an admin)
   @DELETE('/groups/{id}/messages/{messageId}')
   Future<void> deleteGroupMessage({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Put or change my reaction (one per person)
+  @PUT('/groups/{id}/messages/{messageId}/reaction')
+  Future<GroupMessageEnvelope> reactToGroupMessage({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Body() required GroupReactionDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Take my reaction back
+  @DELETE('/groups/{id}/messages/{messageId}/reaction')
+  Future<GroupMessageEnvelope> unreactToGroupMessage({
     @Path('id') required String id,
     @Path('messageId') required String messageId,
     @Extras() Map<String, dynamic>? extras,

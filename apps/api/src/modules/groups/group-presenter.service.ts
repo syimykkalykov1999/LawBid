@@ -1,3 +1,7 @@
+import {
+  REACTION_PALETTE,
+  reactionMode,
+} from '../../common/reactions/reaction-palette';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type {
@@ -273,13 +277,33 @@ export class GroupPresenter {
     const fileIds = rows.flatMap((m) =>
       m.type === 'attachment' && m.file_id && !m.deleted_at ? [m.file_id] : [],
     );
-    const [urls, polls] = await Promise.all([
+    const liveIds = rows.flatMap((m) =>
+      m.type !== 'system' && !m.deleted_at ? [m.id] : [],
+    );
+    const [urls, polls, counts, mine] = await Promise.all([
       this.files.attachmentUrls(fileIds),
       this.polls(
         rows.flatMap((m) => (m.type === 'poll' && !m.deleted_at ? [m.id] : [])),
         viewerId,
       ),
+      liveIds.length
+        ? this.prisma.groupReaction.groupBy({
+            by: ['message_id', 'emoji'],
+            where: { message_id: { in: liveIds } },
+            _count: { _all: true },
+          })
+        : Promise.resolve([]),
+      liveIds.length
+        ? this.prisma.groupReaction.findMany({
+            where: { message_id: { in: liveIds }, user_id: viewerId },
+            select: { message_id: true, emoji: true },
+          })
+        : Promise.resolve([]),
     ]);
+    const myReactionOf = new Map(mine.map((r) => [r.message_id, r.emoji]));
+    const paletteOrder = new Map<string, number>(
+      REACTION_PALETTE.map((e, i) => [e as string, i]),
+    );
     const replyOf = new Map(replies.map((r) => [r.id, r]));
 
     return rows.map((m) => {
@@ -354,6 +378,16 @@ export class GroupPresenter {
         expiresAt: m.expires_at,
         forwarded: m.forwarded && !deleted,
         forwardedFrom: m.forwarded && !deleted ? m.forwarded_from_name : null,
+        reactions: counts
+          .filter((c) => c.message_id === m.id)
+          .map((c) => ({ emoji: c.emoji, count: c._count._all }))
+          .sort(
+            (a, b) =>
+              b.count - a.count ||
+              (paletteOrder.get(a.emoji) ?? 99) -
+                (paletteOrder.get(b.emoji) ?? 99),
+          ),
+        myReaction: myReactionOf.get(m.id) ?? null,
       };
     });
   }
@@ -425,6 +459,8 @@ export class GroupPresenter {
         showServiceMessages: g.show_service_messages,
         disappearAfterS: g.disappear_after_s,
         protectContent: g.protect_content,
+        reactionsMode: reactionMode(g.reactions_mode),
+        reactionsAllowed: g.reactions_allowed,
         whoCanMedia: g.who_can_media,
         whoCanPoll: g.who_can_poll,
         whoCanPin: g.who_can_pin,

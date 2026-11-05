@@ -9,17 +9,17 @@ part of 'group_detail_dto.dart';
 GroupDetailDto _$GroupDetailDtoFromJson(
   Map<String, dynamic> json,
 ) => GroupDetailDto(
-  showServiceMessages: json['showServiceMessages'] as bool,
+  canCall: json['canCall'] as bool,
   title: json['title'] as String,
   memberCount: json['memberCount'] as num,
   type: GroupType.fromJson(json['type'] as String),
-  whoCanAdd: GroupWho.fromJson(json['whoCanAdd'] as String),
+  whoCanEditInfo: GroupWho.fromJson(json['whoCanEditInfo'] as String),
   joinApproval: json['joinApproval'] as bool,
   topicsEnabled: json['topicsEnabled'] as bool,
   pendingRequests: json['pendingRequests'] as num,
   whoCanPost: GroupWho.fromJson(json['whoCanPost'] as String),
+  whoCanAdd: GroupWho.fromJson(json['whoCanAdd'] as String),
   id: json['id'] as String,
-  whoCanEditInfo: GroupWho.fromJson(json['whoCanEditInfo'] as String),
   whoCanCall: GroupWho.fromJson(json['whoCanCall'] as String),
   whoCanMedia: GroupWho.fromJson(json['whoCanMedia'] as String),
   whoCanPoll: GroupWho.fromJson(json['whoCanPoll'] as String),
@@ -27,14 +27,16 @@ GroupDetailDto _$GroupDetailDtoFromJson(
   myRights: (json['myRights'] as List<dynamic>)
       .map((e) => GroupDetailDtoMyRights.fromJson(e as String))
       .toList(),
-  isAdmin: json['isAdmin'] as bool,
+  showServiceMessages: json['showServiceMessages'] as bool,
   canPost: json['canPost'] as bool,
   canAdd: json['canAdd'] as bool,
   canEditInfo: json['canEditInfo'] as bool,
-  canCall: json['canCall'] as bool,
-  inviteEnabled: json['inviteEnabled'] as bool,
+  createdAt: DateTime.parse(json['createdAt'] as String),
+  updatedAt: DateTime.parse(json['updatedAt'] as String),
   callsMuted: json['callsMuted'] as bool,
   unreadMentions: json['unreadMentions'] as num,
+  unreadCount: json['unreadCount'] as num,
+  inviteEnabled: json['inviteEnabled'] as bool,
   pinned: json['pinned'] as bool,
   invited: (json['invited'] as List<dynamic>)
       .map((e) => GroupPersonDto.fromJson(e as Map<String, dynamic>))
@@ -42,9 +44,13 @@ GroupDetailDto _$GroupDetailDtoFromJson(
   members: (json['members'] as List<dynamic>)
       .map((e) => GroupMemberDto.fromJson(e as Map<String, dynamic>))
       .toList(),
-  createdAt: DateTime.parse(json['createdAt'] as String),
-  unreadCount: json['unreadCount'] as num,
-  updatedAt: DateTime.parse(json['updatedAt'] as String),
+  isAdmin: json['isAdmin'] as bool,
+  notAdded: (json['notAdded'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
+  reactionsAllowed: (json['reactionsAllowed'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
   inviteLink: json['inviteLink'] as String?,
   pinnedMessage: json['pinnedMessage'] == null
       ? null
@@ -55,14 +61,14 @@ GroupDetailDto _$GroupDetailDtoFromJson(
   lastMessageAt: json['lastMessageAt'] == null
       ? null
       : DateTime.parse(json['lastMessageAt'] as String),
-  notAdded: (json['notAdded'] as List<dynamic>?)
-      ?.map((e) => e as String)
-      .toList(),
+  reactionsMode: json['reactionsMode'] == null
+      ? null
+      : ReactionMode.fromJson(json['reactionsMode'] as String),
   protectContent: json['protectContent'] as bool?,
   mutedUntil: json['mutedUntil'] == null
       ? null
       : DateTime.parse(json['mutedUntil'] as String),
-  disappearAfterS: json['disappearAfterS'] as num?,
+  username: json['username'] as String?,
   myRole: json['myRole'] == null
       ? null
       : GroupRole.fromJson(json['myRole'] as String),
@@ -70,7 +76,7 @@ GroupDetailDto _$GroupDetailDtoFromJson(
   avatarFullUrl: json['avatarFullUrl'] as String?,
   avatarUrl: json['avatarUrl'] as String?,
   description: json['description'] as String?,
-  username: json['username'] as String?,
+  disappearAfterS: json['disappearAfterS'] as num?,
 );
 
 Map<String, dynamic> _$GroupDetailDtoToJson(GroupDetailDto instance) =>
@@ -99,6 +105,8 @@ Map<String, dynamic> _$GroupDetailDtoToJson(GroupDetailDto instance) =>
       'showServiceMessages': instance.showServiceMessages,
       'disappearAfterS': ?instance.disappearAfterS,
       'protectContent': ?instance.protectContent,
+      'reactionsMode': ?instance.reactionsMode?.toJson(),
+      'reactionsAllowed': ?instance.reactionsAllowed,
       'canPost': instance.canPost,
       'canAdd': instance.canAdd,
       'canEditInfo': instance.canEditInfo,

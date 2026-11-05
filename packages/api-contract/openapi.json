@@ -89452,6 +89452,226 @@
         ]
       }
     },
+    "/groups/{id}/messages/{messageId}/reaction": {
+      "put": {
+        "operationId": "reactToGroupMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupReactionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupMessageEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: GROUP_FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: GROUP_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Put or change my reaction (one per person)",
+        "tags": [
+          "groups"
+        ]
+      },
+      "delete": {
+        "operationId": "unreactToGroupMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupMessageEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: GROUP_FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: GROUP_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Take my reaction back",
+        "tags": [
+          "groups"
+        ]
+      }
+    },
     "/groups/{id}/pin": {
       "put": {
         "operationId": "pinGroupMessage",
@@ -154144,6 +154364,21 @@
           "myOptionIds"
         ]
       },
+      "GroupReactionCountDto": {
+        "type": "object",
+        "properties": {
+          "emoji": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "emoji",
+          "count"
+        ]
+      },
       "GroupMessageDto": {
         "type": "object",
         "properties": {
@@ -154270,6 +154505,17 @@
             "type": "string",
             "nullable": true,
             "description": "The first author (or channel) of a forwarded message."
+          },
+          "reactions": {
+            "description": "Owner 2026-10-21 (inbox 26c): reactions, most first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupReactionCountDto"
+            }
+          },
+          "myReaction": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
@@ -154425,6 +154671,21 @@
           "protectContent": {
             "type": "boolean",
             "description": "Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link."
+          },
+          "reactionsMode": {
+            "description": "Owner 2026-10-21 (inbox 26c): all / selected / off.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReactionMode"
+              }
+            ]
+          },
+          "reactionsAllowed": {
+            "description": "The selected reactions (mode «some»), palette order.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "canPost": {
             "type": "boolean",
@@ -154757,6 +155018,21 @@
           "protectContent": {
             "type": "boolean",
             "description": "Restrict saving content: no forwarding, copying or saving of the messages; sharing sends the link."
+          },
+          "reactionsMode": {
+            "description": "Owner 2026-10-21 (inbox 26c): all / selected / off.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReactionMode"
+              }
+            ]
+          },
+          "reactionsAllowed": {
+            "description": "The selected reactions (mode «some»), palette order.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "canPost": {
             "type": "boolean",
@@ -155320,6 +155596,47 @@
           "topicsEnabled": {
             "type": "boolean",
             "description": "Admins only: forum mode (topics)."
+          },
+          "reactionsMode": {
+            "description": "Admins with «edit info».",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReactionMode"
+              }
+            ]
+          },
+          "reactionsAllowed": {
+            "description": "With reactionsMode «some»: the reactions left open (≥ 1).",
+            "items": {
+              "type": "string",
+              "enum": [
+                "👍",
+                "❤️",
+                "🔥",
+                "👏",
+                "😮",
+                "🙏",
+                "👎",
+                "😁",
+                "🤔",
+                "🤯",
+                "😢",
+                "🎉",
+                "🤩",
+                "👌",
+                "😍",
+                "💯",
+                "🤣",
+                "⚡",
+                "🏆",
+                "💔",
+                "👀",
+                "🤝",
+                "✍️",
+                "😎"
+              ]
+            },
+            "type": "array"
           }
         }
       },
@@ -155483,6 +155800,44 @@
         },
         "required": [
           "body"
+        ]
+      },
+      "GroupReactionDto": {
+        "type": "object",
+        "properties": {
+          "emoji": {
+            "type": "string",
+            "enum": [
+              "👍",
+              "❤️",
+              "🔥",
+              "👏",
+              "😮",
+              "🙏",
+              "👎",
+              "😁",
+              "🤔",
+              "🤯",
+              "😢",
+              "🎉",
+              "🤩",
+              "👌",
+              "😍",
+              "💯",
+              "🤣",
+              "⚡",
+              "🏆",
+              "💔",
+              "👀",
+              "🤝",
+              "✍️",
+              "😎"
+            ],
+            "description": "One of the app palette (and the group setting)."
+          }
+        },
+        "required": [
+          "emoji"
         ]
       },
       "PinGroupMessageDto": {

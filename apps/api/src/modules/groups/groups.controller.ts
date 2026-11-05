@@ -51,6 +51,7 @@ import {
   GroupMessagesQueryDto,
   GroupPollParamDto,
   GroupReadResultDto,
+  GroupReactionDto,
   GroupsQueryDto,
   PinGroupMessageDto,
   PollDto,
@@ -365,6 +366,29 @@ export class GroupsController {
     @Param() p: GroupMessageParamDto,
   ): Promise<void> {
     await this.groups.remove(user, p.id, p.messageId);
+  }
+
+  @Put(':id/messages/:messageId/reaction')
+  @ApiOperation({ summary: 'Put or change my reaction (one per person)' })
+  @ApiEnvelopeResponse(GroupMessageDto)
+  @ApiErrors(GROUP_ERRORS)
+  reactToGroupMessage(
+    @CurrentUser() user: RequestUser,
+    @Param() p: GroupMessageParamDto,
+    @Body() dto: GroupReactionDto,
+  ): Promise<GroupMessageDto> {
+    return this.groups.react(user, p.id, p.messageId, dto.emoji);
+  }
+
+  @Delete(':id/messages/:messageId/reaction')
+  @ApiOperation({ summary: 'Take my reaction back' })
+  @ApiEnvelopeResponse(GroupMessageDto)
+  @ApiErrors(GROUP_ERRORS)
+  unreactToGroupMessage(
+    @CurrentUser() user: RequestUser,
+    @Param() p: GroupMessageParamDto,
+  ): Promise<GroupMessageDto> {
+    return this.groups.react(user, p.id, p.messageId, null);
   }
 
   @Put(':id/pin')

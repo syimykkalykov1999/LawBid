@@ -200,6 +200,26 @@ class GroupRepository {
   Future<void> deleteMessage(String id, String messageId) =>
       guardApiCall(() => _c.deleteGroupMessage(id: id, messageId: messageId));
 
+  /// Owner 2026-10-21 (inbox 26c): put / change my reaction ([emoji]) or
+  /// take it back (null).
+  Future<api.GroupMessageDto> react(
+    String id,
+    String messageId,
+    String? emoji,
+  ) async =>
+      (await guardApiCall(
+        () => emoji == null
+            ? _c.unreactToGroupMessage(id: id, messageId: messageId)
+            : _c.reactToGroupMessage(
+                id: id,
+                messageId: messageId,
+                body: api.GroupReactionDto(
+                  emoji: api.GroupReactionDtoEmoji.fromJson(emoji),
+                ),
+              ),
+      ))
+          .data;
+
   /// Pin a message (admins); a null [messageId] unpins.
   Future<api.GroupDetailDto> pin(String id, String? messageId) async =>
       (await guardApiCall(

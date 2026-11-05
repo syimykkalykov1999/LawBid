@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'chat_attachment_dto.dart';
 import 'group_message_dto_type.dart';
 import 'group_person_dto.dart';
+import 'group_reaction_count_dto.dart';
 import 'group_reply_preview_dto.dart';
 import 'poll_dto.dart';
 
@@ -37,6 +38,8 @@ class GroupMessageDto {
     this.expiresAt,
     this.forwarded,
     this.forwardedFrom,
+    this.reactions,
+    this.myReaction,
   });
 
   factory GroupMessageDto.fromJson(Map<String, Object?> json) =>
@@ -84,6 +87,10 @@ class GroupMessageDto {
 
   /// The first author (or channel) of a forwarded message.
   final String? forwardedFrom;
+
+  /// Owner 2026-10-21 (inbox 26c): reactions, most first.
+  final List<GroupReactionCountDto>? reactions;
+  final String? myReaction;
 
   Map<String, Object?> toJson() => _$GroupMessageDtoToJson(this);
 }

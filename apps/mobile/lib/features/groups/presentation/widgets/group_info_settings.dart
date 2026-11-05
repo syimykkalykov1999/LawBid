@@ -8,6 +8,8 @@ import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_section.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart';
+import 'package:lawbid/shared/domain/reaction_palette.dart';
+import 'package:lawbid/shared/presentation/reaction_sheets.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Sends a settings change and returns an error text to show, or null when
@@ -70,6 +72,29 @@ class GroupInfoSettings extends ConsumerWidget {
     );
     if (picked == null || picked == current) return;
     await _run(build(picked));
+  }
+
+  ReactionsMode get _reactMode =>
+      ReactionsMode.parse(detail.reactionsMode?.json);
+  List<String> get _reactAllowed => detail.reactionsAllowed ?? const [];
+
+  Future<void> _pickReactions(BuildContext context, Translator t) async {
+    final picked = await showReactionSettingsSheet(
+      context,
+      t,
+      mode: _reactMode,
+      allowed: _reactAllowed,
+    );
+    if (picked == null) return;
+    await _run(
+      api.UpdateGroupDto(
+        reactionsMode: api.ReactionMode.fromJson(picked.mode.name),
+        reactionsAllowed: [
+          for (final e in picked.allowed)
+            api.UpdateGroupDtoReactionsAllowed.fromJson(e),
+        ],
+      ),
+    );
   }
 
   @override
@@ -200,6 +225,15 @@ class GroupInfoSettings extends ConsumerWidget {
                   whoCanPin: api.UpdateGroupDtoWhoCanPin.fromJson(w.name),
                 ),
               ),
+            ),
+            // Owner 2026-10-21 (inbox 26c, Telegram): all / selected / off.
+            AppListRow(
+              dense: true,
+              key: const ValueKey('group-set-reactions'),
+              icon: AppIcons.faceOutlined,
+              label: t.t('reactions.title'),
+              subtitle: reactionSettingsLabel(t, _reactMode, _reactAllowed),
+              onTap: () => _pickReactions(context, t),
             ),
           ],
         ),

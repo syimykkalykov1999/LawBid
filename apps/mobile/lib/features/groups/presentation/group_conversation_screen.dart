@@ -413,6 +413,9 @@ class _GroupConversationScreenState
       canPin: detail.canPinMessages,
       pinned: pinned,
       canDelete: m.mine || detail.canDeleteOthers,
+      reactions: detail.reactionOptions,
+      myReaction: m.myReaction,
+      onReact: (e) => unawaited(_react(m, e)),
     );
     if (action == null || !mounted) return;
     switch (action) {
@@ -457,6 +460,14 @@ class _GroupConversationScreenState
         } on Object catch (e) {
           _error(e);
         }
+    }
+  }
+
+  Future<void> _react(api.GroupMessageDto m, String emoji) async {
+    try {
+      await _thread.react(m, emoji);
+    } on Object catch (e) {
+      _error(e);
     }
   }
 
@@ -755,6 +766,7 @@ class _GroupConversationScreenState
         onRetry: _thread.retry,
         onDiscard: _thread.dropPending,
         onPollChanged: (m, p) => _thread.applyPoll(m.id, p),
+        onReact: (m, e) => unawaited(_react(m, e)),
       );
     }
 
@@ -1051,6 +1063,7 @@ class _MessageList extends ConsumerWidget {
     required this.onPollChanged,
     this.selected = const {},
     this.onToggle,
+    this.onReact,
   });
 
   final GroupThreadState state;
@@ -1070,6 +1083,9 @@ class _MessageList extends ConsumerWidget {
   /// «Select» mode: the picked ids; a tap on a message calls [onToggle].
   final Set<String> selected;
   final void Function(api.GroupMessageDto m)? onToggle;
+
+  /// Owner 2026-10-21 (inbox 26c): a tap on a reaction chip.
+  final void Function(api.GroupMessageDto m, String emoji)? onReact;
 
   static String _dayLabel(Translator t, L10nFormats f, DateTime at) {
     final now = DateTime.now();
@@ -1166,6 +1182,10 @@ class _MessageList extends ConsumerWidget {
                 : null,
             onJump: onJump,
             onPollChanged: (p) => onPollChanged(m, p),
+            reactionOptions: detail.reactionOptions,
+            onReact: onToggle != null || onReact == null
+                ? null
+                : (e) => onReact!(m, e),
           );
         }
         return Column(
