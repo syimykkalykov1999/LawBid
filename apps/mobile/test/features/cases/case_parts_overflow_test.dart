@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 
 import '../../helpers/ux_harness.dart';
 
@@ -47,12 +48,9 @@ Future<void> main() async {
                       budget: const CaseBudget(mode: BudgetMode.clarifyLater),
                       urgency: CaseUrgencyInfo.none,
                     ),
-                    CaseTextTabs(
-                      items: [
-                        for (final (i, l) in labels.indexed)
-                          CaseTabItem(l, count: i + 8, locked: i == 1),
-                      ],
-                      index: index,
+                    PillTabs<int>(
+                      value: index,
+                      tabs: [for (final (i, l) in labels.indexed) (i, l)],
                       onChanged: (i) => set(() => index = i),
                     ),
                   ],

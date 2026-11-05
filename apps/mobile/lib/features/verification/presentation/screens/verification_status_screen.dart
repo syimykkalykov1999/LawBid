@@ -584,7 +584,12 @@ class _DraftProgress extends StatelessWidget {
         children: [
           Text(label, style: typography.roleTitle.copyWith(color: colors.text)),
           const SizedBox(height: AppSpacing.md),
-          AppStepProgress(total: total, current: done, semanticLabel: label),
+          // Done items show a check, the next one the ring.
+          AppStepProgress(
+            total: total,
+            current: done + 1,
+            semanticLabel: label,
+          ),
         ],
       ),
     );

@@ -95,7 +95,10 @@ export function eventOf(
   const kind =
     type === 'bid_rejected' && p.reason === 'withdrawn'
       ? 'bid_withdrawn'
-      : KIND_OF[type];
+      : // R-392: «Не закрывать» moves the case back to work.
+        type === 'case_workspace_activity' && p.kind === 'close_declined'
+        ? 'updated'
+        : KIND_OF[type];
   if (!kind || typeof p.caseId !== 'string') return null;
   const bid = bidPatchOf(kind, p);
   return {
