@@ -183,11 +183,12 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
     }
   }
 
-  Future<void> _pickCard({required bool camera}) async {
+  /// Owner 2026-11-05: camera, the phone's photo gallery, or a file (PDF).
+  Future<void> _pickCard({bool camera = false, bool gallery = false}) async {
     final source = ref.read(documentSourceProvider);
     final doc = camera
         ? await source.capture(context, CaptureGuide.card)
-        : await source.pickFile(allowPdf: true);
+        : await source.pickFile(allowPdf: !gallery);
     if (doc != null && mounted) setState(() => _card = doc);
   }
 
@@ -332,7 +333,8 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
                       ? t.t('verification.license.manual.cardRequired')
                       : null,
                   onCamera: () => _pickCard(camera: true),
-                  onFile: () => _pickCard(camera: false),
+                  onGallery: () => _pickCard(gallery: true),
+                  onFile: _pickCard,
                   onRemove: () => setState(() => _card = null),
                 ),
                 const SizedBox(height: AppSpacing.lg),
@@ -425,6 +427,7 @@ class _CardPhoto extends StatelessWidget {
     required this.t,
     required this.card,
     required this.onCamera,
+    required this.onGallery,
     required this.onFile,
     required this.onRemove,
     this.errorText,
@@ -433,6 +436,7 @@ class _CardPhoto extends StatelessWidget {
   final Translator t;
   final PickedDocument? card;
   final VoidCallback onCamera;
+  final VoidCallback onGallery;
   final VoidCallback onFile;
   final VoidCallback onRemove;
   final String? errorText;
@@ -451,24 +455,38 @@ class _CardPhoto extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.sm),
         if (picked == null)
-          Row(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: AppButton(
-                  label: t.t('verification.source.camera'),
-                  icon: AppIcons.photoCameraOutlined,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: onCamera,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: AppButton(
+                      label: t.t('verification.source.camera'),
+                      icon: AppIcons.photoCameraOutlined,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: onCamera,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  // Owner 2026-11-05: straight to the phone's photos.
+                  Expanded(
+                    child: AppButton(
+                      key: const ValueKey('card-source-library'),
+                      label: t.t('verification.source.library'),
+                      icon: AppIcons.photoLibraryOutlined,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: onGallery,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: AppButton(
-                  label: t.t('verification.source.file'),
-                  icon: AppIcons.uploadFileRounded,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: onFile,
-                ),
+              const SizedBox(height: AppSpacing.sm),
+              AppButton(
+                label: t.t('verification.source.file'),
+                icon: AppIcons.uploadFileRounded,
+                variant: AppButtonVariant.secondary,
+                onPressed: onFile,
               ),
             ],
           )
