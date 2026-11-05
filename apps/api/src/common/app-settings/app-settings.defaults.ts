@@ -465,6 +465,11 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   // Owner 2026-10-16: where no registry checks the number, the bar card is
   // required (a person decides from it). Off = only when switched on above.
   'verification.bar_document_for_manual_states': true,
+  // Owner 2026-11-05: an attorney's profile photo is mandatory — a NEW
+  // verification request is not accepted without the attorney's own clean
+  // photo (the sign-up profile step already asks for it). Requests already
+  // sent are never touched. Off = no photo check on submit.
+  'verification.require_photo': true,
 } as const;
 
 // Owner 2026-10-05: the planner's archive — finished tasks are kept this
