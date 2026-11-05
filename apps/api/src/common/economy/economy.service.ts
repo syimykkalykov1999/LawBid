@@ -20,6 +20,8 @@ import {
 } from '../cost-guard/cost-guard.constants';
 import { parsePriceBook, unitUsdPerCall } from '../cost-guard/cost-prices';
 import { S3StorageService } from '../../modules/files/storage/s3-storage.service';
+import { AdminSummaryService } from '../admin-summary/admin-summary.service';
+import { withTimeout } from '../resilience/resilience';
 import { SpendService, type VendorSpend } from '../ops/spend/spend.service';
 import {
   AwsCapacityService,
@@ -62,6 +64,27 @@ const SCALE_CONTROLS_KEY = 'economy:scale_controls_published';
 
 const DAY_MS = 86_400_000;
 const PRESSURE_ALERT_TTL_SEC = 6 * 3600;
+/** Owner 2026-11-04 (R-369): «Масштаб» stood on an empty skeleton because
+ * every open of `GET /admin/economy` asked AWS (ECS, Auto Scaling, Budgets)
+ * and the spend snapshot one after another, with no time limit. The report
+ * is now a shared admin summary (AdminSummaryService, the same pattern as
+ * «Здоровье системы»): younger than FRESH it is served as is; up to
+ * MAX_STALE it is served at once while ONE refresh runs in the background;
+ * only a cold cache waits. Every outside call has its own time limit and
+ * falls back to «н/д» (null) instead of holding the whole answer. */
+const REPORT_KEY = 'economy:report';
+const REPORT_FRESH_MS = 60_000;
+const REPORT_MAX_STALE_MS = 15 * 60_000;
+const OUTSIDE_CALL_MS = 3_000;
+
+/** [p] or null after [ms] / on failure: one slow source never blocks the card. */
+function orNull<T>(
+  name: string,
+  p: () => Promise<T>,
+  ms = OUTSIDE_CALL_MS,
+): Promise<T | null> {
+  return withTimeout(name, ms, p).catch(() => null);
+}
 
 export interface EconomySettings {
   percent: number;
@@ -185,6 +208,8 @@ export class EconomyService {
     @Optional() private readonly storage?: S3StorageService,
     // Cost registry V4: writes the money ceiling of the autoscalers (SSM).
     @Optional() private readonly ssm?: SsmParamGateway,
+    // R-369: the shared, background-refreshed copy of report().
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {
     this.logger.setContext(EconomyService.name);
   }
@@ -268,7 +293,8 @@ export class EconomyService {
 
     const lines: SpendLine[] = [];
     const cost =
-      (await this.ops.cost()) ?? (await this.aws.cost(now).catch(() => null));
+      (await this.ops.cost()) ??
+      (await orNull('aws.cost', () => this.aws.cost(now)));
     if (cost) {
       lines.push({
         key: 'aws',
@@ -307,8 +333,10 @@ export class EconomyService {
       });
     }
     const awsActual = lines[0].source === 'actual';
-    const vendors = await this.vendorReadings(now);
-    const { stored } = await this.autoscale.readSettings();
+    const [vendors, { stored }] = await Promise.all([
+      this.vendorReadings(now),
+      this.autoscale.readSettings(),
+    ]);
     const book = parsePriceBook(stored);
     const counted = async (p: CostProvider): Promise<number> =>
       (await this.autoscale.usage(p, now)).month * unitUsdPerCall(p, book);
@@ -326,8 +354,10 @@ export class EconomyService {
       ['email', 'email', undefined, awsActual],
       ['image_moderation', 'image_moderation', undefined, awsActual],
     ];
-    for (const [key, provider, vendor, covered] of priced) {
-      const pick = pickVendorLine(vendor, await counted(provider), now);
+    // The counters are independent Redis reads: ask them together.
+    const usage = await Promise.all(priced.map(([, p]) => counted(p)));
+    for (const [i, [key, , vendor, covered]] of priced.entries()) {
+      const pick = pickVendorLine(vendor, usage[i], now);
       lines.push({
         key,
         monthToDateUsd: usd(pick.monthToDateUsd),
@@ -366,12 +396,10 @@ export class EconomyService {
   private async vendorReadings(
     now: Date,
   ): Promise<Map<VendorSpend['id'], VendorSpend>> {
-    try {
-      const rep = await this.spend?.report(now);
-      return new Map((rep?.vendors ?? []).map((v) => [v.id, v]));
-    } catch {
-      return new Map();
-    }
+    const rep = this.spend
+      ? await orNull('spend.report', () => this.spend!.report(now))
+      : null;
+    return new Map((rep?.vendors ?? []).map((v) => [v.id, v]));
   }
 
   // --- the 5-minute job ---------------------------------------------------
@@ -771,21 +799,54 @@ export class EconomyService {
     return tiers.map((t) => ({ ...t, current: t.name === current }));
   }
 
+  /** GET path: the shared summary (see REPORT_* above). */
+  async cachedReport(): Promise<EconomyReport> {
+    if (!this.summary) return this.build(new Date());
+    const compute = () => this.build(new Date());
+    const hit = await this.summary.peek<EconomyReport>(REPORT_KEY);
+    const age = hit ? Date.now() - Date.parse(hit.computedAt) : Infinity;
+    if (hit?.data?.capacity && age < REPORT_MAX_STALE_MS) {
+      if (age > REPORT_FRESH_MS) {
+        void this.summary.refresh(REPORT_KEY, compute).catch(() => undefined);
+      }
+      return hit.data;
+    }
+    return (await this.summary.refresh(REPORT_KEY, compute, true)).data;
+  }
+
+  /** Always computed now (after a button); the result also replaces the
+   * shared copy so the next GET shows the state the owner just set. */
   async report(now: Date = new Date()): Promise<EconomyReport> {
-    const cfg = await this.settings();
-    const [enabled, state, figures, events, cap, scaleMode, applied] =
-      await Promise.all([
-        this.isEnabled(),
-        this.ops.economy(),
-        this.figures(now, cfg),
-        this.ops.economyEvents(20),
-        this.ops.capacity(),
-        this.ops.scaleMode(),
-        this.ops.ceiling(),
-      ]);
+    const report = await this.build(now);
+    await this.summary?.put(REPORT_KEY, report);
+    return report;
+  }
+
+  private async build(now: Date): Promise<EconomyReport> {
     const onAws = this.aws.available;
-    const counts = onAws ? await this.aws.taskCounts().catch(() => null) : null;
-    const now2 = onAws ? await this.aws.ceilingsNow().catch(() => null) : null;
+    const cfg = await this.settings();
+    // Everything independent at once; the AWS reads each under a time limit.
+    const [
+      enabled,
+      state,
+      figures,
+      events,
+      cap,
+      scaleMode,
+      applied,
+      counts,
+      now2,
+    ] = await Promise.all([
+      this.isEnabled(),
+      this.ops.economy(),
+      this.figures(now, cfg),
+      this.ops.economyEvents(20),
+      this.ops.capacity(),
+      this.ops.scaleMode(),
+      this.ops.ceiling(),
+      onAws ? orNull('ecs.taskCounts', () => this.aws.taskCounts()) : null,
+      onAws ? orNull('aas.ceilingsNow', () => this.aws.ceilingsNow()) : null,
+    ]);
     const container = (kind: TaskKind): ContainerReport => ({
       running: counts?.[kind].running ?? null,
       desired: counts?.[kind].desired ?? null,

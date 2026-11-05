@@ -12,6 +12,7 @@ import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
@@ -587,6 +588,10 @@ class CallController extends Notifier<CallSession> {
     // The ongoing-call notification follows the call; its buttons come back.
     listenSelf(_syncForeground);
     listenSelf(_syncProximity);
+    // R-373: the feed's players follow the call (silent, no audio focus).
+    listenSelf((_, next) {
+      ref.read(callAudioActiveProvider.notifier).set(active: next.busy);
+    });
     final fg = ref.read(callForegroundProvider);
     final actions = fg.actions.listen(_onNotificationAction);
     unawaited(
@@ -2756,6 +2761,13 @@ class CallController extends Notifier<CallSession> {
 /// while TURN is not configured, so the button never leads nowhere).
 final videoCallsEnabledProvider = Provider<bool>(
   (ref) => ref.watch(featureFlagsControllerProvider).isEnabled('video_calls'),
+);
+
+/// Owner 2026-11-04 (R-376): group calls (three people or more) are off for
+/// now — «Add participant», group and channel call buttons hide; one-to-one
+/// calls stay. Off when the switch is missing.
+final groupCallsEnabledProvider = Provider<bool>(
+  (ref) => ref.watch(featureFlagsControllerProvider).isEnabled('calls_group'),
 );
 
 /// Owner 2026-10-21: the group call this person left but that may still be

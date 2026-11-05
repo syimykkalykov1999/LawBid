@@ -1,22 +1,22 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'registry_check_envelope.dart';
+part of 'reco_qa_status_envelope.dart';
 
 // **************************************************************************
 // JsonSerializableGenerator
 // **************************************************************************
 
-RegistryCheckEnvelope _$RegistryCheckEnvelopeFromJson(
+RecoQaStatusEnvelope _$RecoQaStatusEnvelopeFromJson(
   Map<String, dynamic> json,
-) => RegistryCheckEnvelope(
-  data: RegistryCheckDto.fromJson(json['data'] as Map<String, dynamic>),
+) => RecoQaStatusEnvelope(
+  data: RecoQaStatusDto.fromJson(json['data'] as Map<String, dynamic>),
   meta: json['meta'] == null
       ? null
       : ResponseMetaDto.fromJson(json['meta'] as Map<String, dynamic>),
 );
 
-Map<String, dynamic> _$RegistryCheckEnvelopeToJson(
-  RegistryCheckEnvelope instance,
+Map<String, dynamic> _$RecoQaStatusEnvelopeToJson(
+  RecoQaStatusEnvelope instance,
 ) => <String, dynamic>{
   'data': instance.data.toJson(),
   'meta': ?instance.meta?.toJson(),

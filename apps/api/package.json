@@ -39,6 +39,7 @@
     "breach:affected": "node dist/src/cli/breach-affected.js",
     "admin:set-credentials": "node dist/src/cli/set-admin-credentials.js",
     "i18n:import": "node dist/src/cli/import-translations.js",
+    "purge:test-data": "node dist/src/cli/purge-test-data.js",
     "flags:sync": "ts-node --transpile-only scripts/sync-flag-defaults.ts",
     "counters:reconcile": "ts-node --transpile-only scripts/counters-reconcile.ts",
     "media:migrate-r2": "ts-node --transpile-only scripts/migrate-public-media-to-r2.ts",

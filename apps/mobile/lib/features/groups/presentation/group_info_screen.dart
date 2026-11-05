@@ -707,7 +707,9 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
           label: t.t('group.inv.add'),
           onTap: () => _addMembers(d),
         ),
-      if (d.canCall && ref.watch(groupCallPortProvider) != null) ...[
+      if (d.canCall &&
+          ref.watch(groupCallsProvider) &&
+          ref.watch(groupCallPortProvider) != null) ...[
         action(
           key: const ValueKey('group-action-audio'),
           icon: AppIcons.callOutlined,

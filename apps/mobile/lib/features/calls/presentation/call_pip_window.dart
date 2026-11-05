@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
@@ -113,9 +114,14 @@ class _CallPipWindowState extends ConsumerState<CallPipWindow>
       PipCorner.topStart || PipCorner.bottomStart => rtl,
     };
     final top = corner == PipCorner.topEnd || corner == PipCorner.topStart;
+    // R-373: never even partly off the screen (a small or rotating area,
+    // big insets): the card stays whole inside it.
+    final maxX = math.max(0, area.width - size.width).toDouble();
+    final maxY = math.max(0, area.height - size.height).toDouble();
     return Offset(
-      right ? area.width - size.width - _margin : _margin,
-      top ? widget.topInset : area.height - size.height - widget.bottomInset,
+      (right ? area.width - size.width - _margin : _margin).clamp(0, maxX),
+      (top ? widget.topInset : area.height - size.height - widget.bottomInset)
+          .clamp(0, maxY),
     );
   }
 
@@ -182,11 +188,11 @@ class _CallPipWindowState extends ConsumerState<CallPipWindow>
                 onPanUpdate: (d) {
                   _x.value = (_x.value + d.delta.dx).clamp(
                     0,
-                    _area.width - CallPipWindow.size.width,
+                    math.max(0, _area.width - CallPipWindow.size.width),
                   );
                   _y.value = (_y.value + d.delta.dy).clamp(
                     0,
-                    _area.height - CallPipWindow.size.height,
+                    math.max(0, _area.height - CallPipWindow.size.height),
                   );
                 },
                 onPanEnd: (d) {

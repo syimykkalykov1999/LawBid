@@ -291,6 +291,11 @@ class MainActivity : FlutterFragmentActivity() {
                         CallRinging.endAll(this, listOfNotNull(id))
                         result.success(null)
                     }
+                    // R-373: no call runs in Dart — end what Telecom
+                    // still holds of ours (CallRinging.endOrphans).
+                    "endOrphans" -> {
+                        result.success(CallRinging.endOrphans(this))
+                    }
                     "pendingAction" -> {
                         result.success(pendingCallAction)
                         pendingCallAction = null
@@ -323,6 +328,11 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                     "clearAll" -> {
                         ChatNotifications.clearAll(applicationContext)
+                        result.success(null)
+                    }
+                    // R-379: nothing unread — the leftover alerts go.
+                    "clearDelivered" -> {
+                        ChatNotifications.clearDelivered(applicationContext)
                         result.success(null)
                     }
                     // Owner 2026-10-26: «Ответить» / «Прочитано» on a chat

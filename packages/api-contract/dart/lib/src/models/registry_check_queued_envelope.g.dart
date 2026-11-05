@@ -1,22 +1,22 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'license_recheck_envelope.dart';
+part of 'registry_check_queued_envelope.dart';
 
 // **************************************************************************
 // JsonSerializableGenerator
 // **************************************************************************
 
-LicenseRecheckEnvelope _$LicenseRecheckEnvelopeFromJson(
+RegistryCheckQueuedEnvelope _$RegistryCheckQueuedEnvelopeFromJson(
   Map<String, dynamic> json,
-) => LicenseRecheckEnvelope(
-  data: LicenseRecheckDto.fromJson(json['data'] as Map<String, dynamic>),
+) => RegistryCheckQueuedEnvelope(
+  data: RegistryCheckQueuedDto.fromJson(json['data'] as Map<String, dynamic>),
   meta: json['meta'] == null
       ? null
       : ResponseMetaDto.fromJson(json['meta'] as Map<String, dynamic>),
 );
 
-Map<String, dynamic> _$LicenseRecheckEnvelopeToJson(
-  LicenseRecheckEnvelope instance,
+Map<String, dynamic> _$RegistryCheckQueuedEnvelopeToJson(
+  RegistryCheckQueuedEnvelope instance,
 ) => <String, dynamic>{
   'data': instance.data.toJson(),
   'meta': ?instance.meta?.toJson(),

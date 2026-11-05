@@ -11879,12 +11879,12 @@
           }
         ],
         "responses": {
-          "200": {
+          "202": {
             "description": "Success envelope (docs/01 §7).",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LicenseRecheckEnvelope"
+                  "$ref": "#/components/schemas/RegistryCheckQueuedEnvelope"
                 }
               }
             }
@@ -11929,16 +11929,6 @@
               }
             }
           },
-          "409": {
-            "description": "Conflict: VERIFICATION_INVALID_STATUS",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
           "426": {
             "description": "Upgrade required: APP_UPDATE_REQUIRED",
             "content": {
@@ -11975,7 +11965,7 @@
             "admin": []
           }
         ],
-        "summary": "Re-run the bar lookup or queue the license for manual review",
+        "summary": "Queue a bar lookup; a non-pass queues the license for manual review (runs in the background)",
         "tags": [
           "admin-verification"
         ]
@@ -12200,12 +12190,12 @@
           }
         ],
         "responses": {
-          "200": {
+          "202": {
             "description": "Success envelope (docs/01 §7).",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RegistryCheckEnvelope"
+                  "$ref": "#/components/schemas/RegistryCheckQueuedEnvelope"
                 }
               }
             }
@@ -12286,7 +12276,7 @@
             "admin": []
           }
         ],
-        "summary": "Look the license up in its state's registry now (no status change)",
+        "summary": "Queue a look-up of the license in its state's registry (no status change; runs in the background)",
         "tags": [
           "admin-verification"
         ]
@@ -46436,6 +46426,19 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "follow",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-28 (R-084): only people I follow / do not follow (omit for everyone).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "following",
+                "not_following"
+              ]
+            }
           }
         ],
         "responses": {
@@ -74503,6 +74506,160 @@
           }
         ],
         "summary": "Top 20 heaviest users and cases (requests, DB time, uploads, messages) over the last hour",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
+    "/admin/system-health/reco-qa": {
+      "get": {
+        "operationId": "getRecoQa",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoQaStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Q&A ranking snapshot: flag, last nightly run and its counts",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
+    "/admin/system-health/reco-qa/recompute": {
+      "post": {
+        "operationId": "recomputeRecoQa",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoQaStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Queue the Q&A ranking snapshot now (needs step-up)",
         "tags": [
           "admin-ops"
         ]
@@ -126017,6 +126174,83 @@
         ]
       }
     },
+    "/questions/recommended": {
+      "get": {
+        "operationId": "recommendedForMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Attorney: open questions of my topics, best first (nightly snapshot)",
+        "tags": [
+          "questions"
+        ]
+      }
+    },
     "/questions/{id}": {
       "get": {
         "operationId": "getQuestion",
@@ -137893,6 +138127,31 @@
           "persona"
         ]
       },
+      "RegistryCheckPendingDto": {
+        "type": "object",
+        "properties": {
+          "checkId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "enum": [
+              "registry",
+              "recheck"
+            ],
+            "type": "string"
+          },
+          "queuedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "checkId",
+          "kind",
+          "queuedAt"
+        ]
+      },
       "AdminLicenseDto": {
         "type": "object",
         "properties": {
@@ -137995,6 +138254,16 @@
             "type": "string",
             "nullable": true,
             "format": "date-time"
+          },
+          "registryCheck": {
+            "nullable": true,
+            "description": "Owner 2026-11-04 (R-394): a registry lookup still running in the background; null when none.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RegistryCheckPendingDto"
+              }
+            ]
           }
         },
         "required": [
@@ -138014,7 +138283,8 @@
           "verifiedAt",
           "decidedBy",
           "registryFlag",
-          "registryFlaggedAt"
+          "registryFlaggedAt",
+          "registryCheck"
         ]
       },
       "ScanStatus": {
@@ -138530,37 +138800,50 @@
           "rejectionCode"
         ]
       },
-      "LicenseRecheckDto": {
+      "RegistryCheckQueuedDto": {
         "type": "object",
         "properties": {
-          "license": {
-            "$ref": "#/components/schemas/AdminLicenseDto"
+          "licenseId": {
+            "type": "string",
+            "format": "uuid"
           },
-          "result": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CheckResult"
-              }
+          "checkId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Id of the queued lookup; the same id while one is still running for this license."
+          },
+          "kind": {
+            "enum": [
+              "registry",
+              "recheck"
+            ],
+            "type": "string",
+            "description": "registry = look up only; recheck = a non-pass also queues the license for review."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued"
             ]
           },
-          "requestId": {
+          "queuedAt": {
             "type": "string",
-            "nullable": true,
-            "format": "uuid",
-            "description": "The request the license was queued in for manual review, null when the lookup passed."
+            "format": "date-time"
           }
         },
         "required": [
-          "license",
-          "result",
-          "requestId"
+          "licenseId",
+          "checkId",
+          "kind",
+          "status",
+          "queuedAt"
         ]
       },
-      "LicenseRecheckEnvelope": {
+      "RegistryCheckQueuedEnvelope": {
         "type": "object",
         "properties": {
           "data": {
-            "$ref": "#/components/schemas/LicenseRecheckDto"
+            "$ref": "#/components/schemas/RegistryCheckQueuedDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -138628,44 +138911,6 @@
             "items": {
               "$ref": "#/components/schemas/RegistryFlagItemDto"
             }
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "RegistryCheckDto": {
-        "type": "object",
-        "properties": {
-          "license": {
-            "$ref": "#/components/schemas/AdminLicenseDto"
-          },
-          "result": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CheckResult"
-              }
-            ]
-          },
-          "details": {
-            "type": "object",
-            "additionalProperties": true
-          }
-        },
-        "required": [
-          "license",
-          "result",
-          "details"
-        ]
-      },
-      "RegistryCheckEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/RegistryCheckDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -145674,6 +145919,10 @@
           "maxDuties": {
             "type": "integer",
             "description": "Owner 2026-10-22: the most duties one assistant may hold (admin setting assistants.max_duties)."
+          },
+          "maxDutiesUnlimited": {
+            "type": "boolean",
+            "description": "R-401: the admin set the limit to «все» (0) — the app hides the counter."
           }
         },
         "required": [
@@ -145681,7 +145930,8 @@
           "seats",
           "used",
           "plan",
-          "maxDuties"
+          "maxDuties",
+          "maxDutiesUnlimited"
         ]
       },
       "TeamEnvelope": {
@@ -145725,7 +145975,8 @@
                 "tasks",
                 "profile",
                 "bids",
-                "publish"
+                "publish",
+                "qa_answers"
               ]
             }
           },
@@ -145757,7 +146008,8 @@
                 "tasks",
                 "profile",
                 "bids",
-                "publish"
+                "publish",
+                "qa_answers"
               ]
             }
           },
@@ -147323,7 +147575,8 @@
                 "tasks",
                 "profile",
                 "bids",
-                "publish"
+                "publish",
+                "qa_answers"
               ]
             }
           }
@@ -172626,6 +172879,63 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/HeavyHittersDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "RecoQaStatusDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Flag recommendations_qa_ranking."
+          },
+          "lastRunAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO time of the last run; null before the first."
+          },
+          "durationMs": {
+            "type": "number",
+            "description": "How long the last run took, ms."
+          },
+          "attorneys": {
+            "type": "number",
+            "description": "Attorneys with a Q&A score."
+          },
+          "questions": {
+            "type": "number",
+            "description": "Open questions in the per-topic lists."
+          },
+          "cases": {
+            "type": "number",
+            "description": "Open cases in the per-topic lists."
+          },
+          "queued": {
+            "type": "boolean",
+            "description": "A recompute was queued by this call."
+          }
+        },
+        "required": [
+          "enabled",
+          "lastRunAt",
+          "durationMs",
+          "attorneys",
+          "questions",
+          "cases",
+          "queued"
+        ]
+      },
+      "RecoQaStatusEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RecoQaStatusDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

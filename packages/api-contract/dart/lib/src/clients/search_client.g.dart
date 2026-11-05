@@ -138,6 +138,7 @@ class _SearchClient implements SearchClient {
     String? language,
     Role2? role,
     bool? verifiedOnly,
+    Follow? follow,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -151,6 +152,7 @@ class _SearchClient implements SearchClient {
       r'language': language,
       r'role': role?.toJson(),
       r'verifiedOnly': verifiedOnly,
+      r'follow': follow?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
