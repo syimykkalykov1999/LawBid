@@ -914,6 +914,104 @@ describe('FilesService', () => {
   });
 });
 
+describe('confirm without reading a big file (R-252, files_confirm_light)', () => {
+  const MIB = 1024 * 1024;
+  const pdfStart = Buffer.concat([
+    Buffer.from('%PDF-1.7'),
+    Buffer.alloc(1000, 0x20),
+  ]);
+  const setup = (opts: {
+    flag: boolean;
+    size: number;
+    start?: Buffer;
+    full?: Buffer;
+    mime?: string;
+  }) => {
+    const { service, deps } = make();
+    const intent = {
+      userId: 'u1',
+      purpose: 'chat_attachment',
+      mime: opts.mime ?? 'application/pdf',
+      size: opts.size,
+      sha256: 'claimed-hash',
+      bucket: 'lawbid-documents',
+      key: 'chat_attachment/u1/f1',
+    };
+    const read = jest.fn().mockResolvedValue(opts.full ?? pdfStart);
+    const readStart = jest.fn().mockResolvedValue(opts.start ?? pdfStart);
+    const create = jest.fn().mockResolvedValue({});
+    Object.assign(deps.flags, {
+      isEnabled: jest.fn((k: string) =>
+        Promise.resolve(k === 'files_confirm_light' && opts.flag),
+      ),
+    });
+    Object.assign(deps.redis, {
+      get: jest.fn().mockResolvedValue(JSON.stringify(intent)),
+      del: jest.fn().mockResolvedValue(1),
+      zrem: jest.fn().mockResolvedValue(1),
+    });
+    Object.assign(deps.storage, {
+      head: jest.fn().mockResolvedValue({ size: opts.size }),
+      read,
+      readStart,
+      remove: jest.fn().mockResolvedValue(undefined),
+    });
+    Object.assign(deps.prisma.file, { create });
+    return { service, read, readStart, create };
+  };
+
+  it('a big file: only its start is read; the row waits for the worker', async () => {
+    const t = setup({ flag: true, size: 50 * MIB });
+    await t.service.confirm('u1', 'f1').catch(() => undefined);
+    expect(t.read).not.toHaveBeenCalled();
+    expect(t.readStart).toHaveBeenCalledTimes(1);
+    const row = (
+      t.create.mock.calls[0] as [{ data: Record<string, unknown> }]
+    )[0].data;
+    expect(row.size_bytes).toBe(BigInt(50 * MIB));
+    expect(row.sha256).toBe('claimed-hash');
+    expect(row.source_sha256).toBeNull();
+  });
+
+  it('flag off: the whole file is read, as before', async () => {
+    const t = setup({ flag: false, size: pdfStart.length });
+    await t.service.confirm('u1', 'f1').catch(() => undefined);
+    expect(t.read).toHaveBeenCalledTimes(1);
+    expect(t.readStart).not.toHaveBeenCalled();
+  });
+
+  it('a small file stays on the full path with the flag on', async () => {
+    const t = setup({ flag: true, size: MIB, full: pdfStart });
+    await t.service.confirm('u1', 'f1').catch(() => undefined);
+    expect(t.readStart).not.toHaveBeenCalled();
+    expect(t.read).toHaveBeenCalledTimes(1);
+  });
+
+  it('the start shows another type: refused at once', async () => {
+    const t = setup({
+      flag: true,
+      size: 50 * MIB,
+      start: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0]),
+    });
+    await expect(t.service.confirm('u1', 'f1')).rejects.toMatchObject({
+      response: { code: 'FILE_TYPE_NOT_ALLOWED' },
+    });
+    expect(t.create).not.toHaveBeenCalled();
+  });
+
+  it('a start the prefix cannot settle goes the full way', async () => {
+    const t = setup({
+      flag: true,
+      size: 50 * MIB,
+      start: Buffer.alloc(100, 0),
+      full: Buffer.alloc(100, 0),
+    });
+    await expect(t.service.confirm('u1', 'f1')).rejects.toBeDefined();
+    expect(t.read).toHaveBeenCalledTimes(1);
+    expect(t.create).not.toHaveBeenCalled();
+  });
+});
+
 describe('confidential file links (security & legal pass 2026-10-24)', () => {
   function withFiles(ttl: number) {
     const { service, deps } = make();

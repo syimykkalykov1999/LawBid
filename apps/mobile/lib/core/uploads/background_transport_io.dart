@@ -24,6 +24,16 @@ Future<void> cancelBackgroundUpload(String taskId) async {
   }
 }
 
+/// Forgets the record of [taskId]; the next post sends the file again.
+Future<void> forgetBackgroundUpload(String taskId) async {
+  if (kIsWeb || !(Platform.isAndroid || Platform.isIOS)) return;
+  try {
+    await FileDownloader().database.deleteRecordWithId(taskId);
+  } on Object catch (e) {
+    debugPrint('forget upload $taskId: $e');
+  }
+}
+
 /// Owner 2026-10-22 (audit #4 §3): the S3 POST of a queued file as an OS
 /// background transfer (`background_downloader`: Android WorkManager, iOS
 /// background URLSession). The task id is the queue job's id, so after the

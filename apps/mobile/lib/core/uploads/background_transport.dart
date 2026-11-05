@@ -15,3 +15,8 @@ StorageTransport queueTransport({required StorageTransport fallback}) =>
 /// cancelled the upload). Best effort; a no-op where there is no OS service.
 Future<void> cancelBackgroundUpload(String taskId) =>
     impl.cancelBackgroundUpload(taskId);
+
+/// Forgets the OS record of the queue job [taskId], so its file can be sent
+/// again (a finished record makes the transport send nothing).
+Future<void> forgetBackgroundUpload(String taskId) =>
+    impl.forgetBackgroundUpload(taskId);

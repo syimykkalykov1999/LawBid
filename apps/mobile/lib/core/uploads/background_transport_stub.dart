@@ -6,3 +6,6 @@ StorageTransport queueTransport({required StorageTransport fallback}) =>
 
 /// The browser: nothing runs in the background.
 Future<void> cancelBackgroundUpload(String taskId) async {}
+
+/// The browser: no OS transfer exists.
+Future<void> forgetBackgroundUpload(String taskId) async {}
