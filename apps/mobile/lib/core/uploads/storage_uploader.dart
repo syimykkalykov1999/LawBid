@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
@@ -185,6 +186,12 @@ class StorageUploader {
   /// interruption (server flag `files_multipart`; mirrors the server's
   /// MIN_MULTIPART_BYTES).
   static const resumableThresholdBytes = 16 * 1024 * 1024;
+
+  /// R-251 / R-253: parts in flight at once. The default of AWS's own
+  /// uploader (`queueSize` in @aws-sdk/lib-storage, Apache-2.0), which is
+  /// the model of the loop in [putResumable]. A file body streams each part
+  /// from disk, so this does not grow the phone's memory.
+  static const partsAtOnce = 4;
   final Duration scanPoll;
   final int scanMaxPolls;
 
@@ -275,27 +282,89 @@ class StorageUploader {
 
     // Three rounds: an expired part link is fixed by asking for a new plan.
     for (var round = 0; round < 3 && current.parts.isNotEmpty; round++) {
-      final partSize = current.partSizeBytes.toInt();
-      var sent = current.uploadedParts.length * partSize;
-      for (final part in current.parts) {
-        final start = (part.partNumber.toInt() - 1) * partSize;
-        final end = (start + partSize).clamp(0, total);
-        await _putPart(
-          storage,
-          part.url,
-          body,
-          start,
-          end,
-          cancel: cancel,
-          onBytes: (n) => onProgress?.call(((sent + n) / total).clamp(0, 1)),
-        );
-        sent += end - start;
-        onProgress?.call((sent / total).clamp(0, 1));
-      }
+      await _putParts(
+        storage,
+        current,
+        body,
+        total,
+        onProgress: onProgress,
+        cancel: cancel,
+      );
       current = await plan();
     }
     await guardApiCall(() => _files.multipartComplete(id: fileId));
     return true;
+  }
+
+  /// The parts of one plan, [partsAtOnce] at a time: workers pull the next
+  /// part from one shared list, as `__doConcurrentUpload` does in
+  /// @aws-sdk/lib-storage. The first failure stops the others, and is the
+  /// error the caller sees.
+  Future<void> _putParts(
+    Dio storage,
+    api.MultipartPlanDto plan,
+    UploadBody body,
+    int total, {
+    void Function(double progress)? onProgress,
+    CancelToken? cancel,
+  }) async {
+    final partSize = plan.partSizeBytes.toInt();
+    final next = plan.parts.iterator;
+    final inFlight = <int, int>{};
+    var finished = plan.uploadedParts.length * partSize;
+    void report() {
+      final moving = inFlight.values.fold<int>(0, (a, b) => a + b);
+      onProgress?.call(((finished + moving) / total).clamp(0, 1));
+    }
+
+    // One token for the workers: the caller's cancel stops them all, and so
+    // does the first failure.
+    final stop = CancelToken();
+    unawaited(
+      cancel?.whenCancel.then((_) {
+        if (!stop.isCancelled) stop.cancel('cancelled');
+      }),
+    );
+
+    Future<void> worker() async {
+      while (!stop.isCancelled && next.moveNext()) {
+        final number = next.current.partNumber.toInt();
+        final start = (number - 1) * partSize;
+        final end = (start + partSize).clamp(0, total);
+        try {
+          await _putPart(
+            storage,
+            next.current.url,
+            body,
+            start,
+            end,
+            cancel: stop,
+            onBytes: (n) {
+              inFlight[number] = n;
+              report();
+            },
+          );
+        } on Object {
+          if (!stop.isCancelled) stop.cancel('another part failed');
+          rethrow;
+        }
+        inFlight.remove(number);
+        finished += end - start;
+        report();
+      }
+    }
+
+    await Future.wait([
+      for (var i = 0; i < math.min(partsAtOnce, plan.parts.length); i++)
+        worker(),
+    ]);
+    // The caller's cancel while the last part was finishing still counts.
+    if (cancel?.isCancelled ?? false) {
+      throw DioException.requestCancelled(
+        requestOptions: RequestOptions(),
+        reason: 'cancelled',
+      );
+    }
   }
 
   /// One part: the raw bytes to its link, retried on a lost connection or a

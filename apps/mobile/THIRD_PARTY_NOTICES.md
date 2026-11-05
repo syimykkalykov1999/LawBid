@@ -114,3 +114,20 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## tus-js-client — MIT
+
+The parallel reel upload in `lib/features/reels/data/reels_repository.dart`
+follows `parallelUploads` of tus-js-client (https://github.com/tus/tus-js-client):
+split into equal pieces, `Upload-Concat: partial`, then `Upload-Concat: final`.
+
+Copyright (c) 2013-2024 Transloadit Ltd and Contributors. Released under the
+MIT License, text as for flutter_displaymode above.
+
+## @aws-sdk/lib-storage — Apache-2.0
+
+The parallel part loop in `lib/core/uploads/storage_uploader.dart` follows
+`__doConcurrentUpload` and `queueSize = 4` of @aws-sdk/lib-storage
+(https://github.com/aws/aws-sdk-js-v3). Copyright Amazon.com, Inc. or its
+affiliates. Licensed under the Apache License, Version 2.0, as for
+livekit_client above.
