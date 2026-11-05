@@ -109,6 +109,9 @@ jobs:
           VAR_SEO_QUALITY_GATE: ${{ vars.SEO_QUALITY_GATE }}
           VAR_SEO_RAMP_PER_DAY: ${{ vars.SEO_RAMP_PER_DAY }}
           VAR_SEO_INCREMENTAL: ${{ vars.SEO_INCREMENTAL }}
+          VAR_SEO_PAGES_CITIES: ${{ vars.SEO_PAGES_CITIES }}
+          VAR_SEO_PAGES_POSTS: ${{ vars.SEO_PAGES_POSTS }}
+          VAR_SEO_PAGES_QA: ${{ vars.SEO_PAGES_QA }}
         run: node scripts/seo/resolve-switches.mjs --api "${{ secrets.WEB_SEO_API_URL }}" >> "$GITHUB_ENV"
 
       - name: Build the pages from the public directory
