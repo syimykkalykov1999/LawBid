@@ -4,15 +4,35 @@ import 'package:flutter/scheduler.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 
-/// The sections of a case screen (owner 2026-11-05): three at a time.
-enum CaseSection { overview, bids, files, tasks }
+/// Where a case link opens (`?tab=`): the section and, in a case in work, the
+/// tab inside it. Owner 2026-11-05: Overview = Case + Activity, Files =
+/// Documents + Photos, Tasks = Tasks + Time.
+enum CaseSection {
+  overview(0, 0),
+  activity(0, 1),
+  bids(1, 0),
+  docs(1, 0),
+  photos(1, 1),
+  tasks(2, 0),
+  time(2, 1);
 
-/// `?tab=` of a case link. The old tab names keep working: Docs now lives in
-/// Files, Time in Tasks, Updates and Activity in the Overview's History.
+  const CaseSection(this.page, this.tab);
+
+  /// The section's page in a case in work (Overview, Files, Tasks).
+  final int page;
+
+  /// The tab inside that section.
+  final int tab;
+}
+
+/// The old tab names keep working: each opens the place that took it over.
 CaseSection caseSectionFromName(String? name) => switch (name) {
       'bids' => CaseSection.bids,
-      'files' || 'docs' => CaseSection.files,
-      'tasks' || 'time' => CaseSection.tasks,
+      'files' || 'docs' => CaseSection.docs,
+      'photos' => CaseSection.photos,
+      'tasks' => CaseSection.tasks,
+      'time' => CaseSection.time,
+      'updates' || 'activity' || 'history' => CaseSection.activity,
       _ => CaseSection.overview,
     };
 
@@ -111,4 +131,122 @@ class CaseSectionsTitle extends StatelessWidget {
           );
         },
       );
+}
+
+/// Owner 2026-11-05: the tabs inside a section of a case in work, as a sliver
+/// page: equal parts over the whole width, a thin gold line under the chosen
+/// one, 44 pt to tap of which only the middle is drawn. A tap changes the tab;
+/// a swipe stays with the sections. A tab is built when first opened and kept.
+class CaseSubTabs extends StatefulWidget {
+  const CaseSubTabs({
+    required this.labels,
+    required this.builders,
+    required this.index,
+    required this.onChanged,
+    this.minHeight = 0,
+    super.key,
+  });
+
+  final List<String> labels;
+  final List<WidgetBuilder> builders;
+  final int index;
+  final ValueChanged<int> onChanged;
+  final double minHeight;
+
+  @override
+  State<CaseSubTabs> createState() => _CaseSubTabsState();
+}
+
+class _CaseSubTabsState extends State<CaseSubTabs>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs = TabController(
+    length: widget.labels.length,
+    initialIndex: widget.index,
+    vsync: this,
+  );
+  late final Set<int> _opened = {widget.index};
+
+  @override
+  void didUpdateWidget(CaseSubTabs old) {
+    super.didUpdateWidget(old);
+    if (widget.index != _tabs.index) _tabs.index = widget.index;
+    _opened.add(widget.index);
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    // 11 pt of nothing above and below keeps the row half the sections' look.
+    const air = (AppSizes.touchTarget - AppSizes.segmentedTabs / 2 - 6) / 2;
+    return SliverMainAxisGroup(
+      slivers: [
+        PinnedHeaderSliver(
+          child: ColoredBox(
+            color: colors.bg,
+            child: TabBar(
+              key: const ValueKey('case-sub-tabs'),
+              controller: _tabs,
+              onTap: widget.onChanged,
+              labelColor: colors.text,
+              unselectedLabelColor: colors.textSecondary,
+              labelStyle: type.caption.copyWith(fontWeight: FontWeight.w600),
+              unselectedLabelStyle: type.caption,
+              labelPadding: EdgeInsets.zero,
+              dividerColor: colors.bg,
+              overlayColor: WidgetStateProperty.all(
+                colors.bg.withValues(alpha: 0),
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              indicator: UnderlineTabIndicator(
+                borderSide: BorderSide(color: colors.gold),
+                insets: const EdgeInsets.only(
+                  left: AppSpacing.lg,
+                  right: AppSpacing.lg,
+                  bottom: air,
+                ),
+              ),
+              tabs: [
+                for (final label in widget.labels)
+                  Tab(
+                    height: AppSizes.touchTarget,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xs,
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(label, maxLines: 1),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: widget.minHeight),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final i in _opened.toList()..sort())
+                  Visibility(
+                    visible: i == widget.index,
+                    maintainState: true,
+                    child: Builder(builder: widget.builders[i]),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }

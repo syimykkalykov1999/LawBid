@@ -6,13 +6,13 @@ import 'package:lawbid/features/cases/presentation/widgets/case_sections.dart';
 import '../../../helpers/ux_harness.dart';
 
 /// Owner 2026-11-05: the case's sections in the top bar, beside the arrow, at
-/// the narrowest width. Finnish with a bids count is the longest row the test
-/// fonts can draw.
+/// the narrowest width. Finnish is the longest row the test fonts can draw.
 void main() {
   final rows = {
-    'ru_open': ['Обзор', 'Биды 12', 'Файлы'],
+    'ru_client_open': ['Обзор', 'Биды 12'],
+    'ru_attorney_open': ['Обзор', 'Изменения'],
     'ru_work': ['Обзор', 'Файлы', 'Задачи'],
-    'fi_longest': ['Yleistä', 'Tarjoukset 12', 'Tiedostot'],
+    'fi_longest': ['Yleistä', 'Tiedostot', 'Tehtävät'],
     'de_work': ['Übersicht', 'Dateien', 'Aufgaben'],
   };
 

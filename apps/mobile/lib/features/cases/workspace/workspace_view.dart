@@ -8,13 +8,15 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/file_views/presentation/file_views_screen.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_sections.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
-import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/cases/tools/billing_data.dart';
 import 'package:lawbid/features/cases/tools/billing_tab.dart';
 import 'package:lawbid/features/cases/tools/signing_tab.dart';
+import 'package:lawbid/features/cases/tools/template_form_sheet.dart';
 import 'package:lawbid/features/cases/workspace/compose_sheet.dart';
 import 'package:lawbid/features/cases/workspace/file_actions.dart';
 import 'package:lawbid/features/cases/workspace/tasks_tab.dart';
@@ -26,10 +28,10 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-13: the body of an accepted case, for the client and the
-/// attorney alike. In the top bar ([sections]): Overview | Files | Tasks
-/// (owner 2026-11-05: Docs is in Files, Time in Tasks, Updates and Activity
-/// are one History at the end of the Overview). The Overview starts with the
-/// case's head (chips, title, stages), which no other section shows.
+/// attorney alike. In the top bar ([sections]): Overview | Files | Tasks, each
+/// with two tabs (owner 2026-11-05): Case + Activity, Documents + Photos,
+/// Tasks + Time. The Case tab starts with the case's head (chips, title,
+/// stages), which nothing else shows.
 /// [overview] is what the side shows on its own Overview tab (description, the
 /// other party's card).
 class CaseWorkspaceBody extends ConsumerStatefulWidget {
@@ -83,18 +85,23 @@ class CaseWorkspaceBody extends ConsumerStatefulWidget {
 
 class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
   // 0 Overview · 1 Files · 2 Tasks.
-  late int _tab = switch (widget.initialSection) {
-    CaseSection.files => 1,
-    CaseSection.tasks => 2,
-    _ => 0,
-  };
+  late int _tab = widget.initialSection.page;
+  late final List<int> _inner = List.generate(
+    3,
+    (i) => i == widget.initialSection.page ? widget.initialSection.tab : 0,
+  );
   late final PageController _pages = PageController(initialPage: _tab);
+  final GlobalKey<BillingTabState> _billing = GlobalKey();
   bool? _wasWide;
 
   @override
   void initState() {
     super.initState();
-    _markSeen();
+    // The activity is at hand from the moment the case opens.
+    ref
+        .read(caseWorkspaceActionsProvider)
+        .markUpdatesSeen(widget.caseId)
+        .then((_) {}, onError: (Object _) {});
   }
 
   @override
@@ -102,15 +109,6 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
     widget.sections.release(_pages);
     _pages.dispose();
     super.dispose();
-  }
-
-  void _markSeen() => ref
-      .read(caseWorkspaceActionsProvider)
-      .markUpdatesSeen(widget.caseId)
-      .then((_) {}, onError: (Object _) {});
-
-  void _select(int i) {
-    setState(() => _tab = i);
   }
 
   Future<void> _refresh() async {
@@ -123,6 +121,76 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
     await widget.onRefresh();
   }
 
+  /// Owner 2026-11-05: the round «+» of the tab on screen, fixed above the
+  /// list; null when this tab adds nothing or the case only shows.
+  VoidCallback? _plus(Translator t) {
+    final canWrite =
+        ref.watch(caseWorkspaceProvider(widget.caseId)).value?.canWrite ??
+            false;
+    Future<void> addFile() => addCaseUpdate(
+          context,
+          ref,
+          widget.caseId,
+          isAttorney: widget.isAttorney,
+        );
+    switch ((_tab, _inner[_tab])) {
+      case (1, 0):
+        return () => showActionSheet(context, [
+              ActionSheetItem(
+                icon: AppIcons.editNoteRounded,
+                label: t.t('sign.request'),
+                onTap: () => requestCaseSignature(context, ref, widget.caseId),
+              ),
+              if (widget.isAttorney)
+                ActionSheetItem(
+                  icon: AppIcons.descriptionOutlined,
+                  label: t.t('docs.from'),
+                  onTap: () => showTemplateSheet(context, widget.caseId),
+                ),
+              if (canWrite)
+                ActionSheetItem(
+                  icon: AppIcons.attachFileRounded,
+                  label: t.t('cases.files.add'),
+                  onTap: addFile,
+                ),
+            ]);
+      case (1, 1):
+        return canWrite ? addFile : null;
+      case (2, 0):
+        final canEdit =
+            ref.watch(caseTasksProvider(widget.caseId)).value?.canEdit ?? false;
+        return !canEdit
+            ? null
+            : () => createCaseTask(
+                  context,
+                  ref,
+                  widget.caseId,
+                  isAttorney: widget.isAttorney,
+                );
+      case (2, 1):
+        final d = ref.watch(caseBillingProvider(widget.caseId)).value;
+        if (!widget.isAttorney ||
+            d == null ||
+            d.role != api.CaseBillingDtoRole.attorney ||
+            !d.canEdit) {
+          return null;
+        }
+        return () => showActionSheet(context, [
+              ActionSheetItem(
+                icon: AppIcons.scheduleRounded,
+                label: t.t('billing.addTime'),
+                onTap: () => _billing.currentState?.addTime(),
+              ),
+              ActionSheetItem(
+                icon: AppIcons.addRounded,
+                label: t.t('billing.addExpense'),
+                onTap: () => _billing.currentState?.addExpense(),
+              ),
+            ]);
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
@@ -131,8 +199,8 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
     return LayoutBuilder(
       builder: (context, box) {
         // Owner 2026-10-13: from 900 dp the Overview (the other party, the
-        // description, chat) stays in a side column and the tabs are the
-        // working ones; on a phone it is the first tab.
+        // description) stays in a side column and the sections are the
+        // working ones; on a phone it is the first section.
         final wide = box.maxWidth >= 900;
         final tab = wide && _tab == 0 ? 2 : _tab;
         final labels = [
@@ -143,7 +211,7 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
         final shift = wide ? 1 : 0;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          // The window crossed 900 dp: the same tab, at its new page number.
+          // The window crossed 900 dp: the same section, at its new page.
           if (_wasWide != wide) {
             final first = _wasWide == null;
             _wasWide = wide;
@@ -158,63 +226,117 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
             overviewShown: wide || tab == 0,
           );
         });
-        // Owner 2026-10-19 (Instagram): the case header scrolls away and the
-        // tabs are pages side by side — the next one slides in with the
-        // finger, a tap slides to it, each is kept. Owner 2026-11-05: their
-        // names stand in the top bar.
-        final pages = [for (var i = shift; i < labels.length + shift; i++) i];
-        final overview = Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        final minHeight = MediaQuery.sizeOf(context).height * 0.5;
+        Widget tabs(
+          int page,
+          List<String> names,
+          List<WidgetBuilder> builders,
+        ) =>
+            CaseSubTabs(
+              key: ValueKey('case-tabs-$page'),
+              labels: names,
+              builders: builders,
+              index: _inner[page],
+              minHeight: minHeight,
+              onChanged: (i) => setState(() => _inner[page] = i),
+            );
+        // The side column on a wide window shows this very sliver.
+        final overview = tabs(0, [
+          t.t('cases.detail.title'),
+          t.t('cases.tab.activity'),
+        ], [
+          (_) => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  CaseHero(
+                    t: t,
+                    formats: formats,
+                    practiceName: widget.chips.join(' · '),
+                    categoryCode: widget.categoryCode,
+                    statusLabel: widget.statusLabel,
+                    statusTone: widget.statusTone,
+                    title: widget.title,
+                    states: widget.states,
+                    budget: widget.budget,
+                    urgency: widget.urgency,
+                    stage: widget.stage,
+                    publishedAt: widget.publishedAt,
+                  ),
+                  ...widget.overview,
+                ],
+              ),
+          (_) => CaseHistoryTab(
+                caseId: widget.caseId,
+                isAttorney: widget.isAttorney,
+              ),
+        ]);
+        final files = tabs(1, [
+          t.t('cases.tab.docs'),
+          t.t('cases.files.photos'),
+        ], [
+          (_) => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SigningTab(
+                    caseId: widget.caseId,
+                    isAttorney: widget.isAttorney,
+                  ),
+                  FilesTab(
+                    caseId: widget.caseId,
+                    isAttorney: widget.isAttorney,
+                  ),
+                ],
+              ),
+          (_) => FilesTab(
+                caseId: widget.caseId,
+                isAttorney: widget.isAttorney,
+                photos: true,
+              ),
+        ]);
+        final work = tabs(2, [
+          t.t('cases.tab.tasks'),
+          t.t('cases.tab.time'),
+        ], [
+          (_) => TasksTab(
+                caseId: widget.caseId,
+                isAttorney: widget.isAttorney,
+              ),
+          (_) => BillingTab(
+                key: _billing,
+                caseId: widget.caseId,
+                isAttorney: widget.isAttorney,
+              ),
+        ]);
+        final plus = _plus(t);
+        // Owner 2026-10-19 (Instagram): the sections are pages side by side —
+        // the next one slides in with the finger, a tap slides to it, each is
+        // kept. Owner 2026-11-05: their names stand in the top bar.
+        final main = Stack(
           children: [
-            CaseHero(
-              t: t,
-              formats: formats,
-              practiceName: widget.chips.join(' · '),
-              categoryCode: widget.categoryCode,
-              statusLabel: widget.statusLabel,
-              statusTone: widget.statusTone,
-              title: widget.title,
-              states: widget.states,
-              budget: widget.budget,
-              urgency: widget.urgency,
-              stage: widget.stage,
-              publishedAt: widget.publishedAt,
+            ProfileTabPages(
+              key: ValueKey('case-pages-$wide'),
+              controller: _pages,
+              onPage: (i) => setState(() => _tab = i + shift),
+              onRefresh: _refresh,
+              tabBar: const SizedBox.shrink(),
+              tabBarHeight: 0,
+              pagePadding: (_) => const EdgeInsets.only(bottom: AppSpacing.xxl),
+              header: const SizedBox.shrink(),
+              pages: [
+                if (!wide) ProfileSliverPage(sliver: overview),
+                ProfileSliverPage(sliver: files),
+                ProfileSliverPage(sliver: work),
+              ],
             ),
-            ...widget.overview,
-            CaseHistoryBlock(
-              caseId: widget.caseId,
-              isAttorney: widget.isAttorney,
-            ),
-          ],
-        );
-        Widget pageFor(int tab) => switch (tab) {
-              0 => overview,
-              1 => CaseFilesPage(
-                  caseId: widget.caseId,
-                  isAttorney: widget.isAttorney,
+            if (plus != null)
+              PositionedDirectional(
+                end: AppSpacing.screenSide,
+                bottom: AppSpacing.lg,
+                child: AppFab(
+                  key: const ValueKey('case-plus'),
+                  semanticLabel: t.t('cases.details.add'),
+                  onPressed: plus,
                 ),
-              _ => CaseTasksPage(
-                  caseId: widget.caseId,
-                  isAttorney: widget.isAttorney,
-                ),
-            };
-        final main = ProfileTabPages(
-          key: ValueKey('case-pages-$wide'),
-          controller: _pages,
-          onPage: (i) => _select(i + shift),
-          onRefresh: _refresh,
-          tabBar: const SizedBox.shrink(),
-          tabBarHeight: 0,
-          pagePadding: (_) => const EdgeInsets.only(bottom: AppSpacing.xxl),
-          // Owner 2026-11-05: the case's head stands only in the Overview.
-          header: const SizedBox.shrink(),
-          pages: [
-            for (final p in pages)
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: MediaQuery.sizeOf(context).height * 0.5,
-                ),
-                child: pageFor(p),
               ),
           ],
         );
@@ -233,9 +355,13 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
                       start: BorderSide(color: colors.border),
                     ),
                   ),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-                    child: overview,
+                  child: CustomScrollView(
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+                        sliver: overview,
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -245,95 +371,6 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
       },
     );
   }
-}
-
-/// A named block inside a section («Документы» under the files).
-class _SectionBlockTitle extends StatelessWidget {
-  const _SectionBlockTitle({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-        child: DetailSection(title: title, child: const SizedBox.shrink()),
-      );
-}
-
-/// Owner 2026-11-05: the case's History, a block of the Overview.
-class CaseHistoryBlock extends ConsumerWidget {
-  const CaseHistoryBlock({
-    required this.caseId,
-    required this.isAttorney,
-    super.key,
-  });
-
-  final String caseId;
-  final bool isAttorney;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _SectionBlockTitle(
-            title: ref.watch(translatorProvider).t('cases.tab.history'),
-          ),
-          CaseHistoryTab(caseId: caseId, isAttorney: isAttorney),
-        ],
-      );
-}
-
-/// Owner 2026-11-05 («доки и файлы одно и то же»): the case's files and,
-/// under them, its documents (the deal record, signatures, templates).
-class CaseFilesPage extends StatelessWidget {
-  const CaseFilesPage({
-    required this.caseId,
-    required this.isAttorney,
-    super.key,
-  });
-
-  final String caseId;
-  final bool isAttorney;
-
-  @override
-  Widget build(BuildContext context) => Consumer(
-        builder: (context, ref, _) => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            FilesTab(caseId: caseId, isAttorney: isAttorney),
-            _SectionBlockTitle(
-              title: ref.watch(translatorProvider).t('cases.tab.docs'),
-            ),
-            SigningTab(caseId: caseId, isAttorney: isAttorney),
-          ],
-        ),
-      );
-}
-
-/// Owner 2026-11-05: the tasks and, under them, time and invoices.
-class CaseTasksPage extends StatelessWidget {
-  const CaseTasksPage({
-    required this.caseId,
-    required this.isAttorney,
-    super.key,
-  });
-
-  final String caseId;
-  final bool isAttorney;
-
-  @override
-  Widget build(BuildContext context) => Consumer(
-        builder: (context, ref, _) => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TasksTab(caseId: caseId, isAttorney: isAttorney),
-            _SectionBlockTitle(
-              title: ref.watch(translatorProvider).t('cases.tab.time'),
-            ),
-            BillingTab(caseId: caseId, isAttorney: isAttorney),
-          ],
-        ),
-      );
 }
 
 /// A line of text filters under the tabs ("All · Photos · ...").
@@ -369,10 +406,18 @@ class FilterRow extends StatelessWidget {
 // ---------------------------------------------------------------- Files
 
 class FilesTab extends ConsumerStatefulWidget {
-  const FilesTab({required this.caseId, required this.isAttorney, super.key});
+  const FilesTab({
+    required this.caseId,
+    required this.isAttorney,
+    this.photos = false,
+    super.key,
+  });
 
   final String caseId;
   final bool isAttorney;
+
+  /// Owner 2026-11-05: the Photos tab (photos and videos); else the documents.
+  final bool photos;
 
   @override
   ConsumerState<FilesTab> createState() => _FilesTabState();
@@ -396,16 +441,18 @@ class _FilesTabState extends ConsumerState<FilesTab> {
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: Text(errorText(t, e)),
       ),
-      data: (all) {
+      data: (every) {
+        bool media(api.WorkspaceFileDto f) =>
+            f.mime.startsWith('image/') || f.mime.startsWith('video/');
+        final all = every.where((f) => media(f) == widget.photos).toList();
         final shown = switch (_filter) {
-          1 => all.where((f) => f.mime.startsWith('image/')).toList(),
-          2 => all
+          1 => all
               .where((f) => f.source == api.WorkspaceFileDtoSource.task)
               .toList(),
-          3 => all
+          2 => all
               .where((f) => f.source == api.WorkspaceFileDtoSource.update)
               .toList(),
-          4 => all.where((f) => f.sample).toList(),
+          3 => all.where((f) => f.sample).toList(),
           _ => all,
         };
         return Column(
@@ -414,7 +461,6 @@ class _FilesTabState extends ConsumerState<FilesTab> {
             FilterRow(
               labels: [
                 t.t('cases.files.all'),
-                t.t('cases.files.photos'),
                 t.t('cases.files.fromTasks'),
                 t.t('cases.files.fromUpdates'),
                 if (all.any((f) => f.sample)) t.t('cases.files.samples'),
@@ -670,6 +716,30 @@ List<Object> mergeCaseHistory(
   return [for (final e in out) e.$2];
 }
 
+/// Writes an update (text and files): the Activity's own line and the «+» of
+/// the Files section.
+Future<void> addCaseUpdate(
+  BuildContext context,
+  WidgetRef ref,
+  String caseId, {
+  required bool isAttorney,
+}) async {
+  final t = ref.read(translatorProvider);
+  final r = await showComposeSheet(
+    context,
+    mode: ComposeMode.update,
+    isAttorney: isAttorney,
+  );
+  if (r == null || !context.mounted) return;
+  try {
+    await ref
+        .read(caseWorkspaceActionsProvider)
+        .addUpdate(caseId, r.text, r.files);
+  } on Object catch (e) {
+    if (context.mounted) showAppSnackBar(context, errorText(t, e));
+  }
+}
+
 /// Owner 2026-11-05: «обновление и активность» — one History of the case.
 class CaseHistoryTab extends ConsumerWidget {
   const CaseHistoryTab({
@@ -680,23 +750,6 @@ class CaseHistoryTab extends ConsumerWidget {
 
   final String caseId;
   final bool isAttorney;
-
-  Future<void> _add(BuildContext context, WidgetRef ref) async {
-    final t = ref.read(translatorProvider);
-    final r = await showComposeSheet(
-      context,
-      mode: ComposeMode.update,
-      isAttorney: isAttorney,
-    );
-    if (r == null || !context.mounted) return;
-    try {
-      await ref
-          .read(caseWorkspaceActionsProvider)
-          .addUpdate(caseId, r.text, r.files);
-    } on Object catch (e) {
-      if (context.mounted) showAppSnackBar(context, errorText(t, e));
-    }
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -725,7 +778,15 @@ class CaseHistoryTab extends ConsumerWidget {
     final out = <Widget>[
       // Audit 2026-10-19: a closed case takes no new updates.
       if (ref.watch(caseWorkspaceProvider(caseId)).value?.canWrite ?? true)
-        _WriteRow(onTap: () => _add(context, ref), t: t)
+        _WriteRow(
+          onTap: () => addCaseUpdate(
+            context,
+            ref,
+            caseId,
+            isAttorney: isAttorney,
+          ),
+          t: t,
+        )
       else
         WorkspaceReadOnlyNote(text: t.t(readOnlyReasonKey(ref))),
     ];

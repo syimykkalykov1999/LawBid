@@ -217,7 +217,13 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
             ref.invalidate(attorneyCaseProvider(widget.caseId));
             await ref.read(attorneyCaseProvider(widget.caseId).future);
           },
-          child: _Body(kase: c, t: t, formats: formats, sections: _sections),
+          child: _Body(
+            kase: c,
+            t: t,
+            formats: formats,
+            sections: _sections,
+            onWithdraw: _withdraw,
+          ),
         ),
       ),
       bottomNavigationBar: c == null || c.status != CaseStatus.open
@@ -232,15 +238,14 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
                       messaging: _messaging,
                       onBid: () => _bid(c),
                       onMessage: () => _message(c),
-                      onWithdraw: _withdraw,
                     ),
             ),
     );
   }
 }
 
-/// The bottom of an open case for an attorney: «Сделать бид» or, with a bid
-/// in, «Отозвать бид»; and «Вопрос клиенту», which opens the chat with them.
+/// The bottom of the Overview of an open case for an attorney: «Сделать бид»
+/// while there is no bid, and «Написать клиенту».
 class _OpenCaseActions extends ConsumerWidget {
   const _OpenCaseActions({
     required this.kase,
@@ -248,7 +253,6 @@ class _OpenCaseActions extends ConsumerWidget {
     required this.messaging,
     required this.onBid,
     required this.onMessage,
-    required this.onWithdraw,
   });
 
   final FeedCase kase;
@@ -256,19 +260,16 @@ class _OpenCaseActions extends ConsumerWidget {
   final bool messaging;
   final VoidCallback onBid;
   final VoidCallback onMessage;
-  final ValueChanged<CaseBid> onWithdraw;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = kase;
-    final bidId = c.ownBidId;
-    final ownBid = bidId == null ? null : ref.watch(bidProvider(bidId)).value;
     return BottomActionBar(
       children: [
         // Audit 2026-10-02: an assistant bids with "bids" or drafts with
         // "bid drafts", chats with "chats".
         if (c.bidAllowed &&
-            bidId == null &&
+            c.ownBidId == null &&
             (ref.watch(canDoProvider(AssistantDuty.bids)) ||
                 ref.watch(canDoProvider(AssistantDuty.bidDrafts))))
           AppButton(
@@ -276,19 +277,10 @@ class _OpenCaseActions extends ConsumerWidget {
             label: t.t('cases.bidForm.cta'),
             onPressed: onBid,
           ),
-        if (ownBid != null &&
-            ownBid.status == BidStatus.active &&
-            ref.watch(canDoProvider(AssistantDuty.bids)))
-          AppButton(
-            key: const ValueKey('case-withdraw'),
-            label: t.t('cases.withdraw.bid'),
-            variant: AppButtonVariant.secondary,
-            onPressed: () => onWithdraw(ownBid),
-          ),
         if (c.bidAllowed && ref.watch(canDoProvider(AssistantDuty.chats)))
           AppButton(
-            key: const ValueKey('case-ask-client'),
-            label: t.t('cases.detail.askClient'),
+            key: const ValueKey('case-message-client'),
+            label: t.t('cases.detail.messageClient'),
             icon: AppIcons.chatBubbleOutlineRounded,
             variant: AppButtonVariant.secondary,
             isLoading: messaging,
@@ -305,9 +297,11 @@ class _Body extends ConsumerStatefulWidget {
     required this.t,
     required this.formats,
     required this.sections,
+    required this.onWithdraw,
   });
 
   final CaseSectionsBar sections;
+  final ValueChanged<CaseBid> onWithdraw;
   final FeedCase kase;
   final Translator t;
   final L10nFormats formats;
@@ -338,7 +332,7 @@ class _BodyState extends ConsumerState<_Body> {
       c.practice.categoryNameEn ?? c.practice.nameEn,
     );
     final leaf = CaseFormat.practice(t, c.practice.i18nKey, c.practice.nameEn);
-    final items = [t.t('cases.tab.overview'), t.t('cases.tab.files')];
+    final items = [t.t('cases.tab.overview'), t.t('cases.tab.changes')];
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         widget.sections.publish(
@@ -350,7 +344,7 @@ class _BodyState extends ConsumerState<_Body> {
       }
     });
     // Owner 2026-10-19 (Instagram): the case header scrolls away and
-    // Overview | Files are pages side by side — the next one slides in with
+    // Overview | Changes are pages side by side — the next one slides in with
     // the finger, a tap slides to it. Owner 2026-11-05: their names stand in
     // the top bar.
     final hero = CaseHero(
@@ -387,7 +381,7 @@ class _BodyState extends ConsumerState<_Body> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: i == 0
                   ? [hero, ..._overview(context, c, t, formats)]
-                  : _files(context, c, t),
+                  : _changes(context, c, t, formats),
             ),
           ),
       ],
@@ -427,16 +421,6 @@ class _BodyState extends ConsumerState<_Body> {
             0,
           ),
           child: OutsidePracticeNote(t: t, forClient: false),
-        ),
-      if (c.ownBidId != null)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.lg,
-            AppSpacing.lg,
-            0,
-          ),
-          child: _OwnBidCard(bidId: c.ownBidId!, t: t, formats: formats),
         ),
       Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -539,6 +523,42 @@ class _BodyState extends ConsumerState<_Body> {
           style: type.caption.copyWith(color: colors.textSecondary),
         ),
       ),
+      // Owner 2026-11-05: the files stay closed until a bid is accepted; the
+      // attorney is told how many there are.
+      Padding(
+        key: const ValueKey('case-attached-line'),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.md,
+          AppSpacing.lg,
+          0,
+        ),
+        child: Text(
+          c.dossier.documentsCount + c.dossier.imagesCount == 0
+              ? t.t('cases.dossier.noFiles')
+              : t.t('cases.detail.attached', {
+                  'items': [
+                    if (c.dossier.documentsCount > 0)
+                      t.plural('cases.dossier.docs', c.dossier.documentsCount),
+                    if (c.dossier.imagesCount > 0)
+                      t.plural('cases.dossier.photos', c.dossier.imagesCount),
+                  ].join(', '),
+                }),
+          style: type.bodySmall.copyWith(color: colors.textSecondary),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.xs,
+          AppSpacing.lg,
+          0,
+        ),
+        child: Text(
+          t.t('cases.detail.privacyNote'),
+          style: type.caption.copyWith(color: colors.textSecondary),
+        ),
+      ),
       // OQ-034: questions and answers under the case.
       AppListRow(
         icon: AppIcons.modeCommentOutlined,
@@ -551,85 +571,52 @@ class _BodyState extends ConsumerState<_Body> {
     ];
   }
 
-  List<Widget> _files(BuildContext context, FeedCase c, Translator t) {
+  /// Owner 2026-11-05: the attorney's bid, its terms, taking it back. The
+  /// client's changes join this section with the server part.
+  List<Widget> _changes(
+    BuildContext context,
+    FeedCase c,
+    Translator t,
+    L10nFormats formats,
+  ) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    Widget row(IconData icon, String title, String sub) => Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.md,
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: colors.chip,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: AppIcon(icon, color: colors.iconTint),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: type.body.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    Text(
-                      sub,
-                      style:
-                          type.bodySmall.copyWith(color: colors.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-              AppIcon(
-                AppIcons.lockOutlineRounded,
-                size: 18,
-                color: colors.textSecondary,
-              ),
-            ],
-          ),
-        );
-    final docs = c.dossier.documentsCount;
-    final imgs = c.dossier.imagesCount;
-    return [
-      if (docs + imgs == 0)
+    final bidId = c.ownBidId;
+    const side = EdgeInsets.fromLTRB(
+      AppSpacing.lg,
+      AppSpacing.lg,
+      AppSpacing.lg,
+      0,
+    );
+    if (bidId == null) {
+      return [
         Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
+          padding: side,
           child: Text(
-            t.t('cases.dossier.noFiles'),
+            t.t('cases.changes.noBid'),
             style: type.body.copyWith(color: colors.textSecondary),
           ),
         ),
-      if (docs > 0)
-        row(
-          AppIcons.descriptionOutlined,
-          t.t('cases.files.documents'),
-          t.plural('cases.dossier.docs', docs),
-        ),
-      if (imgs > 0)
-        row(
-          AppIcons.imageOutlined,
-          t.t('cases.files.photos'),
-          t.plural('cases.dossier.photos', imgs),
-        ),
+      ];
+    }
+    final bid = ref.watch(bidProvider(bidId)).value;
+    return [
       Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.sm,
-          AppSpacing.lg,
-          0,
-        ),
-        child: Text(
-          t.t('cases.detail.privacyNote'),
-          style: type.caption.copyWith(color: colors.textSecondary),
-        ),
+        padding: side,
+        child: _OwnBidCard(bidId: bidId, t: t, formats: formats),
       ),
+      if (bid != null &&
+          bid.isActive &&
+          ref.watch(canDoProvider(AssistantDuty.bids)))
+        Padding(
+          padding: side,
+          child: AppButton(
+            key: const ValueKey('case-withdraw'),
+            label: t.t('cases.withdraw.bid'),
+            variant: AppButtonVariant.secondary,
+            onPressed: () => widget.onWithdraw(bid),
+          ),
+        ),
     ];
   }
 }

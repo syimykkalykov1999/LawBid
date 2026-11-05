@@ -16,6 +16,7 @@ import 'package:lawbid/features/cases/workspace/tasks_tab.dart';
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
 import 'package:lawbid/features/cases/workspace/workspace_view.dart';
 import 'package:lawbid/features/team/presentation/case_tasks_section.dart';
+import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 import '../../helpers/onboarding_harness.dart';
@@ -32,18 +33,45 @@ const _practice = PracticeRef(
 const _title = 'Speeding ticket in Trenton';
 const _text = 'Short line.';
 
+CaseBid _bid({String id = 'bid-1', BidStatus status = BidStatus.active}) =>
+    CaseBid(
+      id: id,
+      caseId: 'case-1',
+      attorneyId: 'att-1',
+      status: status,
+      feeType: FeeType.fixed,
+      amountCents: 60000,
+      message: 'Happy to help.',
+      startAvailability: StartAvailability.immediately,
+      startDate: null,
+      estimatedDurationDays: null,
+      roundCount: 0,
+      turn: PartyRole.client,
+      createdAt: DateTime(2026, 9, 20),
+    );
+
 class _Repo extends FakeCasesRepository {
   _Repo({
     this.status = CaseStatus.open,
     this.accepted,
     this.conversation,
     this.ownBid,
+    this.bids = const [],
   });
 
   final CaseStatus status;
   final CaseBid? accepted;
   final String? conversation;
   final String? ownBid;
+  final List<CaseBid> bids;
+
+  @override
+  Future<CursorPage<CaseBid>> caseBids(
+    String caseId,
+    BidsSort sort, {
+    String? cursor,
+  }) async =>
+      CursorPage(items: bids);
 
   @override
   Future<OwnerCase> ownerCase(String caseId) async => OwnerCase(
@@ -84,21 +112,7 @@ class _Repo extends FakeCasesRepository {
       );
 
   @override
-  Future<CaseBid> bid(String bidId) async => CaseBid(
-        id: bidId,
-        caseId: 'case-1',
-        attorneyId: 'att-1',
-        status: BidStatus.active,
-        feeType: FeeType.fixed,
-        amountCents: 60000,
-        message: 'Happy to help.',
-        startAvailability: StartAvailability.immediately,
-        startDate: null,
-        estimatedDurationDays: null,
-        roundCount: 0,
-        turn: PartyRole.client,
-        createdAt: DateTime(2026, 9, 20),
-      );
+  Future<CaseBid> bid(String bidId) async => _bid(id: bidId);
 
   @override
   Future<void> recordViews(List<String> caseIds) async {}
@@ -135,19 +149,23 @@ void main() {
   setUpAll(() async => initializeDateFormatting('en'));
 
   group('links', () {
-    test('old tab names open the section that took them over', () {
-      expect(caseSectionFromName('overview'), CaseSection.overview);
-      expect(caseSectionFromName('bids'), CaseSection.bids);
-      expect(caseSectionFromName('files'), CaseSection.files);
-      expect(caseSectionFromName('docs'), CaseSection.files);
-      expect(caseSectionFromName('tasks'), CaseSection.tasks);
-      expect(caseSectionFromName('time'), CaseSection.tasks);
-      // History is a block of the Overview now.
-      expect(caseSectionFromName('updates'), CaseSection.overview);
-      expect(caseSectionFromName('activity'), CaseSection.overview);
-      expect(caseSectionFromName('history'), CaseSection.overview);
-      expect(caseSectionFromName(null), CaseSection.overview);
-      expect(caseSectionFromName('nonsense'), CaseSection.overview);
+    test('old tab names open the place that took them over', () {
+      for (final (name, section) in [
+        ('overview', CaseSection.overview),
+        ('bids', CaseSection.bids),
+        ('files', CaseSection.docs),
+        ('docs', CaseSection.docs),
+        ('photos', CaseSection.photos),
+        ('tasks', CaseSection.tasks),
+        ('time', CaseSection.time),
+        ('updates', CaseSection.activity),
+        ('activity', CaseSection.activity),
+        ('history', CaseSection.activity),
+        (null, CaseSection.overview),
+        ('nonsense', CaseSection.overview),
+      ]) {
+        expect(caseSectionFromName(name), section);
+      }
     });
   });
 
@@ -223,34 +241,6 @@ void main() {
     });
   });
 
-  group('merged sections', () {
-    testWidgets('Files holds Docs, Tasks holds Time', (tester) async {
-      await tester.pumpWidget(
-        uxApp(
-          const Scaffold(
-            body: SingleChildScrollView(
-              child: Column(
-                children: [
-                  CaseFilesPage(caseId: 'k', isAttorney: false),
-                  CaseTasksPage(caseId: 'k', isAttorney: false),
-                ],
-              ),
-            ),
-          ),
-          theme: AppTheme.light(),
-          overrides: uxOverrides(),
-        ),
-      );
-      await tester.pump();
-      expect(find.byType(FilesTab), findsOneWidget);
-      expect(find.byType(SigningTab), findsOneWidget);
-      expect(find.byType(TasksTab), findsOneWidget);
-      expect(find.byType(BillingTab), findsOneWidget);
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump(const Duration(seconds: 60));
-    });
-  });
-
   group('screens', () {
     Future<void> pumpScreen(
       WidgetTester tester,
@@ -263,7 +253,21 @@ void main() {
       final wrap = await onboardingWrapper(
         AppTheme.light(),
         user: clientMe(),
-        extra: casesOverrides(repo: repo),
+        extra: [
+          ...casesOverrides(repo: repo),
+          caseWorkspaceProvider('case-1').overrideWith(
+            (ref) async => const api.CaseWorkspaceDto(
+              role: api.CaseWorkspaceDtoRole.attorney,
+              files: [],
+              openTasks: 0,
+              updatesCount: 0,
+              publishedAt: '2026-09-20T00:00:00.000Z',
+              bidsCount: 1,
+              newUpdates: 0,
+              canWrite: true,
+            ),
+          ),
+        ],
       );
       await tester.pumpWidget(wrap(screen));
       await tester.pump();
@@ -287,7 +291,7 @@ void main() {
         );
       }
       expect(
-        find.descendant(of: sections(), matching: find.byType(Expanded)),
+        find.descendant(of: sections(), matching: find.byType(GestureDetector)),
         findsNWidgets(names.length),
       );
     }
@@ -302,78 +306,65 @@ void main() {
     }
 
     Finder key(String k) => find.byKey(ValueKey(k));
+    Finder subTab(String name) =>
+        find.descendant(of: key('case-sub-tabs'), matching: find.text(name));
 
-    testWidgets('client, open case: Overview Bids Files and its bottom buttons',
+    Future<void> settle(WidgetTester tester) async {
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    testWidgets('client, open case: Overview Bids, no tabs, its two buttons',
         (tester) async {
       await pumpScreen(
         tester,
         const OwnerCaseScreen(caseId: 'case-1'),
         _Repo(),
       );
-      expectSections(['Overview', 'Bids', 'Files']);
+      expectSections(['Overview', 'Bids']);
       expectCentredBetween(tester);
-      // No screen title and no «…» in the bar; the head is in the Overview.
       expect(find.text('My case'), findsNothing);
       expect(find.byType(TopBarIcon), findsNothing);
+      expect(key('case-sub-tabs'), findsNothing);
       expect(hero(), findsOneWidget);
+      expect(find.byType(CaseHistoryTab, skipOffstage: false), findsNothing);
       // Tasks exist before a bid is accepted: at the end of the Overview.
       expect(
         find.byType(CaseTasksSection, skipOffstage: false),
         findsOneWidget,
       );
       expect(key('case-edit'), findsOneWidget);
-      expect(key('case-see-bids'), findsOneWidget);
       expect(key('case-delete'), findsOneWidget);
 
-      await tester.tap(key('case-see-bids'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
-      await tester.pump(const Duration(milliseconds: 400));
+      await openSection(tester, 'Bids');
       expect(hero(), findsNothing);
-      // The actions belong to the Overview.
       expect(key('case-delete'), findsNothing);
-
-      await openSection(tester, 'Files');
-      expect(hero(), findsNothing);
-      expect(find.text(_title), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('a link opens its section at once', (tester) async {
+    testWidgets('client, bids: Terms and Accept on a bid awaiting the client',
+        (tester) async {
       await pumpScreen(
         tester,
         const OwnerCaseScreen(
           caseId: 'case-1',
-          initialSection: CaseSection.files,
+          initialSection: CaseSection.bids,
         ),
-        _Repo(),
+        _Repo(bids: [_bid()]),
       );
-      expect(hero(), findsNothing);
-      expect(key('case-delete'), findsNothing);
+      expect(key('bid-card-view-bid-1'), findsOneWidget);
+      expect(key('bid-card-accept-bid-1'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
-    testWidgets('client in work: one chat; head, card, history in Overview',
+    testWidgets('client in work: three sections, each with its two tabs',
         (tester) async {
       await pumpScreen(
         tester,
         const OwnerCaseScreen(caseId: 'case-1'),
         _Repo(
           status: CaseStatus.inProgress,
-          accepted: CaseBid(
-            id: 'bid-1',
-            caseId: 'case-1',
-            attorneyId: 'att-1',
-            status: BidStatus.accepted,
-            feeType: FeeType.fixed,
-            amountCents: 60000,
-            message: 'Happy to help.',
-            startAvailability: StartAvailability.immediately,
-            startDate: null,
-            estimatedDurationDays: null,
-            roundCount: 0,
-            turn: PartyRole.client,
-            createdAt: DateTime(2026, 9, 20),
-          ),
+          accepted: _bid(status: BidStatus.accepted),
           conversation: 'conv-1',
         ),
       );
@@ -381,21 +372,103 @@ void main() {
       expect(hero(), findsOneWidget);
       expect(find.byType(MoneyText), findsOneWidget);
       expect(find.text('Terms'), findsOneWidget);
-      // The card no longer has its own chat: only the bottom button.
+      // The card has no chat of its own: only the bottom button.
       expect(find.text('Chat'), findsNothing);
       expect(find.text('Chat with lawyer'), findsOneWidget);
       expect(key('case-complete'), findsOneWidget);
-      expect(find.byType(TopBarIcon), findsNothing);
-      expect(
-        find.byType(CaseHistoryBlock, skipOffstage: false),
-        findsOneWidget,
-      );
-      await openSection(tester, 'Tasks');
+
+      // Activity: no head, no card.
+      await tester.tap(subTab('Activity'));
+      await settle(tester);
       expect(hero(), findsNothing);
       expect(find.byType(MoneyText), findsNothing);
+      expect(find.byType(CaseHistoryTab), findsOneWidget);
+
+      await openSection(tester, 'Files');
+      expect(subTab('Docs'), findsOneWidget);
+      expect(subTab('Photos'), findsOneWidget);
       expect(key('case-complete'), findsNothing);
+      expect(find.byType(SigningTab), findsOneWidget);
+      await tester.tap(subTab('Photos'));
+      await settle(tester);
+      expect(find.byType(SigningTab), findsNothing);
+
+      await openSection(tester, 'Tasks');
+      expect(subTab('Tasks'), findsOneWidget);
+      expect(subTab('Time'), findsOneWidget);
+      expect(find.byType(TasksTab), findsOneWidget);
+      expect(find.byType(BillingTab), findsNothing);
+      await tester.tap(subTab('Time'));
+      await settle(tester);
+      expect(find.byType(BillingTab), findsOneWidget);
+      expect(find.byType(TasksTab), findsNothing);
       expect(find.text('Chat with lawyer'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a link opens its section and tab', (tester) async {
+      await pumpScreen(
+        tester,
+        const OwnerCaseScreen(
+          caseId: 'case-1',
+          initialSection: CaseSection.time,
+        ),
+        _Repo(
+          status: CaseStatus.inProgress,
+          accepted: _bid(status: BidStatus.accepted),
+        ),
+      );
+      expect(find.byType(BillingTab), findsOneWidget);
+      expect(hero(), findsNothing);
+    });
+
+    testWidgets('the plus of Documents: a template only for the attorney',
+        (tester) async {
+      await pumpScreen(
+        tester,
+        const WorkCaseScreen(
+          caseId: 'case-1',
+          initialSection: CaseSection.docs,
+        ),
+        _Repo(status: CaseStatus.inProgress),
+      );
+      await tester.tap(key('case-plus'));
+      await settle(tester);
+      expect(find.text('Get signed'), findsOneWidget);
+      expect(find.text('From template'), findsOneWidget);
+    });
+
+    testWidgets('the plus of Documents, client: no template', (tester) async {
+      await pumpScreen(
+        tester,
+        const OwnerCaseScreen(
+          caseId: 'case-1',
+          initialSection: CaseSection.docs,
+        ),
+        _Repo(
+          status: CaseStatus.inProgress,
+          accepted: _bid(status: BidStatus.accepted),
+        ),
+      );
+      await tester.tap(key('case-plus'));
+      await settle(tester);
+      expect(find.text('Get signed'), findsOneWidget);
+      expect(find.text('From template'), findsNothing);
+    });
+
+    testWidgets('sub-tabs: equal parts, 44 pt to tap', (tester) async {
+      await pumpScreen(
+        tester,
+        const WorkCaseScreen(caseId: 'case-1'),
+        _Repo(status: CaseStatus.inProgress),
+      );
+      final a = tester.getRect(subTab('Case'));
+      final b = tester.getRect(subTab('Activity'));
+      final bar = tester.getRect(key('case-sub-tabs'));
+      expect(bar.width, 320);
+      expect(bar.height, greaterThanOrEqualTo(44));
+      expect(a.center.dx, moreOrLessEquals(80, epsilon: 2));
+      expect(b.center.dx, moreOrLessEquals(240, epsilon: 2));
     });
 
     testWidgets('hired attorney: three sections, actions, one chat',
@@ -418,30 +491,31 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('attorney, open case with a bid: withdraw and ask the client',
+    testWidgets('attorney, open case with a bid: Changes has bid and withdraw',
         (tester) async {
       await pumpScreen(
         tester,
         const AttorneyCaseScreen(caseId: 'case-1'),
         _Repo(ownBid: 'bid-1'),
       );
-      expect(key('case-withdraw'), findsOneWidget);
-      expect(key('case-ask-client'), findsOneWidget);
+      expectSections(['Overview', 'Changes']);
+      expect(key('case-message-client'), findsOneWidget);
       expect(key('case-bid-cta'), findsNothing);
+      expect(key('case-attached-line'), findsOneWidget);
+      await openSection(tester, 'Changes');
+      expect(key('case-withdraw'), findsOneWidget);
+      expect(key('case-message-client'), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('attorney on an open case: the description starts at the edge',
+    testWidgets('attorney, open case: the description starts at the edge',
         (tester) async {
       await pumpScreen(
         tester,
         const AttorneyCaseScreen(caseId: 'case-1'),
         _Repo(),
       );
-      expect(
-        find.descendant(of: sections(), matching: find.text('Files')),
-        findsOneWidget,
-      );
+      expect(key('case-bid-cta'), findsOneWidget);
       expect(
         tester.getTopLeft(find.text(_text)).dx,
         moreOrLessEquals(AppSpacing.lg, epsilon: 0.5),

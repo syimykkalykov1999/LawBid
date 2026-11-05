@@ -20,6 +20,7 @@ import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dar
     show caseStageOf;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/attorney_view_preview.dart';
+import 'package:lawbid/features/cases/presentation/widgets/bid_accept_flow.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
@@ -32,7 +33,6 @@ import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
-import 'package:lawbid/features/cases/presentation/widgets/owner_case_dossier.dart';
 import 'package:lawbid/features/cases/presentation/widgets/private_details_card.dart';
 import 'package:lawbid/features/cases/presentation/widgets/review_nudge_sheet.dart';
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
@@ -256,7 +256,7 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
   }
 
   /// Owner 2026-11-05: no «…» — what the status allows stands at the bottom
-  /// of the Overview. Open case: Edit, See bids and, under them, Delete.
+  /// of the Overview. Open case: Edit and, under it, Delete.
   List<Widget> _overviewActions(OwnerCase c, Translator t) {
     final actions = ref.read(caseActionsProvider);
     AppButton delete() => AppButton(
@@ -306,21 +306,11 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
       else if (c.status == CaseStatus.inProgress)
         complete(confirmIt: false),
       if (c.status == CaseStatus.open)
-        ButtonPair(
-          left: AppButton(
-            key: const ValueKey('case-edit'),
-            label: t.t('common.edit'),
-            variant: AppButtonVariant.secondary,
-            onPressed: () => context.push(AppRoutes.myCaseEdit(c.id)),
-          ),
-          right: AppButton(
-            key: const ValueKey('case-see-bids'),
-            label: t.t('cases.owner.seeBids'),
-            variant: AppButtonVariant.secondary,
-            // Bids is the page right after the Overview.
-            onPressed: () =>
-                _sections.show(1, reduceMotion: context.reduceMotion),
-          ),
+        AppButton(
+          key: const ValueKey('case-edit'),
+          label: t.t('cases.owner.editCase'),
+          variant: AppButtonVariant.secondary,
+          onPressed: () => context.push(AppRoutes.myCaseEdit(c.id)),
         ),
       if (c.status == CaseStatus.open || c.status == CaseStatus.archived)
         delete(),
@@ -533,8 +523,8 @@ class _OwnerCaseBody extends ConsumerWidget {
 }
 
 /// Owner 2026-10-15 («Экран кейса»): a case that is not yet in work — the
-/// hero, then Overview · Bids · Files (owner 2026-11-05: three; the tasks,
-/// the deadlines and, once a bid is accepted, the History end the Overview).
+/// hero, then Overview · Bids (owner 2026-11-05; the files, the tasks and the
+/// deadlines are in the Overview, files change in «Изменить кейс»).
 class _OwnerOpenCase extends ConsumerStatefulWidget {
   const _OwnerOpenCase({
     required this.kase,
@@ -568,13 +558,12 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
         status != CaseStatus.disputed;
   }
 
-  List<String> get _kinds => ['overview', if (_showBids) 'bids', 'files'];
+  List<String> get _kinds => ['overview', if (_showBids) 'bids'];
 
   // Tasks live in the Overview here, so a link to them opens it.
   late int _tab = _kinds.indexOf(
     switch (widget.initialSection) {
       CaseSection.bids when _showBids => 'bids',
-      CaseSection.files => 'files',
       _ => 'overview',
     },
   );
@@ -615,7 +604,6 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
         '${t.t('cases.tab.bids')} ${formats.digits(c.bidsCount)}'
       else if (showBids)
         t.t('cases.tab.bids'),
-      t.t('cases.tab.files'),
     ];
     final tab = _tab.clamp(0, tabs.length - 1);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -629,7 +617,7 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
       }
     });
     // Owner 2026-10-19 (Instagram): the case header scrolls away and
-    // Overview | Bids | Files are pages side by side — the next one
+    // Overview | Bids are pages side by side — the next one
     // slides in with the finger, a tap slides to it. Owner 2026-11-05: their
     // names stand in the top bar.
     final kinds = _kinds;
@@ -716,8 +704,23 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
                 ),
                 if (c.photos.isNotEmpty)
                   DetailSection(
+                    key: const ValueKey('case-files-block'),
                     title: t.t('cases.photos.title'),
-                    child: CasePhotosStrip(photos: c.photos),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (c.photos.any(
+                          (p) => p.isImage || p.mime.startsWith('video/'),
+                        ))
+                          CasePhotosStrip(
+                            photos: [
+                              for (final p in c.photos)
+                                if (p.isImage || p.mime.startsWith('video/')) p,
+                            ],
+                          ),
+                        CaseDocumentLines(photos: c.photos),
+                      ],
+                    ),
                   ),
                 // Owner 2026-10-19: one row of two buttons — «Как выглядит
                 // ваш кейс» (until a bid is accepted) and «Вопросы по
@@ -855,12 +858,6 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
                     ],
                   ),
                 ),
-              if (which == 'files')
-                // Owner 2026-10-05: the client's case file and adding files.
-                Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.md),
-                  child: OwnerCaseDossier(kase: c),
-                ),
             ],
           ),
         );
@@ -911,9 +908,10 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
                   children: [
                     hero,
                     sectionFor(w),
-                    // The server opens the history once a bid is accepted.
+                    // A finished case with a hired attorney keeps its record;
+                    // an open case has no activity (owner 2026-11-05).
                     if (c.acceptedBid != null)
-                      CaseHistoryBlock(caseId: c.id, isAttorney: false),
+                      CaseHistoryTab(caseId: c.id, isAttorney: false),
                   ],
                 ),
               _ => sectionFor(w),
@@ -967,6 +965,10 @@ class _BidsList extends ConsumerWidget {
                   t: t,
                   formats: formats,
                   onTap: () => context.push(AppRoutes.bid(value.items[i].id)),
+                  onAccept: value.items[i].isActive &&
+                          value.items[i].isTurnOf(PartyRole.client)
+                      ? () => acceptBidFromCard(context, ref, value.items[i])
+                      : null,
                   onAttorneyTap: value.items[i].attorney?.username.isNotEmpty ??
                           false
                       ? () => context.push(
