@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/cases/deals/deal_record_data.dart';
+import 'package:lawbid/features/cases/deals/rich_terms_editor.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dart';
@@ -44,6 +45,20 @@ class _Repo extends FakeCasesRepository {
   CaseBid? bidNow;
   final List<api.BidCaseChangeDto> changes;
   int confirmed = 0;
+  api.PaymentTermsDto? sentTerms;
+
+  @override
+  Future<CaseBid> changeBid(
+    String bidId, {
+    required FeeType feeType,
+    int? amountCents,
+    int? percentBps,
+    String? message,
+    api.PaymentTermsDto? paymentTerms,
+  }) async {
+    sentTerms = paymentTerms;
+    return bidNow = _bid();
+  }
 
   @override
   Future<FeedCase> attorneyCase(String caseId) async => FeedCase(
@@ -199,5 +214,48 @@ void main() {
     await t.pump(const Duration(milliseconds: 400));
     expect(find.text('One sum for the whole job'), findsOneWidget);
     expect(key('change-bid-send'), findsNothing);
+  });
+
+  testWidgets('«Поменять бид» sends the detailed terms', (t) async {
+    final repo = _Repo(bidNow: _bid(turn: PartyRole.attorney));
+    t.view.physicalSize = const Size(390, 2400);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    final wrap = await onboardingWrapper(
+      AppTheme.light(),
+      user: clientMe(),
+      extra: [
+        ...casesOverrides(repo: repo),
+        bidConfirmationProvider.overrideWithValue(true),
+        richTermsEnabledProvider.overrideWithValue(true),
+      ],
+    );
+    await t.pumpWidget(wrap(const AttorneyCaseScreen(caseId: 'case-1')));
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 200));
+    await openChanges(t);
+    await t.tap(key('case-bid-change'));
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 400));
+    await t.tap(find.text('One sum for the whole job'));
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 400));
+    await t.enterText(find.byType(EditableText).first, '2000');
+    await t.tap(find.text('A retainer, then scheduled payments'));
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 400));
+    final draft = t.widget<RichTermsEditor>(find.byType(RichTermsEditor)).draft
+      ..retainer.text = '2000'
+      ..installment.text = '1000'
+      ..count.text = '6';
+    expect(draft.type, api.PaymentTermsDtoType.retainerPlusInstallments);
+    await t.pump();
+    await t.ensureVisible(key('change-bid-send'));
+    await t.pump();
+    await t.tap(key('change-bid-send'));
+    await t.pump(const Duration(milliseconds: 100));
+    expect(repo.sentTerms?.retainerCents, 200000);
+    expect(repo.sentTerms?.installmentCents, 100000);
+    expect(repo.sentTerms?.installmentCount, 6);
   });
 }

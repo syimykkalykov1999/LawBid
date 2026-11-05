@@ -318,6 +318,41 @@ describe('Bid confirmation after a case change (e2e)', () => {
       .expect(409);
   });
 
+  it('«Поменять бид» with detailed terms: new ones stored, old in the journal', async () => {
+    await setSwitch(SWITCH, true);
+    await setSwitch('bids.rich_terms_enabled', true);
+    const s = await setup();
+    await edit(s.caseId, s.client.auth);
+    await api()
+      .post(`/api/v1/bids/${s.bidId}/change`)
+      .set(s.attorney.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        feeType: 'fixed',
+        amountCents: 200_000,
+        paymentTerms: {
+          version: 1,
+          type: 'retainer_plus_installments',
+          currency: 'USD',
+          retainerCents: 200_000,
+          installmentCents: 100_000,
+          installmentCount: 6,
+          installmentPeriod: 'monthly',
+        },
+      })
+      .expect((r) => expect(r.status).toBeLessThan(300));
+    const offer = await prisma.bidOffer.findFirstOrThrow({
+      where: { bid_id: s.bidId, status: 'pending' },
+    });
+    expect(offer.payment_terms).toMatchObject({ installmentCents: 100_000 });
+    const entry = await prisma.caseJournal.findFirstOrThrow({
+      where: { case_id: s.caseId, event_type: 'offer_made' },
+      orderBy: { created_at: 'desc' },
+    });
+    expect(entry.payload).toMatchObject({ before: { amountCents: 60_000 } });
+    await setSwitch('bids.rich_terms_enabled', null);
+  });
+
   it('one reminder, no withdrawal', async () => {
     await setSwitch(SWITCH, true);
     const s = await setup();

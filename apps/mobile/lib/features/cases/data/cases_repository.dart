@@ -174,6 +174,7 @@ abstract interface class CasesRepository {
     int? amountCents,
     int? percentBps,
     String? message,
+    api.PaymentTermsDto? paymentTerms,
   });
   Future<List<api.BidCaseChangeDto>> bidCaseChanges(String bidId);
 
@@ -583,6 +584,7 @@ class ApiCasesRepository implements CasesRepository, CasesSyncRepository {
     int? amountCents,
     int? percentBps,
     String? message,
+    api.PaymentTermsDto? paymentTerms,
   }) async =>
       CasesMappers.bid(
         (await guardApiCall(
@@ -593,6 +595,7 @@ class ApiCasesRepository implements CasesRepository, CasesSyncRepository {
               amountCents: amountCents,
               percentBps: percentBps,
               message: message,
+              paymentTerms: paymentTerms,
             ),
             extras: _createsResource,
           ),

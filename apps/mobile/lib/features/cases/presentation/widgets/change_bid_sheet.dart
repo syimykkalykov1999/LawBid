@@ -6,6 +6,8 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
+import 'package:lawbid/features/cases/deals/deal_record_data.dart';
+import 'package:lawbid/features/cases/deals/rich_terms_editor.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/domain/contingency.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_option_picker.dart';
@@ -47,6 +49,7 @@ class _ChangeBidSheet extends ConsumerStatefulWidget {
 class _ChangeBidSheetState extends ConsumerState<_ChangeBidSheet> {
   final _amount = TextEditingController();
   final _message = TextEditingController();
+  final _rich = RichTermsDraft();
   FeeType? _fee;
   bool _busy = false;
 
@@ -54,6 +57,7 @@ class _ChangeBidSheetState extends ConsumerState<_ChangeBidSheet> {
   void dispose() {
     _amount.dispose();
     _message.dispose();
+    _rich.dispose();
     super.dispose();
   }
 
@@ -83,6 +87,8 @@ class _ChangeBidSheetState extends ConsumerState<_ChangeBidSheet> {
                 _percent || _fee == FeeType.freeConsultation ? null : _cents,
             percentBps: _percent ? _bps : null,
             message: _message.text.trim().isEmpty ? null : _message.text.trim(),
+            paymentTerms:
+                ref.read(richTermsEnabledProvider) ? _rich.toDto() : null,
           );
       if (mounted) Navigator.of(context).pop();
     } on Object catch (e) {
@@ -170,6 +176,17 @@ class _ChangeBidSheetState extends ConsumerState<_ChangeBidSheet> {
                 LengthLimitingTextInputFormatter(_percent ? 6 : 8),
               ],
               onChanged: (_) => setState(() {}),
+            ),
+          ],
+          // Owner 2026-11-05: «$2000 сразу, затем по $1000 в месяц» — the same
+          // editor as on the bid form; the new terms replace the old ones.
+          if (_fee != null && ref.watch(richTermsEnabledProvider)) ...[
+            const SizedBox(height: AppSpacing.lg),
+            RichTermsEditor(
+              draft: _rich,
+              enabled: !_busy,
+              percentAllowed: widget.percentAllowed,
+              onChanged: () => setState(() {}),
             ),
           ],
           if (_fee != null) ...[

@@ -54,7 +54,7 @@ void main() {
     'postInsightsProvider',
     'attorneyStatsProvider',
     'promotionStatsProvider',
-    // One bid's short diff; empty after the answer, nothing to patch row by row.
+    // One bid's short diff; empty after the answer.
     'bidCaseChangesProvider',
   };
 

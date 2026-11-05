@@ -652,6 +652,16 @@ export class BidsService {
       assertExpectedVersion(now.version, expectedVersion);
       if (now.status !== 'active') throw bidNotActive(now.status);
       const terms = paymentTerms ?? Prisma.JsonNull;
+      // bid_offers keeps one row per round; the replaced offer stays in the
+      // journal, terms and message included.
+      const replaced = await tx.bidOffer.findFirst({
+        where: {
+          bid_id: bid.id,
+          round_no: now.round_count,
+          status: 'pending',
+        },
+        select: { message: true, payment_terms: true, from_role: true },
+      });
       await tx.bid.update({
         where: { id: bid.id },
         data: {
@@ -698,10 +708,15 @@ export class BidsService {
           feeType: dto.feeType,
           amountCents,
           percentBps: percentBps ?? null,
+          paymentTerms: paymentTerms,
           before: {
             feeType: now.fee_type,
             amountCents: now.amount_cents,
             percentBps: now.percent_bps,
+            paymentTerms: (replaced?.payment_terms ??
+              null) as Prisma.InputJsonValue | null,
+            message: replaced?.message ?? null,
+            fromRole: replaced?.from_role ?? null,
           },
         },
       });

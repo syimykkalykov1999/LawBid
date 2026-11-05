@@ -884,6 +884,7 @@ class CaseActions {
     int? amountCents,
     int? percentBps,
     String? message,
+    api.PaymentTermsDto? paymentTerms,
   }) async {
     final result = await _repo.changeBid(
       bid.id,
@@ -891,6 +892,7 @@ class CaseActions {
       amountCents: amountCents,
       percentBps: percentBps,
       message: message,
+      paymentTerms: paymentTerms,
     );
     _afterBidChange(result);
     _ref.invalidate(bidCaseChangesProvider(bid.id));
