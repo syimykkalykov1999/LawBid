@@ -19,6 +19,9 @@
 10. **Деплой-проверки читают ответ API в обёртке `{data:…}`:** `/health/ready` → `.data.version`.
 11. **Деплой запускается сам только при изменениях в apps/api, apps/admin, packages, package*.json или deploy.yml.** Правка в scripts/deploy/ или infra/ НЕ создаёт новый деплой: после такой правки нужен ручной запуск `gh workflow run deploy.yml --ref main` (кнопка владельцу), а ждущий старый деплой со старыми скриптами — отменить.
 
+- **Admin CI: «window is not defined» после всех тестов (05.11).** В админке нет vitest globals, поэтому Testing Library сама не размонтирует: рендер из последнего теста доигрывал уже без DOM, тесты зелёные, а прогон красный. В таком файле нужен `afterEach(() => cleanup())`.
+
+- **«a new migration sorts before an already-released one» (05.11, #745).** PR долго ждал очереди, а в main вышли миграции с более поздней датой. Лечение: переименовать свою, ещё не выпущенную миграцию на дату после последней в main (`git mv`), перед слиянием сверять хвост `prisma/migrations`.
 - **`api_error_codes_test`: «ApiErrorCodes.all is exactly the generated ErrorCode enum» (05.11, #779).** Новый код ошибки на сервере надо добавить и в `apps/mobile/lib/core/network/api_error.dart`: константу и строку в `all`. Каждый код, если их несколько.
 
 ## B. Деплой и прод
