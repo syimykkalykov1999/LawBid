@@ -167,7 +167,7 @@ const planRu = <String, String>{
   'cases.comments.ask': 'Задать вопрос…',
   'cases.comments.send': 'Отправить вопрос',
   'cases.hero.stage': 'Этап {n} из 5: {name}',
-  'cases.tab.bids': 'Ставки',
+  'cases.tab.bids': 'Биды',
   'cases.hero.bidSent': 'Ставка отправлена',
   'cases.hero.published': 'опубл. {date}',
   'cases.stage.0': 'Опубликован',
