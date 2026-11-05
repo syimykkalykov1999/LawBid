@@ -274,6 +274,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       onPlace: () => unawaited(_sendPlace()),
       limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
       prepareVideo: _prepareVideo,
+      fromDisk: ref
+          .read(featureFlagsControllerProvider)
+          .isEnabled('chat_files_from_disk'),
     );
     if (files.isEmpty || !mounted) return;
     // Owner 2026-10-22 (WhatsApp): nothing is sent yet - the preview opens

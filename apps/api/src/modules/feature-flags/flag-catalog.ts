@@ -189,6 +189,16 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Resumable (multipart) uploads of large files',
   },
   {
+    // R-255: on, a video or document picked in a chat stays on disk and is
+    // copied to the queue folder and streamed from there, instead of being
+    // read whole into the phone's memory. Off until checked on a phone.
+    key: 'chat_files_from_disk',
+    enabled: false,
+    app: true,
+    description:
+      'Chat videos and documents are sent from disk, not from memory',
+  },
+  {
     key: 'payments_in_app',
     enabled: false,
     app: true,

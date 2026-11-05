@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
@@ -1212,6 +1213,11 @@ class ChatThread extends Notifier<ChatThreadState> {
     required Uint8List bytes,
     required String name,
     required String mime,
+
+    /// R-255: the file on disk (then `bytes` is empty): it is copied to the
+    /// queue folder and sent from there, never held in memory.
+    String? path,
+    int? diskBytes,
     String? caption,
 
     /// Owner 2026-10-19 (albums): files picked together keep the picked
@@ -1226,14 +1232,19 @@ class ChatThread extends Notifier<ChatThreadState> {
     if (queue.ownerId == null) return;
     final cmid = newClientMessageId();
     final isImage = mime.startsWith('image/');
-    final px = isImage
-        ? await imageSizeOf(bytes)
-        : (mime.startsWith('video/') ? videoSizeOf(bytes) : null);
-    _previewBytes[cmid] = bytes;
-    final file = await files.keep(
-      '$cmid.bin',
-      bytes: bytes,
-    );
+    final isVideo = mime.startsWith('video/');
+    final Size? px;
+    if (path != null) {
+      px = isVideo ? await videoSizeOfFile(XFile(path)) : null;
+    } else {
+      px = isImage
+          ? await imageSizeOf(bytes)
+          : (isVideo ? videoSizeOf(bytes) : null);
+      _previewBytes[cmid] = bytes;
+    }
+    final file = path != null
+        ? await files.keep('$cmid.bin', fromPath: path)
+        : await files.keep('$cmid.bin', bytes: bytes);
     if (after != null) {
       try {
         await after;
@@ -1248,7 +1259,7 @@ class ChatThread extends Notifier<ChatThreadState> {
       payload: {
         'name': name,
         'caption': caption?.trim() ?? '',
-        'size': bytes.length,
+        'size': diskBytes ?? bytes.length,
         if (px != null) 'width': px.width.round(),
         if (px != null) 'height': px.height.round(),
       },
