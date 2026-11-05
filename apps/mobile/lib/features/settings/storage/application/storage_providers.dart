@@ -85,19 +85,24 @@ class CacheReportNotifier extends AsyncNotifier<CacheReport> {
   }
 }
 
-/// Owner 2026-11-05: what an account kept on the phone leaves with it,
+/// Owner 2026-11-05: everything an account kept on the phone leaves with it,
 /// whichever way it ended (sign-out, a dead session, another person signing
 /// in). One pass at a time: a quick sign-in never meets a wipe still running.
+/// The device's own settings stay (see `personalKeys`).
 final accountFilesGuardProvider = Provider<void>((ref) {
   var last = Future<void>.value();
-  Future<void> forgetOthers(String owner) async {
+
+  /// Unsent work and queued files, of everyone but [keeping].
+  Future<void> forgetWork(String? keeping) async {
     final social = ref.read(socialLocalDatabaseProvider);
-    await social.forgetOutboxOfOthers(owner);
-    await social.forgetRecentOfOthers(keeping: owner);
-    await ref.read(casesLocalDatabaseProvider).forgetDraftsOfOthers(owner);
+    await social.forgetOutboxOfOthers(keeping: keeping);
+    await social.forgetRecentOfOthers(keeping: keeping);
+    await ref
+        .read(casesLocalDatabaseProvider)
+        .forgetDraftsOfOthers(keeping: keeping);
     final uploads = ref.read(uploadQueueDatabaseProvider);
     final files = ref.read(uploadFilesProvider);
-    for (final job in await uploads.ofOthers(owner)) {
+    for (final job in await uploads.ofOthers(keeping: keeping)) {
       final name = job.fileName;
       if (name != null) await files.remove(name);
       await uploads.remove(job.id);
@@ -105,12 +110,39 @@ final accountFilesGuardProvider = Provider<void>((ref) {
   }
 
   Future<bool> wipe(String? keepOwner) async {
-    if (keepOwner == null) {
-      await ref.read(socialLocalDatabaseProvider).forgetRecentOfOthers();
+    final kv = ref.read(localKvStoreProvider);
+    // Each part runs whatever happened to the one before it.
+    var done = true;
+    Future<void> part(Future<void> Function() f) async {
+      try {
+        await f();
+      } on Object catch (e) {
+        debugPrint('account data: $e');
+        done = false;
+      }
     }
-    return ref
+
+    await part(
+      () => ref.read(deviceTracesCleanerProvider)(
+        signedOut: keepOwner == null,
+      ),
+    );
+    await part(() => forgetWork(keepOwner));
+    await part(
+      () => kv.removeWhere((k) => isForeignAccountKey(k, keepOwner)),
+    );
+    final cleared = await ref
         .read(cacheMaintenanceProvider)
         .clearAccountData(keepOwner: keepOwner);
+    return done && cleared;
+  }
+
+  // What a pass already under way wrote after the wipe.
+  Future<void> forgetOthers(String owner) async {
+    await forgetWork(owner);
+    await ref
+        .read(localKvStoreProvider)
+        .removeWhere((k) => isOtherAccountKey(k, owner));
   }
 
   ref.listen(

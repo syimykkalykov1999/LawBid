@@ -229,10 +229,15 @@ class SocialLocalDatabase extends _$SocialLocalDatabase
             ))
           .go();
 
-  /// Unsent messages of accounts other than [owner]: another person signed in
-  /// on this phone, so they will never be sent from here.
-  Future<void> forgetOutboxOfOthers(String owner) =>
-      (delete(chatOutbox)..where((o) => o.ownerId.equals(owner).not())).go();
+  /// Unsent messages leave with the account (as in Telegram, whose sign-out
+  /// deletes its message database); [keeping] is the account signing in.
+  Future<void> forgetOutboxOfOthers({String? keeping}) => (delete(chatOutbox)
+        ..where(
+          (o) => keeping == null
+              ? const Constant(true)
+              : o.ownerId.equals(keeping).not(),
+        ))
+      .go();
 
   /// History saved before the tabs had their own: one list for everything,
   /// so there is no telling which tab a line belonged to. Dropped.

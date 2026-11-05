@@ -35,8 +35,8 @@ const accountDataCleanMark = '';
 /// Runs [wipe] when the account is left or replaced; the owner is remembered,
 /// so an account that ended while the app was closed is noticed at the next
 /// sign-in. [wipe] gets the account signing in, whose rows stay; [forgetOthers]
-/// drops what waits to be sent for other accounts. A wipe answering false is
-/// not marked done and runs again. Answers whether it wiped.
+/// sweeps what a pass under way wrote for other accounts after the wipe. A wipe
+/// answering false is not marked done and runs again. Answers whether it wiped.
 Future<bool> wipeAccountDataIfChanged({
   required String? previous,
   required String? next,
@@ -61,6 +61,62 @@ Future<bool> wipeAccountDataIfChanged({
   if (await wipe(next)) await kv.setString(caseFilesOwnerKey, next);
   return true;
 }
+
+/// Owner 2026-11-05: device settings kept in the same store stay on sign-out
+/// (language, theme, cache limits, permission prompts already shown, the
+/// device id). Below is what belongs to a person. A new key that belongs to a
+/// person goes here.
+///
+/// Named by account: `<prefix><user id>`.
+const accountScopedKeyPrefixes = <String>[
+  'chat.textDrafts.v1.',
+  'contacts_book_v1.',
+  'push.registeredAt.',
+  'passkey_nudge.until.',
+  'passkey_nudge.count.',
+  'passkey_nudge.done.',
+  'tz.sent.',
+  'cases.contactSharingConsent.',
+];
+
+/// About a person, with no account in the name.
+const personalKeys = <String>{
+  'contacts_book_v1',
+  'contacts_auto_sync_at_v1',
+  'contacts_notify_new_v1',
+  'contacts_sync_asked_v1',
+  'spotlight.items.v1',
+  'reminders.armedSent',
+  'feed.contentMode.v1',
+  'feed.legalScope.v1',
+  'feed.topics.v1',
+  'feed.topics.news.v1',
+  'chat.linkPreviews.v1',
+  'chat.maskingHintSeen',
+  'recommended_sheet_view',
+  'demo.banner_hidden',
+};
+
+/// About one call or case of a person.
+const personalKeyPrefixes = <String>[
+  'call.ended.',
+  'call.ring.',
+  'review_nudge_',
+];
+
+bool _scopedToOther(String key, String? keepOwner) =>
+    accountScopedKeyPrefixes.any(key.startsWith) &&
+    (keepOwner == null || !key.endsWith('.$keepOwner'));
+
+/// What the account [keepOwner] (null = nobody) must not find on this phone.
+bool isForeignAccountKey(String key, String? keepOwner) =>
+    _scopedToOther(key, keepOwner) ||
+    personalKeys.contains(key) ||
+    personalKeyPrefixes.any(key.startsWith);
+
+/// Only keys named for another account: never what the one signing in just
+/// wrote without its name.
+bool isOtherAccountKey(String key, String owner) => _scopedToOther(key, owner);
 
 /// What the phone's caches take, by store (plan §5.2: the ring and the
 /// rows of «Данные и память»).
@@ -261,8 +317,7 @@ class CacheMaintenance {
   /// voice notes, video, saved lists, the message history and its sync marks
   /// (they go together, so the same person's next sign-in loads it all again).
   /// [keepOwner] signs in right now: its rows stay, so the screens it is
-  /// opening are not emptied. The outbox stays for its owner: an expired
-  /// session must not lose what was typed. False when something stayed.
+  /// opening are not emptied. False when something stayed.
   Future<bool> clearAccountData({String? keepOwner}) async {
     Future<bool> guarded(String name, Future<bool> Function() f) async {
       try {

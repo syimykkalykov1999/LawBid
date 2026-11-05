@@ -19,15 +19,18 @@ void main() {
         body: 'not sent yet',
       );
 
-  test('unsent messages wait for their owner, not for another person',
+  test('unsent messages stay only for the one signing in, none on sign-out',
       () async {
     await enqueue('user-a');
     await enqueue('user-b');
 
-    await db.forgetOutboxOfOthers('user-a');
+    await db.forgetOutboxOfOthers(keeping: 'user-a');
 
     expect(await db.pending('user-a'), hasLength(1));
     expect(await db.pending('user-b'), isEmpty);
+
+    await db.forgetOutboxOfOthers();
+    expect(await db.pending('user-a'), isEmpty);
   });
 
   test('search history stays for the one signing in, all go on sign-out',
