@@ -119,12 +119,13 @@ describe('Sidebar badges == default list rows (e2e, R-403)', () => {
       },
     });
     // The list hides these three; before R-403 the badge counted the first.
+    const reviewer = await prisma.user.create({ data: { role: 'admin' } });
     await prisma.verificationRequest.create({
       data: {
         attorney_id: await attorney(),
         status: 'in_review',
         submitted_at: ago(3),
-        reviewed_by: randomUUID(),
+        reviewed_by: reviewer.id,
       },
     });
     await prisma.verificationRequest.create({
@@ -240,30 +241,37 @@ describe('Sidebar badges == default list rows (e2e, R-403)', () => {
     const elsewhere = await prisma.user.create({
       data: { role: 'client', country_code: 'US' },
     });
-    await prisma.report.deleteMany({ where: { status: 'open' } });
+    const target = randomUUID();
     await prisma.report.create({
       data: {
         reporter_id: elsewhere.id,
         target_type: 'post',
-        target_id: randomUUID(),
+        target_id: target,
         reason: 'spam',
       },
     });
+    const ids = (rows: unknown[]) =>
+      rows.map((r) => (r as { targetId: string }).targetId);
+
+    const tab = { ...auth, 'X-Admin-Country': 'CA' };
     await summary.dropFamily(ADMIN_COUNTS_SUMMARY_KEY);
-    const tabbed = { ...auth, 'X-Admin-Country': 'CA' };
-    const badge = await api()
-      .get('/api/v1/admin/counts')
-      .set(tabbed)
-      .expect(200);
+    const badge = await api().get('/api/v1/admin/counts').set(tab).expect(200);
     const list = await api()
       .get('/api/v1/admin/moderation/queue')
       .query({ status: 'open', limit: '50' })
-      .set(tabbed)
+      .set(tab)
       .expect(200);
-    expect((list.body as Page).data).toHaveLength(0);
-    expect((badge.body.data as Counts).openReports).toBe(0);
+    const tabRows = (list.body as Page).data;
+    expect(ids(tabRows)).not.toContain(target);
+    expect((badge.body.data as Counts).openReports).toBe(tabRows.length);
+
     // Without the tab the same report is back in both.
     const all = await counts();
-    expect(all.openReports).toBe(1);
+    const allListed = await allRows('/api/v1/admin/moderation/queue', {
+      status: 'open',
+      limit: '50',
+    });
+    expect(ids(allListed)).toContain(target);
+    expect(all.openReports).toBe(allListed.length);
   });
 });
