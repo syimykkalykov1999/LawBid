@@ -22,6 +22,7 @@
 - **Admin CI: «window is not defined» после всех тестов (05.11).** В админке нет vitest globals, поэтому Testing Library сама не размонтирует: рендер из последнего теста доигрывал уже без DOM, тесты зелёные, а прогон красный. В таком файле нужен `afterEach(() => cleanup())`.
 
 - **«a new migration sorts before an already-released one» (05.11, #745).** PR долго ждал очереди, а в main вышли миграции с более поздней датой. Лечение: переименовать свою, ещё не выпущенную миграцию на дату после последней в main (`git mv`), перед слиянием сверять хвост `prisma/migrations`.
+- **`api_error_codes_test`: «ApiErrorCodes.all is exactly the generated ErrorCode enum» (05.11, #779).** Новый код ошибки на сервере надо добавить и в `apps/mobile/lib/core/network/api_error.dart`: константу и строку в `all`. Каждый код, если их несколько.
 
 - **iOS-сборка: «failed downloading … WebRTC.xcframework» (05.11, main, #755, #779).** Файл качается с релиза GitHub и часто обрывается. В CI кэш Swift-пакетов и до 3 попыток только на этой ошибке.
 
