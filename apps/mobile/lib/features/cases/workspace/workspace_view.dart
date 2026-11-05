@@ -9,7 +9,9 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/file_views/presentation/file_views_screen.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_sections.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/cases/tools/billing_tab.dart';
 import 'package:lawbid/features/cases/tools/signing_tab.dart';
@@ -24,10 +26,11 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-13: the body of an accepted case, for the client and the
-/// attorney alike — chips, title, State · Budget · Deadline and the text
-/// tabs Overview | Files | Tasks | Updates | Activity. [overview] is what
-/// the side shows on its own Overview tab (description, the other party's
-/// card, chat).
+/// attorney alike. In the top bar ([sections]): Overview | Files | Tasks |
+/// History (owner 2026-11-05: Docs is in Files, Time in Tasks, Updates and
+/// Activity are one History). The Overview starts with the case's head (chips,
+/// title, stages), which no other section shows. [overview] is what the side
+/// shows on its own Overview tab (description, the other party's card, chat).
 class CaseWorkspaceBody extends ConsumerStatefulWidget {
   const CaseWorkspaceBody({
     required this.caseId,
@@ -44,8 +47,16 @@ class CaseWorkspaceBody extends ConsumerStatefulWidget {
     required this.statusTone,
     required this.stage,
     required this.publishedAt,
+    required this.sections,
+    this.initialSection = CaseSection.overview,
     super.key,
   });
+
+  /// The screen's top bar, where the section names stand.
+  final CaseSectionsBar sections;
+
+  /// The section a link asked for (`?tab=`).
+  final CaseSection initialSection;
 
   /// The case head (owner 2026-10-15): the practice colour, the status tone,
   /// the stage 0..4 and the day it was published.
@@ -70,17 +81,39 @@ class CaseWorkspaceBody extends ConsumerStatefulWidget {
 }
 
 class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
-  int _tab = 0;
+  // 0 Overview · 1 Files · 2 Tasks · 3 History.
+  static const _history = 3;
+  late int _tab = switch (widget.initialSection) {
+    CaseSection.files => 1,
+    CaseSection.tasks => 2,
+    CaseSection.history => _history,
+    _ => 0,
+  };
+  late final PageController _pages = PageController(initialPage: _tab);
+  bool? _wasWide;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_tab == _history) _markSeen();
+  }
+
+  @override
+  void dispose() {
+    widget.sections.release(_pages);
+    _pages.dispose();
+    super.dispose();
+  }
+
+  void _markSeen() => ref
+      .read(caseWorkspaceActionsProvider)
+      .markUpdatesSeen(widget.caseId)
+      .then((_) {}, onError: (Object _) {});
 
   void _select(int i) {
     setState(() => _tab = i);
-    // Opening Updates reads them: the grey number goes away.
-    if (i == 3) {
-      ref
-          .read(caseWorkspaceActionsProvider)
-          .markUpdatesSeen(widget.caseId)
-          .catchError((Object _) {});
-    }
+    // Opening History reads the updates: the grey number goes away.
+    if (i == _history) _markSeen();
   }
 
   Future<void> _refresh() async {
@@ -99,104 +132,92 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
     final formats = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final ws = ref.watch(caseWorkspaceProvider(widget.caseId)).value;
-    final files = ws?.files.length ?? 0;
-    final open = ws?.openTasks ?? 0;
-    // On the Updates tab itself there is nothing new any more.
-    final fresh = _tab == 3 ? 0 : (ws?.newUpdates ?? 0);
+    // On History itself there is nothing new any more.
+    final fresh = _tab == _history ? 0 : (ws?.newUpdates ?? 0);
     return LayoutBuilder(
       builder: (context, box) {
         // Owner 2026-10-13: from 900 dp the Overview (the other party, the
         // description, chat) stays in a side column and the tabs are the
-        // four working ones; on a phone it is the first tab.
+        // working ones; on a phone it is the first tab.
         final wide = box.maxWidth >= 900;
         final tab = wide && _tab == 0 ? 2 : _tab;
         final labels = [
-          if (!wide) CaseTabItem(t.t('cases.tab.overview')),
-          CaseTabItem(t.t('cases.tab.files'), count: files),
-          CaseTabItem(t.t('cases.tab.tasks'), count: open),
-          CaseTabItem(t.t('cases.tab.updates'), count: fresh),
-          CaseTabItem(t.t('cases.tab.activity')),
-          CaseTabItem(t.t('cases.tab.time')),
-          CaseTabItem(t.t('cases.tab.docs')),
+          if (!wide) t.t('cases.tab.overview'),
+          t.t('cases.tab.files'),
+          t.t('cases.tab.tasks'),
+          // The one number that says something new is inside.
+          if (fresh > 0)
+            '${t.t('cases.tab.history')} ${formats.digits(fresh)}'
+          else
+            t.t('cases.tab.history'),
         ];
         final shift = wide ? 1 : 0;
-        // Owner 2026-10-19 (Instagram): the case header scrolls away, the
-        // tab row sticks, and the tabs are pages side by side — the next
-        // one slides in with the finger, a tap slides to it, each is kept.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          // The window crossed 900 dp: the same tab, at its new page number.
+          if (_wasWide != wide) {
+            final first = _wasWide == null;
+            _wasWide = wide;
+            if (_pages.hasClients && (!first || wide)) {
+              _pages.jumpToPage(tab - shift);
+            }
+          }
+          widget.sections.publish(
+            items: labels,
+            index: tab - shift,
+            pages: _pages,
+          );
+        });
+        // Owner 2026-10-19 (Instagram): the case header scrolls away and the
+        // tabs are pages side by side — the next one slides in with the
+        // finger, a tap slides to it, each is kept. Owner 2026-11-05: their
+        // names stand in the top bar.
         final pages = [for (var i = shift; i < labels.length + shift; i++) i];
+        final overview = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            CaseHero(
+              t: t,
+              formats: formats,
+              practiceName: widget.chips.join(' · '),
+              categoryCode: widget.categoryCode,
+              statusLabel: widget.statusLabel,
+              statusTone: widget.statusTone,
+              title: widget.title,
+              states: widget.states,
+              budget: widget.budget,
+              urgency: widget.urgency,
+              stage: widget.stage,
+              publishedAt: widget.publishedAt,
+            ),
+            ...widget.overview,
+          ],
+        );
         Widget pageFor(int tab) => switch (tab) {
-              0 => Column(children: widget.overview),
-              1 => FilesTab(
+              0 => overview,
+              1 => CaseFilesPage(
                   caseId: widget.caseId,
                   isAttorney: widget.isAttorney,
                 ),
-              2 => TasksTab(
+              2 => CaseTasksPage(
                   caseId: widget.caseId,
                   isAttorney: widget.isAttorney,
                 ),
-              3 => UpdatesTab(
-                  caseId: widget.caseId,
-                  isAttorney: widget.isAttorney,
-                ),
-              4 => ActivityTab(caseId: widget.caseId),
-              5 => BillingTab(
-                  caseId: widget.caseId,
-                  isAttorney: widget.isAttorney,
-                ),
-              _ => SigningTab(
+              _ => CaseHistoryTab(
                   caseId: widget.caseId,
                   isAttorney: widget.isAttorney,
                 ),
             };
-        final scale = MediaQuery.textScalerOf(context).scale(1);
         final main = ProfileTabPages(
           key: ValueKey('case-pages-$wide'),
-          initialPage: (tab - shift).clamp(0, labels.length - 1),
+          controller: _pages,
           onPage: (i) => _select(i + shift),
           onRefresh: _refresh,
-          tabBarHeight: 28 + 18 * scale,
+          tabBar: const SizedBox.shrink(),
+          tabBarHeight: 0,
           pagePadding: (_) => const EdgeInsets.only(bottom: AppSpacing.xxl),
-          header: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              CaseHero(
-                t: t,
-                formats: formats,
-                practiceName: widget.chips.join(' · '),
-                categoryCode: widget.categoryCode,
-                statusLabel: widget.statusLabel,
-                statusTone: widget.statusTone,
-                title: widget.title,
-                states: widget.states,
-                budget: widget.budget,
-                urgency: widget.urgency,
-                stage: widget.stage,
-                publishedAt: widget.publishedAt,
-              ),
-              const SizedBox(height: AppSpacing.md),
-            ],
-          ),
-          tabBar: Builder(
-            builder: (context) => CaseTextTabs(
-              pages: ProfileTabPages.controllerOf(context),
-              items: labels,
-              index: tab - shift,
-              onChanged: (i) {
-                final c = ProfileTabPages.controllerOf(context);
-                if (c != null && c.hasClients) {
-                  c.animateToPage(
-                    i,
-                    duration: context.reduceMotion
-                        ? Duration.zero
-                        : const Duration(milliseconds: 250),
-                    curve: Curves.easeOutCubic,
-                  );
-                } else {
-                  _select(i + shift);
-                }
-              },
-            ),
-          ),
+          // Owner 2026-11-05: the case's head stands only in the Overview.
+          header: const SizedBox.shrink(),
           pages: [
             for (final p in pages)
               ConstrainedBox(
@@ -224,7 +245,7 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
                   ),
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-                    child: Column(children: widget.overview),
+                    child: overview,
                   ),
                 ),
               ],
@@ -234,6 +255,72 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
       },
     );
   }
+}
+
+/// A named block inside a section («Документы» under the files).
+class _SectionBlockTitle extends StatelessWidget {
+  const _SectionBlockTitle({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        child: DetailSection(title: title, child: const SizedBox.shrink()),
+      );
+}
+
+/// Owner 2026-11-05 («доки и файлы одно и то же»): the case's files and,
+/// under them, its documents (the deal record, signatures, templates).
+class CaseFilesPage extends StatelessWidget {
+  const CaseFilesPage({
+    required this.caseId,
+    required this.isAttorney,
+    super.key,
+  });
+
+  final String caseId;
+  final bool isAttorney;
+
+  @override
+  Widget build(BuildContext context) => Consumer(
+        builder: (context, ref, _) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            FilesTab(caseId: caseId, isAttorney: isAttorney),
+            _SectionBlockTitle(
+              title: ref.watch(translatorProvider).t('cases.tab.docs'),
+            ),
+            SigningTab(caseId: caseId, isAttorney: isAttorney),
+          ],
+        ),
+      );
+}
+
+/// Owner 2026-11-05: the tasks and, under them, time and invoices.
+class CaseTasksPage extends StatelessWidget {
+  const CaseTasksPage({
+    required this.caseId,
+    required this.isAttorney,
+    super.key,
+  });
+
+  final String caseId;
+  final bool isAttorney;
+
+  @override
+  Widget build(BuildContext context) => Consumer(
+        builder: (context, ref, _) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TasksTab(caseId: caseId, isAttorney: isAttorney),
+            _SectionBlockTitle(
+              title: ref.watch(translatorProvider).t('cases.tab.time'),
+            ),
+            BillingTab(caseId: caseId, isAttorney: isAttorney),
+          ],
+        ),
+      );
 }
 
 /// A line of text filters under the tabs ("All · Photos · ...").
@@ -552,10 +639,31 @@ class WorkspaceReadOnlyNote extends StatelessWidget {
   }
 }
 
-// -------------------------------------------------------------- Updates
+// -------------------------------------------------------------- History
 
-class UpdatesTab extends ConsumerWidget {
-  const UpdatesTab({required this.caseId, required this.isAttorney, super.key});
+/// One feed from Updates and Activity, newest first: the server gives an
+/// event the same id in both lists, so each is shown once — as the full entry
+/// when it is an update, as a line when it is only in Activity.
+List<Object> mergeCaseHistory(
+  List<api.CaseUpdateDto> updates,
+  List<api.CaseActivityDto> activity,
+) {
+  final seen = {for (final u in updates) u.id};
+  final out = <(DateTime, Object)>[
+    for (final u in updates) (DateTime.parse(u.at), u),
+    for (final a in activity)
+      if (!seen.contains(a.id)) (DateTime.parse(a.at), a),
+  ]..sort((x, y) => y.$1.compareTo(x.$1));
+  return [for (final e in out) e.$2];
+}
+
+/// Owner 2026-11-05: «обновление и активность» — one History of the case.
+class CaseHistoryTab extends ConsumerWidget {
+  const CaseHistoryTab({
+    required this.caseId,
+    required this.isAttorney,
+    super.key,
+  });
 
   final String caseId;
   final bool isAttorney;
@@ -583,35 +691,81 @@ class UpdatesTab extends ConsumerWidget {
     final formats = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final value = ref.watch(caseUpdatesProvider(caseId));
-    return value.when(
-      loading: () => const Padding(
+    final updates = ref.watch(caseUpdatesProvider(caseId));
+    final activity = ref.watch(caseActivityProvider(caseId));
+    final error = updates.error ?? activity.error;
+    if (error != null) {
+      return Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Text(errorText(t, error)),
+      );
+    }
+    final u = updates.value;
+    final a = activity.value;
+    if (u == null || a == null) {
+      return const Padding(
         padding: EdgeInsets.all(AppSpacing.lg),
         child: AppSkeleton(height: 120),
-      ),
-      error: (e, _) => Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Text(errorText(t, e)),
-      ),
-      data: (items) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Audit 2026-10-19: a closed case takes no new updates.
-          if (ref.watch(caseWorkspaceProvider(caseId)).value?.canWrite ?? true)
-            _WriteRow(onTap: () => _add(context, ref), t: t)
-          else
-            WorkspaceReadOnlyNote(text: t.t(readOnlyReasonKey(ref))),
-          for (final u in items) UpdateEntry(update: u, t: t, formats: formats),
-          if (items.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Text(
-                t.t('cases.updates.empty'),
-                style: type.body.copyWith(color: colors.textSecondary),
+      );
+    }
+    final items = mergeCaseHistory(u, a);
+    final out = <Widget>[
+      // Audit 2026-10-19: a closed case takes no new updates.
+      if (ref.watch(caseWorkspaceProvider(caseId)).value?.canWrite ?? true)
+        _WriteRow(onTap: () => _add(context, ref), t: t)
+      else
+        WorkspaceReadOnlyNote(text: t.t(readOnlyReasonKey(ref))),
+    ];
+    String? day;
+    for (final item in items) {
+      final at = DateTime.parse(
+        item is api.CaseUpdateDto ? item.at : (item as api.CaseActivityDto).at,
+      );
+      final d = formats.date(at);
+      if (d != day) {
+        day = d;
+        out.add(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.xs,
+            ),
+            child: Text(
+              d,
+              style: type.caption.copyWith(
+                color: colors.textSecondary,
+                fontWeight: FontWeight.w700,
               ),
             ),
-        ],
-      ),
+          ),
+        );
+      }
+      out.add(
+        item is api.CaseUpdateDto
+            ? UpdateEntry(update: item, t: t, formats: formats)
+            : _ActivityLine(
+                activity: item as api.CaseActivityDto,
+                t: t,
+                formats: formats,
+              ),
+      );
+    }
+    if (items.isEmpty) {
+      out.add(
+        Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Text(
+            t.t('cases.activity.empty'),
+            style: type.body.copyWith(color: colors.textSecondary),
+          ),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: out,
     );
   }
 }
@@ -806,12 +960,18 @@ class UpdateEntry extends StatelessWidget {
 
 // ------------------------------------------------------------- Activity
 
-class ActivityTab extends ConsumerWidget {
-  const ActivityTab({required this.caseId, super.key});
+class _ActivityLine extends StatelessWidget {
+  const _ActivityLine({
+    required this.activity,
+    required this.t,
+    required this.formats,
+  });
 
-  final String caseId;
+  final api.CaseActivityDto activity;
+  final Translator t;
+  final L10nFormats formats;
 
-  String _line(Translator t, api.CaseActivityDto a) {
+  String _line(api.CaseActivityDto a) {
     final who = a.actorName.isEmpty ? '' : a.actorName;
     final task = a.taskTitle ?? '';
     return switch (a.kind) {
@@ -835,110 +995,48 @@ class ActivityTab extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final formats = ref.watch(l10nFormatsProvider);
+  Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final value = ref.watch(caseActivityProvider(caseId));
-    return value.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.all(AppSpacing.lg),
-        child: AppSkeleton(height: 120),
+    final a = activity;
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: 6,
       ),
-      error: (e, _) => Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Text(errorText(t, e)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            margin: const EdgeInsetsDirectional.only(top: 7, end: 12),
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: colors.gold,
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_line(a), style: type.body.copyWith(height: 1.35)),
+                if ((a.text ?? '').isNotEmpty)
+                  Text(
+                    a.text!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.bodySmall.copyWith(color: colors.textSecondary),
+                  ),
+                Text(
+                  formats.time(DateTime.parse(a.at)),
+                  style: type.caption.copyWith(color: colors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
-      data: (items) {
-        final out = <Widget>[];
-        String? day;
-        for (final a in items) {
-          final at = DateTime.parse(a.at);
-          final d = formats.date(at);
-          if (d != day) {
-            day = d;
-            out.add(
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.lg,
-                  AppSpacing.lg,
-                  AppSpacing.xs,
-                ),
-                child: Text(
-                  d,
-                  style: type.caption.copyWith(
-                    color: colors.textSecondary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            );
-          }
-          out.add(
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg,
-                vertical: 6,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    margin: const EdgeInsetsDirectional.only(top: 7, end: 12),
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: colors.gold,
-                    ),
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _line(t, a),
-                          style: type.body.copyWith(height: 1.35),
-                        ),
-                        if ((a.text ?? '').isNotEmpty)
-                          Text(
-                            a.text!,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: type.bodySmall
-                                .copyWith(color: colors.textSecondary),
-                          ),
-                        Text(
-                          formats.time(at),
-                          style: type.caption
-                              .copyWith(color: colors.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-        if (items.isEmpty) {
-          out.add(
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Text(
-                t.t('cases.activity.empty'),
-                style: type.body.copyWith(color: colors.textSecondary),
-              ),
-            ),
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: out,
-        );
-      },
     );
   }
 }

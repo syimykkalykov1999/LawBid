@@ -26,6 +26,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_invites_section.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_sections.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_stale_banner.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
@@ -34,6 +35,7 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/owner_case_dossier.dart';
 import 'package:lawbid/features/cases/presentation/widgets/private_details_card.dart';
 import 'package:lawbid/features/cases/presentation/widgets/review_nudge_sheet.dart';
+import 'package:lawbid/features/cases/workspace/workspace_data.dart';
 import 'package:lawbid/features/cases/workspace/workspace_view.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/deadlines/presentation/deadline_entry.dart';
@@ -44,9 +46,16 @@ import 'package:lawbid/features/team/presentation/case_tasks_section.dart';
 /// docs/04 §11.1 — the client's case: description, status actions, the
 /// accepted attorney, and the bids (§5.2) with sorting.
 class OwnerCaseScreen extends ConsumerStatefulWidget {
-  const OwnerCaseScreen({required this.caseId, super.key});
+  const OwnerCaseScreen({
+    required this.caseId,
+    this.initialSection = CaseSection.overview,
+    super.key,
+  });
 
   final String caseId;
+
+  /// The section a link asked for (`?tab=`).
+  final CaseSection initialSection;
 
   @override
   ConsumerState<OwnerCaseScreen> createState() => _OwnerCaseScreenState();
@@ -56,6 +65,13 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
   BidsSort _sort = BidsSort.newest;
   bool _busy = false;
   bool _nudged = false;
+  final CaseSectionsBar _sections = CaseSectionsBar();
+
+  @override
+  void dispose() {
+    _sections.dispose();
+    super.dispose();
+  }
 
   CaseBidsKey get _bidsKey => (caseId: widget.caseId, sort: _sort);
 
@@ -177,7 +193,9 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
   Future<void> _refresh() async {
     ref
       ..invalidate(ownerCaseProvider(widget.caseId))
-      ..invalidate(caseBidsProvider(_bidsKey));
+      ..invalidate(caseBidsProvider(_bidsKey))
+      ..invalidate(caseUpdatesProvider(widget.caseId))
+      ..invalidate(caseActivityProvider(widget.caseId));
     await ref.read(ownerCaseProvider(widget.caseId).future);
   }
 
@@ -280,7 +298,11 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
             () => context.canPop() ? context.pop() : context.go(AppRoutes.mine),
           ),
         ),
-        title: Text(t.t('cases.owner.title')),
+        centerTitle: true,
+        title: CaseSectionsTitle(
+          bar: _sections,
+          fallback: Text(t.t('cases.owner.title')),
+        ),
         actions: [
           if (hasMenu)
             TopBarIcon(
@@ -305,6 +327,8 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
             sort: _sort,
             bidsKey: _bidsKey,
             onSort: (s) => setState(() => _sort = s),
+            sections: _sections,
+            initialSection: widget.initialSection,
           ),
         ),
       ),
@@ -354,8 +378,12 @@ class _OwnerCaseBody extends ConsumerWidget {
     required this.sort,
     required this.bidsKey,
     required this.onSort,
+    required this.sections,
+    required this.initialSection,
   });
 
+  final CaseSectionsBar sections;
+  final CaseSection initialSection;
   final OwnerCase kase;
   final Translator t;
   final L10nFormats formats;
@@ -373,7 +401,7 @@ class _OwnerCaseBody extends ConsumerWidget {
         c.status != CaseStatus.disputed;
 
     // Owner 2026-10-13: once a bid is accepted the case is a workspace:
-    // Overview | Files | Tasks | Updates | Activity.
+    // Overview | Files | Tasks | History.
     if (c.acceptedBid != null && !showBids && c.status != CaseStatus.open) {
       final category = CaseFormat.practice(
         t,
@@ -385,6 +413,8 @@ class _OwnerCaseBody extends ConsumerWidget {
       return CaseWorkspaceBody(
         caseId: c.id,
         isAttorney: false,
+        sections: sections,
+        initialSection: initialSection,
         chips: [category, if (leaf != category) leaf],
         statusLabel: c.status == CaseStatus.inProgress
             ? t.t('cases.status.acceptedByBoth')
@@ -505,12 +535,15 @@ class _OwnerCaseBody extends ConsumerWidget {
       sort: sort,
       bidsKey: bidsKey,
       onSort: onSort,
+      sections: sections,
+      initialSection: initialSection,
     );
   }
 }
 
 /// Owner 2026-10-15 («Экран кейса»): a case that is not yet in work — the
-/// hero, then Overview · Bids · Files · Tasks.
+/// hero, then Overview · Bids · Files · History (owner 2026-11-05: four at
+/// most; the tasks and deadlines stand at the end of the Overview).
 class _OwnerOpenCase extends ConsumerStatefulWidget {
   const _OwnerOpenCase({
     required this.kase,
@@ -519,8 +552,12 @@ class _OwnerOpenCase extends ConsumerStatefulWidget {
     required this.sort,
     required this.bidsKey,
     required this.onSort,
+    required this.sections,
+    required this.initialSection,
   });
 
+  final CaseSectionsBar sections;
+  final CaseSection initialSection;
   final OwnerCase kase;
   final Translator t;
   final L10nFormats formats;
@@ -533,7 +570,33 @@ class _OwnerOpenCase extends ConsumerStatefulWidget {
 }
 
 class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
-  int _tab = 0;
+  bool get _showBids {
+    final status = widget.kase.status;
+    return status != CaseStatus.inProgress &&
+        status != CaseStatus.pendingCompletion &&
+        status != CaseStatus.disputed;
+  }
+
+  List<String> get _kinds =>
+      ['overview', if (_showBids) 'bids', 'files', 'history'];
+
+  // Tasks live in the Overview here, so a link to them opens it.
+  late int _tab = _kinds.indexOf(
+    switch (widget.initialSection) {
+      CaseSection.bids when _showBids => 'bids',
+      CaseSection.files => 'files',
+      CaseSection.history => 'history',
+      _ => 'overview',
+    },
+  );
+  late final PageController _pages = PageController(initialPage: _tab);
+
+  @override
+  void dispose() {
+    widget.sections.release(_pages);
+    _pages.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -549,32 +612,34 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
     final states = [c.primaryStateCode, ...c.additionalStateCodes]
         .map(stateName)
         .join(', ');
-    final showBids = c.status != CaseStatus.inProgress &&
-        c.status != CaseStatus.pendingCompletion &&
-        c.status != CaseStatus.disputed;
+    final showBids = _showBids;
     final category = CaseFormat.practice(
       t,
       c.practice.categoryI18nKey ?? c.practice.i18nKey,
       c.practice.categoryNameEn ?? c.practice.nameEn,
     );
     final leaf = CaseFormat.practice(t, c.practice.i18nKey, c.practice.nameEn);
-    final filesCount = c.photos.length;
     final tabs = [
-      CaseTabItem(t.t('cases.tab.overview')),
-      if (showBids) CaseTabItem(t.t('cases.tab.bids'), count: c.bidsCount),
-      CaseTabItem(t.t('cases.tab.files'), count: filesCount),
-      CaseTabItem(t.t('cases.tab.tasks')),
+      t.t('cases.tab.overview'),
+      // The number of bids is the one thing a client looks for here.
+      if (showBids && c.bidsCount > 0)
+        '${t.t('cases.tab.bids')} ${formats.digits(c.bidsCount)}'
+      else if (showBids)
+        t.t('cases.tab.bids'),
+      t.t('cases.tab.files'),
+      t.t('cases.tab.history'),
     ];
     final tab = _tab.clamp(0, tabs.length - 1);
-    // Owner 2026-10-19 (Instagram): the case header scrolls away, the tab
-    // row sticks, and Overview | Bids | Files | Tasks are pages side by
-    // side — the next one slides in with the finger, a tap slides to it.
-    final kinds = [
-      'overview',
-      if (showBids) 'bids',
-      'files',
-      'tasks',
-    ];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        widget.sections.publish(items: tabs, index: tab, pages: _pages);
+      }
+    });
+    // Owner 2026-10-19 (Instagram): the case header scrolls away and
+    // Overview | Bids | Files | History are pages side by side — the next one
+    // slides in with the finger, a tap slides to it. Owner 2026-11-05: their
+    // names stand in the top bar.
+    final kinds = _kinds;
     Widget sectionFor(String which) => Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
           child: Column(
@@ -746,6 +811,16 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
                     ],
                   ),
                 ),
+                // Owner 2026-11-05: four sections at most — before the work
+                // starts the case's dates and tasks are part of the Overview.
+                // Owner 2026-10-20: the deadline calculator, prefilled.
+                CaseDeadlinesRow(
+                  caseId: c.id,
+                  stateCode: c.primaryStateCode,
+                  practiceCategory: c.practice.artCode,
+                ),
+                if (c.status != CaseStatus.archived)
+                  CaseTasksSection(caseId: c.id, caseTitle: c.title),
               ],
               if (which == 'bids')
                 DetailSection(
@@ -794,81 +869,70 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
                   padding: const EdgeInsets.only(top: AppSpacing.md),
                   child: OwnerCaseDossier(kase: c),
                 ),
-              if (which == 'tasks') ...[
-                // Owner 2026-10-20: the deadline calculator, prefilled.
-                CaseDeadlinesRow(
-                  caseId: c.id,
-                  stateCode: c.primaryStateCode,
-                  practiceCategory: c.practice.artCode,
+              // The server opens the history once a bid is accepted; until
+              // then there is nothing to ask it for.
+              if (which == 'history' && c.acceptedBid == null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                  child: Text(
+                    t.t('cases.activity.empty'),
+                    style:
+                        typography.body.copyWith(color: colors.textSecondary),
+                  ),
                 ),
-                if (c.status != CaseStatus.archived)
-                  CaseTasksSection(caseId: c.id, caseTitle: c.title),
-              ],
             ],
           ),
         );
-    final scale = MediaQuery.textScalerOf(context).scale(1);
+    final hero = CaseHero(
+      t: t,
+      formats: formats,
+      practiceName: [
+        category,
+        if (leaf != category) leaf,
+        for (final p in c.extraPractices)
+          CaseFormat.practice(t, p.i18nKey, p.nameEn),
+      ].join(' · '),
+      categoryCode: c.practice.artCode,
+      statusLabel: caseStatusLabelOf(t, c.status, paused: c.paused),
+      statusTone: c.paused && c.status == CaseStatus.open
+          ? StatusTone.neutral
+          : caseTone(c.status),
+      title: c.title,
+      states: [c.primaryStateCode, ...c.additionalStateCodes],
+      budget: c.budget,
+      urgency: c.urgencyInfo,
+      stage: caseStageOf(c.status, c.bidsCount),
+      publishedAt: c.createdAt,
+    );
     return ProfileTabPages(
-      key: ValueKey('owner-case-pages-${kinds.length}'),
-      initialPage: tab,
+      controller: _pages,
       onPage: (i) => setState(() => _tab = i),
       // The screen has its own pull-to-refresh around this view.
-      tabBarHeight: 28 + 18 * scale,
+      tabBar: const SizedBox.shrink(),
+      tabBarHeight: 0,
       pagePadding: (_) => const EdgeInsets.only(bottom: AppSpacing.xxl),
       onNearEnd: (i) {
         if (kinds[i] == 'bids') {
           ref.read(caseBidsProvider(bidsKey).notifier).loadMore();
         }
       },
-      header: CaseHero(
-        t: t,
-        formats: formats,
-        practiceName: [
-          category,
-          if (leaf != category) leaf,
-          for (final p in c.extraPractices)
-            CaseFormat.practice(t, p.i18nKey, p.nameEn),
-        ].join(' · '),
-        categoryCode: c.practice.artCode,
-        statusLabel: caseStatusLabelOf(t, c.status, paused: c.paused),
-        statusTone: c.paused && c.status == CaseStatus.open
-            ? StatusTone.neutral
-            : caseTone(c.status),
-        title: c.title,
-        states: [c.primaryStateCode, ...c.additionalStateCodes],
-        budget: c.budget,
-        urgency: c.urgencyInfo,
-        stage: caseStageOf(c.status, c.bidsCount),
-        publishedAt: c.createdAt,
-      ),
-      tabBar: Builder(
-        builder: (context) => CaseTextTabs(
-          pages: ProfileTabPages.controllerOf(context),
-          items: tabs,
-          index: tab,
-          onChanged: (i) {
-            final pages = ProfileTabPages.controllerOf(context);
-            if (pages != null && pages.hasClients) {
-              pages.animateToPage(
-                i,
-                duration: context.reduceMotion
-                    ? Duration.zero
-                    : const Duration(milliseconds: 250),
-                curve: Curves.easeOutCubic,
-              );
-            } else {
-              setState(() => _tab = i);
-            }
-          },
-        ),
-      ),
+      // Owner 2026-11-05: the case's head stands only in the Overview.
+      header: const SizedBox.shrink(),
       pages: [
         for (final w in kinds)
           ConstrainedBox(
             constraints: BoxConstraints(
               minHeight: MediaQuery.sizeOf(context).height * 0.5,
             ),
-            child: sectionFor(w),
+            child: switch (w) {
+              'overview' => Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [hero, sectionFor(w)],
+                ),
+              'history' when c.acceptedBid != null =>
+                CaseHistoryTab(caseId: c.id, isAttorney: false),
+              _ => sectionFor(w),
+            },
           ),
       ],
     );

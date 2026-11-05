@@ -18,6 +18,7 @@ import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_sections.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
@@ -64,6 +65,13 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
   bool _messaging = false;
   bool? _savedOverride;
   bool _openedWork = false;
+  final CaseSectionsBar _sections = CaseSectionsBar();
+
+  @override
+  void dispose() {
+    _sections.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -160,7 +168,11 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
           onPressed: () =>
               context.canPop() ? context.pop() : context.go(AppRoutes.feed),
         ),
-        title: Text(t.t('cases.detail.title')),
+        centerTitle: true,
+        title: CaseSectionsTitle(
+          bar: _sections,
+          fallback: Text(t.t('cases.detail.title')),
+        ),
         actions: [
           if (c != null)
             TopBarIcon(
@@ -184,7 +196,7 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
             ref.invalidate(attorneyCaseProvider(widget.caseId));
             await ref.read(attorneyCaseProvider(widget.caseId).future);
           },
-          child: _Body(kase: c, t: t, formats: formats),
+          child: _Body(kase: c, t: t, formats: formats, sections: _sections),
         ),
       ),
       bottomNavigationBar: c == null || c.status != CaseStatus.open
@@ -218,8 +230,14 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
 }
 
 class _Body extends ConsumerStatefulWidget {
-  const _Body({required this.kase, required this.t, required this.formats});
+  const _Body({
+    required this.kase,
+    required this.t,
+    required this.formats,
+    required this.sections,
+  });
 
+  final CaseSectionsBar sections;
   final FeedCase kase;
   final Translator t;
   final L10nFormats formats;
@@ -230,6 +248,14 @@ class _Body extends ConsumerStatefulWidget {
 
 class _BodyState extends ConsumerState<_Body> {
   int _tab = 0;
+  final PageController _pages = PageController();
+
+  @override
+  void dispose() {
+    widget.sections.release(_pages);
+    _pages.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -242,60 +268,40 @@ class _BodyState extends ConsumerState<_Body> {
       c.practice.categoryNameEn ?? c.practice.nameEn,
     );
     final leaf = CaseFormat.practice(t, c.practice.i18nKey, c.practice.nameEn);
-    final filesCount = c.dossier.documentsCount + c.dossier.imagesCount;
-    // Owner 2026-10-19 (Instagram): the case header scrolls away, the tab
-    // row sticks, and Overview | Files are pages side by side — the next one
-    // slides in with the finger, a tap slides to it.
-    final scale = MediaQuery.textScalerOf(context).scale(1);
+    final items = [t.t('cases.tab.overview'), t.t('cases.tab.files')];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        widget.sections.publish(items: items, index: _tab, pages: _pages);
+      }
+    });
+    // Owner 2026-10-19 (Instagram): the case header scrolls away and
+    // Overview | Files are pages side by side — the next one slides in with
+    // the finger, a tap slides to it. Owner 2026-11-05: their names stand in
+    // the top bar.
+    final hero = CaseHero(
+      t: t,
+      formats: formats,
+      practiceName: [category, if (leaf != category) leaf].join(' · '),
+      categoryCode: c.practice.artCode,
+      statusLabel: c.ownBidId != null
+          ? t.t('cases.hero.bidSent')
+          : caseStatusLabel(t, c.status),
+      statusTone: c.ownBidId != null ? StatusTone.info : caseTone(c.status),
+      title: c.title,
+      states: [c.primaryStateCode, ...c.additionalStateCodes],
+      budget: c.budget,
+      urgency: c.urgencyInfo,
+      stage: caseStageOf(c.status, c.bidsCount),
+      publishedAt: c.createdAt,
+    );
     return ProfileTabPages(
-      initialPage: _tab,
+      controller: _pages,
       onPage: (i) => setState(() => _tab = i),
-      tabBarHeight: 28 + 18 * scale,
+      tabBar: const SizedBox.shrink(),
+      tabBarHeight: 0,
       pagePadding: (_) => const EdgeInsets.only(bottom: AppSpacing.xxl),
-      header: CaseHero(
-        t: t,
-        formats: formats,
-        practiceName: [category, if (leaf != category) leaf].join(' · '),
-        categoryCode: c.practice.artCode,
-        statusLabel: c.ownBidId != null
-            ? t.t('cases.hero.bidSent')
-            : caseStatusLabel(t, c.status),
-        statusTone: c.ownBidId != null ? StatusTone.info : caseTone(c.status),
-        title: c.title,
-        states: [c.primaryStateCode, ...c.additionalStateCodes],
-        budget: c.budget,
-        urgency: c.urgencyInfo,
-        stage: caseStageOf(c.status, c.bidsCount),
-        publishedAt: c.createdAt,
-      ),
-      tabBar: Builder(
-        builder: (context) => CaseTextTabs(
-          pages: ProfileTabPages.controllerOf(context),
-          items: [
-            CaseTabItem(t.t('cases.tab.overview')),
-            CaseTabItem(
-              t.t('cases.tab.files'),
-              count: filesCount,
-              locked: filesCount > 0 && c.photos.isEmpty,
-            ),
-          ],
-          index: _tab,
-          onChanged: (i) {
-            final pages = ProfileTabPages.controllerOf(context);
-            if (pages != null && pages.hasClients) {
-              pages.animateToPage(
-                i,
-                duration: context.reduceMotion
-                    ? Duration.zero
-                    : const Duration(milliseconds: 250),
-                curve: Curves.easeOutCubic,
-              );
-            } else {
-              setState(() => _tab = i);
-            }
-          },
-        ),
-      ),
+      // Owner 2026-11-05: the case's head stands only in the Overview.
+      header: const SizedBox.shrink(),
       pages: [
         for (final i in [0, 1])
           ConstrainedBox(
@@ -305,7 +311,7 @@ class _BodyState extends ConsumerState<_Body> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: i == 0
-                  ? _overview(context, c, t, formats)
+                  ? [hero, ..._overview(context, c, t, formats)]
                   : _files(context, c, t),
             ),
           ),

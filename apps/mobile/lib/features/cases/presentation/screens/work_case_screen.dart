@@ -23,6 +23,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_sections.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
@@ -40,9 +41,16 @@ import 'package:url_launcher/url_launcher.dart';
 /// behind the subscription, §8.3), "Не могу связаться" (§8.4) and, in
 /// `pending_completion`, "Подтвердить выполнение" / "Оспорить" (§10.1).
 class WorkCaseScreen extends ConsumerStatefulWidget {
-  const WorkCaseScreen({required this.caseId, super.key});
+  const WorkCaseScreen({
+    required this.caseId,
+    this.initialSection = CaseSection.overview,
+    super.key,
+  });
 
   final String caseId;
+
+  /// The section a link asked for (`?tab=`).
+  final CaseSection initialSection;
 
   @override
   ConsumerState<WorkCaseScreen> createState() => _WorkCaseScreenState();
@@ -51,6 +59,13 @@ class WorkCaseScreen extends ConsumerStatefulWidget {
 class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
   bool _busy = false;
   bool _opening = false;
+  final CaseSectionsBar _sections = CaseSectionsBar();
+
+  @override
+  void dispose() {
+    _sections.dispose();
+    super.dispose();
+  }
 
   /// docs/05 §8: the case chat (the acceptance created it; this returns it).
   Future<void> _openChat(Translator t) async {
@@ -203,6 +218,8 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
     return CaseWorkspaceBody(
       caseId: c.id,
       isAttorney: true,
+      sections: _sections,
+      initialSection: widget.initialSection,
       chips: [category, if (leaf != category) leaf],
       statusLabel: c.status == CaseStatus.inProgress
           ? t.t('cases.status.acceptedByBoth')
@@ -331,7 +348,11 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
             () => context.canPop() ? context.pop() : context.go(AppRoutes.mine),
           ),
         ),
-        title: Text(t.t('cases.work.title')),
+        centerTitle: true,
+        title: CaseSectionsTitle(
+          bar: _sections,
+          fallback: Text(t.t('cases.work.title')),
+        ),
         actions: [
           if (active)
             TopBarIcon(
