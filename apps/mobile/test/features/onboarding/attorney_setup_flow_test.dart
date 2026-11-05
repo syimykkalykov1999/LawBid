@@ -322,8 +322,11 @@ void main() {
       'then the "under review" screen', (tester) async {
     server.reviewAfterSubmit = true;
     await pumpFlow(tester);
+    // The numbers run on from the profile's 3, without a gap.
+    expect(find.text('Step 4 of 6', skipOffstage: false), findsOneWidget);
     await tester.tap(find.text('Submit licence'));
     await tester.pumpAndSettle();
+    expect(find.text('Step 5 of 6'), findsOneWidget);
 
     // Not skipped: practices come right after the licence is sent.
     expect(stage('pending'), findsNothing);
@@ -338,6 +341,7 @@ void main() {
 
     expect(stage('practices'), findsNothing);
     expect(stage('pending'), findsOneWidget);
+    expect(find.text('Step 6 of 6'), findsOneWidget);
     await tearDownTree(tester);
   });
 

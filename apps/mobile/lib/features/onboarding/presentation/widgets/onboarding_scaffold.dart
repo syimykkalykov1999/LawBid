@@ -76,31 +76,8 @@ class OnboardingScaffold extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final t = ref.watch(translatorProvider);
-    final role = ref.watch(currentUserRoleProvider);
     final blocker = ref.watch(onboardingBlockerProvider);
     final shownError = error ?? (blocker?.step == step ? blocker!.error : null);
-    final order = OnboardingStepId.orderFor(role);
-    final index = order.indexOf(step);
-    // Owner 2026-11-05: the numbered stepper of the attorney's wizard, one
-    // number per screen the person goes through. An attorney's verification
-    // step is three of them (licence, practices, subscription), counted on
-    // every step so the total never changes once the role is known.
-    final labels = onboardingStepLabels(t, role);
-    final (current, total) = progress ??
-        (
-          // Verification (the only step with three numbers) is last, so a
-          // step's number is its position.
-          index < 0 ? labels.length : index + 1,
-          labels.length,
-        );
-    final stepOf = t.t('common.stepOf', {
-      'current': context.digits(current),
-      'total': context.digits(total),
-    });
-    final currentLabel =
-        current >= 1 && current <= labels.length ? labels[current - 1] : '';
-
     return StepBackGesture(
       onBack: onBack,
       child: Scaffold(
@@ -109,52 +86,10 @@ class OnboardingScaffold extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsetsDirectional.fromSTEB(
-                  AppSpacing.screenSide - AppSpacing.sm,
-                  AppSpacing.sm,
-                  AppSpacing.screenSide - AppSpacing.sm,
-                  0,
-                ),
-                // The back arrow on the start side and a blank of the same
-                // width on the end side keep the numbers exactly centred.
-                child: Row(
-                  children: [
-                    if (onBack != null)
-                      AppBackButton(
-                        semanticLabel: t.t('common.back'),
-                        onPressed: onBack!,
-                      )
-                    else
-                      const SizedBox(
-                        width: AppSizes.touchTarget,
-                        height: AppSizes.touchTarget,
-                      ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: AppNumberedStepRail(
-                        key: const ValueKey('onboarding-stepper'),
-                        count: total,
-                        current: current - 1,
-                        labels: labels,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    const SizedBox(width: AppSizes.touchTarget),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenSide,
-                  AppSpacing.xs,
-                  AppSpacing.screenSide,
-                  0,
-                ),
-                child: AppStepCaption(
-                  label: currentLabel,
-                  stepOfLabel: stepOf,
-                ),
+              OnboardingStepHeader(
+                step: step,
+                onBack: onBack,
+                progress: progress,
               ),
               if (body != null) ...[
                 Padding(
@@ -253,6 +188,101 @@ class OnboardingScaffold extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Top of every sign-up step (owner 2026-11-05): back arrow, the numbered
+/// stepper exactly centred, the step's name and "Step N of M". Shared with
+/// the role screen, so the numbers run 1 → 2 → 3 without a gap.
+class OnboardingStepHeader extends ConsumerWidget {
+  const OnboardingStepHeader({
+    required this.step,
+    super.key,
+    this.onBack,
+    this.progress,
+  });
+
+  final OnboardingStepId step;
+
+  /// Null leaves a blank in the arrow's place.
+  final VoidCallback? onBack;
+
+  /// (current, total) override, see [OnboardingScaffold.progress].
+  final (int, int)? progress;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final role = ref.watch(currentUserRoleProvider);
+    final index = OnboardingStepId.orderFor(role).indexOf(step);
+    // One number per screen the person goes through. An attorney's
+    // verification step is three of them (licence, practices, finish),
+    // counted on every step so the total never changes once the role is
+    // known.
+    final labels = onboardingStepLabels(t, role);
+    final (current, total) = progress ??
+        (
+          // Verification (the only step with three numbers) is last, so a
+          // step's number is its position.
+          index < 0 ? labels.length : index + 1,
+          labels.length,
+        );
+    final stepOf = t.t('common.stepOf', {
+      'current': context.digits(current),
+      'total': context.digits(total),
+    });
+    final currentLabel =
+        current >= 1 && current <= labels.length ? labels[current - 1] : '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            AppSpacing.screenSide - AppSpacing.sm,
+            AppSpacing.sm,
+            AppSpacing.screenSide - AppSpacing.sm,
+            0,
+          ),
+          // The back arrow on the start side and a blank of the same width
+          // on the end side keep the numbers exactly centred.
+          child: Row(
+            children: [
+              if (onBack != null)
+                AppBackButton(
+                  semanticLabel: t.t('common.back'),
+                  onPressed: onBack!,
+                )
+              else
+                const SizedBox(
+                  width: AppSizes.touchTarget,
+                  height: AppSizes.touchTarget,
+                ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: AppNumberedStepRail(
+                  key: const ValueKey('onboarding-stepper'),
+                  count: total,
+                  current: current - 1,
+                  labels: labels,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              const SizedBox(width: AppSizes.touchTarget),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            AppSpacing.xs,
+            AppSpacing.screenSide,
+            0,
+          ),
+          child: AppStepCaption(label: currentLabel, stepOfLabel: stepOf),
+        ),
+      ],
     );
   }
 }

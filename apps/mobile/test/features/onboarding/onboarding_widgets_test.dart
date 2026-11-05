@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/features/auth/presentation/screens/role_screen.dart';
 import 'package:lawbid/features/onboarding/domain/consent_type.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
@@ -432,6 +433,58 @@ void main() {
       expect(find.text('Profile'), findsOneWidget);
       expect(tester.getCenter(stepper()).dx, 195);
       // The back arrow stays on the start side.
+      expect(tester.getCenter(find.byType(AppBackButton)).dx, lessThan(60));
+      await _tearDownDrift(tester);
+    });
+
+    // The numbers one person sees, screen by screen, never skip one. The
+    // total changes once, when the attorney's role becomes known.
+    final fresh = meFixture(
+      consents: true,
+      phone: '+15551234567',
+      phoneVerified: true,
+      step: OnboardingStepId.role,
+    );
+    for (final (name, chosen, last) in [
+      ('client', client, 'Step 3 of 3'),
+      ('attorney', attorney, 'Step 3 of 6'),
+    ]) {
+      testWidgets('$name: 1 → 2 → 3 without a gap', (tester) async {
+        tester.view.physicalSize = const Size(390, 1600);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        for (final (me, screen, text) in [
+          (fresh, const ConsentsStepScreen() as Widget, 'Step 1 of 3'),
+          (fresh, const RoleScreen() as Widget, 'Step 2 of 3'),
+          (chosen, const ProfileStepScreen() as Widget, last),
+        ]) {
+          final wrap = await onboardingWrapper(
+            AppTheme.light(),
+            user: me,
+            repo: FakeOnboardingRepository(me),
+          );
+          await tester.pumpWidget(wrap(screen));
+          await _settle(tester);
+          expect(find.text(text), findsOneWidget);
+          await _tearDownDrift(tester);
+        }
+      });
+    }
+
+    testWidgets('role screen: back arrow on the start, numbers centred',
+        (tester) async {
+      tester.view.physicalSize = const Size(320, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: fresh,
+        repo: FakeOnboardingRepository(fresh),
+      );
+      await tester.pumpWidget(wrap(const RoleScreen()));
+      await _settle(tester);
+      expect(tester.takeException(), isNull);
+      expect(tester.getCenter(stepper()).dx, 160);
       expect(tester.getCenter(find.byType(AppBackButton)).dx, lessThan(60));
       await _tearDownDrift(tester);
     });
