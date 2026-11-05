@@ -14,6 +14,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/case_payments/presentation/case_payments_card.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/deals/deal_record_card.dart';
+import 'package:lawbid/features/cases/deals/deal_record_data.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/desktop_cases.dart';
 import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart'
@@ -773,6 +774,8 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
                             c.status == CaseStatus.inProgress ||
                             c.status == CaseStatus.pendingCompletion,
                         hired: c.acceptedBid != null,
+                        warnBids:
+                            c.status == CaseStatus.open && c.bidsCount > 0,
                         onSaved: () => ref.invalidate(ownerCaseProvider(c.id)),
                       ),
                       InfoRow(
@@ -965,6 +968,9 @@ class _BidsList extends ConsumerWidget {
                   t: t,
                   formats: formats,
                   onTap: () => context.push(AppRoutes.bid(value.items[i].id)),
+                  waiting: ref.watch(bidConfirmationProvider) &&
+                      value.items[i].isActive &&
+                      value.items[i].confirmationRequiredAt != null,
                   onAccept: value.items[i].isActive &&
                           value.items[i].isTurnOf(PartyRole.client)
                       ? () => acceptBidFromCard(context, ref, value.items[i])

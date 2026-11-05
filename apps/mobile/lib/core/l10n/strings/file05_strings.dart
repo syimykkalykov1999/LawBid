@@ -236,6 +236,8 @@ const file05Ru = <String, String>{
   'notif.list.case_archived': 'Кейс перенесён в архив',
   'notif.list.completion_requested':
       'Клиент отметил кейс выполненным — подтвердите',
+  'notif.list.bid_changed': 'Адвокат поменял бид',
+  'notif.list.bid_confirm_reminder': 'Клиент изменил кейс',
   'notif.list.completion_reminder': 'Напоминание: подтвердите завершение кейса',
   'notif.list.case_closed': 'Кейс закрыт',
   'notif.list.contact_issue_update': 'Есть решение по обращению о контактах',
@@ -498,6 +500,8 @@ const file05En = <String, String>{
   'notif.list.case_archived': 'Case archived',
   'notif.list.completion_requested':
       'The client marked the case done — please confirm',
+  'notif.list.bid_changed': 'The attorney changed the bid',
+  'notif.list.bid_confirm_reminder': 'The client changed the case',
   'notif.list.completion_reminder': 'Reminder: confirm the case is completed',
   'notif.list.case_closed': 'Case closed',
   'notif.list.contact_issue_update': 'Your contact issue has a decision',

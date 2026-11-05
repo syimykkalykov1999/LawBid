@@ -41,10 +41,11 @@ import {
 import {
   BidIdParamDto,
   CaseIdParamDto,
+  ChangeBidDto,
   CounterOfferDto,
   CreateBidDto,
 } from './dto/bid-requests.dto';
-import { BidDto } from './dto/bid-responses.dto';
+import { BidCaseChangeDto, BidDto } from './dto/bid-responses.dto';
 import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
@@ -179,6 +180,68 @@ export class BidsController {
     @Param() params: BidIdParamDto,
   ): Promise<BidDto> {
     return this.bids.decline(user, params.id);
+  }
+
+  // Owner 2026-11-05: the attorney keeps the bid after the client changed the case.
+  @AttorneyOnly('bids')
+  @Post('bids/:id/confirm')
+  @UseInterceptors(IdempotencyInterceptor)
+  @ApiOperation({ summary: 'Keep a bid after the client changed the case' })
+  @ApiHeader({ name: 'Idempotency-Key', required: false })
+  @ApiEnvelopeResponse(BidDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    404: [E.NOT_FOUND],
+    409: [E.BID_INVALID_STATE, E.IDEMPOTENCY_KEY_CONFLICT],
+  })
+  confirmBid(
+    @CurrentUser() user: RequestUser,
+    @Param() params: BidIdParamDto,
+  ): Promise<BidDto> {
+    return this.bids.confirm(user, params.id);
+  }
+
+  @AttorneyOnly('bids')
+  @Post('bids/:id/change')
+  @ApiIfMatchVersion()
+  @UseInterceptors(IdempotencyInterceptor)
+  @ApiOperation({
+    summary:
+      'Change a bid: free and out of turn after the client changed the case, else a counter-offer',
+  })
+  @ApiHeader({ name: 'Idempotency-Key', required: false })
+  @ApiEnvelopeResponse(BidDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    404: [E.NOT_FOUND],
+    409: [
+      E.BID_INVALID_STATE,
+      E.BID_NOT_YOUR_TURN,
+      E.BID_MAX_ROUNDS_REACHED,
+      E.BID_COUNTER_NOT_ALLOWED,
+      E.STALE_VERSION,
+      E.IDEMPOTENCY_KEY_CONFLICT,
+    ],
+  })
+  changeBid(
+    @CurrentUser() user: RequestUser,
+    @Param() params: BidIdParamDto,
+    @Body() dto: ChangeBidDto,
+    @ExpectedVersion() expectedVersion?: number,
+  ): Promise<BidDto> {
+    return this.bids.change(user, params.id, dto, expectedVersion);
+  }
+
+  @AttorneyOnly('bids')
+  @Get('bids/:id/case-changes')
+  @ApiOperation({ summary: 'What the client changed since this bid' })
+  @ApiEnvelopeResponse(BidCaseChangeDto, { isArray: true })
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  bidCaseChanges(
+    @CurrentUser() user: RequestUser,
+    @Param() params: BidIdParamDto,
+  ): Promise<BidCaseChangeDto[]> {
+    return this.bids.caseChanges(user, params.id);
   }
 
   // OQ-049: or an assistant the attorney trusted (their responsibility).

@@ -62,6 +62,7 @@ export const CRON_JOBS = {
   caseStalePause: 'cases.stale-pause',
   caseAutoClose: 'cases.auto-close',
   caseCompletionReminder: 'cases.completion-reminder',
+  bidConfirmReminder: 'bids.confirm-reminder',
   /** Algo audit 2026-10-27 (CASES M-3): no offers after 24 / 72 h — the
    * not-yet-alerted part of the audience is told. */
   caseRebroadcast: 'cases.rebroadcast',
@@ -291,6 +292,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.caseStalePause, pattern: '25 * * * *' },
   { name: CRON_JOBS.caseAutoClose, pattern: '35 * * * *' },
   { name: CRON_JOBS.caseCompletionReminder, pattern: '45 * * * *' },
+  { name: CRON_JOBS.bidConfirmReminder, pattern: '50 * * * *' },
   { name: CRON_JOBS.caseRebroadcast, pattern: '55 * * * *' },
   { name: CRON_JOBS.countersReconcile, pattern: '50 4 * * *' },
   { name: CRON_JOBS.feedReco, pattern: '*/10 * * * *' },

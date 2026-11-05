@@ -518,6 +518,8 @@ enum ErrorCode {
   staleVersion('STALE_VERSION'),
   @JsonValue('DEAL_RECORD_REQUIRED')
   dealRecordRequired('DEAL_RECORD_REQUIRED'),
+  @JsonValue('BID_CONFIRMATION_REQUIRED')
+  bidConfirmationRequired('BID_CONFIRMATION_REQUIRED'),
   @JsonValue('DEAL_RECORD_PENDING')
   dealRecordPending('DEAL_RECORD_PENDING'),
   @JsonValue('DEAL_RECORD_INVALID_STATE')

@@ -40,6 +40,7 @@ import { VerificationLossBillingJob } from './handlers/verification-loss-billing
 import {
   CaseStalePauseJob,
   CaseAutoCloseJob,
+  BidConfirmReminderJob,
   CaseCompletionReminderJob,
   CaseStaleAskJob,
 } from './handlers/case-lifecycle.jobs';
@@ -206,6 +207,7 @@ export class JobsModule {
         CaseStaleAskJob,
         CaseStalePauseJob,
         CaseAutoCloseJob,
+        BidConfirmReminderJob,
         CaseCompletionReminderJob,
         // Algo audit 2026-10-27 (CASES M-3): `cases.rebroadcast`.
         CaseRebroadcastJob,

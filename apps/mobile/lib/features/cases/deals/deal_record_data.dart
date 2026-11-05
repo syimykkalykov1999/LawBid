@@ -17,6 +17,15 @@ final dealRecordEnabledProvider = Provider<bool>(
       'true',
 );
 
+/// Owner 2026-11-05: `bids.confirmation_required`, off by default.
+final bidConfirmationProvider = Provider<bool>(
+  (ref) =>
+      ref
+          .watch(featureFlagsControllerProvider)
+          .appConfig['bids.confirmation_required'] ==
+      'true',
+);
+
 final richTermsEnabledProvider = Provider<bool>(
   (ref) =>
       ref

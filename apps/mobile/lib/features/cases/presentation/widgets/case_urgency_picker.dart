@@ -8,8 +8,10 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
+import 'package:lawbid/features/cases/deals/deal_record_data.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 
 /// Owner 2026-10-05: how a case's urgency reads — a level, or the date
 /// with what it is and how far off it is. One place for the cards, the
@@ -368,6 +370,7 @@ Future<bool> showCaseUrgencySheet(
   required String caseId,
   required CaseUrgencyInfo current,
   bool hired = false,
+  bool warnBids = false,
 }) async {
   final saved = await showAppBottomSheet<bool>(
     context: context,
@@ -376,6 +379,7 @@ Future<bool> showCaseUrgencySheet(
       caseId: caseId,
       initial: CaseUrgencyChoice.ofInfo(current),
       hired: hired,
+      warnBids: warnBids,
     ),
   );
   return saved ?? false;
@@ -386,11 +390,15 @@ class _UrgencySheet extends ConsumerStatefulWidget {
     required this.caseId,
     required this.initial,
     required this.hired,
+    required this.warnBids,
   });
 
   final String caseId;
   final CaseUrgencyChoice initial;
   final bool hired;
+
+  /// Owner 2026-11-05: an open case with bids; they will wait for attorneys.
+  final bool warnBids;
 
   @override
   ConsumerState<_UrgencySheet> createState() => _UrgencySheetState();
@@ -405,6 +413,17 @@ class _UrgencySheetState extends ConsumerState<_UrgencySheet> {
   Future<void> _save() async {
     setState(() => _tried = true);
     if (!_value.valid) return;
+    if (widget.warnBids && ref.read(bidConfirmationProvider)) {
+      final tr = ref.read(translatorProvider);
+      final ok = await showConfirmSheet(
+        context,
+        t: tr,
+        title: tr.t('cases.owner.editCase'),
+        message: tr.t('cases.edit.bidsWillConfirm'),
+        confirmLabel: tr.t('common.save'),
+      );
+      if (!ok || !mounted) return;
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -495,6 +514,7 @@ class CaseUrgencyRow extends ConsumerWidget {
     required this.info,
     required this.canEdit,
     this.hired = false,
+    this.warnBids = false,
     this.onSaved,
     super.key,
   });
@@ -503,6 +523,7 @@ class CaseUrgencyRow extends ConsumerWidget {
   final CaseUrgencyInfo info;
   final bool canEdit;
   final bool hired;
+  final bool warnBids;
   final VoidCallback? onSaved;
 
   @override
@@ -570,6 +591,7 @@ class CaseUrgencyRow extends ConsumerWidget {
                     caseId: caseId,
                     current: info,
                     hired: hired,
+                    warnBids: warnBids,
                   );
                   if (!ok || !context.mounted) return;
                   showAppSnackBar(context, t.t('cases.deadline.saved'));

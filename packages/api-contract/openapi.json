@@ -14581,6 +14581,343 @@
         ]
       }
     },
+    "/bids/{id}/confirm": {
+      "post": {
+        "operationId": "confirmBid",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: BID_INVALID_STATE, IDEMPOTENCY_KEY_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Keep a bid after the client changed the case",
+        "tags": [
+          "bids"
+        ]
+      }
+    },
+    "/bids/{id}/change": {
+      "post": {
+        "operationId": "changeBid",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeBidDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: BID_INVALID_STATE, BID_NOT_YOUR_TURN, BID_MAX_ROUNDS_REACHED, BID_COUNTER_NOT_ALLOWED, STALE_VERSION, IDEMPOTENCY_KEY_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Change a bid: free and out of turn after the client changed the case, else a counter-offer",
+        "tags": [
+          "bids"
+        ]
+      }
+    },
+    "/bids/{id}/case-changes": {
+      "get": {
+        "operationId": "bidCaseChanges",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidCaseChangeListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "What the client changed since this bid",
+        "tags": [
+          "bids"
+        ]
+      }
+    },
     "/bids/{id}/counter": {
       "post": {
         "operationId": "counter",
@@ -14736,6 +15073,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         ],
         "responses": {
@@ -14780,7 +15127,7 @@
             }
           },
           "409": {
-            "description": "Conflict: CASE_INVALID_STATE, BID_INVALID_STATE, BID_NOT_YOUR_TURN, BID_ATTORNEY_INACTIVE, IDEMPOTENCY_KEY_CONFLICT",
+            "description": "Conflict: CASE_INVALID_STATE, BID_INVALID_STATE, BID_NOT_YOUR_TURN, BID_ATTORNEY_INACTIVE, BID_CONFIRMATION_REQUIRED, STALE_VERSION, IDEMPOTENCY_KEY_CONFLICT",
             "content": {
               "application/json": {
                 "schema": {
@@ -133323,6 +133670,7 @@
           "EXPERIMENT_STATE_INVALID",
           "STALE_VERSION",
           "DEAL_RECORD_REQUIRED",
+          "BID_CONFIRMATION_REQUIRED",
           "DEAL_RECORD_PENDING",
           "DEAL_RECORD_INVALID_STATE",
           "PAYMENT_TERMS_DISABLED",
@@ -140777,6 +141125,12 @@
             "type": "integer",
             "description": "Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION)."
           },
+          "confirmationRequiredAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-11-05: the client changed the case; waiting for the attorney.",
+            "format": "date-time"
+          },
           "turn": {
             "allOf": [
               {
@@ -140906,6 +141260,91 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/BidDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ChangeBidDto": {
+        "type": "object",
+        "properties": {
+          "paymentTerms": {
+            "description": "Deal record 2026-10-27: the rich payment terms of this round (replaces the previous round's); only while `bids.rich_terms_enabled`.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentTermsDto"
+              }
+            ]
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000000,
+            "description": "Required unless the bid is contingency."
+          },
+          "percentBps": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "description": "Owner 2026-10-17: required for a contingency bid."
+          },
+          "message": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500
+          },
+          "feeType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FeeType"
+              }
+            ]
+          }
+        },
+        "required": [
+          "feeType"
+        ]
+      },
+      "BidCaseChangeDto": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "example": "description"
+          },
+          "oldValue": {
+            "type": "string",
+            "nullable": true,
+            "description": "Text, or JSON for the budget."
+          },
+          "newValue": {
+            "type": "string",
+            "nullable": true
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "field",
+          "oldValue",
+          "newValue",
+          "at"
+        ]
+      },
+      "BidCaseChangeListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BidCaseChangeDto"
+            }
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -153376,6 +153815,12 @@
             "type": "integer",
             "description": "Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION)."
           },
+          "confirmationRequiredAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-11-05: the client changed the case; waiting for the attorney.",
+            "format": "date-time"
+          },
           "turn": {
             "allOf": [
               {
@@ -155125,6 +155570,12 @@
           "version": {
             "type": "integer",
             "description": "Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION)."
+          },
+          "confirmationRequiredAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-11-05: the client changed the case; waiting for the attorney.",
+            "format": "date-time"
           },
           "turn": {
             "allOf": [

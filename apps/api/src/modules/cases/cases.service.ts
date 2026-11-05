@@ -887,6 +887,13 @@ export class CasesService {
         });
       }
 
+      if (
+        current.bids_count > 0 &&
+        (diff.description || diff.budget || diff.urgency || diff.deadlineAt)
+      ) {
+        await this.askBidsToConfirm(tx, caseId);
+      }
+
       if (current.bids_count > 0 && Object.keys(diff).length > 0) {
         const activeBidders = await tx.bid.findMany({
           where: { case_id: caseId, status: 'active' },
@@ -1000,6 +1007,7 @@ export class CasesService {
         ? afterCase.deadline_at.toISOString().slice(0, 10)
         : null;
       if (current.status === 'open') {
+        if (isClient) await this.askBidsToConfirm(tx, caseId);
         const bidders = await tx.bid.findMany({
           where: { case_id: caseId, status: 'active' },
           select: { attorney_id: true },
@@ -1273,6 +1281,23 @@ export class CasesService {
   }
 
   /** `case_alerts.realert_enabled` (algo audit 2026-10-27, CASES C-1). */
+  /** Owner 2026-11-05: the case changed under active bids; they wait for the
+   * attorney (`bids.confirmation_required`, off by default). */
+  private async askBidsToConfirm(
+    tx: Prisma.TransactionClient,
+    caseId: string,
+  ): Promise<void> {
+    if (!(await this.settings?.boolean('bids.confirmation_required'))) return;
+    await tx.bid.updateMany({
+      where: { case_id: caseId, status: 'active' },
+      data: {
+        confirmation_required_at: new Date(),
+        confirm_reminded_at: null,
+        version: { increment: 1 },
+      },
+    });
+  }
+
   private async realertEnabled(): Promise<boolean> {
     if (!this.alerts) return false;
     if (!this.settings) return APP_SETTINGS['case_alerts.realert_enabled'];

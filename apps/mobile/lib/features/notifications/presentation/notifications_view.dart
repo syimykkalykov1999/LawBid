@@ -65,6 +65,10 @@ String? notificationRoute({
     // the bid / public case card (which loop into each other).
     case 'offer_accepted' || 'bid_accepted' when attorney && caseId != null:
       return AppRoutes.workCase(caseId);
+    case 'bid_changed' when bidId != null:
+      return AppRoutes.bid(bidId);
+    case 'bid_confirm_reminder':
+      return caseId == null ? null : AppRoutes.caseDetail(caseId);
     case 'bid_received' ||
           'offer_countered' ||
           'offer_accepted' ||

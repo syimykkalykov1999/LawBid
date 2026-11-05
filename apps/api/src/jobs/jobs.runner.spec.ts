@@ -35,6 +35,7 @@ import type { BidSubscriptionLapseJob } from './handlers/bid-subscription-lapse.
 import {
   CaseStalePauseJob,
   CaseAutoCloseJob,
+  BidConfirmReminderJob,
   CaseCompletionReminderJob,
   CaseStaleAskJob,
 } from './handlers/case-lifecycle.jobs';
@@ -165,6 +166,7 @@ function processor() {
       archive as unknown as CaseStalePauseJob,
       autoClose as unknown as CaseAutoCloseJob,
       completion as unknown as CaseCompletionReminderJob,
+      { run: jest.fn() } as unknown as BidConfirmReminderJob,
       countersRecon as unknown as CountersReconcileJob,
       { run: jest.fn() } as unknown as FeedRecoJob,
       { run: jest.fn() } as unknown as TrendingTagsJob,
