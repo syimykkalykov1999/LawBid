@@ -78,6 +78,33 @@ void main() {
     expect(usage.value.requests, 2);
   });
 
+  test('mustAskAgain ends the cachedFor window for that path only', () async {
+    final dio = build();
+    final cache = dio.interceptors.whereType<HttpCacheInterceptor>().single;
+    final hour = cachedFor(const Duration(hours: 1));
+    await dio.get<dynamic>('/attorneys/jane.doe', options: hour);
+    await dio.get<dynamic>('/attorneys/other', options: hour);
+    final before = adapter.requests.length;
+
+    await dio.get<dynamic>('/attorneys/jane.doe', options: hour);
+    expect(adapter.requests.length, before, reason: 'still fresh');
+
+    // Any case: the link may spell the handle differently.
+    cache.mustAskAgain('/attorneys/Jane.Doe');
+    etag = 'W/"v2"';
+    body = {'data': 'two'};
+    final fresh = await dio.get<dynamic>(
+      '/attorneys/jane.doe',
+      options: hour,
+    );
+    expect(adapter.requests.length, before + 1);
+    expect(adapter.requests.last.headers['If-None-Match'], 'W/"v1"');
+    expect((fresh.data as Map)['data'], 'two');
+
+    await dio.get<dynamic>('/attorneys/other', options: hour);
+    expect(adapter.requests.length, before + 1, reason: 'other is untouched');
+  });
+
   test('cachedFor serves the copy with no request while it is fresh', () async {
     final usage = NetworkUsageCounter();
     final dio = build(usage: usage);
