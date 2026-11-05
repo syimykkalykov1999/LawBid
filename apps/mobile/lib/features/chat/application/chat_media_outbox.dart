@@ -71,21 +71,7 @@ class ChatMediaHandler extends UploadJobHandler {
         taskId: job.id,
       );
     } else {
-      final body = await scope.body();
-      if (await body.length() > kChatAttachmentCeilingBytes) {
-        throw const ApiException(
-          code: ApiErrorCodes.fileTooLarge,
-          message: 'size',
-        );
-      }
-      fileId = await scope.uploader.upload(
-        purpose: api.FilePurpose.chatAttachment,
-        body: body,
-        mime: job.mime ?? 'application/octet-stream',
-        onProgress: scope.reportProgress,
-        cancel: scope.cancelToken,
-        taskId: job.id,
-      );
+      fileId = await uploadChatAttachmentJob(job, scope);
     }
     await scope.saveFileId(fileId);
   }
@@ -147,6 +133,29 @@ class ChatMediaHandler extends UploadJobHandler {
         n == null ? null : await _ref.read(uploadFilesProvider).pathOf(n);
     await adoptVoiceFileAsCache(path, messageId);
   }
+}
+
+/// Sends the file of a chat or group attachment job to storage (streamed
+/// from disk on the phone) and returns its file id.
+Future<String> uploadChatAttachmentJob(
+  UploadJob job,
+  UploadJobScope scope,
+) async {
+  final body = await scope.body();
+  if (await body.length() > kChatAttachmentCeilingBytes) {
+    throw const ApiException(
+      code: ApiErrorCodes.fileTooLarge,
+      message: 'size',
+    );
+  }
+  return scope.uploader.upload(
+    purpose: api.FilePurpose.chatAttachment,
+    body: body,
+    mime: job.mime ?? 'application/octet-stream',
+    onProgress: scope.reportProgress,
+    cancel: scope.cancelToken,
+    taskId: job.id,
+  );
 }
 
 /// Registers the chat media handlers on the app's queue (read at sign-in

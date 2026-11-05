@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -287,11 +288,16 @@ class _GroupConversationScreenState
       );
       return;
     }
+    // R-255: the queue and the disk, not memory; off = as before.
+    final fromDisk = ref
+        .read(featureFlagsControllerProvider)
+        .isEnabled('group_files_from_disk');
     final files = await pickGroupFiles(
       context,
       t,
       choice,
       limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
+      fromDisk: fromDisk,
     );
     if (files.isEmpty || !mounted) return;
     final caption = _text.text.trim();
@@ -304,6 +310,18 @@ class _GroupConversationScreenState
     try {
       for (var i = 0; i < files.length; i++) {
         final f = files[i];
+        if (fromDisk) {
+          await thread.queueAttachment(
+            bytes: f.bytes,
+            path: f.path,
+            name: f.name,
+            mime: f.mime,
+            caption:
+                i == files.length - 1 && caption.isNotEmpty ? caption : null,
+            replyToId: i == 0 ? reply?.id : null,
+          );
+          continue;
+        }
         final fileId = await chat.uploadAttachment(f.bytes, f.mime);
         if (!mounted) return;
         await thread.sendAttachment(
