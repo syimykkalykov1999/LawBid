@@ -272,7 +272,7 @@ class _PhotoCropScreenState extends ConsumerState<PhotoCropScreen> {
                 // in portrait is unchanged (its width is the limit).
                 final width = math.min(
                   c.maxWidth,
-                  math.max(0.0, _frameMaxHeight(context)) * aspect,
+                  math.max<double>(0, _frameMaxHeight(context)) * aspect,
                 );
                 final frame = Size(width, width / aspect);
                 // Centred when narrower than the window (a wide window).
