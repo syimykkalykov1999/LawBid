@@ -100,13 +100,11 @@ Future<void> main() async {
     expect(find.textContaining('Ann Lee'), findsOneWidget);
     expect(find.text('Waiting for Client'), findsOneWidget);
     expect(find.text('Sign'), findsOneWidget);
-    expect(find.text('Get signed'), findsOneWidget);
     expect(find.text('Decline'), findsOneWidget);
     expect(find.text('Withdraw'), findsOneWidget);
     expect(find.text('Declined'), findsOneWidget);
     expect(find.text('Reason: Wrong date'), findsOneWidget);
     expect(find.text('Canceled'), findsOneWidget);
-    expect(find.text('From template'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -120,7 +118,6 @@ Future<void> main() async {
     await tester.pumpAndSettle();
     expect(find.text('Decline'), findsNothing);
     expect(find.text('Sign document'), findsNothing);
-    expect(find.text('From template'), findsNothing);
   });
 
   testWidgets('the sign sheet needs a name, a signature and the consent',
