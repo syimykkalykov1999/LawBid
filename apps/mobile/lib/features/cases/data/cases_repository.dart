@@ -217,6 +217,9 @@ abstract interface class CasesRepository {
     String? note,
   );
   Future<void> confirmCompletion(String caseId);
+
+  /// R-392 «Не закрывать»: the case stays in work.
+  Future<void> declineCompletion(String caseId);
   Future<void> dispute(String caseId, String reason);
   Future<CaseConversation> openConversation(String caseId);
 
@@ -829,6 +832,10 @@ class ApiCasesRepository implements CasesRepository, CasesSyncRepository {
   @override
   Future<void> confirmCompletion(String caseId) =>
       guardApiCall(() => _cases.confirmCaseCompletion(id: caseId));
+
+  @override
+  Future<void> declineCompletion(String caseId) =>
+      guardApiCall(() => _cases.declineCaseCompletion(id: caseId));
 
   @override
   Future<void> dispute(String caseId, String reason) => guardApiCall(

@@ -1,4 +1,7 @@
-import { AdminPricingService } from './admin-pricing.service';
+import {
+  AdminPricingService,
+  SITE_REBUILD_COOLDOWN_MS,
+} from './admin-pricing.service';
 
 const ROW_ID = '0b0e7c1e-6c1f-4a53-9d2e-5d1f6f1f2a10';
 const ADMIN = {
@@ -6,7 +9,13 @@ const ADMIN = {
   ip: '127.0.0.1',
 } as never;
 
-function build(activeRow: { id: string } | undefined) {
+function build(
+  activeRow: { id: string } | undefined,
+  github: { configured: jest.Mock; dispatchWorkflow: jest.Mock } = {
+    configured: jest.fn().mockResolvedValue(false),
+    dispatchWorkflow: jest.fn(),
+  },
+) {
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
   const pricing = {
     requirePriceId: jest.fn().mockResolvedValue('price_new'),
@@ -34,9 +43,43 @@ function build(activeRow: { id: string } | undefined) {
     pricing as never,
     audit as never,
     provider as never,
+    github as never,
   );
-  return { svc, audit };
+  return { svc, audit, github };
 }
+
+describe('AdminPricingService.rebuildPublicSite (R-399)', () => {
+  const app = () => ({
+    configured: jest.fn().mockResolvedValue(true),
+    dispatchWorkflow: jest.fn().mockResolvedValue({ repo: 'o/r' }),
+  });
+
+  it('starts seo-deploy.yml once per cooldown after a price change', async () => {
+    const github = app();
+    const { svc } = build(undefined, github);
+    await expect(svc.rebuildPublicSite(1_000)).resolves.toBe(true);
+    await expect(svc.rebuildPublicSite(2_000)).resolves.toBe(false);
+    await expect(
+      svc.rebuildPublicSite(1_000 + SITE_REBUILD_COOLDOWN_MS),
+    ).resolves.toBe(true);
+    expect(github.dispatchWorkflow).toHaveBeenCalledTimes(2);
+    expect(github.dispatchWorkflow).toHaveBeenCalledWith('seo-deploy.yml', {});
+  });
+
+  it('does nothing without the GitHub App (the daily run applies)', async () => {
+    const { svc, github } = build(undefined);
+    await expect(svc.rebuildPublicSite(1_000)).resolves.toBe(false);
+    expect(github.dispatchWorkflow).not.toHaveBeenCalled();
+  });
+
+  it('never throws and allows a retry when GitHub refuses', async () => {
+    const github = app();
+    github.dispatchWorkflow.mockRejectedValueOnce(new Error('HTTP 422'));
+    const { svc } = build(undefined, github);
+    await expect(svc.rebuildPublicSite(1_000)).resolves.toBe(false);
+    await expect(svc.rebuildPublicSite(2_000)).resolves.toBe(true);
+  });
+});
 
 describe('AdminPricingService.moveSubscribers audit row', () => {
   it('records the price row UUID as target, never the kind name', async () => {

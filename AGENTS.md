@@ -1,3 +1,5 @@
+> Строгие правила владельца: [`docs/dev/STRICT_RULES.md`](docs/dev/STRICT_RULES.md). Читать при каждом старте и после сжатия контекста.
+
 # ОБЯЗАТЕЛЬНО: CI-протокол перед PR/пушем/слиянием
 
 Прочитай раздел «ОБЯЗАТЕЛЬНО перед любым PR/пушем/слиянием» в [`docs/dev/PROJECT_MAP.md`](docs/dev/PROJECT_MAP.md) (merge main → `npm run precheck` / `precheck:full` → генераторы после мерджа → красный шаг читать, не перезапускать). Причины красного: `docs/dev/CI_CHECKLIST.md`, `docs/dev/CI_FAILURES_AUDIT_2026-11-01.md`.
