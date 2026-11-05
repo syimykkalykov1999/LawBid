@@ -51,6 +51,7 @@ import {
   stripeIdentity,
   type TrustSignals,
 } from './trust-level';
+import type { CountryScope } from '../countries/country-scope';
 
 type Db = PrismaService | Prisma.TransactionClient;
 
@@ -192,7 +193,7 @@ const PROFILE_SELECT = {
   name_mismatch: true,
   trust_level: true,
   trust_badge: true,
-  user: { select: { first_name: true, last_name: true } },
+  user: { select: { first_name: true, last_name: true, country_code: true } },
   licenses: {
     select: {
       id: true,
@@ -244,6 +245,8 @@ export interface TrustScan {
   byStatus: Partial<Record<BadgeStatus, number>>;
   /** Attorneys that need a person's decision («Очередь»). */
   queueSize: number;
+  /** R-403: {@link queueSize} per country (the panel's country scope). */
+  queueByCountry?: Record<string, number>;
 }
 
 /**
@@ -1405,6 +1408,7 @@ export class AttorneyTrustService {
   async scan(): Promise<TrustScan> {
     const byStatus: Partial<Record<BadgeStatus, number>> = {};
     let queueSize = 0;
+    const queueByCountry: Record<string, number> = {};
     let last: string | undefined;
     for (;;) {
       const rows = await this.prisma.attorneyProfile.findMany({
@@ -1421,12 +1425,16 @@ export class AttorneyTrustService {
           (row.verification_status === 'verified' ||
             row.verification_status === 'pending') &&
           !row.trust?.staff_cleared_at;
-        if (inQueueScope && snap.staffStatus === 'needs_staff') queueSize++;
+        if (inQueueScope && snap.staffStatus === 'needs_staff') {
+          queueSize++;
+          const code = row.user.country_code;
+          queueByCountry[code] = (queueByCountry[code] ?? 0) + 1;
+        }
       }
       last = rows[rows.length - 1].user_id;
       if (rows.length < SCAN_BATCH) break;
     }
-    return { byStatus, queueSize };
+    return { byStatus, queueSize, queueByCountry };
   }
 
   /** {@link scan} from the precomputed summary (recounted by the worker). */
@@ -1438,15 +1446,20 @@ export class AttorneyTrustService {
 
   /**
    * The sidebar badge: the stored queue size, never a wait — if nothing was
-   * counted yet (a fresh Redis) it answers 0 and starts the count.
+   * counted yet (a fresh Redis) it answers 0 and starts the count. R-403:
+   * in the admin's country scope, like the list.
    */
-  async queueSizeCached(): Promise<number> {
-    if (!this.summary) return (await this.scan()).queueSize;
+  async queueSizeCached(countries: CountryScope = null): Promise<number> {
+    const inScope = (scan: TrustScan): number =>
+      countries && scan.queueByCountry
+        ? countries.reduce((n, c) => n + (scan.queueByCountry?.[c] ?? 0), 0)
+        : scan.queueSize;
+    if (!this.summary) return inScope(await this.scan());
     const hit = await this.summary.peek<TrustScan>(TRUST_SCAN_SUMMARY_KEY);
     if (!hit || Date.now() - Date.parse(hit.computedAt) > 600_000) {
       void this.refreshScan().catch(() => undefined);
     }
-    return hit?.data.queueSize ?? 0;
+    return hit ? inScope(hit.data) : 0;
   }
 
   /** The cron's entry: recount now and store. */

@@ -94,6 +94,8 @@ describe('State bar registries (e2e, owner 2026-10-05)', () => {
     // These suites test registries/self-attestation, not ID + selfie (owner
     // 2026-10-28 made those required by default; covered in verification.e2e).
     await setConfig('verification.require_identity', false);
+    // Not the attorney photo either (owner 2026-11-05; verification.e2e).
+    await setConfig('verification.require_photo', false);
     await prisma.state.upsert({
       where: { code: STATE },
       create: { code: STATE, name: 'Wyoming' },
@@ -106,6 +108,7 @@ describe('State bar registries (e2e, owner 2026-10-05)', () => {
   afterAll(async () => {
     await prisma.stateBarRegistry.deleteMany({ where: { state_code: STATE } });
     await setConfig('verification.self_attestation_auto_approve', true);
+    await setConfig('verification.require_photo', true);
     await app.close();
     await new Promise((r) => fake.close(r));
   });

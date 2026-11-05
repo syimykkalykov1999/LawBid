@@ -381,7 +381,7 @@ abstract class CasesClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Either side "Done": in_progress → pending_completion (docs/04 §10.1)
+  /// Either side "Done" / «Закрыть кейс»: in_progress → pending_completion; the other side confirms, keeps it open or disputes (docs/04 §10.1, R-392)
   @POST('/cases/{id}/complete')
   Future<CaseEnvelope> completeCase({
     @Path('id') required String id,
@@ -391,6 +391,13 @@ abstract class CasesClient {
   /// The other side confirms completion: → closed (docs/04 §10.1)
   @POST('/cases/{id}/confirm-completion')
   Future<CaseEnvelope> confirmCaseCompletion({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The other side keeps the case open: pending_completion → in_progress (R-392)
+  @POST('/cases/{id}/decline-completion')
+  Future<CaseEnvelope> declineCaseCompletion({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });

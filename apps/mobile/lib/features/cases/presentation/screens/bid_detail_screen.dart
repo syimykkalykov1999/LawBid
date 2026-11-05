@@ -15,6 +15,7 @@ import 'package:lawbid/features/cases/deals/deal_record_data.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/domain/contingency.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/cases/presentation/widgets/bid_accept_flow.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
@@ -74,32 +75,12 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
   Future<void> _accept(CaseBid bid) async {
     final t = ref.read(translatorProvider);
     final client = _viewer == PartyRole.client;
-    final ok = await showConfirmSheet(
+    final ok = await confirmAcceptBid(
       context,
-      t: t,
-      title: t.t(
-        client ? 'cases.accept.clientTitle' : 'cases.accept.attorneyTitle',
-      ),
-      // Owner 2026-10-04: the client accepts knowingly — the bid's state /
-      // practice mismatch is repeated right in the confirmation.
-      message: [
-        t.t(
-          client
-              ? 'cases.accept.clientMessage'
-              : 'cases.accept.attorneyMessage',
-        ),
-        if (client && (bid.outsideLicensedStates || bid.outsidePractice)) ...[
-          t.t('cases.accept.mismatchIntro'),
-          if (bid.outsideLicensedStates)
-            t.t('cases.outsideStates.clientNoList'),
-          if (bid.outsidePractice) t.t('cases.outsidePractice.client'),
-        ],
-        // Owner 2026-10-05 (legal): a self-declared licence is repeated in
-        // the confirmation so the client accepts knowingly.
-        if (client && _unverifiedAttorney(bid))
-          t.t('cases.accept.unverifiedLine'),
-      ].join('\n\n'),
-      confirmLabel: t.t('cases.accept.confirm'),
+      t,
+      bid,
+      client: client,
+      unverifiedAttorney: _unverifiedAttorney(bid),
     );
     if (!ok || !mounted) return;
     // Deal record 2026-10-27: with the admin switch on, accepting opens the
