@@ -265,35 +265,48 @@ class _PhotoCropScreenState extends ConsumerState<PhotoCropScreen> {
             LayoutBuilder(
               builder: (context, c) {
                 final aspect = _aspect;
-                final width = c.maxWidth;
+                // Owner 2026-11-04 (web audit): on a wide window the frame
+                // was as wide as the window, so a square photo ran far below
+                // the screen (the fit switch and the thumbnails with it).
+                // The frame now also fits the height left for it; a phone
+                // in portrait is unchanged (its width is the limit).
+                final width = math.min(
+                  c.maxWidth,
+                  math.max(0.0, _frameMaxHeight(context)) * aspect,
+                );
                 final frame = Size(width, width / aspect);
-                return SizedBox(
-                  width: frame.width,
-                  height: frame.height,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      _framed(frame),
-                      if (_dragging) const IgnorePointer(child: _ThirdsGrid()),
-                      PositionedDirectional(
-                        start: AppSpacing.md,
-                        bottom: AppSpacing.md,
-                        child: _FrameSwitch(
-                          label: t.t('post.crop.fit'),
-                          onTap: () => setState(() {
-                            _frame = _frame == PhotoFrame.square
-                                ? PhotoFrame.original
-                                : PhotoFrame.square;
-                            // A new shape starts every photo centred.
-                            _framing.fillRange(
-                              0,
-                              _framing.length,
-                              const PhotoFraming(),
-                            );
-                          }),
+                // Centred when narrower than the window (a wide window).
+                return Align(
+                  heightFactor: 1,
+                  child: SizedBox(
+                    width: frame.width,
+                    height: frame.height,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _framed(frame),
+                        if (_dragging)
+                          const IgnorePointer(child: _ThirdsGrid()),
+                        PositionedDirectional(
+                          start: AppSpacing.md,
+                          bottom: AppSpacing.md,
+                          child: _FrameSwitch(
+                            label: t.t('post.crop.fit'),
+                            onTap: () => setState(() {
+                              _frame = _frame == PhotoFrame.square
+                                  ? PhotoFrame.original
+                                  : PhotoFrame.square;
+                              // A new shape starts every photo centred.
+                              _framing.fillRange(
+                                0,
+                                _framing.length,
+                                const PhotoFraming(),
+                              );
+                            }),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               },
@@ -340,6 +353,18 @@ class _PhotoCropScreenState extends ConsumerState<PhotoCropScreen> {
         ),
       ),
     );
+  }
+
+  /// The height the frame may take: the screen under the bar, less the
+  /// thumbnails row when there is one.
+  double _frameMaxHeight(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final thumbs = widget.photos.length > 1 ? 64 + AppSpacing.md : 0.0;
+    return media.size.height -
+        media.padding.vertical -
+        kToolbarHeight -
+        thumbs -
+        AppSpacing.md;
   }
 
   /// The chosen photo in its frame: a finger moves it, two fingers zoom.
