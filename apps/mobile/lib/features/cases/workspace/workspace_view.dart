@@ -26,11 +26,12 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-13: the body of an accepted case, for the client and the
-/// attorney alike. In the top bar ([sections]): Overview | Files | Tasks |
-/// History (owner 2026-11-05: Docs is in Files, Time in Tasks, Updates and
-/// Activity are one History). The Overview starts with the case's head (chips,
-/// title, stages), which no other section shows. [overview] is what the side
-/// shows on its own Overview tab (description, the other party's card, chat).
+/// attorney alike. In the top bar ([sections]): Overview | Files | Tasks
+/// (owner 2026-11-05: Docs is in Files, Time in Tasks, Updates and Activity
+/// are one History at the end of the Overview). The Overview starts with the
+/// case's head (chips, title, stages), which no other section shows.
+/// [overview] is what the side shows on its own Overview tab (description, the
+/// other party's card).
 class CaseWorkspaceBody extends ConsumerStatefulWidget {
   const CaseWorkspaceBody({
     required this.caseId,
@@ -81,12 +82,10 @@ class CaseWorkspaceBody extends ConsumerStatefulWidget {
 }
 
 class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
-  // 0 Overview · 1 Files · 2 Tasks · 3 History.
-  static const _history = 3;
+  // 0 Overview · 1 Files · 2 Tasks.
   late int _tab = switch (widget.initialSection) {
     CaseSection.files => 1,
     CaseSection.tasks => 2,
-    CaseSection.history => _history,
     _ => 0,
   };
   late final PageController _pages = PageController(initialPage: _tab);
@@ -95,7 +94,7 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
   @override
   void initState() {
     super.initState();
-    if (_tab == _history) _markSeen();
+    _markSeen();
   }
 
   @override
@@ -112,8 +111,6 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
 
   void _select(int i) {
     setState(() => _tab = i);
-    // Opening History reads the updates: the grey number goes away.
-    if (i == _history) _markSeen();
   }
 
   Future<void> _refresh() async {
@@ -131,9 +128,6 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final ws = ref.watch(caseWorkspaceProvider(widget.caseId)).value;
-    // On History itself there is nothing new any more.
-    final fresh = _tab == _history ? 0 : (ws?.newUpdates ?? 0);
     return LayoutBuilder(
       builder: (context, box) {
         // Owner 2026-10-13: from 900 dp the Overview (the other party, the
@@ -145,11 +139,6 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
           if (!wide) t.t('cases.tab.overview'),
           t.t('cases.tab.files'),
           t.t('cases.tab.tasks'),
-          // The one number that says something new is inside.
-          if (fresh > 0)
-            '${t.t('cases.tab.history')} ${formats.digits(fresh)}'
-          else
-            t.t('cases.tab.history'),
         ];
         final shift = wide ? 1 : 0;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -166,6 +155,7 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
             items: labels,
             index: tab - shift,
             pages: _pages,
+            overviewShown: wide || tab == 0,
           );
         });
         // Owner 2026-10-19 (Instagram): the case header scrolls away and the
@@ -191,6 +181,10 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
               publishedAt: widget.publishedAt,
             ),
             ...widget.overview,
+            CaseHistoryBlock(
+              caseId: widget.caseId,
+              isAttorney: widget.isAttorney,
+            ),
           ],
         );
         Widget pageFor(int tab) => switch (tab) {
@@ -199,11 +193,7 @@ class _CaseWorkspaceBodyState extends ConsumerState<CaseWorkspaceBody> {
                   caseId: widget.caseId,
                   isAttorney: widget.isAttorney,
                 ),
-              2 => CaseTasksPage(
-                  caseId: widget.caseId,
-                  isAttorney: widget.isAttorney,
-                ),
-              _ => CaseHistoryTab(
+              _ => CaseTasksPage(
                   caseId: widget.caseId,
                   isAttorney: widget.isAttorney,
                 ),
@@ -267,6 +257,29 @@ class _SectionBlockTitle extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
         child: DetailSection(title: title, child: const SizedBox.shrink()),
+      );
+}
+
+/// Owner 2026-11-05: the case's History, a block of the Overview.
+class CaseHistoryBlock extends ConsumerWidget {
+  const CaseHistoryBlock({
+    required this.caseId,
+    required this.isAttorney,
+    super.key,
+  });
+
+  final String caseId;
+  final bool isAttorney;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _SectionBlockTitle(
+            title: ref.watch(translatorProvider).t('cases.tab.history'),
+          ),
+          CaseHistoryTab(caseId: caseId, isAttorney: isAttorney),
+        ],
       );
 }
 

@@ -10,6 +10,10 @@ const caseWorkspaceRu = <String, String>{
       'Контакты клиента пока не доступны. Откройте экран заново или обратитесь в поддержку.',
   'cases.work.chatWithClient': 'Чат с клиентом',
   'cases.owner.chatWithLawyer': 'Чат с юристом',
+  'cases.owner.seeBids': 'Смотреть биды',
+  'cases.owner.deleteCase': 'Удалить кейс',
+  'cases.withdraw.bid': 'Отозвать бид',
+  'cases.detail.askClient': 'Вопрос клиенту',
   'cases.status.acceptedByBoth': 'Принят обеими сторонами',
   'cases.overview.meta':
       'Опубликован {published} · Принят {accepted} · Бидов: {bids}',
@@ -146,6 +150,10 @@ const caseWorkspaceEn = <String, String>{
       "The client's contacts are not available yet. Reopen the screen or contact support.",
   'cases.work.chatWithClient': 'Chat with client',
   'cases.owner.chatWithLawyer': 'Chat with lawyer',
+  'cases.owner.seeBids': 'See bids',
+  'cases.owner.deleteCase': 'Delete case',
+  'cases.withdraw.bid': 'Withdraw bid',
+  'cases.detail.askClient': 'Ask the client',
   'cases.status.acceptedByBoth': 'Accepted by both',
   'cases.overview.meta':
       'Published {published} · Accepted {accepted} · {bids} bids',

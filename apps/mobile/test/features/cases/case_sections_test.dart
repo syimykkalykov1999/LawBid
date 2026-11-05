@@ -9,6 +9,7 @@ import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_sections.dart';
+import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/tools/billing_tab.dart';
 import 'package:lawbid/features/cases/tools/signing_tab.dart';
 import 'package:lawbid/features/cases/workspace/tasks_tab.dart';
@@ -32,10 +33,17 @@ const _title = 'Speeding ticket in Trenton';
 const _text = 'Short line.';
 
 class _Repo extends FakeCasesRepository {
-  _Repo({this.status = CaseStatus.open, this.accepted});
+  _Repo({
+    this.status = CaseStatus.open,
+    this.accepted,
+    this.conversation,
+    this.ownBid,
+  });
 
   final CaseStatus status;
   final CaseBid? accepted;
+  final String? conversation;
+  final String? ownBid;
 
   @override
   Future<OwnerCase> ownerCase(String caseId) async => OwnerCase(
@@ -53,6 +61,7 @@ class _Repo extends FakeCasesRepository {
         createdAt: DateTime(2026, 9, 2),
         lastActivityAt: DateTime(2026, 9, 2),
         acceptedBid: accepted,
+        conversationId: conversation,
       );
 
   @override
@@ -70,7 +79,25 @@ class _Repo extends FakeCasesRepository {
         bidsCount: 1,
         createdAt: DateTime(2026, 9, 20),
         isNew: false,
-        hasOwnBid: false,
+        hasOwnBid: ownBid != null,
+        ownBidId: ownBid,
+      );
+
+  @override
+  Future<CaseBid> bid(String bidId) async => CaseBid(
+        id: bidId,
+        caseId: 'case-1',
+        attorneyId: 'att-1',
+        status: BidStatus.active,
+        feeType: FeeType.fixed,
+        amountCents: 60000,
+        message: 'Happy to help.',
+        startAvailability: StartAvailability.immediately,
+        startDate: null,
+        estimatedDurationDays: null,
+        roundCount: 0,
+        turn: PartyRole.client,
+        createdAt: DateTime(2026, 9, 20),
       );
 
   @override
@@ -115,9 +142,10 @@ void main() {
       expect(caseSectionFromName('docs'), CaseSection.files);
       expect(caseSectionFromName('tasks'), CaseSection.tasks);
       expect(caseSectionFromName('time'), CaseSection.tasks);
-      expect(caseSectionFromName('updates'), CaseSection.history);
-      expect(caseSectionFromName('activity'), CaseSection.history);
-      expect(caseSectionFromName('history'), CaseSection.history);
+      // History is a block of the Overview now.
+      expect(caseSectionFromName('updates'), CaseSection.overview);
+      expect(caseSectionFromName('activity'), CaseSection.overview);
+      expect(caseSectionFromName('history'), CaseSection.overview);
       expect(caseSectionFromName(null), CaseSection.overview);
       expect(caseSectionFromName('nonsense'), CaseSection.overview);
     });
@@ -251,39 +279,61 @@ void main() {
       expect(centre.dx, moreOrLessEquals(160, epsilon: 1));
     }
 
-    testWidgets('client before a bid is accepted: Overview Bids Files History',
-        (tester) async {
-      await pumpScreen(
-        tester,
-        const OwnerCaseScreen(caseId: 'case-1'),
-        _Repo(),
-      );
-      for (final s in ['Overview', 'Bids', 'Files', 'History']) {
+    void expectSections(List<String> names) {
+      for (final s in names) {
         expect(
           find.descendant(of: sections(), matching: find.text(s)),
           findsOneWidget,
         );
       }
       expect(
-        find.descendant(of: sections(), matching: find.text('Tasks')),
-        findsNothing,
+        find.descendant(of: sections(), matching: find.byType(Expanded)),
+        findsNWidgets(names.length),
       );
+    }
+
+    Future<void> openSection(WidgetTester tester, String name) async {
+      await tester.tap(
+        find.descendant(of: sections(), matching: find.text(name)),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    Finder key(String k) => find.byKey(ValueKey(k));
+
+    testWidgets('client, open case: Overview Bids Files and its bottom buttons',
+        (tester) async {
+      await pumpScreen(
+        tester,
+        const OwnerCaseScreen(caseId: 'case-1'),
+        _Repo(),
+      );
+      expectSections(['Overview', 'Bids', 'Files']);
       expectCentredBetween(tester);
-      // The bar has no screen title; the head is in the Overview.
+      // No screen title and no «…» in the bar; the head is in the Overview.
       expect(find.text('My case'), findsNothing);
+      expect(find.byType(TopBarIcon), findsNothing);
       expect(hero(), findsOneWidget);
       // Tasks exist before a bid is accepted: at the end of the Overview.
       expect(
         find.byType(CaseTasksSection, skipOffstage: false),
         findsOneWidget,
       );
+      expect(key('case-edit'), findsOneWidget);
+      expect(key('case-see-bids'), findsOneWidget);
+      expect(key('case-delete'), findsOneWidget);
 
-      await tester.tap(
-        find.descendant(of: sections(), matching: find.text('Files')),
-      );
+      await tester.tap(key('case-see-bids'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump(const Duration(milliseconds: 400));
+      expect(hero(), findsNothing);
+      // The actions belong to the Overview.
+      expect(key('case-delete'), findsNothing);
+
+      await openSection(tester, 'Files');
       expect(hero(), findsNothing);
       expect(find.text(_title), findsNothing);
       expect(tester.takeException(), isNull);
@@ -294,15 +344,15 @@ void main() {
         tester,
         const OwnerCaseScreen(
           caseId: 'case-1',
-          initialSection: CaseSection.history,
+          initialSection: CaseSection.files,
         ),
         _Repo(),
       );
       expect(hero(), findsNothing);
-      expect(find.text('Nothing has happened yet'), findsOneWidget);
+      expect(key('case-delete'), findsNothing);
     });
 
-    testWidgets('client in work: the attorney card and head only in Overview',
+    testWidgets('client in work: one chat; head, card, history in Overview',
         (tester) async {
       await pumpScreen(
         tester,
@@ -324,44 +374,60 @@ void main() {
             turn: PartyRole.client,
             createdAt: DateTime(2026, 9, 20),
           ),
+          conversation: 'conv-1',
         ),
       );
-      for (final s in ['Overview', 'Files', 'Tasks', 'History']) {
-        expect(
-          find.descendant(of: sections(), matching: find.text(s)),
-          findsOneWidget,
-        );
-      }
+      expectSections(['Overview', 'Files', 'Tasks']);
       expect(hero(), findsOneWidget);
-      expect(find.text('Chat'), findsWidgets);
       expect(find.byType(MoneyText), findsOneWidget);
-      await tester.tap(
-        find.descendant(of: sections(), matching: find.text('History')),
+      expect(find.text('Terms'), findsOneWidget);
+      // The card no longer has its own chat: only the bottom button.
+      expect(find.text('Chat'), findsNothing);
+      expect(find.text('Chat with lawyer'), findsOneWidget);
+      expect(key('case-complete'), findsOneWidget);
+      expect(find.byType(TopBarIcon), findsNothing);
+      expect(
+        find.byType(CaseHistoryBlock, skipOffstage: false),
+        findsOneWidget,
       );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
-      await tester.pump(const Duration(milliseconds: 400));
+      await openSection(tester, 'Tasks');
       expect(hero(), findsNothing);
       expect(find.byType(MoneyText), findsNothing);
-      expect(find.byType(CaseHistoryTab), findsOneWidget);
+      expect(key('case-complete'), findsNothing);
+      expect(find.text('Chat with lawyer'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('hired attorney: Overview Files Tasks History, centred',
+    testWidgets('hired attorney: three sections, actions, one chat',
         (tester) async {
       await pumpScreen(
         tester,
         const WorkCaseScreen(caseId: 'case-1'),
         _Repo(status: CaseStatus.inProgress),
       );
-      for (final s in ['Overview', 'Files', 'Tasks', 'History']) {
-        expect(
-          find.descendant(of: sections(), matching: find.text(s)),
-          findsOneWidget,
-        );
-      }
+      expectSections(['Overview', 'Files', 'Tasks']);
       expectCentredBetween(tester);
       expect(hero(), findsOneWidget);
+      expect(find.byType(TopBarIcon), findsNothing);
+      expect(key('case-complete'), findsOneWidget);
+      expect(key('case-issue'), findsOneWidget);
+      expect(key('case-chat'), findsOneWidget);
+      await openSection(tester, 'Files');
+      expect(key('case-issue'), findsNothing);
+      expect(key('case-chat'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('attorney, open case with a bid: withdraw and ask the client',
+        (tester) async {
+      await pumpScreen(
+        tester,
+        const AttorneyCaseScreen(caseId: 'case-1'),
+        _Repo(ownBid: 'bid-1'),
+      );
+      expect(key('case-withdraw'), findsOneWidget);
+      expect(key('case-ask-client'), findsOneWidget);
+      expect(key('case-bid-cta'), findsNothing);
       expect(tester.takeException(), isNull);
     });
 

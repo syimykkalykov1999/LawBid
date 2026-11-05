@@ -263,7 +263,6 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
             caseId: c.id,
             t: t,
             formats: formats,
-            onOpenChat: () => _openChat(t),
           ),
         ),
         CaseText(
@@ -353,14 +352,6 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
           bar: _sections,
           fallback: Text(t.t('cases.work.title')),
         ),
-        actions: [
-          if (active)
-            TopBarIcon(
-              icon: AppIcons.moreHorizRounded,
-              label: t.t('cases.owner.actions'),
-              onTap: () => _menu(c, t),
-            ),
-        ],
       ),
       body: AsyncDetailBody<FeedCase>(
         value: value,
@@ -373,52 +364,74 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
           child: _workspace(context, c, t, formats, colors, pending),
         ),
       ),
-      bottomNavigationBar: !active
+      bottomNavigationBar: c == null
           ? null
-          : BottomActionBar(
-              children: [
-                AppButton(
-                  label: t.t('cases.work.chatWithClient'),
-                  icon: AppIcons.chatBubbleOutlineRounded,
-                  isLoading: _opening,
-                  onPressed: () => _openChat(t),
-                ),
-              ],
+          : ListenableBuilder(
+              listenable: _sections,
+              builder: (context, _) => BottomActionBar(
+                children: [
+                  if (active && _sections.overviewShown)
+                    ..._overviewActions(c, t),
+                  // Owner 2026-11-05: the one chat of the screen.
+                  AppButton(
+                    key: const ValueKey('case-chat'),
+                    label: t.t('cases.work.chatWithClient'),
+                    icon: AppIcons.chatBubbleOutlineRounded,
+                    isLoading: _opening,
+                    onPressed: () => _openChat(t),
+                  ),
+                ],
+              ),
             ),
     );
   }
 
-  /// "…": marking the case done and the rare actions.
-  void _menu(FeedCase c, Translator t) {
+  /// Owner 2026-11-05: no «…» — marking the case done and the rare actions
+  /// stand at the bottom of the Overview, as the status allows.
+  List<Widget> _overviewActions(FeedCase c, Translator t) {
     final pending = c.status == CaseStatus.pendingCompletion;
-    final canBids = ref.read(canDoProvider(AssistantDuty.bids));
-    showActionSheet(context, [
-      // Audit 2026-10-02: an assistant confirms or disputes only with
-      // "bids". Owner 2026-10-02: either side may mark "Done" first.
-      if (c.status == CaseStatus.inProgress && canBids)
-        ActionSheetItem(
-          icon: AppIcons.taskAltRounded,
-          label: t.t('cases.work.complete'),
-          onTap: _complete,
-        ),
-      if (pending && c.completionRequestedBy == 'client' && canBids) ...[
-        ActionSheetItem(
-          icon: AppIcons.taskAltRounded,
+    final canBids = ref.watch(canDoProvider(AssistantDuty.bids));
+    final issue = AppButton(
+      key: const ValueKey('case-issue'),
+      label: t.t('cases.issue.button'),
+      variant: AppButtonVariant.secondary,
+      onPressed: _cantReach,
+    );
+    if (pending && c.completionRequestedBy == 'client' && canBids) {
+      return [
+        AppButton(
+          key: const ValueKey('case-confirm'),
           label: t.t('cases.work.confirm'),
-          onTap: _confirm,
+          variant: AppButtonVariant.secondary,
+          onPressed: _confirm,
         ),
-        ActionSheetItem(
-          icon: AppIcons.policyOutlined,
-          label: t.t('cases.work.dispute'),
-          onTap: _dispute,
+        ButtonPair(
+          left: AppButton(
+            key: const ValueKey('case-dispute'),
+            label: t.t('cases.work.dispute'),
+            variant: AppButtonVariant.secondary,
+            onPressed: _dispute,
+          ),
+          right: issue,
         ),
-      ],
-      ActionSheetItem(
-        icon: AppIcons.phoneDisabledOutlined,
-        label: t.t('cases.issue.button'),
-        onTap: _cantReach,
-      ),
-    ]);
+      ];
+    }
+    // Audit 2026-10-02: an assistant confirms or disputes only with "bids".
+    // Owner 2026-10-02: either side may mark "Done" first.
+    if (c.status == CaseStatus.inProgress && canBids) {
+      return [
+        ButtonPair(
+          left: AppButton(
+            key: const ValueKey('case-complete'),
+            label: t.t('cases.work.complete'),
+            variant: AppButtonVariant.secondary,
+            onPressed: _complete,
+          ),
+          right: issue,
+        ),
+      ];
+    }
+    return [issue];
   }
 }
 
@@ -468,11 +481,9 @@ class _ContactsBlock extends ConsumerWidget {
     required this.caseId,
     required this.t,
     required this.formats,
-    required this.onOpenChat,
   });
 
   final String caseId;
-  final VoidCallback onOpenChat;
   final Translator t;
   final L10nFormats formats;
 
@@ -575,13 +586,6 @@ class _ContactsBlock extends ConsumerWidget {
                     ),
                     const SizedBox(width: AppSpacing.sm),
                   ],
-                  Expanded(
-                    child: _ContactAction(
-                      icon: AppIcons.chatBubbleOutlineRounded,
-                      label: t.t('cases.chat.open'),
-                      onTap: onOpenChat,
-                    ),
-                  ),
                 ],
               ),
             ],

@@ -134,6 +134,27 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
     }
   }
 
+  /// Owner 2026-11-05 (the approved mockup): the attorney takes the bid back
+  /// right here; the same step as on the bid's own screen.
+  Future<void> _withdraw(CaseBid bid) async {
+    final t = ref.read(translatorProvider);
+    final ok = await showConfirmSheet(
+      context,
+      t: t,
+      title: t.t('cases.withdraw.title'),
+      message: t.t('cases.withdraw.message'),
+      confirmLabel: t.t('cases.withdraw.confirm'),
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    try {
+      await ref.read(caseActionsProvider).withdraw(bid);
+      if (mounted) showAppSnackBar(context, t.t('cases.withdraw.done'));
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
   /// Audit 2026-10-04: once the case left "open" with THIS attorney's
   /// bid accepted, the work screen (chat, completion, dispute) is the
   /// right place — the feed view would be a dead end.
@@ -201,30 +222,79 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
       ),
       bottomNavigationBar: c == null || c.status != CaseStatus.open
           ? null
-          : BottomActionBar(
-              children: [
-                // Audit 2026-10-02: an assistant bids with "bids" or
-                // drafts with "bid drafts", chats with "chats".
-                if (c.bidAllowed &&
-                    c.ownBidId == null &&
-                    (ref.watch(canDoProvider(AssistantDuty.bids)) ||
-                        ref.watch(canDoProvider(AssistantDuty.bidDrafts))))
-                  AppButton(
-                    key: const ValueKey('case-bid-cta'),
-                    label: t.t('cases.bidForm.cta'),
-                    onPressed: () => _bid(c),
-                  ),
-                if (c.bidAllowed &&
-                    ref.watch(canDoProvider(AssistantDuty.chats)))
-                  AppButton(
-                    label: t.t('cases.detail.messageClient'),
-                    icon: AppIcons.chatBubbleOutlineRounded,
-                    variant: AppButtonVariant.secondary,
-                    isLoading: _messaging,
-                    onPressed: () => _message(c),
-                  ),
-              ],
+          : ListenableBuilder(
+              listenable: _sections,
+              builder: (context, _) => !_sections.overviewShown
+                  ? const SizedBox.shrink()
+                  : _OpenCaseActions(
+                      kase: c,
+                      t: t,
+                      messaging: _messaging,
+                      onBid: () => _bid(c),
+                      onMessage: () => _message(c),
+                      onWithdraw: _withdraw,
+                    ),
             ),
+    );
+  }
+}
+
+/// The bottom of an open case for an attorney: «Сделать бид» or, with a bid
+/// in, «Отозвать бид»; and «Вопрос клиенту», which opens the chat with them.
+class _OpenCaseActions extends ConsumerWidget {
+  const _OpenCaseActions({
+    required this.kase,
+    required this.t,
+    required this.messaging,
+    required this.onBid,
+    required this.onMessage,
+    required this.onWithdraw,
+  });
+
+  final FeedCase kase;
+  final Translator t;
+  final bool messaging;
+  final VoidCallback onBid;
+  final VoidCallback onMessage;
+  final ValueChanged<CaseBid> onWithdraw;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = kase;
+    final bidId = c.ownBidId;
+    final ownBid = bidId == null ? null : ref.watch(bidProvider(bidId)).value;
+    return BottomActionBar(
+      children: [
+        // Audit 2026-10-02: an assistant bids with "bids" or drafts with
+        // "bid drafts", chats with "chats".
+        if (c.bidAllowed &&
+            bidId == null &&
+            (ref.watch(canDoProvider(AssistantDuty.bids)) ||
+                ref.watch(canDoProvider(AssistantDuty.bidDrafts))))
+          AppButton(
+            key: const ValueKey('case-bid-cta'),
+            label: t.t('cases.bidForm.cta'),
+            onPressed: onBid,
+          ),
+        if (ownBid != null &&
+            ownBid.status == BidStatus.active &&
+            ref.watch(canDoProvider(AssistantDuty.bids)))
+          AppButton(
+            key: const ValueKey('case-withdraw'),
+            label: t.t('cases.withdraw.bid'),
+            variant: AppButtonVariant.secondary,
+            onPressed: () => onWithdraw(ownBid),
+          ),
+        if (c.bidAllowed && ref.watch(canDoProvider(AssistantDuty.chats)))
+          AppButton(
+            key: const ValueKey('case-ask-client'),
+            label: t.t('cases.detail.askClient'),
+            icon: AppIcons.chatBubbleOutlineRounded,
+            variant: AppButtonVariant.secondary,
+            isLoading: messaging,
+            onPressed: onMessage,
+          ),
+      ],
     );
   }
 }
@@ -271,7 +341,12 @@ class _BodyState extends ConsumerState<_Body> {
     final items = [t.t('cases.tab.overview'), t.t('cases.tab.files')];
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        widget.sections.publish(items: items, index: _tab, pages: _pages);
+        widget.sections.publish(
+          items: items,
+          index: _tab,
+          pages: _pages,
+          overviewShown: _tab == 0,
+        );
       }
     });
     // Owner 2026-10-19 (Instagram): the case header scrolls away and

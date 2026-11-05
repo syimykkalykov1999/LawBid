@@ -4,16 +4,15 @@ import 'package:flutter/scheduler.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 
-/// The sections of a case screen (owner 2026-11-05): at most four at a time.
-enum CaseSection { overview, bids, files, tasks, history }
+/// The sections of a case screen (owner 2026-11-05): three at a time.
+enum CaseSection { overview, bids, files, tasks }
 
 /// `?tab=` of a case link. The old tab names keep working: Docs now lives in
-/// Files, Time in Tasks, Updates and Activity in History.
+/// Files, Time in Tasks, Updates and Activity in the Overview's History.
 CaseSection caseSectionFromName(String? name) => switch (name) {
       'bids' => CaseSection.bids,
       'files' || 'docs' => CaseSection.files,
       'tasks' || 'time' => CaseSection.tasks,
-      'updates' || 'activity' || 'history' => CaseSection.history,
       _ => CaseSection.overview,
     };
 
@@ -25,6 +24,10 @@ class CaseSectionsBar extends ChangeNotifier {
   int _index = 0;
   PageController? _pages;
   bool _disposed = false;
+  bool _overviewShown = true;
+
+  /// The Overview is on screen: its action buttons belong at the bottom.
+  bool get overviewShown => _overviewShown;
 
   List<String> get items => _items;
   int get index => _index;
@@ -35,16 +38,31 @@ class CaseSectionsBar extends ChangeNotifier {
     required List<String> items,
     required int index,
     required PageController pages,
+    required bool overviewShown,
   }) {
     if (_disposed) return;
     final same = identical(pages, _pages) &&
+        overviewShown == _overviewShown &&
         index == _index &&
         listEquals(items, _items);
     if (same) return;
     _items = items;
     _index = index;
     _pages = pages;
+    _overviewShown = overviewShown;
     notifyListeners();
+  }
+
+  /// Slides to section [i] (a button elsewhere on the screen asked for it).
+  void show(int i, {required bool reduceMotion}) {
+    final pages = _pages;
+    if (pages == null || !pages.hasClients) return;
+    pages.animateToPage(
+      i,
+      duration:
+          reduceMotion ? Duration.zero : const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   /// The body is going away (its pages with it): back to the plain title.
@@ -89,16 +107,7 @@ class CaseSectionsTitle extends StatelessWidget {
             tabs: [for (final (i, label) in bar.items.indexed) (i, label)],
             padding: EdgeInsets.zero,
             labelSide: AppSpacing.xs / 2,
-            onChanged: (i) {
-              if (!pages.hasClients) return;
-              pages.animateToPage(
-                i,
-                duration: context.reduceMotion
-                    ? Duration.zero
-                    : const Duration(milliseconds: 250),
-                curve: Curves.easeOutCubic,
-              );
-            },
+            onChanged: (i) => bar.show(i, reduceMotion: context.reduceMotion),
           );
         },
       );
