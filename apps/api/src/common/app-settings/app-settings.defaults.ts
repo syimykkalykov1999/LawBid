@@ -1069,6 +1069,10 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   'calls.transport': 'auto',
   /** The breaker: this many Cloudflare failures within the window move NEW
    * calls to our own path; Cloudflare is then probed once a minute. */
+  /** Owner 2026-11-04: a phone told `relay` sends only relay candidates to
+   * the other phone (`call:signal` drops the rest; older apps ignore the
+   * policy). Off = pass every signal unchanged (the kill switch). */
+  'calls.relay_signal_filter': true,
   'calls.transport_fail_limit': 5,
   'calls.transport_fail_window_sec': 120,
   /** Phones reporting a dead Cloudflare relay open the breaker when at

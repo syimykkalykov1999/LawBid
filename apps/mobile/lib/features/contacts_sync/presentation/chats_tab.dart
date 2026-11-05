@@ -73,10 +73,8 @@ class _ChatsTabState extends ConsumerState<ChatsTab> {
         final shown = filterMyPeople(all, _query);
         final bottom = AppSpacing.xxl + MediaQuery.paddingOf(context).bottom;
         return AppRefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(myChatPeopleProvider);
-            await ref.read(myChatPeopleProvider.future);
-          },
+          // Owner 2026-11-04 (R-383): the rows stay while it syncs.
+          onRefresh: () => ref.read(myChatPeopleProvider.notifier).sync(),
           child: CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
