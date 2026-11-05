@@ -171,11 +171,12 @@ Stream<CallEvent?> callkitEvents() {
 final _ignoredEnded = <String, DateTime>{};
 
 void _ignoreEnded(String id) {
-  _ignoredEnded[id] = DateTime.now().add(const Duration(seconds: 4));
+  _ignoredEnded[id.toLowerCase()] =
+      DateTime.now().add(const Duration(seconds: 4));
 }
 
 bool _endedByUs(String id) {
-  final until = _ignoredEnded[id];
+  final until = _ignoredEnded[id.toLowerCase()];
   return until != null && DateTime.now().isBefore(until);
 }
 
@@ -557,11 +558,18 @@ Future<List<String>?> _shownCallIds(
   }
   try {
     final calls = await FlutterCallkitIncoming.activeCalls();
-    return [for (final c in calls) c.id];
+    return [for (final c in calls) systemCallId(c.id)];
   } on Object {
     return null;
   }
 }
+
+/// R-377: the id a system call UI event carries, as the server knows it.
+/// iOS CallKit reports its calls by `UUID.uuidString` — UPPERCASE — while
+/// the server stores and compares call ids lowercase: a decline sent with
+/// the uppercase id answered 404 and the caller kept ringing.
+@visibleForTesting
+String systemCallId(String id) => id.toLowerCase();
 
 /// Answers / declines made on the system UI reach the call controller.
 /// Kept alive by `CallHost`.
@@ -579,20 +587,22 @@ final callkitEventsProvider = Provider<void>((ref) {
         final controller = ref.read(callControllerProvider.notifier);
         switch (event) {
           case CallEventActionCallAccept(:final callKitParams):
-            callTrace('callkit accept ${callKitParams.id}');
+            final id = systemCallId(callKitParams.id);
+            callTrace('callkit accept $id');
             // Answered on the lock screen of a closed app: the session is
             // still being restored — asking the call now went out with no
             // token (401) and took the answered call down.
             await whenSignedIn(ref);
-            await controller.ringFromPush(callKitParams.id, accept: true);
+            await controller.ringFromPush(id, accept: true);
           case CallEventActionCallEnded(:final callKitParams):
             // iOS: "End" on the system call UI (the green pill / lock
             // screen) hangs up. Our own endCall() also reports it — the
             // call is already over then.
             final s = ref.read(callControllerProvider);
-            callTrace('callkit ended ${callKitParams.id} '
-                'byUs=${_endedByUs(callKitParams.id)} phase=${s.phase}');
-            if (systemEndHangsUp(s, callKitParams.id)) {
+            final id = systemCallId(callKitParams.id);
+            callTrace('callkit ended $id '
+                'byUs=${_endedByUs(id)} phase=${s.phase}');
+            if (systemEndHangsUp(s, id)) {
               await controller.hangUp();
             }
           case CallEventActionCallTimeout(:final id):
@@ -600,15 +610,15 @@ final callkitEventsProvider = Provider<void>((ref) {
           case CallEventActionCallToggleAudioSession(:final isActive):
             callTrace('callkit audio session active=$isActive');
           case CallEventActionCallDecline(:final callKitParams):
-            callTrace('callkit decline ${callKitParams.id} '
-                'byUs=${_endedByUs(callKitParams.id)}');
+            final id = systemCallId(callKitParams.id);
+            callTrace('callkit decline $id byUs=${_endedByUs(id)}');
             final s = ref.read(callControllerProvider);
             final target = systemDeclineTarget(
               s,
-              callKitParams.id,
+              id,
               shownIds: await _shownCallIds(
                 s,
-                callKitParams.id,
+                id,
                 systemRinging: ref.read(systemRingingCallProvider),
               ),
             );
@@ -650,7 +660,7 @@ final callkitEventsProvider = Provider<void>((ref) {
         // (ringFromPush takes a finished one off the screen).
         await ref
             .read(callControllerProvider.notifier)
-            .ringFromPush(c.id, accept: c.isAccepted);
+            .ringFromPush(systemCallId(c.id), accept: c.isAccepted);
       }
     } on Object {
       // No plugin.
