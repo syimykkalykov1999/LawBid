@@ -24,10 +24,15 @@ import 'package:lawbid/core/network/http_transport.dart';
 class HlsPrefetcher {
   HlsPrefetcher({
     Dio? dio,
-    this.maxConcurrent = 2,
+    int? maxConcurrent,
     this.maxRemembered = 16,
-    this.maxSegmentBytes = 1024 * 1024,
-  }) : _dio = dio ?? _newDio();
+    int? maxSegmentBytes,
+    bool? web,
+  })  : _web = web ?? kIsWeb,
+        maxConcurrent = maxConcurrent ?? ((web ?? kIsWeb) ? 1 : 2),
+        maxSegmentBytes =
+            maxSegmentBytes ?? ((web ?? kIsWeb) ? 512 * 1024 : 1024 * 1024),
+        _dio = dio ?? _newDio();
 
   static Dio _newDio() {
     final d = Dio(BaseOptions(connectTimeout: _timeout));
@@ -40,6 +45,14 @@ class HlsPrefetcher {
   static final HlsPrefetcher instance = HlsPrefetcher();
 
   final Dio _dio;
+
+  /// Owner 2026-11-03 (web gaps): a browser plays the plain MP4 (it cannot
+  /// play HLS by itself), so there it is the MP4's first bytes that are
+  /// fetched ahead — into the browser's own HTTP cache, which the
+  /// `<video>` element reads, nothing is held by us. One request at a time
+  /// and a smaller first piece: the browser allows 6 connections per host
+  /// and the video on screen needs them.
+  final bool _web;
 
   /// S16-4: asked before any warm-up (admin mode, data saver, metered
   /// link — see prefetch_policy.dart). Default: allowed.
@@ -70,7 +83,8 @@ class HlsPrefetcher {
   /// Warms [url] (an `.m3u8`). Other links (an MP4) are ignored. Calling it
   /// again for the same stream is free.
   void prefetch(String url) {
-    if (!url.contains('.m3u8')) return;
+    final stream = url.contains('.m3u8');
+    if (!stream && !(_web && _isMp4(url))) return;
     if (!allow()) return;
     if (_done.contains(url) ||
         _running.containsKey(url) ||
@@ -125,8 +139,23 @@ class HlsPrefetcher {
     }
   }
 
+  static bool _isMp4(String url) {
+    final q = url.indexOf('?');
+    return (q < 0 ? url : url.substring(0, q)).toLowerCase().endsWith('.mp4');
+  }
+
   Future<void> _fetch(String url, CancelToken token) async {
     try {
+      if (!url.contains('.m3u8')) {
+        await _head(Uri.parse(url), token);
+        _done
+          ..remove(url)
+          ..add(url);
+        while (_done.length > maxRemembered) {
+          _done.remove(_done.first);
+        }
+        return;
+      }
       final master = await _text(url, token);
       final media = lowestRenditionUri(master, Uri.parse(url));
       var playlistUrl = Uri.parse(url);

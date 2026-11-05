@@ -1,11 +1,13 @@
 import 'dart:typed_data';
 
 import 'package:lawbid/core/uploads/upload_files_memory.dart'
-    if (dart.library.io) 'package:lawbid/core/uploads/upload_files_io.dart';
+    if (dart.library.io) 'package:lawbid/core/uploads/upload_files_io.dart'
+    if (dart.library.js_interop) 'package:lawbid/core/uploads/upload_files_web.dart';
 
 /// Owner 2026-10-22 (audit #4 §3): where queued media waits — the app's
 /// support folder `upload_queue/` on the phone (it survives a restart, the
-/// OS does not clean it like the temp folder), memory in the browser.
+/// OS does not clean it like the temp folder), the browser's Cache Storage
+/// (with a copy in memory) in the browser.
 abstract class UploadFiles {
   /// The platform's store.
   factory UploadFiles() => createUploadFiles();
