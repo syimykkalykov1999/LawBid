@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "Puwedeng bayaran sa pamamagitan ng LawBid",
   "trust.signal.payments.ok.self": "Puwede kang bayaran ng mga kliyente sa pamamagitan ng LawBid",
   "trust.signal.selfAttested": "Tinanggap ang sinumpaang pahayag",
+  "upload.drop.hint": "I-drop ang mga file dito",
   "verification.attest.required": "Lagyan ng tsek ang sinumpaang pahayag para magpadala.",
   "verification.attest.text": "Isinusumpa kong ako ang abogadong may lisensya sa numerong inilagay sa itaas at aktibo ang lisensya. Ang maling impormasyon ay nangangahulugang pagbabawal sa account, at ako lamang ang may pananagutan.",
   "verification.camera.denied.body": "Payagan ang LawBid na gamitin ang camera sa mga setting ng iyong telepono, pagkatapos ay subukan muli.",

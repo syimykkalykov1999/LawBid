@@ -4,8 +4,10 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/core/media/video_compression.dart';
+import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 
 /// A picked case file: `name` null = a photo; a video or a document
 /// carries its name (the extension decides the type).
@@ -70,6 +72,24 @@ Future<List<CasePickedFile>> pickCaseMedia(
     } else {
       out.add((bytes: await f.readAsBytes(), name: null));
     }
+  }
+  return out;
+}
+
+/// Files dragged onto the new-case page in the browser, as the Files button
+/// takes them: a photo counts without a name, a video and a document with
+/// theirs. A format this place has off or a file over its size stays out.
+Future<List<CasePickedFile>> droppedCaseFiles(
+  List<XFile> dropped,
+  PlaceUploadLimits limits,
+) async {
+  final out = <CasePickedFile>[];
+  for (final f in dropped) {
+    if (await f.length() > limits.fileBytes) continue;
+    final video = limits.allowsVideo && _isVideo(f);
+    final photo = !video && isDroppedPhoto(f);
+    if (!video && !photo && limits.mimeForName(f.name) == null) continue;
+    out.add((bytes: await f.readAsBytes(), name: photo ? null : f.name));
   }
   return out;
 }

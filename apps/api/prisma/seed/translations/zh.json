@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "可通过 LawBid 付款",
   "trust.signal.payments.ok.self": "客户可通过 LawBid 向您付款",
   "trust.signal.selfAttested": "宣誓声明已接受",
+  "upload.drop.hint": "将文件拖到此处",
   "verification.attest.required": "请勾选宣誓声明后再提交。",
   "verification.attest.text": "我郑重声明：我是上述编号执照持有的律师，执照有效。提供虚假信息将被封号，一切责任由我本人承担。",
   "verification.camera.denied.body": "请在手机设置中允许 LawBid 访问相机，然后重试。",

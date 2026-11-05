@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "Voi maksaa LawBidin kautta",
   "trust.signal.payments.ok.self": "Asiakkaat voivat maksaa teille LawBidin kautta",
   "trust.signal.selfAttested": "Valalla vahvistettu ilmoitus hyväksytty",
+  "upload.drop.hint": "Pudota tiedostot tähän",
   "verification.attest.required": "Lähetä valitsemalla valaehtoinen vakuutus.",
   "verification.attest.text": "Vannon, että olen ilmoitetun numeron lisenssin haltijana oleva asianajaja ja että lisenssi on voimassa. Väärät tiedot johtavat porttikieltoon, ja vastuu on yksin minun.",
   "verification.camera.denied.body": "Salli LawBidin kameran käyttö puhelimen asetuksissa ja yritä uudelleen.",

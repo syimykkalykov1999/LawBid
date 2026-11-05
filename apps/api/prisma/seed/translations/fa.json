@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "قابل پرداخت از طریق LawBid",
   "trust.signal.payments.ok.self": "مشتریان می‌توانند از طریق LawBid به شما پرداخت کنند",
   "trust.signal.selfAttested": "اظهار سوگندی پذیرفته شد",
+  "upload.drop.hint": "فایل‌ها را اینجا رها کنید",
   "verification.attest.required": "برای ارسال، بیانیهٔ سوگند را تیک بزنید.",
   "verification.attest.text": "سوگند می‌خورم که وکیل دارای پروانه‌ای با شمارهٔ واردشده در بالا هستم و پروانه معتبر است. اطلاعات نادرست به مسدود شدن حساب می‌انجامد و تمام مسئولیت با خودم است.",
   "verification.camera.denied.body": "در تنظیمات گوشی، دسترسی دوربین را برای LawBid مجاز کنید و دوباره تلاش کنید.",

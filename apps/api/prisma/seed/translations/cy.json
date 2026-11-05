@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "Gellir talu drwy LawBid",
   "trust.signal.payments.ok.self": "Gall cleientiaid eich talu drwy LawBid",
   "trust.signal.selfAttested": "Datganiad ar lw wedi'i dderbyn",
+  "upload.drop.hint": "Gollyngwch y ffeiliau yma",
   "verification.attest.required": "Ticiwch y datganiad llw i anfon.",
   "verification.attest.text": "Rwy'n tyngu mai fi yw'r cyfreithiwr sydd â'r drwydded gyda'r rhif uchod a bod y drwydded yn ddilys. Mae gwybodaeth ffug yn golygu gwaharddiad a fi yn unig sy'n gyfrifol.",
   "verification.camera.denied.body": "Caniatewch fynediad i'r camera ar gyfer LawBid yng ngosodiadau eich ffôn, yna rhowch gynnig arall arni.",

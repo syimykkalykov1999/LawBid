@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "Може се платити путем LawBid-а",
   "trust.signal.payments.ok.self": "Клијенти вам могу платити путем LawBid-а",
   "trust.signal.selfAttested": "Изјава под заклетвом прихваћена",
+  "upload.drop.hint": "Превуците датотеке овде",
   "verification.attest.required": "Za slanje označite izjavu pod zakletvom.",
   "verification.attest.text": "Zaklinjem se da sam advokat sa licencom navedenog broja i da je licenca važeća. Lažni podaci znače blokadu, a odgovornost snosim samo ja.",
   "verification.camera.denied.body": "Дозволите приступ камери за LawBid у подешавањима телефона, па покушајте поново.",

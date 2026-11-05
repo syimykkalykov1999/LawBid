@@ -19,6 +19,7 @@ import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
 import 'package:lawbid/features/chat/presentation/chat_video.dart';
+import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 
 export 'package:lawbid/features/chat/presentation/chat_files_screen.dart'
     show ChatFilesScreen, ChatFilesTab;
@@ -33,6 +34,56 @@ typedef PickedChatFile = ({
   String? path,
   int? diskBytes,
 });
+
+/// Files dragged onto a chat in the browser, checked like picked ones: type,
+/// size (before reading, a long clip could close the tab). What the chat
+/// refuses is skipped and reported. Used by one-to-one and group chats.
+Future<List<PickedChatFile>> droppedChatFiles(
+  BuildContext context,
+  Translator t,
+  List<XFile> dropped, {
+  PlaceUploadLimits? limits,
+}) async {
+  final out = <PickedChatFile>[];
+  var skipped = 0;
+  final maxBytes = limits?.fileBytes ?? kChatAttachmentMaxBytes;
+  String? mimeFor(String name) =>
+      limits == null ? chatMimeForName(name) : limits.mimeForName(name);
+  for (final f in dropped) {
+    if (mimeFor(f.name) == null && !isDroppedPhoto(f) ||
+        await f.length() > maxBytes) {
+      skipped++;
+      continue;
+    }
+    final bytes = await f.readAsBytes();
+    final sniffed = sniffImageMime(bytes);
+    final mime =
+        sniffed != null && mimeFor('f.${sniffed.split('/').last}') != null
+            ? sniffed
+            : mimeFor(f.name);
+    if (mime == null) {
+      skipped++;
+      continue;
+    }
+    out.add(
+      (
+        bytes: bytes,
+        name: f.name,
+        mime: mime,
+        path: null,
+        diskBytes: null,
+      ),
+    );
+  }
+  if (skipped > 0 && context.mounted) {
+    final maxMb = (maxBytes / (1024 * 1024)).round();
+    showAppSnackBar(
+      context,
+      t.t('chat.attach.skipped', {'count': '$skipped', 'max': '$maxMb'}),
+    );
+  }
+  return out;
+}
 
 /// The paperclip next to the message field: photos, camera or files (every
 /// common document format). Files the server would refuse are reported.

@@ -45,6 +45,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_documents.dart'
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 
 /// One photo in the composer: uploaded right after it is picked, so
 /// "Опубликовать" only waits for what is still in flight.
@@ -295,21 +296,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       );
       final video = picked.where(_isVideo).firstOrNull;
       if (video != null) {
-        if (!mounted) return;
-        // A reel carries one video and no photos: the picked ones would go.
-        if (_photos.isNotEmpty) {
-          final t = ref.read(translatorProvider);
-          final ok = await showConfirmSheet(
-            context,
-            t: t,
-            title: t.t('post.toReel.title'),
-            message: t.t('post.toReel.message'),
-            confirmLabel: t.t('post.toReel.confirm'),
-          );
-          if (!ok || !mounted) return;
-          setState(_photos.clear);
-        }
-        await _setVideo(video);
+        await _takeVideo(video);
         return;
       }
     } else {
@@ -326,6 +313,80 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     ];
     if (!mounted) return;
     await _frameAndAdd(added);
+  }
+
+  /// Files dragged onto the page in the browser: a video or photos go where
+  /// the gallery puts them, a document to the documents; the rest is said.
+  Future<void> _drop(List<XFile> dropped) async {
+    final t = ref.read(translatorProvider);
+    final limits = postPhotoLimits(ref);
+    final video = _videoAllowed ? dropped.where(_isVideo).firstOrNull : null;
+    final photos = [...dropped.where(isDroppedPhoto)];
+    final docsOn = ref.read(postAttachmentsAllowedProvider).value ?? false;
+    final docs = [
+      if (docsOn)
+        for (final f in dropped)
+          if (_docs.mimeForName(f.name) != null) f,
+    ];
+    final docBytes = <({Uint8List bytes, String name})>[
+      for (final f in docs)
+        if (await f.length() <= _docs.limits.fileBytes)
+          (bytes: await f.readAsBytes(), name: f.name),
+    ];
+    if (!mounted) return;
+    final refused = _docs.addAll(
+      docBytes,
+      eachMb: _docs.limits.fileMb,
+      totalMb: _docs.limits.totalMb,
+    );
+    final skipped = refused +
+        (docs.length - docBytes.length) +
+        dropped
+            .where(
+              (f) => !_isVideo(f) && !isDroppedPhoto(f) && !docs.contains(f),
+            )
+            .length +
+        (video == null ? dropped.where(_isVideo).length : 0);
+    if (skipped > 0) {
+      showAppSnackBar(
+        context,
+        t.t('post.docs.skipped', {
+          'count': '$skipped',
+          'mb': '${_docs.limits.fileMb}',
+          'total': '${_docs.limits.totalMb}',
+        }),
+      );
+    }
+    if (video != null) {
+      await _takeVideo(video);
+      return;
+    }
+    final left = _maxMedia - _photos.length;
+    if (left <= 0 || photos.isEmpty) return;
+    final added = <Uint8List>[
+      for (final f in photos.take(left))
+        await shrinkDroppedPhoto(await f.readAsBytes(), limits.maxPx.round()),
+    ];
+    if (!mounted) return;
+    await _frameAndAdd(added);
+  }
+
+  /// A reel carries one video and no photos: the picked ones would go.
+  Future<void> _takeVideo(XFile video) async {
+    if (!mounted) return;
+    if (_photos.isNotEmpty) {
+      final t = ref.read(translatorProvider);
+      final ok = await showConfirmSheet(
+        context,
+        t: t,
+        title: t.t('post.toReel.title'),
+        message: t.t('post.toReel.message'),
+        confirmLabel: t.t('post.toReel.confirm'),
+      );
+      if (!ok || !mounted) return;
+      setState(_photos.clear);
+    }
+    await _setVideo(video);
   }
 
   /// Owner 2026-10-19: the picked photos go through the framing (each one
@@ -749,7 +810,13 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => FileDropZone(
+        enabled: !_publishing && !_editing && _video == null,
+        onFiles: (f) => unawaited(_drop(f)),
+        child: _page(context),
+      );
+
+  Widget _page(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;

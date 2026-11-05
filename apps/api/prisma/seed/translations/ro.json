@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "Poate fi plătit prin LawBid",
   "trust.signal.payments.ok.self": "Clienții vă pot plăti prin LawBid",
   "trust.signal.selfAttested": "Declarație pe propria răspundere acceptată",
+  "upload.drop.hint": "Trageți fișierele aici",
   "verification.attest.required": "Bifează declarația pe propria răspundere pentru a trimite.",
   "verification.attest.text": "Jur că sunt avocatul cu licența al cărei număr este indicat și că licența este activă. Datele false duc la blocare, iar răspunderea îmi aparține numai mie.",
   "verification.camera.denied.body": "Permiteți accesul la cameră pentru LawBid în setările telefonului, apoi încercați din nou.",

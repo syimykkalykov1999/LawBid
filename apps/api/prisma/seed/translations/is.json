@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "Hægt að greiða í gegnum LawBid",
   "trust.signal.payments.ok.self": "Viðskiptavinir geta greitt þér í gegnum LawBid",
   "trust.signal.selfAttested": "Eiðsvarin yfirlýsing samþykkt",
+  "upload.drop.hint": "Slepptu skrám hér",
   "verification.attest.required": "Hakaðu við eiðsvarna yfirlýsinguna til að senda.",
   "verification.attest.text": "Ég sver að ég er lögmaðurinn með leyfið með númerinu hér að ofan og að leyfið er í gildi. Rangar upplýsingar þýða lokun og ég ber einn alla ábyrgð.",
   "verification.camera.denied.body": "Leyfðu LawBid aðgang að myndavélinni í stillingum símans og reyndu aftur.",

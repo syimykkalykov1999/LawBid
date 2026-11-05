@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "LawBid bidez ordain daiteke",
   "trust.signal.payments.ok.self": "Bezeroek LawBid bidez ordain diezazukete",
   "trust.signal.selfAttested": "Zinpeko adierazpena onartuta",
+  "upload.drop.hint": "Jaregin fitxategiak hemen",
   "verification.attest.required": "Markatu zinpeko adierazpena bidaltzeko.",
   "verification.attest.text": "Zin egiten dut goian sartutako zenbakiko lizentzia duen abokatua naizela eta lizentzia indarrean dagoela. Datu faltsuek blokeoa dakarte eta erantzukizun osoa nirea da.",
   "verification.camera.denied.body": "Baimendu LawBid-ek kamera erabiltzea telefonoaren ezarpenetan eta saiatu berriro.",

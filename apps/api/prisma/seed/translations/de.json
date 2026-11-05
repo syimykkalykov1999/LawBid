@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "Zahlung über LawBid möglich",
   "trust.signal.payments.ok.self": "Mandanten können Sie über LawBid bezahlen",
   "trust.signal.selfAttested": "Eidesstattliche Erklärung akzeptiert",
+  "upload.drop.hint": "Dateien hier ablegen",
   "verification.attest.required": "Setze den Haken bei der eidesstattlichen Erklärung, um zu senden.",
   "verification.attest.text": "Ich schwöre, dass ich der Anwalt mit der oben angegebenen Lizenznummer bin und die Lizenz gültig ist. Falsche Angaben führen zur Sperre, die Verantwortung trage allein ich.",
   "verification.camera.denied.body": "Erlauben Sie LawBid in den Einstellungen Ihres Telefons den Kamerazugriff und versuchen Sie es dann erneut.",

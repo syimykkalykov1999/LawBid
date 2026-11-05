@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "Jista' jitħallas permezz ta' LawBid",
   "trust.signal.payments.ok.self": "Il-klijenti jistgħu jħallsuk permezz ta' LawBid",
   "trust.signal.selfAttested": "Id-dikjarazzjoni taħt ġurament ġiet aċċettata",
+  "upload.drop.hint": "Poġġi l-fajls hawn",
   "verification.attest.required": "Immarka d-dikjarazzjoni bil-ġurament biex tibgħat.",
   "verification.attest.text": "Nwiegħed bil-ġurament li jien l-avukat bil-liċenzja bin-numru mniżżel hawn fuq u li l-liċenzja hija valida. Informazzjoni falza tfisser imblukkar u r-responsabbiltà hija tiegħi biss.",
   "verification.camera.denied.body": "Ippermetti l-aċċess għall-kamera għal LawBid fis-settings tat-telefon tiegħek, imbagħad erġa’ pprova.",

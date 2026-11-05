@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "LawBiden keresztül fizethető",
   "trust.signal.payments.ok.self": "Az ügyfelek a LawBiden keresztül fizethetnek Önnek",
   "trust.signal.selfAttested": "Eskü alatti nyilatkozat elfogadva",
+  "upload.drop.hint": "Húzza ide a fájlokat",
   "verification.attest.required": "A küldéshez jelöld be az eskü alatti nyilatkozatot.",
   "verification.attest.text": "Esküszöm, hogy én vagyok a fenti számú engedéllyel rendelkező ügyvéd, és az engedély érvényes. A hamis adat tiltást von maga után, a felelősség egyedül engem terhel.",
   "verification.camera.denied.body": "Engedélyezze a LawBid kamerahozzáférését a telefon beállításaiban, majd próbálja újra.",

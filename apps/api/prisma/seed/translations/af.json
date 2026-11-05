@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "Kan deur LawBid betaal word",
   "trust.signal.payments.ok.self": "Kliënte kan jou deur LawBid betaal",
   "trust.signal.selfAttested": "Beëdigde verklaring aanvaar",
+  "upload.drop.hint": "Los lêers hier",
   "verification.attest.required": "Merk die beëdigde verklaring om te stuur.",
   "verification.attest.text": "Ek sweer dat ek die prokureur is met die lisensie met die nommer hierbo en dat die lisensie geldig is. Valse inligting beteken 'n verbod en die verantwoordelikheid is net myne.",
   "verification.camera.denied.body": "Laat kameratoegang vir LawBid in jou foon se instellings toe en probeer dan weer.",

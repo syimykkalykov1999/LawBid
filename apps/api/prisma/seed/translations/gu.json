@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "LawBid દ્વારા ચુકવણી કરી શકાય છે",
   "trust.signal.payments.ok.self": "ક્લાયન્ટ LawBid દ્વારા તમને ચુકવણી કરી શકે છે",
   "trust.signal.selfAttested": "શપથપૂર્વકનું નિવેદન સ્વીકારાયું",
+  "upload.drop.hint": "ફાઇલો અહીં મૂકો",
   "verification.attest.required": "મોકલવા માટે શપથ પર ટિક કરો.",
   "verification.attest.text": "હું શપથપૂર્વક કહું છું કે ઉપર દાખલ કરેલા નંબરનું લાઇસન્સ ધરાવતો વકીલ હું જ છું અને લાઇસન્સ માન્ય છે. ખોટી માહિતી આપવાથી ખાતું બ્લૉક થશે અને બધી જવાબદારી મારી છે.",
   "verification.camera.denied.body": "તમારા ફોનના સેટિંગ્સમાં LawBid માટે કેમેરાની પહોંચ આપો, પછી ફરી પ્રયાસ કરો.",

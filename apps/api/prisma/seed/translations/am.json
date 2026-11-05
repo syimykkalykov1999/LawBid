@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "በLawBid በኩል መክፈል ይቻላል",
   "trust.signal.payments.ok.self": "ደንበኞች በLawBid በኩል ሊከፍሉዎት ይችላሉ",
   "trust.signal.selfAttested": "የመሐላ መግለጫ ተቀባይነት አግኝቷል",
+  "upload.drop.hint": "ፋይሎቹን እዚህ ይጣሉ",
   "verification.attest.required": "ለመላክ መሐላውን ምልክት ያድርጉ።",
   "verification.attest.text": "ከላይ በገባው ቁጥር ፈቃድ ያለኝ ጠበቃ እንደሆንኩና ፈቃዱ ንቁ እንደሆነ እምላለሁ። የሐሰት መረጃ መታገድን ያስከትላል፤ ኃላፊነቱ በሙሉ የእኔ ነው።",
   "verification.camera.denied.body": "በስልክ ቅንብሮችዎ ውስጥ ለLawBid የካሜራ መዳረሻ ይፍቀዱና እንደገና ይሞክሩ።",

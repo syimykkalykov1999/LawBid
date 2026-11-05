@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "Mund të paguhet përmes LawBid",
   "trust.signal.payments.ok.self": "Klientët mund t'ju paguajnë përmes LawBid",
   "trust.signal.selfAttested": "Deklarata me betim u pranua",
+  "upload.drop.hint": "Lëshoni skedarët këtu",
   "verification.attest.required": "Shëno betimin për të dërguar.",
   "verification.attest.text": "Betohem se jam avokati me licencën me numrin e futur më sipër dhe se licenca është aktive. Të dhënat e rreme sjellin bllokim dhe përgjegjësia është vetëm e imja.",
   "verification.camera.denied.body": "Lejoni qasjen e kamerës për LawBid te cilësimet e telefonit, pastaj provoni përsëri.",

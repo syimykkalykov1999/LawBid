@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "LawBid orqali to‘lash mumkin",
   "trust.signal.payments.ok.self": "Mijozlar sizga LawBid orqali to‘lay oladi",
   "trust.signal.selfAttested": "Qasamyod ostidagi bayonot qabul qilindi",
+  "upload.drop.hint": "Fayllarni shu yerga tashlang",
   "verification.attest.required": "Yuborish uchun qasamni belgilang.",
   "verification.attest.text": "Yuqorida kiritilgan raqamli litsenziyaga ega advokat ekanligimga va litsenziya amalda ekanligiga qasam ichaman. Yolg‘on ma’lumot akkauntning bloklanishiga olib keladi, barcha javobgarlik menda.",
   "verification.camera.denied.body": "Telefon sozlamalarida LawBid uchun kameraga ruxsat bering, so‘ng qayta urinib ko‘ring.",

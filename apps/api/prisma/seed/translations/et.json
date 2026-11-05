@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "Saab maksta LawBidi kaudu",
   "trust.signal.payments.ok.self": "Kliendid saavad teile LawBidi kaudu maksta",
   "trust.signal.selfAttested": "Vande all antud avaldus on vastu võetud",
+  "upload.drop.hint": "Lohistage failid siia",
   "verification.attest.required": "Saatmiseks märgi vandekinnitus.",
   "verification.attest.text": "Vannun, et olen ülaltoodud numbriga litsentsi omav advokaat ja litsents kehtib. Valeandmed tähendavad blokeerimist ning vastutan üksnes mina.",
   "verification.camera.denied.body": "Lubage LawBidile telefoni seadetes juurdepääs kaamerale ja proovige uuesti.",

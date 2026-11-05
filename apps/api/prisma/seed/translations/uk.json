@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "Можна оплатити через LawBid",
   "trust.signal.payments.ok.self": "Клієнти можуть платити вам через LawBid",
   "trust.signal.selfAttested": "Заяву під присягою прийнято",
+  "upload.drop.hint": "Перетягніть файли сюди",
   "verification.attest.required": "Позначте підтвердження ліцензії, щоб надіслати.",
   "verification.attest.text": "Підтверджую під присягою: я адвокат із зазначеною ліцензією та номером, ліцензія діє. За неправдиві дані акаунт блокується, уся відповідальність на мені.",
   "verification.camera.denied.body": "Дозвольте LawBid доступ до камери в налаштуваннях телефона й спробуйте ще раз.",

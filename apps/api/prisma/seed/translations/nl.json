@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "Betalen via LawBid mogelijk",
   "trust.signal.payments.ok.self": "Cliënten kunnen u betalen via LawBid",
   "trust.signal.selfAttested": "Verklaring onder ede geaccepteerd",
+  "upload.drop.hint": "Sleep bestanden hierheen",
   "verification.attest.required": "Vink de verklaring onder ede aan om te versturen.",
   "verification.attest.text": "Ik zweer dat ik de advocaat ben met het hierboven ingevoerde licentienummer en dat de licentie actief is. Onjuiste gegevens leiden tot een blokkade en ik ben als enige verantwoordelijk.",
   "verification.camera.denied.body": "Sta in de instellingen van uw telefoon cameratoegang toe voor LawBid en probeer het opnieuw.",

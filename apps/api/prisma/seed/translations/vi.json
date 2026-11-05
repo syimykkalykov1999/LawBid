@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "Có thể thanh toán qua LawBid",
   "trust.signal.payments.ok.self": "Khách hàng có thể thanh toán cho bạn qua LawBid",
   "trust.signal.selfAttested": "Đã chấp nhận bản cam đoan",
+  "upload.drop.hint": "Thả tệp vào đây",
   "verification.attest.required": "Hãy tích vào lời tuyên thệ để gửi.",
   "verification.attest.text": "Tôi xin thề rằng tôi là luật sư có giấy phép với số đã nhập ở trên và giấy phép còn hiệu lực. Thông tin sai sẽ bị khóa tài khoản và tôi hoàn toàn chịu trách nhiệm.",
   "verification.camera.denied.body": "Hãy cho phép LawBid truy cập camera trong cài đặt điện thoại, rồi thử lại.",

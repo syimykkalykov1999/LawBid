@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "ชำระเงินผ่าน LawBid ได้",
   "trust.signal.payments.ok.self": "ลูกค้าชำระเงินให้คุณผ่าน LawBid ได้",
   "trust.signal.selfAttested": "ยอมรับคำรับรองภายใต้คำสาบานแล้ว",
+  "upload.drop.hint": "วางไฟล์ที่นี่",
   "verification.attest.required": "ติ๊กคำสาบานเพื่อส่ง",
   "verification.attest.text": "ข้าพเจ้าขอสาบานว่าเป็นทนายความที่ถือใบอนุญาตตามหมายเลขข้างต้น และใบอนุญาตยังใช้ได้ ข้อมูลเท็จจะถูกระงับบัญชี และข้าพเจ้าเป็นผู้รับผิดชอบทั้งหมด",
   "verification.camera.denied.body": "อนุญาตให้ LawBid เข้าถึงกล้องในการตั้งค่าโทรศัพท์ของคุณ แล้วลองอีกครั้ง",

@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "Kan betales via LawBid",
   "trust.signal.payments.ok.self": "Klienter kan betale dig via LawBid",
   "trust.signal.selfAttested": "Edsaflagt erklæring accepteret",
+  "upload.drop.hint": "Slip filer her",
   "verification.attest.required": "Sæt flueben ved den edsvorne erklæring for at sende.",
   "verification.attest.text": "Jeg sværger, at jeg er den advokat, der har licensen med det angivne nummer, og at licensen er gyldig. Falske oplysninger medfører udelukkelse, og ansvaret er alene mit.",
   "verification.camera.denied.body": "Giv LawBid adgang til kameraet i telefonens indstillinger, og prøv igen.",

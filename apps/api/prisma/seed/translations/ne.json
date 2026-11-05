@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "LawBid मार्फत भुक्तानी गर्न सकिन्छ",
   "trust.signal.payments.ok.self": "ग्राहकहरूले तपाईंलाई LawBid मार्फत भुक्तानी गर्न सक्छन्",
   "trust.signal.selfAttested": "शपथसहितको घोषणा स्वीकार गरियो",
+  "upload.drop.hint": "फाइलहरू यहाँ छोड्नुहोस्",
   "verification.attest.required": "पठाउन शपथमा टिक गर्नुहोस्।",
   "verification.attest.text": "माथि हालिएको नम्बरको इजाजतपत्र भएको वकिल म नै हुँ र इजाजतपत्र वैध छ भनी शपथ खान्छु। गलत जानकारी दिए खाता ब्लक हुन्छ र सबै जिम्मेवारी मेरै हो।",
   "verification.camera.denied.body": "आफ्नो फोनको सेटिङमा LawBid लाई क्यामेरा पहुँचको अनुमति दिनुहोस्, त्यसपछि फेरि प्रयास गर्नुहोस्।",

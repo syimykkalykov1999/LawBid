@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "ניתן לשלם דרך LawBid",
   "trust.signal.payments.ok.self": "לקוחות יכולים לשלם לך דרך LawBid",
   "trust.signal.selfAttested": "ההצהרה בשבועה התקבלה",
+  "upload.drop.hint": "שחררו את הקבצים כאן",
   "verification.attest.required": "סמנו את ההצהרה בשבועה כדי לשלוח.",
   "verification.attest.text": "אני נשבע שאני עורך הדין בעל הרישיון שמספרו הוזן למעלה ושהרישיון בתוקף. מידע שקרי פירושו חסימה, והאחריות כולה עליי.",
   "verification.camera.denied.body": "אפשרו ל-LawBid גישה למצלמה בהגדרות הטלפון ונסו שוב.",

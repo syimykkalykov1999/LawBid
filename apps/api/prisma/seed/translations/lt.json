@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "Galima apmokėti per LawBid",
   "trust.signal.payments.ok.self": "Klientai gali jums mokėti per LawBid",
   "trust.signal.selfAttested": "Priesaika patvirtintas pareiškimas priimtas",
+  "upload.drop.hint": "Nuvilkite failus čia",
   "verification.attest.required": "Norėdami siųsti, pažymėkite priesaikos patvirtinimą.",
   "verification.attest.text": "Prisiekiu, kad esu advokatas su aukščiau nurodyto numerio licencija ir kad licencija galioja. Melagingi duomenys reiškia užblokavimą, o visa atsakomybė tenka man.",
   "verification.camera.denied.body": "Telefono nustatymuose leiskite LawBid naudoti fotoaparatą ir bandykite dar kartą.",

@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "Can be paid through LawBid",
   "trust.signal.payments.ok.self": "Clients can pay you through LawBid",
   "trust.signal.selfAttested": "Sworn statement accepted",
+  "upload.drop.hint": "Drop files here",
   "verification.attest.required": "Tick the sworn statement to submit.",
   "verification.attest.text": "I swear that I am the attorney licensed under the number entered above and that the license is active. False information means a ban, and I alone am responsible for it.",
   "verification.camera.denied.body": "Allow camera access for LawBid in your phone settings, then try again.",

@@ -209,6 +209,14 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
       'Group chat files go through the upload queue and are sent from disk',
   },
   {
+    // On the website, files dragged from the computer land in a chat, a new
+    // post or a new case (desktop_drop). Phones never start the plugin.
+    key: 'web_file_drop',
+    enabled: false,
+    app: true,
+    description: 'Website: drag files into a chat, a post or a case',
+  },
+  {
     key: 'payments_in_app',
     enabled: false,
     app: true,

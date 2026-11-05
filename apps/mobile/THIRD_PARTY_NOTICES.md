@@ -114,3 +114,11 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## desktop_drop (MixinNetwork/flutter-plugins) — Apache-2.0
+
+Used as a pub.dev package, unchanged: dragging files onto the website.
+https://github.com/MixinNetwork/flutter-plugins/tree/main/packages/desktop_drop
+
+Licensed under the Apache License, Version 2.0. You may obtain a copy of the
+License at http://www.apache.org/licenses/LICENSE-2.0

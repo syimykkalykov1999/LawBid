@@ -6207,6 +6207,7 @@
   "trust.signal.payments.ok": "LawBid vasitəsilə ödəmək olar",
   "trust.signal.payments.ok.self": "Müştərilər Sizə LawBid vasitəsilə ödəyə bilər",
   "trust.signal.selfAttested": "Andlı bəyanat qəbul edildi",
+  "upload.drop.hint": "Faylları bura atın",
   "verification.attest.required": "Göndərmək üçün and bəyanatını qeyd edin.",
   "verification.attest.text": "Yuxarıda göstərilən nömrəli lisenziyası olan vəkil olduğuma və lisenziyanın qüvvədə olduğuna and içirəm. Yalan məlumat bloklanma deməkdir və bütün məsuliyyət yalnız mənə aiddir.",
   "verification.camera.denied.body": "Telefonunuzun ayarlarında LawBid üçün kameraya icazə verin, sonra yenidən cəhd edin.",
