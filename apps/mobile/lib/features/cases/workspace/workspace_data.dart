@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/cache/keep_alive_for.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/social/application/social_providers.dart'
@@ -16,46 +17,66 @@ final caseWorkspaceClientProvider =
 
 final caseWorkspaceProvider =
     FutureProvider.autoDispose.family<api.CaseWorkspaceDto, String>(
-  (ref, id) async => (await guardApiCall(
-    () => ref.watch(caseWorkspaceClientProvider).caseWorkspace(id: id),
-  ))
-      .data,
+  (ref, id) async {
+    // R-385: kept 2 min (no realtime here; own actions invalidate).
+    ref.keepAliveFor(KeepWindows.workspace);
+    return (await guardApiCall(
+      () => ref.watch(caseWorkspaceClientProvider).caseWorkspace(id: id),
+    ))
+        .data;
+  },
   retry: _noRetry,
 );
 
 final caseFilesProvider =
     FutureProvider.autoDispose.family<List<api.WorkspaceFileDto>, String>(
-  (ref, id) async => (await guardApiCall(
-    () => ref.watch(caseWorkspaceClientProvider).listCaseFiles(id: id),
-  ))
-      .data,
+  (ref, id) async {
+    // R-385: kept 2 min (no realtime here; own actions invalidate).
+    ref.keepAliveFor(KeepWindows.workspace);
+    return (await guardApiCall(
+      () => ref.watch(caseWorkspaceClientProvider).listCaseFiles(id: id),
+    ))
+        .data;
+  },
   retry: _noRetry,
 );
 
 final caseTasksProvider =
     FutureProvider.autoDispose.family<api.CaseTasksDto, String>(
-  (ref, id) async => (await guardApiCall(
-    () => ref.watch(caseWorkspaceClientProvider).listCaseTasks(id: id),
-  ))
-      .data,
+  (ref, id) async {
+    // R-385: kept 2 min (no realtime here; own actions invalidate).
+    ref.keepAliveFor(KeepWindows.workspace);
+    return (await guardApiCall(
+      () => ref.watch(caseWorkspaceClientProvider).listCaseTasks(id: id),
+    ))
+        .data;
+  },
   retry: _noRetry,
 );
 
 final caseUpdatesProvider =
     FutureProvider.autoDispose.family<List<api.CaseUpdateDto>, String>(
-  (ref, id) async => (await guardApiCall(
-    () => ref.watch(caseWorkspaceClientProvider).listCaseUpdates(id: id),
-  ))
-      .data,
+  (ref, id) async {
+    // R-385: kept 2 min (no realtime here; own actions invalidate).
+    ref.keepAliveFor(KeepWindows.workspace);
+    return (await guardApiCall(
+      () => ref.watch(caseWorkspaceClientProvider).listCaseUpdates(id: id),
+    ))
+        .data;
+  },
   retry: _noRetry,
 );
 
 final caseActivityProvider =
     FutureProvider.autoDispose.family<List<api.CaseActivityDto>, String>(
-  (ref, id) async => (await guardApiCall(
-    () => ref.watch(caseWorkspaceClientProvider).listCaseActivity(id: id),
-  ))
-      .data,
+  (ref, id) async {
+    // R-385: kept 2 min (no realtime here; own actions invalidate).
+    ref.keepAliveFor(KeepWindows.workspace);
+    return (await guardApiCall(
+      () => ref.watch(caseWorkspaceClientProvider).listCaseActivity(id: id),
+    ))
+        .data;
+  },
   retry: _noRetry,
 );
 

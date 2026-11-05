@@ -231,6 +231,9 @@ class ChannelCompose extends Notifier<ChannelComposeState> {
           file,
           upload,
           cancel: _cancel,
+          parallel: ref
+              .read(featureFlagsControllerProvider)
+              .isEnabled('reels_tus_parallel'),
           onProgress: (v) => _set(ChannelComposePhase.uploading, v),
         );
         _set(ChannelComposePhase.processing, 1);

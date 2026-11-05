@@ -10,6 +10,7 @@ import { ContactsService } from './services/contacts.service';
 import { ConsentsService } from './services/consents.service';
 import { AccountDeletionService } from './services/account-deletion.service';
 import { OnboardingService } from './services/onboarding.service';
+import { RoleSwitchService } from './services/role-switch.service';
 import { UserProfilesService } from './services/user-profiles.service';
 import { AccountIdentifiersService } from './services/account-identifiers.service';
 import { UsernameRegistry } from './services/username-registry.service';
@@ -38,6 +39,7 @@ import { UsernameRegistry } from './services/username-registry.service';
     ConsentsService,
     AccountDeletionService,
     OnboardingService,
+    RoleSwitchService,
     UserProfilesService,
     AccountIdentifiersService,
     UsernameRegistry,

@@ -130,4 +130,55 @@ void main() {
     expect(r.framings[1].dx, lessThan(0));
     expect(r.framings[0], const PhotoFraming());
   });
+
+  // Owner 2026-11-04 (web audit): on a desktop window the square frame used
+  // to be as wide as the window and ran below the screen with its switch.
+  testWidgets('a wide window: the frame and its switch stay on screen',
+      (tester) async {
+    const desktop = Size(1440, 900);
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = desktop;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      uxApp(
+        Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: TextButton(
+                onPressed: () => PhotoCropScreen.open(
+                  context,
+                  photos: photos,
+                  frame: PhotoFrame.square,
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+        theme: AppTheme.dark(),
+        size: desktop,
+        disableAnimations: true,
+        overrides: uxOverrides(),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    final frame =
+        tester.getRect(find.byKey(const ValueKey('photo-crop-frame')));
+    expect(frame.bottom, lessThanOrEqualTo(desktop.height));
+    expect(frame.width, lessThan(desktop.width));
+    expect(frame.center.dx, closeTo(desktop.width / 2, 1));
+    final toggle =
+        tester.getRect(find.byKey(const ValueKey('photo-crop-switch')));
+    expect(toggle.bottom, lessThanOrEqualTo(desktop.height));
+    final thumb =
+        tester.getRect(find.byKey(const ValueKey('photo-crop-thumb-1')));
+    expect(thumb.bottom, lessThanOrEqualTo(desktop.height));
+  });
 }
