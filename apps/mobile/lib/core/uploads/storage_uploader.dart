@@ -42,12 +42,12 @@ class StorageTarget {
   }
 
   Map<String, Object?> toJson() => {
-        'fileId': fileId,
-        'url': url,
-        'fields': fields,
-        'method': method,
-        'headers': headers,
-      };
+    'fileId': fileId,
+    'url': url,
+    'fields': fields,
+    'method': method,
+    'headers': headers,
+  };
 
   final String fileId;
   final String url;
@@ -86,12 +86,12 @@ abstract interface class StorageTransport {
 /// A storage refusal / a lost connection, in the app's error type (storage
 /// answers in XML, never in our error envelope).
 ApiException storageError(DioException e) => ApiException(
-      code: e.response == null
-          ? ApiException.networkErrorCode
-          : ApiErrorCodes.fileNotUploaded,
-      message: 'Upload to storage failed.',
-      statusCode: e.response?.statusCode,
-    );
+  code: e.response == null
+      ? ApiException.networkErrorCode
+      : ApiErrorCodes.fileNotUploaded,
+  message: 'Upload to storage failed.',
+  statusCode: e.response?.statusCode,
+);
 
 /// The S3 POST over Dio, with retries: a lost connection, a timeout or a
 /// busy storage (408 / 429 / 5xx) is tried again after 1 s, 2 s, 4 s …; a
@@ -127,7 +127,7 @@ class DioStorageTransport implements StorageTransport {
     CancelToken? cancel,
     String? taskId,
   }) async {
-    for (var failures = 0;; failures++) {
+    for (var failures = 0; ; failures++) {
       try {
         if (target.isPut) {
           // R2: the raw bytes with the signed headers; a fresh stream per
@@ -196,13 +196,13 @@ class StorageUploader {
     Duration Function(int failures)? partBackoff,
     PartsGate? partsGate,
     AdaptiveLimiter? limiter,
-  })  : _files = api.FilesClient(apiDio),
-        _transport = transport,
-        _forgetTransfer = forgetTransfer,
-        _storageDio = storageDio,
-        _partBackoff = partBackoff ?? DioStorageTransport.defaultBackoff,
-        _partsGate = partsGate,
-        _limiter = limiter ?? TransferLimits.uploads;
+  }) : _files = api.FilesClient(apiDio),
+       _transport = transport,
+       _forgetTransfer = forgetTransfer,
+       _storageDio = storageDio,
+       _partBackoff = partBackoff ?? DioStorageTransport.defaultBackoff,
+       _partsGate = partsGate,
+       _limiter = limiter ?? TransferLimits.uploads;
 
   /// The usual pair: the API's Dio and the plain storage Dio.
   factory StorageUploader.dio(
@@ -210,14 +210,13 @@ class StorageUploader {
     Dio storageDio, {
     Duration scanPoll = const Duration(milliseconds: 700),
     int scanMaxPolls = 40,
-  }) =>
-      StorageUploader(
-        apiDio: apiDio,
-        transport: DioStorageTransport(storageDio),
-        scanPoll: scanPoll,
-        scanMaxPolls: scanMaxPolls,
-        storageDio: storageDio,
-      );
+  }) => StorageUploader(
+    apiDio: apiDio,
+    transport: DioStorageTransport(storageDio),
+    scanPoll: scanPoll,
+    scanMaxPolls: scanMaxPolls,
+    storageDio: storageDio,
+  );
 
   final api.FilesClient _files;
   final StorageTransport _transport;
@@ -261,8 +260,7 @@ class StorageUploader {
         ),
         extras: const {RequestFlags.createsResource: true},
       ),
-    ))
-        .data;
+    )).data;
     return StorageTarget(
       fileId: d.fileId,
       url: d.upload.url,
@@ -282,16 +280,15 @@ class StorageUploader {
     CancelToken? cancel,
     String? taskId,
     StorageTransport? transport,
-  }) =>
-      (transport ?? _transport).post(
-        target,
-        body,
-        filename: filename,
-        mime: mime,
-        onProgress: onProgress,
-        cancel: cancel,
-        taskId: taskId,
-      );
+  }) => (transport ?? _transport).post(
+    target,
+    body,
+    filename: filename,
+    mime: mime,
+    onProgress: onProgress,
+    cancel: cancel,
+    taskId: taskId,
+  );
 
   /// Resumable step 2 for a big file (checklist reconciliation 2026-11-01):
   /// the file goes to storage in parts, each to its own link. After a lost
@@ -428,7 +425,7 @@ class StorageUploader {
     void Function(int sent)? onBytes,
     int attempts = 4,
   }) async {
-    for (var failures = 0;; failures++) {
+    for (var failures = 0; ; failures++) {
       try {
         await _limiter.run(
           () => storage.put<void>(
@@ -448,7 +445,11 @@ class StorageUploader {
         final temporary = c == null || c == 408 || c == 429 || c >= 500;
         if (!temporary || failures + 1 >= attempts) throw storageError(e);
         // A bad network: fewer parts at once, for this file and the others.
-        final wait = _partBackoff(failures + 1);
+        final wait = ClientTuning.partRetryWait(
+          c,
+          e.response?.headers['retry-after'],
+          _partBackoff(failures + 1),
+        );
         _limiter.rateLimit(wait);
         await Future<void>.delayed(wait);
         if (cancel?.isCancelled ?? false) rethrow;
@@ -471,9 +472,11 @@ class StorageUploader {
     int? maxPolls,
   }) async {
     var s = status;
-    for (var i = 0;
-        s == api.ScanStatus.pending && i < (maxPolls ?? scanMaxPolls);
-        i++) {
+    for (
+      var i = 0;
+      s == api.ScanStatus.pending && i < (maxPolls ?? scanMaxPolls);
+      i++
+    ) {
       await Future<void>.delayed(scanPoll);
       s = await scanStatus(fileId);
     }
@@ -527,8 +530,9 @@ class StorageUploader {
     // record is of an older try), one fresh start, with the old record gone
     // (a finished record makes the transport send nothing).
     var saved = savedTarget;
-    for (var attempt = 0;; attempt++) {
-      final target = saved ??
+    for (var attempt = 0; ; attempt++) {
+      final target =
+          saved ??
           await presign(
             purpose: purpose,
             mime: mime,
@@ -550,12 +554,10 @@ class StorageUploader {
         );
       } on ApiException catch (e) {
         final forget = _forgetTransfer;
-        final nothingThere = e.code == ApiErrorCodes.fileNotUploaded ||
+        final nothingThere =
+            e.code == ApiErrorCodes.fileNotUploaded ||
             e.code == ApiErrorCodes.notFound;
-        if (!nothingThere ||
-            attempt > 0 ||
-            taskId == null ||
-            forget == null) {
+        if (!nothingThere || attempt > 0 || taskId == null || forget == null) {
           rethrow;
         }
         await forget(taskId);
@@ -577,7 +579,8 @@ class StorageUploader {
   }) async {
     // A big file goes in resumable parts when the server offers it (and the
     // caller did not pick its own transport, e.g. the background queue).
-    final resumed = transport == null &&
+    final resumed =
+        transport == null &&
         _partsGate == null &&
         await putResumable(
           target.fileId,
