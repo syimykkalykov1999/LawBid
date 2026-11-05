@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { useEffect } from 'react';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { countsQuery } from '@/lib/live';
 import { Providers } from './providers';
 
@@ -17,6 +17,9 @@ describe('Providers', () => {
       })),
     );
   });
+  // No vitest globals here, so nothing unmounts by itself: a render left over
+  // after the last test ran once the DOM was gone (window is not defined).
+  afterEach(() => cleanup());
   afterAll(() => vi.unstubAllGlobals());
 
   function Action({ run, spy }: { run: () => Promise<unknown>; spy: (k: unknown) => void }) {

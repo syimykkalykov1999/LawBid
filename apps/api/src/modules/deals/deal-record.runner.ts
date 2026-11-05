@@ -19,6 +19,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { bullOptions } from '../../redis/redis-connection';
 import { shardContext } from '../../sharding/shard-context';
+import {
+  ChatSystemMessages,
+  type ChatChange,
+} from '../chat/chat-system.service';
 import { FilesService } from '../files/files.service';
 import { CaseJournalService } from '../journal/case-journal.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -75,6 +79,7 @@ export class DealRecordRunner
     private readonly notifications: NotificationsService,
     private readonly texts: DealRecordTexts,
     private readonly logger: PinoLogger,
+    private readonly chat: ChatSystemMessages,
   ) {
     this.logger.setContext(DealRecordRunner.name);
   }
@@ -276,7 +281,9 @@ export class DealRecordRunner
       'application/pdf',
     );
     const requestId = row.sign_request.id;
+    const chat: ChatChange[] = [];
     await withTxRetry(this.prisma, async (tx) => {
+      chat.length = 0;
       const won = await tx.dealRecord.updateMany({
         where: { id: recordId, status: 'sealing' },
         data: {
@@ -339,6 +346,16 @@ export class DealRecordRunner
           tx,
         );
       }
+      // R-392: both parties also get it in their case chat (a tap opens
+      // the case, whose top card holds the sealed PDF).
+      chat.push(
+        ...(await this.chat.post(
+          tx,
+          { case_id: row.case_id, attorney_id: row.bid.attorney_id },
+          'deal_record_sealed',
+        )),
+      );
     });
+    this.chat.publish(chat);
   }
 }
