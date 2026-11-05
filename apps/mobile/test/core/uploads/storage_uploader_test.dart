@@ -354,7 +354,9 @@ void main() {
           return ResponseBody.fromString('', 200);
         };
         expect(
-            await resumable(browser: true).putResumable('file-1', big), isTrue);
+          await resumable(browser: true).putResumable('file-1', big),
+          isTrue,
+        );
         expect(seen, hasLength(3));
       });
     });
