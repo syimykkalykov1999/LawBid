@@ -1,10 +1,10 @@
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/transfers/tus_upload.dart';
 import 'package:lawbid/features/stories/domain/story_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -45,9 +45,6 @@ class StoriesRepository {
   final api.FollowsClient _follows;
   final api.ReportsClient _reports;
   final Dio _tus;
-
-  /// TUS chunk: big enough to be fast, small enough to resume cheaply.
-  static const _chunk = 5 * 1024 * 1024;
 
   Future<List<StoryTrayItem>> tray() async =>
       (await guardApiCall(_stories.storyTray)).data.map(_trayItem).toList();
@@ -250,72 +247,26 @@ class StoriesRepository {
     StoryUpload u, {
     void Function(double)? onProgress,
     CancelToken? cancel,
+    bool parallel = false,
   }) async {
-    final size = await file.length();
-    final auth = {
-      'AuthorizationSignature': u.signature,
-      'AuthorizationExpire': '${u.expire}',
-      'VideoId': u.videoId,
-      'LibraryId': u.libraryId,
-      'Tus-Resumable': '1.0.0',
-    };
     String b64(String v) => base64.encode(utf8.encode(v));
-    final created = await _tus.post<void>(
-      u.tusEndpoint,
-      cancelToken: cancel,
-      options: Options(
+    await TusUpload(_tus).send(
+      file,
+      TusTarget(
+        endpoint: u.tusEndpoint,
         headers: {
-          ...auth,
-          'Upload-Length': '$size',
-          'Upload-Metadata':
-              'filetype ${b64('video/mp4')},title ${b64(u.videoId)}',
+          'AuthorizationSignature': u.signature,
+          'AuthorizationExpire': '${u.expire}',
+          'VideoId': u.videoId,
+          'LibraryId': u.libraryId,
+          'Tus-Resumable': '1.0.0',
         },
+        metadata: 'filetype ${b64('video/mp4')},title ${b64(u.videoId)}',
       ),
+      onProgress: onProgress,
+      cancel: cancel,
+      parallel: parallel,
     );
-    var location = created.headers.value('location');
-    if (location == null) {
-      throw const ApiException(code: 'VIDEO_UPLOAD_FAILED', message: 'tus');
-    }
-    if (!location.startsWith('http')) {
-      location = Uri.parse(u.tusEndpoint).resolve(location).toString();
-    }
-
-    var offset = 0;
-    var failures = 0;
-    while (offset < size) {
-      final len = math.min(_chunk, size - offset);
-      final bytes = <int>[];
-      await file.openRead(offset, offset + len).forEach(bytes.addAll);
-      try {
-        final r = await _tus.patch<void>(
-          location,
-          data: Stream.fromIterable([bytes]),
-          cancelToken: cancel,
-          options: Options(
-            headers: {
-              ...auth,
-              'Upload-Offset': '$offset',
-              'Content-Type': 'application/offset+octet-stream',
-              Headers.contentLengthHeader: '$len',
-            },
-          ),
-        );
-        offset = int.tryParse(r.headers.value('upload-offset') ?? '') ??
-            offset + len;
-        failures = 0;
-        onProgress?.call(offset / size);
-      } on DioException catch (e) {
-        if (CancelToken.isCancel(e) || ++failures > 5) rethrow;
-        await Future<void>.delayed(Duration(seconds: failures * 2));
-        final head = await _tus.head<void>(
-          location,
-          cancelToken: cancel,
-          options: Options(headers: auth),
-        );
-        offset =
-            int.tryParse(head.headers.value('upload-offset') ?? '') ?? offset;
-      }
-    }
   }
 
   /// `processing` until Bunny finishes, then `ready` (or `failed`).

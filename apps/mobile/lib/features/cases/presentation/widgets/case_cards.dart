@@ -894,6 +894,7 @@ class BidCard extends StatelessWidget {
     required this.formats,
     required this.onTap,
     this.onAttorneyTap,
+    this.onAccept,
     super.key,
   });
 
@@ -902,6 +903,9 @@ class BidCard extends StatelessWidget {
   final L10nFormats formats;
   final VoidCallback onTap;
   final VoidCallback? onAttorneyTap;
+
+  /// Owner 2026-11-05: on the case's Bids: «Посмотреть бид» and «Принять».
+  final VoidCallback? onAccept;
 
   @override
   Widget build(BuildContext context) {
@@ -982,12 +986,27 @@ class BidCard extends StatelessWidget {
           // Owner 2026-10-19: say what comes next — the bid's screen, where
           // it is accepted, answered with a counter-offer or declined.
           const SizedBox(height: AppSpacing.md),
-          AppButton(
-            key: ValueKey('bid-card-view-${bid.id}'),
-            label: t.t('bids.card.view'),
-            icon: AppIcons.chevronRightRounded,
-            variant: AppButtonVariant.secondary,
-            onPressed: onTap,
+          Row(
+            children: [
+              Expanded(
+                child: AppButton(
+                  key: ValueKey('bid-card-view-${bid.id}'),
+                  label: t.t('bids.card.view'),
+                  variant: AppButtonVariant.secondary,
+                  onPressed: onTap,
+                ),
+              ),
+              if (onAccept != null) ...[
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: AppButton(
+                    key: ValueKey('bid-card-accept-${bid.id}'),
+                    label: t.t('cases.accept.button'),
+                    onPressed: onAccept,
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
       ),

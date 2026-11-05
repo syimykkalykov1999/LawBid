@@ -229,12 +229,18 @@ class CaseText extends StatelessWidget {
       color: colors.text.withValues(alpha: 0.88),
     );
     if (text.trim().isEmpty) return const SizedBox.shrink();
+    // Owner 2026-11-05: a paragraph starts at the edge (left, right in RTL),
+    // whatever the column around it does with a short line.
+    Widget plain() => Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: Text(text, style: style),
+        );
     return Padding(
       padding: padding,
       child: LayoutBuilder(
         builder: (context, box) {
           final clamp = lines;
-          if (clamp == null) return Text(text, style: style);
+          if (clamp == null) return plain();
           final measured = DefaultTextStyle.of(context).style.merge(style);
           final painter = TextPainter(
             text: TextSpan(text: text, style: measured),
@@ -242,7 +248,7 @@ class CaseText extends StatelessWidget {
             textScaler: MediaQuery.textScalerOf(context),
             maxLines: clamp,
           )..layout(maxWidth: box.maxWidth);
-          if (!painter.didExceedMaxLines) return Text(text, style: style);
+          if (!painter.didExceedMaxLines) return plain();
           // Owner 2026-10-15: "more" ends the last line inside the text
           // (nothing is drawn over it, so it reads on any theme, glass too):
           // the longest start of the text that, followed by "… more", still
@@ -363,164 +369,6 @@ class CaseFileLine extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// One text tab of the case ("Overview", "Files 13", "Updates 4").
-class CaseTabItem {
-  const CaseTabItem(this.label, {this.count, this.locked = false});
-
-  final String label;
-
-  /// A plain grey number after the label (new updates, files).
-  final int? count;
-  final bool locked;
-}
-
-/// Text tabs with a gold underline, no frames (like Posts / Reels / Cases).
-class CaseTextTabs extends StatefulWidget {
-  const CaseTextTabs({
-    required this.items,
-    required this.index,
-    required this.onChanged,
-    this.pages,
-    super.key,
-  });
-
-  final List<CaseTabItem> items;
-  final int index;
-  final ValueChanged<int> onChanged;
-
-  /// The pages under the tabs: the line follows the swipe between tabs.
-  final PageController? pages;
-
-  @override
-  State<CaseTextTabs> createState() => _CaseTextTabsState();
-}
-
-class _CaseTextTabsState extends State<CaseTextTabs> {
-  late List<GlobalKey> _keys =
-      List.generate(widget.items.length, (_) => GlobalKey());
-  static const double _gap = 18;
-
-  /// How chosen tab [i] is, 0…1: follows the finger between two tabs.
-  double _chosen(int i) {
-    final pages = widget.pages;
-    var at = widget.index.toDouble();
-    if (pages != null && pages.hasClients && pages.positions.length == 1) {
-      at = pages.page ?? at;
-    }
-    return (1 - (at - i).abs()).clamp(0.0, 1.0);
-  }
-
-  @override
-  void didUpdateWidget(CaseTextTabs old) {
-    super.didUpdateWidget(old);
-    if (_keys.length != widget.items.length) {
-      _keys = List.generate(widget.items.length, (_) => GlobalKey());
-    }
-    // Owner 2026-10-15: the chosen tab slides to the middle, never cut off.
-    if (old.index != widget.index) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final ctx =
-            _keys[widget.index.clamp(0, _keys.length - 1)].currentContext;
-        if (ctx != null && ctx.mounted) {
-          Scrollable.ensureVisible(
-            ctx,
-            alignment: 0.5,
-            duration: const Duration(milliseconds: 200),
-          );
-        }
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final items = widget.items;
-    final index = widget.index;
-    final onChanged = widget.onChanged;
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    // Owner 2026-10-19: no line under the tabs — the chosen one is told by
-    // its text colour, which follows the finger between two tabs.
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
-        child: Row(
-          children: [
-            for (final (i, it) in items.indexed)
-              Semantics(
-                key: _keys[i],
-                button: true,
-                selected: i == index,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => onChanged(i),
-                  child: Container(
-                    // Owner 2026-10-15: smaller tabs, like Instagram — 13sp
-                    // (the active one semibold), ~44dp high.
-                    margin: const EdgeInsetsDirectional.only(end: _gap),
-                    padding: const EdgeInsets.only(top: 14, bottom: 12),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        AnimatedBuilder(
-                          animation: widget.pages ??
-                              const AlwaysStoppedAnimation<double>(0),
-                          builder: (context, _) => Text(
-                            it.label,
-                            key: ValueKey('case-tab-label-$i'),
-                            style: type.bodySmall.copyWith(
-                              fontWeight: i == index
-                                  ? FontWeight.w600
-                                  : FontWeight.w500,
-                              color: Color.lerp(
-                                colors.textSecondary,
-                                colors.text,
-                                _chosen(i),
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (it.locked) ...[
-                          const SizedBox(width: 4),
-                          AppIcon(
-                            AppIcons.lockOutlineRounded,
-                            size: 14,
-                            color: colors.textSecondary,
-                          ),
-                        ],
-                        if (it.count != null && it.count! > 0) ...[
-                          const SizedBox(width: 5),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6),
-                            decoration: BoxDecoration(
-                              color: colors.chip,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              context.digits(it.count ?? 0),
-                              style: type.caption.copyWith(
-                                color: colors.text,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
       ),
     );
   }
