@@ -21,6 +21,7 @@ import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dar
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/attorney_view_preview.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_close_block.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_invites_section.dart';
@@ -401,7 +402,8 @@ class _OwnerCaseBody extends ConsumerWidget {
         overview: [
           // Deal record 2026-10-27: compact copy of the Docs-tab card.
           DealRecordCard(caseId: c.id, isAttorney: false, compact: true),
-          if (c.status == CaseStatus.pendingCompletion)
+          // R-392: «Закрыть кейс» / «Подтвердить закрытие» / «Не закрывать».
+          if (CaseCloseBlock.shown(c.status))
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg,
@@ -409,18 +411,16 @@ class _OwnerCaseBody extends ConsumerWidget {
                 AppSpacing.lg,
                 0,
               ),
-              child: NoticeCard(
-                icon: AppIcons.hourglassTopRounded,
-                message: t.t(
-                  c.attorneyMarkedDone
-                      ? 'cases.owner.attorneyMarkedNotice'
-                      : 'cases.owner.pendingNotice',
-                  {
-                    'date': c.autoCloseAt == null
-                        ? ''
-                        : formats.date(c.autoCloseAt!),
-                  },
-                ),
+              child: CaseCloseBlock(
+                caseId: c.id,
+                status: c.status,
+                isAttorney: false,
+                requestedBy: c.attorneyMarkedDone
+                    ? 'attorney'
+                    : c.clientMarkedDone
+                        ? 'client'
+                        : null,
+                autoCloseAt: c.autoCloseAt,
               ),
             ),
           if (c.status == CaseStatus.disputed)

@@ -42,6 +42,19 @@ const ALLOWED: [CaseStatus, CaseAction, CaseStatus, string][] = [
   ['pending_completion', 'client_dispute', 'disputed', 'disputed'],
   ['pending_completion', 'auto_close', 'closed', 'auto_closed'],
   ['pending_completion', 'attorney_dispute', 'disputed', 'disputed'],
+  // R-392 «Не закрывать»: back to work.
+  [
+    'pending_completion',
+    'client_decline_completion',
+    'in_progress',
+    'completion_declined',
+  ],
+  [
+    'pending_completion',
+    'attorney_decline_completion',
+    'in_progress',
+    'completion_declined',
+  ],
   ['disputed', 'admin_resolve_close', 'closed', 'dispute_resolved'],
   ['disputed', 'admin_resolve_reopen', 'in_progress', 'dispute_resolved'],
   // docs/06 §5.1: account anonymization closes the cases still in work.
@@ -97,9 +110,9 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
     CASE_ACTIONS.map((a) => [s, a] as const),
   );
 
-  it('covers every status × action pair (6 × 25)', () => {
-    expect(CASE_ACTIONS).toHaveLength(25);
-    expect(pairs).toHaveLength(150);
+  it('covers every status × action pair (6 × 27)', () => {
+    expect(CASE_ACTIONS).toHaveLength(27);
+    expect(pairs).toHaveLength(162);
   });
 
   it.each(pairs)('%s + %s', (from, action) => {
@@ -138,6 +151,7 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
         'in_progress->closed',
         'pending_completion->closed',
         'pending_completion->disputed',
+        'pending_completion->in_progress',
         'disputed->closed',
         'disputed->in_progress',
       ].sort(),
@@ -232,6 +246,45 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
     expect(planCaseTransition('archived', 'client_delete', ctx).data).toEqual({
       deleted_at: now,
     });
+  });
+
+  it('R-392: «Не закрывать» voids the request; the wait is the admin setting', () => {
+    for (const action of [
+      'client_decline_completion',
+      'attorney_decline_completion',
+    ] as const) {
+      expect(
+        planCaseTransition('pending_completion', action, ctx).data,
+      ).toEqual({
+        status: 'in_progress',
+        client_completed_at: null,
+        attorney_confirmed_at: null,
+        auto_close_at: null,
+        last_activity_at: now,
+      });
+    }
+    const day = 24 * 3600 * 1000;
+    expect(
+      planCaseTransition('in_progress', 'client_complete', {
+        ...ctx,
+        closeConfirmDays: 3,
+      }).data.auto_close_at,
+    ).toEqual(new Date(now.getTime() + 3 * day));
+    expect(
+      planCaseTransition('in_progress', 'attorney_complete', {
+        ...ctx,
+        closeConfirmDays: 14,
+      }).data.auto_close_at,
+    ).toEqual(new Date(now.getTime() + 14 * day));
+    // A broken setting falls back to 7 days.
+    for (const bad of [0, -2, Number.NaN]) {
+      expect(
+        planCaseTransition('in_progress', 'client_complete', {
+          ...ctx,
+          closeConfirmDays: bad,
+        }).data.auto_close_at,
+      ).toEqual(new Date(now.getTime() + AUTO_CLOSE_AFTER_MS));
+    }
   });
 
   it('accept_bid without a bid id is a programming error', () => {

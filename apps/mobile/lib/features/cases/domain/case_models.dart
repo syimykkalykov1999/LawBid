@@ -564,6 +564,7 @@ class FeedCase {
     this.priorityClient = false,
     this.extraPracticeCount = 0,
     this.completionRequestedBy,
+    this.autoCloseAt,
     this.acceptedBidIsMine = false,
     this.coverKey,
     this.urgency,
@@ -607,6 +608,9 @@ class FeedCase {
 
   /// `client` / `attorney`: who marked "Done" first (waiting for the other).
   final String? completionRequestedBy;
+
+  /// R-392: when a close request closes by itself without an answer.
+  final DateTime? autoCloseAt;
 
   /// Owner 2026-09-30: the case's practice is one of this attorney's
   /// (detail only; a bid from outside them warns the client).
@@ -688,6 +692,7 @@ class FeedCase {
         promoted: promoted,
         priorityClient: priorityClient,
         completionRequestedBy: completionRequestedBy,
+        autoCloseAt: autoCloseAt,
         coverKey: coverKey,
         urgency: urgency,
         urgencyDetail: urgencyDetail,
