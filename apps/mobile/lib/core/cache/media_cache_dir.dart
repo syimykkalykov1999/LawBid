@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
+import 'package:lawbid/core/cache/web_cache_storage.dart';
 import 'package:lawbid/core/persistence/drift_web.dart' show isFlutterTest;
 import 'package:path_provider/path_provider.dart';
 
@@ -18,11 +19,23 @@ abstract interface class CachedFiles {
 /// flutter_cache_manager cache (the package itself only counts files).
 /// The cache's folder lives under the temporary directory, named by its
 /// key; this measures it, trims the oldest files past a limit and empties
-/// it. On the web the browser keeps media itself (nothing to measure).
+/// it. On the web (2026-11-03) the same key names a browser Cache Storage
+/// cache ([WebCacheStorage]); the page-level HTTP cache of images and video
+/// is the browser's own and is not counted.
 class MediaCacheDir implements CachedFiles {
-  const MediaCacheDir(this.key, {this.root});
+  const MediaCacheDir(this.key, {this.root, this.web, this.onWeb});
 
   final String key;
+
+  /// The browser store; the app's own unless a test gives one.
+  final WebCacheStorage? web;
+
+  /// Test hook: pretend to run in a browser (null: the real platform).
+  final bool? onWeb;
+
+  bool get _browser => onWeb ?? kIsWeb;
+
+  WebCacheStorage get _store => web ?? WebCacheStorage.instance;
 
   /// Where the folders live; the temporary directory unless a test gives
   /// its own.
@@ -48,6 +61,7 @@ class MediaCacheDir implements CachedFiles {
 
   /// Bytes on disk (0 when the folder does not exist yet).
   Future<int> size() async {
+    if (_browser) return _store.sizeOf(key);
     final dir = await _dir();
     if (dir == null) return 0;
     var total = 0;
@@ -80,11 +94,14 @@ class MediaCacheDir implements CachedFiles {
 
   /// Deletes the least recently changed files until the folder fits
   /// [limitBytes]; answers how many bytes went.
-  Future<int> trimTo(int limitBytes) => trimPoolTo([this], limitBytes);
+  Future<int> trimTo(int limitBytes) => _browser
+      ? _store.trimTo(key, limitBytes)
+      : trimPoolTo([this], limitBytes);
 
   /// Deletes files older than [maxAge] (the «Хранить медиа» rule applied
   /// at once, not only on the next lookup).
   Future<int> dropOlderThan(Duration maxAge) async {
+    if (_browser) return _store.dropOlderThan(key, maxAge);
     final dir = await _dir();
     if (dir == null) return 0;
     final cutoff = DateTime.now().subtract(maxAge);
@@ -107,6 +124,10 @@ class MediaCacheDir implements CachedFiles {
   /// Empties the folder but keeps it (a cache that is already running
   /// writes into it and never recreates it).
   Future<void> clearContents() async {
+    if (_browser) {
+      await _store.clear(key);
+      return;
+    }
     final dir = await _dir();
     if (dir == null) return;
     try {
@@ -123,6 +144,10 @@ class MediaCacheDir implements CachedFiles {
   }
 
   Future<void> clear() async {
+    if (_browser) {
+      await _store.clear(key);
+      return;
+    }
     final dir = await _dir();
     if (dir == null) return;
     try {

@@ -219,6 +219,12 @@ class PostVideo {
   String? playerUrl({required bool web, bool hlsOnly = false}) =>
       !hlsOnly && prefersMp4(web: web) ? fallbackUrl : playbackUrl;
 
+  /// The stream whose first bytes are fetched ahead of the viewer: what the
+  /// player will open (a browser plays the MP4, a phone the HLS playlist;
+  /// a phone's short-clip MP4 is not warmed, as before).
+  String? warmUrl({required bool web}) =>
+      ready ? (web ? playerUrl(web: true) : playbackUrl) : null;
+
   /// True when [playerUrl] is the MP4 copy, not the HLS playlist.
   bool usesMp4({required bool web, bool hlsOnly = false}) =>
       !hlsOnly && prefersMp4(web: web);

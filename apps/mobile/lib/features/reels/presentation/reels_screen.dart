@@ -127,10 +127,12 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   /// are fetched before the finger gets to them (the players of the two
   /// neighbours are already open — see WarmPlan).
   void _warmAhead(List<Post> items, int index) {
-    if (kIsWeb) return;
+    // A browser warms the next two only (its connections are shared with
+    // the video on screen).
+    final ahead = WarmPlan.at(index, items.length).prefetch;
     HlsPrefetcher.instance.prefetchAll([
-      for (final i in WarmPlan.at(index, items.length).prefetch)
-        if (items[i].video?.ready ?? false) items[i].video!.playbackUrl!,
+      for (final i in kIsWeb ? ahead.take(2) : ahead)
+        if (items[i].video?.warmUrl(web: kIsWeb) case final u?) u,
     ]);
   }
 

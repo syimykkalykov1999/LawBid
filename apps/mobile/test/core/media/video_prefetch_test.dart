@@ -115,6 +115,38 @@ void main() {
     expect(net.requests, isEmpty);
   });
 
+  group('in a browser (plays the MP4, not HLS)', () {
+    HlsPrefetcher web(_Net net) => HlsPrefetcher(
+          dio: Dio()..httpClientAdapter = net,
+          web: true,
+        );
+
+    test('warms only the first bytes of an MP4, one at a time', () async {
+      final net = _Net()..gate = Completer<void>();
+      final p = web(net);
+      expect(p.maxConcurrent, 1);
+      expect(p.maxSegmentBytes, 512 * 1024);
+      p
+        ..prefetch('https://cdn.test/a.mp4?token=1')
+        ..prefetch('https://cdn.test/b.mp4');
+      await _settle();
+      expect(p.running, 1);
+      expect(p.queued, 1);
+      net.gate!.complete();
+      await _settle(net);
+      expect(net.requests, hasLength(2));
+      expect(p.warmed('https://cdn.test/a.mp4?token=1'), isTrue);
+      expect(p.warmed('https://cdn.test/b.mp4'), isTrue);
+    });
+
+    test('still ignores other links', () async {
+      final net = _Net();
+      web(net).prefetch('https://cdn.test/doc.pdf');
+      await _settle();
+      expect(net.requests, isEmpty);
+    });
+  });
+
   test('is bounded: concurrency, waiting wishes and remembered streams',
       () async {
     final net = _Net()..gate = Completer<void>();

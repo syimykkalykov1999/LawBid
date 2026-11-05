@@ -67,4 +67,13 @@ void main() {
     );
     expect(noCopy.usesMp4(web: false), isFalse);
   });
+
+  test('the stream warmed ahead is the one the player will open', () {
+    expect(both.warmUrl(web: true), 'https://cdn/x/play_720p.mp4');
+    expect(both.warmUrl(web: false), 'https://cdn/x/playlist.m3u8');
+    expect(hlsOnly.warmUrl(web: true), 'https://cdn/x/playlist.m3u8');
+    const processing = PostVideo(status: 'processing');
+    expect(processing.warmUrl(web: true), isNull);
+    expect(processing.warmUrl(web: false), isNull);
+  });
 }
