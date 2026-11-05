@@ -359,6 +359,8 @@
   "call.add": "Qo‘shish",
   "call.addParticipant": "Ishtirokchi qo‘shish",
   "call.addParticipantSoon": "Guruh qo‘ng‘iroqlari tez orada qo‘shiladi.",
+  "call.audio.headphones": "Quloqchin",
+  "call.audio.phone": "Telefon",
   "call.audioOnly": "LawBid audio qo‘ng‘irog‘i",
   "call.button": "Qo‘ng‘iroq",
   "call.camera": "Kamera",

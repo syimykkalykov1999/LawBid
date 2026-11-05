@@ -359,6 +359,8 @@
   "call.add": "Lisa",
   "call.addParticipant": "Lisa osaleja",
   "call.addParticipantSoon": "Grupikõned tulevad varsti.",
+  "call.audio.headphones": "Kõrvaklapid",
+  "call.audio.phone": "Telefon",
   "call.audioOnly": "LawBid helikõne",
   "call.button": "Helista",
   "call.camera": "Kaamera",

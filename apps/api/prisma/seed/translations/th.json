@@ -359,6 +359,8 @@
   "call.add": "เพิ่ม",
   "call.addParticipant": "เพิ่มผู้เข้าร่วม",
   "call.addParticipantSoon": "การโทรเป็นกลุ่มจะมาในเร็ว ๆ นี้",
+  "call.audio.headphones": "หูฟัง",
+  "call.audio.phone": "โทรศัพท์",
   "call.audioOnly": "การโทรด้วยเสียงของ LawBid",
   "call.button": "โทร",
   "call.camera": "กล้อง",

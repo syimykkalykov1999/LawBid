@@ -359,6 +359,8 @@
   "call.add": "Afegeix",
   "call.addParticipant": "Afegeix un participant",
   "call.addParticipantSoon": "Les trucades de grup arribaran aviat.",
+  "call.audio.headphones": "Auriculars",
+  "call.audio.phone": "Telèfon",
   "call.audioOnly": "Trucada d’àudio de LawBid",
   "call.button": "Truca",
   "call.camera": "Càmera",

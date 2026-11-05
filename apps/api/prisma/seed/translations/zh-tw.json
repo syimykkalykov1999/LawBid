@@ -359,6 +359,8 @@
   "call.add": "新增",
   "call.addParticipant": "新增參與者",
   "call.addParticipantSoon": "群組通話即將推出。",
+  "call.audio.headphones": "耳機",
+  "call.audio.phone": "手機",
   "call.audioOnly": "LawBid 語音通話",
   "call.button": "通話",
   "call.camera": "相機",

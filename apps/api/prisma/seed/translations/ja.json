@@ -359,6 +359,8 @@
   "call.add": "追加",
   "call.addParticipant": "参加者を追加",
   "call.addParticipantSoon": "グループ通話は近日対応予定です。",
+  "call.audio.headphones": "ヘッドフォン",
+  "call.audio.phone": "電話",
   "call.audioOnly": "LawBid音声通話",
   "call.button": "通話",
   "call.camera": "カメラ",

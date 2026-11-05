@@ -359,6 +359,8 @@
   "call.add": "Gehitu",
   "call.addParticipant": "Gehitu parte-hartzailea",
   "call.addParticipantSoon": "Talde-deiak laster iritsiko dira.",
+  "call.audio.headphones": "Entzungailuak",
+  "call.audio.phone": "Telefonoa",
   "call.audioOnly": "LawBid audio-deia",
   "call.button": "Deitu",
   "call.camera": "Kamera",
