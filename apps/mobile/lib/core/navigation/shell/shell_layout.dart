@@ -232,6 +232,11 @@ const Set<String> kSettingsSectionPaths = {
   '/profile/settings/promotions',
   '/profile/settings/contacts',
   '/profile/settings/payouts',
+  '/auth/change-password',
+  '/consultations',
+  '/profile/settings/consultations',
+  '/team',
+  '/trust/me',
 };
 
 /// Desktop web plan §6.5: someone's public profile page (`/lawyer/:name`)
