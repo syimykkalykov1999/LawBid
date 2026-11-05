@@ -160,6 +160,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     try {
       final page = await ref.read(reelsRepositoryProvider).reels(
             practice: widget.practice,
+            fresh: true,
           );
       if (!mounted) return;
       final fresh = [
@@ -224,6 +225,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     try {
       final page = await ref.read(reelsRepositoryProvider).reels(
             practice: widget.practice,
+            fresh: true,
           );
       if (!mounted) return;
       // A reel opened from a feed card stays first.
