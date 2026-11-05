@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/settings/account/data/account_repository.dart';
 import 'package:lawbid/features/settings/account/domain/account_identifier.dart';
@@ -11,6 +12,12 @@ final accountApiClientProvider = Provider<AccountApiClient>(
 /// Swappable in tests (same pattern as `onboardingRepositoryProvider`).
 final accountRepositoryProvider = Provider<AccountRepository>(
   (ref) => ApiAccountRepository(ref.watch(accountApiClientProvider)),
+);
+
+/// Admin «Смена профиля адвокат ⇄ клиент» (flag `role_switch`, off by
+/// default; the API answers 404 while it is off).
+final roleSwitchEnabledProvider = Provider<bool>(
+  (ref) => ref.watch(featureFlagsControllerProvider).isEnabled('role_switch'),
 );
 
 /// Settings → Account list (docs/01 §10.3). autoDispose: re-fetched every

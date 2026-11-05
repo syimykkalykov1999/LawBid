@@ -81,6 +81,7 @@ export type MissingItem =
   | 'identity_document'
   | 'identity_document_back'
   | 'selfie'
+  | 'photo'
   | `bar_license:${string}`
   | `file_not_clean:${string}`;
 
@@ -162,6 +163,19 @@ export class VerificationRequestsService {
       }
     }
     return false;
+  }
+
+  /** Owner 2026-11-05: true when the attorney has their own clean profile
+   * photo, or the check is off (`verification.require_photo`). */
+  private async attorneyPhotoOk(userId: string): Promise<boolean> {
+    if (!(await this.settings.boolean('verification.require_photo'))) {
+      return true;
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatar_file_id: true },
+    });
+    return this.files.isCleanAvatar(user?.avatar_file_id ?? null, userId);
   }
 
   /** Photo of the bar card per license: optional unless switched on. */
@@ -678,6 +692,7 @@ export class VerificationRequestsService {
     const { verificationStatus } = await this.requireActiveAttorney(userId);
     const max = await this.settings.number('verification.max_submissions_30d');
     const barDocRequired = await this.barDocumentRequired();
+    const photoOk = await this.attorneyPhotoOk(userId);
     let identityRequired = false;
     const firstSubmission = await withTxRetry(this.prisma, async (tx) => {
       const req = await this.load(tx, userId, requestId);
@@ -695,6 +710,8 @@ export class VerificationRequestsService {
         identityRequired,
         barDocRequired,
       );
+      // Owner 2026-11-05: a new submission needs the attorney's photo.
+      if (submissionPhotoMissing(fromDraft, photoOk)) missing.push('photo');
       // Owner 2026-10-04: a new submission carries the sworn statement.
       if (fromDraft && dto.attestation !== true) missing.unshift('attestation');
       if (missing.length > 0) {
@@ -938,6 +955,16 @@ export function documentShape(dto: {
     side: isIdentity ? (dto.side ?? 'front') : null,
     stateCode: dto.stateCode ?? null,
   };
+}
+
+/** Owner 2026-11-05: only a NEW submission (from a draft) asks for the
+ * photo — an answer to «needs more info» on a request already sent is
+ * never refused for it, so older app builds keep working. */
+export function submissionPhotoMissing(
+  fromDraft: boolean,
+  photoOk: boolean,
+): boolean {
+  return fromDraft && !photoOk;
 }
 
 /** null when some identity document type is complete (front, plus back

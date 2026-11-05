@@ -26,10 +26,10 @@ class BillingTab extends ConsumerStatefulWidget {
   final bool isAttorney;
 
   @override
-  ConsumerState<BillingTab> createState() => _BillingTabState();
+  ConsumerState<BillingTab> createState() => BillingTabState();
 }
 
-class _BillingTabState extends ConsumerState<BillingTab>
+class BillingTabState extends ConsumerState<BillingTab>
     with WidgetsBindingObserver, ResumeRefreshGate {
   bool _busy = false;
 
@@ -105,7 +105,8 @@ class _BillingTabState extends ConsumerState<BillingTab>
     });
   }
 
-  Future<void> _addTime() async {
+  /// Owner 2026-11-05: the round «+» of the Time tab calls these two.
+  Future<void> addTime() async {
     final r = await showTimeSheet(context);
     if (r == null || !mounted) return;
     await _do(
@@ -157,7 +158,7 @@ class _BillingTabState extends ConsumerState<BillingTab>
     );
   }
 
-  Future<void> _addExpense() async {
+  Future<void> addExpense() async {
     final d = _data;
     if (d == null) return;
     final r = await showExpenseSheet(context, currency: d.currency);
@@ -272,30 +273,6 @@ class _BillingTabState extends ConsumerState<BillingTab>
                   canIssue: canEdit && !_busy && d.unbilled.totalCents > 0,
                   onIssue: () => _issue(d),
                 ),
-                if (canEdit) ...[
-                  const SizedBox(height: AppSpacing.md),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: AppButton(
-                          label: t.t('billing.addTime'),
-                          icon: AppIcons.addRounded,
-                          variant: AppButtonVariant.secondary,
-                          onPressed: _addTime,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: AppButton(
-                          label: t.t('billing.addExpense'),
-                          icon: AppIcons.addRounded,
-                          variant: AppButtonVariant.secondary,
-                          onPressed: _addExpense,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
                 ..._timeRows(d, t, formats, canEdit),
                 ..._expenseRows(d, t, formats, canEdit),
               ] else

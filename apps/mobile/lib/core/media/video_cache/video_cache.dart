@@ -100,6 +100,18 @@ abstract final class VideoCache {
     commands.send(('max', max));
   }
 
+  /// R-251: the server's number of blocks at once (it may arrive after the
+  /// proxy started).
+  static void _syncBlocks() {
+    final commands = _commands;
+    final n = ClientTuning.videoBlocksAtOnce;
+    if (commands == null || n == _sentBlocks) return;
+    _sentBlocks = n;
+    commands.send(('blocks', n));
+  }
+
+  static int _sentBlocks = 1;
+
   /// Completes once a proxy that is starting is up (or failed to start).
   static Future<void> settled() async => await _starting;
 
@@ -112,6 +124,7 @@ abstract final class VideoCache {
     _starting = null;
     _failedAt = null;
     _sentMaxBytes = -1;
+    _sentBlocks = 1;
     _storeLimitBytes = null;
   }
 
@@ -152,6 +165,7 @@ abstract final class VideoCache {
       return url;
     }
     _syncMax();
+    _syncBlocks();
     final u = Uri.parse(url);
     return VideoCacheProxy.wrapUrl(
       port: port,
@@ -247,6 +261,8 @@ Future<void> _proxyMain(_ProxyStart s) async {
     ..listen((Object? m) async {
       if (m is (String, int) && m.$1 == 'max') {
         await cache.setMaxBytes(m.$2);
+      } else if (m is (String, int) && m.$1 == 'blocks') {
+        proxy.blocksAtOnce = m.$2;
       } else if (m is (String, int) && m.$1 == 'trim') {
         await cache.trimTo(m.$2);
       } else if (m is (String, int) && m.$1 == 'age') {
