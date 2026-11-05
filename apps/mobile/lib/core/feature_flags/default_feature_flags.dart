@@ -64,6 +64,7 @@ const Map<String, bool> defaultFeatureFlags = {
   'news_posts': false,
   'phone_login': true,
   'demo_code_login': true,
+  'role_switch': false,
   'email_login': false,
   'apple_login': true,
   'google_login': true,
