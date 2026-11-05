@@ -71,7 +71,18 @@ export function buildPracticeTree(rows: AreaRow[]): PracticeAreaCategoryDto[] {
  * docs/03 §3.2 practices: the reference tree and the attorney's own
  * selection (attorney_practice_areas, docs/02 §4.C — "Запись допускается
  * только при verification_status = 'verified' (проверка в сервисе)").
+ * Owner 2026-11-05: also while the licence is under review (`pending`) —
+ * practice areas are a required step of sign-up again, and since
+ * 2026-10-16 a licence waits for a registry match or an admin.
  */
+/** Who may save practice areas: a verified attorney, and (owner
+ * 2026-11-05) one whose licence is under review — sign-up asks for them
+ * right after the licence is sent. Never unverified, rejected or
+ * suspended. */
+export function canSavePractices(status: string): boolean {
+  return status === 'verified' || status === 'pending';
+}
+
 @Injectable()
 export class PracticeAreasService {
   constructor(
@@ -160,7 +171,8 @@ export class PracticeAreasService {
 
   /**
    * PUT /attorneys/me/practice-areas: replaces the whole set in one
-   * transaction. Only a `verified` attorney (403 ATTORNEY_NOT_VERIFIED,
+   * transaction. Only a `verified` or `pending` attorney (403
+   * ATTORNEY_NOT_VERIFIED for unverified / rejected / suspended,
    * re-checked inside the transaction so a concurrent suspension wins);
    * only active leaves under an active category (400 VALIDATION_ERROR
    * with details.invalidIds). The change goes to audit_log (§3.2) with
@@ -175,7 +187,7 @@ export class PracticeAreasService {
       this.prisma,
       userId,
     );
-    if (verificationStatus !== 'verified') throw attorneyNotVerified();
+    if (!canSavePractices(verificationStatus)) throw attorneyNotVerified();
 
     const wanted = [...new Set(ids)];
     const valid =
@@ -209,7 +221,7 @@ export class PracticeAreasService {
         select: { verification_status: true },
       });
       if (!profile) throw notFound();
-      if (profile.verification_status !== 'verified') {
+      if (!canSavePractices(profile.verification_status)) {
         throw attorneyNotVerified();
       }
       const current = (
