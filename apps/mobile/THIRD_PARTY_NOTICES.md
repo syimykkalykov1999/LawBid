@@ -131,3 +131,17 @@ The parallel part loop in `lib/core/uploads/storage_uploader.dart` follows
 (https://github.com/aws/aws-sdk-js-v3). Copyright Amazon.com, Inc. or its
 affiliates. Licensed under the Apache License, Version 2.0, as for
 livekit_client above.
+
+## Uppy `RateLimitedQueue` — MIT
+
+The limit logic of `lib/core/transfers/adaptive_limiter.dart` is the Dart form
+of `packages/@uppy/utils/src/RateLimitedQueue.ts`, tag `uppy@4.0.0`,
+https://github.com/transloadit/uppy. Copyright (c) 2018 Transloadit. MIT
+License (full text as in the fl_chart notice above).
+
+## dio `downloadWithChunks` — MIT
+
+The piece download of `lib/core/files/resumable_download.dart` follows
+`example_dart/lib/download_with_trunks.dart` of https://github.com/cfug/dio
+(branch main, read 2026-11-05). Copyright (c) 2018 Wen Du (wendux), 2023 The
+CFUG Team. MIT License (full text as in the fl_chart notice above).

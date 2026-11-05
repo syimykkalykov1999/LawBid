@@ -15,3 +15,12 @@ StorageTransport queueTransport({required StorageTransport fallback}) =>
 /// cancelled the upload). Best effort; a no-op where there is no OS service.
 Future<void> cancelBackgroundUpload(String taskId) =>
     impl.cancelBackgroundUpload(taskId);
+
+/// Whether the OS holds a transfer of the queue job [taskId] that is running
+/// or finished (it must not be sent a second way).
+Future<bool> backgroundUploadKnown(String taskId) =>
+    impl.backgroundUploadKnown(taskId);
+
+/// Whether queued uploads have an OS transfer to fall back on when the app
+/// leaves the screen.
+bool get backgroundHandsOff => impl.backgroundHandsOff;
