@@ -280,6 +280,17 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
       "The store's «Rate LawBid» dialog, shown once after a positive moment (iOS and Android)",
   },
   {
+    // Owner 2026-11-05: Settings → Account «Сменить профиль» — the same
+    // account (same phone and password, no SMS) switches between the
+    // attorney and the client profile; both profiles are kept. Off until
+    // the owner turns it on.
+    key: 'role_switch',
+    enabled: false,
+    app: true,
+    description:
+      'Switch the account between the attorney and the client profile (Settings → Account), confirmed with the password or a passkey',
+  },
+  {
     // Owner 2026-10-13: sign in with a password, no SMS each time.
     key: 'password_login',
     enabled: true,

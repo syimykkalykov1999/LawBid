@@ -124,6 +124,19 @@ void main() {
     expect(backend.lastNote, isNull);
   });
 
+  testWidgets('owner 2026-11-05: the bar card comes from the photo gallery too',
+      (tester) async {
+    final backend = FakeVerificationBackend();
+    final source = FakeDocumentSource();
+    await openSheet(tester, backend, source: source);
+    await fill(tester, 'Alabama', 'NOFMT');
+    await tapText(tester, 'Add license');
+    await tapText(tester, 'My number is correct — send it for review');
+    await tapText(tester, 'Photo library');
+    expect(source.pickAllowPdf, [false]);
+    expect(find.text('license.jpg'), findsOneWidget);
+  });
+
   testWidgets('the 5th refusal locks: the time left appears at once',
       (tester) async {
     final backend = FakeVerificationBackend();

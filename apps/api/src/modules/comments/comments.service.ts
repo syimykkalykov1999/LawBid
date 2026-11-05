@@ -430,6 +430,9 @@ export class CommentsService {
           first_name: true,
           last_name: true,
           avatar_file_id: true,
+          // R-387 (owner 04.11): a client's handle, so a tap on the
+          // comment opens their public mini-profile (OQ-026).
+          client_profile: { select: { username: true } },
           attorney_profile: {
             select: {
               username: true,
@@ -453,12 +456,13 @@ export class CommentsService {
       this.counters.pending('comment', 'reply_count', ids),
     ]);
     const byId = new Map(authors.map((a) => [a.id, a]));
-    const attorneys = authors.filter((a) => a.role === 'attorney');
+    // R-387 (owner 04.11): clients' photos too (they showed initials).
+    // avatarUrlsMany keeps a photo its owner hides from this viewer.
     const files = await this.files.avatarUrlsMany(
-      attorneys.map((a) => a.avatar_file_id),
+      authors.map((a) => a.avatar_file_id),
     );
     const avatar = new Map<string, string | null>(
-      attorneys.map((a) => [
+      authors.map((a) => [
         a.id,
         a.avatar_file_id ? (files.get(a.avatar_file_id)?.url256 ?? null) : null,
       ]),
@@ -487,12 +491,12 @@ export class CommentsService {
           : {
               kind: 'client' as const,
               attorneyId: null,
-              username: null,
+              username: a?.client_profile?.username ?? null,
               displayName: clientDisplayName(
                 a?.first_name ?? null,
                 a?.last_name ?? null,
               ),
-              avatarUrl: null,
+              avatarUrl: avatar.get(r.author_id) ?? null,
               verifiedBadge: false,
             },
         body: r.body,

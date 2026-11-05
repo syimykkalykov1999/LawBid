@@ -110,7 +110,7 @@ describe('PracticeAreasService.replace', () => {
     return { svc, tx, prisma, state };
   }
 
-  it.each(['unverified', 'pending', 'rejected', 'suspended'])(
+  it.each(['unverified', 'rejected', 'suspended'])(
     '%s attorney -> 403 ATTORNEY_NOT_VERIFIED, nothing written',
     async (status) => {
       const { svc, prisma } = service({ status, validIds: ['a'] });
@@ -121,6 +121,14 @@ describe('PracticeAreasService.replace', () => {
       expect(prisma.$transaction).not.toHaveBeenCalled();
     },
   );
+
+  it('owner 2026-11-05: a pending attorney (licence under review) saves practices', async () => {
+    const { svc, tx } = service({ status: 'pending', validIds: ['a'] });
+    await svc.replace('u', ['a']);
+    expect(tx.attorneyPracticeArea.createMany).toHaveBeenCalledWith({
+      data: [{ attorney_id: 'u', practice_area_id: 'a' }],
+    });
+  });
 
   it('client -> 403 FORBIDDEN', async () => {
     const { svc } = service({ role: 'client' });
