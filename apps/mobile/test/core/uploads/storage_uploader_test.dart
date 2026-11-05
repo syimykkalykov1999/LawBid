@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -360,6 +361,118 @@ void main() {
       };
       await resumable().putResumable('file-1', big);
       expect(calls, 2);
+    });
+
+    // R-251 / R-253.
+    group('in parallel', () {
+      Map<String, Object?> plan10(List<int> uploaded, List<int> todo) => {
+            'data': {
+              'partSizeBytes': 8 * mib,
+              'partCount': 10,
+              'uploadedParts': uploaded,
+              'parts': [
+                for (final n in todo)
+                  {'partNumber': n, 'url': 'https://s3.test/p$n'},
+              ],
+              'expiresAt': '2026-11-01T12:00:00.000Z',
+            },
+          };
+      final large = UploadBody.bytes(Uint8List(80 * mib));
+
+      void serveTenParts() {
+        var plans = 0;
+        final inner = apiAdapter.handler;
+        apiAdapter.handler = (o) async {
+          if (o.path == '/files/file-1/multipart') {
+            plans++;
+            return jsonBody(
+              plans == 1
+                  ? plan10([], List.generate(10, (i) => i + 1))
+                  : plan10(List.generate(10, (i) => i + 1), []),
+            );
+          }
+          if (o.path == '/files/file-1/multipart/complete') {
+            return jsonBody({
+              'data': {'sizeBytes': 80 * mib},
+            });
+          }
+          return inner(o);
+        };
+      }
+
+      test('never more than four parts at once, and four are reached',
+          () async {
+        serveTenParts();
+        var now = 0;
+        var most = 0;
+        storage.handler = (o) async {
+          most = math.max(most, ++now);
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+          now--;
+          return ResponseBody.fromString('', 200);
+        };
+        final progress = <double>[];
+        expect(
+          await resumable().putResumable(
+            'file-1',
+            large,
+            onProgress: progress.add,
+          ),
+          isTrue,
+        );
+        expect(most, StorageUploader.partsAtOnce);
+        expect(storage.requests.map((r) => r.path).toSet(), hasLength(10));
+        expect(progress.last, 1);
+        expect(
+          apiAdapter.requests.last.path,
+          '/files/file-1/multipart/complete',
+        );
+      });
+
+      test('a refused part stops the rest and its error is what is seen',
+          () async {
+        serveTenParts();
+        storage.handler = (o) async {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+          if (o.path.endsWith('/p2')) {
+            return ResponseBody.fromString('', 403);
+          }
+          return ResponseBody.fromString('', 200);
+        };
+        await expectLater(
+          resumable().putResumable('file-1', large),
+          throwsA(
+            isA<ApiException>()
+                .having((e) => e.statusCode, 'status', 403)
+                .having((e) => e.code, 'code', ApiErrorCodes.fileNotUploaded),
+          ),
+        );
+        // Only the first batch started; the plan is not completed.
+        expect(storage.requests.length, lessThanOrEqualTo(5));
+        expect(
+          apiAdapter.requests.map((r) => r.path),
+          isNot(contains('/files/file-1/multipart/complete')),
+        );
+      });
+
+      test('cancel stops every part', () async {
+        serveTenParts();
+        final cancel = CancelToken();
+        storage.handler = (o) async {
+          cancel.cancel();
+          return ResponseBody.fromString('', 200);
+        };
+        await expectLater(
+          resumable().putResumable('file-1', large, cancel: cancel),
+          throwsA(
+            isA<DioException>().having(
+              CancelToken.isCancel,
+              'cancelled',
+              isTrue,
+            ),
+          ),
+        );
+      });
     });
 
     test('flag off or a small file: false, nothing sent to storage', () async {

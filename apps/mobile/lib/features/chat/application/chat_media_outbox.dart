@@ -90,6 +90,10 @@ class ChatMediaHandler extends UploadJobHandler {
         taskId: job.id,
         savedTarget: StorageTarget.fromJson(job.progress['target']),
         onTarget: (t) => scope.saveProgress({'target': t.toJson()}),
+        // R-251: parts already in storage are not sent again after a restart.
+        resumeFileId: job.progress['partsFileId'] as String?,
+        onPartsFileId: (id) =>
+            unawaited(scope.saveProgress({'partsFileId': id})),
       );
     }
     await scope.saveFileId(fileId);

@@ -595,4 +595,11 @@ export enum ErrorCode {
   // 400: the payment terms object breaks the rules of its type.
   // details: { problems: string[] }.
   PAYMENT_TERMS_INVALID = 'PAYMENT_TERMS_INVALID',
+  // Owner 2026-11-05 (Settings → Account «Сменить профиль»).
+  // 409: something in the current profile must be finished first.
+  // details: { blockers: RoleSwitchBlocker[] }.
+  ROLE_SWITCH_BLOCKED = 'ROLE_SWITCH_BLOCKED',
+  // 403: this account cannot switch (an assistant, a suspended account,
+  // a demo session).
+  ROLE_SWITCH_NOT_ALLOWED = 'ROLE_SWITCH_NOT_ALLOWED',
 }

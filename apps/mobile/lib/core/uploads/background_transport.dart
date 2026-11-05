@@ -20,3 +20,12 @@ Future<void> cancelBackgroundUpload(String taskId) =>
 /// again (a finished record makes the transport send nothing).
 Future<void> forgetBackgroundUpload(String taskId) =>
     impl.forgetBackgroundUpload(taskId);
+
+/// Whether the OS holds a transfer of the queue job [taskId] that is running
+/// or finished (it must not be sent a second way).
+Future<bool> backgroundUploadKnown(String taskId) =>
+    impl.backgroundUploadKnown(taskId);
+
+/// Whether queued uploads have an OS transfer to fall back on when the app
+/// leaves the screen.
+bool get backgroundHandsOff => impl.backgroundHandsOff;

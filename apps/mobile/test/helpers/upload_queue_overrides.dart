@@ -37,6 +37,8 @@ class FakeStorageUploader extends StorageUploader {
     String? taskId,
     StorageTarget? savedTarget,
     Future<void> Function(StorageTarget target)? onTarget,
+    String? resumeFileId,
+    void Function(String fileId)? onPartsFileId,
   }) async {
     final f = fail;
     if (f != null) throw f;
