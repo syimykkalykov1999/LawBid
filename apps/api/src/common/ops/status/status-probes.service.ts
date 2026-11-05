@@ -33,7 +33,7 @@ import { RealtimeStatsService } from '../realtime-stats.service';
 import { SLO_REDIS_PREFIX } from '../slo-metrics.service';
 import {
   TURN_ADDR_KEY,
-  parseOwnTurnMode,
+  effectiveOwnTurnMode,
 } from '../../../modules/calls/turn-on-demand';
 import { bullOptions } from '../../../redis/redis-connection';
 import { pipeline } from '../../../redis/redis-cluster-safe';
@@ -689,7 +689,8 @@ export class StatusProbesService implements OnModuleDestroy {
       this.config.get<string>('TURN_ONDEMAND_INSTANCE_ID')?.trim(),
     );
     if (!exists) return { exists, mode: 'auto', address: null };
-    const mode = parseOwnTurnMode(
+    const mode = effectiveOwnTurnMode(
+      await this.settings.string('calls.transport').catch(() => 'auto'),
       await this.settings.string('calls.own_turn.mode').catch(() => 'auto'),
     );
     const address =

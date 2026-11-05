@@ -199,6 +199,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 2,
     max: 10000,
   };
+  out['calls.relay_signal_filter'] = {
+    type: 'boolean',
+    defaultValue: true,
+    description:
+      'Phones whose ICE list said relay pass only relay candidates to the other phone (older apps ignore the policy). Off = every signal passes unchanged.',
+  };
   out['calls.transport_report_ratio_pct'] = {
     type: 'integer',
     defaultValue: 30,

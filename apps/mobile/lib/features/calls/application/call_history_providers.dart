@@ -1,7 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/core/sync/sync_freshness.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/data/call_history_repository.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
@@ -17,6 +20,14 @@ final callHistoryRepositoryProvider = Provider<CallHistoryRepository>(
 /// Owner 2026-10-21: the «Calls» tab list — newest first, the next page
 /// loads at the list end (cursor), pull-to-refresh keeps the loaded rows
 /// when it fails.
+///
+/// Owner 2026-11-04 (R-383, WhatsApp): opens on the phone's HTTP copy of
+/// the first page (`readFromPhoneOnly`, the #702 «phoneCopy» pattern; no
+/// request) and asks the server only on the first open of this app run,
+/// after a call ended (socket), on pull-to-refresh or when older than
+/// [SyncWindows.calls] — never on a tab switch. Kept 10 minutes after the
+/// screen lets go. The server has no `updatedSince` for this list: a sync
+/// is the first page again (a 304 when nothing changed).
 final callHistoryProvider = AsyncNotifierProvider.autoDispose<
     CallHistoryController, PaginatedList<CallHistoryEntry>>(
   CallHistoryController.new,
@@ -24,19 +35,110 @@ final callHistoryProvider = AsyncNotifierProvider.autoDispose<
 
 class CallHistoryController
     extends AsyncNotifier<PaginatedList<CallHistoryEntry>> {
+  /// How long the list stays in memory after its last screen let go.
+  static const keepAliveFor = Duration(minutes: 10);
+
+  /// A saved copy slower than this is slower than the network.
+  static const savedCopyTimeout = Duration(seconds: 1);
+
   /// A response of an older generation (before a refresh) is dropped.
   int _generation = 0;
 
+  Timer? _endedTimer;
+
   CallHistoryRepository get _repo => ref.read(callHistoryRepositoryProvider);
 
-  @override
-  Future<PaginatedList<CallHistoryEntry>> build() async =>
-      PaginatedList.firstPage(await _repo.history());
+  String _key = 'calls';
 
+  SyncFreshness get _fresh => ref.read(syncFreshnessProvider);
+
+  @override
+  Future<PaginatedList<CallHistoryEntry>> build() async {
+    final account = ref.watch(sessionControllerProvider.select((s) => s?.sub));
+    _key = 'calls:$account';
+    _cacheFor();
+    final events = ref.watch(realtimeEventsProvider).listen(_onEvent);
+    ref.onDispose(() {
+      unawaited(events.cancel());
+      _endedTimer?.cancel();
+    });
+    final repo = _repo;
+    final saved = await _phoneCopy(repo);
+    if (saved == null) return PaginatedList.firstPage(await _first(repo));
+    if (_fresh.isStale(_key, SyncWindows.calls)) {
+      // After this build returned: the swap needs a value to replace.
+      unawaited(Future<void>(refresh));
+    }
+    return PaginatedList.firstPage(saved);
+  }
+
+  /// The standard Riverpod «cache for» pattern (as PagedNotifier).
+  void _cacheFor() {
+    final link = ref.keepAlive();
+    Timer? timer;
+    ref
+      ..onCancel(() {
+        timer?.cancel();
+        timer = Timer(keepAliveFor, link.close);
+      })
+      ..onResume(() => timer?.cancel())
+      ..onDispose(() => timer?.cancel());
+  }
+
+  Future<CursorPage<CallHistoryEntry>?> _phoneCopy(
+    CallHistoryRepository repo,
+  ) async {
+    try {
+      final page = await readFromPhoneOnly(repo.history)
+          .timeout(savedCopyTimeout, onTimeout: () => null);
+      return page == null || page.items.isEmpty ? null : page;
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<CursorPage<CallHistoryEntry>> _first(
+    CallHistoryRepository repo,
+  ) async {
+    final page = await repo.history();
+    _fresh.mark(_key);
+    return page;
+  }
+
+  void _onEvent(RealtimeEvent e) {
+    // A call of mine ended (it is in the history now), or the socket was
+    // away: one first-page read, a burst of events is one request.
+    if (e.name == 'call:ended') {
+      _fresh.forget(_key);
+    } else if (e.name != RealtimeEvent.reconnected) {
+      return;
+    }
+    _endedTimer?.cancel();
+    _endedTimer = Timer(const Duration(seconds: 1), () {
+      if (ref.mounted) unawaited(refreshIfStale());
+    });
+  }
+
+  /// The tab came into view: the first page again only when the list is
+  /// older than [SyncWindows.calls] (rows stay on screen meanwhile).
+  Future<void> refreshIfStale() async {
+    if (state.value == null) return;
+    if (!_fresh.isStale(_key, SyncWindows.calls)) return;
+    await refresh();
+  }
+
+  /// The first page again; a failure keeps the rows on screen.
   Future<void> refresh() async {
-    _generation++;
-    final page = await _repo.history();
-    if (ref.mounted) state = AsyncData(PaginatedList.firstPage(page));
+    final generation = ++_generation;
+    try {
+      final page = await _first(_repo);
+      if (ref.mounted && generation == _generation) {
+        state = AsyncData(PaginatedList.firstPage(page));
+      }
+    } on Object {
+      // Offline / 5xx: what is shown stays; pull-to-refresh retries.
+      if (state.value == null) rethrow;
+    }
   }
 
   Future<void> loadMore() async {
@@ -90,6 +192,9 @@ class CallHistoryController
       if (ref.mounted) state = AsyncData(current);
       rethrow;
     }
+    // The phone's HTTP copy of the first page still holds the dropped
+    // calls: the next cold start must not show them before the live page.
+    _fresh.forget(_key);
   }
 
   Future<void> retryLoadMore() async {
