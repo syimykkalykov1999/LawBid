@@ -1212,8 +1212,7 @@ void main() {
       expect(h.repo.declined, isEmpty);
     });
 
-    test('the socket rings while the push is still loading the call',
-        () async {
+    test('the socket rings while the push is still loading the call', () async {
       final h = _Harness();
       addTearDown(h.dispose);
       h.repo.getGate = Completer<void>();
@@ -2687,6 +2686,199 @@ void main() {
         h.c.call('conv', peer: _peer);
         async.flushMicrotasks();
         expect(h.repo.iceAsks, hasLength(2));
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    });
+  });
+
+  group('R-402: «Соединение…» for minutes (owner 2026-11-04)', () {
+    /// Caller: accepted, offer out, answer in — the link is checking.
+    _Harness checking(FakeAsync async) {
+      final h = _Harness()..fakeClock(async);
+      h.c.call('conv', peer: _peer);
+      async.flushMicrotasks();
+      h.emit(
+        'call:accepted',
+        _event(_call('c1', CallStatus.active, outgoing: true)),
+      );
+      async.flushMicrotasks();
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'data': {'type': 'answer', 'sdp': 'a'},
+      });
+      async.flushMicrotasks();
+      expect(h.s.phase, CallPhase.connecting);
+      expect(h.media.iceRestarts, 0);
+      return h;
+    }
+
+    test(
+        'caller: still checking 10 s after the answer — a fresh relay list, '
+        'then an ICE restart; again every 10 s until it connects', () {
+      fakeAsync((async) {
+        final h = checking(async);
+        final asks = h.repo.iceAsks.length;
+        async.elapse(const Duration(seconds: 9));
+        expect(h.media.iceRestarts, 0);
+        async.elapse(const Duration(seconds: 2));
+        // Not relayFailed: a slow route, not a dead Cloudflare relay (the
+        // list had STUN only).
+        expect(h.repo.iceAsks.sublist(asks), [false]);
+        expect(h.media.iceUpdates, isNotEmpty);
+        expect(h.media.iceRestarts, 1);
+        async.elapse(kCallIceCheckingRestart);
+        expect(h.media.iceRestarts, 2);
+        // Connected: the watchdog is quiet for the rest of the call.
+        h.media.onState!(CallMediaState.connected);
+        expect(h.s.phase, CallPhase.active);
+        async.elapse(const Duration(seconds: 40));
+        expect(h.media.iceRestarts, 2);
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    });
+
+    const cloudflare = [
+      IceServer(
+        urls: ['turn:turn.cloudflare.com:3478?transport=udp'],
+        username: 'test-user',
+        credential: 'test-credential',
+        relayOnly: true,
+      ),
+    ];
+
+    test(
+        'relay-only, the answer came and still no link: the relay is reported '
+        'and whatever the server answers now goes into the link', () {
+      fakeAsync((async) {
+        final h = _Harness()..fakeClock(async);
+        h.repo.servers = cloudflare;
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        h.emit(
+          'call:accepted',
+          _event(_call('c1', CallStatus.active, outgoing: true)),
+        );
+        async.flushMicrotasks();
+        h.emit('call:signal', {
+          'callId': 'c1',
+          'data': {'type': 'answer', 'sdp': 'a'},
+        });
+        async.flushMicrotasks();
+        final asks = h.repo.iceAsks.length;
+        const fallback = [
+          IceServer(urls: ['stun:stun.cloudflare.com:3478']),
+        ];
+        h.repo.servers = fallback;
+        async.elapse(kCallIceCheckingRestart + const Duration(seconds: 1));
+        expect(h.repo.iceAsks.sublist(asks), [true]);
+        expect(h.media.iceUpdates.last, fallback);
+        expect(h.media.iceRestarts, 1);
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    });
+
+    test('no signal ever came: the relay is NOT blamed (R-404)', () {
+      fakeAsync((async) {
+        final h = _Harness()..fakeClock(async);
+        h.repo.servers = cloudflare;
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        h.emit(
+          'call:accepted',
+          _event(_call('c1', CallStatus.active, outgoing: true)),
+        );
+        async.flushMicrotasks();
+        final asks = h.repo.iceAsks.length;
+        async.elapse(kCallIceCheckingRestart + const Duration(seconds: 1));
+        expect(h.repo.iceAsks.sublist(asks), isNot(contains(true)));
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    });
+
+    test('a link that connects within 10 s is never restarted', () {
+      fakeAsync((async) {
+        final h = checking(async);
+        async.elapse(const Duration(seconds: 3));
+        h.media.onState!(CallMediaState.connected);
+        async.elapse(const Duration(seconds: 30));
+        expect(h.media.iceRestarts, 0);
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    });
+
+    test(
+        'callee: still checking 10 s after it answered — asks the caller to '
+        'restart (only the offerer makes offers)', () {
+      fakeAsync((async) {
+        final h = _Harness()
+          ..fakeClock(async)
+          ..emit(
+            'call:incoming',
+            _event(_call('c2', CallStatus.ringing, outgoing: false)),
+          );
+        async.flushMicrotasks();
+        h.c.accept();
+        async.flushMicrotasks();
+        h.emit('call:signal', {
+          'callId': 'c2',
+          'data': {'type': 'offer', 'sdp': 'o'},
+        });
+        async.flushMicrotasks();
+        expect(h.s.phase, CallPhase.connecting);
+        expect(h.signals.last, {'type': 'answer', 'sdp': 'answer-to-o'});
+        async.elapse(const Duration(seconds: 11));
+        expect(h.media.iceRestarts, 0);
+        expect(h.signals.last, {'type': 'restart'});
+        h.media.onState!(CallMediaState.connected);
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    });
+
+    test('two restart triggers within 2 s make ONE restart offer', () {
+      fakeAsync((async) {
+        final h = checking(async);
+        // The other side asks for a restart right as our watchdog fires.
+        async.elapse(const Duration(seconds: 10));
+        h.emit('call:signal', {
+          'callId': 'c1',
+          'data': {'type': 'restart'},
+        });
+        async.flushMicrotasks();
+        expect(h.media.iceRestarts, 1);
+        // A later ask (past the gap) goes through.
+        async.elapse(const Duration(seconds: 3));
+        h.emit('call:signal', {
+          'callId': 'c1',
+          'data': {'type': 'restart'},
+        });
+        async.flushMicrotasks();
+        expect(h.media.iceRestarts, 2);
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    });
+
+    test('the relay list is asked once for the ring and the media', () {
+      fakeAsync((async) {
+        final h = _Harness()..fakeClock(async);
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        expect(h.media.opened, isTrue);
+        // Asked with the call request, reused when the media opened.
+        expect(h.repo.iceAsks, hasLength(1));
         h.c.hangUp();
         async.flushMicrotasks();
         h.close();

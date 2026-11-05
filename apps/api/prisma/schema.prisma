@@ -6769,6 +6769,22 @@ model StorageSnapshot {
   @@map("storage_snapshots")
 }
 
+/// R-401 (owner 2026-11-04): the nightly Q&A ranking snapshot
+/// (docs/architecture/QA_RECOMMENDATIONS_2026-11-04.md). kind = attorney
+/// (key = attorney id: score, answers, likes, best, topics), topic_attorneys /
+/// topic_questions / topic_cases (key = practice category id: ranked ids),
+/// meta (key = last_run). Read paths read this (Redis hot copy first);
+/// an empty table = today's behaviour.
+model RecoQaSnapshot {
+  kind        String   @db.VarChar(32)
+  key         String   @db.VarChar(80)
+  payload     Json
+  computed_at DateTime @default(now()) @db.Timestamptz
+
+  @@id([kind, key])
+  @@map("reco_qa_snapshots")
+}
+
 /// Owner 2026-10-05 (docs/CLIENT_FRAUD.md): hashed identity signals of an
 /// account — phone, e-mail, Apple / Google subject, on-device key, card,
 /// IP, case text. HMAC-SHA256 only, never the value. A sign-in sharing a
@@ -8044,6 +8060,10 @@ model LegalAnswer {
   /// state_not_licensed — shown to the admin only.
   safety_flags String[]      @default([])
   content_hash String?       @db.VarChar(64)
+  /// R-401 (owner 2026-11-04): the assistant who typed the answer with the
+  /// «qa_answers» duty; null = the attorney themself. The answer is the
+  /// attorney's either way (attorney_id).
+  authored_by_user_id String? @db.Uuid
   created_at   DateTime      @default(now()) @db.Timestamptz
   updated_at   DateTime      @updatedAt @db.Timestamptz
 

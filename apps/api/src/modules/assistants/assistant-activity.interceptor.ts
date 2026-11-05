@@ -34,6 +34,9 @@ const ACTIONS: Record<string, string> = {
   'POST /users/:id/follow': 'user.follow',
   'DELETE /users/:id/follow': 'user.unfollow',
   'POST /reports': 'report.create',
+  // R-401: answers in «Вопрос юристу» with the qa_answers duty.
+  'PUT /questions/:id/answer': 'qa.answer',
+  'DELETE /questions/:id/answer': 'qa.answer_delete',
 };
 
 /** Routes that write their own, richer entries. */

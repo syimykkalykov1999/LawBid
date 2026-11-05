@@ -47,6 +47,66 @@ describe('RealtimeGateway typing cap (big rooms)', () => {
 });
 
 describe('RealtimeGateway call:signal', () => {
+  it('a phone told `relay`: its direct candidates never reach the other phone', async () => {
+    let filterOn = true;
+    const emit = jest.fn();
+    const gw = Object.create(RealtimeGateway.prototype) as Record<
+      string,
+      unknown
+    >;
+    Object.assign(gw, {
+      prisma: {
+        call: {
+          findUnique: jest.fn().mockResolvedValue({
+            caller_id: 'u1',
+            callee_id: 'u2',
+            status: 'active',
+            is_group: false,
+            participants: [],
+          }),
+        },
+      },
+      redis: {
+        hset: jest.fn().mockResolvedValue(1),
+        expire: jest.fn().mockResolvedValue(1),
+        get: jest.fn().mockResolvedValue('1'),
+      },
+      settings: { boolean: () => Promise.resolve(filterOn) },
+      nsp: { to: () => ({ emit }) },
+    });
+    const socket = { data: { user: { sub: 'u1' } } } as unknown as Socket;
+    const send = (typ: string) =>
+      (
+        gw as unknown as {
+          callSignal: (s: Socket, b: unknown) => Promise<{ ok: boolean }>;
+        }
+      ).callSignal(socket, {
+        callId: '11111111-1111-4111-8111-111111111111',
+        data: { type: 'candidate', candidate: `candidate:1 typ ${typ}` },
+      });
+    expect((await send('host')).ok).toBe(true);
+    expect(emit).not.toHaveBeenCalled();
+    await send('relay');
+    expect(emit).toHaveBeenCalledTimes(1);
+    const other = {
+      data: { user: { sub: 'u2' }, relayOnly: { at: Date.now(), on: false } },
+    } as unknown as Socket;
+    await (
+      gw as unknown as {
+        callSignal: (s: Socket, b: unknown) => Promise<{ ok: boolean }>;
+      }
+    ).callSignal(other, {
+      callId: '11111111-1111-4111-8111-111111111111',
+      data: { type: 'candidate', candidate: 'candidate:1 typ host' },
+    });
+    expect(emit).toHaveBeenCalledTimes(2);
+    // The kill switch: everything passes.
+    filterOn = false;
+    (socket.data as { relayOnly?: unknown }).relayOnly = undefined;
+    await send('host');
+    expect(emit).toHaveBeenCalledTimes(3);
+  });
+
   it('looks the call up once per 30 s per socket (not per ICE candidate)', async () => {
     const findUnique = jest.fn().mockResolvedValue({
       caller_id: 'u1',

@@ -368,6 +368,21 @@ const kCallReconnectingDelay = Duration(seconds: 3);
 /// server before ICE restarts anyway (owner: within 2 s).
 const kCallIceRefreshBudget = Duration(milliseconds: 1800);
 
+/// R-402 (owner 2026-11-04, «Соединение…» for minutes): a link that is still
+/// checking its routes this long after the answer gets a fresh relay list
+/// and an ICE restart — and again every period until it connects or the
+/// connect timeout ends the call. LiveKit's client gives a peer connection
+/// `peerConnectionTimeout` (15 s) before it reconnects; the first routes
+/// through a working relay come up within a second or two, so waiting
+/// longer only adds silence. The ICE library alone would sit in `checking`
+/// for the whole 45 s.
+const kCallIceCheckingRestart = Duration(seconds: 10);
+
+/// Two ICE restarts of one link come at least this far apart (our watchdog
+/// and the other side's «restart» ask can meet): the second offer would
+/// make the answer of the first stale and break the link.
+const kCallIceRestartMinGap = Duration(seconds: 2);
+
 /// Fresh relay lists after drops are asked at most this often (links that
 /// drop together share one request).
 const kCallIceRefreshEvery = Duration(seconds: 10);
@@ -428,6 +443,12 @@ class CallController extends Notifier<CallSession> {
   StreamSubscription<RealtimeEvent>? _events;
   Timer? _ringTimer;
   Timer? _connectTimer;
+
+  /// R-402: the ICE checking watchdog of the connecting phase.
+  Timer? _checkingTimer;
+
+  /// The last ICE restart offer per peer (the min gap).
+  final _restartedAt = <String, DateTime>{};
   Timer? _syncTimer;
   Timer? _linger;
   Timer? _turnTimer;
@@ -588,6 +609,7 @@ class CallController extends Notifier<CallSession> {
     // The ongoing-call notification follows the call; its buttons come back.
     listenSelf(_syncForeground);
     listenSelf(_syncProximity);
+    listenSelf(_syncSocket);
     // R-373: the feed's players follow the call (silent, no audio focus).
     listenSelf((_, next) {
       ref.read(callAudioActiveProvider.notifier).set(active: next.busy);
@@ -625,6 +647,14 @@ class CallController extends Notifier<CallSession> {
         onError: (Object _) {},
       ),
     );
+  }
+
+  /// R-404 (owner 2026-11-04): offers, answers and candidates travel over the
+  /// socket; while a call lives it is kept up even with the app behind the
+  /// lock screen or the system call UI.
+  void _syncSocket(CallSession? prev, CallSession next) {
+    if ((prev?.busy ?? false) == next.busy) return;
+    ref.read(realtimeClientProvider)?.keepUpForCall(next.busy);
   }
 
   // Android ongoing-call notification (owner 2026-10-20).
@@ -1863,6 +1893,12 @@ class CallController extends Notifier<CallSession> {
     final servers = await _iceServers();
     if (gen != _gen || !ref.mounted) return;
     _servers = servers;
+    if (!servers.any((s) => s.username != null)) {
+      // R-402: the server had no TURN for us (keys off, coturn stopped):
+      // STUN only, a carrier NAT on either side and the call never comes
+      // up. The admin card says the same; here it is in the call trace.
+      callTrace('ice servers: no TURN relay offered, STUN only');
+    }
     // Owner 2026-10-24: a call carried by the Cloudflare SFU has ONE
     // connection to it; every other call (1:1, the mesh, the outage
     // fallback) keeps the device-to-device media exactly as before.
@@ -2057,6 +2093,8 @@ class CallController extends Notifier<CallSession> {
         _syncReconnecting();
         if (state.phase != CallPhase.active && state.phase != CallPhase.ended) {
           _connectTimer?.cancel();
+          _checkingTimer?.cancel();
+          _checkingTimer = null;
           state = state.copyWith(
             phase: CallPhase.active,
             connectedAt: DateTime.now(),
@@ -2150,9 +2188,12 @@ class CallController extends Notifier<CallSession> {
   /// Both sides take a fresh relay list (each gathers its own relay
   /// candidates); then the side that offered restarts ICE, the other asks
   /// it to. A link that healed meanwhile is left alone.
-  Future<void> _freshIceThenRetryConnect(String peer) async {
+  Future<void> _freshIceThenRetryConnect(
+    String peer, {
+    bool blameRelay = true,
+  }) async {
     callTrace('link to $peer failed while connecting: one retry, fresh relays');
-    await _freshIce(relayFailed: _onCloudflareRelay, force: true);
+    await _freshIce(relayFailed: _onCloudflareRelay && blameRelay, force: true);
     if (!ref.mounted || !state.busy || state.phase != CallPhase.connecting) {
       return;
     }
@@ -2231,6 +2272,9 @@ class CallController extends Notifier<CallSession> {
         !state.busy) {
       return;
     }
+    final last = _restartedAt[peer];
+    if (last != null && _now.difference(last) < kCallIceRestartMinGap) return;
+    _restartedAt[peer] = _now;
     try {
       final offer = await media.restartIceFor(peer);
       await ref.read(callSignalSenderProvider)(call.id, offer, to: peer);
@@ -2246,6 +2290,7 @@ class CallController extends Notifier<CallSession> {
   }
 
   void _armConnectTimeout() {
+    _armCheckingWatchdog();
     _connectTimer?.cancel();
     _connectTimer = Timer(kCallConnectTimeout, () {
       if (state.phase != CallPhase.connecting) return;
@@ -2262,6 +2307,34 @@ class CallController extends Notifier<CallSession> {
         return;
       }
       unawaited(hangUp(reason: CallEndReason.failed));
+    });
+  }
+
+  /// R-402: while the call is connecting, every [kCallIceCheckingRestart] a
+  /// link that has not come up gets a fresh relay list and a new route —
+  /// the side that offered restarts ICE, the other asks it to. Stops with
+  /// the first connected link or when the phase moves on.
+  void _armCheckingWatchdog() {
+    _checkingTimer?.cancel();
+    _checkingTimer = Timer.periodic(kCallIceCheckingRestart, (t) {
+      if (!ref.mounted || !state.busy || state.phase != CallPhase.connecting) {
+        t.cancel();
+        if (identical(_checkingTimer, t)) _checkingTimer = null;
+        return;
+      }
+      final media = _media;
+      if (media == null || media is SfuCallMedia) return;
+      for (final peer in media.peers) {
+        if (_connected.contains(peer)) continue;
+        callTrace(
+          'link to $peer: still checking after '
+          '${kCallIceCheckingRestart.inSeconds} s, fresh relays + restart',
+        );
+        // Only a link whose offer / answer went through can blame the relay:
+        // with no signaling no relay could have helped (R-404). One that
+        // blames it takes the server's new answer as it is.
+        unawaited(_freshIceThenRetryConnect(peer, blameRelay: _signalSeen));
+      }
     });
   }
 
@@ -2732,6 +2805,7 @@ class CallController extends Notifier<CallSession> {
     _iceAt = null;
     _sfuReportedAt = null;
     _connectRetried.clear();
+    _restartedAt.clear();
   }
 
   void _clearTimers() {
@@ -2743,6 +2817,8 @@ class CallController extends Notifier<CallSession> {
     _netSub = null;
     _ringTimer?.cancel();
     _connectTimer?.cancel();
+    _checkingTimer?.cancel();
+    _checkingTimer = null;
     _syncTimer?.cancel();
     for (final r in _reconnect.values) {
       r.grace.cancel();

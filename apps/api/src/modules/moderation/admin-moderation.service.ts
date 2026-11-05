@@ -17,6 +17,11 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  ADMIN_COUNTS_SUMMARY_KEY,
+  reportsQueueWhereSql,
+} from '../../common/admin-queues/admin-queues';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
@@ -75,6 +80,8 @@ export class AdminModerationService {
     @Inject(STAFF_RECORDER)
     private readonly staffRecorder?: StaffRecorder,
     @Optional() private readonly appSettings?: AppSettingsService,
+    // R-403: a decision drops the shared sidebar counts (badge = list).
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
   async queue(
@@ -93,24 +100,14 @@ export class AdminModerationService {
              min(created_at) AS first_at,
              max(created_at) AS last_at
       FROM reports
-      WHERE status = ${status}::report_status
-        ${
-          // Owner 2026-10-23: the open queue is small and read in full; the
-          // «handled» history is a window of the last 180 days, not a scan
-          // of every report ever filed.
-          status === 'open'
-            ? Prisma.empty
-            : Prisma.sql`AND created_at >= now() - interval '180 days'`
-        }
-        ${q.targetType ? Prisma.sql`AND target_type = ${q.targetType}::report_target_type` : Prisma.empty}
-        ${q.priority ? Prisma.sql`AND priority_review` : Prisma.empty}
-        ${
-          // Owner 2026-10-05: moderators of one country see reports
-          // made by people of that country.
-          countries
-            ? Prisma.sql`AND reporter_id IN (SELECT id FROM users WHERE country_code::TEXT = ANY(${countries}::TEXT[]))`
-            : Prisma.empty
-        }
+      ${
+        // R-403: the same WHERE feeds the sidebar badge
+        // (common/admin-queues), so badge == rows of this default view.
+        reportsQueueWhereSql(
+          { status, targetType: q.targetType, priority: q.priority },
+          countries,
+        )
+      }
       GROUP BY target_type, target_id
       ${
         cursor
@@ -378,6 +375,8 @@ export class AdminModerationService {
     // Owner 2026-10-27: dismissed reports count against their reporters.
     if (action === 'dismiss')
       await this.reporters.onReportsDecided(reporterIds);
+    // R-403: the object left (or re-entered) the open queue — recount.
+    if (handled > 0) await this.summary?.dropFamily(ADMIN_COUNTS_SUMMARY_KEY);
     return {
       targetType: type,
       targetId: id,

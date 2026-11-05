@@ -46533,6 +46533,19 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "follow",
+            "required": false,
+            "in": "query",
+            "description": "Owner 2026-10-28 (R-084): only people I follow / do not follow (omit for everyone).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "following",
+                "not_following"
+              ]
+            }
           }
         ],
         "responses": {
@@ -74600,6 +74613,160 @@
           }
         ],
         "summary": "Top 20 heaviest users and cases (requests, DB time, uploads, messages) over the last hour",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
+    "/admin/system-health/reco-qa": {
+      "get": {
+        "operationId": "getRecoQa",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoQaStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Q&A ranking snapshot: flag, last nightly run and its counts",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
+    "/admin/system-health/reco-qa/recompute": {
+      "post": {
+        "operationId": "recomputeRecoQa",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoQaStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Queue the Q&A ranking snapshot now (needs step-up)",
         "tags": [
           "admin-ops"
         ]
@@ -126114,6 +126281,83 @@
         ]
       }
     },
+    "/questions/recommended": {
+      "get": {
+        "operationId": "recommendedForMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Attorney: open questions of my topics, best first (nightly snapshot)",
+        "tags": [
+          "questions"
+        ]
+      }
+    },
     "/questions/{id}": {
       "get": {
         "operationId": "getQuestion",
@@ -145782,6 +146026,10 @@
           "maxDuties": {
             "type": "integer",
             "description": "Owner 2026-10-22: the most duties one assistant may hold (admin setting assistants.max_duties)."
+          },
+          "maxDutiesUnlimited": {
+            "type": "boolean",
+            "description": "R-401: the admin set the limit to «все» (0) — the app hides the counter."
           }
         },
         "required": [
@@ -145789,7 +146037,8 @@
           "seats",
           "used",
           "plan",
-          "maxDuties"
+          "maxDuties",
+          "maxDutiesUnlimited"
         ]
       },
       "TeamEnvelope": {
@@ -145833,7 +146082,8 @@
                 "tasks",
                 "profile",
                 "bids",
-                "publish"
+                "publish",
+                "qa_answers"
               ]
             }
           },
@@ -145865,7 +146115,8 @@
                 "tasks",
                 "profile",
                 "bids",
-                "publish"
+                "publish",
+                "qa_answers"
               ]
             }
           },
@@ -147431,7 +147682,8 @@
                 "tasks",
                 "profile",
                 "bids",
-                "publish"
+                "publish",
+                "qa_answers"
               ]
             }
           }
@@ -151362,7 +151614,7 @@
           "username": {
             "type": "string",
             "nullable": true,
-            "description": "Attorneys only."
+            "description": "The author's @handle (attorney or client); null for a client under a case."
           },
           "displayName": {
             "type": "string",
@@ -172748,6 +173000,63 @@
           "data"
         ]
       },
+      "RecoQaStatusDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Flag recommendations_qa_ranking."
+          },
+          "lastRunAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO time of the last run; null before the first."
+          },
+          "durationMs": {
+            "type": "number",
+            "description": "How long the last run took, ms."
+          },
+          "attorneys": {
+            "type": "number",
+            "description": "Attorneys with a Q&A score."
+          },
+          "questions": {
+            "type": "number",
+            "description": "Open questions in the per-topic lists."
+          },
+          "cases": {
+            "type": "number",
+            "description": "Open cases in the per-topic lists."
+          },
+          "queued": {
+            "type": "boolean",
+            "description": "A recompute was queued by this call."
+          }
+        },
+        "required": [
+          "enabled",
+          "lastRunAt",
+          "durationMs",
+          "attorneys",
+          "questions",
+          "cases",
+          "queued"
+        ]
+      },
+      "RecoQaStatusEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RecoQaStatusDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "BackfillRunDto": {
         "type": "object",
         "properties": {
@@ -190042,6 +190351,14 @@
           "ttlSec": {
             "type": "integer",
             "description": "Seconds the TURN login lives."
+          },
+          "iceTransportPolicy": {
+            "enum": [
+              "all",
+              "relay"
+            ],
+            "type": "string",
+            "description": "relay = media only through the relay in this list (owner 2026-11-04); all = any route. Older apps ignore it."
           }
         },
         "required": [

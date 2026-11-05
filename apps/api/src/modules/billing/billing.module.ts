@@ -28,6 +28,7 @@ import { StripeWebhookController } from './stripe-webhook.controller';
 import { StripeWebhookIntakeService } from './stripe-webhook.intake';
 import { SubscriptionSyncService } from './subscription-sync.service';
 import { DuplicateSubscriptionsService } from './duplicate-subscriptions.service';
+import { SubscriptionDisputeService } from './subscription-dispute.service';
 import { SubscriptionsController } from './subscriptions.controller';
 import { PayPageController } from './pay-page.controller';
 import { PayLinkModule } from './pay-link.module';
@@ -124,6 +125,7 @@ export class BillingModule {
         SubscriptionSyncService,
         // Algo audit M-4 (owner 2026-10-28): duplicate subscriptions.
         DuplicateSubscriptionsService,
+        SubscriptionDisputeService,
         PricingService,
         SubscriptionsService,
         // Owner 2026-10-22: seats charged now / removed at the period end.

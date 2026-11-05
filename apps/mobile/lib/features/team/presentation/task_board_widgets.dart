@@ -64,9 +64,8 @@ Color taskAccent(AppColorTokens colors, TaskItem task) {
 bool taskInScope(TaskItem task, TaskScope scope, DateTime now) =>
     switch (scope) {
       TaskScope.all => true,
-      TaskScope.important =>
-        task.priority == TaskPriority.high ||
-            task.priority == TaskPriority.urgent,
+      TaskScope.important => task.priority == TaskPriority.high ||
+          task.priority == TaskPriority.urgent,
       TaskScope.overdue => task.isOverdue(now),
       TaskScope.forClient => task.boardTask?.forClient ?? false,
       TaskScope.joint => task.boardTask?.joint ?? false,
