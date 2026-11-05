@@ -101,3 +101,14 @@ export function unreadTicketsWhere(
     status: { not: 'closed' },
   };
 }
+
+/** «Поддержка» sidebar badge (owner 2026-11-04): the page opens on the
+ * «Открытые» tab, so the number equals the rows of that tab. */
+export function openTicketsWhere(
+  countries: CountryScope = null,
+): Prisma.SupportTicketWhereInput {
+  return {
+    ...(countries ? { country_code: { in: countries } } : {}),
+    status: 'open',
+  };
+}

@@ -47,7 +47,7 @@ describe('AdminCountsService', () => {
   });
 
   /** R-403: the badge counts exactly what the default list view shows. */
-  it('counts with the list predicates: default verification statuses, grouped open reports, unread tickets', async () => {
+  it('counts with the list predicates: default verification statuses, grouped open reports, open tickets', async () => {
     const { svc, prisma } = build();
     await svc.get();
     expect(prisma.verificationRequest.count).toHaveBeenCalledWith({
@@ -67,7 +67,7 @@ describe('AdminCountsService', () => {
     );
     expect(sql.values).toEqual(['open']);
     expect(prisma.supportTicket.count).toHaveBeenCalledWith({
-      where: { unread_by_admin: true, status: { not: 'closed' } },
+      where: { status: 'open' },
     });
   });
 

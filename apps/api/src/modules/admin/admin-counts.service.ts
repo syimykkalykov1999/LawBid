@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import {
   ADMIN_COUNTS_SUMMARY_KEY,
+  openTicketsWhere,
   reportsQueueCountSql,
   reportsQueueWhereSql,
-  unreadTicketsWhere,
   verificationQueueWhere,
 } from '../../common/admin-queues/admin-queues';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
@@ -67,7 +67,7 @@ export class AdminCountsService {
           reportsQueueCountSql(reportsQueueWhereSql({}, countries)),
         ),
         this.prisma.supportTicket.count({
-          where: unreadTicketsWhere(countries),
+          where: openTicketsWhere(countries),
         }),
         // Owner 2026-10-23: the stored queue size (recounted by the worker);
         // it used to build up to 1000 trust snapshots on every poll.

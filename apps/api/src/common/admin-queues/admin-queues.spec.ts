@@ -1,6 +1,7 @@
 import {
   reportsQueueCountSql,
   reportsQueueWhereSql,
+  openTicketsWhere,
   unreadTicketsWhere,
   verificationQueueWhere,
 } from './admin-queues';
@@ -55,6 +56,14 @@ describe('admin queue definitions', () => {
       country_code: { in: ['KG'] },
       unread_by_admin: true,
       status: { not: 'closed' },
+    });
+  });
+
+  it('support badge: the default «Открытые» tab, narrowed to the agent countries', () => {
+    expect(openTicketsWhere()).toEqual({ status: 'open' });
+    expect(openTicketsWhere(['KG'])).toEqual({
+      country_code: { in: ['KG'] },
+      status: 'open',
     });
   });
 });
