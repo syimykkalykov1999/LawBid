@@ -36,7 +36,13 @@ describe('case events from notifications', () => {
     });
     expect(
       eventOf('case_workspace_activity', { caseId: 'c' })?.data,
-    ).toMatchObject({ kind: 'task' });
+    ).toMatchObject({ kind: 'task' }); // R-392: «Не закрывать» moves the case back to work.
+    expect(
+      eventOf('case_workspace_activity', {
+        caseId: 'c',
+        kind: 'close_declined',
+      })?.data,
+    ).toMatchObject({ kind: 'updated' });
   });
 
   it('a bid event carries the one-bid patch (status, amount) for the app', () => {

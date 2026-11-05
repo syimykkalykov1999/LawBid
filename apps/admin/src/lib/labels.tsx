@@ -102,6 +102,7 @@ export const JOURNAL_EVENT: Record<string, string> = {
   contacts_disclosed: 'контакты раскрыты',
   completion_requested: 'запрошено завершение',
   completion_confirmed: 'завершение подтверждено',
+  completion_declined: 'закрытие отклонено, кейс в работе',
   auto_closed: 'закрыт автоматически',
   disputed: 'открыт спор',
   dispute_resolved: 'спор решён',

@@ -27,7 +27,11 @@ export type RevokeReason =
   | 'assistant_removed'
   // 2026-10-25 (COPPA): an admin flagged or deleted a suspected minor.
   | 'minor_flagged'
-  | 'minor_deleted';
+  | 'minor_deleted'
+  // Owner 2026-11-05: the account switched between the attorney and the
+  // client profile — other sessions end (their tokens carry the old role),
+  // this one refreshes.
+  | 'role_switched';
 
 /**
  * Single choke point for every way a session can end (logout, logout-all,

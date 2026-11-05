@@ -100,6 +100,9 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
     await setFlag('auto_bar_check', false);
     await setConfig('verification.require_identity', false);
     await setConfig('verification.require_bar_document', false);
+    // Owner 2026-11-05: the attorney photo has its own test below; the
+    // other suites here attach no profile photo.
+    await setConfig('verification.require_photo', false);
     // Owner 2026-10-28: selfies need the guided camera's one-time token by
     // default; the suites below attach plain selfie files (the token has its
     // own test, which turns the rule back on).
@@ -114,6 +117,7 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
     await setConfig('verification.require_identity', false);
     await setConfig('verification.require_bar_document', false);
     await setConfig('verification.self_attestation_auto_approve', true);
+    await setConfig('verification.require_photo', true);
     await app.close();
   });
 
@@ -369,6 +373,28 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         .expect(200);
       expect((sent.body as Body).data.status).toBe('submitted');
       expect(await profileStatus(a.userId)).toBe('pending');
+    });
+
+    it('owner 2026-11-05: a new request needs the attorney photo (missing: photo)', async () => {
+      await setConfig('verification.require_photo', true);
+      try {
+        const a = await attorney();
+        const id = await createDraft(a.auth);
+        await api()
+          .post(`/api/v1/verification/requests/${id}/licenses`)
+          .set(a.auth)
+          .send({ stateCode: 'NJ', barNumber: barNumber() })
+          .expect(201);
+        const res = await api()
+          .post(`/api/v1/verification/requests/${id}/submit`)
+          .set(a.auth)
+          .send({ attestation: true })
+          .expect(400);
+        expect((res.body as Body).error?.code).toBe('VERIFICATION_INCOMPLETE');
+        expect((res.body as Body).error?.details?.missing).toEqual(['photo']);
+      } finally {
+        await setConfig('verification.require_photo', false);
+      }
     });
 
     it('owner 2026-10-04: the sworn statement approves at once and is stored', async () => {

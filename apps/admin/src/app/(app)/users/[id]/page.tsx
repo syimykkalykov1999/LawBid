@@ -286,6 +286,24 @@ export default function UserCardPage() {
               <Row k="Язык" v={u.uiLanguage} />
               <Row k="Создан" v={formatDateTime(u.createdAt)} />
               <Row k="Предупреждений" v={String(u.warnings)} />
+              {(u.roleSwitches ?? []).length > 0 ? (
+                <Row
+                  k="Смены профиля"
+                  v={
+                    <ul className="space-y-1">
+                      {(u.roleSwitches ?? []).map((r) => (
+                        <li key={r.at} className="text-xs text-muted">
+                          {ROLE_TEXT[r.from] ?? r.from} → {ROLE_TEXT[r.to] ?? r.to}
+                          {r.reverted ? ' (возврат из незавершённой регистрации)' : ''}
+                          {' · '}
+                          {formatDateTime(r.at)}
+                          {r.ip ? ` · ${r.ip}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  }
+                />
+              ) : null}
               {u.attorney ? (
                 <>
                   <Row k="Username" v={`@${u.attorney.username}`} />
