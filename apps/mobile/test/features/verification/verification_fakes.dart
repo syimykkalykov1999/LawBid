@@ -332,6 +332,9 @@ class FakeDocumentSource implements DocumentSource {
   int captures = 0;
   int picks = 0;
 
+  /// `allowPdf` of each pick: false = the phone's photo gallery.
+  final List<bool> pickAllowPdf = [];
+
   PickedDocument _doc(String name) => PickedDocument(
         name: name,
         mime: 'image/jpeg',
@@ -350,6 +353,7 @@ class FakeDocumentSource implements DocumentSource {
   @override
   Future<PickedDocument?> pickFile({required bool allowPdf}) async {
     picks++;
+    pickAllowPdf.add(allowPdf);
     return _doc('license.jpg');
   }
 }

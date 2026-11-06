@@ -63,6 +63,14 @@ export class NotificationTemplateService {
     if (type === 'task_reminder') {
       return this.taskReminderText(base, payload, lang, timeZone);
     }
+    // R-392: the request names who asked to close (the stored template
+    // said «Клиент отметил» for both sides).
+    if (
+      type === 'completion_requested' &&
+      (payload.by === 'client' || payload.by === 'attorney')
+    ) {
+      return this.closeRequestText(payload.by, lang);
+    }
     const kind = payload.kind;
     if (type === 'case_workspace_activity' && typeof kind === 'string') {
       return this.workspaceText(base, kind, lang);
@@ -137,6 +145,20 @@ export class NotificationTemplateService {
     const scope = type === 'consultation_update' ? 'consult' : 'qa';
     const body = await this.lookup(lang, `notif.${scope}.${kind}`);
     return body ? { title: base.title, body } : base;
+  }
+
+  /** R-392: «Новое в кейсе» + who asks to close it. */
+  private async closeRequestText(
+    by: 'client' | 'attorney',
+    lang: string,
+  ): Promise<TemplateText> {
+    const base = await this.render('case_workspace_activity', lang);
+    const kind = `close_requested_${by}`;
+    const body =
+      (await this.lookup(lang, `notif.workspace.${kind}`)) ??
+      WORKSPACE_KIND_FALLBACK[kind]?.[lang === 'ru' ? 'ru' : 'en'] ??
+      base.body;
+    return { title: base.title, body };
   }
 
   /** Audit 2026-10-19: «Новое в кейсе» + what was added. */
@@ -287,6 +309,19 @@ const WORKSPACE_KIND_FALLBACK: Record<string, { en: string; ru: string }> = {
   details: {
     en: 'The client changed the case details.',
     ru: 'Клиент изменил подробности кейса.',
+  },
+  // R-392 (owner 2026-11-04): closing a case in work takes both sides.
+  close_requested_client: {
+    en: 'The client asks to close the case. Confirm or keep it open.',
+    ru: 'Клиент предлагает закрыть кейс. Подтвердите или оставьте его в работе.',
+  },
+  close_requested_attorney: {
+    en: 'The attorney asks to close the case. Confirm or keep it open.',
+    ru: 'Адвокат предлагает закрыть кейс. Подтвердите или оставьте его в работе.',
+  },
+  close_declined: {
+    en: 'The other side kept the case open. It stays in work.',
+    ru: 'Другая сторона не стала закрывать кейс. Он остаётся в работе.',
   },
 };
 

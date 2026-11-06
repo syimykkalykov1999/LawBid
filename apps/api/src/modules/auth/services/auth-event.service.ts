@@ -72,6 +72,11 @@ export const AUTH_EVENT_TYPES = {
   // the computer made a one-time code; the phone's selfie arrived for it.
   VERIFICATION_HANDOFF_CREATED: 'verification_handoff_created',
   VERIFICATION_HANDOFF_DONE: 'verification_handoff_done',
+  // Owner 2026-11-05: the account switched between the attorney and the
+  // client profile (meta {from, to}); going back from an unfinished
+  // onboarding of the new profile is logged apart and not rate-limited.
+  ROLE_SWITCHED: 'role_switched',
+  ROLE_SWITCH_REVERTED: 'role_switch_reverted',
 } as const;
 export type AuthEventType =
   (typeof AUTH_EVENT_TYPES)[keyof typeof AUTH_EVENT_TYPES];

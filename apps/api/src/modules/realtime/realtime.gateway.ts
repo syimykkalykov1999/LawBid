@@ -38,7 +38,10 @@ import {
   type AccessTokenClaims,
 } from '../auth/services/token.service';
 import {
+  CALL_SIGNALS_TTL_SEC,
   REALTIME_NAMESPACE,
+  callSignalsKey,
+  relayOnlyKey,
   channelRoom,
   conversationRoom,
   postRoom,
@@ -47,6 +50,7 @@ import {
   viewingKey,
   VIEWING_TTL_MS,
 } from './realtime-publisher.service';
+import { relayOnlySignal } from './call-signal-filter';
 import { demoContext } from '../../common/demo/demo-context';
 import {
   WsStormDetector,
@@ -73,6 +77,7 @@ const TYPING_MIN_GAP_MS = 1000;
 const SIGNAL_EVENT_CAPACITY = 60;
 const SIGNAL_EVENT_REFILL_PER_SECOND = 10;
 const SIGNAL_CALL_CACHE_MS = 30_000;
+const RELAY_ONLY_CACHE_MS = 5_000;
 /** S1-12: the window in which a typer counts as "recent". */
 const TYPING_RECENT_MS = 5000;
 
@@ -145,6 +150,10 @@ interface SocketState {
   /** S1-7: the last call looked up for signaling (30 s), so each ICE
    * candidate does not cost a database query. */
   signalCall?: { id: string; at: number; call: SignalCall };
+  /** R-404: the signal kinds of this call already noted in Redis. */
+  signalNoted?: { callId: string; kinds: Set<string> };
+  /** The `relay` mark of this person, as last read. */
+  relayOnly?: { at: number; on: boolean };
   viewing: Set<string>;
   /** Owner 2026-10-01: the other members of each open chat — "typing…"
    * also reaches their chat list. */
@@ -1421,12 +1430,59 @@ export class RealtimeGateway
       targets = [call.caller_id];
     }
     if (targets.length === 0) return { ok: false };
+    void this.noteCallSignal(st, callId, uid, data);
+    const out = (await this.relayOnly(st, uid)) ? relayOnlySignal(data) : data;
+    if (!out) return { ok: true };
     for (const t of targets) {
       this.nsp
         ?.to(userRoom(t))
-        .emit('call:signal', { callId, data, from: uid });
+        .emit('call:signal', { callId, data: out, from: uid });
     }
     return { ok: true };
+  }
+
+  /** The last ICE list of [uid] says `relay` (read at most every 5 s per
+   * socket; a failed read: no filtering). */
+  private async relayOnly(st: SocketState, uid: string): Promise<boolean> {
+    const t = Date.now();
+    if (st.relayOnly && t - st.relayOnly.at < RELAY_ONLY_CACHE_MS) {
+      return st.relayOnly.on;
+    }
+    let on = false;
+    try {
+      // The kill switch (`calls.relay_signal_filter`, on by default).
+      const enabled =
+        (await this.settings?.boolean('calls.relay_signal_filter')) ?? true;
+      on = enabled && (await this.redis.get(relayOnlyKey(uid))) !== null;
+    } catch {
+      on = false;
+    }
+    st.relayOnly = { at: t, on };
+    return on;
+  }
+
+  /** R-404: the first signal of each kind per socket and call is remembered
+   * (one Redis write, not one per ICE candidate). Best effort. */
+  private async noteCallSignal(
+    st: SocketState,
+    callId: string,
+    uid: string,
+    data: { type?: unknown },
+  ): Promise<void> {
+    const kind = data.type;
+    if (kind !== 'offer' && kind !== 'answer' && kind !== 'candidate') return;
+    if (st.signalNoted?.callId !== callId) {
+      st.signalNoted = { callId, kinds: new Set() };
+    }
+    if (st.signalNoted.kinds.has(kind)) return;
+    st.signalNoted.kinds.add(kind);
+    try {
+      const key = callSignalsKey(callId);
+      await this.redis.hset(key, `${uid}:${kind}`, '1');
+      await this.redis.expire(key, CALL_SIGNALS_TTL_SEC);
+    } catch {
+      // Only the diagnosis of a failed call loses a line.
+    }
   }
 
   private conversationIdOf(body: { conversationId?: unknown }): string | null {

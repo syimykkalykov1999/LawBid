@@ -465,6 +465,11 @@ export const OWNER_LAWYER_VERIFICATION_SETTINGS = {
   // Owner 2026-10-16: where no registry checks the number, the bar card is
   // required (a person decides from it). Off = only when switched on above.
   'verification.bar_document_for_manual_states': true,
+  // Owner 2026-11-05: an attorney's profile photo is mandatory — a NEW
+  // verification request is not accepted without the attorney's own clean
+  // photo (the sign-up profile step already asks for it). Requests already
+  // sent are never touched. Off = no photo check on submit.
+  'verification.require_photo': true,
 } as const;
 
 // Owner 2026-10-05: the planner's archive — finished tasks are kept this
@@ -705,6 +710,10 @@ export const OWNER_STALE_SETTINGS = {
   'cases.stale_pause_days_flexible': 14,
   'cases.stale_pause_days_by_date': 3,
   'cases.stale_archive_after_pause_days': 30,
+  // R-392 (owner 2026-11-04): one side asked to close a case in work; the
+  // other side confirms or keeps it open within this many days, else the
+  // case closes by itself (both are told).
+  'cases.close_confirm_days': 7,
 } as const;
 
 // Owner 2026-10-05: attorney trust levels (docs/ATTORNEY_TRUST.md). The
@@ -927,6 +936,11 @@ export const OWNER_COUNTRY_SETTINGS = {
  * panel keeps several queues live on one screen). Users keep 100/min.
  * ADMIN_THROTTLE_LIMIT in the env wins (src/throttler/throttle-limits.ts). */
 export const OWNER_RATE_LIMIT_SETTINGS = {
+  /** Owner 2026-11-05 (role switch, Settings → Account): how many times one
+   * account may switch between the attorney and the client profile within
+   * 24 hours (going back from an unfinished onboarding does not count).
+   * Below 1 counts as 1. */
+  'account.role_switch_per_day': 2,
   'security.admin_rate_limit_per_minute': 600,
   /** Scale audit 2026-10-23: requests per minute for callers who are not
    * signed in, per address (CGNAT / office addresses carry many people).
@@ -1069,6 +1083,10 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   'calls.transport': 'auto',
   /** The breaker: this many Cloudflare failures within the window move NEW
    * calls to our own path; Cloudflare is then probed once a minute. */
+  /** Owner 2026-11-04: a phone told `relay` sends only relay candidates to
+   * the other phone (`call:signal` drops the rest; older apps ignore the
+   * policy). Off = pass every signal unchanged (the kill switch). */
+  'calls.relay_signal_filter': true,
   'calls.transport_fail_limit': 5,
   'calls.transport_fail_window_sec': 120,
   /** Phones reporting a dead Cloudflare relay open the breaker when at

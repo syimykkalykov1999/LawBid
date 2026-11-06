@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
+import { delSafe } from '../../redis/redis-cluster-safe';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { ADMIN_ACTIVE_KEY } from '../ops/admin-activity';
 
@@ -102,6 +103,45 @@ export class AdminSummaryService {
         'EX',
         HARD_TTL_SECONDS,
       );
+    } catch {
+      /* not shared, still right */
+    }
+  }
+
+  /**
+   * R-403: {@link get} with one stored copy per [scope] of [family] (a null
+   * scope is the family's own key). The scopes in use are remembered, so
+   * {@link dropFamily} forgets them all without a key scan.
+   */
+  async getScoped<T>(
+    family: string,
+    scope: string | null,
+    compute: () => Promise<T>,
+    freshSec: number,
+  ): Promise<Summary<T>> {
+    if (!scope) return this.get(family, compute, freshSec);
+    const scopes = `${PREFIX}${family}:scopes`;
+    try {
+      await this.redis.sadd(scopes, scope);
+      await this.redis.expire(scopes, HARD_TTL_SECONDS);
+    } catch {
+      /* not shared, still right */
+    }
+    return this.get(`${family}:${scope}`, compute, freshSec);
+  }
+
+  /**
+   * R-403: forgets every stored copy of [family], so the next read recomputes
+   * at once (an admin action just changed what a badge counts; the next poll
+   * must not see the 30 s copy).
+   */
+  async dropFamily(family: string): Promise<void> {
+    try {
+      const scopes = await this.redis.smembers(`${PREFIX}${family}:scopes`);
+      await delSafe(this.redis, [
+        PREFIX + family,
+        ...scopes.map((s) => `${PREFIX}${family}:${s}`),
+      ]);
     } catch {
       /* not shared, still right */
     }

@@ -5,6 +5,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import type { Case, Prisma } from '@prisma/client';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import {
@@ -87,6 +88,7 @@ export class CaseLifecycleService {
     private readonly reviews: ReviewsService,
     private readonly audit: AuditLogService,
     private readonly chat: ChatSystemMessages,
+    private readonly settings: AppSettingsService,
     // Owner 2026-10-24: a completed case qualifies an invited client.
     @Optional() private readonly referrals?: ReferralsService,
   ) {}
@@ -118,21 +120,29 @@ export class CaseLifecycleService {
     });
   }
 
-  /** POST /cases/:id/complete — "Выполнено" (§10.1), owner 2026-10-02: from
-   * either side. in_progress → pending_completion, auto_close_at = now + 7
-   * days; the other side gets `completion_requested` and confirms with its
-   * own "Выполнено" (or disputes). */
+  /** POST /cases/:id/complete — "Выполнено" / «Закрыть кейс» (§10.1),
+   * owner 2026-10-02: from either side. in_progress → pending_completion,
+   * auto_close_at = now + `cases.close_confirm_days` (R-392, default 7);
+   * the other side gets `completion_requested` (bell + push) and answers
+   * with «Подтвердить закрытие» / «Не закрывать» (or disputes); both see
+   * a system line in the case chat. */
   async complete(user: RequestUser, caseId: string): Promise<Case> {
     if (user.role !== 'client' && user.role !== 'attorney') {
       throw caseNotFound();
     }
-    return withTxRetry(this.prisma, async (tx) => {
+    const closeConfirmDays = await this.settings.number(
+      'cases.close_confirm_days',
+    );
+    const chat: ChatChange[] = [];
+    const after = await withTxRetry(this.prisma, async (tx) => {
+      chat.length = 0;
       const { clientId, attorneyId } = await this.parties(tx, caseId);
       const byClient = user.role === 'client';
       if ((byClient ? clientId : attorneyId) !== user.sub) throw caseNotFound();
       const { case: after, plan } = await this.caseMachine.apply(tx, {
         caseId,
         action: byClient ? 'client_complete' : 'attorney_complete',
+        closeConfirmDays,
       });
       const autoCloseAt = after.auto_close_at?.toISOString() ?? null;
       const by = byClient ? 'client' : 'attorney';
@@ -148,12 +158,76 @@ export class CaseLifecycleService {
         {
           type: 'completion_requested',
           recipientId: byClient ? attorneyId : clientId,
-          payload: { caseId, autoCloseAt, by },
+          payload: { caseId, autoCloseAt, by, actorId: user.sub },
         },
         tx,
       );
+      // R-392: both sides see the request in the case chat.
+      chat.push(
+        ...(await this.chat.post(
+          tx,
+          { case_id: caseId, status: { not: 'closed' } },
+          byClient ? 'close_requested_client' : 'close_requested_attorney',
+        )),
+      );
       return after;
     });
+    this.chat.publish(chat);
+    return after;
+  }
+
+  /** POST /cases/:id/decline-completion — R-392 «Не закрывать»: the side
+   * that did NOT ask answers no. pending_completion → in_progress (the
+   * request is void, no admin dispute); the requester gets the bell + push,
+   * both see a system line in the case chat. */
+  async declineCompletion(user: RequestUser, caseId: string): Promise<Case> {
+    if (user.role !== 'client' && user.role !== 'attorney') {
+      throw caseNotFound();
+    }
+    const chat: ChatChange[] = [];
+    const after = await withTxRetry(this.prisma, async (tx) => {
+      chat.length = 0;
+      const { clientId, attorneyId } = await this.parties(tx, caseId);
+      const byClient = user.role === 'client';
+      if ((byClient ? clientId : attorneyId) !== user.sub) throw caseNotFound();
+      const requested = await this.requestedBy(tx, caseId);
+      if (requested !== (byClient ? 'attorney' : 'client')) {
+        throw this.invalidForYou(caseId);
+      }
+      const by = byClient ? 'client' : 'attorney';
+      const { case: after, plan } = await this.caseMachine.apply(tx, {
+        caseId,
+        action: byClient
+          ? 'client_decline_completion'
+          : 'attorney_decline_completion',
+      });
+      await this.journal.append(tx, {
+        caseId,
+        clientId,
+        attorneyId,
+        actor: { userId: user.sub, role: by },
+        event: plan.event,
+        payload: { by },
+      });
+      await this.notifications.emit(
+        {
+          type: 'case_workspace_activity',
+          recipientId: byClient ? attorneyId : clientId,
+          payload: { caseId, actorId: user.sub, kind: 'close_declined', by },
+        },
+        tx,
+      );
+      chat.push(
+        ...(await this.chat.post(
+          tx,
+          { case_id: caseId, status: { not: 'closed' } },
+          byClient ? 'close_declined_client' : 'close_declined_attorney',
+        )),
+      );
+      return after;
+    });
+    this.chat.publish(chat);
+    return after;
   }
 
   /** POST /cases/:id/confirm-completion — the side that did NOT mark first

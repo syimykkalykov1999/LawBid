@@ -299,6 +299,7 @@ sealed class MissingItem {
       return const MissingIdentity(back: true);
     }
     if (raw == 'selfie') return const MissingSelfie();
+    if (raw == 'photo') return const MissingPhoto();
     if (raw.startsWith('bar_license:')) {
       return MissingBarDocument(raw.substring('bar_license:'.length));
     }
@@ -323,6 +324,11 @@ class MissingIdentity extends MissingItem {
 
 class MissingSelfie extends MissingItem {
   const MissingSelfie();
+}
+
+/// Owner 2026-11-05: the attorney's own profile photo (required).
+class MissingPhoto extends MissingItem {
+  const MissingPhoto();
 }
 
 class MissingBarDocument extends MissingItem {
