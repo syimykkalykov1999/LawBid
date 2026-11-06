@@ -72,6 +72,37 @@ class FakeVerificationBackend
     );
   }
 
+  /// R-146: «continue on your phone» codes made / their status / the
+  /// status of a token the server does not know (null = 404).
+  int handoffsCreated = 0;
+  int handoffStatusCalls = 0;
+  SelfieHandoffStatus handoffState = SelfieHandoffStatus.pending;
+  bool handoffKnown = true;
+
+  @override
+  Future<SelfieHandoff> createHandoff(String requestId) async {
+    handoffsCreated++;
+    final token = 'test-handoff-token-$handoffsCreated';
+    return SelfieHandoff(
+      token: token,
+      url: 'https://lawbid.dev/selfie/$token',
+      expiresAt: DateTime.now().add(const Duration(minutes: 10)),
+    );
+  }
+
+  @override
+  Future<SelfieHandoffStatus> handoffStatus(String token) async {
+    handoffStatusCalls++;
+    if (!handoffKnown) {
+      throw const ApiException(
+        statusCode: 404,
+        code: 'NOT_FOUND',
+        message: 'Handoff code not found.',
+      );
+    }
+    return handoffState;
+  }
+
   final Map<String, ScanState> _files = {};
   int _seq = 0;
 
@@ -348,7 +379,9 @@ Widget verificationApp({
       ),
       GoRoute(
         path: AppRoutes.verificationWizard,
-        builder: (_, __) => const VerificationWizardScreen(),
+        builder: (_, state) => VerificationWizardScreen(
+          handoffToken: state.uri.queryParameters['handoff'],
+        ),
       ),
     ],
   );

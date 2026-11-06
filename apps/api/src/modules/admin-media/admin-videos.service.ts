@@ -2,8 +2,10 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -48,6 +50,7 @@ export class AdminVideosService {
     private readonly videos: VideosService,
     private readonly content: AdminContentService,
     private readonly audit: AuditLogService,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
   async list(
@@ -161,7 +164,17 @@ export class AdminVideosService {
     });
   }
 
+  /** Data-layer audit 2026-11-04 (R-395): a GROUP BY + SUM + two counts
+   * over the whole video table — counted once per 2 minutes for the whole
+   * team (AdminSummaryService, stale-while-revalidate), not on every open. */
   async stats(): Promise<AdminVideoStatsDto> {
+    if (!this.summary) return this.computeStats();
+    return (
+      await this.summary.get('video-stats', () => this.computeStats(), 120)
+    ).data;
+  }
+
+  private async computeStats(): Promise<AdminVideoStatsDto> {
     const since = new Date(Date.now() - 7 * DAY_MS);
     const [groups, storage, uploads7d, failed7d] = await Promise.all([
       this.prisma.videoAsset.groupBy({

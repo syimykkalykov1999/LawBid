@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:app_badge_plus/app_badge_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -194,9 +195,7 @@ class PushService {
               // show the phone's call screen (once per call; the socket's
               // ring of the same call is the same screen).
               unawaited(
-                _ref
-                    .read(callControllerProvider.notifier)
-                    .ringFromPush(
+                _ref.read(callControllerProvider.notifier).ringFromPush(
                       msg.data['callId'] as String,
                       showSystemUi: true,
                     ),
@@ -445,11 +444,65 @@ class PushService {
   void forgetSession() {
     _startedFor = null;
     _voipToken = null;
+    _registrar?.stop();
+    _registrar = null;
   }
+
+  /// Owner 2026-11-05: what the operating system keeps for the account, on any
+  /// way out: the shade, the icon number, a ringing call, the buttons on
+  /// notifications, the phone-book names; when nobody is signed in, also the
+  /// planner's alarms and the Firebase token, so nothing can arrive even when
+  /// the server could not be told.
+  Future<void> clearDeviceTraces({required bool signedOut}) =>
+      clearDeviceTracesWith(
+        chat: chatNotificationsChannel,
+        endCalls: () => _ref.read(systemCallUiProvider).endAll(),
+        zeroBadge: () async {
+          if (kIsWeb) return;
+          if (await AppBadgePlus.isSupported()) {
+            await AppBadgePlus.updateBadge(0);
+          }
+        },
+        cancelReminders: signedOut && TaskReminderScheduler.supported
+            ? () => _ref.read(taskReminderSchedulerProvider).cancelAll()
+            : null,
+        deleteFirebaseToken: signedOut
+            ? () async {
+                if (Firebase.apps.isEmpty) return;
+                await FirebaseMessaging.instance.deleteToken();
+              }
+            : null,
+      );
 
   void dispose() {
     for (final s in _subs) {
       s.cancel();
+    }
+  }
+}
+
+/// The steps of [PushService.clearDeviceTraces]: one that fails never stops the
+/// others.
+Future<void> clearDeviceTracesWith({
+  required ChatNotificationsChannel chat,
+  required Future<void> Function() endCalls,
+  required Future<void> Function() zeroBadge,
+  Future<void> Function()? cancelReminders,
+  Future<void> Function()? deleteFirebaseToken,
+}) async {
+  for (final step in <Future<void> Function()?>[
+    () => chat.setPushActions(apiBase: '', deviceToken: ''),
+    () => chat.setContactNames(const {}),
+    chat.clearAll,
+    endCalls,
+    zeroBadge,
+    cancelReminders,
+    deleteFirebaseToken,
+  ]) {
+    try {
+      await step?.call();
+    } on Object catch (e) {
+      debugPrint('device traces: $e');
     }
   }
 }

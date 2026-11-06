@@ -14,13 +14,12 @@ import { ImageProcessor } from '../processing/image-processor';
 import { dangerousContent } from '../content-guard';
 import { detectMime } from '../magic-bytes';
 import { computeBlurhash } from '../processing/blurhash';
+import { putProcessedObjects } from '../processing/put-processed-objects';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import {
   DEDUP_PROFILE,
-  avifKey,
   derivedKeys,
   purposesOfProfile,
-  variantKey,
   FILE_MIME,
 } from '../files.policy';
 import {
@@ -150,26 +149,10 @@ export class FileScanProcessor {
     }
 
     try {
-      for (const [px, img] of processed.variants) {
-        await this.storage.put(
-          file.s3_bucket,
-          variantKey(file.s3_key, px),
-          img.data,
-          img.mime,
-        );
-      }
-      await this.putAvifTwins(file, processed);
       const main = processed.main;
       // Placeholder for the app while the picture loads (never blocks).
       const blurhash = main ? await computeBlurhash(main.data) : null;
-      if (main) {
-        await this.storage.put(
-          file.s3_bucket,
-          file.s3_key,
-          main.data,
-          main.mime,
-        );
-      }
+      await putProcessedObjects(this.storage, this.logger, file, processed);
       await this.prisma.file.updateMany({
         where: { id: fileId, scan_status: 'pending' },
         data: {
@@ -299,35 +282,6 @@ export class FileScanProcessor {
       );
     }
     return true;
-  }
-
-  /** Owner 2026-10-25: the AVIF twins (`images.avif_enabled`). A failure
-   * only costs the smaller file — the WebP/JPEG stays what is served. */
-  private async putAvifTwins(
-    file: File,
-    processed: Awaited<ReturnType<ImageProcessor['process']>>,
-  ): Promise<void> {
-    try {
-      if (processed.main?.avif) {
-        await this.storage.put(
-          file.s3_bucket,
-          avifKey(file.s3_key),
-          processed.main.avif.data,
-          processed.main.avif.mime,
-        );
-      }
-      for (const [px, img] of processed.variants) {
-        if (!img.avif) continue;
-        await this.storage.put(
-          file.s3_bucket,
-          avifKey(variantKey(file.s3_key, px)),
-          img.avif.data,
-          img.avif.mime,
-        );
-      }
-    } catch (err) {
-      this.logger.warn({ fileId: file.id, err }, 'AVIF twins not stored');
-    }
   }
 
   private async imageFormat(): Promise<ImageFormat> {

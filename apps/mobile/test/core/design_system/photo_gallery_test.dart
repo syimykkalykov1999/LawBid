@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/media/photo_saver.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 
 import '../../helpers/ux_harness.dart';
@@ -63,9 +64,84 @@ void main() {
     expect(find.byType(InteractiveViewer), findsNothing);
   });
 
+  // Owner 2026-11-04 (R-405): the full-screen view never shows the 256 px
+  // preview stretched over the screen — it opens the full picture (the one
+  // the server sent, else the preview's own full picture) and keeps the
+  // preview as the placeholder.
+  testWidgets('opens the full picture, not the preview', (t) async {
+    const preview = 'https://media.test/avatar/s0/2026/11/f1_w256';
+    await t.pumpWidget(
+      uxApp(
+        const Scaffold(
+          body: Center(
+            child: ProfileAvatar(
+              size: 88,
+              url: preview,
+              initials: 'SK',
+              viewerCloseLabel: 'Close',
+            ),
+          ),
+        ),
+        theme: AppTheme.dark(),
+        disableAnimations: true,
+      ),
+    );
+    await t.tap(find.byKey(const ValueKey('avatar-open')));
+    await t.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('https://media.test/avatar/s0/2026/11/f1')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey(preview)), findsNothing);
+    await t.tap(find.byTooltip('Close'));
+    await t.pumpAndSettle();
+
+    await t.pumpWidget(
+      uxApp(
+        const Scaffold(
+          body: Center(
+            child: ProfileAvatar(
+              size: 88,
+              url: preview,
+              fullUrl: 'https://cdn.test/full',
+              initials: 'SK',
+              viewerCloseLabel: 'Close',
+            ),
+          ),
+        ),
+        theme: AppTheme.dark(),
+        disableAnimations: true,
+      ),
+    );
+    await t.tap(find.byKey(const ValueKey('avatar-open')));
+    await t.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('https://cdn.test/full')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('no photo: initials, a tap does nothing', (t) async {
     await pump(t);
     expect(find.text('SK'), findsOneWidget);
     expect(find.byKey(const ValueKey('avatar-open')), findsNothing);
+  });
+
+  testWidgets('«Download» in the top bar saves the shown photo', (t) async {
+    final saved = <String>[];
+    debugSavePhoto = (url) async {
+      saved.add(url);
+      return PhotoSaveResult.noAccess;
+    };
+    addTearDown(() => debugSavePhoto = null);
+    await pump(t, url: 'https://x.test/me.jpg');
+    await t.tap(find.byKey(const ValueKey('avatar-open')));
+    await t.pumpAndSettle();
+
+    await t.tap(find.byKey(const ValueKey('gallery-save')));
+    await t.pump();
+
+    expect(saved, ['https://x.test/me.jpg']);
+    expect(find.textContaining('No access to your photos'), findsWidgets);
   });
 }

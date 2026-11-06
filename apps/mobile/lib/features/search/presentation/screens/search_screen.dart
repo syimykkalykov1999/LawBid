@@ -593,7 +593,12 @@ class _TagTopicRow extends ConsumerWidget {
     final count = tag.postsCount;
     return TopicRow(
       tag: tag.tag,
-      categoryCode: cat,
+      // Owner 2026-11-04 (R-406): our topics (a practice, a hashtag that
+      // names one) keep their pictures; a topic people made with a hashtag
+      // wears the photo of its most popular post, or its letter when the
+      // topic has no media posts.
+      categoryCode: named,
+      coverUrl: tag.coverUrl,
       title: cat == null ? '#${tag.tag}' : topicName(ref, cat),
       subtitle: count == null
           ? '#${tag.tag}'

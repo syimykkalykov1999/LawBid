@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/default_feature_flags.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
+import 'package:lawbid/features/client_badge/application/client_badge_providers.dart';
 import 'package:lawbid/features/create/presentation/create_sheet.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
@@ -20,15 +21,19 @@ import '../../helpers/ux_harness.dart';
 /// смотреть рилсы, которые публикуют адвокаты; фото и брифы клиенты
 /// публикуют как раньше. Адвокаты рилсы публикуют всегда».
 class _Flags extends FeatureFlagsController {
-  _Flags({required this.clientReels});
+  _Flags({required this.clientReels, this.paidOnly = false});
 
   final bool clientReels;
+
+  /// Owner 2026-11-04 (R-398): «Только с галочкой».
+  final bool paidOnly;
 
   @override
   FeatureFlagsState build() => FeatureFlagsState(
         flags: {...defaultFeatureFlags}
           ..['video_posts'] = true
-          ..['reels_client_publish'] = clientReels,
+          ..['reels_client_publish'] = clientReels
+          ..['reels_client_publish_paid_only'] = paidOnly,
         appConfig: const {},
       );
 
@@ -44,12 +49,17 @@ void main() {
     WidgetTester tester, {
     required UserRole role,
     required bool clientReels,
+    bool paidOnly = false,
+    bool badge = false,
   }) async {
     useNarrowPhone(tester);
     final extra = <Override>[
-      featureFlagsControllerProvider
-          .overrideWith(() => _Flags(clientReels: clientReels)),
+      featureFlagsControllerProvider.overrideWith(
+        () => _Flags(clientReels: clientReels, paidOnly: paidOnly),
+      ),
       currentUserRoleProvider.overrideWithValue(role),
+      // R-398: the one cached «do I wear the gold badge» answer.
+      clientBadgeActiveProvider.overrideWith((ref) => badge),
     ];
     await tester.pumpWidget(
       uxApp(
@@ -100,6 +110,143 @@ void main() {
     await tester.tap(camera);
     await tester.pump(const Duration(milliseconds: 500));
     expect(recordVideo, findsOneWidget);
+  });
+
+  // Owner 2026-11-04 (R-398): «Только с галочкой».
+  final paidGallery = find.text('Up to 9 photos · video by subscription');
+  final lock = find.byKey(const ValueKey('post-gallery-lock'));
+  final paidSheet = find.text('Video — by subscription');
+
+  testWidgets(
+      'only with the badge, no badge: photos with a locked «video by '
+      'subscription» hint, no reel', (tester) async {
+    await open(
+      tester,
+      role: UserRole.client,
+      clientReels: true,
+      paidOnly: true,
+    );
+    expect(paidGallery, findsOneWidget);
+    expect(lock, findsOneWidget);
+    expect(reelGallery, findsNothing);
+    expect(photoGallery, findsNothing);
+    // «Фото или видео» (the reel chooser) is not offered.
+    expect(find.text('Photos or videos'), findsNothing);
+    // The camera keeps «Снять сейчас» and both choices …
+    expect(find.text('Take it now'), findsOneWidget);
+    await tester.tap(camera);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(recordVideo, findsOneWidget);
+    // … but «Record a video» opens the subscription sheet instead.
+    await tester.pumpAndSettle();
+    await tester.tap(recordVideo);
+    await tester.pumpAndSettle();
+    expect(paidSheet, findsOneWidget);
+    expect(find.text('Go to subscription'), findsOneWidget);
+  });
+
+  testWidgets('only with the badge, badge holder: reels as with «free»', (
+    tester,
+  ) async {
+    await open(
+      tester,
+      role: UserRole.client,
+      clientReels: true,
+      paidOnly: true,
+      badge: true,
+    );
+    expect(reelGallery, findsOneWidget);
+    expect(lock, findsNothing);
+    expect(paidGallery, findsNothing);
+    expect(find.text('Photos or videos'), findsOneWidget);
+    await tester.tap(camera);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(recordVideo, findsOneWidget);
+    await tester.pumpAndSettle();
+    await tester.tap(recordVideo);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(paidSheet, findsNothing);
+  });
+
+  testWidgets('only with the badge: an attorney is untouched', (tester) async {
+    await open(
+      tester,
+      role: UserRole.attorney,
+      clientReels: true,
+      paidOnly: true,
+    );
+    expect(reelGallery, findsOneWidget);
+    expect(lock, findsNothing);
+  });
+
+  testWidgets('«free for all»: no lock even for a client without the badge', (
+    tester,
+  ) async {
+    await open(tester, role: UserRole.client, clientReels: true);
+    expect(reelGallery, findsOneWidget);
+    expect(lock, findsNothing);
+  });
+
+  testWidgets('«off» wins over the paid-only half: photos only, no lock', (
+    tester,
+  ) async {
+    await open(
+      tester,
+      role: UserRole.client,
+      clientReels: false,
+      paidOnly: true,
+      badge: true,
+    );
+    expect(photoGallery, findsOneWidget);
+    expect(lock, findsNothing);
+    expect(reelGallery, findsNothing);
+  });
+
+  test('the three modes, the reels tab and the badge screen line (R-398)', () {
+    ProviderContainer box({
+      required bool on,
+      required bool paid,
+      bool badge = false,
+      UserRole role = UserRole.client,
+    }) {
+      final c = ProviderContainer(
+        overrides: [
+          featureFlagsControllerProvider
+              .overrideWith(() => _Flags(clientReels: on, paidOnly: paid)),
+          currentUserRoleProvider.overrideWithValue(role),
+          clientBadgeActiveProvider.overrideWith((ref) => badge),
+        ],
+      );
+      addTearDown(c.dispose);
+      return c;
+    }
+
+    final off = box(on: false, paid: true);
+    expect(off.read(reelsClientModeProvider), ReelsClientMode.off);
+    expect(off.read(clientReelsPaywalledProvider), isFalse);
+    expect(off.read(clientProfileReelsTabProvider), isFalse);
+    expect(off.read(clientBadgeIncludesReelsProvider), isFalse);
+
+    final free = box(on: true, paid: false);
+    expect(free.read(reelsClientModeProvider), ReelsClientMode.free);
+    expect(free.read(canPublishReelsProvider), isTrue);
+    expect(free.read(clientProfileReelsTabProvider), isTrue);
+    expect(free.read(clientBadgeIncludesReelsProvider), isFalse);
+
+    final noBadge = box(on: true, paid: true);
+    expect(noBadge.read(reelsClientModeProvider), ReelsClientMode.badge);
+    expect(noBadge.read(canPublishReelsProvider), isFalse);
+    expect(noBadge.read(clientReelsPaywalledProvider), isTrue);
+    expect(noBadge.read(clientProfileReelsTabProvider), isTrue);
+    expect(noBadge.read(clientBadgeIncludesReelsProvider), isTrue);
+
+    final holder = box(on: true, paid: true, badge: true);
+    expect(holder.read(canPublishReelsProvider), isTrue);
+    expect(holder.read(clientReelsPaywalledProvider), isFalse);
+
+    final attorney = box(on: true, paid: true, role: UserRole.attorney);
+    expect(attorney.read(canPublishReelsProvider), isTrue);
+    expect(attorney.read(clientReelsPaywalledProvider), isFalse);
   });
 
   // Owner 2026-11-04 06:45: «Кейс наверх поставь, и там слово «видео»

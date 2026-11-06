@@ -521,6 +521,7 @@ class SelfieStep extends StatelessWidget {
     required this.state,
     required this.actions,
     this.needsPhone = false,
+    this.handoffToken,
     super.key,
   });
 
@@ -528,9 +529,13 @@ class SelfieStep extends StatelessWidget {
   final WizardState state;
   final StepActions actions;
 
-  /// Owner 2026-10-28: no guided camera here (web): «continue on the
-  /// phone» instead of «Open camera».
+  /// Owner 2026-10-28 + R-146: no guided camera here (web, or no camera at
+  /// all): «continue on the phone» instead of «Open camera».
   final bool needsPhone;
+
+  /// R-146: this device opened the computer's «continue on your phone»
+  /// link (`…/selfie/<token>`).
+  final String? handoffToken;
 
   @override
   Widget build(BuildContext context) {
@@ -591,9 +596,18 @@ class SelfieStep extends StatelessWidget {
             ),
           ),
         const SizedBox(height: AppSpacing.md),
-        if (needsPhone && !state.request.selfieComplete)
-          PhoneHandoffPanel(t: t)
-        else
+        if (handoffToken case final token?) ...[
+          HandoffPhoneNotice(
+            t: t,
+            token: token,
+            received: state.request.selfieComplete,
+            needsApp: needsPhone,
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+        if (needsPhone && handoffToken == null)
+          PhoneHandoffPanel(t: t, received: state.request.selfieComplete)
+        else if (!needsPhone)
           DocumentSlotCard(
             t: t,
             title: t.t('verification.selfie.card'),

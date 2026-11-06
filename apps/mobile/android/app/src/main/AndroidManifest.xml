@@ -39,6 +39,12 @@
     <!-- Owner 2026-10-20: "Save" on the My QR code card writes a picture to
          the gallery; Android 9 and older need this, newer ones do not. -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <!-- Owner 2026-11-05: open_filex asks for these for files of other apps;
+         it only opens our own (no permission needed), so they are not asked. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove" />
     <!-- OQ-040: voice messages; in-app calls. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -134,6 +140,8 @@
                 <data android:path="/auth/email-code" />
                 <!-- Owner 2026-10-28: «continue on the phone» (ID selfie). -->
                 <data android:path="/verification/wizard" />
+                <!-- R-146: the computer's one-time «continue on your phone» code. -->
+                <data android:pathPrefix="/selfie/" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

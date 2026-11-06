@@ -115,6 +115,12 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+## open_filex — BSD-3-Clause
+
+Dependency from pub.dev (not copied): opens a downloaded document in the system
+viewer (`lib/core/files/open_local_file_native.dart`), version 5.0.0,
+https://github.com/javaherisaber/open_filex. Copyright 2018 crazecoder.
+
 ## tus-js-client — MIT
 
 The parallel reel upload in `lib/features/reels/data/reels_repository.dart`

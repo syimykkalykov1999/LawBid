@@ -86,7 +86,13 @@ class _MediaPreviewScreenState extends ConsumerState<MediaPreviewScreen> {
       _files = [
         for (var i = 0; i < _files.length; i++)
           if (i == _index)
-            (bytes: bytes, name: editedName(f.name), mime: 'image/jpeg')
+            (
+              bytes: bytes,
+              name: editedName(f.name),
+              mime: 'image/jpeg',
+              path: null,
+              diskBytes: null,
+            )
           else
             _files[i],
       ];
@@ -361,7 +367,7 @@ class _Stage extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            byteSizeLabel(file.bytes.length),
+            byteSizeLabel(file.diskBytes ?? file.bytes.length),
             style: type.caption.copyWith(color: ChatColors.onViewerMuted),
           ),
         ],

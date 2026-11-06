@@ -155,6 +155,50 @@ export function caseQueryWords(plain: string): string[] {
     .slice(0, 4);
 }
 
+/** Most rows one name CTE keeps (memory and heap reads stay bounded for a
+ * 2-letter type-ahead that matches a tenth of the users). */
+export const NAME_SCAN_CAP = 20_000;
+
+/**
+ * Load test 2026-11-02: the name branches were `SELECT id FROM users WHERE
+ * role = X AND <name matches> LIMIT 1000`. With that LIMIT in the same query
+ * the planner assumes the first 1000 matches turn up after a short scan (it
+ * multiplies the role share by a flat trigram guess of ~20 000 rows) and reads
+ * the WHOLE users table when the word is rare: 0.2-2.5 s per search on 1M
+ * users. A MATERIALIZED CTE is planned on its own, so the trigram indexes are
+ * used; the cap [NAME_SCAN_CAP] keeps a very common word bounded, and the
+ * branch LIMIT (BRANCH_CAP) applies to the CTE result. One pair of CTEs per role
+ * (`att_exact` / `att_loose` and `cli_exact` / `cli_loose`); a role that cannot be returned
+ * ([attorneys] / [clients] false) gets an empty one and costs nothing.
+ */
+export function nameCandidateCtes(
+  precise: Prisma.Sql,
+  loose: Prisma.Sql,
+  attorneys: boolean,
+  clients: boolean,
+): Prisma.Sql {
+  // The role is a literal on purpose: a bound parameter lets Postgres pick a
+  // generic plan after a few runs, which loses the rare-word estimate (see
+  // name-match.sql.ts). Two CTEs per role keep the old per-arm quota: a
+  // precise match is never crowded out by loose typo matches.
+  const cte = (
+    name: string,
+    role: 'attorney' | 'client',
+    arm: Prisma.Sql,
+    on: boolean,
+  ) =>
+    on
+      ? Prisma.sql`${Prisma.raw(name)} AS MATERIALIZED (
+          SELECT id FROM users
+          WHERE full_name_lower IS NOT NULL AND role = ${Prisma.raw(`'${role}'`)}
+            AND ${arm}
+          LIMIT ${NAME_SCAN_CAP}),
+        `
+      : Prisma.sql`${Prisma.raw(name)} AS MATERIALIZED (SELECT NULL::UUID AS id WHERE FALSE),
+        `;
+  return Prisma.sql`${cte('att_exact', 'attorney', precise, attorneys)}${cte('att_loose', 'attorney', loose, attorneys)}${cte('cli_exact', 'client', precise, clients)}${cte('cli_loose', 'client', loose, clients)}`;
+}
+
 /**
  * docs/05 §7.6 PostgresSearchProvider on the docs/02 §5.3 indexes:
  * trigram GIN on attorney_profiles.username_lower and
@@ -426,14 +470,9 @@ export class PostgresSearchProvider implements SearchProvider {
               AND ${handleMatch(Prisma.sql`username_lower`)}
             LIMIT ${BRANCH_CAP})
           UNION
-          (SELECT id AS user_id FROM users
-            WHERE full_name_lower IS NOT NULL AND role = 'client'
-              AND ${fullNameMatch}
-            LIMIT ${BRANCH_CAP})
+          (SELECT id AS user_id FROM cli_exact LIMIT ${BRANCH_CAP})
           UNION
-          (SELECT id AS user_id FROM users
-            WHERE full_name_lower IS NOT NULL AND role = 'client' AND ${byName}
-            LIMIT ${BRANCH_CAP})`
+          (SELECT id AS user_id FROM cli_loose LIMIT ${BRANCH_CAP})`
         }) cc
         JOIN users u ON u.id = cc.user_id AND u.role = 'client'
           AND u.status = 'active' AND u.deleted_at IS NULL
@@ -441,10 +480,18 @@ export class PostgresSearchProvider implements SearchProvider {
           AND c.username_lower IS NOT NULL
         WHERE TRUE ${clientFilters}`
       : Prisma.empty;
+    const nameCtes = among
+      ? Prisma.empty
+      : nameCandidateCtes(
+          fullNameMatch,
+          byName,
+          f.role !== 'client',
+          withClients,
+        );
     const rows = await this.db.$queryRaw<
       { id: string; role: PersonRole; tier: number }[]
     >`
-      WITH cand AS (${
+      WITH ${nameCtes}cand AS (${
         among
           ? Prisma.sql`SELECT unnest(${among}::UUID[]) AS id`
           : Prisma.sql`
@@ -453,14 +500,9 @@ export class PostgresSearchProvider implements SearchProvider {
             AND ${handleMatch(Prisma.sql`username_lower`)}
           LIMIT ${BRANCH_CAP})
         UNION
-        (SELECT id FROM users
-          WHERE full_name_lower IS NOT NULL AND role = 'attorney'
-            AND ${fullNameMatch}
-          LIMIT ${BRANCH_CAP})
+        (SELECT id FROM att_exact LIMIT ${BRANCH_CAP})
         UNION
-        (SELECT id FROM users
-          WHERE full_name_lower IS NOT NULL AND role = 'attorney' AND ${byName}
-          LIMIT ${BRANCH_CAP})
+        (SELECT id FROM att_loose LIMIT ${BRANCH_CAP})
         ${byEnglish}
         ${byTopic}
         UNION
