@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
+import { AdminLaunchModule } from '../admin-launch/admin-launch.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AdminBillingController } from './admin-billing.controller';
@@ -34,6 +35,8 @@ import { LedgerModule } from '../ledger/ledger.public';
 @Module({
   imports: [
     AdminAccessModule,
+    // Owner 2026-11-04 (R-399): a saved price rebuilds the public site.
+    AdminLaunchModule,
     NotificationsModule,
     SubscriptionsModule,
     LedgerModule,

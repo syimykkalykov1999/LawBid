@@ -8,10 +8,12 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/uploads/background_transport.dart';
+import 'package:lawbid/core/uploads/foreground_parts.dart';
 import 'package:lawbid/core/uploads/storage_uploader.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/core/uploads/upload_files.dart';
@@ -512,14 +514,29 @@ final uploadQueueOwnerProvider = Provider<String?>(
 );
 
 /// The queue's uploader: the OS background transfer on the phone.
-final uploadQueueUploaderProvider = Provider<StorageUploader>(
-  (ref) => StorageUploader(
+final uploadQueueUploaderProvider = Provider<StorageUploader>((ref) {
+  // R-251: on screen a big file may go in parallel parts (flags
+  // `chat_upload_parallel` and `files_multipart`); it is handed to the OS
+  // transfer when the app leaves the screen.
+  final gate = ForegroundParts(
+    enabled: () {
+      final flags = ref.read(featureFlagsControllerProvider);
+      return flags.isEnabled('chat_upload_parallel') &&
+          flags.isEnabled('files_multipart');
+    },
+    osTransferKnown: backgroundUploadKnown,
+    handsOff: backgroundHandsOff,
+  );
+  ref.onDispose(gate.dispose);
+  final storage = ref.watch(storageDioProvider);
+  return StorageUploader(
     apiDio: ref.watch(dioProvider),
-    transport: queueTransport(
-      fallback: DioStorageTransport(ref.watch(storageDioProvider)),
-    ),
-  ),
-);
+    transport: queueTransport(fallback: DioStorageTransport(storage)),
+    storageDio: storage,
+    partsGate: gate,
+    forgetTransfer: forgetBackgroundUpload,
+  );
+});
 
 /// The app's one queue; rebuilt for another account.
 final uploadQueueProvider = Provider<UploadQueue>((ref) {
