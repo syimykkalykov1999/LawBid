@@ -248,6 +248,7 @@ describe('PublicDirectoryService.seoPosts / seoQuestions (static pages of posts 
       media: { none: {} },
       attachments: { none: {} },
       author: {
+        role: 'attorney',
         status: 'active',
         deleted_at: null,
         attorney_profile: { is: { verification_status: 'verified' } },
@@ -339,6 +340,7 @@ describe('PublicDirectoryService.seoPosts / seoQuestions (static pages of posts 
       deleted_at: null,
       safety_flags: { isEmpty: true },
       attorney: {
+        role: 'attorney',
         status: 'active',
         deleted_at: null,
         attorney_profile: { is: { verification_status: 'verified' } },

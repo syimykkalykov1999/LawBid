@@ -676,6 +676,12 @@ class ReelUploadHandler extends UploadJobHandler {
       cancel: cancel,
       resumeLocation: p['location'] as String?,
       onLocation: (l) => unawaited(scope.saveProgress({'location': l})),
+      parallel: _ref
+          .read(featureFlagsControllerProvider)
+          .isEnabled('reels_tus_parallel'),
+      resumePartLocations: (p['partLocations'] as List<Object?>?)?.cast(),
+      onPartLocations: (l) =>
+          unawaited(scope.saveProgress({'partLocations': l})),
       onProgress: (v) => _job.reportFor(
         job.id,
         ReelPublishState(

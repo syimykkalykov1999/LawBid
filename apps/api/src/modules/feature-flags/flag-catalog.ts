@@ -198,6 +198,62 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Website, wide window: a post opens as a window with arrows',
   },
   {
+    // R-254: on, a file this same user already stored is not uploaded again.
+    // Own files only (a hash is not proof of holding a file). Needs the
+    // setting storage.dedup on. Off until checked against real storage.
+    key: 'files_reuse_own',
+    enabled: false,
+    app: false,
+    description: 'A file the user already stored is not uploaded again',
+  },
+  {
+    // R-252: on, `confirm` of a file from 8 MiB reads only its first 256 KiB;
+    // the checksum and the look inside go to the scan worker. Off until
+    // checked against real storage.
+    key: 'files_confirm_light',
+    enabled: false,
+    app: false,
+    description: 'Big uploads are confirmed without reading them into the API',
+  },
+  {
+    // R-251: on, the app sends a reel to Bunny in 4 pieces at once and asks
+    // Bunny to join them (TUS concatenation; Bunny announces it, but it was
+    // not tried with a real video: off until checked on a phone). A refusal
+    // falls back to the plain single-stream upload.
+    key: 'reels_tus_parallel',
+    enabled: false,
+    app: true,
+    description:
+      'Reels, stories and channel videos go to Bunny in parallel pieces',
+  },
+  {
+    // R-251: on, a big queued chat file goes in parallel S3 parts while the
+    // app is on screen and passes to the OS background transfer when it
+    // leaves; several files of a group chat or a task go up together. Needs
+    // `files_multipart`. Off until checked on a phone with real storage.
+    key: 'chat_upload_parallel',
+    enabled: false,
+    app: true,
+    description: 'Chat files go in parallel parts while the app is on screen',
+  },
+  {
+    // R-251: on, a document over 4 MB comes down in parallel HTTP Range
+    // pieces. A server without Range falls back by itself. Off until checked
+    // on a phone with real storage.
+    key: 'downloads_parallel',
+    enabled: false,
+    app: true,
+    description: 'Documents download in parallel pieces',
+  },
+  {
+    // R-251: on, the blocks of a video's cached start are fetched at once.
+    // Off until measured against the real CDN.
+    key: 'video_cache_parallel',
+    enabled: false,
+    app: true,
+    description: 'The cached start of a video is fetched in parallel blocks',
+  },
+  {
     key: 'payments_in_app',
     enabled: false,
     app: true,
@@ -277,6 +333,17 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: false,
     description:
       "The store's «Rate LawBid» dialog, shown once after a positive moment (iOS and Android)",
+  },
+  {
+    // Owner 2026-11-05: Settings → Account «Сменить профиль» — the same
+    // account (same phone and password, no SMS) switches between the
+    // attorney and the client profile; both profiles are kept. Off until
+    // the owner turns it on.
+    key: 'role_switch',
+    enabled: false,
+    app: true,
+    description:
+      'Switch the account between the attorney and the client profile (Settings → Account), confirmed with the password or a passkey',
   },
   {
     // Owner 2026-10-13: sign in with a password, no SMS each time.
