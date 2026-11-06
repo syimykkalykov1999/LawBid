@@ -23,8 +23,16 @@ import 'package:lawbid/features/chat/presentation/chat_video.dart';
 export 'package:lawbid/features/chat/presentation/chat_files_screen.dart'
     show ChatFilesScreen, ChatFilesTab;
 
-/// OQ-047: a file picked for a chat.
-typedef PickedChatFile = ({Uint8List bytes, String name, String mime});
+/// OQ-047: a file picked for a chat. R-255 (flag `chat_files_from_disk`): a
+/// video or document can stay on disk: `path` and `diskBytes` are set and
+/// `bytes` is empty, so a long video never sits in the phone's memory.
+typedef PickedChatFile = ({
+  Uint8List bytes,
+  String name,
+  String mime,
+  String? path,
+  int? diskBytes,
+});
 
 /// The paperclip next to the message field: photos, camera or files (every
 /// common document format). Files the server would refuse are reported.
@@ -51,6 +59,10 @@ Future<List<PickedChatFile>> pickChatFiles(
   /// Owner 2026-10-22 (WhatsApp): the camera button beside the mic skips the
   /// sheet ('camera'); the shot opens in the media preview like the rest.
   String? directChoice,
+
+  /// R-255: videos and documents stay on disk (ignored in the browser, which
+  /// has no paths). A caller passes it only if it can send from a path.
+  bool fromDisk = false,
 }) async {
   final videoOn = prepareVideo != null && (limits?.allowsVideo ?? true);
   final choice = directChoice ??
@@ -120,7 +132,35 @@ Future<List<PickedChatFile>> pickChatFiles(
       skipped++;
       return;
     }
-    out.add((bytes: bytes, name: name, mime: mime));
+    out.add(
+      (
+        bytes: bytes,
+        name: name,
+        mime: mime,
+        path: null,
+        diskBytes: null,
+      ),
+    );
+  }
+
+  final onDisk = fromDisk && !kIsWeb;
+
+  /// A video or document kept on disk, checked by name and size only.
+  Future<void> addPath(String path, String name, int size) async {
+    final mime = mimeFor(name);
+    if (mime == null || size > maxBytes) {
+      skipped++;
+      return;
+    }
+    out.add(
+      (
+        bytes: Uint8List(0),
+        name: name,
+        mime: mime,
+        path: path,
+        diskBytes: size,
+      ),
+    );
   }
 
   switch (choice) {
@@ -163,7 +203,11 @@ Future<List<PickedChatFile>> pickChatFiles(
           final ready = await prepareVideo(f);
           final name =
               ready.name.contains('.') ? ready.name : '${ready.name}.mp4';
-          add(await ready.readAsBytes(), name);
+          if (onDisk) {
+            await addPath(ready.path, name, await ready.length());
+          } else {
+            add(await ready.readAsBytes(), name);
+          }
         } else {
           add(await f.readAsBytes(), f.name);
         }
@@ -184,9 +228,20 @@ Future<List<PickedChatFile>> pickChatFiles(
         type: FileType.custom,
         allowedExtensions: limits?.allExtensions ?? kChatFileExtensions,
         allowMultiple: true,
-        withData: true,
+        withData: !onDisk,
       );
       for (final f in result?.files ?? const <PlatformFile>[]) {
+        final path = onDisk ? f.path : null;
+        if (path != null) {
+          // A picture opens in the preview for editing, so it is read; it
+          // was shrunk or is small. Only other files stay on disk.
+          if (mimeFor(f.name)?.startsWith('image/') ?? false) {
+            add(await XFile(path).readAsBytes(), f.name);
+          } else {
+            await addPath(path, f.name, f.size);
+          }
+          continue;
+        }
         if (f.bytes == null) {
           skipped++;
           continue;

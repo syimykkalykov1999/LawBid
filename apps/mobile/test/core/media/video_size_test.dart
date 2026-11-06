@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/media/video_size.dart';
 
 List<int> _box(String type, List<int> body) {
@@ -51,5 +53,62 @@ void main() {
   test('no video track means no size', () {
     expect(videoSizeOf(_file(_tkhd(0, 0))), isNull);
     expect(videoSizeOf(Uint8List(3)), isNull);
+  });
+
+  group('videoSizeOfFile (R-255): on disk, without reading the video', () {
+    late Directory dir;
+    setUp(() => dir = Directory.systemTemp.createTempSync('vs'));
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    List<int> moov() => _box('moov', _box('trak', _tkhd(1920, 1080)));
+
+    /// ftyp, a sparse mdat of [mdat] bytes (no disk, no time), then [tail].
+    XFile video(int mdat, List<int> tail) {
+      final f = File('${dir.path}/v.mp4');
+      final io = f.openSync(mode: FileMode.write)
+        ..writeFromSync(_box('ftyp', List.filled(16, 0)))
+        ..writeFromSync(_u32(mdat + 8))
+        ..writeFromSync('mdat'.codeUnits);
+      io
+        ..setPositionSync(io.positionSync() + mdat)
+        ..writeFromSync(tail)
+        ..closeSync();
+      return XFile(f.path);
+    }
+
+    test('moov after 1 GB of video: found by the headers alone', () async {
+      expect(
+        await videoSizeOfFile(video(1 << 30, moov())),
+        const Size(1920, 1080),
+      );
+    });
+
+    test('moov first (fast start)', () async {
+      final f = File('${dir.path}/fast.mp4')
+        ..writeAsBytesSync([
+          ..._box('ftyp', List.filled(16, 0)),
+          ...moov(),
+          ..._box('mdat', List.filled(100, 1)),
+        ]);
+      expect(await videoSizeOfFile(XFile(f.path)), const Size(1920, 1080));
+    });
+
+    test('no moov, or a broken box: no size, no error', () async {
+      expect(await videoSizeOfFile(video(100, const [])), isNull);
+      final f = File('${dir.path}/bad.mp4')..writeAsBytesSync([0, 0, 0, 3, 1]);
+      expect(await videoSizeOfFile(XFile(f.path)), isNull);
+      final g = File('${dir.path}/empty.mp4')..writeAsBytesSync(const []);
+      expect(await videoSizeOfFile(XFile(g.path)), isNull);
+    });
+
+    test('an absurd moov is not read', () async {
+      final f = File('${dir.path}/huge.mp4');
+      f.openSync(mode: FileMode.write)
+        ..writeFromSync(_u32(100 * 1024 * 1024))
+        ..writeFromSync('moov'.codeUnits)
+        ..truncateSync(100 * 1024 * 1024)
+        ..closeSync();
+      expect(await videoSizeOfFile(XFile(f.path)), isNull);
+    });
   });
 }
