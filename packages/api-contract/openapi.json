@@ -189840,6 +189840,11 @@
             "type": "string",
             "nullable": true
           },
+          "avatarFullUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "R-405 (owner 2026-11-04): the 1024 px photo for the big round frame\nof the call screen; `avatarUrl` stays the 256 px preview for lists."
+          },
           "status": {
             "allOf": [
               {

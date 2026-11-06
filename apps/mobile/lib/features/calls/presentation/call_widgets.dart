@@ -136,7 +136,18 @@ class CallAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final url = peer?.avatarUrl;
+    final preview = peer?.avatarUrl;
+    // R-405: the 1024 px photo once the frame needs more than the 256 px
+    // preview holds (a 120 pt circle on a 3× screen); the preview stays
+    // the fallback.
+    final url = preview == null || preview.isEmpty
+        ? null
+        : avatarUrlFor(
+            preview,
+            logicalSize: size,
+            devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+            fullUrl: peer?.avatarFullUrl,
+          );
     final name = peer?.name ?? '';
     const fills = AppCallColors.avatarFills;
     final fill = fills[(peer?.id ?? name).hashCode.abs() % fills.length];
@@ -174,7 +185,11 @@ class CallAvatar extends StatelessWidget {
                   children: [
                     letters,
                     Image(
-                      image: appNetworkImage(url, decodeWidthFor(size)),
+                      image: appNetworkImage(
+                        url,
+                        decodeWidthFor(size),
+                        fallbackUrls: [if (preview != null) preview],
+                      ),
                       fit: BoxFit.cover,
                       gaplessPlayback: true,
                       errorBuilder: (_, __, ___) => const SizedBox.shrink(),
