@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/uploads/storage_uploader.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
@@ -69,6 +70,8 @@ class ChatMediaHandler extends UploadJobHandler {
         onProgress: scope.reportProgress,
         cancel: scope.cancelToken,
         taskId: job.id,
+        savedTarget: StorageTarget.fromJson(job.progress['target']),
+        onTarget: (t) => scope.saveProgress({'target': t.toJson()}),
       );
     } else {
       fileId = await uploadChatAttachmentJob(job, scope);
@@ -155,6 +158,11 @@ Future<String> uploadChatAttachmentJob(
     onProgress: scope.reportProgress,
     cancel: scope.cancelToken,
     taskId: job.id,
+    savedTarget: StorageTarget.fromJson(job.progress['target']),
+    onTarget: (t) => scope.saveProgress({'target': t.toJson()}),
+    // R-251: parts already in storage are not sent again after a restart.
+    resumeFileId: job.progress['partsFileId'] as String?,
+    onPartsFileId: (id) => unawaited(scope.saveProgress({'partsFileId': id})),
   );
 }
 

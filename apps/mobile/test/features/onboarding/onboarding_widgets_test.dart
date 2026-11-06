@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/features/auth/presentation/screens/role_screen.dart';
 import 'package:lawbid/features/onboarding/domain/consent_type.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
@@ -325,6 +326,210 @@ void main() {
       });
       await _tearDownDrift(tester);
     });
+  });
+
+  group('owner 2026-11-05: a client photo is optional', () {
+    final me = meFixture(
+      role: UserRole.client,
+      consents: true,
+      phone: '+15551234567',
+      phoneVerified: true,
+      firstName: 'Ann',
+      lastName: 'Lee',
+      step: OnboardingStepId.profile,
+    );
+
+    testWidgets('the photo row is there, marked optional', (tester) async {
+      tester.view.physicalSize = const Size(390, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: me,
+        repo: FakeOnboardingRepository(me),
+      );
+      await tester.pumpWidget(wrap(const ProfileStepScreen()));
+      await _settle(tester);
+      expect(find.byKey(const ValueKey('client-avatar')), findsOneWidget);
+      expect(find.byKey(const ValueKey('avatar-pick')), findsOneWidget);
+      expect(find.text('Optional'), findsOneWidget);
+      expect(
+        find.text('Add a photo — it is required for attorneys.'),
+        findsNothing,
+      );
+      await _tearDownDrift(tester);
+    });
+
+    testWidgets('no photo does not hold Continue back', (tester) async {
+      tester.view.physicalSize = const Size(390, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final filled = CurrentUser(
+        id: me.id,
+        role: me.role,
+        status: me.status,
+        firstName: 'Ann',
+        lastName: 'Lee',
+        email: 'ann@example.com',
+        emailVerified: me.emailVerified,
+        phone: me.phone,
+        phoneVerified: me.phoneVerified,
+        uiLanguage: me.uiLanguage,
+        theme: me.theme,
+        requiredConsentsGranted: true,
+        onboarding: me.onboarding,
+        missing: const {},
+        clientProfile: const ClientProfile(
+          stateCode: 'NY',
+          languages: ['en'],
+        ),
+      );
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: filled,
+        repo: FakeOnboardingRepository(filled),
+      );
+      await tester.pumpWidget(wrap(const ProfileStepScreen()));
+      await _settle(tester);
+      expect(_buttonEnabled(tester, 'Continue'), isTrue);
+      await _tearDownDrift(tester);
+    });
+  });
+
+  group('owner 2026-11-05: numbered stepper instead of the bars', () {
+    final client = meFixture(
+      role: UserRole.client,
+      consents: true,
+      phone: '+15551234567',
+      phoneVerified: true,
+      firstName: 'Ann',
+      lastName: 'Lee',
+      step: OnboardingStepId.profile,
+    );
+    final attorney = meFixture(
+      role: UserRole.attorney,
+      consents: true,
+      phone: '+15551234567',
+      phoneVerified: true,
+      firstName: 'Ann',
+      lastName: 'Lee',
+      step: OnboardingStepId.profile,
+    );
+    Finder stepper() => find.byKey(const ValueKey('onboarding-stepper'));
+
+    testWidgets('client: "Step 3 of 3", numbers exactly centred, no bars',
+        (tester) async {
+      tester.view.physicalSize = const Size(390, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: client,
+        repo: FakeOnboardingRepository(client),
+      );
+      await tester.pumpWidget(wrap(const ProfileStepScreen()));
+      await _settle(tester);
+      expect(find.text('Step 3 of 3'), findsOneWidget);
+      expect(find.text('Profile'), findsOneWidget);
+      expect(tester.getCenter(stepper()).dx, 195);
+      // The back arrow stays on the start side.
+      expect(tester.getCenter(find.byType(AppBackButton)).dx, lessThan(60));
+      await _tearDownDrift(tester);
+    });
+
+    // The numbers one person sees, screen by screen, never skip one. The
+    // total changes once, when the attorney's role becomes known.
+    final fresh = meFixture(
+      consents: true,
+      phone: '+15551234567',
+      phoneVerified: true,
+      step: OnboardingStepId.role,
+    );
+    for (final (name, chosen, last) in [
+      ('client', client, 'Step 3 of 3'),
+      ('attorney', attorney, 'Step 3 of 6'),
+    ]) {
+      testWidgets('$name: 1 → 2 → 3 without a gap', (tester) async {
+        tester.view.physicalSize = const Size(390, 1600);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        for (final (me, screen, text) in [
+          (fresh, const ConsentsStepScreen() as Widget, 'Step 1 of 3'),
+          (fresh, const RoleScreen() as Widget, 'Step 2 of 3'),
+          (chosen, const ProfileStepScreen() as Widget, last),
+        ]) {
+          final wrap = await onboardingWrapper(
+            AppTheme.light(),
+            user: me,
+            repo: FakeOnboardingRepository(me),
+          );
+          await tester.pumpWidget(wrap(screen));
+          await _settle(tester);
+          expect(find.text(text), findsOneWidget);
+          await _tearDownDrift(tester);
+        }
+      });
+    }
+
+    testWidgets('role screen: back arrow on the start, numbers centred',
+        (tester) async {
+      tester.view.physicalSize = const Size(320, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: fresh,
+        repo: FakeOnboardingRepository(fresh),
+      );
+      await tester.pumpWidget(wrap(const RoleScreen()));
+      await _settle(tester);
+      expect(tester.takeException(), isNull);
+      expect(tester.getCenter(stepper()).dx, 160);
+      expect(tester.getCenter(find.byType(AppBackButton)).dx, lessThan(60));
+      await _tearDownDrift(tester);
+    });
+
+    testWidgets('attorney: the total is 6 on the profile step too',
+        (tester) async {
+      tester.view.physicalSize = const Size(390, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: attorney,
+        repo: FakeOnboardingRepository(attorney),
+      );
+      await tester.pumpWidget(wrap(const ProfileStepScreen()));
+      await _settle(tester);
+      expect(find.text('Step 3 of 6'), findsOneWidget);
+      await _tearDownDrift(tester);
+    });
+
+    for (final direction in TextDirection.values) {
+      testWidgets('320 pt, 6 steps, ${direction.name}: fits and stays centred',
+          (tester) async {
+        tester.view.physicalSize = const Size(320, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final wrap = await onboardingWrapper(
+          AppTheme.light(),
+          user: attorney,
+          repo: FakeOnboardingRepository(attorney),
+        );
+        await tester.pumpWidget(
+          wrap(
+            Directionality(
+              textDirection: direction,
+              child: const ProfileStepScreen(),
+            ),
+          ),
+        );
+        await _settle(tester);
+        expect(tester.takeException(), isNull);
+        expect(tester.getCenter(stepper()).dx, 160);
+        await _tearDownDrift(tester);
+      });
+    }
   });
 
   group('attorney photo is mandatory (docs/03 §4.1, OQ-012)', () {

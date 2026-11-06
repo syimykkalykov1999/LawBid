@@ -14,6 +14,7 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
+import 'package:lawbid/features/cases/presentation/widgets/owner_case_dossier.dart';
 
 /// docs/04 §3.5 — edit title, description, city, budget while `open`;
 /// practice area and states only without bids (the step is skipped /
@@ -134,6 +135,10 @@ class _EditFormState extends ConsumerState<_EditForm> {
           draft: _draft,
           onChange: _change,
           contactError: contactError,
+          // Owner 2026-11-05: the case's files are added and removed here.
+          footer: widget.original.status == CaseStatus.open
+              ? OwnerCaseDossier(kase: widget.original)
+              : null,
         ),
       2 => PlaceStep(
           draft: _draft,
