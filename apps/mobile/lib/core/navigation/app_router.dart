@@ -912,7 +912,7 @@ GoRouter appRouter(Ref ref) {
           ),
         ),
       ),
-      ...authRoutes(),
+      ...authRoutes(sectionPage: _settingsSection),
       ...onboardingRoutes(),
       ...accountRoutes(
         parentNavigatorKey: _rootNavigatorKey,
@@ -932,7 +932,7 @@ GoRouter appRouter(Ref ref) {
       // Owner 2026-10-05: payouts, case payments, Stripe return pages.
       ...casePaymentsRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
       // Owner 2026-10-20: consultation booking.
-      ...consultationsRoutes(_rootNavigatorKey),
+      ...consultationsRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
       // Owner 2026-10-20: the deadline calculator.
       ...deadlinesRoutes(_rootNavigatorKey),
       // Owner 2026-10-20: «Вопрос юристу».
@@ -940,9 +940,9 @@ GoRouter appRouter(Ref ref) {
       // Owner 2026-10-05 (plan builder): Settings → «Подписка клиента».
       ...clientPlanRoutes(_rootNavigatorKey),
       // OQ-048: Team, new task, assistant joining.
-      ...teamRoutes(_rootNavigatorKey),
+      ...teamRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
       // Owner 2026-10-05: the attorney's own trust level.
-      ...trustRoutes(_rootNavigatorKey),
+      ...trustRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
       // Owner 2026-10-20: stories (24 h) and Telegram-style channels.
       ...storiesRoutes(_rootNavigatorKey),
       ...channelsRoutes(_rootNavigatorKey),

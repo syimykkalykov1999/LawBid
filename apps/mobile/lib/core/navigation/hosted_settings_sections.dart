@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:lawbid/core/navigation/deferred_screen.dart';
+import 'package:lawbid/features/auth/presentation/screens/change_password_screen.dart'
+    deferred as d_change_password_desktop;
 import 'package:lawbid/features/blocks/presentation/blocked_users_screen.dart'
     deferred as d_blocked_desktop;
 import 'package:lawbid/features/case_payments/presentation/payout_account_screen.dart'
@@ -8,6 +10,10 @@ import 'package:lawbid/features/cases/presentation/screens/case_history_screens.
     deferred as d_case_history;
 import 'package:lawbid/features/client_badge/presentation/client_badge_screen.dart'
     deferred as d_client_badge;
+import 'package:lawbid/features/consultations/presentation/consultation_settings_screen.dart'
+    deferred as d_consultation_settings_desktop;
+import 'package:lawbid/features/consultations/presentation/consultations_screen.dart'
+    deferred as d_consultations_desktop;
 import 'package:lawbid/features/notifications/presentation/notification_settings_screen.dart'
     deferred as d_notifications_desktop;
 import 'package:lawbid/features/partners/presentation/partner_screen.dart'
@@ -47,6 +53,10 @@ import 'package:lawbid/features/stars/presentation/stars_screen.dart'
 import 'package:lawbid/features/subscription/presentation/subscription_screen.dart';
 import 'package:lawbid/features/support/presentation/support_list_screen.dart'
     deferred as d_support;
+import 'package:lawbid/features/team/presentation/team_screen.dart'
+    deferred as d_team_desktop;
+import 'package:lawbid/features/trust/presentation/my_trust_screen.dart'
+    deferred as d_my_trust_desktop;
 
 /// Desktop web plan 2026-10-28 §6.7: the Settings sections the right pane
 /// of the desktop Settings page hosts — route path -> the section's screen.
@@ -176,5 +186,33 @@ final Map<String, Widget Function(Map<String, String> query)>
         id: 'payout_account_screen_desktop',
         load: d_payouts_desktop.loadLibrary,
         builder: (_) => d_payouts_desktop.PayoutAccountScreen(),
+      ),
+  // Owner 2026-11-05: the last rows that left the two panes. Their addresses
+  // stay as they were: links and notifications lead to them.
+  '/auth/change-password': (_) => DeferredScreen(
+        id: 'change_password_screen_desktop',
+        load: d_change_password_desktop.loadLibrary,
+        builder: (_) => d_change_password_desktop.ChangePasswordScreen(),
+      ),
+  '/consultations': (_) => DeferredScreen(
+        id: 'consultations_screen_desktop',
+        load: d_consultations_desktop.loadLibrary,
+        builder: (_) => d_consultations_desktop.ConsultationsScreen(),
+      ),
+  '/profile/settings/consultations': (_) => DeferredScreen(
+        id: 'consultation_settings_screen_desktop',
+        load: d_consultation_settings_desktop.loadLibrary,
+        builder: (_) =>
+            d_consultation_settings_desktop.ConsultationSettingsScreen(),
+      ),
+  '/team': (_) => DeferredScreen(
+        id: 'team_screen_desktop',
+        load: d_team_desktop.loadLibrary,
+        builder: (_) => d_team_desktop.TeamScreen(),
+      ),
+  '/trust/me': (_) => DeferredScreen(
+        id: 'my_trust_screen_desktop',
+        load: d_my_trust_desktop.loadLibrary,
+        builder: (_) => d_my_trust_desktop.MyTrustScreen(),
       ),
 };
