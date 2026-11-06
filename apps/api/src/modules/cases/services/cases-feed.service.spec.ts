@@ -48,9 +48,12 @@ function fakeDeps(opts: {
     case: {
       findMany: jest.fn().mockResolvedValue(opts.cases ?? [caseRow()]),
       findUniqueOrThrow: jest.fn().mockResolvedValue({
-        extra_practices: [{ practice_area: { code: 'family_law' } }],
+        extra_practices: [{ practice_area_id: 'pa-family' }],
         description: (opts.cases ?? [caseRow()])[0].description,
       }),
+    },
+    practiceArea: {
+      findMany: jest.fn().mockResolvedValue([{ code: 'family_law' }]),
     },
     bid: {
       findMany: jest
