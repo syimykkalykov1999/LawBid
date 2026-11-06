@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { PinoLogger } from 'nestjs-pino';
 import { FileScanProcessor } from './file-scan.processor';
 import type { PrismaService } from '../../../prisma/prisma.service';
@@ -141,5 +142,85 @@ describe('FileScanProcessor', () => {
     });
     expect(await processor.run('f1', false)).toBe('skipped:not-pending');
     expect(storage.read).not.toHaveBeenCalled();
+  });
+
+  describe('after a light confirm (R-252): source_sha256 is empty', () => {
+    const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
+    const row = (over: Record<string, unknown>) => ({
+      id: 'f1',
+      purpose: 'chat_attachment',
+      scan_status: 'pending',
+      s3_bucket: 'b',
+      s3_key: 'k',
+      mime: 'application/pdf',
+      source_sha256: null,
+      sha256: sha(PDF),
+      ...over,
+    });
+    const scanner = { name: 't', scan: jest.fn() };
+
+    beforeEach(() => {
+      scanner.scan.mockReset();
+      scanner.scan.mockResolvedValue({ infected: false });
+    });
+
+    it('the true hash goes on to the scan, and the bytes are read once', async () => {
+      const { processor, prisma, storage } = make({ scanner });
+      prisma.file.findUnique.mockResolvedValue(row({}));
+      expect(await processor.run('f1', false)).toBe('clean');
+      expect(storage.read).toHaveBeenCalledTimes(1);
+      expect(scanner.scan).toHaveBeenCalledTimes(1);
+      expect(prisma.file.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { source_sha256: sha(PDF) },
+        }),
+      );
+    });
+
+    it('a false hash: removed, failed, never scanned or deduplicated', async () => {
+      const { processor, prisma, storage } = make({ scanner });
+      storage.remove.mockResolvedValue(undefined);
+      prisma.file.findUnique.mockResolvedValue(
+        row({ sha256: 'someone-elses-hash' }),
+      );
+      expect(await processor.run('f1', false)).toBe('failed');
+      expect(storage.remove).toHaveBeenCalledWith('b', ['k']);
+      expect(scanner.scan).not.toHaveBeenCalled();
+      expect(prisma.file.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { scan_status: 'failed' } }),
+      );
+      const shared = (
+        prisma.file.updateMany.mock.calls as [{ data: object }][]
+      ).some(([c]) => 's3_key' in c.data);
+      expect(shared).toBe(false);
+    });
+
+    it('active content inside: removed and failed', async () => {
+      const bad = Buffer.from('%PDF-1.7 /JavaScript (app.alert(1))');
+      const { processor, prisma, storage } = make({ scanner, data: bad });
+      storage.remove.mockResolvedValue(undefined);
+      prisma.file.findUnique.mockResolvedValue(row({ sha256: sha(bad) }));
+      expect(await processor.run('f1', false)).toBe('failed');
+      expect(storage.remove).toHaveBeenCalledWith('b', ['k']);
+    });
+
+    it('storage does not answer: retried, and failed on the last try', async () => {
+      const readError = new Error('s3 down');
+      const first = make({ scanner, readError });
+      first.prisma.file.findUnique.mockResolvedValue(row({}));
+      await expect(first.processor.run('f1', false)).rejects.toThrow('s3 down');
+      const last = make({ scanner, readError });
+      last.prisma.file.findUnique.mockResolvedValue(row({}));
+      expect(await last.processor.run('f1', true)).toBe('failed');
+    });
+
+    it('a normal row (hash proven at confirm) is not read an extra time', async () => {
+      const { processor, prisma, storage } = make({ scanner });
+      prisma.file.findUnique.mockResolvedValue(
+        row({ source_sha256: sha(PDF) }),
+      );
+      expect(await processor.run('f1', false)).toBe('clean');
+      expect(storage.read).toHaveBeenCalledTimes(1);
+    });
   });
 });

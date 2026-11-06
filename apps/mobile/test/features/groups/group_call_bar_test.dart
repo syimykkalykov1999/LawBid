@@ -253,8 +253,9 @@ void main() {
     Future<void> open(
       WidgetTester tester,
       Channel channel,
-      GroupCallPort p,
-    ) async {
+      GroupCallPort p, {
+      bool groupCalls = true,
+    }) async {
       // A fresh screen (and providers) for every visitor.
       await tester.pumpWidget(const SizedBox());
       await pump(
@@ -267,9 +268,24 @@ void main() {
             translator: _t,
           ),
           groupCallPortProvider.overrideWithValue(p),
+          groupCallsProvider.overrideWithValue(groupCalls),
         ],
       );
     }
+
+    // Owner 2026-11-04 (R-376): group calls off — no call button in a
+    // channel, even for its owner.
+    testWidgets('no call button while group calls are off', (tester) async {
+      final log = <String>[];
+      await open(
+        tester,
+        fakeChannel(role: ChannelRole.owner),
+        port(log),
+        groupCalls: false,
+      );
+      expect(find.byKey(const ValueKey('channel-audio-call')), findsNothing);
+      expect(find.byKey(const ValueKey('channel-video-call')), findsNothing);
+    });
 
     testWidgets('the call button is for the owner and admins only',
         (tester) async {

@@ -88,6 +88,17 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Video calls in chats (WebRTC, needs a TURN relay)',
   },
   {
+    // Owner 2026-11-04 (R-376): group calls off for now, one-to-one calls
+    // stay; they come back in a later update. Off: the app hides «Add
+    // participant» and the group / channel call buttons, the API refuses
+    // starting, joining or growing a group call (old app builds included).
+    key: 'calls_group',
+    enabled: false,
+    app: true,
+    description:
+      'Group calls (3+ people): add participants, group call from a group chat',
+  },
+  {
     // Owner 2026-10-20: stories (24 h) like Instagram / WhatsApp.
     // Owner 2026-10-22 (R-049): hidden until the next update; the code stays.
     key: 'stories',
@@ -119,6 +130,17 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Ask a lawyer: public questions and attorneys answers',
   },
   {
+    // R-401 (owner 2026-11-04): answers to clients' questions lift an
+    // attorney in the recommendations (people grid, cases, the attorney's
+    // recommended questions) — read from the nightly snapshot
+    // `reco.qa-snapshot`. Off = the snapshot is not read: today's ranking.
+    // On by default: an empty snapshot changes nothing either.
+    key: 'recommendations_qa_ranking',
+    enabled: true,
+    description:
+      'Recommendations: Q&A answers and likes rank attorneys (nightly snapshot; admin: Настройки → reco.qa.*)',
+  },
+  {
     // Owner 2026-10-20: court deadlines and statutes of limitations. Off by
     // default (legal risk: a wrong date reads as advice); the rules stay in
     // the database and the owner can switch it on in «Функции».
@@ -145,6 +167,19 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Video attachments on feed posts',
   },
   {
+    // Owner 2026-11-04 (R-381): reels from clients off until there are
+    // more users. Off: clients only watch reels (photos and briefs as
+    // before), the app hides every reel-publishing entry point for a
+    // client, the API refuses a client's video upload / post with a video
+    // (old app builds included). Attorneys always publish. Under
+    // `video_posts`: with reels off globally nothing changes.
+    key: 'reels_client_publish',
+    enabled: false,
+    app: true,
+    description:
+      'Clients may publish reels (off: clients only watch, attorneys still publish)',
+  },
+  {
     // Checklist reconciliation 2026-11-01: resumable uploads. On: the app
     // sends big files (video, documents over 16 MiB) in 8 MiB parts and
     // continues after an interruption instead of starting over.
@@ -152,6 +187,62 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: false,
     app: true,
     description: 'Resumable (multipart) uploads of large files',
+  },
+  {
+    // R-254: on, a file this same user already stored is not uploaded again.
+    // Own files only (a hash is not proof of holding a file). Needs the
+    // setting storage.dedup on. Off until checked against real storage.
+    key: 'files_reuse_own',
+    enabled: false,
+    app: false,
+    description: 'A file the user already stored is not uploaded again',
+  },
+  {
+    // R-252: on, `confirm` of a file from 8 MiB reads only its first 256 KiB;
+    // the checksum and the look inside go to the scan worker. Off until
+    // checked against real storage.
+    key: 'files_confirm_light',
+    enabled: false,
+    app: false,
+    description: 'Big uploads are confirmed without reading them into the API',
+  },
+  {
+    // R-251: on, the app sends a reel to Bunny in 4 pieces at once and asks
+    // Bunny to join them (TUS concatenation; Bunny announces it, but it was
+    // not tried with a real video: off until checked on a phone). A refusal
+    // falls back to the plain single-stream upload.
+    key: 'reels_tus_parallel',
+    enabled: false,
+    app: true,
+    description:
+      'Reels, stories and channel videos go to Bunny in parallel pieces',
+  },
+  {
+    // R-251: on, a big queued chat file goes in parallel S3 parts while the
+    // app is on screen and passes to the OS background transfer when it
+    // leaves; several files of a group chat or a task go up together. Needs
+    // `files_multipart`. Off until checked on a phone with real storage.
+    key: 'chat_upload_parallel',
+    enabled: false,
+    app: true,
+    description: 'Chat files go in parallel parts while the app is on screen',
+  },
+  {
+    // R-251: on, a document over 4 MB comes down in parallel HTTP Range
+    // pieces. A server without Range falls back by itself. Off until checked
+    // on a phone with real storage.
+    key: 'downloads_parallel',
+    enabled: false,
+    app: true,
+    description: 'Documents download in parallel pieces',
+  },
+  {
+    // R-251: on, the blocks of a video's cached start are fetched at once.
+    // Off until measured against the real CDN.
+    key: 'video_cache_parallel',
+    enabled: false,
+    app: true,
+    description: 'The cached start of a video is fetched in parallel blocks',
   },
   {
     key: 'payments_in_app',
@@ -233,6 +324,17 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: false,
     description:
       "The store's «Rate LawBid» dialog, shown once after a positive moment (iOS and Android)",
+  },
+  {
+    // Owner 2026-11-05: Settings → Account «Сменить профиль» — the same
+    // account (same phone and password, no SMS) switches between the
+    // attorney and the client profile; both profiles are kept. Off until
+    // the owner turns it on.
+    key: 'role_switch',
+    enabled: false,
+    app: true,
+    description:
+      'Switch the account between the attorney and the client profile (Settings → Account), confirmed with the password or a passkey',
   },
   {
     // Owner 2026-10-13: sign in with a password, no SMS each time.

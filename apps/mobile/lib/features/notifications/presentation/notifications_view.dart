@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
@@ -305,6 +306,8 @@ const caseWorkspaceActivityKinds = {
   'deal_record_sign',
   'deal_record_sealed',
   'deal_record_declined',
+  // R-392: the other side kept the case open.
+  'close_declined',
 };
 
 String notificationText(Translator t, AppNotification n) {
@@ -404,6 +407,13 @@ String notificationText(Translator t, AppNotification n) {
       'notif.list.case_workspace_activity.${known ? kind : 'update'}',
       {'name': n.actor?.displayName ?? ''},
     );
+  }
+  // R-392: the close request names who asked (client or attorney).
+  if (n.type == 'completion_requested') {
+    final by = n.payload['by'];
+    if (by == 'client' || by == 'attorney') {
+      return t.t('notif.list.close_requested_$by');
+    }
   }
   // Owner 2026-10-18 (OQ-054): one question for several cases.
   if (n.type == 'case_still_needed') {
@@ -668,6 +678,10 @@ class _NotificationRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Owner 2026-11-04 (R-386): no channel rows with the `channels` flag off.
+    if (n.type == 'channel_post' && !ref.watch(channelsEnabledProvider)) {
+      return const SizedBox.shrink();
+    }
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;

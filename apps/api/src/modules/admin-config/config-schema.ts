@@ -199,6 +199,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 2,
     max: 10000,
   };
+  out['calls.relay_signal_filter'] = {
+    type: 'boolean',
+    defaultValue: true,
+    description:
+      'Phones whose ICE list said relay pass only relay candidates to the other phone (older apps ignore the policy). Off = every signal passes unchanged.',
+  };
   out['calls.transport_report_ratio_pct'] = {
     type: 'integer',
     defaultValue: 30,
@@ -363,17 +369,17 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: SEATS_HARD_CAP,
   };
-  // Owner 2026-10-22: duties per assistant (10 exist; the app and the API
-  // both refuse more).
+  // Owner 2026-10-22: duties per assistant (11 exist; the app and the API
+  // both refuse more). R-401 (owner 2026-11-04): 0 = «все» (no limit).
   out['assistants.max_duties'] = {
     ...out['assistants.max_duties'],
     type: 'integer',
     description:
-      'How many duties (roles) one assistant may hold at most, out of 10.',
-    min: 1,
-    // The 10 duties of assistants/assistant-duties.ts (not imported: the
+      'Макс. ролей у одного помощника (assistants.max_duties): число от 1 до 11 или 0 = все (без ограничения). По умолчанию 3.',
+    min: 0,
+    // The 11 duties of assistants/assistant-duties.ts (not imported: the
     // admin config stays free of feature modules).
-    max: 10,
+    max: 11,
   };
   // Owner 2026-10-22 (audit #4 §6): group / channel / post caps.
   out['groups.max_members'] = {
@@ -672,6 +678,11 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['billing.duplicate_subscription_autofix'],
     description:
       'On (default): when one attorney ends up with two live subscriptions (a second device, a re-subscription after grace), the system keeps the newest paid one, cancels the other at once and refunds only the unused part of its last invoice — never on a disputed charge, an account under fraud review, a third duplicate in 90 days or above the daily cap (those wait for a person). Off: the newcomer is cancelled without a refund (old behaviour); the owner gets an alert either way.',
+  };
+  out['billing.dispute_auto_cancel'] = {
+    ...out['billing.dispute_auto_cancel'],
+    description:
+      'On (default): when a bank disputes (chargeback) a subscription charge, the subscription is cancelled at Stripe at once so nothing more is charged, the admins get an e-mail and the audit log gets a row. No extra refund is made (the dispute already reverses the charge). Off: the dispute only appears in «Проверки Stripe».',
   };
   out['billing.duplicate_autorefund_daily_cap_cents'] = {
     ...out['billing.duplicate_autorefund_daily_cap_cents'],

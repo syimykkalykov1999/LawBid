@@ -92,6 +92,19 @@ export class LegalQaController {
     return this.qa.summary(user);
   }
 
+  // R-401: declared before ':id'.
+  @Get('recommended')
+  @LegalDisclaimerNotice('qa')
+  @ApiOperation({
+    summary:
+      'Attorney: open questions of my topics, best first (nightly snapshot)',
+  })
+  @ApiEnvelopeResponse(QuestionDto, { isArray: true })
+  @ApiErrors({ 403: [E.FEATURE_DISABLED] })
+  recommendedForMe(@CurrentUser() user: RequestUser): Promise<QuestionPage> {
+    return this.qa.recommended(user);
+  }
+
   @Get(':id')
   @LegalDisclaimerNotice('qa')
   @ApiOperation({ summary: 'A question with its answers' })
@@ -128,8 +141,10 @@ export class LegalQaController {
 
   // Owner 2026-10-22 (security audit #3): a public answer speaks for the
   // attorney — an assistant needs the "publish" duty (OQ-049), the same as
-  // posts and comments.
-  @AttorneyOnly('publish')
+  // posts and comments. R-401: an assistant answers only with the
+  // «qa_answers» duty (was «publish»); 403 ASSISTANT_NOT_ALLOWED without
+  // it — read-only as before.
+  @AttorneyOnly('qa_answers')
   @Put(':id/answer')
   @LegalDisclaimerNotice('qa')
   @ApiOperation({ summary: 'Answer (or edit my answer) — verified attorney' })
@@ -149,7 +164,7 @@ export class LegalQaController {
     return this.qa.answer(user, p.id, dto.body);
   }
 
-  @AttorneyOnly('publish')
+  @AttorneyOnly('qa_answers')
   @Delete(':id/answer')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete my answer' })

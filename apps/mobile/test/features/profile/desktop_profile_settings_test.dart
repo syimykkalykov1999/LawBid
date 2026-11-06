@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -9,8 +10,11 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/hosted_settings_sections.dart';
 import 'package:lawbid/core/navigation/shell/desktop_layouts.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
+import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/consultations/consultations_routes.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/privacy/privacy_routes.dart';
 import 'package:lawbid/features/profile/presentation/screens/desktop_settings.dart';
@@ -20,6 +24,8 @@ import 'package:lawbid/features/settings/about/about_screen.dart';
 import 'package:lawbid/features/settings/account/account_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/support/application/support_providers.dart';
+import 'package:lawbid/features/team/team_routes.dart';
+import 'package:lawbid/features/trust/trust_routes.dart';
 
 import '../../helpers/referral_overrides.dart';
 import 'profile_fakes.dart';
@@ -252,6 +258,11 @@ void main() {
       AppRoutes.support,
       AppRoutes.saved,
       AppRoutes.caseHistory,
+      AuthRoutes.changePassword,
+      ConsultationsRoutes.list,
+      ConsultationsRoutes.settings,
+      TeamRoutes.team,
+      TrustRoutes.me,
     ]) {
       testWidgets('$path: in the pane at 1440, a plain page at 390', (t) async {
         await pumpRouter(t, path, const Size(1440, 900));
@@ -358,6 +369,15 @@ void main() {
       AppRoutes.myFirm,
       AppRoutes.myStats,
       AppRoutes.myPromotions,
+      // Owner 2026-11-04 (web audit): «How to reach me» and payouts too.
+      AppRoutes.myContacts,
+      CasePaymentsRoutes.payoutAccount,
+      // Owner 2026-11-05: the last rows that left the two panes.
+      AuthRoutes.changePassword,
+      ConsultationsRoutes.list,
+      ConsultationsRoutes.settings,
+      TeamRoutes.team,
+      TrustRoutes.me,
     });
     expect(hostedSettingsSections.keys.toSet(), kSettingsSectionPaths);
     for (final path in kSettingsSectionPaths) {

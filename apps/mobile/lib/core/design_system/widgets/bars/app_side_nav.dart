@@ -106,6 +106,11 @@ class AppSideNav extends StatelessWidget {
         button: true,
         selected: selected,
         label: count > 0 ? '$label, $count' : label,
+        // excludeSemantics drops the pressable's own tap action, so the
+        // item is given it here: without an action a screen reader (and
+        // the browser's accessibility tree on the web) gets a button that
+        // cannot be pressed (owner 2026-11-04, web audit).
+        onTap: onTap,
         excludeSemantics: true,
         child: AppPressable(
           onTap: onTap,

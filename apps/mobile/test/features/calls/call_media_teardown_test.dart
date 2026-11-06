@@ -6,6 +6,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_quality.dart';
 import 'package:lawbid/features/calls/application/livekit_rtc.dart';
+import 'package:lawbid/features/calls/domain/call_models.dart';
 
 /// R-037 (owner 2026-10-28: calls lag, the end freezes): the end of a call
 /// in the LiveKit order (tracks stopped → callbacks cleared → senders
@@ -57,6 +58,11 @@ class _Pc extends Fake implements RTCPeerConnection {
   final _Log log;
   final String name;
   final sent = <RTCRtpSender>[];
+  final configurations = <Map<String, dynamic>>[];
+
+  @override
+  Future<void> setConfiguration(Map<String, dynamic> configuration) async =>
+      configurations.add(configuration);
 
   @override
   dynamic Function(RTCSignalingState state)? onSignalingState;
@@ -128,9 +134,9 @@ void main() {
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
-          const MethodChannel('FlutterWebRTC.Method'),
-          (_) async => null,
-        );
+      const MethodChannel('FlutterWebRTC.Method'),
+      (_) async => null,
+    );
   });
 
   group('disposePeerConnection (LiveKit Transport.onDispose)', () {
@@ -150,6 +156,64 @@ void main() {
         expect(pc.callbacksCleared, isTrue);
       },
     );
+  });
+
+  group('iceTransportPolicy (owner 2026-11-04)', () {
+    const relay = [
+      IceServer(
+        urls: ['turn:turn.cloudflare.com:3478?transport=udp'],
+        username: 'test-user',
+        credential: 'test-credential',
+        relayOnly: true,
+      ),
+    ];
+    const open = [
+      IceServer(urls: ['stun:stun.cloudflare.com:3478']),
+    ];
+    late _Log log;
+    late List<Map<String, dynamic>> configs;
+    late _Pc pc;
+
+    WebRtcCallMedia build() {
+      log = _Log();
+      configs = [];
+      pc = _Pc(log, 'pc0');
+      return WebRtcCallMedia(
+        getUserMedia: (_) async => _Stream([_Track(log, 'audio')]),
+        createPc: (c) async {
+          configs.add(c);
+          return pc;
+        },
+      );
+    }
+
+    test('both sides: a relay-only list makes a relay-only connection',
+        () async {
+      // The caller and the callee open their link through the same open().
+      final m = build();
+      await m.open(relay, onSignal: (_) {}, onState: (_) {}, peer: 'a');
+      expect(configs.single['iceTransportPolicy'], 'relay');
+      expect(configs.single['iceServers'], [relay.single.toJson()]);
+      await m.close();
+    });
+
+    test('a list without the policy allows every route', () async {
+      final m = build();
+      await m.open(open, onSignal: (_) {}, onState: (_) {}, peer: 'a');
+      expect(configs.single['iceTransportPolicy'], 'all');
+      await m.close();
+    });
+
+    test('a fresh list keeps relay, and a fallback list opens the routes',
+        () async {
+      final m = build();
+      await m.open(relay, onSignal: (_) {}, onState: (_) {}, peer: 'a');
+      await m.updateIceServers(relay);
+      expect(pc.configurations.last['iceTransportPolicy'], 'relay');
+      await m.updateIceServers(open);
+      expect(pc.configurations.last['iceTransportPolicy'], 'all');
+      await m.close();
+    });
   });
 
   group('WebRtcCallMedia', () {
@@ -174,7 +238,8 @@ void main() {
       );
     }
 
-    test('the end: our tracks stop first, then each link goes the LiveKit '
+    test(
+        'the end: our tracks stop first, then each link goes the LiveKit '
         'way', () async {
       final m = media();
       await m.open(const [], onSignal: (_) {}, onState: (_) {}, peer: 'a');
@@ -198,7 +263,8 @@ void main() {
       expect(log.steps, isEmpty);
     });
 
-    test('two set-ups of one link racing: one connection stays, the other '
+    test(
+        'two set-ups of one link racing: one connection stays, the other '
         'is disposed (no hidden second stream)', () async {
       final m2 = media(gate: true);
       final opening = m2.open(

@@ -173,7 +173,12 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
         );
       case 'conversation:read':
         final cid = data is Map ? data['conversationId'] : null;
-        if (cid is String) _edit((items) => applyReadByMe(items, cid));
+        if (cid is String) {
+          _edit((items) => applyReadByMe(items, cid));
+          // R-379: read here or on another device — its alert leaves the
+          // shade too (WhatsApp / Telegram), so the icon number drops.
+          unawaited(chatNotificationsChannel.clearChat(cid));
+        }
       case 'conversation:update':
         // Closed, unlocked, a request answered (it may change folders):
         // rare — the first page is read again, debounced.
@@ -879,7 +884,38 @@ class ChatThread extends Notifier<ChatThreadState> {
       if (!identical(prev?.messages, next.messages)) _armExpiry();
     });
     unawaited(Future.microtask(load));
-    return const ChatThreadState();
+    // R-380 (owner 2026-11-04, Telegram's ChatActivity opens on the dialog
+    // already in memory): the chats list's own row is the conversation at
+    // once, so the header and the composer are built in the same frame as
+    // the screen; the server copy replaces it a moment later.
+    return ChatThreadState(conversation: _knownConversation());
+  }
+
+  /// The row a chats list in memory already holds for this chat (null when
+  /// no list is open, e.g. a chat opened from a push).
+  Conversation? _knownConversation() {
+    Conversation? find(PaginatedList<Conversation>? list) {
+      if (list == null) return null;
+      for (final c in list.items) {
+        if (c.id == id) return c;
+      }
+      return null;
+    }
+
+    if (ref.exists(conversationsProvider)) {
+      final c = find(ref.read(conversationsProvider).value);
+      if (c != null) return c;
+    }
+    for (final folder in ChatListFolder.values) {
+      final p = folderConversationsProvider(folder);
+      if (!ref.exists(p)) continue;
+      final c = find(ref.read(p).value);
+      if (c != null) return c;
+    }
+    if (ref.exists(messageRequestsProvider)) {
+      return find(ref.read(messageRequestsProvider).value);
+    }
+    return null;
   }
 
   /// Owner 2026-10-21: one timer for the soonest expiring message; when it
@@ -931,11 +967,26 @@ class ChatThread extends Notifier<ChatThreadState> {
   Future<void> load() async {
     final store = _store;
     if (store != null) {
+      // R-380: no list in memory — the saved chats list (read alongside the
+      // phone's messages) gives the conversation, so the messages and the
+      // composer still arrive in one frame.
+      final saved = state.conversation == null
+          ? ref
+              .read(chatListCacheProvider)
+              .read()
+              .then((page) => page, onError: (Object _) => null)
+          : null;
       final local = await store.page(id);
       if (!ref.mounted) return;
       if (local.isNotEmpty) {
         unawaited(store.touch(id));
+        Conversation? known;
+        if (saved != null) {
+          known = (await saved)?.items.where((c) => c.id == id).firstOrNull;
+          if (!ref.mounted) return;
+        }
         state = state.copyWith(
+          conversation: state.conversation ?? known,
           messages: local.map(ChatMappers.message).toList(),
           nextCursor: localCursor,
           loading: false,
