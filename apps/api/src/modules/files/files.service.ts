@@ -1294,7 +1294,7 @@ export class FilesService {
   ): Promise<File> {
     const rule = PURPOSE_RULES[purpose];
     const fileId = randomUUID();
-    const bucket = this.storage.bucket(rule.bucket);
+    const bucket = await this.storage.resolveBucket(rule.bucket);
     await this.costGuard.consume('storage');
     const key =
       demoKeyPrefix() + newFileKey({ purpose, ownerId: userId, fileId });
@@ -1364,7 +1364,9 @@ export class FilesService {
    * S3 links. Documents never take this path. */
   private async mediaLink(bucket: string, key: string): Promise<string> {
     // Owner 2026-10-24: an object stored in R2 is served from its own
-    // public domain (the AWS CDN base below does not hold it).
+    // public domain (the AWS CDN base below does not hold it). The keys are
+    // loaded first: a fresh instance must not answer a CloudFront link for it.
+    await this.storage.ready();
     const r2 = this.storage.publicObjectUrl(bucket, key);
     if (r2) return r2;
     // Owner 2026-10-01: the CDN can be set in Admin → Integrations → Storage.

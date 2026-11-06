@@ -529,7 +529,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
   cloudflare_r2: {
     steps: [
       'Нужен аккаунт Cloudflare. Домен lawbid.dev должен быть добавлен в Cloudflare (смена серверов имён в Namecheap; все текущие DNS-записи перенесите как есть, без оранжевого облака).',
-      'Cloudflare → R2 → Create bucket (имя, например, lawbid-public-media; НЕ такое же, как бакеты AWS).',
+      'Cloudflare → R2 → Create bucket (имя, например, lawbid-media; НЕ такое же, как бакеты AWS).',
       'Бакет → Settings → Custom Domains → Connect Domain → media.lawbid.dev. Не включайте r2.dev. В Settings → CORS разрешите PUT с адресов приложения и админки, заголовки Content-Type и Cache-Control.',
       'R2 → Manage API Tokens → Create API token → права «Object Read & Write», только на этот бакет. Скопируйте Access Key ID и Secret Access Key (показывается один раз).',
       'Account ID — справа на странице R2 (или в адресе дашборда).',
@@ -549,7 +549,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
       accountId: { how: 'Cloudflare → R2 → Account ID (32 символа).', example: '0123456789abcdef0123456789abcdef' },
       accessKeyId: { how: 'R2 → Manage API Tokens → Create API token → Access Key ID.' },
       secretAccessKey: { how: 'Там же, Secret Access Key. Показывается один раз.' },
-      bucket: { how: 'Имя созданного бакета R2. Должно отличаться от бакетов AWS.', example: 'lawbid-public-media' },
+      bucket: { how: 'Имя созданного бакета R2. Должно отличаться от бакетов AWS.', example: 'lawbid-media' },
       publicBaseUrl: { how: 'Свой домен, подключённый к бакету (Settings → Custom Domains), с https, без пути.', example: 'https://media.lawbid.dev' },
       zoneId: { how: 'Cloudflare → ваш домен → Overview → справа Zone ID. Можно оставить пустым.' },
       purgeToken: { how: 'Токен с правом Zone → Cache Purge на этот домен. Можно оставить пустым.' },
