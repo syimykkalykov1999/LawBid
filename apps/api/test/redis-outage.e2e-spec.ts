@@ -85,9 +85,9 @@ d('Redis outage (real container)', () => {
     const auth = await signIn();
     const token = auth.Authorization.replace('Bearer ', '');
     const userId = (
-      JSON.parse(
-        Buffer.from(token.split('.')[1], 'base64url').toString(),
-      ) as { sub: string }
+      JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()) as {
+        sub: string;
+      }
     ).sub;
     const socket: Socket = io(`${base}/realtime`, {
       auth: { token },
@@ -101,7 +101,7 @@ d('Redis outage (real container)', () => {
     });
     const publisher = app.get(RealtimePublisher);
     const push = (mark: string) =>
-      publisher.toUsers([userId], 'notification:new' as never, { mark });
+      publisher.toUsers([userId], 'notification:new', { mark });
     /** Delivered through Redis, whichever instance holds the socket. */
     const delivered = async (mark: string) => {
       for (let i = 0; i < 40; i += 1) {
@@ -207,8 +207,9 @@ d('Redis outage (real container)', () => {
       'file',
       new Blob([new Uint8Array(data)], { type: 'application/pdf' }),
     );
-    expect((await fetch(p.upload.url, { method: 'POST', body: form })).status)
-      .toBe(204);
+    expect(
+      (await fetch(p.upload.url, { method: 'POST', body: form })).status,
+    ).toBe(204);
     await api()
       .post(`/api/v1/files/${p.fileId}/confirm`)
       .set(again)
