@@ -149,6 +149,12 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+## open_filex — BSD-3-Clause
+
+Dependency from pub.dev (not copied): opens a downloaded document in the system
+viewer (`lib/core/files/open_local_file_native.dart`), version 5.0.0,
+https://github.com/javaherisaber/open_filex. Copyright 2018 crazecoder.
+
 ## tus-js-client — MIT
 
 The parallel reel upload in `lib/features/reels/data/reels_repository.dart`

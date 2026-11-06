@@ -280,7 +280,10 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
                     ? null
                     : () => showPhotoGallery(
                           context,
-                          urls: [photo],
+                          urls: [avatarFullUrlFor(photo)],
+                          // R-405: the preview on screen stands in while
+                          // the full photo loads.
+                          previews: [p.avatarUrl ?? ''],
                           closeLabel: t.t('common.close'),
                         ),
                 child: CounterpartAvatar(

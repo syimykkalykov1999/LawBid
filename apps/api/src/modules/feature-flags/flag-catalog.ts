@@ -180,6 +180,18 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
       'Clients may publish reels (off: clients only watch, attorneys still publish)',
   },
   {
+    // Owner 2026-11-04 (R-398): the second half of ONE three-way admin
+    // choice for client reels — Выключено / Бесплатно всем / Только с
+    // галочкой. Read only while `reels_client_publish` is on: then on =
+    // only clients wearing the paid gold badge publish reels (the API
+    // answers 403 ENTITLEMENT_REQUIRED to the others), off = every client.
+    key: 'reels_client_publish_paid_only',
+    enabled: false,
+    app: true,
+    description:
+      'With client reels on: only clients with the paid gold badge publish (off: every client)',
+  },
+  {
     // Checklist reconciliation 2026-11-01: resumable uploads. On: the app
     // sends big files (video, documents over 16 MiB) in 8 MiB parts and
     // continues after an interruption instead of starting over.
@@ -196,6 +208,16 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: false,
     app: true,
     description: 'The app goes gently on a phone low on power',
+  },
+  {
+    // R-255: on, a video or document picked in a chat stays on disk and is
+    // copied to the queue folder and streamed from there, instead of being
+    // read whole into the phone's memory. Off until checked on a phone.
+    key: 'chat_files_from_disk',
+    enabled: false,
+    app: true,
+    description:
+      'Chat videos and documents are sent from disk, not from memory',
   },
   {
     // R-254: on, a file this same user already stored is not uploaded again.

@@ -42,6 +42,7 @@ MyBidItemDto _$MyBidItemDtoFromJson(Map<String, dynamic> json) => MyBidItemDto(
           json['attorney'] as Map<String, dynamic>,
         ),
   coverUrl: json['coverUrl'] as String?,
+  coverBlurhash: json['coverBlurhash'] as String?,
 );
 
 Map<String, dynamic> _$MyBidItemDtoToJson(MyBidItemDto instance) =>
@@ -69,4 +70,5 @@ Map<String, dynamic> _$MyBidItemDtoToJson(MyBidItemDto instance) =>
       'case': instance.caseValue.toJson(),
       'lastOffer': instance.lastOffer.toJson(),
       'coverUrl': ?instance.coverUrl,
+      'coverBlurhash': ?instance.coverBlurhash,
     };

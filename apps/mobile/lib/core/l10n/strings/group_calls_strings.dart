@@ -22,6 +22,9 @@ const groupCallsRu = <String, String>{
   // Owner 2026-10-24: Cloudflare is down and the call is too big for video.
   'call.videoBlocked':
       'На сервере идут работы. Видео можно будет включить примерно через час.',
+  // Owner 2026-11-04 (WhatsApp): where the call's sound goes.
+  'call.audio.phone': 'Телефон',
+  'call.audio.headphones': 'Наушники',
 };
 
 const groupCallsEn = <String, String>{
@@ -40,4 +43,6 @@ const groupCallsEn = <String, String>{
   'call.people.noMatch': 'No one found',
   'call.videoBlocked':
       'Maintenance is under way on the server. Video can be turned on in about an hour.',
+  'call.audio.phone': 'Phone',
+  'call.audio.headphones': 'Headphones',
 };

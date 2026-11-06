@@ -22,6 +22,7 @@ class CallPeer {
     this.displayName,
     this.username,
     this.avatarUrl,
+    this.avatarFullUrl,
   });
 
   final String id;
@@ -29,6 +30,10 @@ class CallPeer {
   final String? displayName;
   final String? username;
   final String? avatarUrl;
+
+  /// Owner 2026-11-04 (R-405): the 1024 px photo for the big round frame
+  /// (`avatarFullUrl`); null = derive it from the preview or keep it.
+  final String? avatarFullUrl;
 
   /// Never empty: a peer with no name and no username shows as the brand
   /// (the call screen, the notification and the system call UI never get
@@ -53,6 +58,7 @@ class CallMember {
     this.displayName,
     this.username,
     this.avatarUrl,
+    this.avatarFullUrl,
     this.muted = false,
     this.mutedByHost = false,
     this.joinedAt,
@@ -69,6 +75,7 @@ class CallMember {
   final String? displayName;
   final String? username;
   final String? avatarUrl;
+  final String? avatarFullUrl;
 
   /// The microphone is off (their own choice or the host's).
   final bool muted;

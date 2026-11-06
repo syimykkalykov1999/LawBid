@@ -10,10 +10,14 @@ TagDto _$TagDtoFromJson(Map<String, dynamic> json) => TagDto(
   tag: json['tag'] as String,
   postsCount: json['postsCount'] as num?,
   categoryCode: json['categoryCode'] as String?,
+  coverUrl: json['coverUrl'] as String?,
+  coverPostId: json['coverPostId'] as String?,
 );
 
 Map<String, dynamic> _$TagDtoToJson(TagDto instance) => <String, dynamic>{
   'tag': instance.tag,
   'postsCount': ?instance.postsCount,
   'categoryCode': ?instance.categoryCode,
+  'coverUrl': ?instance.coverUrl,
+  'coverPostId': ?instance.coverPostId,
 };

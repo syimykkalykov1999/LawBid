@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_quality.dart';
 import 'package:lawbid/features/calls/application/livekit_rtc.dart';
@@ -114,15 +115,17 @@ class WebRtcSfuRtc implements SfuRtc {
       };
 
   @override
-  Future<MediaStream> openUserMedia({required bool video}) =>
-      navigator.mediaDevices.getUserMedia({
-        'audio': {
-          'echoCancellation': true,
-          'noiseSuppression': true,
-          'autoGainControl': true,
-        },
-        'video': video ? _camera() : false,
-      });
+  Future<MediaStream> openUserMedia({required bool video}) async {
+    await prepareCallAudioSession();
+    return navigator.mediaDevices.getUserMedia({
+      'audio': {
+        'echoCancellation': true,
+        'noiseSuppression': true,
+        'autoGainControl': true,
+      },
+      'video': video ? _camera() : false,
+    });
+  }
 
   @override
   Future<MediaStream> openCamera({bool front = true}) => navigator.mediaDevices
@@ -186,9 +189,11 @@ class WebRtcSfuRtc implements SfuRtc {
 
   @override
   Future<void> setSpeaker(bool on) async {
-    // Browsers pick the output device themselves.
+    // Browsers pick the output device themselves (a chosen one: the
+    // call's audio route, CallWebAudioSinks). Owner 2026-11-04: a
+    // connected headset keeps the sound.
     if (kIsWeb) return;
-    await Helper.setSpeakerphoneOn(on);
+    await setCallSpeakerPreferHeadset(on);
   }
 }
 
@@ -207,6 +212,7 @@ class _WebRtcSfuPeer implements SfuPeer {
     final r = _webAudio[mid] ??= RTCVideoRenderer();
     await r.initialize();
     r.srcObject = stream;
+    CallWebAudioSinks.attach(r);
   }
 
   /// The transceiver an incoming track belongs to, read from the SFU's
@@ -296,6 +302,7 @@ class _WebRtcSfuPeer implements SfuPeer {
   @override
   Future<void> close() async {
     for (final r in _webAudio.values) {
+      CallWebAudioSinks.detach(r);
       r.srcObject = null;
       await r.dispose();
     }

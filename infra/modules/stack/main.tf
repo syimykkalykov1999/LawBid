@@ -1034,9 +1034,13 @@ module "web" {
   api_proxy_host         = var.web_api_proxy ? var.api_host : ""
   hosted_zone_id         = var.hosted_zone_id == null ? "" : var.hosted_zone_id
   api_origin             = "https://${var.api_host}"
-  media_origins          = ["https://${module.s3.media_cdn_domain}"]
-  tags                   = local.tags
-  force_destroy          = var.ephemeral
+  # media.<web host>: the public R2 bucket's custom domain (owner 2026-11-04).
+  media_origins = concat(
+    ["https://${module.s3.media_cdn_domain}"],
+    var.web_host != "" ? ["https://media.${var.web_host}"] : [],
+  )
+  tags          = local.tags
+  force_destroy = var.ephemeral
 }
 
 module "status_page" {

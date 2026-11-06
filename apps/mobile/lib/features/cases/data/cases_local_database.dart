@@ -57,6 +57,19 @@ class CasesLocalDatabase extends _$CasesLocalDatabase {
         ),
       );
 
+  /// Case drafts of accounts other than [keeping] (null = all). Which bids
+  /// were seen has no owner, so it always goes.
+  Future<void> forgetDraftsOfOthers({String? keeping}) async {
+    await (delete(caseDrafts)
+          ..where(
+            (d) => keeping == null
+                ? const Constant(true)
+                : d.ownerId.equals(keeping).not(),
+          ))
+        .go();
+    await delete(seenBids).go();
+  }
+
   Future<void> deleteDraft(String ownerId) =>
       (delete(caseDrafts)..where((d) => d.ownerId.equals(ownerId))).go();
 

@@ -9,7 +9,7 @@
 //   node dist/src/cli/purge-test-data.js --all-users --apply --confirm=DELETE-ALL-USERS
 //        every app user goes (clients, attorneys, assistants), with all content:
 //        database rows (TRUNCATE of the user-data tables + batched deletes),
-//        S3 objects, Bunny Stream videos, Redis keys
+//        S3 and R2 objects, Bunny Stream videos, Redis keys
 //   node dist/src/cli/purge-test-data.js --keep-phones=7739935153,2244224434
 //        [--apply --confirm=DELETE-TEST-DATA]
 //        everyone except the accounts on these numbers is erased through the
@@ -33,6 +33,7 @@ import type Redis from 'ioredis';
 import { AppModule } from '../app.module';
 import { unwrapKmsWrappedKeys } from '../common/secrets/kms-env';
 import { SecretEnvelope } from '../common/secrets/secret-envelope';
+import { r2WipeRefs } from '../ops/r2-wipe-refs';
 import { AccountAnonymizationService } from '../modules/privacy/account-anonymization.service';
 import { delSafe } from '../redis/redis-cluster-safe';
 import {
@@ -174,6 +175,7 @@ interface BucketRef {
   name: string;
   client: S3Client;
   versionsOnly: boolean;
+  noVersions?: boolean;
 }
 
 function buckets(): BucketRef[] {
@@ -250,7 +252,8 @@ async function s3Phase(
   execute: boolean,
 ): Promise<number> {
   out('== S3');
-  const list = buckets();
+  // Owner 2026-11-04: the R2 bucket is emptied the same way.
+  const list = [...buckets(), ...(await r2WipeRefs(db))];
   if (list.length === 0) {
     out('  skipped: S3_BUCKET_DOCUMENTS / S3_BUCKET_MEDIA not set');
     return 0;
@@ -269,7 +272,11 @@ async function s3Phase(
       out(`  ${b.name}: replica, only with --purge-versions`);
       continue;
     }
-    const doomed = await doomedObjects(b, keptKeys, purgeVersions);
+    const doomed = await doomedObjects(
+      b,
+      keptKeys,
+      purgeVersions && !b.noVersions,
+    );
     const byPrefix = new Map<string, number>();
     for (const d of doomed) {
       const p = `${d.Key.split('/')[0]}/`;

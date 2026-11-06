@@ -17,6 +17,7 @@ import {
 import type { ContentStatus, File, Post, Prisma } from '@prisma/client';
 import { classifyPost, isPostContentClass } from './content-filter.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { activeClientBadgeIds } from '../client-badge/client-badge.util';
 import {
   decodeCursor,
   encodeCursor,
@@ -84,6 +85,14 @@ export const NEWS_FLAG = 'news_posts';
  * is on (off by default); they still watch them. Attorneys and assistants
  * always publish (assertReelPublish). */
 export const REELS_CLIENT_FLAG = 'reels_client_publish';
+
+/** Owner 2026-11-04 (R-398): with REELS_CLIENT_FLAG on, this narrows it to
+ * clients wearing the paid gold badge («Только с галочкой»). The admin
+ * shows both flags as ONE three-way choice. */
+export const REELS_CLIENT_PAID_FLAG = 'reels_client_publish_paid_only';
+
+/** The entitlement a client without the badge is told about (R-398). */
+export const REELS_CLIENT_ENTITLEMENT = 'verified_badge';
 
 /** Owner 2026-10-18 (profile tabs Посты | Рилсы | Брифы): which posts a
  * media filter keeps — the same split as the app's PostCard.isThreadsStyle. */
@@ -162,13 +171,30 @@ export class PostsService {
    * cannot publish one either. Photos and briefs are untouched. */
   async assertReelPublish(user: RequestUser): Promise<void> {
     if (user.role !== 'client') return;
-    if ((await this.flags?.isEnabled(REELS_CLIENT_FLAG, false)) ?? false) {
+    if (!((await this.flags?.isEnabled(REELS_CLIENT_FLAG, false)) ?? false)) {
+      throw new ForbiddenException({
+        code: ErrorCode.FEATURE_DISABLED,
+        message: 'Clients cannot publish reels yet.',
+        details: { flag: REELS_CLIENT_FLAG },
+      });
+    }
+    // Owner 2026-11-04 (R-398): «Только с галочкой» — the same gold-badge
+    // check the feed uses for the badge itself (approved documents + the
+    // paid badge subscription or a plan that includes it).
+    if (!(
+      (await this.flags?.isEnabled(REELS_CLIENT_PAID_FLAG, false)) ?? false
+    )) {
       return;
     }
+    const holders = await activeClientBadgeIds(this.prisma, [user.sub]);
+    if (holders.has(user.sub)) return;
     throw new ForbiddenException({
-      code: ErrorCode.FEATURE_DISABLED,
-      message: 'Clients cannot publish reels yet.',
-      details: { flag: REELS_CLIENT_FLAG },
+      code: ErrorCode.ENTITLEMENT_REQUIRED,
+      message: 'Reels are available to clients with the verified badge.',
+      details: {
+        flag: REELS_CLIENT_PAID_FLAG,
+        entitlement: REELS_CLIENT_ENTITLEMENT,
+      },
     });
   }
 

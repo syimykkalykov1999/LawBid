@@ -6,7 +6,7 @@
  * (database, Redis, JWT, S3/IAM, the master key itself) are deliberately
  * NOT here — a wrong value there would take the whole app down.
  */
-import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
+import { r2SelfTest } from './r2-self-test';
 
 export interface ProviderField {
   name: string;
@@ -1245,27 +1245,7 @@ export const PROVIDERS: ProviderDefinition[] = [
         env: 'CLOUDFLARE_R2_PURGE_TOKEN',
       },
     ],
-    test: async (f) => {
-      const client = new S3Client({
-        region: 'auto',
-        endpoint: `https://${f.accountId}.r2.cloudflarestorage.com`,
-        credentials: {
-          accessKeyId: f.accessKeyId,
-          secretAccessKey: f.secretAccessKey,
-        },
-      });
-      try {
-        await client.send(new HeadBucketCommand({ Bucket: f.bucket }), {
-          abortSignal: AbortSignal.timeout(TIMEOUT_MS),
-        });
-      } catch (e) {
-        throw new Error(
-          `R2 refused the keys or the bucket: ${e instanceof Error ? e.message : String(e)}`,
-        );
-      } finally {
-        client.destroy();
-      }
-    },
+    test: (f) => r2SelfTest(f),
   },
   {
     id: 'sentry',

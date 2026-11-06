@@ -25,6 +25,7 @@ WorkItemDto _$WorkItemDtoFromJson(Map<String, dynamic> json) => WorkItemDto(
   acceptedAt: json['acceptedAt'] as String?,
   closedAt: json['closedAt'] as String?,
   coverUrl: json['coverUrl'] as String?,
+  coverBlurhash: json['coverBlurhash'] as String?,
 );
 
 Map<String, dynamic> _$WorkItemDtoToJson(WorkItemDto instance) =>
@@ -47,4 +48,5 @@ Map<String, dynamic> _$WorkItemDtoToJson(WorkItemDto instance) =>
       'acceptedAt': ?instance.acceptedAt,
       'closedAt': ?instance.closedAt,
       'coverUrl': ?instance.coverUrl,
+      'coverBlurhash': ?instance.coverBlurhash,
     };

@@ -178,8 +178,8 @@ export class PromotionService {
 
   /**
    * What the generator reads (GET /public/seo-settings): the stored value
-   * of each switch, or null when the admin never decided. Public-safe: six
-   * booleans/integers, no personal data. Reads the cached app_config map
+   * of each switch, or null when the admin never decided. Public-safe:
+   * booleans/integers only, no personal data. Reads the cached app_config map
    * (no query of its own).
    */
   async publicSettings(): Promise<PublicSeoSettingsDto> {
