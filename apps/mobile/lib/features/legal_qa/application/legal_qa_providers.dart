@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
@@ -114,6 +116,36 @@ final qaSummaryProvider = FutureProvider.autoDispose<QaSummary>((ref) async {
     return await ref.watch(legalQaRepositoryProvider).summary();
   } on Object {
     return const QaSummary();
+  }
+});
+
+/// R-401 (owner 2026-11-04): the attorney's recommended questions in the
+/// Search → Cases start view. Empty for clients, offline, or while the flag
+/// is off (the section then draws nothing); kept 10 minutes like the
+/// people grid (the server rebuilds it once a night anyway).
+final recommendedQuestionsProvider =
+    FutureProvider.autoDispose<List<Question>>((ref) async {
+  if (!ref.watch(legalQaEnabledProvider) ||
+      !ref.watch(actsAsAttorneyProvider)) {
+    return const [];
+  }
+  // The standard Riverpod "cache for" pattern (PagedNotifier.keepAliveFor):
+  // held while listened to, let go 10 minutes after the last listener left.
+  final link = ref.keepAlive();
+  Timer? timer;
+  ref
+    ..onCancel(() {
+      timer?.cancel();
+      timer = Timer(const Duration(minutes: 10), link.close);
+    })
+    ..onResume(() => timer?.cancel())
+    ..onDispose(() => timer?.cancel());
+  try {
+    return await ref.watch(legalQaRepositoryProvider).recommended();
+  } on Object {
+    // A failed read is not held: the next visit asks again.
+    link.close();
+    return const [];
   }
 });
 

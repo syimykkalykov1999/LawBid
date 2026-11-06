@@ -156,9 +156,34 @@ describe('Follows (e2e, docs/05 §6, stage 5.5)', () => {
       .set(other.auth);
     expect(open.status).toBe(200);
 
+    // §6.3 default: with at least 4 real suggestions, nobody I follow.
+    for (let k = 0; k < 4; k++) await user('attorney');
     const s = await api().get('/api/v1/suggestions/attorneys').set(client.auth);
-    expect((s.body.data as { id: string }[]).some((a) => a.id === a1.id)).toBe(
-      false,
-    );
+    const rows = s.body.data as { id: string; isFollowing: boolean }[];
+    expect(rows.length).toBeGreaterThanOrEqual(4);
+    expect(rows.some((a) => a.id === a1.id)).toBe(false);
+    expect(rows.every((a) => !a.isFollowing)).toBe(true);
+  });
+
+  // R-389 (owner 04.11): a client on a small base — fewer than 4 real
+  // suggestions — still gets a grid: popular verified attorneys of their
+  // state, followed ones included and marked isFollowing.
+  it('a client who follows every attorney gets the small-base fill', async () => {
+    await user('attorney');
+    const client = await user('client');
+    const verified = await prisma.attorneyProfile.findMany({
+      where: { verification_status: 'verified' },
+      select: { user_id: true },
+    });
+    // Through the API (two-database mode: follows live in their family).
+    for (const a of verified) {
+      expect((await follow(client.auth, a.user_id)).status).toBe(200);
+    }
+    const s = await api().get('/api/v1/suggestions/attorneys').set(client.auth);
+    expect(s.status).toBe(200);
+    const rows = s.body.data as { id: string; isFollowing: boolean }[];
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((a) => a.isFollowing)).toBe(true);
+    expect(s.body.meta?.nextCursor ?? null).toBeNull();
   });
 });

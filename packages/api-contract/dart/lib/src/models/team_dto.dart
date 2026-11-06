@@ -17,6 +17,7 @@ class TeamDto {
     required this.used,
     required this.plan,
     required this.maxDuties,
+    required this.maxDutiesUnlimited,
   });
 
   factory TeamDto.fromJson(Map<String, Object?> json) =>
@@ -29,6 +30,9 @@ class TeamDto {
 
   /// Owner 2026-10-22: the most duties one assistant may hold (admin setting assistants.max_duties).
   final int maxDuties;
+
+  /// R-401: the admin set the limit to «все» (0) — the app hides the counter.
+  final bool maxDutiesUnlimited;
 
   Map<String, Object?> toJson() => _$TeamDtoToJson(this);
 }

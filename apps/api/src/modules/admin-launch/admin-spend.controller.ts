@@ -80,7 +80,8 @@ export class AdminSpendController {
   })
   @ApiEnvelopeResponse(CostRegistryReportDto)
   registryReport(): Promise<CostRegistryReportDto> {
-    return this.registry.report();
+    // R-370: the shared copy (≤ 60 s old, refreshed in the background).
+    return this.registry.cachedReport();
   }
 
   @Patch('registry/:id/mode')
@@ -102,7 +103,17 @@ export class AdminSpendController {
   ): Promise<CostModeResultDto> {
     await this.auth.assertStepUp(admin.sessionId);
     try {
-      return await this.registry.setMode(admin.id, admin.ip, id, dto.state);
+      const done = await this.registry.setMode(
+        admin.id,
+        admin.ip,
+        id,
+        dto.state,
+      );
+      // R-370: the page re-reads the registry right after this answer, so
+      // the shared copy is replaced first (a failed rebuild only means the
+      // old copy is shown until the next refresh).
+      await this.registry.report().catch(() => undefined);
+      return done;
     } catch (e) {
       if (e instanceof RegistryModeError) {
         const status =
@@ -162,6 +173,8 @@ export class AdminSpendController {
       );
     }
     await this.spend.refresh();
+    // R-370: the registry copy carries these numbers too.
+    void this.registry.report().catch(() => undefined);
     return this.spend.report();
   }
 
@@ -194,6 +207,8 @@ export class AdminSpendController {
       after: { count: items.length },
       ip: admin.ip,
     });
+    // R-370: the registry copy carries these numbers too.
+    void this.registry.report().catch(() => undefined);
     return this.spend.report();
   }
 
@@ -240,6 +255,8 @@ export class AdminSpendController {
       ),
       ip: admin.ip,
     });
+    // R-370: the registry copy carries these numbers too.
+    void this.registry.report().catch(() => undefined);
     return this.spend.report();
   }
 

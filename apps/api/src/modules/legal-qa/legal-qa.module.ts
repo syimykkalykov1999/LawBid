@@ -4,6 +4,7 @@ import { BlocksModule } from '../blocks/blocks.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { RecommendationsModule } from '../recommendations/recommendations.module';
 import { SearchModule } from '../search/search.module';
 import { AdminLegalQaController } from './admin-legal-qa.controller';
 import { AdminLegalQaService } from './admin-legal-qa.service';
@@ -18,6 +19,8 @@ import { QaSafetyService } from './qa-safety.service';
     FeatureFlagsModule,
     FilesModule,
     NotificationsModule,
+    // R-401: recommended questions from the nightly snapshot.
+    RecommendationsModule,
     SearchModule,
     UsageLimitsModule,
   ],

@@ -386,6 +386,7 @@ export class CasesFeedService {
           status: true,
           client_completed_at: true,
           attorney_confirmed_at: true,
+          auto_close_at: true,
         },
       }),
       this.prisma.savedItem.findFirst({
@@ -416,6 +417,10 @@ export class CasesFeedService {
             : row.attorney_confirmed_at && !row.client_completed_at
               ? 'attorney'
               : null,
+      autoCloseAt:
+        row.status === 'pending_completion'
+          ? (row.auto_close_at?.toISOString() ?? null)
+          : null,
       ...media,
       inMyPractice: access.inPractice,
       inMyLicensedStates: access.inLicensedState,

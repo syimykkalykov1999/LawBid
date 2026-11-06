@@ -76,8 +76,10 @@ export default function EconomyPage() {
       />
       <ErrorNote text={q.error ? errorText(q.error) : null} />
 
+      {/* R-370 (owner 2026-11-04): the page frame and every section title
+          show at once; only the blocks waiting for the report keep a skeleton. */}
       {!e ? (
-        <Skeleton className="h-64 rounded-[var(--radius-lg)]" />
+        <Skeleton className="mb-6 h-40 rounded-[var(--radius-lg)]" />
       ) : (
         <>
           <Card className="mb-5 flex flex-wrap items-center gap-3 p-5">
@@ -124,7 +126,14 @@ export default function EconomyPage() {
             </Card>
           </div>
 
-          <SectionTitle>На что уходят деньги</SectionTitle>
+        </>
+      )}
+
+      <SectionTitle>На что уходят деньги</SectionTitle>
+      {!e ? (
+        <Skeleton className="mb-6 h-32 rounded-[var(--radius-lg)]" />
+      ) : (
+        <>
           <Card className="mb-6 overflow-x-auto">
             <table className="sticky-first w-full min-w-[34rem] text-sm">
               <thead>
@@ -158,7 +167,14 @@ export default function EconomyPage() {
             </table>
           </Card>
 
-          <SectionTitle>Правило</SectionTitle>
+        </>
+      )}
+
+      <SectionTitle>Правило</SectionTitle>
+      {!e ? (
+        <Skeleton className="mb-6 h-32 rounded-[var(--radius-lg)]" />
+      ) : (
+        <>
           <Card className="mb-6 space-y-4 p-4">
             <p className="text-sm text-muted">
               Сторонние сервисы могут стоить не больше X% дохода за последние 30 дней, но не меньше порога: пока доход
@@ -196,7 +212,14 @@ export default function EconomyPage() {
             </div>
           </Card>
 
-          <SectionTitle>Контейнеры и потолок</SectionTitle>
+        </>
+      )}
+
+      <SectionTitle>Контейнеры и потолок</SectionTitle>
+      {!e ? (
+        <Skeleton className="mb-6 h-32 rounded-[var(--radius-lg)]" />
+      ) : (
+        <>
           {!e.containers.onAws ? (
             <p className="mb-3 text-sm text-muted">
               Потолок меняется только на AWS. Здесь (на Mac) цифры справочные.
@@ -275,7 +298,14 @@ export default function EconomyPage() {
             </p>
           </Card>
 
-          <SectionTitle>База данных и Redis</SectionTitle>
+        </>
+      )}
+
+      <SectionTitle>База данных и Redis</SectionTitle>
+      {!e ? (
+        <Skeleton className="mb-6 h-32 rounded-[var(--radius-lg)]" />
+      ) : (
+        <>
           <p className="mb-3 text-sm text-muted">
             {e.capacity.onAws ? 'Нагрузка базы и Redis.' : 'Нагрузка базы и Redis читается, а менять размер можно только на AWS.'}{' '}
             Увеличить или уменьшить — в{' '}
@@ -347,7 +377,14 @@ export default function EconomyPage() {
             </table>
           </Card>
 
-          <SectionTitle>Что было</SectionTitle>
+        </>
+      )}
+
+      <SectionTitle>Что было</SectionTitle>
+      {!e ? (
+        <Skeleton className="mb-6 h-32 rounded-[var(--radius-lg)]" />
+      ) : (
+        <>
           <Card className="mb-6 divide-y divide-line">
             {e.events.length === 0 ? (
               <div className="p-4 text-sm text-muted">Пока ничего: ограничения не включались, тревог не было.</div>
@@ -361,7 +398,14 @@ export default function EconomyPage() {
             )}
           </Card>
 
-          <SectionTitle>Запасная сумма AWS и дневной тормоз</SectionTitle>
+        </>
+      )}
+
+      <SectionTitle>Запасная сумма AWS и дневной тормоз</SectionTitle>
+      {!e ? (
+        <Skeleton className="mb-6 h-32 rounded-[var(--radius-lg)]" />
+      ) : (
+        <>
           <Card className="mb-6 space-y-3 p-4">
             <p className="text-sm text-muted">
               Цены единиц (SMS, письма, проверки личности и т. д.) теперь одни на всю систему и лежат в разделе «Настройки»

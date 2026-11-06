@@ -1,4 +1,5 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:lawbid/core/session/browser_session_hint.dart';
 
 const _kRefreshTokenKey = 'auth.refresh_token';
 const _kRefreshTokenIsDemoKey = 'auth.refresh_token_demo';
@@ -36,9 +37,17 @@ class TokenSecureStore {
   const TokenSecureStore([
     FlutterSecureStorage? storage,
     FlutterSecureStorage? legacy,
-  ]) : _storage = storage ?? hardenedStorage,
-       _legacy =
-           legacy ?? (storage == null ? const FlutterSecureStorage() : null);
+    BrowserSessionHint? hint,
+  ])  : _storage = storage ?? hardenedStorage,
+        _legacy =
+            legacy ?? (storage == null ? const FlutterSecureStorage() : null),
+        _hint = hint;
+
+  /// The website's "this browser signed in" hint ([BrowserSessionHint]);
+  /// the platform's unless a test gives one.
+  final BrowserSessionHint? _hint;
+
+  BrowserSessionHint get _browser => _hint ?? BrowserSessionHint.platform;
 
   /// The storage the tokens are kept in.
   static const hardenedStorage = FlutterSecureStorage(
@@ -90,7 +99,12 @@ class TokenSecureStore {
     return old;
   }
 
-  Future<String?> readRefreshToken() => _read(_kRefreshTokenKey);
+  /// The stored refresh token; on the website a new tab that has no marker
+  /// of its own but whose browser is signed in ([BrowserSessionHint]) gets
+  /// the cookie marker, so it signs in with the HttpOnly cookie instead of
+  /// asking for the password again.
+  Future<String?> readRefreshToken() async =>
+      await _read(_kRefreshTokenKey) ?? (_browser.isSet ? cookieMarker : null);
 
   /// Whether the stored refresh token is a demo session's (false when none).
   Future<bool> readRefreshTokenIsDemo() async =>
@@ -98,6 +112,7 @@ class TokenSecureStore {
 
   Future<void> writeRefreshToken(String token, {bool isDemo = false}) async {
     await _storage.write(key: _kRefreshTokenKey, value: _stored(token));
+    if (token.isEmpty && !isDemo) _browser.set();
     if (isDemo) {
       await _storage.write(key: _kRefreshTokenIsDemoKey, value: '1');
     } else {
@@ -108,6 +123,7 @@ class TokenSecureStore {
   /// Clears the ACTIVE session's refresh token (and its demo flag). The
   /// parked real token, if any, is left alone — see [clearRealRefreshToken].
   Future<void> clear() async {
+    _browser.clear();
     await _storage.delete(key: _kRefreshTokenKey);
     await _storage.delete(key: _kRefreshTokenIsDemoKey);
   }
