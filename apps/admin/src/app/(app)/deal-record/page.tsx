@@ -37,6 +37,7 @@ const TEXTS: { key: string; title: string; where: string; english: boolean }[] =
   { key: 'deal_record.pdf.title', title: 'Заголовок документа', where: 'PDF, первая страница (всегда по-английски)', english: true },
   { key: 'deal_record.pdf.not_contract', title: 'Строка «это не договор»', where: 'PDF, под заголовком (всегда по-английски)', english: true },
   { key: 'deal_record.pdf.footer', title: 'Строка-отказ внизу каждой страницы', where: 'PDF, футер (всегда по-английски)', english: true },
+  { key: 'deal_record.pdf.terms', title: 'Важное: мы не сторона, оплаты не через приложение, договоры отдельно', where: 'PDF, отдельный блок в конце, после подписей (всегда по-английски)', english: true },
   { key: 'deal_record.consent.not_contract', title: 'Фраза 1 перед подписью', where: 'экран подписи, на языке пользователя', english: false },
   { key: 'deal_record.consent.platform', title: 'Фраза 2 перед подписью', where: 'экран подписи, на языке пользователя', english: false },
   { key: 'deal_record.consent.accurate', title: 'Фраза 3 перед подписью', where: 'экран подписи, на языке пользователя', english: false },

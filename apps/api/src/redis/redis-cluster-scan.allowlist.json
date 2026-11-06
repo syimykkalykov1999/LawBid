@@ -1,5 +1,10 @@
 [
   {
+    "file": "cli/purge-test-data.ts",
+    "kind": "scan",
+    "reason": "One-off purge (R-374): cluster mode scans every master node (nodes('master')), standalone the one node; doomed keys are deleted with delSafe (one DEL per key in cluster mode)."
+  },
+  {
     "file": "common/cost-guard/cost-autoscale.service.ts",
     "kind": "mget",
     "reason": "Daily and monthly counters of ONE provider share the {provider} hash tag (costCounterKey): one slot."
@@ -123,6 +128,11 @@
     "file": "modules/realtime/realtime.gateway.ts",
     "kind": "multi",
     "reason": "SADD+EXPIRE on one viewing key."
+  },
+  {
+    "file": "modules/recommendations/qa-snapshot.service.ts",
+    "kind": "pipeline-raw",
+    "reason": "R-401 nightly Q&A snapshot: every key carries the {qa} hash tag (QA_REDIS_PREFIX), so the DEL/HSET/EXPIRE pipeline stays in one cluster slot."
   },
   {
     "file": "modules/staff-security/staff-card-watch.ts",

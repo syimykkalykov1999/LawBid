@@ -5,6 +5,7 @@ import {
   type QueryKey,
 } from '@tanstack/react-query';
 import { ApiError } from '@/lib/api/client';
+import { countsQuery } from '@/lib/live';
 import { queryRetryDelay, shouldRetryQuery } from '@/lib/query-retry';
 
 /**
@@ -149,7 +150,7 @@ type ErrorSink = { current: ((e: unknown) => void) | null };
 
 /** The panel's one QueryClient (providers.tsx). */
 export function makeQueryClient(toastSink: ErrorSink = { current: null }): QueryClient {
-  return applyQueryClassDefaults(
+  const client: QueryClient = applyQueryClassDefaults(
     new QueryClient({
       // S18-11: a mutation that has no onError of its own must still tell
       // the admin it failed (a money / ban button must never just un-spin).
@@ -159,6 +160,11 @@ export function makeQueryClient(toastSink: ErrorSink = { current: null }): Query
           if (mutation.options.onError) return;
           if (error instanceof ApiError && error.status === 401) return;
           toastSink.current?.(error);
+        },
+        // R-403: any action may move an item out of a queue — the sidebar
+        // badges re-read at once (one light request, 304 when unchanged).
+        onSuccess: () => {
+          void client.invalidateQueries({ queryKey: countsQuery.queryKey });
         },
       }),
       defaultOptions: {
@@ -176,4 +182,5 @@ export function makeQueryClient(toastSink: ErrorSink = { current: null }): Query
       },
     }),
   );
+  return client;
 }

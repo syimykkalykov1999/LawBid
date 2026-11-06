@@ -213,8 +213,13 @@ export class SearchService {
     // viewer for the same few minutes as the shared list.
     const tokens = await this.ranked(
       'pp-me',
-      { q, ...filters, viewer: user.sub },
-      () => this.personalPeople(user.sub, shared),
+      { q, ...filters, viewer: user.sub, follow: dto.follow },
+      async () =>
+        this.byFollow(
+          user.sub,
+          await this.personalPeople(user.sub, shared),
+          dto.follow,
+        ),
     );
     const { slice: rawSlice, next } = this.pageOf(tokens, dto.cursor);
     // OQ-028: the shared ranked list is viewer-agnostic; blocks (either
@@ -247,6 +252,30 @@ export class SearchService {
     if (!dto.cursor)
       this.queryLog?.logQuery(user.sub, 'people', q, items.length);
     return { items, nextCursor: next };
+  }
+
+  /**
+   * Owner 2026-10-28 (R-084): «по подписке» — only the people the viewer
+   * follows / does not follow. One indexed read of `follows` by its
+   * primary key (follower_id, followee_id IN …) over the capped ranked list.
+   */
+  private async byFollow(
+    viewerId: string,
+    tokens: string[],
+    mode: 'following' | 'not_following' | undefined,
+  ): Promise<string[]> {
+    if (!mode || tokens.length === 0) return tokens;
+    const rows = await this.prisma.follow.findMany({
+      where: {
+        follower_id: viewerId,
+        followee_id: { in: tokens.map((t) => t.split(':')[1]) },
+      },
+      select: { followee_id: true },
+    });
+    const followed = new Set(rows.map((r) => r.followee_id));
+    return tokens.filter(
+      (t) => followed.has(t.split(':')[1]) === (mode === 'following'),
+    );
   }
 
   /** Shared "role:id:tier" tokens reordered by the viewer's affinity. */

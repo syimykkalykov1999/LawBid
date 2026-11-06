@@ -16,7 +16,7 @@ import 'package:lawbid/features/team/presentation/team_screen.dart'
 abstract final class TeamRoutes {
   static const team = '/team';
 
-  /// Owner 2026-10-22: «Роли помощников» — the 10 duties, open to every
+  /// Owner 2026-10-22: «Роли помощников» — the 11 duties, open to every
   /// attorney (the Team tab's header).
   static const roles = '/team/roles';
   static const newTask = '/tasks/new';
@@ -54,16 +54,24 @@ abstract final class TeamRoutes {
   static const assistantJoin = '/assistant/join';
 }
 
-List<RouteBase> teamRoutes(GlobalKey<NavigatorState> root) => [
+List<RouteBase> teamRoutes(
+  GlobalKey<NavigatorState> root, {
+  // Desktop web plan §6.7: wraps the page as a Settings section.
+  Widget Function(String location, Widget page)? sectionPage,
+}) =>
+    [
       GoRoute(
         path: TeamRoutes.team,
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'team_screen',
-            load: d_team_screen.loadLibrary,
-            builder: (_) => d_team_screen.TeamScreen(),
+          (sectionPage ?? _plain)(
+            state.matchedLocation,
+            DeferredScreen(
+              id: 'team_screen',
+              load: d_team_screen.loadLibrary,
+              builder: (_) => d_team_screen.TeamScreen(),
+            ),
           ),
         ),
       ),
@@ -147,3 +155,5 @@ Page<bool> _sheetPage(GoRouterState state, Widget child) =>
       transitionsBuilder: (_, __, ___, child) => child,
       child: child,
     );
+
+Widget _plain(String location, Widget page) => page;

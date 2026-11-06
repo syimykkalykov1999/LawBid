@@ -348,6 +348,18 @@ function renderFlattened(input: RenderDealRecordInput): Promise<Buffer> {
       { width },
     );
 
+  // ---- disclaimers (R-392, admin «Запись о сделке») -----------------
+  // The whole admin text, never cut (the footer band below is short).
+  if (s.texts.terms && s.texts.terms.trim() !== '') {
+    doc.moveDown(1);
+    doc.fillColor(NAVY).fontSize(11).text('Important', left, doc.y, { width });
+    doc.moveDown(0.3);
+    doc
+      .fillColor(NAVY)
+      .fontSize(8.5)
+      .text(s.texts.terms, left, doc.y, { width });
+  }
+
   // ---- footers, second pass ------------------------------------------
   const range = doc.bufferedPageRange();
   const total = range.start + range.count;

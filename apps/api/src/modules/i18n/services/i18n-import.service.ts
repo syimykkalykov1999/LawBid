@@ -5,6 +5,7 @@ import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { bumpConfigVersion } from '../../feature-flags/feature-flags.public';
 import { BOOTSTRAP_CACHE_KEY } from '../../feature-flags/services/bootstrap.service';
 import { isRtlLanguage, nativeNameForLanguage } from '../language-names';
 import {
@@ -108,7 +109,9 @@ export class I18nImportService {
         where: { key: { in: slice.map((row) => row.key) } },
         select: {
           key: true,
-          translations: { select: { lang: true, value: true } },
+          translations: {
+            select: { lang: true, value: true, admin_edited: true },
+          },
         },
       });
       const existingByKey = new Map(
@@ -127,9 +130,31 @@ export class I18nImportService {
         const existingValues = new Map(
           existing.translations.map((t) => [t.lang, t.value]),
         );
+        const edited = new Set(
+          existing.translations
+            .filter((t) => t.admin_edited)
+            .map((t) => t.lang),
+        );
+        const norm = (v: string | undefined) => (v ?? '').trim().toLowerCase();
         for (const [lang, value] of Object.entries(row.values)) {
           const current = existingValues.get(lang);
-          if (options.missingOnly && current !== undefined && current !== '') {
+          // 2026-11-03: a cell that still holds the English text (an old
+          // English copy, never edited in the admin) is not a translation:
+          // the seed's real text replaces it (owner saw English on a Kyrgyz UI).
+          const staleEnglishCopy =
+            lang !== 'en' &&
+            !edited.has(lang) &&
+            current !== undefined &&
+            current !== '' &&
+            norm(current) === norm(existingValues.get('en')) &&
+            norm(value) !== '' &&
+            norm(value) !== norm(current);
+          if (
+            options.missingOnly &&
+            !staleEnglishCopy &&
+            current !== undefined &&
+            current !== ''
+          ) {
             unchangedCount += 1;
           } else if (current !== value) {
             changedKeys.push({ key: row.key, lang });
@@ -342,6 +367,11 @@ export class I18nImportService {
     }
     // docs/06 §2.3 item 9: a new language column adds a language — the
     // bootstrap payload (languages) must reflect it without a release.
-    if (newLanguages.length > 0) await this.redis.del(BOOTSTRAP_CACHE_KEY);
+    // R-385: and the config version moves, so the cheap ETags of
+    // GET /i18n/languages and /config/bootstrap stop matching.
+    if (newLanguages.length > 0) {
+      await this.redis.del(BOOTSTRAP_CACHE_KEY);
+      await bumpConfigVersion(this.redis);
+    }
   }
 }

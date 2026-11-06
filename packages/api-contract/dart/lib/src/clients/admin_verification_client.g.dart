@@ -294,7 +294,7 @@ class _AdminVerificationClient implements AdminVerificationClient {
   }
 
   @override
-  Future<LicenseRecheckEnvelope> recheckLicense({
+  Future<RegistryCheckQueuedEnvelope> recheckLicense({
     required String licenseId,
     Map<String, dynamic>? extras,
   }) async {
@@ -304,7 +304,7 @@ class _AdminVerificationClient implements AdminVerificationClient {
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
-    final _options = _setStreamType<LicenseRecheckEnvelope>(
+    final _options = _setStreamType<RegistryCheckQueuedEnvelope>(
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
@@ -315,9 +315,9 @@ class _AdminVerificationClient implements AdminVerificationClient {
           .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
     );
     final _result = await _dio.fetch<Map<String, Object?>>(_options);
-    late LicenseRecheckEnvelope _value;
+    late RegistryCheckQueuedEnvelope _value;
     try {
-      _value = LicenseRecheckEnvelope.fromJson(_result.data!);
+      _value = RegistryCheckQueuedEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;
@@ -391,7 +391,7 @@ class _AdminVerificationClient implements AdminVerificationClient {
   }
 
   @override
-  Future<RegistryCheckEnvelope> checkLicenseInRegistry({
+  Future<RegistryCheckQueuedEnvelope> checkLicenseInRegistry({
     required String licenseId,
     Map<String, dynamic>? extras,
   }) async {
@@ -401,7 +401,7 @@ class _AdminVerificationClient implements AdminVerificationClient {
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
-    final _options = _setStreamType<RegistryCheckEnvelope>(
+    final _options = _setStreamType<RegistryCheckQueuedEnvelope>(
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
@@ -412,9 +412,9 @@ class _AdminVerificationClient implements AdminVerificationClient {
           .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
     );
     final _result = await _dio.fetch<Map<String, Object?>>(_options);
-    late RegistryCheckEnvelope _value;
+    late RegistryCheckQueuedEnvelope _value;
     try {
-      _value = RegistryCheckEnvelope.fromJson(_result.data!);
+      _value = RegistryCheckQueuedEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;

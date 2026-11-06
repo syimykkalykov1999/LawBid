@@ -7,7 +7,11 @@ import {
   Param,
   Post,
   Query,
+  Req,
+  Res,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { conditionalGet } from '../../common/sync/cheap-etag';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -76,12 +80,23 @@ export class FollowsController {
     summary: 'Attorney followers — attorneys and clients (OQ-026)',
   })
   @ApiEnvelopeResponse(PersonItemDto, { isArray: true })
-  listFollowers(
+  async listFollowers(
     @CurrentUser() user: RequestUser,
     @Param() p: AttorneyIdParamDto,
     @Query() q: PeopleListQueryDto,
-  ): Promise<PeoplePage> {
-    return this.follows.followers(user.sub, p.id, q.cursor, q.q);
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<PeoplePage | undefined> {
+    // R-385: the first page is a cheap 304 when the list did not change.
+    return conditionalGet(
+      req,
+      res,
+      q.cursor || q.q
+        ? null
+        : await this.follows.listTag(user.sub, p.id, 'followers'),
+      () => this.follows.assertListable(p.id),
+      () => this.follows.followers(user.sub, p.id, q.cursor, q.q),
+    );
   }
 
   @Get('attorneys/:id/following')
@@ -89,22 +104,42 @@ export class FollowsController {
     summary: 'Whom a user follows — attorneys and clients (OQ-038)',
   })
   @ApiEnvelopeResponse(PersonItemDto, { isArray: true })
-  listFollowing(
+  async listFollowing(
     @CurrentUser() user: RequestUser,
     @Param() p: AttorneyIdParamDto,
     @Query() q: PeopleListQueryDto,
-  ): Promise<PeoplePage> {
-    return this.follows.following(user.sub, p.id, q.cursor, q.q);
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<PeoplePage | undefined> {
+    return conditionalGet(
+      req,
+      res,
+      q.cursor || q.q
+        ? null
+        : await this.follows.listTag(user.sub, p.id, 'following'),
+      () => this.follows.assertListable(p.id),
+      () => this.follows.following(user.sub, p.id, q.cursor, q.q),
+    );
   }
 
   @Get('users/me/following')
   @ApiOperation({ summary: 'My follows (docs/05 §6.2)' })
   @ApiEnvelopeResponse(AttorneyListItemDto, { isArray: true })
-  listMyFollowing(
+  async listMyFollowing(
     @CurrentUser() user: RequestUser,
     @Query() q: PeopleListQueryDto,
-  ): Promise<AttorneyListPage> {
-    return this.follows.mine(user.sub, q.cursor, q.q);
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AttorneyListPage | undefined> {
+    return conditionalGet(
+      req,
+      res,
+      q.cursor || q.q
+        ? null
+        : await this.follows.listTag(user.sub, null, 'following'),
+      () => Promise.resolve(),
+      () => this.follows.mine(user.sub, q.cursor, q.q),
+    );
   }
 
   @Get('suggestions/attorneys')

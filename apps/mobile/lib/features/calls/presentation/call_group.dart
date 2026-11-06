@@ -233,7 +233,8 @@ class _MembersSheet extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            if (s.phase == CallPhase.active)
+            if (s.phase == CallPhase.active &&
+                ref.watch(groupCallsEnabledProvider))
               AppButton(
                 label: t.t('call.addParticipant'),
                 icon: AppIcons.personAddAlt1Rounded,

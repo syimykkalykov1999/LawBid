@@ -109,6 +109,15 @@ abstract interface class ClientProfileRepository {
   });
 }
 
+/// My own profile just changed (photo, name): the 10 minutes [cacheFor] of
+/// `GET /attorneys/:username` no longer hold for it, or the screen shows the
+/// old copy after a successful save.
+void askAgainForPublicProfile(Dio dio, String username) {
+  for (final cache in dio.interceptors.whereType<HttpCacheInterceptor>()) {
+    cache.mustAskAgain('/attorneys/$username');
+  }
+}
+
 class ApiAttorneyProfileRepository implements AttorneyProfileRepository {
   ApiAttorneyProfileRepository(Dio dio, {this.saved})
       : _dio = dio,
@@ -153,10 +162,12 @@ class ApiAttorneyProfileRepository implements AttorneyProfileRepository {
           ?.map(api.UpdateAttorneyProfileDtoLanguages.fromJson)
           .toList(growable: false),
     );
-    return ProfileMappers.ownProfile(
+    final own = ProfileMappers.ownProfile(
       (await guardApiCall(() => _client.updateMyAttorneyProfile(body: body)))
           .data,
     );
+    askAgainForPublicProfile(_dio, own.username);
+    return own;
   }
 
   // Raw calls: the generated client predates `suggestions`.
@@ -438,7 +449,12 @@ class ApiClientProfileRepository implements ClientProfileRepository {
   Future<PublicClientProfile> fetchPublic(String username) async =>
       ProfileMappers.publicClient(
         (await guardApiCall(
-          () => _clients.getClientProfile(username: username),
+          // R-385: like the attorney profile — 10 min from the phone, then
+          // If-None-Match.
+          () => _clients.getClientProfile(
+            username: username,
+            extras: cacheFor(const Duration(minutes: 10)),
+          ),
         ))
             .data,
       );

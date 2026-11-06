@@ -575,6 +575,10 @@ class ExplorePostsNotifier extends PagedNotifier<Post> {
 
   final ExplorePostsKey key;
 
+  // R-385: back to a filter seen in the last 5 minutes = no request.
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
+
   @override
   Future<CursorPage<Post>> fetch(String? cursor) {
     final practice = key.practice;
@@ -791,6 +795,33 @@ final followListProvider = AsyncNotifierProvider.autoDispose
 );
 
 class SuggestionsNotifier extends PagedNotifier<AttorneyRow> {
+  /// R-389 (owner 04.11): the recommended grid of Search → «Люди» (both
+  /// roles) stays in memory for 10 minutes after the screen lets go of it —
+  /// a tab switch or a return to Search shows it at once, no new request
+  /// (the server ranks it for 10 minutes too). Pull-to-refresh re-reads it.
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 10);
+
+  /// A failed read is not held for those 10 minutes: the next visit asks
+  /// again (only a good answer is kept).
+  @override
+  Future<PaginatedList<AttorneyRow>> build() async {
+    var failed = false;
+    ref.onCancel(() {
+      if (!failed) return;
+      // Not inside the life-cycle callback (Riverpod forbids it).
+      scheduleMicrotask(() {
+        if (ref.mounted) ref.invalidateSelf();
+      });
+    });
+    try {
+      return await super.build();
+    } on Object {
+      failed = true;
+      rethrow;
+    }
+  }
+
   @override
   Future<CursorPage<AttorneyRow>> fetch(String? cursor) async {
     // Owner 2026-10-22 (guest browsing): «who to follow» is personal — a

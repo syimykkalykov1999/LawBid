@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
@@ -123,12 +124,7 @@ class _CreateSheet extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
-            option(
-              AppIcons.editNoteRounded,
-              t.t('create.sheet.post'),
-              t.t('create.sheet.postSub'),
-              AppRoutes.create,
-            ),
+            // Owner 2026-11-04 06:45 (R-381): «Кейс наверх поставь».
             if (client)
               option(
                 AppIcons.gavelRounded,
@@ -136,6 +132,18 @@ class _CreateSheet extends ConsumerWidget {
                 t.t('create.sheet.caseSub'),
                 '${AppRoutes.create}?kind=case',
               ),
+            option(
+              AppIcons.editNoteRounded,
+              t.t('create.sheet.post'),
+              // Owner 2026-11-04 06:45 (R-381): no «видео» while this
+              // person may not publish reels.
+              t.t(
+                ref.watch(canPublishReelsProvider)
+                    ? 'create.sheet.postSub'
+                    : 'create.post.sub_photo',
+              ),
+              AppRoutes.create,
+            ),
           ],
         ),
       ),
