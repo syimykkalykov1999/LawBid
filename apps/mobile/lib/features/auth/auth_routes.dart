@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart' show Widget;
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/core/navigation/deferred_screen.dart';
@@ -65,7 +66,11 @@ abstract final class AuthRoutes {
 /// role→shell transition uses `context.go()`, since file 07 §6.5's flow is
 /// one-directional and onboarding screens shouldn't stay on the back stack
 /// once the user reaches the main app.
-List<RouteBase> authRoutes() => [
+List<RouteBase> authRoutes({
+  // Desktop web plan §6.7: wraps the page as a Settings section.
+  Widget Function(String location, Widget page)? sectionPage,
+}) =>
+    [
       GoRoute(
         path: AuthRoutes.welcome,
         builder: (context, state) => WebPageFrame(
@@ -119,10 +124,13 @@ List<RouteBase> authRoutes() => [
         path: AuthRoutes.changePassword,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'change_password_screen',
-            load: d_change_password_screen.loadLibrary,
-            builder: (_) => d_change_password_screen.ChangePasswordScreen(),
+          (sectionPage ?? _plain)(
+            state.matchedLocation,
+            DeferredScreen(
+              id: 'change_password_screen',
+              load: d_change_password_screen.loadLibrary,
+              builder: (_) => d_change_password_screen.ChangePasswordScreen(),
+            ),
           ),
         ),
       ),
@@ -137,3 +145,5 @@ List<RouteBase> authRoutes() => [
             AppPageTransitions.push(state, const EmailScreen()),
       ),
     ];
+
+Widget _plain(String location, Widget page) => page;

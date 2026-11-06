@@ -3,6 +3,7 @@ import 'package:lawbid/core/diagnostics/app_event_names.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
 
 import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/notifications/application/push_service.dart';
@@ -28,4 +29,10 @@ Future<void> signOut(WidgetRef ref) async {
     // Server-side logout is best effort — local state is cleared anyway.
   }
   await ref.read(sessionControllerProvider.notifier).clear();
+  // The browser's copies of queued media go with the account.
+  try {
+    await ref.read(uploadFilesProvider).forgetOnSignOut();
+  } catch (_) {
+    // Best effort; they are swept after a week anyway.
+  }
 }
