@@ -11,6 +11,7 @@ import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/application/case_media_picker.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/workspace/file_actions.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -455,6 +456,74 @@ class CasePhotosStrip extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Owner 2026-11-05: the case's documents as lines under its photos.
+class CaseDocumentLines extends ConsumerWidget {
+  const CaseDocumentLines({required this.photos, this.onRemove, super.key});
+
+  /// The case's files; photos and videos are skipped.
+  final List<CasePhoto> photos;
+
+  /// A cross at the end of each line (editing the case).
+  final ValueChanged<CasePhoto>? onRemove;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final docs = [
+      for (final p in photos)
+        if (!p.isImage && !p.mime.startsWith('video/')) p,
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final (i, p) in docs.indexed)
+          AppPressable(
+            key: ValueKey('case-doc-${p.fileId}'),
+            onTap: () => openCaseDocument(p.url),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+              child: Row(
+                children: [
+                  AppIcon(
+                    AppIcons.descriptionOutlined,
+                    size: AppSizes.iconSm,
+                    color: colors.iconTint,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      '${t.t('cases.files.document')} ${i + 1}'
+                      '${p.mime == 'application/pdf' ? '.pdf' : '.docx'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.body.copyWith(color: colors.text),
+                    ),
+                  ),
+                  if (onRemove == null)
+                    FileOpenButton.ref(
+                      file: FileRef(
+                        fileId: p.fileId,
+                        mime: p.mime,
+                        url: p.url,
+                      ),
+                    )
+                  else
+                    TopBarIcon(
+                      icon: AppIcons.closeRounded,
+                      label: t.t('common.remove'),
+                      onTap: () => onRemove!(p),
+                    ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
