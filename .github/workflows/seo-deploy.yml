@@ -9,6 +9,14 @@
 # these pages (scripts/seo/merge-site.mjs); the app owns the root. A site
 # change shows up with the next daily run, or run this workflow by hand.
 #
+# Owner 2026-11-04 (R-399): the site's prices (/pricing, FAQ, meta texts)
+# are baked at build time from GET <WEB_SEO_API_URL>/pricing (the admin's
+# prices). A price saved in the admin starts this workflow through the
+# GitHub App (AdminPricingService.rebuildPublicSite), so the page follows
+# in ~15 min; the daily run is the fallback. seo-pricing.json in the bucket
+# holds the prices of the last successful build: when the API cannot be
+# reached the site keeps those, never an old committed price.
+#
 # Runs only when the repository variable WEB_DEPLOY_ENABLED is 'true'.
 # Secrets/variables: see web-deploy.yml (WEB_BUCKET, WEB_DISTRIBUTION_ID,
 # AWS_DEPLOY_ROLE_PROD, AWS_REGION) plus
@@ -128,6 +136,13 @@ jobs:
           repository: syimykkalykov1999/LawBidSite
           path: site
 
+      # The prices the last successful build used (fallback when the API is down).
+      - name: Read the last known prices
+        run: aws s3 cp "s3://${{ secrets.WEB_BUCKET }}/seo-pricing.json" site-pricing-last.json || echo "no last known prices yet"
+
+      # PRICING_API_URL: the public GET /pricing (admin prices; Cache-Control
+      # 5 min, no auth). The site's scripts/fetch-pricing.mjs also accepts the
+      # bare API base, but the full address is spelled out here on purpose.
       - name: Build the company site (static, one folder per page)
         working-directory: site
         env:
@@ -136,11 +151,18 @@ jobs:
           NEXT_PUBLIC_APP_STORE_URL: ${{ vars.NEXT_PUBLIC_APP_STORE_URL }}
           NEXT_PUBLIC_PLAY_STORE_URL: ${{ vars.NEXT_PUBLIC_PLAY_STORE_URL }}
           NEXT_PUBLIC_SUPPORT_EMAIL: ${{ vars.NEXT_PUBLIC_SUPPORT_EMAIL }}
-          PRICING_API_URL: ${{ secrets.WEB_SEO_API_URL }}
+          PRICING_API_URL: ${{ secrets.WEB_SEO_API_URL }}/pricing
+          PRICING_LAST_KNOWN: ${{ github.workspace }}/site-pricing-last.json
         run: |
           npm ci
           npm run build:static
           test -s out/about/index.html
+
+      # Published with the pages (root file, listed in public-paths.txt so
+      # web-deploy.yml keeps it): the next run reads it back as the fallback.
+      - name: Keep the prices this build used (seo-pricing.json)
+        run: |
+          if [ -s site-pricing-last.json ]; then cp site-pricing-last.json dist-seo/seo-pricing.json; fi
 
       # App links (iOS + Android): written before the merge so that
       # public-paths.txt lists .well-known and web-deploy.yml never deletes it.

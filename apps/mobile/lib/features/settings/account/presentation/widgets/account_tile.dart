@@ -188,8 +188,10 @@ class _AccountTileState extends State<AccountTile> {
               ] else if (tappable) ...[
                 if (widget.actionLabel != null) ...[
                   const SizedBox(width: AppSpacing.sm),
-                  // Shares the row with the title (at most half of it).
-                  Flexible(
+                  // Natural width at the end edge, capped so a long label
+                  // ellipsizes (same as AppListRow). A Flexible here split
+                  // the row in half and left «Изменить ›» in the middle.
+                  AppTrailingCap(
                     child: Text(
                       widget.actionLabel!,
                       maxLines: 1,

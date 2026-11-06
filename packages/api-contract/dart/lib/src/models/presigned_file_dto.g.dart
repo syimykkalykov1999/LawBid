@@ -13,6 +13,7 @@ PresignedFileDto _$PresignedFileDtoFromJson(Map<String, dynamic> json) =>
         json['upload'] as Map<String, dynamic>,
       ),
       expiresAt: DateTime.parse(json['expiresAt'] as String),
+      existing: json['existing'] as bool?,
     );
 
 Map<String, dynamic> _$PresignedFileDtoToJson(PresignedFileDto instance) =>
@@ -20,4 +21,5 @@ Map<String, dynamic> _$PresignedFileDtoToJson(PresignedFileDto instance) =>
       'fileId': instance.fileId,
       'upload': instance.upload.toJson(),
       'expiresAt': instance.expiresAt.toIso8601String(),
+      'existing': ?instance.existing,
     };
