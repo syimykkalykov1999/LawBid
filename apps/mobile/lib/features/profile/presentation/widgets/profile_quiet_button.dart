@@ -62,3 +62,40 @@ class ProfileQuietButton extends StatelessWidget {
     );
   }
 }
+
+/// Small framed icon button of the action row (share, "⋯").
+class ProfileIconSquare extends StatelessWidget {
+  const ProfileIconSquare({
+    required this.icon,
+    required this.semanticLabel,
+    required this.onTap,
+    super.key,
+  });
+
+  final IconData icon;
+  final String semanticLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      excludeSemantics: true,
+      child: AppPressable(
+        onTap: onTap,
+        child: Container(
+          width: AppSizes.touchTarget,
+          height: ProfileQuietButton.height,
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(AppRadii.field),
+            border: Border.all(color: colors.border),
+          ),
+          child: AppIcon(icon, size: AppSizes.iconSm, color: colors.text),
+        ),
+      ),
+    );
+  }
+}

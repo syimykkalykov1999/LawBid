@@ -12,6 +12,8 @@ import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_dossier.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
+import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/subscription/presentation/paywall_screen.dart';
@@ -138,6 +140,25 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
     }
   }
 
+  /// Owner 2026-11-05: files are added and removed while editing the case.
+  Future<void> _remove(CasePhoto file) async {
+    if (_busy) return;
+    final t = ref.read(translatorProvider);
+    setState(() => _busy = true);
+    try {
+      await ref.read(casesRepositoryProvider).setCaseFiles(widget.kase.id, [
+        for (final p in widget.kase.photos)
+          if (p.fileId != file.fileId) p.fileId,
+      ]);
+      ref.invalidate(ownerCaseProvider(widget.kase.id));
+      if (mounted) showAppSnackBar(context, t.t('cases.dossier.filesSaved'));
+    } on Object {
+      if (mounted) showAppSnackBar(context, t.t('cases.dossier.filesFailed'));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   void _choose() {
     final t = ref.read(translatorProvider);
     if (_photosLeft <= 0 && _filesLeft <= 0) {
@@ -176,7 +197,7 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
     final t = ref.watch(translatorProvider);
     final c = widget.kase;
     final open = c.status == CaseStatus.open;
-    return CaseDossierPanel(
+    final panel = CaseDossierPanel(
       score: CaseDossierScore.ofOwner(c),
       status: c.status,
       t: t,
@@ -191,6 +212,34 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
               onPressed: _busy ? null : _choose,
             )
           : null,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        panel,
+        if (c.photos.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.md),
+          for (final p in c.photos)
+            if (p.isImage || p.mime.startsWith('video/'))
+              Row(
+                key: ValueKey('case-media-${p.fileId}'),
+                children: [
+                  Expanded(
+                    child: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: CasePhotosStrip(photos: [p]),
+                    ),
+                  ),
+                  TopBarIcon(
+                    icon: AppIcons.closeRounded,
+                    label: t.t('common.remove'),
+                    onTap: () => _remove(p),
+                  ),
+                ],
+              ),
+          CaseDocumentLines(photos: c.photos, onRemove: _remove),
+        ],
+      ],
     );
   }
 }
