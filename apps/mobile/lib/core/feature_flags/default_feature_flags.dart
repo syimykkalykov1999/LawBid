@@ -55,6 +55,7 @@ const Map<String, bool> defaultFeatureFlags = {
   'reels_client_publish': false,
   'reels_client_publish_paid_only': false,
   'files_multipart': false,
+  'low_power_mode': false,
   'chat_files_from_disk': false,
   'reels_tus_parallel': false,
   'chat_upload_parallel': false,

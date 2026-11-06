@@ -201,6 +201,15 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Resumable (multipart) uploads of large files',
   },
   {
+    // R-256: on, a phone with little charge or its battery saver on warms no
+    // videos ahead and does not re-encode clips up to 30 MB. Off until
+    // checked on real phones.
+    key: 'low_power_mode',
+    enabled: false,
+    app: true,
+    description: 'The app goes gently on a phone low on power',
+  },
+  {
     // R-255: on, a video or document picked in a chat stays on disk and is
     // copied to the queue folder and streamed from there, instead of being
     // read whole into the phone's memory. Off until checked on a phone.
