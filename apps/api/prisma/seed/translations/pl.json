@@ -5683,6 +5683,8 @@
   "tag.new": "Nowe",
   "tag.top": "Popularne",
   "tag.video": "Wideo",
+  "tag.view.grid": "Siatka",
+  "tag.view.list": "Lista",
   "tasks.add": "Dodaj zadanie",
   "tasks.archive.empty": "Archiwum jest puste",
   "tasks.archive.emptyBody": "Tutaj trafiają zakończone i anulowane zadania.",

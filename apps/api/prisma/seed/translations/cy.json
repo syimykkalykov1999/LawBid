@@ -5683,6 +5683,8 @@
   "tag.new": "Newydd",
   "tag.top": "Poblogaidd",
   "tag.video": "Fideo",
+  "tag.view.grid": "Rhwyll",
+  "tag.view.list": "Rhestr",
   "tasks.add": "Ychwanegu tasg",
   "tasks.archive.empty": "Mae'r archif yn wag",
   "tasks.archive.emptyBody": "Daw tasgau gorffenedig a thasgau wedi'u canslo yma.",

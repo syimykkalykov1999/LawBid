@@ -5683,6 +5683,8 @@
   "tag.new": "Νέα",
   "tag.top": "Κορυφαία",
   "tag.video": "Βίντεο",
+  "tag.view.grid": "Πλέγμα",
+  "tag.view.list": "Λίστα",
   "tasks.add": "Προσθήκη εργασίας",
   "tasks.archive.empty": "Το αρχείο είναι κενό",
   "tasks.archive.emptyBody": "Εδώ μεταφέρονται οι ολοκληρωμένες και ακυρωμένες εργασίες.",

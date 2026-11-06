@@ -5683,6 +5683,8 @@
   "tag.new": "Nytt",
   "tag.top": "Populärt",
   "tag.video": "Video",
+  "tag.view.grid": "Rutnät",
+  "tag.view.list": "Lista",
   "tasks.add": "Lägg till en uppgift",
   "tasks.archive.empty": "Arkivet är tomt",
   "tasks.archive.emptyBody": "Slutförda och avbrutna uppgifter hamnar här.",

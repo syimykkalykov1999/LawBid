@@ -5683,6 +5683,8 @@
   "tag.new": "নতুন",
   "tag.top": "শীর্ষ",
   "tag.video": "ভিডিও",
+  "tag.view.grid": "গ্রিড",
+  "tag.view.list": "তালিকা",
   "tasks.add": "একটি কাজ যোগ করুন",
   "tasks.archive.empty": "আর্কাইভ খালি",
   "tasks.archive.emptyBody": "সম্পন্ন ও বাতিল করা কাজ এখানে আসে।",

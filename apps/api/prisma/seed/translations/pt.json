@@ -5683,6 +5683,8 @@
   "tag.new": "Recentes",
   "tag.top": "Populares",
   "tag.video": "Vídeo",
+  "tag.view.grid": "Grade",
+  "tag.view.list": "Lista",
   "tasks.add": "Adicionar uma tarefa",
   "tasks.archive.empty": "O arquivo está vazio",
   "tasks.archive.emptyBody": "As tarefas concluídas e canceladas ficam aqui.",

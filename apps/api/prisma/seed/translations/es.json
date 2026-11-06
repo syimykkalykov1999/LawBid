@@ -5683,6 +5683,8 @@
   "tag.new": "Recientes",
   "tag.top": "Populares",
   "tag.video": "Video",
+  "tag.view.grid": "Cuadrícula",
+  "tag.view.list": "Lista",
   "tasks.add": "Agregar una tarea",
   "tasks.archive.empty": "El archivo está vacío",
   "tasks.archive.emptyBody": "Aquí se guardan las tareas finalizadas y canceladas.",

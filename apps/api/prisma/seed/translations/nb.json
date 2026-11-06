@@ -5683,6 +5683,8 @@
   "tag.new": "Nye",
   "tag.top": "Topp",
   "tag.video": "Video",
+  "tag.view.grid": "Rutenett",
+  "tag.view.list": "Liste",
   "tasks.add": "Legg til en oppgave",
   "tasks.archive.empty": "Arkivet er tomt",
   "tasks.archive.emptyBody": "Utførte og avbrutte oppgaver havner her.",

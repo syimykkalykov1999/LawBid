@@ -5683,6 +5683,8 @@
   "tag.new": "ใหม่",
   "tag.top": "ยอดนิยม",
   "tag.video": "วิดีโอ",
+  "tag.view.grid": "ตาราง",
+  "tag.view.list": "รายการ",
   "tasks.add": "เพิ่มงาน",
   "tasks.archive.empty": "คลังว่างเปล่า",
   "tasks.archive.emptyBody": "งานที่เสร็จสิ้นและงานที่ยกเลิกจะอยู่ที่นี่",

@@ -936,6 +936,13 @@ abstract final class AppIcons {
     0xe4dc,
     fontFamily: fillFamily,
   );
+
+  /// Phosphor «rows» (Fill): the «list» half of the topic page's list/grid
+  /// toggle (owner 2026-11-04, R-406); `gridOnRounded` is the other half.
+  static const IconData viewListRounded = IconData(
+    0xe5a2,
+    fontFamily: fillFamily,
+  );
   static const IconData visibilityOffOutlined = IconData(
     0xe224,
     fontFamily: fillFamily,

@@ -5683,6 +5683,8 @@
   "tag.new": "പുതിയവ",
   "tag.top": "മികച്ചവ",
   "tag.video": "വീഡിയോ",
+  "tag.view.grid": "ഗ്രിഡ്",
+  "tag.view.list": "ലിസ്റ്റ്",
   "tasks.add": "ഒരു ടാസ്‌ക് ചേർക്കുക",
   "tasks.archive.empty": "ആർക്കൈവ് ശൂന്യമാണ്",
   "tasks.archive.emptyBody": "പൂർത്തിയായതും റദ്ദാക്കിയതുമായ ടാസ്‌ക്കുകൾ ഇവിടെ വരും.",

@@ -53,12 +53,15 @@ import type {
 } from './search.dto';
 import {
   SEARCH_PROVIDER,
+  TOPIC_COVERS_KEY,
   TRENDING_TAGS_KEY,
   type SearchProvider,
 } from './search.provider';
 import { SearchLogService } from './search-log.service';
 import { SYNONYMS_VERSION_KEY } from './search-synonyms.service';
 import { tagCategories } from './tag-category';
+import { coverUrlOf, type TopicCoversSnapshot } from './topic-covers.job';
+import { GUEST_USER_ID } from '../../common/viewer/guest';
 
 const PAGE = 20;
 /** Ranked results kept per query: 10 pages. */
@@ -71,6 +74,8 @@ const RANKED_TTL_SEC = 60;
 const TAG_TOP_MAX = 500;
 // Owner 2026-10-15: a new post shows in "Top" within a minute ("New" is live).
 const TAG_TOP_TTL_SEC = 45;
+/** R-406: resolved topic-cover links (shared by everyone) live this long. */
+const TOPIC_COVER_URL_TTL_SEC = 300;
 /** Tag "Топ" ranks the newest tagged posts only (bounded cost). */
 const TAG_TOP_CANDIDATES = 5000;
 
@@ -501,21 +506,84 @@ export class SearchService {
       GROUP BY t.tag_lower`;
     const byTag = new Map(counts.map((c) => [c.tag, Number(c.n)]));
     const categories = await tagCategories(this.prisma, tags);
-    return tags
-      .map((tag) => ({
-        tag,
-        postsCount: byTag.get(tag) ?? 0,
-        categoryCode: categories.get(tag) ?? null,
-      }))
-      .sort(
-        (a, b) => b.postsCount - a.postsCount || a.tag.localeCompare(b.tag),
-      );
+    return this.withCovers(
+      tags
+        .map((tag) => ({
+          tag,
+          postsCount: byTag.get(tag) ?? 0,
+          categoryCode: categories.get(tag) ?? null,
+        }))
+        .sort(
+          (a, b) => b.postsCount - a.postsCount || a.tag.localeCompare(b.tag),
+        ),
+    );
+  }
+
+  /**
+   * Owner 2026-11-04 (R-406): the cover of each hashtag topic — the picture
+   * of its most popular post, picked nightly by TopicCoversJob (tag → post
+   * id). The post is presented here because media links may be signed and
+   * expire; the resolved links are shared by everyone and cached briefly,
+   * keyed by the set of posts, so a fresh snapshot is picked up at once.
+   */
+  private async withCovers(list: TagDto[]): Promise<TagDto[]> {
+    if (list.length === 0) return list;
+    const raw = await this.redis.get(TOPIC_COVERS_KEY);
+    const snapshot: TopicCoversSnapshot = raw
+      ? (JSON.parse(raw) as TopicCoversSnapshot)
+      : {};
+    const postIds = [
+      ...new Set(
+        list.flatMap((t) => {
+          const id = snapshot[t.tag]?.postId;
+          return id ? [id] : [];
+        }),
+      ),
+    ].sort();
+    const urls = new Map<string, string>();
+    if (postIds.length > 0) {
+      const key = `search:topic-covers:urls:${createHash('sha256')
+        .update(postIds.join(','))
+        .digest('base64url')}`;
+      const hit = await this.cache.get(key);
+      const pairs = hit
+        ? (JSON.parse(hit) as [string, string][])
+        : await singleFlight(key, async () => {
+            const rows = await this.prisma.post.findMany({
+              where: { ...VISIBLE_POST_WHERE, id: { in: postIds } },
+            });
+            const dtos = await this.posts.present(rows, GUEST_USER_ID);
+            const out: [string, string][] = [];
+            for (const d of dtos) {
+              const url = coverUrlOf(d);
+              if (url) out.push([d.id, url]);
+            }
+            // Shorter than any signed link lives (media 1 h).
+            await this.cache.set(
+              key,
+              JSON.stringify(out),
+              'EX',
+              jitterTtl(TOPIC_COVER_URL_TTL_SEC),
+            );
+            return out;
+          });
+      for (const [id, url] of pairs) urls.set(id, url);
+    }
+    return list.map((t) => {
+      const postId = snapshot[t.tag]?.postId;
+      const coverUrl = postId ? (urls.get(postId) ?? null) : null;
+      return {
+        ...t,
+        coverUrl,
+        coverPostId: coverUrl ? (postId ?? null) : null,
+      };
+    });
   }
 
   /** §7.2 "Популярные темы": written by TrendingTagsJob. */
   async trending(): Promise<TagDto[]> {
     const raw = await this.redis.get(TRENDING_TAGS_KEY);
-    return raw ? (JSON.parse(raw) as TagDto[]) : [];
+    return this.withCovers(raw ? (JSON.parse(raw) as TagDto[]) : []);
   }
 
   /** GET /tags/:tag/posts — "Топ" by the §2.2.2 score, "Новые" by date. */

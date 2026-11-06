@@ -5683,6 +5683,8 @@
   "tag.new": "Новые",
   "tag.top": "Топ",
   "tag.video": "Видео",
+  "tag.view.grid": "Сетка",
+  "tag.view.list": "Список",
   "tasks.add": "Добавить задачу",
   "tasks.archive.empty": "Архив пуст",
   "tasks.archive.emptyBody": "Сюда попадают выполненные и отменённые задачи.",

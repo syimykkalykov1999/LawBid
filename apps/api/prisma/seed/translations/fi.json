@@ -5683,6 +5683,8 @@
   "tag.new": "Uusimmat",
   "tag.top": "Suosituimmat",
   "tag.video": "Video",
+  "tag.view.grid": "Ruudukko",
+  "tag.view.list": "Luettelo",
   "tasks.add": "Lisää tehtävä",
   "tasks.archive.empty": "Arkisto on tyhjä",
   "tasks.archive.emptyBody": "Tänne siirtyvät valmiit ja peruutetut tehtävät.",

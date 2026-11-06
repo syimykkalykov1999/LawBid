@@ -5683,6 +5683,8 @@
   "tag.new": "Nové",
   "tag.top": "Nejlepší",
   "tag.video": "Video",
+  "tag.view.grid": "Mřížka",
+  "tag.view.list": "Seznam",
   "tasks.add": "Přidat úkol",
   "tasks.archive.empty": "Archiv je prázdný",
   "tasks.archive.emptyBody": "Sem se ukládají dokončené a zrušené úkoly.",

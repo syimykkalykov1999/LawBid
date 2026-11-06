@@ -5683,6 +5683,8 @@
   "tag.new": "New",
   "tag.top": "Top",
   "tag.video": "Video",
+  "tag.view.grid": "Grid",
+  "tag.view.list": "List",
   "tasks.add": "Add a task",
   "tasks.archive.empty": "The archive is empty",
   "tasks.archive.emptyBody": "Finished and cancelled tasks go here.",

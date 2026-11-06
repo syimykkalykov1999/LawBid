@@ -5683,6 +5683,8 @@
   "tag.new": "Жаңа",
   "tag.top": "Үздік",
   "tag.video": "Бейне",
+  "tag.view.grid": "Тор",
+  "tag.view.list": "Тізім",
   "tasks.add": "Тапсырма қосу",
   "tasks.archive.empty": "Мұрағат бос",
   "tasks.archive.emptyBody": "Орындалған және тоқтатылған тапсырмалар осында түседі.",

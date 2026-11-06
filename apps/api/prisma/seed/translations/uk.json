@@ -5683,6 +5683,8 @@
   "tag.new": "Нове",
   "tag.top": "Популярне",
   "tag.video": "Відео",
+  "tag.view.grid": "Сітка",
+  "tag.view.list": "Список",
   "tasks.add": "Додати завдання",
   "tasks.archive.empty": "Архів порожній",
   "tasks.archive.emptyBody": "Тут зберігаються виконані та скасовані завдання.",
