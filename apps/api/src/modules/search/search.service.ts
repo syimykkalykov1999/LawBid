@@ -20,6 +20,7 @@ import { loadUrgencyThresholds } from '../cases/domain/case-urgency';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT, REDIS_CLIENT } from '../../redis/redis.constants';
 import { jitterTtl, singleFlight } from '../../common/cache/single-flight';
+import { cached } from '../../common/cache/cached';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import type { CaseFeedPage } from '../cases/dto/cases-feed.dto';
 import { CaseAccessPolicy } from '../cases/policies/case-access.policy';
@@ -71,6 +72,11 @@ const RANKED_MAX = 200;
  * a hot query is computed once a minute per key (single-flight), a new post
  * shows within a minute. */
 const RANKED_TTL_SEC = 60;
+/** Data-layer audit 2026-11-04 (R-395): topic type-ahead (GET
+ * /search/practices) is reference data — the same answer for everyone —
+ * so one shared answer per typed prefix for 5 minutes instead of a
+ * practice × keyword × 85-language join on every keystroke. */
+export const PRACTICES_TTL_SEC = 300;
 const TAG_TOP_MAX = 500;
 // Owner 2026-10-15: a new post shows in "Top" within a minute ("New" is live).
 const TAG_TOP_TTL_SEC = 45;
@@ -410,7 +416,13 @@ export class SearchService {
     await this.consumeSearch(user, 'search_suggest');
     const q = normalizeQuery(rawQ);
     if (q.length < 2) return [];
-    return this.provider.practiceMatches(q, 25);
+    const hash = createHash('sha256').update(q).digest('base64url');
+    return cached(
+      this.cache,
+      `search:practices:v1:${hash}`,
+      { ttlSec: PRACTICES_TTL_SEC },
+      () => this.provider.practiceMatches(q, 25),
+    );
   }
 
   /** GET /search/suggest: type-ahead for the search field. */
