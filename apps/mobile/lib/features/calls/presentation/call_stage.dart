@@ -119,6 +119,7 @@ CallPeer callPeerOf(CallMember m) => CallPeer(
       displayName: m.displayName,
       username: m.username,
       avatarUrl: m.avatarUrl,
+      avatarFullUrl: m.avatarFullUrl,
     );
 
 /// Group video: the grid, or one person big with the strip.

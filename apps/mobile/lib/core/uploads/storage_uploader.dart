@@ -484,7 +484,11 @@ class StorageUploader {
         final temporary = c == null || c == 408 || c == 429 || c >= 500;
         if (!temporary || failures + 1 >= attempts) throw storageError(e);
         // A bad network: fewer parts at once, for this file and the others.
-        final wait = _partBackoff(failures + 1);
+        final wait = ClientTuning.partRetryWait(
+          c,
+          e.response?.headers['retry-after'],
+          _partBackoff(failures + 1),
+        );
         _limiter.rateLimit(wait);
         await Future<void>.delayed(wait);
         if (cancel?.isCancelled ?? false) rethrow;

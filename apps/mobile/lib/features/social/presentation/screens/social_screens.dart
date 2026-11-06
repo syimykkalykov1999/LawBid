@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/perf/build_counter.dart';
@@ -17,8 +18,10 @@ import 'package:lawbid/features/practice/practice_options.dart' as practices;
 import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart'
     show SliverMinExtent;
 import 'package:lawbid/features/reels/presentation/reels_screen.dart';
+import 'package:lawbid/features/search/presentation/widgets/search_tiles.dart';
 import 'package:lawbid/features/social/application/merged_paging.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/features/social/application/topic_view_mode.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/posts_feed_screen.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
@@ -175,6 +178,7 @@ class FilteredPostsView extends ConsumerWidget {
     this.stateCode,
     this.newsOnly = false,
     this.generalOnly = false,
+    this.grid = false,
     super.key,
   });
 
@@ -191,6 +195,10 @@ class FilteredPostsView extends ConsumerWidget {
   /// Owner 2026-10-05: the "Posts" topic — general (personal) posts.
   final bool generalOnly;
 
+  /// Owner 2026-11-04 (R-406): the topic page's «grid» view — the same
+  /// 3-column tiles as Search → Posts instead of the feed's cards.
+  final bool grid;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
@@ -202,6 +210,27 @@ class FilteredPostsView extends ConsumerWidget {
       practices: practices?.join(','),
     );
     final notifier = ref.read(filteredPostsProvider(key).notifier);
+    if (grid) {
+      final posts = _withoutDeleted(
+        ref.watch(filteredPostsProvider(key)),
+        ref.watch(deletedPostsProvider),
+      );
+      return TopicPostsGrid(
+        posts: posts,
+        empty: AppEmptyState(
+          icon: newsOnly ? AppIcons.newspaperRounded : AppIcons.tagRounded,
+          message: t.t(
+            newsOnly
+                ? 'feed.news.empty'
+                : generalOnly
+                    ? 'feed.posts.empty'
+                    : 'feed.practice.empty',
+          ),
+        ),
+        onRefresh: notifier.refresh,
+        onLoadMore: notifier.loadMore,
+      );
+    }
     return LayoutBuilder(
       builder: (context, box) {
         final height =
@@ -484,10 +513,25 @@ class TagScreen extends ConsumerStatefulWidget {
 class _TagScreenState extends ConsumerState<TagScreen> {
   TagSort _sort = TagSort.top;
 
+  /// Owner 2026-11-04 (R-406): top right of the topic header — «list» (the
+  /// feed's cards) or «grid» (the Search tab's tiles); the icon shows the
+  /// view a tap switches to. Remembered on the device per account.
+  Widget _viewToggle(Translator t, AppColorTokens colors, bool grid) =>
+      AppIconButton(
+        key: const ValueKey('topic-view-toggle'),
+        icon: AppIcon(
+          grid ? AppIcons.viewListRounded : AppIcons.gridOnRounded,
+          color: colors.text,
+        ),
+        semanticLabel: t.t(grid ? 'tag.view.list' : 'tag.view.grid'),
+        onPressed: () => ref.read(topicViewModeProvider.notifier).toggle(),
+      );
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final grid = ref.watch(topicViewModeProvider) == TopicViewMode.grid;
     // Audit 2026-10-01: a qualification's topic shows every post of that
     // qualification (and its subcategories), not only the hashtagged ones.
     final category = categoryForTopicTag(widget.tag);
@@ -500,10 +544,12 @@ class _TagScreenState extends ConsumerState<TagScreen> {
             onPressed: () => Navigator.of(context).maybePop(),
           ),
           title: Text(practice_options.practiceLabel(ref, category)),
+          actions: [_viewToggle(t, colors, grid)],
         ),
         body: FilteredPostsView(
           key: ValueKey('topic-$category'),
           practice: category,
+          grid: grid,
         ),
       );
     }
@@ -515,6 +561,7 @@ class _TagScreenState extends ConsumerState<TagScreen> {
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: Text('#${widget.tag}'),
+        actions: [_viewToggle(t, colors, grid)],
       ),
       body: Column(
         children: [
@@ -538,6 +585,7 @@ class _TagScreenState extends ConsumerState<TagScreen> {
                 key: ValueKey(sort),
                 tag: widget.tag,
                 sort: sort,
+                grid: grid,
               ),
             ),
           ),
@@ -549,10 +597,18 @@ class _TagScreenState extends ConsumerState<TagScreen> {
 
 /// One section of [TagScreen] (Top, New or Video).
 class _TagSortPage extends ConsumerWidget {
-  const _TagSortPage({required this.tag, required this.sort, super.key});
+  const _TagSortPage({
+    required this.tag,
+    required this.sort,
+    this.grid = false,
+    super.key,
+  });
 
   final String tag;
   final TagSort sort;
+
+  /// R-406: the Search tab's tiles instead of the feed's cards.
+  final bool grid;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -563,6 +619,17 @@ class _TagSortPage extends ConsumerWidget {
       ref.watch(deletedPostsProvider),
     );
     final notifier = ref.read(tagPostsProvider(key).notifier);
+    if (grid) {
+      return TopicPostsGrid(
+        posts: value,
+        empty: AppEmptyState(
+          icon: AppIcons.tagRounded,
+          message: t.t('tag.empty'),
+        ),
+        onRefresh: notifier.refresh,
+        onLoadMore: notifier.loadMore,
+      );
+    }
     return PagedListBody<Post>(
       value: value,
       t: t,
@@ -579,6 +646,37 @@ class _TagSortPage extends ConsumerWidget {
       onRefresh: notifier.refresh,
       onLoadMore: notifier.loadMore,
       onRetryMore: notifier.retryLoadMore,
+    );
+  }
+}
+
+/// Owner 2026-11-04 (R-406): a topic's posts as the Search tab's grid —
+/// the very same [PagedTileGrid] and [SearchPostTile] (a tap opens the
+/// posts as a feed from that tile; a video tile opens the Reels player).
+class TopicPostsGrid extends StatelessWidget {
+  const TopicPostsGrid({
+    required this.posts,
+    required this.empty,
+    required this.onRefresh,
+    required this.onLoadMore,
+    super.key,
+  });
+
+  final AsyncValue<PaginatedList<Post>> posts;
+  final Widget empty;
+  final Future<void> Function() onRefresh;
+  final VoidCallback onLoadMore;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = posts.value?.items;
+    return PagedTileGrid<Post>(
+      key: const ValueKey('topic-posts-grid'),
+      value: posts,
+      itemBuilder: (p) => SearchPostTile(post: p, feed: items),
+      empty: empty,
+      onRefresh: onRefresh,
+      onLoadMore: onLoadMore,
     );
   }
 }

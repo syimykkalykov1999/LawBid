@@ -15,6 +15,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_media_view.dart';
@@ -614,6 +615,15 @@ class CallController extends Notifier<CallSession> {
     listenSelf((_, next) {
       ref.read(callAudioActiveProvider.notifier).set(active: next.busy);
     });
+    // Owner 2026-11-04 (headphones): a headset taken off mid-call leaves
+    // the sound on the loudspeaker in a video call, the earpiece in a
+    // voice call.
+    listenSelf((prev, next) {
+      if (prev?.video != next.video) {
+        ref.read(callAudioRouterProvider.notifier).setVideo(video: next.video);
+      }
+    });
+    ref.listen<CallAudioState>(callAudioRouterProvider, _onAudioRoute);
     final fg = ref.read(callForegroundProvider);
     final actions = fg.actions.listen(_onNotificationAction);
     unawaited(
@@ -636,8 +646,10 @@ class CallController extends Notifier<CallSession> {
 
   void _syncProximity(CallSession? prev, CallSession next) {
     if (kIsWeb) return;
+    // A headset: the phone is not held to the ear.
     final on = !next.video &&
         !next.speaker &&
+        !ref.read(callAudioRouterProvider).inHeadset &&
         (next.phase == CallPhase.connecting || next.phase == CallPhase.active);
     if (on == _proximityOn) return;
     _proximityOn = on;
@@ -647,6 +659,31 @@ class CallController extends Notifier<CallSession> {
         onError: (Object _) {},
       ),
     );
+  }
+
+  /// Owner 2026-11-04 (WhatsApp): the sound moved by itself (a headset
+  /// connected or taken off) or by the person's choice — the speaker
+  /// button and the proximity sensor follow it.
+  void _onAudioRoute(CallAudioState? prev, CallAudioState next) {
+    final current = next.current;
+    if (current == null || !state.busy || next.web) return;
+    final speaker = current.kind == CallAudioKind.speaker;
+    if (speaker != state.speaker) {
+      state = state.copyWith(speaker: speaker);
+    } else {
+      _syncProximity(null, state);
+    }
+  }
+
+  /// The speaker button with a headset connected (or more than one output
+  /// in a browser): the list of outputs; without one it just switches the
+  /// loudspeaker ([toggleSpeaker]).
+  bool get audioChoice => ref.read(callAudioRouterProvider).choice;
+
+  /// The person chose where the call's sound goes.
+  Future<void> selectAudioOutput(CallAudioOutput output) async {
+    if (!state.busy) return;
+    await ref.read(callAudioRouterProvider.notifier).select(output);
   }
 
   /// R-404 (owner 2026-11-04): offers, answers and candidates travel over the
@@ -1568,8 +1605,10 @@ class CallController extends Notifier<CallSession> {
         return;
       }
       // Like a video call from the start: the picture comes with the
-      // loudspeaker (WhatsApp).
-      if (!speaker) await toggleSpeaker();
+      // loudspeaker (WhatsApp) — unless the sound is in a headset.
+      if (!speaker && !ref.read(callAudioRouterProvider).inHeadset) {
+        await toggleSpeaker();
+      }
       // The SFU carries the new camera by itself (published in enableVideo);
       // a mesh needs a new offer on every link.
       if (media is! SfuCallMedia) {
@@ -1640,7 +1679,9 @@ class CallController extends Notifier<CallSession> {
       final mineOff = !(state.video && state.cameraOn);
       if (!state.video) {
         state = state.copyWith(video: true, cameraOn: false);
-        if (!state.speaker) unawaited(toggleSpeaker());
+        if (!state.speaker && !ref.read(callAudioRouterProvider).inHeadset) {
+          unawaited(toggleSpeaker());
+        }
       }
       if (fresh && mineOff) {
         state = state.copyWith(videoPrompt: peer);
@@ -1690,6 +1731,7 @@ class CallController extends Notifier<CallSession> {
   Future<void> toggleSpeaker() async {
     final on = !state.speaker;
     state = state.copyWith(speaker: on);
+    ref.read(callAudioRouterProvider.notifier).noteSpeaker(on: on);
     try {
       await _media?.setSpeaker(on);
     } on Object {
@@ -1933,6 +1975,10 @@ class CallController extends Notifier<CallSession> {
       return;
     }
     _mediaOpen = true;
+    // Owner 2026-11-04: a connected headset takes the call's sound.
+    unawaited(
+      ref.read(callAudioRouterProvider.notifier).start(video: video),
+    );
     // The other side may hang up while this phone has no socket (app in the
     // background, Doze): ask the server now and then, so the call and its
     // ringing/ongoing UI never outlive it.
@@ -2770,6 +2816,7 @@ class CallController extends Notifier<CallSession> {
     _useMedia(null);
     _view.clear();
     _mediaOpen = false;
+    ref.read(callAudioRouterProvider.notifier).stop();
     if (media != null) {
       callTrace('reset: closing media');
       _mediaClosing = media.close().catchError((Object e) {

@@ -5,7 +5,12 @@ import type { CreateVideoUploadDto } from '../videos/videos.dto';
 import type { VideosService } from '../videos/videos.service';
 import type { CreatePostDto } from './dto/posts.dto';
 import { PostVideosController } from './post-videos.controller';
-import { PostsService, REELS_CLIENT_FLAG } from './posts.service';
+import {
+  PostsService,
+  REELS_CLIENT_ENTITLEMENT,
+  REELS_CLIENT_FLAG,
+  REELS_CLIENT_PAID_FLAG,
+} from './posts.service';
 
 /**
  * Owner 2026-11-04 (R-381): «Выключено — клиенты не могут публиковать
@@ -22,9 +27,30 @@ const userOf = (role: Role) =>
 /** Past the switch, `attachableVideo` answers with this. */
 const REACHED = 'reached';
 
-function world(on: boolean) {
+/**
+ * Owner 2026-11-04 (R-398): the three-way choice. `paid` = «Только с
+ * галочкой»; `badge` = this client wears the gold badge (an approved,
+ * paid `client_verifications` row — the feed's own check).
+ */
+function world(on: boolean, { paid = false, badge = false } = {}) {
   const isEnabled = jest.fn(async (key: string, fallback: boolean) =>
-    key === REELS_CLIENT_FLAG ? on : fallback,
+    key === REELS_CLIENT_FLAG
+      ? on
+      : key === REELS_CLIENT_PAID_FLAG
+        ? paid
+        : fallback,
+  );
+  const findMany = jest.fn(async () =>
+    badge
+      ? [
+          {
+            user_id: 'me',
+            status: 'approved',
+            sub_status: 'active',
+            current_period_end: null,
+          },
+        ]
+      : [],
   );
   const attachableVideo = jest.fn(async () => {
     throw new Error(REACHED);
@@ -32,6 +58,7 @@ function world(on: boolean) {
   const svc = Object.create(PostsService.prototype) as PostsService;
   Object.assign(svc, {
     flags: { isEnabled },
+    prisma: { clientVerification: { findMany }, $queryRaw: async () => [] },
     assertCanPost: jest.fn(async () => undefined),
     settings: { number: jest.fn(async () => 2200) },
     attachableVideo,
@@ -42,7 +69,7 @@ function world(on: boolean) {
       }),
     },
   });
-  return { svc, isEnabled, attachableVideo };
+  return { svc, isEnabled, attachableVideo, findMany };
 }
 
 async function codeOf(p: Promise<unknown>): Promise<unknown> {
@@ -103,9 +130,58 @@ describe('reels_client_publish on', () => {
   });
 });
 
+const paywalled = {
+  code: ErrorCode.ENTITLEMENT_REQUIRED,
+  details: {
+    flag: REELS_CLIENT_PAID_FLAG,
+    entitlement: REELS_CLIENT_ENTITLEMENT,
+  },
+};
+
+describe('«Только с галочкой» (R-398)', () => {
+  it("refuses a client's reel without the badge, naming the subscription", async () => {
+    const w = world(true, { paid: true });
+    expect(await codeOf(w.svc.create(userOf('client'), reel))).toEqual(
+      paywalled,
+    );
+    expect(w.attachableVideo).not.toHaveBeenCalled();
+  });
+
+  it("a badge holder's reel goes on", async () => {
+    const w = world(true, { paid: true, badge: true });
+    expect(await codeOf(w.svc.create(userOf('client'), reel))).toBe(REACHED);
+    expect(w.attachableVideo).toHaveBeenCalled();
+  });
+
+  it("a client's photos and briefs go on without the badge", async () => {
+    const w = world(true, { paid: true });
+    expect(await codeOf(w.svc.create(userOf('client'), photos))).toBe(REACHED);
+    expect(await codeOf(w.svc.create(userOf('client'), brief))).toBe(REACHED);
+    expect(w.findMany).not.toHaveBeenCalled();
+  });
+
+  it("an attorney's reel goes on, no badge lookup", async () => {
+    const w = world(true, { paid: true });
+    expect(await codeOf(w.svc.create(userOf('attorney'), reel))).toBe(REACHED);
+    expect(w.findMany).not.toHaveBeenCalled();
+  });
+
+  it('«Бесплатно всем»: the badge is not looked up', async () => {
+    const w = world(true);
+    expect(await codeOf(w.svc.create(userOf('client'), reel))).toBe(REACHED);
+    expect(w.findMany).not.toHaveBeenCalled();
+  });
+
+  it('«Выключено» wins over the paid-only half (FEATURE_DISABLED)', async () => {
+    const w = world(false, { paid: true, badge: true });
+    expect(await codeOf(w.svc.create(userOf('client'), reel))).toEqual(refused);
+    expect(w.findMany).not.toHaveBeenCalled();
+  });
+});
+
 describe('POST /videos/uploads (R-381)', () => {
-  function controller(on: boolean) {
-    const w = world(on);
+  function controller(on: boolean, opts?: { paid?: boolean; badge?: boolean }) {
+    const w = world(on, opts);
     Object.assign(w.svc, {
       assertCanPublish: jest.fn(async () => undefined),
     });
@@ -128,6 +204,22 @@ describe('POST /videos/uploads (R-381)', () => {
 
   it('lets a client in while on', async () => {
     const { c, createUpload } = controller(true);
+    expect(await codeOf(c.createVideoUpload(userOf('client'), dto))).toBe(
+      'resolved',
+    );
+    expect(createUpload).toHaveBeenCalled();
+  });
+
+  it('«Только с галочкой»: refuses a client without the badge (R-398)', async () => {
+    const { c, createUpload } = controller(true, { paid: true });
+    expect(await codeOf(c.createVideoUpload(userOf('client'), dto))).toEqual(
+      paywalled,
+    );
+    expect(createUpload).not.toHaveBeenCalled();
+  });
+
+  it('«Только с галочкой»: lets a badge holder in (R-398)', async () => {
+    const { c, createUpload } = controller(true, { paid: true, badge: true });
     expect(await codeOf(c.createVideoUpload(userOf('client'), dto))).toBe(
       'resolved',
     );

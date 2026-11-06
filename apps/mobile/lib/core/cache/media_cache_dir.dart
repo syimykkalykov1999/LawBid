@@ -5,6 +5,10 @@ import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:lawbid/core/persistence/drift_web.dart' show isFlutterTest;
 import 'package:path_provider/path_provider.dart';
 
+/// Owner 2026-10-13: the folder of downloaded case files, under the
+/// app-support directory, named by file id (`CaseFileCache`).
+const caseFilesFolder = 'case_files';
+
 /// One cached file: where it is, when it was last used, how big.
 typedef CachedFile = (File file, DateTime lastUsed, int bytes);
 
@@ -39,9 +43,13 @@ abstract interface class CachedFiles {
 /// key; this measures it, trims the oldest files past a limit and empties
 /// it. On the web the browser keeps media itself (nothing to measure).
 class MediaCacheDir implements CachedFiles {
-  const MediaCacheDir(this.key, {this.root});
+  const MediaCacheDir(this.key, {this.root, this.kept = false});
 
   final String key;
+
+  /// Under the app-support directory instead of the temporary one (files kept
+  /// until someone deletes them).
+  final bool kept;
 
   /// Where the folders live; the temporary directory unless a test gives
   /// its own.
@@ -57,8 +65,10 @@ class MediaCacheDir implements CachedFiles {
     // directory (and its platform channel never answers).
     if (kIsWeb || isFlutterTest) return null;
     try {
-      final tmp = await getTemporaryDirectory();
-      final dir = Directory('${tmp.path}/$key');
+      final base = await (kept
+          ? getApplicationSupportDirectory()
+          : getTemporaryDirectory());
+      final dir = Directory('${base.path}/$key');
       return dir.existsSync() ? dir : null;
     } on Object {
       return null;
@@ -229,6 +239,11 @@ class PrefixedTempFiles implements CachedFiles {
       }
     }
   }
+
+  /// [clear] and the half-written files the suffix keeps out of the sweeps
+  /// (a `….m4a.part` holds a piece of the note too).
+  Future<void> clearWithPartial() =>
+      PrefixedTempFiles(prefix, root: root).clear();
 }
 
 /// Keeps the files of all [pools] together within [limitBytes]: the least

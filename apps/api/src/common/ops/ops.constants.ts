@@ -87,6 +87,7 @@ export const AUTO_PAUSE_TTL_SEC = 15 * 60;
 export const HEAVY_CRON_JOBS: readonly string[] = [
   CRON_JOBS.feedReco,
   CRON_JOBS.trendingTags,
+  CRON_JOBS.topicCovers,
   CRON_JOBS.countersReconcile,
   CRON_JOBS.ratingReconcile,
   CRON_JOBS.trustRecompute,

@@ -26,7 +26,11 @@ import 'package:lawbid/features/verification/presentation/widgets/wizard_steps.d
 /// server as the draft, so closing the app resumes where it stopped. Also
 /// used to answer `needs_more_info` (starts at review, only additions).
 class VerificationWizardScreen extends ConsumerStatefulWidget {
-  const VerificationWizardScreen({super.key});
+  const VerificationWizardScreen({this.handoffToken, super.key});
+
+  /// R-146: opened from the computer's «continue on your phone» link
+  /// (`…/selfie/<token>` → `?handoff=<token>`).
+  final String? handoffToken;
 
   @override
   ConsumerState<VerificationWizardScreen> createState() =>
@@ -110,6 +114,7 @@ class _VerificationWizardScreenState
             selfie: SelfieUpload(
               token: ticket.token,
               report: shot.selfieCapture,
+              handoffToken: _liveHandoffToken(),
             ),
           );
         } on Object catch (e) {
@@ -128,6 +133,16 @@ class _VerificationWizardScreenState
     } on Object catch (e) {
       _toast(e);
     }
+  }
+
+  /// R-146: the computer's code, sent with the selfie only while the
+  /// server still says it is open (an old or foreign link would refuse the
+  /// selfie; without it the computer still sees the selfie on the draft).
+  String? _liveHandoffToken() {
+    final token = widget.handoffToken;
+    if (token == null) return null;
+    final status = ref.read(selfieHandoffLinkProvider(token)).value;
+    return status == SelfieHandoffStatus.pending ? token : null;
   }
 
   Future<void> _removeDocument(VerificationDocument d) async {
@@ -400,6 +415,7 @@ class _VerificationWizardScreenState
           state: s,
           actions: actions,
           needsPhone: ref.watch(selfieNeedsPhoneProvider),
+          handoffToken: widget.handoffToken,
         ),
       WizardStep.review => ReviewStep(
           t: t,
