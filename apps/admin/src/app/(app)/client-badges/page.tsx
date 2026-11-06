@@ -44,7 +44,6 @@ export default function ClientBadgesPage() {
   const flagsQ = useQuery({
     queryKey: ['flags'],
     queryFn: async () => (await api.GET('/admin/feature-flags')).data!.data as { key: string; enabled: boolean }[],
-    staleTime: 60_000,
   });
   const reelsByBadge =
     reelsClientMode(Object.fromEntries((flagsQ.data ?? []).map((f) => [f.key, f.enabled]))) === 'badge';
