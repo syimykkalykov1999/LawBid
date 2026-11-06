@@ -116,6 +116,34 @@ export function splitDocs<T extends ReviewDoc>(docs: readonly T[]): { id: T[]; s
   };
 }
 
+/** A PDF the lightbox shows in a frame. */
+export function isPdf(d: { mime: string }): boolean {
+  return d.mime === 'application/pdf';
+}
+
+/** A document the gallery and the lightbox can show (a clean picture or PDF). */
+export function isViewableDoc(d: ReviewDoc): boolean {
+  return d.scanStatus === 'clean' && (d.mime.startsWith('image/') || isPdf(d));
+}
+
+/**
+ * Owner 2026-11-04 (R-393): the order of the document thumbnails on the
+ * request card — row 1 the ID document (front, back), row 2 the bar license
+ * and the selfie, anything else after, two per row.
+ */
+export function galleryRows<T extends ReviewDoc>(docs: readonly T[]): T[][] {
+  const { id, selfie, other } = splitDocs(docs);
+  const pairs = (xs: T[]) => Array.from({ length: Math.ceil(xs.length / 2) }, (_, i) => xs.slice(i * 2, i * 2 + 2));
+  const license = other.filter((d) => d.docType === 'bar_license');
+  const rest = other.filter((d) => d.docType !== 'bar_license');
+  return [...pairs(id), ...pairs([...license, ...selfie]), ...pairs(rest)];
+}
+
+/** The X-Justification of a document thumbnail on the request card (one audited view per signed link). */
+export function cardJustification(requestId: string): string {
+  return `Проверка заявки на верификацию ${requestId.slice(0, 8)} (миниатюры в карточке)`;
+}
+
 /** A document the screen shows as a picture (others open by link). */
 export function isViewableImage(d: ReviewDoc): boolean {
   return d.scanStatus === 'clean' && d.mime.startsWith('image/');

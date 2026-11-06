@@ -1,9 +1,13 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/cache/media_cache_dir.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/files/browser_download.dart';
+import 'package:lawbid/core/files/open_local_file.dart';
 import 'package:lawbid/core/files/resumable_download.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -29,12 +33,17 @@ class FileRef {
 
 /// Owner 2026-10-13: a case file is downloaded once and kept on the device;
 /// "Open" then never downloads it again. A photo opens in the gallery, a
-/// document in the system's "open with" sheet.
+/// document in the system viewer. Owner 2026-11-05: kept until someone deletes
+/// it (the system, «Данные и память», leaving the account); then it is simply
+/// downloaded again. Named by the file's id, never by its signed link.
 class CaseFileCache {
+  /// The app-support directory in a test.
+  @visibleForTesting
+  static Future<Directory> Function()? debugRoot;
+
   static Future<File> _target(FileRef f) async {
-    final dir = Directory(
-      '${(await getApplicationSupportDirectory()).path}/case_files',
-    );
+    final root = await (debugRoot ?? getApplicationSupportDirectory)();
+    final dir = Directory('${root.path}/$caseFilesFolder');
     if (!dir.existsSync()) dir.createSync(recursive: true);
     return File('${dir.path}/${f.fileId}.${_ext(f.mime)}');
   }
@@ -54,21 +63,20 @@ class CaseFileCache {
         _ => 'bin',
       };
 
-  /// The browser keeps nothing on disk: its own download list does that.
+  /// The browser keeps nothing here: every tap is a download to its own list.
   static Future<bool> isDownloaded(FileRef f) async =>
-      kIsWeb || (await _target(f)).existsSync();
+      !kIsWeb && (await _target(f)).existsSync();
 
-  /// Owner 2026-10-22 (load audit finding 8): a kept file not opened for
-  /// this long is deleted (downloaded again when needed).
-  static const keepFor = Duration(days: 7);
+  /// A cut download not resumed for this long is given up.
+  static const keepPartsFor = Duration(days: 7);
 
-  /// Deletes the files not used for [keepFor] and broken downloads. Runs
+  /// Deletes broken downloads (finished files stay, owner 2026-11-05). Runs
   /// once in the background at app start; never throws.
   static Future<void> cleanUp({DateTime? now}) async {
     if (kIsWeb) return;
     try {
       final dir = Directory(
-        '${(await getApplicationSupportDirectory()).path}/case_files',
+        '${(await getApplicationSupportDirectory()).path}/$caseFilesFolder',
       );
       await cleanUpDir(dir, now: now ?? DateTime.now());
     } on Object {
@@ -80,9 +88,9 @@ class CaseFileCache {
   static Future<void> cleanUpDir(Directory dir, {required DateTime now}) async {
     if (!dir.existsSync()) return;
     await for (final e in dir.list(followLinks: false)) {
-      if (e is! File) continue;
+      if (e is! File || !e.path.endsWith('.part')) continue;
       try {
-        if (now.difference(e.lastModifiedSync()) > keepFor) {
+        if (now.difference(e.lastModifiedSync()) > keepPartsFor) {
           await e.delete();
         }
       } on Object {
@@ -91,11 +99,14 @@ class CaseFileCache {
     }
   }
 
-  static Future<File?> download(FileRef f) async {
+  static Future<File?> download(
+    FileRef f, {
+    void Function(double progress)? onProgress,
+  }) async {
     if (kIsWeb) return null;
     final file = await _target(f);
     if (file.existsSync()) {
-      // Used now: the 7-day clean-up keeps it (owner 2026-10-22).
+      // Used now: the cache cap takes the least recently used first.
       try {
         file.setLastModifiedSync(DateTime.now());
       } on Object {
@@ -105,7 +116,40 @@ class CaseFileCache {
     }
     // Resumes a cut transfer from its `.part` file (Range) and shares one
     // transfer between two taps.
-    return ResumableDownload.instance.fetch(f.url, file);
+    return ResumableDownload.instance.fetch(
+      f.url,
+      file,
+      onProgress: onProgress,
+    );
+  }
+
+  /// The computer's own download of the file.
+  static Future<void> downloadInBrowserList(
+    FileRef f, {
+    void Function(double progress)? onProgress,
+  }) =>
+      downloadInBrowser(
+        f.url,
+        name: '${f.fileId}.${_ext(f.mime)}',
+        mime: f.mime,
+        onProgress: onProgress,
+      );
+
+  /// Opens the kept file in the system viewer, no request to the server. One
+  /// deleted just now is fetched again; with no app for this kind of file the
+  /// system's share sheet still offers one.
+  static Future<void> openKept(FileRef f) async {
+    final file = await download(f);
+    if (file == null) return;
+    var result = await openLocalFile(file.path, f.mime);
+    if (result == OpenLocalResult.fileGone) {
+      await download(f);
+      result = await openLocalFile(file.path, f.mime);
+    }
+    if (result == OpenLocalResult.opened) return;
+    await SharePlus.instance.share(
+      ShareParams(files: [XFile(file.path, mimeType: f.mime)]),
+    );
   }
 
   static Future<void> open(
@@ -122,15 +166,13 @@ class CaseFileCache {
       await launchUrl(Uri.parse(f.url), mode: LaunchMode.externalApplication);
       return;
     }
-    final file = await download(f);
-    if (file == null) return;
-    await SharePlus.instance.share(
-      ShareParams(files: [XFile(file.path, mimeType: f.mime)]),
-    );
+    await openKept(f);
   }
 }
 
-/// "Download" → "Open" on a file row.
+/// "Download" → "Open" on a file row. Owner 2026-11-05: a file already on the
+/// device says "Open" at once; one deleted meanwhile is fetched again by the
+/// tap. On a computer it stays "Download": the browser's own download.
 class FileOpenButton extends ConsumerStatefulWidget {
   FileOpenButton({required api.WorkspaceFileDto file, super.key})
       : file = FileRef.of(file);
@@ -144,24 +186,53 @@ class FileOpenButton extends ConsumerStatefulWidget {
 }
 
 class _FileOpenButtonState extends ConsumerState<FileOpenButton> {
-  bool? _have = kIsWeb ? true : null;
+  bool? _have = kIsWeb ? false : null;
   bool _busy = false;
+
+  /// 0..1 while downloading, when the size is known.
+  double? _progress;
 
   @override
   void initState() {
     super.initState();
+    _check();
+  }
+
+  @override
+  void didUpdateWidget(FileOpenButton old) {
+    super.didUpdateWidget(old);
+    // A fresh signed link of the same file changes nothing.
+    if (old.file.fileId != widget.file.fileId) _check();
+  }
+
+  void _check() {
+    final id = widget.file.fileId;
     CaseFileCache.isDownloaded(widget.file).then((v) {
-      if (mounted) setState(() => _have = v);
+      if (mounted && widget.file.fileId == id) setState(() => _have = v);
     });
+  }
+
+  void _showProgress(double p) {
+    if (mounted) setState(() => _progress = p);
   }
 
   Future<void> _tap() async {
     if (_busy) return;
     final t = ref.read(translatorProvider);
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _progress = null;
+    });
     try {
+      if (kIsWeb && !widget.file.mime.startsWith('image/')) {
+        await CaseFileCache.downloadInBrowserList(
+          widget.file,
+          onProgress: _showProgress,
+        );
+        return;
+      }
       final first = _have != true;
-      await CaseFileCache.download(widget.file);
+      await CaseFileCache.download(widget.file, onProgress: _showProgress);
       if (!mounted) return;
       setState(() => _have = true);
       // A first tap downloads; the next opens (images open at once).
@@ -171,6 +242,12 @@ class _FileOpenButtonState extends ConsumerState<FileOpenButton> {
           widget.file,
           closeLabel: t.t('common.close'),
         );
+      }
+    } on DioException catch (e) {
+      // The files were cleared meanwhile: nothing went wrong.
+      if (mounted && !CancelToken.isCancel(e)) {
+        setState(() => _have = false);
+        showAppSnackBar(context, t.t('cases.files.downloadFailed'));
       }
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
@@ -185,6 +262,7 @@ class _FileOpenButtonState extends ConsumerState<FileOpenButton> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final have = _have ?? false;
+    final label = t.t(have ? 'cases.files.openBtn' : 'cases.files.download');
     return GestureDetector(
       onTap: _tap,
       behavior: HitTestBehavior.opaque,
@@ -195,12 +273,18 @@ class _FileOpenButtonState extends ConsumerState<FileOpenButton> {
           borderRadius: BorderRadius.circular(999),
         ),
         child: _busy
-            ? const SizedBox.square(
-                dimension: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
+            ? Semantics(
+                label: label,
+                child: SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    value: _progress,
+                  ),
+                ),
               )
             : Text(
-                t.t(have ? 'cases.files.openBtn' : 'cases.files.download'),
+                label,
                 style: type.bodySmall.copyWith(
                   fontWeight: FontWeight.w700,
                   color: have ? Colors.white : colors.text,

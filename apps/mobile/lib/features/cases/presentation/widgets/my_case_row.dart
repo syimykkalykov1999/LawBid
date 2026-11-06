@@ -81,6 +81,7 @@ class MyCaseRow extends ConsumerWidget {
       description: '$practice · ${c.primaryStateCode}',
       status: CaseStatusPill(status: c.status, t: t, paused: c.paused),
       coverUrl: c.coverUrl,
+      coverBlurhash: c.coverBlurhash,
       coverKey: c.coverKey,
       coverSeed: c.id,
       categoryCode: c.practice.artCode,

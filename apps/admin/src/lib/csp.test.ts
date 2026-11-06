@@ -19,6 +19,8 @@ describe('admin CSP (audit #8)', () => {
     expect(connect).toContain("'self'");
     expect(connect).toContain('https://media.s3.us-east-1.amazonaws.com');
     expect(connect).toContain('https://cdn.example.com');
+    // Stickers and gifts go to R2 by a presigned PUT once the switch is on.
+    expect(connect).toContain('https://*.r2.cloudflarestorage.com');
     expect(connect.split(' ')).not.toContain('https:');
     expect(connect).not.toContain('http:');
     expect(csp).toContain("frame-ancestors 'none'");

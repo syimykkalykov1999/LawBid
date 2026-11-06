@@ -474,21 +474,17 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     _run(task);
   }
 
-  /// Owner 2026-10-28 («continue on the phone»): re-reads the draft; when
-  /// the phone has attached the selfie while this screen waits on the
-  /// selfie step, moves on to the review. Returns true when it moved.
+  /// Owner 2026-10-28 («continue on the phone»), R-146: re-reads the
+  /// draft once the phone's selfie arrived; the selfie step then shows
+  /// «Селфи получено ✓» and «Далее» turns on. Returns true when the draft
+  /// has the selfie.
   Future<bool> refreshForHandoff() async {
     final s = _s;
     if (s == null) return false;
     final r = await _repo.get(s.request.id);
-    final latest = _s;
-    if (latest == null || !ref.mounted) return false;
+    if (_s == null || !ref.mounted) return false;
     _setRequest(r);
-    if (latest.step == WizardStep.selfie && r.selfieComplete) {
-      goTo(WizardStep.review);
-      return true;
-    }
-    return false;
+    return r.selfieComplete;
   }
 
   /// Owner 2026-10-28: asks the server for the one-time selfie capture

@@ -982,6 +982,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Public SEO pages: upload only the files that changed and reset the CDN only for them (at most 30 paths a day). Changed on the «Продвижение» page.',
     'seo.llms_enabled':
       'Public SEO pages: publish /llms.txt and /llms-full.txt. Changed on the «Продвижение» page.',
+    'seo.pages_cities_enabled':
+      'Public SEO pages: city and city x practice pages for clients. Changed on the «Продвижение» page.',
+    'seo.pages_posts_enabled':
+      'Public SEO pages: pages of the text posts of listed attorneys. Changed on the «Продвижение» page.',
+    'seo.pages_qa_enabled':
+      'Public SEO pages: legal question pages (reviewed answers only). Changed on the «Продвижение» page.',
     'seo.quality_gate_enabled':
       'Public SEO pages: thin pages get noindex and leave the sitemap. Turn on only after the page texts are longer (dry run first). Changed on the «Продвижение» page.',
     'seo.ramp_per_day':

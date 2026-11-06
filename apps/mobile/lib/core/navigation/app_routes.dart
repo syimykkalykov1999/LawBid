@@ -107,6 +107,10 @@ abstract final class AppRoutes {
   /// [verification].
   static const verificationWizard = '/verification/wizard';
 
+  /// R-146: `lawbid.dev/selfie/<token>` — the computer's «continue on your
+  /// phone» code; redirects to the wizard with `?handoff=<token>`.
+  static const selfieHandoffPattern = '/selfie/:token';
+
   /// In-app legal document viewer (`/legal/terms`, `/legal/privacy`,
   /// `/legal/disclaimer`), fed by `/config/bootstrap` legal_documents.
   static const legalPrefix = '/legal/';

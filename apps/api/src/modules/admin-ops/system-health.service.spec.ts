@@ -24,6 +24,7 @@ function build(
     reencryptState?: Record<string, unknown> | null;
     s3Bucket?: string;
     r2Bucket?: string | null;
+    r2Fallback?: string;
     head?: (bucket: string) => Promise<unknown>;
     bloatOver?: string[];
     /** R-370: the status-board extra probes (absent = none). */
@@ -94,6 +95,13 @@ function build(
     ),
     bucket: jest.fn(() => 'media'),
     publicStoreBucket: jest.fn(() => Promise.resolve(over.r2Bucket ?? null)),
+    r2Status: jest.fn(() =>
+      Promise.resolve({
+        selected: !!over.r2Fallback,
+        active: false,
+        fallback: over.r2Fallback ?? null,
+      }),
+    ),
   };
   const cipher = opts.cipher ?? { enabled: false, activeKid: null, kids: [] };
   const reencrypt = {
@@ -248,6 +256,17 @@ describe('SystemHealthService', () => {
       expect(it?.status).toBe('green');
       expect(storage.head).toHaveBeenCalledWith('r2b', 'ops/health-probe');
       expect(it?.detail).toHaveProperty('r2LatencyMs');
+    });
+
+    it('is red with the reason when the R2 switch is on but files stay on AWS', async () => {
+      const { it } = await item({
+        s3Bucket: 'aws',
+        r2Bucket: 'r2b',
+        r2Fallback: 'Публичный адрес бакета не отвечает.',
+      });
+      expect(it?.status).toBe('red');
+      expect(it?.detail?.r2Fallback).toContain('новые фото идут в AWS');
+      expect(it?.detail?.r2Fallback).toContain('не отвечает');
     });
 
     it('is red with r2Error when only R2 fails', async () => {

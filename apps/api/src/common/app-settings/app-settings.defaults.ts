@@ -1869,6 +1869,12 @@ export const OWNER_SEO_PROMOTION_SETTINGS = {
   'seo.incremental_enabled': false,
   /** /llms.txt and /llms-full.txt (SEO_LLMS). */
   'seo.llms_enabled': false,
+  /** City and city x practice pages (SEO_PAGES_CITIES). */
+  'seo.pages_cities_enabled': false,
+  /** Pages of attorneys' text posts (SEO_PAGES_POSTS). */
+  'seo.pages_posts_enabled': false,
+  /** Reviewed legal question pages (SEO_PAGES_QA). */
+  'seo.pages_qa_enabled': false,
   /** Thin pages: noindex and out of the sitemap (SEO_QUALITY_GATE). */
   'seo.quality_gate_enabled': false,
   /** At most N new pages a day enter the index; 0 = no limit (SEO_RAMP_PER_DAY). */

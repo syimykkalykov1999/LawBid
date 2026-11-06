@@ -124,6 +124,10 @@ export class MyBidItemDto extends OmitType(BidDto, ['offers'] as const) {
    * else null (the app shows the qualification's art). */
   @ApiPropertyOptional({ type: String, nullable: true })
   coverUrl!: string | null;
+
+  /** R-248: BlurHash of the cover, drawn while it loads (null = none). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  coverBlurhash?: string | null;
 }
 
 /** A "В работе" row (docs/04 §11.2). */
@@ -197,6 +201,10 @@ export class WorkItemDto {
    * them), else null — the app shows the qualification's art. */
   @ApiPropertyOptional({ type: String, nullable: true })
   coverUrl!: string | null;
+
+  /** R-248: BlurHash of the cover, drawn while it loads (null = none). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  coverBlurhash?: string | null;
 }
 
 export class SavedCaseItemDto {
