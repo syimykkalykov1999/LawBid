@@ -10,6 +10,15 @@ const caseWorkspaceRu = <String, String>{
       'Контакты клиента пока не доступны. Откройте экран заново или обратитесь в поддержку.',
   'cases.work.chatWithClient': 'Чат с клиентом',
   'cases.owner.chatWithLawyer': 'Чат с юристом',
+  'cases.owner.editCase': 'Изменить кейс',
+  'cases.files.block': 'Фото и документы',
+  'cases.owner.agreedTerms': 'Договорились об оплате',
+  'cases.tab.changes': 'Изменения',
+  'cases.detail.attached':
+      'Клиент приложил: {items}. Откроются после принятия бида',
+  'cases.changes.noBid': 'Изменения кейса появятся здесь после вашего бида',
+  'cases.owner.deleteCase': 'Удалить кейс',
+  'cases.withdraw.bid': 'Отозвать бид',
   'cases.status.acceptedByBoth': 'Принят обеими сторонами',
   'cases.overview.meta':
       'Опубликован {published} · Принят {accepted} · Бидов: {bids}',
@@ -153,6 +162,15 @@ const caseWorkspaceEn = <String, String>{
       "The client's contacts are not available yet. Reopen the screen or contact support.",
   'cases.work.chatWithClient': 'Chat with client',
   'cases.owner.chatWithLawyer': 'Chat with lawyer',
+  'cases.owner.editCase': 'Edit case',
+  'cases.files.block': 'Photos and documents',
+  'cases.owner.agreedTerms': 'Agreed on payment',
+  'cases.tab.changes': 'Changes',
+  'cases.detail.attached':
+      'The client attached: {items}. They open once a bid is accepted',
+  'cases.changes.noBid': 'Changes to the case will appear here after your bid',
+  'cases.owner.deleteCase': 'Delete case',
+  'cases.withdraw.bid': 'Withdraw bid',
   'cases.status.acceptedByBoth': 'Accepted by both',
   'cases.overview.meta':
       'Published {published} · Accepted {accepted} · {bids} bids',
