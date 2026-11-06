@@ -175962,6 +175962,18 @@
           "rampPerDay": {
             "type": "number",
             "nullable": true
+          },
+          "pagesCities": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "pagesPosts": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "pagesQa": {
+            "type": "boolean",
+            "nullable": true
           }
         },
         "required": [
@@ -175970,7 +175982,10 @@
           "robotsAi",
           "llms",
           "qualityGate",
-          "rampPerDay"
+          "rampPerDay",
+          "pagesCities",
+          "pagesPosts",
+          "pagesQa"
         ]
       },
       "PublicSeoSettingsEnvelope": {
