@@ -63,7 +63,7 @@ describe('promotion catalog', () => {
 
   it('the seo.* settings of this page are sorted by key (parallel PRs merge cleanly)', () => {
     const keys = Object.keys(OWNER_SEO_PROMOTION_SETTINGS);
-    expect(keys.length).toBe(CHECKLIST_IDS.length + 6);
+    expect(keys.length).toBe(CHECKLIST_IDS.length + 9);
     expect(keys).toEqual([...keys].sort());
   });
 
@@ -86,6 +86,9 @@ describe('PromotionService.publicSettings (what the generator reads)', () => {
       llms: null,
       qualityGate: null,
       rampPerDay: null,
+      pagesCities: null,
+      pagesPosts: null,
+      pagesQa: null,
     });
   });
 
@@ -95,22 +98,30 @@ describe('PromotionService.publicSettings (what the generator reads)', () => {
       'seo.llms_enabled': false,
       'seo.ramp_per_day': 0,
       'seo.robots_ai_enabled': 'yes',
+      'seo.pages_qa_enabled': true,
+      'seo.pages_posts_enabled': false,
     }).svc.publicSettings();
     expect(r).toMatchObject({
       sitemapIndex: true,
       llms: false,
       rampPerDay: 0,
       robotsAi: null,
+      pagesQa: true,
+      pagesPosts: false,
+      pagesCities: null,
     });
   });
 
-  it('carries only the six switches: nothing personal, nothing else', async () => {
+  it('carries only the switches: nothing personal, nothing else', async () => {
     const r = await make({
       'seo.checklist.pr_reviews': true,
     }).svc.publicSettings();
     expect(Object.keys(r).sort()).toEqual([
       'incremental',
       'llms',
+      'pagesCities',
+      'pagesPosts',
+      'pagesQa',
       'qualityGate',
       'rampPerDay',
       'robotsAi',

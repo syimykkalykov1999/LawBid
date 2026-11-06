@@ -17,6 +17,7 @@ import { VerifiedBadge } from '@/components/verified-badge';
 import { api, errorText } from '@/lib/api/client';
 import { can } from '@/lib/rbac';
 import { useMe } from '@/lib/hooks';
+import { reelsClientMode } from '@/lib/reels-client-mode';
 import { formatDateTime } from '@/lib/utils';
 
 type Status = '' | 'pending' | 'approved' | 'rejected' | 'revoked';
@@ -38,6 +39,15 @@ const SUB_RU: Record<string, string> = {
 
 /** Owner 2026-10-02: paid gold badge for clients — application queue. */
 export default function ClientBadgesPage() {
+  // Owner 2026-11-04 (R-398): say here too when the badge includes reels
+  // (the same cached ['flags'] query the «Функции» page keeps).
+  const flagsQ = useQuery({
+    queryKey: ['flags'],
+    queryFn: async () => (await api.GET('/admin/feature-flags')).data!.data as { key: string; enabled: boolean }[],
+    staleTime: 60_000,
+  });
+  const reelsByBadge =
+    reelsClientMode(Object.fromEntries((flagsQ.data ?? []).map((f) => [f.key, f.enabled]))) === 'badge';
   const qc = useQueryClient();
   const toast = useToast();
   const me = useMe();
@@ -126,7 +136,7 @@ export default function ClientBadgesPage() {
       <PageHeader
         eyebrow="Люди"
         title="Галочки клиентов"
-        subtitle="Золотая галочка по месячной подписке: клиент присылает документы, вы одобряете, он оплачивает. Цена — в разделе «Цены»."
+        subtitle={`Золотая галочка по месячной подписке: клиент присылает документы, вы одобряете, он оплачивает. Цена — в разделе «Цены».${reelsByBadge ? ' В галочку входит публикация рилсов (раздел «Функции» → «Рилсы: публикация клиентами» → «Только с галочкой»).' : ''}`}
       />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Tabs<Status>

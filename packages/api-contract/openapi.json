@@ -135200,6 +135200,11 @@
             "type": "string",
             "nullable": true
           },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "R-382 (owner 2026-11-04): the profile photo of the account behind this admin (the same photo as in the app, 256 px preview); null = none, the panel shows initials."
+          },
           "reasonRequiredAreas": {
             "description": "Sections where this admin must write a reason (always empty for the super admin).",
             "type": "array",
@@ -158252,6 +158257,16 @@
             "type": "string",
             "nullable": true,
             "description": "Practice category its posts mostly belong to (for the topic cover)."
+          },
+          "coverUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-11-04 (R-406): cover of a hashtag topic — the photo or video frame of its most popular post (90 days, nightly snapshot); null when the topic has no media posts."
+          },
+          "coverPostId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The post the cover comes from."
           }
         },
         "required": [
@@ -175952,6 +175967,18 @@
           "rampPerDay": {
             "type": "number",
             "nullable": true
+          },
+          "pagesCities": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "pagesPosts": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "pagesQa": {
+            "type": "boolean",
+            "nullable": true
           }
         },
         "required": [
@@ -175960,7 +175987,10 @@
           "robotsAi",
           "llms",
           "qualityGate",
-          "rampPerDay"
+          "rampPerDay",
+          "pagesCities",
+          "pagesPosts",
+          "pagesQa"
         ]
       },
       "PublicSeoSettingsEnvelope": {
@@ -189809,6 +189839,11 @@
           "avatarUrl": {
             "type": "string",
             "nullable": true
+          },
+          "avatarFullUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "R-405 (owner 2026-11-04): the 1024 px photo for the big round frame\nof the call screen; `avatarUrl` stays the 256 px preview for lists."
           },
           "status": {
             "allOf": [

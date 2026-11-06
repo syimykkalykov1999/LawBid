@@ -198,6 +198,45 @@ class FakeSocialRepository implements SocialRepository {
     return _page(reposts, cursor);
   }
 
+  /// R-406: a topic page's posts (a hashtag topic) — [posts].
+  final tagPostsCalls = <(String, TagSort)>[];
+
+  @override
+  Future<CursorPage<Post>> tagPosts(
+    String tag,
+    TagSort sort, {
+    String? cursor,
+    String? state,
+  }) async {
+    tagPostsCalls.add((tag, sort));
+    if (offline) throw _offline;
+    return _page(posts, cursor);
+  }
+
+  /// R-406: a practice topic's posts (the filtered list) — [posts].
+  final latestPostsPractices = <String?>[];
+
+  @override
+  Future<CursorPage<Post>> latestPosts(
+    String? state, {
+    String? cursor,
+    String? practice,
+    String? tag,
+    bool newsOnly = false,
+    String? period,
+    bool withPhotos = false,
+    bool briefsOnly = false,
+    bool popular = false,
+    bool forYou = false,
+    bool generalOnly = false,
+    List<String> states = const [],
+    List<String> practices = const [],
+  }) async {
+    latestPostsPractices.add(practice);
+    if (offline) throw _offline;
+    return _page(posts, cursor);
+  }
+
   @override
   Future<CursorPage<PersonRow>> postLikers(
     String postId, {

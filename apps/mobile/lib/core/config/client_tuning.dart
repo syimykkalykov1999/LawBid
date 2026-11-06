@@ -83,8 +83,8 @@ abstract final class ClientTuning {
   /// server already folded its Выкл/Вкл/Авто switch into the two numbers).
   static int get videoPrefetchAhead =>
       metered && _videoPrefetchCellular < _videoPrefetchAhead
-          ? _videoPrefetchCellular
-          : _videoPrefetchAhead;
+      ? _videoPrefetchCellular
+      : _videoPrefetchAhead;
 
   /// Disk ceiling of the video chunk cache, MB; 0 = off
   /// (`client.video_cache_mb`).
@@ -136,8 +136,8 @@ abstract final class ClientTuning {
   /// not come back together. One rule for [outboxDelay] and the inline
   /// `RetryInterceptor` backoff.
   static Duration withJitter(Duration d, [Random? random]) {
-    final extra =
-        (d.inMilliseconds * 0.3 * (random ?? _rng).nextDouble()).round();
+    final extra = (d.inMilliseconds * 0.3 * (random ?? _rng).nextDouble())
+        .round();
     return d + Duration(milliseconds: extra);
   }
 
@@ -150,6 +150,21 @@ abstract final class ClientTuning {
     final secs = raw == null ? null : int.tryParse(raw.trim());
     if (secs == null || secs < 0) return null;
     return Duration(seconds: secs > 86400 ? 86400 : secs);
+  }
+
+  /// How long a piece of a big upload waits before it is sent again. On a
+  /// 429 or 503 that carries `Retry-After` the server's number replaces
+  /// [backoff], capped at [retryAfterMax] (as `RetryInterceptor` does for API
+  /// calls); anything else keeps [backoff].
+  static Duration partRetryWait(
+    int? status,
+    Iterable<String>? retryAfterHeader,
+    Duration backoff,
+  ) {
+    if (status != 429 && status != 503) return backoff;
+    final d = parseRetryAfter(retryAfterHeader);
+    if (d == null) return backoff;
+    return d > retryAfterMax ? retryAfterMax : d;
   }
 
   /// The longest `Retry-After` the outbox / upload queue waits out (the
@@ -174,8 +189,9 @@ abstract final class ClientTuning {
     var own = base + base * extra;
     if (own > cap) own = cap - base * extra;
     if (retryAfter == null) return own;
-    final asked =
-        retryAfter > queueRetryAfterMax ? queueRetryAfterMax : retryAfter;
+    final asked = retryAfter > queueRetryAfterMax
+        ? queueRetryAfterMax
+        : retryAfter;
     final askedJittered = withJitter(asked, random);
     return askedJittered > own ? askedJittered : own;
   }

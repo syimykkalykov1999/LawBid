@@ -53,6 +53,7 @@ const Map<String, bool> defaultFeatureFlags = {
   'document_templates': true,
   'video_posts': false,
   'reels_client_publish': false,
+  'reels_client_publish_paid_only': false,
   'files_multipart': false,
   'reels_tus_parallel': false,
   'chat_upload_parallel': false,

@@ -452,6 +452,8 @@ class ApiSearchRepository implements SearchRepository {
               tag: d.tag,
               postsCount: d.postsCount?.toInt(),
               categoryCode: d.categoryCode,
+              coverUrl: d.coverUrl,
+              coverPostId: d.coverPostId,
             ),
           )
           .toList();
@@ -466,6 +468,8 @@ class ApiSearchRepository implements SearchRepository {
               tag: d.tag,
               postsCount: d.postsCount?.toInt(),
               categoryCode: d.categoryCode,
+              coverUrl: d.coverUrl,
+              coverPostId: d.coverPostId,
             ),
           )
           .toList();

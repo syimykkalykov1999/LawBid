@@ -42,6 +42,7 @@ import type { CaseDeadlineReminderJob } from './handlers/case-deadline-reminder.
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
+import { TopicCoversJob } from '../modules/search/topic-covers.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AccountAnonymizationService } from '../modules/privacy/account-anonymization.service';
@@ -168,6 +169,7 @@ function processor() {
       countersRecon as unknown as CountersReconcileJob,
       { run: jest.fn() } as unknown as FeedRecoJob,
       { run: jest.fn() } as unknown as TrendingTagsJob,
+      { run: jest.fn() } as unknown as TopicCoversJob,
       { run: jest.fn() } as unknown as NotificationsRetentionJob,
       { anonymizeDue: jest.fn() } as unknown as AccountAnonymizationService,
       { run: jest.fn() } as unknown as JournalRetentionService,
