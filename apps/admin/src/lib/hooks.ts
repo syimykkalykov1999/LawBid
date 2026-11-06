@@ -51,8 +51,7 @@ export function useMe() {
     // No own staleTime: «me» is a reference key (15 min, lib/query-client.ts),
     // so opening a page again asks nothing (R-385 budget).
     // R-382: the photo is saved in the app, on another screen. Coming back to
-    // the panel re-reads «me» even while it is fresh, so the chip picks the
-    // new photo up at once; only the focus event does it, not a page open.
-    refetchOnWindowFocus: 'always',
+    // the panel re-reads «me» once it is stale; fresh data is not asked again.
+    refetchOnWindowFocus: true,
   });
 }
