@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
@@ -12,6 +13,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/transfers/adaptive_limiter.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
@@ -308,9 +310,9 @@ class _GroupConversationScreenState
     final chat = ref.read(chatRepositoryProvider);
     setState(() => _uploading++);
     try {
-      for (var i = 0; i < files.length; i++) {
-        final f = files[i];
-        if (fromDisk) {
+      if (fromDisk) {
+        for (var i = 0; i < files.length; i++) {
+          final f = files[i];
           await thread.queueAttachment(
             bytes: f.bytes,
             path: f.path,
@@ -320,17 +322,28 @@ class _GroupConversationScreenState
                 i == files.length - 1 && caption.isNotEmpty ? caption : null,
             replyToId: i == 0 ? reply?.id : null,
           );
-          continue;
         }
-        final fileId = await chat.uploadAttachment(f.bytes, f.mime);
-        if (!mounted) return;
-        await thread.sendAttachment(
+        _toBottom();
+        return;
+      }
+      // R-251: several files go up together, then the messages in order. With
+      // the flag off, one after another as before.
+      await uploadThenSendInOrder(
+        items: files,
+        atOnce: ref
+                .read(featureFlagsControllerProvider)
+                .isEnabled('chat_upload_parallel')
+            ? ClientTuning.uploadsAtOnce
+            : 1,
+        upload: (f) => chat.uploadAttachment(f.bytes, f.mime),
+        alive: () => mounted,
+        send: (i, f, fileId) => thread.sendAttachment(
           fileId: fileId,
           fileName: f.name,
           caption: i == files.length - 1 && caption.isNotEmpty ? caption : null,
           replyToId: i == 0 ? reply?.id : null,
-        );
-      }
+        ),
+      );
     } on Object catch (e) {
       _error(e);
     } finally {
