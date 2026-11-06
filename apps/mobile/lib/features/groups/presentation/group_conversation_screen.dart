@@ -290,11 +290,16 @@ class _GroupConversationScreenState
       );
       return;
     }
+    // R-255: the queue and the disk, not memory; off = as before.
+    final fromDisk = ref
+        .read(featureFlagsControllerProvider)
+        .isEnabled('group_files_from_disk');
     final files = await pickGroupFiles(
       context,
       t,
       choice,
       limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
+      fromDisk: fromDisk,
     );
     if (files.isEmpty || !mounted) return;
     final caption = _text.text.trim();
@@ -305,6 +310,22 @@ class _GroupConversationScreenState
     final chat = ref.read(chatRepositoryProvider);
     setState(() => _uploading++);
     try {
+      if (fromDisk) {
+        for (var i = 0; i < files.length; i++) {
+          final f = files[i];
+          await thread.queueAttachment(
+            bytes: f.bytes,
+            path: f.path,
+            name: f.name,
+            mime: f.mime,
+            caption:
+                i == files.length - 1 && caption.isNotEmpty ? caption : null,
+            replyToId: i == 0 ? reply?.id : null,
+          );
+        }
+        _toBottom();
+        return;
+      }
       // R-251: several files go up together, then the messages in order. With
       // the flag off, one after another as before.
       await uploadThenSendInOrder(

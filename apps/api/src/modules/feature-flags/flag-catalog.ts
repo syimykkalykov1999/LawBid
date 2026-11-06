@@ -220,6 +220,16 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
       'Chat videos and documents are sent from disk, not from memory',
   },
   {
+    // R-255: on, a file of a group chat is a job of the upload queue (it
+    // survives closing the app) and a video or document is streamed from
+    // disk. Off until checked on a phone: as before, read into memory.
+    key: 'group_files_from_disk',
+    enabled: false,
+    app: true,
+    description:
+      'Group chat files go through the upload queue and are sent from disk',
+  },
+  {
     // R-254: on, a file this same user already stored is not uploaded again.
     // Own files only (a hash is not proof of holding a file). Needs the
     // setting storage.dedup on. Off until checked against real storage.
