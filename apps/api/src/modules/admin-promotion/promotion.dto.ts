@@ -101,4 +101,7 @@ export class PublicSeoSettingsDto {
   @ApiProperty({ type: Boolean, nullable: true }) llms!: boolean | null;
   @ApiProperty({ type: Boolean, nullable: true }) qualityGate!: boolean | null;
   @ApiProperty({ type: Number, nullable: true }) rampPerDay!: number | null;
+  @ApiProperty({ type: Boolean, nullable: true }) pagesCities!: boolean | null;
+  @ApiProperty({ type: Boolean, nullable: true }) pagesPosts!: boolean | null;
+  @ApiProperty({ type: Boolean, nullable: true }) pagesQa!: boolean | null;
 }

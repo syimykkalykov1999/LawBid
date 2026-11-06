@@ -30,6 +30,7 @@ class CaseSummaryDto {
     required this.stillNeededPending,
     required this.canMakeNotUrgent,
     this.coverUrl,
+    this.coverBlurhash,
     this.city,
     this.budgetCents,
     this.budgetPercentBps,
@@ -50,6 +51,9 @@ class CaseSummaryDto {
 
   /// Owner 2026-09-30: the first photo (the "Mine" grid), else null.
   final String? coverUrl;
+
+  /// R-248: BlurHash of the cover, drawn while it loads (null = none).
+  final String? coverBlurhash;
   final String title;
   final PracticeAreaRefDto practiceArea;
 

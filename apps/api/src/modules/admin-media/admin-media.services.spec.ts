@@ -148,6 +148,21 @@ describe('AdminStickersService', () => {
     sticker_count: 3,
   };
 
+  it('a sticker upload says the admin can do a presigned PUT (R2, owner 2026-11-04)', async () => {
+    const s = setup(userPack);
+    const presign = jest.fn().mockResolvedValue({ fileId: 'f' });
+    (s.files as Record<string, unknown>).presign = presign;
+    await s.service.presignUpload(admin, {
+      mime: 'image/png',
+      sizeBytes: 10,
+      sha256: 'a'.repeat(64),
+    });
+    expect(presign).toHaveBeenCalledWith(
+      admin.id,
+      expect.objectContaining({ purpose: 'sticker', supportsPut: true }),
+    );
+  });
+
   it('hide: status hidden (CAS), audit, the author is told why', async () => {
     const s = setup(userPack);
     await s.service.setHidden(admin, 'pk', true, 'Hate symbols in pack');

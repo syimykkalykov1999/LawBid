@@ -26,6 +26,13 @@ class FakeS3 {
   bucket(kind: string): string {
     return `fake-${kind}`;
   }
+  // The real service loads its keys and the R2 switch first (R-407).
+  ready(): Promise<boolean> {
+    return Promise.resolve(true);
+  }
+  resolveBucket(kind: string): Promise<string> {
+    return Promise.resolve(this.bucket(kind));
+  }
   put(bucket: string, key: string, body: Buffer): Promise<void> {
     this.objects.set(`${bucket}/${key}`, Buffer.from(body));
     return Promise.resolve();

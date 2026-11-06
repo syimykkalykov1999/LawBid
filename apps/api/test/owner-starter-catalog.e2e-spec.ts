@@ -28,6 +28,7 @@ describe('Starter catalog (e2e)', () => {
       return Promise.resolve();
     },
     bucket: () => 'media-test',
+    resolveBucket: () => Promise.resolve('media-test'),
     put: (_b: string, key: string) => {
       stored.push(key);
       return Promise.resolve();

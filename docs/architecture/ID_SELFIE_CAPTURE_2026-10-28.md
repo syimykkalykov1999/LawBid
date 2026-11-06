@@ -196,6 +196,26 @@ webcam would only give an unchecked shot — not worth a weaker path).
 - The computer re-reads the draft every 5 s while the panel is on screen
   and the page is visible (stops when hidden / left); once the phone attached
   the selfie it moves to «Проверка и отправка» by itself.
+- **R-146 (owner 2026-11-04): one-time code, Stripe Identity / Onfido
+  cross-device pattern.** The panel («Нет камеры? Продолжите на телефоне»)
+  is shown on the web AND on any device whose `availableCameras()` is
+  empty. It asks `POST /verification/handoff {requestId}` for a one-time
+  code (Redis, 10 min, only its hash stored, bound to the attorney and the
+  editable request, 20 per hour per attorney, `auth_events`
+  `verification_handoff_created/_done`) and shows its QR plus the short
+  link `https://<APP_LINK_BASE_URL host>/selfie/<code>` with «Скопировать».
+  The computer polls `GET /verification/handoff/:code/status` every 3 s
+  while visible and stops at `done` (re-reads the draft: «Селфи получено
+  ✓», «Далее» on) or `expired` («Обновить QR» = a new code). The phone
+  (signed in to the same account) opens `/verification/wizard?handoff=<code>`
+  (App Link / universal link `/selfie/*`, `lawbid://selfie/<code>`), checks
+  the code (another account's or an old one → a warning, the camera still
+  works for the own draft), sends it with the selfie attach (`handoffToken`,
+  must match the attorney + request) and shows «Готово, вернитесь на
+  компьютер». A selfie attached without the code (signed in on the phone by
+  itself) still flips the request's open code to `done`. A phone browser
+  without the app (no liveness on the web) shows «open the app». Not `/v/`:
+  that path is the web app's versioned release files (infra/modules/web).
 - Back from the selfie step goes to the ID step; the draft lives on the
   server and is never re-created. Role screen: the role can still be changed
   until onboarding ends, but switching an already chosen role now asks

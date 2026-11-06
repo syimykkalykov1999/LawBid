@@ -37,6 +37,7 @@ class AdminMeDto {
     this.passkeyCount,
     this.onCallAvailable,
     this.onCallEnabled,
+    this.avatarUrl,
   });
 
   factory AdminMeDto.fromJson(Map<String, Object?> json) =>
@@ -96,6 +97,9 @@ class AdminMeDto {
   /// Country tabs for the panel: the assigned countries, or every switched-on country for staff working everywhere.
   final List<AdminCountryTabDto> countryTabs;
   final String? securityQuestion;
+
+  /// R-382 (owner 2026-11-04): the profile photo of the account behind this admin (the same photo as in the app, 256 px preview); null = none, the panel shows initials.
+  final String? avatarUrl;
 
   /// Sections where this admin must write a reason (always empty for the super admin).
   final List<String> reasonRequiredAreas;
