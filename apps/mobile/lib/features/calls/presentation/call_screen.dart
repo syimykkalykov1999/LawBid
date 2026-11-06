@@ -11,12 +11,14 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_add_panel.dart';
+import 'package:lawbid/features/calls/presentation/call_audio_sheet.dart';
 import 'package:lawbid/features/calls/presentation/call_controls.dart';
 import 'package:lawbid/features/calls/presentation/call_group.dart';
 import 'package:lawbid/features/calls/presentation/call_pip_window.dart';
@@ -523,6 +525,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
         CallVoteStrip(vote: s.call!.vote!, call: s.call!),
     ];
 
+    final audio = ref.watch(callAudioRouterProvider);
     final Widget bottom = incoming
         ? _IncomingButtons(
             video: s.video,
@@ -541,7 +544,15 @@ class _CallScreenState extends ConsumerState<CallScreen>
               onFlip: s.video && s.cameraOn && s.busy
                   ? () => unawaited(c.switchCamera())
                   : null,
-              onSpeaker: s.busy ? () => unawaited(c.toggleSpeaker()) : null,
+              audioRoute: audio.inHeadset ? audio.current?.kind : null,
+              // Owner 2026-11-04 (WhatsApp): with a headset connected the
+              // button lists the outputs; without one it switches the
+              // loudspeaker as before.
+              onSpeaker: s.busy
+                  ? () => c.audioChoice
+                      ? unawaited(showCallAudioSheet(context))
+                      : unawaited(c.toggleSpeaker())
+                  : null,
               // Owner 2026-10-22: switches video on / off mid-call; a
               // channel's video call keeps the plain camera pause.
               onVideo: c.canSwitchVideo

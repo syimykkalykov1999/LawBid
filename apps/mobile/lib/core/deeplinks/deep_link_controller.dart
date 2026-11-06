@@ -18,6 +18,7 @@ import 'package:lawbid/features/auth/application/onboarding_flow.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/domain/onboarding_step.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 
 /// Where incoming link URIs come from. Production: `app_links` (custom
 /// scheme + universal links + App Links, cold start and while running).
@@ -251,8 +252,15 @@ class DeepLinkController extends Notifier<DeepLink?> {
         }
         if (!hasSession) return; // wait for sign-in
         final user = ref.read(currentUserControllerProvider).user;
-        if (user == null || AppRouterGuard.requiredStep(user) != null) {
-          return; // wait for GET /users/me + onboarding
+        if (user == null) return; // wait for GET /users/me
+        final required = AppRouterGuard.requiredStep(user);
+        // R-146: the verification wizard (the computer's «continue on your
+        // phone» code) is itself the verification step of onboarding.
+        final wizardDuringVerification =
+            required == OnboardingStepId.verification &&
+                location.startsWith(verificationWizardLocation);
+        if (required != null && !wizardDuringVerification) {
+          return; // wait for onboarding
         }
         state = null;
         ref.read(deepLinkNavigatorProvider)(location);

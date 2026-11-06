@@ -342,12 +342,17 @@ export class AdminStickersService {
     return this.get(pack.id);
   }
 
-  /** Step 1 of an image upload: a presigned POST (purpose `sticker`). */
+  /** Step 1 of an image upload: a presigned POST, or a presigned PUT when
+   * stickers are stored in R2 (purpose `sticker`). The admin can do both. */
   presignUpload(
     admin: AdminActor,
     dto: AdminStickerUploadDto,
   ): Promise<PresignedFileDto> {
-    return this.files.presign(admin.id, { purpose: 'sticker', ...dto });
+    return this.files.presign(admin.id, {
+      purpose: 'sticker',
+      supportsPut: true,
+      ...dto,
+    });
   }
 
   /** Step 2: size / SHA-256 / type checks, then the antivirus scan. */

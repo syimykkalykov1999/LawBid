@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart'
+    show blurhashStandIn;
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -448,6 +450,16 @@ class CasePhotosStrip extends ConsumerWidget {
           width: 112,
           height: 112,
           fit: BoxFit.cover,
+          // R-248: the photo's BlurHash until the preview is decoded.
+          frameBuilder: (_, child, frame, sync) => sync || frame != null
+              ? child
+              : SizedBox.square(
+                  dimension: 112,
+                  child: blurhashStandIn(
+                    p.blurhash,
+                    Theme.of(context).extension<AppColorTokens>()!.skeletonBase,
+                  ),
+                ),
           errorBuilder: (_, __, ___) => Image(
             image: appNetworkImage(p.url, 336),
             width: 112,

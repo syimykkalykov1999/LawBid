@@ -13,6 +13,7 @@ import 'package:lawbid/features/client_badge/domain/client_badge_models.dart';
 import 'package:lawbid/features/client_plan/presentation/client_payment_portal.dart';
 import 'package:lawbid/features/plans/presentation/discount_price.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/domain/verification_repository.dart';
 import 'package:lawbid/features/verification/presentation/document_source.dart';
@@ -60,6 +61,7 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
   /// The badge state and the public profile that shows the badge.
   void _reload() => ref
     ..invalidate(clientBadgeProvider)
+    ..invalidate(clientBadgeActiveProvider)
     ..invalidate(publicClientProfileProvider);
 
   Future<void> _add() async {
@@ -375,11 +377,14 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
               style: type.titleMedium.copyWith(color: colors.text),
             ),
             const SizedBox(height: AppSpacing.sm),
-            for (final k in const [
+            for (final k in [
               'cbadge.benefit.check',
               'cbadge.benefit.first',
               'cbadge.benefit.files',
               'cbadge.benefit.promo',
+              // Owner 2026-11-04 (R-398): only while «Только с галочкой».
+              if (ref.watch(clientBadgeIncludesReelsProvider))
+                'cbadge.benefit.reels',
             ])
               Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.xs),

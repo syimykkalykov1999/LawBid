@@ -25,6 +25,7 @@ Future<void> showPhotoGallery(
   required List<String> urls,
   int initial = 0,
   String closeLabel = 'Close',
+  List<String>? previews,
 }) =>
     Navigator.of(context, rootNavigator: true).push(
       PageRouteBuilder<void>(
@@ -32,6 +33,7 @@ Future<void> showPhotoGallery(
         barrierColor: Colors.transparent,
         pageBuilder: (_, __, ___) => _Gallery(
           urls: urls,
+          previews: previews,
           initial: initial,
           closeLabel: closeLabel,
         ),
@@ -45,9 +47,15 @@ class _Gallery extends StatefulWidget {
     required this.urls,
     required this.initial,
     required this.closeLabel,
+    this.previews,
   });
 
   final List<String> urls;
+
+  /// Owner 2026-11-04 (R-405): the smaller picture already on screen for
+  /// each of [urls] (an avatar's 256 px preview) — shown, fitted, while the
+  /// full one loads, like Telegram; null or '' = plain black.
+  final List<String>? previews;
   final int initial;
   final String closeLabel;
 
@@ -111,6 +119,9 @@ class _GalleryState extends State<_Gallery> {
                   itemBuilder: (_, i) => _ZoomablePhoto(
                     key: ValueKey('gallery-photo-$i'),
                     url: widget.urls[i],
+                    preview: i < (widget.previews?.length ?? 0)
+                        ? widget.previews![i]
+                        : null,
                     onZoomed: (z) {
                       if (z != _zoomed) setState(() => _zoomed = z);
                     },
@@ -214,10 +225,12 @@ class _ZoomablePhoto extends StatefulWidget {
   const _ZoomablePhoto({
     required this.url,
     required this.onZoomed,
+    this.preview,
     super.key,
   });
 
   final String url;
+  final String? preview;
   final ValueChanged<bool> onZoomed;
 
   @override
@@ -262,29 +275,48 @@ class _ZoomablePhotoState extends State<_ZoomablePhoto> {
   }
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        onDoubleTapDown: (d) => _tap = d.localPosition,
-        onDoubleTap: _doubleTap,
-        child: InteractiveViewer(
-          transformationController: _transform,
-          maxScale: 5,
-          child: SizedBox.expand(
-            child: debugGalleryImage?.call(widget.url) ??
-                CachedNetworkImage(
-                  imageUrl: widget.url,
-                  // Owner 2026-10-18 (speed): a signed link changes per
-                  // response — cached by the file's path.
-                  cacheKey: stableImageCacheKey(widget.url),
-                  cacheManager: AppImageCaches.feed,
-                  fit: BoxFit.contain,
-                  errorWidget: (_, __, ___) => const Center(
-                    child: AppIcon(
-                      AppIcons.imageNotSupportedOutlined,
-                      color: Colors.white54,
-                    ),
+  Widget build(BuildContext context) {
+    final preview = widget.preview;
+    final placeholder =
+        preview == null || preview.isEmpty || preview == widget.url
+            ? null
+            : Image(
+                image: stableNetworkImage(preview),
+                fit: BoxFit.contain,
+                // A 256 px preview over the whole screen: smooth, not blocky.
+                filterQuality: FilterQuality.high,
+                gaplessPlayback: true,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              );
+    return GestureDetector(
+      onDoubleTapDown: (d) => _tap = d.localPosition,
+      onDoubleTap: _doubleTap,
+      child: InteractiveViewer(
+        transformationController: _transform,
+        maxScale: 5,
+        child: SizedBox.expand(
+          child: debugGalleryImage?.call(widget.url) ??
+              CachedNetworkImage(
+                imageUrl: widget.url,
+                // Owner 2026-10-18 (speed): a signed link changes per
+                // response — cached by the file's path.
+                cacheKey: stableImageCacheKey(widget.url),
+                cacheManager: AppImageCaches.feed,
+                fit: BoxFit.contain,
+                // R-405: a 1024 px photo on a 1170+ px screen (and any
+                // zoom) is upscaled — cubic, not bilinear.
+                filterQuality: FilterQuality.high,
+                placeholder:
+                    placeholder == null ? null : (_, __) => placeholder,
+                errorWidget: (_, __, ___) => const Center(
+                  child: AppIcon(
+                    AppIcons.imageNotSupportedOutlined,
+                    color: Colors.white54,
                   ),
                 ),
-          ),
+              ),
         ),
-      );
+      ),
+    );
+  }
 }

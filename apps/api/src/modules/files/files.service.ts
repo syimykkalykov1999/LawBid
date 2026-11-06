@@ -697,6 +697,24 @@ export class FilesService {
     return file ? this.mediaUrlOf(file) : null;
   }
 
+  /** [mediaUrl] for several files in one query (fileId → link; files with
+   * no public link are left out). */
+  async mediaUrlsMany(
+    fileIds: (string | null | undefined)[],
+  ): Promise<Map<string, string>> {
+    const ids = [...new Set(fileIds.filter((x): x is string => !!x))];
+    const out = new Map<string, string>();
+    if (ids.length === 0) return out;
+    const rows = await this.prisma.file.findMany({
+      where: { id: { in: ids } },
+    });
+    for (const f of rows) {
+      const url = await this.mediaUrlOf(f);
+      if (url) out.set(f.id, url);
+    }
+    return out;
+  }
+
   /** docs/03 §4.1 / OQ-012: true when [fileId] is [ownerId]'s own live
    * avatar that passed the antivirus scan (what onboarding requires of an
    * attorney). No storage call — the DB row is the source of truth. */
@@ -897,6 +915,7 @@ export class FilesService {
       previewUrl: string;
       mime: string;
       sizeBytes: number;
+      blurhash: string | null;
     }[]
   > {
     if (fileIds.length === 0 || !this.storage.configured) return [];
@@ -918,6 +937,7 @@ export class FilesService {
       previewUrl: string;
       mime: string;
       sizeBytes: number;
+      blurhash: string | null;
     }[] = [];
     for (const id of fileIds) {
       const f = byId.get(id);
@@ -936,6 +956,8 @@ export class FilesService {
           : url,
         mime: f.mime,
         sizeBytes: Number(f.size_bytes),
+        // R-248: drawn while the picture loads (images only).
+        blurhash: isImageMime(f.mime) ? f.blurhash : null,
       });
     }
     return out;
@@ -1294,7 +1316,7 @@ export class FilesService {
   ): Promise<File> {
     const rule = PURPOSE_RULES[purpose];
     const fileId = randomUUID();
-    const bucket = this.storage.bucket(rule.bucket);
+    const bucket = await this.storage.resolveBucket(rule.bucket);
     await this.costGuard.consume('storage');
     const key =
       demoKeyPrefix() + newFileKey({ purpose, ownerId: userId, fileId });
@@ -1364,7 +1386,9 @@ export class FilesService {
    * S3 links. Documents never take this path. */
   private async mediaLink(bucket: string, key: string): Promise<string> {
     // Owner 2026-10-24: an object stored in R2 is served from its own
-    // public domain (the AWS CDN base below does not hold it).
+    // public domain (the AWS CDN base below does not hold it). The keys are
+    // loaded first: a fresh instance must not answer a CloudFront link for it.
+    await this.storage.ready();
     const r2 = this.storage.publicObjectUrl(bucket, key);
     if (r2) return r2;
     // Owner 2026-10-01: the CDN can be set in Admin → Integrations → Storage.

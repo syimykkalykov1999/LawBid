@@ -2,7 +2,10 @@
 # Owner 2026-10-24: checks that a public media URL (Cloudflare R2 behind
 # media.lawbid.dev) is cached, immutable, range-capable and CORS-ready.
 #
-#   sh scripts/ops/verify-r2-media.sh https://media.lawbid.dev/avatar/<userId>/<fileId>.webp
+#   sh scripts/ops/verify-r2-media.sh
+#        (looks at https://media.lawbid.dev/ops/health-probe, the small file
+#         Admin → Integrations → Cloudflare R2 → «Проверить» leaves in the bucket)
+#   sh scripts/ops/verify-r2-media.sh https://media.lawbid.dev/<key of any photo>
 #   ORIGIN=https://admin.lawbid.dev sh scripts/ops/verify-r2-media.sh <url>
 #
 # Checks (exit code 1 when any fails):
@@ -14,12 +17,8 @@
 # Only GET/HEAD/OPTIONS are sent: nothing is written or deleted.
 set -u
 
-url="${1:-}"
+url="${1:-https://media.lawbid.dev/ops/health-probe}"
 origin="${ORIGIN:-https://lawbid.dev}"
-if [ -z "$url" ]; then
-  echo "usage: $0 <public-media-url>   (ORIGIN=https://... to test another origin)" >&2
-  exit 2
-fi
 
 fail=0
 ok() { printf 'OK    %s\n' "$1"; }
@@ -34,7 +33,7 @@ headers "$url" >/dev/null
 second=$(headers "$url")
 status=$(printf '%s\n' "$second" | sed -n '1s/^http\/[0-9.]* \([0-9]*\).*/\1/p')
 if [ "$status" != "200" ]; then
-  bad "GET answered HTTP ${status:-none} (expected 200): is the URL right and the object public?"
+  bad "GET answered HTTP ${status:-none} (expected 200): press «Проверить» in Admin → Integrations → Cloudflare R2 first; is the custom domain Active?"
 fi
 
 hit=$(header "$second" 'cf-cache-status')

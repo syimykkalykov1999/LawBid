@@ -36,8 +36,8 @@ class TusTarget {
 /// 4xx) the video goes the plain way, so a refusal never costs the upload.
 class TusUpload {
   TusUpload(this._tus, {AdaptiveLimiter? limiter, Duration? retryUnit})
-      : _limiter = limiter ?? TransferLimits.uploads,
-        _retryUnit = retryUnit ?? const Duration(seconds: 2);
+    : _limiter = limiter ?? TransferLimits.uploads,
+      _retryUnit = retryUnit ?? const Duration(seconds: 2);
 
   final Dio _tus;
   final AdaptiveLimiter _limiter;
@@ -257,18 +257,18 @@ class TusUpload {
     while (at < size) {
       final len = math.min(chunkBytes, size - at);
       Future<Response<void>> patch() => _tus.patch<void>(
-            location,
-            data: file.openRead(from + at, from + at + len),
-            cancelToken: cancel,
-            options: Options(
-              headers: {
-                ...t.headers,
-                'Upload-Offset': '$at',
-                'Content-Type': 'application/offset+octet-stream',
-                Headers.contentLengthHeader: '$len',
-              },
-            ),
-          );
+        location,
+        data: file.openRead(from + at, from + at + len),
+        cancelToken: cancel,
+        options: Options(
+          headers: {
+            ...t.headers,
+            'Upload-Offset': '$at',
+            'Content-Type': 'application/offset+octet-stream',
+            Headers.contentLengthHeader: '$len',
+          },
+        ),
+      );
       try {
         final r = await (limiter?.run(patch) ?? patch());
         at = int.tryParse(r.headers.value('upload-offset') ?? '') ?? at + len;
@@ -276,7 +276,11 @@ class TusUpload {
         onSent(at);
       } on DioException catch (e) {
         if (CancelToken.isCancel(e) || ++failures > 5) rethrow;
-        final wait = _retryUnit * failures;
+        final wait = ClientTuning.partRetryWait(
+          e.response?.statusCode,
+          e.response?.headers['retry-after'],
+          _retryUnit * failures,
+        );
         limiter?.rateLimit(wait);
         await Future<void>.delayed(wait);
         final head = await _tus.head<void>(

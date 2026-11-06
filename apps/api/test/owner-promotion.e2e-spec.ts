@@ -162,6 +162,9 @@ describe('Promotion admin page (e2e)', () => {
       llms: false, // an explicit OFF is reported, not null
       qualityGate: null,
       rampPerDay: 200,
+      pagesCities: null,
+      pagesPosts: null,
+      pagesQa: null,
     });
 
     // Every change left an audit row with before/after.
