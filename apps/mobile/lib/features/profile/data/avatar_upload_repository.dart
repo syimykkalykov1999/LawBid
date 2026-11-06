@@ -7,6 +7,8 @@ import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/onboarding/data/current_user_mapper.dart';
 import 'package:lawbid/features/onboarding/data/users_api_client.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
+import 'package:lawbid/features/profile/data/profile_repositories.dart'
+    show askAgainForPublicProfile;
 import 'package:lawbid/features/verification/domain/verification_repository.dart'
     show UploadCancellation, UploadCancelledException;
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -68,10 +70,12 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
     required Dio apiDio,
     required Dio storageDio,
     required UsersApiClient users,
-  })  : _files = api.FilesClient(apiDio),
+  })  : _apiDio = apiDio,
+        _files = api.FilesClient(apiDio),
         _uploader = StorageUploader.dio(apiDio, storageDio),
         _users = users;
 
+  final Dio _apiDio;
   final api.FilesClient _files;
   final StorageUploader _uploader;
   final UsersApiClient _users;
@@ -145,9 +149,14 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
       );
 
   @override
-  Future<CurrentUser> attach(String fileId) async => CurrentUserMapper.fromDto(
-        await _users.updateProfile(api.UpdateProfileDto(avatarFileId: fileId)),
-      );
+  Future<CurrentUser> attach(String fileId) async {
+    final me = CurrentUserMapper.fromDto(
+      await _users.updateProfile(api.UpdateProfileDto(avatarFileId: fileId)),
+    );
+    final username = me.attorneyProfile?.username;
+    if (username != null) askAgainForPublicProfile(_apiDio, username);
+    return me;
+  }
 
   static ScanOutcome _outcome(api.ScanStatus s) => switch (s) {
         api.ScanStatus.clean => ScanOutcome.clean,

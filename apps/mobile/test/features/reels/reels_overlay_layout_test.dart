@@ -73,7 +73,11 @@ class _Reels extends ReelsRepository {
   _Reels() : super(apiDio: Dio(), storageDio: Dio());
 
   @override
-  Future<CursorPage<Post>> reels({String? cursor, String? practice}) async =>
+  Future<CursorPage<Post>> reels({
+    String? cursor,
+    String? practice,
+    bool fresh = false,
+  }) async =>
       const CursorPage(items: []);
 }
 

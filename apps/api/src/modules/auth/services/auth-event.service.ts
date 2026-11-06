@@ -68,6 +68,11 @@ export const AUTH_EVENT_TYPES = {
   REFRESH_RATE_LIMITED: 'refresh_rate_limited',
   // docs/04 §12: every entry into "История кейсов" (docs/02 §4.A list).
   HISTORY_VIEWED: 'history_viewed',
+  // Owner 2026-11-05: the account switched between the attorney and the
+  // client profile (meta {from, to}); going back from an unfinished
+  // onboarding of the new profile is logged apart and not rate-limited.
+  ROLE_SWITCHED: 'role_switched',
+  ROLE_SWITCH_REVERTED: 'role_switch_reverted',
 } as const;
 export type AuthEventType =
   (typeof AUTH_EVENT_TYPES)[keyof typeof AUTH_EVENT_TYPES];
