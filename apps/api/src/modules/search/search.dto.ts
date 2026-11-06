@@ -352,6 +352,21 @@ export class TagDto {
       'Practice category its posts mostly belong to (for the topic cover).',
   })
   categoryCode?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Owner 2026-11-04 (R-406): cover of a hashtag topic — the photo or video frame of its most popular post (90 days, nightly snapshot); null when the topic has no media posts.',
+  })
+  coverUrl?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'The post the cover comes from.',
+  })
+  coverPostId?: string | null;
 }
 
 export { PersonItemDto, type PeoplePage } from '../follows/follows.dto';

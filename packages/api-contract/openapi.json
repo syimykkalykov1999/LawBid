@@ -139809,6 +139809,10 @@
             "type": "string",
             "format": "date-time",
             "description": "The upload link expires at (5 minutes)."
+          },
+          "existing": {
+            "type": "boolean",
+            "description": "True: this user already stored these bytes. `fileId` is ready and clean; skip the upload and the confirm."
           }
         },
         "required": [
@@ -139867,6 +139871,10 @@
           "supportsPut": {
             "type": "boolean",
             "description": "True when the client can upload with a presigned PUT (raw body + the returned headers) as well as the multipart POST. Public media may then be stored in Cloudflare R2; without it the upload always goes to S3 with POST."
+          },
+          "acceptsExisting": {
+            "type": "boolean",
+            "description": "True when the client understands `existing` in the answer: if this user already stored these exact bytes, nothing needs to be uploaded."
           }
         },
         "required": [
@@ -158244,6 +158252,16 @@
             "type": "string",
             "nullable": true,
             "description": "Practice category its posts mostly belong to (for the topic cover)."
+          },
+          "coverUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner 2026-11-04 (R-406): cover of a hashtag topic — the photo or video frame of its most popular post (90 days, nightly snapshot); null when the topic has no media posts."
+          },
+          "coverPostId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The post the cover comes from."
           }
         },
         "required": [

@@ -25,6 +25,7 @@ import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/chat_selection.dart';
 import 'package:lawbid/features/chat/application/chat_text_drafts.dart';
+import 'package:lawbid/features/chat/application/chat_thread_memory.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
@@ -34,6 +35,7 @@ import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
 import 'package:lawbid/features/chat/presentation/chat_swipe.dart';
 import 'package:lawbid/features/chat/presentation/chats_filter_row.dart';
 import 'package:lawbid/features/chat/presentation/desktop_chats.dart';
+import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
@@ -132,7 +134,15 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
           const [];
     }
     if (_folder == ChatListFolder.all) {
-      return ref.watch(mergedChatListProvider).value?.items ?? const [];
+      // R-404 (b): a person's row stands for all the chats behind it.
+      return <ChatListEntry>[
+        for (final e in ref.watch(mergedChatListProvider).value?.items ??
+            const <ChatListEntry>[])
+          if (e case PersonChatEntry(:final conversations))
+            for (final c in conversations) DirectChatEntry(c)
+          else
+            e,
+      ];
     }
     return [
       for (final c
@@ -813,6 +823,9 @@ class ConversationsView extends ConsumerWidget {
     } else if (folder == ChatListFolder.requests) {
       body = const MessageRequestsView();
     } else if (folder == ChatListFolder.all) {
+      // R-404 (c): the newest chats' first pages are read into memory while
+      // the list is on screen, so a tap opens on the messages at once.
+      ref.watch(chatPrewarmProvider);
       // Direct chats and groups in ONE list: pinned first, then by the
       // newest activity.
       body = PagedListBody<ChatListEntry>(
@@ -1003,6 +1016,14 @@ class _ArchiveRow extends ConsumerWidget {
 Widget _entryRow(ChatListEntry e, {String highlight = ''}) => switch (e) {
       DirectChatEntry(:final conversation) =>
         ConversationRow(conversation: conversation, highlight: highlight),
+      // R-404 (b): one person = one row; without a direct chat yet the row
+      // is a stand-in whose tap starts the direct chat (Telegram).
+      PersonChatEntry(:final row, :final standIn, :final counterpartId) =>
+        ConversationRow(
+          conversation: row,
+          highlight: highlight,
+          startDirectWith: standIn ? counterpartId : null,
+        ),
       GroupChatEntry(:final group) =>
         GroupChatTile(group: group, highlight: highlight),
     };
@@ -1094,9 +1115,15 @@ class ConversationRow extends ConsumerWidget {
     this.highlight = '',
     this.inArchive = false,
     this.showAwaiting = false,
+    this.startDirectWith,
   });
 
   final Conversation conversation;
+
+  /// R-404 (b): the row stands in for a person without a direct chat yet
+  /// (only case chats): a tap opens or starts the direct chat with this
+  /// user id instead of opening [conversation] (which has no server id).
+  final String? startDirectWith;
 
   /// Owner 2026-10-18: the typed chat search — the words of it are bold in
   /// the matched message.
@@ -1134,6 +1161,7 @@ class ConversationRow extends ConsumerWidget {
     final picked = picking?.contains(c.id) ?? false;
     final canOrganize = !c.awaitingMyAnswer &&
         picking == null &&
+        startDirectWith == null &&
         !ref.watch(isAssistantProvider);
     void organize() =>
         showChatOrganizeSheet(context, ref, c, inArchive: inArchive);
@@ -1188,10 +1216,14 @@ class ConversationRow extends ConsumerWidget {
     final row = AppPressable(
       key: ValueKey('chat-organize-${c.id}'),
       onTap: picking != null
-          ? () => ref.read(chatSelectionProvider.notifier).toggle(c.id)
-          // Desktop web plan 2026-10-28: on a desktop window the chat
-          // opens next to the list (pushed as before on a phone).
-          : () => openChat(context, c.id),
+          ? startDirectWith != null
+              ? null
+              : () => ref.read(chatSelectionProvider.notifier).toggle(c.id)
+          : startDirectWith != null
+              ? () => unawaited(openDirectChat(context, ref, startDirectWith!))
+              // Desktop web plan 2026-10-28: on a desktop window the chat
+              // opens next to the list (pushed as before on a phone).
+              : () => openChat(context, c.id),
       onLongPress: canOrganize ? organize : null,
       child: Semantics(
         customSemanticsActions: canOrganize

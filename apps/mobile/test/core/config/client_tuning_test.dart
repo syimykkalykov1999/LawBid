@@ -77,9 +77,7 @@ void main() {
     expect(ClientTuning.chatPhotoMaxPx, 4096);
   });
 
-  test(
-      'outboxDelay: jitter, and Retry-After as a jittered floor',
-      () {
+  test('outboxDelay: jitter, and Retry-After as a jittered floor', () {
     ClientTuning.reset();
     for (var seed = 0; seed < 20; seed++) {
       final d = ClientTuning.outboxDelay(3, random: Random(seed));
@@ -112,10 +110,7 @@ void main() {
       random: Random(1),
     );
     expect(big, greaterThanOrEqualTo(ClientTuning.queueRetryAfterMax));
-    expect(
-      big,
-      lessThanOrEqualTo(ClientTuning.queueRetryAfterMax * 1.3),
-    );
+    expect(big, lessThanOrEqualTo(ClientTuning.queueRetryAfterMax * 1.3));
     // A shorter ask than our own wait does not shorten it.
     expect(
       ClientTuning.outboxDelay(
@@ -138,6 +133,29 @@ void main() {
     }
     expect(seen.length, greaterThan(20));
   });
+
+  test(
+    'partRetryWait: Retry-After of a 429/503 replaces the backoff, capped',
+    () {
+      const own = Duration(seconds: 2);
+      expect(
+        ClientTuning.partRetryWait(503, ['7'], own),
+        const Duration(seconds: 7),
+      );
+      expect(
+        ClientTuning.partRetryWait(429, ['3'], own),
+        const Duration(seconds: 3),
+      );
+      expect(
+        ClientTuning.partRetryWait(503, ['999'], own),
+        ClientTuning.retryAfterMax,
+      );
+      expect(ClientTuning.partRetryWait(503, null, own), own);
+      expect(ClientTuning.partRetryWait(500, ['7'], own), own);
+      expect(ClientTuning.partRetryWait(null, ['7'], own), own);
+      expect(ClientTuning.partRetryWait(429, ['Wed, 21 Oct 2026'], own), own);
+    },
+  );
 
   test('parseRetryAfter: seconds only, first header wins, huge is clamped', () {
     expect(ClientTuning.parseRetryAfter(['7']), const Duration(seconds: 7));
