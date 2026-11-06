@@ -376,6 +376,13 @@ class _LicenseBlock extends StatelessWidget {
                 icon: AppIcons.photoCameraOutlined,
                 onTap: () => actions.addFile(slot, FileOrigin.cameraCard),
               ),
+              // Owner 2026-11-05: the phone's photo gallery too — «Фото или
+              // PDF» opens Files, where photos are hard to find.
+              SlotAction(
+                label: t.t('verification.source.library'),
+                icon: AppIcons.photoLibraryOutlined,
+                onTap: () => actions.addFile(slot, FileOrigin.library),
+              ),
               SlotAction(
                 label: t.t('verification.source.file'),
                 icon: AppIcons.uploadFileRounded,
@@ -802,6 +809,7 @@ String missingText(Translator t, MissingItem m, VerificationRequest r) =>
       MissingIdentity(back: false) => t.t('verification.missing.id'),
       MissingIdentity(back: true) => t.t('verification.missing.idBack'),
       MissingSelfie() => t.t('verification.missing.selfie'),
+      MissingPhoto() => t.t('onboarding.profile.error.photoRequired'),
       MissingCleanFile() => t.t('verification.missing.notClean'),
     };
 

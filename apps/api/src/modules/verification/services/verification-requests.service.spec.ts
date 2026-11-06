@@ -6,6 +6,7 @@ import { syncProfileStatus } from '../verification.helpers';
 import {
   documentShape,
   identityCompleteness,
+  submissionPhotoMissing,
 } from './verification-requests.service';
 
 function codeOf(fn: () => unknown): string | undefined {
@@ -152,5 +153,18 @@ describe('verification.require_identity default (owner 2026-10-28)', () => {
   it('ID + selfie are required by default; bar card stays optional', () => {
     expect(APP_SETTINGS['verification.require_identity']).toBe(true);
     expect(APP_SETTINGS['verification.require_bar_document']).toBe(false);
+  });
+});
+
+describe('attorney photo on submit (owner 2026-11-05)', () => {
+  it('is required by default', () => {
+    expect(APP_SETTINGS['verification.require_photo']).toBe(true);
+  });
+  it('a new submission without a clean photo is incomplete', () => {
+    expect(submissionPhotoMissing(true, false)).toBe(true);
+    expect(submissionPhotoMissing(true, true)).toBe(false);
+  });
+  it('an answer on a request already sent is never refused for it', () => {
+    expect(submissionPhotoMissing(false, false)).toBe(false);
   });
 });

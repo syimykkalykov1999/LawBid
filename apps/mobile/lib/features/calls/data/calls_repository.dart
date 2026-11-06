@@ -83,6 +83,12 @@ class ApiCallsRepository implements CallsRepository {
 
   final api.CallsClient _api;
 
+  /// R-377: a call id from the system call UI (iOS CallKit hands back
+  /// `UUID.uuidString`, uppercase) goes to the server the way it stores it
+  /// (lowercase) — `POST /calls/<UPPERCASE>/decline` answered 404 and the
+  /// caller kept ringing.
+  static String _id(String callId) => callId.toLowerCase();
+
   @override
   Future<AppCall> start(String conversationId, {bool video = false}) async =>
       CallMappers.call(
@@ -149,17 +155,17 @@ class ApiCallsRepository implements CallsRepository {
 
   @override
   Future<AppCall> join(String callId) async => CallMappers.call(
-        (await guardApiCall(() => _api.joinCall(id: callId))).data,
+        (await guardApiCall(() => _api.joinCall(id: _id(callId)))).data,
       );
 
   @override
   Future<AppCall> accept(String callId) async => CallMappers.call(
-        (await guardApiCall(() => _api.acceptCall(id: callId))).data,
+        (await guardApiCall(() => _api.acceptCall(id: _id(callId)))).data,
       );
 
   @override
   Future<AppCall> decline(String callId) async => CallMappers.call(
-        (await guardApiCall(() => _api.declineCall(id: callId))).data,
+        (await guardApiCall(() => _api.declineCall(id: _id(callId)))).data,
       );
 
   @override
@@ -171,7 +177,7 @@ class ApiCallsRepository implements CallsRepository {
       CallMappers.call(
         (await guardApiCall(
           () => _api.endCall(
-            id: callId,
+            id: _id(callId),
             body: api.EndCallDto(
               forAll: forAll ? true : null,
               reason: switch (reason) {
@@ -187,7 +193,7 @@ class ApiCallsRepository implements CallsRepository {
 
   @override
   Future<AppCall> get(String callId) async => CallMappers.call(
-        (await guardApiCall(() => _api.getCall(id: callId))).data,
+        (await guardApiCall(() => _api.getCall(id: _id(callId)))).data,
       );
 
   @override
@@ -199,7 +205,7 @@ class ApiCallsRepository implements CallsRepository {
       CallMappers.call(
         (await guardApiCall(
           () => _api.inviteToCall(
-            id: callId,
+            id: _id(callId),
             body: api.InviteCallDto(userId: userId, username: username),
           ),
         ))
@@ -215,7 +221,7 @@ class ApiCallsRepository implements CallsRepository {
       CallMappers.call(
         (await guardApiCall(
           () => _api.muteParticipant(
-            id: callId,
+            id: _id(callId),
             userId: userId,
             body: api.CallMuteDto(muted: muted),
           ),
@@ -228,7 +234,7 @@ class ApiCallsRepository implements CallsRepository {
       CallMappers.call(
         (await guardApiCall(
           () => _api.startVote(
-            id: callId,
+            id: _id(callId),
             body: api.StartCallVoteDto(targetId: userId),
           ),
         ))
@@ -244,7 +250,7 @@ class ApiCallsRepository implements CallsRepository {
       CallMappers.call(
         (await guardApiCall(
           () => _api.castVote(
-            id: callId,
+            id: _id(callId),
             voteId: voteId,
             body: api.CastCallVoteDto(favor: favor),
           ),
@@ -256,7 +262,7 @@ class ApiCallsRepository implements CallsRepository {
   Future<AppCall> removeMember(String callId, String userId) async =>
       CallMappers.call(
         (await guardApiCall(
-          () => _api.removeFromCall(id: callId, userId: userId),
+          () => _api.removeFromCall(id: _id(callId), userId: userId),
         ))
             .data,
       );
@@ -265,7 +271,7 @@ class ApiCallsRepository implements CallsRepository {
   Future<void> setMuteState(String callId, {required bool muted}) async {
     await guardApiCall(
       () => _api.muteState(
-        id: callId,
+        id: _id(callId),
         body: api.CallMuteDto(muted: muted),
       ),
     );
@@ -285,20 +291,23 @@ class ApiCallsRepository implements CallsRepository {
   }
 
   @override
-  Future<List<IceServer>> iceServers({bool relayFailed = false}) async =>
-      (await guardApiCall(
-        () => _api.callIceServers(relayFailed: relayFailed ? true : null),
-      ))
-          .data
-          .iceServers
-          .map(
-            (s) => IceServer(
-              urls: s.urls,
-              username: s.username,
-              credential: s.credential,
-            ),
-          )
-          .toList();
+  Future<List<IceServer>> iceServers({bool relayFailed = false}) async {
+    final body = (await guardApiCall(
+      () => _api.callIceServers(relayFailed: relayFailed ? true : null),
+    ))
+        .data;
+    final relayOnly =
+        body.iceTransportPolicy == api.IceServersDtoIceTransportPolicy.relay;
+    return [
+      for (final s in body.iceServers)
+        IceServer(
+          urls: s.urls,
+          username: s.username,
+          credential: s.credential,
+          relayOnly: relayOnly,
+        ),
+    ];
+  }
 }
 
 abstract final class CallMappers {

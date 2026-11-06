@@ -67,6 +67,7 @@ describe('Admin plan prices: subscriber counts', () => {
       pricing as never,
       {} as never,
       {} as never,
+      {} as never,
       s as never,
     );
     await svc.list();

@@ -5,6 +5,7 @@ import {
   cloudflareStatus,
   isCallProvider,
   ownStatus,
+  relayWarning,
   stateOfTransport,
   TRANSPORT_HINT,
   TRANSPORT_OF_STATE,
@@ -109,5 +110,69 @@ describe('«Связь для звонков»: the dots and the plain line', ()
 describe('backup wording', () => {
   it('no hint promises LiveKit as the automatic backup', () => {
     for (const h of Object.values(TRANSPORT_HINT)) expect(h).not.toMatch(/LiveKit/);
+  });
+});
+
+describe('relayWarning (R-402)', () => {
+  it('Вкл without Cloudflare TURN keys: red, the call will not happen', () => {
+    const w = relayWarning(
+      path({
+        transport: 'cloudflare',
+        cloudflare: side({ configured: false, parts: { turn: false, sfu: false } }),
+      }),
+    );
+    expect(w).toContain('не состоятся');
+  });
+
+  it('Вкл with Cloudflare failing: red even with our own coturn set up', () => {
+    const w = relayWarning(path({ transport: 'cloudflare', cloudflare: side({ lastProbeOk: false }) }));
+    expect(w).toContain('не отвечает');
+  });
+
+  it('Вкл with a healthy Cloudflare: quiet', () => {
+    expect(relayWarning(path({ transport: 'cloudflare' }))).toBeNull();
+  });
+
+  it('quiet when Cloudflare TURN is on', () => {
+    expect(relayWarning(path())).toBeNull();
+  });
+
+  it('quiet when only our own coturn is there', () => {
+    expect(
+      relayWarning(path({ cloudflare: side({ configured: false, parts: { turn: false, sfu: false } }) })),
+    ).toBeNull();
+  });
+
+  it('Cloudflare keys not switched on and no own coturn: tells the owner to press «Включить»', () => {
+    const w = relayWarning(
+      path({
+        carrying: 'own',
+        cloudflare: side({ configured: false, parts: { turn: false, sfu: false } }),
+        own: side({ configured: false, parts: { turn: false, livekit: false } }),
+      }),
+    );
+    expect(w).toContain('Включить');
+    expect(w).toContain('TURN');
+  });
+
+  it('Cloudflare switched off («Выкл») and no own coturn', () => {
+    const w = relayWarning(
+      path({
+        transport: 'own',
+        carrying: 'own',
+        own: side({ configured: false, parts: { turn: false, livekit: false } }),
+      }),
+    );
+    expect(w).toContain('Авто');
+  });
+
+  it('Cloudflare on but failing its probe, no own coturn', () => {
+    const w = relayWarning(
+      path({
+        cloudflare: side({ lastProbeOk: false }),
+        own: side({ configured: false, parts: { turn: false, livekit: false } }),
+      }),
+    );
+    expect(w).toContain('не отвечает');
   });
 });

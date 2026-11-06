@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
@@ -190,9 +188,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 AppPressable(
-                  onTap: a.isAttorney && a.username != null
-                      ? () => context.push(AppRoutes.lawyer(a.username!))
-                      : () {},
+                  onTap: _openAuthor,
                   child: GoldRingAvatar(
                     url: a.avatarUrl,
                     initials: a.displayName.isEmpty
@@ -210,21 +206,24 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                       Row(
                         children: [
                           Flexible(
-                            child: Text(
-                              // OQ-034: the client is anonymous under a
-                              // case — "Case owner" / "Client".
-                              a.isCaseOwner
-                                  ? t.t('cases.comments.owner')
-                                  : a.isAttorney
-                                      ? a.displayName
-                                      : (isCaseRef(_c.id)
-                                          ? t.t('person.client')
-                                          : a.displayName),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: type.bodySmall.copyWith(
-                                color: colors.text,
-                                fontWeight: FontWeight.w600,
+                            child: GestureDetector(
+                              onTap: _openAuthor,
+                              child: Text(
+                                // OQ-034: the client is anonymous under a
+                                // case — "Case owner" / "Client".
+                                a.isCaseOwner
+                                    ? t.t('cases.comments.owner')
+                                    : a.isAttorney
+                                        ? a.displayName
+                                        : (isCaseRef(_c.id)
+                                            ? t.t('person.client')
+                                            : a.displayName),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: type.bodySmall.copyWith(
+                                  color: colors.text,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
@@ -345,6 +344,28 @@ class _CommentTileState extends ConsumerState<CommentTile> {
     );
   }
 
+  /// R-387 (owner 04.11, Instagram): a tap on a comment author's photo or
+  /// name opens their profile — an attorney's or a client's — through
+  /// [openProfile], like a post author (my own comment → my Profile tab).
+  /// A client under a case stays anonymous (OQ-034): no tap there. The page
+  /// goes on the root navigator, over the comments sheet; back returns to
+  /// the comments.
+  VoidCallback? get _openAuthor {
+    final a = _c.author;
+    final u = a.username;
+    if (u == null || u.isEmpty) return null;
+    if (!a.isAttorney && isCaseRef(_c.id)) return null;
+    return () => openProfile(
+          context,
+          ref,
+          id: _c.isMine
+              ? (ref.read(currentUserIdProvider) ?? '')
+              : (a.attorneyId ?? ''),
+          username: u,
+          isClient: !a.isAttorney,
+        );
+  }
+
   void _replyToThis() {
     final a = _c.author;
     widget.onReply(
@@ -399,9 +420,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                   child: Column(
                     children: [
                       AppPressable(
-                        onTap: a.isAttorney && a.username != null
-                            ? () => context.push(AppRoutes.lawyer(a.username!))
-                            : () {},
+                        onTap: _openAuthor,
                         child: GoldRingAvatar(
                           url: a.avatarUrl,
                           initials: a.displayName.isEmpty
@@ -436,13 +455,16 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                             child: Row(
                               children: [
                                 Flexible(
-                                  child: Text(
-                                    name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: type.bodySmall.copyWith(
-                                      color: colors.text,
-                                      fontWeight: FontWeight.w700,
+                                  child: GestureDetector(
+                                    onTap: _openAuthor,
+                                    child: Text(
+                                      name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: type.bodySmall.copyWith(
+                                        color: colors.text,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
                                 ),

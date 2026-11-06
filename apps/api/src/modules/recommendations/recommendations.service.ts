@@ -38,6 +38,15 @@ import {
   feedOrder,
 } from './communities.scoring';
 import { diversify, type Scored } from './ranking.math';
+import {
+  QA_CASE_BOOST,
+  QA_PEOPLE_BOOST,
+  type QaAttorneyEntry,
+  qaCaseBoost,
+  qaPeopleBoost,
+} from './qa-ranking';
+import { QaSnapshotService } from './qa-snapshot.service';
+import { shardContext } from '../../sharding/shard-context';
 
 /** Ranked lists are rebuilt at most this often per viewer. */
 export const PEOPLE_TTL_SEC = 10 * 60;
@@ -145,7 +154,19 @@ export class RecommendationsService {
     private readonly prisma: PrismaService,
     @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
     @Optional() private readonly settings?: AppSettingsService,
+    // R-401: the nightly Q&A ranking snapshot (read only here).
+    @Optional() private readonly qaSnapshot?: QaSnapshotService,
   ) {}
+
+  /** R-401: how much the Q&A snapshot adds on top of the people score. */
+  private async qaPeopleWeights(): Promise<{ qa: number; qaTopic: number }> {
+    const s = this.settings;
+    if (!s) return QA_PEOPLE_BOOST;
+    return {
+      qa: await s.number('reco.people.qa'),
+      qaTopic: await s.number('reco.people.qaTopic'),
+    };
+  }
 
   /** The admin's weights for [kind] (the built-in ones when unset). */
   private async weights<T extends Record<string, number>>(
@@ -265,9 +286,18 @@ export class RecommendationsService {
       ]);
       const now = Date.now();
       const w = await this.weights('people', PEOPLE_WEIGHTS);
+      // R-401: answers to clients' questions lift an attorney — read from
+      // the nightly snapshot (empty / flag off = nothing added).
+      const [qa, qw] = await Promise.all([
+        this.qaSnapshot?.attorneyScores(candidates.map((c) => c.id)) ??
+          new Map<string, QaAttorneyEntry>(),
+        this.qaPeopleWeights(),
+      ]);
       const scored: Scored<PersonCandidate>[] = candidates.map((c) => ({
         item: c,
-        score: personScore(c, viewer, now, w),
+        score:
+          personScore(c, viewer, now, w) +
+          qaPeopleBoost(qa.get(c.id), viewer.interests, qw),
       }));
       return diversify(scored, {
         key: (c) => c.categories[0] ?? c.id,
@@ -295,7 +325,18 @@ export class RecommendationsService {
     ]);
     const now = Date.now();
     const w = await this.weights('people', PEOPLE_WEIGHTS);
-    for (const c of candidates) out.set(c.id, personScore(c, viewer, now, w));
+    const [qa, qw] = await Promise.all([
+      this.qaSnapshot?.attorneyScores(ids) ??
+        new Map<string, QaAttorneyEntry>(),
+      this.qaPeopleWeights(),
+    ]);
+    for (const c of candidates) {
+      out.set(
+        c.id,
+        personScore(c, viewer, now, w) +
+          qaPeopleBoost(qa.get(c.id), viewer.interests, qw),
+      );
+    }
     return out;
   }
 
@@ -347,7 +388,14 @@ export class RecommendationsService {
             AND NOT EXISTS (SELECT 1 FROM follows fx
               WHERE fx.follower_id = ${viewerId}::UUID AND fx.followee_id = a.user_id)`;
     const limit = 'ids' in mode ? mode.ids.length : PEOPLE_SCAN + newest;
-    const rows = await this.prisma.$queryRaw<PersonRow[]>`
+    // Shard-ready: attorney_profiles / users / attorney_licenses are GLOBAL
+    // family — the candidates are read on the primary database, not on the
+    // viewer's shard (empty tables there once the families are split; the
+    // two-DB e2e got 0 candidates). The follows / user_blocks NOT EXISTS
+    // are exact with one database; FollowsService.suggestions re-filters
+    // followed and blocked people from their own family anyway.
+    const rows = await shardContext.runOnPrimary(
+      () => this.prisma.$queryRaw<PersonRow[]>`
       SELECT a.user_id::TEXT AS id,
         a.rating_avg::FLOAT8 AS rating_avg, a.rating_count::INT AS rating_count,
         a.followers_count::INT AS followers_count,
@@ -393,7 +441,8 @@ export class RecommendationsService {
           WHERE (ub.blocker_id = ${viewerId}::UUID AND ub.blocked_id = a.user_id)
              OR (ub.blocker_id = a.user_id AND ub.blocked_id = ${viewerId}::UUID))
       ORDER BY a.rating_avg DESC, a.followers_count DESC, a.user_id
-      LIMIT ${limit}`;
+      LIMIT ${limit}`,
+    );
     return rows.map(toPerson);
   }
 
@@ -642,6 +691,13 @@ export class RecommendationsService {
         const byClient = new Map(clients.map((c) => [c.user_id, c]));
         const now = Date.now();
         const w = await this.weights('case', CASE_WEIGHTS);
+        // R-401: cases of the topics this attorney answers questions in.
+        const [mineQa, qaW] = await Promise.all([
+          this.qaSnapshot?.attorneyScores([attorneyId]) ??
+            new Map<string, QaAttorneyEntry>(),
+          this.settings?.number('reco.case.qaTopic') ?? QA_CASE_BOOST,
+        ]);
+        const myQa = mineQa.get(attorneyId);
         const scored: Scored<CaseCandidate & { category: string }>[] = rows.map(
           (r) => {
             const client = byClient.get(r.client_id);
@@ -667,7 +723,12 @@ export class RecommendationsService {
               clientRatingAvg: Number(client?.rating_avg ?? 0),
               clientRatingCount: client?.rating_count ?? 0,
             };
-            return { item: c, score: caseScore(c, viewer, now, w) };
+            return {
+              item: c,
+              score:
+                caseScore(c, viewer, now, w) +
+                qaCaseBoost(myQa, c.categoryId, qaW),
+            };
           },
         );
         return diversify(scored, {

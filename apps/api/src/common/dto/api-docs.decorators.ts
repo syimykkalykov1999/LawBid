@@ -44,7 +44,7 @@ export function envelopeOf(
 export function ApiEnvelopeResponse(
   model: Type<unknown>,
   options: {
-    status?: HttpStatus.OK | HttpStatus.CREATED;
+    status?: HttpStatus.OK | HttpStatus.CREATED | HttpStatus.ACCEPTED;
     isArray?: boolean;
     description?: string;
   } = {},

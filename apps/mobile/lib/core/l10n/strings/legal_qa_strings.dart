@@ -9,7 +9,8 @@ const legalQaRu = <String, String>{
   'qa.closed': 'Закрыт',
   'qa.close': 'Закрыть вопрос',
   'qa.close.title': 'Закрыть вопрос?',
-  'qa.close.msg': 'Юристы его больше не увидят и не смогут ответить. Полученные ответы останутся у вас.',
+  'qa.close.msg':
+      'Юристы его больше не увидят и не смогут ответить. Полученные ответы останутся у вас.',
   'qa.err.closed': 'Вопрос закрыт.',
   'qa.err.enough': 'На этот вопрос уже достаточно ответов.',
   'qa.title': 'Вопрос юристу',
@@ -47,8 +48,8 @@ const legalQaRu = <String, String>{
   'qa.limit': 'Лимит вопросов на сегодня исчерпан. Попробуйте завтра.',
   'qa.disclaimer':
       'Ответ — общее мнение конкретного адвоката, а не консультация. '
-      'Сверяйтесь с несколькими адвокатами и не принимайте решений только '
-      'по одному ответу.',
+          'Сверяйтесь с несколькими адвокатами и не принимайте решений только '
+          'по одному ответу.',
   'qa.answer.hint': 'Ваш ответ',
   'qa.answer.send': 'Ответить',
   'qa.answer.only': 'Отвечают проверенные адвокаты',
@@ -77,6 +78,9 @@ const legalQaRu = <String, String>{
   'notif.list.legal_answer_update': 'Новый ответ на ваш вопрос',
   'notif.list.legal_answer_best': 'Ваш ответ признан лучшим',
   'qa.entry.waiting': 'Ждут ответа: {count}',
+  // R-401 (owner 2026-11-04): one small line under the Q&A prompts.
+  'qa.reco.hint': 'Ответы поднимают вас в рекомендациях',
+  'search.recommendedQuestions': 'Рекомендуемые вопросы',
 };
 
 const legalQaEn = <String, String>{
@@ -86,7 +90,8 @@ const legalQaEn = <String, String>{
   'qa.closed': 'Closed',
   'qa.close': 'Close question',
   'qa.close.title': 'Close this question?',
-  'qa.close.msg': 'Attorneys will no longer see it or answer it. The answers you have stay with you.',
+  'qa.close.msg':
+      'Attorneys will no longer see it or answer it. The answers you have stay with you.',
   'qa.err.closed': 'This question is closed.',
   'qa.err.enough': 'This question already has enough answers.',
   'qa.title': 'Ask a lawyer',
@@ -124,8 +129,8 @@ const legalQaEn = <String, String>{
   'qa.limit': 'Today’s question limit is reached. Try tomorrow.',
   'qa.disclaimer':
       'An answer is one attorney’s general opinion, not legal advice. '
-      'Check with several attorneys and don’t decide based on one answer '
-      'alone.',
+          'Check with several attorneys and don’t decide based on one answer '
+          'alone.',
   'qa.answer.hint': 'Your answer',
   'qa.answer.send': 'Answer',
   'qa.answer.only': 'Only verified attorneys answer',
@@ -154,4 +159,6 @@ const legalQaEn = <String, String>{
   'notif.list.legal_answer_update': 'New answer to your question',
   'notif.list.legal_answer_best': 'Your answer was marked best',
   'qa.entry.waiting': 'Awaiting answers: {count}',
+  'qa.reco.hint': 'Answers lift you in the recommendations',
+  'search.recommendedQuestions': 'Recommended questions',
 };

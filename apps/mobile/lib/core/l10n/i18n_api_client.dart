@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
 
 /// One row of `GET /i18n/languages` (docs/01_FOUNDATION_AUTH.md §9.3) —
@@ -80,6 +81,9 @@ class I18nApiClient {
   Options get _skipAuth =>
       Options(extra: const {'skipAuth': true, 'noRetry': true});
 
+  /// How long the language list is served from the phone (R-385).
+  static const languagesWindow = Duration(hours: 1);
+
   /// `GET /i18n/languages` — the active-language catalog
   /// (`I18nLanguagesService.listActive`). Unlike `getBundle` below, this
   /// route does NOT bypass the backend's `ResponseInterceptor`, so the
@@ -87,9 +91,17 @@ class I18nApiClient {
   /// this app uses.
   Future<List<I18nLanguageDto>> getLanguages() async {
     try {
+      // R-385: the list changes a few times a year — an hour from the
+      // phone (cold starts and the picker ask nothing), then a cheap 304.
       final response = await _dio.get<Map<String, dynamic>>(
         '/i18n/languages',
-        options: _skipAuth,
+        options: Options(
+          extra: {
+            'skipAuth': true,
+            'noRetry': true,
+            ...cacheFor(languagesWindow),
+          },
+        ),
       );
       final envelope = response.data?['data'];
       if (envelope is! List) {

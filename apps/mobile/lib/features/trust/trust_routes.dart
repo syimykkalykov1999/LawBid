@@ -12,17 +12,27 @@ abstract final class TrustRoutes {
   static const me = '/trust/me';
 }
 
-List<RouteBase> trustRoutes(GlobalKey<NavigatorState> root) => [
+List<RouteBase> trustRoutes(
+  GlobalKey<NavigatorState> root, {
+  // Desktop web plan §6.7: wraps the page as a Settings section.
+  Widget Function(String location, Widget page)? sectionPage,
+}) =>
+    [
       GoRoute(
         path: TrustRoutes.me,
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'my_trust_screen',
-            load: d_my_trust_screen.loadLibrary,
-            builder: (_) => d_my_trust_screen.MyTrustScreen(),
+          (sectionPage ?? _plain)(
+            state.matchedLocation,
+            DeferredScreen(
+              id: 'my_trust_screen',
+              load: d_my_trust_screen.loadLibrary,
+              builder: (_) => d_my_trust_screen.MyTrustScreen(),
+            ),
           ),
         ),
       ),
     ];
+
+Widget _plain(String location, Widget page) => page;

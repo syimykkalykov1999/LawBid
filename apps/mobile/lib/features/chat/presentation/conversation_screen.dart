@@ -828,6 +828,7 @@ class _ListSlice {
       identical(other.s.voiceOutbox, s.voiceOutbox) &&
       identical(other.s.conversation, s.conversation) &&
       other.s.nextCursor == s.nextCursor &&
+      other.s.loading == s.loading &&
       other.s.loadingMore == s.loadingMore &&
       other.s.loadMoreFailed == s.loadMoreFailed &&
       other.s.unreadFromId == s.unreadFromId &&
@@ -840,6 +841,7 @@ class _ListSlice {
         identityHashCode(s.voiceOutbox),
         identityHashCode(s.conversation),
         s.nextCursor,
+        s.loading,
         s.loadingMore,
         s.loadMoreFailed,
         s.unreadFromId,
@@ -997,6 +999,9 @@ class _MessageListState extends ConsumerState<_MessageList> {
     final me = ref.watch(currentUserIdProvider);
     final items = _itemsOf(state);
     if (items.isEmpty) {
+      // R-380: the composer is already up (the conversation came from the
+      // chats list); the first page is still on its way.
+      if (state.loading) return const CasesListSkeleton();
       return AppEmptyState(
         icon: AppIcons.chatBubbleOutlineRounded,
         message: t.t('chat.thread.empty'),
@@ -1275,7 +1280,13 @@ String? _systemTarget(
     'payment_requested' ||
     'payment_request_canceled' ||
     'payment_fee_countered' ||
-    'payment_fee_agreed' =>
+    'payment_fee_agreed' ||
+    // R-392: closing with both sides, the sealed deal record.
+    'close_requested_client' ||
+    'close_requested_attorney' ||
+    'close_declined_client' ||
+    'close_declined_attorney' ||
+    'deal_record_sealed' =>
       attorney ? AppRoutes.workCase(caseId) : AppRoutes.myCase(caseId),
     'no_agreement' ||
     'accepted_by_other' =>

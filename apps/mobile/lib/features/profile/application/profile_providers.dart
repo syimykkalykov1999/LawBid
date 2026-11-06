@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/cache/keep_alive_for.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
@@ -120,9 +121,13 @@ final ownCaseReviewProvider =
 
 final reviewSummaryProvider =
     FutureProvider.autoDispose.family<ReviewSummary, String>(
-  (ref, attorneyId) => ref.watch(isGuestProvider)
-      ? Future<ReviewSummary>.error(guestSignInRequired())
-      : ref.watch(reviewsRepositoryProvider).summary(attorneyId),
+  (ref, attorneyId) {
+    // R-385: 5 min; posting or editing a review invalidates it.
+    ref.keepAliveFor(KeepWindows.live);
+    return ref.watch(isGuestProvider)
+        ? Future<ReviewSummary>.error(guestSignInRequired())
+        : ref.watch(reviewsRepositoryProvider).summary(attorneyId);
+  },
   retry: (_, __) => null,
 );
 
@@ -182,20 +187,28 @@ Stream<T> savedThenLive<T>({
 
 final ownAttorneyProfileProvider =
     StreamProvider.autoDispose<OwnAttorneyProfile>(
-  (ref) => savedThenLive(
-    owner: ref.watch(currentUserIdProvider),
-    saved: ref.read(ownProfileSavedProvider).attorney,
-    live: ref.watch(attorneyProfileRepositoryProvider).fetchOwn,
-  ),
+  (ref) {
+    // R-385: the own profile is read once per 5 min, not on every visit;
+    // a save invalidates it.
+    ref.keepAliveFor(KeepWindows.live);
+    return savedThenLive(
+      owner: ref.watch(currentUserIdProvider),
+      saved: ref.read(ownProfileSavedProvider).attorney,
+      live: ref.watch(attorneyProfileRepositoryProvider).fetchOwn,
+    );
+  },
   retry: (_, __) => null,
 );
 
 final clientProfileProvider = StreamProvider.autoDispose<ClientProfileDetails>(
-  (ref) => savedThenLive(
-    owner: ref.watch(currentUserIdProvider),
-    saved: ref.read(ownProfileSavedProvider).client,
-    live: ref.watch(clientProfileRepositoryProvider).fetch,
-  ),
+  (ref) {
+    ref.keepAliveFor(KeepWindows.live);
+    return savedThenLive(
+      owner: ref.watch(currentUserIdProvider),
+      saved: ref.read(ownProfileSavedProvider).client,
+      live: ref.watch(clientProfileRepositoryProvider).fetch,
+    );
+  },
   retry: (_, __) => null,
 );
 

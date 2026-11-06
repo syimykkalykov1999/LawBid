@@ -58,6 +58,9 @@ class _Reels extends ReelsRepository {
     CancelToken? cancel,
     String? resumeLocation,
     void Function(String location)? onLocation,
+    bool parallel = false,
+    List<String>? resumePartLocations,
+    void Function(List<String> locations)? onPartLocations,
   }) async {
     resumedFrom.add(resumeLocation);
     if (resumeLocation == null) onLocation?.call('https://tus.test/files/1');

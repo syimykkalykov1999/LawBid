@@ -17,3 +17,7 @@ packages/api-contract/dart/lib/** linguist-generated=true
 docs/db/ERD.md linguist-generated=true
 
 docs/dev/PROJECT_MAP.md merge=union
+
+# Append-only journals: both sides keep their lines, no PR conflicts.
+docs/dev/KNOWN_ERRORS.md merge=union
+docs/dev/OWNER_REQUESTS_CHECKLIST_2026-11-03.md merge=union
