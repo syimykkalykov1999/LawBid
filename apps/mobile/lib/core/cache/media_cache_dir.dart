@@ -239,6 +239,11 @@ class PrefixedTempFiles implements CachedFiles {
       }
     }
   }
+
+  /// [clear] and the half-written files the suffix keeps out of the sweeps
+  /// (a `….m4a.part` holds a piece of the note too).
+  Future<void> clearWithPartial() =>
+      PrefixedTempFiles(prefix, root: root).clear();
 }
 
 /// Keeps the files of all [pools] together within [limitBytes]: the least

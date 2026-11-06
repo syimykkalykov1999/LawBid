@@ -9,6 +9,9 @@ import 'package:lawbid/core/cache/chat_media_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/core/uploads/upload_queue.dart';
+import 'package:lawbid/features/cases/application/cases_providers.dart'
+    show casesLocalDatabaseProvider;
 import 'package:lawbid/features/social/application/social_providers.dart'
     show socialLocalDatabaseProvider;
 
@@ -82,23 +85,83 @@ class CacheReportNotifier extends AsyncNotifier<CacheReport> {
   }
 }
 
-/// Owner 2026-11-05: the case documents and pictures of an account leave the
-/// phone with it, whichever way it ended (sign-out, a dead session, another
-/// person signing in).
+/// Owner 2026-11-05: everything an account kept on the phone leaves with it,
+/// whichever way it ended (sign-out, a dead session, another person signing
+/// in). One pass at a time: a quick sign-in never meets a wipe still running.
+/// The device's own settings stay (see `personalKeys`).
 final accountFilesGuardProvider = Provider<void>((ref) {
+  var last = Future<void>.value();
+
+  /// Unsent work and queued files, of everyone but [keeping].
+  Future<void> forgetWork(String? keeping) async {
+    final social = ref.read(socialLocalDatabaseProvider);
+    await social.forgetOutboxOfOthers(keeping: keeping);
+    await social.forgetRecentOfOthers(keeping: keeping);
+    await ref
+        .read(casesLocalDatabaseProvider)
+        .forgetDraftsOfOthers(keeping: keeping);
+    final uploads = ref.read(uploadQueueDatabaseProvider);
+    final files = ref.read(uploadFilesProvider);
+    for (final job in await uploads.ofOthers(keeping: keeping)) {
+      final name = job.fileName;
+      if (name != null) await files.remove(name);
+      await uploads.remove(job.id);
+    }
+  }
+
+  Future<bool> wipe(String? keepOwner) async {
+    final kv = ref.read(localKvStoreProvider);
+    // Each part runs whatever happened to the one before it.
+    var done = true;
+    Future<void> part(Future<void> Function() f) async {
+      try {
+        await f();
+      } on Object catch (e) {
+        debugPrint('account data: $e');
+        done = false;
+      }
+    }
+
+    await part(
+      () => ref.read(deviceTracesCleanerProvider)(
+        signedOut: keepOwner == null,
+      ),
+    );
+    await part(() => forgetWork(keepOwner));
+    await part(
+      () => kv.removeWhere((k) => isForeignAccountKey(k, keepOwner)),
+    );
+    final cleared = await ref
+        .read(cacheMaintenanceProvider)
+        .clearAccountData(keepOwner: keepOwner);
+    return done && cleared;
+  }
+
+  // What a pass already under way wrote after the wipe.
+  Future<void> forgetOthers(String owner) async {
+    await forgetWork(owner);
+    await ref
+        .read(localKvStoreProvider)
+        .removeWhere((k) => isOtherAccountKey(k, owner));
+  }
+
   ref.listen(
     sessionControllerProvider.select((s) => s?.sub),
-    (previous, next) => unawaited(
-      wipeAccountFilesIfChanged(
-        previous: previous,
-        next: next,
-        kv: ref.read(localKvStoreProvider),
-        wipe: ref.read(cacheMaintenanceProvider).clearAccountFiles,
-      ).catchError((Object e) {
-        debugPrint('account files: $e');
-        return false;
-      }),
-    ),
+    (previous, next) {
+      last = last.then((_) async {
+        try {
+          await wipeAccountDataIfChanged(
+            previous: previous,
+            next: next,
+            kv: ref.read(localKvStoreProvider),
+            wipe: wipe,
+            forgetOthers: forgetOthers,
+          );
+        } on Object catch (e) {
+          debugPrint('account data: $e');
+        }
+      });
+    },
   );
 });
 

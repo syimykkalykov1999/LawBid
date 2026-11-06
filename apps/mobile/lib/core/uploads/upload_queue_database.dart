@@ -103,6 +103,15 @@ class UploadQueueDatabase extends _$UploadQueueDatabase {
             ..orderBy([(j) => OrderingTerm.asc(j.seq)]))
           .get();
 
+  /// The jobs of accounts other than [keeping] (null = every job).
+  Future<List<UploadJobRow>> ofOthers({String? keeping}) => (select(uploadJobs)
+        ..where(
+          (j) => keeping == null
+              ? const Constant(true)
+              : j.ownerId.equals(keeping).not(),
+        ))
+      .get();
+
   Future<void> remove(String id) =>
       (delete(uploadJobs)..where((j) => j.id.equals(id))).go();
 
