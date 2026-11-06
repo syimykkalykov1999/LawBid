@@ -54,7 +54,8 @@ String? contactMethodFromWire(String? wire) =>
 /// in one server transaction. Attorneys also add their business photo here
 /// (docs/01 §11 3B, OQ-012; docs/03 stage 3.9): the one new field, a plain
 /// form row in the step's existing style, uploaded via presign → storage
-/// → confirm → `PATCH /users/me {avatarFileId}`.
+/// → confirm → `PATCH /users/me {avatarFileId}`. Owner 2026-11-05: clients
+/// get the same photo row, optional.
 class ProfileStepScreen extends ConsumerStatefulWidget {
   const ProfileStepScreen({super.key});
 
@@ -421,6 +422,16 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
             requiredError: _flagRequired && _photoMissing(user)
                 ? t.t('onboarding.profile.error.photoRequired')
                 : null,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ] else if (!assistant) ...[
+          // Owner 2026-11-05: clients add a photo the same way (camera or
+          // gallery, same upload), but it is optional — Continue never
+          // waits for it.
+          AvatarPickerField(
+            key: const ValueKey('client-avatar'),
+            initials: initialsOf(_first.text, _last.text),
+            optionalHint: t.t('common.optional'),
           ),
           const SizedBox(height: AppSpacing.lg),
         ],

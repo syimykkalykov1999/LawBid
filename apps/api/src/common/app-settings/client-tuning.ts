@@ -125,6 +125,20 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'How many seconds from the start of each video the phone keeps in the video cache. More = more disk and a little more traffic per video.',
   },
+  'client.uploads_at_once': {
+    default: 4,
+    min: 1,
+    max: 4,
+    description:
+      'How many pieces of files the app sends at once, across all files. Fewer on mobile data or a weak phone, and after a network failure.',
+  },
+  'client.downloads_at_once': {
+    default: 4,
+    min: 1,
+    max: 4,
+    description:
+      'How many pieces of files the app fetches at once, across all files. Fewer on mobile data or a weak phone, and after a network failure.',
+  },
   'client.resume_refresh_min_away_s': {
     default: 30,
     min: 5,

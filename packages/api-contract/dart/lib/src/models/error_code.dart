@@ -528,6 +528,10 @@ enum ErrorCode {
   paymentTermsDisabled('PAYMENT_TERMS_DISABLED'),
   @JsonValue('PAYMENT_TERMS_INVALID')
   paymentTermsInvalid('PAYMENT_TERMS_INVALID'),
+  @JsonValue('ROLE_SWITCH_BLOCKED')
+  roleSwitchBlocked('ROLE_SWITCH_BLOCKED'),
+  @JsonValue('ROLE_SWITCH_NOT_ALLOWED')
+  roleSwitchNotAllowed('ROLE_SWITCH_NOT_ALLOWED'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

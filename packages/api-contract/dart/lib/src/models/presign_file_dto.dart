@@ -16,6 +16,7 @@ class PresignFileDto {
     required this.sizeBytes,
     required this.sha256,
     this.supportsPut,
+    this.acceptsExisting,
   });
 
   factory PresignFileDto.fromJson(Map<String, Object?> json) =>
@@ -34,6 +35,9 @@ class PresignFileDto {
 
   /// True when the client can upload with a presigned PUT (raw body + the returned headers) as well as the multipart POST. Public media may then be stored in Cloudflare R2; without it the upload always goes to S3 with POST.
   final bool? supportsPut;
+
+  /// True when the client understands `existing` in the answer: if this user already stored these exact bytes, nothing needs to be uploaded.
+  final bool? acceptsExisting;
 
   Map<String, Object?> toJson() => _$PresignFileDtoToJson(this);
 }

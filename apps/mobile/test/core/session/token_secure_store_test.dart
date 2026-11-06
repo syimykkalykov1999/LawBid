@@ -1,5 +1,6 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/session/browser_session_hint.dart';
 import 'package:lawbid/core/session/token_secure_store.dart';
 
 /// An in-memory stand-in for the platform keychain.
@@ -107,4 +108,64 @@ void main() {
       expect(fresh.data, isEmpty);
     });
   });
+
+  // Owner 2026-11-04 (web audit): a new browser tab of a signed-in browser
+  // signs in with the HttpOnly cookie instead of asking for the password.
+  group('TokenSecureStore browser-session hint', () {
+    test('signing in on the website sets the hint', () async {
+      final hint = _FakeHint();
+      final store = TokenSecureStore(_MemoryStorage(), null, hint);
+      await store.writeRefreshToken('');
+      expect(hint.isSet, isTrue);
+    });
+
+    test('a new tab (empty storage, hint set) reads the cookie marker',
+        () async {
+      final hint = _FakeHint()..set();
+      final store = TokenSecureStore(_MemoryStorage(), null, hint);
+      final stored = await store.readRefreshToken();
+      expect(stored, TokenSecureStore.cookieMarker);
+      expect(TokenSecureStore.wireValue(stored!), '');
+    });
+
+    test('no hint, no token: signed out, no refresh is tried', () async {
+      final store = TokenSecureStore(_MemoryStorage(), null, _FakeHint());
+      expect(await store.readRefreshToken(), isNull);
+    });
+
+    test('a real token (phone) or a demo token never sets the hint', () async {
+      final hint = _FakeHint();
+      final store = TokenSecureStore(_MemoryStorage(), null, hint);
+      await store.writeRefreshToken('rt-phone');
+      await store.writeRefreshToken('rt-demo', isDemo: true);
+      await store.writeRefreshToken('', isDemo: true);
+      expect(hint.isSet, isFalse);
+    });
+
+    test('sign-out and a rejected token clear the hint', () async {
+      final hint = _FakeHint();
+      final store = TokenSecureStore(_MemoryStorage(), null, hint);
+      await store.writeRefreshToken('');
+      await store.clear();
+      expect(hint.isSet, isFalse);
+      expect(await store.readRefreshToken(), isNull);
+    });
+
+    test('phones have no hint at all', () {
+      const hint = NoBrowserSessionHint();
+      hint.set();
+      expect(hint.isSet, isFalse);
+    });
+  });
+}
+
+class _FakeHint implements BrowserSessionHint {
+  @override
+  bool isSet = false;
+
+  @override
+  void set() => isSet = true;
+
+  @override
+  void clear() => isSet = false;
 }

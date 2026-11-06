@@ -152,6 +152,21 @@ class HttpCacheInterceptor extends Interceptor {
   final _entries = <String, HttpCacheEntry>{};
   int _bytes = 0;
 
+  /// Lower-cased path endings set by [mustAskAgain].
+  final _mustAsk = <String>{};
+
+  /// Owner 2026-11-04 (a new avatar did not show): this app has just changed
+  /// what the GET ending in [path] answers, so a [cacheFor] window no longer
+  /// holds for it in this session. It keeps its copy and asks with
+  /// `If-None-Match`: a new answer when it changed, a 304 when not.
+  void mustAskAgain(String path) => _mustAsk.add(path.toLowerCase());
+
+  bool _askAgain(RequestOptions options) {
+    if (_mustAsk.isEmpty) return false;
+    final path = options.uri.path.toLowerCase();
+    return _mustAsk.any(path.endsWith);
+  }
+
   @visibleForTesting
   int get length => _entries.length;
 
@@ -207,6 +222,7 @@ class HttpCacheInterceptor extends Interceptor {
     final maxAge = options.extra[kCacheMaxAgeExtra];
     if (maxAge is int &&
         maxAge > 0 &&
+        !_askAgain(options) &&
         _now().difference(hit.fetchedAt).inSeconds <= maxAge) {
       _usage?.servedLocally();
       _touchDisk(key, confirmed: false);

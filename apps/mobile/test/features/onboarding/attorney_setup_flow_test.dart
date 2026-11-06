@@ -36,6 +36,13 @@ import '../subscription/subscription_fakes.dart';
 class _Server {
   VerificationStatus verification = VerificationStatus.unverified;
   List<String> practiceIds = [];
+
+  /// The request waits for a registry or a person (owner 2026-10-16).
+  bool underReview = false;
+
+  /// What "Submit licence" does: a person reviews it (today's default on
+  /// prod) instead of approving at once.
+  bool reviewAfterSubmit = false;
 }
 
 class _Overview extends VerificationOverviewController {
@@ -46,6 +53,14 @@ class _Overview extends VerificationOverviewController {
   @override
   Future<VerificationOverview> build() async => VerificationOverview(
         status: server.verification,
+        request: server.underReview
+            ? const VerificationRequest(
+                id: 'req-1',
+                status: RequestStatus.submitted,
+                licenses: [],
+                documents: [],
+              )
+            : null,
         identityRequired: false,
         barDocumentRequired: false,
         submissionsLast30Days: 0,
@@ -144,7 +159,13 @@ class _LicenseForm extends StatelessWidget {
         body: Center(
           child: TextButton(
             onPressed: () {
-              server.verification = VerificationStatus.verified;
+              if (server.reviewAfterSubmit) {
+                server
+                  ..verification = VerificationStatus.pending
+                  ..underReview = true;
+              } else {
+                server.verification = VerificationStatus.verified;
+              }
               context.pop();
             },
             child: const Text('Submit licence'),
@@ -296,6 +317,34 @@ void main() {
     await tearDownTree(tester);
   });
 
+  testWidgets(
+      'owner 2026-11-05: licence under review → practices are still required, '
+      'then the "under review" screen', (tester) async {
+    server.reviewAfterSubmit = true;
+    await pumpFlow(tester);
+    // The numbers run on from the profile's 3, without a gap.
+    expect(find.text('Step 4 of 6', skipOffstage: false), findsOneWidget);
+    await tester.tap(find.text('Submit licence'));
+    await tester.pumpAndSettle();
+    expect(find.text('Step 5 of 6'), findsOneWidget);
+
+    // Not skipped: practices come right after the licence is sent.
+    expect(stage('pending'), findsNothing);
+    expect(stage('practices'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('category-cat-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('leaf-leaf-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save and continue'));
+    await tester.pumpAndSettle();
+    expect(practices.calls, ['replace:leaf-1']);
+
+    expect(stage('practices'), findsNothing);
+    expect(stage('pending'), findsOneWidget);
+    expect(find.text('Step 6 of 6'), findsOneWidget);
+    await tearDownTree(tester);
+  });
+
   testWidgets('subscription offer: Monthly / Yearly tabs, golden',
       (tester) async {
     server
@@ -352,8 +401,20 @@ void main() {
       attorneySetupStage(verification: VerificationView.draft),
       AttorneySetupStage.license,
     );
+    // Owner 2026-11-05: practices are required before "under review".
     expect(
       attorneySetupStage(verification: VerificationView.pending),
+      AttorneySetupStage.practices,
+    );
+    expect(
+      attorneySetupStage(
+        verification: VerificationView.pending,
+        hasPractices: true,
+      ),
+      AttorneySetupStage.licensePending,
+    );
+    expect(
+      attorneySetupStage(verification: VerificationView.suspended),
       AttorneySetupStage.licensePending,
     );
     expect(
