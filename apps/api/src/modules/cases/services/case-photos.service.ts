@@ -15,6 +15,12 @@ type Tx = Prisma.TransactionClient;
  * Visibility: the case owner always; an attorney only once THEIR bid was
  * accepted. Other attorneys (feed, detail, bidding) see just the count.
  */
+/** A case's cover: the 320 px preview link and its BlurHash. */
+export interface CaseCover {
+  url: string;
+  blurhash: string | null;
+}
+
 @Injectable()
 export class CasePhotosService {
   constructor(
@@ -77,12 +83,13 @@ export class CasePhotosService {
   }
 
   /** Owner 2026-09-30: the first photo of each case the viewer may see
-   * photos of (owner or accepted attorney), for the "Mine" grid. */
+   * photos of (owner or accepted attorney), for the "Mine" grid. R-248:
+   * with its BlurHash, drawn while the 320 px preview loads. */
   async coverUrls(
     caseIds: string[],
     viewerId: string,
-  ): Promise<Map<string, string>> {
-    const out = new Map<string, string>();
+  ): Promise<Map<string, CaseCover>> {
+    const out = new Map<string, CaseCover>();
     if (caseIds.length === 0) return out;
     const cases = await this.prisma.case.findMany({
       where: { id: { in: caseIds } },
@@ -106,7 +113,7 @@ export class CasePhotosService {
     const urls = await this.files.casePhotoUrls([...first.keys()]);
     for (const u of urls) {
       const caseId = first.get(u.fileId);
-      if (caseId) out.set(caseId, u.previewUrl);
+      if (caseId) out.set(caseId, { url: u.previewUrl, blurhash: u.blurhash });
     }
     return out;
   }
