@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "ਤੁਹਾਡੀ ਸਬਸਕ੍ਰਿਪਸ਼ਨ ਦੀ ਸਥਿਤੀ ਬਦਲ ਗਈ ਹੈ",
   "notif.list.subscription_status.contract": "LawBid ਨੇ ਤੁਹਾਡੇ ਲਈ ਇਕਰਾਰਨਾਮੇ ਵਾਲੀ ਸਬਸਕ੍ਰਿਪਸ਼ਨ ਸੈੱਟ ਕੀਤੀ",
   "notif.list.subscription_status.contract_revoked": "ਤੁਹਾਡੀ ਇਕਰਾਰਨਾਮੇ ਵਾਲੀ ਸਬਸਕ੍ਰਿਪਸ਼ਨ ਖਤਮ ਹੋ ਗਈ",
+  "notif.list.subscription_status.dispute_refund": "ਤੁਹਾਡਾ ਭੁਗਤਾਨ ਵਾਪਸ ਕਰ ਦਿੱਤਾ ਗਿਆ ਹੈ ਅਤੇ ਗਾਹਕੀ ਰੱਦ ਕਰ ਦਿੱਤੀ ਗਈ ਹੈ।",
   "notif.list.subscription_status.seat_limit_approved": "ਸਹਾਇਕ ਸੀਮਾ ਵਧਾਈ ਗਈ: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "ਹੋਰ ਸਹਾਇਕਾਂ ਲਈ ਤੁਹਾਡੀ ਬੇਨਤੀ ਅਸਵੀਕਾਰ ਕੀਤੀ ਗਈ",
   "notif.list.subscription_trial_ending": "ਤੁਹਾਡਾ ਮੁਫ਼ਤ ਟ੍ਰਾਇਲ ਜਲਦੀ ਖਤਮ ਹੋ ਰਿਹਾ ਹੈ",

@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Таны захиалгын төлөв өөрчлөгдлөө",
   "notif.list.subscription_status.contract": "LawBid танд гэрээт захиалга тохируулсан",
   "notif.list.subscription_status.contract_revoked": "Таны гэрээт захиалга дууссан",
+  "notif.list.subscription_status.dispute_refund": "Таны төлбөрийг буцаасан бөгөөд захиалгыг цуцалсан.",
   "notif.list.subscription_status.seat_limit_approved": "Туслахын хязгаар нэмэгдлээ: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Илүү туслахын хүсэлт тань татгалзагдлаа",
   "notif.list.subscription_trial_ending": "Таны үнэгүй туршилт удахгүй дуусна",

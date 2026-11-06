@@ -34,6 +34,10 @@ import {
   AdminBillingSubscriptionRowDto,
   AdminBillingSubscriptionsQueryDto,
   AdminBillingUserParamDto,
+  AdminDisputeRefundDto,
+  AdminDisputeRefundIdParamDto,
+  AdminDisputeRefundRejectDto,
+  AdminDisputeRefundsQueryDto,
   AdminDuplicateFixDto,
   AdminDuplicateFixesQueryDto,
   AdminGrantsQueryDto,
@@ -63,6 +67,7 @@ import { RefundsService } from './refunds.service';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import { SeatChangesAdminService } from './seat-changes-admin.service';
 import { DuplicateFixesAdminService } from './duplicate-fixes-admin.service';
+import { DisputeRefundsAdminService } from './dispute-refunds-admin.service';
 
 const E = ErrorCode;
 
@@ -85,6 +90,7 @@ export class AdminBillingController {
     private readonly auth: AdminAuthService,
     private readonly seatChanges: SeatChangesAdminService,
     private readonly duplicateFixes: DuplicateFixesAdminService,
+    private readonly disputeRefunds: DisputeRefundsAdminService,
   ) {}
 
   // --- dashboard -------------------------------------------------------------
@@ -321,6 +327,61 @@ export class AdminBillingController {
     @Query() q: AdminDuplicateFixesQueryDto,
   ): Promise<Page<AdminDuplicateFixDto>> {
     return this.duplicateFixes.list(q);
+  }
+
+  // --- R-237: automatic refunds of bank inquiries ---------------------------
+
+  @Get('dispute-refunds')
+  @ApiOperation({
+    summary: 'Bank inquiries refunded automatically or held for a person',
+  })
+  @ApiEnvelopeResponse(AdminDisputeRefundDto, { isArray: true })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  listDisputeRefunds(
+    @Query() q: AdminDisputeRefundsQueryDto,
+  ): Promise<Page<AdminDisputeRefundDto>> {
+    return this.disputeRefunds.list(q);
+  }
+
+  @Post('dispute-refunds/:id/approve')
+  @Roles('super_admin', 'finance')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Refund a held bank inquiry in full (one 2FA code)',
+  })
+  @ApiEnvelopeResponse(AdminDisputeRefundDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.NOT_FOUND],
+    409: [E.REFUND_NOT_ALLOWED],
+  })
+  async approveDisputeRefund(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: AdminDisputeRefundIdParamDto,
+  ): Promise<AdminDisputeRefundDto> {
+    await this.auth.assertStepUp(admin.sessionId);
+    return this.disputeRefunds.approve(admin, p.id);
+  }
+
+  @Post('dispute-refunds/:id/reject')
+  @Roles('super_admin', 'finance')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Do not refund a held inquiry (one 2FA code)' })
+  @ApiEnvelopeResponse(AdminDisputeRefundDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.NOT_FOUND],
+    409: [E.REFUND_NOT_ALLOWED],
+  })
+  async rejectDisputeRefund(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: AdminDisputeRefundIdParamDto,
+    @Body() dto: AdminDisputeRefundRejectDto,
+  ): Promise<AdminDisputeRefundDto> {
+    await this.auth.assertStepUp(admin.sessionId);
+    return this.disputeRefunds.reject(admin, p.id, dto.note);
   }
 
   @Get('refunds')

@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "O status da sua assinatura mudou",
   "notif.list.subscription_status.contract": "O LawBid configurou uma assinatura por contrato para você",
   "notif.list.subscription_status.contract_revoked": "Sua assinatura por contrato terminou",
+  "notif.list.subscription_status.dispute_refund": "O seu pagamento foi reembolsado e a assinatura cancelada.",
   "notif.list.subscription_status.seat_limit_approved": "Limite de assistentes aumentado: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Sua solicitação de mais assistentes foi recusada",
   "notif.list.subscription_trial_ending": "Seu período de teste gratuito termina em breve",

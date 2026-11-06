@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "D’athraigh stádas do shíntiúis",
   "notif.list.subscription_status.contract": "Shocraigh LawBid síntiús conartha duit",
   "notif.list.subscription_status.contract_revoked": "Tháinig deireadh le do shíntiús conartha",
+  "notif.list.subscription_status.dispute_refund": "Aisíocadh d’íocaíocht agus cealaíodh an síntiús.",
   "notif.list.subscription_status.seat_limit_approved": "Teorainn cúntóirí ardaithe: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Diúltaíodh d'iarratas ar níos mó cúntóirí",
   "notif.list.subscription_trial_ending": "Tá do thriail saor in aisce ag teacht chun deiridh go luath",

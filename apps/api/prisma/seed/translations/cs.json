@@ -3073,6 +3073,7 @@
   "notif.list.subscription_status": "Stav vašeho předplatného se změnil",
   "notif.list.subscription_status.contract": "LawBid vám nastavil smluvní předplatné",
   "notif.list.subscription_status.contract_revoked": "Vaše smluvní předplatné skončilo",
+  "notif.list.subscription_status.dispute_refund": "Platba vám byla vrácena a předplatné zrušeno.",
   "notif.list.subscription_status.seat_limit_approved": "Limit asistentů zvýšen: {seats}",
   "notif.list.subscription_status.seat_limit_rejected": "Vaše žádost o více asistentů byla zamítnuta",
   "notif.list.subscription_trial_ending": "Vaše zkušební období brzy skončí",

@@ -19,6 +19,7 @@ import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/chat/application/chat_media_outbox.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
+import 'package:lawbid/features/groups/application/group_media_outbox.dart';
 import 'package:lawbid/features/notifications/application/data_push_sync_hook.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/push_registrar.dart';
@@ -552,6 +553,7 @@ final sessionServicesProvider = Provider<void>((ref) {
     // Owner 2026-10-22 (audit #4 §3): queued voice notes, photos, files
     // and stickers left from the last run go out.
     ref.read(chatMediaOutboxProvider).drain();
+    ref.read(groupMediaOutboxProvider).drain();
     ref.read(deliveryAckerProvider);
   });
 });
