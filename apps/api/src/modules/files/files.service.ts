@@ -697,6 +697,24 @@ export class FilesService {
     return file ? this.mediaUrlOf(file) : null;
   }
 
+  /** [mediaUrl] for several files in one query (fileId → link; files with
+   * no public link are left out). */
+  async mediaUrlsMany(
+    fileIds: (string | null | undefined)[],
+  ): Promise<Map<string, string>> {
+    const ids = [...new Set(fileIds.filter((x): x is string => !!x))];
+    const out = new Map<string, string>();
+    if (ids.length === 0) return out;
+    const rows = await this.prisma.file.findMany({
+      where: { id: { in: ids } },
+    });
+    for (const f of rows) {
+      const url = await this.mediaUrlOf(f);
+      if (url) out.set(f.id, url);
+    }
+    return out;
+  }
+
   /** docs/03 §4.1 / OQ-012: true when [fileId] is [ownerId]'s own live
    * avatar that passed the antivirus scan (what onboarding requires of an
    * attorney). No storage call — the DB row is the source of truth. */
