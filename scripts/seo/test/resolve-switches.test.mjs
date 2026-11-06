@@ -25,8 +25,8 @@ test('the repository variables apply where the admin never decided (null)', () =
 
 test('an explicit admin OFF beats a repository variable that says true', () => {
   const { values, sources } = resolveSwitches({
-    remote: { incremental: false, sitemapIndex: false, robotsAi: false, llms: false, qualityGate: false, rampPerDay: 0 },
-    vars: { SEO_INCREMENTAL: 'true', SEO_SITEMAP_INDEX: 'true', SEO_ROBOTS_AI: 'true', SEO_LLMS: 'true', SEO_QUALITY_GATE: 'true', SEO_RAMP_PER_DAY: '500' },
+    remote: { incremental: false, sitemapIndex: false, robotsAi: false, llms: false, qualityGate: false, rampPerDay: 0, pagesCities: false, pagesPosts: false, pagesQa: false },
+    vars: { SEO_INCREMENTAL: 'true', SEO_SITEMAP_INDEX: 'true', SEO_ROBOTS_AI: 'true', SEO_LLMS: 'true', SEO_QUALITY_GATE: 'true', SEO_RAMP_PER_DAY: '500', SEO_PAGES_CITIES: 'true', SEO_PAGES_POSTS: 'true', SEO_PAGES_QA: 'true' },
   });
   for (const s of SWITCHES) {
     assert.equal(values[s.env], '', s.env);
@@ -39,6 +39,19 @@ test('a number from the admin is passed on; a wrong type falls back to the varia
   assert.equal(a.values.SEO_RAMP_PER_DAY, '150');
   assert.equal(a.values.SEO_LLMS, '1');
   assert.equal(a.sources.SEO_LLMS, 'variable');
+});
+
+test('the page types follow the admin first, then the variable', () => {
+  const { values, sources } = resolveSwitches({
+    remote: { pagesCities: true, pagesPosts: null, pagesQa: false },
+    vars: { ...none, SEO_PAGES_POSTS: 'on', SEO_PAGES_QA: 'on' },
+  });
+  assert.equal(values.SEO_PAGES_CITIES, '1');
+  assert.equal(sources.SEO_PAGES_CITIES, 'admin');
+  assert.equal(values.SEO_PAGES_POSTS, '1');
+  assert.equal(sources.SEO_PAGES_POSTS, 'variable');
+  assert.equal(values.SEO_PAGES_QA, '');
+  assert.equal(sources.SEO_PAGES_QA, 'admin');
 });
 
 test('env lines: one NAME=value per switch', () => {

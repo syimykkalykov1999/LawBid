@@ -17,7 +17,7 @@ const CACHE_SECONDS = 300;
 /**
  * Owner 2026-10-27: the switches the owner set on «Продвижение», read by
  * the static-page generator (scripts/seo/resolve-switches.mjs). Public and
- * read-only: six on/off/number values and nothing about people. A value is
+ * read-only: on/off/number values and nothing about people. A value is
  * null until the owner decides; the repository variable applies then.
  */
 @ApiTags('public')

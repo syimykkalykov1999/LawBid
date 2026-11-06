@@ -362,6 +362,14 @@ export class AdminMeDto {
   @ApiProperty({ type: String, nullable: true })
   securityQuestion!: string | null;
 
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'R-382 (owner 2026-11-04): the profile photo of the account behind this admin (the same photo as in the app, 256 px preview); null = none, the panel shows initials.',
+  })
+  avatarUrl?: string | null;
+
   @ApiProperty({
     type: [String],
     description:

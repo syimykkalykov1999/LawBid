@@ -24,6 +24,7 @@ CaseSummaryDto _$CaseSummaryDtoFromJson(Map<String, dynamic> json) =>
       stillNeededPending: json['stillNeededPending'] as bool,
       canMakeNotUrgent: json['canMakeNotUrgent'] as bool,
       coverUrl: json['coverUrl'] as String?,
+      coverBlurhash: json['coverBlurhash'] as String?,
       city: json['city'] as String?,
       budgetCents: (json['budgetCents'] as num?)?.toInt(),
       budgetPercentBps: (json['budgetPercentBps'] as num?)?.toInt(),
@@ -49,6 +50,7 @@ Map<String, dynamic> _$CaseSummaryDtoToJson(CaseSummaryDto instance) =>
     <String, dynamic>{
       'id': instance.id,
       'coverUrl': ?instance.coverUrl,
+      'coverBlurhash': ?instance.coverBlurhash,
       'title': instance.title,
       'practiceArea': instance.practiceArea.toJson(),
       'extraPracticeCount': instance.extraPracticeCount,

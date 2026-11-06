@@ -63,6 +63,63 @@ void main() {
     expect(find.byType(InteractiveViewer), findsNothing);
   });
 
+  // Owner 2026-11-04 (R-405): the full-screen view never shows the 256 px
+  // preview stretched over the screen — it opens the full picture (the one
+  // the server sent, else the preview's own full picture) and keeps the
+  // preview as the placeholder.
+  testWidgets('opens the full picture, not the preview', (t) async {
+    const preview = 'https://media.test/avatar/s0/2026/11/f1_w256';
+    await t.pumpWidget(
+      uxApp(
+        const Scaffold(
+          body: Center(
+            child: ProfileAvatar(
+              size: 88,
+              url: preview,
+              initials: 'SK',
+              viewerCloseLabel: 'Close',
+            ),
+          ),
+        ),
+        theme: AppTheme.dark(),
+        disableAnimations: true,
+      ),
+    );
+    await t.tap(find.byKey(const ValueKey('avatar-open')));
+    await t.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('https://media.test/avatar/s0/2026/11/f1')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey(preview)), findsNothing);
+    await t.tap(find.byTooltip('Close'));
+    await t.pumpAndSettle();
+
+    await t.pumpWidget(
+      uxApp(
+        const Scaffold(
+          body: Center(
+            child: ProfileAvatar(
+              size: 88,
+              url: preview,
+              fullUrl: 'https://cdn.test/full',
+              initials: 'SK',
+              viewerCloseLabel: 'Close',
+            ),
+          ),
+        ),
+        theme: AppTheme.dark(),
+        disableAnimations: true,
+      ),
+    );
+    await t.tap(find.byKey(const ValueKey('avatar-open')));
+    await t.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('https://cdn.test/full')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('no photo: initials, a tap does nothing', (t) async {
     await pump(t);
     expect(find.text('SK'), findsOneWidget);

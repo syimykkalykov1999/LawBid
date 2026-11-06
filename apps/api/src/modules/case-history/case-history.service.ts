@@ -26,6 +26,9 @@ import {
   type CaseHistoryPage,
 } from './dto/case-history.dto';
 
+/** Most events one timeline request returns (newest kept). */
+export const TIMELINE_MAX = 500;
+
 const CASE_SELECT = {
   id: true,
   title: true,
@@ -292,7 +295,11 @@ export class CaseHistoryService {
           ? { OR: [{ attorney_id: null }, { attorney_id: user.sub }] }
           : {}),
       },
-      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      // Data-layer audit 2026-11-04 (R-395): the newest TIMELINE_MAX events
+      // via the (case_id, created_at) index, shown oldest first — a long
+      // case no longer reads its whole journal on every open.
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take: TIMELINE_MAX,
       select: {
         id: true,
         event_type: true,
@@ -301,7 +308,7 @@ export class CaseHistoryService {
         payload: true,
       },
     });
-    return rows.map(toEvent);
+    return rows.reverse().map(toEvent);
   }
 
   /** §12: the attorney sees the client's name only if contacts were

@@ -2227,6 +2227,7 @@ export class CallsService {
         username:
           u?.attorney_profile?.username ?? u?.client_profile?.username ?? null,
         avatarUrl: a?.url256 ?? a?.url ?? null,
+        avatarFullUrl: a?.url ?? null,
         status: r.status as CallParticipantDto['status'],
         muted: r.muted,
         mutedByHost: r.muted_by_host,

@@ -14,6 +14,7 @@ class CasePhotoDto {
     required this.previewUrl,
     required this.mime,
     required this.sizeBytes,
+    this.blurhash,
   });
 
   factory CasePhotoDto.fromJson(Map<String, Object?> json) =>
@@ -28,6 +29,10 @@ class CasePhotoDto {
   /// image/* or a document (application/pdf, Word) — OQ-034.
   final String mime;
   final int sizeBytes;
+
+  /// R-248: BlurHash of a photo, drawn while it loads (null for documents.
+  /// and older photos).
+  final String? blurhash;
 
   Map<String, Object?> toJson() => _$CasePhotoDtoToJson(this);
 }

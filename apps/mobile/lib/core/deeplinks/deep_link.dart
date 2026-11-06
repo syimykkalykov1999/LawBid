@@ -8,6 +8,12 @@ const String deepLinkScheme = 'lawbid';
 /// The wizard's in-app location (= AppRoutes.verificationWizard).
 const String verificationWizardLocation = '/verification/wizard';
 
+/// R-146: the wizard opened from the computer's «continue on your phone»
+/// code `…/selfie/<token>` — the selfie step of that request, the token sent
+/// back with the selfie so the computer reads `done`.
+String selfieHandoffLocation(String token) =>
+    '$verificationWizardLocation?handoff=${Uri.encodeQueryComponent(token)}';
+
 /// A parsed, validated deep link (docs/01_FOUNDATION_AUTH.md §12:
 /// `lawbid.dev/case/:id`, `/lawyer/:username`, `/post/:id`, magic sign-in
 /// links). Everything else is ignored — a link is untrusted input from
@@ -311,6 +317,13 @@ DeepLink? parseDeepLink(
 
   if (parts.length != 2) return null;
   final id = parts[1];
+  // R-146: `…/selfie/<token>` — the computer's QR code / short link for the
+  // ID selfie (16 random bytes, base64url). After sign-in.
+  if (parts[0] == 'selfie') {
+    return _qrIdPattern.hasMatch(id)
+        ? TabDeepLink(selfieHandoffLocation(id))
+        : null;
+  }
   return switch (parts[0]) {
     'r' ||
     'referral' when _referralCodePattern.hasMatch(id) =>

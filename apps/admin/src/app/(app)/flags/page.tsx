@@ -8,8 +8,17 @@ import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Badge, Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
 import { Switch } from '@/components/ui/switch';
+import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
+import {
+  REELS_CLIENT_FLAG,
+  REELS_CLIENT_MODES,
+  REELS_CLIENT_PAID_FLAG,
+  type ReelsClientMode,
+  reelsClientMode,
+  reelsClientModeWrites,
+} from '@/lib/reels-client-mode';
 import { formatDateTime } from '@/lib/utils';
 
 /**
@@ -31,7 +40,7 @@ const FLAG_INFO: Record<string, FlagInfo> = {
   },
   reels_client_publish: {
     title: 'Рилсы: публикация клиентами',
-    what: 'Клиент может снимать и выкладывать рилсы. Выключено — клиент рилсы только смотрит, фото и брифы публикует как обычно; адвокаты публикуют рилсы всегда',
+    what: 'Кто из клиентов может снимать и выкладывать рилсы: никто, все бесплатно или только клиенты с оплаченной золотой галочкой. Адвокаты публикуют рилсы всегда. Цена галочки — в разделе «Цены».',
     need: 'Ничего, работает сразу (флаг «Рилсы (видео-посты)» должен быть включён)',
   },
   files_reuse_own: {
@@ -279,12 +288,14 @@ export default function FlagsPage() {
     queryKey: ['flags'],
     queryFn: async () => (await api.GET('/admin/feature-flags')).data!.data as Flag[],
   });
+  const patch = (v: { key: string; enabled: boolean }) =>
+    api.PATCH('/admin/feature-flags/{key}', {
+      params: { path: { key: v.key } },
+      body: { enabled: v.enabled },
+    });
   const update = useMutation({
     mutationFn: async (v: { key: string; enabled: boolean }) => {
-      await api.PATCH('/admin/feature-flags/{key}', {
-        params: { path: { key: v.key } },
-        body: { enabled: v.enabled },
-      });
+      await patch(v);
       return v;
     },
     onSuccess: (v) => {
@@ -295,9 +306,28 @@ export default function FlagsPage() {
   });
 
   const flags = q.data ?? [];
+  const enabledByKey = Object.fromEntries(flags.map((f) => [f.key, f.enabled]));
+  // Owner 2026-11-04 (R-398): client reels are ONE three-way choice over
+  // two flags; the second flag has no card of its own.
+  const reelsMode = useMutation({
+    mutationFn: async (mode: ReelsClientMode) => {
+      for (const w of reelsClientModeWrites(mode, enabledByKey)) await patch(w);
+      return mode;
+    },
+    onSuccess: (mode) => {
+      const label = REELS_CLIENT_MODES.find((m) => m.value === mode)?.label ?? mode;
+      toast.success(`${FLAG_INFO[REELS_CLIENT_FLAG]?.title ?? REELS_CLIENT_FLAG}: ${label.toLowerCase()}`);
+      void qc.invalidateQueries({ queryKey: ['flags'] });
+    },
+    onError: (e) => {
+      toast.error(e);
+      void qc.invalidateQueries({ queryKey: ['flags'] });
+    },
+  });
+  const shown = flags.filter((f) => f.key !== REELS_CLIENT_PAID_FLAG);
   const groups: [string, Flag[]][] = [
-    ['Функции приложения', flags.filter((f) => !f.key.endsWith('_login'))],
-    ['Способы входа', flags.filter((f) => f.key.endsWith('_login'))],
+    ['Функции приложения', shown.filter((f) => !f.key.endsWith('_login'))],
+    ['Способы входа', shown.filter((f) => f.key.endsWith('_login'))],
   ];
 
   return (
@@ -320,9 +350,26 @@ export default function FlagsPage() {
             <section key={title} className="mb-8">
               <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">{title}</h2>
               <div className="grid gap-4 md:grid-cols-2">
-                {list.map((f, i) => (
-                  <FlagCard key={f.key} f={f} i={i} busy={update.isPending} onChange={(v) => update.mutate({ key: f.key, ...v })} />
-                ))}
+                {list.map((f, i) =>
+                  f.key === REELS_CLIENT_FLAG ? (
+                    <FlagCard
+                      key={f.key}
+                      f={f}
+                      i={i}
+                      busy={update.isPending || reelsMode.isPending}
+                      onChange={(v) => update.mutate({ key: f.key, ...v })}
+                      control={
+                        <ReelsClientModeControl
+                          mode={reelsClientMode(enabledByKey)}
+                          busy={reelsMode.isPending}
+                          onChange={(m) => reelsMode.mutate(m)}
+                        />
+                      }
+                    />
+                  ) : (
+                    <FlagCard key={f.key} f={f} i={i} busy={update.isPending} onChange={(v) => update.mutate({ key: f.key, ...v })} />
+                  ),
+                )}
               </div>
             </section>
           ) : null,
@@ -332,16 +379,47 @@ export default function FlagsPage() {
   );
 }
 
+/** Owner 2026-11-04 (R-398): the three-way choice for client reels — one
+ * segmented control (the admin's Tabs), three Russian labels, a line under
+ * it saying what the chosen mode does. */
+function ReelsClientModeControl({
+  mode,
+  busy,
+  onChange,
+}: {
+  mode: ReelsClientMode;
+  busy: boolean;
+  onChange: (m: ReelsClientMode) => void;
+}) {
+  const hint = REELS_CLIENT_MODES.find((m) => m.value === mode)?.hint;
+  return (
+    <div className="mt-4" data-testid="reels-client-mode" aria-busy={busy}>
+      <Tabs<ReelsClientMode>
+        size="sm"
+        value={mode}
+        onChange={(m) => {
+          if (!busy && m !== mode) onChange(m);
+        }}
+        items={REELS_CLIENT_MODES.map((m) => ({ value: m.value, label: m.label }))}
+      />
+      {hint ? <p className="mt-2 text-xs leading-relaxed text-muted">{hint}</p> : null}
+    </div>
+  );
+}
+
 function FlagCard({
   f,
   i,
   busy,
   onChange,
+  control,
 }: {
   f: Flag;
   i: number;
   busy: boolean;
   onChange: (v: { enabled: boolean }) => void;
+  /** Replaces the on/off switch with a richer control (R-398). */
+  control?: React.ReactNode;
 }) {
   const info = infoFor(f);
   const title = info.title;
@@ -377,16 +455,19 @@ function FlagCard({
               </p>
             ) : null}
           </div>
-          <Switch
-            checked={f.enabled}
-            disabled={busy || blocked}
-            label={title}
-            onChange={(v) => {
-              if (v && f.paid && !window.confirm(`«${title}» использует платный сервис. Включить?`)) return;
-              onChange({ enabled: v });
-            }}
-          />
+          {control ? null : (
+            <Switch
+              checked={f.enabled}
+              disabled={busy || blocked}
+              label={title}
+              onChange={(v) => {
+                if (v && f.paid && !window.confirm(`«${title}» использует платный сервис. Включить?`)) return;
+                onChange({ enabled: v });
+              }}
+            />
+          )}
         </div>
+        {control}
         {f.paid && f.missingKeys.length > 0 ? (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-warning-soft px-3 py-2 text-xs text-warning">
             <span className="min-w-0 break-words">Нельзя включить: ключи сервиса ещё не добавлены.</span>

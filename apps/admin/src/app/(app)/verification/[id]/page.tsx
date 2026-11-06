@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/empty';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { SelfieCaptureNote } from '@/components/verification/selfie-capture-note';
+import { DocumentGallery } from '@/components/verification/document-gallery';
 import { FocusBar, useNextVerification } from '@/components/workspace/queue-next';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
@@ -419,6 +420,8 @@ export default function VerificationCardPage() {
               ))}
               {r.documents.length === 0 ? <li className="py-2 text-muted">Нет документов</li> : null}
             </ul>
+            {/* Owner 2026-11-04 (R-393): thumbnails two per row, a click opens them full-screen. */}
+            <DocumentGallery requestId={r.id} documents={r.documents} />
           </CardContent>
         </Card>
         </FadeIn>

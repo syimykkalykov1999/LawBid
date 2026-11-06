@@ -52,6 +52,11 @@ export class CasePhotoDto {
 
   @ApiProperty({ type: 'integer' })
   sizeBytes!: number;
+
+  /** R-248: BlurHash of a photo, drawn while it loads (null for documents
+   * and older photos). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  blurhash?: string | null;
 }
 
 export class CaseDto {
@@ -218,6 +223,10 @@ export class CaseSummaryDto {
   /** Owner 2026-09-30: the first photo (the "Mine" grid), else null. */
   @ApiPropertyOptional({ type: String, nullable: true })
   coverUrl?: string | null;
+
+  /** R-248: BlurHash of the cover, drawn while it loads (null = none). */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  coverBlurhash?: string | null;
 
   @ApiProperty()
   title!: string;

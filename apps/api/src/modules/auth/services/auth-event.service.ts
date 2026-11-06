@@ -68,6 +68,10 @@ export const AUTH_EVENT_TYPES = {
   REFRESH_RATE_LIMITED: 'refresh_rate_limited',
   // docs/04 §12: every entry into "История кейсов" (docs/02 §4.A list).
   HISTORY_VIEWED: 'history_viewed',
+  // R-146 (owner 2026-11-04): «continue on your phone» for the ID selfie —
+  // the computer made a one-time code; the phone's selfie arrived for it.
+  VERIFICATION_HANDOFF_CREATED: 'verification_handoff_created',
+  VERIFICATION_HANDOFF_DONE: 'verification_handoff_done',
   // Owner 2026-11-05: the account switched between the attorney and the
   // client profile (meta {from, to}); going back from an unfinished
   // onboarding of the new profile is logged apart and not rate-limited.

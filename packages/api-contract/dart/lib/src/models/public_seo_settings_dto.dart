@@ -15,6 +15,9 @@ class PublicSeoSettingsDto {
     required this.llms,
     required this.qualityGate,
     required this.rampPerDay,
+    required this.pagesCities,
+    required this.pagesPosts,
+    required this.pagesQa,
   });
 
   factory PublicSeoSettingsDto.fromJson(Map<String, Object?> json) =>
@@ -26,6 +29,9 @@ class PublicSeoSettingsDto {
   final bool? llms;
   final bool? qualityGate;
   final num? rampPerDay;
+  final bool? pagesCities;
+  final bool? pagesPosts;
+  final bool? pagesQa;
 
   Map<String, Object?> toJson() => _$PublicSeoSettingsDtoToJson(this);
 }
