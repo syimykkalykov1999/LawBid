@@ -1,6 +1,11 @@
 import { ConflictException } from '@nestjs/common';
 import { ErrorCode } from '../../common/errors/error-code.enum';
-import { clampMaxDuties, DEFAULT_MAX_DUTIES } from './assistant-duties';
+import {
+  ASSISTANT_DUTIES,
+  clampMaxDuties,
+  DEFAULT_MAX_DUTIES,
+  isUnlimitedDuties,
+} from './assistant-duties';
 import { AssistantsService } from './assistants.service';
 
 /** Owner 2026-10-22: one assistant holds at most `assistants.max_duties`
@@ -20,8 +25,10 @@ describe('assistant duty limit', () => {
   it('defaults to 3 and stays within 1..10', () => {
     expect(DEFAULT_MAX_DUTIES).toBe(3);
     expect(clampMaxDuties(undefined)).toBe(3);
-    expect(clampMaxDuties(0)).toBe(1);
-    expect(clampMaxDuties(99)).toBe(10);
+    // R-401: 0 = «все».
+    expect(clampMaxDuties(0)).toBe(ASSISTANT_DUTIES.length);
+    expect(clampMaxDuties(-1)).toBe(1);
+    expect(clampMaxDuties(99)).toBe(ASSISTANT_DUTIES.length);
     expect(clampMaxDuties(4.7)).toBe(4);
   });
 
@@ -40,6 +47,14 @@ describe('assistant duty limit', () => {
       code: ErrorCode.ASSISTANT_TOO_MANY_DUTIES,
       details: { max: 3, requested: 4 },
     });
+  });
+
+  it('«все» (0): every duty fits one assistant', async () => {
+    await expect(
+      make(0).assertDutyCount([], [...ASSISTANT_DUTIES]),
+    ).resolves.toBeUndefined();
+    expect(isUnlimitedDuties(0)).toBe(true);
+    expect(isUnlimitedDuties(3)).toBe(false);
   });
 
   it('follows the admin value', async () => {

@@ -1,3 +1,6 @@
+## STRICT RULES (owner 2026-11-05)
+Read `docs/dev/STRICT_RULES.md` at every start, after every context compaction, and whenever something is forgotten. Log every step to the local journal it names so another AI can continue. Put this rule in every subagent prompt.
+
 # Правила для помощников ИИ
 
 Главное: [AGENTS.md](AGENTS.md) и CI-протокол в docs/dev/PROJECT_MAP.md (раздел «ОБЯЗАТЕЛЬНО перед любым PR/пушем/слиянием»).

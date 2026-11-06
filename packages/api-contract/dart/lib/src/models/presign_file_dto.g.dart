@@ -13,6 +13,7 @@ PresignFileDto _$PresignFileDtoFromJson(Map<String, dynamic> json) =>
       sizeBytes: json['sizeBytes'] as num,
       sha256: json['sha256'] as String,
       supportsPut: json['supportsPut'] as bool?,
+      acceptsExisting: json['acceptsExisting'] as bool?,
     );
 
 Map<String, dynamic> _$PresignFileDtoToJson(PresignFileDto instance) =>
@@ -22,4 +23,5 @@ Map<String, dynamic> _$PresignFileDtoToJson(PresignFileDto instance) =>
       'sizeBytes': instance.sizeBytes,
       'sha256': instance.sha256,
       'supportsPut': ?instance.supportsPut,
+      'acceptsExisting': ?instance.acceptsExisting,
     };

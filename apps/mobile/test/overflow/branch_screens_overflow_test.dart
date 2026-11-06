@@ -9,6 +9,7 @@ import 'package:lawbid/features/cases/presentation/screens/create_case_screen.da
 import 'package:lawbid/features/cases/presentation/widgets/active_case_card.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/domain/reel_cut.dart';
 import 'package:lawbid/features/reels/presentation/video_editor_screen.dart';
@@ -198,15 +199,14 @@ void main() {
                       ],
                       status: t.t('cases.status.acceptedByBoth'),
                     ),
-                    CaseTextTabs(
-                      items: [
-                        CaseTabItem(t.t('cases.tab.overview')),
-                        CaseTabItem(t.t('cases.tab.files'), count: 3),
-                        CaseTabItem(t.t('cases.tab.tasks'), count: 2),
-                        CaseTabItem(t.t('cases.tab.updates'), count: 5),
-                        CaseTabItem(t.t('cases.tab.activity')),
+                    PillTabs<int>(
+                      value: 0,
+                      tabs: [
+                        (0, t.t('cases.tab.overview')),
+                        (1, t.t('cases.tab.files')),
+                        (2, t.t('cases.tab.tasks')),
+                        (3, t.t('cases.tab.history')),
                       ],
-                      index: 0,
                       onChanged: (_) {},
                     ),
                   ],

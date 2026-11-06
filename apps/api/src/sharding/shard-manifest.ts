@@ -349,6 +349,8 @@ export const GLOBAL_MODELS: readonly string[] = [
   'ClientSubscription',
   'DemoAccount',
   'StorageSnapshot',
+  // R-401: the nightly Q&A ranking snapshot (one copy, primary).
+  'RecoQaSnapshot',
   'IdentityFingerprint',
   'ClientFraudProfile',
   'ClientFraudEvent',

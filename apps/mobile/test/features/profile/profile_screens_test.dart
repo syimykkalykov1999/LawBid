@@ -853,6 +853,34 @@ void main() {
       );
     });
 
+    test('the attorney profile screen reads again after the photo', () async {
+      // Owner 2026-11-04: «Фото обновлено», but the profile kept the initials.
+      const newUrl = 'https://cdn.test/new.jpg';
+      final attorneys = FakeAttorneyRepo()..profile = attorneyProfile();
+      final c = ProviderContainer(
+        overrides: [
+          avatarUploadRepositoryProvider.overrideWithValue(
+            FakeAvatarRepo(me: attorneyMe(avatarUrl: newUrl)),
+          ),
+          attorneyProfileRepositoryProvider.overrideWithValue(attorneys),
+          currentUserControllerProvider
+              .overrideWith(() => FixedController(attorneyMe())),
+        ],
+      );
+      addTearDown(c.dispose);
+      final keep = c.listen(avatarUploadControllerProvider, (_, __) {});
+      addTearDown(keep.close);
+      final provider = publicAttorneyProfileProvider('jane.doe');
+      final screen = c.listen(provider, (_, __) {});
+      addTearDown(screen.close);
+      expect((await c.read(provider.future)).avatarUrl, isNull);
+
+      attorneys.profile = attorneyProfile(avatarUrl: newUrl);
+      await c.read(avatarUploadControllerProvider.notifier).start(jpeg);
+
+      expect((await c.read(provider.future)).avatarUrl, newUrl);
+    });
+
     test('a failed upload can be retried with the same photo', () async {
       final repo = FakeAvatarRepo(me: attorneyMe())..uploadFailures = 1;
       final c = ProviderContainer(

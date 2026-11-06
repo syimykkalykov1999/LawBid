@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'admin_attorney_card_dto.dart';
 import 'admin_client_card_dto.dart';
+import 'admin_role_switch_dto.dart';
 import 'admin_user_bid_dto.dart';
 import 'admin_user_case_dto.dart';
 import 'admin_user_session_dto.dart';
@@ -33,6 +34,7 @@ class AdminUserCardDto {
     required this.cases,
     required this.bids,
     required this.warnings,
+    required this.roleSwitches,
   });
 
   factory AdminUserCardDto.fromJson(Map<String, Object?> json) =>
@@ -60,6 +62,9 @@ class AdminUserCardDto {
   /// Last 20 (attorney).
   final List<AdminUserBidDto> bids;
   final int warnings;
+
+  /// Last 20 profile switches, newest first.
+  final List<AdminRoleSwitchDto> roleSwitches;
 
   Map<String, Object?> toJson() => _$AdminUserCardDtoToJson(this);
 }

@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 /// - the names the person saved in the phone book for LawBid contacts (a
 ///   push from them shows that name; the names never leave the phone);
 /// - that a chat was opened (its notification goes away);
+/// - that nothing is unread any more (the leftover alerts go, R-379);
 /// - a sign-out (no chat of that account stays in the shade);
 /// - the API address the notification buttons answer through;
 /// and hears back which chat (or other screen) a tapped notification opens.
@@ -63,6 +64,11 @@ class ChatNotificationsChannel {
       _call('clear', {'conversationId': conversationId});
 
   Future<void> clearAll() => _call('clearAll');
+
+  /// R-379: nothing is unread any more — the message / notification alerts
+  /// still in the shade go (calls and planner reminders stay). On Samsung /
+  /// One UI the launcher's number is the count of these alerts.
+  Future<void> clearDelivered() => _call('clearDelivered');
 
   /// Owner 2026-10-26: what the notification buttons («Ответить» /
   /// «Прочитано») need while the app is closed: the server (the same API

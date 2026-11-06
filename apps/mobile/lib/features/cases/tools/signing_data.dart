@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -47,7 +48,12 @@ final signVerifyProvider = FutureProvider.autoDispose
 final caseFormTemplatesProvider =
     FutureProvider.autoDispose.family<api.CaseFormTemplatesDto, String>(
   (ref, id) async => (await guardApiCall(
-    () => ref.watch(caseDocumentsClientProvider).listFormTemplates(id: id),
+    // R-385: the admin's form templates change rarely — 24 h from the
+    // phone, then If-None-Match (as templates_repository.dart).
+    () => ref.watch(caseDocumentsClientProvider).listFormTemplates(
+          id: id,
+          extras: cacheFor(const Duration(hours: 24)),
+        ),
   ))
       .data,
   retry: _noRetry,

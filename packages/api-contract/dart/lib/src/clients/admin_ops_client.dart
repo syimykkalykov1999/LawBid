@@ -14,6 +14,7 @@ import '../models/partition_mode_dto.dart';
 import '../models/partition_pause_dto.dart';
 import '../models/post_status_incident_dto.dart';
 import '../models/queue_retry_result_envelope.dart';
+import '../models/reco_qa_status_envelope.dart';
 import '../models/replica_status_envelope.dart';
 import '../models/replica_toggle_dto.dart';
 import '../models/scale_dto.dart';
@@ -134,6 +135,18 @@ abstract class AdminOpsClient {
   /// Top 20 heaviest users and cases (requests, DB time, uploads, messages) over the last hour
   @GET('/admin/system-health/heavy-hitters')
   Future<HeavyHittersEnvelope> getHeavyHitters({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Q&A ranking snapshot: flag, last nightly run and its counts
+  @GET('/admin/system-health/reco-qa')
+  Future<RecoQaStatusEnvelope> getRecoQa({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Queue the Q&A ranking snapshot now (needs step-up)
+  @POST('/admin/system-health/reco-qa/recompute')
+  Future<RecoQaStatusEnvelope> recomputeRecoQa({
     @Extras() Map<String, dynamic>? extras,
   });
 

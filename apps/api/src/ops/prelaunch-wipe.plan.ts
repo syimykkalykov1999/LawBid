@@ -353,6 +353,9 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   // demo world registry (the demo database itself is reset from the admin)
   demo_accounts: 'demo accounts registry',
   storage_snapshots: 'daily storage statistics of the test period',
+  // R-401: derived nightly Q&A ranking snapshot, rebuilt every night.
+  reco_qa_snapshots:
+    'nightly Q&A ranking snapshot of the test period (derived)',
   // Staff package T1 (2026-10-27): staff work of the test period. Admins
   // themselves (admin_profiles) and their payroll are kept above.
   work_leases: 'who held which work item (test period)',

@@ -156,6 +156,11 @@ export class TeamDto {
       'Owner 2026-10-22: the most duties one assistant may hold (admin setting assistants.max_duties).',
   })
   maxDuties!: number;
+  @ApiProperty({
+    description:
+      'R-401: the admin set the limit to «все» (0) — the app hides the counter.',
+  })
+  maxDutiesUnlimited!: boolean;
 }
 
 /** What the assistant app needs about itself. */

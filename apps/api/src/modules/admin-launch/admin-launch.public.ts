@@ -5,4 +5,7 @@
  */
 // Owner 2026-10-27: «Продвижение» starts the SEO workflow as a dry run
 // through the same GitHub App as the infra switches.
-export { InfraGithubClient } from './infra/infra-github.client';
+export {
+  InfraGithubClient,
+  SEO_WORKFLOW_FILE,
+} from './infra/infra-github.client';

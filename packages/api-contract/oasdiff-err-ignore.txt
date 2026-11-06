@@ -586,3 +586,5 @@ GET /admin/verification/registries added the new `state_preset` enum value to th
 GET /admin/verification/registries added the new `state_preset` enum value to the `data/items/items/adapter` response property for the response status `200`
 PUT /admin/verification/registries/{stateCode} added the new `html_page` enum value to the `data/adapter` response property for the response status `200`
 PUT /admin/verification/registries/{stateCode} added the new `state_preset` enum value to the `data/adapter` response property for the response status `200`
+POST /admin/verification/licenses/{licenseId}/recheck removed the success response with the status `200`
+POST /admin/verification/licenses/{licenseId}/registry-check removed the success response with the status `200`

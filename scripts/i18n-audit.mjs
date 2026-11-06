@@ -8,6 +8,7 @@
 // "same as English" is a warning unless the language is listed in
 // scripts/i18n-audit.allow.json (words that are legitimately the same).
 import { readSeed } from './lib/translations-seed.mjs';
+import { findSameAsEnglish } from './lib/same-as-english.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -85,7 +86,28 @@ report.untranslatedPhrases = Object.entries(phraseCount)
   .filter(([, n]) => n >= PHRASE_LANGS)
   .map(([k, n]) => `${k} (${n} languages): ${enByKey[k]}`);
 
+// 2026-11-03: any cell equal to the English text (case-insensitive, trimmed) fails CI unless
+// scripts/i18n-same-as-english.allow.json lists it (value for every language, or key per language).
+const SAME_ALLOW = path.join(ROOT, 'scripts/i18n-same-as-english.allow.json');
+const sameAllow = { ...allow, ...(fs.existsSync(SAME_ALLOW) ? JSON.parse(fs.readFileSync(SAME_ALLOW, 'utf8')) : {}) };
+report.sameAsEnglishStrict = findSameAsEnglish(rows, langs, sameAllow);
+const strictPerLang = {};
+for (const x of report.sameAsEnglishStrict) strictPerLang[x.lang] = (strictPerLang[x.lang] ?? 0) + 1;
+
+// Keys written in the Flutter ru/en maps must exist in the seed, or every other language
+// shows English (found 2026-11-03: 23 keys). Dynamic/plural suffix keys are looked up as .other too.
+report.dartMissing = [];
+{
+  const dir = path.join(ROOT, 'apps/mobile/lib/core/l10n/strings');
+  const files = [...fs.readdirSync(dir).map((f) => path.join(dir, f)), path.join(ROOT, 'apps/mobile/lib/core/l10n/static_translator.dart')];
+  const dartKeys = new Set();
+  for (const f of files) for (const m of fs.readFileSync(f, 'utf8').matchAll(/^\s*'([a-zA-Z0-9_.]+)':/gm)) dartKeys.add(m[1]);
+  for (const k of dartKeys) if (!have.has(k)) report.dartMissing.push(k);
+}
 const summary = {
+  dartKeysMissingFromSeed: report.dartMissing.length,
+  sameAsEnglishNotAllowed: report.sameAsEnglishStrict.length,
+  sameAsEnglishNotAllowedPerLanguage: strictPerLang,
   languages: langs.length,
   keys: rows.length,
   emptyCells: report.empty.length,
@@ -103,6 +125,8 @@ else {
   show('empty cells', report.empty);
   show('placeholder mismatches', report.placeholder);
   show('sentences left in English in many languages (translate them or add to scripts/i18n-audit.allow.json)', report.untranslatedPhrases);
+  show('cells equal to English and not in scripts/i18n-same-as-english.allow.json (translate them, or allow the word)', report.sameAsEnglishStrict.map((x) => `${x.key} / ${x.lang}`));
+  show('keys in the Flutter ru/en maps but missing from the seed (add with scripts/i18n-add.mjs)', report.dartMissing);
   show('keys used in code but missing from the workbook', report.missingInCode);
   show('strings written into widgets (not translated)', report.hardcoded);
 }
@@ -117,4 +141,4 @@ else {
     report.missingInCode.push(...noKw.map((k) => k + '.kw'));
   }
 }
-if (ci && (report.empty.length || report.placeholder.length || report.missingInCode.length || report.untranslatedPhrases.length)) process.exit(1);
+if (ci && (report.empty.length || report.placeholder.length || report.missingInCode.length || report.untranslatedPhrases.length || report.sameAsEnglishStrict.length || report.dartMissing.length)) process.exit(1);
