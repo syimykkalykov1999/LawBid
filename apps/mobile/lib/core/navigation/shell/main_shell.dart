@@ -13,6 +13,7 @@ import 'package:lawbid/core/navigation/route_observer.dart';
 import 'package:lawbid/core/navigation/shell/bottom_nav_config.dart';
 import 'package:lawbid/core/navigation/shell/desktop_side_nav.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
+import 'package:lawbid/core/navigation/shell/stable_under_cover.dart';
 import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/core/session/guest_mode.dart';
@@ -172,7 +173,12 @@ class _MainShellState extends ConsumerState<MainShell> {
                 taken: miniPlayer,
                 // Owner 2026-10-18 (speed): tabs switch instantly — the
                 // whole-body fade drew the tab into an extra layer.
-                child: KeyedSubtree(key: _bodyKey, child: navigationShell),
+                // Owner 2026-11-04 (R-391): a sheet over a tab never moves
+                // what is beneath it (keyboard insets freeze while covered).
+                child: KeyedSubtree(
+                  key: _bodyKey,
+                  child: StableUnderCover(child: navigationShell),
+                ),
               ),
             ),
           ],

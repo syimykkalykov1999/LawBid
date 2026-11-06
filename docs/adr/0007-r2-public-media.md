@@ -30,11 +30,13 @@ cache). Each file row stores its bucket name, so old files keep loading after an
 flip. A private file kind physically cannot reach R2 (tested). Videos stay on Bunny.
 Rollback: set `media.public_store` back to `aws`.
 
+Owner 2026-11-04: flip it now, while prod has no content; no migration. The switch cannot break uploads: R2 takes files only after a live look proved it works, otherwise they stay on AWS and the admin shows a red line. Chats, case files and verification documents stay on AWS.
+
 ### Consequences
 
 - Good: cheaper delivery of the biggest traffic class.
 - Bad: needs the domain's DNS in Cloudflare (done as DNS only, grey cloud); a second storage code path; old app versions keep uploading to AWS.
-- Confirmation: `files.policy.r2.spec.ts`, `r2-public-store.spec.ts`, `scripts/ops/verify-r2-media.sh`.
+- Confirmation: `files.policy.r2.spec.ts`, `r2-public-store.spec.ts`, `test/r2-public-store.e2e-spec.ts`, `common/secrets/r2-self-test.ts`, `scripts/ops/verify-r2-media.sh`.
 
 ## More information
 

@@ -544,6 +544,7 @@ class _WorkGrid extends ConsumerWidget {
                 statusLabel: caseStatusLabel(t, w.status),
                 statusTone: caseTone(w.status),
                 coverUrl: w.coverUrl,
+                coverBlurhash: w.coverBlurhash,
                 practiceCode: w.practiceCode,
                 onTap: () =>
                     openCaseRoute(context, AppRoutes.workCase(w.caseId)),

@@ -85,6 +85,13 @@ abstract final class AppIcons {
     0xe750,
     fontFamily: fillFamily,
   );
+
+  /// Owner 2026-11-04: a call's sound in a Bluetooth headset (the speaker
+  /// button and the list of outputs, like WhatsApp).
+  static const IconData bluetoothAudio = IconData(
+    0xe0da,
+    fontFamily: boldFamily,
+  );
   static const IconData blockFlipped = IconData(0xe3de, fontFamily: fillFamily);
   static const IconData blockRounded = IconData(0xe3de, fontFamily: fillFamily);
   static const IconData bookmarkBorderRounded = IconData(
@@ -400,6 +407,12 @@ abstract final class AppIcons {
   static const IconData handshakeOutlined = IconData(
     0xe582,
     fontFamily: fillFamily,
+  );
+
+  /// Owner 2026-11-04: a call's sound in wired headphones.
+  static const IconData headphonesRounded = IconData(
+    0xe2a6,
+    fontFamily: boldFamily,
   );
   static const IconData healthAndSafetyRounded = IconData(
     0xe570,
@@ -921,6 +934,13 @@ abstract final class AppIcons {
   );
   static const IconData videocamOffOutlined = IconData(
     0xe4dc,
+    fontFamily: fillFamily,
+  );
+
+  /// Phosphor «rows» (Fill): the «list» half of the topic page's list/grid
+  /// toggle (owner 2026-11-04, R-406); `gridOnRounded` is the other half.
+  static const IconData viewListRounded = IconData(
+    0xe5a2,
     fontFamily: fillFamily,
   );
   static const IconData visibilityOffOutlined = IconData(

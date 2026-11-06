@@ -31,6 +31,9 @@ From 8 MiB `POST /files/:id/confirm` reads the first 256 KiB (type, allow-list) 
 ## Queue job and the OS transfer
 The OS transfer outlives the app and sends the file of ITS presign, so the target is saved in the job before the transfer starts and used again after a restart. If storage still has nothing, one fresh start with the OS record forgotten.
 
+## Chat files from disk (R-255, flag `chat_files_from_disk`, off)
+A video or document picked in a one-to-one chat is not read into memory: it is copied to the queue folder and streamed from there. Its shown size comes from the `moov` box alone (`videoSizeOfFile`). Photos stay in memory: they are small and open for editing. The browser has no paths. Group chats still read files into memory, they do not use the queue.
+
 ## Not uploading a file twice (R-254, flag `files_reuse_own`, off)
 `POST /files/presign` with `acceptsExisting`: if this same user already stored these bytes, the answer is a new clean row with `existing: true` and no upload. Own files only, by `owner_user_id`: a hash is not proof of holding a file. Proven hash, same bucket, same processing, not blocked by moderation. Moderated purposes (post photos, avatars, reviews) and purposes without a dedup profile (identity documents, video) always upload.
 

@@ -15,6 +15,9 @@ PublicSeoSettingsDto _$PublicSeoSettingsDtoFromJson(
   llms: json['llms'] as bool?,
   qualityGate: json['qualityGate'] as bool?,
   rampPerDay: json['rampPerDay'] as num?,
+  pagesCities: json['pagesCities'] as bool?,
+  pagesPosts: json['pagesPosts'] as bool?,
+  pagesQa: json['pagesQa'] as bool?,
 );
 
 Map<String, dynamic> _$PublicSeoSettingsDtoToJson(
@@ -26,4 +29,7 @@ Map<String, dynamic> _$PublicSeoSettingsDtoToJson(
   'llms': ?instance.llms,
   'qualityGate': ?instance.qualityGate,
   'rampPerDay': ?instance.rampPerDay,
+  'pagesCities': ?instance.pagesCities,
+  'pagesPosts': ?instance.pagesPosts,
+  'pagesQa': ?instance.pagesQa,
 };

@@ -616,13 +616,27 @@ class SavedPost {
 /// docs/05 §7.5 hashtag; [postsCount] only for trending tags.
 @immutable
 class TagInfo {
-  const TagInfo({required this.tag, this.postsCount, this.categoryCode});
+  const TagInfo({
+    required this.tag,
+    this.postsCount,
+    this.categoryCode,
+    this.coverUrl,
+    this.coverPostId,
+  });
 
   final String tag;
   final int? postsCount;
 
   /// The practice category its posts mostly belong to (the topic cover).
   final String? categoryCode;
+
+  /// Owner 2026-11-04 (R-406): a hashtag topic's cover — the photo or video
+  /// frame of its most popular post (the server's nightly snapshot); null
+  /// when the topic has no media posts (the row shows its letter).
+  final String? coverUrl;
+
+  /// The post [coverUrl] comes from.
+  final String? coverPostId;
 }
 
 enum TagSort { top, fresh, video }

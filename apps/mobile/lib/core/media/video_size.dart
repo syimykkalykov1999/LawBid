@@ -1,5 +1,8 @@
+import 'dart:math' show min;
 import 'dart:typed_data';
 import 'dart:ui' show Size;
+
+import 'package:image_picker/image_picker.dart' show XFile;
 
 /// Owner 2026-10-20: the shown size of an MP4 / MOV video read from its
 /// `tkhd` (track header) box, as the server does (video-dimensions.ts), so
@@ -18,6 +21,42 @@ Size? videoSizeOf(Uint8List bytes) {
     }
   }
   return null;
+}
+
+/// [videoSizeOf] for a video on disk, without reading the video: walks the
+/// top-level boxes by their headers to `moov` and reads only that box. Null
+/// when there is none, or it is implausibly big.
+Future<Size?> videoSizeOfFile(XFile file) async {
+  final total = await file.length();
+  var off = 0;
+  for (var box = 0; box < 64 && off + 8 <= total; box++) {
+    final head = await _read(file, off, min(off + 16, total));
+    if (head.length < 8) return null;
+    final b = ByteData.sublistView(head);
+    var size = b.getUint32(0);
+    if (size == 1) {
+      if (head.length < 16) return null;
+      size = b.getUint64(8);
+    } else if (size == 0) {
+      size = total - off;
+    }
+    if (size < 8 || off + size > total) return null;
+    if (String.fromCharCodes(head, 4, 8) == 'moov') {
+      if (size > _moovMaxBytes) return null;
+      return videoSizeOf(await _read(file, off, off + size));
+    }
+    off += size;
+  }
+  return null;
+}
+
+/// A `moov` holds the index of the video: megabytes at most for a chat clip.
+const _moovMaxBytes = 16 * 1024 * 1024;
+
+Future<Uint8List> _read(XFile file, int start, int end) async {
+  final out = BytesBuilder(copy: false);
+  await file.openRead(start, end).forEach(out.add);
+  return out.takeBytes();
 }
 
 const _containers = {'moov', 'trak', 'mdia', 'minf', 'edts'};

@@ -7,6 +7,8 @@
  */
 export { SessionRevocationService } from './services/session-revocation.service';
 // Owner 2026-11-05: the profile switch writes and the admin card reads it.
+// R-146: «continue on your phone» codes of the verification selfie are
+// journaled in auth_events.
 export {
   AUTH_EVENT_TYPES,
   AuthEventService,

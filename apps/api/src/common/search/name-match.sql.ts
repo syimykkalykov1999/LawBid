@@ -28,6 +28,8 @@ export const NAME_MATCH = {
   consSimMin: 0.3,
   /** similarity(whole typed skeleton, whole name skeleton). */
   wholeSimMin: 0.45,
+  /** One typed word keeps the whole-text typo arm from this many letters. */
+  wholeSingleWordMinLetters: 6,
 } as const;
 
 /**
@@ -149,7 +151,7 @@ export function wordStartSql(col: Prisma.Sql, like: string): Prisma.Sql {
  *    word_similarity ≥ [NAME_MATCH.wordSimMin]) or start a word of the
  *    name's consonants («Рэйчел» = "Rachel", `f_name_cons`, 3+ consonants)
  *    while still [NAME_MATCH.consSimMin] close;
- * or (4+ letters) the whole text is close to the whole name.
+ * or (4+ letters; for ONE word only from 6 letters, see wholeSingleWordMinLetters) the whole text is close to the whole name.
  *
  * Owner 2026-10-28: «jah» found «Syimyk Kalykov» — short text never goes
  * through the loose arms any more.
@@ -208,8 +210,19 @@ function nameSql(
     }
     return Prisma.sql`(${Prisma.join(arms, ' OR ')})`;
   });
+  // Load test 2026-11-02: the «whole text ~ whole name» arm is for several
+  // typed words (word order, a typo across words). For ONE short word it adds
+  // little the word arm above does not find, but `% name_skel` at the default
+  // 0.3 threshold pulls ~100 000 GIN candidates for it ("will", "visa" = 4-5
+  // trigrams) to recheck: 250-410 ms per search on 1M users, 0.4 ms without.
+  // A long single word (6+ letters, 7+ trigrams) is selective, so it keeps
+  // the arm and its typo tolerance (similarity 0.45-0.6 that word_similarity
+  // at 0.6 would miss).
+  const singleShortWord =
+    keys.words.length === 1 &&
+    keys.words[0].letters < NAME_MATCH.wholeSingleWordMinLetters;
   const whole =
-    loose && keys.fuzzy
+    loose && keys.fuzzy && !singleShortWord
       ? Prisma.sql`
     OR (${keys.whole}::TEXT % ${skel}
         AND similarity(${keys.whole}::TEXT, ${skel}) >= ${NAME_MATCH.wholeSimMin}::FLOAT8)`

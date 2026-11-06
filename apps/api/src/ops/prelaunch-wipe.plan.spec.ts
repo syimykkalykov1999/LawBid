@@ -124,6 +124,11 @@ describe('prelaunch wipe plan', () => {
     expect(s3KeyKept('demo/avatar/u/f', kept)).toBe(true);
     expect(s3KeyKept('avatar/u2/f2', kept)).toBe(false);
     expect(s3KeyKept('exports/user-data/u2/x.zip', kept)).toBe(false);
+    // AVIF twins go with their original; the R2 and scale probes stay.
+    expect(s3KeyKept('sticker/u1/f1.avif', kept)).toBe(true);
+    expect(s3KeyKept('sticker/u1/f1_w256.avif', kept)).toBe(true);
+    expect(s3KeyKept('avatar/u2/f2_w256.avif', kept)).toBe(false);
+    expect(s3KeyKept('ops/health-probe', kept)).toBe(true);
   });
 
   it('flushes tester keys but keeps spend counters and queues in Redis', () => {

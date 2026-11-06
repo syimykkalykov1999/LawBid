@@ -19,6 +19,9 @@ export const SWITCHES = [
   { field: 'llms', env: 'SEO_LLMS', kind: 'bool' },
   { field: 'qualityGate', env: 'SEO_QUALITY_GATE', kind: 'bool' },
   { field: 'rampPerDay', env: 'SEO_RAMP_PER_DAY', kind: 'int' },
+  { field: 'pagesCities', env: 'SEO_PAGES_CITIES', kind: 'bool' },
+  { field: 'pagesPosts', env: 'SEO_PAGES_POSTS', kind: 'bool' },
+  { field: 'pagesQa', env: 'SEO_PAGES_QA', kind: 'bool' },
 ];
 
 const fromVar = (kind, raw) => {

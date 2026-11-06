@@ -90,7 +90,15 @@ Future<List<PickedChatFile>> pickGroupFiles(
       skipped++;
       return;
     }
-    out.add((bytes: bytes, name: name, mime: mime));
+    out.add(
+      (
+        bytes: bytes,
+        name: name,
+        mime: mime,
+        path: null,
+        diskBytes: null,
+      ),
+    );
   }
 
   switch (choice) {

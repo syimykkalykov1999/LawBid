@@ -68,6 +68,9 @@ class ArchiveScreen extends ConsumerWidget {
                       conversation: conversation,
                       inArchive: true,
                     ),
+                  // R-404 (b): the archive lists chats one by one.
+                  PersonChatEntry(:final row) =>
+                    ConversationRow(conversation: row, inArchive: true),
                   GroupChatEntry() => const SizedBox.shrink(),
                 },
                 empty: AppEmptyState(

@@ -6,12 +6,14 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ModuleRef } from '@nestjs/core';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { Prisma, type AdminRole } from '@prisma/client';
 import type Redis from 'ioredis';
@@ -27,6 +29,7 @@ import type {
 } from '@simplewebauthn/server';
 import { PasskeyService } from '../auth/auth.public';
 import type { AuthenticationChallenge, PasskeyView } from '../auth/auth.public';
+import { FilesService } from '../files/files.service';
 import { RateLimitService } from '../auth/services/rate-limit.service';
 import { TokenService } from '../auth/services/token.service';
 import type { AdminActor } from './admin-auth.decorators';
@@ -153,6 +156,7 @@ function onCallLevel(raw: unknown): string {
 
 @Injectable()
 export class AdminAuthService {
+  private readonly logger = new Logger(AdminAuthService.name);
   private readonly cipher: SecretCipher | null;
   private readonly loginStartPerIpPerHour: number;
   private readonly panelUrl: string | null;
@@ -171,6 +175,10 @@ export class AdminAuthService {
     @Optional() private readonly passkeys?: PasskeyService,
     // Owner 2026-10-28: IP allowlist, session cap, new-device alert.
     @Optional() private readonly security?: AdminSecurityService,
+    // R-382: the admin's own photo (the account's app avatar) for the top
+    // bar. Looked up lazily: FilesModule lives in the API app, not in this
+    // global module (the worker imports it too).
+    @Optional() private readonly moduleRef?: ModuleRef,
   ) {
     const key = readKey('ADMIN_TOTP_ENC_KEY', () =>
       config.get<string>('ADMIN_TOTP_ENC_KEY'),
@@ -635,6 +643,7 @@ export class AdminAuthService {
       select: {
         id: true,
         email: true,
+        avatar_file_id: true,
         admin_profile: {
           select: {
             admin_role: true,
@@ -728,7 +737,35 @@ export class AdminAuthService {
       hasSecurityQuestion: Boolean(c?.security_answer_hash),
       securityQuestion:
         role === 'super_admin' ? (c?.security_question ?? null) : null,
+      avatarUrl: await this.avatarUrlOf(user.avatar_file_id),
     };
+  }
+
+  /**
+   * R-382 (owner 2026-11-04): «фото … на аватарке не показывается в вебке».
+   * The photo is the account's avatar (set in the app); the same 256 px
+   * preview link the people list uses (admin-users avatarOf). A storage
+   * hiccup must not break sign-in: no photo, initials stay.
+   */
+  private async avatarUrlOf(fileId: string | null): Promise<string | null> {
+    if (!fileId) return null;
+    const files = this.lazyFiles();
+    if (!files) return null;
+    try {
+      const a = await files.avatarUrls(fileId);
+      return a.url256 ?? a.url;
+    } catch (err) {
+      this.logger.warn({ err, fileId }, 'admin avatar link failed');
+      return null;
+    }
+  }
+
+  private lazyFiles(): FilesService | null {
+    try {
+      return this.moduleRef?.get(FilesService, { strict: false }) ?? null;
+    } catch {
+      return null;
+    }
   }
 
   /** Owner 2026-10-22: the admin's own «дежурный» switch (Профиль). */
