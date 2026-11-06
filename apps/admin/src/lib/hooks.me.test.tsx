@@ -7,9 +7,12 @@ const get = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/api/client', () => ({ api: { GET: get } }));
 
 import { useMe } from './hooks';
+import { REFERENCE_STALE_MS } from './query-client';
 
 function mount(updatedAt: number) {
   const qc = new QueryClient();
+  // «me» is a reference key: the real client keeps it fresh this long.
+  qc.setQueryDefaults(['me'], { staleTime: REFERENCE_STALE_MS });
   qc.setQueryData(['me'], { id: 'a', avatarUrl: null }, { updatedAt });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={qc}>{children}</QueryClientProvider>
@@ -37,7 +40,7 @@ afterEach(() => {
 // R-382 (owner 2026-11-04): a photo saved in the app reaches an open panel.
 describe('useMe on coming back to the tab', () => {
   it('re-reads stale «me» and gets the new photo', async () => {
-    const { result } = mount(Date.now() - 6 * 60_000);
+    const { result } = mount(Date.now() - REFERENCE_STALE_MS - 60_000);
     get.mockClear();
     comeBackToTab();
     await waitFor(() => expect(result.current.data?.avatarUrl).toBe('https://media.lawbid.dev/new_w256.webp'));
