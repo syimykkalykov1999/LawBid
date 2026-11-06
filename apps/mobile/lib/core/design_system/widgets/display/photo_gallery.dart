@@ -1,10 +1,15 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/icons/app_icons.dart';
 import 'package:lawbid/core/design_system/widgets/bars/system_nav_band.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/design_system/widgets/feedback/app_snackbar.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
+import 'package:lawbid/core/media/photo_saver.dart';
 import 'package:lawbid/core/text/bidi.dart';
 
 /// Tests draw the photos without the network cache.
@@ -149,6 +154,7 @@ class _GalleryState extends State<_Gallery> {
                           ),
                         ),
                       ),
+                    _SavePhotoButton(url: widget.urls[_page]),
                   ],
                 ),
               ),
@@ -156,6 +162,59 @@ class _GalleryState extends State<_Gallery> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Owner 2026-11-05: «Скачать» in the viewer's top bar.
+class _SavePhotoButton extends ConsumerStatefulWidget {
+  const _SavePhotoButton({required this.url});
+
+  final String url;
+
+  @override
+  ConsumerState<_SavePhotoButton> createState() => _SavePhotoButtonState();
+}
+
+class _SavePhotoButtonState extends ConsumerState<_SavePhotoButton> {
+  bool _busy = false;
+
+  Future<void> _save() async {
+    final t = ref.read(translatorProvider);
+    setState(() => _busy = true);
+    final result = await savePhoto(widget.url);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    // The browser's own download bar says it; nothing to add there.
+    if (result == PhotoSaveResult.saved && kIsWeb) return;
+    showAppSnackBar(
+      context,
+      t.t(
+        switch (result) {
+          PhotoSaveResult.saved => 'qr.save.done',
+          PhotoSaveResult.noAccess => 'gallery.accessDenied',
+          PhotoSaveResult.failed => 'gallery.saveFailed',
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    return IconButton(
+      key: const ValueKey('gallery-save'),
+      tooltip: t.t('cases.files.download'),
+      onPressed: _busy ? null : _save,
+      icon: _busy
+          ? const SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : const AppIcon(AppIcons.downloadRounded, color: Colors.white),
     );
   }
 }

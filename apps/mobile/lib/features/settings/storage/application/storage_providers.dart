@@ -1,11 +1,14 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_maintenance.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/cache/chat_media_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
+import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart'
     show socialLocalDatabaseProvider;
 
@@ -78,6 +81,26 @@ class CacheReportNotifier extends AsyncNotifier<CacheReport> {
     }
   }
 }
+
+/// Owner 2026-11-05: the case documents and pictures of an account leave the
+/// phone with it, whichever way it ended (sign-out, a dead session, another
+/// person signing in).
+final accountFilesGuardProvider = Provider<void>((ref) {
+  ref.listen(
+    sessionControllerProvider.select((s) => s?.sub),
+    (previous, next) => unawaited(
+      wipeAccountFilesIfChanged(
+        previous: previous,
+        next: next,
+        kv: ref.read(localKvStoreProvider),
+        wipe: ref.read(cacheMaintenanceProvider).clearAccountFiles,
+      ).catchError((Object e) {
+        debugPrint('account files: $e');
+        return false;
+      }),
+    ),
+  );
+});
 
 final cacheReportProvider =
     AsyncNotifierProvider.autoDispose<CacheReportNotifier, CacheReport>(

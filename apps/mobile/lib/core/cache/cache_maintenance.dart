@@ -7,9 +7,11 @@ import 'package:lawbid/core/cache/cache_eviction.dart';
 import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/cache/media_cache_dir.dart';
+import 'package:lawbid/core/files/resumable_download.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/video_cache/video_cache.dart';
 import 'package:lawbid/core/persistence/drift_web.dart' show isFlutterTest;
+import 'package:lawbid/core/persistence/local_kv_store.dart';
 import 'package:lawbid/core/persistence/saved_json.dart';
 import 'package:lawbid/core/persistence/storage_compaction.dart';
 
@@ -18,6 +20,31 @@ import 'package:lawbid/core/persistence/storage_compaction.dart';
 /// photos (pictures and chat media); documents (the case-file views and
 /// the files store); everything else (messages, requests, feed, the rest).
 enum StorageCategory { video, photos, documents, other }
+
+/// Who the case files on this device belong to.
+const caseFilesOwnerKey = 'case_files.owner';
+
+/// Owner 2026-11-05: documents between an attorney and a client must not
+/// outlive the account on the device. Runs [wipe] when the account is left or
+/// replaced; the owner is remembered, so an account that ended while the app
+/// was closed is noticed at the next sign-in. Answers whether it wiped.
+Future<bool> wipeAccountFilesIfChanged({
+  required String? previous,
+  required String? next,
+  required LocalKvStore kv,
+  required Future<void> Function() wipe,
+}) async {
+  if (next == null) {
+    if (previous == null) return false;
+    await wipe();
+    await kv.remove(caseFilesOwnerKey);
+    return true;
+  }
+  if (kv.getString(caseFilesOwnerKey) == next) return false;
+  await wipe();
+  await kv.setString(caseFilesOwnerKey, next);
+  return true;
+}
 
 /// What the phone's caches take, by store (plan §5.2: the ring and the
 /// rows of «Данные и память»).
@@ -93,6 +120,7 @@ class CacheMaintenance {
     MediaCacheDir? chatMedia,
     MediaCacheDir? video,
     PrefixedTempFiles? voiceNotes,
+    MediaCacheDir? caseFiles,
     Future<Set<String>> Function()? groupChatPaths,
   })  : _db = db,
         _groupChatPaths = groupChatPaths,
@@ -104,7 +132,9 @@ class CacheMaintenance {
             chatMedia ?? const MediaCacheDir(AppImageCaches.chatMediaKey),
         _video = video ?? const MediaCacheDir(VideoCache.folderName),
         _voiceNotes = voiceNotes ??
-            const PrefixedTempFiles('voice_cache_', suffix: '.m4a');
+            const PrefixedTempFiles('voice_cache_', suffix: '.m4a'),
+        _caseFiles =
+            caseFiles ?? const MediaCacheDir(caseFilesFolder, kept: true);
 
   final CacheDatabase _db;
   final SavedPageStore? _pages;
@@ -114,6 +144,9 @@ class CacheMaintenance {
   final MediaCacheDir _chatMedia;
   final MediaCacheDir _video;
   final PrefixedTempFiles _voiceNotes;
+
+  /// Owner 2026-11-05: the downloaded case documents.
+  final MediaCacheDir _caseFiles;
 
   /// The canonical paths of the chat-media files that belong to GROUP chats
   /// (the chat → picture index). Every other chat file is personal or not
@@ -148,6 +181,7 @@ class CacheMaintenance {
       ),
       guard(_video.size),
       guard(_db.fileViewsBytes),
+      guard(_caseFiles.size),
     ]);
     return CacheReport(
       bytes: {
@@ -158,6 +192,7 @@ class CacheMaintenance {
         CacheStore.chatMedia: results[4],
         CacheStore.other: results[5],
         CacheStore.video: results[6],
+        CacheStore.files: results[8],
       },
       measuredAt: DateTime.now(),
       documents: results[7],
@@ -199,10 +234,18 @@ class CacheMaintenance {
       case CacheStore.other:
         await _db.clearOther();
       case CacheStore.files:
-        // No cache of their own on the phone yet.
-        break;
+        ResumableDownload.instance.cancelAll();
+        await _caseFiles.clearContents();
     }
     return true;
+  }
+
+  /// Owner 2026-11-05: the account was left. Case documents and the picture
+  /// cache (case photos are kept there, under their file) go; the next account
+  /// fetches its own.
+  Future<void> clearAccountFiles() async {
+    await clear(CacheStore.files);
+    await clear(CacheStore.images);
   }
 
   /// «Очистить» of the ticked categories of the ring. All four = [clearAll].
@@ -225,11 +268,13 @@ class CacheMaintenance {
         store(CacheStore.images),
         store(CacheStore.chatMedia),
       ],
-      if (categories.contains(StorageCategory.documents))
+      if (categories.contains(StorageCategory.documents)) ...[
+        store(CacheStore.files),
         one(() async {
           await _db.clearFileViews();
           return true;
         }),
+      ],
       if (categories.contains(StorageCategory.other)) ...[
         store(CacheStore.http),
         store(CacheStore.messages),
@@ -274,6 +319,7 @@ class CacheMaintenance {
     try {
       final l = _limits();
       await _images.trimTo(l.limitBytes(CacheStore.images));
+      await _caseFiles.trimTo(l.limitBytes(CacheStore.files));
       // Pictures and voice notes are one store («Медиа чатов»): one limit,
       // the least recently used file goes first whichever it is.
       await trimPoolTo(
@@ -353,8 +399,9 @@ class CacheMaintenance {
     }
   }
 
-  /// «Максимальный размер кэша»: when pictures, chat media, voice notes and
-  /// video chunks together pass the cap, the least recently used go first.
+  /// «Максимальный размер кэша»: when pictures, chat media, voice notes, case
+  /// documents and video chunks together pass the cap, the least recently used
+  /// go first.
   Future<void> _enforceCap(CacheLimits l) async {
     final cap = l.capBytes;
     if (cap == null) return;
@@ -370,6 +417,7 @@ class CacheMaintenance {
     await collect('images', _images);
     await collect('chat', _chatMedia);
     await collect('voice', _voiceNotes);
+    await collect('files', _caseFiles);
     await collect('video', _video);
     final victims = planCapEviction(entries, cap);
     if (victims.isEmpty) return;
