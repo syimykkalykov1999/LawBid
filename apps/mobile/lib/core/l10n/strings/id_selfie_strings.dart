@@ -15,7 +15,15 @@ const idSelfieRu = <String, String>{
       'Или просто войдите в приложение на телефоне с тем же номером — вы продолжите с этого шага.',
   'verification.handoff.qr':
       'QR-код, который открывает проверку в приложении LawBid на телефоне',
-  'verification.handoff.title': 'Продолжить на телефоне',
+  'verification.handoff.done': 'Селфи получено ✓',
+  'verification.handoff.expired': 'Код устарел.',
+  'verification.handoff.linkInvalid':
+      'Ссылка устарела или открыта в другом аккаунте. Создайте новый код на компьютере.',
+  'verification.handoff.needsApp':
+      'Селфи снимается в приложении LawBid на телефоне. Откройте приложение, чтобы продолжить.',
+  'verification.handoff.noCameraTitle': 'Нет камеры? Продолжите на телефоне',
+  'verification.handoff.phoneDone': 'Готово, вернитесь на компьютер.',
+  'verification.handoff.refresh': 'Обновить QR',
   'verification.handoff.waiting': 'Ждём селфи с вашего телефона…',
   'verification.idSelfie.anyway': 'Всё равно сделать фото',
   'verification.idSelfie.example':
@@ -52,7 +60,15 @@ const idSelfieEn = <String, String>{
       "Or just sign in to the app on your phone with the same number — you'll continue from this step.",
   'verification.handoff.qr':
       'QR code that opens verification in the LawBid app on your phone',
-  'verification.handoff.title': 'Continue on your phone',
+  'verification.handoff.done': 'Selfie received ✓',
+  'verification.handoff.expired': 'The code has expired.',
+  'verification.handoff.linkInvalid':
+      'This link has expired or belongs to another account. Make a new code on the computer.',
+  'verification.handoff.needsApp':
+      'The selfie is taken in the LawBid app on your phone. Open the app to continue.',
+  'verification.handoff.noCameraTitle': 'No camera? Continue on your phone',
+  'verification.handoff.phoneDone': 'Done — go back to your computer.',
+  'verification.handoff.refresh': 'Refresh QR code',
   'verification.handoff.waiting': 'Waiting for the selfie from your phone…',
   'verification.idSelfie.anyway': 'Take photo anyway',
   'verification.idSelfie.example':

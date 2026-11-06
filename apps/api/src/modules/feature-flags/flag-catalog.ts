@@ -180,6 +180,18 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
       'Clients may publish reels (off: clients only watch, attorneys still publish)',
   },
   {
+    // Owner 2026-11-04 (R-398): the second half of ONE three-way admin
+    // choice for client reels — Выключено / Бесплатно всем / Только с
+    // галочкой. Read only while `reels_client_publish` is on: then on =
+    // only clients wearing the paid gold badge publish reels (the API
+    // answers 403 ENTITLEMENT_REQUIRED to the others), off = every client.
+    key: 'reels_client_publish_paid_only',
+    enabled: false,
+    app: true,
+    description:
+      'With client reels on: only clients with the paid gold badge publish (off: every client)',
+  },
+  {
     // Checklist reconciliation 2026-11-01: resumable uploads. On: the app
     // sends big files (video, documents over 16 MiB) in 8 MiB parts and
     // continues after an interruption instead of starting over.
@@ -187,6 +199,15 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: false,
     app: true,
     description: 'Resumable (multipart) uploads of large files',
+  },
+  {
+    // R-256: on, a phone with little charge or its battery saver on warms no
+    // videos ahead and does not re-encode clips up to 30 MB. Off until
+    // checked on real phones.
+    key: 'low_power_mode',
+    enabled: false,
+    app: true,
+    description: 'The app goes gently on a phone low on power',
   },
   {
     // R-255: on, a video or document picked in a chat stays on disk and is
@@ -402,5 +423,14 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: true,
     app: true,
     description: 'Sign in with a passkey (WebAuthn)',
+  },
+  {
+    // R-237 (owner 2026-11-05): REAL MONEY. On: a bank inquiry on a
+    // subscription charge is refunded in full within the limits; above them
+    // it waits for a person. Off (default): nothing is refunded.
+    key: 'dispute_auto_refund',
+    enabled: false,
+    description:
+      'Automatic refund of a bank inquiry on a subscription charge (real money; off by default)',
   },
 ];

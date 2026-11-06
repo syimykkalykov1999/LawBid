@@ -15,6 +15,9 @@ Goal (owner): every upload is compressed on the phone first, sent in parts strai
 - Small files: presigned POST/PUT as before.
 - Files ≥16 MiB: **multipart** (flag `files_multipart`, default OFF). `POST /files/:id/multipart` returns presigned part URLs (8 MiB parts) and the parts S3 already has; the app PUTs only missing parts (retry per part), then `POST /files/:id/multipart/complete`. Abandoned uploads are aborted by `storage-cleanup`. The app falls back to the single upload when the flag is off.
 
+## Low power (R-256, flag `low_power_mode`, off)
+Battery at 20 % or less off the charger, or the phone's battery saver on (`core/config/low_power.dart`, battery_plus): no reels warmed ahead, and clips up to 30 MB go without a re-encode. Bigger videos are still encoded, so they fit the upload limits. Off: no battery call at all.
+
 ## Parallel pieces (R-251, 2026-11-05)
 Every switch below is off by default; off = the old path, request for request. Reference and mismatches: `docs/dev/TRANSFERS_REFERENCE_2026-11-05.md`.
 - How many at once: admin `client.uploads_at_once` / `client.downloads_at_once` (1-4, default 4), for all files together (`core/transfers/transfer_limits.dart`). Two on mobile data or a phone under 3 GB. A failure holds new requests and drops the limit to 1, then it climbs back (`AdaptiveLimiter`); the next file starts at the full number.

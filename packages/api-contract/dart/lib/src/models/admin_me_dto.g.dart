@@ -40,6 +40,7 @@ AdminMeDto _$AdminMeDtoFromJson(Map<String, dynamic> json) => AdminMeDto(
   passkeyCount: (json['passkeyCount'] as num?)?.toInt(),
   onCallAvailable: json['onCallAvailable'] as bool?,
   onCallEnabled: json['onCallEnabled'] as bool?,
+  avatarUrl: json['avatarUrl'] as String?,
 );
 
 Map<String, dynamic> _$AdminMeDtoToJson(
@@ -67,5 +68,6 @@ Map<String, dynamic> _$AdminMeDtoToJson(
   'workspacesEnabled': instance.workspacesEnabled,
   'countryTabs': instance.countryTabs.map((e) => e.toJson()).toList(),
   'securityQuestion': ?instance.securityQuestion,
+  'avatarUrl': ?instance.avatarUrl,
   'reasonRequiredAreas': instance.reasonRequiredAreas,
 };

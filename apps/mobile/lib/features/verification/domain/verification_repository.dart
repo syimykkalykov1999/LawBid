@@ -34,6 +34,14 @@ abstract interface class VerificationRepository {
   /// the guided selfie camera opens; the selfie attach sends it back.
   Future<SelfieCaptureTicket> startSelfieCapture(String requestId);
 
+  /// R-146: a one-time «continue on your phone» code (QR + short link,
+  /// 10 minutes) bound to this request.
+  Future<SelfieHandoff> createHandoff(String requestId);
+
+  /// R-146: pending / done / expired of an own code (404 → ApiException:
+  /// unknown or another account's).
+  Future<SelfieHandoffStatus> handoffStatus(String token);
+
   Future<VerificationRequest> removeDocument(
     String requestId,
     String documentId,
@@ -115,8 +123,28 @@ class SelfieCaptureTicket {
 
 /// What goes with a selfie attach: the token and the camera's report.
 class SelfieUpload {
-  const SelfieUpload({required this.token, this.report});
+  const SelfieUpload({required this.token, this.report, this.handoffToken});
 
   final String token;
   final SelfieCaptureReport? report;
+
+  /// R-146: the computer's code when this phone opened its link.
+  final String? handoffToken;
 }
+
+/// R-146: the computer's «continue on your phone» code.
+class SelfieHandoff {
+  const SelfieHandoff({
+    required this.token,
+    required this.url,
+    required this.expiresAt,
+  });
+
+  final String token;
+
+  /// The short link; also what the QR code carries.
+  final String url;
+  final DateTime expiresAt;
+}
+
+enum SelfieHandoffStatus { pending, done, expired }

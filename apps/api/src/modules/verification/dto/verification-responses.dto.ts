@@ -167,3 +167,43 @@ export class SelfieCaptureTokenDto {
   })
   required!: boolean;
 }
+
+/** R-146: the computer's «continue on your phone» code. */
+export class VerificationHandoffDto {
+  @ApiProperty({ description: 'One-time code (base64url), valid 10 minutes.' })
+  token!: string;
+
+  @ApiProperty({
+    description:
+      'Short link that opens the selfie step of this request in the app ' +
+      '(APP_LINK_BASE_URL/selfie/<token>).',
+  })
+  url!: string;
+
+  @ApiProperty({ description: 'What the QR code carries (= url).' })
+  qrPayload!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  expiresAt!: string;
+}
+
+export enum VerificationHandoffStatus {
+  pending = 'pending',
+  done = 'done',
+  expired = 'expired',
+}
+
+/** R-146: what the computer polls (every 3 s, stops at done / expired). */
+export class VerificationHandoffStatusDto {
+  @ApiProperty({
+    enum: VerificationHandoffStatus,
+    enumName: 'VerificationHandoffStatus',
+  })
+  status!: VerificationHandoffStatus;
+
+  @ApiProperty({ format: 'uuid' })
+  requestId!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  expiresAt!: string;
+}

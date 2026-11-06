@@ -17,6 +17,7 @@ class ProfileAvatar extends StatelessWidget {
     required this.size,
     super.key,
     this.url,
+    this.fullUrl,
     this.preview,
     this.initials,
     this.heroTag,
@@ -31,6 +32,12 @@ class ProfileAvatar extends StatelessWidget {
 
   final double size;
   final String? url;
+
+  /// Owner 2026-11-04 (R-405): the 1024 px picture when the server sent one
+  /// apart from the preview (`avatarFullUrl`). Drawn instead of [url] once
+  /// the circle needs more than 256 px ([avatarUrlFor]) and opened full
+  /// screen; without it the preview's own full picture is derived.
+  final String? fullUrl;
   final Uint8List? preview;
   final String? initials;
   final String? heroTag;
@@ -42,11 +49,22 @@ class ProfileAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final link = url;
+    // AppAvatar decodes at the drawn size × pixel ratio itself, so the
+    // provider is handed over unresized.
     // ignore: omit_local_variable_types
     final ImageProvider? image = preview != null
         ? MemoryImage(preview!)
-        : (url != null && url!.isNotEmpty
-            ? appNetworkImage(url!, decodeWidthFor(size))
+        : (link != null && link.isNotEmpty
+            ? stableNetworkImage(
+                avatarUrlFor(
+                  link,
+                  logicalSize: size,
+                  devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+                  fullUrl: fullUrl,
+                ),
+                fallbackUrls: [link],
+              )
             : null);
 
     Widget avatar = AppAvatar(
@@ -64,9 +82,12 @@ class ProfileAvatar extends StatelessWidget {
       avatar = GestureDetector(
         key: const ValueKey('avatar-open'),
         behavior: HitTestBehavior.opaque,
+        // The full picture, the preview already on screen as its placeholder
+        // (never a 256 px picture stretched over the whole screen).
         onTap: () => showPhotoGallery(
           context,
-          urls: [photo],
+          urls: [avatarFullUrlFor(photo, fullUrl: fullUrl)],
+          previews: [photo],
           closeLabel: viewerCloseLabel!,
         ),
         child: avatar,

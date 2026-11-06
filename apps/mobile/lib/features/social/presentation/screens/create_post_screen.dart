@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/addresses/address_field.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -14,6 +15,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/media/video_frames.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
@@ -269,6 +271,24 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       ref.read(canPublishReelsProvider) &&
       ref.read(canDoProvider(AssistantDuty.publish));
 
+  /// Owner 2026-11-04 (R-398): «Только с галочкой» and this client has no
+  /// badge — the video is in sight but locked (gallery hint, the
+  /// «Видео — по подписке» sheet instead of the editor or the recording).
+  bool get _videoPaywalled => ref.read(clientReelsPaywalledProvider);
+
+  /// The «Видео — по подписке» sheet: one way on — the badge screen.
+  Future<void> _videoPaywall() async {
+    final t = ref.read(translatorProvider);
+    final go = await showConfirmSheet(
+      context,
+      t: t,
+      title: t.t('post.video.paid.title'),
+      message: t.t('post.video.paid.body'),
+      confirmLabel: t.t('post.video.paid.cta'),
+    );
+    if (go && mounted) unawaited(context.push(AppRoutes.clientBadge));
+  }
+
   static bool _isVideo(XFile f) {
     final mime = f.mimeType ?? '';
     if (mime.startsWith('video/')) return true;
@@ -286,7 +306,9 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     if (left <= 0) return;
     final limits = postPhotoLimits(ref);
     final List<XFile> picked;
-    if (_videoAllowed) {
+    // Owner 2026-11-04 (R-398): a paywalled client still sees the videos
+    // in the picker; picking one opens the subscription sheet.
+    if (_videoAllowed || _videoPaywalled) {
       picked = await ImagePicker().pickMultipleMedia(
         maxWidth: limits.maxPx,
         maxHeight: limits.maxPx,
@@ -374,6 +396,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   /// A reel carries one video and no photos: the picked ones would go.
   Future<void> _takeVideo(XFile video) async {
     if (!mounted) return;
+    if (_videoPaywalled) return _videoPaywall();
     if (_photos.isNotEmpty) {
       final t = ref.read(translatorProvider);
       final ok = await showConfirmSheet(
@@ -531,8 +554,11 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     // Owner 2026-11-04 (R-381): a client held back from reels only takes
-    // a photo — no «photo or video» choice.
-    if (ref.read(clientReelsBlockedProvider)) return _cameraPhoto();
+    // a photo — no «photo or video» choice. R-398: a paywalled client keeps
+    // the choice; «Снять видео» opens the subscription sheet.
+    if (ref.read(clientReelsBlockedProvider) && !_videoPaywalled) {
+      return _cameraPhoto();
+    }
     final photo = await showAppBottomSheet<bool>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -580,6 +606,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
     final picker = ImagePicker();
     if (photo) {
       await _cameraPhoto();
+    } else if (_videoPaywalled) {
+      await _videoPaywall();
     } else {
       final x = await picker.pickVideo(
         source: ImageSource.camera,
@@ -825,6 +853,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         ref.watch(actsAsAttorneyProvider) && ref.watch(newsEnabledProvider);
     final video = ref.watch(canPublishReelsProvider) &&
         ref.watch(canDoProvider(AssistantDuty.publish));
+    // Owner 2026-11-04 (R-398): «До 9 фото · видео по подписке» + a lock.
+    final paywalled = ref.watch(clientReelsPaywalledProvider);
     final practice = _practice;
     final missing = _triedPublish;
 
@@ -953,11 +983,16 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                               // Owner 2026-10-18: say what the gallery takes —
                               // photos only while video posts are off.
                               hint: t.t(
-                                _videoAllowed
+                                video
                                     ? 'post.src.galleryHintMax'
-                                    : 'post.src.galleryHintPhotos',
+                                    : paywalled
+                                        ? 'post.src.galleryHintPaid'
+                                        : 'post.src.galleryHintPhotos',
                                 {'max': '$_maxMedia'},
                               ),
+                              hintIcon: paywalled
+                                  ? AppIcons.lockOutlineRounded
+                                  : null,
                               tint: AppColorsFixed.sourceGalleryBlue,
                               onTap: _photos.length < _maxMedia ? _pick : null,
                             ),
@@ -1435,12 +1470,17 @@ class _SourceButton extends StatelessWidget {
     required this.hint,
     required this.tint,
     required this.onTap,
+    this.hintIcon,
     super.key,
   });
 
   final IconData icon;
   final String label;
   final String hint;
+
+  /// Owner 2026-11-04 (R-398): a small lock before the hint while the
+  /// video is «по подписке».
+  final IconData? hintIcon;
   final Color tint;
 
   /// Null = disabled (the post already holds the maximum).
@@ -1458,6 +1498,7 @@ class _SourceButton extends StatelessWidget {
       min: 3,
     );
     final enabled = onTap != null;
+    final hintIcon = this.hintIcon;
     return Semantics(
       button: true,
       enabled: enabled,
@@ -1495,10 +1536,31 @@ class _SourceButton extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                FitText(
-                  hint,
-                  style: type.caption.copyWith(color: colors.textSecondary),
-                ),
+                if (hintIcon == null)
+                  FitText(
+                    hint,
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  )
+                else
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AppIcon(
+                        hintIcon,
+                        key: const ValueKey('post-gallery-lock'),
+                        color: colors.textSecondary,
+                        size: 12,
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: FitText(
+                          hint,
+                          style: type.caption
+                              .copyWith(color: colors.textSecondary),
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),

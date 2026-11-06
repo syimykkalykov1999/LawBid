@@ -58,6 +58,7 @@ class ResumableDownload {
   final int Function() _pieces;
   final Duration _retryUnit;
   final _running = <String, Future<File>>{};
+  final _tokens = <String, CancelToken>{};
 
   /// Downloads [url] to [target] (finished file) and returns it. [onProgress]
   /// gets 0..1 when the size is known. Throws a [DioException] when the
@@ -71,13 +72,24 @@ class ResumableDownload {
     final key = target.path;
     final running = _running[key];
     if (running != null) return running;
+    final token = cancel ?? CancelToken();
+    _tokens[key] = token;
     // A block body: `remove` returns the future itself, and a whenComplete
     // callback that returns a future is awaited (a deadlock on itself).
-    final f = _start(url, target, onProgress, cancel).whenComplete(() {
+    final f = _start(url, target, onProgress, token).whenComplete(() {
       _running.remove(key);
+      _tokens.remove(key);
     });
     _running[key] = f;
     return f;
+  }
+
+  /// Owner 2026-11-05: the files are being deleted (leaving the account,
+  /// «Данные и память»): nothing running may bring one back.
+  void cancelAll() {
+    for (final token in _tokens.values) {
+      token.cancel('files cleared');
+    }
   }
 
   Future<File> _start(

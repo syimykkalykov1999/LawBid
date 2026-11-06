@@ -41,6 +41,7 @@ class MyBidItemDto {
     this.percentBps,
     this.attorney,
     this.coverUrl,
+    this.coverBlurhash,
   });
 
   factory MyBidItemDto.fromJson(Map<String, Object?> json) =>
@@ -89,6 +90,9 @@ class MyBidItemDto {
   /// Owner 2026-09-30: the case's first photo once this bid is accepted,.
   /// else null (the app shows the qualification's art).
   final String? coverUrl;
+
+  /// R-248: BlurHash of the cover, drawn while it loads (null = none).
+  final String? coverBlurhash;
 
   Map<String, Object?> toJson() => _$MyBidItemDtoToJson(this);
 }

@@ -534,6 +534,11 @@ const file06Ru = <String, String>{
   'cases.files.document': 'Документ',
   'cases.files.add': 'Добавить файл',
   'cases.files.open': 'Открыть файл',
+  'cases.files.downloadFailed':
+      'Не удалось скачать файл. Проверьте интернет и попробуйте ещё раз.',
+  'gallery.saveFailed': 'Не удалось сохранить фото. Попробуйте ещё раз.',
+  'gallery.accessDenied':
+      'Нет доступа к галерее. Разрешите его в настройках телефона.',
   'feed.tagline': 'Юридическая помощь. Реальные люди.',
 };
 
@@ -1068,5 +1073,10 @@ const file06En = <String, String>{
   'cases.files.document': 'Document',
   'cases.files.add': 'Add a file',
   'cases.files.open': 'Open file',
+  'cases.files.downloadFailed':
+      "Couldn't download the file. Check your internet and try again.",
+  'gallery.saveFailed': "Couldn't save the photo. Please try again.",
+  'gallery.accessDenied':
+      'No access to your photos. Allow it in your phone settings.',
   'feed.tagline': 'Legal help. Real people.',
 };

@@ -159,6 +159,19 @@ void main() {
       s = TaskReminderScheduler(gw);
     });
 
+    test('signed out: no alarm of the account stays', () async {
+      final a = planReminders(
+        [_task('a', due: now.add(const Duration(hours: 2)))],
+        now,
+      );
+      await s.sync(a, title, body);
+      expect(gw.armed.length, 1);
+
+      await s.cancelAll();
+
+      expect(gw.armed, isEmpty);
+    });
+
     test('arms, leaves unchanged ones alone, re-arms a moved one', () async {
       final a = planReminders(
         [_task('a', due: now.add(const Duration(hours: 2)))],

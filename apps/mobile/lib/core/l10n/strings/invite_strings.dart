@@ -73,6 +73,8 @@ const inviteRu = <String, String>{
   'team.limit.request.note': 'Зачем (необязательно)',
   'team.limit.request.send': 'Отправить',
   'team.limit.sent': 'Заявка отправлена. Мы сообщим о решении.',
+  'notif.list.subscription_status.dispute_refund':
+      'Платёж возвращён на карту, подписка отменена.',
   'notif.list.subscription_status.seat_limit_approved':
       'Лимит помощников увеличен: {seats}',
   'notif.list.subscription_status.seat_limit_rejected':
@@ -156,6 +158,8 @@ const inviteEn = <String, String>{
   'team.limit.request.note': 'Why (optional)',
   'team.limit.request.send': 'Send',
   'team.limit.sent': 'Request sent. We will let you know.',
+  'notif.list.subscription_status.dispute_refund':
+      'Your payment was refunded and the subscription cancelled.',
   'notif.list.subscription_status.seat_limit_approved':
       'Assistant limit raised: {seats}',
   'notif.list.subscription_status.seat_limit_rejected':

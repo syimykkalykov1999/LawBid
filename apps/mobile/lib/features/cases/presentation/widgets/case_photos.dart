@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart'
+    show blurhashStandIn;
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -412,22 +414,19 @@ class CasePhotosStrip extends ConsumerWidget {
         ),
       );
     }
-    // OQ-034: documents open in the system viewer.
+    // OQ-034: a document with its «Скачать» → «Открыть» button (owner
+    // 2026-11-05): kept on the device once downloaded.
     if (!p.isImage) {
       final pdf = p.mime == 'application/pdf';
-      return AppPressable(
-        onTap: () => openCaseDocument(p.url),
-        child: Semantics(
-          button: true,
-          label: t.t('cases.files.open'),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadii.field),
-            child: SizedBox.square(
-              dimension: 112,
-              child: _DocTile(
-                name: '${t.t('cases.files.document')} ${i + 1}'
-                    '${pdf ? '.pdf' : '.docx'}',
-              ),
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadii.field),
+        child: SizedBox.square(
+          dimension: 112,
+          child: _DocTile(
+            name: '${t.t('cases.files.document')} ${i + 1}'
+                '${pdf ? '.pdf' : '.docx'}',
+            action: FileOpenButton.ref(
+              file: FileRef(fileId: p.fileId, mime: p.mime, url: p.url),
             ),
           ),
         ),
@@ -451,6 +450,16 @@ class CasePhotosStrip extends ConsumerWidget {
           width: 112,
           height: 112,
           fit: BoxFit.cover,
+          // R-248: the photo's BlurHash until the preview is decoded.
+          frameBuilder: (_, child, frame, sync) => sync || frame != null
+              ? child
+              : SizedBox.square(
+                  dimension: 112,
+                  child: blurhashStandIn(
+                    p.blurhash,
+                    Theme.of(context).extension<AppColorTokens>()!.skeletonBase,
+                  ),
+                ),
           errorBuilder: (_, __, ___) => Image(
             image: appNetworkImage(p.url, 336),
             width: 112,
@@ -553,9 +562,12 @@ class _VideoTile extends StatelessWidget {
 
 /// OQ-034: a document tile (PDF / Word) with its name.
 class _DocTile extends StatelessWidget {
-  const _DocTile({required this.name});
+  const _DocTile({required this.name, this.action});
 
   final String name;
+
+  /// The tile's button, under the name.
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -570,17 +582,23 @@ class _DocTile extends StatelessWidget {
         children: [
           AppIcon(
             pdf ? AppIcons.pictureAsPdfRounded : AppIcons.descriptionRounded,
-            size: 36,
+            size: action == null ? 36 : 28,
             color: colors.iconTint,
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(
-            name,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: type.caption.copyWith(color: colors.text),
+          Flexible(
+            child: Text(
+              name,
+              maxLines: action == null ? 2 : 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: type.caption.copyWith(color: colors.text),
+            ),
           ),
+          if (action != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            FittedBox(fit: BoxFit.scaleDown, child: action),
+          ],
         ],
       ),
     );
