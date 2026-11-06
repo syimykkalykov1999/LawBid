@@ -39,8 +39,11 @@ function decodeTimeCursor(raw: string): TimeCursor | null {
   return null;
 }
 
-/** A verified attorney with an active account: the same rule as the directory. */
+/** A verified attorney with an active account: the same rule as the directory.
+ * Owner 2026-11-05 (role switch): an attorney who switched the account to
+ * the client role keeps the profile but is not listed until switching back. */
 const LISTED_ATTORNEY = {
+  role: 'attorney',
   status: 'active',
   deleted_at: null,
   attorney_profile: { is: { verification_status: 'verified' } },
@@ -174,7 +177,7 @@ export class PublicDirectoryService {
             ],
           }
         : {}),
-      user: { status: 'active', deleted_at: null },
+      user: { role: 'attorney', status: 'active', deleted_at: null },
       ...(q.state
         ? {
             licenses: {

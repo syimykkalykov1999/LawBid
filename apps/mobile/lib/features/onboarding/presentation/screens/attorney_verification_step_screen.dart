@@ -86,17 +86,23 @@ class _AttorneyVerificationStepScreenState
       AsyncData(:final value) => viewOf(value),
       _ => null,
     };
-    final practices = view == VerificationView.verified
-        ? ref.watch(myPracticesProvider)
-        : null;
+    // Owner 2026-11-05: practices are required once the licence is sent
+    // (pending) too, not only once it is confirmed.
+    final practicesNeeded =
+        view == VerificationView.verified || view == VerificationView.pending;
+    final practices = practicesNeeded ? ref.watch(myPracticesProvider) : null;
     final hasPractices = practices?.value?.isNotEmpty;
     final subscription =
-        hasPractices ?? false ? ref.watch(subscriptionOverviewProvider) : null;
+        (hasPractices ?? false) && view == VerificationView.verified
+            ? ref.watch(subscriptionOverviewProvider)
+            : null;
     final pendingError =
         verification.error ?? practices?.error ?? subscription?.error;
     final loading = view == null ||
-        (view == VerificationView.verified && hasPractices == null) ||
-        (hasPractices ?? false) && subscription?.value == null;
+        (practicesNeeded && hasPractices == null) ||
+        (hasPractices ?? false) &&
+            view == VerificationView.verified &&
+            subscription?.value == null;
 
     if (pendingError != null && loading) {
       return OnboardingScaffold(

@@ -79,4 +79,7 @@ class IoUploadFiles implements UploadFiles {
       // Already gone.
     }
   }
+
+  @override
+  Future<void> forgetOnSignOut() async {}
 }

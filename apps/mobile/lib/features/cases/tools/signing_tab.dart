@@ -6,9 +6,21 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/deals/deal_record_card.dart';
 import 'package:lawbid/features/cases/tools/signing_data.dart';
 import 'package:lawbid/features/cases/tools/signing_sheets.dart';
-import 'package:lawbid/features/cases/tools/template_form_sheet.dart';
 import 'package:lawbid/features/cases/workspace/file_actions.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+
+/// Owner 2026-11-05: the round «+» of the Documents tab asks for a signature.
+Future<void> requestCaseSignature(
+  BuildContext context,
+  WidgetRef ref,
+  String caseId,
+) async {
+  final t = ref.read(translatorProvider);
+  final ok = await showRequestSheet(context, caseId);
+  if ((ok ?? false) && context.mounted) {
+    showAppSnackBar(context, t.t('sign.sent'));
+  }
+}
 
 /// Case tab "Docs": e-signature requests (both sides sign a PDF) and
 /// documents built from templates.
@@ -23,12 +35,6 @@ class SigningTab extends ConsumerStatefulWidget {
 }
 
 class _SigningTabState extends ConsumerState<SigningTab> {
-  Future<void> _request() async {
-    final t = ref.read(translatorProvider);
-    final ok = await showRequestSheet(context, widget.caseId);
-    if ((ok ?? false) && mounted) showAppSnackBar(context, t.t('sign.sent'));
-  }
-
   Future<void> _sign(api.SignRequestDto r) async {
     final t = ref.read(translatorProvider);
     final ok = await showSignSheet(context, caseId: widget.caseId, request: r);
@@ -85,32 +91,6 @@ class _SigningTabState extends ConsumerState<SigningTab> {
       children: [
         // Deal record 2026-10-27: one card, on top of the Docs tab.
         DealRecordCard(caseId: widget.caseId, isAttorney: widget.isAttorney),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenSide,
-            AppSpacing.md,
-            AppSpacing.screenSide,
-            AppSpacing.xs,
-          ),
-          child: Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              AppChip(
-                label: t.t('sign.request'),
-                leading: const AppIcon(AppIcons.editNoteRounded, size: 16),
-                onTap: _request,
-              ),
-              if (widget.isAttorney)
-                AppChip(
-                  label: t.t('docs.from'),
-                  leading:
-                      const AppIcon(AppIcons.descriptionOutlined, size: 16),
-                  onTap: () => showTemplateSheet(context, widget.caseId),
-                ),
-            ],
-          ),
-        ),
         value.when(
           loading: () => const Padding(
             padding: EdgeInsets.all(AppSpacing.lg),
